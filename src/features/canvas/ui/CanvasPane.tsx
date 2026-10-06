@@ -1,221 +1,144 @@
 import "@excalidraw/excalidraw/index.css";
-import { Excalidraw } from "@excalidraw/excalidraw";
+import { convertToExcalidrawElements, Excalidraw } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
-type OnChangeCb = NonNullable<ExcalidrawProps["onChange"]>;
-type ExcalidrawElements = Parameters<OnChangeCb>[0];
-type AppState = Parameters<OnChangeCb>[1];
-type BinaryFiles = Parameters<OnChangeCb>[2];
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { GripVertical, ExternalLink, MessageSquarePlus, ExcalidrawIcon, X } from "../../../shared/ui/icons";
 import type { Canvas } from "../canvas";
-import { canvasElementsToText, upsertCanvas } from "../canvas";
+import { canvasElementsToText, updateCanvas } from "../canvas";
+import "./canvas.css";
 
+type OnChange = NonNullable<ExcalidrawProps["onChange"]>;
+type Scene = { elements: Parameters<OnChange>[0]; appState: Parameters<OnChange>[1]; files: Parameters<OnChange>[2] };
+// Retain edits synchronously across list switches and workspace reparenting.
+const sceneDrafts = new Map<string, Scene>();
 const SAVE_DEBOUNCE_MS = 1500;
 
 type Props = {
   canvas: Canvas;
   focused: boolean;
   onFocus: () => void;
+  onClose?: () => void;
+  onOpenInWorkspace?: () => void;
+  onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onAddToChat: (text: string) => void;
   onTitleChange: (id: string, title: string) => void;
-  onRegisterAppend?: (canvasId: string, fn: (text: string) => void) => void;
+  onRegisterAppend?: (canvasId: string, fn: ((text: string) => void) | null) => void;
 };
 
-function CanvasPaneComponent({ canvas, focused, onFocus, onAddToChat, onTitleChange, onRegisterAppend }: Props) {
+function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorkspace, onPaneDragStart, onAddToChat, onTitleChange, onRegisterAppend }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  const canvasRef = useRef(canvas);
+  canvasRef.current = canvas;
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestDataRef = useRef<{ elements: ExcalidrawElements; appState: AppState; files: BinaryFiles } | null>(null);
-  const [isDark, setIsDark] = useState(
-    () => !document.documentElement.classList.contains("theme-light"),
-  );
+  const latestDataRef = useRef<Scene | null>(null);
+  const [saveError, setSaveError] = useState(false);
+  const [isDark, setIsDark] = useState(() => !document.documentElement.classList.contains("theme-light"));
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(canvas.title);
+  const initialData = useMemo(() => {
+    const draft = sceneDrafts.get(canvas.id);
+    if (draft) return { elements: draft.elements, files: draft.files, appState: { viewBackgroundColor: draft.appState.viewBackgroundColor, currentItemFontFamily: draft.appState.currentItemFontFamily } };
+    try { return JSON.parse(canvas.dataJson); }
+    catch { return { elements: [], appState: {}, files: {} }; }
+  }, [canvas.id]);
 
-  // Track theme changes
   useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(!document.documentElement.classList.contains("theme-light"));
-    });
+    const observer = new MutationObserver(() => setIsDark(!document.documentElement.classList.contains("theme-light")));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
 
-  const scheduleSave = useCallback(() => {
+  const save = useCallback(() => {
+    const data = latestDataRef.current;
+    if (!data) return;
+    latestDataRef.current = null;
+    const dataJson = JSON.stringify({ elements: data.elements, appState: {
+      viewBackgroundColor: data.appState.viewBackgroundColor,
+      currentItemFontFamily: data.appState.currentItemFontFamily,
+    }, files: data.files });
+    void updateCanvas(canvasRef.current.id, { dataJson }).then(() => {
+      if (sceneDrafts.get(canvasRef.current.id) === data) sceneDrafts.delete(canvasRef.current.id);
+      setSaveError(false);
+    }).catch(() => {
+      if (!latestDataRef.current) latestDataRef.current = data;
+      setSaveError(true);
+    });
+  }, []);
+
+  const handleChange = useCallback<OnChange>((elements, appState, files) => {
+    const scene = { elements, appState, files };
+    latestDataRef.current = scene;
+    sceneDrafts.set(canvasRef.current.id, scene);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      const data = latestDataRef.current;
-      if (!data) return;
-      const dataJson = JSON.stringify({
-        elements: data.elements,
-        appState: {
-          viewBackgroundColor: data.appState.viewBackgroundColor,
-          currentItemFontFamily: data.appState.currentItemFontFamily,
-        },
-        files: data.files,
-      });
-      upsertCanvas({ id: canvas.id, title: canvas.title, dataJson, tags: canvas.tags, cwd: canvas.cwd });
-    }, SAVE_DEBOUNCE_MS);
-  }, [canvas.id, canvas.title, canvas.tags, canvas.cwd]);
+    saveTimerRef.current = setTimeout(save, SAVE_DEBOUNCE_MS);
+  }, [save]);
 
-  const handleChange = useCallback(
-    (elements: ExcalidrawElements, appState: AppState, files: BinaryFiles) => {
-      latestDataRef.current = { elements, appState, files };
-      scheduleSave();
-    },
-    [scheduleSave],
-  );
-
-  const onRegisterAppendRef = useRef(onRegisterAppend);
-  onRegisterAppendRef.current = onRegisterAppend;
+  useEffect(() => () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    save();
+  }, [save]);
 
   const appendText = useCallback((text: string) => {
     const api = apiRef.current;
     if (!api) return;
     const existing = api.getSceneElements();
     const maxY = existing.reduce((acc, el) => Math.max(acc, el.y + el.height), 0);
-    const newEl = {
-      type: "text",
-      id: crypto.randomUUID(),
-      x: 40,
-      y: maxY + 40,
-      width: 500,
-      height: 100,
-      angle: 0,
-      strokeColor: "#1e1e1e",
-      backgroundColor: "transparent",
-      fillStyle: "solid" as const,
-      strokeWidth: 1,
-      strokeStyle: "solid" as const,
-      roughness: 1,
-      opacity: 100,
-      groupIds: [],
-      frameId: null,
-      roundness: null,
-      seed: Math.floor(Math.random() * 100000),
-      version: 1,
-      versionNonce: Math.floor(Math.random() * 100000),
-      index: null,
-      isDeleted: false,
-      boundElements: null,
-      updated: Date.now(),
-      link: null,
-      locked: false,
-      text,
-      originalText: text,
-      fontSize: 16,
-      fontFamily: 1,
-      textAlign: "left" as const,
-      verticalAlign: "top" as const,
-      containerId: null,
-      autoResize: true,
-      lineHeight: 1.25,
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    api.updateScene({ elements: [...existing, newEl as any] });
+    const added = convertToExcalidrawElements([{ type: "text", x: 40, y: maxY + 40, text, fontSize: 16, width: 500 }]);
+    api.updateScene({ elements: [...existing, ...added] });
   }, []);
-
-  useEffect(() => {
-    if (!onRegisterAppendRef.current) return;
-    const waitForApi = setInterval(() => {
-      if (!apiRef.current) return;
-      clearInterval(waitForApi);
-      onRegisterAppendRef.current?.(canvas.id, appendText);
-    }, 100);
-    return () => clearInterval(waitForApi);
+  const registerRef = useRef(onRegisterAppend);
+  registerRef.current = onRegisterAppend;
+  const registerApi = useCallback((api: ExcalidrawImperativeAPI) => {
+    apiRef.current = api;
+    registerRef.current?.(canvas.id, appendText);
   }, [canvas.id, appendText]);
+  useEffect(() => () => { registerRef.current?.(canvas.id, null); }, [canvas.id]);
 
   const handleAddToChat = useCallback(() => {
     const api = apiRef.current;
     if (!api) return;
-    const allElements = api.getSceneElements();
-    const appState = api.getAppState();
-    const selectedIds = appState.selectedElementIds ?? {};
-    const selected = Object.keys(selectedIds);
-    const target = selected.length > 0
-      ? allElements.filter((el) => selectedIds[el.id])
-      : allElements;
-    const text = canvasElementsToText(canvas.title, JSON.stringify(target, null, 2));
-    onAddToChat(text);
+    const all = api.getSceneElements();
+    const selectedIds = api.getAppState().selectedElementIds;
+    const selected = all.filter((el) => selectedIds[el.id]);
+    onAddToChat(canvasElementsToText(canvas.title, JSON.stringify(selected.length ? selected : all, null, 2)));
   }, [canvas.title, onAddToChat]);
 
-  const handleTitleBlur = useCallback(() => {
+  const commitTitle = () => {
     setEditingTitle(false);
-    const trimmed = titleDraft.trim() || "Untitled Canvas";
-    if (trimmed !== canvas.title) {
-      onTitleChange(canvas.id, trimmed);
-    }
-  }, [canvas.id, canvas.title, titleDraft, onTitleChange]);
-
-  const parsedData = (() => {
-    try {
-      return JSON.parse(canvas.dataJson);
-    } catch {
-      return { elements: [], appState: {}, files: {} };
-    }
-  })();
+    const title = titleDraft.trim() || "Untitled drawing";
+    if (title !== canvas.title) { save(); onTitleChange(canvas.id, title); }
+  };
 
   return (
-    <div
-      className="flex h-full min-h-0 min-w-0 flex-col"
-      onPointerDown={() => !focused && onFocus()}
-    >
-      {/* Toolbar */}
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[--border] px-3">
+    <div className="loci-canvas flex h-full min-h-0 min-w-0 flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
+      <div className={`flex h-9 shrink-0 select-none items-center gap-1.5 border-b border-stroke px-2 ${onPaneDragStart ? "cursor-grab active:cursor-grabbing touch-none" : ""}`}
+        onPointerDown={(event) => {
+          if (!(event.target as HTMLElement).closest("[data-no-drag]")) onPaneDragStart?.(event);
+        }}>
+        {onPaneDragStart ? <GripVertical className="size-3.5 shrink-0 text-content/35" /> : <ExcalidrawIcon className="size-3.5 shrink-0 text-content/45" />}
+        <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} />
         {editingTitle ? (
-          <input
-            autoFocus
-            className="min-w-0 flex-1 bg-transparent text-sm font-medium text-[--text-1] outline-none"
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onBlur={handleTitleBlur}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
-            }}
-          />
-        ) : (
-          <button
-            className="min-w-0 flex-1 truncate text-left text-sm font-medium text-[--text-1] hover:text-[--text-2]"
-            onDoubleClick={() => {
-              setTitleDraft(canvas.title);
-              setEditingTitle(true);
-            }}
-            title="Double-click to rename"
-          >
-            {canvas.title}
-          </button>
-        )}
-        <button
-          className="shrink-0 rounded px-2 py-1 text-xs text-[--text-3] hover:bg-[--bg-2] hover:text-[--text-1]"
-          onClick={handleAddToChat}
-          title="Add canvas to chat"
-        >
-          Add to Chat
+          <input data-no-drag autoFocus aria-label="Drawing title" className="min-w-0 flex-1 bg-transparent text-xs text-content outline-none" value={titleDraft}
+            onChange={(event) => setTitleDraft(event.target.value)} onBlur={commitTitle}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+              if (event.key === "Escape") { event.preventDefault(); setEditingTitle(false); }
+            }} />
+        ) : <span className="min-w-0 flex-1 truncate text-xs" title="Double-click to rename" onDoubleClick={() => { setTitleDraft(canvas.title); setEditingTitle(true); }}>{canvas.title}</span>}
+        {saveError ? <button data-no-drag className="text-xs text-red-400" onClick={save}>Retry save</button> : null}
+        <button type="button" data-no-drag aria-label="Add drawing to chat" title="Add selected elements or drawing to chat" onClick={handleAddToChat}
+          className="flex h-6 shrink-0 items-center gap-1 rounded px-1.5 text-xs text-content/55 hover:bg-content/10 hover:text-content">
+          <MessageSquarePlus className="size-3.5" /><span>Add to chat</span>
         </button>
+        {onOpenInWorkspace ? <button type="button" data-no-drag aria-label="Open drawing in workspace" title="Open in workspace" onClick={onOpenInWorkspace} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><ExternalLink className="size-3.5" /></button> : null}
+        {onClose ? <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose}
+          className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button> : null}
       </div>
-
-      {/* Canvas */}
-      <div className="min-h-0 flex-1">
-        <Excalidraw
-          key={canvas.id}
-          excalidrawAPI={(api) => { apiRef.current = api; }}
-          initialData={parsedData}
-          onChange={handleChange}
-          theme={isDark ? "dark" : "light"}
-          UIOptions={{
-            canvasActions: {
-              saveAsImage: false,
-              loadScene: false,
-            },
-          }}
-        />
+      <div className="min-h-0 min-w-0 flex-1">
+        <Excalidraw excalidrawAPI={registerApi} initialData={initialData} onChange={handleChange} theme={isDark ? "dark" : "light"}
+          UIOptions={{ canvasActions: { saveAsImage: false, loadScene: false, export: false, toggleTheme: false } }} />
       </div>
     </div>
   );
 }
-
 export const CanvasPane = memo(CanvasPaneComponent);

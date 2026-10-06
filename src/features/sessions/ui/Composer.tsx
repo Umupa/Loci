@@ -104,6 +104,7 @@ import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { SkillPicker } from "../../skills/ui/SkillPicker";
 import { consumeQuoteRequest,type QuoteRequest } from "../model/quoteDraft";
 import { ModelControlPills,ModelPicker } from "./ModelPicker";
+import { ComposerRunner } from "./ComposerRunner";
 import { QuestionForm } from "./QuestionForm";
 
 import { Popover } from "../../../shared/ui/Popover";
@@ -116,7 +117,7 @@ rankNoteFiles,
 type Note,
 type NoteComposerCard,
 } from "../../notes";
-import { loadModelControls,loadNotesEnabled,subscribeModelControls,subscribeNotesEnabled } from "../../settings/model/settings";
+import { loadComposerRunner, subscribeComposerRunner, loadModelControls,loadNotesEnabled,subscribeModelControls,subscribeNotesEnabled } from "../../settings/model/settings";
 import { resolveTabGroupLogo } from "../../workspace/model/tabGroups";
 import { UsageLimitNotice } from "./UsageLimitNotice";
 import { useComposerSkills } from "./useComposerSkills";
@@ -547,6 +548,7 @@ export function Composer({
   children,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const observedFocusToken = useRef<number | undefined>(undefined);
   const boxRef = useRef<HTMLDivElement>(null);
   const plusRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
@@ -577,6 +579,12 @@ export function Composer({
   const [pasteError, setPasteError] = useState<string | null>(null);
   const [fileDrag, setFileDrag] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
+  const runnerEnabled = useSyncExternalStore(subscribeComposerRunner, loadComposerRunner);
+  const [runnerLive, setRunnerLive] = useState(() => busy && loadComposerRunner());
+  useEffect(() => {
+    if (!runnerEnabled) setRunnerLive(false);
+    else if (busy) setRunnerLive(true);
+  }, [busy, runnerEnabled]);
 
   const [operatorSelected, setOperatorSelected] = useState(false);
 
@@ -1149,6 +1157,9 @@ export function Composer({
   );
 
   useEffect(() => {
+    const explicitlyRequested = focusToken !== undefined &&
+      focusToken !== observedFocusToken.current;
+    observedFocusToken.current = focusToken;
     if (!focused || disabled) return;
 
     const composer = ref.current?.closest("[data-composer]");
@@ -1159,7 +1170,8 @@ export function Composer({
     // Inactive workspace tabs stay mounted, so focus can still be sitting in
     // their composer when a new session becomes active. Only preserve focus
     // for another composer that is still visible (for example, a split pane).
-    if (activeComposer && activeComposer !== composer && !activeComposerHidden)
+    if (activeComposer && activeComposer !== composer && !activeComposerHidden &&
+        !explicitlyRequested)
       return;
 
     if (
@@ -2321,7 +2333,9 @@ export function Composer({
             </div>
           </div>
         </div>
-
+        {runnerLive && runnerEnabled ? (
+          <ComposerRunner boxRef={boxRef} cwd={cwd} busy={busy} enabled={enabled} onExited={() => setRunnerLive(false)} />
+        ) : null}
       </div>
     </div>
   );

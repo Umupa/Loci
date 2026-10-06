@@ -131,6 +131,7 @@ it("uses the searchable rail project picker when moving a note", async () => {
     { path: "/work/Fifth", openedAt: 5 },
     { path: "/work/Sixth", openedAt: 6 },
     { path: "/work/Seventh", openedAt: 7 },
+    { path: "/work/Active", openedAt: 0 },
   ];
   saveProjectRailOrder([
     "/work/Fourth",
@@ -143,7 +144,7 @@ it("uses the searchable rail project picker when moving a note", async () => {
     "/work/Active",
   ]);
   savePinnedProjects(["/work/Seventh"]);
-  await render(projects, "/work/Active");
+  await render(projects, "/work/Edefyn");
   await act(async () => projectButton()!.click());
   const menu = document.querySelector('[aria-label="Project picker"]')!;
   const items = [...menu.querySelectorAll<HTMLButtonElement>("button[title]")];
@@ -184,6 +185,7 @@ function projectButton() {
 }
 
 async function chooseProject() {
+  await render(recents, "~");
   const button = projectButton();
   expect(
     button,
@@ -219,7 +221,7 @@ it("moves the existing note and keeps its content when reopened", async () => {
   expect(onClose).not.toHaveBeenCalled();
   await act(async () => root.unmount());
   root = createRoot(container);
-  await render();
+  await render(recents, stored.sourceCwd);
   expect(projectButton()?.textContent).toContain("portognjeeen");
 });
 
@@ -533,4 +535,68 @@ it("clears a failed move error when the saved project is selected again", async 
   expect(stored.sourceCwd).toBe("/work/Edefyn");
   expect(projectButton()?.textContent).toContain("Edefyn");
   expect(container.querySelector('[role="alert"]')).toBeNull();
+});
+
+function noteRows() {
+  return [...container.querySelectorAll<HTMLButtonElement>("li button")].map((button) => button.textContent);
+}
+
+function inputText(input: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function multipleProjects() {
+  const notes: Note[] = [
+    { ...stored, id: "other-project", title: "Other project note", sourceCwd: "/work/portognjeeen" },
+    { ...stored, id: "unassigned", title: "Unassigned note", sourceCwd: undefined },
+    { ...stored, sourceCwd: "/work/Edefyn/" },
+  ];
+  invoke.mockImplementation(async (command: string) => {
+    if (command === "notes_list") return notes.map((note) => ({ ...note }));
+    throw new Error(`Unexpected command: ${command}`);
+  });
+}
+
+it("defaults the notes list and detail to the active project", async () => {
+  multipleProjects();
+  await render();
+  expect(noteRows()).toHaveLength(1);
+  expect(noteRows()[0]).toContain("Plan");
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Plan");
+  expect(container.querySelector('[aria-label^="Notes project filter:"]')).toBeNull();
+});
+
+it("follows project changes automatically without a filter control", async () => {
+  multipleProjects();
+  await render(recents, "~");
+  expect(noteRows()).toHaveLength(3);
+  await render(recents, "/work/portognjeeen");
+  expect(noteRows()).toHaveLength(1);
+  expect(noteRows()[0]).toContain("Other project note");
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Other project note");
+  await render();
+  expect(noteRows()).toHaveLength(1);
+  expect(noteRows()[0]).toContain("Plan");
+});
+
+it("searches only the selected project and does not leave an excluded note open", async () => {
+  multipleProjects();
+  await render();
+  const search = container.querySelector<HTMLInputElement>('[aria-label="Filter notes"]')!;
+  await act(async () => inputText(search, "Other project"));
+  expect(noteRows()).toEqual([]);
+  expect(container.querySelector('[aria-label="Note title"]')).toBeNull();
+  await render(recents, "~");
+  expect(noteRows()).toHaveLength(1);
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Other project note");
+});
+
+it("shows all notes without an active project, and none from other projects in an empty project", async () => {
+  multipleProjects();
+  await render(recents, "~");
+  expect(noteRows()).toHaveLength(3);
+  await render(recents, "/work/Empty");
+  expect(noteRows()).toEqual([]);
+  expect(container.querySelector('[aria-label="Note title"]')).toBeNull();
 });

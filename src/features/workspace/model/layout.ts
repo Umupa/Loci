@@ -27,6 +27,8 @@ export type WorkspaceTab = {
     id: string;
     layout: LayoutNode;
     focusedId: string;
+    /** Project context when a tab contains non-session panes. */
+    cwd?: string;
     /** Explicit tab group; absent means ungrouped. */
     groupId?: string;
 };
@@ -36,6 +38,14 @@ export function leaf(sessionId: string): LayoutNode {
 }
 export function canvasLeaf(canvasId: string): LayoutNode {
     return { type: "leaf", id: canvasId, leafKind: "canvas" };
+}
+export function findLeaf(node: LayoutNode, id: string): Extract<LayoutNode, { type: "leaf" }> | undefined {
+    if (node.type === "leaf") return node.id === id ? node : undefined;
+    for (const child of node.children) {
+        const found = findLeaf(child, id);
+        if (found) return found;
+    }
+    return undefined;
 }
 export function sourceLeaf(noteId: string): LayoutNode {
     return { type: "leaf", id: noteId, leafKind: "source" };

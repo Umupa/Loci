@@ -210,6 +210,16 @@ describe("Composer question focus", () => {
             window.removeEventListener("loci:open-mcp-settings", onOpen);
         }
     });
+    it("mounts the working mascot and responds to its setting live", async () => {
+        const { saveComposerRunner } = await import("../../settings/model/settings");
+        await act(async () => saveComposerRunner(true));
+        await renderComposer(undefined, vi.fn(), true);
+        expect(document.querySelector(".composer-runner")).not.toBeNull();
+        await act(async () => saveComposerRunner(false));
+        expect(document.querySelector(".composer-runner")).toBeNull();
+        await act(async () => saveComposerRunner(true));
+        expect(document.querySelector(".composer-runner")).not.toBeNull();
+    });
     it("reuses MCP discovery on reopen and applies shared settings refreshes", async () => {
         await renderComposer(undefined, vi.fn(), false, 0, "/mcp");
         const textarea = container.querySelector("textarea")!;
@@ -858,6 +868,36 @@ describe("Composer question focus", () => {
         await renderComposer(undefined, vi.fn(), false);
         expect(document.activeElement).toBe(otherInput);
         otherComposer.remove();
+    });
+    it("moves focus from a visible split composer when explicitly requested", async () => {
+        await renderComposer(undefined, vi.fn(), false, 0);
+        const otherComposer = document.createElement("div");
+        otherComposer.setAttribute("data-composer", "");
+        const otherInput = document.createElement("textarea");
+        otherComposer.append(otherInput);
+        document.body.append(otherComposer);
+        try {
+            otherInput.focus();
+            expect(document.activeElement).toBe(otherInput);
+            await renderComposer(undefined, vi.fn(), false, 1);
+            expect(document.activeElement).toBe(container.querySelector("textarea"));
+        } finally {
+            otherComposer.remove();
+        }
+    });
+    it("focuses a newly mounted split composer after an explicit split request", async () => {
+        const otherComposer = document.createElement("div");
+        otherComposer.setAttribute("data-composer", "");
+        const otherInput = document.createElement("textarea");
+        otherComposer.append(otherInput);
+        document.body.append(otherComposer);
+        try {
+            otherInput.focus();
+            await renderComposer(undefined, vi.fn(), false, 1);
+            expect(document.activeElement).toBe(container.querySelector("textarea"));
+        } finally {
+            otherComposer.remove();
+        }
     });
     it("takes focus from a composer in a hidden session", async () => {
         const hiddenSession = document.createElement("div");

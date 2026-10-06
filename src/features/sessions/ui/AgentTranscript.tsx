@@ -22,7 +22,7 @@ CircleDashed,
 Copy,
 FilePlusCorner,
 Minus,
-Palette,
+ExcalidrawIcon,
 Pencil,
 PenLine,
 Search,
@@ -1427,7 +1427,7 @@ function SaveToCanvasButton({
         {saved ? (
           <Check className="size-3.5" strokeWidth={1.75} />
         ) : (
-          <Palette className="size-3.5" strokeWidth={1.75} />
+          <ExcalidrawIcon className="size-3.5" strokeWidth={1.75} />
         )}
       </button>
       {error && (

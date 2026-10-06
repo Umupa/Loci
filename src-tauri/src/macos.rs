@@ -24,7 +24,10 @@
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::ffi::{c_char, c_int, c_void, OsStr};
+#[cfg(debug_assertions)]
+use std::ffi::OsStr;
+use std::ffi::{c_char, c_int, c_void};
+#[cfg(debug_assertions)]
 use std::path::{Component, Path};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -725,6 +728,7 @@ fn escape_plist_text(value: &str) -> String {
 #[cfg(debug_assertions)]
 fn dev_bundle_plist(app_name: &str) -> Vec<u8> {
     let app_name = escape_plist_text(app_name);
+    let app_version = env!("CARGO_PKG_VERSION");
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -747,9 +751,9 @@ fn dev_bundle_plist(app_name: &str) -> Vec<u8> {
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.75</string>
+	<string>{app_version}</string>
 	<key>CFBundleVersion</key>
-	<string>0.1.75.5</string>
+	<string>{app_version}</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>NSHighResolutionCapable</key>
@@ -761,7 +765,7 @@ fn dev_bundle_plist(app_name: &str) -> Vec<u8> {
     .into_bytes()
 }
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 mod tests {
     use super::*;
     use std::path::{Path, PathBuf};
@@ -816,5 +820,16 @@ mod tests {
         let plist = String::from_utf8(dev_bundle_plist("Loci Dev")).unwrap();
         assert!(plist.contains("<string>Loci Dev</string>"));
         assert!(!plist.contains("<string>Loci</string>"));
+    }
+
+    #[test]
+    fn dev_bundle_versions_match_the_package_version() {
+        let plist = String::from_utf8(dev_bundle_plist("Loci")).unwrap();
+        for key in ["CFBundleShortVersionString", "CFBundleVersion"] {
+            assert!(plist.contains(&format!(
+                "<key>{key}</key>\n\t<string>{}</string>",
+                env!("CARGO_PKG_VERSION")
+            )));
+        }
     }
 }

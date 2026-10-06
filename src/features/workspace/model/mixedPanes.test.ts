@@ -1,0 +1,51 @@
+import { describe, expect, it } from "vitest";
+import { newSession } from "../../sessions/model/session";
+import { canvasLeaf, findLeaf, layoutLeaves, leaf, leafIds, newTab, placeLayout, setSplitRatio, sourceLeaf, type WorkspaceTab } from "./layout";
+import { applyDetachPaneToTab, applyMoveWorkspacePane, applyPlaceTabOnPane, filterTabsForProject } from "./workspaceTabGroups";
+import { collectWorkspaceSnapshot, hydrateWorkspaceSnapshot } from "./workspaceSnapshot";
+
+function canvasTab(): WorkspaceTab {
+  return { ...newTab("drawing"), id: "drawing-tab", cwd: "/project", layout: canvasLeaf("drawing") };
+}
+
+describe("mixed workspace panes", () => {
+  it("lists a canvas-only tab in its project without a fabricated session", () => {
+    expect(filterTabsForProject([canvasTab()], [], "/project")).toHaveLength(1);
+    expect(filterTabsForProject([canvasTab()], [], "/other")).toHaveLength(0);
+  });
+
+  it("moves a canvas tab beside a chat, resizes it, and detaches it with its type and project intact", () => {
+    const session = { ...newSession("codex", "/project"), id: "chat" };
+    const chatTab = { ...newTab(session.id), id: "chat-tab" };
+    const merged = applyPlaceTabOnPane({ tabs: [chatTab, canvasTab()], sessions: [session], sourceTabId: "drawing-tab", targetId: "chat", edge: "right", replaceTarget: false })!;
+    expect(layoutLeaves(merged.tabs[0].layout).map((pane) => pane.kind)).toEqual(["session", "canvas"]);
+    const layout = merged.tabs[0].layout;
+    expect(layout.type).toBe("split");
+    const resized = setSplitRatio(layout, layout.id, 0, 0.35);
+    expect(layoutLeaves(resized)[1].rect.w).toBeCloseTo(0.65);
+    const detached = applyDetachPaneToTab({ tabs: [{ ...merged.tabs[0], layout: resized }], paneId: "drawing", targetTabId: "chat-tab", position: "after" })!;
+    expect(detached.tabs[1].layout).toEqual(canvasLeaf("drawing"));
+    expect(detached.tabs[1].cwd).toBe("/project");
+    expect(filterTabsForProject(detached.tabs, [session], "/project")).toHaveLength(2);
+  });
+
+  it.each([canvasLeaf("drawing"), sourceLeaf("drawing")])("moves a non-session pane between tabs without replacing its kind: %j", (incoming) => {
+    const source = { ...canvasTab(), layout: placeLayout(incoming, leaf("left"), "drawing", "left") };
+    const target = { ...newTab("right"), id: "target", cwd: "/project" };
+    const moved = applyMoveWorkspacePane([source, target], "drawing", "right", "bottom")!;
+    expect(leafIds(moved[0].layout)).toEqual(["left"]);
+    expect(findLeaf(moved[1].layout, "drawing")).toEqual(incoming);
+    const reordered = applyMoveWorkspacePane(moved, "drawing", "right", "left")!;
+    expect(findLeaf(reordered[1].layout, "drawing")).toEqual(incoming);
+  });
+
+  it("round-trips mixed panes and canvas-only tabs without hydrating fake conversations", () => {
+    const session = { ...newSession("codex", "/project"), id: "chat" };
+    const mixed = { ...newTab("chat"), cwd: "/project", layout: placeLayout(leaf("chat"), sourceLeaf("source"), "chat", "right") };
+    const snapshot = collectWorkspaceSnapshot([mixed, canvasTab()], [session], "drawing-tab", "/project", new Map());
+    const resumed = hydrateWorkspaceSnapshot(JSON.parse(JSON.stringify(snapshot)), new Map())!;
+    expect(resumed.tabs.map((tab) => tab.layout)).toEqual([mixed.layout, canvasLeaf("drawing")]);
+    expect(resumed.sessions.map((entry) => entry.id)).toEqual(["chat"]);
+    expect(resumed.tabs[1].cwd).toBe("/project");
+  });
+});

@@ -1,4 +1,4 @@
-import { closeLeaf, leaf, leafIds, placeLayout, placePane, replacePaneWithLayout, replaceLeafId, type PaneEdge, type WorkspaceTab, } from "./layout";
+import { closeLeaf, findLeaf, leaf, leafIds, movePane, placeLayout, placePane, replacePaneWithLayout, replaceLeafId, type PaneEdge, type WorkspaceTab, } from "./layout";
 import { projectName } from "../../../shared/lib/paths";
 import { sameProjectPath } from "../../projects/model/recents";
 import { type Session, } from "../../sessions/model/session";
@@ -8,7 +8,7 @@ export function workspaceTabCwd(tab: WorkspaceTab, sessions: readonly Pick<Sessi
         if (session?.cwd && session.cwd !== "~")
             return session.cwd;
     }
-    return null;
+    return tab.cwd && tab.cwd !== "~" ? tab.cwd : null;
 }
 export function focusedWorkspaceTabCwd(tab: WorkspaceTab, sessions: readonly Pick<Session, "id" | "cwd">[]): string | null {
     const session = sessions.find((entry) => entry.id === tab.focusedId);
@@ -216,6 +216,7 @@ export function applyPlaceTabOnPane({ tabs, sessions, sourceTabId, targetId, edg
         : placeLayout(target.layout, source.layout, targetId, edge);
     const merged: WorkspaceTab = {
         ...target,
+        cwd: workspaceTabCwd(target, sessions) ?? source.cwd,
         layout,
         focusedId: source.focusedId,
     };
@@ -268,13 +269,32 @@ export function applyDetachPaneToTab({ tabs, paneId, targetTabId, position, crea
     const detached: WorkspaceTab = {
         kind: "session",
         id: createTabId(),
-        layout: leaf(paneId),
+        layout: findLeaf(source.layout, paneId)!,
         focusedId: paneId,
+        ...(source.cwd ? { cwd: source.cwd } : {}),
         ...(keepsSourceGroup ? { groupId: source.groupId } : {}),
     };
     const nextTabs = withoutDetached.slice();
     nextTabs.splice(insertAt, 0, detached);
     return { tabs: nextTabs, activeTabId: detached.id, focusedId: paneId };
+}
+/** Move an existing pane without interpreting its id as a session id. */
+export function applyMoveWorkspacePane(tabs: WorkspaceTab[], paneId: string, targetId: string, edge: PaneEdge): WorkspaceTab[] | null {
+    const source = tabs.find((tab) => findLeaf(tab.layout, paneId));
+    const target = tabs.find((tab) => findLeaf(tab.layout, targetId));
+    if (!source || !target || paneId === targetId) return null;
+    if (source.id === target.id) {
+        return tabs.map((tab) => tab.id === source.id
+            ? { ...tab, layout: movePane(tab.layout, paneId, targetId, edge), focusedId: paneId } : tab);
+    }
+    const incoming = findLeaf(source.layout, paneId)!;
+    const remaining = closeLeaf(source, paneId);
+    return tabs.flatMap((tab) => {
+        if (tab.id === source.id) return remaining ? [remaining] : [];
+        if (tab.id === target.id) return [{ ...tab, cwd: tab.cwd ?? source.cwd,
+            layout: placeLayout(tab.layout, incoming, targetId, edge), focusedId: paneId }];
+        return [tab];
+    });
 }
 export function isGroupableProject(project: string | null): project is string {
     return !!project && project !== "~";

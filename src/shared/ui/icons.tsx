@@ -1,4 +1,5 @@
 /** Hugeicons chrome set. Glyphs are deep-imported so the 5MB catalog is not bundled. */
+export { ExcalidrawIcon } from "./ExcalidrawIcon";
 import { HugeiconsIcon, type HugeiconsIconProps, type IconSvgElement, } from "@hugeicons/react";
 import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
 import AddSquareIcon from "@hugeicons/core-free-icons/AddSquareIcon";

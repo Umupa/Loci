@@ -1,5 +1,5 @@
 import { markTurnInterrupted, type ResumedWorkspace } from "../../sessions/model/inFlight";
-import { leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
+import { layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
 import { pathKey } from "../../../shared/lib/paths";
 import { reconcileProjectReturn, type ProjectReturnMemory } from "../../projects/model/projectReturn";
 import { HARNESSES, RUNTIME_MODES, newSession, type HarnessId, type RuntimeMode, type Session } from "../../sessions/model/session";
@@ -97,7 +97,8 @@ export function hydrateWorkspaceSnapshot(snapshot: WorkspaceSnapshot, loaded: Ma
         take(stub.id);
     const tabs: WorkspaceTab[] = [];
     for (const tab of parsed.tabs) {
-        for (const id of leafIds(tab.layout)) {
+        for (const { id, kind } of layoutLeaves(tab.layout)) {
+            if (kind !== "session") continue;
             if (take(id))
                 continue;
             sessions.set(id, sessionFromStub({
@@ -221,7 +222,7 @@ function sanitizeLayout(raw: unknown): LayoutNode | null {
     const value = raw as Record<string, unknown>;
     if (value.type === "leaf") {
         return typeof value.id === "string" && value.id
-            ? { type: "leaf", id: value.id }
+            ? { type: "leaf", id: value.id, ...(value.leafKind === "canvas" || value.leafKind === "source" ? { leafKind: value.leafKind } : {}) }
             : null;
     }
     if (value.type !== "split" || typeof value.id !== "string" || !value.id) {
@@ -275,5 +276,5 @@ function sanitizeTab(raw: unknown): WorkspaceTab | null {
  const layout = sanitizeLayout(value.layout);
  if (!layout) return null;
  const ids = leafIds(layout);
- return {kind:"session", id:value.id, layout, focusedId: typeof value.focusedId === "string" && ids.includes(value.focusedId) ? value.focusedId : ids[0], ...(typeof value.groupId === "string" && value.groupId ? {groupId:value.groupId} : {})};
+ return {kind:"session", id:value.id, layout, focusedId: typeof value.focusedId === "string" && ids.includes(value.focusedId) ? value.focusedId : ids[0], ...(typeof value.cwd === "string" && value.cwd ? {cwd:value.cwd} : {}), ...(typeof value.groupId === "string" && value.groupId ? {groupId:value.groupId} : {})};
 }

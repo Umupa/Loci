@@ -43,7 +43,7 @@ import {
 } from "../noteImages";
 import { projectKey, projectName } from "../../../shared/lib/paths";
 import { IS_MAC } from "../../../platform/tauri/platform";
-import { looksLikeProject, type RecentProject } from "../../projects/model/recents";
+import { looksLikeProject, sameProjectPath, type RecentProject } from "../../projects/model/recents";
 import {
   loadTabGroupColors,
   loadTabGroupCustomColors,
@@ -117,6 +117,7 @@ export function NotesView({
   const [loading, setLoading] = useState(() => peekNotes() === null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const projectCwd = cwd && looksLikeProject(cwd) ? cwd : undefined;
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     const cached = peekNotes();
     return (
@@ -171,10 +172,12 @@ export function NotesView({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const scopedNotes = useMemo(() => notes.filter((note) => !projectCwd ||
+    !!note.sourceCwd && sameProjectPath(note.sourceCwd, projectCwd)), [notes, projectCwd]);
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return notes;
-    return notes.filter((note) => {
+    if (!needle) return scopedNotes;
+    return scopedNotes.filter((note) => {
       const project = noteSourceProject(note.sourceCwd)?.toLowerCase() ?? "";
       return (
         note.title.toLowerCase().includes(needle) ||
@@ -184,11 +187,11 @@ export function NotesView({
         project.includes(needle)
       );
     });
-  }, [notes, query]);
+  }, [scopedNotes, query]);
 
   const selected =
     visible.find((note) => note.id === selectedId) ??
-    notes.find((note) => note.id === selectedId) ??
+    visible[0] ??
     null;
 
   const onCreate = async () => {

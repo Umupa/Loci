@@ -18,6 +18,8 @@ export type CanvasUpsert = {
   cwd?: string;
 };
 
+export const CANVASES_CHANGED_EVENT = "loci-canvases-changed";
+
 let cache: Canvas[] | null = null;
 
 export function peekCanvases(): Canvas[] | null {
@@ -49,7 +51,24 @@ export async function upsertCanvas(canvas: CanvasUpsert): Promise<Canvas> {
       cache = [result, ...cache];
     }
   }
+  window.dispatchEvent(new Event(CANVASES_CHANGED_EVENT));
   return result;
+}
+
+// Preserve scene and title edits in order when a pane is moved or reopened.
+const pendingUpdates = new Map<string, Promise<Canvas>>();
+export function updateCanvas(id: string, changes: Partial<Omit<CanvasUpsert, "id">>): Promise<Canvas> {
+  const previous = pendingUpdates.get(id);
+  const persist = async () => {
+    const canvas = await getCanvas(id);
+    if (!canvas) throw new Error("Drawing no longer exists.");
+    return upsertCanvas({ ...canvas, ...changes });
+  };
+  const pending = (previous ?? Promise.resolve()).then(persist, persist).finally(() => {
+    if (pendingUpdates.get(id) === pending) pendingUpdates.delete(id);
+  });
+  pendingUpdates.set(id, pending);
+  return pending;
 }
 
 export async function deleteCanvas(id: string): Promise<void> {
@@ -62,7 +81,7 @@ export async function deleteCanvas(id: string): Promise<void> {
 export function createEmptyCanvas(cwd?: string): CanvasUpsert {
   return {
     id: crypto.randomUUID(),
-    title: "Untitled Canvas",
+    title: "Untitled drawing",
     dataJson: JSON.stringify({ elements: [], appState: {}, files: {} }),
     tags: [],
     cwd,

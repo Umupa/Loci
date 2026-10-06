@@ -43,7 +43,7 @@ import { loadTabGroupColors, loadTabGroupCustomColors, loadTabGroupLabels, loadT
 import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { ProjectLogoIcon } from "../../projects/ui/ProjectLogoIcon";
 import { ProjectMascot } from "../../projects/ui/ProjectMascot";
-import { filterKeybindings, currentKeybindings, loadClaudeHooks, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, saveClaudeHooks, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
+import { filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
 import { cachedNotificationPermission, loadNotificationsEnabled, openNotificationSettings, probeNotificationPermission, requestNotificationPermission, saveNotificationsEnabled, type NotificationPermission, } from "../../notifications/model/notifications";
 import { SkillsPage } from "../../skills/ui/SkillsPage";
@@ -307,6 +307,7 @@ function GeneralPage({}: {}) {
     </>);
 }
 function ChatPage() {
+    const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
     const [transcriptLayout, setTranscriptLayout] = useState<TranscriptLayout>(loadTranscriptLayout);
     const [transcriptAnchor, setTranscriptAnchor] = useState(loadTranscriptAnchor);
     const [followUpBehavior, setFollowUpBehavior] = useState<FollowUpBehavior>(loadFollowUpBehavior);
@@ -355,6 +356,9 @@ function ChatPage() {
             { value: "queue", label: "Queue" },
             { value: "steer", label: "Steer" },
         ]} onChange={onFollowUpBehavior}/>
+        </Row>
+        <Row id="composer-mascot" label="Composer mascot" description="While an agent is working, the project mascot runs along the composer, jumps obstacles and occasionally collects a coin.">
+          <Toggle label="Composer mascot" on={composerRunner} onChange={(next) => { saveComposerRunner(next); setComposerRunner(next); }}/>
         </Row>
         <Row id="model-controls" label="Model controls" description="Show model options beside the picker instead of inside the model menu.">
           <Segmented label="Model controls" value={modelControls} options={[

@@ -135,18 +135,25 @@ fn get_canvas(conn: &Connection, id: &str) -> rusqlite::Result<Option<Canvas>> {
 }
 
 fn upsert_canvas(conn: &Connection, canvas: &CanvasUpsert) -> rusqlite::Result<Canvas> {
-    let title = canvas.title.trim().chars().take(TITLE_MAX).collect::<String>();
+    let title = canvas
+        .title
+        .trim()
+        .chars()
+        .take(TITLE_MAX)
+        .collect::<String>();
     let tags = normalize_tags(&canvas.tags);
     let tags_json = serde_json::to_string(&tags)
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-    let cwd = canvas.cwd.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let cwd = canvas
+        .cwd
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     let now = now_millis();
 
     let existing = get_canvas(conn, &canvas.id)?;
     let (created_at, updated_at) = if let Some(ref ex) = existing {
-        let changed = title != ex.title
-            || canvas.data_json != ex.data_json
-            || tags != ex.tags;
+        let changed = title != ex.title || canvas.data_json != ex.data_json || tags != ex.tags;
         (ex.created_at, if changed { now } else { ex.updated_at })
     } else {
         (now, now)

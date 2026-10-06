@@ -238,6 +238,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "effort thinking reasoning fast service tier model picker composer",
     },
     {
+        id: "composer-mascot",
+        section: "chat",
+        label: "Composer mascot",
+        keywords: "runner animation coin pixel",
+    },
+    {
         id: "agent-clis",
         section: "providers",
         label: "Agent CLIs",
@@ -471,6 +477,22 @@ export function subscribeModelControls(onStoreChange: () => void) {
     window.addEventListener(MODEL_CONTROLS_CHANGE_EVENT, onStoreChange);
     return () => window.removeEventListener(MODEL_CONTROLS_CHANGE_EVENT, onStoreChange);
 }
+const COMPOSER_RUNNER_KEY = "loci.composerRunner";
+export const COMPOSER_RUNNER_DEFAULT = true;
+export const COMPOSER_RUNNER_CHANGE_EVENT = "loci:composer-runner-change";
+export function loadComposerRunner(): boolean {
+    return readFlag(COMPOSER_RUNNER_KEY) ?? COMPOSER_RUNNER_DEFAULT;
+}
+export function saveComposerRunner(value: boolean) {
+    writeFlag(COMPOSER_RUNNER_KEY, value);
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<boolean>(COMPOSER_RUNNER_CHANGE_EVENT, { detail: value }));
+}
+export function subscribeComposerRunner(onStoreChange: () => void) {
+    if (typeof window === "undefined") return () => {};
+    window.addEventListener(COMPOSER_RUNNER_CHANGE_EVENT, onStoreChange);
+    return () => window.removeEventListener(COMPOSER_RUNNER_CHANGE_EVENT, onStoreChange);
+}
+
 const NOTES_ENABLED_KEY = "loci.notesEnabled";
 export const NOTES_ENABLED_DEFAULT = true;
 /** Fired on `window` when the Notes UI setting flips. */

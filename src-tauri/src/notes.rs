@@ -360,8 +360,17 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
              SET title = ?1, body = ?2, tags_json = ?3, updated_at = ?4,
                  source_cwd = ?6, is_source = ?7, source_url = ?8, source_kind = ?9
              WHERE id = ?5",
-            params![title, body, tags_json, updated_at, note.id, project_cwd,
-                    is_source as i64, source_url, source_kind],
+            params![
+                title,
+                body,
+                tags_json,
+                updated_at,
+                note.id,
+                project_cwd,
+                is_source as i64,
+                source_url,
+                source_kind
+            ],
         )?;
         Ok(Note {
             id: note.id.clone(),
@@ -535,6 +544,9 @@ mod tests {
                 tags: Vec::new(),
                 source_session_id: None,
                 source_cwd: None,
+                is_source: false,
+                source_url: None,
+                source_kind: None,
             },
         )
         .unwrap()
@@ -620,6 +632,9 @@ mod tests {
                 tags: vec!["Ideas".into(), "project docs".into(), "ideas".into()],
                 source_session_id: Some("sess-1".into()),
                 source_cwd: Some("/tmp/a".into()),
+                is_source: false,
+                source_url: None,
+                source_kind: None,
             },
         )
         .unwrap();
@@ -657,6 +672,9 @@ mod tests {
             tags: vec!["ideas".into()],
             source_session_id: Some("original-session".into()),
             source_cwd: Some("/work/Edefyn".into()),
+            is_source: false,
+            source_url: None,
+            source_kind: None,
         };
         let original = upsert_note(&conn, &input).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(5));
@@ -669,6 +687,9 @@ mod tests {
                 tags: vec![],
                 source_session_id: None,
                 source_cwd: None,
+                is_source: false,
+                source_url: None,
+                source_kind: None,
             },
         )
         .unwrap();

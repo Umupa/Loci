@@ -34,6 +34,13 @@ afterEach(() => {
 });
 describe.each([
     [
+        "loci.composerRunner",
+        settings.loadComposerRunner,
+        settings.saveComposerRunner,
+        true,
+        "loci:composer-runner-change",
+    ],
+    [
         "loci.tabAnimationsEnabled",
         settings.loadTabAnimationsEnabled,
         settings.saveTabAnimationsEnabled,

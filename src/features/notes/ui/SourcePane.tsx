@@ -1,16 +1,18 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { Note } from "../notes";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
-import { Globe, X } from "../../../shared/ui/icons";
+import { Globe, GripVertical, X } from "../../../shared/ui/icons";
 
 type Props = {
   note: Note;
   focused: boolean;
   onFocus: () => void;
+  onClose: () => void;
+  onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onAddToChat: (text: string) => void;
 };
 
-function SourcePaneComponent({ note, focused, onFocus, onAddToChat }: Props) {
+function SourcePaneComponent({ note, focused, onFocus, onClose, onPaneDragStart, onAddToChat }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
 
@@ -55,28 +57,32 @@ function SourcePaneComponent({ note, focused, onFocus, onAddToChat }: Props) {
       onPointerDown={() => !focused && onFocus()}
     >
       {/* Toolbar */}
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[--border] px-3">
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-[--text-1]">
+      <div className={`flex h-9 shrink-0 select-none items-center gap-1.5 border-b border-stroke px-2 ${onPaneDragStart ? "cursor-grab active:cursor-grabbing touch-none" : ""}`} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("[data-no-drag]")) onPaneDragStart?.(event); }}>
+        {onPaneDragStart ? <GripVertical className="size-3.5 text-content/35" /> : <Globe className="size-3.5 text-content/45" />}
+        <span className="min-w-0 flex-1 truncate text-xs text-content">
           {note.title}
         </span>
         {note.sourceUrl ? (
           <a
+            data-no-drag
             href={note.sourceUrl}
             target="_blank"
             rel="noreferrer"
-            className="shrink-0 rounded p-1 text-content/40 hover:bg-fill-2 hover:text-content"
+            className="shrink-0 rounded p-1 text-content/40 hover:bg-content/10 hover:text-content"
             title={note.sourceUrl}
           >
             <Globe className="size-3.5" strokeWidth={1.75} />
           </a>
         ) : null}
         <button
-          className="shrink-0 rounded px-2 py-1 text-xs text-[--text-3] hover:bg-[--bg-2] hover:text-[--text-1]"
+          data-no-drag
+          className="shrink-0 rounded px-2 py-1 text-xs text-content/55 hover:bg-content/10 hover:text-content"
           onClick={handleAddAllToChat}
           title="Add full source to chat"
         >
           Add to Chat
         </button>
+        <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose} className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button>
       </div>
 
       {/* Content */}
@@ -90,9 +96,9 @@ function SourcePaneComponent({ note, focused, onFocus, onAddToChat }: Props) {
           className="pointer-events-auto absolute z-50 -translate-x-1/2 -translate-y-full"
           style={{ left: selection.x, top: selection.y }}
         >
-          <div className="flex items-center gap-1 rounded-md border border-[--border] bg-[--bg-1] px-1 py-0.5 shadow-md">
+          <div className="flex items-center gap-1 rounded-md border border-stroke bg-background-base px-1 py-0.5 shadow-md">
             <button
-              className="rounded px-2 py-0.5 text-xs text-content hover:bg-fill-2"
+              className="rounded px-2 py-0.5 text-xs text-content hover:bg-content/10"
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleSelectionAddToChat}
             >
