@@ -24,7 +24,7 @@ describe("layoutLeaves", () => {
     it("keeps a single pane filling the tab", () => {
         const leaves = layoutLeaves(leaf("a"));
         expect(leaves).toEqual([
-            { id: "a", rect: { x: 0, y: 0, w: 1, h: 1 }, axis: "x" },
+            { id: "a", kind: "session", rect: { x: 0, y: 0, w: 1, h: 1 }, axis: "x" },
         ]);
     });
     it("places a right split side by side without changing leaf ids", () => {

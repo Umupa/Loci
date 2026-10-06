@@ -1,6 +1,7 @@
 use tauri::Manager;
 
 mod account_identity;
+mod canvas;
 mod chat_background;
 mod control;
 pub mod control_cli;
@@ -260,6 +261,10 @@ pub fn run() {
             mcp::mcp_discover,
             #[cfg(target_os = "macos")]
             menu::keybindings_set_overrides,
+            canvas::canvas_list,
+            canvas::canvas_get,
+            canvas::canvas_upsert,
+            canvas::canvas_delete,
             notes::notes_list,
             notes::notes_get,
             notes::notes_upsert,

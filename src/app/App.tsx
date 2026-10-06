@@ -32,6 +32,7 @@ import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
 import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
 import { ADD_NOTE_TO_CHAT_EVENT, type NoteComposerCard } from "../features/notes";
+import { createEmptyCanvas, loadCanvases, upsertCanvas, type Canvas } from "../features/canvas/canvas";
 import { synchronizeProjectLocation, rememberProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
 import { looksLikeProject, replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
@@ -79,6 +80,7 @@ function Workspace(boot: BootWorkspace) {
   const [sessionOrder, setSessionOrder] = useState<readonly string[]>([]);
   const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
   const [transcriptPool] = useState(() => new TranscriptPool());
+  const [canvases, setCanvases] = useState<Canvas[]>([]);
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
   const seenSignInRequests = useRef(new Set(initial.sessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
   const workspaceRef = useRef<ReturnType<typeof useAppWorkspace> | null>(null);
@@ -196,6 +198,7 @@ function Workspace(boot: BootWorkspace) {
   useEffect(() => { if (providerSignIn && providerSignIn.sessionId !== active?.id) setProviderSignIn(null); }, [active?.id, providerSignIn]);
   useEffect(() => { void rememberProjectLocation(workspace.projectCwd); }, [workspace.projectCwd]);
   useEffect(() => { if (!notesEnabled && surface === "notes") closeSurface(); }, [notesEnabled, surface, closeSurface]);
+  useEffect(() => { void loadCanvases().then(setCanvases); }, []);
   useEffect(() => {
     const onAdd = (event: Event) => {
       const card = (event as CustomEvent<NoteComposerCard>).detail;
@@ -297,6 +300,12 @@ function Workspace(boot: BootWorkspace) {
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
+          canvases={canvases}
+          onOpenCanvas={(id) => workspace.openCanvas(id)}
+          onNewCanvas={() => {
+            const c = createEmptyCanvas(workspace.projectCwd);
+            void upsertCanvas(c).then((saved) => { setCanvases((cur) => [saved, ...cur]); workspace.openCanvas(saved.id); });
+          }}
           projectRailOpen={projectRailOpen} compactProjectRail={compactProjectRail} titleBarAbove={compactTitleBar} onToggleProjectRail={toggleProjectRail}
           unseenFinishedIds={unseenFinishedIds} settingsOpen={surface === "settings"} settingsSection={settingsSection} onOpenSettings={() => openSettings()}
           onOpenNotificationSettings={notificationsSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={() => setSurface(settingsReturn.current)} />
@@ -312,7 +321,19 @@ function Workspace(boot: BootWorkspace) {
                 {workspace.tabs.map((tab) => <div key={tab.id} aria-hidden={tab.id !== workspace.activeTabId} className={tab.id === workspace.activeTabId ? "absolute inset-0 flex h-full min-h-0 flex-col" : "hidden"}>
                   <PaneTree {...sessionPaneProps} visible={surface === "chat" && tab.id === workspace.activeTabId} layout={tab.layout} sessions={sessions}
                     focusedId={surface === "chat" && tab.id === workspace.activeTabId ? tab.focusedId : ""} composerFocused={surface === "chat"}
-                    composerFocusToken={workspace.composerFocusToken} onRatio={workspace.ratio} onMovePane={(...args) => void workspace.placeSession(...args)} onDetachPane={workspace.detachPane} transcriptPool={transcriptPool} />
+                    composerFocusToken={workspace.composerFocusToken} onRatio={workspace.ratio} onMovePane={(...args) => void workspace.placeSession(...args)} onDetachPane={workspace.detachPane} transcriptPool={transcriptPool}
+                    canvases={canvases}
+                    onCanvasFocus={(id) => workspace.focusPane(id)}
+                    onCanvasAddToChat={(text) => {
+                      const view = workspaceRef.current!;
+                      const session = { ...newDefaultSession(view.projectCwdRef.current, view.activeSession?.runtimeMode), title: "Canvas context" };
+                      view.addSession({ ...session, noteCard: { id: crypto.randomUUID(), slug: "canvas-context", title: "Canvas context", body: text } });
+                    }}
+                    onCanvasTitleChange={(id, title) => {
+                      const canvas = canvases.find((c) => c.id === id);
+                      if (!canvas) return;
+                      void upsertCanvas({ ...canvas, title }).then((updated) => setCanvases((current) => current.map((c) => c.id === id ? updated : c)));
+                    }} />
                 </div>)}
               </div>
             </main>

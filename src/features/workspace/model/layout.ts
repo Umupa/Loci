@@ -13,6 +13,8 @@ export type FocusDir = "left" | "right" | "up" | "down";
 export type LayoutNode = {
     type: "leaf";
     id: string;
+    /** When absent, the leaf is a session pane. */
+    leafKind?: "canvas";
 } | {
     type: "split";
     id: string;
@@ -31,6 +33,9 @@ export type WorkspaceTab = {
 const MIN_SIZE = 0.08;
 export function leaf(sessionId: string): LayoutNode {
     return { type: "leaf", id: sessionId };
+}
+export function canvasLeaf(canvasId: string): LayoutNode {
+    return { type: "leaf", id: canvasId, leafKind: "canvas" };
 }
 export function newTab(sessionId: string): WorkspaceTab {
     return {
@@ -110,7 +115,7 @@ export function replaceLeafId(node: LayoutNode, fromId: string, toId: string): L
     if (fromId === toId)
         return node;
     if (node.type === "leaf") {
-        return node.id === fromId ? leaf(toId) : node;
+        return node.id === fromId ? { ...node, id: toId } : node;
     }
     return {
         ...node,
@@ -195,6 +200,7 @@ export type LayoutRect = {
 };
 export type LayoutLeaf = {
     id: string;
+    kind: "session" | "canvas";
     rect: LayoutRect;
     axis: "x" | "y";
 };
@@ -208,7 +214,7 @@ export type LayoutSash = {
 export function layoutLeaves(node: LayoutNode, rect: LayoutRect = { x: 0, y: 0, w: 1, h: 1 }, parentDir?: SplitDir): LayoutLeaf[] {
     const axis = parentDir === "down" ? "y" : "x";
     if (node.type === "leaf")
-        return [{ id: node.id, rect, axis }];
+        return [{ id: node.id, kind: node.leafKind === "canvas" ? "canvas" : "session", rect, axis }];
     const row = node.dir === "right";
     let offset = 0;
     const out: LayoutLeaf[] = [];
