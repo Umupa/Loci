@@ -19,7 +19,7 @@ dist/
 dist-ssr/
 build/
 target/
-gen/schemas/
+**/gen/schemas/
 coverage/
 .vite/
 .turbo/
