@@ -31,7 +31,7 @@ import { hiddenApprovalNotices } from "../features/notifications/model/approvalT
 import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
 import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
-import { ADD_NOTE_TO_CHAT_EVENT, type NoteComposerCard } from "../features/notes";
+import { ADD_NOTE_TO_CHAT_EVENT, loadNotes, type Note, type NoteComposerCard } from "../features/notes";
 import { createEmptyCanvas, loadCanvases, upsertCanvas, type Canvas } from "../features/canvas/canvas";
 import { synchronizeProjectLocation, rememberProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
@@ -81,6 +81,8 @@ function Workspace(boot: BootWorkspace) {
   const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
   const [transcriptPool] = useState(() => new TranscriptPool());
   const [canvases, setCanvases] = useState<Canvas[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const appendToCanvasRef = useRef(new Map<string, (text: string) => void>());
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
   const seenSignInRequests = useRef(new Set(initial.sessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
   const workspaceRef = useRef<ReturnType<typeof useAppWorkspace> | null>(null);
@@ -199,6 +201,7 @@ function Workspace(boot: BootWorkspace) {
   useEffect(() => { void rememberProjectLocation(workspace.projectCwd); }, [workspace.projectCwd]);
   useEffect(() => { if (!notesEnabled && surface === "notes") closeSurface(); }, [notesEnabled, surface, closeSurface]);
   useEffect(() => { void loadCanvases().then(setCanvases); }, []);
+  useEffect(() => { void loadNotes().then(setNotes); }, []);
   useEffect(() => {
     const onAdd = (event: Event) => {
       const card = (event as CustomEvent<NoteComposerCard>).detail;
@@ -275,6 +278,16 @@ function Workspace(boot: BootWorkspace) {
     onQueuedMessageEditingChange: submission.queuedMessageEditingChange, onSteerQueuedMessage: submission.steerQueuedMessage, onResumeQueue: submission.resumeQueue,
     onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
     onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((session) => session.id === id ? { ...session, noteCard: undefined } : session)),
+    onSaveToCanvas: (text: string) => {
+      const view = workspaceRef.current;
+      if (!view) return;
+      const tab = view.tabsRef.current.find((t) => t.id === view.activeTabIdRef.current);
+      if (!tab) return;
+      const focused = tab.focusedId;
+      const fn = appendToCanvasRef.current.get(focused);
+      if (fn) { fn(text); return; }
+      for (const [, appendFn] of appendToCanvasRef.current) { appendFn(text); return; }
+    },
     onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
     onOpenFile: openFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
     onBtwStop: submission.btwStop, onBtwModelChange: submission.btwModelChange,
@@ -300,6 +313,8 @@ function Workspace(boot: BootWorkspace) {
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
+          notes={notes}
+          onOpenSource={(id) => workspace.openSource(id)}
           canvases={canvases}
           onOpenCanvas={(id) => workspace.openCanvas(id)}
           onNewCanvas={() => {
@@ -333,6 +348,14 @@ function Workspace(boot: BootWorkspace) {
                       const canvas = canvases.find((c) => c.id === id);
                       if (!canvas) return;
                       void upsertCanvas({ ...canvas, title }).then((updated) => setCanvases((current) => current.map((c) => c.id === id ? updated : c)));
+                    }}
+                    onCanvasRegisterAppend={(id, fn) => { appendToCanvasRef.current.set(id, fn); }}
+                    notes={notes}
+                    onSourceFocus={(id) => workspace.focusPane(id)}
+                    onSourceAddToChat={(text) => {
+                      const view = workspaceRef.current!;
+                      const session = { ...newDefaultSession(view.projectCwdRef.current, view.activeSession?.runtimeMode), title: "Source" };
+                      view.addSession({ ...session, noteCard: { id: crypto.randomUUID(), slug: "source-context", title: "Source", body: text } });
                     }} />
                 </div>)}
               </div>

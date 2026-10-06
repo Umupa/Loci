@@ -135,6 +135,7 @@ export type SessionPaneProps = {
 
 
   onNoteCardDismiss?: (sessionId: string) => void;
+  onSaveToCanvas?: (text: string) => void | Promise<void>;
 
 
   onApproval: (
@@ -237,7 +238,7 @@ export const SessionPane = memo(function SessionPane({
 
 
   onNoteCardDismiss,
-
+  onSaveToCanvas,
 
   onApproval,
   onQuestionReply,
@@ -700,6 +701,7 @@ export const SessionPane = memo(function SessionPane({
                   onApproval={approve}
                   onAddToChat={addSelectionToChat}
                   onSaveNote={notesEnabled ? saveNote : undefined}
+                  onSaveToCanvas={onSaveToCanvas}
                   onSendDraft={
                     draftBlock
                       ? (block) =>

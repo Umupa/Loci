@@ -28,6 +28,12 @@ pub struct Note {
     pub source_session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_cwd: Option<String>,
+    #[serde(default)]
+    pub is_source: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_kind: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -44,6 +50,12 @@ pub struct NoteUpsert {
     pub source_session_id: Option<String>,
     #[serde(default)]
     pub source_cwd: Option<String>,
+    #[serde(default)]
+    pub is_source: bool,
+    #[serde(default)]
+    pub source_url: Option<String>,
+    #[serde(default)]
+    pub source_kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -78,6 +90,18 @@ pub fn ensure_notes_table(conn: &Connection) -> rusqlite::Result<()> {
         conn.execute(
             "ALTER TABLE notes ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'",
             [],
+        )?;
+    }
+    let is_source_present: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('notes') WHERE name = 'is_source'",
+        [],
+        |row| row.get(0),
+    )?;
+    if is_source_present == 0 {
+        conn.execute_batch(
+            "ALTER TABLE notes ADD COLUMN is_source INTEGER NOT NULL DEFAULT 0;
+             ALTER TABLE notes ADD COLUMN source_url TEXT;
+             ALTER TABLE notes ADD COLUMN source_kind TEXT;",
         )?;
     }
     Ok(())
@@ -271,7 +295,7 @@ fn remove_note_assets(app: &AppHandle, note_id: &str) -> Result<(), String> {
 fn list_notes(conn: &Connection) -> rusqlite::Result<Vec<Note>> {
     let mut stmt = conn.prepare(
         "SELECT id, slug, title, body, source_session_id, source_cwd, tags_json,
-                created_at, updated_at
+                created_at, updated_at, is_source, source_url, source_kind
          FROM notes
          ORDER BY updated_at DESC, id ASC",
     )?;
@@ -282,7 +306,7 @@ fn list_notes(conn: &Connection) -> rusqlite::Result<Vec<Note>> {
 fn get_note(conn: &Connection, id: &str) -> rusqlite::Result<Option<Note>> {
     conn.query_row(
         "SELECT id, slug, title, body, source_session_id, source_cwd, tags_json,
-                created_at, updated_at
+                created_at, updated_at, is_source, source_url, source_kind
          FROM notes
          WHERE id = ?1",
         params![id],
@@ -307,6 +331,19 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    let source_url = note
+        .source_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let source_kind = note
+        .source_kind
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let is_source = note.is_source;
     let now = now_millis();
 
     if let Some(existing) = get_note(conn, &note.id)? {
@@ -321,9 +358,10 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
         conn.execute(
             "UPDATE notes
              SET title = ?1, body = ?2, tags_json = ?3, updated_at = ?4,
-                 source_cwd = ?6
+                 source_cwd = ?6, is_source = ?7, source_url = ?8, source_kind = ?9
              WHERE id = ?5",
-            params![title, body, tags_json, updated_at, note.id, project_cwd],
+            params![title, body, tags_json, updated_at, note.id, project_cwd,
+                    is_source as i64, source_url, source_kind],
         )?;
         Ok(Note {
             id: note.id.clone(),
@@ -333,6 +371,9 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
             tags,
             source_session_id: existing.source_session_id,
             source_cwd: project_cwd,
+            is_source,
+            source_url,
+            source_kind,
             created_at: existing.created_at,
             updated_at,
         })
@@ -341,8 +382,8 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
         conn.execute(
             "INSERT INTO notes (
                id, slug, title, body, source_session_id, source_cwd, tags_json,
-               created_at, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+               created_at, updated_at, is_source, source_url, source_kind
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 note.id,
                 slug,
@@ -352,7 +393,10 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
                 source_cwd,
                 tags_json,
                 now,
-                now
+                now,
+                is_source as i64,
+                source_url,
+                source_kind
             ],
         )?;
         Ok(Note {
@@ -363,6 +407,9 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
             tags,
             source_session_id: source_session_id.map(str::to_string),
             source_cwd: source_cwd.map(str::to_string),
+            is_source,
+            source_url: note.source_url.clone(),
+            source_kind: note.source_kind.clone(),
             created_at: now,
             updated_at: now,
         })
@@ -377,6 +424,7 @@ fn delete_note(conn: &Connection, id: &str) -> rusqlite::Result<()> {
 fn read_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
     let tags_json: String = row.get(6)?;
     let tags = serde_json::from_str::<Vec<String>>(&tags_json).unwrap_or_default();
+    let is_source_int: i64 = row.get(9).unwrap_or(0);
     Ok(Note {
         id: row.get(0)?,
         slug: row.get(1)?,
@@ -387,6 +435,9 @@ fn read_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         source_cwd: row.get(5)?,
         created_at: row.get(7)?,
         updated_at: row.get(8)?,
+        is_source: is_source_int != 0,
+        source_url: row.get(10).unwrap_or(None),
+        source_kind: row.get(11).unwrap_or(None),
     })
 }
 

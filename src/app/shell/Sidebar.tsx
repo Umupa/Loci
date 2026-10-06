@@ -1,6 +1,7 @@
 import { ContextMenu, type ContextMenuItem } from "../../shared/ui/ContextMenu";
-import { Archive, Chatting, Check, ChevronDown, ChevronRight, CircleAlert, CircleDashed, Clock, Folder, ListFilter, Palette, PanelLeft, Pin, Plus, Search, Settings, StickyNote, } from "../../shared/ui/icons";
+import { Archive, Chatting, Check, ChevronDown, ChevronRight, CircleAlert, CircleDashed, Clock, Folder, Globe, ListFilter, Palette, PanelLeft, Pin, Plus, Search, Settings, StickyNote, } from "../../shared/ui/icons";
 import type { Canvas } from "../../features/canvas/canvas";
+import type { Note } from "../../features/notes/notes";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, } from "react";
 import { IS_MAC, MOD } from "../../platform/tauri/platform";
 import { copyText } from "../../platform/tauri/clipboard";
@@ -106,6 +107,8 @@ type Props = {
     canvases?: Canvas[];
     onOpenCanvas?: (id: string) => void;
     onNewCanvas?: () => void;
+    notes?: Note[];
+    onOpenSource?: (id: string) => void;
     searchActive?: boolean;
     notesActive?: boolean;
     notesEnabled?: boolean;
@@ -121,7 +124,7 @@ type Props = {
     onSelectSettingsSection?: (section: SettingsSectionId) => void;
     onCloseSettings?: () => void;
 };
-function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, openSessions = [], status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, reminders = [], onSetReminders, onCancelReminders, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, searchActive = false, notesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, canvases = [], onOpenCanvas, onNewCanvas, }: Props) {
+function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, openSessions = [], status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, reminders = [], onSetReminders, onCancelReminders, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, searchActive = false, notesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, canvases = [], onOpenCanvas, onNewCanvas, notes = [], onOpenSource, }: Props) {
     const tab: SidebarTab = "sessions";
     const onSelectSession = onSelectLocalSession;
     const onPrefetchSession = onPrefetchLocalSession;
@@ -1027,6 +1030,21 @@ cannot claim "No sessions yet" before the rows have landed.
                 </ul>)}
             </div>)}
         </div>
+
+        {(() => { const sources = notes.filter((n) => n.isSource && (!n.sourceCwd || !cwd || n.sourceCwd === cwd)); return sources.length > 0 ? (<div className="shrink-0 border-t border-stroke">
+            <div className="flex h-7 items-center gap-1 px-3 pt-1">
+              <Globe className="size-3 shrink-0 opacity-50" strokeWidth={1.75}/>
+              <span className="flex-1 text-[11px] font-medium uppercase tracking-wide text-content/50">Sources</span>
+            </div>
+            <ul className="flex flex-col gap-0.5 px-1.5 pb-1.5">
+              {sources.map((note) => (<li key={note.id}>
+                  <button className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-[12px] text-content/80 hover:bg-fill-2 hover:text-content" onClick={() => onOpenSource?.(note.id)}>
+                    <Globe className="size-3 shrink-0 opacity-40" strokeWidth={1.5}/>
+                    <span className="min-w-0 flex-1 truncate">{note.title}</span>
+                  </button>
+                </li>))}
+            </ul>
+          </div>) : null; })()}
 
         {canvases.length > 0 || onNewCanvas ? (<div className="shrink-0 border-t border-stroke">
             <div className="flex h-7 items-center gap-1 px-3 pt-1">

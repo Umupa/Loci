@@ -22,6 +22,7 @@ CircleDashed,
 Copy,
 FilePlusCorner,
 Minus,
+Palette,
 Pencil,
 PenLine,
 Search,
@@ -165,6 +166,7 @@ type Props = {
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
   onAddToChat?: (text: string) => void;
   onSaveNote?: (text: string) => void | Promise<void>;
+  onSaveToCanvas?: (text: string) => void | Promise<void>;
   onSendDraft?: (block: Block) => boolean | void;
   onRemoveDraft?: (block: Block) => boolean | void;
   onSaveSelectionNote?: (text: string) => void | Promise<void>;
@@ -207,6 +209,7 @@ function AgentTranscriptComponent({
   onApproval,
   onAddToChat,
   onSaveNote,
+  onSaveToCanvas,
   onSendDraft,
   onRemoveDraft,
   onSaveSelectionNote,
@@ -965,6 +968,7 @@ function AgentTranscriptComponent({
                   }
                   copyText={turnCopyText(turn)}
                   onSaveNote={onSaveNote}
+                  onSaveToCanvas={onSaveToCanvas}
                   harness={turnHarness}
 
 
@@ -1072,6 +1076,7 @@ function TurnDuration({
   completedAt,
   copyText: output,
   onSaveNote,
+  onSaveToCanvas,
 
 
 }: {
@@ -1084,6 +1089,7 @@ function TurnDuration({
   completedAt?: number;
   copyText?: string;
   onSaveNote?: (text: string) => void | Promise<void>;
+  onSaveToCanvas?: (text: string) => void | Promise<void>;
 
   /** The turn's own model, so a same-harness second opinion can hide it. */
 
@@ -1108,6 +1114,9 @@ function TurnDuration({
             <CopyTurnButton text={output} />
             {onSaveNote ? (
               <SaveNoteButton text={output} onSave={onSaveNote} />
+            ) : null}
+            {onSaveToCanvas ? (
+              <SaveToCanvasButton text={output} onSave={onSaveToCanvas} />
             ) : null}
           </>
         ) : (
@@ -1364,6 +1373,66 @@ function SaveNoteButton({
       {error && (
         <span role="alert" className="max-w-xs text-xs text-content/70">
           Could not save note. {error}
+        </span>
+      )}
+    </>
+  );
+}
+
+function SaveToCanvasButton({
+  text,
+  onSave,
+}: {
+  text: string;
+  onSave: (text: string) => void | Promise<void>;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const timer = useRef<number | null>(null);
+
+  useEffect(() => {
+    setSaved(false);
+    setError(null);
+    return () => {
+      if (timer.current != null) window.clearTimeout(timer.current);
+    };
+  }, [text]);
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={pending}
+        title={saved ? "Saved to Canvas" : "Save to canvas"}
+        aria-label={saved ? "Saved to Canvas" : "Save to canvas"}
+        className="rounded-md p-1 text-content/40 hover:bg-content/8 hover:text-content/70"
+        onClick={async () => {
+          setError(null);
+          setSaved(false);
+          setPending(true);
+          try {
+            await onSave(text);
+            playCue("copy");
+            setSaved(true);
+            if (timer.current != null) window.clearTimeout(timer.current);
+            timer.current = window.setTimeout(() => setSaved(false), 2000);
+          } catch (error) {
+            setError(error instanceof Error ? error.message : String(error));
+          } finally {
+            setPending(false);
+          }
+        }}
+      >
+        {saved ? (
+          <Check className="size-3.5" strokeWidth={1.75} />
+        ) : (
+          <Palette className="size-3.5" strokeWidth={1.75} />
+        )}
+      </button>
+      {error && (
+        <span role="alert" className="max-w-xs text-xs text-content/70">
+          Could not save to canvas. {error}
         </span>
       )}
     </>

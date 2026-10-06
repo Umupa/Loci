@@ -13,7 +13,7 @@ import { newDefaultSession, newSessionLike, retargetSessionToProject, sessionDis
 import { deleteSession, getSession, listSessionsByProject, saveWorkspaceSnapshot, setSessionArchived, setSessionPinned, upsertSession, type SessionSummary } from "../../features/sessions/data/sessionStore";
 import { historyWithLiveSessions, mergeHistorySummary, summaryFromSession } from "../../features/sessions/data/sessionHistory";
 import { rememberLoadedSession } from "../../features/sessions/data/sessionCache";
-import { canvasLeaf, closeLeaf, leafIds, neighborLeafId, newTab, setSplitRatio, splitPane, type FocusDir, type PaneEdge, type SplitDir, type WorkspaceTab } from "../../features/workspace/model/layout";
+import { canvasLeaf, sourceLeaf, closeLeaf, leafIds, neighborLeafId, newTab, setSplitRatio, splitPane, type FocusDir, type PaneEdge, type SplitDir, type WorkspaceTab } from "../../features/workspace/model/layout";
 import { applyDetachPaneToTab, applyPlaceSessionOnPane, applyPlaceTabOnPane, filterTabsForProject, findOpenSessionTab, workspaceTabCwd, focusedWorkspaceTabCwd, planWorkspaceTabClose, switchSessionInTab } from "../../features/workspace/model/workspaceTabGroups";
 import { collectWorkspaceSnapshot } from "../../features/workspace/model/workspaceSnapshot";
 import { emptyTabVisitHistory, pruneTabVisitHistory, recordTabVisit, tabVisitBack, tabVisitForward } from "../../features/workspace/model/tabVisitHistory";
@@ -631,6 +631,18 @@ export function useAppWorkspace(options: Options) {
     activateTab(canvasTab.id);
   }, [activateTab, updateTabs]);
 
+  const openSource = useCallback((noteId: string) => {
+    const alreadyOpen = tabsRef.current.find((tab) => leafIds(tab.layout).includes(noteId));
+    if (alreadyOpen) {
+      activateTab(alreadyOpen.id);
+      return;
+    }
+    const tab = newTab(noteId);
+    const sourceTab = { ...tab, layout: sourceLeaf(noteId), focusedId: noteId };
+    updateTabs((current) => insertTabBesideActive(current, sourceTab, activeTabIdRef.current, () => undefined));
+    activateTab(sourceTab.id);
+  }, [activateTab, updateTabs]);
+
   const visit = useCallback((direction: "back" | "forward") => {
     setVisits((current) => {
       const next = direction === "back" ? tabVisitBack(current) : tabVisitForward(current);
@@ -639,7 +651,7 @@ export function useAppWorkspace(options: Options) {
     });
   }, [activateTab]);
 
-  return { tabs, tabsRef, activeTabId, activeTabIdRef, projectCwd, projectCwdRef, projectReturnMemory, recents, history, historyPending, historyFailed, error, setError, composerFocusToken, activeTab, activeSession, visibleTabs, titleTabs, sidebarHistory, openProjectSessions, loadedSessionCache, openingSessionIds, skipForgetSessionIds, updateTabs, activateTab, addSession, createSession, focusPane, openProject, pickProject, refreshHistory, acceptSummary, loadSession, openSession, openSessionInCurrentTab, closeTabs, closePane, split, placeSession, placeTab, detachPane, changeCwd, renameSession, archiveSession, pinSession, removeSession, removeProject, placeInFolder, visits, visit, openCanvas,
+  return { tabs, tabsRef, activeTabId, activeTabIdRef, projectCwd, projectCwdRef, projectReturnMemory, recents, history, historyPending, historyFailed, error, setError, composerFocusToken, activeTab, activeSession, visibleTabs, titleTabs, sidebarHistory, openProjectSessions, loadedSessionCache, openingSessionIds, skipForgetSessionIds, updateTabs, activateTab, addSession, createSession, focusPane, openProject, pickProject, refreshHistory, acceptSummary, loadSession, openSession, openSessionInCurrentTab, closeTabs, closePane, split, placeSession, placeTab, detachPane, changeCwd, renameSession, archiveSession, pinSession, removeSession, removeProject, placeInFolder, visits, visit, openCanvas, openSource,
     ratio: (splitId: string, index: number, ratio: number) => updateTabs((current) => current.map((tab) => ({ ...tab, layout: setSplitRatio(tab.layout, splitId, index, ratio) }))),
     focusDirection: (direction: FocusDir) => { const tab = tabsRef.current.find((entry) => entry.id === activeTabIdRef.current); const id = tab && neighborLeafId(tab.layout, tab.focusedId, direction); if (id) focusPane(id); },
     cycleTab: (delta: number) => { const current = filterTabsForProject(tabsRef.current, latest.current.sessionsRef.current, projectCwdRef.current); const index = current.findIndex((tab) => tab.id === activeTabIdRef.current); const next = current[(index + delta + current.length) % current.length]; if (next) activateTab(next.id); },

@@ -23,9 +23,10 @@ type Props = {
   onFocus: () => void;
   onAddToChat: (text: string) => void;
   onTitleChange: (id: string, title: string) => void;
+  onRegisterAppend?: (canvasId: string, fn: (text: string) => void) => void;
 };
 
-function CanvasPaneComponent({ canvas, focused, onFocus, onAddToChat, onTitleChange }: Props) {
+function CanvasPaneComponent({ canvas, focused, onFocus, onAddToChat, onTitleChange, onRegisterAppend }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDataRef = useRef<{ elements: ExcalidrawElements; appState: AppState; files: BinaryFiles } | null>(null);
@@ -68,6 +69,65 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onAddToChat, onTitleCha
     },
     [scheduleSave],
   );
+
+  const onRegisterAppendRef = useRef(onRegisterAppend);
+  onRegisterAppendRef.current = onRegisterAppend;
+
+  const appendText = useCallback((text: string) => {
+    const api = apiRef.current;
+    if (!api) return;
+    const existing = api.getSceneElements();
+    const maxY = existing.reduce((acc, el) => Math.max(acc, el.y + el.height), 0);
+    const newEl = {
+      type: "text",
+      id: crypto.randomUUID(),
+      x: 40,
+      y: maxY + 40,
+      width: 500,
+      height: 100,
+      angle: 0,
+      strokeColor: "#1e1e1e",
+      backgroundColor: "transparent",
+      fillStyle: "solid" as const,
+      strokeWidth: 1,
+      strokeStyle: "solid" as const,
+      roughness: 1,
+      opacity: 100,
+      groupIds: [],
+      frameId: null,
+      roundness: null,
+      seed: Math.floor(Math.random() * 100000),
+      version: 1,
+      versionNonce: Math.floor(Math.random() * 100000),
+      index: null,
+      isDeleted: false,
+      boundElements: null,
+      updated: Date.now(),
+      link: null,
+      locked: false,
+      text,
+      originalText: text,
+      fontSize: 16,
+      fontFamily: 1,
+      textAlign: "left" as const,
+      verticalAlign: "top" as const,
+      containerId: null,
+      autoResize: true,
+      lineHeight: 1.25,
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    api.updateScene({ elements: [...existing, newEl as any] });
+  }, []);
+
+  useEffect(() => {
+    if (!onRegisterAppendRef.current) return;
+    const waitForApi = setInterval(() => {
+      if (!apiRef.current) return;
+      clearInterval(waitForApi);
+      onRegisterAppendRef.current?.(canvas.id, appendText);
+    }, 100);
+    return () => clearInterval(waitForApi);
+  }, [canvas.id, appendText]);
 
   const handleAddToChat = useCallback(() => {
     const api = apiRef.current;
