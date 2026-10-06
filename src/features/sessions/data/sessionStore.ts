@@ -1,0 +1,997 @@
+import { invoke } from "@tauri-apps/api/core";
+import {
+  isWeakToolTitle,
+  titleFromToolInput,
+} from "../../../integrations/harness/core/preview";
+import { codexCommandPresentation } from "../../../integrations/harness/providers/codex/codexProtocol";
+import { persistableAttachment } from "../model/attachments";
+import type { ContextUsage } from "../model/contextUsage";
+import { normalizeProjectPath } from "../../projects/model/recents";
+import { claudeShellCommands } from "../../../platform/tauri/fs";
+import type {
+  AgentRunMeta,
+  AgentStep,
+  Block,
+  BtwMessage,
+  BtwThread,
+  GeneratedImageMeta,
+  HarnessId,
+  HandoffMeta,
+  HandoffStatus,
+  RuntimeMode,
+  Session,
+  TaskListMeta,
+  PlanBlockMeta,
+  TurnModel,
+  TurnMetrics,
+} from "../model/session";
+
+import { HARNESSES, RUNTIME_MODES } from "../model/session";
+
+
+
+export type SessionSummary = {
+  id: string;
+  cwd: string;
+  harness: HarnessId;
+  model: string;
+  runtimeMode: RuntimeMode;
+  title: string;
+  providerSessionId?: string;
+  createdAt: number;
+  updatedAt: number;
+  archived?: boolean;
+  pinned?: boolean;
+  draft?: boolean;
+};
+
+type SessionRecord = {
+  id: string;
+  cwd: string;
+  harness: string;
+  model: string;
+  modelSettings: Record<string, string>;
+  runtimeMode: string;
+  title: string;
+  providerSessionId?: string | null;
+  providerAccountId?: string | null;
+  blocks: Block[];
+  contextUsed?: number | null;
+  contextWindow?: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type SessionUpsertPayload = {
+  id: string;
+  cwd: string;
+  harness: string;
+  model: string;
+  modelSettings: Record<string, string>;
+  runtimeMode: string;
+  title: string;
+  providerSessionId?: string;
+  providerAccountId?: string;
+  blocks: Block[];
+  contextUsed?: number;
+  contextWindow?: number;
+};
+
+/** Only real chats belong in project history — blank tabs stay ephemeral. */
+export function shouldPersistSession(session: Session): boolean {
+  return (
+    session.cwd !== "~" &&
+    session.blocks.some((block) => block.role === "user")
+  );
+}
+
+/** Matches Rust `validate_id` — a path here fails the whole upsert. */
+export function isPersistableId(value: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+function persistableMeta(
+  session: Session,
+): Omit<SessionUpsertPayload, "blocks"> {
+  return {
+    id: session.id,
+    cwd: normalizeProjectPath(session.cwd),
+    harness: session.harness,
+    model: session.model,
+    modelSettings: session.modelSettings,
+    runtimeMode: session.runtimeMode,
+    title: session.title,
+    ...(session.providerSessionId && isPersistableId(session.providerSessionId)
+      ? { providerSessionId: session.providerSessionId }
+      : {}),
+    ...(session.providerAccountId && isPersistableId(session.providerAccountId)
+      ? { providerAccountId: session.providerAccountId }
+      : {}),
+    ...(session.context ? { contextUsed: session.context.used } : {}),
+    ...(session.context?.window
+      ? { contextWindow: session.context.window }
+      : {}),
+  };
+}
+
+export function sanitizeSessionForPersist(
+  session: Session,
+): SessionUpsertPayload {
+  return {
+    ...persistableMeta(session),
+    blocks: session.blocks
+      .map((block) => sanitizeBlock(block))
+      .filter((block): block is Block => block != null),
+  };
+}
+
+/**
+ * `session_upsert` runs off the main thread, so two writes for the same
+ * session could otherwise land in either order and let an older transcript
+ * overwrite a newer one. Chain them per session; different sessions still
+ * write concurrently.
+ */
+const sessionWriteQueues = new Map<string, Promise<unknown>>();
+const deletedSessionIds = new Set<string>();
+
+function enqueueSessionWrite<T>(
+  sessionId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = sessionWriteQueues.get(sessionId) ?? Promise.resolve();
+  const run = previous.catch(() => undefined).then(operation);
+  const tail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  sessionWriteQueues.set(sessionId, tail);
+  void tail.then(() => {
+    if (sessionWriteQueues.get(sessionId) === tail) {
+      sessionWriteQueues.delete(sessionId);
+    }
+  });
+  return run;
+}
+
+export async function upsertSession(
+  session: Session,
+): Promise<SessionSummary | null> {
+  if (!shouldPersistSession(session) || deletedSessionIds.has(session.id)) {
+    return null;
+  }
+  const payload = sanitizeSessionForPersist(session);
+  const summary = await enqueueSessionWrite(session.id, async () => {
+    if (deletedSessionIds.has(session.id)) return null;
+    return invoke<SessionSummary>("session_upsert", {
+      session: payload,
+    });
+  });
+  return summary ? normalizeSummary(summary) : null;
+}
+
+/**
+ * Blocks are replaced, never mutated in place, so identity stands in for
+ * content. Serializing the session here instead meant a full deep copy and a
+ * `JSON.stringify` of the whole transcript — megabytes on a long chat — on the
+ * main thread every time a save was considered. Header fields go through
+ * `persistableMeta` so a new persisted column cannot be forgotten here.
+ */
+const blockTokens = new WeakMap<Block, number>();
+let lastBlockToken = 0;
+
+function blockToken(block: Block): number {
+  const seen = blockTokens.get(block);
+  if (seen !== undefined) return seen;
+  const token = ++lastBlockToken;
+  blockTokens.set(block, token);
+  return token;
+}
+
+export function persistFingerprint(session: Session): string {
+  return `${JSON.stringify(persistableMeta(session))}|${session.blocks
+    .map(blockToken)
+    .join(",")}`;
+}
+
+export async function listSessionsByProject(
+  cwd: string,
+): Promise<SessionSummary[]> {
+  if (!cwd || cwd === "~") return [];
+  const rows = await invoke<SessionSummary[]>("session_list_by_project", {
+    cwd: normalizeProjectPath(cwd),
+  });
+  return rows.map(normalizeSummary);
+}
+
+export function rebaseProjectSessions(
+  fromCwd: string,
+  toCwd: string,
+): Promise<void> {
+  return invoke<void>("session_rebase_project", {
+    fromCwd: normalizeProjectPath(fromCwd),
+    toCwd: normalizeProjectPath(toCwd),
+  });
+}
+
+export type SessionSearchHit = {
+  kind: "conversation" | "message";
+  sessionId: string;
+  cwd: string;
+  harness: string;
+  title: string;
+  updatedAt: number;
+  blockId?: string;
+  role?: string;
+  preview: string;
+};
+
+export type SessionSearchResult = {
+  hits: SessionSearchHit[];
+  truncated: boolean;
+};
+
+export async function searchSessions(options: {
+  query: string;
+  searchOwner: string;
+  cwd?: string;
+  includeArchived?: boolean;
+}): Promise<SessionSearchResult> {
+  const query = options.query.trim();
+  if (!query) return { hits: [], truncated: false };
+  const result = await invoke<SessionSearchResult>("session_search", {
+    options: {
+      query,
+      searchOwner: options.searchOwner,
+      ...(options.cwd && options.cwd !== "~"
+        ? { cwd: normalizeProjectPath(options.cwd) }
+        : {}),
+      ...(options.includeArchived ? { includeArchived: true } : {}),
+    },
+  });
+  return {
+    hits: Array.isArray(result?.hits) ? result.hits : [],
+    truncated: !!result?.truncated,
+  };
+}
+
+export function cancelSessionSearch(searchOwner: string): Promise<void> {
+  return invoke<void>("cancel_session_search", { searchOwner });
+}
+
+export async function getSession(sessionId: string): Promise<Session | null> {
+  const record = await invoke<SessionRecord | null>("session_get", {
+    sessionId,
+  });
+  if (!record) return null;
+  const session = recordToSession(record);
+  if (session.harness === "claude" && session.providerSessionId) {
+    const toolIds = shellPlaceholderIds(session.blocks);
+    if (toolIds.length) {
+      try {
+        const commands = await claudeShellCommands(
+          session.providerSessionId,
+          session.providerAccountId,
+          toolIds,
+        );
+        const blocks = backfillClaudeShellCommands(session.blocks, commands);
+        if (blocks !== session.blocks) {
+          session.blocks = blocks;
+          await upsertSession(session);
+        }
+      } catch {
+        // A missing or unreadable Claude transcript must not block the session.
+      }
+    }
+  }
+  if (session.harness === "codex") {
+    // Relabel from the command already saved on the row. Codex sends it with
+    // the item and `shellCommandPreview` stores it as the preview title, so
+    // this needs no disk read at all.
+    const blocks = backfillCodexShellCommands(session.blocks);
+    if (blocks !== session.blocks) {
+      session.blocks = blocks;
+      // A failed write must not cost the reader the session. The repair stays
+      // in memory and the next load retries it.
+      await upsertSession(session).catch(() => undefined);
+    }
+  }
+  return session;
+}
+
+/** Exec rows that were saved without their command, keyed by their tool call. */
+function shellPlaceholderIds(blocks: Block[]): string[] {
+  return blocks.flatMap((block) =>
+    block.role === "tool" &&
+    block.tool?.kind === "execute" &&
+    block.text.trim() === "Shell" &&
+    block.tool.callId
+      ? [block.tool.callId]
+      : [],
+  );
+}
+
+/**
+ * Relabel exec rows that were saved without their command.
+ *
+ * The command is already on the row: Codex sends it with the item, and
+ * `shellCommandPreview` stores it as the preview title. Reading it back from
+ * there keeps whatever Codex chose to show the user — including anything it
+ * redacted — and never re-reads a secret off disk into the transcript store. A
+ * row saved without a usable preview has no command left to recover, so it keeps
+ * its placeholder label.
+ */
+export function backfillCodexShellCommands(blocks: Block[]): Block[] {
+  let changed = false;
+  const repaired = blocks.map((block) => {
+    if (
+      block.role !== "tool" ||
+      block.tool?.kind !== "execute" ||
+      block.text.trim() !== "Shell"
+    ) {
+      return block;
+    }
+    const saved = block.tool.preview?.title?.trim();
+    if (!saved || isWeakToolTitle(saved)) return block;
+    changed = true;
+    const { title, preview } = codexCommandPresentation({}, saved);
+    return {
+      ...block,
+      text: title,
+      tool: {
+        ...block.tool,
+        title,
+        ...(preview ? { preview } : {}),
+      },
+    };
+  });
+  return changed ? repaired : blocks;
+}
+
+export async function deleteSession(
+  sessionId: string,
+  imagePaths: string[] = [],
+): Promise<void> {
+  deletedSessionIds.add(sessionId);
+  try {
+    const pending = sessionWriteQueues.get(sessionId);
+    if (pending) await pending;
+    await enqueueSessionWrite(sessionId, () =>
+      invoke<void>("session_delete", { sessionId, imagePaths }),
+    );
+    const tombstone = setTimeout(() => deletedSessionIds.delete(sessionId), 60_000);
+    if (typeof tombstone === "object") tombstone.unref();
+  } catch (error) {
+    deletedSessionIds.delete(sessionId);
+    throw error;
+  }
+}
+
+/** Delete a draft-only record while allowing its still-open blank session id to be saved later. */
+export async function discardDraftSessionRecord(
+  sessionId: string,
+): Promise<void> {
+  await enqueueSessionWrite(sessionId, () =>
+    invoke<void>("session_delete", { sessionId, imagePaths: [] }),
+  );
+}
+
+export async function setSessionArchived(
+  sessionId: string,
+  archived: boolean,
+): Promise<void> {
+  await enqueueSessionWrite(sessionId, () =>
+    invoke<void>("session_set_archived", { sessionId, archived }),
+  );
+}
+
+export async function setSessionPinned(
+  sessionId: string,
+  pinned: boolean,
+): Promise<void> {
+  await invoke<void>("session_set_pinned", { sessionId, pinned });
+}
+
+/** Drain pending saves before closing the application. */
+export async function flushSessionWrites(): Promise<void> {
+  await Promise.all([...sessionWriteQueues.values()]);
+}
+
+/**
+ * `session_set_in_flight` runs off the main thread, so two replaces could
+ * otherwise land in either order and restore a stale busy snapshot.
+ */
+let inFlightWrite: Promise<unknown> = Promise.resolve();
+
+export async function replaceInFlightSessions(
+  refs: { sessionId: string; cwd: string }[],
+): Promise<void> {
+  const run = inFlightWrite
+    .catch(() => undefined)
+    .then(() =>
+      invoke("session_set_in_flight", {
+        sessions: refs.map((ref) => ({
+          sessionId: ref.sessionId,
+          cwd: normalizeProjectPath(ref.cwd),
+        })),
+      }),
+    );
+  inFlightWrite = run;
+  await run;
+}
+
+/** Kept across Vite reloads; boot must not delete the only copy. */
+export async function listInFlightSessions(): Promise<
+  { sessionId: string; cwd: string }[]
+> {
+  const rows = await invoke<{ sessionId: string; cwd: string }[]>(
+    "session_list_in_flight",
+  );
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** Destructive: the first window to boot after a quit owns these chats. */
+export async function takeInFlightSessions(): Promise<
+  { sessionId: string; cwd: string }[]
+> {
+  const rows = await invoke<{ sessionId: string; cwd: string }[]>(
+    "session_take_in_flight",
+  );
+  return Array.isArray(rows) ? rows : [];
+}
+
+/**
+ * `workspace_set_snapshot` runs off the main thread, so two saves could
+ * otherwise finish out of order and keep an older layout.
+ */
+let workspaceWrite: Promise<unknown> = Promise.resolve();
+
+export async function saveWorkspaceSnapshot(snapshot: unknown): Promise<void> {
+  const run = workspaceWrite
+    .catch(() => undefined)
+    .then(() => invoke("workspace_set_snapshot", { snapshot }));
+  workspaceWrite = run;
+  await run;
+}
+
+export async function loadWorkspaceSnapshot(): Promise<unknown | null> {
+  const raw = await invoke<unknown | null>("workspace_get_snapshot");
+  return raw ?? null;
+}
+
+function sanitizeBlock(
+  block: Block,
+  options?: { hydrate?: boolean },
+): Block | null {
+  const next: Block = {
+    id: block.id,
+    role: block.role,
+    text: block.text,
+  };
+  if (block.attachments?.length) {
+    next.attachments = block.attachments.map(persistableAttachment);
+  }
+  const image = sanitizeGeneratedImage(block.image);
+  if (block.role === "image" && !image) return null;
+  if (image) next.image = image;
+  if (block.startedAt != null) next.startedAt = block.startedAt;
+  if (block.durationMs != null) next.durationMs = block.durationMs;
+  const turnModel = sanitizeTurnModel(block.turnModel);
+  if (block.role === "user" && turnModel) next.turnModel = turnModel;
+  if (block.role === "user" && block.draft) next.draft = true;
+  if (block.role === "user" && block.loci) next.loci = true;
+  if (
+    block.role === "user" &&
+    typeof block.appRequestId === "string" &&
+    /^[A-Za-z0-9_-]{1,512}$/.test(block.appRequestId)
+  )
+    next.appRequestId = block.appRequestId;
+  if (
+    block.role === "user" &&
+    typeof block.providerTurnId === "string" &&
+    isPersistableId(block.providerTurnId)
+  )
+    next.providerTurnId = block.providerTurnId;
+  const turnMetrics = sanitizeTurnMetrics(block.turnMetrics);
+  if (block.role === "user" && turnMetrics) next.turnMetrics = turnMetrics;
+  if (block.tool) next.tool = block.tool;
+  if (block.approval?.decided) {
+    next.approval = {
+      requestId: block.approval.requestId,
+      decided: block.approval.decided,
+    };
+  } else if (block.approval && !block.approval.decided) {
+    // Drop stale live approval prompts; request ids don't survive restarts.
+    if (block.role === "approval") return null;
+  }
+  const agentRun = sanitizeAgentRun(block.agentRun);
+  if (agentRun) next.agentRun = agentRun;
+  const taskList = sanitizeTaskList(block.taskList);
+  if (taskList) next.taskList = taskList;
+  else if (block.role === "tasks") return null;
+  const plan = sanitizePlan(block.plan, block.text);
+  if (plan) next.plan = plan;
+  else if (block.role === "plan") {
+    next.plan = { status: "ready", originalText: block.text };
+  }
+  const handoff = sanitizeHandoff(block.handoff);
+  if (handoff) next.handoff = handoff;
+  else if (block.role === "handoff") return null;
+  if (block.role === "user") {
+    const btwThreads = sanitizeBtwThreads(
+      block.btwThreads,
+      options?.hydrate === true,
+    );
+    if (btwThreads) next.btwThreads = btwThreads;
+  }
+  const noteCard = sanitizeNoteCard(block.noteCard);
+  if (noteCard) next.noteCard = noteCard;
+  if (block.role === "system") {
+    if (block.notice === "error" || block.notice === "interrupt") {
+      next.notice = block.notice;
+    }
+  }
+  return next;
+}
+
+function sanitizeNestedId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const id = value.trim();
+  if (!id || id.length > 256 || /[\u0000-\u001f]/.test(id)) return undefined;
+  return id;
+}
+function sanitizeStringRecord(
+  value: unknown,
+): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const next: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const safeKey = sanitizeNestedId(key);
+    const safeValue = sanitizeNestedId(raw);
+    if (safeKey && safeValue) next[safeKey] = safeValue;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function sanitizeTimestamp(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function sanitizeBtwMessage(value: unknown): BtwMessage | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const id = sanitizeNestedId(record.id);
+  const text = typeof record.text === "string" ? record.text : undefined;
+  const createdAt = sanitizeTimestamp(record.createdAt);
+  const role =
+    record.role === "user" || record.role === "assistant"
+      ? record.role
+      : undefined;
+  if (!id || text == null || createdAt == null || !role) return undefined;
+  const blocks = Array.isArray(record.blocks)
+    ? record.blocks.flatMap((block) => {
+        const next = sanitizeBlock(block as Block);
+        return next ? [next] : [];
+      })
+    : [];
+  return {
+    id,
+    role,
+    text,
+    createdAt,
+    ...(blocks.length > 0 ? { blocks } : {}),
+  };
+}
+
+function sanitizeBtwThreads(
+  value: unknown,
+  hydrate: boolean,
+): BtwThread[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const threads = value.flatMap((entry): BtwThread[] => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [];
+    }
+    const record = entry as Record<string, unknown>;
+    const id = sanitizeNestedId(record.id);
+    const sourceEndBlockId = sanitizeNestedId(record.sourceEndBlockId);
+    const createdAt = sanitizeTimestamp(record.createdAt);
+    const updatedAt = sanitizeTimestamp(record.updatedAt);
+    const status =
+      record.status === "running" ||
+      record.status === "ready" ||
+      record.status === "error"
+        ? record.status
+        : undefined;
+    const messages = Array.isArray(record.messages)
+      ? record.messages.flatMap((message) => {
+          const next = sanitizeBtwMessage(message);
+          return next ? [next] : [];
+        })
+      : [];
+    if (
+      !id ||
+      !sourceEndBlockId ||
+      createdAt == null ||
+      updatedAt == null ||
+      !status ||
+      messages.length === 0
+    ) {
+      return [];
+    }
+    const error = typeof record.error === "string" ? record.error.trim() : "";
+    const model = typeof record.model === "string" ? record.model.trim() : "";
+    const harness =
+      typeof record.harness === "string" &&
+      record.harness.trim() &&
+      HARNESSES.includes(record.harness as HarnessId)
+        ? (record.harness as HarnessId)
+        : undefined;
+    const modelSettings = sanitizeStringRecord(record.modelSettings);
+    const providerThreadId = sanitizeNestedId(record.providerThreadId);
+    const interrupted = hydrate && status === "running";
+    return [
+      {
+        id,
+        sourceEndBlockId,
+        createdAt,
+        updatedAt,
+        status: interrupted ? "error" : status,
+        messages,
+        ...(harness ? { harness } : {}),
+        ...(model ? { model } : {}),
+        ...(modelSettings ? { modelSettings } : {}),
+        ...(providerThreadId ? { providerThreadId } : {}),
+        ...(interrupted
+          ? {
+              error:
+                error ||
+                "This by-the-way request was interrupted before reload.",
+            }
+          : error
+            ? { error }
+            : {}),
+      },
+    ];
+  });
+  return threads.length > 0 ? threads : undefined;
+}
+
+function sanitizeGeneratedImage(value: unknown): GeneratedImageMeta | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const path = typeof record.path === "string" ? record.path.trim() : "";
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  const mimeType = typeof record.mimeType === "string" ? record.mimeType.trim() : "";
+  const size = record.size;
+  if (
+    !path ||
+    !name ||
+    !mimeType.startsWith("image/") ||
+    typeof size !== "number" ||
+    !Number.isSafeInteger(size) ||
+    size <= 0
+  ) {
+    return undefined;
+  }
+  const alt = typeof record.alt === "string" ? record.alt.trim() : "";
+  return {
+    path,
+    name,
+    mimeType,
+    size,
+    ...(alt ? { alt } : {}),
+  };
+}
+
+function sanitizeTurnMetrics(value: unknown): TurnMetrics | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const rec = value as Record<string, unknown>;
+  const number = (key: keyof TurnMetrics): number | undefined => {
+    const candidate = rec[key];
+    return typeof candidate === "number" &&
+      Number.isFinite(candidate) &&
+      candidate >= 0
+      ? candidate
+      : undefined;
+  };
+  const metrics: TurnMetrics = {
+    ...(number("inputTokens") != null
+      ? { inputTokens: number("inputTokens") }
+      : {}),
+    ...(number("outputTokens") != null
+      ? { outputTokens: number("outputTokens") }
+      : {}),
+    ...(number("cacheReadTokens") != null
+      ? { cacheReadTokens: number("cacheReadTokens") }
+      : {}),
+    ...(number("cacheWriteTokens") != null
+      ? { cacheWriteTokens: number("cacheWriteTokens") }
+      : {}),
+    ...(number("cacheHitPercent") != null
+      ? { cacheHitPercent: number("cacheHitPercent") }
+      : {}),
+  };
+  return Object.keys(metrics).length > 0 ? metrics : undefined;
+}
+
+function sanitizeTurnModel(value: unknown): TurnModel | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const harness = record.harness;
+  const id = typeof record.id === "string" ? record.id.trim() : "";
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  if (
+    typeof harness !== "string" ||
+    !HARNESSES.includes(harness as HarnessId) ||
+    !id ||
+    !name
+  ) {
+    return undefined;
+  }
+  return { harness: harness as HarnessId, id, name };
+}
+
+function sanitizePlan(value: unknown, text: string): PlanBlockMeta | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const status = record.status;
+  if (
+    status !== "streaming" &&
+    status !== "ready"
+  ) {
+    return null;
+  }
+  const key = typeof record.key === "string" ? record.key.trim() : "";
+  const originalText =
+    typeof record.originalText === "string" ? record.originalText : text;
+  return {
+    ...(key ? { key } : {}),
+    // A restarted app cannot still be executing this approval.
+    status: status === "streaming" ? "ready" : status,
+    ...(originalText ? { originalText } : {}),
+  };
+}
+
+/**
+ * How much of a delegated run's trail a saved session keeps. Reopening a
+ * session is for reading what the subagent concluded, not for replaying every
+ * call it made, and a long run would otherwise dominate the snapshot.
+ */
+const PERSISTED_AGENT_STEPS = 100;
+
+function sanitizeAgentRun(value: unknown): AgentRunMeta | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.steps)) return null;
+  const steps = record.steps.flatMap((entry): AgentStep[] => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const row = entry as Record<string, unknown>;
+    const id = typeof row.id === "string" ? row.id : "";
+    const kind = row.kind;
+    if (
+      !id ||
+      (kind !== "tool" && kind !== "message" && kind !== "reasoning")
+    ) {
+      return [];
+    }
+    const text = typeof row.text === "string" ? row.text : "";
+    return [
+      {
+        id,
+        kind,
+        text,
+        ...(typeof row.toolKind === "string" ? { toolKind: row.toolKind } : {}),
+        ...(typeof row.status === "string" ? { status: row.status } : {}),
+        ...(typeof row.detail === "string" ? { detail: row.detail } : {}),
+        ...(row.preview && typeof row.preview === "object"
+          ? { preview: row.preview as AgentStep["preview"] }
+          : {}),
+      },
+    ];
+  });
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  if (!name && steps.length === 0) return null;
+  return {
+    name: name || "Subagent",
+    ...(typeof record.model === "string" && record.model.trim()
+      ? { model: record.model.trim() }
+      : {}),
+    ...(typeof record.agentType === "string" && record.agentType.trim()
+      ? { agentType: record.agentType.trim() }
+      : {}),
+    steps: steps.slice(-PERSISTED_AGENT_STEPS),
+  };
+}
+
+function sanitizeTaskList(value: unknown): TaskListMeta | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (!Array.isArray(record.items)) return null;
+  const items = record.items.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const row = item as Record<string, unknown>;
+    const text = typeof row.text === "string" ? row.text.trim() : "";
+    const status = row.status;
+    if (
+      !text ||
+      (status !== "pending" &&
+        status !== "in_progress" &&
+        status !== "completed" &&
+        status !== "cancelled")
+    ) {
+      return [];
+    }
+    const id =
+      typeof row.id === "string"
+        ? row.id.trim()
+        : typeof row.id === "number" && Number.isFinite(row.id)
+          ? String(row.id)
+          : "";
+    return [
+      { ...(id ? { id } : {}), text, status },
+    ] satisfies TaskListMeta["items"];
+  });
+  if (items.length === 0) return null;
+  const key = typeof record.key === "string" ? record.key.trim() : "";
+  const providerSessionId =
+    typeof record.providerSessionId === "string"
+      ? record.providerSessionId.trim()
+      : "";
+  const explanation =
+    typeof record.explanation === "string" ? record.explanation.trim() : "";
+  return {
+    ...(key ? { key } : {}),
+    ...(providerSessionId ? { providerSessionId } : {}),
+    ...(explanation ? { explanation } : {}),
+    items,
+  };
+}
+
+function normalizeSummary(summary: SessionSummary): SessionSummary {
+  return {
+    ...summary,
+    harness: asHarness(summary.harness),
+    runtimeMode: asRuntimeMode(summary.runtimeMode),
+    ...(summary.providerSessionId
+      ? { providerSessionId: summary.providerSessionId }
+      : {}),
+    archived: summary.archived || undefined,
+    pinned: summary.pinned || undefined,
+    draft: summary.draft || undefined,
+  };
+}
+
+function recordToSession(record: SessionRecord): Session {
+  const blocks = Array.isArray(record.blocks)
+    ? record.blocks
+        .map((block) => sanitizeBlock(block, { hydrate: true }))
+        .filter((block): block is Block => block != null)
+    : [];
+  return {
+    id: record.id,
+    cwd: record.cwd,
+    harness: asHarness(record.harness),
+    model: record.model,
+    modelSettings:
+      record.modelSettings && typeof record.modelSettings === "object"
+        ? record.modelSettings
+        : {},
+    runtimeMode: asRuntimeMode(record.runtimeMode),
+    title: record.title,
+    blocks,
+    busy: false,
+    ...(record.providerSessionId
+      ? { providerSessionId: record.providerSessionId }
+      : {}),
+    ...(record.providerAccountId
+      ? { providerAccountId: record.providerAccountId }
+      : {}),
+    ...(contextFromRecord(record) ?? {}),
+  };
+}
+
+/**
+ * Last known reading from a stored session. The harness re-reports on the next
+ * turn, so this only has to survive until then.
+ */
+function contextFromRecord(
+  record: SessionRecord,
+): { context: ContextUsage } | undefined {
+  const used = record.contextUsed;
+  if (typeof used !== "number" || !Number.isFinite(used) || used <= 0) {
+    return undefined;
+  }
+  const window = record.contextWindow;
+  return {
+    context:
+      typeof window === "number" && Number.isFinite(window) && window > 0
+        ? { used, window }
+        : { used },
+  };
+}
+
+function asHarness(value: string): HarnessId {
+  return (HARNESSES as string[]).includes(value)
+    ? (value as HarnessId)
+    : "claude";
+}
+
+const HANDOFF_STATUSES: HandoffStatus[] = ["preparing", "ready"];
+
+function sanitizeHandoff(value: Block["handoff"]): HandoffMeta | undefined {
+  if (!value) return undefined;
+  if (!(HARNESSES as string[]).includes(value.from)) return undefined;
+  if (!(HARNESSES as string[]).includes(value.to)) return undefined;
+  if (!HANDOFF_STATUSES.includes(value.status)) return undefined;
+  const interrupted = value.status === "preparing";
+  return {
+    from: value.from,
+    to: value.to,
+    status: "ready",
+    pending: interrupted || !!value.pending,
+  };
+}
+
+function sanitizeNoteCard(value: Block["noteCard"]): Block["noteCard"] {
+  if (!value || typeof value !== "object") return undefined;
+  const id = typeof value.id === "string" ? value.id.trim() : "";
+  if (!id) return undefined;
+  const slug = typeof value.slug === "string" ? value.slug.trim() : "";
+  const title = typeof value.title === "string" ? value.title.trim() : "";
+  const sourceCwd =
+    typeof value.sourceCwd === "string" ? value.sourceCwd.trim() : "";
+  return {
+    id,
+    slug,
+    title,
+    ...(sourceCwd ? { sourceCwd } : {}),
+  };
+}
+
+function asRuntimeMode(value: string): RuntimeMode {
+  return (RUNTIME_MODES as string[]).includes(value)
+    ? (value as RuntimeMode)
+    : "supervised";
+}
+
+
+
+export function backfillClaudeShellCommands(
+  blocks: Block[],
+  commands: Record<string, string>,
+): Block[] {
+  let changed = false;
+  const repaired = blocks.map((block) => {
+    const callId = block.tool?.callId;
+    const value = callId ? commands[callId] : undefined;
+    const command = typeof value === "string" ? value.trim() : undefined;
+    if (
+      block.role !== "tool" ||
+      block.tool?.kind !== "execute" ||
+      block.text.trim() !== "Shell" ||
+      !command
+    ) {
+      return block;
+    }
+    changed = true;
+    const title = titleFromToolInput("Bash", "execute", { command });
+    return {
+      ...block,
+      text: title,
+      tool: { ...block.tool, title },
+    };
+  });
+  return changed ? repaired : blocks;
+}
