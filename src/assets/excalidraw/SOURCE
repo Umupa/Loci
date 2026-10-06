@@ -1,3 +1,3 @@
-Official Excalidraw application icon, used without modification.
+mark.ts: official Excalidraw glyph geometry, with the background omitted; the React component uses currentColor to match application chrome.
 Source: https://github.com/excalidraw/excalidraw/blob/530249037255868350dc5365b252ccddfa93e04d/public/favicon.svg
 License: MIT; see LICENSE.

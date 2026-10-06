@@ -21,6 +21,7 @@ build/
 target/
 **/gen/schemas/
 coverage/
+output/
 .vite/
 .turbo/
 *.tsbuildinfo

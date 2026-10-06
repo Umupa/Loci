@@ -11,6 +11,8 @@ npm ci
 npm run tauri dev
 ```
 
+macOS 也可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 应用，Codex 的 Run 按钮使用同一入口。该脚本会先停止本仓库已有的应用实例；`--help` 可查看调试与日志选项。
+
 检查与构建：
 
 ```sh

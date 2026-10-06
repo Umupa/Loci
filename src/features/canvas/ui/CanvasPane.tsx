@@ -1,17 +1,30 @@
 import "@excalidraw/excalidraw/index.css";
-import { convertToExcalidrawElements, Excalidraw } from "@excalidraw/excalidraw";
+import { convertToExcalidrawElements, Excalidraw, getSceneVersion, hashElementsVersion } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { GripVertical, ExternalLink, MessageSquarePlus, ExcalidrawIcon, X } from "../../../shared/ui/icons";
 import type { Canvas } from "../canvas";
 import { canvasElementsToText, updateCanvas } from "../canvas";
+import { registerCanvasRenderer } from "../renderScheduling";
 import "./canvas.css";
 
 type OnChange = NonNullable<ExcalidrawProps["onChange"]>;
-type Scene = { elements: Parameters<OnChange>[0]; appState: Parameters<OnChange>[1]; files: Parameters<OnChange>[2] };
+type Scene = {
+  elements: Parameters<OnChange>[0];
+  appState: Parameters<OnChange>[1];
+  files: Parameters<OnChange>[2];
+};
 // Retain edits synchronously across list switches and workspace reparenting.
 const sceneDrafts = new Map<string, Scene>();
 const SAVE_DEBOUNCE_MS = 1500;
+type SceneRevision = {
+  version: number;
+  hash: number;
+  count: number;
+  background: Scene["appState"]["viewBackgroundColor"];
+  font: Scene["appState"]["currentItemFontFamily"];
+  files: Scene["files"];
+};
 
 type Props = {
   canvas: Canvas;
@@ -31,6 +44,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
   canvasRef.current = canvas;
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDataRef = useRef<Scene | null>(null);
+  const revisionRef = useRef<SceneRevision | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [isDark, setIsDark] = useState(() => !document.documentElement.classList.contains("theme-light"));
   const [editingTitle, setEditingTitle] = useState(false);
@@ -41,6 +55,8 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     try { return JSON.parse(canvas.dataJson); }
     catch { return { elements: [], appState: {}, files: {} }; }
   }, [canvas.id]);
+
+  useLayoutEffect(registerCanvasRenderer, []);
 
   useEffect(() => {
     const observer = new MutationObserver(() => setIsDark(!document.documentElement.classList.contains("theme-light")));
@@ -66,12 +82,37 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
   }, []);
 
   const handleChange = useCallback<OnChange>((elements, appState, files) => {
+    const restoringDraft = revisionRef.current === null && sceneDrafts.has(canvasRef.current.id);
+    const revision: SceneRevision = {
+      version: getSceneVersion(elements),
+      hash: hashElementsVersion(elements),
+      count: elements.length,
+      background: appState.viewBackgroundColor,
+      font: appState.currentItemFontFamily,
+      files,
+    };
+    // Excalidraw also emits onChange for zoom, pan, selection and tool changes.
+    // Compare element versions, not object identity: edits can mutate elements
+    // in place. Only these appState fields are part of our persisted document.
+    const previous = revisionRef.current ?? {
+      version: getSceneVersion(initialData.elements ?? []),
+      hash: hashElementsVersion(initialData.elements ?? []),
+      count: initialData.elements?.length ?? 0,
+      background: initialData.appState?.viewBackgroundColor ?? revision.background,
+      font: initialData.appState?.currentItemFontFamily ?? revision.font,
+      files,
+    };
+    revisionRef.current = revision;
+    // A restored draft is still dirty, even if hydration did not change it.
+    if (!restoringDraft &&
+      previous.version === revision.version && previous.hash === revision.hash && previous.count === revision.count &&
+      previous.background === revision.background && previous.font === revision.font && previous.files === files) return;
     const scene = { elements, appState, files };
     latestDataRef.current = scene;
     sceneDrafts.set(canvasRef.current.id, scene);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(save, SAVE_DEBOUNCE_MS);
-  }, [save]);
+  }, [save, initialData]);
 
   useEffect(() => () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
