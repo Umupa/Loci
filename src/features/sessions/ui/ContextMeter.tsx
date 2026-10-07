@@ -1,8 +1,10 @@
 import { useRef,useState } from "react";
 import { Popover } from "../../../shared/ui/Popover";
 import {
+contextPercent,
 contextRatio,
 contextTooltip,
+formatTokens,
 type ContextUsage,
 } from "../model/contextUsage";
 
@@ -29,16 +31,21 @@ export function ContextMeter({
   usage,
   onCompact,
   compactDisabled = false,
+  detailed = false,
 }: {
   usage?: ContextUsage;
   onCompact?: () => void;
   compactDisabled?: boolean;
+  /** Say the numbers beside the ring: the percentage, and the tokens used. */
+  detailed?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const ratio = contextRatio(usage);
-  if (!usage || ratio === null) return null;
+  // A window nobody reported would make the ring a guess; the tokens used are
+  // still a fact, so the detailed form can say those alone.
+  if (!usage || (ratio === null && !detailed)) return null;
 
   const { headline, detail } = contextTooltip(usage);
   const actionsOpen = open && onCompact != null;
@@ -57,12 +64,16 @@ export function ContextMeter({
           aria-label={`${headline}, ${detail}. Open context actions`}
           aria-expanded={actionsOpen}
           onClick={() => setOpen((value) => !value)}
-          className="-m-1 grid rounded-sm p-1 outline-none focus-visible:ring-1 focus-visible:ring-accent"
+          className="-m-1 flex items-center gap-1.5 rounded-sm p-1 outline-none focus-visible:ring-1 focus-visible:ring-accent"
         >
-          <MeterRing ratio={ratio} />
+          {ratio === null ? null : <MeterRing ratio={ratio} />}
+          {detailed ? <MeterText usage={usage} ratio={ratio} /> : null}
         </button>
       ) : (
-        <MeterRing ratio={ratio} label={`${headline}, ${detail}`} />
+        <div className="flex items-center gap-1.5">
+          {ratio === null ? null : <MeterRing ratio={ratio} label={`${headline}, ${detail}`} />}
+          {detailed ? <MeterText usage={usage} ratio={ratio} /> : null}
+        </div>
       )}
       {hovered || actionsOpen ? (
         <Popover
@@ -95,6 +106,17 @@ export function ContextMeter({
         </Popover>
       ) : null}
     </div>
+  );
+}
+
+/** "69%  Tokens: 176K", tinted like the ring as the window fills. */
+function MeterText({ usage, ratio }: { usage: ContextUsage; ratio: number | null }) {
+  const percent = contextPercent(usage);
+  return (
+    <span className={`flex items-center gap-2.5 whitespace-nowrap text-[11px] tabular-nums leading-none ${ratio === null ? "text-content/45" : ringClass(ratio)}`}>
+      {percent === null ? null : <span>{percent}%</span>}
+      <span className="text-content/45">Tokens: {formatTokens(usage.used)}</span>
+    </span>
   );
 }
 

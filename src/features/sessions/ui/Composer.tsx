@@ -2047,31 +2047,18 @@ export function Composer({
               Drop files to attach
             </div>
           ) : null}
-          {hideTopBar ? null : (
+          {/* The row only holds the project picker, so it is gone when that is. */}
+          {hideTopBar || hideProjectPicker ? null : (
             <div className="flex min-w-0 items-center gap-2.5 overflow-hidden px-3 pt-2.5">
-              {!hideProjectPicker ? (
-                <CwdPicker
-                  cwd={cwd}
-                  recents={recents}
-                  projectLogoPath={projectLogoPath}
-                  enabled={enabled}
-                  onCwdChange={onCwdChange}
+              <CwdPicker
+                cwd={cwd}
+                recents={recents}
+                projectLogoPath={projectLogoPath}
+                enabled={enabled}
+                onCwdChange={onCwdChange}
 
-                  onClose={() => ref.current?.focus()}
-                />
-              ) : null}
-
-              <div className="ml-auto flex shrink-0 items-center">
-                <ContextMeter
-                  usage={context}
-                  onCompact={
-                    compactSupported
-                      ? onCompactContext
-                      : undefined
-                  }
-                  compactDisabled={busy}
-                />
-              </div>
+                onClose={() => ref.current?.focus()}
+              />
             </div>
           )}
 
@@ -2345,6 +2332,15 @@ export function Composer({
                     onClose={() => ref.current?.focus()}
                   />
                 ) : null}
+                {/* The context gauge sits with the controls it relates to. */}
+                <div className="ml-1 flex shrink-0 items-center" data-context-meter-slot>
+                  <ContextMeter
+                    usage={context}
+                    onCompact={compactSupported ? onCompactContext : undefined}
+                    compactDisabled={busy}
+                    detailed={!compact}
+                  />
+                </div>
               </div>
             </div>
 
