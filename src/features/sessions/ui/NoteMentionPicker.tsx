@@ -1,9 +1,9 @@
 import { useEffect,useRef,type MouseEvent as ReactMouseEvent } from "react";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
-import { StickyNote } from "../../../shared/ui/icons";
+import { ExcalidrawIcon, StickyNote } from "../../../shared/ui/icons";
 import { MatchText } from "../../../shared/ui/MatchText";
-import { isNoteMentionPath } from "../../notes";
+import { mentionKind } from "../model/mentionSources";
 import type { RankedFile } from "../../notes/noteMentions";
 
 type Props = {
@@ -11,7 +11,6 @@ type Props = {
   query: string;
   active: number;
   loading?: boolean;
-  includeNotes?: boolean;
   onActive: (index: number) => void;
   onPick: (file: RankedFile) => void;
 };
@@ -21,7 +20,6 @@ export function NoteMentionPicker({
   query,
   active,
   loading,
-  includeNotes = false,
   onActive,
   onPick,
 }: Props) {
@@ -64,26 +62,23 @@ export function NoteMentionPicker({
       {files.length === 0 ? (
         <p className="px-3 py-2.5 text-[12px] text-content/50">
             {loading
-              ? "Loading notes…"
+              ? "Loading…"
               : query.trim()
-                ? includeNotes
-                  ? "No matching notes"
-                  : "No matching notes"
-                : includeNotes
-                  ? "No notes found"
-                  : "No notes found"}
+                ? "No matches"
+                : "Nothing to mention yet"}
         </p>
       ) : (
         <div
           ref={lockOverscroll}
           role="listbox"
-          aria-label={includeNotes ? "Notes" : "Notes"}
+          aria-label="Mention"
           onMouseMove={onListMouseMove}
           className="max-h-[min(240px,40vh)] overflow-y-auto overscroll-none px-1 py-1"
         >
           {files.map((file, index) => {
             const highlighted = index === active;
-            const note = isNoteMentionPath(file.path);
+            const kind = mentionKind(file.path);
+            const note = kind !== "file";
             const slash = file.relative.lastIndexOf("/");
             const dir = note ? "" : slash === -1 ? "" : file.relative.slice(0, slash);
             const nameOffset = slash === -1 ? 0 : slash + 1;
@@ -107,8 +102,10 @@ export function NoteMentionPicker({
                 }`}
               >
                 <span className="shrink-0">
-                  {isNoteMentionPath(file.path) ? (
+                  {kind === "note" ? (
                     <StickyNote className="size-3.5" strokeWidth={1.75} />
+                  ) : kind === "canvas" ? (
+                    <ExcalidrawIcon className="size-3.5" strokeWidth={1.75} />
                   ) : (
                     <FileTypeIcon
                       name={file.name}
@@ -131,7 +128,7 @@ export function NoteMentionPicker({
                 </span>
                 {note ? (
                   <span className="shrink-0 font-mono text-[11px] text-content/40">
-                    Note
+                    {kind === "canvas" ? "Drawing" : "Note"}
                   </span>
                 ) : dir ? (
                   <span className="min-w-0 max-w-[45%] truncate font-mono text-[11px] text-content/40">
