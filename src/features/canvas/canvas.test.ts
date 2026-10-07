@@ -1,12 +1,35 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { updateCanvas, type Canvas } from "./canvas";
+import { CANVASES_CHANGED_EVENT, deleteCanvas, updateCanvas, type Canvas } from "./canvas";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const original: Canvas = { id: "drawing", title: "Before", dataJson: "old scene", tags: [], cwd: "/project", createdAt: 1, updatedAt: 1 };
 
 beforeEach(() => vi.clearAllMocks());
 describe("canvas edits", () => {
+  it("finishes pending saves before deleting and announces the deletion", async () => {
+    let stored: Canvas | null = { ...original };
+    let release!: () => void;
+    const saving = new Promise<void>((resolve) => { release = resolve; });
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "canvas_get") return stored;
+      if (command === "canvas_upsert") { await saving; stored = (args as { canvas: Canvas }).canvas; return stored; }
+      if (command === "canvas_delete") { stored = null; return; }
+      throw new Error("Unexpected command");
+    });
+    const changed = vi.fn();
+    window.addEventListener(CANVASES_CHANGED_EVENT, changed);
+    try {
+      const edit = updateCanvas(original.id, { title: "Edited" });
+      await Promise.resolve();
+      await Promise.resolve();
+      const deletion = deleteCanvas(original.id);
+      release();
+      await Promise.all([edit, deletion]);
+      expect(stored).toBeNull();
+      expect(changed).toHaveBeenCalledTimes(2);
+    } finally { window.removeEventListener(CANVASES_CHANGED_EVENT, changed); }
+  });
   it("orders scene and title writes, retaining both changes", async () => {
     let saved = { ...original };
     let release!: () => void;

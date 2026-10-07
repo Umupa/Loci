@@ -546,6 +546,50 @@ function inputText(input: HTMLInputElement, value: string) {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+async function pickNoteMenu(label: string) {
+  const row = container.querySelector<HTMLButtonElement>("li button")!;
+  await act(async () => row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 20, clientY: 20 })));
+  const item = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((el) => el.textContent?.includes(label))!;
+  expect(item).toBeDefined();
+  await act(async () => item.click());
+}
+
+it("deletes from the list without recreating an editor draft", async () => {
+  let exists = true;
+  const save = invoke.getMockImplementation()!;
+  invoke.mockImplementation(async (command, args) => {
+    if (command === "notes_list") return exists ? [{ ...stored }] : [];
+    if (command === "notes_delete") { exists = false; return; }
+    if (command === "notes_upsert") exists = true;
+    return save(command, args);
+  });
+  await render();
+  const title = container.querySelector<HTMLInputElement>('[aria-label="Note title"]')!;
+  await act(async () => inputText(title, "Unsaved draft"));
+  await pickNoteMenu("Delete");
+  expect(exists).toBe(false);
+  expect(container.querySelector('[aria-label="Note title"]')).toBeNull();
+});
+
+it("serializes list rename after an in-flight editor save", async () => {
+  const save = invoke.getMockImplementation()!;
+  let release!: () => void;
+  const saving = new Promise<void>((resolve) => { release = resolve; });
+  let writes = 0;
+  invoke.mockImplementation(async (command, args) => {
+    if (command === "notes_upsert" && ++writes === 1) await saving;
+    return save(command, args);
+  });
+  await render();
+  const title = container.querySelector<HTMLInputElement>('[aria-label="Note title"]')!;
+  await act(async () => { title.focus(); inputText(title, "Editor title"); title.blur(); });
+  await pickNoteMenu("Rename");
+  const rename = container.querySelector<HTMLInputElement>('[aria-label="Rename note"]')!;
+  await act(async () => { inputText(rename, "List title"); rename.blur(); });
+  await act(async () => release());
+  expect(stored.title).toBe("List title");
+});
+
 function multipleProjects() {
   const notes: Note[] = [
     { ...stored, id: "other-project", title: "Other project note", sourceCwd: "/work/portognjeeen" },

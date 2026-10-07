@@ -32,7 +32,7 @@ import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
 import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
 import { ADD_NOTE_TO_CHAT_EVENT, loadNotes, type Note, type NoteComposerCard } from "../features/notes";
-import { CANVASES_CHANGED_EVENT, createEmptyCanvas, loadCanvases, updateCanvas, upsertCanvas, type Canvas } from "../features/canvas/canvas";
+import { CANVASES_CHANGED_EVENT, createEmptyCanvas, deleteCanvas, loadCanvases, updateCanvas, upsertCanvas, type Canvas } from "../features/canvas/canvas";
 import { synchronizeProjectLocation, rememberProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
 import { looksLikeProject, replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
@@ -173,6 +173,9 @@ function Workspace(boot: BootWorkspace) {
   }, []);
   const renameCanvas = (id: string, title: string) => {
     void updateCanvas(id, { title }).catch((error) => workspace.setError(String(error)));
+  };
+  const handleDeleteCanvas = (id: string) => {
+    void deleteCanvas(id).catch((error) => workspace.setError(String(error)));
   };
   const canvasAddToChat = (text: string) => {
     const view = workspaceRef.current!;
@@ -387,7 +390,7 @@ function Workspace(boot: BootWorkspace) {
             focusToken={searchFocusToken} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
             onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}
           {surface === "notes" ? <NotesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} cwd={workspace.projectCwd} recents={workspace.recents} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
-          {surface === "canvases" ? <CanvasesView canvases={canvases} cwd={workspace.projectCwd} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail} onOpenCanvas={openCanvas} onNewCanvas={newCanvas} onTitleChange={renameCanvas} onAddToChat={canvasAddToChat} onRegisterAppend={registerCanvasAppend} /> : null}
+          {surface === "canvases" ? <CanvasesView canvases={canvases} cwd={workspace.projectCwd} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail} onOpenCanvas={openCanvas} onNewCanvas={newCanvas} onTitleChange={renameCanvas} onDeleteCanvas={handleDeleteCanvas} onAddToChat={canvasAddToChat} onRegisterAppend={registerCanvasAppend} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest}
             recents={workspace.recents} cwd={workspace.projectCwd} sessions={workspace.sidebarHistory} besideRail onClose={() => setSurface(settingsReturn.current)} onSelectSection={onSelectSettingsSection}
             onOpenSession={(id) => void workspace.openSession(id)} onArchiveSession={(...args) => void workspace.archiveSession(...args)} onDeleteSession={(id) => void workspace.removeSession(id)}

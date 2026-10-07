@@ -1,4 +1,5 @@
-import { LoaderCircle, Plus, Search, File, Trash2, X } from "../../../shared/ui/icons";
+import { LoaderCircle, Plus, Search, File, Trash2, X, ListFilter, ChevronLeft, ChevronRight } from "../../../shared/ui/icons";
+import { ContextMenu, type ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
   Fragment,
@@ -9,6 +10,7 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import { useMarkdownMode } from "../../sessions/ui/MarkdownModeToggle";
 import { ProjectLogoIcon } from "../../projects/ui/ProjectLogoIcon";
@@ -93,6 +95,8 @@ type Props = {
   onToggleSidebar?: () => void;
 };
 
+type NoteEditorActions = { id: string; rename: (title: string) => void; remove: () => Promise<void> };
+
 export function NotesView({
   besideRail = false,
   compactRail = false,
@@ -127,6 +131,14 @@ export function NotesView({
     );
   });
   const [creating, setCreating] = useState(false);
+  const [noteMenu, setNoteMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [timeFilter, setTimeFilter] = useState<"all" | "today" | "7d" | "30d">("all");
+  const [filterAnchor, setFilterAnchor] = useState<HTMLButtonElement | null>(null);
+  const [listVisible, setListVisible] = useState(true);
+  const editorActions = useRef<NoteEditorActions | null>(null);
+  const registerEditorActions = useCallback((actions: NoteEditorActions | null) => { editorActions.current = actions; }, []);
   const logos = useTabGroupLogos();
   const [groupMascots] = useState(loadTabGroupMascots);
   const [groupColors] = useState(loadTabGroupColors);
@@ -175,9 +187,15 @@ export function NotesView({
   const scopedNotes = useMemo(() => notes.filter((note) => !projectCwd ||
     !!note.sourceCwd && sameProjectPath(note.sourceCwd, projectCwd)), [notes, projectCwd]);
   const visible = useMemo(() => {
+    const now = Date.now();
+    const since = timeFilter === "today" ? new Date(now).setHours(0, 0, 0, 0)
+      : timeFilter === "7d" ? now - 604800000
+      : timeFilter === "30d" ? now - 2592000000
+      : 0;
+    const timePassed = scopedNotes.filter((note) => since === 0 || note.updatedAt >= since);
     const needle = query.trim().toLowerCase();
-    if (!needle) return scopedNotes;
-    return scopedNotes.filter((note) => {
+    if (!needle) return timePassed;
+    return timePassed.filter((note) => {
       const project = noteSourceProject(note.sourceCwd)?.toLowerCase() ?? "";
       return (
         note.title.toLowerCase().includes(needle) ||
@@ -187,7 +205,7 @@ export function NotesView({
         project.includes(needle)
       );
     });
-  }, [scopedNotes, query]);
+  }, [scopedNotes, query, timeFilter]);
 
   const selected =
     visible.find((note) => note.id === selectedId) ??
@@ -234,6 +252,7 @@ export function NotesView({
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
+      throw err;
     }
   };
 
@@ -241,6 +260,30 @@ export function NotesView({
     requestAddNoteToChat(note);
     onClose();
   };
+
+  const commitNoteRename = (id: string) => {
+    const note = notes.find((n) => n.id === id);
+    if (!note) { setRenamingId(null); return; }
+    const title = renameDraft.trim() || note.title;
+    if (title !== note.title) {
+      if (editorActions.current?.id !== id) { setError("Select the note before renaming it."); return; }
+      editorActions.current.rename(title);
+    }
+    setRenamingId(null);
+  };
+
+  const noteMenuItems: ContextMenuItem[] = [
+    { kind: "item", id: "rename", label: "Rename" },
+    { kind: "sep" },
+    { kind: "item", id: "delete", label: "Delete", danger: true },
+  ];
+
+  const filterItems: ContextMenuItem[] = [
+    { kind: "item", id: "all", label: "All time", checked: timeFilter === "all" },
+    { kind: "item", id: "today", label: "Today", checked: timeFilter === "today" },
+    { kind: "item", id: "7d", label: "Last 7 days", checked: timeFilter === "7d" },
+    { kind: "item", id: "30d", label: "Last 30 days", checked: timeFilter === "30d" },
+  ];
 
   const list = (
     <div
@@ -262,6 +305,15 @@ export function NotesView({
         </div>
         <button
           type="button"
+          aria-label="Filter by time"
+          title="Filter notes"
+          onClick={(e: ReactMouseEvent<HTMLButtonElement>) => setFilterAnchor(e.currentTarget)}
+          className={`grid size-6 shrink-0 place-items-center rounded-md hover:bg-content/10 hover:text-content ${timeFilter !== "all" ? "text-accent" : "text-content/45"}`}
+        >
+          <ListFilter className="size-3.5" strokeWidth={1.75} />
+        </button>
+        <button
+          type="button"
           title="New note"
           aria-label="New note"
           disabled={creating}
@@ -277,6 +329,15 @@ export function NotesView({
             <Plus className="size-3.5" strokeWidth={1.75} />
           )}
         </button>
+        <button
+          type="button"
+          aria-label="Hide notes list"
+          title="Hide notes list"
+          onClick={() => setListVisible(false)}
+          className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content"
+        >
+          <ChevronLeft className="size-3.5" strokeWidth={1.75} />
+        </button>
       </div>
       <div
         ref={listLock}
@@ -290,7 +351,7 @@ export function NotesView({
           </div>
         ) : visible.length === 0 ? (
           <p className="px-3 py-2 text-[12px] text-content/50">
-            {query.trim()
+            {query.trim() || timeFilter !== "all"
               ? "No matching notes"
               : "No notes yet. Save a turn from the transcript, or create one here."}
           </p>
@@ -298,15 +359,37 @@ export function NotesView({
           <ul className="flex flex-col gap-0.5 p-1.5">
             {visible.map((note) => (
               <li key={note.id}>
-                <NoteCard
-                  note={note}
-                  active={selected?.id === note.id}
-                  logos={logos}
-                  mascots={groupMascots}
-                  colors={groupColors}
-                  customColors={groupCustomColors}
-                  onSelect={() => setSelectedId(note.id)}
-                />
+                {renamingId === note.id ? (
+                  <div className={`flex w-full flex-col rounded-md border px-2.5 py-2 ${selected?.id === note.id ? "border-transparent bg-selection" : "border-stroke"}`}>
+                    <input
+                      autoFocus
+                      aria-label="Rename note"
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={() => void commitNoteRename(note.id)}
+                      onKeyDown={(e: ReactKeyboardEvent<HTMLInputElement>) => {
+                        if (e.key === "Enter") e.currentTarget.blur();
+                        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setRenamingId(null); }
+                      }}
+                      className="min-w-0 w-full bg-transparent text-[13px] font-semibold text-content outline-none"
+                    />
+                  </div>
+                ) : (
+                  <NoteCard
+                    note={note}
+                    active={selected?.id === note.id}
+                    logos={logos}
+                    mascots={groupMascots}
+                    colors={groupColors}
+                    customColors={groupCustomColors}
+                    onSelect={() => setSelectedId(note.id)}
+                    onContextMenu={(e: ReactMouseEvent<HTMLButtonElement>) => {
+                      e.preventDefault();
+                      setSelectedId(note.id);
+                      setNoteMenu({ x: e.clientX, y: e.clientY, id: note.id });
+                    }}
+                  />
+                )}
               </li>
             ))}
           </ul>
@@ -351,16 +434,36 @@ export function NotesView({
         {IS_MAC ? null : <WindowControls />}
       </div>
       <div className="flex min-h-0 min-w-0 flex-1">
-        {list}
+        {listVisible ? list : (
+          <div className="flex w-6 shrink-0 flex-col items-center border-r border-stroke pt-1">
+            <button type="button" aria-label="Show notes list" title="Show notes list" onClick={() => setListVisible(true)} className="grid size-5 place-items-center rounded text-content/45 hover:bg-content/10 hover:text-content">
+              <ChevronRight className="size-3.5" strokeWidth={1.75} />
+            </button>
+          </div>
+        )}
         <NoteDetail
           note={selected}
           recents={recents}
           activeCwd={cwd}
           onSaved={onSaved}
           onDelete={onDelete}
+          onActions={registerEditorActions}
           onAddToChat={onAddToChat}
         />
       </div>
+      {noteMenu ? <ContextMenu x={noteMenu.x} y={noteMenu.y} items={noteMenuItems} onPick={(id) => {
+        if (id === "rename") {
+          const note = notes.find((n) => n.id === noteMenu.id);
+          if (note) { setRenamingId(note.id); setRenameDraft(note.title); }
+        } else if (id === "delete") {
+          if (editorActions.current?.id === noteMenu.id) void editorActions.current.remove();
+        }
+        setNoteMenu(null);
+      }} onClose={() => setNoteMenu(null)} /> : null}
+      {filterAnchor ? <ContextMenu anchor={filterAnchor} items={filterItems} onPick={(id) => {
+        setTimeFilter(id as "all" | "today" | "7d" | "30d");
+        setFilterAnchor(null);
+      }} onClose={() => setFilterAnchor(null)} /> : null}
     </div>
   );
 }
@@ -440,10 +543,12 @@ function NoteCard({
   colors,
   customColors,
   onSelect,
+  onContextMenu,
 }: {
   note: Note;
   active: boolean;
   onSelect: () => void;
+  onContextMenu?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
 } & ProjectMarks) {
   const preview = notePreview(note.body, note.title);
   const project = noteSourceProject(note.sourceCwd);
@@ -455,6 +560,7 @@ function NoteCard({
       title={hint}
       aria-current={active ? "true" : undefined}
       onClick={onSelect}
+      onContextMenu={onContextMenu}
       className={`flex w-full flex-col rounded-md border px-2.5 py-2 text-left ${
         active
           ? "border-transparent bg-selection text-content"
@@ -516,6 +622,7 @@ function NoteDetail({
   activeCwd,
   onSaved,
   onDelete,
+  onActions,
   onAddToChat,
 }: {
   note: Note | null;
@@ -523,6 +630,7 @@ function NoteDetail({
   activeCwd?: string;
   onSaved: (note: Note) => void;
   onDelete: (id: string) => void | Promise<void>;
+  onActions: (actions: NoteEditorActions | null) => void;
   onAddToChat: (note: Note) => void;
 }) {
   if (!note) {
@@ -541,6 +649,7 @@ function NoteDetail({
       activeCwd={activeCwd}
       onSaved={onSaved}
       onDelete={onDelete}
+      onActions={onActions}
       onAddToChat={onAddToChat}
     />
   );
@@ -552,6 +661,7 @@ function NoteEditor({
   activeCwd,
   onSaved,
   onDelete,
+  onActions,
   onAddToChat,
 }: {
   note: Note;
@@ -559,6 +669,7 @@ function NoteEditor({
   activeCwd?: string;
   onSaved: (note: Note) => void;
   onDelete: (id: string) => void | Promise<void>;
+  onActions: (actions: NoteEditorActions | null) => void;
   onAddToChat: (note: Note) => void;
 }) {
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
@@ -587,6 +698,8 @@ function NoteEditor({
   const skipSave = useRef(false);
   const saveTimer = useRef<number | null>(null);
   const onSavedRef = useRef(onSaved);
+  const onDeleteRef = useRef(onDelete);
+  onDeleteRef.current = onDelete;
   bodyRef.current = body;
   noteRef.current = note;
   onSavedRef.current = onSaved;
@@ -661,6 +774,22 @@ function NoteEditor({
     saveTimer.current = null;
     return enqueueNoteSave(note.id, persist);
   }, [note.id, persist]);
+
+  const remove = useCallback(async () => {
+    skipSave.current = true;
+    if (saveTimer.current != null) window.clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    try { await enqueueNoteSave(note.id, () => onDeleteRef.current(note.id)); }
+    catch (error) {
+      skipSave.current = false;
+      setSaveError(error instanceof Error ? error.message : String(error));
+    }
+  }, [note.id]);
+
+  useEffect(() => {
+    onActions({ id: note.id, rename: (title) => { editNote({ title }); void saveNow(); }, remove });
+    return () => onActions(null);
+  }, [note.id, onActions, editNote, saveNow, remove]);
 
   const scheduleSave = useCallback(() => {
     if (saveTimer.current != null) window.clearTimeout(saveTimer.current);
@@ -859,12 +988,7 @@ function NoteEditor({
             </button>
             <button
               type="button"
-              onClick={() => {
-                skipSave.current = true;
-                if (saveTimer.current != null)
-                  window.clearTimeout(saveTimer.current);
-                void enqueueNoteSave(note.id, () => onDelete(note.id));
-              }}
+              onClick={() => { void remove(); }}
               className="inline-flex items-center gap-1.5 rounded-md px-3 h-7 text-[12px] text-content/70 hover:bg-content/10 hover:text-red-400"
             >
               <Trash2 className="size-3.5" strokeWidth={1.75} />

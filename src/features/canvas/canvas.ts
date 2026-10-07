@@ -57,7 +57,9 @@ export async function upsertCanvas(canvas: CanvasUpsert): Promise<Canvas> {
 
 // Preserve scene and title edits in order when a pane is moved or reopened.
 const pendingUpdates = new Map<string, Promise<Canvas>>();
+const deletingCanvases = new Set<string>();
 export function updateCanvas(id: string, changes: Partial<Omit<CanvasUpsert, "id">>): Promise<Canvas> {
+  if (deletingCanvases.has(id)) return Promise.reject(new Error("Drawing is being deleted."));
   const previous = pendingUpdates.get(id);
   const persist = async () => {
     const canvas = await getCanvas(id);
@@ -72,10 +74,14 @@ export function updateCanvas(id: string, changes: Partial<Omit<CanvasUpsert, "id
 }
 
 export async function deleteCanvas(id: string): Promise<void> {
-  await invoke("canvas_delete", { id });
-  if (cache) {
-    cache = cache.filter((c) => c.id !== id);
-  }
+  if (deletingCanvases.has(id)) throw new Error("Drawing is being deleted.");
+  deletingCanvases.add(id);
+  try {
+    await pendingUpdates.get(id)?.catch(() => undefined);
+    await invoke("canvas_delete", { id });
+    if (cache) cache = cache.filter((c) => c.id !== id);
+    window.dispatchEvent(new Event(CANVASES_CHANGED_EVENT));
+  } finally { deletingCanvases.delete(id); }
 }
 
 export function createEmptyCanvas(cwd?: string): CanvasUpsert {
