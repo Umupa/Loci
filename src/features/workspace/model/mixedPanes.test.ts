@@ -142,4 +142,14 @@ describe("mixed workspace panes", () => {
     expect(restored.tabs[0].layout).toEqual(withFile.layout);
     expect(restored.sessions.map((entry) => entry.id)).toEqual(["chat"]);
   });
+
+  it("keeps a pinned tab pinned across a restart, and only that tab", () => {
+    const session = { ...newSession("codex", "/project"), id: "chat" };
+    const other = { ...newSession("codex", "/project"), id: "other" };
+    const pinned = { ...newTab("chat"), id: "pinned-tab", cwd: "/project", pinned: true };
+    const plain = { ...newTab("other"), id: "plain-tab", cwd: "/project" };
+    const snapshot = collectWorkspaceSnapshot([pinned, plain], [session, other], "plain-tab", "/project", new Map());
+    const restored = hydrateWorkspaceSnapshot(JSON.parse(JSON.stringify(snapshot)), new Map())!;
+    expect(restored.tabs.map((tab) => [tab.id, tab.pinned === true])).toEqual([["pinned-tab", true], ["plain-tab", false]]);
+  });
 });

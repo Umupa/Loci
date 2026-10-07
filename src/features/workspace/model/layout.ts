@@ -33,6 +33,8 @@ export type WorkspaceTab = {
     cwd?: string;
     /** Explicit tab group; absent means ungrouped. */
     groupId?: string;
+    /** Kept at the left of the strip as an icon, and spared by the bulk close actions. */
+    pinned?: boolean;
 };
 const MIN_SIZE = 0.08;
 export function leaf(sessionId: string): LayoutNode {

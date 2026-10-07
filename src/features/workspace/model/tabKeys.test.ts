@@ -64,6 +64,16 @@ describe("tabCommand", () => {
         expect(tabCommand(key({ key: "ArrowDown", ctrlKey: true }))).toBe("next-session-in-tab");
         expect(tabCommand(key({ key: "ArrowUp", metaKey: true, altKey: true, shiftKey: true }))).toBeNull();
     });
+    it("uses mod-p to switch tabs and shift-mod-t to reopen the last closed one", () => {
+        expect(tabCommand(key({ key: "p", metaKey: true }))).toBe("switch-tab");
+        expect(tabCommand(key({ key: "p", ctrlKey: true }))).toBe("switch-tab");
+        expect(tabCommand(key({ key: "T", metaKey: true, shiftKey: true }))).toBe("reopen-tab");
+        // Holding the keys down must not reopen every tab in turn.
+        expect(tabCommand(key({ key: "T", metaKey: true, shiftKey: true, repeat: true }))).toBeNull();
+        expect(tabCommandKeybinding("switch-tab")).toBe("Tab: Switch");
+        expect(tabCommandKeybinding("reopen-tab")).toBe("Tab: Reopen Closed");
+        expect(tabCommandForKeybinding("Tab: Switch", key({ key: "k" }))).toBe("switch-tab");
+    });
     it("maps parsed commands to configurable keybinding rows", () => {
         expect(tabCommandKeybinding("new")).toBe("Tab: New");
         expect(tabCommandKeybinding("cycle-next")).toBe("Tab: Cycle Next");

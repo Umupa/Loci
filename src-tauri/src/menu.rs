@@ -110,7 +110,9 @@ pub fn dispatch(app: &AppHandle, id: &str) {
         | "zoom_reset"
         | "reload"
         | "open_command_palette"
-        | "close_all_tabs" => emit_to_focused(app, id),
+        | "close_all_tabs"
+        | "switch_tab"
+        | "reopen_tab" => emit_to_focused(app, id),
         _ => {}
     }
 }
@@ -189,6 +191,22 @@ fn build(
         "New Tab",
         "CmdOrCtrl+T",
         "Tab: New",
+        overrides,
+    )?;
+    let switch_tab = menu_item(
+        app,
+        "switch_tab",
+        "Switch Tab…",
+        "CmdOrCtrl+P",
+        "Tab: Switch",
+        overrides,
+    )?;
+    let reopen_tab = menu_item(
+        app,
+        "reopen_tab",
+        "Reopen Closed Tab",
+        "CmdOrCtrl+Shift+T",
+        "Tab: Reopen Closed",
         overrides,
     )?;
     let split_right = menu_item(
@@ -346,6 +364,8 @@ fn build(
         .separator()
         .separator()
         .item(&new_tab)
+        .item(&switch_tab)
+        .item(&reopen_tab)
         .item(&split_right)
         .item(&split_down)
         .item(&close_tab)

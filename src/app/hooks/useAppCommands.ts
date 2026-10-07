@@ -28,6 +28,7 @@ type Options = {
   openNotes: () => void;
   toggleProjectRail: () => void;
   toggleSessionSidebar: () => void;
+  openTabSwitcher: () => void;
   reload: () => void;
   sessionOrder: readonly string[];
 };
@@ -80,9 +81,12 @@ export function useAppCommands(options: Options) {
       }
       const handlers: Partial<Record<TabCommand & string, () => unknown>> = {
         new: () => w.createSession(),
+        "switch-tab": () => latest.current.openTabSwitcher(),
+        "reopen-tab": () => { void w.reopenClosed("latest"); },
         close: () => { if (w.activeSession) w.closePane(w.activeSession.id); },
-        "close-others": () => w.closeTabs(w.visibleTabs.filter((tab) => tab.id !== w.activeTabId).map((tab) => tab.id), w.activeTabId),
-        "close-all": () => w.closeTabs(w.visibleTabs.map((tab) => tab.id)),
+        // Pinned tabs are what the user chose to keep: bulk closes leave them.
+        "close-others": () => w.closeTabs(w.visibleTabs.filter((tab) => tab.id !== w.activeTabId && !tab.pinned).map((tab) => tab.id), w.activeTabId),
+        "close-all": () => w.closeTabs(w.visibleTabs.filter((tab) => !tab.pinned).map((tab) => tab.id)),
         next: () => w.cycleTab(1), prev: () => w.cycleTab(-1),
         "cycle-next": () => w.cycleTab(1), "cycle-prev": () => w.cycleTab(-1),
         back: () => surfaceOpen ? closeSurface() : w.visit("back"), forward: () => w.visit("forward"),
@@ -158,7 +162,7 @@ export function useAppCommands(options: Options) {
     window.addEventListener("keydown", onKey, true);
 
     const tabEvents: Record<string, TabCommand> = {
-      new_tab: "new", close_tab: "close", close_other_tabs: "close-others", close_all_tabs: "close-all",
+      new_tab: "new", switch_tab: "switch-tab", reopen_tab: "reopen-tab", close_tab: "close", close_other_tabs: "close-others", close_all_tabs: "close-all",
       next_tab: "next", prev_tab: "prev", back_tab: "back", forward_tab: "forward",
       split_right: "split-right", split_down: "split-down",
       focus_left: { focus: "left" }, focus_right: { focus: "right" }, focus_up: { focus: "up" }, focus_down: { focus: "down" },
