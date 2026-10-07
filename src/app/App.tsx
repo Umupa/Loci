@@ -46,7 +46,7 @@ import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
 import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
 import { ADD_NOTE_TO_CHAT_EVENT, type NoteComposerCard } from "../features/notes";
-import { CANVASES_CHANGED_EVENT, CANVAS_OPEN_CHECKPOINT_EVENT, checkpointCanvasId, createEmptyCanvas, deleteCanvas, loadCanvases, updateCanvas, upsertCanvas, type Canvas } from "../features/canvas/canvas";
+import { CANVASES_CHANGED_EVENT, createEmptyCanvas, deleteCanvas, loadCanvases, updateCanvas, upsertCanvas, type Canvas } from "../features/canvas/canvas";
 import { synchronizeProjectLocation, rememberProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
 import { looksLikeProject, replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
@@ -59,6 +59,8 @@ import { useSessionSubmission } from "./hooks/useSessionSubmission";
 import { useIdleSessionDetach } from "./hooks/useIdleSessionDetach";
 import { useAppCommands } from "./hooks/useAppCommands";
 import { useAppControl } from "./hooks/useAppControl";
+import { useAppResourceNavigation } from "./hooks/useAppResourceNavigation";
+import type { NoteOpenRequest } from "../features/notes/ui/NotesView";
 
 const SearchView = lazySurface(async () => ({ default: (await import("../features/search/ui/SearchView")).SearchView }), { suspense: false });
 const SettingsView = lazySurface(async () => ({ default: (await import("../features/settings/ui/SettingsView")).SettingsView }), { suspense: false });
@@ -93,6 +95,7 @@ function Workspace(boot: BootWorkspace) {
   const [projectRailOpen, setProjectRailOpen] = useState(loadProjectRailOpen);
   const [sessionSidebarOpen, setSessionSidebarOpen] = useState(loadSessionSidebarOpen);
   const [searchFocusToken, setSearchFocusToken] = useState(0);
+  const [noteOpenRequest, setNoteOpenRequest] = useState<NoteOpenRequest>();
   const [sessionOrder, setSessionOrder] = useState<readonly string[]>([]);
   const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
   const [transcriptPool] = useState(() => new TranscriptPool());
@@ -167,6 +170,10 @@ function Workspace(boot: BootWorkspace) {
     persistSession: (session) => { if (session) void runtime.persistSession(session); }, setSessions: runtime.updateSessions,
   });
   useAppControl({ workspace, runtime, submission });
+  useAppResourceNavigation({ workspace, notesEnabled, onOpenNote: (id) => {
+    setNoteOpenRequest((previous) => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
+    setSurface("notes");
+  } });
 
   const openSettings = useCallback((section?: SettingsSectionId, anchor: string | null = null) => {
     if (surfaceRef.current !== "settings") settingsReturn.current = surfaceRef.current;
@@ -200,7 +207,7 @@ function Workspace(boot: BootWorkspace) {
     else appendToCanvasRef.current.delete(id);
   };
   const openCanvas = (id: string) => workspace.openCanvas(id, canvases.find((canvas) => canvas.id === id)?.cwd);
-  const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => setSurface("notes")); }, []);
+  const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => { setNoteOpenRequest(undefined); setSurface("notes"); }); }, []);
   const toggleProjectRail = useCallback(() => setProjectRailOpen((open) => { saveProjectRailOpen(!open); return !open; }), []);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const openTabSwitcher = useCallback(() => {
@@ -271,20 +278,6 @@ function Workspace(boot: BootWorkspace) {
     refresh();
     window.addEventListener(CANVASES_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(CANVASES_CHANGED_EVENT, refresh);
-  }, []);
-  useEffect(() => {
-    // A drawing call in a transcript opens its canvas beside that session.
-    const open = (event: Event) => {
-      const view = workspaceRef.current!;
-      void checkpointCanvasId((event as CustomEvent<string>).detail).then((canvasId) => {
-        if (!canvasId) throw new Error("This drawing no longer exists.");
-        const sessionId = view.activeSession?.id;
-        if (sessionId && !view.isCanvasOpen(canvasId)) view.revealCanvas(canvasId, sessionId);
-        else view.openCanvas(canvasId);
-      }).catch((error) => view.setError(String(error)));
-    };
-    window.addEventListener(CANVAS_OPEN_CHECKPOINT_EVENT, open);
-    return () => window.removeEventListener(CANVAS_OPEN_CHECKPOINT_EVENT, open);
   }, []);
   useEffect(() => {
     const onAdd = (event: Event) => {
@@ -488,7 +481,7 @@ function Workspace(boot: BootWorkspace) {
           {surface === "search" ? <SearchView open cwd={workspace.projectCwd} recents={workspace.recents} history={workspace.history} sessions={sessions}
             focusToken={searchFocusToken} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
             onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}
-          {surface === "notes" ? <NotesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} cwd={workspace.projectCwd} recents={workspace.recents} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
+          {surface === "notes" ? <NotesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} cwd={workspace.projectCwd} openRequest={noteOpenRequest} recents={workspace.recents} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
           {surface === "canvases" ? <CanvasesView canvases={canvases} cwd={workspace.projectCwd} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail} onOpenCanvas={openCanvas} onNewCanvas={newCanvas} onTitleChange={renameCanvas} onDeleteCanvas={handleDeleteCanvas} onAddToChat={canvasAddToChat} onRegisterAppend={registerCanvasAppend} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest}
             recents={workspace.recents} cwd={workspace.projectCwd} sessions={workspace.sidebarHistory} besideRail onClose={() => setSurface(settingsReturn.current)} onSelectSection={onSelectSettingsSection}

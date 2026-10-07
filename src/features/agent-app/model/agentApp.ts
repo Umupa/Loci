@@ -1,4 +1,5 @@
 import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
+import { appResourceUrl } from "../../../shared/lib/appResourceLinks";
 import { looksLikeProject, sameProjectPath } from "../../projects/model/recents";
 import {
   createEmptyCanvas,
@@ -179,7 +180,11 @@ function requireProject(source: Session): string {
 }
 
 function canvasMetadata({ id, title, cwd, createdAt, updatedAt }: Canvas) {
-  return { id, title, cwd, createdAt, updatedAt };
+  return { id, title, cwd, createdAt, updatedAt, url: appResourceUrl("canvas", id) };
+}
+
+function savedNote(note: Note) {
+  return { ...note, url: appResourceUrl("note", note.id), saved: true };
 }
 
 async function projectCanvas(source: Session, id: string): Promise<Canvas> {
@@ -462,21 +467,21 @@ export async function handleAgentApp(
       if (existing) {
         if (!existing.cwd || !sameProjectPath(existing.cwd, cwd) || existing.title !== (title ?? "Untitled drawing"))
           throw new Error("Request ID was already used for another drawing");
-        return { id: existing.id, title: existing.title };
+        return { id: existing.id, title: existing.title, url: appResourceUrl("canvas", existing.id), saved: true };
       }
       const canvas = await upsertCanvas({
         ...createEmptyCanvas(cwd),
         id,
         ...(title === undefined ? {} : { title }),
       });
-      return { id: canvas.id, title: canvas.title };
+      return { id: canvas.id, title: canvas.title, url: appResourceUrl("canvas", canvas.id), saved: true };
     }
     case "canvas.rename": {
       const id = requiredString(input.id, "id", 256);
       const title = requiredString(input.title, "title", 200);
       await projectCanvas(source, id);
       const canvas = await updateCanvas(id, { title });
-      return { title: canvas.title };
+      return { title: canvas.title, url: appResourceUrl("canvas", canvas.id), saved: true };
     }
     case "canvas.delete": {
       const id = requiredString(input.id, "id", 256);
@@ -492,7 +497,7 @@ export async function handleAgentApp(
       if (!canvas.cwd || !sameProjectPath(canvas.cwd, cwd)) throw new Error("Canvas was not found in this project");
       const saved = await readCanvasScene(id);
       if (!saved) throw new Error("Canvas was not found");
-      return { id: saved.id, title: saved.title, dataJson: saved.dataJson };
+      return { id: saved.id, title: saved.title, dataJson: saved.dataJson, url: appResourceUrl("canvas", saved.id) };
     }
     case "canvas.write-data": {
       const cwd = requireProject(source);
@@ -505,7 +510,7 @@ export async function handleAgentApp(
       if (!existing) throw new Error("Canvas was not found");
       if (!existing.cwd || !sameProjectPath(existing.cwd, cwd)) throw new Error("Canvas was not found in this project");
       await writeCanvasScene(id, scene);
-      return { updated: true };
+      return { updated: true, url: appResourceUrl("canvas", id), saved: true };
     }
     case "notes.list": {
       const limit = input.limit ?? 30;
@@ -530,6 +535,7 @@ export async function handleAgentApp(
             preview: notePreview(note.body),
             tags: note.tags,
             sourceCwd: note.sourceCwd,
+            url: appResourceUrl("note", note.id),
           })),
       };
     }
@@ -537,7 +543,7 @@ export async function handleAgentApp(
       const id = requiredString(input.id, "id", 256);
       const note = await host.note(id);
       if (!note) throw new Error("Note was not found");
-      return note;
+      return { ...note, url: appResourceUrl("note", note.id) };
     }
     case "notes.write": {
       const id = optionalString(input.id, "id", 256);
@@ -554,12 +560,12 @@ export async function handleAgentApp(
           throw new Error("Supply title, body or tags to update a note");
         const current = await host.note(id);
         if (!current) throw new Error("Note was not found");
-        return host.saveNote({
+        return savedNote(await host.saveNote({
           id,
           title: title ?? current.title,
           body: body ?? current.body,
           tags: tags ?? current.tags,
-        });
+        }));
       }
       if (body === undefined)
         throw new Error("body is required to create a note");
@@ -574,16 +580,16 @@ export async function handleAgentApp(
           JSON.stringify(existing.tags) !== JSON.stringify(tags ?? [])
         )
           throw new Error("Request ID was already used for another note");
-        return existing;
+        return savedNote(existing);
       }
-      return host.saveNote({
+      return savedNote(await host.saveNote({
         id: createdId,
         title: title ?? noteTitle(body),
         body,
         tags: tags ?? [],
         sourceSessionId: source.id,
         ...(looksLikeProject(source.cwd) ? { sourceCwd: source.cwd } : {}),
-      });
+      }));
     }
   }
 }

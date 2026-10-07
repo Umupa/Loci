@@ -26,6 +26,9 @@ type BlockProps,
 type Components,
 } from "streamdown";
 import type { PluggableList } from "unified";
+import type { Plugin } from "unified";
+import type { Schema } from "hast-util-sanitize";
+import type { Root, RootContent } from "hast";
 import { boundedCode } from "../../../shared/lib/markdown/codeHighlightPlugin";
 import { createLazyMermaidPlugin } from "../../../shared/lib/markdown/mermaidPlugin";
 import {
@@ -36,6 +39,9 @@ resolveWorkspaceFileReference,
 import { ContextMenu,type ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import { FileActionError } from "../../../shared/ui/FileActionError";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
+import { ExcalidrawIcon } from "../../../shared/ui/ExcalidrawIcon";
+import { File } from "../../../shared/ui/icons";
+import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 
 type OpenFileFn = (path: string) => void;
 
@@ -66,10 +72,27 @@ const mermaid = createLazyMermaidPlugin({
 });
 
 const MARKDOWN_PLUGINS = { code: boundedCode, mermaid };
+const [sanitizeMarkdown, sanitizeSchema] = defaultRehypePlugins.sanitize as [Plugin, Schema];
+
+// Validate before harden normalizes URLs (e.g. a path containing ../).
+function rehypeAppResourceLinks() {
+  function validate(node: Root | RootContent) {
+    if (node.type === "element" && node.tagName === "a") {
+      const href = node.properties.href;
+      if (typeof href === "string" && /^loci:/i.test(href) && !parseAppResourceUrl(href)) delete node.properties.href;
+    }
+    if ("children" in node) node.children.forEach(validate);
+  }
+  return validate;
+}
 
 const MARKDOWN_REHYPE_PLUGINS: PluggableList = [
   defaultRehypePlugins.raw,
-  defaultRehypePlugins.sanitize,
+  [sanitizeMarkdown, {
+    ...sanitizeSchema,
+    protocols: { ...sanitizeSchema.protocols, href: [...(sanitizeSchema.protocols?.href ?? []), "loci"] },
+  }],
+  rehypeAppResourceLinks,
   [
     harden,
     {
@@ -77,6 +100,7 @@ const MARKDOWN_REHYPE_PLUGINS: PluggableList = [
       // relative note URLs reach that component without changing link parsing.
       allowedImagePrefixes: ["*"],
       allowedLinkPrefixes: ["*"],
+      allowedProtocols: ["loci:"],
       allowDataImages: true,
       imageBlockPolicy: "remove" as const,
     },
@@ -215,19 +239,24 @@ function MarkdownLink({
 }: MarkdownLinkProps) {
 
   const { cwd, onOpenFile, onFileContextMenu } = useContext(FileOpenContext);
+  const resource = href ? parseAppResourceUrl(href) : undefined;
   const file = href ? resolveWorkspaceFileReference(href, cwd) : undefined;
-
-
-
+  if (href?.startsWith("loci:") && !resource) return <span dir={dir ?? "auto"}>{children}</span>;
+  const ResourceIcon = resource?.kind === "canvas" ? ExcalidrawIcon : File;
   return (
     <a
       href={href}
-      className={`text-sky-400/90 hover:text-sky-300 hover:underline ${className ?? ""}`}
+      className={`${resource ? "inline-flex max-w-full items-baseline gap-1 rounded bg-content/8 px-1.5 text-content hover:bg-content/12 hover:underline" : "text-sky-400/90 hover:text-sky-300 hover:underline"} ${className ?? ""}`}
       {...props}
       dir={dir ?? "auto"}
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;
+        if (resource) {
+          event.preventDefault();
+          requestOpenAppResource(resource);
+          return;
+        }
         if (file && onOpenFile) {
           event.preventDefault();
           onOpenFile(file.path);
@@ -246,6 +275,7 @@ function MarkdownLink({
         onFileContextMenu(event, file.path);
       }}
     >
+      {resource ? <ResourceIcon className="size-3.5 shrink-0 self-center" aria-hidden="true" /> : null}
       {children}
     </a>
   );

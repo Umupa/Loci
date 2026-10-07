@@ -127,7 +127,7 @@ async function connect(env: Record<string, string> = { LOCI_APP_ENDPOINT: endpoi
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
   const tool = async (name: string, args: object = {}) => {
     const result = await request("tools/call", { name, arguments: args });
-    return { text: result.content.filter((entry: El) => entry.type === "text").map((entry: El) => entry.text).join("\n") as string, isError: result.isError === true, checkpointId: result.structuredContent?.checkpointId as string | undefined };
+    return { text: result.content.filter((entry: El) => entry.type === "text").map((entry: El) => entry.text).join("\n") as string, isError: result.isError === true, checkpointId: result.structuredContent?.checkpointId as string | undefined, receipt: result.structuredContent as El | undefined };
   };
   return { initialized, request, tool, draw: (elements: object[]) => tool("create_view", { elements: JSON.stringify(elements) }) };
 }
@@ -169,15 +169,16 @@ describe("the vendored official server", () => {
     expect(JSON.parse(readFileSync(path.join(resources, "official/manifest.json"), "utf8")).version).toBe(recorded.match(/^Version: (\S+)$/m)![1]);
   });
 
-  it("keeps its tools and reference text, and gains the host's read tool and instructions", async () => {
+  it("describes local persistence in tools and results without initialization instructions", async () => {
     const agent = await connect();
     expect(agent.initialized.serverInfo).toEqual({ name: "Excalidraw", version: "1.0.0" });
-    expect(agent.initialized.instructions).toContain("Loci canvases");
-    expect(agent.initialized.instructions).toContain("update_elements");
+    expect(agent.initialized.instructions).toBeUndefined();
     const { tools } = await agent.request("tools/list");
     expect(tools.map((tool: El) => tool.name)).toEqual(["read_me", "create_view", "save_checkpoint", "read_checkpoint", "get_elements", "update_elements", "read_widget_context"]);
     const createView = byId(tools.map((tool: El) => ({ ...tool, id: tool.name })), "create_view");
-    expect(createView).toMatchObject({ title: "Draw Diagram", annotations: { readOnlyHint: true }, _meta: { ui: { resourceUri: "ui://excalidraw/mcp-app.html" } } });
+    expect(createView).toMatchObject({ title: "Draw and Save Loci Canvas", annotations: { readOnlyHint: false }, _meta: { ui: { resourceUri: "ui://excalidraw/mcp-app.html" } } });
+    expect(createView.description).toContain("default");
+    expect(createView.description).toContain("link");
     expect(Object.keys(createView.inputSchema.properties)).toEqual(["elements"]);
     // Tools the official widget calls stay hidden from models, as upstream marks them.
     for (const name of ["save_checkpoint", "read_checkpoint"])
@@ -191,7 +192,8 @@ describe("the vendored official server", () => {
     const reference = await agent.tool("read_me");
     expect(reference.text).toContain("# Excalidraw Element Format");
     expect(reference.text).toContain("restoreCheckpoint");
-    expect(reference.text).toContain("get_elements and update_elements");
+    expect(reference.text).toContain("get_elements");
+    expect(reference.text).toContain("update_elements");
     // The reference needs no Loci connection.
     expect(requests).toEqual([]);
     const widget = await agent.request("resources/read", { uri: "ui://excalidraw/mcp-app.html" });
@@ -204,9 +206,11 @@ describe("an agent drawing on Loci canvases through the official MCP", () => {
     const agent = await connect();
     const first = await agent.draw(firstCall);
     expect(first.isError).toBe(false);
-    expect(first.text).toContain(`Diagram displayed! Checkpoint id: "${first.checkpointId}"`);
+    expect(first.text).toContain(`Checkpoint id: "${first.checkpointId}"`);
     const created = drawing();
     expect(created).toMatchObject({ title: "Checkout flow", cwd: "/work/app" });
+    expect(first.receipt).toMatchObject({ canvasId: created.id, title: created.title, url: `loci://canvas/${created.id}`, saved: true });
+    expect(first.text.startsWith(`Saved to Loci: [Checkout flow](loci://canvas/${created.id})`)).toBe(true);
     expect(host.reveal).toHaveBeenCalledWith(created.id, "session-1");
     expect(requests).toEqual([{ namespace: "canvas", action: "checkpoint.save", input: { id: first.checkpointId, elements: firstCall } }]);
     expect(byId(scene(created).elements, "a1")).toMatchObject({ startBinding: { elementId: "b1" }, endBinding: { elementId: "b2" } });
@@ -297,7 +301,7 @@ describe("an agent drawing on Loci canvases through the official MCP", () => {
     await store.run("canvas_upsert", { canvas: { id: "elsewhere", title: "Other project", tags: [], cwd: "/work/other", dataJson: '{"elements":[]}' } });
     const agent = await connect();
     const list = await agent.tool("read_widget_context");
-    expect(JSON.parse(list.text.slice(list.text.indexOf("\n") + 1))).toEqual([{ checkpointId: "hand-made", title: "Sketch", updatedAt: expect.any(String), elements: 1, open: false }]);
+    expect(JSON.parse(list.text.slice(list.text.indexOf("\n") + 1))).toEqual([{ checkpointId: "hand-made", title: "Sketch", url: "loci://canvas/hand-made", updatedAt: expect.any(String), elements: 1, open: false }]);
     expect((await agent.tool("read_widget_context", { checkpointId: "hand-made" })).text).toContain("The user drew this by hand; no agent has edited it yet.");
     const result = await agent.draw([{ type: "restoreCheckpoint", id: "hand-made" }, { type: "ellipse", id: "dot", x: 200, y: 0, width: 40, height: 40 }]);
     expect(result.isError).toBe(false);
@@ -318,7 +322,11 @@ describe("an agent drawing on Loci canvases through the official MCP", () => {
     const slow = agent.draw([{ type: "restoreCheckpoint", id: one.checkpointId }, { type: "ellipse", id: "onto-one", x: 200, y: 0, width: 40, height: 40 }]);
     const fast = await agent.draw([{ type: "restoreCheckpoint", id: two.checkpointId }, { type: "ellipse", id: "onto-two", x: 200, y: 0, width: 40, height: 40 }]);
     release();
-    expect([(await slow).isError, fast.isError]).toEqual([false, false]);
+    const slowResult = await slow;
+    expect([slowResult.isError, fast.isError]).toEqual([false, false]);
+    expect(slowResult.receipt?.url).toBe(one.receipt?.url);
+    expect(fast.receipt?.url).toBe(two.receipt?.url);
+    expect(slowResult.receipt?.url).not.toBe(fast.receipt?.url);
     const ids = (checkpoint: string) => live(scene(store.canvases.get(store.checkpoints.get(checkpoint)!.canvasId)!).elements).map((element) => element.id);
     expect(ids(one.checkpointId!)).toEqual(["one", "onto-one"]);
     expect(ids(two.checkpointId!)).toEqual(["two", "onto-two"]);
@@ -358,6 +366,10 @@ describe("an agent drawing on Loci canvases through the official MCP", () => {
     expect(broken).toMatchObject({ isError: true, text: expect.stringContaining("finite x/y") });
     const image = await agent.draw([{ type: "restoreCheckpoint", id: first.checkpointId }, { type: "image", id: "pic", x: 0, y: 0, width: 10, height: 10, fileId: "nope" }]);
     expect(image).toMatchObject({ isError: true, text: expect.stringContaining("cannot attach new image files") });
+    for (const failed of [unknown, broken, image]) {
+      expect(failed.receipt?.saved).toBeUndefined();
+      expect(failed.text).not.toContain("Saved to Loci:");
+    }
     expect(drawing().dataJson).toBe(saved);
     expect(store.checkpoints.size).toBe(1);
     // Another project's session cannot reach this drawing by its checkpoint.
@@ -369,6 +381,19 @@ describe("an agent drawing on Loci canvases through the official MCP", () => {
     source = { id: "session-3", cwd: "~" } as Session;
     expect((await agent.draw(firstCall)).text).toContain("Choose a project folder");
     expect(drawing().dataJson).toBe(saved);
+  });
+
+  it("does not return a saved resource when persistence rejects the drawing", async () => {
+    const agent = await connect();
+    gate = async (action) => { if (action === "checkpoint.save") throw new Error("Disk is full"); };
+    const result = await agent.draw(firstCall);
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("Disk is full");
+    expect(result.receipt?.url).toBeUndefined();
+    expect(result.receipt?.saved).toBeUndefined();
+    expect(result.text).not.toContain("Saved to Loci:");
+    expect(store.canvases.size).toBe(0);
+    expect(store.checkpoints.size).toBe(0);
   });
 
   it("explains a missing or revoked Loci connection instead of hanging", async () => {

@@ -4,7 +4,7 @@
 
 Claude Code / Codex 会话默认带上内置的 `loci_excalidraw` MCP。Settings → MCP 的 **Built-in MCP** 区域显示服务名、用途、支持的 provider 和可用状态；全局开关会保存到 Loci 设置，不写入 provider 的用户配置。关闭或重新开启后，已有会话在下一轮用新配置恢复原对话，正在执行的 turn 正常完成。缺少运行时时可在设置页查看原因并重新检查。
 
-它运行**未经修改的官方 Excalidraw MCP 服务**（v0.3.2 `.mcpb` 里的 `dist/server.js`），只把官方的 checkpoint 存储换成 Loci 画布。agent 用官方的 `read_me`、`create_view` 创建画布、添加或删除元素；修改已有元素用 Loci 提供的 `get_elements` 和 `update_elements`，按原 ID 合并属性，不需要重建整个元素。人工修改被保留，已打开的面板立即更新，结果写入 SQLite，重启后旧 checkpoint 仍可续画。
+它运行**未经修改的官方 Excalidraw MCP 服务**（v0.3.2 `.mcpb` 里的 `dist/server.js`），由 bridge 接入 Loci checkpoint 存储，并调整工具描述和保存结果。agent 用官方的 `read_me`、`create_view` 创建画布、添加或删除元素；修改已有元素用 Loci 提供的 `get_elements` 和 `update_elements`，按原 ID 合并属性，不需要重建整个元素。人工修改被保留，已打开的面板立即更新，结果写入 SQLite，重启后旧 checkpoint 仍可续画。
 
 之前的结论“官方 MCP 只做预览，落盘走 `/operator` CLI”已作废。`/operator` 的 `canvas.*` 动作保留，用于列出、改名、删除和整幅替换。
 
@@ -47,7 +47,19 @@ Claude Code / Codex（Loci 会话子进程，环境里有会话凭据）
 - 同一 ID 重画即替换，保留原来的层次位置；删除形状会一并删除它的标签，并释放指向它的箭头和框架成员。
 - 删除写成 Excalidraw 的墓碑元素。面板打开时，agent 的一次调用是一步撤销；面板未打开时直接落盘，没有撤销。
 - 画布会出现在正在作画的会话旁边且不抢焦点；已在别的标签页打开时，只有用户正看着该会话才会移过来。面板跟随 agent 最后一个 `cameraUpdate`，首次打开时缩放到看全，不放大。
-- 批准：读取类工具从不询问；`create_view` 在 Supervised 询问，其余模式直接执行，计划 turn 拒绝。官方把 `create_view` 标成只读，Codex 默认不会问，所以为它设置了 `approval_mode="prompt"`，再由 Loci 按模式作答。
+- 批准：读取类工具从不询问；`create_view` 在 Supervised 询问，其余模式直接执行，计划 turn 拒绝。bridge 将官方 `create_view` 的 `readOnlyHint` 修正为 `false`，Codex 同时保留显式 `approval_mode="prompt"`，由 Loci 按模式作答。
+
+## 保存回执与应用内链接
+
+内置和远端 Excalidraw 服务可以同时存在。内置 `create_view` 的标题为 **Draw and Save Loci Canvas**，工具描述明确说明它会持久保存到 Loci，并建议在 Loci 中绘图时默认使用它。宿主引导只放在工具描述和调用结果里，不添加 `initialize.instructions` 或会话 system/developer 提示。选择仍由模型决定，不能保证模型每次都选对；远端工具成功不代表已保存到 Loci。
+
+SQLite 保存成功后才返回 `canvasId`、`title`、`url`、`saved:true` 及现有 `checkpointId`。bridge 按 MCP 请求 ID 关联回执，并在结果开头提供可直接引用的 Markdown 链接；保存失败返回错误，不提供成功回执。`update_elements` 同样返回保存链接；`read_widget_context` 和 `get_elements` 返回当前画布地址。官方 widget 的私有 `save_checkpoint` 保留原有返回格式。
+
+`/operator` 的笔记、画布列表和读取结果包含 `url`，创建和更新结果额外包含 `saved:true`，其他字段保留。回复可写为 `[笔记标题](loci://note/<noteId>)` 或 `[画布标题](loci://canvas/<canvasId>)`。地址使用稳定 ID，资源重命名后仍可打开。
+
+聊天正文将这两类地址显示为带图标的紧凑资源链接。sanitize 和 harden 仅额外允许 `loci` 协议，资源类型与 ID 在 URL 标准化之前校验；其他协议的限制保留。链接由当前窗口处理，不注册系统协议，不从外部唤起应用。既有绘图工具行的 Open 按钮也走同一导航，旧 checkpoint 可继续使用。
+
+同项目画布在当前标签的画布面板打开并聚焦；已在另一标签打开则切换标签，跨项目画布在所属项目的标签打开。笔记进入现有 Notes 页面，清除搜索和时间筛选，按目标笔记所属项目定位；全局笔记显示全局列表。聊天项目和会话不变，关闭 Notes 返回聊天。重复点击会产生新的定位请求，读取失败或资源删除时明确显示错误，不打开另一条笔记。
 
 ## 精确修改已有元素
 
@@ -125,3 +137,27 @@ Codex 的 `-c` 覆盖会逐字段合并，连完整 inline table 也不会清除
 自动检查：257 个 Vitest 文件、2946 项测试，TypeScript、Rust 格式检查、Clippy 和 204 项 Rust 测试通过。真实 bridge 进程经 MCP 行协议调用生产处理代码和 Excalidraw 0.18.1，验证 75 个既有元素、2 张图片保持原 ID 与资源；过期版本或非法批次不写入。并发回归覆盖手动移动、输入文字和调整绑定形状，合并后的字号、文字尺寸、标签位置及箭头端点保持一致。
 
 本轮同时验证 macOS release 应用包构建、启动及包内 MCP 工具和 schema；未登录 provider 重跑完整人工绘图流程。复杂弯折/旋转箭头的路由仍需编辑器；并发合并遇到这类路由冲突时保留手绘草稿并报错。
+
+## 保存回执与资源链接验证（2026-10-08，macOS）
+
+自动检查：283 个 Vitest 文件、3167 项测试通过（4 个 worker）；TypeScript、生产前端构建、Rust 格式检查、Clippy 和 208 项 Rust 测试通过。官方 Excalidraw bundle 的 SOURCE 哈希校验通过。新增回归首先在旧实现上复现了初始化注入指令、绘图缺少本地保存回执和正文资源链接被移除；修改后通过。真实 bridge 的测试覆盖并发请求回执隔离、保存失败不返回链接、精确属性更新和 checkpoint 续画。
+
+提交前补充 6 项先失败、修复后通过的回归：手动选择使待完成的链接读取失效；旧编辑器的延迟保存不改变新目标的项目范围；导航读取保留期间已保存的内容和项目变更（项目单独移动不会改变 `updatedAt`）；链接 ID 格式兼容已有存储规范，支持超过 256 字符的合法复合笔记 ID，写入、重试和列表均返回正常链接。
+
+原生验收使用独立 identifier 的 release 包和独立 SQLite 数据库。没有替换日常使用的 Loci 应用或用户 MCP 配置；仅在临时验收项目为 Claude 添加远端 Excalidraw 配置。
+
+| 场景 | 结果 |
+| --- | --- |
+| 正文资源链接 | 实际 Tauri/WebKit 页面显示笔记和画布图标；点击打开指定资源 |
+| 键盘与跨项目画布 | Tab 聚焦资源链接，Enter 打开跨项目画布，切换到所属项目；已有画布复用原标签 |
+| 笔记定位 | 跨项目笔记、全局笔记、笔记内连续跳转均成功；关闭 Notes 返回原聊天项目 |
+| 失效笔记 | 显示 “This note no longer exists”，不显示另一条笔记的编辑器 |
+| Codex 默认绘图 | GPT-6.1-Sol 首轮调用 `loci_excalidraw:read_me`、`create_view`，保存 Kubernetes 简单架构，回复自带可点击画布入口 |
+| Codex 保存笔记 | `/operator` 调用 `notes.write` 返回 `saved:true` 和 `url`；回复中的笔记、画布链接均可打开，笔记内可跳回画布 |
+| 远端仍可用 | Codex 显式指定远端后成功调用 `excalidraw:read_me`；未增加本地画布 |
+| 重启与 Open 按钮 | 正常退出并重启，3 张画布与 4 条笔记的内容哈希不变；正文链接和工具行 checkpoint Open 均可继续定位 |
+| Claude Code | Sonnet 5 在内置、远端同时可用时仍先调用远端 `mcp__excalidraw__read_me`；随后模型接口返回 429 会话额度限制，本轮未完成 Claude 的绘图保存验收 |
+
+工具描述降低误选概率，不能保证选择结果；本轮 Claude 的调用再次证明这一限制。若要求每次默认绘图都保存到 Loci，需要另外决定会话内是否屏蔽远端工具。跨平台及多窗口的完整原生验收未在本轮执行。另发现既有 debug 启动逻辑会重写 bundle identifier，本轮使用 release 包隔离验收，未修改该逻辑。
+
+上述原生流程在提交前竞态修正之前完成。修正后的完整 release 包已重新构建；额外 GUI 复验时驱动返回 `cgWindowNotFound`，未取得最终包的新界面证据。新增竞态和长 ID 行为已通过生产组件/处理器的控制时序回归验证，不将它们记为额外原生实测通过。

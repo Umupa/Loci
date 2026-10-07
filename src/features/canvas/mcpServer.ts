@@ -67,8 +67,7 @@ export function codexCanvasMcpArgs(server: CanvasMcpServer): string[] {
     "-c", `${key}.command=${JSON.stringify(server.command)}`,
     "-c", `${key}.args=${JSON.stringify(server.args)}`,
     "-c", `${key}.env_vars=${JSON.stringify(FORWARDED_ENV)}`,
-    // The official server marks drawing read-only, so Codex would never ask.
-    // Have it ask Loci, which answers by the session's permission mode.
+    // Explicitly route writing approvals through Loci's permission mode.
     "-c", `${key}.tools.create_view.approval_mode="prompt"`,
     "-c", `${key}.tools.update_elements.approval_mode="prompt"`,
   ];

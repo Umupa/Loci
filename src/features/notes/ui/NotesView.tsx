@@ -25,6 +25,7 @@ import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import {
   createNote,
+  getNote,
   deleteNote,
   loadNotes,
   MAX_NOTE_TAGS,
@@ -94,7 +95,10 @@ type Props = {
   recents: RecentProject[];
   onClose: () => void;
   onToggleSidebar?: () => void;
+  openRequest?: NoteOpenRequest;
 };
+
+export type NoteOpenRequest = { id: string; sequence: number };
 
 type NoteEditorActions = { id: string; rename: (title: string) => void; remove: () => Promise<void> };
 
@@ -105,6 +109,7 @@ export function NotesView({
   recents,
   onClose,
   onToggleSidebar,
+  openRequest,
 }: Props) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -122,7 +127,15 @@ export function NotesView({
   const [loading, setLoading] = useState(() => peekNotes() === null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const projectCwd = cwd && looksLikeProject(cwd) ? cwd : undefined;
+  const [linkedScope, setLinkedScope] = useState<{ id: string } | null>(null);
+  const linkedNote = linkedScope ? notes.find((note) => note.id === linkedScope.id) : undefined;
+  const scopedCwd = linkedNote ? linkedNote.sourceCwd : cwd;
+  const projectCwd = scopedCwd && looksLikeProject(scopedCwd) ? scopedCwd : undefined;
+  const [noteNavigation, setNoteNavigation] = useState<{ sequence: number; status: "loading" | "ready" | "error"; error?: string }>();
+  const openRequestRef = useRef(openRequest);
+  openRequestRef.current = openRequest;
+  const listRead = useRef(0);
+  const navigationVersion = useRef(0);
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     const cached = peekNotes();
     return (
@@ -146,8 +159,10 @@ export function NotesView({
   const [groupCustomColors] = useState(loadTabGroupCustomColors);
 
   const refresh = useCallback(async () => {
+    const read = ++listRead.current;
     try {
       const next = await loadNotes(true);
+      if (read !== listRead.current) return;
       setNotes(next);
       setError(null);
       setSelectedId((current) => {
@@ -155,7 +170,7 @@ export function NotesView({
         if (preferred && next.some((note) => note.id === preferred)) {
           return preferred;
         }
-        return next[0]?.id ?? null;
+        return openRequestRef.current ? current : next[0]?.id ?? null;
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -165,7 +180,50 @@ export function NotesView({
   }, []);
 
   useEffect(() => {
-    void refresh();
+    if (!openRequest) {
+      setLinkedScope(null);
+      setNoteNavigation(undefined);
+      return;
+    }
+    let cancelled = false;
+    const navigation = ++navigationVersion.current;
+    const read = ++listRead.current;
+    const baseline = new Map(notes.map((entry) => [entry.id, entry]));
+    setQuery("");
+    setTimeFilter("all");
+    setFilterAnchor(null);
+    setNoteNavigation({ sequence: openRequest.sequence, status: "loading" });
+    setSelectedId(null);
+    void Promise.all([loadNotes(true), getNote(openRequest.id)]).then(([next, note]) => {
+      if (cancelled || navigation !== navigationVersion.current) return;
+      if (!note) throw new Error("This note no longer exists.");
+      setNotes((current) => {
+        const known = new Map(current.map((entry) => [entry.id, entry]));
+        // Project-only saves keep updatedAt. Preserve observations made since
+        // this read began even when their timestamp is unchanged.
+        const freshest = (candidate: Note, observed: Note | undefined) => observed && (
+          observed.updatedAt > candidate.updatedAt ||
+          (observed.updatedAt === candidate.updatedAt && known.get(candidate.id) !== baseline.get(candidate.id))
+        ) ? observed : candidate;
+        const list = read === listRead.current ? next.map((entry) => freshest(entry, known.get(entry.id))) : current;
+        const target = freshest(note, list.find((entry) => entry.id === note.id));
+        return [target, ...list.filter((entry) => entry.id !== target.id)];
+      });
+      setLinkedScope({ id: note.id });
+      setSelectedId(note.id);
+      setNoteNavigation({ sequence: openRequest.sequence, status: "ready" });
+      setLoading(false);
+    }).catch((error: unknown) => {
+      if (!cancelled && navigation === navigationVersion.current) {
+        setNoteNavigation({ sequence: openRequest.sequence, status: "error", error: String(error) });
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [openRequest?.id, openRequest?.sequence]);
+
+  useEffect(() => {
+    if (!openRequestRef.current) void refresh();
     window.addEventListener(NOTES_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(NOTES_CHANGED_EVENT, refresh);
   }, [refresh]);
@@ -208,10 +266,18 @@ export function NotesView({
     });
   }, [scopedNotes, query, timeFilter]);
 
-  const selected =
+  const navigating = !!openRequest && (noteNavigation?.sequence !== openRequest.sequence || noteNavigation.status === "loading");
+  const navigationError = noteNavigation?.status === "error" ? noteNavigation.error : undefined;
+  const selected = navigating || navigationError ? null :
     visible.find((note) => note.id === selectedId) ??
-    visible[0] ??
+    (openRequest ? null : visible[0]) ??
     null;
+
+  const selectNote = (id: string) => {
+    navigationVersion.current++;
+    setSelectedId(id);
+    if (openRequest) setNoteNavigation({ sequence: openRequest.sequence, status: "ready" });
+  };
 
   const onCreate = async () => {
     if (creating) return;
@@ -220,10 +286,10 @@ export function NotesView({
       const note = await createNote({
         title: "Untitled",
         body: "",
-        ...(cwd && looksLikeProject(cwd) ? { sourceCwd: cwd } : {}),
+        ...(projectCwd ? { sourceCwd: projectCwd } : {}),
       });
       setNotes(await loadNotes(true));
-      setSelectedId(note.id);
+      selectNote(note.id);
       setQuery("");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -374,10 +440,10 @@ export function NotesView({
                     mascots={groupMascots}
                     colors={groupColors}
                     customColors={groupCustomColors}
-                    onSelect={() => setSelectedId(note.id)}
+                    onSelect={() => selectNote(note.id)}
                     onContextMenu={(e: ReactMouseEvent<HTMLButtonElement>) => {
                       e.preventDefault();
-                      setSelectedId(note.id);
+                      selectNote(note.id);
                       setNoteMenu({ x: e.clientX, y: e.clientY, id: note.id });
                     }}
                   />
@@ -430,15 +496,16 @@ export function NotesView({
       </div>
       <div className="flex min-h-0 min-w-0 flex-1">
         <CollapsiblePane open={listOpen}>{list}</CollapsiblePane>
-        <NoteDetail
+        {navigating ? <div role="status" className="flex flex-1 items-center justify-center text-sm text-content/50">Loading note…</div> : navigationError ?
+          <div role="alert" className="flex flex-1 items-center justify-center px-4 text-sm text-content/60">{navigationError}</div> : <NoteDetail
           note={selected}
           recents={recents}
-          activeCwd={cwd}
+          activeCwd={scopedCwd}
           onSaved={onSaved}
           onDelete={onDelete}
           onActions={registerEditorActions}
           onAddToChat={onAddToChat}
-        />
+        />}
       </div>
       {noteMenu ? <ContextMenu x={noteMenu.x} y={noteMenu.y} items={noteMenuItems} onPick={(id) => {
         if (id === "rename") {

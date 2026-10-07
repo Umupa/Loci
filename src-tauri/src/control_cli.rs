@@ -94,6 +94,10 @@ Actions:
                   this replaces the whole scene, it does not merge elements.
 
 The output is one JSON line: {"ok":true,"result":...} or {"ok":false,"error":"..."}.
+Note and canvas results include a stable loci://note/ID or loci://canvas/ID url.
+Successful writes include saved:true. In your reply, include [title](url) so
+the user can open the saved resource directly inside Loci. These links do not
+open a browser or launch Loci from another application.
 Use --input - to pass JSON on stdin. Never print Loci credentials.
 Keep the same --request-id when retrying a call after an uncertain result.
 "#;

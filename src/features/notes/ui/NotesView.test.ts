@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invalidateNotes, loadNotes, NOTES_CHANGED_EVENT, type Note, type NoteUpsert } from "../notes";
-import { NotesView } from "./NotesView";
+import { NotesView, type NoteOpenRequest } from "./NotesView";
 import { savePinnedProjects, saveProjectRailOrder } from "../../projects/model/recents";
 
 const invoke = vi.hoisted(() => vi.fn());
@@ -74,17 +74,143 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function render(projects = recents, cwd = "/work/Edefyn") {
+async function render(projects = recents, cwd = "/work/Edefyn", openRequest?: NoteOpenRequest) {
   await act(async () =>
     root.render(
       createElement(NotesView, {
         cwd,
         recents: projects,
         onClose,
+        openRequest,
       }),
     ),
   );
 }
+
+it("opens the requested note in its own scope and clears existing filters on repeated requests", async () => {
+  const target = { ...stored, id: "target", title: "Linked note", sourceCwd: "/work/portognjeeen" };
+  invoke.mockImplementation(async (command, args) => {
+    if (command === "notes_list") return [stored, target];
+    if (command === "notes_get") return args.id === target.id ? target : stored;
+    throw new Error(`Unexpected command: ${command}`);
+  });
+  await render();
+  await act(async () => inputText(container.querySelector<HTMLInputElement>('[aria-label="Filter notes"]')!, "Hidden"));
+  await render(recents, "/work/Edefyn", { id: "target", sequence: 1 });
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Linked note");
+  expect(noteRows()).toHaveLength(1);
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Filter notes"]')?.value).toBe("");
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Filter by time"]')!.click());
+  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')].find((item) => item.textContent?.includes("Today"))!.click());
+  expect(container.textContent).toContain("No matching notes");
+  await render(recents, "/work/Edefyn", { id: "target", sequence: 2 });
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Linked note");
+});
+
+it("opens a global note without applying the chat project's scope", async () => {
+  const target = { ...stored, id: "global", title: "Global note", sourceCwd: undefined };
+  invoke.mockImplementation(async (command) => command === "notes_get" ? target : [stored, target]);
+  await render(recents, "/work/Edefyn", { id: "global", sequence: 1 });
+  expect(noteRows()).toHaveLength(2);
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Global note");
+});
+
+it.each(["deleted", "read failure"])("shows a %s error without displaying another note", async (mode) => {
+  invoke.mockImplementation(async (command) => {
+    if (command === "notes_list") return [stored];
+    if (command === "notes_get") {
+      if (mode === "read failure") throw new Error("Cannot read note");
+      return null;
+    }
+  });
+  await render(recents, "/work/Edefyn", { id: "missing", sequence: 1 });
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(mode === "deleted" ? "no longer exists" : "Cannot read note");
+  expect(container.querySelector('[aria-label="Note title"]')).toBeNull();
+  expect(container.querySelector("textarea.markdown-source-field")).toBeNull();
+});
+
+it("keeps a newer requested note when the older read finishes last", async () => {
+  let finish!: (note: Note) => void;
+  const slow = new Promise<Note>((resolve) => { finish = resolve; });
+  const newer = { ...stored, id: "newer", title: "Newer note" };
+  invoke.mockImplementation(async (command, args) => {
+    if (command === "notes_list") return [stored, newer];
+    if (command === "notes_get") return args.id === "slow" ? slow : newer;
+  });
+  await render(recents, "/work/Edefyn", { id: "slow", sequence: 1 });
+  expect(container.querySelector('[role="status"]')?.textContent).toContain("Loading note");
+  expect(container.querySelector('[aria-label="Note title"]')).toBeNull();
+  await render(recents, "/work/Edefyn", { id: "newer", sequence: 2 });
+  await act(async () => finish({ ...stored, id: "slow", title: "Old response" }));
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Newer note");
+});
+
+it.each(["success", "failure"])("keeps a manual selection after a pending link read ends in %s", async (outcome) => {
+  const target = { ...stored, id: "target", title: "Target note" };
+  let finish!: (note: Note) => void;
+  let fail!: (error: Error) => void;
+  const pending = new Promise<Note>((resolve, reject) => { finish = resolve; fail = reject; });
+  invoke.mockImplementation(async (command) => command === "notes_get" ? pending : [stored, target]);
+  await render();
+  await render(recents, "/work/Edefyn", { id: target.id, sequence: 1 });
+  expect(container.querySelector('[role="status"]')).not.toBeNull();
+  await act(async () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.title.startsWith("Plan ·"))!.click());
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Plan");
+  await act(async () => outcome === "success" ? finish(target) : fail(new Error("Late read failure")));
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Plan");
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+});
+
+it("does not let a previous editor's late save change the new linked note's scope", async () => {
+  const target = { ...stored, id: "target", title: "Other project note", sourceCwd: "/work/portognjeeen" };
+  let finishSave!: () => void;
+  const save = new Promise<void>((resolve) => { finishSave = resolve; });
+  invoke.mockImplementation(async (command, args) => {
+    if (command === "notes_list") return [{ ...stored }, target];
+    if (command === "notes_get") return args.id === target.id ? target : { ...stored };
+    if (command === "notes_upsert") { await save; stored = { ...stored, ...args.note, updatedAt: 2 }; return { ...stored }; }
+  });
+  await render(recents, "/work/Edefyn", { id: stored.id, sequence: 1 });
+  const title = container.querySelector<HTMLInputElement>('[aria-label="Note title"]')!;
+  await act(async () => { title.focus(); inputText(title, "Saved first note"); title.blur(); });
+  await render(recents, "/work/Edefyn", { id: target.id, sequence: 2 });
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe(target.title);
+  await act(async () => finishSave());
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe(target.title);
+  expect(noteRows()).toHaveLength(1);
+});
+
+it("uses the newest target's scope when a move completes during a linked read", async () => {
+  let finishRead!: (note: Note) => void;
+  const stale = { ...stored };
+  const pending = new Promise<Note>((resolve) => { finishRead = resolve; });
+  invoke.mockImplementation(async (command) => command === "notes_get" ? pending : [{ ...stored }]);
+  await render();
+  await render(recents, "/work/Edefyn", { id: stored.id, sequence: 1 });
+  // Project-only moves deliberately preserve updatedAt in the SQLite store.
+  stored = { ...stored, sourceCwd: "/work/portognjeeen" };
+  await act(async () => window.dispatchEvent(new Event(NOTES_CHANGED_EVENT)));
+  await act(async () => finishRead(stale));
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Plan");
+  expect(container.querySelector('[aria-label="Move note to project, current project portognjeeen"]')).not.toBeNull();
+});
+
+it("retains an editor save completed after the linked note snapshot was read", async () => {
+  const stale = { ...stored };
+  let finishRead!: (note: Note) => void;
+  const pending = new Promise<Note>((resolve) => { finishRead = resolve; });
+  invoke.mockImplementation(async (command, args) => {
+    if (command === "notes_list") return [{ ...stored }];
+    if (command === "notes_get") return pending;
+    if (command === "notes_upsert") { stored = { ...stored, ...args.note, updatedAt: 2 }; return { ...stored }; }
+  });
+  await render();
+  await act(async () => inputText(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')!, "Newest saved title"));
+  await render(recents, "/work/Edefyn", { id: stored.id, sequence: 1 });
+  expect(stored.title).toBe("Newest saved title");
+  await act(async () => finishRead(stale));
+  expect(container.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Newest saved title");
+});
 
 it("shows a preloaded note immediately while refreshing in the background", async () => {
   await loadNotes();

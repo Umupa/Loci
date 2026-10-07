@@ -30,4 +30,6 @@ Excalidraw 画布是一等对象：Claude Code / Codex 会话默认带上内置�
 
 Loci 使用 `com.loci.desktop` 的独立应用数据目录，数据库为 `loci.db`。会话、笔记、布局、图片和隔离 provider 账号保存在该目录；应用不会迁入来源应用的数据。默认 provider 账号仍使用各 CLI 自己的登录和配置。
 
+回复支持可点击的笔记和画布链接：`loci://note/<id>`、`loci://canvas/<id>`，直接在当前 Loci 窗口打开资源。内置绘图 MCP 和 `/operator` 的笔记、画布操作返回这些地址，写入成功后返回保存回执；远端 Excalidraw 服务仍可使用，其结果不自动保存到 Loci。宿主绘图引导通过工具描述和结果提供，不注入 system/developer 提示词。
+
 抽取范围与批准记录见 [docs/extraction.md](docs/extraction.md)，实际验收结果见 [docs/status.md](docs/status.md)。许可和来源声明见 [LICENSE](LICENSE)、[NOTICE](NOTICE)。

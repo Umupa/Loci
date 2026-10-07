@@ -122,8 +122,8 @@ describe("agent app commands", () => {
     expect(result).toEqual({
       cwd: source.cwd,
       canvases: [
-        { id: "new", title: "Old", cwd: `${source.cwd}/`, createdAt: 1, updatedAt: 10 },
-        { id: "old", title: "Old", cwd: source.cwd, createdAt: 1, updatedAt: 2 },
+        { id: "new", title: "Old", cwd: `${source.cwd}/`, createdAt: 1, updatedAt: 10, url: "loci://canvas/new" },
+        { id: "old", title: "Old", cwd: source.cwd, createdAt: 1, updatedAt: 2, url: "loci://canvas/old" },
       ],
     });
     expect(invoke).toHaveBeenCalledTimes(2);
@@ -137,7 +137,7 @@ describe("agent app commands", () => {
       dataJson: "private scene", tags: ["private"],
     }).mockResolvedValueOnce(null);
     expect(await handleAgentApp(source, "get", "canvas.get", { id: "drawing" }, host))
-      .toEqual({ id: "drawing", title: "Plan", cwd: source.cwd, createdAt: 1, updatedAt: 2 });
+      .toEqual({ id: "drawing", title: "Plan", cwd: source.cwd, createdAt: 1, updatedAt: 2, url: "loci://canvas/drawing" });
     expect(invoke).toHaveBeenCalledWith("canvas_get", { id: "drawing" });
     await expect(handleAgentApp(source, "missing", "canvas.get", { id: "missing" }, host))
       .rejects.toThrow("Canvas was not found");
@@ -166,7 +166,7 @@ describe("agent app commands", () => {
     window.addEventListener(CANVASES_CHANGED_EVENT, changed);
     try {
       const created = await handleAgentApp(source, "create", "canvas.create", { title: "测试画布" }, host) as { id: string; title: string };
-      expect(created).toEqual({ id: expect.any(String), title: "测试画布" });
+      expect(created).toEqual({ id: expect.any(String), title: "测试画布", url: `loci://canvas/${created.id}`, saved: true });
       const canvas = stored.get(created.id)!;
       expect(canvas.cwd).toBe(source.cwd);
       expect(JSON.parse(canvas.dataJson)).toEqual({ elements: [], appState: {}, files: {} });
@@ -176,7 +176,7 @@ describe("agent app commands", () => {
       // An existing drawing's scene must survive a management rename.
       canvas.dataJson = "existing scene";
       expect(await handleAgentApp(source, "rename", "canvas.rename", { id: created.id, title: "新标题" }, host))
-        .toEqual({ title: "新标题" });
+        .toEqual({ title: "新标题", url: `loci://canvas/${created.id}`, saved: true });
       expect(stored.get(created.id)).toMatchObject({ title: "新标题", dataJson: "existing scene" });
       expect(peekCanvases()?.[0].title).toBe("新标题");
       expect(await handleAgentApp(source, "delete", "canvas.delete", { id: created.id }, host))
@@ -185,7 +185,7 @@ describe("agent app commands", () => {
       expect(peekCanvases()).toEqual([]);
       expect(changed).toHaveBeenCalledTimes(3);
       expect(await handleAgentApp(source, "default", "canvas.create", {}, host))
-        .toEqual({ id: expect.any(String), title: "Untitled drawing" });
+        .toMatchObject({ id: expect.any(String), title: "Untitled drawing", url: expect.stringMatching(/^loci:\/\/canvas\//), saved: true });
       await expect(handleAgentApp(source, "missing", "canvas.rename", { id: "missing", title: "Title" }, host))
         .rejects.toThrow("Canvas was not found");
     } finally {
@@ -219,7 +219,7 @@ describe("agent app commands", () => {
 
       const newScene = JSON.stringify({ elements: [{ type: "text", text: "Hello", x: 0, y: 0 }], appState: {}, files: {} });
       expect(await handleAgentApp(source, "write", "canvas.write-data", { id: created.id, dataJson: newScene }, host))
-        .toEqual({ updated: true });
+        .toEqual({ updated: true, url: `loci://canvas/${created.id}`, saved: true });
       const updated = await handleAgentApp(source, "read2", "canvas.read-data", { id: created.id }, host) as { dataJson: string };
       expect(JSON.parse(updated.dataJson)).toMatchObject({ elements: [{ type: "text", text: "Hello" }] });
       expect(changed).toHaveBeenCalledTimes(2);
@@ -659,16 +659,17 @@ describe("agent app commands", () => {
       {},
       host,
     )) as {
-      notes: Array<{ preview: string; body?: string }>;
+      notes: Array<{ preview: string; body?: string; url: string }>;
     };
     expect(listed.notes[0]?.preview).toBe(
       "First paragraph.\n\nSecond paragraph.",
     );
     expect(listed.notes[0]).not.toHaveProperty("body");
+    expect(listed.notes[0].url).toBe("loci://note/n1");
     expect(notePreview("A".repeat(500))).toHaveLength(400);
     expect(
       await handleAgentApp(source, "read", "notes.read", { id: "n1" }, host),
-    ).toMatchObject({ body: note.body });
+    ).toMatchObject({ body: note.body, url: "loci://note/n1" });
   });
 
   it("creates a note with source metadata and reuses the same request ID safely", async () => {
@@ -689,6 +690,8 @@ describe("agent app commands", () => {
     );
     expect(saved).toMatchObject({
       id: "app-lead-create-1",
+      url: "loci://note/app-lead-create-1",
+      saved: true,
       title: "Work plan",
       body: input.body,
       tags: ["work"],
@@ -712,6 +715,23 @@ describe("agent app commands", () => {
     ).rejects.toThrow("Request ID was already used");
   });
 
+  it("returns working resource URLs for compound session and note IDs without failing after persistence", async () => {
+    const { source, host } = fixture();
+    source.id = `app-5bed7012-c8bc-445d-b95d-ead0f88e36a7-${"s".repeat(128)}`;
+    const requestId = "n".repeat(128);
+    let created: Note | null = null;
+    host.note = vi.fn(async (id) => id === created?.id ? created : null);
+    host.saveNote = vi.fn(async (input) => { created = { ...note, ...input }; return created; });
+    const input = { title: "Long ID note", body: "Saved content" };
+    const result = await handleAgentApp(source, requestId, "notes.write", input, host) as Note & { url: string; saved: boolean };
+    expect(result.id.length).toBeGreaterThan(256);
+    expect(result).toMatchObject({ saved: true, url: `loci://note/${result.id}` });
+    expect(await handleAgentApp(source, requestId, "notes.write", input, host)).toEqual(result);
+    expect(host.saveNote).toHaveBeenCalledTimes(1);
+    host.notes = vi.fn(async () => [created!]);
+    expect(await handleAgentApp(source, "list", "notes.list", {}, host)).toMatchObject({ notes: [{ id: result.id, url: result.url }] });
+  });
+
   it("edits only supplied note fields and refuses missing or malformed notes", async () => {
     const { source, host } = fixture();
     const changed = await handleAgentApp(
@@ -729,6 +749,8 @@ describe("agent app commands", () => {
       title: note.title,
       body: "Updated body",
       tags: note.tags,
+      url: "loci://note/n1",
+      saved: true,
     });
     expect(host.saveNote).toHaveBeenCalledWith({
       id: "n1",

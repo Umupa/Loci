@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { appResourceUrl } from "../../shared/lib/appResourceLinks";
 import { looksLikeProject, sameProjectPath } from "../projects/model/recents";
 import type { Session } from "../sessions/model/session";
 import { checkpointCanvasId, createEmptyCanvas, getCanvas, loadCanvases, readCanvasScene, upsertCanvas, writeCanvasScene, type Canvas } from "./canvas";
@@ -87,14 +88,14 @@ export async function handleCanvasBridge(source: Session, action: string, input:
           checkpoint: { id, baselineJson: scenes.checkpointBaseline(scene.dataJson) },
         });
         host.reveal(canvas.id, source.id);
-        return { canvasId: canvas.id, title: canvas.title, created: true };
+        return { canvasId: canvas.id, title: canvas.title, url: appResourceUrl("canvas", canvas.id), saved: true, created: true };
       }
       const canvas = await inOrder(target.id, () => writeCanvasScene(target.id, (current) => {
         const scene = scenes.applyCheckpointPatch(current.dataJson, patch);
         return { ...scene, checkpoint: { id, baselineJson: scenes.checkpointBaseline(scene.dataJson) } };
       }));
       host.reveal(canvas.id, source.id);
-      return { canvasId: canvas.id, title: canvas.title, created: false };
+      return { canvasId: canvas.id, title: canvas.title, url: appResourceUrl("canvas", canvas.id), saved: true, created: false };
     }
     case "elements.read": {
       const id = checkpointId(input.id, "id");
@@ -130,7 +131,7 @@ export async function handleCanvasBridge(source: Session, action: string, input:
         return { dataJson: result.dataJson, checkpoint: { id: nextId, baselineJson: scenes.checkpointBaseline(result.dataJson) } };
       }));
       host.reveal(saved.id, source.id);
-      return { ...elementSummary(saved, nextId, scenes.checkpointElements(saved.dataJson)), updatedIds };
+      return { ...elementSummary(saved, nextId, scenes.checkpointElements(saved.dataJson)), saved: true, updatedIds };
     }
     case "context.read": {
       const cwd = projectOf(source);
@@ -138,7 +139,7 @@ export async function handleCanvasBridge(source: Session, action: string, input:
         const drawings = (await loadCanvases(true))
           .filter((canvas) => !!canvas.cwd && sameProjectPath(canvas.cwd, cwd))
           .sort((a, b) => b.updatedAt - a.updatedAt)
-          .map((canvas) => ({ checkpointId: canvas.id, title: canvas.title, updatedAt: new Date(canvas.updatedAt).toISOString(),
+          .map((canvas) => ({ checkpointId: canvas.id, title: canvas.title, url: appResourceUrl("canvas", canvas.id), updatedAt: new Date(canvas.updatedAt).toISOString(),
             elements: scenes.checkpointElements(canvas.dataJson).length, open: host.isOpen(canvas.id) }));
         return { text: drawings.length
           ? `Drawings in this Loci project, newest first. "open" ones are on screen. Read one by passing its checkpointId.\n${JSON.stringify(drawings)}`
@@ -151,8 +152,9 @@ export async function handleCanvasBridge(source: Session, action: string, input:
       const latest = await invoke<LatestCheckpoint | null>("canvas_checkpoint_latest", { canvasId: saved.id });
       const edits = latest?.baselineJson ? scenes.describeUserEdits(latest.baselineJson, saved.dataJson, id) : "";
       const files = Object.keys((JSON.parse(saved.dataJson) as { files?: object }).files ?? {}).length;
-      return { text: [
+      return { canvasId: saved.id, title: saved.title, url: appResourceUrl("canvas", saved.id), text: [
         `Drawing "${saved.title}" as it is now in Loci.`,
+        `Open in Loci: ${appResourceUrl("canvas", saved.id)}`,
         edits || (latest ? "No changes detected in the saved edit baseline; get_elements returns exact current properties." : "The user drew this by hand; no agent has edited it yet."),
         `Canvas revision: ${saved.updatedAt}. To move, resize or restyle existing elements, call get_elements then update_elements with that revision and only the properties to change. IDs and image files stay unchanged. For additions/removals, start create_view with {"type":"restoreCheckpoint","id":"${id}"}.`,
         files ? `It holds ${files} image file(s); update_elements can move or resize them without resending image data.` : "",
@@ -164,7 +166,7 @@ export async function handleCanvasBridge(source: Session, action: string, input:
 
 
 function elementSummary(canvas: Canvas, checkpointId: string, elements: Array<{ type: string; id: string; fileId?: unknown }>) {
-  return { canvasId: canvas.id, checkpointId, revision: canvas.updatedAt, elementCount: elements.length,
+  return { canvasId: canvas.id, title: canvas.title, url: appResourceUrl("canvas", canvas.id), checkpointId, revision: canvas.updatedAt, elementCount: elements.length,
     imageCount: elements.filter(element => element.type === "image").length,
     fileIds: [...new Set(elements.filter(element => element.type === "image").map(element => element.fileId).filter((fileId): fileId is string => typeof fileId === "string"))],
   };
