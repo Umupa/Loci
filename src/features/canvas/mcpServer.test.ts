@@ -1,11 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { canvasMcpProblem, canvasMcpServer, canvasMcpTool, canvasToolAutoAllowed, claudeCanvasMcpConfig, codexCanvasApprovalTool, codexCanvasMcpArgs } from "./mcpServer";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 beforeEach(() => vi.mocked(invoke).mockReset());
+afterEach(() => vi.unstubAllGlobals());
 
 describe("the built-in Excalidraw MCP server", () => {
+  it("does not resolve or inject a server when the user has turned it off", async () => {
+    vi.stubGlobal("localStorage", { getItem: () => "0" });
+    expect(await canvasMcpServer()).toBeNull();
+    expect(await canvasMcpProblem()).toBe("The built-in Excalidraw MCP is disabled in Settings → MCP.");
+    expect(invoke).not.toHaveBeenCalled();
+  });
   it("is offered when the app can start it and retried after a failure", async () => {
     vi.mocked(invoke).mockRejectedValueOnce("Excalidraw drawing tools need Node.js 20.11 or newer (or Bun) on your PATH.");
     expect(await canvasMcpServer()).toBeNull();
@@ -25,7 +32,7 @@ describe("the built-in Excalidraw MCP server", () => {
     const server = { command: 'C:\\Program Files\\nodejs\\node.exe', args: ['C:\\Users\\Zoë "Z"\\Loci\\loci-bridge.mjs'] };
     expect(JSON.parse(claudeCanvasMcpConfig(server))).toEqual({ mcpServers: { loci_excalidraw: { type: "stdio", ...server } } });
     const args = codexCanvasMcpArgs(server);
-    expect(args.filter((_, index) => index % 2 === 0)).toEqual(["-c", "-c", "-c", "-c"]);
+    expect(args.filter((_, index) => index % 2 === 0)).toEqual(["-c", "-c", "-c", "-c", "-c"]);
     // Each override is `key=<TOML value>`; JSON strings and string arrays are valid TOML.
     const overrides = Object.fromEntries(args.filter((_, index) => index % 2 === 1).map((entry) => {
       const split = entry.indexOf("=");
@@ -38,6 +45,7 @@ describe("the built-in Excalidraw MCP server", () => {
       "mcp_servers.loci_excalidraw.env_vars": ["LOCI_APP_ENDPOINT", "LOCI_APP_TOKEN"],
       // Upstream marks drawing read-only; Codex must ask so the permission mode can decide.
       "mcp_servers.loci_excalidraw.tools.create_view.approval_mode": "prompt",
+      "mcp_servers.loci_excalidraw.tools.update_elements.approval_mode": "prompt",
     });
     expect([claudeCanvasMcpConfig(server), ...args].join(" ")).not.toMatch(/TOKEN=|"env"/);
   });
@@ -63,6 +71,8 @@ describe("the built-in Excalidraw MCP server", () => {
     expect(canvasMcpTool("mcp__loci_excalidraw__create_view")).toBe("create_view");
     expect(canvasMcpTool("Read mcp__loci_excalidraw__read_me")).toBe("read_me");
     expect(canvasMcpTool("loci_excalidraw:read_widget_context")).toBe("read_widget_context");
+    expect(canvasMcpTool("mcp__loci_excalidraw__get_elements")).toBe("get_elements");
+    expect(canvasMcpTool("loci_excalidraw:update_elements")).toBe("update_elements");
     expect(canvasMcpTool("loci_excalidraw.create_view")).toBe("create_view");
     for (const other of [undefined, "", "create_view", "mcp__excalidraw__create_view", "excalidraw:create_view", "mcp__loci_excalidraw__save_checkpoint", "mcp__claude_ai_Excalidraw__create_view",
       "mcp__loci_excalidraw__create_view_extra", "notexcalidraw:create_view", "echo mcp__loci_excalidraw__create_view done"])
@@ -86,6 +96,8 @@ describe("the built-in Excalidraw MCP server", () => {
       expect(canvasToolAutoAllowed("read_me", mode)).toBe(true);
       expect(canvasToolAutoAllowed("read_widget_context", mode)).toBe(true);
       expect(canvasToolAutoAllowed("create_view", mode)).toBe(mode !== "supervised");
+      expect(canvasToolAutoAllowed("update_elements", mode)).toBe(mode !== "supervised");
+      expect(canvasToolAutoAllowed("get_elements", mode)).toBe(true);
     }
   });
 });

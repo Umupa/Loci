@@ -1,4 +1,4 @@
-import { CANVAS_MCP_NAME, canvasMcpTool, type CanvasMcpTool } from "../../canvas/mcpServer";
+import { CANVAS_MCP_NAME, canvasMcpTool, isCanvasWriteTool, type CanvasMcpTool } from "../../canvas/mcpServer";
 import type { Block } from "./session";
 
 export type CanvasToolCall = {
@@ -15,6 +15,8 @@ const WORDING: Record<CanvasMcpTool, [ask: string, running: string, done: string
   read_me: ["Read the Excalidraw reference", "Reading the Excalidraw reference", "Read the Excalidraw reference"],
   create_view: ["Draw on the canvas", "Drawing on the canvas", "Drew on the canvas"],
   read_widget_context: ["Read the canvas", "Reading the canvas", "Read the canvas"],
+  get_elements: ["Inspect canvas elements", "Inspecting canvas elements", "Inspected canvas elements"],
+  update_elements: ["Edit canvas elements", "Editing canvas elements", "Edited canvas elements"],
 };
 
 /** A call to Loci's built-in Excalidraw MCP server, as Claude or Codex titles it. */
@@ -28,7 +30,7 @@ export function canvasToolCall(block: Block): CanvasToolCall | undefined {
   const [ask, running, done] = WORDING[tool];
   // Claude reports the structured result, Codex the server's sentence.
   const checkpointId =
-    tool === "create_view"
+    isCanvasWriteTool(tool)
       ? block.tool?.detail?.match(
           /checkpoint ?id\\?"?\s*:\s*\\?"([A-Za-z0-9_-]{1,128})\\?"/i,
         )?.[1]
@@ -63,6 +65,7 @@ export function canvasWorkSummary(
   }
   const drew = calls.some((call) => call.tool === "create_view");
   if (drew) return live ? "Drawing on the canvas" : "Drew on the canvas";
+  if (calls.some(call => call.tool === "update_elements")) return live ? "Editing canvas elements" : "Edited canvas elements";
   return calls.every((call) => call.tool === "read_me")
     ? live ? "Reading the Excalidraw reference" : "Read the Excalidraw reference"
     : live ? "Reading the canvas" : "Read the canvas";

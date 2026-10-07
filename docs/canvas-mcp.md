@@ -2,7 +2,9 @@
 
 ## 结论
 
-每个 Claude Code / Codex 会话自动带上内置的 `loci_excalidraw` MCP。它运行**未经修改的官方 Excalidraw MCP 服务**（v0.3.2 `.mcpb` 里的 `dist/server.js`），只把官方的 checkpoint 存储换成 Loci 画布。agent 用官方的 `read_me`、`create_view` 在本地画布上创建和续画；人工修改被保留，已打开的面板立即更新，结果写入 SQLite，重启后旧 checkpoint 仍可续画。
+Claude Code / Codex 会话默认带上内置的 `loci_excalidraw` MCP。Settings → MCP 的 **Built-in MCP** 区域显示服务名、用途、支持的 provider 和可用状态；全局开关会保存到 Loci 设置，不写入 provider 的用户配置。关闭或重新开启后，已有会话在下一轮用新配置恢复原对话，正在执行的 turn 正常完成。缺少运行时时可在设置页查看原因并重新检查。
+
+它运行**未经修改的官方 Excalidraw MCP 服务**（v0.3.2 `.mcpb` 里的 `dist/server.js`），只把官方的 checkpoint 存储换成 Loci 画布。agent 用官方的 `read_me`、`create_view` 创建画布、添加或删除元素；修改已有元素用 Loci 提供的 `get_elements` 和 `update_elements`，按原 ID 合并属性，不需要重建整个元素。人工修改被保留，已打开的面板立即更新，结果写入 SQLite，重启后旧 checkpoint 仍可续画。
 
 之前的结论“官方 MCP 只做预览，落盘走 `/operator` CLI”已作废。`/operator` 的 `canvas.*` 动作保留，用于列出、改名、删除和整幅替换。
 
@@ -31,7 +33,7 @@ Claude Code / Codex（Loci 会话子进程，环境里有会话凭据）
                                                                        save：把差异应用到当前场景 → SQLite → 面板
 ```
 
-- `loci-bridge.mjs` 只做三件事：实现 store；补上 `read_widget_context`；屏蔽 `export_to_excalidraw`（它会把图上传到 excalidraw.com）。
+- `loci-bridge.mjs` 实现 store，补上读取画布、精确读取元素和按 ID 更新属性的宿主工具；屏蔽 `export_to_excalidraw`（它会把图上传到 excalidraw.com）。
 - 官方服务把 `restoreCheckpoint` 解析为“加载的元素 − 删除 + 新增”。bridge 只把删除的 ID 和新增元素发给 Loci，Loci 在保存队列里对**当时的**场景应用，所以用户正在画的内容不会被旧读数覆盖。
 - 场景和 checkpoint 在同一个 SQLite 事务里保存：不会出现已告诉 agent 却找不到的 checkpoint。
 - 更新携带读取时的版本；SQLite 在同一事务内检查版本，冲突时重读并重算修改。手绘保存只合入用户相对本地基线改动的内容，agent 写入完成后也会先保存期间产生的新草稿，再更新面板，避免并发绘图互相覆盖。
@@ -46,6 +48,30 @@ Claude Code / Codex（Loci 会话子进程，环境里有会话凭据）
 - 删除写成 Excalidraw 的墓碑元素。面板打开时，agent 的一次调用是一步撤销；面板未打开时直接落盘，没有撤销。
 - 画布会出现在正在作画的会话旁边且不抢焦点；已在别的标签页打开时，只有用户正看着该会话才会移过来。面板跟随 agent 最后一个 `cameraUpdate`，首次打开时缩放到看全，不放大。
 - 批准：读取类工具从不询问；`create_view` 在 Supervised 询问，其余模式直接执行，计划 turn 拒绝。官方把 `create_view` 标成只读，Codex 默认不会问，所以为它设置了 `approval_mode="prompt"`，再由 Loci 按模式作答。
+
+## 精确修改已有元素
+
+`get_elements` 接受 `checkpointId`（或画布 ID）和可选的 `elementIds`，返回原生元素记录、精确坐标、画布 `revision`、元素/图片数量和文件 ID，不返回图片二进制数据。`read_widget_context` 用于发现画布和快速浏览，不能把概览当完整元素重绘。
+
+`update_elements` 接受同一画布的 `checkpointId`、刚读取的 `expectedRevision` 和一组 `{id, changes}`。服务端合并明确指定的属性，保留 ID、图片资源、分组、绑定目标和其他未指定字段；几何变化时同步重算文字尺寸及箭头的 focus/gap。支持位置、尺寸、旋转、字体、字号、颜色、行高、文字宽度、边框样式和图片翻转。
+
+```json
+{
+  "checkpointId": "existing-drawing-id",
+  "expectedRevision": 123456789,
+  "updates": [
+    {"id": "title", "changes": {"fontSize": 32, "strokeColor": "#1971c2"}},
+    {"id": "photo", "changes": {"x": 120.5, "y": 640.25}},
+    {"id": "paragraph", "changes": {"width": 260, "lineHeight": 1.5, "autoResize": false}}
+  ]
+}
+```
+
+整批先校验再保存；未知 ID、重复 ID、非法字段或过期版本会拒绝整批，不创建、删除或更换元素。修改期间的手绘内容按属性合并：手动移动同一段文字时，不会覆盖 agent 刚改的字号；两方改同一属性时，后续手绘值优先。返回新的 checkpoint、revision、受影响 ID 与最终数量；打开的面板把整个批次作为一次撤销。
+
+文字采用 Excalidraw 的测量和换行规则；绑定文字随容器移动，直线箭头端点随绑定形状移动，框架平移携带成员。绑定文字的几何应通过容器修改；其宽度由容器决定，重排要求 `autoResize:true`，导入的固定宽度标签仍可修改颜色等样式，但移动容器或改字体前需显式开启自动排版。绑定箭头不独立拖离端点。弯折箭头和旋转箭头涉及路由，相关形状移动暂时整批拒绝并提示使用编辑器，不做猜测性的重排。
+
+读取无需批准；`update_elements` 和 `create_view` 在 Supervised 模式询问，Plan turn 拒绝写入。官方参考和绘图回复会补充 Loci 的精确编辑说明，官方 bundle 保持原样。
 
 ## 存储：继续用 SQLite
 
@@ -86,4 +112,16 @@ Codex 的 `-c` 覆盖会逐字段合并，连完整 inline table 也不会清除
 
 共 6 个 checkpoint 指向同一张画布，画布数始终为 1。
 
-未验证：macOS（主要目标平台）与 Windows；打包后应用的资源路径（只验证了开发构建的 `target/debug/resources`）；Claude Desktop；Bun 只做了协议冒烟，没有接到 Loci 实测；多窗口。
+上述完整绘图流程未验证：macOS（主要目标平台）与 Windows；打包后应用的资源路径（该轮只验证了开发构建的 `target/debug/resources`）；Claude Desktop；Bun 只做了协议冒烟，没有接到 Loci 实测；多窗口。
+
+## 内置 MCP 设置验证（2026-10-07，macOS）
+
+使用独立 identifier 的 release 应用包、真实 Tauri 页面和 SQLite，验证 Built-in MCP 区域、开关、状态与用途说明；关闭后退出并重启应用，开关仍保持关闭。Codex 同一条对话依次完成关闭、开启、再关闭三轮：关闭时实际 app-server 参数没有内置服务且没有 bridge 进程；开启后使用包内资源启动 bridge，真实调用 `loci_excalidraw:read_me`，SQLite 中工具状态为 completed；再次关闭的下一轮恢复原对话且移除注入和 bridge。三轮的 Loci 会话 ID 与 Codex thread ID 均一致。验收后恢复默认开启并退出测试实例。
+
+自动检查：256 个 Vitest 文件、2910 项测试通过（4 个 worker）；TypeScript 和生产前端构建通过。新增回归覆盖开关持久化、跨窗口同步、缺少运行时的提示与重查，以及 Claude Code / Codex 新会话和已有会话的关闭、重新开启、原对话恢复。Claude Code 本轮仅做自动回归，未登录实测；本轮没有在 macOS 验证完整绘图写入流程。
+
+## 精确属性编辑验证（2026-10-07，macOS）
+
+自动检查：257 个 Vitest 文件、2946 项测试，TypeScript、Rust 格式检查、Clippy 和 204 项 Rust 测试通过。真实 bridge 进程经 MCP 行协议调用生产处理代码和 Excalidraw 0.18.1，验证 75 个既有元素、2 张图片保持原 ID 与资源；过期版本或非法批次不写入。并发回归覆盖手动移动、输入文字和调整绑定形状，合并后的字号、文字尺寸、标签位置及箭头端点保持一致。
+
+本轮同时验证 macOS release 应用包构建、启动及包内 MCP 工具和 schema；未登录 provider 重跑完整人工绘图流程。复杂弯折/旋转箭头的路由仍需编辑器；并发合并遇到这类路由冲突时保留手绘草稿并报错。

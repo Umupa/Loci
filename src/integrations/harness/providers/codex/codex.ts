@@ -1,5 +1,6 @@
 import { nativeModelId } from "../../../../features/sessions/model/models";
 import { sameProviderAccountId } from "../../../../features/providers/model/providerAccounts";
+import { loadCanvasMcpEnabled } from "../../../../features/settings/model/builtinMcp";
 import {
   exhaustedWindowResetAt,
   parseCodexRateLimits,
@@ -42,6 +43,7 @@ import {
   CANVAS_MCP_NAME,
   canvasMcpServer,
   canvasToolAutoAllowed,
+  isCanvasWriteTool,
   codexCanvasApprovalTool,
   codexCanvasMcpArgs,
 } from "../../../../features/canvas/mcpServer";
@@ -88,6 +90,7 @@ type Live = {
   providerAccountId?: string;
   /** Thread-level network policy used when this app-server opened the thread. */
   appAccess: boolean;
+  canvasMcpEnabled: boolean;
   runtimeMode: RuntimeMode;
   planning: boolean;
   onEvent: (event: HarnessEvent) => void;
@@ -455,11 +458,13 @@ export function bindCodexSession(
 async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   const existing = liveByThread.get(input.sessionId);
   const appAccess = input.appAccess === true;
+  const canvasMcpEnabled = loadCanvasMcpEnabled();
   if (
     existing &&
     existing.cwd === input.cwd &&
     sameProviderAccountId(existing.providerAccountId, input.providerAccountId) &&
-    existing.appAccess === appAccess
+    existing.appAccess === appAccess &&
+    existing.canvasMcpEnabled === canvasMcpEnabled
   ) {
     existing.onEvent = input.onEvent;
     return existing;
@@ -491,7 +496,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   }
 
   const { path } = await resolveCodexBinaryImpl();
-  const canvasMcp = await canvasMcpServer();
+  const canvasMcp = await canvasMcpServer(canvasMcpEnabled);
   const liveRef: { current: Live | null } = { current: null };
 
   const rpc = new JsonRpcClient(
@@ -651,6 +656,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
       cwd: input.cwd,
       providerAccountId: input.providerAccountId,
       appAccess,
+      canvasMcpEnabled,
       runtimeMode: input.runtimeMode,
       planning: input.intent === "plan",
       onEvent: input.onEvent,
@@ -1338,7 +1344,7 @@ async function handleServerRequest(
     // Loci's own drawing tool follows the permission mode, as it does for
     // Claude: a plan turn cannot draw, Supervised asks, other modes go ahead.
     const canvasTool = codexCanvasApprovalTool(params);
-    if (canvasTool && live.planning) {
+    if (canvasTool && isCanvasWriteTool(canvasTool) && live.planning) {
       await live.rpc.respond(id, {
         action: "decline",
         content: null,

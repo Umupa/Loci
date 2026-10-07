@@ -216,15 +216,20 @@ export function checkpointElements(dataJson: string): NativeElement[] {
   return parseScene(dataJson).elements.filter(live);
 }
 
-type Baseline = Record<string, [number, number, number, number, string?]>;
+const baselineStyleKeys = ["fontSize", "fontFamily", "lineHeight", "textAlign", "verticalAlign", "autoResize", "strokeColor",
+  "backgroundColor", "fillStyle", "strokeWidth", "strokeStyle", "roughness", "opacity", "angle", "scale", "crop", "roundness"];
+type Baseline = Record<string, [number, number, number, number, (string | null)?, Record<string, unknown>?]>;
+function elementStyle(element: NativeElement): Record<string, unknown> {
+  const record = element as unknown as Record<string, unknown>;
+  return Object.fromEntries(baselineStyleKeys.filter(key => record[key] !== undefined).map(key => [key, record[key]]));
+}
 
 /** What the agent left behind, kept small enough to store with each checkpoint. */
 export function checkpointBaseline(dataJson: string): string {
   const baseline: Baseline = {};
   for (const element of checkpointElements(dataJson)) {
     const text = (element as { text?: string }).text;
-    const box: Baseline[string] = [Math.round(element.x), Math.round(element.y), Math.round(element.width), Math.round(element.height)];
-    if (typeof text === "string") box.push(text);
+    const box: Baseline[string] = [element.x, element.y, element.width, element.height, typeof text === "string" ? text : null, elementStyle(element)];
     baseline[element.id] = box;
   }
   return JSON.stringify(baseline);
@@ -238,6 +243,7 @@ export function describeUserEdits(baselineJson: string, dataJson: string, checkp
   const added: string[] = [];
   const moved: string[] = [];
   const retexted: string[] = [];
+  const restyled: string[] = [];
   const present = new Set<string>();
   for (const element of checkpointElements(dataJson)) {
     present.add(element.id);
@@ -250,6 +256,12 @@ export function describeUserEdits(baselineJson: string, dataJson: string, checkp
       continue;
     }
     if (typeof text === "string" && typeof before[4] === "string" && text !== before[4]) retexted.push(`${element.id} "${text}"`);
+    // Older checkpoint baselines have no style snapshot; geometry/text comparisons still work.
+    if (isRecord(before[5])) {
+      const style = elementStyle(element);
+      const changed = baselineStyleKeys.filter(key => JSON.stringify(before[5]?.[key]) !== JSON.stringify(style[key]));
+      if (changed.length) restyled.push(`${element.id} (${changed.join(", ")})`);
+    }
     // Bound text follows its container; free text is re-measured when fonts load.
     if (containerOf(element)) continue;
     const far = (a: number, b: number) => Math.abs(a - b) > 1;
@@ -262,6 +274,7 @@ export function describeUserEdits(baselineJson: string, dataJson: string, checkp
   if (removed.length) parts.push(`Removed: ${removed.join(", ")}`);
   if (moved.length) parts.push(`Moved/resized: ${moved.join("; ")}`);
   if (retexted.length) parts.push(`Text changed: ${retexted.join("; ")}`);
+  if (restyled.length) parts.push(`Style changed: ${restyled.join("; ")}`);
   return parts.length ? `User edited diagram (checkpoint: ${checkpointId}). ${parts.join(". ")}` : "";
 }
 
@@ -271,22 +284,22 @@ const compactDefaults: Record<string, unknown> = {
 };
 const compactKeys = ["strokeColor", "backgroundColor", "fillStyle", "strokeWidth", "strokeStyle", "roughness", "opacity", "angle",
   "text", "fontSize", "fontFamily", "textAlign", "verticalAlign", "containerId", "frameId", "name", "fileId",
-  "startArrowhead", "endArrowhead", "elbowed", "link", "locked"];
+  "startArrowhead", "endArrowhead", "elbowed", "link", "locked", "scale", "crop", "lineHeight", "autoResize"];
 
 /** The scene for a model to read: ids and geometry without render bookkeeping. */
 export function compactElements(dataJson: string): Array<Record<string, unknown>> {
   return checkpointElements(dataJson).map((element) => {
     const source = element as unknown as Record<string, unknown>;
     const out: Record<string, unknown> = { type: element.type, id: element.id,
-      x: Math.round(element.x), y: Math.round(element.y), width: Math.round(element.width), height: Math.round(element.height) };
+      x: element.x, y: element.y, width: element.width, height: element.height };
     for (const key of compactKeys) {
       const value = source[key];
-      if (value === undefined || value === null || value === false || value === compactDefaults[key]) continue;
+      if (value === undefined || value === null || (value === false && key !== "autoResize") || value === compactDefaults[key]) continue;
       if (key === "endArrowhead" && value === "arrow") continue;
       out[key] = value;
     }
     if (Array.isArray(source.points) && (element.type === "arrow" || element.type === "line"))
-      out.points = source.points.map((point) => (point as number[]).map(Math.round));
+      out.points = source.points.map((point) => point);
     if (Array.isArray(source.groupIds) && source.groupIds.length) out.groupIds = source.groupIds;
     if (element.roundness) out.roundness = { type: element.roundness.type };
     for (const end of ["startBinding", "endBinding"] as const) {

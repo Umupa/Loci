@@ -18,6 +18,8 @@ const FIELDS: Record<string, readonly string[]> = {
   "checkpoint.load": ["id"],
   "checkpoint.save": ["id", "baseId", "deletedIds", "elements", "replace"],
   "context.read": ["id"],
+  "elements.read": ["id", "elementIds"],
+  "elements.update": ["id", "expectedRevision", "updates"],
 };
 
 function checkpointId(value: unknown, name: string): string {
@@ -94,6 +96,42 @@ export async function handleCanvasBridge(source: Session, action: string, input:
       host.reveal(canvas.id, source.id);
       return { canvasId: canvas.id, title: canvas.title, created: false };
     }
+    case "elements.read": {
+      const id = checkpointId(input.id, "id");
+      const canvas = await checkpointCanvas(source, id);
+      const saved = canvas && await readCanvasScene(canvas.id);
+      if (!saved?.cwd || !sameProjectPath(saved.cwd, projectOf(source))) throw new Error(`Checkpoint "${id}" was not found in this project`);
+      const elements = scenes.checkpointElements(saved.dataJson);
+      let selected = elements;
+      if (input.elementIds !== undefined) {
+        if (!Array.isArray(input.elementIds) || !input.elementIds.length || input.elementIds.length > 500 ||
+            input.elementIds.some(entry => typeof entry !== "string")) throw new Error("elementIds must contain 1 to 500 existing IDs");
+        const wanted = new Set(input.elementIds as string[]);
+        for (const elementId of wanted) if (!elements.some(element => element.id === elementId)) throw new Error(`Element "${elementId}" was not found`);
+        selected = elements.filter(element => wanted.has(element.id));
+      }
+      return { ...elementSummary(saved, id, elements), elements: selected };
+    }
+    case "elements.update": {
+      const id = checkpointId(input.id, "id");
+      const expected = input.expectedRevision;
+      if (typeof expected !== "number" || !Number.isSafeInteger(expected) || expected < 0)
+        throw new Error("expectedRevision must be the revision returned by get_elements");
+      const target = await checkpointCanvas(source, id);
+      if (!target) throw new Error(`Checkpoint "${id}" was not found in this project`);
+      const { applyElementUpdates } = await import("./elementUpdates");
+      const nextId = crypto.randomUUID().replace(/-/g, "");
+      let updatedIds: string[] = [];
+      const saved = await inOrder(target.id, () => writeCanvasScene(target.id, (current) => {
+        if (!current.cwd || !sameProjectPath(current.cwd, projectOf(source))) throw new Error("Drawing no longer belongs to this project");
+        if (current.updatedAt !== expected) throw new Error("Canvas changed since get_elements; read it again before updating");
+        const result = applyElementUpdates(current.dataJson, input.updates);
+        updatedIds = result.updatedIds;
+        return { dataJson: result.dataJson, checkpoint: { id: nextId, baselineJson: scenes.checkpointBaseline(result.dataJson) } };
+      }));
+      host.reveal(saved.id, source.id);
+      return { ...elementSummary(saved, nextId, scenes.checkpointElements(saved.dataJson)), updatedIds };
+    }
     case "context.read": {
       const cwd = projectOf(source);
       if (input.id === undefined) {
@@ -115,11 +153,19 @@ export async function handleCanvasBridge(source: Session, action: string, input:
       const files = Object.keys((JSON.parse(saved.dataJson) as { files?: object }).files ?? {}).length;
       return { text: [
         `Drawing "${saved.title}" as it is now in Loci.`,
-        edits || (latest ? "The user has not edited it since the last create_view call." : "The user drew this by hand; no agent has edited it yet."),
-        `To change it, call create_view with elements starting with {"type":"restoreCheckpoint","id":"${id}"}, then only new elements and {"type":"delete","ids":"<id>,<id>"} entries. Elements you do not delete stay as they are.`,
-        files ? `It holds ${files} image file(s); keep an image by not deleting its element.` : "",
+        edits || (latest ? "No changes detected in the saved edit baseline; get_elements returns exact current properties." : "The user drew this by hand; no agent has edited it yet."),
+        `Canvas revision: ${saved.updatedAt}. To move, resize or restyle existing elements, call get_elements then update_elements with that revision and only the properties to change. IDs and image files stay unchanged. For additions/removals, start create_view with {"type":"restoreCheckpoint","id":"${id}"}.`,
+        files ? `It holds ${files} image file(s); update_elements can move or resize them without resending image data.` : "",
         `Current elements:\n${JSON.stringify(scenes.compactElements(saved.dataJson))}`,
       ].filter(Boolean).join("\n") };
     }
   }
+}
+
+
+function elementSummary(canvas: Canvas, checkpointId: string, elements: Array<{ type: string; id: string; fileId?: unknown }>) {
+  return { canvasId: canvas.id, checkpointId, revision: canvas.updatedAt, elementCount: elements.length,
+    imageCount: elements.filter(element => element.type === "image").length,
+    fileIds: [...new Set(elements.filter(element => element.type === "image").map(element => element.fileId).filter((fileId): fileId is string => typeof fileId === "string"))],
+  };
 }

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import type { RuntimeMode, TurnIntent } from "../../../../features/sessions/model/session";
 import type { HarnessEvent } from "../../core/types";
+import { saveCanvasMcpEnabled } from "../../../../features/settings/model/builtinMcp";
 
 const sent: string[] = [];
 const spawned: string[][] = [];
@@ -32,16 +33,18 @@ const waitFor = async (pred: () => boolean, label: string) => {
 };
 
 async function startTurn(options: { runtimeMode?: RuntimeMode; intent?: TurnIntent } = {}) {
+  const offset = sent.length;
+  const messages = () => parse().slice(offset);
   const events: HarnessEvent[] = [];
   const turn = sendClaudeTurn({
     sessionId: "s1", cwd: "/repo", model: "claude:claude-sonnet-5", modelSettings: {},
     runtimeMode: options.runtimeMode ?? "supervised", intent: options.intent,
     text: "draw the architecture", attachments: [], onEvent: (event) => events.push(event),
   });
-  await waitFor(() => parse().some((m) => m.request?.subtype === "initialize"), "initialize");
+  await waitFor(() => messages().some((m) => m.request?.subtype === "initialize"), "initialize");
   emit({ type: "system", subtype: "init", session_id: "sess_1" });
   emit({ type: "control_response", response: { subtype: "success", request_id: "loci_1" } });
-  await waitFor(() => parse().some((m) => m.type === "user"), "user prompt");
+  await waitFor(() => messages().some((m) => m.type === "user"), "user prompt");
   return { events, turn };
 }
 
@@ -56,6 +59,9 @@ async function decisionFor(toolName: string, events: HarnessEvent[]) {
 }
 
 beforeEach(() => {
+  vi.mocked(invoke).mockReset();
+  const storage = new Map<string, string>();
+  vi.stubGlobal("localStorage", { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
   sent.length = 0;
   spawned.length = 0;
   __claudeTestReset();
@@ -64,9 +70,39 @@ beforeEach(() => {
     return undefined;
   });
 });
-afterEach(async () => { await stopClaudeSession("s1"); });
+afterEach(async () => { await stopClaudeSession("s1"); vi.unstubAllGlobals(); });
 
 describe("Loci's Excalidraw MCP server in Claude Code sessions", () => {
+  it("applies the off switch to the next turn and resumes the same conversation when re-enabled", async () => {
+    const first = await startTurn();
+    expect(spawned[0]).toContain("--mcp-config");
+    saveCanvasMcpEnabled(false);
+    // Changing settings does not interrupt a turn already running.
+    expect(spawned).toHaveLength(1);
+    emit({ type: "result", subtype: "success", session_id: "sess_1" });
+    await first.turn;
+    const disabled = await startTurn();
+    expect(spawned[1]).not.toContain("--mcp-config");
+    expect(spawned[1][spawned[1].indexOf("--resume") + 1]).toBe("sess_1");
+    emit({ type: "result", subtype: "success", session_id: "sess_1" });
+    await disabled.turn;
+    saveCanvasMcpEnabled(true);
+    const enabled = await startTurn();
+    expect(spawned[2]).toContain("--mcp-config");
+    expect(spawned[2][spawned[2].indexOf("--resume") + 1]).toBe("sess_1");
+    emit({ type: "result", subtype: "success", session_id: "sess_1" });
+    await enabled.turn;
+  });
+
+  it("does not inject the built-in server into a new session when turned off", async () => {
+    saveCanvasMcpEnabled(false);
+    const { turn } = await startTurn();
+    expect(spawned[0]).not.toContain("--mcp-config");
+    expect(invoke).not.toHaveBeenCalledWith("canvas_mcp_server");
+    emit({ type: "result", subtype: "success", session_id: "sess_1" });
+    await turn;
+  });
+
   it("is added to an interactive session beside the user's own servers", async () => {
     const { turn } = await startTurn();
     const args = spawned[0];
@@ -96,6 +132,9 @@ describe("Loci's Excalidraw MCP server in Claude Code sessions", () => {
   it.each([
     ["supervised", "mcp__loci_excalidraw__read_me", "allow"],
     ["supervised", "mcp__loci_excalidraw__read_widget_context", "allow"],
+    ["supervised", "mcp__loci_excalidraw__get_elements", "allow"],
+    ["supervised", "mcp__loci_excalidraw__update_elements", "ask"],
+    ["auto-accept-edits", "mcp__loci_excalidraw__update_elements", "allow"],
     // Drawing changes the user's canvas: asked for where edits are asked for.
     ["supervised", "mcp__loci_excalidraw__create_view", "ask"],
     ["auto-accept-edits", "mcp__loci_excalidraw__create_view", "allow"],
@@ -117,6 +156,8 @@ describe("Loci's Excalidraw MCP server in Claude Code sessions", () => {
     const { events, turn } = await startTurn({ runtimeMode: "full-access", intent: "plan" });
     expect(await decisionFor("mcp__loci_excalidraw__read_widget_context", events)).toBe("allow");
     expect(await decisionFor("mcp__loci_excalidraw__create_view", events)).toBe("deny");
+    expect(await decisionFor("mcp__loci_excalidraw__get_elements", events)).toBe("allow");
+    expect(await decisionFor("mcp__loci_excalidraw__update_elements", events)).toBe("deny");
     await stopClaudeSession("s1");
     await turn.catch(() => undefined);
   });

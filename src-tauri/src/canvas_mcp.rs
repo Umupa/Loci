@@ -125,6 +125,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/excalidraw-mcp");
         for file in [
             "loci-bridge.mjs",
+            "element-properties.mjs",
             "official/server.js",
             "official/mcp-app.html",
             "official/manifest.json",

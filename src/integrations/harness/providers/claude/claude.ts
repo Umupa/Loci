@@ -6,6 +6,7 @@ import type {
   TaskListMeta,
 } from "../../../../features/sessions/model/session";
 import { loadClaudeHooks } from "../../../../features/settings/model/settings";
+import { loadCanvasMcpEnabled } from "../../../../features/settings/model/builtinMcp";
 import {
   killChild,
   resolveClaudeBinary,
@@ -133,6 +134,7 @@ type BackgroundTask = {
 
 type Live = {
   cwd: string;
+  canvasMcpEnabled: boolean;
   claudeSessionId: string;
   providerAccountId?: string;
   runtimeMode: RuntimeMode;
@@ -428,12 +430,14 @@ export function restoreClaudeTaskLists(
 
 async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   const settingsKey = settingsKeyFor(input);
+  const canvasMcpEnabled = loadCanvasMcpEnabled();
   const planning = input.intent === "plan";
   const existing = liveByThread.get(input.sessionId);
   if (
     existing &&
     existing.cwd === input.cwd &&
     existing.settingsKey === settingsKey &&
+    existing.canvasMcpEnabled === canvasMcpEnabled &&
     existing.planning === planning
   ) {
     existing.onEvent = input.onEvent;
@@ -461,7 +465,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
     resumeByThread.delete(input.sessionId);
   }
   const { path } = await resolveClaudeBinaryImpl();
-  const canvasMcp = await canvasMcpServer();
+  const canvasMcp = await canvasMcpServer(canvasMcpEnabled);
   const liveRef: { current: Live | null } = { current: null };
   const claudeSessionId =
     canResume && resume ? resume.sessionId : crypto.randomUUID();
@@ -482,6 +486,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
 
   const live: Live = {
     cwd: input.cwd,
+    canvasMcpEnabled,
     claudeSessionId,
     providerAccountId: input.providerAccountId,
     runtimeMode: input.runtimeMode,

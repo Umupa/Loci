@@ -12,7 +12,7 @@ import { createInterface } from "node:readline";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import type { Session } from "../sessions/model/session";
-import { invalidateCanvases, type Canvas, type CanvasUpsert } from "./canvas";
+import { canvasSceneDrafts, invalidateCanvases, type Canvas, type CanvasUpsert } from "./canvas";
 import { handleCanvasBridge } from "./checkpoints";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -32,7 +32,10 @@ function canvasStore() {
     canvas_list: () => [...canvases.values()],
     canvas_get: ({ id }) => canvases.get(id) ?? null,
     canvas_upsert: ({ canvas }: { canvas: CanvasUpsert }) => {
-      const { checkpoint, ...fields } = canvas;
+      const { checkpoint, expectedUpdatedAt, ...fields } = canvas;
+      const previous = canvases.get(fields.id);
+      if (expectedUpdatedAt !== undefined && (!previous || previous.updatedAt !== expectedUpdatedAt))
+        throw new Error("Canvas changed since it was read; retry the update.");
       const owner = checkpoint && checkpoints.get(checkpoint.id);
       if (owner && owner.canvasId !== fields.id) throw new Error("Checkpoint already belongs to another drawing");
       const saved: Canvas = { ...fields, createdAt: canvases.get(fields.id)?.createdAt ?? ++clock, updatedAt: ++clock };
@@ -68,7 +71,8 @@ let gate: ((action: string, input: El) => Promise<void>) | undefined;
 beforeAll(async () => {
   vi.stubGlobal("FontFace", class { constructor(family: string, _source: string, descriptors: object) { Object.assign(this, { family }, descriptors); } });
   // happy-dom has no text rasterizer; the actual Excalidraw conversion runs.
-  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ filter: "none", measureText: (text: string) => ({ width: text.length * 10 }) } as never);
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ filter: "none", font: "20px sans-serif",
+    measureText(text: string) { return { width: text.length * (parseFloat(this.font) || 20) * 0.5 }; } } as never);
   // What `control.rs` does for the `canvas` namespace: one JSON line in, one out.
   control = createServer((socket) => {
     createInterface({ input: socket }).once("line", (line) => {
@@ -97,7 +101,7 @@ beforeEach(() => {
   invalidateCanvases();
   vi.mocked(invoke).mockImplementation((command, args) => store.run(command, args) as never);
 });
-afterEach(() => { for (const child of clients.splice(0)) child.kill(); });
+afterEach(() => { for (const child of clients.splice(0)) child.kill(); canvasSceneDrafts.clear(); });
 
 /** An agent CLI's MCP client, connected to a fresh bridge process. */
 async function connect(env: Record<string, string> = { LOCI_APP_ENDPOINT: endpoint, LOCI_APP_TOKEN: TOKEN }) {
@@ -123,7 +127,7 @@ async function connect(env: Record<string, string> = { LOCI_APP_ENDPOINT: endpoi
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
   const tool = async (name: string, args: object = {}) => {
     const result = await request("tools/call", { name, arguments: args });
-    return { text: result.content[0].text as string, isError: result.isError === true, checkpointId: result.structuredContent?.checkpointId as string | undefined };
+    return { text: result.content.filter((entry: El) => entry.type === "text").map((entry: El) => entry.text).join("\n") as string, isError: result.isError === true, checkpointId: result.structuredContent?.checkpointId as string | undefined };
   };
   return { initialized, request, tool, draw: (elements: object[]) => tool("create_view", { elements: JSON.stringify(elements) }) };
 }
@@ -169,8 +173,9 @@ describe("the vendored official server", () => {
     const agent = await connect();
     expect(agent.initialized.serverInfo).toEqual({ name: "Excalidraw", version: "1.0.0" });
     expect(agent.initialized.instructions).toContain("Loci canvases");
+    expect(agent.initialized.instructions).toContain("update_elements");
     const { tools } = await agent.request("tools/list");
-    expect(tools.map((tool: El) => tool.name)).toEqual(["read_me", "create_view", "save_checkpoint", "read_checkpoint", "read_widget_context"]);
+    expect(tools.map((tool: El) => tool.name)).toEqual(["read_me", "create_view", "save_checkpoint", "read_checkpoint", "get_elements", "update_elements", "read_widget_context"]);
     const createView = byId(tools.map((tool: El) => ({ ...tool, id: tool.name })), "create_view");
     expect(createView).toMatchObject({ title: "Draw Diagram", annotations: { readOnlyHint: true }, _meta: { ui: { resourceUri: "ui://excalidraw/mcp-app.html" } } });
     expect(Object.keys(createView.inputSchema.properties)).toEqual(["elements"]);
@@ -180,10 +185,13 @@ describe("the vendored official server", () => {
     // Upstream's upload to excalidraw.com is not offered: drawings stay on this machine.
     const upload = await agent.tool("export_to_excalidraw", { json: '{"elements":[]}' });
     expect(upload).toMatchObject({ isError: true, text: "Loci does not upload drawings to excalidraw.com." });
+    expect(tools.find((tool: El) => tool.name === "update_elements")).toMatchObject({ annotations: { readOnlyHint: false } });
+    expect(tools.find((tool: El) => tool.name === "get_elements")).toMatchObject({ annotations: { readOnlyHint: true } });
     expect(tools.at(-1)).toMatchObject({ name: "read_widget_context", annotations: { readOnlyHint: true } });
     const reference = await agent.tool("read_me");
     expect(reference.text).toContain("# Excalidraw Element Format");
     expect(reference.text).toContain("restoreCheckpoint");
+    expect(reference.text).toContain("get_elements and update_elements");
     // The reference needs no Loci connection.
     expect(requests).toEqual([]);
     const widget = await agent.request("resources/read", { uri: "ui://excalidraw/mcp-app.html" });
@@ -265,7 +273,7 @@ describe("an agent drawing on Loci canvases through the official MCP", () => {
     // Only the difference crossed the wire, so the patch applied to the live scene.
     expect(requests.at(-1)).toMatchObject({ action: "checkpoint.save", input: { id: second.checkpointId, baseId: first.checkpointId, deletedIds: ["a1"] } });
     expect(requests.at(-1)!.input.elements.map((element: El) => element.id ?? element.type)).toEqual(["b3", "a2", "cameraUpdate"]);
-    expect((await agent.tool("read_widget_context", { checkpointId: second.checkpointId })).text).toContain("The user has not edited it since the last create_view call.");
+    expect((await agent.tool("read_widget_context", { checkpointId: second.checkpointId })).text).toContain("No changes detected in the saved edit baseline");
 
     // Loci and the agent CLI restart: a new server process, the same stored canvas.
     const resumed = await connect();
@@ -375,4 +383,149 @@ describe("an agent drawing on Loci canvases through the official MCP", () => {
     expect(await closed.draw(firstCall)).toMatchObject({ isError: true, text: expect.stringContaining("Cannot reach Loci") });
     expect(store.canvases.size).toBe(0);
   });
+});
+
+
+describe("editing existing canvas elements through MCP", () => {
+  const read = (agent: Awaited<ReturnType<typeof connect>>, checkpointId: string) =>
+    agent.request("tools/call", { name: "get_elements", arguments: { checkpointId } });
+  const update = (agent: Awaited<ReturnType<typeof connect>>, checkpointId: string, revision: number, updates: El[]) =>
+    agent.request("tools/call", { name: "update_elements", arguments: { checkpointId, expectedRevision: revision, updates } });
+
+  it("updates 75 existing elements without losing image properties or adding IDs", async () => {
+    const agent = await connect();
+    const first = await agent.draw([{ type: "text", id: "heading", x: 20.125, y: 20.25, text: "Finalizers", fontSize: 24, fontFamily: 3 },
+      { type: "rectangle", id: "border", x: 0, y: 0, width: 400, height: 160, strokeWidth: 3 },
+      { type: "text", id: "example", x: 20, y: 90, text: "Example", fontSize: 18 }]);
+    await editByHand(data => {
+      for (let i = 0; i < 70; i++) data.elements.push(native({ type: "rectangle", id: `existing-${i}`, x: i * 10, y: 200, width: 20, height: 20 }));
+      for (let i = 0; i < 2; i++) {
+        const fileId = `photo-${i}`;
+        data.files[fileId] = { id: fileId, dataURL: "data:image/png;base64,iVBORw0KGgo=", mimeType: "image/png", created: 1 };
+        data.elements.push(native({ type: "image", id: `image-${i}`, x: 30 + i * 100, y: 400, width: 64, height: 64, fileId, status: "saved", scale: [-1, 1], crop: null }));
+      }
+      byId(data.elements, "heading").lineHeight = 1.7;
+    });
+    const before = scene(drawing());
+    const result = await read(agent, first.checkpointId!);
+    expect(result.isError).not.toBe(true);
+    const current = result.structuredContent;
+    expect(current).toMatchObject({ elementCount: 75, imageCount: 2, revision: drawing().updatedAt });
+    expect(byId(current.elements, "heading")).toMatchObject({ x: 20.125, y: 20.25, lineHeight: 1.7 });
+    expect(byId(current.elements, "image-0")).toMatchObject({ scale: [-1, 1], fileId: "photo-0" });
+    expect(JSON.stringify(current)).not.toContain("base64");
+    const replaced = vi.fn();
+    window.addEventListener("loci-canvas-scene-replaced", replaced);
+    const edited = await update(agent, first.checkpointId!, current.revision, [
+      { id: "heading", changes: { x: 130.5, fontSize: 32, strokeColor: "#1971c2" } },
+      { id: "border", changes: { strokeWidth: 1, strokeStyle: "dashed" } },
+      { id: "image-0", changes: { x: 260.5, y: 450.75 } },
+    ]);
+    window.removeEventListener("loci-canvas-scene-replaced", replaced);
+    expect(replaced).toHaveBeenCalledOnce();
+    expect(edited.isError).not.toBe(true);
+    const after = scene(drawing());
+    expect(live(after.elements).map(e => e.id).sort()).toEqual(live(before.elements).map(e => e.id).sort());
+    expect(after.files).toEqual(before.files);
+    expect(edited.structuredContent).toMatchObject({ elementCount: 75, imageCount: 2, canvasId: drawing().id });
+    expect(byId(after.elements, "heading")).toMatchObject({ x: 130.5, fontSize: 32, strokeColor: "#1971c2", fontFamily: 3, lineHeight: 1.7 });
+    expect(byId(after.elements, "image-0")).toMatchObject({ x: 260.5, y: 450.75, scale: [-1, 1], crop: null, fileId: "photo-0" });
+    expect(byId(after.elements, "existing-50")).toEqual(byId(before.elements, "existing-50"));
+    const again = await read(agent, edited.structuredContent.checkpointId);
+    expect(again.structuredContent.revision).toBe(edited.structuredContent.revision);
+  });
+
+  it("rejects stale revisions and invalid batches without writing any elements", async () => {
+    const agent = await connect();
+    const first = await agent.draw([{ type: "rectangle", id: "box", x: 0, y: 0, width: 100, height: 60 }]);
+    const current = (await read(agent, first.checkpointId!)).structuredContent;
+    await editByHand(data => { byId(data.elements, "box").x = 99; });
+    const before = drawing().dataJson;
+    const stale = await update(agent, first.checkpointId!, current.revision, [{ id: "box", changes: { x: 30 } }]);
+    expect(stale).toMatchObject({ isError: true });
+    expect(stale.content[0].text).toContain("changed");
+    expect(drawing().dataJson).toBe(before);
+    const revision = drawing().updatedAt;
+    for (const invalid of [
+      [{ id: "box", changes: { x: 30 } }, { id: "missing", changes: { x: 1 } }],
+      [{ id: "box", changes: { id: "replacement" } }],
+      [{ id: "box", changes: { isDeleted: true } }],
+      [{ id: "box", changes: { x: "30" } }],
+    ]) {
+      expect(await update(agent, first.checkpointId!, revision, invalid)).toMatchObject({ isError: true });
+      expect(drawing().dataJson).toBe(before);
+    }
+  });
+});
+
+
+it.each([
+  { edit: "moves", manual: { x: 80 }, expected: { x: 80, fontSize: 40, height: 48 } },
+  { edit: "types into", manual: { text: "hello\nsecond line", originalText: "hello\nsecond line", width: 110, height: 48 },
+    expected: { fontSize: 40, text: "hello\nsecond line", width: 220, height: 96 } },
+])("keeps an MCP font update when the user $edit that same text during persistence", async ({ manual, expected }) => {
+  const agent = await connect();
+  const first = await agent.draw([{ type: "text", id: "text", x: 0, y: 0, text: "hello", fontSize: 20, fontFamily: 3 }]);
+  const original = drawing();
+  const current = (await agent.request("tools/call", { name: "get_elements", arguments: { checkpointId: first.checkpointId } })).structuredContent;
+  let release!: () => void, started!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const starting = new Promise<void>(resolve => { started = resolve; });
+  let firstUpsert = true;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === "canvas_upsert" && firstUpsert) { firstUpsert = false; started(); await held; }
+    return store.run(command, args) as never;
+  });
+  const editing = agent.request("tools/call", { name: "update_elements", arguments: {
+    checkpointId: first.checkpointId, expectedRevision: current.revision, updates: [{ id: "text", changes: { fontSize: 40 } }],
+  } });
+  await starting;
+  const draft = scene(original);
+  Object.assign(byId(draft.elements, "text"), { ...manual, version: 4, versionNonce: 9 });
+  canvasSceneDrafts.set(original.id, { elements: draft.elements as never, appState: draft.appState as never, files: draft.files as never, baseDataJson: original.dataJson });
+  release();
+  const result = await editing;
+  expect(result.isError).not.toBe(true);
+  const final = byId(scene(drawing()).elements, "text");
+  expect(final).toMatchObject(expected);
+  expect(final.version).toBeGreaterThan(4);
+  expect(result.structuredContent.revision).toBe(drawing().updatedAt);
+  expect(result.structuredContent.updatedIds).toContain("text");
+});
+
+it("composes a concurrent manual move with an MCP resize of a labeled, bound shape", async () => {
+  const agent = await connect();
+  const first = await agent.draw([
+    { type: "rectangle", id: "box", x: 0, y: 0, width: 200, height: 100, label: { text: "API", fontFamily: 3 } },
+    { type: "rectangle", id: "other", x: 400, y: 0, width: 100, height: 100 },
+    { type: "arrow", id: "arrow", x: 200, y: 50, width: 200, height: 0, points: [[0, 0], [200, 0]],
+      startBinding: { elementId: "box" }, endBinding: { elementId: "other" } },
+  ]);
+  const original = drawing();
+  const { applyElementUpdates } = await import("./elementUpdates");
+  const manual = JSON.parse(applyElementUpdates(original.dataJson, [{ id: "box", changes: { x: 80 } }]).dataJson);
+  let release!: () => void, started!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const starting = new Promise<void>(resolve => { started = resolve; });
+  let firstUpsert = true;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === "canvas_upsert" && firstUpsert) { firstUpsert = false; started(); await held; }
+    return store.run(command, args) as never;
+  });
+  const editing = agent.request("tools/call", { name: "update_elements", arguments: {
+    checkpointId: first.checkpointId, expectedRevision: original.updatedAt, updates: [{ id: "box", changes: { width: 300 } }],
+  } });
+  await starting;
+  canvasSceneDrafts.set(original.id, { ...manual, baseDataJson: original.dataJson });
+  release();
+  const result = await editing;
+  expect(result.isError).not.toBe(true);
+  const elements = scene(drawing()).elements;
+  expect(byId(elements, "box")).toMatchObject({ x: 80, width: 300 });
+  const label = elements.find(element => element.type === "text" && element.containerId === "box")!;
+  expect(label.x).toBeCloseTo(80 + (300 - label.width) / 2);
+  const arrow = byId(elements, "arrow");
+  expect(arrow.x + arrow.points[0][0]).toBeCloseTo(380.5);
+  expect(arrow.startBinding.elementId).toBe("box");
+  expect(elements.map(element => element.id)).toEqual(scene(original).elements.map(element => element.id));
 });

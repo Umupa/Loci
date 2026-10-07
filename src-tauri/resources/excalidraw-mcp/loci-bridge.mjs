@@ -12,6 +12,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import net from "node:net";
 import { createInterface } from "node:readline";
+import { ELEMENT_UPDATES_SCHEMA } from "./element-properties.mjs";
 
 const [major, minor] = process.versions.node.split(".").map(Number);
 if (!process.versions.bun && (major < 20 || (major === 20 && minor < 11))) {
@@ -40,13 +41,33 @@ const HOST_TOOL = {
   },
   annotations: { readOnlyHint: true },
 };
+const GET_ELEMENTS = {
+  name: "get_elements", title: "Inspect Canvas Elements",
+  description: "Read exact native element properties and the current revision of a Loci canvas. Includes image scale/crop and text metrics, never image file data. Omit elementIds to read all existing elements. Use this before update_elements.",
+  inputSchema: { type: "object", required: ["checkpointId"], additionalProperties: false, properties: {
+    checkpointId: { type: "string", minLength: 1 },
+    elementIds: { type: "array", minItems: 1, maxItems: 500, items: { type: "string" } },
+  } },
+  annotations: { readOnlyHint: true },
+};
+const UPDATE_ELEMENTS = {
+  name: "update_elements", title: "Edit Canvas Elements",
+  description: "Batch-update properties of existing elements by ID: position, size, rotation, typography, line spacing, colors and border styles. Unspecified properties, IDs, image resources, groups and binding targets are preserved; derived text metrics and arrow focus/gap follow geometry changes. Bound labels and straight-arrow endpoints follow their shapes; frame members follow translations. No elements are added or deleted. Use expectedRevision from get_elements; a stale read or any invalid change rejects the whole batch. Text height is measured; change fontSize/lineHeight. For fixed-width paragraphs, set autoResize:false with width. Bound labels use container width and require autoResize:true for reflow. Bound arrows cannot be moved independently; elbowed/rotated bound-arrow routing requires the editor.",
+  inputSchema: { type: "object", required: ["checkpointId", "expectedRevision", "updates"], additionalProperties: false, properties: {
+    checkpointId: { type: "string", minLength: 1 },
+    expectedRevision: { type: "integer", minimum: 0 },
+    updates: ELEMENT_UPDATES_SCHEMA,
+  } },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+};
+const HOST_TOOLS = [GET_ELEMENTS, UPDATE_ELEMENTS, HOST_TOOL];
 const INSTRUCTIONS =
   "These Excalidraw tools draw on Loci canvases. Every create_view call saves a drawing that the user sees and can edit in Loci, " +
   "and each checkpoint id refers to that drawing's latest content, including the user's own edits. " +
-  "To change an existing drawing, call read_widget_context for its current elements, then call create_view starting with " +
-  '{"type":"restoreCheckpoint","id":"<checkpoint id>"} followed only by new elements and {"type":"delete","ids":"..."} entries. ' +
-  "Elements you do not delete are kept exactly, with their images, frames, fonts and bindings. " +
-  "A create_view call without restoreCheckpoint starts a new drawing.";
+  "To edit existing elements, first call get_elements for exact properties and its revision, then update_elements with IDs and only the changed fields. " +
+  "This is the preferred way to move images, change font size/color, adjust paragraph lineHeight or arrange existing shapes without adding elements. " +
+  "Do not rebuild elements from read_widget_context's compact overview. " +
+  "create_view with restoreCheckpoint is for additions/removals, and without restoreCheckpoint it starts a new drawing.";
 
 // The official widget's "Open in Excalidraw" uploads a scene to excalidraw.com.
 // Loci shows no such button, and an agent must not be able to send a user's
@@ -147,17 +168,22 @@ const store = {
   },
 };
 
-async function readWidgetContext(args) {
-  const checkpointId = args?.checkpointId;
-  if (checkpointId !== undefined && typeof checkpointId !== "string")
-    throw new Error("checkpointId must be a string");
-  const result = await callLoci("context.read", checkpointId ? { id: checkpointId } : {});
-  return String(result?.text ?? "");
+async function hostTool(name, args = {}) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Tool arguments must be an object");
+  const fields = name === HOST_TOOL.name ? ["checkpointId"] : name === GET_ELEMENTS.name ? ["checkpointId", "elementIds"] : ["checkpointId", "expectedRevision", "updates"];
+  if (Object.keys(args).some(key => !fields.includes(key))) throw new Error("Unknown canvas tool argument");
+  const { checkpointId, ...input } = args;
+  if (checkpointId !== undefined && typeof checkpointId !== "string") throw new Error("checkpointId must be a string");
+  if (name !== HOST_TOOL.name && !checkpointId) throw new Error("checkpointId is required");
+  const action = name === HOST_TOOL.name ? "context.read" : name === GET_ELEMENTS.name ? "elements.read" : "elements.update";
+  const result = await callLoci(action, { ...(checkpointId ? { id: checkpointId } : {}), ...input });
+  return { content: [{ type: "text", text: result?.text ?? JSON.stringify(result) }], structuredContent: result };
 }
 
 const write = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 const awaitingInitialize = new Set();
 const awaitingToolList = new Set();
+const awaitingEditGuidance = new Set();
 
 const transport = {
   onmessage: undefined,
@@ -180,14 +206,15 @@ const transport = {
     if (message?.method === "tools/list" && hasId) awaitingToolList.add(message.id);
     if (message?.method !== "tools/call") return this.onmessage?.(message);
     const name = message.params?.name;
+    if (hasId && (name === "read_me" || name === "create_view")) awaitingEditGuidance.add(message.id);
     if (name === UPLOAD_TOOL) {
       if (hasId) write({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "Loci does not upload drawings to excalidraw.com." }], isError: true } });
       return;
     }
-    if (name !== HOST_TOOL.name) return toolCalls.run({ tool: name }, () => this.onmessage?.(message));
+    if (!HOST_TOOLS.some(tool => tool.name === name)) return toolCalls.run({ tool: name }, () => this.onmessage?.(message));
     if (!hasId) return;
-    readWidgetContext(message.params?.arguments).then(
-      (text) => write({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text }] } }),
+    hostTool(name, message.params?.arguments).then(
+      (result) => write({ jsonrpc: "2.0", id: message.id, result }),
       (error) => write({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: String(error?.message ?? error) }], isError: true } }),
     );
   },
@@ -197,7 +224,11 @@ const transport = {
       message = { ...message, result: { ...message.result, instructions: upstream ? `${upstream}\n\n${INSTRUCTIONS}` : INSTRUCTIONS } };
     } else if (awaitingToolList.delete(message?.id) && Array.isArray(message.result?.tools)) {
       const tools = message.result.tools.filter((tool) => tool?.name !== UPLOAD_TOOL);
-      message = { ...message, result: { ...message.result, tools: [...tools, HOST_TOOL] } };
+      message = { ...message, result: { ...message.result, tools: [...tools, ...HOST_TOOLS] } };
+    }
+    if (awaitingEditGuidance.delete(message?.id) && message.result && !message.result.isError) {
+      const note = "Loci editing: use get_elements and update_elements to change existing positions, font sizes, colors, line spacing or image geometry while preserving IDs and unspecified properties. create_view is for additions/removals; do not reconstruct existing elements from the compact overview.";
+      message = { ...message, result: { ...message.result, content: [...(message.result.content ?? []), { type: "text", text: note }] } };
     }
     write(message);
   },

@@ -44,3 +44,12 @@ describe("Excalidraw MCP calls in a transcript", () => {
     expect(canvasWorkSummary([claudeDraw, { id: "note", role: "system", text: "Compacted" }], false)).toBeUndefined();
   });
 });
+
+
+it("names existing-element edits and links their returned checkpoint", () => {
+  const edit = tool("loci_excalidraw:update_elements", { kind: "other", detail: '{"checkpointId":"changed_1","updatedIds":["title"]}' });
+  expect(canvasToolCall(edit)).toMatchObject({ tool: "update_elements", done: "Edited canvas elements", checkpointId: "changed_1" });
+  expect(canvasWorkSummary([edit], true)).toBe("Editing canvas elements");
+  expect(canvasWorkSummary([edit], false)).toBe("Edited canvas elements");
+  expect(canvasToolCall(tool("loci_excalidraw:get_elements", { kind: "read" }))).toMatchObject({ tool: "get_elements", done: "Inspected canvas elements" });
+});

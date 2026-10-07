@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { loadCanvasMcpEnabled } from "../settings/model/builtinMcp";
 
 /** Stdio command for Loci's built-in Excalidraw MCP server. */
 export type CanvasMcpServer = { command: string; args: string[] };
@@ -11,8 +12,8 @@ export const CANVAS_MCP_NAME = "loci_excalidraw";
 // CLI already holds; Codex only forwards variables that are listed.
 const FORWARDED_ENV = ["LOCI_APP_ENDPOINT", "LOCI_APP_TOKEN"];
 
-export type CanvasMcpTool = "read_me" | "create_view" | "read_widget_context";
-const TOOLS: readonly CanvasMcpTool[] = ["read_me", "create_view", "read_widget_context"];
+export type CanvasMcpTool = "read_me" | "create_view" | "read_widget_context" | "get_elements" | "update_elements";
+const TOOLS: readonly CanvasMcpTool[] = ["read_me", "create_view", "read_widget_context", "get_elements", "update_elements"];
 
 /** Recognize the built-in server's tools as Claude (`mcp__loci_excalidraw__x`) and Codex (`loci_excalidraw:x`) name them. */
 export function canvasMcpTool(name: string | undefined): CanvasMcpTool | undefined {
@@ -25,23 +26,29 @@ export function canvasMcpTool(name: string | undefined): CanvasMcpTool | undefin
  * project's own drawings never does. Drawing is an edit the canvas pane can
  * undo, so it follows file edits: asked for in Supervised, automatic above it.
  */
+export function isCanvasWriteTool(tool: CanvasMcpTool): boolean {
+  return tool === "create_view" || tool === "update_elements";
+}
+
 export function canvasToolAutoAllowed(tool: CanvasMcpTool, runtimeMode: string): boolean {
-  return tool !== "create_view" || runtimeMode !== "supervised";
+  return !isCanvasWriteTool(tool) || runtimeMode !== "supervised";
 }
 
 /** The app's reason the server cannot start here, e.g. no Node.js; null when it can. */
 export async function canvasMcpProblem(): Promise<string | null> {
+  if (!loadCanvasMcpEnabled()) return "The built-in Excalidraw MCP is disabled in Settings → MCP.";
   try { await invoke<CanvasMcpServer>("canvas_mcp_server"); return null; }
   // A command failure is the backend's own sentence; anything else is not ours to show.
   catch (error) { return typeof error === "string" ? error : null; }
 }
 
 /**
- * The server to add to an agent session, or null when it cannot run. Sessions
- * still start without it; a failure is not cached, so installing Node.js
- * takes effect on the next session.
+ * The server to add to an agent session, or null when disabled or unavailable.
+ * Providers pass the preference captured for this process so a settings change
+ * during startup is picked up on its next turn. Failures are not cached.
  */
-export async function canvasMcpServer(): Promise<CanvasMcpServer | null> {
+export async function canvasMcpServer(enabled = loadCanvasMcpEnabled()): Promise<CanvasMcpServer | null> {
+  if (!enabled) return null;
   try {
     const server = await invoke<CanvasMcpServer>("canvas_mcp_server");
     return server && typeof server.command === "string" && Array.isArray(server.args) ? server : null;
@@ -63,6 +70,7 @@ export function codexCanvasMcpArgs(server: CanvasMcpServer): string[] {
     // The official server marks drawing read-only, so Codex would never ask.
     // Have it ask Loci, which answers by the session's permission mode.
     "-c", `${key}.tools.create_view.approval_mode="prompt"`,
+    "-c", `${key}.tools.update_elements.approval_mode="prompt"`,
   ];
 }
 

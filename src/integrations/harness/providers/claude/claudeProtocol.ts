@@ -1,3 +1,4 @@
+import { canvasMcpTool, isCanvasWriteTool } from "../../../../features/canvas/mcpServer";
 import type {
   Attachment,
   RuntimeMode,
@@ -1003,6 +1004,8 @@ export function applyClaudeTaskTool(
 
 export function toolKindFromName(toolName: string): string {
   const normalized = toolName.toLowerCase();
+  const canvasTool = canvasMcpTool(toolName);
+  if (canvasTool) return isCanvasWriteTool(canvasTool) ? "edit" : "read";
   if (isTodoTool(toolName) || isClaudeTaskTool(toolName)) return "tasks";
   if (
     normalized.includes("bash") ||

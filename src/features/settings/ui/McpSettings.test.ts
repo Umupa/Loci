@@ -4,8 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { McpSettings } from "./McpSettings";
 import { clearMcpSettingsCache } from "../model/mcpSettingsCache";
+import { CANVAS_MCP_ENABLED_KEY } from "../model/builtinMcp";
 
 const invoke = vi.fn();
+const connectionCalls = () => invoke.mock.calls.filter(([command]) => command === "mcp_discover" || command === "claude_mcp_list");
 const ask = vi.fn(async () => true);
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (...args: unknown[]) => invoke(...args),
@@ -78,6 +80,57 @@ async function selectProject(path: string) {
       .click(),
   );
 }
+
+it("shows the app-owned canvas server and preserves its off switch across settings and projects", async () => {
+  await act(async () => root.render(createElement(McpSettings, { cwd: "/repo" })));
+  const builtin = () => container.querySelector('[data-setting-id="builtin-excalidraw"]')!;
+  const toggle = () => builtin().querySelector<HTMLButtonElement>('[role="switch"]')!;
+  expect(builtin().textContent).toContain("Built-in MCP");
+  expect(builtin().textContent).toContain("loci_excalidraw · Local · Enabled");
+  expect(builtin().textContent).toContain("Claude Code");
+  expect(builtin().textContent).toContain("Codex");
+  expect(builtin().textContent).toContain("next turn");
+  expect(toggle().getAttribute("aria-checked")).toBe("true");
+  await act(async () => toggle().click());
+  expect(toggle().getAttribute("aria-checked")).toBe("false");
+  expect(builtin().textContent).toContain("Disabled");
+  expect(localStorage.getItem(CANVAS_MCP_ENABLED_KEY)).toBe("0");
+  expect(container.textContent).toContain("docs");
+  expect(invoke.mock.calls.map(([command]) => command)).not.toContain("mcp_add");
+  expect(invoke.mock.calls.map(([command]) => command)).not.toContain("claude_mcp_remove");
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await act(async () => root.render(createElement(McpSettings, { cwd: "/another-project" })));
+  expect(toggle().getAttribute("aria-checked")).toBe("false");
+  await act(async () => toggle().click());
+  expect(builtin().textContent).toContain("Enabled");
+  expect(localStorage.getItem(CANVAS_MCP_ENABLED_KEY)).toBe("1");
+});
+
+it("explains a missing runtime and can retry after it is installed", async () => {
+  const original = invoke.getMockImplementation()!;
+  let available = false;
+  invoke.mockImplementation((command: string, args: unknown) => command === "canvas_mcp_server"
+    ? available ? Promise.resolve({ command: "node", args: ["bridge.mjs"] }) : Promise.reject("Excalidraw drawing tools need Node.js 20.11 or newer (or Bun) on your PATH.")
+    : original(command, args));
+  await act(async () => root.render(createElement(McpSettings, { cwd: "/repo" })));
+  const builtin = container.querySelector('[data-setting-id="builtin-excalidraw"]')!;
+  expect(builtin.textContent).toContain("Unavailable");
+  expect(builtin.querySelector('[role="status"]')?.textContent).toContain("Node.js 20.11");
+  available = true;
+  await act(async () => builtin.querySelector<HTMLButtonElement>('button:not([role="switch"])')!.click());
+  expect(builtin.textContent).toContain("Enabled");
+  expect(builtin.querySelector('[role="status"]')).toBeNull();
+});
+
+it("updates the built-in switch when another window changes it", async () => {
+  await act(async () => root.render(createElement(McpSettings, { cwd: "/repo" })));
+  await act(async () => {
+    localStorage.setItem(CANVAS_MCP_ENABLED_KEY, "0");
+    window.dispatchEvent(new StorageEvent("storage", { key: CANVAS_MCP_ENABLED_KEY }));
+  });
+  expect(container.querySelector('[role="switch"]')?.getAttribute("aria-checked")).toBe("false");
+});
 
 it("lists servers and routes sign in through Claude MCP", async () => {
   await act(async () =>
@@ -317,12 +370,12 @@ it("reuses the loaded list when returning to the page and reloads on Refresh", a
   await act(async () =>
     root.render(createElement(McpSettings, { cwd: "/repo" })),
   );
-  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(connectionCalls()).toHaveLength(2);
   await act(async () => root.render(null));
   await act(() => root.render(createElement(McpSettings, { cwd: "/repo" })));
   expect(container.textContent).toContain("sentry");
   expect(container.textContent).not.toContain("Checking servers…");
-  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(connectionCalls()).toHaveLength(2);
 
   invoke.mockImplementation(async (command: string) =>
     command === "mcp_discover"
@@ -341,7 +394,7 @@ it("reuses the loaded list when returning to the page and reloads on Refresh", a
     (button) => button.textContent === "Refresh",
   )!;
   await act(async () => refresh.click());
-  expect(invoke).toHaveBeenCalledTimes(4);
+  expect(connectionCalls()).toHaveLength(4);
   expect(container.textContent).toContain("updated");
   expect(container.textContent).not.toContain("sentry");
 
@@ -349,7 +402,7 @@ it("reuses the loaded list when returning to the page and reloads on Refresh", a
   await act(() => root.render(createElement(McpSettings, { cwd: "/repo" })));
   expect(container.textContent).toContain("updated");
   expect(container.textContent).not.toContain("Checking servers…");
-  expect(invoke).toHaveBeenCalledTimes(4);
+  expect(connectionCalls()).toHaveLength(4);
 });
 
 it("shares the first request across StrictMode and navigation while loading", async () => {
@@ -360,9 +413,9 @@ it("shares the first request across StrictMode and navigation while loading", as
       ? new Promise((resolve) => {
           resolveDiscovery = resolve;
         })
-      : new Promise((resolve) => {
+      : command === "claude_mcp_list" ? new Promise((resolve) => {
           resolveHealth = resolve;
-        }),
+        }) : Promise.resolve(undefined),
   );
   const page = () =>
     createElement(
@@ -371,15 +424,15 @@ it("shares the first request across StrictMode and navigation while loading", as
       createElement(McpSettings, { cwd: "/repo" }),
     );
   await act(async () => root.render(page()));
-  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(connectionCalls()).toHaveLength(1);
   await act(async () => root.render(null));
   await act(async () => root.render(page()));
-  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(connectionCalls()).toHaveLength(1);
   await act(async () => resolveDiscovery([]));
-  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(connectionCalls()).toHaveLength(2);
   await act(async () => root.render(null));
   await act(async () => root.render(page()));
-  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(connectionCalls()).toHaveLength(2);
   await act(async () =>
     resolveHealth("remote: https://mcp.example.com - Connected"),
   );
@@ -399,25 +452,33 @@ it("caches an empty list until manually refreshed", async () => {
   await act(() => root.render(createElement(McpSettings, { cwd: "/repo" })));
   expect(container.textContent).toContain("No MCP servers configured");
   expect(container.textContent).not.toContain("Checking servers…");
-  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(connectionCalls()).toHaveLength(2);
 });
 
 it("caches discovery failures and lets Refresh retry", async () => {
-  invoke.mockRejectedValueOnce(new Error("Discovery failed"));
+  const original = invoke.getMockImplementation()!;
+  let failed = false;
+  invoke.mockImplementation((command: string, args: unknown) => {
+    if (command === "mcp_discover" && !failed) {
+      failed = true;
+      return Promise.reject(new Error("Discovery failed"));
+    }
+    return original(command, args);
+  });
   await act(async () =>
     root.render(createElement(McpSettings, { cwd: "/repo" })),
   );
   await act(async () => root.render(null));
   await act(() => root.render(createElement(McpSettings, { cwd: "/repo" })));
   expect(container.textContent).toContain("Discovery failed");
-  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(connectionCalls()).toHaveLength(1);
   const refresh = [...container.querySelectorAll("button")].find(
     (button) => button.textContent === "Refresh",
   )!;
   await act(async () => refresh.click());
   expect(container.textContent).toContain("sentry");
   expect(container.textContent).not.toContain("Discovery failed");
-  expect(invoke).toHaveBeenCalledTimes(3);
+  expect(connectionCalls()).toHaveLength(3);
 });
 
 it("uses the shared project picker and caches each project's list", async () => {
@@ -448,16 +509,16 @@ it("uses the shared project picker and caches each project's list", async () => 
   expect(container.textContent).not.toContain("repo-server");
   expect(invoke).toHaveBeenCalledWith("mcp_discover", { cwd: "/other" });
   expect(invoke).toHaveBeenCalledWith("claude_mcp_list", { cwd: "/other" });
-  expect(invoke).toHaveBeenCalledTimes(4);
+  expect(connectionCalls()).toHaveLength(4);
   await selectProject("/repo");
   expect(container.textContent).toContain("repo-server");
   expect(container.textContent).not.toContain("Checking servers…");
-  expect(invoke).toHaveBeenCalledTimes(4);
+  expect(connectionCalls()).toHaveLength(4);
   await selectProject("/other");
   const refresh = [...container.querySelectorAll("button")].find(
     (button) => button.textContent === "Refresh",
   )!;
   await act(async () => refresh.click());
-  expect(invoke).toHaveBeenCalledTimes(6);
+  expect(connectionCalls()).toHaveLength(6);
   expect(invoke).toHaveBeenLastCalledWith("claude_mcp_list", { cwd: "/other" });
 });

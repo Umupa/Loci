@@ -212,7 +212,7 @@ describe("what an agent is told about a drawing", () => {
   it("lists elements compactly, with the ids and links needed to edit them", async () => {
     const { compactElements } = await load();
     const elements = compactElements(await handDrawnScene());
-    expect(byId(elements, "note")).toEqual({ type: "text", id: "note", x: 320, y: 300, width: 160, height: 25, strokeColor: "#e03131", text: "typed by hand", fontSize: 20, fontFamily: 3 });
+    expect(byId(elements, "note")).toEqual({ type: "text", id: "note", x: 320, y: 300, width: 160, height: 25, strokeColor: "#e03131", text: "typed by hand", fontSize: 20, fontFamily: 3, lineHeight: 1.2, autoResize: true });
     expect(byId(elements, "api-db")).toMatchObject({ type: "arrow", startBinding: { elementId: "api" }, endBinding: { elementId: "db" }, points: [[expect.any(Number), 0], [expect.any(Number), 0]] });
     expect(byId(elements, "logo")).toMatchObject({ type: "image", fileId: "photo" });
     expect(byId(elements, "zone")).toMatchObject({ type: "frame", name: "Backend" });
@@ -233,4 +233,18 @@ describe("what an agent is told about a drawing", () => {
     expect(long).toHaveLength(78);
     expect(long.endsWith("…")).toBe(true);
   });
+});
+
+it("reports manual font/color/flip changes rather than claiming the drawing is unchanged", async () => {
+  const { checkpointBaseline, describeUserEdits } = await load();
+  const before = await handDrawnScene();
+  const edited = parse(before);
+  Object.assign(byId(edited.elements, "note"), { fontSize: 28, strokeColor: "#1971c2" });
+  byId(edited.elements, "logo").scale = [-1, 1];
+  const changes = describeUserEdits(checkpointBaseline(before), JSON.stringify(edited), "cp");
+  expect(changes).toContain("Style changed:");
+  expect(changes).toContain("fontSize");
+  expect(changes).toContain("strokeColor");
+  expect(changes).toContain("scale");
+  expect(describeUserEdits(checkpointBaseline(before), before, "cp")).toBe("");
 });

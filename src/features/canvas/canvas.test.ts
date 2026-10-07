@@ -158,6 +158,38 @@ describe("canvas edits", () => {
       appState: { viewBackgroundColor: "blue", currentItemFontFamily: 3 }, files: { image: { id: "image" } } });
   });
 
+  it("merges edited properties of one element and advances its native revision", async () => {
+    const baseElement = { id: "text", x: 0, fontSize: 20, strokeColor: "black", version: 1, versionNonce: 2, updated: 1, obsolete: true };
+    const base = { elements: [baseElement], appState: {}, files: {} };
+    let saved = { ...original, dataJson: JSON.stringify({ ...base, elements: [{ ...baseElement, x: 10, fontSize: 40, version: 6, versionNonce: 3, updated: 2 }] }) };
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "canvas_get") return { ...saved };
+      if (command === "canvas_upsert") { saved = (args as { canvas: Canvas }).canvas; return saved; }
+      throw new Error("Unexpected command");
+    });
+    const local = { id: "text", x: 80, fontSize: 20, strokeColor: "blue", version: 4, versionNonce: 9, updated: 3 };
+    await updateCanvas(original.id, { dataJson: JSON.stringify({ ...base, elements: [local] }) }, { baseDataJson: JSON.stringify(base) });
+    const merged = JSON.parse(saved.dataJson).elements[0];
+    expect(merged).toMatchObject({ id: "text", x: 80, fontSize: 40, strokeColor: "blue", version: 7 });
+    expect(merged).not.toHaveProperty("obsolete");
+    expect(merged.versionNonce).toEqual(expect.any(Number));
+    expect(merged.updated).toBeGreaterThan(3);
+  });
+
+  it("keeps the current native revision when a stale draft changes only bookkeeping", async () => {
+    const baseline = { id: "text", x: 0, version: 1, versionNonce: 2, updated: 1 };
+    const base = { elements: [baseline], appState: {}, files: {} };
+    const current = { ...baseline, x: 80, version: 6, versionNonce: 3, updated: 2 };
+    let saved = { ...original, dataJson: JSON.stringify({ ...base, elements: [current] }) };
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "canvas_get") return { ...saved };
+      if (command === "canvas_upsert") { saved = (args as { canvas: Canvas }).canvas; return saved; }
+      throw new Error("Unexpected command");
+    });
+    await updateCanvas(original.id, { dataJson: JSON.stringify({ ...base, elements: [{ ...baseline, version: 4, versionNonce: 9, updated: 3 }] }) }, { baseDataJson: JSON.stringify(base) });
+    expect(JSON.parse(saved.dataJson).elements).toEqual([current]);
+  });
+
   it("does not recreate a canvas deleted during a conditional update", async () => {
     let deleted = false;
     vi.mocked(invoke).mockImplementation(async (command) => {

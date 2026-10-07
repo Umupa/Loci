@@ -87,7 +87,7 @@ type CanvasChanges = Partial<Omit<CanvasUpsert, "id">>;
 const CANVAS_CONFLICT = "Canvas changed since it was read; retry the update.";
 
 /** Reapply local edits, leaving elements and document settings the user did not change intact. */
-function rebaseCanvasScene(baseJson: string, editedJson: string, currentJson: string): string {
+async function rebaseCanvasScene(baseJson: string, editedJson: string, currentJson: string): Promise<string> {
   type Element = Record<string, unknown> & { id: string };
   type Scene = { elements?: Element[]; appState?: Record<string, unknown>; files?: Record<string, unknown> };
   const base = JSON.parse(baseJson) as Scene;
@@ -97,9 +97,28 @@ function rebaseCanvasScene(baseJson: string, editedJson: string, currentJson: st
   const before = new Map((base.elements ?? []).map((element) => [element.id, element]));
   const after = new Map((edited.elements ?? []).map((element) => [element.id, element]));
   const changed = new Map([...after].filter(([id, element]) => !same(before.get(id), element)));
+  const mergeElement = (element: Element, local: Element): Element => {
+    const baseline = before.get(element.id);
+    if (!baseline) return local;
+    const merged = { ...element };
+    // A pane draft contains old values for properties the user did not edit.
+    // Reapply only its property changes, excluding Excalidraw's revision bookkeeping.
+    for (const key of new Set([...Object.keys(baseline), ...Object.keys(local)])) {
+      if (["version", "versionNonce", "updated"].includes(key) || same(baseline[key], local[key])) continue;
+      if (key in local) merged[key] = local[key];
+      else delete merged[key];
+    }
+    if (same(element, merged)) return element;
+    if (typeof element.version === "number" && typeof local.version === "number") {
+      merged.version = Math.max(element.version, local.version) + 1;
+      merged.versionNonce = Math.floor(Math.random() * 0x80000000);
+      merged.updated = Date.now();
+    }
+    return merged;
+  };
   const present = new Set((current.elements ?? []).map((element) => element.id));
   let elements = (current.elements ?? []).flatMap((element) =>
-    before.has(element.id) && !after.has(element.id) ? [] : [changed.get(element.id) ?? element]);
+    before.has(element.id) && !after.has(element.id) ? [] : [changed.has(element.id) ? mergeElement(element, changed.get(element.id)!) : element]);
   // Reorder only when the user changed stacking; concurrent new elements keep their slots.
   const common = new Set([...before.keys()].filter((id) => after.has(id)));
   const originalOrder = [...before.keys()].filter((id) => common.has(id));
@@ -125,7 +144,12 @@ function rebaseCanvasScene(baseJson: string, editedJson: string, currentJson: st
     if (key in (edited.appState ?? {})) appState[key] = edited.appState![key];
     else delete appState[key];
   }
-  return JSON.stringify({ ...current, elements, appState, files: { ...current.files, ...edited.files } });
+  const mergedJson = JSON.stringify({ ...current, elements, appState, files: { ...current.files, ...edited.files } });
+  if (currentJson !== baseJson && elements.some(element => typeof element.version === "number" && (element.type === "text" || element.type === "arrow"))) {
+    const { reconcileMergedScene } = await import("./elementUpdates");
+    return reconcileMergedScene(baseJson, editedJson, currentJson, mergedJson);
+  }
+  return mergedJson;
 }
 
 export function updateCanvas(id: string, changes: CanvasChanges | ((canvas: Canvas) => CanvasChanges), options?: { baseDataJson: string }): Promise<Canvas> {
@@ -137,7 +161,7 @@ export function updateCanvas(id: string, changes: CanvasChanges | ((canvas: Canv
       if (!canvas) throw new Error("Drawing no longer exists.");
       const update = typeof changes === "function" ? changes(canvas) : changes;
       const dataJson = options && update.dataJson !== undefined
-        ? rebaseCanvasScene(options.baseDataJson, update.dataJson, canvas.dataJson) : update.dataJson;
+        ? await rebaseCanvasScene(options.baseDataJson, update.dataJson, canvas.dataJson) : update.dataJson;
       try {
         return await upsertCanvas({ ...canvas, ...update, ...(dataJson === undefined ? {} : { dataJson }), expectedUpdatedAt: canvas.updatedAt });
       } catch (error) {
@@ -233,7 +257,7 @@ export function canvasElementsToText(
   canvasId?: string,
 ): string {
   const checkpoint = canvasId
-    ? `\nExcalidraw checkpoint id: "${canvasId}". To change this drawing, call the loci_excalidraw create_view tool with elements starting with {"type":"restoreCheckpoint","id":"${canvasId}"}.`
+    ? `\nExcalidraw checkpoint id: "${canvasId}". To modify existing elements, use loci_excalidraw get_elements for this checkpoint and update_elements with its revision, keeping element IDs and image resources. For additions/removals, start create_view with {"type":"restoreCheckpoint","id":"${canvasId}"}.`
     : "";
   return `[Canvas: "${canvasTitle}"]${checkpoint}\n<excalidraw-canvas>\n${elementsJson}\n</excalidraw-canvas>`;
 }
