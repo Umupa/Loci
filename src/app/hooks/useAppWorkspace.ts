@@ -20,6 +20,7 @@ import { emptyTabVisitHistory, pruneTabVisitHistory, recordTabVisit, tabVisitBac
 import type { TitleTabDropPosition } from "../../features/workspace/model/paneDrop";
 import { loadSessionFolders, placeSessionInFolder, saveSessionFolders, type SessionFolderTarget } from "../../features/sessions/model/sessionFolders";
 import { pickFolders } from "../../platform/tauri/fs";
+import { moveFileDrafts, setFileDraft } from "../../features/files/model/fileDrafts";
 import { isEqualOrInside, projectName, rebasePath } from "../../shared/lib/paths";
 import { isAppQuitting, type BootWorkspace } from "../model/appLifecycle";
 import type { Tab } from "../shell/TitleBar";
@@ -683,6 +684,7 @@ export function useAppWorkspace(options: Options) {
 
   /** Keep open file panes on a file or folder that was renamed or moved. */
   const fileMoved = useCallback((from: string, to: string) => {
+    moveFileDrafts((path) => rebasePath(path, from, to));
     updateTabs((current) => {
       const next = current.map((tab) => rebaseFilePanes(tab, (path) => rebasePath(path, from, to)));
       return next.some((tab, index) => tab !== current[index]) ? next : current;
@@ -693,7 +695,10 @@ export function useAppWorkspace(options: Options) {
   const fileDeleted = useCallback((path: string) => {
     for (const tab of tabsRef.current) {
       for (const pane of layoutLeaves(tab.layout)) {
-        if (pane.kind === "file" && isEqualOrInside(filePanePath(pane.id), path)) closePane(pane.id);
+        if (pane.kind === "file" && isEqualOrInside(filePanePath(pane.id), path)) {
+          setFileDraft(filePanePath(pane.id), null);
+          closePane(pane.id);
+        }
       }
     }
   }, [closePane]);
