@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { newSession } from "../../sessions/model/session";
-import { canvasLeaf, findLeaf, layoutLeaves, leaf, leafIds, newTab, placeLayout, setSplitRatio, sourceLeaf, type WorkspaceTab } from "./layout";
+import { canvasLeaf, findLeaf, layoutLeaves, leaf, leafIds, newTab, placeLayout, setSplitRatio, showCanvasBeside, showCanvasForSession, sourceLeaf, splitPane, type WorkspaceTab } from "./layout";
 import { applyDetachPaneToTab, applyMoveWorkspacePane, applyPlaceTabOnPane, filterTabsForProject } from "./workspaceTabGroups";
 import { collectWorkspaceSnapshot, hydrateWorkspaceSnapshot } from "./workspaceSnapshot";
 
@@ -27,6 +27,45 @@ describe("mixed workspace panes", () => {
     expect(detached.tabs[1].layout).toEqual(canvasLeaf("drawing"));
     expect(detached.tabs[1].cwd).toBe("/project");
     expect(filterTabsForProject(detached.tabs, [session], "/project")).toHaveLength(2);
+  });
+
+  it("shows an agent's drawing beside its session, reusing the tab's canvas pane and keeping focus", () => {
+    const chat = { ...newTab("chat"), id: "chat-tab" };
+    const shown = showCanvasBeside(chat, "first", "chat");
+    expect(layoutLeaves(shown.layout).map((pane) => [pane.id, pane.kind])).toEqual([["chat", "session"], ["first", "canvas"]]);
+    expect(layoutLeaves(shown.layout)[1].rect.x).toBeCloseTo(0.5);
+    expect(shown.focusedId).toBe("chat");
+    // A second drawing takes the first one's place rather than a third pane.
+    const next = showCanvasBeside(shown, "second", "chat");
+    expect(leafIds(next.layout)).toEqual(["chat", "second"]);
+    expect(findLeaf(next.layout, "second")).toEqual(canvasLeaf("second"));
+    // If the user was working in the replaced drawing, focus follows the new one.
+    expect(showCanvasBeside({ ...shown, focusedId: "first" }, "second", "chat").focusedId).toBe("second");
+    // Already visible, or the session lives in another tab: nothing moves.
+    expect(showCanvasBeside(next, "second", "chat")).toBe(next);
+    expect(showCanvasBeside(chat, "first", "elsewhere")).toBe(chat);
+    // Other panes of a split tab are untouched.
+    const split = { ...chat, layout: splitPane(chat.layout, "chat", "down", "other-chat") };
+    expect(layoutLeaves(showCanvasBeside(split, "first", "chat").layout).map((pane) => pane.id).sort()).toEqual(["chat", "first", "other-chat"]);
+  });
+
+  it("brings a drawing that is open in another tab to the session being watched", () => {
+    const claude = showCanvasBeside({ ...newTab("claude"), id: "claude-tab" }, "drawing", "claude");
+    const codex = { ...newTab("codex"), id: "codex-tab" };
+    const alone = canvasTab();
+    // Codex draws on it while its tab is in front: the single pane moves there.
+    const moved = showCanvasForSession([claude, codex], "codex-tab", "drawing", "codex");
+    expect(moved.map((tab) => leafIds(tab.layout))).toEqual([["claude"], ["codex", "drawing"]]);
+    expect(moved[1].focusedId).toBe("codex");
+    // A tab that held only the drawing closes rather than staying empty.
+    expect(showCanvasForSession([alone, codex], "codex-tab", "drawing", "codex").map((tab) => tab.id)).toEqual(["codex-tab"]);
+    // A session working in the background does not rearrange what the user is looking at.
+    const tabs = [claude, codex];
+    expect(showCanvasForSession(tabs, "claude-tab", "drawing", "codex")).toBe(tabs);
+    expect(showCanvasForSession(tabs, "claude-tab", "drawing", "claude")).toBe(tabs);
+    expect(showCanvasForSession(tabs, "codex-tab", "drawing", "unknown")).toBe(tabs);
+    // Not open anywhere: it opens beside the session even in a background tab.
+    expect(showCanvasForSession([codex], "other-tab", "new-drawing", "codex").map((tab) => leafIds(tab.layout))).toEqual([["codex", "new-drawing"]]);
   });
 
   it.each([canvasLeaf("drawing"), sourceLeaf("drawing")])("moves a non-session pane between tabs without replacing its kind: %j", (incoming) => {

@@ -541,6 +541,40 @@ export function placeLayout(node: LayoutNode, incoming: LayoutNode, toId: string
     }
     return wrapBeside(node, toId, incoming, dir, place);
 }
+/**
+ * Show a drawing an agent just drew beside its session. The tab's existing
+ * canvas pane is reused, so repeated drawings do not keep splitting the tab;
+ * focus stays where the user left it.
+ */
+export function showCanvasBeside(tab: WorkspaceTab, canvasId: string, sessionId: string): WorkspaceTab {
+    const leaves = layoutLeaves(tab.layout);
+    if (!leaves.some((entry) => entry.id === sessionId) || leaves.some((entry) => entry.id === canvasId))
+        return tab;
+    const slot = leaves.find((entry) => entry.kind === "canvas");
+    return {
+        ...tab,
+        layout: slot
+            ? replacePaneWithLayout(tab.layout, slot.id, canvasLeaf(canvasId))
+            : placeLayout(tab.layout, canvasLeaf(canvasId), sessionId, "right"),
+        focusedId: tab.focusedId === slot?.id ? canvasId : tab.focusedId,
+    };
+}
+/**
+ * Where a drawing goes when a session draws on it. A drawing has one pane, so
+ * one that is open in another tab moves beside the session, but only while
+ * the user is looking at that session's tab.
+ */
+export function showCanvasForSession(tabs: WorkspaceTab[], activeTabId: string, canvasId: string, sessionId: string): WorkspaceTab[] {
+    const home = tabs.find((tab) => leafIds(tab.layout).includes(sessionId));
+    const current = tabs.find((tab) => leafIds(tab.layout).includes(canvasId));
+    if (!home || current?.id === home.id || (current && home.id !== activeTabId))
+        return tabs;
+    return tabs.flatMap((tab) => {
+        if (tab.id === home.id)
+            return [showCanvasBeside(tab, canvasId, sessionId)];
+        return tab.id === current?.id ? closeLeaf(tab, canvasId) ?? [] : [tab];
+    });
+}
 /** Replace one pane with an intact layout tree. */
 export function replacePaneWithLayout(node: LayoutNode, targetId: string, incoming: LayoutNode): LayoutNode {
     if (node.type === "leaf")

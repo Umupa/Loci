@@ -73,6 +73,12 @@ import {
 import { isAgentToolName } from "../../core/preview";
 import { joinStreamText, snapshotRemainder } from "../../core/streamText";
 import {
+  canvasMcpServer,
+  canvasMcpTool,
+  canvasToolAutoAllowed,
+  claudeCanvasMcpConfig,
+} from "../../../../features/canvas/mcpServer";
+import {
   questionPromptTitle,
   questionsFromUnknown,
   type UserQuestionReply,
@@ -455,6 +461,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
     resumeByThread.delete(input.sessionId);
   }
   const { path } = await resolveClaudeBinaryImpl();
+  const canvasMcp = await canvasMcpServer();
   const liveRef: { current: Live | null } = { current: null };
   const claudeSessionId =
     canResume && resume ? resume.sessionId : crypto.randomUUID();
@@ -540,7 +547,10 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   await spawnChild(
     input.sessionId,
     path,
-    buildClaudeSpawnArgs(launch),
+    buildClaudeSpawnArgs({
+      ...launch,
+      ...(canvasMcp ? { mcpConfig: claudeCanvasMcpConfig(canvasMcp) } : {}),
+    }),
     input.cwd,
     { provider: "claude", id: input.providerAccountId ?? "default" },
     "claude",
@@ -1090,7 +1100,11 @@ async function handleControlRequest(
     return;
   }
 
-  if (live.runtimeMode === "full-access") {
+  const canvasTool = canvasMcpTool(toolName);
+  if (
+    live.runtimeMode === "full-access" ||
+    (canvasTool && canvasToolAutoAllowed(canvasTool, live.runtimeMode))
+  ) {
     await writeJson(
       sessionId,
       buildControlResponse(

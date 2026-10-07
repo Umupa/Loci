@@ -7,6 +7,8 @@ import type { Canvas } from "../canvas";
 
 vi.mock("./CanvasPane", () => ({ CanvasPane: ({ canvas }: { canvas: Canvas }) => createElement("div", { "data-current-canvas": canvas.id }, canvas.title) }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ isMaximized: async () => false, onResized: async () => () => {} }) }));
+const canvasMcpProblem = vi.hoisted(() => vi.fn(async (): Promise<string | null> => null));
+vi.mock("../mcpServer", () => ({ canvasMcpProblem }));
 const base = { dataJson: "{}", tags: [], createdAt: 1, updatedAt: 1 };
 const canvases: Canvas[] = [
   { ...base, id: "other", title: "Other drawing", cwd: "/work/B" },
@@ -57,4 +59,14 @@ it("searches within project scope and clears the editor when nothing matches", a
 it("shows all drawings without a project and an empty editor in an empty project", async () => {
   await render("~"); expect(rows()).toHaveLength(3);
   await render("/work/Empty"); expect(rows()).toEqual([]); expect(selected()).toBeUndefined();
+});
+
+it("says why agents cannot draw only when the built-in server cannot start", async () => {
+  await render();
+  expect(container.querySelector('[role="status"]')).toBeNull();
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  canvasMcpProblem.mockResolvedValueOnce("Excalidraw drawing tools need Node.js 20.11 or newer (or Bun) on your PATH.");
+  await render();
+  expect(container.querySelector('[role="status"]')?.textContent).toBe("Agents cannot draw yet. Excalidraw drawing tools need Node.js 20.11 or newer (or Bun) on your PATH.");
 });

@@ -83,6 +83,12 @@ lociWorkSummary,
 type LociToolCall,
 } from "../model/lociToolCall";
 import {
+  canvasToolCall,
+  canvasWorkSummary,
+  type CanvasToolCall,
+} from "../model/canvasToolCall";
+import { CANVAS_OPEN_CHECKPOINT_EVENT } from "../../canvas/canvas";
+import {
 isOperatorUserTurn,
 operatorUserPrompt,
 } from "../model/operatorCommand";
@@ -2256,6 +2262,7 @@ function ActivityPhaseGroup({
   const turnFor = useStepQueue();
   const title = activityPhaseTitle(phase, active);
   const lociPhase = !!lociWorkSummary(phase.steps, active);
+  const canvasPhase = !lociPhase && !!canvasWorkSummary(phase.steps, active);
   // Opening a group on purpose is also how you read the line that titled it,
   // whole. The auto-open while it runs is a live view, not a reading one, and
   // a one-line note the header already shows in full has nothing to add.
@@ -2270,7 +2277,7 @@ function ActivityPhaseGroup({
   if (!phase.headline && phase.steps.length === 1) {
     return (
       <div className="flex min-w-0 items-start gap-1.5">
-        {lociPhase ? null : (
+        {lociPhase || canvasPhase ? null : (
           <ActivityPhaseIcon kind={phase.kind} className="mt-[7px]" />
         )}
         <div className="min-w-0 flex-1">
@@ -2327,6 +2334,11 @@ function ActivityPhaseGroup({
         <span className="relative flex size-3.5 shrink-0 items-center justify-center">
           {lociPhase ? (
             <LociMark className="size-3.5 group-hover:opacity-0" />
+          ) : canvasPhase ? (
+            <ExcalidrawIcon
+              className="size-3.5 text-content/50 group-hover:opacity-0"
+              strokeWidth={1.75}
+            />
           ) : (
             <ActivityPhaseIcon
               kind={phase.kind}
@@ -3060,6 +3072,12 @@ function ActivityToolRow({
       <LociCallRow block={block} call={appCall} onApproval={onApproval} />
     );
   }
+  const canvasCall = canvasToolCall(block);
+  if (canvasCall) {
+    return (
+      <CanvasCallRow block={block} call={canvasCall} onApproval={onApproval} />
+    );
+  }
   const label = toolCallLabel(block, cwd);
   const state = toolCallState(block);
   const pending = needsApproval(block);
@@ -3209,6 +3227,89 @@ function LociCallRow({
   );
 }
 
+/** A call to the built-in Excalidraw MCP server, named for what it does to the drawing. */
+function CanvasCallRow({
+  block,
+  call,
+  onApproval,
+}: {
+  block: Block;
+  call: CanvasToolCall;
+  onApproval?: (requestId: number, decision: ApprovalDecision) => void;
+}) {
+  const state = toolCallState(block);
+  const output = block.tool?.detail?.trim();
+  const [errorOpen, setErrorOpen] = useState(false);
+  const hasError = state === "rejected" && !!output;
+  const label =
+    needsApproval(block) || state === "rejected"
+      ? call.ask
+      : state === "pending"
+        ? call.running
+        : call.done;
+  const summary = (
+    <>
+      <ExcalidrawIcon
+        className={`size-3.5 shrink-0 ${state === "rejected" ? "text-red-400" : "text-content/50"}`}
+        strokeWidth={1.75}
+      />
+      <span
+        className={`min-w-0 truncate font-sans text-sm ${state === "rejected" ? "text-red-400" : "text-content/50"}`}
+      >
+        {label}
+      </span>
+      <ToolCallStatusIcon state={state} />
+      {hasError ? (
+        <ChevronRight
+          className={`size-3.5 shrink-0 text-red-400/60 transition-transform ${errorOpen ? "rotate-90" : ""}`}
+          strokeWidth={1.75}
+        />
+      ) : null}
+    </>
+  );
+  return (
+    <div data-canvas-tool-call={call.tool} className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1.5 py-1">
+        {hasError ? (
+          <button
+            type="button"
+            aria-expanded={errorOpen}
+            aria-label={`${errorOpen ? "Hide" : "Show"} error details for Excalidraw: ${call.ask}`}
+            onClick={() => setErrorOpen((value) => !value)}
+            className="flex min-w-0 items-center gap-1.5 text-left"
+          >
+            {summary}
+          </button>
+        ) : (
+          summary
+        )}
+        {call.checkpointId && state === "accepted" ? (
+          <button
+            type="button"
+            aria-label="Open the drawing"
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent(CANVAS_OPEN_CHECKPOINT_EVENT, {
+                  detail: call.checkpointId,
+                }),
+              )
+            }
+            className="shrink-0 rounded px-1.5 py-0.5 font-sans text-xs text-content/55 hover:bg-content/10 hover:text-content"
+          >
+            Open
+          </button>
+        ) : null}
+      </div>
+      {errorOpen && hasError ? (
+        <pre className="min-w-0 whitespace-pre-wrap break-words py-1 pl-5 font-mono text-[12px] leading-5 text-red-400/80">
+          {output}
+        </pre>
+      ) : null}
+      <ApprovalControls block={block} onApproval={onApproval} />
+    </div>
+  );
+}
+
 function ActivityToolIcon({
   state,
   live = false,
@@ -3347,6 +3448,14 @@ function ToolCall({
     return (
       <div className={frame}>
         <LociCallRow block={block} call={appCall} onApproval={onApproval} />
+      </div>
+    );
+  }
+  const canvasCall = canvasToolCall(block);
+  if (canvasCall) {
+    return (
+      <div className={frame}>
+        <CanvasCallRow block={block} call={canvasCall} onApproval={onApproval} />
       </div>
     );
   }

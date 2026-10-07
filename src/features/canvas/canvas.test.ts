@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { CANVASES_CHANGED_EVENT, CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasSceneDrafts, deleteCanvas, readCanvasScene, writeCanvasScene, updateCanvas, type Canvas } from "./canvas";
+import { CANVASES_CHANGED_EVENT, CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasElementsToText, canvasSceneDrafts, deleteCanvas, readCanvasScene, writeCanvasScene, updateCanvas, type Canvas, type CanvasSceneReplacement } from "./canvas";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const original: Canvas = { id: "drawing", title: "Before", dataJson: "old scene", tags: [], cwd: "/project", createdAt: 1, updatedAt: 1 };
 
@@ -57,6 +57,68 @@ describe("canvas edits", () => {
       window.removeEventListener(CANVAS_SCENE_REPLACED_EVENT, replaced);
     }
   });
+  it("derives an agent's change from the scene the pane just saved, and stores its checkpoint with it", async () => {
+    let saved = { ...original };
+    const upserts: unknown[] = [];
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "canvas_get") return { ...saved };
+      if (command === "canvas_upsert") {
+        const { checkpoint, ...canvas } = (args as { canvas: Canvas & { checkpoint?: unknown } }).canvas;
+        upserts.push(checkpoint);
+        saved = { ...saved, ...canvas };
+        return { ...saved };
+      }
+      throw new Error("Unexpected command");
+    });
+    // The open pane holds one edit that is not saved yet.
+    let pending: string | null = "user edit";
+    const flush = () => { if (pending) void updateCanvas(original.id, { dataJson: pending }); pending = null; };
+    const replaced = vi.fn();
+    window.addEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
+    window.addEventListener(CANVAS_SCENE_REPLACED_EVENT, replaced);
+    try {
+      const viewport = { x: 0, y: 0, width: 800, height: 600 };
+      const result = await writeCanvasScene(original.id, (current) =>
+        ({ dataJson: `${current.dataJson} + agent`, checkpoint: { id: "cp1", baselineJson: "{}" }, viewport }));
+      expect(result.dataJson).toBe("user edit + agent");
+      expect(upserts).toEqual([undefined, { id: "cp1", baselineJson: "{}" }]);
+      const detail = (replaced.mock.calls[0][0] as CustomEvent<CanvasSceneReplacement>).detail;
+      expect(detail).toMatchObject({ id: original.id, dataJson: "user edit + agent", viewport });
+      // The checkpoint is not part of the canvas record panes receive.
+      expect(detail).not.toHaveProperty("checkpoint");
+      // A change that cannot be computed saves nothing and replaces nothing.
+      await expect(writeCanvasScene(original.id, () => { throw new Error("Each element must have a supported Excalidraw type"); })).rejects.toThrow("supported Excalidraw type");
+      expect(saved.dataJson).toBe("user edit + agent");
+      expect(replaced).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
+      window.removeEventListener(CANVAS_SCENE_REPLACED_EVENT, replaced);
+    }
+  });
+
+  it("does not overwrite a pane edit that failed to save", async () => {
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "canvas_get") return { ...original };
+      throw new Error("disk full");
+    });
+    const flush = () => { void updateCanvas(original.id, { dataJson: "unsaved edit" }).catch(() => undefined); };
+    const compute = vi.fn(() => ({ dataJson: "agent scene" }));
+    window.addEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
+    try {
+      await expect(writeCanvasScene(original.id, compute)).rejects.toThrow("disk full");
+      expect(compute).not.toHaveBeenCalled();
+    } finally { window.removeEventListener(CANVAS_SCENE_ACCESS_EVENT, flush); }
+  });
+
+  it("hands a drawing to a chat with the id an agent needs to continue it", () => {
+    const text = canvasElementsToText("Plan", '[{"id":"a"}]', "drawing-1");
+    expect(text).toContain('[Canvas: "Plan"]');
+    expect(text).toContain('Excalidraw checkpoint id: "drawing-1"');
+    expect(text).toContain('{"type":"restoreCheckpoint","id":"drawing-1"}');
+    expect(text).toContain('<excalidraw-canvas>\n[{"id":"a"}]\n</excalidraw-canvas>');
+    expect(canvasElementsToText("Plan", "[]")).toBe('[Canvas: "Plan"]\n<excalidraw-canvas>\n[]\n</excalidraw-canvas>');
+  });
+
   it("orders scene and title writes, retaining both changes", async () => {
     let saved = { ...original };
     let release!: () => void;

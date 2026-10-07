@@ -22,11 +22,20 @@ export type CanvasUpsert = {
   dataJson: string;
   tags: string[];
   cwd?: string;
+  /** Excalidraw MCP checkpoint saved with this scene, in one transaction. */
+  checkpoint?: { id: string; baselineJson: string };
 };
+
+/** A rectangle of the scene an agent asked viewers to look at. */
+export type CanvasViewport = { x: number; y: number; width: number; height: number };
+/** `CANVAS_SCENE_REPLACED_EVENT` detail: the saved canvas and where to look. */
+export type CanvasSceneReplacement = Canvas & { viewport?: CanvasViewport };
 
 export const CANVASES_CHANGED_EVENT = "loci-canvases-changed";
 export const CANVAS_SCENE_ACCESS_EVENT = "loci-canvas-scene-access";
 export const CANVAS_SCENE_REPLACED_EVENT = "loci-canvas-scene-replaced";
+/** Ask the workspace to show the drawing behind an Excalidraw MCP checkpoint id. */
+export const CANVAS_OPEN_CHECKPOINT_EVENT = "loci-canvas-open-checkpoint";
 
 let cache: Canvas[] | null = null;
 
@@ -49,6 +58,11 @@ export async function getCanvas(id: string): Promise<Canvas | null> {
   return invoke<Canvas | null>("canvas_get", { id });
 }
 
+/** The drawing an Excalidraw MCP checkpoint id (or a canvas id) refers to. */
+export function checkpointCanvasId(checkpointId: string): Promise<string | null> {
+  return invoke<string | null>("canvas_checkpoint_canvas", { checkpointId });
+}
+
 export async function upsertCanvas(canvas: CanvasUpsert): Promise<Canvas> {
   const result = await invoke<Canvas>("canvas_upsert", { canvas });
   if (cache) {
@@ -66,13 +80,15 @@ export async function upsertCanvas(canvas: CanvasUpsert): Promise<Canvas> {
 // Preserve scene and title edits in order when a pane is moved or reopened.
 const pendingUpdates = new Map<string, Promise<Canvas>>();
 const deletingCanvases = new Set<string>();
-export function updateCanvas(id: string, changes: Partial<Omit<CanvasUpsert, "id">>): Promise<Canvas> {
+type CanvasChanges = Partial<Omit<CanvasUpsert, "id">>;
+/** Pass a function to derive the change from the canvas as saved at its turn in the queue. */
+export function updateCanvas(id: string, changes: CanvasChanges | ((canvas: Canvas) => CanvasChanges)): Promise<Canvas> {
   if (deletingCanvases.has(id)) return Promise.reject(new Error("Drawing is being deleted."));
   const previous = pendingUpdates.get(id);
   const persist = async () => {
     const canvas = await getCanvas(id);
     if (!canvas) throw new Error("Drawing no longer exists.");
-    return upsertCanvas({ ...canvas, ...changes });
+    return upsertCanvas({ ...canvas, ...(typeof changes === "function" ? changes(canvas) : changes) });
   };
   const pending = (previous ?? Promise.resolve()).then(persist, persist).finally(() => {
     if (pendingUpdates.get(id) === pending) pendingUpdates.delete(id);
@@ -88,12 +104,27 @@ export async function readCanvasScene(id: string): Promise<Canvas | null> {
   return getCanvas(id);
 }
 
-export async function writeCanvasScene(id: string, dataJson: string): Promise<Canvas> {
+export type CanvasSceneWrite = { dataJson: string; checkpoint?: CanvasUpsert["checkpoint"]; viewport?: CanvasViewport };
+
+/**
+ * Replace a scene and update open panes. A function receives the scene after
+ * the pane's pending edits were saved, so an agent's change is applied to what
+ * the user currently sees rather than to an older read.
+ */
+export async function writeCanvasScene(id: string, scene: string | ((current: Canvas) => CanvasSceneWrite)): Promise<Canvas> {
   window.dispatchEvent(new CustomEvent(CANVAS_SCENE_ACCESS_EVENT, { detail: id }));
+  // A pane edit that failed to save must not be overwritten by the replacement.
   await pendingUpdates.get(id);
-  const saved = await updateCanvas(id, { dataJson });
+  let viewport: CanvasViewport | undefined;
+  const saved = await updateCanvas(id, (current) => {
+    if (typeof scene === "string") return { dataJson: scene };
+    const write = scene(current);
+    viewport = write.viewport;
+    return { dataJson: write.dataJson, ...(write.checkpoint ? { checkpoint: write.checkpoint } : {}) };
+  });
   canvasSceneDrafts.delete(id);
-  window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail: saved }));
+  const detail: CanvasSceneReplacement = viewport ? { ...saved, viewport } : saved;
+  window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail }));
   return saved;
 }
 
@@ -119,10 +150,17 @@ export function createEmptyCanvas(cwd?: string): CanvasUpsert {
   };
 }
 
-/** Serialize selected Excalidraw elements to a text block for injection into a chat. */
+/**
+ * Serialize selected Excalidraw elements to a text block for injection into a chat.
+ * The canvas id doubles as an Excalidraw MCP checkpoint, so the agent can edit it.
+ */
 export function canvasElementsToText(
   canvasTitle: string,
   elementsJson: string,
+  canvasId?: string,
 ): string {
-  return `[Canvas: "${canvasTitle}"]\n<excalidraw-canvas>\n${elementsJson}\n</excalidraw-canvas>`;
+  const checkpoint = canvasId
+    ? `\nExcalidraw checkpoint id: "${canvasId}". To change this drawing, call the excalidraw create_view tool with elements starting with {"type":"restoreCheckpoint","id":"${canvasId}"}.`
+    : "";
+  return `[Canvas: "${canvasTitle}"]${checkpoint}\n<excalidraw-canvas>\n${elementsJson}\n</excalidraw-canvas>`;
 }

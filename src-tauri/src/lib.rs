@@ -2,6 +2,7 @@ use tauri::Manager;
 
 mod account_identity;
 mod canvas;
+mod canvas_mcp;
 mod chat_background;
 mod control;
 pub mod control_cli;
@@ -265,6 +266,9 @@ pub fn run() {
             canvas::canvas_get,
             canvas::canvas_upsert,
             canvas::canvas_delete,
+            canvas::canvas_checkpoint_canvas,
+            canvas::canvas_checkpoint_latest,
+            canvas_mcp::canvas_mcp_server,
             notes::notes_list,
             notes::notes_get,
             notes::notes_upsert,

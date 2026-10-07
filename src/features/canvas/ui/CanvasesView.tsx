@@ -1,5 +1,6 @@
-import { useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { Canvas } from "../canvas";
+import { canvasMcpProblem } from "../mcpServer";
 import { LoaderCircle, ExcalidrawIcon, Plus, Search, ListFilter, ChevronLeft, ChevronRight } from "../../../shared/ui/icons";
 import { ContextMenu, type ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import { OverlayNav } from "../../../app/shell/TitleBar";
@@ -46,6 +47,13 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
   const [renameDraft, setRenameDraft] = useState("");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [filterAnchor, setFilterAnchor] = useState<HTMLButtonElement | null>(null);
+  // Agents draw through a built-in MCP server that needs a JavaScript runtime.
+  const [agentProblem, setAgentProblem] = useState<string | null>(null);
+  useEffect(() => {
+    let current = true;
+    void canvasMcpProblem().then((problem) => { if (current) setAgentProblem(problem); });
+    return () => { current = false; };
+  }, []);
   const listLock = useLockOverscroll<HTMLDivElement>();
   const resize = useDragResize({ min: MIN_WIDTH, max: () => Math.min(MAX_WIDTH, Math.round(window.innerWidth * 0.5)), defaultWidth: DEFAULT_WIDTH, initial: rememberedWidth, onCommit: (width) => { rememberedWidth = width; } });
 
@@ -118,6 +126,7 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
               <ChevronLeft className="size-3.5" />
             </button>
           </div>
+          {agentProblem ? <p role="status" className="shrink-0 border-b border-stroke px-3 py-2 text-[11px] leading-snug text-amber-400">Agents cannot draw yet. {agentProblem}</p> : null}
           <div ref={listLock} className="min-h-0 flex-1 overflow-y-auto overscroll-none">
             {drawings.length ? <ul className="flex flex-col gap-0.5 p-1.5">
               {drawings.map((canvas) => <li key={canvas.id}>

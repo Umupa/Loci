@@ -1664,7 +1664,7 @@ fn resolve_claude() -> Option<PathBuf> {
 ///
 /// Reads the cached PATH rather than spawning a shell per lookup: six
 /// resolvers each asking `command -v` meant six shell startups per probe.
-fn which_via_login_shell(name: &str) -> Option<PathBuf> {
+pub(crate) fn which_via_login_shell(name: &str) -> Option<PathBuf> {
     which_in_path(&gui_search_path(), name)
 }
 
