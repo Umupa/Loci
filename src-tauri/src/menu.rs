@@ -113,6 +113,7 @@ pub fn dispatch(app: &AppHandle, id: &str) {
         | "close_all_tabs"
         | "switch_tab"
         | "next_attention"
+        | "tab_overview"
         | "reopen_tab" => emit_to_focused(app, id),
         _ => {}
     }
@@ -208,6 +209,14 @@ fn build(
         "Next Tab Needing You",
         "CmdOrCtrl+J",
         "Tab: Next Needing You",
+        overrides,
+    )?;
+    let tab_overview = menu_item(
+        app,
+        "tab_overview",
+        "Tab Overview",
+        "CmdOrCtrl+Shift+O",
+        "Tab: Overview",
         overrides,
     )?;
     let reopen_tab = menu_item(
@@ -375,6 +384,7 @@ fn build(
         .item(&new_tab)
         .item(&switch_tab)
         .item(&next_attention)
+        .item(&tab_overview)
         .item(&reopen_tab)
         .item(&split_right)
         .item(&split_down)

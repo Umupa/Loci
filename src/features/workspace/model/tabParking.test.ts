@@ -20,6 +20,9 @@ describe("what may be parked", () => {
     expect(isParkable(tab("a", { blank: true }), "x", none)).toBe(false);
     for (const status of ["busy", "approval", "done"] as const) expect(isParkable(tab("a", { status }), "x", none)).toBe(false);
     expect(isParkable(tab("a"), "x", new Set(["a"]))).toBe(false);
+    // A parent is live work while what it started still is.
+    expect(isParkable(tab("a", { descendantCount: 2, descendantStatus: "busy" }), "x", none)).toBe(false);
+    expect(isParkable(tab("a", { descendantCount: 2, descendantStatus: "idle" }), "x", none)).toBe(true);
   });
 
   it("picks the longest untouched first, but only as many as the limit is exceeded by", () => {

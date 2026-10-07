@@ -30,7 +30,9 @@ export function heldTabIds(tabs: readonly WorkspaceTab[], sessions: readonly Ses
 
 /** A tab that can be put away without anyone noticing it was gone. */
 export function isParkable(tab: Tab, activeId: string, held: ReadonlySet<string>): boolean {
-  return tab.id !== activeId && !tab.pinned && !tab.blank && (tab.status ?? "idle") === "idle" && !held.has(tab.id);
+  // A parent whose started tabs are busy or waiting is still part of live work.
+  return tab.id !== activeId && !tab.pinned && !tab.blank && (tab.status ?? "idle") === "idle"
+    && (tab.descendantStatus ?? "idle") === "idle" && !held.has(tab.id);
 }
 
 /** Every tab "Close Idle Tabs" would take, in strip order. */

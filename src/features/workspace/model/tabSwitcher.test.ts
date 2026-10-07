@@ -65,6 +65,15 @@ describe("buildSwitcher", () => {
   });
 });
 
+describe("started tabs", () => {
+  it("follow the tab that started them, indented", () => {
+    const family = [tab("a", "Parent"), tab("z", "Elsewhere"), tab("k", "Child", { parentId: "a" })];
+    const sections = buildSwitcher({ ...base, tabs: family, recent: ["a", "z", "k"], activeId: "z" });
+    const rows = sections[0].rows.map((row) => row.kind === "tab" ? [row.tab.title, row.depth] : null);
+    expect(rows).toEqual([["Parent", 0], ["Child", 1], ["Elsewhere", 0]]);
+  });
+});
+
 describe("parked tabs", () => {
   const parked: ClosedTab = { ...closedTab("Quiet chat", 5), parked: true };
 

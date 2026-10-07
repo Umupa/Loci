@@ -21,6 +21,8 @@ type Props = {
   onCloseTab: (id: string) => void;
   onPin: (id: string, pinned: boolean) => void;
   onReopen: (batch: number) => void;
+  /** Leave for the overview, where many tabs can be seen and tidied at once. */
+  onOpenOverview?: () => void;
   onDismiss: () => void;
 };
 
@@ -32,7 +34,7 @@ const COMMAND_KEY = IS_MAC ? "⌘" : "Ctrl";
  * filters, arrows move, Enter goes. It is the way to reach a tab that the
  * strip has folded into an icon.
  */
-export function TabSwitcher({ tabs, activeId, projectPath, recent, closed, onActivate, onCloseTab, onPin, onReopen, onDismiss }: Props) {
+export function TabSwitcher({ tabs, activeId, projectPath, recent, closed, onActivate, onCloseTab, onPin, onReopen, onOpenOverview, onDismiss }: Props) {
   const [query, setQuery] = useState("");
   const [now] = useState(() => Date.now());
   const sections = useMemo(
@@ -144,6 +146,12 @@ export function TabSwitcher({ tabs, activeId, projectPath, recent, closed, onAct
           <Hint keys={["↵"]} label="Open" />
           <Hint keys={[COMMAND_KEY, "⌫"]} label="Close tab" />
           <span className="flex-1" />
+          {onOpenOverview ? (
+            <button type="button" onClick={onOpenOverview} className="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-content/55 hover:bg-content/8 hover:text-content">
+              Overview
+              <kbd className="rounded border border-content/12 bg-content/6 px-1 font-sans text-[10px] leading-4 text-content/60">{COMMAND_KEY}⇧O</kbd>
+            </button>
+          ) : null}
           <span className="tabular-nums">{tabCount} open</span>
         </footer>
       </div>
@@ -189,7 +197,9 @@ function SwitcherRowView({ row, query, now, selected, showProject, onHover, onOp
   const loud = tab.status === "approval" || tab.status === "done" || tab.status === "busy";
   return (
     <div role="option" aria-selected={selected} data-switcher-tab={tab.id} onMouseMove={onHover} onClick={onOpen}
+      style={row.depth ? { marginLeft: Math.min(row.depth, 3) * 20 } : undefined}
       className={`group flex h-12 cursor-default items-center gap-3 rounded-lg px-2.5 ${selected ? "bg-selection" : ""}`}>
+      {row.depth ? <span aria-hidden data-family-indent className="-mr-1.5 text-[13px] leading-none text-content/30">↳</span> : null}
       <TabGlyph tab={tab} size="md" />
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1.5">

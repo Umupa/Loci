@@ -619,6 +619,7 @@ export const KEYBINDINGS: KeybindingRow[] = [
     { command: "Tab: New", keys: `${MOD}T`, when: "Always" },
     { command: "Tab: Switch", keys: `${MOD}P`, when: "Always" },
     { command: "Tab: Next Needing You", keys: `${MOD}J`, when: "Always" },
+    { command: "Tab: Overview", keys: `${MOD}${SHIFT}O`, when: "Always" },
     { command: "Tab: Reopen Closed", keys: `${MOD}${SHIFT}T`, when: "Always" },
     { command: "Tab: Close Others", keys: `${MOD}${ALT}T`, when: "Always" },
     { command: "Tab: Close All", keys: `${MOD}${SHIFT}W`, when: "Always" },

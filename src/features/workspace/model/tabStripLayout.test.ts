@@ -24,6 +24,13 @@ describe("tabStripLayout", () => {
     expect(tabStripLayout({ count: 13, pinned: 0, available: 200 }).iconWidth).toBe(MIN_ICON_TAB_WIDTH);
   });
 
+  it("gives an active tab that started others room for its chip too", () => {
+    const plain = tabStripLayout({ count: 13, pinned: 0, available: 480 });
+    const withChip = tabStripLayout({ count: 13, pinned: 0, available: 480, activeExtra: 30 });
+    expect(withChip.activeWidth).toBe(plain.activeWidth + 30);
+    expect(tabStripLayout({ count: 13, pinned: 0, available: 900, activeExtra: 30 }).activeWidth).toBe(MAX_TITLE_TAB_WIDTH + 30);
+  });
+
   it("counts pinned tabs as icons from the start", () => {
     expect(tabStripLayout({ count: 8, pinned: 4, available: 710 }).crowded).toBe(false);
     expect(tabStripLayout({ count: 12, pinned: 4, available: 640 }).crowded).toBe(true);

@@ -116,6 +116,57 @@ describe("Close Idle Tabs", () => {
   });
 });
 
+describe("tabs an agent started", () => {
+  const family = () => [
+    tab("p", { descendantCount: 2, descendantStatus: "approval" }),
+    tab("c1", { parentId: "p" }),
+    tab("c2", { parentId: "p" }),
+    tab("other"),
+  ];
+  const shown = () => [...container.querySelectorAll<HTMLElement>("[data-title-tab-id]")].map((el) => el.dataset.titleTabId);
+  const chip = () => container.querySelector<HTMLButtonElement>("[data-family-toggle]");
+
+  it("folds them under their parent, which says how many and how urgent", () => {
+    stripWidth = 1400;
+    render(family(), { activeId: "other" });
+    expect(shown()).toEqual(["p", "other"]);
+    expect(chip()?.textContent).toContain("2");
+    expect(chip()?.className).toContain("text-amber-400");
+    expect(chip()?.getAttribute("aria-expanded")).toBe("false");
+    // The count button still counts everything, hidden or not.
+    expect(container.querySelector("[data-tab-switcher]")).toBeNull();
+    render(family(), { activeId: "other", onOpenSwitcher: vi.fn() });
+    expect(container.querySelector("[data-tab-switcher]")?.textContent).toContain("4");
+  });
+
+  it("unfolds on the chip, with a connector before each child", () => {
+    stripWidth = 1400;
+    render(family(), { activeId: "other" });
+    act(() => chip()!.click());
+    expect(shown()).toEqual(["p", "c1", "c2", "other"]);
+    expect(container.querySelectorAll("[data-family-connector]")).toHaveLength(2);
+    expect(chip()?.getAttribute("aria-expanded")).toBe("true");
+    act(() => chip()!.click());
+    expect(shown()).toEqual(["p", "other"]);
+  });
+
+  it("never hides the tab in view, nor the parent it came from", () => {
+    stripWidth = 1400;
+    render(family(), { activeId: "c2" });
+    expect(shown()).toEqual(["p", "c1", "c2", "other"]);
+  });
+
+  it("can be unfolded from the tab menu too", () => {
+    stripWidth = 1400;
+    render(family(), { activeId: "other" });
+    act(() => container.querySelector('[data-title-tab-id="p"] .group')!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 })));
+    const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) => el.textContent?.includes("Show Started Tabs"));
+    expect(item?.textContent).toContain("2 started from this tab");
+    act(() => item!.click());
+    expect(shown()).toEqual(["p", "c1", "c2", "other"]);
+  });
+});
+
 describe("tab switcher button", () => {
   it("counts the tabs and opens the switcher", () => {
     const onOpenSwitcher = vi.fn();

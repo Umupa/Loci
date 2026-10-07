@@ -1,10 +1,11 @@
 import { fuzzyMatch } from "../../../shared/lib/fuzzy";
 import { sameProjectPath } from "../../projects/model/recents";
 import type { ClosedTab } from "./closedTabs";
+import { familyOrder } from "./tabFamily";
 import type { Tab } from "./tabSummary";
 
 export type SwitcherRow =
-  | { kind: "tab"; key: string; tab: Tab; current: boolean }
+  | { kind: "tab"; key: string; tab: Tab; current: boolean; /** How far down a family of started tabs this one sits. */ depth: number }
   | { kind: "closed"; key: string; closed: ClosedTab; /** Other tabs that were closed with it. */ alsoClosed: number };
 
 export type SwitcherSection = { id: string; label: string; rows: SwitcherRow[] };
@@ -34,8 +35,8 @@ export function byRecency(tabs: readonly Tab[], recent: readonly string[]): Tab[
     .map(({ tab }) => tab);
 }
 
-function tabRow(tab: Tab, activeId: string): SwitcherRow {
-  return { kind: "tab", key: `tab:${tab.id}`, tab, current: tab.id === activeId };
+function tabRow(tab: Tab, activeId: string, depth = 0): SwitcherRow {
+  return { kind: "tab", key: `tab:${tab.id}`, tab, current: tab.id === activeId, depth };
 }
 
 function closedRows(closed: readonly ClosedTab[], shown = MAX_CLOSED_SHOWN): SwitcherRow[] {
@@ -90,7 +91,8 @@ export function buildSwitcher(input: SwitcherInput): SwitcherSection[] {
 
   const sections: SwitcherSection[] = [];
   if (needsYou.length) sections.push({ id: "attention", label: "Needs you", rows: needsYou.map((tab) => tabRow(tab, activeId)) });
-  if (here.length) sections.push({ id: "here", label: "This project", rows: here.map((tab) => tabRow(tab, activeId)) });
+  // Tabs an agent started follow the tab that started them, indented.
+  if (here.length) sections.push({ id: "here", label: "This project", rows: familyOrder(here).map(({ tab, depth }) => tabRow(tab, activeId, depth)) });
   const projects = new Map<string, Tab[]>();
   for (const tab of elsewhere) projects.set(tab.project, [...(projects.get(tab.project) ?? []), tab]);
   for (const [project, group] of projects) {

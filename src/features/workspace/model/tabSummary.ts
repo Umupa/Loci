@@ -39,6 +39,14 @@ export type Tab = {
   busySince?: number;
   /** When the tab last did something, if known. */
   activityAt?: number;
+  /** The session that started this tab's conversation, when an agent did. */
+  spawnedBy?: string;
+  /** The open tab holding the session that started this one. */
+  parentId?: string;
+  /** Tabs started, directly or further down, from this one. */
+  descendantCount?: number;
+  /** The most urgent state among those tabs, for a parent that folds them away. */
+  descendantStatus?: TabStatus;
 };
 
 export type TabSummaryContext = {
@@ -93,6 +101,13 @@ function busyStart(session: Pick<Session, "blocks">): number | undefined {
   return undefined;
 }
 
+const SPAWNED_ID = /^app-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-/i;
+
+/** The session that started this one, read from the id an agent-started session is given. */
+export function spawnerOf(sessionId: string): string | undefined {
+  return SPAWNED_ID.exec(sessionId)?.[1];
+}
+
 const unique = <T,>(items: T[]): T[] => [...new Set(items)];
 
 export function summarizeTab(tab: WorkspaceTab, context: TabSummaryContext): Tab {
@@ -113,6 +128,7 @@ export function summarizeTab(tab: WorkspaceTab, context: TabSummaryContext): Tab
       : focusedSession ? sessionDisplayTitle(focusedSession.title, focusedSession.harness) : "";
   const activity = entries.map(sessionActivityAt).filter((at): at is number => at !== undefined);
 
+  const spawnedBy = entries.map((entry) => spawnerOf(entry.id)).find((id): id is string => !!id);
   return {
     id: tab.id,
     project: projectName(path),
@@ -130,6 +146,7 @@ export function summarizeTab(tab: WorkspaceTab, context: TabSummaryContext): Tab
     blank: entries.length === 1 && leafIds(tab.layout).length === 1 && isBlankSession(focusedSession),
     ...(tab.groupId ? { groupId: tab.groupId } : {}),
     ...(tab.pinned ? { pinned: true } : {}),
+    ...(spawnedBy ? { spawnedBy } : {}),
     status,
     ...(subject ? { preview: sessionPreview(subject) } : {}),
     ...(busy.length ? { busySince: busyStart(busy[0]) } : {}),

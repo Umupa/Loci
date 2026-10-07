@@ -28,11 +28,13 @@ import { liveAgentsFromSessions } from "../features/sessions/model/liveAgents";
 import { TOGGLE_SECONDARY_SIDEBAR_EVENT } from "./shell/SecondarySidebar";
 import { closedTabs } from "../features/workspace/model/closedTabs";
 import { TabSwitcher } from "./shell/TabSwitcher";
+import { TabOverview } from "./shell/TabOverview";
 import { ClosedTabToast } from "./shell/ClosedTabToast";
 import { attentionOrder, heldTabIds, idleTabIds, parkingCandidates, trackTabGrowth, type TabCountMark } from "../features/workspace/model/tabParking";
 import { loadTabLimit } from "../features/settings/model/settings";
 import { pathKey } from "../shared/lib/paths";
 import type { Tab } from "./shell/TitleBar";
+import { linkFamilies } from "../features/workspace/model/tabFamily";
 import { summarizeTab } from "../features/workspace/model/tabSummary";
 import { filePaneId, findLeaf, leafIds } from "../features/workspace/model/layout";
 import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
@@ -206,6 +208,12 @@ function Workspace(boot: BootWorkspace) {
     closedTabs.dismissNotice();
     setSwitcherOpen((open) => !open);
   }, []);
+  const [overviewOpen, setOverviewOpen] = useState(false);
+  const openTabOverview = useCallback(() => {
+    closedTabs.dismissNotice();
+    setSwitcherOpen(false);
+    setOverviewOpen((open) => !open);
+  }, []);
   const closedHistory = useSyncExternalStore(closedTabs.subscribe, closedTabs.history);
   // Tabs in the order they were last in view, for the switcher.
   const recentTabs = useRef<string[]>([]);
@@ -232,7 +240,7 @@ function Workspace(boot: BootWorkspace) {
   }, [runtime.flushEvents, runtime.flushPersistence]);
   const reload = useCallback(() => { void persistWindow().then(() => window.location.reload()).catch((error) => workspaceRef.current?.setError(String(error))); }, [persistWindow]);
   useAppCommands({ workspace, submission, sessionsRef, surfaceOpen: surface !== "chat", closeSurface,
-    openSearch, openSettings, openNotes, toggleProjectRail, toggleSessionSidebar, openTabSwitcher, jumpToAttention, reload, sessionOrder,
+    openSearch, openSettings, openNotes, toggleProjectRail, toggleSessionSidebar, openTabSwitcher, jumpToAttention, openTabOverview, reload, sessionOrder,
   });
 
   useEffect(() => {
@@ -352,13 +360,13 @@ function Workspace(boot: BootWorkspace) {
   const applyZoom = (direction: -1 | 0 | 1) => {
     void applyUiScale(saveUiScale(direction === 0 ? UI_SCALE_DEFAULT : direction === 1 ? zoomInUiScale(loadUiScale()) : zoomOutUiScale(loadUiScale())));
   };
-  const tabSummaries = useMemo(() => workspace.tabs.map((tab) => summarizeTab(tab, {
+  const tabSummaries = useMemo(() => linkFamilies(workspace.tabs.map((tab) => summarizeTab(tab, {
     sessions,
     canvasTitle: (id) => canvases.find((canvas) => canvas.id === id)?.title,
     needsInput: approvalSessionIds,
     unseenFinished: unseenFinishedIds,
     fallbackCwd: workspace.projectCwd,
-  })), [workspace.tabs, sessions, canvases, approvalSessionIds, unseenFinishedIds, workspace.projectCwd]);
+  })), workspace.tabs), [workspace.tabs, sessions, canvases, approvalSessionIds, unseenFinishedIds, workspace.projectCwd]);
   // The strip shows this project's tabs; the switcher reaches all of them.
   const titleTabs = useMemo(() => {
     const byId = new Map(tabSummaries.map((tab) => [tab.id, tab]));
@@ -455,7 +463,7 @@ function Workspace(boot: BootWorkspace) {
           onOpenNotificationSettings={notificationsSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={() => setSurface(settingsReturn.current)} />
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
           <div className={surface === "chat" ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden"} aria-hidden={surface !== "chat"} inert={surface !== "chat" || undefined}>
-            {!IS_MAC ? <MenuBar onNew={() => workspace.createSession()} onSwitchTab={openTabSwitcher} onNextAttention={jumpToAttention} onReopenTab={() => { void workspace.reopenClosed("latest"); }} onToggleSidebar={toggleProjectRail} onToggleSessionSidebar={toggleSessionSidebar}
+            {!IS_MAC ? <MenuBar onNew={() => workspace.createSession()} onSwitchTab={openTabSwitcher} onNextAttention={jumpToAttention} onTabOverview={openTabOverview} onReopenTab={() => { void workspace.reopenClosed("latest"); }} onToggleSidebar={toggleProjectRail} onToggleSessionSidebar={toggleSessionSidebar}
               onCloseCurrentTab={() => workspace.closeTabs([workspace.activeTabId])} onCloseOtherTabs={() => workspace.closeTabs(workspace.visibleTabs.filter((tab) => tab.id !== workspace.activeTabId).map((tab) => tab.id))}
               onCloseAllTabs={() => workspace.closeTabs(workspace.visibleTabs.map((tab) => tab.id))} onPickProject={workspace.pickProject} onSearch={openSearch} onOpenNotes={notesEnabled ? openNotes : undefined}
               onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
@@ -498,10 +506,14 @@ function Workspace(boot: BootWorkspace) {
       </div>
       <ApprovalToasts notices={hiddenApprovalNotices(sessions, workspace.activeTabId, workspace.tabs, surface === "chat")} topOffset={12 + (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0)} onFocusSession={(id) => void workspace.openSession(id)} onApproval={submission.approve} />
       <ReminderNotices reminders={reminders.due} error={reminders.error} onOpen={reminders.open} onSnooze={reminders.schedule} onDismiss={reminders.cancel} onRetry={reminders.refresh} onOpenSettings={() => openSettings("general", "notifications")} onHeightChange={setReminderNoticesHeight} />
+      {overviewOpen ? <TabOverview tabs={tabSummaries} activeId={workspace.activeTabId} projectPath={workspace.projectCwd} recent={recentTabs.current}
+        onDismiss={() => setOverviewOpen(false)} onActivate={workspace.activateTab}
+        onCloseTabs={(ids) => workspace.closeTabs(ids)} onParkTabs={(ids) => workspace.closeTabs(ids, undefined, { parked: true })}
+        onPinTabs={(ids, pinned) => { for (const id of ids) workspace.pinTab(id, pinned); }} /> : null}
       {switcherOpen ? <TabSwitcher tabs={tabSummaries} activeId={workspace.activeTabId} projectPath={workspace.projectCwd}
         recent={recentTabs.current} closed={closedHistory} onDismiss={() => setSwitcherOpen(false)}
         onActivate={workspace.activateTab} onCloseTab={(id) => workspace.closeTabs([id])} onPin={workspace.pinTab}
-        onReopen={(batch) => { void workspace.reopenClosed(batch); }} /> : null}
+        onReopen={(batch) => { void workspace.reopenClosed(batch); }} onOpenOverview={openTabOverview} /> : null}
       <ClosedTabToast onUndo={(batch) => { void workspace.reopenClosed(batch); }} />
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
       {workspace.error ? <FileActionError message={workspace.error} onDismiss={() => workspace.setError(null)} /> : null}

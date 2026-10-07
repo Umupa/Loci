@@ -79,6 +79,12 @@ describe("tabCommand", () => {
         expect(tabCommand(key({ key: "j", ctrlKey: true, repeat: true }))).toBeNull();
         expect(tabCommandKeybinding("next-attention")).toBe("Tab: Next Needing You");
     });
+    it("uses shift-mod-o for the tab overview, without sharing mod-o", () => {
+        expect(tabCommand(key({ key: "O", metaKey: true, shiftKey: true }))).toBe("tab-overview");
+        expect(tabCommand(key({ key: "O", ctrlKey: true, shiftKey: true, repeat: true }))).toBeNull();
+        expect(tabCommand(key({ key: "o", metaKey: true }))).toBeNull();
+        expect(tabCommandKeybinding("tab-overview")).toBe("Tab: Overview");
+    });
     it("maps parsed commands to configurable keybinding rows", () => {
         expect(tabCommandKeybinding("new")).toBe("Tab: New");
         expect(tabCommandKeybinding("cycle-next")).toBe("Tab: Cycle Next");

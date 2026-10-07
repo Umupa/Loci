@@ -8,6 +8,10 @@ export const FLOOR_TITLE_TAB_WIDTH = 96;
 export const TAB_GAP = 2;
 /** The rule between the pinned block and the rest, with the gaps around it. */
 export const PINNED_DIVIDER_WIDTH = 9;
+/** The thin line before a tab that was started from another, with the gap beside it. */
+export const FAMILY_CONNECTOR_WIDTH = 5;
+/** What the active tab spends on the chip that folds the tabs it started. */
+export const FAMILY_CHIP_WIDTH = 34;
 
 export type TabStripLayout = {
   /** Idle tabs collapse to icons so the active one can keep its title. */
@@ -28,30 +32,33 @@ export const MIN_ICON_TAB_WIDTH = 26;
  * icons, and the active one takes what is left. When even that is too much,
  * the icons narrow before the strip gives in and scrolls.
  */
-export function tabStripLayout({ count, pinned, available }: {
+export function tabStripLayout({ count, pinned, available, activeExtra = 0 }: {
   count: number;
   pinned: number;
   /** Width of the strip's scrolling area, padding excluded. */
   available: number;
+  /** Room the active tab needs beyond its title, such as the chip of the tabs it started. */
+  activeExtra?: number;
 }): TabStripLayout {
   const regular = Math.max(0, count - pinned);
   const divider = pinned > 0 && regular > 0 ? PINNED_DIVIDER_WIDTH : 0;
   const fixed = pinned * (ICON_TAB_WIDTH + TAB_GAP) + divider;
-  const wanted = regular * (MIN_TITLE_TAB_WIDTH + TAB_GAP);
+  const wanted = regular * (MIN_TITLE_TAB_WIDTH + TAB_GAP) + activeExtra;
   if (regular <= 1 || fixed + wanted <= available) {
     return { crowded: false, activeWidth: MAX_TITLE_TAB_WIDTH, iconWidth: ICON_TAB_WIDTH };
   }
   const others = (regular - 1) * (ICON_TAB_WIDTH + TAB_GAP);
   const room = available - fixed - others - TAB_GAP;
-  if (room >= FLOOR_TITLE_TAB_WIDTH) {
-    return { crowded: true, activeWidth: Math.round(Math.min(MAX_TITLE_TAB_WIDTH, room)), iconWidth: ICON_TAB_WIDTH };
+  const floor = FLOOR_TITLE_TAB_WIDTH + activeExtra;
+  if (room >= floor) {
+    return { crowded: true, activeWidth: Math.round(Math.min(MAX_TITLE_TAB_WIDTH + activeExtra, room)), iconWidth: ICON_TAB_WIDTH };
   }
   // The active tab holds its floor and every icon gives up a little width.
   const icons = count - 1;
-  const iconWidth = Math.floor((available - divider - FLOOR_TITLE_TAB_WIDTH - TAB_GAP * count) / icons);
+  const iconWidth = Math.floor((available - divider - floor - TAB_GAP * count) / icons);
   return {
     crowded: true,
-    activeWidth: FLOOR_TITLE_TAB_WIDTH,
+    activeWidth: floor,
     iconWidth: Math.max(MIN_ICON_TAB_WIDTH, Math.min(ICON_TAB_WIDTH, iconWidth)),
   };
 }

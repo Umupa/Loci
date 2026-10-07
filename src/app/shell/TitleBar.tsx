@@ -10,7 +10,8 @@ import { useAnimatedReorder, type ReorderExternalDrop, } from "../../shared/hook
 import { useTabCloseMotion } from "../../features/workspace/hooks/useTabCloseMotion";
 import { TabWidthMotion } from "./ClosingTab";
 import { ApprovalDot, TabGlyph, TabHoverCard } from "./TabParts";
-import { tabStripLayout } from "../../features/workspace/model/tabStripLayout";
+import { foldFamilies } from "../../features/workspace/model/tabFamily";
+import { FAMILY_CHIP_WIDTH, FAMILY_CONNECTOR_WIDTH, tabStripLayout } from "../../features/workspace/model/tabStripLayout";
 import { HarnessIcon } from "../../features/sessions/ui/HarnessIcon";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ActivitySpinner } from "../../features/sessions/ui/ActivitySpinner";
@@ -139,8 +140,30 @@ function TabHarnesses({ harnesses, busyHarnesses, doneHarnesses, dimmed, approva
     </span>);
 }
 type SortableApi = ReturnType<typeof useAnimatedReorder>;
-function TitleTabItem({ tab, active, closable, canDrag, variant, sortable, onSelect, onClose, onContextMenu, onHover, itemRef, }: {
+/** What a parent shows of the tabs it started: how many, how urgent, and a way to fold them. */
+function FamilyChip({ tab, expanded, onToggle, corner, }: {
     tab: Tab;
+    expanded: boolean;
+    onToggle: () => void;
+    /** On an icon tab it is a small badge on the corner rather than a chip. */
+    corner?: boolean;
+}) {
+    const status = tab.descendantStatus ?? "idle";
+    const tone = status === "approval" ? "bg-amber-400/20 text-amber-400" : status === "done" ? "bg-teal-400/20 text-teal-400" : status === "busy" ? "bg-accent/20 text-accent" : "bg-content/10 text-content/60";
+    const label = `${expanded ? "Hide" : "Show"} ${tab.descendantCount} started ${tab.descendantCount === 1 ? "tab" : "tabs"}`;
+    return (<button type="button" data-family-toggle aria-expanded={expanded} title={label} aria-label={label} data-no-drag data-tauri-drag-region="false" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => {
+            event.stopPropagation();
+            onToggle();
+        }} className={`absolute z-10 flex h-4 items-center gap-px rounded-full px-1 text-[10px] font-medium leading-none tabular-nums ${tone} ${corner ? "-bottom-1 -right-1 h-[15px] min-w-[15px] justify-center ring-[1.5px] ring-background-base" : "right-7 top-1/2 -translate-y-1/2"}`}>
+      {corner ? null : <ChevronRight className={`size-2.5 transition-transform ${expanded ? "rotate-90" : ""}`} strokeWidth={2}/>}
+      {tab.descendantCount}
+    </button>);
+}
+function TitleTabItem({ tab, active, closable, canDrag, variant, expanded = false, onToggleFamily, sortable, onSelect, onClose, onContextMenu, onHover, itemRef, }: {
+    tab: Tab;
+    /** Whether this tab's started tabs are showing in the strip. */
+    expanded?: boolean;
+    onToggleFamily?: () => void;
     active: boolean;
     closable: boolean;
     canDrag: boolean;
@@ -184,7 +207,7 @@ function TitleTabItem({ tab, active, closable, canDrag, variant, sortable, onSel
             if (canDrag)
                 sortable.onItemPointerDown(tab.id, event);
         }}>
-      {variant === "icon" ? (<button type="button" aria-label={accessibleLabel} aria-current={active ? "true" : undefined} data-tab-variant="icon" data-tauri-drag-region="false" onClick={() => {
+      {variant === "icon" ? (<div className="relative h-7.5 w-full self-center"><button type="button" aria-label={accessibleLabel} aria-current={active ? "true" : undefined} data-tab-variant="icon" data-tauri-drag-region="false" onClick={() => {
             if (sortable.consumeClick())
                 return;
             onSelect(tab.id);
@@ -194,11 +217,11 @@ function TitleTabItem({ tab, active, closable, canDrag, variant, sortable, onSel
                 ? "bg-content/[0.06] text-content/70 hover:bg-content/10 hover:text-content"
                 : "text-content/50 hover:bg-content/5 hover:text-content"}`}>
           <TabGlyph tab={tab} dimmed={!active}/>
-        </button>) : (<button type="button" aria-label={accessibleLabel} aria-current={active ? "true" : undefined} data-tab-variant="full" data-tauri-drag-region="false" onClick={() => {
+        </button>{tab.descendantCount && onToggleFamily ? (<FamilyChip tab={tab} expanded={expanded} onToggle={onToggleFamily} corner/>) : null}</div>) : (<button type="button" aria-label={accessibleLabel} aria-current={active ? "true" : undefined} data-tab-variant="full" data-tauri-drag-region="false" onClick={() => {
             if (sortable.consumeClick())
                 return;
             onSelect(tab.id);
-        }} className={`relative flex h-7.5 min-w-0 flex-1 cursor-default items-center gap-1.5 self-center rounded-md px-2 text-left ${closable ? "pr-7" : "pr-2.5"} ${active
+        }} className={`relative flex h-7.5 min-w-0 flex-1 cursor-default items-center gap-1.5 self-center rounded-md px-2 text-left ${tab.descendantCount ? "pr-14" : closable ? "pr-7" : "pr-2.5"} ${active
             ? "bg-selection text-content"
             : "text-content/50 hover:bg-content/5 hover:text-content"}`}>
         {tab.paneKind === "canvas" ? <ExcalidrawIcon className="size-3.5 shrink-0"/> : null}
@@ -219,6 +242,7 @@ function TitleTabItem({ tab, active, closable, canDrag, variant, sortable, onSel
             </TabLabel>) : null}
         </span>
       </button>)}
+      {tab.descendantCount && onToggleFamily && variant === "full" ? (<FamilyChip tab={tab} expanded={expanded} onToggle={onToggleFamily}/>) : null}
       {closable && variant === "full" ? (<button type="button" title="Close Tab" aria-label={`Close ${headline}`} data-no-drag data-tauri-drag-region="false" onPointerDown={(event) => event.stopPropagation()} onClick={(e) => {
                 e.stopPropagation();
                 onClose(tab.id);
@@ -347,8 +371,21 @@ export function OverlayNav({ onBack, onToggleSidebar, }: {
     </div>);
 }
 function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessionSidebarOpen = true, compactRail = false, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onToggleSidebar, onToggleSessionSidebar, onSelect, onOpenSettings, onOpenNotes, onClose, onCloseMany, onArchiveTab, onDeleteTab, onReorder, onPin, idleTabCount = 0, onCloseIdle, onOpenSwitcher, onPlaceOnPane, recents = [], onSelectProject, }: Props) {
-    const tabIds = tabs.map((tab) => tab.id);
-    const { displayed, setTabNode, finishMotion } = useTabCloseMotion(tabs);
+    // A parent can fold away the tabs it started; the strip lays out what is left.
+    const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
+    const toggleFamily = useCallback((id: string) => setUnfolded((current) => {
+        const next = new Set(current);
+        if (next.has(id))
+            next.delete(id);
+        else
+            next.add(id);
+        return next;
+    }), []);
+    const folded = useMemo(() => foldFamilies(tabs, unfolded, activeId), [tabs, unfolded, activeId]);
+    const stripTabs = useMemo(() => folded.map((entry) => entry.tab), [folded]);
+    const depthOf = useMemo(() => new Map(folded.map((entry) => [entry.tab.id, entry.depth])), [folded]);
+    const tabIds = stripTabs.map((tab) => tab.id);
+    const { displayed, setTabNode, finishMotion } = useTabCloseMotion(stripTabs);
     const externalTabDrop = useMemo<ReorderExternalDrop<string> | undefined>(() => onPlaceOnPane
         ? {
             onMove: (tabId, event) => {
@@ -427,7 +464,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
         el.scrollBy({ left: direction * amount, behavior: "smooth" });
     }, []);
     const activeTabRef = useRef<HTMLDivElement | null>(null);
-    const canDrag = tabs.length > 1;
+    const canDrag = stripTabs.length > 1;
     useEffect(() => {
         if (sortable.draggingId)
             return;
@@ -476,13 +513,20 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
         }
         catch { }
     }, [systemTitle]);
-    const pinnedCount = tabs.filter((tab) => tab.pinned).length;
+    const connectorCount = folded.filter((entry) => entry.depth > 0).length;
+    const pinnedCount = stripTabs.filter((tab) => tab.pinned).length;
     // Padding on both sides of the strip is not tab space.
     const stripLayout = tabStripLayout({
-        count: tabs.length,
+        count: stripTabs.length,
         pinned: pinnedCount,
-        available: stripWidth > 0 ? stripWidth - 16 : Number.POSITIVE_INFINITY,
+        available: stripWidth > 0 ? stripWidth - 16 - connectorCount * FAMILY_CONNECTOR_WIDTH : Number.POSITIVE_INFINITY,
+        activeExtra: stripTabs.find((tab) => tab.id === activeId)?.descendantCount ? FAMILY_CHIP_WIDTH : 0,
     });
+    // Widths glide for a moment after a change; look again once they have landed.
+    useEffect(() => {
+        const timer = window.setTimeout(syncTabOverflow, 280);
+        return () => window.clearTimeout(timer);
+    }, [syncTabOverflow, stripLayout.crowded, stripLayout.activeWidth, stripLayout.iconWidth, stripTabs.length, activeId]);
     const attention = tabs.some((tab) => tab.id !== activeId && tab.status === "approval")
         ? "approval"
         : tabs.some((tab) => tab.id !== activeId && tab.status === "done")
@@ -503,6 +547,16 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
         : null;
     const contextMenuItems: ContextMenuItem[] = contextTab
         ? [
+            ...(contextTab.descendantCount
+                ? [
+                    {
+                        kind: "item" as const,
+                        id: "family",
+                        label: `${unfolded.has(contextTab.id) ? "Hide" : "Show"} Started Tabs`,
+                        description: `${contextTab.descendantCount} started from this tab`,
+                    },
+                ]
+                : []),
             ...(onPin
                 ? [
                     {
@@ -587,6 +641,10 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
         if (!contextTab || !contextCloseIds)
             return;
         setTabMenu(null);
+        if (id === "family") {
+            toggleFamily(contextTab.id);
+            return;
+        }
         if (id === "idle") {
             onCloseIdle?.();
             return;
@@ -680,6 +738,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
             const explicitWidth = iconOnly ? stripLayout.iconWidth : stripLayout.crowded ? stripLayout.activeWidth : undefined;
             const previous = displayed[index - 1]?.item;
             const dividerBefore = !tab.pinned && !!previous?.pinned;
+            const depth = depthOf.get(tab.id) ?? 0;
             const shell = (<div ref={(el) => {
                     if (!entry.closing)
                         setTabNode(tab.id, el);
@@ -691,7 +750,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
                   {!entry.closing && paneToTabDrop?.targetTabId === tab.id ? (<span data-pane-tab-drop-hint className={`pointer-events-none absolute inset-y-1 z-50 w-0.5 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)] ${paneToTabDrop.position === "before"
                         ? "left-0"
                         : "right-0"}`}/>) : null}
-                  <TitleTabItem tab={tab} active={active} variant={iconOnly ? "icon" : "full"} closable={!entry.closing && titleTabClosable(tab, tabs.length)} canDrag={!entry.closing && canDrag} sortable={sortable} onSelect={(id) => {
+                  <TitleTabItem tab={tab} active={active} variant={iconOnly ? "icon" : "full"} expanded={unfolded.has(tab.id) || (!!tab.descendantCount && stripTabs.some((other) => other.parentId === tab.id))} onToggleFamily={() => toggleFamily(tab.id)} closable={!entry.closing && titleTabClosable(tab, tabs.length)} canDrag={!entry.closing && canDrag} sortable={sortable} onSelect={(id) => {
                     setHovered(null);
                     onSelect(id);
                 }} onClose={onClose} onHover={onTabHover} onContextMenu={(tabId, event) => {
@@ -712,8 +771,9 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
                   </TabWidthMotion>) : (<div key={tab.id} className="contents">
                   {shell}
                 </div>);
-            return dividerBefore ? (<div key={tab.id} className="contents">
-                  <span aria-hidden data-pinned-divider className="mx-0.5 h-4 w-px shrink-0 bg-content/15"/>
+            return dividerBefore || depth > 0 ? (<div key={tab.id} className="contents">
+                  {dividerBefore ? (<span aria-hidden data-pinned-divider className="mx-0.5 h-4 w-px shrink-0 bg-content/15"/>) : null}
+                  {depth > 0 && !entry.closing ? (<span aria-hidden data-family-connector className="ml-0.5 h-3.5 w-px shrink-0 bg-content/30"/>) : null}
                   {body}
                 </div>) : body;
         })}
