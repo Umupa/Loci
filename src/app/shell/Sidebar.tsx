@@ -1,5 +1,5 @@
 import { ContextMenu, type ContextMenuItem } from "../../shared/ui/ContextMenu";
-import { Archive, Chatting, Check, ChevronDown, ChevronRight, CircleAlert, CircleDashed, Clock, Folder, ListFilter, ExcalidrawIcon, FileScript, PanelLeft, PenLine, Pin, Plus, Search, Settings, StickyNote, } from "../../shared/ui/icons";
+import { Archive, Chatting, Check, ChevronDown, ChevronRight, CircleAlert, CircleDashed, Clock, Folder, ListFilter, ExcalidrawIcon, FileScript, PanelLeft, Pin, Plus, Search, Settings, StickyNote, } from "../../shared/ui/icons";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, } from "react";
 import { IS_MAC, MOD } from "../../platform/tauri/platform";
 import { copyText } from "../../platform/tauri/clipboard";
@@ -58,8 +58,7 @@ const TAB_LABELS: Record<SidebarTab, string> = {
 const COMPACT_TAB_ICONS: Record<SidebarTab, typeof PanelLeft> = {
     sessions: Chatting,
     files: FileScript,
-    // The Excalidraw mark already opens the page of every project's drawings.
-    canvases: PenLine,
+    canvases: ExcalidrawIcon,
 };
 function projectPathBusy(paths: Iterable<string> | undefined, cwd: string): boolean {
     if (!paths)
@@ -934,7 +933,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
               {sidebarToggle}
             </div>)}
           {compactRailVisible ? workspaceHeader : null}
-          {onSelectProject && !compactRailVisible ? (<SidebarProjectPicker cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onNew={onNew} onSearch={onSearch} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} searchActive={searchActive} notesActive={notesActive} onOpenCanvases={onOpenCanvases} canvasesActive={canvasesActive}/>) : null}
+          {onSelectProject && !compactRailVisible ? (<SidebarProjectPicker cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onNew={onNew} onSearch={onSearch} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} searchActive={searchActive} notesActive={notesActive}/>) : null}
           {!compactRailVisible ? (<div role="tablist" aria-label="Workspace" className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-stroke px-2">
               {workspaceTabItems}
             </div>) : null}
@@ -1092,8 +1091,8 @@ cannot claim "No sessions yet" before the rows have landed.
       <div role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuenow={resize.width} aria-valuemin={MIN_WIDTH} aria-valuemax={MAX_WIDTH} className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick}/>
     </aside>);
     return (<div className={`flex h-full shrink-0 ${railVisible || compactRailVisible || sidebarVisible ? "" : "hidden"}`}>
-      {compactRailVisible ? (<CompactProjectRail cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} tabs={visibleTabs} activeTab={tab} tabShown={panelOpen} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onTabChange={onCompactTabPick} onSearch={onSearch} searchActive={searchActive} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} notesActive={notesActive} onOpenCanvases={onOpenCanvases} canvasesActive={canvasesActive} onOpenSettings={onOpenSettings} onTogglePanel={onToggleProjectRail} onLeaveActive={onGoBack} titleBarAbove={titleBarAbove}/>) : null}
-      {railMounted.current && onSelectProject && onOpenProject ? (<ProjectRail visible={railVisible} cwd={cwd} recents={recents} busyPaths={busyProjectPaths} liveAgents={liveAgents} activeSessionId={activeSessionId} onSelectAgent={onSelectAgent} canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} onSearch={onSearch} searchActive={searchActive} notesEnabled={notesEnabled} onOpenNotes={onOpenNotes} notesActive={notesActive} onOpenCanvases={onOpenCanvases} canvasesActive={canvasesActive} onTogglePanel={onToggleProjectRail} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} settingsOpen={settingsOpen} settingsSection={settingsSection} onOpenSettings={onOpenSettings} onOpenNotificationSettings={onOpenNotificationSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={onCloseSettings}/>) : null}
+      {compactRailVisible ? (<CompactProjectRail cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} tabs={visibleTabs} activeTab={tab} tabShown={panelOpen} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onTabChange={onCompactTabPick} onSearch={onSearch} searchActive={searchActive} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} notesActive={notesActive} canvasesActive={canvasesActive} onOpenSettings={onOpenSettings} onTogglePanel={onToggleProjectRail} onLeaveActive={onGoBack} titleBarAbove={titleBarAbove}/>) : null}
+      {railMounted.current && onSelectProject && onOpenProject ? (<ProjectRail visible={railVisible} cwd={cwd} recents={recents} busyPaths={busyProjectPaths} liveAgents={liveAgents} activeSessionId={activeSessionId} onSelectAgent={onSelectAgent} canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} onSearch={onSearch} searchActive={searchActive} notesEnabled={notesEnabled} onOpenNotes={onOpenNotes} notesActive={notesActive} canvasesActive={canvasesActive} onTogglePanel={onToggleProjectRail} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} settingsOpen={settingsOpen} settingsSection={settingsSection} onOpenSettings={onOpenSettings} onOpenNotificationSettings={onOpenNotificationSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={onCloseSettings}/>) : null}
       {sidebarVisible ? sidebarContent : null}
       {drawerRendered ? (
         // Pinned to the right edge, so the sidebar slides in as the width grows.
@@ -1117,7 +1116,7 @@ function SearchableProjectPickerWithMenu({ onRemoveProject, onOpenNotificationSe
       {projectMenu.element}
     </>);
 }
-function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotificationSettings, onOpenNotes, onOpenCanvases, canvasesActive = false, searchActive = false, notesActive = false, }: {
+function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotificationSettings, onOpenNotes, searchActive = false, notesActive = false, }: {
     cwd: string;
     recents: RecentProject[];
     busy: boolean;
@@ -1128,8 +1127,6 @@ function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProje
     onSearch?: () => void;
     onOpenNotificationSettings?: (projectPath?: string) => void;
     onOpenNotes?: () => void;
-    onOpenCanvases?: () => void;
-    canvasesActive?: boolean;
     searchActive?: boolean;
     notesActive?: boolean;
 }) {
@@ -1143,7 +1140,6 @@ function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProje
             <Search className="size-3.5" strokeWidth={1.75}/>
           </IconButton>) : null}
 
-        {onOpenCanvases ? (<IconButton label="Excalidraw" active={canvasesActive} onClick={onOpenCanvases}><ExcalidrawIcon className="size-3.5" strokeWidth={1.75}/></IconButton>) : null}
         {onOpenNotes ? (<IconButton label="Notes" active={notesActive} onClick={onOpenNotes}>
             <StickyNote className="size-3.5" strokeWidth={1.75}/>
           </IconButton>) : null}
@@ -1152,7 +1148,7 @@ function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProje
 
     </div>);
 }
-function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onSelectProject, onOpenProject, onRemoveProject, onTabChange, onSearch, searchActive, onOpenNotificationSettings, onOpenNotes, notesActive, onOpenCanvases, canvasesActive, onOpenSettings, onTogglePanel, onLeaveActive, titleBarAbove, }: {
+function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onSelectProject, onOpenProject, onRemoveProject, onTabChange, onSearch, searchActive, onOpenNotificationSettings, onOpenNotes, notesActive, canvasesActive, onOpenSettings, onTogglePanel, onLeaveActive, titleBarAbove, }: {
     cwd: string;
     recents: RecentProject[];
     busy: boolean;
@@ -1167,7 +1163,6 @@ function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onS
     searchActive: boolean;
     onOpenNotificationSettings?: (projectPath?: string) => void;
     onOpenNotes?: () => void;
-    onOpenCanvases?: () => void;
     canvasesActive: boolean;
     notesActive: boolean;
     onOpenSettings?: () => void;
@@ -1189,11 +1184,10 @@ function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onS
         <CompactRailAction label="Expand projects" icon={PanelLeft} onClick={onTogglePanel}/>
         {onSelectProject ? (<SearchableProjectPickerWithMenu cwd={cwd} recents={recents} busy={busy} compact className="w-full justify-center" onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onOpenNotificationSettings={onOpenNotificationSettings}/>) : null}
         <div role="tablist" aria-label="Workspace" aria-orientation="vertical" className="flex flex-col items-center gap-1.5">
-          {tabs.map((itemId) => (<CompactRailAction key={itemId} tab label={TAB_LABELS[itemId]} icon={COMPACT_TAB_ICONS[itemId]} active={workspaceActive && tabShown && activeTab === itemId} onClick={() => openWorkspaceTab(itemId)}/>))}
+          {tabs.map((itemId) => (<CompactRailAction key={itemId} tab label={TAB_LABELS[itemId]} icon={COMPACT_TAB_ICONS[itemId]} active={itemId === "canvases" && canvasesActive ? true : workspaceActive && tabShown && activeTab === itemId} onClick={() => openWorkspaceTab(itemId)}/>))}
         </div>
         <CompactRailAction label={`Search (${MOD}K)`} icon={Search} active={searchActive} onClick={action(searchActive, onSearch)}/>
 
-        {onOpenCanvases ? (<CompactRailAction label="Excalidraw" icon={ExcalidrawIcon} active={canvasesActive} onClick={action(canvasesActive, onOpenCanvases)}/>) : null}
         {onOpenNotes ? (<CompactRailAction label="Notes" icon={StickyNote} active={notesActive} onClick={action(notesActive, onOpenNotes)}/>) : null}
 
       </div>

@@ -52,13 +52,32 @@ describe("tab strip density", () => {
     expect(variants()).toEqual(Array(6).fill("full"));
   });
 
-  it("folds idle tabs to icons, keeping the active tab's title, once titles would be slivers", () => {
+  it("folds only as many tabs as it takes: the ones that still fit keep their title", () => {
     stripWidth = 700;
-    render(many(12));
-    const shown = variants();
-    expect(shown.filter((variant) => variant === "full")).toHaveLength(1);
-    expect(container.querySelector('[data-title-tab-id="t2"] [data-tab-variant="full"]')).not.toBeNull();
+    render(many(12), { recent: ["t2", "t7"] });
+    const titled = [...container.querySelectorAll<HTMLElement>('[data-tab-variant="full"]')].map((el) => el.closest<HTMLElement>("[data-title-tab-id]")!.dataset.titleTabId);
+    // The tab in view, and the one used just before it.
+    expect(titled).toEqual(["t2", "t7"]);
     expect(container.querySelector('[data-title-tab-id="t5"] [data-tab-variant="icon"]')).not.toBeNull();
+    // A wider strip keeps more titles, and once all fit none are folded.
+    stripWidth = 1100;
+    render(many(12), { recent: ["t2", "t7"] });
+    expect(variants().filter((variant) => variant === "full").length).toBeGreaterThan(2);
+    stripWidth = 1700;
+    render(many(12), { recent: ["t2", "t7"] });
+    expect(variants()).toEqual(Array(12).fill("full"));
+  });
+
+  it("does not reshuffle which tabs have titles while moving among them", () => {
+    stripWidth = 700;
+    const tabs = many(12);
+    render(tabs, { activeId: "t2", recent: ["t2", "t7"] });
+    render(tabs, { activeId: "t7", recent: ["t7", "t2"] });
+    const titled = () => [...container.querySelectorAll<HTMLElement>('[data-tab-variant="full"]')].map((el) => el.closest<HTMLElement>("[data-title-tab-id]")!.dataset.titleTabId);
+    expect(titled()).toEqual(["t2", "t7"]);
+    // A tab from outside the group takes the place of the one used longest ago.
+    render(tabs, { activeId: "t10", recent: ["t10", "t7", "t2"] });
+    expect(titled()).toEqual(["t7", "t10"]);
   });
 
   it("keeps pinned tabs as icons ahead of a divider, whatever the room", () => {

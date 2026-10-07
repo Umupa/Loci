@@ -675,6 +675,36 @@ describe("collapsed rail actions", () => {
         expect(container.textContent).not.toContain("Development");
         expect(container.querySelector('button[aria-label^="Back"]')).toBeNull();
     });
+    it("has one way into drawings: the Canvas tab, which also reaches the page of all of them", async () => {
+        props.projectRailOpen = false;
+        props.onSelectProject = vi.fn();
+        props.onOpenProject = vi.fn();
+        props.onOpenNotes = vi.fn();
+        props.onOpenSettings = vi.fn();
+        props.onToggleProjectRail = vi.fn();
+        const openAll = vi.fn();
+        props.onOpenCanvases = openAll;
+        props.onOpenCanvas = vi.fn();
+        props.onOpenCanvasInTab = vi.fn();
+        props.onNewCanvas = vi.fn();
+        props.onRenameCanvas = vi.fn();
+        props.onDeleteCanvas = vi.fn();
+        await act(async () => render());
+        const rail = container.querySelector<HTMLElement>("[data-compact-project-rail]")!;
+        const labels = Array.from(rail.querySelectorAll("button"), (button) => button.getAttribute("aria-label")?.replace(/ \(.+\)$/, ""));
+        // The page of drawings is no longer a second icon beside the tab.
+        expect(labels.filter((label) => label === "Excalidraw" || label === "Canvas")).toEqual(["Canvas"]);
+        // The tab carries the Excalidraw mark rather than a generic pen.
+        const canvasTab = rail.querySelector<HTMLElement>('button[aria-label="Canvas"]')!;
+        expect(canvasTab.querySelector("svg")).not.toBeNull();
+        await act(async () => canvasTab.click());
+        const all = container.querySelector<HTMLElement>('button[aria-label="All Drawings"]');
+        expect(all).not.toBeNull();
+        await act(async () => all!.click());
+        expect(openAll).toHaveBeenCalledOnce();
+        // The chosen tab is remembered across mounts; leave it as other tests expect.
+        await act(async () => rail.querySelector<HTMLElement>('button[aria-label="Sessions"]')!.click());
+    });
     it("keeps project shortcuts in a compact vertical rail", async () => {
         props.projectRailOpen = false;
         props.onSelectProject = vi.fn();

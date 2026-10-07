@@ -3001,3 +3001,83 @@ html.theme-light .btw-burst {
     top: 0;
   }
 }
+
+/* Tab strip: tabs change width, colour and title with a short ease, never a cut. */
+.tab-surface {
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.tab-title {
+  transition: opacity 200ms ease;
+}
+
+/* The highlight under the tab in view glides between tabs; its position is
+   driven from script so it can follow tabs that are themselves changing width. */
+.tab-pill {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  height: 30px;
+  border-radius: 6px;
+  pointer-events: none;
+  background: var(--color-selection);
+  will-change: transform, width;
+}
+
+/* Switching tabs fades the incoming content up from slightly dim. */
+@keyframes tab-pane-in {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tab-pane-in {
+  animation: tab-pane-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Overview cards lift toward the pointer and settle with a little give. */
+.overview-card {
+  transition:
+    transform 240ms cubic-bezier(0.2, 0.9, 0.25, 1.1),
+    box-shadow 240ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.overview-card[data-cursor="true"] {
+  transform: translateY(-2px) scale(1.012);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.28);
+}
+
+.overview-card[data-selected="true"] {
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-surface,
+  .tab-title,
+  .overview-card {
+    transition: none;
+  }
+  .tab-pane-in {
+    animation: none;
+  }
+  .overview-card[data-cursor="true"],
+  .overview-card[data-selected="true"] {
+    transform: none;
+  }
+}
+
+/* The overview opens with its own flight of cards, so the dialog does not also scale in. */
+.modal-panel:has([data-tab-overview]) {
+  animation: none;
+}
+
+.overview-card {
+  transition-property: transform, box-shadow, background-color, border-color, opacity;
+}

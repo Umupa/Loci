@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Archive, Check, Pin, PinOff, Search, X } from "../../shared/ui/icons";
 import { Modal } from "../../shared/ui/Modal";
+import { useFlip } from "../../shared/hooks/useFlip";
 import { useLockOverscroll } from "../../shared/hooks/useLockOverscroll";
+import { boxOf, flyGhost, motionAllowed } from "../../shared/lib/ghostFly";
 import { IS_MAC } from "../../platform/tauri/platform";
 import { sameProjectPath } from "../../features/projects/model/recents";
 import { tabStatusLabel, type Tab } from "../../features/workspace/model/tabSummary";
@@ -23,6 +25,8 @@ type Props = {
 const CARD_MIN_WIDTH = 248;
 const GRID_GAP = 12;
 const COMMAND_KEY = IS_MAC ? "⌘" : "Ctrl";
+/** How long a card takes to leave before its tab is closed. */
+const EXIT_MS = 150;
 
 const ACCENT_BAR: Record<string, string> = {
   approval: "bg-amber-400",
@@ -43,6 +47,7 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
   const [cursorId, setCursorId] = useState<string | null>(null);
   const [columns, setColumns] = useState(3);
   const [now] = useState(() => Date.now());
+  const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
   const gridRef = useRef<HTMLDivElement | null>(null);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
 
@@ -50,6 +55,37 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
   const first = cards.find((card) => card.tab.id !== activeId) ?? cards[0];
   const cursorIndex = Math.max(0, cards.findIndex((card) => card.tab.id === (cursorId ?? first?.tab.id)));
   const cursor = cards[cursorIndex];
+
+  // Cards that change place (a tab closed, a search, a wider window) glide there.
+  useFlip(gridRef, `${cards.map((card) => card.tab.id).join("\0")}|${columns}`);
+
+  // On opening, every card flies out of its tab in the strip into its place,
+  // each a moment after the one before: the tabs spread out into the overview.
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || !motionAllowed()) return;
+    const strip = document.querySelector("[data-title-tab-strip]");
+    const stripBox = strip ? boxOf(strip) : { left: window.innerWidth / 2, top: 0, width: 0, height: 40 };
+    const tabElements = [...document.querySelectorAll<HTMLElement>("[data-title-tab-id]")];
+    const onScreen = [...grid.querySelectorAll<HTMLElement>("[data-overview-tab]")].filter((el) => {
+      const box = el.getBoundingClientRect();
+      return box.bottom > 0 && box.top < window.innerHeight;
+    });
+    onScreen.forEach((el, index) => {
+      const tabElement = tabElements.find((tab) => tab.dataset.titleTabId === el.dataset.overviewTab);
+      // A tab that is folded away or in another project leaves from the middle of the strip.
+      const from = tabElement ? boxOf(tabElement) : { left: stripBox.left + stripBox.width / 2 - 20, top: stripBox.top + 5, width: 40, height: 30 };
+      const base = boxOf(el);
+      el.style.visibility = "hidden";
+      flyGhost({
+        source: el, base, from, to: base,
+        duration: 520, delay: Math.min(index * 24, 280), fadeIn: true,
+        onDone: () => { el.style.visibility = ""; },
+      });
+    });
+    // Runs once, as the overview opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const grid = gridRef.current;
@@ -82,13 +118,33 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
   });
   const open = (card: OverviewCard | undefined) => {
     if (!card) return;
+    // The card grows into the window it opens, fading out as that window takes over.
+    const element = [...(gridRef.current?.querySelectorAll<HTMLElement>("[data-overview-tab]") ?? [])].find((el) => el.dataset.overviewTab === card.tab.id);
+    const stage = document.querySelector("main");
+    if (element && stage) {
+      const base = boxOf(element);
+      flyGhost({ source: element, base, from: base, to: boxOf(stage), duration: 380, fadeOut: true });
+    }
     onDismiss();
     onActivate(card.tab.id);
   };
+  /** Let the cards go before their tabs do, so the rest can close up around the gap. */
+  const closeAfterExit = (ids: string[], run: (ids: string[]) => void) => {
+    if (!motionAllowed()) {
+      run(ids);
+      return;
+    }
+    setLeaving(new Set(ids));
+    window.setTimeout(() => {
+      run(ids);
+      setLeaving(new Set());
+    }, EXIT_MS);
+  };
   const chosen = [...selected];
-  const act = (run: (ids: string[]) => void) => {
-    run(chosen);
+  const act = (run: (ids: string[]) => void, closes = false) => {
     setSelected(new Set());
+    if (closes) closeAfterExit(chosen, run);
+    else run(chosen);
   };
   const allPinned = chosen.length > 0 && chosen.every((id) => tabs.find((tab) => tab.id === id)?.pinned);
 
@@ -108,7 +164,7 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
     } else if ((event.metaKey || event.ctrlKey) && event.key === "Backspace") {
       event.preventDefault();
       const ids = selected.size ? [...selected] : cursor ? [cursor.tab.id] : [];
-      if (ids.length) onCloseTabs(ids);
+      if (ids.length) closeAfterExit(ids, onCloseTabs);
       setSelected(new Set());
     }
   };
@@ -156,12 +212,13 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
                 cursor={card.tab.id === cursor?.tab.id}
                 selected={selected.has(card.tab.id)}
                 selecting={selected.size > 0}
+                leaving={leaving.has(card.tab.id)}
                 showProject={scope === "all" || (!!card.tab.projectPath && !sameProjectPath(card.tab.projectPath, projectPath))}
                 onHover={() => setCursorId(card.tab.id)}
                 onOpen={(event) => (event.metaKey || event.ctrlKey || event.shiftKey ? toggle(card.tab.id) : open(card))}
                 onToggle={() => toggle(card.tab.id)}
                 onPin={() => onPinTabs([card.tab.id], !card.tab.pinned)}
-                onClose={() => onCloseTabs([card.tab.id])}
+                onClose={() => closeAfterExit([card.tab.id], onCloseTabs)}
               />
             ))}
           </div>
@@ -170,8 +227,8 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
           <footer className="flex h-12 shrink-0 items-center gap-2 border-t border-stroke px-4 text-[12px]" data-bulk-bar>
             <span className="mr-2 font-medium text-content">{chosen.length} selected</span>
             <BulkButton onClick={() => act((ids) => onPinTabs(ids, !allPinned))}>{allPinned ? <PinOff className="size-3.5" strokeWidth={1.75} /> : <Pin className="size-3.5" strokeWidth={1.75} />}{allPinned ? "Unpin" : "Pin"}</BulkButton>
-            <BulkButton onClick={() => act(onParkTabs)}><Archive className="size-3.5" strokeWidth={1.75} />Park</BulkButton>
-            <BulkButton onClick={() => act(onCloseTabs)} danger><X className="size-3.5" strokeWidth={1.75} />Close</BulkButton>
+            <BulkButton onClick={() => act(onParkTabs, true)}><Archive className="size-3.5" strokeWidth={1.75} />Park</BulkButton>
+            <BulkButton onClick={() => act(onCloseTabs, true)} danger><X className="size-3.5" strokeWidth={1.75} />Close</BulkButton>
             <span className="flex-1" />
             <button type="button" onClick={() => setSelected(new Set())} className="rounded-md px-2 py-1 text-content/55 hover:bg-content/8 hover:text-content">Clear</button>
           </footer>
@@ -190,13 +247,15 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
   );
 }
 
-function CardView({ card, now, current, cursor, selected, selecting, showProject, onHover, onOpen, onToggle, onPin, onClose }: {
+function CardView({ card, now, current, cursor, selected, selecting, leaving, showProject, onHover, onOpen, onToggle, onPin, onClose }: {
   card: OverviewCard;
   now: number;
   current: boolean;
   cursor: boolean;
   selected: boolean;
   selecting: boolean;
+  /** Going away: fades and shrinks while the tab is still closing. */
+  leaving: boolean;
   showProject: boolean;
   onHover: () => void;
   onOpen: (event: React.MouseEvent) => void;
@@ -213,9 +272,12 @@ function CardView({ card, now, current, cursor, selected, selecting, showProject
       aria-selected={selected}
       data-overview-tab={tab.id}
       data-cursor={cursor}
+      data-selected={selected}
+      data-flip-key={tab.id}
       onMouseMove={onHover}
       onClick={onOpen}
-      className={`group relative flex h-[148px] cursor-default flex-col overflow-hidden rounded-xl border p-3 transition-colors ${
+      className={`overview-card group relative flex h-[148px] cursor-default flex-col overflow-hidden rounded-xl border p-3 ${
+        leaving ? "pointer-events-none scale-90 opacity-0" : ""} ${
         selected ? "border-accent/60 bg-accent/10" : cursor ? "border-content/20 bg-selection" : "border-content/10 bg-content/[0.03]"}`}
     >
       {ACCENT_BAR[status] ? <span aria-hidden className={`absolute inset-y-3 left-0 w-0.5 rounded-full ${ACCENT_BAR[status]}`} /> : null}

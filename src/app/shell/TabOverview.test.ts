@@ -37,6 +37,8 @@ function type(text: string) {
     input().dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
+/** Closing waits a moment for the cards to leave. */
+const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 260)); });
 const check = (id: string) => document.querySelector<HTMLElement>(`[data-overview-tab="${id}"] [role="checkbox"]`)!;
 
 beforeEach(() => {
@@ -95,7 +97,7 @@ describe("TabOverview", () => {
     expect(document.body.textContent).toContain("No tab matches “zzzz”");
   });
 
-  it("selects with the checkbox, space or a modified click, and acts on all of them at once", () => {
+  it("selects with the checkbox, space or a modified click, and acts on all of them at once", async () => {
     const h = handlers();
     render(h);
     act(() => check("b").click());
@@ -107,6 +109,7 @@ describe("TabOverview", () => {
     const bar = () => document.querySelector("[data-bulk-bar]")!;
     const press = (label: string) => act(() => [...bar().querySelectorAll("button")].find((el) => el.textContent?.includes(label))!.click());
     press("Park");
+    await settle();
     expect(h.onParkTabs).toHaveBeenCalledWith(expect.arrayContaining(["a", "b", "d"]));
     expect(document.querySelector("[data-bulk-bar]")).toBeNull();
   });
@@ -122,21 +125,28 @@ describe("TabOverview", () => {
     expect(document.querySelector("[data-bulk-bar]")?.textContent).toContain("Unpin");
   });
 
-  it("closes the selection, or the card under the cursor, with the shortcut", () => {
+  it("closes the selection, or the card under the cursor, with the shortcut", async () => {
     const h = handlers();
     render(h);
     key("Backspace", { ctrlKey: true });
+    await settle();
     expect(h.onCloseTabs).toHaveBeenLastCalledWith(["b"]);
     act(() => check("a").click());
     act(() => check("d").click());
     key("Backspace", { metaKey: true });
+    await settle();
     expect(h.onCloseTabs).toHaveBeenLastCalledWith(expect.arrayContaining(["a", "d"]));
   });
 
-  it("closes a single card from its own button without opening it", () => {
+  it("closes a single card from its own button, letting it leave first, without opening it", async () => {
     const h = handlers();
     render(h);
     act(() => document.querySelector<HTMLElement>('[data-overview-tab="d"] button[aria-label="Close tab"]')!.click());
+    // The card fades and shrinks while its tab is still open; the others stay put.
+    expect(h.onCloseTabs).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-overview-tab="d"]')?.className).toContain("opacity-0");
+    expect(document.querySelector('[data-overview-tab="b"]')?.className).not.toContain("opacity-0");
+    await settle();
     expect(h.onCloseTabs).toHaveBeenCalledWith(["d"]);
     expect(h.onActivate).not.toHaveBeenCalled();
   });
