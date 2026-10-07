@@ -25,6 +25,7 @@ import { newDefaultSession, newSession, sessionNeedsInput, type HarnessId, type 
 import { requestTranscriptJump } from "../features/sessions/model/transcriptJump";
 import { useUnseenFinishedSessions } from "../features/sessions/hooks/useUnseenFinishedSessions";
 import { liveAgentsFromSessions } from "../features/sessions/model/liveAgents";
+import { TOGGLE_SECONDARY_SIDEBAR_EVENT } from "./shell/SecondarySidebar";
 import { filePaneId, filePanePath, findLeaf, leafIds } from "../features/workspace/model/layout";
 import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
 import { loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
@@ -191,7 +192,14 @@ function Workspace(boot: BootWorkspace) {
   const openCanvas = (id: string) => workspace.openCanvas(id, canvases.find((canvas) => canvas.id === id)?.cwd);
   const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => setSurface("notes")); }, []);
   const toggleProjectRail = useCallback(() => setProjectRailOpen((open) => { saveProjectRailOpen(!open); return !open; }), []);
-  const toggleSessionSidebar = useCallback(() => setSessionSidebarOpen((open) => { saveSessionSidebarOpen(!open); return !open; }), []);
+  // The shortcut folds whichever second column the page in view has.
+  const toggleSessionSidebar = useCallback(() => {
+    if (surfaceRef.current === "notes" || surfaceRef.current === "canvases") {
+      window.dispatchEvent(new Event(TOGGLE_SECONDARY_SIDEBAR_EVENT));
+      return;
+    }
+    setSessionSidebarOpen((open) => { saveSessionSidebarOpen(!open); return !open; });
+  }, []);
   const persistWindow = useCallback(async (mode: "quit" | "unload" = "unload") => {
     runtime.flushEvents();
     await runtime.flushPersistence();
@@ -395,7 +403,7 @@ function Workspace(boot: BootWorkspace) {
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
           onOpenCanvases={openCanvases} canvasesActive={surface === "canvases"}
-          onOpenFile={workspace.openFile} onFileMoved={workspace.fileMoved} onFileDeleted={workspace.fileDeleted}
+          onOpenFile={workspace.openFile} onToggleSidebar={toggleSessionSidebar} onFileMoved={workspace.fileMoved} onFileDeleted={workspace.fileDeleted}
           canvases={canvases} activeCanvasId={surface === "chat" && focusedLeaf?.leafKind === "canvas" ? focusedLeaf.id : undefined}
           onOpenCanvas={workspace.showCanvas} onOpenCanvasInTab={openCanvas} onNewCanvas={newCanvas} onRenameCanvas={renameCanvas} onDeleteCanvas={handleDeleteCanvas}
           projectRailOpen={projectRailOpen} compactProjectRail={compactProjectRail} titleBarAbove={compactTitleBar} onToggleProjectRail={toggleProjectRail}

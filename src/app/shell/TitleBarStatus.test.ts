@@ -80,7 +80,7 @@ it.each([true, false])("offers a separate session sidebar toggle when the projec
         onCloseMany: vi.fn(),
         onReorder: vi.fn(),
     })));
-    const toggle = container.querySelector<HTMLButtonElement>('button[aria-label^="Toggle Session Sidebar"]');
+    const toggle = container.querySelector<HTMLButtonElement>('button[aria-label^="Show workspace sidebar"]');
     expect(toggle).not.toBeNull();
     act(() => toggle?.click());
     expect(onToggleSessionSidebar).toHaveBeenCalledOnce();

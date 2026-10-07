@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from
 import type { Canvas } from "../canvas";
 import { canvasMcpProblem } from "../mcpServer";
 import { useCanvasMcpEnabled } from "../../settings/model/builtinMcp";
-import { LoaderCircle, ExcalidrawIcon, Plus, Search, ListFilter, ChevronLeft, ChevronRight } from "../../../shared/ui/icons";
+import { LoaderCircle, ExcalidrawIcon, Plus, Search, ListFilter } from "../../../shared/ui/icons";
 import { ContextMenu, type ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import { OverlayNav } from "../../../app/shell/TitleBar";
+import { CollapsiblePane, SecondarySidebarToggle, useSecondarySidebar } from "../../../app/shell/SecondarySidebar";
 import { WindowControls } from "../../../app/shell/WindowControls";
 import { IS_MAC } from "../../../platform/tauri/platform";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
@@ -42,7 +43,7 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
   const projectCwd = cwd && looksLikeProject(cwd) ? cwd : undefined;
   const [selectedId, setSelectedId] = useState(() => rememberedCanvasId ?? canvases[0]?.id ?? null);
   const [creating, setCreating] = useState(false);
-  const [listVisible, setListVisible] = useState(true);
+  const [listOpen, toggleList] = useSecondarySidebar("canvases");
   const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
@@ -107,11 +108,12 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
       {IS_MAC && compactRail ? <div className="w-4 shrink-0" /> : null}
       {IS_MAC && !besideRail ? <div className="w-[78px] shrink-0" /> : null}
       {besideRail ? null : <OverlayNav onBack={onClose} onToggleSidebar={onToggleSidebar} />}
-      <div className="flex min-w-0 flex-1 items-center gap-2 px-3 text-[13px]"><ExcalidrawIcon className="size-3.5 shrink-0 text-content/45" />Excalidraw</div>
+      <div className="flex shrink-0 items-center px-1.5"><SecondarySidebarToggle open={listOpen} onToggle={toggleList} name="drawings list" /></div>
+      <div className="flex min-w-0 flex-1 items-center gap-2 pr-3 text-[13px]"><ExcalidrawIcon className="size-3.5 shrink-0 text-content/45" />Excalidraw</div>
       {IS_MAC ? null : <WindowControls />}
     </div>
     <div className="flex min-h-0 min-w-0 flex-1">
-      {listVisible ? (
+      <CollapsiblePane open={listOpen}>
         <aside ref={resize.setPaneRef} aria-label="Drawings" className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-stroke">
           <div className="flex h-9 shrink-0 items-center gap-1 border-b border-stroke px-2">
             <div className="relative flex h-7 min-w-0 flex-1 items-center">
@@ -123,9 +125,6 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
             </button>
             <button type="button" aria-label="New drawing" title="New drawing" disabled={creating} onClick={() => void create()} className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content disabled:opacity-40">
               {creating ? <LoaderCircle className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-            </button>
-            <button type="button" aria-label="Hide drawings list" title="Hide drawings list" onClick={() => setListVisible(false)} className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content">
-              <ChevronLeft className="size-3.5" />
             </button>
           </div>
           {agentProblem ? <p role="status" className={`shrink-0 border-b border-stroke px-3 py-2 text-[11px] leading-snug ${canvasMcpEnabled ? "text-amber-400" : "text-content/55"}`}>{canvasMcpEnabled ? "Agents cannot draw yet. " : ""}{agentProblem}</p> : null}
@@ -175,13 +174,7 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
           </div>
           <div role="separator" aria-orientation="vertical" aria-label="Resize drawings list" className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick} />
         </aside>
-      ) : (
-        <div className="flex w-6 shrink-0 flex-col items-center border-r border-stroke pt-1">
-          <button type="button" aria-label="Show drawings list" title="Show drawings list" onClick={() => setListVisible(true)} className="grid size-5 place-items-center rounded text-content/45 hover:bg-content/10 hover:text-content">
-            <ChevronRight className="size-3.5" />
-          </button>
-        </div>
-      )}
+      </CollapsiblePane>
       <div className="min-h-0 min-w-0 flex-1">
         {selected ? <CanvasPane key={selected.id} canvas={selected} focused onFocus={() => {}} onTitleChange={onTitleChange} onAddToChat={onAddToChat} onRegisterAppend={onRegisterAppend} onOpenInWorkspace={() => onOpenCanvas(selected.id)} />
           : <div className="grid h-full place-items-center text-sm text-content/40">Create a drawing to start sketching</div>}

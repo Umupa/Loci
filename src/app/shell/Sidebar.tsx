@@ -38,6 +38,7 @@ import { SessionFiltersMenu } from "../../features/sessions/ui/SessionFiltersMen
 import { sessionReminderPresets } from "../../features/sessions/ui/sessionReminderPresets";
 import { formatReminderTime, reminderTime, type SessionReminder, } from "../../features/sessions/model/sessionReminders";
 import { SessionsEmpty } from "../../features/sessions/ui/SessionsEmpty";
+import { SecondarySidebarToggle } from "./SecondarySidebar";
 import { FileTree } from "../../features/files/ui/FileTree";
 import { CanvasList } from "../../features/canvas/ui/CanvasList";
 import type { Canvas } from "../../features/canvas/canvas";
@@ -116,6 +117,8 @@ type Props = {
     canvasesActive?: boolean;
     /** Files tab: open a project file in the workspace; `pin` keeps its pane. */
     onOpenFile?: (path: string, pin?: boolean) => void;
+    /** Hides this sidebar; the same control brings it back from the title bar. */
+    onToggleSidebar?: () => void;
     onFileMoved?: (from: string, to: string) => void;
     onFileDeleted?: (path: string) => void;
     /** Canvas tab: this project's drawings and what to do with them. */
@@ -141,7 +144,7 @@ type Props = {
     onSelectSettingsSection?: (section: SettingsSectionId) => void;
     onCloseSettings?: () => void;
 };
-function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, openSessions = [], status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, reminders = [], onSetReminders, onCancelReminders, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, searchActive = false, notesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, onOpenCanvases, canvasesActive = false, onOpenFile, onFileMoved, onFileDeleted, canvases = [], activeCanvasId, onOpenCanvas, onOpenCanvasInTab, onNewCanvas, onRenameCanvas, onDeleteCanvas, }: Props) {
+function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, openSessions = [], status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, reminders = [], onSetReminders, onCancelReminders, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, searchActive = false, notesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, onOpenCanvases, canvasesActive = false, onOpenFile, onToggleSidebar, onFileMoved, onFileDeleted, canvases = [], activeCanvasId, onOpenCanvas, onOpenCanvasInTab, onNewCanvas, onRenameCanvas, onDeleteCanvas, }: Props) {
     const [tab, setTab] = useState<SidebarTab>(() => rememberedTab);
     const pickTab = (next: SidebarTab) => {
         rememberedTab = next;
@@ -907,7 +910,9 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
           <span className="block truncate leading-label">{TAB_LABELS[itemId]}</span>
         </button>
       </div>));
-    const workspaceHeader = (<div className="flex h-10 shrink-0 select-none items-center gap-1 border-b border-stroke pl-3 pr-1.5" data-tauri-drag-region="deep">
+    const sidebarToggle = onToggleSidebar ? (<SecondarySidebarToggle open onToggle={onToggleSidebar} name="workspace sidebar"/>) : null;
+    const workspaceHeader = (<div className="flex h-10 shrink-0 select-none items-center gap-1 border-b border-stroke pl-1.5 pr-1.5" data-tauri-drag-region="deep">
+      {sidebarToggle}
       <div className="flex min-w-0 flex-1 items-center">
         {(<span className="min-w-0 truncate text-sm font-medium leading-tight">
             Workspace
@@ -926,6 +931,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
               {IS_MAC ? <div className="w-[78px] shrink-0"/> : null}
               <DevModeSlot />
               <TabVisitNav canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} onTogglePanel={compactProjectRail ? undefined : onToggleProjectRail}/>
+              {sidebarToggle}
             </div>)}
           {compactRailVisible ? workspaceHeader : null}
           {onSelectProject && !compactRailVisible ? (<SidebarProjectPicker cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onNew={onNew} onSearch={onSearch} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} searchActive={searchActive} notesActive={notesActive} onOpenCanvases={onOpenCanvases} canvasesActive={canvasesActive}/>) : null}

@@ -644,3 +644,24 @@ it("shows all notes without an active project, and none from other projects in a
   expect(noteRows()).toEqual([]);
   expect(container.querySelector('[aria-label="Note title"]')).toBeNull();
 });
+
+it("folds the notes list away from a button that stays put, leaving no strip behind", async () => {
+  await render();
+  const toggle = () => container.querySelector<HTMLButtonElement>('button[aria-label^="Hide notes list"], button[aria-label^="Show notes list"]');
+  const resizeHandle = () => container.querySelector('[aria-label="Resize notes list"]');
+  expect(resizeHandle()).not.toBeNull();
+  expect(toggle()?.getAttribute("aria-label")).toContain("Hide notes list");
+  const header = toggle()!.closest("[data-tauri-drag-region]");
+
+  await act(async () => toggle()!.click());
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+  expect(resizeHandle()).toBeNull();
+  expect(container.querySelector('[aria-label="Filter notes"]')).toBeNull();
+  // The same button, in the same header, now offers to bring the list back.
+  expect(toggle()?.getAttribute("aria-label")).toContain("Show notes list");
+  expect(toggle()!.closest("[data-tauri-drag-region]")).toBe(header);
+
+  await act(async () => toggle()!.click());
+  expect(resizeHandle()).not.toBeNull();
+  expect(container.querySelector('[aria-label="Filter notes"]')).not.toBeNull();
+});

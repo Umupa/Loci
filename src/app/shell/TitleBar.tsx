@@ -1,4 +1,4 @@
-import { CheckCircle, ChevronLeft, ChevronRight, DashboardSquare, ExcalidrawIcon, PanelLeft, Settings, StickyNote, X, } from "../../shared/ui/icons";
+import { CheckCircle, ChevronLeft, ChevronRight, ExcalidrawIcon, PanelLeft, Settings, SidebarLeft, StickyNote, X, } from "../../shared/ui/icons";
 import { FileTypeIcon } from "../../shared/ui/FileTypeIcon";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, } from "react";
 import { basename } from "../../platform/tauri/fs";
@@ -557,8 +557,8 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
         </>) : null}
       {!sessionSidebarOpen && !projectless && onToggleSessionSidebar ? (<div className="flex shrink-0 items-center px-1.5">
           {IS_MAC && railClosed && !compactRail ? (<div className="w-[70px] shrink-0"/>) : null}
-          <IconButton label={`Toggle Session Sidebar (${MOD}${SHIFT}B)`} onClick={onToggleSessionSidebar}>
-            <DashboardSquare className="size-3.5" strokeWidth={1.75}/>
+          <IconButton label={`Show workspace sidebar (${MOD}${SHIFT}B)`} onClick={onToggleSessionSidebar}>
+            <SidebarLeft className="size-3.5" strokeWidth={1.75}/>
           </IconButton>
         </div>) : null}
       {showProjectButton && onSelectProject ? (<CwdPicker cwd={cwd} recents={recents} placement="below" onCwdChange={onSelectProject} buttonClassName="flex h-full min-w-0 max-w-64 shrink items-center gap-2 px-6 text-left text-sm font-medium leading-tight">
