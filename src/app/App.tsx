@@ -403,7 +403,7 @@ function Workspace(boot: BootWorkspace) {
     onClose={(id) => workspace.closeTabs([id])} onCloseMany={workspace.closeTabs}
     onArchiveTab={(id) => { for (const sessionId of leafIds(workspace.tabs.find((tab) => tab.id === id)!.layout).filter((paneId) => sessions.some((session) => session.id === paneId))) void workspace.archiveSession(sessionId, true); }}
     onDeleteTab={(id) => { for (const sessionId of leafIds(workspace.tabs.find((tab) => tab.id === id)!.layout).filter((paneId) => sessions.some((session) => session.id === paneId))) void workspace.removeSession(sessionId); }}
-    onReorder={workspace.reorderTabs} onPin={workspace.pinTab} onOpenSwitcher={openTabSwitcher} idleTabCount={idleIds.length} onCloseIdle={() => workspace.closeTabs(idleIds)} onPlaceOnPane={workspace.placeTab} recents={workspace.recents} onSelectProject={workspace.openProject} />;
+    onReorder={workspace.reorderTabs} onPin={workspace.pinTab} recent={recentTabs.current} onOpenSwitcher={openTabSwitcher} idleTabCount={idleIds.length} onCloseIdle={() => workspace.closeTabs(idleIds)} onPlaceOnPane={workspace.placeTab} recents={workspace.recents} onSelectProject={workspace.openProject} />;
   const sessionPaneProps = {
     recents: workspace.recents, hideProjectPicker: true,
     onFocus: workspace.focusPane, onClose: workspace.closePane, onCwdChange: workspace.changeCwd,
@@ -470,7 +470,7 @@ function Workspace(boot: BootWorkspace) {
             {compactTitleBar ? null : workspaceTitleBar}
             <main className="relative flex min-h-0 min-w-0 flex-1">
               <div className="relative min-h-0 min-w-0 flex-1">
-                {workspace.tabs.map((tab) => <div key={tab.id} aria-hidden={tab.id !== workspace.activeTabId} className={tab.id === workspace.activeTabId ? "absolute inset-0 flex h-full min-h-0 flex-col" : "hidden"}>
+                {workspace.tabs.map((tab) => <div key={tab.id} aria-hidden={tab.id !== workspace.activeTabId} className={tab.id === workspace.activeTabId ? "tab-pane-in absolute inset-0 flex h-full min-h-0 flex-col" : "hidden"}>
                   <PaneTree {...sessionPaneProps} visible={surface === "chat" && tab.id === workspace.activeTabId} layout={tab.layout} sessions={sessions}
                     focusedId={surface === "chat" && tab.id === workspace.activeTabId ? tab.focusedId : ""} composerFocused={surface === "chat"}
                     composerFocusToken={workspace.composerFocusToken} onRatio={workspace.ratio} onMovePane={workspace.movePane} onDetachPane={workspace.detachPane} transcriptPool={transcriptPool}

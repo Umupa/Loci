@@ -60,6 +60,10 @@ function layoutTabs(elements: HTMLElement[]) {
         };
     });
 }
+/** The draggable item a tab button or its close button belongs to. */
+function item(element: Element): HTMLElement {
+    return element.closest<HTMLElement>(".reorder-item")!;
+}
 function workspaceTab(id: string): Tab {
     return {
         id,
@@ -88,15 +92,15 @@ function renderTabs(kind: "workspace", activeId = "first") {
         })));
     }
     const closeButton = container.querySelector('[aria-label="Close second"]')!;
-    const tab = closeButton.parentElement!.querySelector("button")!;
+    const tab = item(closeButton).querySelector("button")!;
     return { onClose, onSelect, onReorder, tab, closeButton };
 }
 describe.each(["workspace"] as const)("%s tab mouse gestures", (kind) => {
     it("moves neighboring tabs during a drag and saves the order after settling", () => {
         vi.useFakeTimers();
         const { tab, onReorder } = renderTabs(kind);
-        const second = tab.parentElement!;
-        const first = container.querySelector('[aria-label="Close first"]')!.parentElement!;
+        const second = item(tab);
+        const first = item(container.querySelector('[aria-label="Close first"]')!);
         layoutTabs([first, second]);
         try {
             pointer(tab, "pointerdown", 150);
@@ -150,8 +154,8 @@ describe.each(["workspace"] as const)("%s tab mouse gestures", (kind) => {
         try {
             act(() => root.render(createElement(Tabs)));
             const closeButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('button[aria-label^="Close "]'));
-            layoutTabs(closeButtons.map((button) => button.parentElement!));
-            const second = closeButtons[1].parentElement!.querySelector("button")!;
+            layoutTabs(closeButtons.map((button) => item(button)));
+            const second = item(closeButtons[1]).querySelector("button")!;
             pointer(second, "pointerdown", 150);
             pointer(window, "pointermove", 30);
             act(() => vi.advanceTimersByTime(32));
@@ -161,7 +165,7 @@ describe.each(["workspace"] as const)("%s tab mouse gestures", (kind) => {
             const thirdClose = container.querySelector('[aria-label="Close third"]')!;
             click(method === "close button"
                 ? thirdClose
-                : thirdClose.parentElement!.querySelector("button")!, method === "close button" ? 0 : 1);
+                : item(thirdClose).querySelector("button")!, method === "close button" ? 0 : 1);
             expect(onClose).toHaveBeenCalledExactlyOnceWith("third");
             act(() => vi.runAllTimers());
             expect(Array.from(container.querySelectorAll('button[aria-label^="Close "]'), (button) => button.getAttribute("aria-label"))).toEqual(["Close second", "Close first"]);
@@ -195,7 +199,7 @@ describe.each(["workspace"] as const)("%s tab mouse gestures", (kind) => {
         const element = target === "icon"
             ? tab.firstElementChild!
             : target === "padding"
-                ? tab.parentElement!
+                ? item(tab)
                 : closeButton;
         const { down, up } = click(element, 1);
         expect(down.defaultPrevented).toBe(true);

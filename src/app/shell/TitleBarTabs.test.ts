@@ -46,19 +46,85 @@ afterEach(() => {
 });
 
 describe("tab strip density", () => {
+  it("keeps the active highlight aligned after a resize without changing tabs or density", () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    let clock = 1000;
+    let resizeStrip = () => {};
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.set(++frameId, callback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(element: Element) {
+        if (element.hasAttribute("data-title-tab-strip")) resizeStrip = () => this.callback([], this as unknown as ResizeObserver);
+      }
+      disconnect() {}
+    });
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const id = this.closest("[data-title-tab-id]")?.getAttribute("data-title-tab-id");
+      const width = id ? Math.min(224, (stripWidth - 16) / 4 - 2) : stripWidth;
+      const left = id ? 6 + Number(id.slice(1)) * (width + 2) : 0;
+      return { x: left, y: 0, left, top: 0, width, height: 30, right: left + width, bottom: 30, toJSON() {} };
+    });
+    const settleHighlight = () => {
+      for (let count = 0; count < 120 && frames.size; count += 1) {
+        clock += 16;
+        const due = [...frames.values()];
+        frames.clear();
+        act(() => due.forEach((callback) => callback(clock)));
+      }
+    };
+    stripWidth = 1000;
+    render(many(4));
+    settleHighlight();
+    const pill = container.querySelector<HTMLElement>("[data-tab-pill]")!;
+    expect(pill.style.width).toBe("224px");
+    expect(frames.size).toBe(0);
+    stripWidth = 600;
+    act(() => resizeStrip());
+    settleHighlight();
+    expect(variants()).toEqual(Array(4).fill("full"));
+    const target = container.querySelector('[data-title-tab-id="t2"]')!.getBoundingClientRect();
+    expect(parseFloat(pill.style.width)).toBe(target.width);
+    expect(pill.style.transform).toBe(`translateX(${target.left}px)`);
+  });
+
   it("shows every title while they all fit", () => {
     stripWidth = 1400;
     render(many(6));
     expect(variants()).toEqual(Array(6).fill("full"));
   });
 
-  it("folds idle tabs to icons, keeping the active tab's title, once titles would be slivers", () => {
+  it("folds only as many tabs as it takes: the ones that still fit keep their title", () => {
     stripWidth = 700;
-    render(many(12));
-    const shown = variants();
-    expect(shown.filter((variant) => variant === "full")).toHaveLength(1);
-    expect(container.querySelector('[data-title-tab-id="t2"] [data-tab-variant="full"]')).not.toBeNull();
+    render(many(12), { recent: ["t2", "t7"] });
+    const titled = [...container.querySelectorAll<HTMLElement>('[data-tab-variant="full"]')].map((el) => el.closest<HTMLElement>("[data-title-tab-id]")!.dataset.titleTabId);
+    // The tab in view, and the one used just before it.
+    expect(titled).toEqual(["t2", "t7"]);
     expect(container.querySelector('[data-title-tab-id="t5"] [data-tab-variant="icon"]')).not.toBeNull();
+    // A wider strip keeps more titles, and once all fit none are folded.
+    stripWidth = 1100;
+    render(many(12), { recent: ["t2", "t7"] });
+    expect(variants().filter((variant) => variant === "full").length).toBeGreaterThan(2);
+    stripWidth = 1700;
+    render(many(12), { recent: ["t2", "t7"] });
+    expect(variants()).toEqual(Array(12).fill("full"));
+  });
+
+  it("does not reshuffle which tabs have titles while moving among them", () => {
+    stripWidth = 700;
+    const tabs = many(12);
+    render(tabs, { activeId: "t2", recent: ["t2", "t7"] });
+    render(tabs, { activeId: "t7", recent: ["t7", "t2"] });
+    const titled = () => [...container.querySelectorAll<HTMLElement>('[data-tab-variant="full"]')].map((el) => el.closest<HTMLElement>("[data-title-tab-id]")!.dataset.titleTabId);
+    expect(titled()).toEqual(["t2", "t7"]);
+    // A tab from outside the group takes the place of the one used longest ago.
+    render(tabs, { activeId: "t10", recent: ["t10", "t7", "t2"] });
+    expect(titled()).toEqual(["t7", "t10"]);
   });
 
   it("keeps pinned tabs as icons ahead of a divider, whatever the room", () => {

@@ -40,6 +40,7 @@ type Props = {
     notesEnabled?: boolean;
     onOpenNotes?: () => void;
     notesActive?: boolean;
+    /** Drawings remain reachable when there is no project workspace to browse. */
     onOpenCanvases?: () => void;
     canvasesActive?: boolean;
     onTogglePanel?: () => void;
@@ -203,7 +204,7 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
             <RailSearch label="Search" icon={Search} onClick={onSearch} active={searchActive} shortcut={`${MOD}K`} ariaLabel={`Search (${MOD}K)`}/>
             <div className="mt-0.5"/>
 
-            {onOpenCanvases ? <RailAction label="Excalidraw" icon={ExcalidrawIcon} onClick={onOpenCanvases} active={canvasesActive}/> : null}
+            {onOpenCanvases ? (<RailAction label="Canvas" icon={ExcalidrawIcon} onClick={onOpenCanvases} active={canvasesActive} ariaLabel="Canvas"/>) : null}
             {notesEnabled ? (<RailAction label="Notes" icon={File} onClick={onOpenNotes} active={notesActive} ariaLabel="Notes"/>) : null}
 
           </div>

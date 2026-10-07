@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, createElement, type ComponentProps } from "react";
+import { act, createElement, StrictMode, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tab } from "../../features/workspace/model/tabSummary";
@@ -21,8 +21,22 @@ const tabs = [
 function handlers() {
   return { onActivate: vi.fn(), onCloseTabs: vi.fn(), onParkTabs: vi.fn(), onPinTabs: vi.fn(), onDismiss: vi.fn() };
 }
-function render(props: ReturnType<typeof handlers> & Partial<ComponentProps<typeof TabOverview>>) {
-  act(() => root.render(createElement(TabOverview, { tabs, activeId: "a", projectPath: "/p/loci", recent: ["a"], ...props })));
+function render(props: ReturnType<typeof handlers> & Partial<ComponentProps<typeof TabOverview>>, strict = false) {
+  const overview = createElement(TabOverview, { tabs, activeId: "a", projectPath: "/p/loci", recent: ["a"], ...props });
+  act(() => root.render(strict ? createElement(StrictMode, null, overview) : overview));
+}
+function mockFlights(width = 800) {
+  const animations: { element: Element; cancel: ReturnType<typeof vi.fn> }[] = [];
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(width);
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ x: 20, y: 100, left: 20, top: 100, width: 248, height: 148, right: 268, bottom: 248, toJSON() {} });
+  vi.spyOn(Element.prototype, "animate").mockImplementation(function (this: Element) {
+    let reject!: (reason: Error) => void;
+    const finished = new Promise<void>((_resolve, rejectPromise) => { reject = rejectPromise; });
+    const cancel = vi.fn(() => reject(new Error("Animation cancelled")));
+    animations.push({ element: this, cancel });
+    return { finished, cancel } as unknown as Animation;
+  });
+  return animations;
 }
 const input = () => document.querySelector<HTMLInputElement>('input[aria-label="Search tabs"]')!;
 const cards = () => [...document.querySelectorAll<HTMLElement>("[data-overview-tab]")];
@@ -37,6 +51,8 @@ function type(text: string) {
     input().dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
+/** Closing waits a moment for the cards to leave. */
+const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 260)); });
 const check = (id: string) => document.querySelector<HTMLElement>(`[data-overview-tab="${id}"] [role="checkbox"]`)!;
 
 beforeEach(() => {
@@ -48,10 +64,38 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("TabOverview", () => {
+  it.each(["search", "scope", "unmount"])("cancels entrance copies and reveals cards on %s", async (change) => {
+    const animations = mockFlights();
+    render(handlers());
+    const originalCards = cards();
+    const entrances = animations.filter(({ element }) => element.getAttribute("aria-hidden") === "true");
+    expect(entrances).toHaveLength(3);
+    expect(entrances.every(({ element }) => element.isConnected)).toBe(true);
+    expect(originalCards.every((card) => card.style.visibility === "hidden")).toBe(true);
+    if (change === "search") type("release");
+    else if (change === "scope") act(() => [...document.querySelectorAll<HTMLElement>('[role="tab"]')].find((el) => el.textContent === "All projects")!.click());
+    else act(() => root.render(null));
+    await act(async () => { await Promise.resolve(); });
+    expect(entrances.every(({ cancel }) => cancel.mock.calls.length === 1)).toBe(true);
+    expect(entrances.every(({ element }) => !element.isConnected)).toBe(true);
+    expect(originalCards.every((card) => card.style.visibility === "")).toBe(true);
+  });
+
+  it.each([{ width: 1048, strict: false }, { width: 800, strict: true }])("keeps the opening flight after initial measurement at $width, StrictMode $strict", async ({ width, strict }) => {
+    const animations = mockFlights(width);
+    render(handlers(), strict);
+    await act(async () => { await Promise.resolve(); });
+    const flying = animations.filter(({ element }) => element.getAttribute("aria-hidden") === "true" && element.isConnected);
+    expect(flying).toHaveLength(3);
+    expect(flying.every(({ cancel }) => cancel.mock.calls.length === 0)).toBe(true);
+    expect(cards().every((card) => card.style.visibility === "hidden")).toBe(true);
+  });
+
   it("opens on this project, what wants you first, saying how many need you or work", () => {
     render(handlers());
     expect(order()).toEqual(["b", "d", "a"]);
@@ -95,7 +139,7 @@ describe("TabOverview", () => {
     expect(document.body.textContent).toContain("No tab matches “zzzz”");
   });
 
-  it("selects with the checkbox, space or a modified click, and acts on all of them at once", () => {
+  it("selects with the checkbox, space or a modified click, and acts on all of them at once", async () => {
     const h = handlers();
     render(h);
     act(() => check("b").click());
@@ -107,6 +151,7 @@ describe("TabOverview", () => {
     const bar = () => document.querySelector("[data-bulk-bar]")!;
     const press = (label: string) => act(() => [...bar().querySelectorAll("button")].find((el) => el.textContent?.includes(label))!.click());
     press("Park");
+    await settle();
     expect(h.onParkTabs).toHaveBeenCalledWith(expect.arrayContaining(["a", "b", "d"]));
     expect(document.querySelector("[data-bulk-bar]")).toBeNull();
   });
@@ -122,21 +167,28 @@ describe("TabOverview", () => {
     expect(document.querySelector("[data-bulk-bar]")?.textContent).toContain("Unpin");
   });
 
-  it("closes the selection, or the card under the cursor, with the shortcut", () => {
+  it("closes the selection, or the card under the cursor, with the shortcut", async () => {
     const h = handlers();
     render(h);
     key("Backspace", { ctrlKey: true });
+    await settle();
     expect(h.onCloseTabs).toHaveBeenLastCalledWith(["b"]);
     act(() => check("a").click());
     act(() => check("d").click());
     key("Backspace", { metaKey: true });
+    await settle();
     expect(h.onCloseTabs).toHaveBeenLastCalledWith(expect.arrayContaining(["a", "d"]));
   });
 
-  it("closes a single card from its own button without opening it", () => {
+  it("closes a single card from its own button, letting it leave first, without opening it", async () => {
     const h = handlers();
     render(h);
     act(() => document.querySelector<HTMLElement>('[data-overview-tab="d"] button[aria-label="Close tab"]')!.click());
+    // The card fades and shrinks while its tab is still open; the others stay put.
+    expect(h.onCloseTabs).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-overview-tab="d"]')?.className).toContain("opacity-0");
+    expect(document.querySelector('[data-overview-tab="b"]')?.className).not.toContain("opacity-0");
+    await settle();
     expect(h.onCloseTabs).toHaveBeenCalledWith(["d"]);
     expect(h.onActivate).not.toHaveBeenCalled();
   });

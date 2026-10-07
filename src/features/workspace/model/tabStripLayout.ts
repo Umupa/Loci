@@ -14,9 +14,13 @@ export const FAMILY_CONNECTOR_WIDTH = 5;
 export const FAMILY_CHIP_WIDTH = 34;
 
 export type TabStripLayout = {
-  /** Idle tabs collapse to icons so the active one can keep its title. */
+  /** Some tabs fold to icons because not every tab can keep a readable title. */
   crowded: boolean;
-  /** Width of the active tab while the strip is crowded. */
+  /** How many unpinned tabs can keep their title; the rest fold to icons. */
+  titledCount: number;
+  /** Width of a tab that keeps its title while the strip is crowded. */
+  titledWidth: number;
+  /** The active tab's width: a titled tab's, plus room for what it carries. */
   activeWidth: number;
   /** Width of an icon tab; narrower than usual when even icons are tight. */
   iconWidth: number;
@@ -26,11 +30,12 @@ export type TabStripLayout = {
 export const MIN_ICON_TAB_WIDTH = 26;
 
 /**
- * How a strip of tabs spends its width. While every unpinned tab can have a
- * readable title, they share the space as before. Past that point they do not
- * shrink further into unreadable slivers: all but the active one fold to
- * icons, and the active one takes what is left. When even that is too much,
- * the icons narrow before the strip gives in and scrolls.
+ * How a strip of tabs spends its width. Every unpinned tab keeps a readable
+ * title for as long as they all fit. Past that, tabs fold to icons only as
+ * many as it takes: as many as the room allows keep their title, and share
+ * what is left, so a wide strip never sits half empty beside a row of icons.
+ * When even one titled tab will not fit, it holds a floor and the icons narrow
+ * before the strip gives in and scrolls.
  */
 export function tabStripLayout({ count, pinned, available, activeExtra = 0 }: {
   count: number;
@@ -43,22 +48,55 @@ export function tabStripLayout({ count, pinned, available, activeExtra = 0 }: {
   const regular = Math.max(0, count - pinned);
   const divider = pinned > 0 && regular > 0 ? PINNED_DIVIDER_WIDTH : 0;
   const fixed = pinned * (ICON_TAB_WIDTH + TAB_GAP) + divider;
-  const wanted = regular * (MIN_TITLE_TAB_WIDTH + TAB_GAP) + activeExtra;
-  if (regular <= 1 || fixed + wanted <= available) {
-    return { crowded: false, activeWidth: MAX_TITLE_TAB_WIDTH, iconWidth: ICON_TAB_WIDTH };
+  const base = available - fixed;
+  if (regular <= 1 || regular * (MIN_TITLE_TAB_WIDTH + TAB_GAP) + activeExtra <= base) {
+    return { crowded: false, titledCount: regular, titledWidth: MAX_TITLE_TAB_WIDTH, activeWidth: MAX_TITLE_TAB_WIDTH, iconWidth: ICON_TAB_WIDTH };
   }
-  const others = (regular - 1) * (ICON_TAB_WIDTH + TAB_GAP);
-  const room = available - fixed - others - TAB_GAP;
+  const iconCost = ICON_TAB_WIDTH + TAB_GAP;
+  const fit = Math.floor((base - regular * iconCost - activeExtra) / (MIN_TITLE_TAB_WIDTH - ICON_TAB_WIDTH));
+  if (fit >= 1) {
+    const titledCount = Math.min(fit, regular - 1);
+    const room = base - (regular - titledCount) * iconCost - activeExtra - titledCount * TAB_GAP;
+    const titledWidth = Math.floor(Math.min(MAX_TITLE_TAB_WIDTH, room / titledCount));
+    return { crowded: true, titledCount, titledWidth, activeWidth: titledWidth + activeExtra, iconWidth: ICON_TAB_WIDTH };
+  }
+  // One titled tab holds its floor and every icon gives up a little width.
   const floor = FLOOR_TITLE_TAB_WIDTH + activeExtra;
-  if (room >= floor) {
-    return { crowded: true, activeWidth: Math.round(Math.min(MAX_TITLE_TAB_WIDTH + activeExtra, room)), iconWidth: ICON_TAB_WIDTH };
-  }
-  // The active tab holds its floor and every icon gives up a little width.
   const icons = count - 1;
   const iconWidth = Math.floor((available - divider - floor - TAB_GAP * count) / icons);
   return {
     crowded: true,
+    titledCount: 1,
+    titledWidth: FLOOR_TITLE_TAB_WIDTH,
     activeWidth: floor,
     iconWidth: Math.max(MIN_ICON_TAB_WIDTH, Math.min(ICON_TAB_WIDTH, iconWidth)),
   };
+}
+
+/**
+ * Which tabs keep their title in a crowded strip: the one in view, and then the
+ * ones used most recently. The choice is sticky, so moving between tabs that
+ * already have titles never reshuffles the strip; only a tab coming from
+ * outside that group takes the place of the one used longest ago.
+ */
+export function chooseTitled({ ids, activeId, recent, capacity, previous }: {
+  /** Unpinned tabs in strip order. */
+  ids: readonly string[];
+  activeId: string;
+  /** Tab ids, most recently used first. */
+  recent: readonly string[];
+  capacity: number;
+  /** The last choice, most recently used first. */
+  previous: readonly string[];
+}): string[] {
+  const live = new Set(ids);
+  const chosen: string[] = [];
+  const add = (id: string) => {
+    if (live.has(id) && !chosen.includes(id)) chosen.push(id);
+  };
+  add(activeId);
+  previous.forEach(add);
+  recent.forEach(add);
+  ids.forEach(add);
+  return chosen.slice(0, Math.max(0, capacity));
 }
