@@ -6,6 +6,10 @@ import { keybindingShortcutLabel, loadKeybindingOverrides, subscribeKeybindings,
 type MenuKey = "file" | "view";
 type Props = {
     onNew: () => void;
+    onSwitchTab?: () => void;
+    onNextAttention?: () => void;
+    onTabOverview?: () => void;
+    onReopenTab?: () => void;
     onToggleSidebar: () => void;
     onToggleSessionSidebar: () => void;
     onCloseCurrentTab?: () => void;
@@ -18,7 +22,7 @@ type Props = {
     onZoomOut?: () => void;
     onZoomReset?: () => void;
 };
-export function MenuBar({ onNew, onToggleSidebar, onToggleSessionSidebar, onCloseCurrentTab, onCloseOtherTabs, onCloseAllTabs, onPickProject, onSearch, onOpenNotes, onZoomIn, onZoomOut, onZoomReset, }: Props) {
+export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, onReopenTab, onToggleSidebar, onToggleSessionSidebar, onCloseCurrentTab, onCloseOtherTabs, onCloseAllTabs, onPickProject, onSearch, onOpenNotes, onZoomIn, onZoomOut, onZoomReset, }: Props) {
     const [open, setOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{
@@ -93,6 +97,18 @@ export function MenuBar({ onNew, onToggleSidebar, onToggleSessionSidebar, onClos
             case "open_notes":
                 onOpenNotes?.();
                 break;
+            case "switch_tab":
+                onSwitchTab?.();
+                break;
+            case "next_attention":
+                onNextAttention?.();
+                break;
+            case "tab_overview":
+                onTabOverview?.();
+                break;
+            case "reopen_tab":
+                onReopenTab?.();
+                break;
             case "close_tab":
                 onCloseCurrentTab?.();
                 break;
@@ -123,6 +139,10 @@ export function MenuBar({ onNew, onToggleSidebar, onToggleSessionSidebar, onClos
         }
     }, [
         closeMenu,
+        onSwitchTab,
+        onNextAttention,
+        onTabOverview,
+        onReopenTab,
         onCloseCurrentTab,
         onCloseOtherTabs,
         onCloseAllTabs,
@@ -145,6 +165,30 @@ export function MenuBar({ onNew, onToggleSidebar, onToggleSessionSidebar, onClos
                         id: "new_tab",
                         label: "New Tab",
                         shortcut: shortcut("Tab: New", `${MOD}T`),
+                    },
+                    {
+                        kind: "item",
+                        id: "switch_tab",
+                        label: "Switch Tab…",
+                        shortcut: shortcut("Tab: Switch", `${MOD}P`),
+                    },
+                    {
+                        kind: "item",
+                        id: "next_attention",
+                        label: "Next Tab Needing You",
+                        shortcut: shortcut("Tab: Next Needing You", `${MOD}J`),
+                    },
+                    {
+                        kind: "item",
+                        id: "tab_overview",
+                        label: "Tab Overview",
+                        shortcut: shortcut("Tab: Overview", `${MOD}${SHIFT}O`),
+                    },
+                    {
+                        kind: "item",
+                        id: "reopen_tab",
+                        label: "Reopen Closed Tab",
+                        shortcut: shortcut("Tab: Reopen Closed", `${MOD}${SHIFT}T`),
                     },
                     {
                         kind: "item",

@@ -1,4 +1,4 @@
-import { LoaderCircle, Plus, Search, File, Trash2, X, ListFilter, ChevronLeft, ChevronRight } from "../../../shared/ui/icons";
+import { LoaderCircle, Plus, Search, File, Trash2, X, ListFilter } from "../../../shared/ui/icons";
 import { ContextMenu, type ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
@@ -17,6 +17,7 @@ import { ProjectLogoIcon } from "../../projects/ui/ProjectLogoIcon";
 import { ProjectMascot } from "../../projects/ui/ProjectMascot";
 import { SearchableProjectPicker } from "../../projects/ui/SearchableProjectPicker";
 import { OverlayNav } from "../../../app/shell/TitleBar";
+import { CollapsiblePane, SecondarySidebarToggle, useSecondarySidebar } from "../../../app/shell/SecondarySidebar";
 import { WindowControls } from "../../../app/shell/WindowControls";
 import { useDragResize } from "../../../shared/hooks/useDragResize";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
@@ -136,7 +137,7 @@ export function NotesView({
   const [renameDraft, setRenameDraft] = useState("");
   const [timeFilter, setTimeFilter] = useState<"all" | "today" | "7d" | "30d">("all");
   const [filterAnchor, setFilterAnchor] = useState<HTMLButtonElement | null>(null);
-  const [listVisible, setListVisible] = useState(true);
+  const [listOpen, toggleList] = useSecondarySidebar("notes");
   const editorActions = useRef<NoteEditorActions | null>(null);
   const registerEditorActions = useCallback((actions: NoteEditorActions | null) => { editorActions.current = actions; }, []);
   const logos = useTabGroupLogos();
@@ -329,15 +330,6 @@ export function NotesView({
             <Plus className="size-3.5" strokeWidth={1.75} />
           )}
         </button>
-        <button
-          type="button"
-          aria-label="Hide notes list"
-          title="Hide notes list"
-          onClick={() => setListVisible(false)}
-          className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content"
-        >
-          <ChevronLeft className="size-3.5" strokeWidth={1.75} />
-        </button>
       </div>
       <div
         ref={listLock}
@@ -424,7 +416,10 @@ export function NotesView({
         {besideRail ? null : (
           <OverlayNav onBack={onClose} onToggleSidebar={onToggleSidebar} />
         )}
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-3 text-[13px]">
+        <div className="flex shrink-0 items-center px-1.5">
+          <SecondarySidebarToggle open={listOpen} onToggle={toggleList} name="notes list" />
+        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-2 pr-3 text-[13px]">
           <File
             className="size-3.5 shrink-0 text-content/45"
             strokeWidth={1.75}
@@ -434,13 +429,7 @@ export function NotesView({
         {IS_MAC ? null : <WindowControls />}
       </div>
       <div className="flex min-h-0 min-w-0 flex-1">
-        {listVisible ? list : (
-          <div className="flex w-6 shrink-0 flex-col items-center border-r border-stroke pt-1">
-            <button type="button" aria-label="Show notes list" title="Show notes list" onClick={() => setListVisible(true)} className="grid size-5 place-items-center rounded text-content/45 hover:bg-content/10 hover:text-content">
-              <ChevronRight className="size-3.5" strokeWidth={1.75} />
-            </button>
-          </div>
-        )}
+        <CollapsiblePane open={listOpen}>{list}</CollapsiblePane>
         <NoteDetail
           note={selected}
           recents={recents}

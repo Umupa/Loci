@@ -6,6 +6,7 @@ import { newSession, type Session } from "../../features/sessions/model/session"
 import { leafIds, newTab, splitPane, type WorkspaceTab } from "../../features/workspace/model/layout";
 import { rememberProject } from "../../features/projects/model/recents";
 import type { SessionSummary } from "../../features/sessions/data/sessionStore";
+import { closedTabs } from "../../features/workspace/model/closedTabs";
 import { useAppWorkspace } from "./useAppWorkspace";
 
 const mocks = vi.hoisted(() => ({
@@ -364,5 +365,110 @@ describe("workspace lifecycle integration", () => {
     expect(await workspace.loadSession(first.id)).toBeNull();
     expect((await workspace.loadSession(second.id))?.id).toBe(second.id);
     expect(workspace.error).toContain("database unavailable");
+  });
+});
+
+describe("tab lifecycle", () => {
+  beforeEach(() => { closedTabs.clear(); });
+
+  it("goes to the empty tab that is already waiting instead of opening another", async () => {
+    const work = chat("work", "/alpha");
+    const empty = chat("empty", "/alpha", "");
+    await mount([work, empty]);
+    const count = workspace.tabs.length;
+    await act(async () => { workspace.createSession("/alpha"); });
+    expect(workspace.tabs).toHaveLength(count);
+    expect(workspace.activeSession?.id).toBe("empty");
+    // Without a waiting empty tab, it opens one; and then reuses that.
+    await act(async () => { workspace.createSession("/beta"); });
+    const afterFirst = workspace.tabs.length;
+    expect(afterFirst).toBe(count + 1);
+    await act(async () => { workspace.createSession("/beta"); });
+    expect(workspace.tabs).toHaveLength(afterFirst);
+  });
+
+  it("remembers a closed tab and puts it back with its conversation", async () => {
+    const first = chat("first");
+    const second = chat("second");
+    records.set(first.id, first);
+    await mount([first, second]);
+    const closing = workspace.tabs.find((tab) => leafIds(tab.layout).includes(first.id))!;
+    await act(async () => { workspace.closeTabs([closing.id]); });
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes(first.id))).toBe(false);
+    expect(closedTabs.history()).toHaveLength(1);
+    expect(closedTabs.notice()).toMatchObject({ count: 1, title: "first" });
+
+    let restored = false;
+    await act(async () => { restored = await workspace.reopenClosed("latest"); });
+    expect(restored).toBe(true);
+    expect(workspace.activeSession?.id).toBe(first.id);
+    expect(closedTabs.history()).toHaveLength(0);
+  });
+
+  it("brings tabs closed together back together, and keeps a pin", async () => {
+    const [a, b, c] = [chat("a"), chat("b"), chat("c")];
+    for (const session of [a, b, c]) records.set(session.id, session);
+    await mount([a, b, c]);
+    const tabIdOf = (id: string) => workspace.tabs.find((tab) => leafIds(tab.layout).includes(id))!.id;
+    await act(async () => { workspace.pinTab(tabIdOf("a"), true); });
+    expect(workspace.tabs[0].pinned).toBe(true);
+    await act(async () => { workspace.closeTabs([tabIdOf("a"), tabIdOf("b")]); });
+    expect(closedTabs.notice()).toMatchObject({ count: 2 });
+    await act(async () => { await workspace.reopenClosed("latest"); });
+    const restored = workspace.tabs.filter((tab) => leafIds(tab.layout).some((id) => id === "a" || id === "b"));
+    expect(restored).toHaveLength(2);
+    expect(workspace.tabs.find((tab) => leafIds(tab.layout).includes("a"))?.pinned).toBe(true);
+    expect(workspace.tabs[0].pinned).toBe(true);
+  });
+
+  it("does not remember a tab that never held anything", async () => {
+    const work = chat("work");
+    const empty = chat("empty", "/alpha", "");
+    await mount([work, empty]);
+    const emptyTab = workspace.tabs.find((tab) => leafIds(tab.layout).includes("empty"))!;
+    await act(async () => { workspace.closeTabs([emptyTab.id]); });
+    expect(closedTabs.history()).toHaveLength(0);
+    expect(closedTabs.notice()).toBeNull();
+  });
+
+  it("leaves out a conversation that has since been opened elsewhere", async () => {
+    const first = chat("first");
+    const second = chat("second");
+    records.set(first.id, first);
+    await mount([first, second]);
+    const closing = workspace.tabs.find((tab) => leafIds(tab.layout).includes(first.id))!;
+    await act(async () => { workspace.closeTabs([closing.id]); });
+    await act(async () => { await workspace.openSession(first.id); });
+    const count = workspace.tabs.length;
+    await act(async () => { await workspace.reopenClosed("latest"); });
+    expect(workspace.tabs).toHaveLength(count);
+  });
+
+  it("puts tabs away without losing them, and keeps them out of a plain reopen", async () => {
+    const [a, b, c] = [chat("a"), chat("b"), chat("c")];
+    for (const session of [a, b, c]) records.set(session.id, session);
+    await mount([a, b, c]);
+    const tabIdOf = (id: string) => workspace.tabs.find((tab) => leafIds(tab.layout).includes(id))!.id;
+    await act(async () => { workspace.closeTabs([tabIdOf("b")]); });
+    await act(async () => { workspace.closeTabs([tabIdOf("c")], undefined, { parked: true }); });
+    expect(closedTabs.notice()).toMatchObject({ parked: true, count: 1 });
+    // ⌘⇧T brings back what the user closed, not what was put away.
+    await act(async () => { await workspace.reopenClosed("latest"); });
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes("b"))).toBe(true);
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes("c"))).toBe(false);
+    // The parked tab is still there to restore by name.
+    const batch = closedTabs.history().find((entry) => entry.parked)!.batch;
+    await act(async () => { await workspace.reopenClosed(batch); });
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes("c"))).toBe(true);
+  });
+
+  it("keeps pinned tabs ahead when the strip is reordered", async () => {
+    const [a, b, c] = [chat("a"), chat("b"), chat("c")];
+    await mount([a, b, c]);
+    const ids = workspace.tabs.map((tab) => tab.id);
+    await act(async () => { workspace.pinTab(ids[2], true); });
+    expect(workspace.tabs.map((tab) => tab.id)).toEqual([ids[2], ids[0], ids[1]]);
+    await act(async () => { workspace.reorderTabs([ids[0], ids[1], ids[2]]); });
+    expect(workspace.tabs[0].id).toBe(ids[2]);
   });
 });

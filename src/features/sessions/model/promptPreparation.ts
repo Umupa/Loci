@@ -1,4 +1,5 @@
 import { applyNotesToTurn } from "../../notes";
+import { applyMentionsToTurn } from "./mentionSources";
 import {
   applySkillsToTurn,
   warmNativeSkills,
@@ -14,6 +15,8 @@ export async function preparePrompt(
   warmNativeSkills(context);
   if (isNativeCommandPrompt(text, context.harness))
     return nativeCommandPrompt(context.harness, text);
-  const withNotes = await applyNotesToTurn(text);
+  // Mentions first: a note's body is attached afterwards and must not be rescanned.
+  const withMentions = text.includes("@") ? await applyMentionsToTurn(text, context.cwd) : text;
+  const withNotes = await applyNotesToTurn(withMentions);
   return applySkillsToTurn(withNotes, context);
 }

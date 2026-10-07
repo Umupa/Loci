@@ -1,5 +1,5 @@
 import { markTurnInterrupted, type ResumedWorkspace } from "../../sessions/model/inFlight";
-import { layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
+import { fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
 import { workspaceTabCwd } from "./workspaceTabGroups";
 import { pathKey } from "../../../shared/lib/paths";
 import { reconcileProjectReturn, type ProjectReturnMemory } from "../../projects/model/projectReturn";
@@ -217,16 +217,18 @@ function sanitizeStub(raw: unknown): WorkspaceSessionStub | null {
             : {}),
     };
 }
-function sanitizeLayout(raw: unknown): LayoutNode | null {
+export function sanitizeLayout(raw: unknown): LayoutNode | null {
     if (!raw || typeof raw !== "object")
         return null;
     const value = raw as Record<string, unknown>;
     if (value.type === "leaf") {
-        if (value.leafKind !== undefined && value.leafKind !== "canvas")
+        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file")
             return null;
-        return typeof value.id === "string" && value.id
-            ? { type: "leaf", id: value.id, ...(value.leafKind === "canvas" ? { leafKind: value.leafKind } : {}) }
-            : null;
+        if (typeof value.id !== "string" || !value.id)
+            return null;
+        if (value.leafKind === "file")
+            return fileLeaf(filePanePath(value.id), value.preview === true);
+        return { type: "leaf", id: value.id, ...(value.leafKind === "canvas" ? { leafKind: value.leafKind } : {}) };
     }
     if (value.type !== "split" || typeof value.id !== "string" || !value.id) {
         return null;
@@ -290,5 +292,5 @@ function sanitizeTab(raw: unknown): WorkspaceTab | null {
  const layout = sanitizeLayout(value.layout);
  if (!layout) return null;
  const ids = leafIds(layout);
- return {kind:"session", id:value.id, layout, focusedId: typeof value.focusedId === "string" && ids.includes(value.focusedId) ? value.focusedId : ids[0], ...(typeof value.cwd === "string" && value.cwd ? {cwd:value.cwd} : {}), ...(typeof value.groupId === "string" && value.groupId ? {groupId:value.groupId} : {})};
+ return {kind:"session", id:value.id, layout, focusedId: typeof value.focusedId === "string" && ids.includes(value.focusedId) ? value.focusedId : ids[0], ...(typeof value.cwd === "string" && value.cwd ? {cwd:value.cwd} : {}), ...(typeof value.groupId === "string" && value.groupId ? {groupId:value.groupId} : {}), ...(value.pinned === true ? {pinned:true} : {})};
 }

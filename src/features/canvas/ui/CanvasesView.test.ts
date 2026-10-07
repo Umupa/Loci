@@ -70,3 +70,34 @@ it("says why agents cannot draw only when the built-in server cannot start", asy
   await render();
   expect(container.querySelector('[role="status"]')?.textContent).toBe("Agents cannot draw yet. Excalidraw drawing tools need Node.js 20.11 or newer (or Bun) on your PATH.");
 });
+const slide = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+const toggle = () => container.querySelector<HTMLButtonElement>('button[aria-label$="drawings list (Ctrl+Shift+B)"], button[aria-label$="drawings list (⌘⇧B)"]');
+it("folds the drawings list away completely and brings it back from the same button", async () => {
+  localStorage.clear();
+  await render();
+  expect(container.querySelector('aside[aria-label="Drawings"]')).not.toBeNull();
+  expect(toggle()?.getAttribute("aria-pressed")).toBe("true");
+  await act(async () => toggle()!.click());
+  await slide();
+  // Nothing is left behind: no list, no resize handle, and no strip for a reopen arrow.
+  expect(container.querySelector('aside[aria-label="Drawings"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Resize drawings list"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Show drawings list"]')).toBeNull();
+  expect(toggle()?.getAttribute("aria-pressed")).toBeNull();
+  expect(selected()).toBe("current");
+  await act(async () => toggle()!.click());
+  expect(container.querySelector('aside[aria-label="Drawings"]')).not.toBeNull();
+});
+it("remembers the folded list and folds on the toggle shortcut", async () => {
+  localStorage.clear();
+  await render();
+  await act(async () => { window.dispatchEvent(new Event("loci:toggle-secondary-sidebar")); });
+  await slide();
+  expect(container.querySelector('aside[aria-label="Drawings"]')).toBeNull();
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await render();
+  expect(container.querySelector('aside[aria-label="Drawings"]')).toBeNull();
+  await act(async () => toggle()!.click());
+  expect(container.querySelector('aside[aria-label="Drawings"]')).not.toBeNull();
+});

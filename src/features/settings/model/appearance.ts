@@ -745,6 +745,17 @@ export function saveSessionSidebarOpen(value: boolean) {
   writeFlag(SESSION_SIDEBAR_OPEN_KEY, value);
 }
 
+/** Which list-and-content pages keep their list column open. */
+export type SecondarySidebarId = "notes" | "canvases";
+
+export function loadSecondarySidebarOpen(id: SecondarySidebarId): boolean {
+  return readFlag(`loci.${id}ListOpen`) ?? true;
+}
+
+export function saveSecondarySidebarOpen(id: SecondarySidebarId, value: boolean) {
+  writeFlag(`loci.${id}ListOpen`, value);
+}
+
 export function loadProjectRailWidth(): number {
   return Math.round(
     clamp(

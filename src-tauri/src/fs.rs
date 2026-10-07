@@ -13,6 +13,8 @@ use crate::dirs_home;
 pub(crate) const MAX_TEXT_FILE_BYTES: u64 = 8 * 1024 * 1024;
 pub(crate) const MAX_ATTACHMENT_EMBED_BYTES: u64 = 20 * 1024 * 1024;
 pub(crate) const MAX_PREVIEW_BYTES: u64 = 25 * 1024 * 1024;
+/// Documents opened in a file pane; a scanned book runs far past a preview image.
+const MAX_DOCUMENT_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_GENERATED_IMAGE_BYTES: u64 = 25 * 1024 * 1024;
 const MAX_GENERATED_IMAGE_DATA_BYTES: u64 = MAX_GENERATED_IMAGE_BYTES * 4 / 3 + 4;
 const GENERATED_IMAGE_DIR: &str = "generated-images";
@@ -399,6 +401,30 @@ fn read_binary_file_sync(path: &str) -> Result<Vec<u8>, String> {
     std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Raw bytes of a document shown in a file pane (PDF).
+#[tauri::command]
+pub async fn read_document_file(path: String) -> Result<tauri::ipc::Response, String> {
+    tauri::async_runtime::spawn_blocking(move || read_document_file_sync(&path))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(tauri::ipc::Response::new)
+}
+
+fn read_document_file_sync(path: &str) -> Result<Vec<u8>, String> {
+    let path = expand_home(path);
+    let meta = std::fs::metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    if !meta.is_file() {
+        return Err("Not a file".into());
+    }
+    if meta.len() > MAX_DOCUMENT_BYTES {
+        return Err(format!(
+            "File is too large to open (maximum {} MB).",
+            MAX_DOCUMENT_BYTES / 1024 / 1024
+        ));
+    }
+    std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
 /// Persist a pasted blob so non-image attachments have a real path.
 #[tauri::command]
 pub async fn write_attachment(name: String, data: String) -> Result<String, String> {
@@ -693,6 +719,395 @@ pub async fn delete_path(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
 }
 
+#[derive(Serialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntry {
+    name: String,
+    path: String,
+    is_dir: bool,
+    /// Dotfiles: hidden from the Files tree unless the user asks for them.
+    hidden: bool,
+}
+
+/// Immediate children of `path` (project tree). Folders first, then files.
+#[tauri::command(async)]
+pub fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
+    list_dir_sync(&expand_home(&path))
+}
+
+fn list_dir_sync(dir: &Path) -> Result<Vec<DirEntry>, String> {
+    let reader = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+
+    let mut out = Vec::new();
+    for ent in reader {
+        let Ok(ent) = ent else { continue };
+        let name = ent.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if name == ".DS_Store" {
+            continue;
+        }
+        let path = ent.path();
+        let is_dir = ent
+            .file_type()
+            .map(|t| t.is_dir() || (t.is_symlink() && path.is_dir()))
+            .unwrap_or_else(|_| path.is_dir());
+        out.push(DirEntry {
+            hidden: name.starts_with('.'),
+            name: name.to_string(),
+            path: path_to_js(&path),
+            is_dir,
+        });
+    }
+
+    out.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| compare_natural_names(&a.name, &b.name))
+    });
+    Ok(out)
+}
+
+const MAX_PROJECT_FILES: usize = 20_000;
+const MAX_WALK_DIRS: usize = 4_000;
+
+#[derive(Serialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectFile {
+    name: String,
+    path: String,
+    relative: String,
+    is_dir: bool,
+}
+
+/// Every file and folder under `cwd`, for finding by name or path. The walk is
+/// breadth-first and bounded, and never descends into dot folders or
+/// `node_modules`, so a large folder still answers quickly.
+#[tauri::command]
+pub async fn list_project_files(cwd: String) -> Result<Vec<ProjectFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || list_project_files_sync(&expand_home(&cwd)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn list_project_files_sync(root: &Path) -> Result<Vec<ProjectFile>, String> {
+    if !root.is_dir() {
+        return Err(format!("{}: Not a directory", root.display()));
+    }
+    let mut out = Vec::new();
+    let mut queue = std::collections::VecDeque::from([root.to_path_buf()]);
+    let mut walked = 0;
+    while let Some(dir) = queue.pop_front() {
+        walked += 1;
+        if walked > MAX_WALK_DIRS {
+            break;
+        }
+        let Ok(entries) = list_dir_sync(&dir) else {
+            continue;
+        };
+        for entry in entries {
+            if entry.hidden || (entry.is_dir && entry.name == "node_modules") {
+                continue;
+            }
+            let path = PathBuf::from(&entry.path);
+            let Ok(relative) = path.strip_prefix(root) else {
+                continue;
+            };
+            if out.len() >= MAX_PROJECT_FILES {
+                return Ok(out);
+            }
+            out.push(ProjectFile {
+                relative: path_to_js(relative),
+                name: entry.name,
+                path: entry.path,
+                is_dir: entry.is_dir,
+            });
+            if entry.is_dir {
+                queue.push_back(path);
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn compare_natural_names(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    let (mut i, mut j) = (0, 0);
+    while i < a.len() && j < b.len() {
+        if a[i].is_ascii_digit() && b[j].is_ascii_digit() {
+            let a_start = i;
+            let b_start = j;
+            while i < a.len() && a[i].is_ascii_digit() {
+                i += 1;
+            }
+            while j < b.len() && b[j].is_ascii_digit() {
+                j += 1;
+            }
+            let a_digits = &a[a_start..i];
+            let b_digits = &b[b_start..j];
+            let a_value = a_digits
+                .iter()
+                .position(|digit| *digit != b'0')
+                .map_or(&a_digits[a_digits.len()..], |start| &a_digits[start..]);
+            let b_value = b_digits
+                .iter()
+                .position(|digit| *digit != b'0')
+                .map_or(&b_digits[b_digits.len()..], |start| &b_digits[start..]);
+            let order = a_value
+                .len()
+                .cmp(&b_value.len())
+                .then_with(|| a_value.cmp(b_value));
+            if order != Ordering::Equal {
+                return order;
+            }
+        } else {
+            let order = a[i].to_ascii_lowercase().cmp(&b[j].to_ascii_lowercase());
+            if order != Ordering::Equal {
+                return order;
+            }
+            i += 1;
+            j += 1;
+        }
+    }
+    (a.len() - i).cmp(&(b.len() - j)).then_with(|| a.cmp(b))
+}
+
+const MAX_STAT_FILES: usize = 64;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileMtime {
+    path: String,
+    mtime_ms: Option<u64>,
+}
+
+fn file_mtime_ms(meta: &std::fs::Metadata) -> Option<u64> {
+    meta.modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+}
+
+/// Metadata only — used to notice disk changes on currently open editors.
+#[tauri::command(async)]
+pub fn stat_files(paths: Vec<String>) -> Result<Vec<FileMtime>, String> {
+    if paths.len() > MAX_STAT_FILES {
+        return Err("Too many paths".into());
+    }
+    Ok(paths
+        .into_iter()
+        .map(|path| {
+            let expanded = expand_home(&path);
+            let mtime_ms = std::fs::metadata(&expanded)
+                .ok()
+                .filter(|meta| meta.is_file())
+                .and_then(|meta| file_mtime_ms(&meta));
+            FileMtime { path, mtime_ms }
+        })
+        .collect())
+}
+
+fn same_entry(a: &Path, b: &Path) -> bool {
+    if a == b {
+        return true;
+    }
+    let Ok(a_meta) = std::fs::metadata(a) else {
+        return false;
+    };
+    let Ok(b_meta) = std::fs::metadata(b) else {
+        return false;
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        a_meta.dev() == b_meta.dev() && a_meta.ino() == b_meta.ino()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (a_meta, b_meta);
+        match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+            (Ok(left), Ok(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
+fn split_stem_ext(name: &str) -> (&str, &str) {
+    match name.rfind('.') {
+        Some(i) if i > 0 => (&name[..i], &name[i..]),
+        _ => (name, ""),
+    }
+}
+
+fn unique_name_in(dir: &Path, name: &str) -> String {
+    let (stem, ext) = split_stem_ext(name);
+    let mut n = 0u32;
+    loop {
+        let candidate = match n {
+            0 => name.to_string(),
+            1 => format!("{stem} copy{ext}"),
+            _ => format!("{stem} copy {n}{ext}"),
+        };
+        if !dir.join(&candidate).exists() {
+            return candidate;
+        }
+        n += 1;
+        if n > 1000 {
+            let stamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            return format!("{stem} copy {stamp}{ext}");
+        }
+    }
+}
+
+fn copy_recursive(from: &Path, to: &Path) -> Result<(), String> {
+    let meta = std::fs::metadata(from).map_err(|e| format!("{}: {e}", from.display()))?;
+    if meta.is_dir() {
+        std::fs::create_dir(to).map_err(|e| format!("{}: {e}", to.display()))?;
+        for ent in std::fs::read_dir(from).map_err(|e| format!("{}: {e}", from.display()))? {
+            let ent = ent.map_err(|e| e.to_string())?;
+            copy_recursive(&ent.path(), &to.join(ent.file_name()))?;
+        }
+        Ok(())
+    } else {
+        std::fs::copy(from, to)
+            .map(|_| ())
+            .map_err(|e| format!("{}: {e}", to.display()))
+    }
+}
+
+fn rename_path_sync(path: &str, name: &str) -> Result<String, String> {
+    let from = expand_home(path);
+    if !from.exists() {
+        return Err(format!("{}: No such file or directory", from.display()));
+    }
+    let parent = from
+        .parent()
+        .ok_or_else(|| "File has no parent directory.".to_string())?;
+    let dest = resolve_under(parent, name)?;
+    if same_entry(&from, &dest) {
+        if from == dest {
+            return Ok(from.to_string_lossy().into_owned());
+        }
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let tmp = parent.join(format!(".{}.loci-rename-{stamp}", file_label(&from, "tmp")));
+        std::fs::rename(&from, &tmp).map_err(|e| e.to_string())?;
+        if let Err(e) = std::fs::rename(&tmp, &dest) {
+            let _ = std::fs::rename(&tmp, &from);
+            return Err(e.to_string());
+        }
+        return Ok(dest.to_string_lossy().into_owned());
+    }
+    if dest.exists() {
+        return Err(already_exists(&file_label(&dest, name)));
+    }
+    if dest.starts_with(&from) {
+        return Err("Cannot move a folder into itself.".into());
+    }
+    if let Some(dir) = dest.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::rename(&from, &dest).map_err(|e| e.to_string())?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+/// Rename `path` to `name` (relative to the current parent; `/` nests).
+#[tauri::command]
+pub async fn rename_path(path: String, name: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || rename_path_sync(&path, &name))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn trash_path_sync(path: &str) -> Result<(), String> {
+    let path = expand_home(path);
+    if std::fs::symlink_metadata(&path).is_err() {
+        return Err(format!("{}: No such file or directory", path.display()));
+    }
+    trash::delete(&path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Move a file or folder to the system trash, so a delete from the Files tree
+/// can be undone the way it can in the system file manager.
+#[tauri::command]
+pub async fn trash_path(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || trash_path_sync(&path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn dir_contains(dir: &Path, dest_parent: &Path) -> bool {
+    let dir = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    let dest_parent =
+        std::fs::canonicalize(dest_parent).unwrap_or_else(|_| dest_parent.to_path_buf());
+    dest_parent.starts_with(&dir)
+}
+
+fn copy_path_sync(from: &str, dest_parent: &str) -> Result<String, String> {
+    let from = expand_home(from);
+    if !from.exists() {
+        return Err(format!("{}: No such file or directory", from.display()));
+    }
+    let dest_parent = expand_home(dest_parent);
+    if !dest_parent.is_dir() {
+        return Err(format!("{} is not a folder", dest_parent.display()));
+    }
+    if from.is_dir() && dir_contains(&from, &dest_parent) {
+        return Err("Cannot paste a folder into itself.".into());
+    }
+    let name = unique_name_in(
+        &dest_parent,
+        &file_label(&from, from.to_str().unwrap_or("copy")),
+    );
+    let dest = dest_parent.join(&name);
+    copy_recursive(&from, &dest)?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub async fn copy_path(from: String, dest_parent: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || copy_path_sync(&from, &dest_parent))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn move_path_sync(from: &str, dest_parent: &str) -> Result<String, String> {
+    let from = expand_home(from);
+    if !from.exists() {
+        return Err(format!("{}: No such file or directory", from.display()));
+    }
+    let dest_parent = expand_home(dest_parent);
+    if !dest_parent.is_dir() {
+        return Err(format!("{} is not a folder", dest_parent.display()));
+    }
+    if from.is_dir() && dir_contains(&from, &dest_parent) {
+        return Err("Cannot paste a folder into itself.".into());
+    }
+    let name = file_label(&from, from.to_str().unwrap_or("item"));
+    let dest = dest_parent.join(&name);
+    if same_entry(&from, &dest) {
+        return Ok(from.to_string_lossy().into_owned());
+    }
+    if dest.exists() {
+        return Err(already_exists(&name));
+    }
+    std::fs::rename(&from, &dest).map_err(|e| e.to_string())?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub async fn move_path(from: String, dest_parent: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || move_path_sync(&from, &dest_parent))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub fn reveal_path(path: String) -> Result<(), String> {
     let path = expand_home(&path);
@@ -911,6 +1326,114 @@ mod tests {
         assert_eq!(
             commands,
             HashMap::from([("toolu_one".into(), "npm test".into())])
+        );
+    }
+    #[test]
+    fn list_dir_sorts_naturally_with_folders_first_and_marks_dotfiles() {
+        let dir = tmp("list-dir-natural-sort");
+        for name in [
+            "chapter-100.md",
+            "chapter-9.md",
+            "Chapter-2.md",
+            ".env",
+            ".DS_Store",
+        ] {
+            std::fs::write(dir.0.join(name), "").unwrap();
+        }
+        for name in ["volume-10", "volume-2"] {
+            std::fs::create_dir(dir.0.join(name)).unwrap();
+        }
+
+        let entries = list_dir_sync(&dir.0).unwrap();
+        let names: Vec<_> = entries.iter().map(|entry| entry.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "volume-2",
+                "volume-10",
+                ".env",
+                "Chapter-2.md",
+                "chapter-9.md",
+                "chapter-100.md",
+            ]
+        );
+        let hidden: Vec<_> = entries
+            .iter()
+            .filter(|e| e.hidden)
+            .map(|e| e.name.as_str())
+            .collect();
+        assert_eq!(hidden, [".env"]);
+        assert!(entries[0].is_dir && !entries[2].is_dir);
+    }
+
+    #[test]
+    fn stat_files_returns_mtime_for_existing_files_only() {
+        let dir = tmp("stat-files");
+        let path = dir.0.join("notes.md");
+        std::fs::write(&path, "hi\n").unwrap();
+        let path_string = path.to_string_lossy().into_owned();
+        let missing = dir.0.join("gone.md").to_string_lossy().into_owned();
+
+        let stats = stat_files(vec![path_string.clone(), missing.clone()]).unwrap();
+        assert_eq!(stats[0].path, path_string);
+        assert!(stats[0].mtime_ms.is_some());
+        assert_eq!(stats[1].path, missing);
+        assert!(stats[1].mtime_ms.is_none());
+    }
+
+    #[test]
+    fn rename_copy_and_move_keep_existing_entries() {
+        let dir = tmp("rename-copy-move");
+        let root = dir.0.to_string_lossy().into_owned();
+        let report = dir.0.join("report.pdf");
+        std::fs::write(&report, "pdf").unwrap();
+        std::fs::write(dir.0.join("taken.pdf"), "other").unwrap();
+        std::fs::create_dir(dir.0.join("archive")).unwrap();
+        let report = report.to_string_lossy().into_owned();
+
+        assert!(rename_path_sync(&report, "taken.pdf").is_err());
+        let renamed = rename_path_sync(&report, "final.pdf").unwrap();
+        assert!(renamed.ends_with("final.pdf"));
+
+        let copy = copy_path_sync(&renamed, &root).unwrap();
+        assert!(copy.ends_with("final copy.pdf"));
+
+        let archive = dir.0.join("archive").to_string_lossy().into_owned();
+        let moved = move_path_sync(&renamed, &archive).unwrap();
+        assert_eq!(std::fs::read_to_string(&moved).unwrap(), "pdf");
+        assert!(!Path::new(&renamed).exists());
+        assert!(move_path_sync(&archive, &archive).is_err());
+        assert!(copy_path_sync(&copy, &archive).is_ok());
+    }
+    #[test]
+    fn project_files_skip_dot_folders_and_dependencies() {
+        let dir = tmp("project-files");
+        for folder in ["papers/2024", ".git", "node_modules/pkg"] {
+            std::fs::create_dir_all(dir.0.join(folder)).unwrap();
+        }
+        for file in [
+            "readme.md",
+            "papers/2024/survey.pdf",
+            ".git/config",
+            "node_modules/pkg/index.js",
+        ] {
+            std::fs::write(dir.0.join(file), "").unwrap();
+        }
+
+        let mut found: Vec<_> = list_project_files_sync(&dir.0)
+            .unwrap()
+            .into_iter()
+            .map(|file| (file.relative, file.is_dir))
+            .collect();
+        found.sort();
+        assert_eq!(
+            found,
+            [
+                ("papers".to_string(), true),
+                ("papers/2024".to_string(), true),
+                ("papers/2024/survey.pdf".to_string(), false),
+                ("readme.md".to_string(), false),
+            ]
         );
     }
 }

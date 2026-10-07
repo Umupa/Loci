@@ -74,6 +74,48 @@ export function deletePath(path: string): Promise<void> {
   return invoke<void>("delete_path", { path });
 }
 
+export type FsEntry = {
+  name: string;
+  path: string;
+  isDir: boolean;
+  /** A dotfile, kept out of the Files tree unless hidden files are shown. */
+  hidden: boolean;
+};
+
+/** Immediate children of a folder: folders first, then files, in natural order. */
+export function listDir(path: string): Promise<FsEntry[]> {
+  return invoke<FsEntry[]>("list_dir", { path });
+}
+
+/** Every file and folder under a project, for finding by name or path. */
+export function listProjectFiles(cwd: string): Promise<ProjectFile[]> {
+  return invoke<ProjectFile[]>("list_project_files", { cwd });
+}
+
+export type FileMtime = { path: string; mtimeMs: number | null };
+
+export function statFiles(paths: string[]): Promise<FileMtime[]> {
+  if (paths.length === 0) return Promise.resolve([]);
+  return invoke<FileMtime[]>("stat_files", { paths });
+}
+
+export function renamePath(path: string, name: string): Promise<string> {
+  return invoke<string>("rename_path", { path, name }).then(slash);
+}
+
+/** Move a file or folder to the system trash. */
+export function trashPath(path: string): Promise<void> {
+  return invoke<void>("trash_path", { path });
+}
+
+export function copyPath(from: string, destParent: string): Promise<string> {
+  return invoke<string>("copy_path", { from, destParent }).then(slash);
+}
+
+export function movePath(from: string, destParent: string): Promise<string> {
+  return invoke<string>("move_path", { from, destParent }).then(slash);
+}
+
 
 /**
  * Paths for files copied in a file manager, on macOS, Linux and Windows.
@@ -149,6 +191,11 @@ export function readTextFile(path: string): Promise<string> {
 
 
 /** Raw bytes for the image viewer. Arrives as an ArrayBuffer, not base64. */
+/** Bytes of a document shown in a file pane; allows far larger files than a preview. */
+export async function readDocumentFile(path: string): Promise<Uint8Array> {
+  return new Uint8Array(await invoke<ArrayBuffer>("read_document_file", { path }));
+}
+
 export async function readBinaryFile(path: string): Promise<Uint8Array> {
   const buffer = await invoke<ArrayBuffer | string>("read_binary_file", {
     path,

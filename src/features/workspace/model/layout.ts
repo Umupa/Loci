@@ -14,7 +14,9 @@ export type LayoutNode = {
     type: "leaf";
     id: string;
     /** When absent, the leaf is a session pane. */
-    leafKind?: "canvas";
+    leafKind?: "canvas" | "file";
+    /** A file opened by a single click: the next file opened takes its pane. */
+    preview?: boolean;
 } | {
     type: "split";
     id: string;
@@ -31,6 +33,8 @@ export type WorkspaceTab = {
     cwd?: string;
     /** Explicit tab group; absent means ungrouped. */
     groupId?: string;
+    /** Kept at the left of the strip as an icon, and spared by the bulk close actions. */
+    pinned?: boolean;
 };
 const MIN_SIZE = 0.08;
 export function leaf(sessionId: string): LayoutNode {
@@ -38,6 +42,17 @@ export function leaf(sessionId: string): LayoutNode {
 }
 export function canvasLeaf(canvasId: string): LayoutNode {
     return { type: "leaf", id: canvasId, leafKind: "canvas" };
+}
+const FILE_PANE_PREFIX = "file:";
+/** File panes are identified by their path, so a file has at most one pane. */
+export function filePaneId(path: string): string {
+    return `${FILE_PANE_PREFIX}${path}`;
+}
+export function filePanePath(paneId: string): string {
+    return paneId.slice(FILE_PANE_PREFIX.length);
+}
+export function fileLeaf(path: string, preview = false): LayoutNode {
+    return { type: "leaf", id: filePaneId(path), leafKind: "file", ...(preview ? { preview } : {}) };
 }
 export function findLeaf(node: LayoutNode, id: string): Extract<LayoutNode, { type: "leaf" }> | undefined {
     if (node.type === "leaf") return node.id === id ? node : undefined;
@@ -210,7 +225,8 @@ export type LayoutRect = {
 };
 export type LayoutLeaf = {
     id: string;
-    kind: "session" | "canvas";
+    kind: "session" | "canvas" | "file";
+    preview?: boolean;
     rect: LayoutRect;
     axis: "x" | "y";
 };
@@ -224,8 +240,8 @@ export type LayoutSash = {
 export function layoutLeaves(node: LayoutNode, rect: LayoutRect = { x: 0, y: 0, w: 1, h: 1 }, parentDir?: SplitDir): LayoutLeaf[] {
     const axis = parentDir === "down" ? "y" : "x";
     if (node.type === "leaf") {
-        const kind = node.leafKind === "canvas" ? "canvas" : "session";
-        return [{ id: node.id, kind, rect, axis }];
+        const kind = node.leafKind ?? "session";
+        return [{ id: node.id, kind, ...(node.preview ? { preview: true } : {}), rect, axis }];
     }
     const row = node.dir === "right";
     let offset = 0;
@@ -557,6 +573,23 @@ export function showCanvasBeside(tab: WorkspaceTab, canvasId: string, sessionId:
     };
 }
 /**
+ * Open a drawing picked from the sidebar: it takes the tab's canvas pane, or
+ * opens right of the focused pane, and takes focus.
+ */
+export function showCanvasInTab(tab: WorkspaceTab, canvasId: string): WorkspaceTab {
+    const leaves = layoutLeaves(tab.layout);
+    if (leaves.some((entry) => entry.id === canvasId))
+        return { ...tab, focusedId: canvasId };
+    const slot = leaves.find((entry) => entry.kind === "canvas");
+    return {
+        ...tab,
+        layout: slot
+            ? replacePaneWithLayout(tab.layout, slot.id, canvasLeaf(canvasId))
+            : placeLayout(tab.layout, canvasLeaf(canvasId), tab.focusedId, "right"),
+        focusedId: canvasId,
+    };
+}
+/**
  * Where a drawing goes when a session draws on it. A drawing has one pane, so
  * one that is open in another tab moves beside the session, but only while
  * the user is looking at that session's tab.
@@ -571,6 +604,59 @@ export function showCanvasForSession(tabs: WorkspaceTab[], activeTabId: string, 
             return [showCanvasBeside(tab, canvasId, sessionId)];
         return tab.id === current?.id ? closeLeaf(tab, canvasId) ?? [] : [tab];
     });
+}
+/**
+ * Show a file in a tab. A single click previews: it reuses the tab's preview
+ * pane, or opens one right of the focused pane. Pinning keeps the pane, so the
+ * next preview opens beside it instead of replacing it.
+ */
+export function showFileInTab(tab: WorkspaceTab, path: string, pin: boolean): WorkspaceTab {
+    const id = filePaneId(path);
+    const leaves = layoutLeaves(tab.layout);
+    const open = leaves.find((entry) => entry.id === id);
+    if (open) {
+        return {
+            ...tab,
+            layout: pin && open.preview ? replacePaneWithLayout(tab.layout, id, fileLeaf(path)) : tab.layout,
+            focusedId: id,
+        };
+    }
+    const slot = leaves.find((entry) => entry.kind === "file" && entry.preview);
+    return {
+        ...tab,
+        layout: slot
+            ? replacePaneWithLayout(tab.layout, slot.id, fileLeaf(path, !pin))
+            : placeLayout(tab.layout, fileLeaf(path, !pin), tab.focusedId, "right"),
+        focusedId: id,
+    };
+}
+/** Drop a file from the Files tree onto a pane's edge; the pane it makes is kept. */
+export function placeFileOnPane(tab: WorkspaceTab, path: string, toId: string, edge: PaneEdge): WorkspaceTab {
+    const id = filePaneId(path);
+    if (id === toId || !findLeaf(tab.layout, toId))
+        return tab;
+    const pinned = findLeaf(tab.layout, id) ? replacePaneWithLayout(tab.layout, id, fileLeaf(path)) : null;
+    return {
+        ...tab,
+        layout: pinned ? movePane(pinned, id, toId, edge) : placeLayout(tab.layout, fileLeaf(path), toId, edge),
+        focusedId: id,
+    };
+}
+/** Follow a renamed or moved file or folder: its panes keep showing it. */
+export function rebaseFilePanes(tab: WorkspaceTab, rebase: (path: string) => string): WorkspaceTab {
+    let changed = false;
+    const rename = (id: string) => {
+        const next = filePaneId(rebase(filePanePath(id)));
+        if (next !== id) changed = true;
+        return next;
+    };
+    const walk = (node: LayoutNode): LayoutNode => node.type === "leaf"
+        ? node.leafKind === "file" ? { ...node, id: rename(node.id) } : node
+        : { ...node, children: node.children.map(walk) };
+    const layout = walk(tab.layout);
+    if (!changed) return tab;
+    const focused = findLeaf(tab.layout, tab.focusedId);
+    return { ...tab, layout, focusedId: focused?.leafKind === "file" ? rename(tab.focusedId) : tab.focusedId };
 }
 /** Replace one pane with an intact layout tree. */
 export function replacePaneWithLayout(node: LayoutNode, targetId: string, incoming: LayoutNode): LayoutNode {
