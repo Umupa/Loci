@@ -65,6 +65,8 @@ import {
   setGrabbing,
   suppressTextSelection,
 } from "../../../shared/lib/drag";
+import { requestAddToChat } from "../../sessions/model/quoteDraft";
+import { fileReference } from "../model/fileReference";
 import { ContextMenu, type ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { MatchText } from "../../../shared/ui/MatchText";
@@ -206,6 +208,12 @@ function treeMenuItems(target: MenuTarget, clip: Clip | null): ContextMenuItem[]
       disabled: target.isRoot,
     },
     { kind: "sep" },
+    {
+      kind: "item",
+      id: "add-to-chat",
+      label: "Add to Chat",
+      disabled: target.isRoot,
+    },
     {
       kind: "item",
       id: "copy-path",
@@ -722,6 +730,13 @@ export const FileTree = memo(function FileTree({
         return;
       case "duplicate":
         await run(() => duplicateAt(target.path));
+        return;
+      case "add-to-chat":
+        if (target.isRoot) return;
+        requestAddToChat(
+          fileReference(displayPath(target.path, cwd) + (target.isDir ? "/" : "")),
+          "plain",
+        );
         return;
       case "copy-path":
         await copyText(target.path);

@@ -1,11 +1,15 @@
-import { memo, useCallback, useEffect, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { CircleAlert, ExternalLink, Folder, GripVertical, Pin, X } from "../../../shared/ui/icons";
+import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { CircleAlert, ExternalLink, Folder, GripVertical, MessageSquarePlus, Pin, X } from "../../../shared/ui/icons";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { basename, openPathWithDefaultApp, readBinaryFile, readDocumentFile, readTextFile, revealPath } from "../../../platform/tauri/fs";
 import { IS_MAC } from "../../../platform/tauri/platform";
 import { formatFileSize, sniffImageMime } from "../../../shared/lib/filePreview";
 import { displayPath, parentPath } from "../../../shared/lib/paths";
 import { lazySurface } from "../../../shared/ui/lazySurface";
+import { requestAddToChat } from "../../sessions/model/quoteDraft";
+import { TranscriptSelectionMenu } from "../../sessions/ui/TranscriptSelectionMenu";
+import { fileReference, selectionLines, selectionReference, type SelectionPlace } from "../model/fileReference";
+import { useFileSelection } from "../hooks/useFileSelection";
 import { MarkdownDocumentPreview } from "../../sessions/ui/MarkdownDocumentPreview";
 import { fileKind } from "../model/fileKind";
 import { watchFile } from "../model/fileWatch";
@@ -45,6 +49,35 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => setReloadKey((value) => value + 1), []);
   const folder = displayPath(parentPath(path), cwd);
+  const relative = displayPath(path, cwd);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLPreElement>(null);
+  const { selection, dismiss } = useFileSelection(bodyRef, content.status === "text" || content.status === "pdf");
+
+  /** Page of a PDF selection, or the lines of a plain-text one; markdown has neither. */
+  const placeOf = (range: Range): SelectionPlace => {
+    if (content.status === "pdf") {
+      const node = range.startContainer;
+      const element = node instanceof Element ? node : node.parentElement;
+      const page = Number(element?.closest<HTMLElement>("[data-page-number]")?.dataset.pageNumber);
+      return page > 0 ? { page } : null;
+    }
+    const pre = textRef.current;
+    if (content.status !== "text" || kind !== "text" || !pre || !pre.contains(range.commonAncestorContainer)) return null;
+    const offset = (container: Node, within: number) => {
+      const before = document.createRange();
+      before.selectNodeContents(pre);
+      before.setEnd(container, within);
+      return before.toString().length;
+    };
+    return { lines: selectionLines(content.text, offset(range.startContainer, range.startOffset), offset(range.endContainer, range.endOffset)) };
+  };
+  const addSelection = () => {
+    if (!selection) return;
+    requestAddToChat(selectionReference(selection.text, relative, placeOf(selection.range)), "plain");
+    window.getSelection()?.removeAllRanges();
+    dismiss();
+  };
 
   // A new path starts blank; a reload of the same file keeps what is shown
   // until the new content is ready, so an agent's edit does not flash.
@@ -113,7 +146,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   } else {
     body = (
       <div className="h-full overflow-auto overscroll-none">
-        <pre className="min-h-full select-text whitespace-pre-wrap break-words px-5 py-4 font-mono text-[12.5px] leading-[1.55] text-content/90">{content.text}</pre>
+        <pre ref={textRef} className="min-h-full select-text whitespace-pre-wrap break-words px-5 py-4 font-mono text-[12.5px] leading-[1.55] text-content/90">{content.text}</pre>
       </div>
     );
   }
@@ -133,12 +166,14 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         <span className={`min-w-0 shrink truncate text-xs ${preview ? "italic" : ""}`} title={preview ? `${path}\nPreview — double-click to keep this pane` : path}>{name}</span>
         {folder && folder !== "." ? <span className="min-w-0 flex-1 truncate text-[11px] text-content/40">{folder}</span> : <span className="flex-1" />}
         {preview ? <PaneButton label="Keep open" onClick={onPin}><Pin className="size-3.5" /></PaneButton> : null}
+        <PaneButton label="Add file to chat" onClick={() => requestAddToChat(fileReference(relative), "plain")}><MessageSquarePlus className="size-3.5" /></PaneButton>
         <PaneButton label="Open with default app" onClick={() => void openPathWithDefaultApp(path).catch(() => {})}><ExternalLink className="size-3.5" /></PaneButton>
         <PaneButton label={REVEAL_LABEL} onClick={() => void revealPath(path).catch(() => {})}><Folder className="size-3.5" /></PaneButton>
         <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button>
       </div>
-      <div className="min-h-0 min-w-0 flex-1">{body}</div>
+      <div ref={bodyRef} className="min-h-0 min-w-0 flex-1">{body}</div>
+      <TranscriptSelectionMenu selection={selection} onAddToChat={addSelection} onDismiss={dismiss} />
     </div>
   );
 }
