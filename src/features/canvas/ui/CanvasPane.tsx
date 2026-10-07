@@ -53,7 +53,8 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     else void containerRef.current?.requestFullscreen();
   };
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestDataRef = useRef<Scene | null>(null);
+  const latestDataRef = useRef<(Scene & { baseDataJson?: string }) | null>(null);
+  const savedDataRef = useRef(sceneDrafts.get(canvas.id)?.baseDataJson ?? canvas.dataJson);
   const revisionRef = useRef<SceneRevision | null>(null);
   const applyingSceneRef = useRef(false);
   const fittedRef = useRef(false);
@@ -85,7 +86,8 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
       viewBackgroundColor: data.appState.viewBackgroundColor,
       currentItemFontFamily: data.appState.currentItemFontFamily,
     }, files: data.files });
-    void updateCanvas(canvasRef.current.id, { dataJson }).then(() => {
+    void updateCanvas(canvasRef.current.id, { dataJson }, { baseDataJson: data.baseDataJson ?? savedDataRef.current }).then(() => {
+      savedDataRef.current = dataJson;
       if (sceneDrafts.get(canvasRef.current.id) === data) sceneDrafts.delete(canvasRef.current.id);
       setSaveError(false);
     }).catch(() => {
@@ -128,7 +130,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     if (!restoringDraft &&
       previous.version === revision.version && previous.hash === revision.hash && previous.count === revision.count &&
       previous.background === revision.background && previous.font === revision.font && previous.files === files) return;
-    const scene = { elements, appState, files };
+    const scene = { elements, appState, files, baseDataJson: savedDataRef.current };
     latestDataRef.current = scene;
     sceneDrafts.set(canvasRef.current.id, scene);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -154,6 +156,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
       const data = restore(JSON.parse(saved.dataJson), null, null);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       latestDataRef.current = null;
+      savedDataRef.current = saved.dataJson;
       sceneDrafts.delete(canvas.id);
       applyingSceneRef.current = true;
       try {

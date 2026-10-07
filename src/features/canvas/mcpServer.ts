@@ -3,8 +3,10 @@ import { invoke } from "@tauri-apps/api/core";
 /** Stdio command for Loci's built-in Excalidraw MCP server. */
 export type CanvasMcpServer = { command: string; args: string[] };
 
-/** Agents see the official tools under this name, e.g. `mcp__excalidraw__create_view`. */
-export const CANVAS_MCP_NAME = "excalidraw";
+/** Agents see the official tools under this name, e.g. `mcp__loci_excalidraw__create_view`. */
+// Reserve an app-owned name: Codex merges config overrides field by field,
+// so reusing a user's remote `excalidraw` entry would mix url with command.
+export const CANVAS_MCP_NAME = "loci_excalidraw";
 // The server reaches the session's Loci window with the credential the agent
 // CLI already holds; Codex only forwards variables that are listed.
 const FORWARDED_ENV = ["LOCI_APP_ENDPOINT", "LOCI_APP_TOKEN"];
@@ -12,7 +14,7 @@ const FORWARDED_ENV = ["LOCI_APP_ENDPOINT", "LOCI_APP_TOKEN"];
 export type CanvasMcpTool = "read_me" | "create_view" | "read_widget_context";
 const TOOLS: readonly CanvasMcpTool[] = ["read_me", "create_view", "read_widget_context"];
 
-/** Recognize the built-in server's tools as Claude (`mcp__excalidraw__x`) and Codex (`excalidraw:x`) name them. */
+/** Recognize the built-in server's tools as Claude (`mcp__loci_excalidraw__x`) and Codex (`loci_excalidraw:x`) name them. */
 export function canvasMcpTool(name: string | undefined): CanvasMcpTool | undefined {
   const match = name?.trim().match(new RegExp(`(?:^|\\s)(?:mcp__${CANVAS_MCP_NAME}__|${CANVAS_MCP_NAME}[:.])([a-z_]+)$`));
   return TOOLS.find((tool) => tool === match?.[1]);

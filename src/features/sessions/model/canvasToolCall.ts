@@ -1,4 +1,4 @@
-import { canvasMcpTool, type CanvasMcpTool } from "../../canvas/mcpServer";
+import { CANVAS_MCP_NAME, canvasMcpTool, type CanvasMcpTool } from "../../canvas/mcpServer";
 import type { Block } from "./session";
 
 export type CanvasToolCall = {
@@ -41,7 +41,7 @@ function isCanvasToolLookup(block: Block): boolean {
   const query = block.tool?.preview?.query ?? block.tool?.title ?? block.text;
   return (
     block.role === "tool" &&
-    /(?:^|\s)select:mcp__excalidraw__[a-z_,:]+$/.test(query?.trim() ?? "")
+    new RegExp(`(?:^|\\s)select:mcp__${CANVAS_MCP_NAME}__[a-z_,:]+$`).test(query?.trim() ?? "")
   );
 }
 

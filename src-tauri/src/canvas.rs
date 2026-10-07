@@ -11,6 +11,7 @@ const DATA_MAX: usize = 50_000_000;
 const TAG_MAX: usize = 48;
 const TAGS_MAX: usize = 20;
 const CHECKPOINT_ID_MAX: usize = 128;
+const REVISION_CONFLICT: &str = "Canvas changed since it was read; retry the update.";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +36,9 @@ pub struct CanvasUpsert {
     pub tags: Vec<String>,
     #[serde(default)]
     pub cwd: Option<String>,
+    /// Revision read before deriving a scene change; absent for legacy writes.
+    #[serde(default)]
+    pub expected_updated_at: Option<i64>,
     /// Set when an agent drew this scene through the Excalidraw MCP.
     #[serde(default)]
     pub checkpoint: Option<CheckpointBind>,
@@ -201,6 +205,21 @@ fn get_canvas(conn: &Connection, id: &str) -> rusqlite::Result<Option<Canvas>> {
 /// checkpoint id that the next call cannot find.
 fn save_canvas(conn: &Connection, canvas: &CanvasUpsert) -> Result<Canvas, String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    if let Some(expected) = canvas.expected_updated_at {
+        let current: Option<i64> = tx
+            .query_row(
+                "SELECT updated_at FROM canvases WHERE id = ?1",
+                params![canvas.id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        // Missing means the drawing was deleted after the caller read it.
+        // A guarded update must never silently recreate it.
+        if current != Some(expected) {
+            return Err(REVISION_CONFLICT.into());
+        }
+    }
     if let Some(checkpoint) = &canvas.checkpoint {
         let owner: Option<String> = tx
             .query_row(
@@ -318,8 +337,13 @@ fn upsert_canvas(conn: &Connection, canvas: &CanvasUpsert) -> rusqlite::Result<C
 
     let existing = get_canvas(conn, &canvas.id)?;
     let (created_at, updated_at) = if let Some(ref ex) = existing {
-        let changed = title != ex.title || canvas.data_json != ex.data_json || tags != ex.tags;
-        (ex.created_at, if changed { now } else { ex.updated_at })
+        // Timestamps also identify revisions. Two writes in one millisecond
+        // (or a backwards clock adjustment) must still invalidate stale reads.
+        let next = ex
+            .updated_at
+            .checked_add(1)
+            .ok_or(rusqlite::Error::InvalidQuery)?;
+        (ex.created_at, now.max(next))
     } else {
         (now, now)
     };
@@ -376,11 +400,85 @@ mod tests {
             data_json: data_json.into(),
             tags: Vec::new(),
             cwd: Some("/project".into()),
+            expected_updated_at: None,
             checkpoint: checkpoint.map(|(id, baseline)| CheckpointBind {
                 id: id.into(),
                 baseline_json: baseline.into(),
             }),
         }
+    }
+
+    #[test]
+    fn concurrent_snapshot_updates_cannot_overwrite_each_other() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let original = save_canvas(&conn, &upsert("drawing", &scene("base"), None)).unwrap();
+        let mut first = upsert("drawing", &scene("first"), Some(("first-cp", "{}")));
+        first.expected_updated_at = Some(original.updated_at);
+        let mut stale = upsert("drawing", &scene("stale"), Some(("stale-cp", "{}")));
+        stale.expected_updated_at = Some(original.updated_at);
+
+        let saved = save_canvas(&conn, &first).unwrap();
+        assert_eq!(
+            save_canvas(&conn, &stale).unwrap_err(),
+            "Canvas changed since it was read; retry the update."
+        );
+        assert_eq!(
+            get_canvas(&conn, "drawing").unwrap().unwrap().data_json,
+            saved.data_json
+        );
+        assert_eq!(checkpoint_canvas(&conn, "stale-cp").unwrap(), None);
+        assert_eq!(
+            latest_checkpoint(&conn, "drawing")
+                .unwrap()
+                .unwrap()
+                .checkpoint_id,
+            "first-cp"
+        );
+
+        stale.expected_updated_at = Some(saved.updated_at);
+        assert_eq!(
+            save_canvas(&conn, &stale).unwrap().data_json,
+            scene("stale")
+        );
+    }
+
+    #[test]
+    fn guarded_updates_do_not_recreate_deleted_drawings() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let original = save_canvas(&conn, &upsert("drawing", &scene("base"), None)).unwrap();
+        let mut stale = upsert("drawing", &scene("stale"), Some(("stale-cp", "{}")));
+        stale.expected_updated_at = Some(original.updated_at);
+        delete_canvas(&conn, "drawing").unwrap();
+
+        assert_eq!(
+            save_canvas(&conn, &stale).unwrap_err(),
+            "Canvas changed since it was read; retry the update."
+        );
+        assert!(get_canvas(&conn, "drawing").unwrap().is_none());
+        assert_eq!(checkpoint_canvas(&conn, "stale-cp").unwrap(), None);
+    }
+
+    #[test]
+    fn revisions_advance_even_when_the_clock_has_not_advanced() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        save_canvas(&conn, &upsert("drawing", &scene("base"), None)).unwrap();
+        // Make this deterministic without racing the wall clock or sleeping.
+        let previous = now_millis() + 60_000;
+        conn.execute(
+            "UPDATE canvases SET updated_at = ?1 WHERE id = 'drawing'",
+            [previous],
+        )
+        .unwrap();
+        let mut update = upsert("drawing", &scene("changed"), None);
+        update.expected_updated_at = Some(previous);
+        let first = save_canvas(&conn, &update).unwrap();
+        assert_eq!(first.updated_at, previous + 1);
+        update.expected_updated_at = Some(first.updated_at);
+        let second = save_canvas(&conn, &update).unwrap();
+        assert_eq!(second.updated_at, first.updated_at + 1);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 ## 结论
 
-每个 Claude Code / Codex 会话自动带上内置的 `excalidraw` MCP。它运行**未经修改的官方 Excalidraw MCP 服务**（v0.3.2 `.mcpb` 里的 `dist/server.js`），只把官方的 checkpoint 存储换成 Loci 画布。agent 用官方的 `read_me`、`create_view` 在本地画布上创建和续画；人工修改被保留，已打开的面板立即更新，结果写入 SQLite，重启后旧 checkpoint 仍可续画。
+每个 Claude Code / Codex 会话自动带上内置的 `loci_excalidraw` MCP。它运行**未经修改的官方 Excalidraw MCP 服务**（v0.3.2 `.mcpb` 里的 `dist/server.js`），只把官方的 checkpoint 存储换成 Loci 画布。agent 用官方的 `read_me`、`create_view` 在本地画布上创建和续画；人工修改被保留，已打开的面板立即更新，结果写入 SQLite，重启后旧 checkpoint 仍可续画。
 
 之前的结论“官方 MCP 只做预览，落盘走 `/operator` CLI”已作废。`/operator` 的 `canvas.*` 动作保留，用于列出、改名、删除和整幅替换。
 
@@ -22,7 +22,7 @@
 
 ```
 Claude Code / Codex（Loci 会话子进程，环境里有会话凭据）
-  └─ stdio MCP “excalidraw”：node resources/excalidraw-mcp/loci-bridge.mjs
+  └─ stdio MCP “loci_excalidraw”：node resources/excalidraw-mcp/loci-bridge.mjs
        ├─ official/server.js      官方服务，逐字节等于发布包（SOURCE 记录哈希）
        └─ Loci store ── 本机回环 + 会话令牌，命名空间 canvas ──▶ control.rs
                                                                 └─ 会话所在窗口
@@ -34,6 +34,7 @@ Claude Code / Codex（Loci 会话子进程，环境里有会话凭据）
 - `loci-bridge.mjs` 只做三件事：实现 store；补上 `read_widget_context`；屏蔽 `export_to_excalidraw`（它会把图上传到 excalidraw.com）。
 - 官方服务把 `restoreCheckpoint` 解析为“加载的元素 − 删除 + 新增”。bridge 只把删除的 ID 和新增元素发给 Loci，Loci 在保存队列里对**当时的**场景应用，所以用户正在画的内容不会被旧读数覆盖。
 - 场景和 checkpoint 在同一个 SQLite 事务里保存：不会出现已告诉 agent 却找不到的 checkpoint。
+- 更新携带读取时的版本；SQLite 在同一事务内检查版本，冲突时重读并重算修改。手绘保存只合入用户相对本地基线改动的内容，agent 写入完成后也会先保存期间产生的新草稿，再更新面板，避免并发绘图互相覆盖。
 - `canvas` 命名空间比 `/operator` 的 `app` 窄：只需会话有进行中的 turn，只能读写本项目的画布。
 
 ## 语义
@@ -59,7 +60,9 @@ SQLite 方案的真实代价是不可移植、不随项目进版本库。需要�
 - 需要本机有 Node.js 20.11+ 或 Bun。没有时会话照常启动但没有绘图工具，Excalidraw 页面会显示原因。应用包没有自带运行时。
 - agent 不能新增图片：官方格式没有图片数据通道。已有图片只要不删除就保留。
 - 同一画布在另一个窗口打开时不会实时刷新。
-- 用户自己配置的同名 `excalidraw` 服务或远端官方连接器不会接到本地画布；两者并存时模型可能选错。
+- `loci_excalidraw` 是应用保留的服务名；用户自己的 `excalidraw` 或远端官方连接器保留原配置，不接到本地画布。内置工具只识别保留名称，不会给用户服务套用本地画布的自动批准规则。
+
+Codex 的 `-c` 覆盖会逐字段合并，连完整 inline table 也不会清除旧字段。如果复用用户的远端 `excalidraw` 名称，遗留的 `url` 和新增 `command` 会使整个 Codex 会话启动失败；独立的应用名称避免了这一冲突。
 
 ## 更新官方服务
 

@@ -72,10 +72,10 @@ describe("Loci's Excalidraw MCP server in Codex sessions", () => {
   it("is passed to the app server as config overrides ahead of the subcommand", async () => {
     await startTurn();
     expect(spawned[0]).toEqual([
-      "-c", 'mcp_servers.excalidraw.command="/usr/bin/node"',
-      "-c", 'mcp_servers.excalidraw.args=["/opt/Loci/resources/excalidraw-mcp/loci-bridge.mjs"]',
-      "-c", 'mcp_servers.excalidraw.env_vars=["LOCI_APP_ENDPOINT","LOCI_APP_TOKEN"]',
-      "-c", 'mcp_servers.excalidraw.tools.create_view.approval_mode="prompt"',
+      "-c", 'mcp_servers.loci_excalidraw.command="/usr/bin/node"',
+      "-c", 'mcp_servers.loci_excalidraw.args=["/opt/Loci/resources/excalidraw-mcp/loci-bridge.mjs"]',
+      "-c", 'mcp_servers.loci_excalidraw.env_vars=["LOCI_APP_ENDPOINT","LOCI_APP_TOKEN"]',
+      "-c", 'mcp_servers.loci_excalidraw.tools.create_view.approval_mode="prompt"',
       "app-server",
     ]);
   });
@@ -92,15 +92,15 @@ describe("Loci's Excalidraw MCP server in Codex sessions", () => {
     ["full-access", "accept"],
   ] as const)("draws without asking in %s mode", async (runtimeMode, expected) => {
     const { events } = await startTurn({ runtimeMode });
-    expect(await answerTo(approvalRequest("excalidraw", "create_view"), events)).toBe(expected);
+    expect(await answerTo(approvalRequest("loci_excalidraw", "create_view"), events)).toBe(expected);
     expect(events.some((event) => event.type === "approval.requested")).toBe(false);
   });
 
   it("asks before drawing in Supervised mode, as a canvas row the user can allow", async () => {
     const { events } = await startTurn({ runtimeMode: "supervised" });
-    const asked = await answerTo(approvalRequest("excalidraw", "create_view"), events) as { ask: string; requestId: number; id: number };
+    const asked = await answerTo(approvalRequest("loci_excalidraw", "create_view"), events) as { ask: string; requestId: number; id: number };
     // The transcript recognizes this title and shows "Draw on the canvas".
-    expect(asked.ask).toBe("excalidraw:create_view");
+    expect(asked.ask).toBe("loci_excalidraw:create_view");
     respondCodexApproval("s1", asked.requestId, "allow");
     await waitFor(() => parse().some((message) => message.id === asked.id), "approval answer");
     expect(parse().find((message) => message.id === asked.id)!.result).toEqual({ action: "accept", content: {}, _meta: null });
@@ -108,11 +108,11 @@ describe("Loci's Excalidraw MCP server in Codex sessions", () => {
 
   it("does not draw in a read-only plan turn, even with Full Access", async () => {
     const { events } = await startTurn({ runtimeMode: "full-access", intent: "plan" });
-    expect(await answerTo(approvalRequest("excalidraw", "create_view"), events)).toBe("decline");
+    expect(await answerTo(approvalRequest("loci_excalidraw", "create_view"), events)).toBe("decline");
   });
 
   it("leaves other servers' approvals to the user", async () => {
     const { events } = await startTurn({ runtimeMode: "auto-accept-edits" });
-    expect(await answerTo(approvalRequest("github", "create_view"), events)).toMatchObject({ ask: 'github: Allow the github MCP server to run tool "create_view"?' });
+    expect(await answerTo(approvalRequest("excalidraw", "create_view"), events)).toMatchObject({ ask: 'excalidraw: Allow the excalidraw MCP server to run tool "create_view"?' });
   });
 });

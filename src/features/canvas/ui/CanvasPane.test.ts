@@ -40,7 +40,7 @@ it("retains edits while moving to another pane before the save debounce fires", 
   act(() => scene.props!.onChange!(changed as never, { viewBackgroundColor: "#fff" } as never, {}));
   expect(updateCanvas).not.toHaveBeenCalled();
   act(() => root.unmount());
-  expect(updateCanvas).toHaveBeenCalledWith(canvas.id, { dataJson: expect.stringContaining('"rectangle"') });
+  expect(updateCanvas).toHaveBeenCalledWith(canvas.id, { dataJson: expect.stringContaining('"rectangle"') }, { baseDataJson: canvas.dataJson });
   root = createRoot(container);
   act(() => root.render(createElement(CanvasPane, props)));
   expect(scene.props!.initialData).toMatchObject({ elements: changed });
@@ -151,7 +151,7 @@ it("flushes pending edits before an operator scene access", () => {
   expect(updateCanvas).not.toHaveBeenCalled();
   act(() => window.dispatchEvent(new CustomEvent(CANVAS_SCENE_ACCESS_EVENT, { detail: canvas.id })));
   expect(updateCanvas).toHaveBeenCalledTimes(1);
-  expect(updateCanvas).toHaveBeenCalledWith(canvas.id, { dataJson: expect.stringContaining('"local"') });
+  expect(updateCanvas).toHaveBeenCalledWith(canvas.id, { dataJson: expect.stringContaining('"local"') }, { baseDataJson: canvas.dataJson });
   act(() => vi.advanceTimersByTime(2000));
   expect(updateCanvas).toHaveBeenCalledTimes(1);
 });

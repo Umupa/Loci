@@ -72,7 +72,7 @@ describe("Loci's Excalidraw MCP server in Claude Code sessions", () => {
     const args = spawned[0];
     expect(args).not.toContain("--strict-mcp-config");
     const config = JSON.parse(args[args.indexOf("--mcp-config") + 1]);
-    expect(config).toEqual({ mcpServers: { excalidraw: { type: "stdio", ...server } } });
+    expect(config).toEqual({ mcpServers: { loci_excalidraw: { type: "stdio", ...server } } });
     // The session credential stays in the environment, never in arguments.
     expect(args.join(" ")).not.toContain("LOCI_APP_TOKEN");
     emit({ type: "result", subtype: "success", session_id: "sess_1" });
@@ -88,22 +88,23 @@ describe("Loci's Excalidraw MCP server in Claude Code sessions", () => {
   });
 
   it("never reaches Loci's own helper calls", () => {
-    const args = buildClaudeSpawnArgs({ isolated: true, mcpConfig: '{"mcpServers":{"excalidraw":{}}}' });
+    const args = buildClaudeSpawnArgs({ isolated: true, mcpConfig: '{"mcpServers":{"loci_excalidraw":{}}}' });
     expect(args.filter((arg) => arg === "--mcp-config")).toHaveLength(1);
     expect(args[args.indexOf("--mcp-config") + 1]).toBe('{"mcpServers":{}}');
   });
 
   it.each([
-    ["supervised", "mcp__excalidraw__read_me", "allow"],
-    ["supervised", "mcp__excalidraw__read_widget_context", "allow"],
+    ["supervised", "mcp__loci_excalidraw__read_me", "allow"],
+    ["supervised", "mcp__loci_excalidraw__read_widget_context", "allow"],
     // Drawing changes the user's canvas: asked for where edits are asked for.
-    ["supervised", "mcp__excalidraw__create_view", "ask"],
-    ["auto-accept-edits", "mcp__excalidraw__create_view", "allow"],
-    ["auto", "mcp__excalidraw__create_view", "allow"],
-    ["full-access", "mcp__excalidraw__create_view", "allow"],
+    ["supervised", "mcp__loci_excalidraw__create_view", "ask"],
+    ["auto-accept-edits", "mcp__loci_excalidraw__create_view", "allow"],
+    ["auto", "mcp__loci_excalidraw__create_view", "allow"],
+    ["full-access", "mcp__loci_excalidraw__create_view", "allow"],
     // Other servers, including a user's own Excalidraw connector, keep asking.
     ["auto-accept-edits", "mcp__claude_ai_Excalidraw__create_view", "ask"],
-    ["auto-accept-edits", "mcp__excalidraw__export_to_excalidraw", "ask"],
+    ["auto-accept-edits", "mcp__excalidraw__create_view", "ask"],
+    ["auto-accept-edits", "mcp__loci_excalidraw__export_to_excalidraw", "ask"],
     ["supervised", "mcp__github__read_me", "ask"],
   ] as const)("in %s mode answers %s with %s", async (runtimeMode, tool, expected) => {
     const { events, turn } = await startTurn({ runtimeMode });
@@ -114,8 +115,8 @@ describe("Loci's Excalidraw MCP server in Claude Code sessions", () => {
 
   it("keeps a plan turn read-only: the drawing can be read but not changed", async () => {
     const { events, turn } = await startTurn({ runtimeMode: "full-access", intent: "plan" });
-    expect(await decisionFor("mcp__excalidraw__read_widget_context", events)).toBe("allow");
-    expect(await decisionFor("mcp__excalidraw__create_view", events)).toBe("deny");
+    expect(await decisionFor("mcp__loci_excalidraw__read_widget_context", events)).toBe("allow");
+    expect(await decisionFor("mcp__loci_excalidraw__create_view", events)).toBe("deny");
     await stopClaudeSession("s1");
     await turn.catch(() => undefined);
   });

@@ -110,6 +110,65 @@ describe("canvas edits", () => {
     } finally { window.removeEventListener(CANVAS_SCENE_ACCESS_EVENT, flush); }
   });
 
+  it.each(["patch", "rename", "manual"] as const)("retries a %s against a concurrent window's revision", async (kind) => {
+    const baseJson = JSON.stringify({ elements: [{ id: "base", x: 0 }], appState: {}, files: {} });
+    let saved = { ...original, dataJson: baseJson };
+    let collided = false;
+    const versions: (number | undefined)[] = [];
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "canvas_get") return { ...saved };
+      if (command === "canvas_upsert") {
+        const { expectedUpdatedAt, ...canvas } = (args as { canvas: Canvas & { expectedUpdatedAt?: number } }).canvas;
+        versions.push(expectedUpdatedAt);
+        if (!collided) {
+          collided = true;
+          saved = { ...saved, updatedAt: 2, dataJson: JSON.stringify({ elements: [{ id: "base", x: 0 }, { id: "remote", x: 10 }], appState: {}, files: {} }) };
+        }
+        if (expectedUpdatedAt !== undefined && expectedUpdatedAt !== saved.updatedAt)
+          throw "Canvas changed since it was read; retry the update.";
+        saved = { ...canvas, updatedAt: saved.updatedAt + 1 };
+        return { ...saved };
+      }
+      throw new Error("Unexpected command");
+    });
+    if (kind === "patch") await writeCanvasScene(original.id, (current) => ({ dataJson: JSON.stringify({ ...JSON.parse(current.dataJson),
+      elements: [...JSON.parse(current.dataJson).elements, { id: "agent", x: 20 }] }) }));
+    if (kind === "rename") await updateCanvas(original.id, { title: "Renamed" });
+    if (kind === "manual") await updateCanvas(original.id, { dataJson: JSON.stringify({ elements: [{ id: "base", x: 40 }], appState: {}, files: {} }) }, { baseDataJson: baseJson });
+    expect(versions).toEqual([1, 2]);
+    const elements = JSON.parse(saved.dataJson).elements;
+    expect(elements.some((element: { id: string }) => element.id === "remote")).toBe(true);
+    if (kind === "patch") expect(elements.some((element: { id: string }) => element.id === "agent")).toBe(true);
+    if (kind === "rename") expect(saved.title).toBe("Renamed");
+    if (kind === "manual") expect(elements.find((element: { id: string }) => element.id === "base").x).toBe(40);
+  });
+
+  it("rebases manual stacking, deletion and document edits without dropping a remote addition", async () => {
+    const base = { elements: [{ id: "a" }, { id: "b" }, { id: "deleted" }], appState: { viewBackgroundColor: "white", currentItemFontFamily: 1 }, files: {} };
+    let saved = { ...original, dataJson: JSON.stringify({ ...base,
+      elements: [...base.elements, { id: "remote" }], appState: { ...base.appState, currentItemFontFamily: 3 }, files: { image: { id: "image" } } }) };
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "canvas_get") return { ...saved };
+      if (command === "canvas_upsert") { saved = (args as { canvas: Canvas }).canvas; return saved; }
+      throw new Error("Unexpected command");
+    });
+    await updateCanvas(original.id, { dataJson: JSON.stringify({ ...base, elements: [{ id: "new-underneath" }, { id: "b" }, { id: "a" }],
+      appState: { ...base.appState, viewBackgroundColor: "blue" } }) }, { baseDataJson: JSON.stringify(base) });
+    expect(JSON.parse(saved.dataJson)).toEqual({ elements: [{ id: "new-underneath" }, { id: "b" }, { id: "a" }, { id: "remote" }],
+      appState: { viewBackgroundColor: "blue", currentItemFontFamily: 3 }, files: { image: { id: "image" } } });
+  });
+
+  it("does not recreate a canvas deleted during a conditional update", async () => {
+    let deleted = false;
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "canvas_get") return deleted ? null : original;
+      deleted = true;
+      throw "Canvas changed since it was read; retry the update.";
+    });
+    await expect(updateCanvas(original.id, { title: "Changed" })).rejects.toThrow("no longer exists");
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "canvas_upsert")).toHaveLength(1);
+  });
+
   it("hands a drawing to a chat with the id an agent needs to continue it", () => {
     const text = canvasElementsToText("Plan", '[{"id":"a"}]', "drawing-1");
     expect(text).toContain('[Canvas: "Plan"]');
