@@ -4,7 +4,7 @@ import { createRoot,type Root } from "react-dom/client";
 import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 import { newSession,type Session } from "../../features/sessions/model/session";
 import { registerHarness,resetHarnessIdlePark,type HarnessAdapter } from "../../integrations/harness/core/registry";
-import type { SendTurnInput } from "../../integrations/harness/core/types";
+import { TurnNotReadyError, type SendTurnInput } from "../../integrations/harness/core/types";
 import { useSessionRuntime,type SessionRuntime } from "./useSessionRuntime";
 import { useSessionSubmission,type SessionSubmission } from "./useSessionSubmission";
 
@@ -60,7 +60,8 @@ beforeEach(() => {
   localStorage.clear();
   pending = [];
   acceptImmediately = true;
-  mocks.prepare.mockClear();
+  mocks.prepare.mockReset();
+  mocks.prepare.mockImplementation(async (text: string) => text);
   mocks.invoke.mockReset();
   mocks.invoke.mockImplementation(async (command: string, args?: { session?: Session }) => {
     if (command === "app_cli_path") return "/Applications/Loci.app/Contents/MacOS/loci";
@@ -150,6 +151,133 @@ describe("session submission", () => {
     expect(pending[1].input.text).toBe("Follow up");
     expect(session().queuedMessages).toBeUndefined();
     await settle(pending[1]);
+  });
+
+  it("retains a startup follow-up rejected as not ready and sends it after the turn", async () => {
+    acceptImmediately = false;
+    adapter.steerTurn = vi.fn(async () => { throw new TurnNotReadyError("Still connecting"); });
+    await mount(newSession("codex", "/project", "codex:test"));
+    await act(async () => { actions.onSubmit(session().id, "First"); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await act(async () => { actions.onSubmit(session().id, "Follow up", [], { followUpBehavior: "steer" }); });
+    expect(session().queuedMessages?.map((message) => message.text)).toEqual(["Follow up"]);
+    expect(session().blocks.map((block) => block.text)).toEqual(["First"]);
+    expect(session().busy).toBe(true);
+    await settle(pending[0]);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[1].input.text).toBe("Follow up");
+    await settle(pending[1]);
+  });
+
+  it("retains a queued row's identity until steering is accepted", async () => {
+    const steer = deferred<void>();
+    adapter.steerTurn = vi.fn(() => steer.promise);
+    await mount(newSession("codex", "/project", "codex:test"));
+    await act(async () => { actions.onSubmit(session().id, "First"); });
+    await act(async () => { actions.onSubmit(session().id, "Queued", [], { followUpBehavior: "queue" }); });
+    const queued = session().queuedMessages![0];
+    await act(async () => { actions.steerQueuedMessage(session().id, queued.id); });
+    expect(session().queuedMessages?.[0]).toBe(queued);
+    expect(session().blocks.map((block) => block.text)).toEqual(["First", "Queued"]);
+    await act(async () => { steer.resolve(); await steer.promise; });
+    expect(session().queuedMessages).toBeUndefined();
+    expect(session().blocks.map((block) => block.text)).toEqual(["First", "Queued"]);
+    await settle(pending[0]);
+  });
+
+  it.each(["edit", "delete", "stop", "switch", "close"] as const)(
+    "does not deliver a stale follow-up after %s during preparation", async (change) => {
+      await mount(newSession("codex", "/project", "codex:test"));
+      const id = session().id;
+      await act(async () => { actions.onSubmit(id, "First"); });
+      const preparing = deferred<string>();
+      mocks.prepare.mockImplementationOnce(() => preparing.promise);
+      await act(async () => { actions.onSubmit(id, "Follow up", [], { followUpBehavior: "steer" }); });
+      const queued = session().queuedMessages![0];
+      await act(async () => {
+        if (change === "edit") actions.editQueuedMessage(id, queued.id, "Edited");
+        if (change === "delete") actions.deleteQueuedMessage(id, queued.id);
+        if (change === "stop") await actions.stop(id);
+        if (change === "switch") runtime.updateSessions((sessions) => sessions.map((session) => ({ ...session, harness: "claude" })));
+        if (change === "close") runtime.updateSessions([]);
+        preparing.resolve("Prepared follow up");
+        await preparing.promise;
+      });
+      expect(adapter.steerTurn).not.toHaveBeenCalled();
+      expect(session()?.blocks.some((block) => block.notice === "error" || block.text === "Follow up")).not.toBe(true);
+      if (change === "edit") expect(session().queuedMessages?.[0]).toMatchObject({ id: queued.id, text: "Edited" });
+      if (change === "delete") expect(session().queuedMessages).toBeUndefined();
+      if (change === "stop") expect(session().queueStatus).toBe("paused");
+      await settle(pending[0]);
+    },
+  );
+
+  it("keeps a steered prompt before output streamed ahead of its acknowledgement", async () => {
+    const steer = deferred<void>();
+    adapter.steerTurn = vi.fn(() => steer.promise);
+    await mount(newSession("codex", "/project", "codex:test"));
+    await act(async () => { actions.onSubmit(session().id, "First"); });
+    await act(async () => { actions.onSubmit(session().id, "Follow up", [], { followUpBehavior: "steer" }); });
+    await act(async () => {
+      pending[0].input.onEvent({ type: "message.delta", text: "Follow-up answer" });
+      runtime.flushEvents();
+      steer.resolve();
+      await steer.promise;
+    });
+    expect(session().blocks.map((block) => block.text)).toEqual(["First", "Follow up", "Follow-up answer"]);
+    expect(session().queuedMessages).toBeUndefined();
+    await settle(pending[0]);
+  });
+
+  it("retains edits made while a steering request is in flight", async () => {
+    const steer = deferred<void>();
+    adapter.steerTurn = vi.fn(() => steer.promise);
+    await mount(newSession("codex", "/project", "codex:test"));
+    await act(async () => { actions.onSubmit(session().id, "First"); });
+    await act(async () => { actions.onSubmit(session().id, "Follow up", [], { followUpBehavior: "steer" }); });
+    const queued = session().queuedMessages![0];
+    await act(async () => {
+      actions.editQueuedMessage(session().id, queued.id, "Edited follow up");
+      steer.resolve();
+      await steer.promise;
+    });
+    expect(session().queuedMessages?.[0]).toMatchObject({ id: queued.id, text: "Edited follow up" });
+    expect(session().blocks.at(-1)?.text).toBe("Follow up");
+    await act(async () => actions.deleteQueuedMessage(session().id, queued.id));
+    await settle(pending[0]);
+  });
+
+  it("ignores a late steering rejection after Stop and retains the paused row", async () => {
+    const steer = deferred<void>();
+    adapter.steerTurn = vi.fn(() => steer.promise);
+    await mount(newSession("codex", "/project", "codex:test"));
+    await act(async () => { actions.onSubmit(session().id, "First"); });
+    await act(async () => { actions.onSubmit(session().id, "Follow up", [], { followUpBehavior: "steer" }); });
+    await act(async () => {
+      await actions.stop(session().id);
+      steer.reject(new Error("Old connection closed"));
+      await steer.promise.catch(() => undefined);
+    });
+    expect(session().queueStatus).toBe("paused");
+    expect(session().queuedMessages?.[0].text).toBe("Follow up");
+    expect(session().blocks.some((block) => block.notice === "error")).toBe(false);
+    await settle(pending[0]);
+  });
+
+  it("does not auto-send the retained row while its steering response is pending", async () => {
+    const steer = deferred<void>();
+    adapter.steerTurn = vi.fn(() => steer.promise);
+    await mount(newSession("codex", "/project", "codex:test"));
+    await act(async () => { actions.onSubmit(session().id, "First"); });
+    await act(async () => { actions.onSubmit(session().id, "Follow up", [], { followUpBehavior: "steer" }); });
+    await settle(pending[0]);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(pending).toHaveLength(1);
+    await act(async () => { steer.resolve(); await steer.promise; });
+    expect(session().busy).toBe(false);
+    expect(session().queuedMessages).toBeUndefined();
+    expect(session().blocks.filter((block) => block.text === "Follow up")).toHaveLength(1);
   });
 
   it("keeps old history visible until an edited replacement is accepted", async () => {

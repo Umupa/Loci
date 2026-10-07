@@ -4,6 +4,7 @@ import { supportsProviderAccounts } from "../../../features/providers/model/prov
 import { HARNESS_TITLE, type HarnessId } from "../../../features/sessions/model/session";
 import * as child from "./child";
 import { harnessLoginArgs } from "./authSupport";
+import { loginAntigravity } from "../providers/antigravity/antigravityAuth";
 
 export {
   harnessLoginArgs,
@@ -37,6 +38,9 @@ const LOGIN_RESOLVERS: Partial<
   // require every other CLI resolver to exist in that mock.
   claude: () => child.resolveClaudeBinary(),
   codex: () => child.resolveCodexBinary(),
+  cursor: () => child.resolveCursorBinary(),
+  grok: () => child.resolveGrokBinary(),
+  fx: () => child.resolveFxBinary(),
 };
 
 const inflight = new Map<string, Promise<void>>();
@@ -65,6 +69,10 @@ async function runHarnessLogin(
   harness: HarnessId,
   accountId?: string,
 ): Promise<void> {
+  if (harness === "antigravity") {
+    await loginAntigravity(loginChildId(harness, accountId));
+    return;
+  }
   const args = harnessLoginArgs(harness);
   const resolve = LOGIN_RESOLVERS[harness];
   if (!args || !resolve) {

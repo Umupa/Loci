@@ -9,7 +9,7 @@ import { isOperatorUserTurn, operatorUserPrompt } from "./operatorCommand";
 
 /** Harnesses that can rewind provider state before resending an edited prompt. */
 export function harnessSupportsEditLastTurn(harness: HarnessId): boolean {
-  return harness === "codex";
+  return harness === "codex" || harness === "opencode" || harness === "pi" || harness === "omp";
 }
 
 /** Index of the user block that starts the latest turn. */

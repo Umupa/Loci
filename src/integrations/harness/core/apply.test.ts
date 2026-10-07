@@ -1069,3 +1069,35 @@ describe("subagent steps", () => {
     expect(session.blocks[0].agentRun?.steps).toHaveLength(1);
   });
 });
+
+describe("additional provider transcript events", () => {
+  it("updates Hermes progress in place and scopes it to the current turn", () => {
+    let session = appendUser(newSession("hermes", "/repo"), "Work");
+    session = applyHarnessEvent(session, { type: "status", key: "background", text: "Running" });
+    const statusId = session.blocks.at(-1)!.id;
+    session = applyHarnessEvent(session, { type: "status", key: "background", text: "Waiting" });
+    expect(session.blocks.at(-1)).toMatchObject({ id: statusId, text: "Waiting" });
+    expect(session.blocks).toHaveLength(2);
+    session = appendUser(session, "Next turn");
+    session = applyHarnessEvent(session, { type: "status", key: "background", text: "Running again" });
+    expect(session.blocks[1].text).toBe("Waiting");
+    expect(session.blocks.at(-1)!.id).not.toBe(statusId);
+    session = applyHarnessEvent(session, { type: "status", key: "background", text: "" });
+    expect(session.blocks).toHaveLength(3);
+  });
+
+  it("keeps OMP advisor notes between streamed message segments", () => {
+    let session = appendUser(newSession("omp", "/repo"), "Review");
+    session = applyHarnessEvent(session, { type: "message.delta", text: "Before" });
+    session = applyHarnessEvent(session, {
+      type: "interjection", text: "Check the migration", customType: "advisor", severity: "concern",
+    });
+    session = applyHarnessEvent(session, { type: "message.delta", text: "After" });
+    expect(session.blocks.map((block) => block.text)).toEqual([
+      "Review", "Before", "Check the migration", "After",
+    ]);
+    expect(session.blocks[1].streaming).toBe(false);
+    const persisted = sanitizeSessionForPersist(stopStreaming(session));
+    expect(persisted.blocks[2].interjection).toEqual({ customType: "advisor", severity: "concern" });
+  });
+});

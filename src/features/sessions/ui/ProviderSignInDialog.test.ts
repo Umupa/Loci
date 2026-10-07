@@ -42,13 +42,16 @@ function button(label: string): HTMLButtonElement {
 }
 
 describe("ProviderSignInDialog", () => {
-  it("launches provider login and offers a clear continuation state", async () => {
+  it.each([
+    ["claude", "Claude Code"],
+    ["antigravity", "Antigravity"],
+  ] as const)("launches %s login and offers a clear continuation state", async (harness, title) => {
     const close = vi.fn();
     auth.loginHarness.mockResolvedValue();
     act(() =>
       root.render(
         createElement(ProviderSignInDialog, {
-          harness: "claude",
+          harness,
           onClose: close,
         }),
       ),
@@ -56,12 +59,12 @@ describe("ProviderSignInDialog", () => {
 
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog?.textContent).toContain("Authentication required");
-    expect(dialog?.textContent).toContain("Sign in to Claude Code");
+    expect(dialog?.textContent).toContain(`Sign in to ${title}`);
     expect(dialog?.querySelector(".size-9")).not.toBeNull();
 
-    await act(async () => button("Sign in to Claude Code").click());
-    expect(auth.loginHarness).toHaveBeenCalledWith("claude");
-    expect(dialog?.textContent).toContain("Signed in to Claude Code");
+    await act(async () => button(`Sign in to ${title}`).click());
+    expect(auth.loginHarness).toHaveBeenCalledWith(harness);
+    expect(dialog?.textContent).toContain(`Signed in to ${title}`);
 
     act(() => button("Continue").click());
     expect(close).toHaveBeenCalledOnce();

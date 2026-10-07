@@ -125,7 +125,7 @@ export function isHiddenTool(block: Block): boolean {
 export function isNoticeBlock(block: Block): boolean {
   return (
     block.role === "system" &&
-    (!!block.notice || block.text === INTERRUPT_MESSAGE)
+    (!!block.notice || !!block.interjection || block.text === INTERRUPT_MESSAGE)
   );
 }
 

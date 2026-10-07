@@ -9,6 +9,11 @@ const child = vi.hoisted(() => ({
   resolveCodexBinary: vi.fn(async () => ({ path: "/bin/codex" })),
 }));
 
+const antigravityLogin = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("../providers/antigravity/antigravityAuth", () => ({
+  loginAntigravity: antigravityLogin,
+}));
+
 vi.mock("./child", () => child);
 vi.mock("../../../platform/tauri/fs", () => ({ homeDir: vi.fn(async () => "/home/alice") }));
 vi.mock("@tauri-apps/api/window", () => ({
@@ -17,6 +22,7 @@ vi.mock("@tauri-apps/api/window", () => ({
 
 import {
 harnessLoginArgs,
+supportsHarnessLogin,
 isHarnessAuthError,
 latestTurnNeedsHarnessLogin,
 loginHarness,
@@ -29,6 +35,17 @@ beforeEach(() => {
 });
 
 describe("harness login", () => {
+  it("authenticates Antigravity through ACP rather than CLI login arguments", async () => {
+    await loginHarness("antigravity");
+    expect(antigravityLogin).toHaveBeenCalledWith("loci-provider-login-test-window-antigravity");
+    expect(child.spawnChild).not.toHaveBeenCalled();
+  });
+
+  it("offers ACP sign-in for an unauthenticated Antigravity session", () => {
+    expect(supportsHarnessLogin("antigravity")).toBe(true);
+    expect(harnessLoginArgs("antigravity")).toBeNull();
+  });
+
   it("advertises only deterministic account login commands", () => {
     expect(harnessLoginArgs("claude")).toEqual(["auth", "login"]);
     expect(harnessLoginArgs("codex")).toEqual(["login"]);

@@ -1,8 +1,8 @@
 # Loci
 
-Loci 是一个通用 agent 桌面外壳，使用 Tauri 2、Rust、React 19 和 Tailwind 4。项目仍然是本地文件夹，会话通过 Claude Code 或 Codex CLI 运行。
+Loci 是一个通用 agent 桌面外壳，使用 Tauri 2、Rust、React 19 和 Tailwind 4。项目仍然是本地文件夹，会话通过本机安装的 agent CLI 运行。
 
-保留聊天、模型和权限选择、agent 提问、任务与计划显示、会话搜索、标签和拖拽分栏、设置、笔记及桌面通知。ACP 的通用协议核心也保留在 `src/integrations/harness/core`；当前内置 provider 为 Claude Code 和 Codex。
+保留聊天、模型和权限选择、agent 提问、任务与计划显示、会话搜索、标签和拖拽分栏、设置、笔记及桌面通知。ACP 的通用协议核心也保留在 `src/integrations/harness/core`；当前内置 10 个 agent CLI 适配器。
 
 当前开发和验收环境为 macOS arm64。需要 Node.js 20+、Rust/Cargo、rustfmt、Clippy 和 Xcode Command Line Tools；至少一家的 CLI 已安装并登录。
 
@@ -12,6 +12,8 @@ npm run tauri dev
 ```
 
 macOS 也可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 应用，Codex 的 Run 按钮使用同一入口。该脚本会先停止本仓库已有的应用实例；`--help` 可查看调试与日志选项。
+
+支持 Claude Code、Codex、Cursor、Grok Build、OpenCode、Pi、omp、fx、Hermes Agent 和 Antigravity。Agent CLIs 设置页可指定 CLI 路径、默认模型及是否显示在模型选择器；未安装的 CLI 仍显示在设置中。各 CLI 使用自己的登录配置，独立账号管理和额度查询目前仅支持 Claude Code/Codex。Antigravity 使用独立的 ACP server；遇到认证提示时点击应用内的 **Sign in to Antigravity** 完成 Google 登录，交互式 `agy` 的登录不能替代 ACP 认证。fx 暂不支持附件。
 
 检查与构建：
 

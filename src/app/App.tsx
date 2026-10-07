@@ -385,7 +385,7 @@ function Workspace(boot: BootWorkspace) {
             onOpenSession={(id) => void workspace.openSession(id)} onArchiveSession={(...args) => void workspace.archiveSession(...args)} onDeleteSession={(id) => void workspace.removeSession(id)}
             onRestoreProject={workspace.openProject} onDeleteProject={(path) => void workspace.removeProject(path, { purgeData: true })}
             collapsedProjectRailMode={collapsedProjectRailMode} onCollapsedProjectRailModeChange={saveCollapsedProjectRailMode} /> : null}
-          {surface === "chat" ? <UsageFooter providers={active ? [active.harness] : []} session={active ? { ...active, authRequired: latestTurnNeedsHarnessLogin(active.blocks) } : undefined} project={active?.cwd ?? workspace.projectCwd} onManageAccounts={() => openSettings("providers", "provider-accounts")}
+          {surface === "chat" ? <UsageFooter providers={active && (active.harness === "claude" || active.harness === "codex") ? [active.harness] : []} session={active ? { ...active, authRequired: latestTurnNeedsHarnessLogin(active.blocks) } : undefined} project={active?.cwd ?? workspace.projectCwd} onManageAccounts={() => openSettings("providers", "provider-accounts")}
             onSelectAccount={(provider, accountId) => {
               const current = workspaceRef.current?.activeSession;
               if (!current || current.harness !== provider || (current.providerAccountId ?? "default") === accountId) return;

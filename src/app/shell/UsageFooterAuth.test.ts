@@ -94,7 +94,9 @@ describe("UsageFooter provider authentication", () => {
         expect(container.querySelector("button")).toBeNull();
         expect(document.querySelector('[role="dialog"]')).toBeNull();
     });
-    it("opens Claude Code sign-in from its footer provider popover", async () => {
+    it.each([
+        ["claude", "Claude Code"], ["antigravity", "Antigravity"],
+    ] as const)("opens %s sign-in from its footer provider popover", async (harness, title) => {
         let finishLogin: (() => void) | undefined;
         auth.loginHarness.mockImplementation(() => new Promise<void>((resolve) => {
             finishLogin = resolve;
@@ -103,18 +105,18 @@ describe("UsageFooter provider authentication", () => {
             providers: [],
             session: {
                 id: "claude-session",
-                harness: "claude",
+                harness,
                 authRequired: true,
             },
         })));
-        expect(container.textContent).toContain("claude");
+        expect(container.textContent).toContain(harness);
         expect(container.textContent).toContain("sign in");
-        act(() => button("Claude Code sign-in required").click());
+        act(() => button(`${title} sign-in required`).click());
         const dialog = document.querySelector('[role="dialog"]');
         expect(dialog?.textContent).toContain("Authentication required");
         expect(dialog?.querySelector(".size-9")).not.toBeNull();
-        act(() => button("Sign in to Claude Code").click());
-        expect(auth.loginHarness).toHaveBeenCalledWith("claude");
+        act(() => button(`Sign in to ${title}`).click());
+        expect(auth.loginHarness).toHaveBeenCalledWith(harness);
         expect(dialog?.textContent).toContain("Waiting for browser…");
         await act(async () => finishLogin?.());
         expect(document.querySelector('[role="dialog"]')).toBeNull();

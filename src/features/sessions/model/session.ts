@@ -10,9 +10,30 @@ import {
 } from "./models";
 import { loadProjectProviderSettings } from "./projectProviders";
 
-export type HarnessId = "claude" | "codex";
+export type HarnessId =
+  | "claude"
+  | "codex"
+  | "cursor"
+  | "grok"
+  | "opencode"
+  | "pi"
+  | "omp"
+  | "fx"
+  | "hermes"
+  | "antigravity";
 
-export const HARNESSES: HarnessId[] = ["claude", "codex"];
+export const HARNESSES: HarnessId[] = [
+  "claude",
+  "codex",
+  "cursor",
+  "grok",
+  "opencode",
+  "pi",
+  "omp",
+  "fx",
+  "hermes",
+  "antigravity",
+];
 
 export type BlockRole =
   | "user"
@@ -118,6 +139,14 @@ export type BtwThread = {
   error?: string;
   /** Live harness blocks for the in-flight reply; not persisted. */
   pendingBlocks?: Block[];
+};
+
+export type InterjectionSeverity = "nit" | "concern" | "blocker";
+
+export type InterjectionMeta = {
+  customType: string;
+  /** Highest severity among this interjection's retained notes, when any is known. */
+  severity?: InterjectionSeverity;
 };
 
 export type ToolPreviewKind = "read" | "write" | "shell" | "search";
@@ -285,6 +314,10 @@ export type Block = {
    * rather than turn chrome like a status ping. Never folds into the trail.
    */
   notice?: "error" | "interrupt";
+  /** Provider advisory notes remain visible in the transcript. */
+  interjection?: InterjectionMeta;
+  /** Provider-owned progress identity within the current turn. */
+  statusKey?: string;
 };
 
 export type RuntimeMode =
@@ -369,13 +402,35 @@ export type PendingHarnessSwitch = {
   fromProviderAccountId?: string;
 };
 
-export const HARNESS_LABEL: Record<HarnessId, string> = { claude: "claude", codex: "codex" };
+export const HARNESS_LABEL: Record<HarnessId, string> = {
+  claude: "claude",
+  codex: "codex",
+  cursor: "cursor",
+  grok: "grok",
+  opencode: "opencode",
+  pi: "pi",
+  omp: "omp",
+  fx: "fx",
+  hermes: "hermes",
+  antigravity: "antigravity",
+};
 
-export const HARNESS_TITLE: Record<HarnessId, string> = { claude: "Claude Code", codex: "Codex" };
+export const HARNESS_TITLE: Record<HarnessId, string> = {
+  claude: "Claude Code",
+  codex: "Codex",
+  cursor: "Cursor",
+  grok: "Grok Build",
+  opencode: "OpenCode",
+  pi: "Pi",
+  omp: "omp",
+  fx: "fx",
+  hermes: "Hermes Agent",
+  antigravity: "Antigravity",
+};
 
-/** Both bundled providers accept attachments. */
+/** fx ACP rejects attachment prompt blocks. */
 export function harnessSupportsAttachments(id: HarnessId): boolean {
-  return HARNESSES.includes(id);
+  return id !== "fx";
 }
 
 export function newSession(
