@@ -551,7 +551,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
         pill: pillRef,
         root: tabStripRef,
         target: () => activeTabRef.current,
-        revision: `${activeId}|${stripLayout.crowded}|${stripLayout.iconWidth}|${stripLayout.titledWidth}|${stripLayout.activeWidth}|${titledIds.join(",")}|${stripTabs.length}|${pinnedCount}|${unfolded.size}`,
+        revision: `${activeId}|${stripWidth}|${stripLayout.crowded}|${stripLayout.iconWidth}|${stripLayout.titledWidth}|${stripLayout.activeWidth}|${titledIds.join(",")}|${stripTabs.length}|${pinnedCount}|${unfolded.size}`,
         live: !!sortable.draggingId,
     });
     const attention = tabs.some((tab) => tab.id !== activeId && tab.status === "approval")

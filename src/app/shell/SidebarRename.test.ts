@@ -644,6 +644,31 @@ describe("sidebar session reminders", () => {
     });
 });
 describe("collapsed rail actions", () => {
+    it.each([false, true])("opens the drawings page from Canvas without a project, with project rail %s", async (projectRailOpen) => {
+        props.cwd = "~";
+        props.projectRailOpen = projectRailOpen;
+        props.onSelectProject = vi.fn();
+        props.onOpenProject = vi.fn();
+        const openAll = vi.fn();
+        props.onOpenCanvases = openAll;
+        props.onOpenCanvas = vi.fn();
+        props.onOpenCanvasInTab = vi.fn();
+        props.onNewCanvas = vi.fn();
+        props.onRenameCanvas = vi.fn();
+        props.onDeleteCanvas = vi.fn();
+        await act(async () => render());
+        const pick = (label: string) => [...container.querySelectorAll<HTMLElement>('button')]
+            .find((button) => button.getAttribute("aria-label") === label || button.textContent === label)!;
+        try {
+            const entry = pick("Canvas");
+            expect(entry).toBeDefined();
+            await act(async () => entry.click());
+            expect(openAll).toHaveBeenCalledOnce();
+        } finally {
+            await act(async () => pick("Sessions")?.click());
+        }
+    });
+
     it("restores the hidden rail layout when compact mode is disabled", async () => {
         props.projectRailOpen = false;
         props.compactProjectRail = false;

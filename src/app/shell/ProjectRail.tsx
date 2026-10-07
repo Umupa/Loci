@@ -1,4 +1,4 @@
-import { BellOff, ChevronDown, ChevronRight, FolderPlus, MoreHorizontal, Pin, PinOff, File, Plus, Search, Settings, } from "../../shared/ui/icons";
+import { BellOff, ChevronDown, ChevronRight, FolderPlus, MoreHorizontal, Pin, PinOff, File, ExcalidrawIcon, Plus, Search, Settings, } from "../../shared/ui/icons";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useDragResize } from "../../shared/hooks/useDragResize";
 import { useLockOverscroll } from "../../shared/hooks/useLockOverscroll";
@@ -40,6 +40,8 @@ type Props = {
     notesEnabled?: boolean;
     onOpenNotes?: () => void;
     notesActive?: boolean;
+    /** Drawings remain reachable when there is no project workspace to browse. */
+    onOpenCanvases?: () => void;
     canvasesActive?: boolean;
     onTogglePanel?: () => void;
     onSelectProject: (path: string) => void;
@@ -57,7 +59,7 @@ type Props = {
     onSelectSettingsSection?: (section: SettingsSectionId) => void;
     onCloseSettings?: () => void;
 };
-export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onSearch, searchActive = false, notesEnabled = true, onOpenNotes, notesActive = false, canvasesActive = false, onTogglePanel, onSelectProject, onOpenProject, onRemoveProject, liveAgents = [], activeSessionId, onSelectAgent, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, }: Props) {
+export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onSearch, searchActive = false, notesEnabled = true, onOpenNotes, notesActive = false, onOpenCanvases, canvasesActive = false, onTogglePanel, onSelectProject, onOpenProject, onRemoveProject, liveAgents = [], activeSessionId, onSelectAgent, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, }: Props) {
     const resize = useDragResize({
         min: PROJECT_RAIL_WIDTH_MIN,
         max: () => Math.min(PROJECT_RAIL_WIDTH_MAX, Math.floor(window.innerWidth * 0.35)),
@@ -202,6 +204,7 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
             <RailSearch label="Search" icon={Search} onClick={onSearch} active={searchActive} shortcut={`${MOD}K`} ariaLabel={`Search (${MOD}K)`}/>
             <div className="mt-0.5"/>
 
+            {onOpenCanvases ? (<RailAction label="Canvas" icon={ExcalidrawIcon} onClick={onOpenCanvases} active={canvasesActive} ariaLabel="Canvas"/>) : null}
             {notesEnabled ? (<RailAction label="Notes" icon={File} onClick={onOpenNotes} active={notesActive} ariaLabel="Notes"/>) : null}
 
           </div>

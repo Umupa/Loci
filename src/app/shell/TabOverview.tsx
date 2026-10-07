@@ -49,6 +49,7 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
   const [now] = useState(() => Date.now());
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const cancelEntrance = useRef<(() => void) | null>(null);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
 
   const cards = useMemo(() => overviewCards({ tabs, scope, projectPath, query, recent }), [tabs, scope, projectPath, query, recent]);
@@ -57,7 +58,16 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
   const cursor = cards[cursorIndex];
 
   // Cards that change place (a tab closed, a search, a wider window) glide there.
-  useFlip(gridRef, `${cards.map((card) => card.tab.id).join("\0")}|${columns}`);
+  const cardKey = cards.map((card) => card.tab.id).join("\0");
+  const cardRevision = `${cardKey}|${columns}`;
+  useFlip(gridRef, cardRevision);
+  const entranceState = useRef({ query, scope, cardKey });
+
+  useLayoutEffect(() => {
+    const before = entranceState.current;
+    if (before.query !== query || before.scope !== scope || before.cardKey !== cardKey) cancelEntrance.current?.();
+    entranceState.current = { query, scope, cardKey };
+  }, [query, scope, cardKey]);
 
   // On opening, every card flies out of its tab in the strip into its place,
   // each a moment after the one before: the tabs spread out into the overview.
@@ -71,26 +81,43 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
       const box = el.getBoundingClientRect();
       return box.bottom > 0 && box.top < window.innerHeight;
     });
+    const animations: Animation[] = [];
+    let cancelled = false;
     onScreen.forEach((el, index) => {
       const tabElement = tabElements.find((tab) => tab.dataset.titleTabId === el.dataset.overviewTab);
       // A tab that is folded away or in another project leaves from the middle of the strip.
       const from = tabElement ? boxOf(tabElement) : { left: stripBox.left + stripBox.width / 2 - 20, top: stripBox.top + 5, width: 40, height: 30 };
       const base = boxOf(el);
       el.style.visibility = "hidden";
-      flyGhost({
+      const animation = flyGhost({
         source: el, base, from, to: base,
         duration: 520, delay: Math.min(index * 24, 280), fadeIn: true,
-        onDone: () => { el.style.visibility = ""; },
+        onDone: () => { if (!cancelled) el.style.visibility = ""; },
       });
+      if (animation) animations.push(animation);
     });
-    // Runs once, as the overview opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const cancel = () => {
+      if (cancelled) return;
+      cancelled = true;
+      for (const animation of animations) animation.cancel();
+      for (const element of onScreen) element.style.visibility = "";
+    };
+    cancelEntrance.current = cancel;
+    return cancel;
   }, []);
 
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
-    const measure = () => setColumns(Math.max(1, Math.floor((grid.clientWidth + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP))));
+    let measuredWidth = grid.clientWidth;
+    const measure = () => {
+      const width = grid.clientWidth;
+      // Initial column measurement is bookkeeping; only a real resize
+      // invalidates the geometry the opening flight was given.
+      if (width !== measuredWidth) cancelEntrance.current?.();
+      measuredWidth = width;
+      setColumns(Math.max(1, Math.floor((width + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP))));
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(grid);

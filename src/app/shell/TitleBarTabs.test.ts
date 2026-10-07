@@ -46,6 +46,53 @@ afterEach(() => {
 });
 
 describe("tab strip density", () => {
+  it("keeps the active highlight aligned after a resize without changing tabs or density", () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    let clock = 1000;
+    let resizeStrip = () => {};
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.set(++frameId, callback);
+      return frameId;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(private callback: ResizeObserverCallback) {}
+      observe(element: Element) {
+        if (element.hasAttribute("data-title-tab-strip")) resizeStrip = () => this.callback([], this as unknown as ResizeObserver);
+      }
+      disconnect() {}
+    });
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const id = this.closest("[data-title-tab-id]")?.getAttribute("data-title-tab-id");
+      const width = id ? Math.min(224, (stripWidth - 16) / 4 - 2) : stripWidth;
+      const left = id ? 6 + Number(id.slice(1)) * (width + 2) : 0;
+      return { x: left, y: 0, left, top: 0, width, height: 30, right: left + width, bottom: 30, toJSON() {} };
+    });
+    const settleHighlight = () => {
+      for (let count = 0; count < 120 && frames.size; count += 1) {
+        clock += 16;
+        const due = [...frames.values()];
+        frames.clear();
+        act(() => due.forEach((callback) => callback(clock)));
+      }
+    };
+    stripWidth = 1000;
+    render(many(4));
+    settleHighlight();
+    const pill = container.querySelector<HTMLElement>("[data-tab-pill]")!;
+    expect(pill.style.width).toBe("224px");
+    expect(frames.size).toBe(0);
+    stripWidth = 600;
+    act(() => resizeStrip());
+    settleHighlight();
+    expect(variants()).toEqual(Array(4).fill("full"));
+    const target = container.querySelector('[data-title-tab-id="t2"]')!.getBoundingClientRect();
+    expect(parseFloat(pill.style.width)).toBe(target.width);
+    expect(pill.style.transform).toBe(`translateX(${target.left}px)`);
+  });
+
   it("shows every title while they all fit", () => {
     stripWidth = 1400;
     render(many(6));

@@ -1091,8 +1091,8 @@ cannot claim "No sessions yet" before the rows have landed.
       <div role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuenow={resize.width} aria-valuemin={MIN_WIDTH} aria-valuemax={MAX_WIDTH} className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick}/>
     </aside>);
     return (<div className={`flex h-full shrink-0 ${railVisible || compactRailVisible || sidebarVisible ? "" : "hidden"}`}>
-      {compactRailVisible ? (<CompactProjectRail cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} tabs={visibleTabs} activeTab={tab} tabShown={panelOpen} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onTabChange={onCompactTabPick} onSearch={onSearch} searchActive={searchActive} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} notesActive={notesActive} canvasesActive={canvasesActive} onOpenSettings={onOpenSettings} onTogglePanel={onToggleProjectRail} onLeaveActive={onGoBack} titleBarAbove={titleBarAbove}/>) : null}
-      {railMounted.current && onSelectProject && onOpenProject ? (<ProjectRail visible={railVisible} cwd={cwd} recents={recents} busyPaths={busyProjectPaths} liveAgents={liveAgents} activeSessionId={activeSessionId} onSelectAgent={onSelectAgent} canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} onSearch={onSearch} searchActive={searchActive} notesEnabled={notesEnabled} onOpenNotes={onOpenNotes} notesActive={notesActive} canvasesActive={canvasesActive} onTogglePanel={onToggleProjectRail} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} settingsOpen={settingsOpen} settingsSection={settingsSection} onOpenSettings={onOpenSettings} onOpenNotificationSettings={onOpenNotificationSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={onCloseSettings}/>) : null}
+      {compactRailVisible ? (<CompactProjectRail cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} tabs={visibleTabs} activeTab={tab} tabShown={panelOpen} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onTabChange={onCompactTabPick} onSearch={onSearch} searchActive={searchActive} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} notesActive={notesActive} onOpenCanvases={onOpenCanvases} canvasesActive={canvasesActive} onOpenSettings={onOpenSettings} onTogglePanel={onToggleProjectRail} onLeaveActive={onGoBack} titleBarAbove={titleBarAbove}/>) : null}
+      {railMounted.current && onSelectProject && onOpenProject ? (<ProjectRail visible={railVisible} cwd={cwd} recents={recents} busyPaths={busyProjectPaths} liveAgents={liveAgents} activeSessionId={activeSessionId} onSelectAgent={onSelectAgent} canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} onSearch={onSearch} searchActive={searchActive} notesEnabled={notesEnabled} onOpenNotes={onOpenNotes} notesActive={notesActive} onOpenCanvases={inProject ? undefined : onOpenCanvases} canvasesActive={canvasesActive} onTogglePanel={onToggleProjectRail} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} settingsOpen={settingsOpen} settingsSection={settingsSection} onOpenSettings={onOpenSettings} onOpenNotificationSettings={onOpenNotificationSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={onCloseSettings}/>) : null}
       {sidebarVisible ? sidebarContent : null}
       {drawerRendered ? (
         // Pinned to the right edge, so the sidebar slides in as the width grows.
@@ -1148,7 +1148,7 @@ function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProje
 
     </div>);
 }
-function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onSelectProject, onOpenProject, onRemoveProject, onTabChange, onSearch, searchActive, onOpenNotificationSettings, onOpenNotes, notesActive, canvasesActive, onOpenSettings, onTogglePanel, onLeaveActive, titleBarAbove, }: {
+function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onSelectProject, onOpenProject, onRemoveProject, onTabChange, onSearch, searchActive, onOpenNotificationSettings, onOpenNotes, notesActive, onOpenCanvases, canvasesActive, onOpenSettings, onTogglePanel, onLeaveActive, titleBarAbove, }: {
     cwd: string;
     recents: RecentProject[];
     busy: boolean;
@@ -1163,6 +1163,7 @@ function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onS
     searchActive: boolean;
     onOpenNotificationSettings?: (projectPath?: string) => void;
     onOpenNotes?: () => void;
+    onOpenCanvases?: () => void;
     canvasesActive: boolean;
     notesActive: boolean;
     onOpenSettings?: () => void;
@@ -1173,6 +1174,10 @@ function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onS
     const action = (active: boolean, open?: () => void) => active && onLeaveActive ? onLeaveActive : open;
     const workspaceActive = !searchActive && !notesActive && !canvasesActive;
     const openWorkspaceTab = (nextTab: SidebarTab) => {
+        if (nextTab === "canvases" && !looksLikeProject(cwd) && onOpenCanvases) {
+            onOpenCanvases();
+            return;
+        }
         if (!workspaceActive)
             onLeaveActive?.();
         onTabChange(nextTab);

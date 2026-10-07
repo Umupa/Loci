@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, createElement, type ComponentProps } from "react";
+import { act, createElement, StrictMode, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Tab } from "../../features/workspace/model/tabSummary";
@@ -21,8 +21,22 @@ const tabs = [
 function handlers() {
   return { onActivate: vi.fn(), onCloseTabs: vi.fn(), onParkTabs: vi.fn(), onPinTabs: vi.fn(), onDismiss: vi.fn() };
 }
-function render(props: ReturnType<typeof handlers> & Partial<ComponentProps<typeof TabOverview>>) {
-  act(() => root.render(createElement(TabOverview, { tabs, activeId: "a", projectPath: "/p/loci", recent: ["a"], ...props })));
+function render(props: ReturnType<typeof handlers> & Partial<ComponentProps<typeof TabOverview>>, strict = false) {
+  const overview = createElement(TabOverview, { tabs, activeId: "a", projectPath: "/p/loci", recent: ["a"], ...props });
+  act(() => root.render(strict ? createElement(StrictMode, null, overview) : overview));
+}
+function mockFlights(width = 800) {
+  const animations: { element: Element; cancel: ReturnType<typeof vi.fn> }[] = [];
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(width);
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ x: 20, y: 100, left: 20, top: 100, width: 248, height: 148, right: 268, bottom: 248, toJSON() {} });
+  vi.spyOn(Element.prototype, "animate").mockImplementation(function (this: Element) {
+    let reject!: (reason: Error) => void;
+    const finished = new Promise<void>((_resolve, rejectPromise) => { reject = rejectPromise; });
+    const cancel = vi.fn(() => reject(new Error("Animation cancelled")));
+    animations.push({ element: this, cancel });
+    return { finished, cancel } as unknown as Animation;
+  });
+  return animations;
 }
 const input = () => document.querySelector<HTMLInputElement>('input[aria-label="Search tabs"]')!;
 const cards = () => [...document.querySelectorAll<HTMLElement>("[data-overview-tab]")];
@@ -50,10 +64,38 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("TabOverview", () => {
+  it.each(["search", "scope", "unmount"])("cancels entrance copies and reveals cards on %s", async (change) => {
+    const animations = mockFlights();
+    render(handlers());
+    const originalCards = cards();
+    const entrances = animations.filter(({ element }) => element.getAttribute("aria-hidden") === "true");
+    expect(entrances).toHaveLength(3);
+    expect(entrances.every(({ element }) => element.isConnected)).toBe(true);
+    expect(originalCards.every((card) => card.style.visibility === "hidden")).toBe(true);
+    if (change === "search") type("release");
+    else if (change === "scope") act(() => [...document.querySelectorAll<HTMLElement>('[role="tab"]')].find((el) => el.textContent === "All projects")!.click());
+    else act(() => root.render(null));
+    await act(async () => { await Promise.resolve(); });
+    expect(entrances.every(({ cancel }) => cancel.mock.calls.length === 1)).toBe(true);
+    expect(entrances.every(({ element }) => !element.isConnected)).toBe(true);
+    expect(originalCards.every((card) => card.style.visibility === "")).toBe(true);
+  });
+
+  it.each([{ width: 1048, strict: false }, { width: 800, strict: true }])("keeps the opening flight after initial measurement at $width, StrictMode $strict", async ({ width, strict }) => {
+    const animations = mockFlights(width);
+    render(handlers(), strict);
+    await act(async () => { await Promise.resolve(); });
+    const flying = animations.filter(({ element }) => element.getAttribute("aria-hidden") === "true" && element.isConnected);
+    expect(flying).toHaveLength(3);
+    expect(flying.every(({ cancel }) => cancel.mock.calls.length === 0)).toBe(true);
+    expect(cards().every((card) => card.style.visibility === "hidden")).toBe(true);
+  });
+
   it("opens on this project, what wants you first, saying how many need you or work", () => {
     render(handlers());
     expect(order()).toEqual(["b", "d", "a"]);
