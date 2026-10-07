@@ -1,4 +1,5 @@
 import { CheckCircle, ChevronLeft, ChevronRight, DashboardSquare, ExcalidrawIcon, PanelLeft, Settings, StickyNote, X, } from "../../shared/ui/icons";
+import { FileTypeIcon } from "../../shared/ui/FileTypeIcon";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, } from "react";
 import { basename } from "../../platform/tauri/fs";
 import { looksLikeProject } from "../../features/projects/model/recents";
@@ -27,7 +28,7 @@ export type Tab = {
     /** Other conversation titles in this tab, focused session omitted. */
     more: string[];
     sessionCount: number;
-    paneKind?: "canvas";
+    paneKind?: "canvas" | "file";
     harnesses: HarnessId[];
     /** Harnesses with an in-flight turn in this tab. */
     busyHarnesses: HarnessId[];
@@ -192,6 +193,7 @@ function TitleTabItem({ tab, active, closable, canDrag, sortable, onSelect, onCl
             ? "bg-selection text-content"
             : "text-content/50 hover:bg-content/5 hover:text-content"}`}>
         {tab.paneKind === "canvas" ? <ExcalidrawIcon className="size-3.5 shrink-0"/> : null}
+        {tab.paneKind === "file" ? <span className="shrink-0"><FileTypeIcon name={tab.title} isDir={false} size={14}/></span> : null}
         {tab.harnesses.length > 0 ? (<TabHarnesses harnesses={tab.harnesses} busyHarnesses={tab.busyHarnesses} doneHarnesses={tab.doneHarnesses ?? []} dimmed={!active}/>) : null}
         {/* Keep two-line tabs compact while leaving room for descenders. */}
         <span className="flex min-w-0 flex-1 flex-col justify-center">

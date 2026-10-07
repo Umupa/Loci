@@ -1,5 +1,5 @@
 import { markTurnInterrupted, type ResumedWorkspace } from "../../sessions/model/inFlight";
-import { layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
+import { fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
 import { workspaceTabCwd } from "./workspaceTabGroups";
 import { pathKey } from "../../../shared/lib/paths";
 import { reconcileProjectReturn, type ProjectReturnMemory } from "../../projects/model/projectReturn";
@@ -222,11 +222,13 @@ function sanitizeLayout(raw: unknown): LayoutNode | null {
         return null;
     const value = raw as Record<string, unknown>;
     if (value.type === "leaf") {
-        if (value.leafKind !== undefined && value.leafKind !== "canvas")
+        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file")
             return null;
-        return typeof value.id === "string" && value.id
-            ? { type: "leaf", id: value.id, ...(value.leafKind === "canvas" ? { leafKind: value.leafKind } : {}) }
-            : null;
+        if (typeof value.id !== "string" || !value.id)
+            return null;
+        if (value.leafKind === "file")
+            return fileLeaf(filePanePath(value.id), value.preview === true);
+        return { type: "leaf", id: value.id, ...(value.leafKind === "canvas" ? { leafKind: value.leafKind } : {}) };
     }
     if (value.type !== "split" || typeof value.id !== "string" || !value.id) {
         return null;

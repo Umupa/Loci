@@ -1,5 +1,5 @@
 import { ContextMenu, type ContextMenuItem } from "../../shared/ui/ContextMenu";
-import { Archive, Chatting, Check, ChevronDown, ChevronRight, CircleAlert, CircleDashed, Clock, Folder, ListFilter, ExcalidrawIcon, PanelLeft, Pin, Plus, Search, Settings, StickyNote, } from "../../shared/ui/icons";
+import { Archive, Chatting, Check, ChevronDown, ChevronRight, CircleAlert, CircleDashed, Clock, Folder, ListFilter, ExcalidrawIcon, FileScript, PanelLeft, PenLine, Pin, Plus, Search, Settings, StickyNote, } from "../../shared/ui/icons";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, } from "react";
 import { IS_MAC, MOD } from "../../platform/tauri/platform";
 import { copyText } from "../../platform/tauri/clipboard";
@@ -38,17 +38,27 @@ import { SessionFiltersMenu } from "../../features/sessions/ui/SessionFiltersMen
 import { sessionReminderPresets } from "../../features/sessions/ui/sessionReminderPresets";
 import { formatReminderTime, reminderTime, type SessionReminder, } from "../../features/sessions/model/sessionReminders";
 import { SessionsEmpty } from "../../features/sessions/ui/SessionsEmpty";
+import { FileTree } from "../../features/files/ui/FileTree";
+import { CanvasList } from "../../features/canvas/ui/CanvasList";
+import type { Canvas } from "../../features/canvas/canvas";
 const MIN_WIDTH = 260;
 const MAX_WIDTH = 560;
 const DEFAULT_WIDTH = 260;
 const REMINDERS_COLOR = "#f59e0b";
 let rememberedWidth = DEFAULT_WIDTH;
-type SidebarTab = "sessions";
+type SidebarTab = "sessions" | "files" | "canvases";
+const SIDEBAR_TABS: SidebarTab[] = ["sessions", "files", "canvases"];
+let rememberedTab: SidebarTab = "sessions";
 const TAB_LABELS: Record<SidebarTab, string> = {
     sessions: "Sessions",
+    files: "Files",
+    canvases: "Canvas",
 };
 const COMPACT_TAB_ICONS: Record<SidebarTab, typeof PanelLeft> = {
     sessions: Chatting,
+    files: FileScript,
+    // The Excalidraw mark already opens the page of every project's drawings.
+    canvases: PenLine,
 };
 function projectPathBusy(paths: Iterable<string> | undefined, cwd: string): boolean {
     if (!paths)
@@ -104,6 +114,18 @@ type Props = {
     onOpenNotes?: () => void;
     onOpenCanvases?: () => void;
     canvasesActive?: boolean;
+    /** Files tab: open a project file in the workspace; `pin` keeps its pane. */
+    onOpenFile?: (path: string, pin?: boolean) => void;
+    onFileMoved?: (from: string, to: string) => void;
+    onFileDeleted?: (path: string) => void;
+    /** Canvas tab: this project's drawings and what to do with them. */
+    canvases?: Canvas[];
+    activeCanvasId?: string;
+    onOpenCanvas?: (id: string) => void;
+    onOpenCanvasInTab?: (id: string) => void;
+    onNewCanvas?: () => Promise<Canvas | undefined>;
+    onRenameCanvas?: (id: string, title: string) => void;
+    onDeleteCanvas?: (id: string) => void;
     searchActive?: boolean;
     notesActive?: boolean;
     notesEnabled?: boolean;
@@ -119,8 +141,12 @@ type Props = {
     onSelectSettingsSection?: (section: SettingsSectionId) => void;
     onCloseSettings?: () => void;
 };
-function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, openSessions = [], status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, reminders = [], onSetReminders, onCancelReminders, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, searchActive = false, notesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, onOpenCanvases, canvasesActive = false, }: Props) {
-    const tab: SidebarTab = "sessions";
+function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, openSessions = [], status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, reminders = [], onSetReminders, onCancelReminders, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, searchActive = false, notesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, onOpenCanvases, canvasesActive = false, onOpenFile, onFileMoved, onFileDeleted, canvases = [], activeCanvasId, onOpenCanvas, onOpenCanvasInTab, onNewCanvas, onRenameCanvas, onDeleteCanvas, }: Props) {
+    const [tab, setTab] = useState<SidebarTab>(() => rememberedTab);
+    const pickTab = (next: SidebarTab) => {
+        rememberedTab = next;
+        setTab(next);
+    };
     const onSelectSession = onSelectLocalSession;
     const onPrefetchSession = onPrefetchLocalSession;
     const onPlaceSessionOnPane = onPlaceLocalSessionOnPane;
@@ -233,7 +259,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
     const sessionListKey = `${cwd}\0${sessionFilters.showArchived}\0${sessionFilters.time}\0${sessionFilters.hiddenHarnesses.join(",")}\0${sessionFilters.status.working}\0${sessionFilters.status.needsApproval}\0${sessionFilters.status.done}\0${searchQuery}`;
     const sessionHarnesses = harnessesInSessions(projectSessions);
     const narrowedByUser = searchNarrowed || filtersActive;
-    const visibleTabs: SidebarTab[] = ["sessions"];
+    const visibleTabs = SIDEBAR_TABS;
     const visibleFolderIds = sessionListEntries.flatMap((entry) => entry.kind === "folder" ? [entry.folder.id] : []);
     const folderSortable = useSortable(visibleFolderIds, (ids) => {
         setSessionFolders((current) => {
@@ -873,9 +899,14 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
         if (drawerMode) {
             setDrawerOpen(!(drawerVisible && tab === itemId));
         }
+        pickTab(itemId);
         onTabChange(itemId);
     };
-    const workspaceTabItems = <div className="workspace-tab relative flex min-w-0 flex-1 items-stretch"><span className="flex h-6 min-w-0 flex-1 items-center justify-center self-center rounded-md bg-selection px-2 text-[12px] leading-none text-content"><span className="block truncate leading-label">Sessions</span></span></div>;
+    const workspaceTabItems = visibleTabs.map((itemId) => (<div key={itemId} className="workspace-tab relative flex min-w-0 flex-1 items-stretch">
+        <button type="button" role="tab" aria-selected={tab === itemId} data-tauri-drag-region="false" onClick={() => pickTab(itemId)} className={`flex h-6 min-w-0 flex-1 items-center justify-center self-center rounded-md px-2 text-[12px] leading-none ${tab === itemId ? "bg-selection text-content" : "text-content/50 hover:text-content"}`}>
+          <span className="block truncate leading-label">{TAB_LABELS[itemId]}</span>
+        </button>
+      </div>));
     const workspaceHeader = (<div className="flex h-10 shrink-0 select-none items-center gap-1 border-b border-stroke pl-3 pr-1.5" data-tauri-drag-region="deep">
       <div className="flex min-w-0 flex-1 items-center">
         {(<span className="min-w-0 truncate text-sm font-medium leading-tight">
@@ -903,8 +934,18 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
             </div>) : null}
         </>)}
       <>
+        <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${tab === "files" ? "" : "hidden"}`}>
+          {cwd && cwd !== "~" && onOpenFile ? (<FileTree key={cwd} cwd={cwd} onOpenFile={onOpenFile} onFileMoved={onFileMoved} onFileDeleted={onFileDeleted}/>) : (<p className="px-3 py-2 text-[12px] text-content/50">
+              No project folder
+            </p>)}
+        </div>
+        {tab === "canvases" ? (<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {cwd && cwd !== "~" && onOpenCanvas && onOpenCanvasInTab && onNewCanvas && onRenameCanvas && onDeleteCanvas ? (<CanvasList canvases={canvases} cwd={cwd} activeId={activeCanvasId} onOpen={onOpenCanvas} onOpenInTab={onOpenCanvasInTab} onNew={onNewCanvas} onRename={onRenameCanvas} onDelete={onDeleteCanvas} onOpenAll={onOpenCanvases}/>) : (<p className="px-3 py-2 text-[12px] text-content/50">
+                No project folder
+              </p>)}
+          </div>) : null}
 
-        {cwd && cwd !== "~" ? (<div className="flex h-9 shrink-0 items-center gap-1 border-b border-stroke px-2">
+        {tab === "sessions" && cwd && cwd !== "~" ? (<div className="flex h-9 shrink-0 items-center gap-1 border-b border-stroke px-2">
             <div className="relative flex h-7 min-w-0 flex-1 items-center">
               <Search className="pointer-events-none absolute left-2 size-3 shrink-0 opacity-50"/>
               {sessionSearchInput}
@@ -916,7 +957,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
         <div ref={(el) => {
             sessionsLock(el);
             sessionsScrollRef.current = el;
-        }} className={`sidebar-session-scroll min-h-0 flex-1 overflow-y-auto overscroll-none `}>
+        }} className={`sidebar-session-scroll min-h-0 flex-1 overflow-y-auto overscroll-none ${tab === "sessions" ? "" : "hidden"}`}>
           {!cwd || cwd === "~" ? (<p className="px-3 py-2 text-[12px] text-content/50">
               No project folder
             </p>) : (<div>

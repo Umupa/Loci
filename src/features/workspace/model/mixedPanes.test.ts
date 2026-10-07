@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { newSession } from "../../sessions/model/session";
-import { canvasLeaf, findLeaf, layoutLeaves, leaf, leafIds, newTab, placeLayout, setSplitRatio, showCanvasBeside, showCanvasForSession, splitPane, type WorkspaceTab } from "./layout";
+import { canvasLeaf, fileLeaf, filePaneId, findLeaf, layoutLeaves, placeFileOnPane, rebaseFilePanes, showCanvasInTab, showFileInTab, leaf, leafIds, newTab, placeLayout, setSplitRatio, showCanvasBeside, showCanvasForSession, splitPane, type WorkspaceTab } from "./layout";
 import { applyDetachPaneToTab, applyMoveWorkspacePane, applyPlaceTabOnPane, filterTabsForProject } from "./workspaceTabGroups";
 import { collectWorkspaceSnapshot, hydrateWorkspaceSnapshot } from "./workspaceSnapshot";
 
@@ -87,5 +87,59 @@ describe("mixed workspace panes", () => {
     expect(resumed.tabs.map((tab) => tab.layout)).toEqual([mixed.layout, canvasLeaf("drawing")]);
     expect(resumed.sessions.map((entry) => entry.id)).toEqual(["chat"]);
     expect(resumed.tabs[1].cwd).toBe("/project");
+  });
+
+  it("previews files in one reused pane until a file is pinned", () => {
+    const chat = { ...newTab("chat"), id: "chat-tab" };
+    const first = showFileInTab(chat, "/project/a.md", false);
+    expect(layoutLeaves(first.layout).map((pane) => [pane.id, pane.kind, !!pane.preview])).toEqual([["chat", "session", false], [filePaneId("/project/a.md"), "file", true]]);
+    expect(first.focusedId).toBe(filePaneId("/project/a.md"));
+
+    // The next single click takes over the preview pane instead of splitting again.
+    const second = showFileInTab(first, "/project/b.pdf", false);
+    expect(leafIds(second.layout)).toEqual(["chat", filePaneId("/project/b.pdf")]);
+
+    // Pinning keeps that pane, so the following preview opens beside it.
+    const pinned = showFileInTab(second, "/project/b.pdf", true);
+    expect(findLeaf(pinned.layout, filePaneId("/project/b.pdf"))).toEqual(fileLeaf("/project/b.pdf"));
+    const third = showFileInTab(pinned, "/project/c.png", false);
+    expect(leafIds(third.layout)).toEqual(["chat", filePaneId("/project/b.pdf"), filePaneId("/project/c.png")]);
+
+    // Reopening a pinned file only focuses it; it never becomes a preview again.
+    const again = showFileInTab(third, "/project/b.pdf", false);
+    expect(again.layout).toBe(third.layout);
+    expect(again.focusedId).toBe(filePaneId("/project/b.pdf"));
+  });
+
+  it("places a dragged file on a pane edge and moves its pane when it is already open", () => {
+    const chat = { ...newTab("chat"), id: "chat-tab" };
+    const preview = showFileInTab(chat, "/project/a.md", false);
+    const placed = placeFileOnPane(preview, "/project/a.md", "chat", "left");
+    expect(layoutLeaves(placed.layout).map((pane) => [pane.id, !!pane.preview])).toEqual([[filePaneId("/project/a.md"), false], ["chat", false]]);
+    expect(placeFileOnPane(placed, "/project/a.md", filePaneId("/project/a.md"), "top")).toBe(placed);
+  });
+
+  it("keeps file panes on a renamed folder's files and leaves other panes alone", () => {
+    const tab = showFileInTab({ ...newTab("chat"), id: "chat-tab" }, "/project/papers/a.pdf", true);
+    const rebase = (path: string) => path.replace("/project/papers", "/project/reading");
+    const moved = rebaseFilePanes(tab, rebase);
+    expect(leafIds(moved.layout)).toEqual(["chat", filePaneId("/project/reading/a.pdf")]);
+    expect(moved.focusedId).toBe(filePaneId("/project/reading/a.pdf"));
+    expect(rebaseFilePanes(moved, rebase)).toBe(moved);
+  });
+
+  it("opens a sidebar drawing in the tab's canvas pane and restores file panes with their preview state", () => {
+    const session = { ...newSession("codex", "/project"), id: "chat" };
+    const chat = { ...newTab("chat"), id: "chat-tab", cwd: "/project" };
+    const first = showCanvasInTab(chat, "first");
+    const second = showCanvasInTab(first, "second");
+    expect(layoutLeaves(second.layout).map((pane) => [pane.id, pane.kind])).toEqual([["chat", "session"], ["second", "canvas"]]);
+    expect(second.focusedId).toBe("second");
+
+    const withFile = showFileInTab(second, "/project/a.md", false);
+    const snapshot = collectWorkspaceSnapshot([withFile], [session], "chat-tab", "/project", new Map());
+    const restored = hydrateWorkspaceSnapshot(JSON.parse(JSON.stringify(snapshot)), new Map())!;
+    expect(restored.tabs[0].layout).toEqual(withFile.layout);
+    expect(restored.sessions.map((entry) => entry.id)).toEqual(["chat"]);
   });
 });

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { startHarnessBridge } from "../../integrations/harness/core/child";
 import { applyHarnessEvents } from "../../integrations/harness/core/apply";
+import { noteAgentFileActivity } from "../../features/files/model/agentActivity";
 import { bindHarnessSession } from "../../integrations/harness/core/registry";
 import type { HarnessEvent } from "../../integrations/harness/core/types";
 import { sessionNeedsInput, type Session } from "../../features/sessions/model/session";
@@ -101,6 +102,7 @@ export function useSessionRuntime(options: RuntimeOptions) {
   }, [updateSessions]);
 
   const enqueueEvent = useCallback((sessionId: string, event: HarnessEvent) => {
+    noteAgentFileActivity(event);
     const events = queued.current.get(sessionId) ?? [];
     events.push(event);
     queued.current.set(sessionId, events);

@@ -10,7 +10,10 @@ import { ReminderNotices } from "../features/sessions/ui/ReminderNotices";
 import { TranscriptPool, TranscriptPoolOutlet } from "../features/sessions/ui/TranscriptPool";
 import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
-import { openPathWithDefaultApp } from "../platform/tauri/fs";
+import { basename, openPathWithDefaultApp } from "../platform/tauri/fs";
+import { isEqualOrInside } from "../shared/lib/paths";
+import { FILE_POINTER_DRAG_EVENT, type FilePointerDragDetail } from "../shared/lib/drag";
+import { paneDropFromPoint, setExternalPaneDrop } from "../features/workspace/model/paneDrop";
 import { lazySurface } from "../shared/ui/lazySurface";
 import { preloadNavigationWhenIdle } from "./model/preloadNavigation";
 import { ProviderSignInDialog } from "../features/sessions/ui/ProviderSignInDialog";
@@ -22,7 +25,7 @@ import { newDefaultSession, newSession, sessionNeedsInput, type HarnessId, type 
 import { requestTranscriptJump } from "../features/sessions/model/transcriptJump";
 import { useUnseenFinishedSessions } from "../features/sessions/hooks/useUnseenFinishedSessions";
 import { liveAgentsFromSessions } from "../features/sessions/model/liveAgents";
-import { findLeaf, leafIds } from "../features/workspace/model/layout";
+import { filePaneId, filePanePath, findLeaf, leafIds } from "../features/workspace/model/layout";
 import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
 import { loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../features/settings/model/uiScale";
@@ -282,6 +285,32 @@ function Workspace(boot: BootWorkspace) {
   const compactRailActive = compactProjectRail && !projectRailOpen;
   const compactTitleBar = IS_MAC && compactRailActive && surface === "chat";
   const openFile = useCallback((path: string) => { void openPathWithDefaultApp(path).catch((error) => workspaceRef.current?.setError(String(error))); }, []);
+  const pinFile = useCallback((path: string) => workspaceRef.current?.openFile(path, true), []);
+  // A link inside an open document: project files open beside it, anything
+  // else goes to the app the system uses for it.
+  const openProjectFile = useCallback((path: string) => {
+    const view = workspaceRef.current;
+    if (view && isEqualOrInside(path, view.projectCwdRef.current)) view.openFile(path);
+    else openFile(path);
+  }, [openFile]);
+  useEffect(() => {
+    // A file dragged out of the Files tree shows the same edge hint as a
+    // dragged pane, and lands as its own pane where it is dropped.
+    const onDrag = (event: Event) => {
+      const detail = (event as CustomEvent<FilePointerDragDetail>).detail;
+      if (detail.type === "end") { setExternalPaneDrop(null); return; }
+      const over = paneDropFromPoint(detail.x, detail.y);
+      const fromId = filePaneId(detail.path);
+      if (detail.type === "move") {
+        setExternalPaneDrop(over && over.id !== fromId ? { fromId, overId: over.id, edge: over.edge } : null);
+        return;
+      }
+      setExternalPaneDrop(null);
+      if (over && over.id !== fromId) workspaceRef.current?.placeFile(detail.path, over.id, over.edge);
+    };
+    window.addEventListener(FILE_POINTER_DRAG_EVENT, onDrag);
+    return () => window.removeEventListener(FILE_POINTER_DRAG_EVENT, onDrag);
+  }, []);
   const onRailBack = () => surface !== "chat" ? closeSurface() : workspace.visit("back");
   const notificationsSettings = (path?: string) => {
     setNotificationProjectPath(path ?? workspace.projectCwd);
@@ -300,9 +329,11 @@ function Workspace(boot: BootWorkspace) {
     const workspaceTab = workspace.tabs.find((entry) => entry.id === tab.id);
     const focused = workspaceTab && findLeaf(workspaceTab.layout, workspaceTab.focusedId);
     const title = focused?.leafKind === "canvas" ? canvases.find((canvas) => canvas.id === focused.id)?.title ?? "Excalidraw"
+      : focused?.leafKind === "file" ? basename(filePanePath(focused.id))
       : tab.title;
     return { ...tab, title, paneKind: focused?.leafKind, blank: !!layout && leafIds(layout).length === 1 && tab.blank, multiPane: layout ? leafIds(layout).length > 1 : tab.multiPane, doneHarnesses: [...new Set(done)] };
   });
+  const focusedLeaf = workspace.activeTab && findLeaf(workspace.activeTab.layout, workspace.activeTab.focusedId);
   const workspaceTitleBar = <TitleBar tabs={titleTabs} activeId={workspace.activeTabId} cwd={workspace.projectCwd}
     projectRailOpen={projectRailOpen} sessionSidebarOpen={sessionSidebarOpen} compactRail={compactTitleBar}
     canGoBack={workspace.visits.back.length > 0} canGoForward={workspace.visits.forward.length > 0}
@@ -364,6 +395,9 @@ function Workspace(boot: BootWorkspace) {
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
           onOpenCanvases={openCanvases} canvasesActive={surface === "canvases"}
+          onOpenFile={workspace.openFile} onFileMoved={workspace.fileMoved} onFileDeleted={workspace.fileDeleted}
+          canvases={canvases} activeCanvasId={surface === "chat" && focusedLeaf?.leafKind === "canvas" ? focusedLeaf.id : undefined}
+          onOpenCanvas={workspace.showCanvas} onOpenCanvasInTab={openCanvas} onNewCanvas={newCanvas} onRenameCanvas={renameCanvas} onDeleteCanvas={handleDeleteCanvas}
           projectRailOpen={projectRailOpen} compactProjectRail={compactProjectRail} titleBarAbove={compactTitleBar} onToggleProjectRail={toggleProjectRail}
           unseenFinishedIds={unseenFinishedIds} settingsOpen={surface === "settings"} settingsSection={settingsSection} onOpenSettings={() => openSettings()}
           onOpenNotificationSettings={notificationsSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={() => setSurface(settingsReturn.current)} />
@@ -384,7 +418,9 @@ function Workspace(boot: BootWorkspace) {
                     onCanvasFocus={(id) => workspace.focusPane(id)}
                     onCanvasAddToChat={canvasAddToChat}
                     onCanvasTitleChange={renameCanvas}
-                    onCanvasRegisterAppend={registerCanvasAppend} />
+                    onCanvasRegisterAppend={registerCanvasAppend}
+                    projectCwd={tab.cwd ?? workspace.projectCwd} onFilePaneFocus={workspace.focusPane}
+                    onFilePanePin={pinFile} onOpenProjectFile={openProjectFile} />
                 </div>)}
               </div>
             </main>

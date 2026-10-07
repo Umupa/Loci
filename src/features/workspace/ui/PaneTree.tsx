@@ -2,13 +2,14 @@ import { lazy, memo, Suspense, useCallback, useEffect, useReducer, useRef, useSt
 import { setGrabbing, suppressTextSelection } from "../../../shared/lib/drag";
 import { paneDropFromPoint, setExternalTitleTabDrop, titleTabDropFromPoint, useExternalPaneDrop, type TitleTabDropPosition, } from "../model/paneDrop";
 import type { ApprovalDecision, UserQuestionReply, } from "../../../integrations/harness";
-import { layoutLeaves, layoutSashes, setSplitRatio, type LayoutLeaf, type LayoutNode, type LayoutSash, type PaneEdge, } from "../model/layout";
+import { filePanePath, layoutLeaves, layoutSashes, setSplitRatio, type LayoutLeaf, type LayoutNode, type LayoutSash, type PaneEdge, } from "../model/layout";
 import { type RecentProject, } from "../../projects/model/recents";
 import { type Attachment, type Block, type HarnessId, type RuntimeMode, type Session, type ComposerTurnOptions, } from "../../sessions/model/session";
 import { SessionPane } from "../../sessions/ui/SessionPane";
 import type { TranscriptPool } from "../../sessions/ui/TranscriptPool";
 import type { SessionFolderTarget } from "../../sessions/model/sessionFolders";
 import type { Canvas } from "../../canvas/canvas";
+const FilePane = lazy(() => import("../../files/ui/FilePane").then((m) => ({ default: m.FilePane })));
 const CanvasPane = lazy(() => import("../../canvas/ui/CanvasPane").then((m) => ({ default: m.CanvasPane })));
 type Shared = {
     visible: boolean;
@@ -58,6 +59,11 @@ type Shared = {
     onCanvasTitleChange?: (canvasId: string, title: string) => void;
     onCanvasRegisterAppend?: (canvasId: string, fn: ((text: string) => void) | null) => void;
     onSaveToCanvas?: (text: string) => void | Promise<void>;
+    /** Project folder that file panes show their paths relative to. */
+    projectCwd?: string;
+    onFilePaneFocus?: (paneId: string) => void;
+    onFilePanePin?: (path: string) => void;
+    onOpenProjectFile?: (path: string) => void;
 };
 type Props = Shared & {
     layout: LayoutNode;
@@ -68,7 +74,7 @@ type PaneDrag = {
     edge: PaneEdge;
 };
 const DRAG_THRESHOLD = 5;
-function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocused, composerFocusToken, recents, hideProjectPicker, onOpenFile, onFocus, onClose, onRatio, onCwdChange, onModelChange, onModelSettingsChange, onRuntimeModeChange, onSaveDraft, onRemoveDraft, onSubmit, onStop, onCompactContext, onPlaceSessionInFolder, onDeleteQueuedMessage, onEditQueuedMessage, onQueuedMessageEditingChange, onSteerQueuedMessage, onResumeQueue, onUsageLimitResume, onUsageLimitResumeAtReset, onUsageLimitDismiss, onNoteCardDismiss, onApproval, onQuestionReply, onQuestionInteraction, onBtwSubmit, onBtwRetry, onBtwDelete, onBtwStop, onBtwModelChange, onMovePane, onDetachPane, transcriptPool, canvases, onCanvasFocus, onCanvasAddToChat, onCanvasTitleChange, onCanvasRegisterAppend, onSaveToCanvas, }: Props) {
+function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocused, composerFocusToken, recents, hideProjectPicker, onOpenFile, onFocus, onClose, onRatio, onCwdChange, onModelChange, onModelSettingsChange, onRuntimeModeChange, onSaveDraft, onRemoveDraft, onSubmit, onStop, onCompactContext, onPlaceSessionInFolder, onDeleteQueuedMessage, onEditQueuedMessage, onQueuedMessageEditingChange, onSteerQueuedMessage, onResumeQueue, onUsageLimitResume, onUsageLimitResumeAtReset, onUsageLimitDismiss, onNoteCardDismiss, onApproval, onQuestionReply, onQuestionInteraction, onBtwSubmit, onBtwRetry, onBtwDelete, onBtwStop, onBtwModelChange, onMovePane, onDetachPane, transcriptPool, canvases, onCanvasFocus, onCanvasAddToChat, onCanvasTitleChange, onCanvasRegisterAppend, onSaveToCanvas, projectCwd, onFilePaneFocus, onFilePanePin, onOpenProjectFile, }: Props) {
     const treeRef = useRef<HTMLDivElement>(null);
     const layoutRef = useRef(layout);
     layoutRef.current = layout;
@@ -200,7 +206,8 @@ function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocus
     return (<div ref={treeRef} className="relative h-full min-h-0 min-w-0">
       {leaves.map((leaf) => {
             const isCanvas = leaf.kind === "canvas";
-            const session = isCanvas ? undefined : sessions.find((entry) => entry.id === leaf.id);
+            const filePath = leaf.kind === "file" ? filePanePath(leaf.id) : undefined;
+            const session = leaf.kind === "session" ? sessions.find((entry) => entry.id === leaf.id) : undefined;
             const canvas = isCanvas ? canvases?.find((c) => c.id === leaf.id) : undefined;
             const dragging = drop?.fromId === leaf.id;
             const onPaneDragStart = inSplit ? paneDragStartFor(leaf.id) : undefined;
@@ -234,7 +241,7 @@ function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocus
                     enteringPanes.current.delete(leaf.id);
                     rerender();
                 }} className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {canvas ? (visible ? <Suspense fallback={null}><CanvasPane canvas={canvas} focused={focusedId === canvas.id} onFocus={() => onCanvasFocus?.(canvas.id)} onAddToChat={(text) => onCanvasAddToChat?.(text)} onTitleChange={(id, title) => onCanvasTitleChange?.(id, title)} onRegisterAppend={onCanvasRegisterAppend} onClose={() => onClose(canvas.id)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : session ? (<SessionPane onOpenFile={onOpenFile} session={session} visible={visible} focused={focusedId === session.id} inSplit={inSplit} composerFocused={composerFocused} composerFocusToken={composerFocusToken} recents={recents} hideProjectPicker={hideProjectPicker} onFocus={onFocus} onClose={onClose} onCwdChange={onCwdChange} onModelChange={onModelChange} onModelSettingsChange={onModelSettingsChange} onRuntimeModeChange={onRuntimeModeChange} onSaveDraft={onSaveDraft} onRemoveDraft={onRemoveDraft} onSubmit={onSubmit} onStop={onStop} onCompactContext={onCompactContext} onPlaceSessionInFolder={onPlaceSessionInFolder} onDeleteQueuedMessage={onDeleteQueuedMessage} onEditQueuedMessage={onEditQueuedMessage} onQueuedMessageEditingChange={onQueuedMessageEditingChange} onSteerQueuedMessage={onSteerQueuedMessage} onResumeQueue={onResumeQueue} onUsageLimitResume={onUsageLimitResume} onUsageLimitResumeAtReset={onUsageLimitResumeAtReset} onUsageLimitDismiss={onUsageLimitDismiss} onNoteCardDismiss={onNoteCardDismiss} onSaveToCanvas={onSaveToCanvas} onApproval={onApproval} onQuestionReply={onQuestionReply} onQuestionInteraction={onQuestionInteraction} onBtwSubmit={onBtwSubmit} onBtwRetry={onBtwRetry} onBtwDelete={onBtwDelete} onBtwStop={onBtwStop} onBtwModelChange={onBtwModelChange} onPaneDragStart={onPaneDragStart} transcriptPool={transcriptPool}/>) : isCanvas ? (<div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-content/60"><p>Drawing is no longer available.</p><button type="button" className="rounded px-3 py-1 hover:bg-content/10" onClick={() => onClose(leaf.id)}>Close pane</button></div>) : null}
+              {filePath !== undefined ? (visible ? <Suspense fallback={null}><FilePane path={filePath} cwd={projectCwd ?? ""} preview={!!leaf.preview} focused={focusedId === leaf.id} onFocus={() => onFilePaneFocus?.(leaf.id)} onPin={() => onFilePanePin?.(filePath)} onClose={() => onClose(leaf.id)} onOpenFile={(path) => onOpenProjectFile?.(path)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : canvas ? (visible ? <Suspense fallback={null}><CanvasPane canvas={canvas} focused={focusedId === canvas.id} onFocus={() => onCanvasFocus?.(canvas.id)} onAddToChat={(text) => onCanvasAddToChat?.(text)} onTitleChange={(id, title) => onCanvasTitleChange?.(id, title)} onRegisterAppend={onCanvasRegisterAppend} onClose={() => onClose(canvas.id)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : session ? (<SessionPane onOpenFile={onOpenFile} session={session} visible={visible} focused={focusedId === session.id} inSplit={inSplit} composerFocused={composerFocused} composerFocusToken={composerFocusToken} recents={recents} hideProjectPicker={hideProjectPicker} onFocus={onFocus} onClose={onClose} onCwdChange={onCwdChange} onModelChange={onModelChange} onModelSettingsChange={onModelSettingsChange} onRuntimeModeChange={onRuntimeModeChange} onSaveDraft={onSaveDraft} onRemoveDraft={onRemoveDraft} onSubmit={onSubmit} onStop={onStop} onCompactContext={onCompactContext} onPlaceSessionInFolder={onPlaceSessionInFolder} onDeleteQueuedMessage={onDeleteQueuedMessage} onEditQueuedMessage={onEditQueuedMessage} onQueuedMessageEditingChange={onQueuedMessageEditingChange} onSteerQueuedMessage={onSteerQueuedMessage} onResumeQueue={onResumeQueue} onUsageLimitResume={onUsageLimitResume} onUsageLimitResumeAtReset={onUsageLimitResumeAtReset} onUsageLimitDismiss={onUsageLimitDismiss} onNoteCardDismiss={onNoteCardDismiss} onSaveToCanvas={onSaveToCanvas} onApproval={onApproval} onQuestionReply={onQuestionReply} onQuestionInteraction={onQuestionInteraction} onBtwSubmit={onBtwSubmit} onBtwRetry={onBtwRetry} onBtwDelete={onBtwDelete} onBtwStop={onBtwStop} onBtwModelChange={onBtwModelChange} onPaneDragStart={onPaneDragStart} transcriptPool={transcriptPool}/>) : isCanvas ? (<div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-content/60"><p>Drawing is no longer available.</p><button type="button" className="rounded px-3 py-1 hover:bg-content/10" onClick={() => onClose(leaf.id)}>Close pane</button></div>) : null}
             </div>
           </div>);
         })}

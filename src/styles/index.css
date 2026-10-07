@@ -1174,6 +1174,55 @@ html.is-reordering * {
   user-select: none !important;
 }
 
+html.is-file-dragging,
+html.is-file-dragging * {
+  cursor: grabbing !important;
+}
+
+.file-drag-preview {
+  position: fixed !important;
+  inset: 0 auto auto 0 !important;
+  z-index: 2147483647;
+  display: flex !important;
+  width: max-content !important;
+  max-width: min(280px, calc(100vw - 16px));
+  height: 26px !important;
+  align-items: center;
+  gap: 6px;
+  margin: 0 !important;
+  padding: 0 9px 0 7px !important;
+  overflow: hidden;
+  pointer-events: none !important;
+  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
+  border-radius: 5px;
+  background: color-mix(
+    in srgb,
+    var(--color-background-base) 96%,
+    var(--color-content) 4%
+  ) !important;
+  box-shadow:
+    0 4px 12px rgb(0 0 0 / 18%),
+    0 1px 2px rgb(0 0 0 / 20%);
+  color: var(--color-content) !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  white-space: nowrap;
+  opacity: 0.94 !important;
+  will-change: transform;
+  contain: paint;
+}
+
+.file-drag-preview > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+html.theme-light .file-drag-preview {
+  background: var(--color-background-base) !important;
+  opacity: 1 !important;
+}
+
 html.is-resizing,
 html.is-resizing * {
   cursor: col-resize !important;
@@ -2839,5 +2888,116 @@ html.theme-light .btw-burst {
   .modal-backdrop,
   .modal-panel {
     animation: none;
+  }
+}
+
+/* PDF pages in a file pane. The text layer rules mirror pdf.js's own viewer. */
+.loci-pdf-canvas > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.loci-pdf .textLayer {
+  color-scheme: only light;
+
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+     -moz-text-size-adjust: none;
+          text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 0;
+
+  &.highlighting {
+    touch-action: none;
+  }
+
+  :is(span, br) {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+    -webkit-user-select: text;
+       -moz-user-select: text;
+            user-select: text;
+  }
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+
+  > :not(.markedContent),
+  .markedContent span:not(.markedContent) {
+    z-index: 1;
+
+    --font-height: 0;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+
+    --scale-x: 1;
+    --rotate: 0deg;
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x))
+      scale(var(--min-font-size-inv));
+  }
+
+  .markedContent {
+    display: contents;
+  }
+
+  span[role="img"] {
+    -webkit-user-select: none;
+       -moz-user-select: none;
+            user-select: none;
+    cursor: default;
+  }
+
+  ::-moz-selection {
+    background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+    color: transparent;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+    color: transparent;
+  }
+
+  &.selectionRendering {
+    ::-moz-selection {
+      background: transparent;
+      color: transparent;
+    }
+    ::selection {
+      background: transparent;
+      color: transparent;
+    }
+  }
+  br::-moz-selection {
+    background: transparent;
+  }
+  br::selection {
+    background: transparent;
+  }
+
+  .endOfContent {
+    display: block;
+    position: absolute;
+    inset: 100% 0 0;
+    z-index: 0;
+    cursor: default;
+    -webkit-user-select: none;
+       -moz-user-select: none;
+            user-select: none;
+  }
+
+  &.selecting .endOfContent {
+    top: 0;
   }
 }

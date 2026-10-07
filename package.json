@@ -27,6 +27,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-opener": "^2",
     "cuelume": "^0.2.2",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-material-icon-theme": "^1.2.0",

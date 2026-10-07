@@ -504,7 +504,7 @@ describe("sidebar reorder affordances", () => {
         }));
         act(() => render());
         const tabs = container.querySelectorAll<HTMLElement>('.workspace-tab');
-        expect(tabs).toHaveLength(1);
+        expect(Array.from(tabs, (tab) => tab.textContent)).toEqual(["Sessions", "Files", "Canvas"]);
         for (const tab of tabs) {
             expect(tab.className).not.toContain("cursor-grab");
             expect(tab.parentElement?.className).not.toContain("cursor-grab");
@@ -698,13 +698,15 @@ describe("collapsed rail actions", () => {
             "Expand projects",
             "Switch project, current project project",
             "Sessions",
+            "Files",
+            "Canvas",
             "Search",
             "Notes",
             "Settings",
         ]);
         const workspaceTabs = rail.querySelector<HTMLElement>('[role="tablist"][aria-label="Workspace"]')!;
         expect(workspaceTabs).not.toBeNull();
-        expect(Array.from(workspaceTabs.querySelectorAll('[role="tab"]'), (button) => button.getAttribute("aria-label"))).toEqual(["Sessions"]);
+        expect(Array.from(workspaceTabs.querySelectorAll('[role="tab"]'), (button) => button.getAttribute("aria-label"))).toEqual(["Sessions", "Files", "Canvas"]);
         const sessionsTab = workspaceTabs.querySelector<HTMLButtonElement>('[aria-label="Sessions"]')!;
         expect(sessionsTab.getAttribute("aria-selected")).toBe("true");
         expect(sessionsTab.querySelector("span")).toBeNull();
