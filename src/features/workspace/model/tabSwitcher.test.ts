@@ -65,6 +65,17 @@ describe("buildSwitcher", () => {
   });
 });
 
+describe("parked tabs", () => {
+  const parked: ClosedTab = { ...closedTab("Quiet chat", 5), parked: true };
+
+  it("get their own section ahead of recently closed, and are found by search", () => {
+    const sections = buildSwitcher({ ...base, closed: [closedTab("Old chat", 2), parked] });
+    expect(labels(sections).slice(-2)).toEqual(["Parked", "Recently closed"]);
+    expect(names(buildSwitcher({ ...base, closed: [closedTab("Old chat", 2), parked], query: "quiet" }))).toEqual(["closed:Quiet chat"]);
+    expect(labels(buildSwitcher({ ...base, closed: [parked], query: "quiet" }))).toEqual(["Parked"]);
+  });
+});
+
 describe("byRecency", () => {
   it("orders by last use and keeps unused tabs in strip order", () => {
     expect(byRecency(tabs, ["c", "a"]).map((t) => t.id)).toEqual(["c", "a", "b", "d", "e"]);

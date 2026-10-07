@@ -43,7 +43,7 @@ import { loadTabGroupColors, loadTabGroupCustomColors, loadTabGroupLabels, loadT
 import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { ProjectLogoIcon } from "../../projects/ui/ProjectLogoIcon";
 import { ProjectMascot } from "../../projects/ui/ProjectMascot";
-import { filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
+import { filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, loadTabLimit, saveTabLimit, TAB_LIMIT_CHOICES, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
 import { cachedNotificationPermission, loadNotificationsEnabled, openNotificationSettings, probeNotificationPermission, requestNotificationPermission, saveNotificationsEnabled, type NotificationPermission, } from "../../notifications/model/notifications";
 import { SkillsPage } from "../../skills/ui/SkillsPage";
@@ -230,6 +230,7 @@ function GeneralPage({}: {}) {
     const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
     const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(loadLiveAgentsEnabled);
     const [tabAnimationsEnabled, setTabAnimationsEnabled] = useState(loadTabAnimationsEnabled);
+    const [tabLimit, setTabLimit] = useState(loadTabLimit);
     const [closeToTray, setCloseToTray] = useState(loadCloseToTray);
     // The user may flip the switch in System Settings and come back: re-read
     // the OS state whenever the window regains focus while the toggle is on.
@@ -262,6 +263,11 @@ function GeneralPage({}: {}) {
         saveLiveAgentsEnabled(next);
         setLiveAgentsEnabled(next);
     };
+    const onTabLimit = (value: string) => {
+        const next = Number(value);
+        saveTabLimit(next);
+        setTabLimit(next);
+    };
     const onTabAnimationsEnabled = (next: boolean) => {
         saveTabAnimationsEnabled(next);
         setTabAnimationsEnabled(next);
@@ -288,6 +294,9 @@ function GeneralPage({}: {}) {
 
         <Row id="tab-animations" label="Tab animations" description="Animate tabs as they open and close. Turn this off for instant tab changes.">
           <Toggle label="Tab animations" on={tabAnimationsEnabled} onChange={onTabAnimationsEnabled}/>
+        </Row>
+        <Row id="tab-limit" label="Tab limit" description="When a project has more tabs open than this, idle ones are put away to keep the strip usable. Nothing is closed for good: find them under Parked in the tab switcher. Tabs that are working, waiting on you, pinned, or holding unsent text are never put away.">
+          <Select label="Tab limit" value={String(tabLimit)} onChange={onTabLimit} options={TAB_LIMIT_CHOICES.map((choice) => ({ value: String(choice), label: choice === 0 ? "No limit" : `${choice} tabs` }))}/>
         </Row>
         <Row id="notes" label="Notes" description="A global markdown notebook on the project rail. Save a finished turn from the transcript, then mention it later with @note or add it to chat.">
           <Toggle label="Notes" on={notesEnabled} onChange={onNotesEnabled}/>

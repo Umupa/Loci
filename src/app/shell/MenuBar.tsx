@@ -7,6 +7,7 @@ type MenuKey = "file" | "view";
 type Props = {
     onNew: () => void;
     onSwitchTab?: () => void;
+    onNextAttention?: () => void;
     onReopenTab?: () => void;
     onToggleSidebar: () => void;
     onToggleSessionSidebar: () => void;
@@ -20,7 +21,7 @@ type Props = {
     onZoomOut?: () => void;
     onZoomReset?: () => void;
 };
-export function MenuBar({ onNew, onSwitchTab, onReopenTab, onToggleSidebar, onToggleSessionSidebar, onCloseCurrentTab, onCloseOtherTabs, onCloseAllTabs, onPickProject, onSearch, onOpenNotes, onZoomIn, onZoomOut, onZoomReset, }: Props) {
+export function MenuBar({ onNew, onSwitchTab, onNextAttention, onReopenTab, onToggleSidebar, onToggleSessionSidebar, onCloseCurrentTab, onCloseOtherTabs, onCloseAllTabs, onPickProject, onSearch, onOpenNotes, onZoomIn, onZoomOut, onZoomReset, }: Props) {
     const [open, setOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{
@@ -98,6 +99,9 @@ export function MenuBar({ onNew, onSwitchTab, onReopenTab, onToggleSidebar, onTo
             case "switch_tab":
                 onSwitchTab?.();
                 break;
+            case "next_attention":
+                onNextAttention?.();
+                break;
             case "reopen_tab":
                 onReopenTab?.();
                 break;
@@ -132,6 +136,7 @@ export function MenuBar({ onNew, onSwitchTab, onReopenTab, onToggleSidebar, onTo
     }, [
         closeMenu,
         onSwitchTab,
+        onNextAttention,
         onReopenTab,
         onCloseCurrentTab,
         onCloseOtherTabs,
@@ -161,6 +166,12 @@ export function MenuBar({ onNew, onSwitchTab, onReopenTab, onToggleSidebar, onTo
                         id: "switch_tab",
                         label: "Switch Tab…",
                         shortcut: shortcut("Tab: Switch", `${MOD}P`),
+                    },
+                    {
+                        kind: "item",
+                        id: "next_attention",
+                        label: "Next Tab Needing You",
+                        shortcut: shortcut("Tab: Next Needing You", `${MOD}J`),
                     },
                     {
                         kind: "item",

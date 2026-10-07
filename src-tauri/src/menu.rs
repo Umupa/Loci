@@ -112,6 +112,7 @@ pub fn dispatch(app: &AppHandle, id: &str) {
         | "open_command_palette"
         | "close_all_tabs"
         | "switch_tab"
+        | "next_attention"
         | "reopen_tab" => emit_to_focused(app, id),
         _ => {}
     }
@@ -199,6 +200,14 @@ fn build(
         "Switch Tab…",
         "CmdOrCtrl+P",
         "Tab: Switch",
+        overrides,
+    )?;
+    let next_attention = menu_item(
+        app,
+        "next_attention",
+        "Next Tab Needing You",
+        "CmdOrCtrl+J",
+        "Tab: Next Needing You",
         overrides,
     )?;
     let reopen_tab = menu_item(
@@ -365,6 +374,7 @@ fn build(
         .separator()
         .item(&new_tab)
         .item(&switch_tab)
+        .item(&next_attention)
         .item(&reopen_tab)
         .item(&split_right)
         .item(&split_down)

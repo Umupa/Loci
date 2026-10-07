@@ -29,6 +29,7 @@ type Options = {
   toggleProjectRail: () => void;
   toggleSessionSidebar: () => void;
   openTabSwitcher: () => void;
+  jumpToAttention: () => void;
   reload: () => void;
   sessionOrder: readonly string[];
 };
@@ -82,6 +83,7 @@ export function useAppCommands(options: Options) {
       const handlers: Partial<Record<TabCommand & string, () => unknown>> = {
         new: () => w.createSession(),
         "switch-tab": () => latest.current.openTabSwitcher(),
+        "next-attention": () => latest.current.jumpToAttention(),
         "reopen-tab": () => { void w.reopenClosed("latest"); },
         close: () => { if (w.activeSession) w.closePane(w.activeSession.id); },
         // Pinned tabs are what the user chose to keep: bulk closes leave them.
@@ -162,7 +164,7 @@ export function useAppCommands(options: Options) {
     window.addEventListener("keydown", onKey, true);
 
     const tabEvents: Record<string, TabCommand> = {
-      new_tab: "new", switch_tab: "switch-tab", reopen_tab: "reopen-tab", close_tab: "close", close_other_tabs: "close-others", close_all_tabs: "close-all",
+      new_tab: "new", switch_tab: "switch-tab", next_attention: "next-attention", reopen_tab: "reopen-tab", close_tab: "close", close_other_tabs: "close-others", close_all_tabs: "close-all",
       next_tab: "next", prev_tab: "prev", back_tab: "back", forward_tab: "forward",
       split_right: "split-right", split_down: "split-down",
       focus_left: { focus: "left" }, focus_right: { focus: "right" }, focus_up: { focus: "up" }, focus_down: { focus: "down" },

@@ -22,6 +22,7 @@
  *   Next session        shift-cmd-down
  *   Previous in tab     cmd-up
  *   Next in tab         cmd-down
+ *   Next tab needing you  cmd-j
  *   Switch tab          cmd-p
  *   Reopen closed tab   shift-cmd-t
  *   Archive session     shift-cmd-a
@@ -30,7 +31,7 @@
  *   Stop focused turn   escape
  */
 import type { FocusDir } from "./layout";
-export type TabCommand = "switch-tab" | "reopen-tab" | "new" | "close-others" | "close-all" | "close" | "next" | "prev" | "cycle-next" | "cycle-prev" | "back" | "forward" | "split-right" | "split-down" | "prev-session" | "next-session" | "prev-session-in-tab" | "next-session-in-tab" | "archive-session" | "prev-project" | "next-project" | {
+export type TabCommand = "next-attention" | "switch-tab" | "reopen-tab" | "new" | "close-others" | "close-all" | "close" | "next" | "prev" | "cycle-next" | "cycle-prev" | "back" | "forward" | "split-right" | "split-down" | "prev-session" | "next-session" | "prev-session-in-tab" | "next-session-in-tab" | "archive-session" | "prev-project" | "next-project" | {
     activate: number;
 } | {
     focus: FocusDir;
@@ -85,6 +86,8 @@ export function tabCommand(e: KeyboardEvent): TabCommand | null {
         return "new";
     if (key === "p")
         return "switch-tab";
+    if (key === "j" && !e.repeat)
+        return "next-attention";
     if (e.key === "ArrowUp")
         return "prev-session-in-tab";
     if (e.key === "ArrowDown")
@@ -104,6 +107,7 @@ export function tabCommand(e: KeyboardEvent): TabCommand | null {
     return null;
 }
 const TAB_COMMAND_KEYBINDINGS: Record<Exclude<TabCommand, object>, string> = {
+    "next-attention": "Tab: Next Needing You",
     "switch-tab": "Tab: Switch",
     "reopen-tab": "Tab: Reopen Closed",
     new: "Tab: New",

@@ -21,6 +21,7 @@ export type SwitcherInput = {
 };
 
 const MAX_CLOSED_SHOWN = 5;
+const MAX_PARKED_SHOWN = 8;
 const TITLE_BONUS = 400;
 const PROJECT_BONUS = 150;
 
@@ -37,11 +38,11 @@ function tabRow(tab: Tab, activeId: string): SwitcherRow {
   return { kind: "tab", key: `tab:${tab.id}`, tab, current: tab.id === activeId };
 }
 
-function closedRows(closed: readonly ClosedTab[]): SwitcherRow[] {
+function closedRows(closed: readonly ClosedTab[], shown = MAX_CLOSED_SHOWN): SwitcherRow[] {
   const rows: SwitcherRow[] = [];
   const seenBatches = new Map<number, number>();
   for (const entry of closed) seenBatches.set(entry.batch, (seenBatches.get(entry.batch) ?? 0) + 1);
-  for (const entry of closed.slice(0, MAX_CLOSED_SHOWN)) {
+  for (const entry of closed.slice(0, shown)) {
     rows.push({ kind: "closed", key: `closed:${entry.batch}:${entry.closedAt}:${rows.length}`, closed: entry, alsoClosed: (seenBatches.get(entry.batch) ?? 1) - 1 });
   }
   return rows;
@@ -71,7 +72,10 @@ export function buildSwitcher(input: SwitcherInput): SwitcherSection[] {
     }).sort((a, b) => b.value - a.value);
     const sections: SwitcherSection[] = [];
     if (hits.length) sections.push({ id: "results", label: "Tabs", rows: hits.map(({ tab }) => tabRow(tab, activeId)) });
-    if (closedHits.length) sections.push({ id: "closed", label: "Recently closed", rows: closedRows(closedHits.map(({ entry }) => entry)) });
+    const parkedHits = closedHits.filter(({ entry }) => entry.parked).map(({ entry }) => entry);
+    const closedOnlyHits = closedHits.filter(({ entry }) => !entry.parked).map(({ entry }) => entry);
+    if (parkedHits.length) sections.push({ id: "parked", label: "Parked", rows: closedRows(parkedHits, MAX_PARKED_SHOWN) });
+    if (closedOnlyHits.length) sections.push({ id: "closed", label: "Recently closed", rows: closedRows(closedOnlyHits) });
     return sections;
   }
 
@@ -92,7 +96,9 @@ export function buildSwitcher(input: SwitcherInput): SwitcherSection[] {
   for (const [project, group] of projects) {
     sections.push({ id: `project:${project}`, label: project || "No project", rows: group.map((tab) => tabRow(tab, activeId)) });
   }
-  const reopen = closedRows(closed);
+  const parked = closedRows(closed.filter((entry) => entry.parked), MAX_PARKED_SHOWN);
+  if (parked.length) sections.push({ id: "parked", label: "Parked", rows: parked });
+  const reopen = closedRows(closed.filter((entry) => !entry.parked));
   if (reopen.length) sections.push({ id: "closed", label: "Recently closed", rows: reopen });
   return sections;
 }

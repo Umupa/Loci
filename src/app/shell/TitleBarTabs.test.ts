@@ -96,6 +96,26 @@ describe("pinning and bulk close", () => {
   });
 });
 
+describe("Close Idle Tabs", () => {
+  const openMenu = () => act(() => container.querySelector('[data-title-tab-id="a"] .group')!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 10, clientY: 10 })));
+  const item = () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) => el.textContent?.includes("Close Idle Tabs"));
+
+  it("offers to close the quiet tabs, saying how many", () => {
+    const onCloseIdle = vi.fn();
+    render([tab("a"), tab("b")], { activeId: "a", idleTabCount: 3, onCloseIdle });
+    openMenu();
+    expect(item()?.textContent).toContain("3 finished and quiet");
+    act(() => item()!.click());
+    expect(onCloseIdle).toHaveBeenCalledOnce();
+  });
+
+  it("is disabled when nothing is idle", () => {
+    render([tab("a"), tab("b")], { activeId: "a", idleTabCount: 0, onCloseIdle: vi.fn() });
+    openMenu();
+    expect((item() as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
 describe("tab switcher button", () => {
   it("counts the tabs and opens the switcher", () => {
     const onOpenSwitcher = vi.fn();

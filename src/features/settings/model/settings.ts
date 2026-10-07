@@ -143,6 +143,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         label: "Tab animations",
         keywords: "motion open close resize transition",
     },
+    {
+        id: "tab-limit",
+        section: "general",
+        label: "Tab limit",
+        keywords: "park idle maximum open tabs too many clutter auto close",
+    },
     ...(IS_WIN
         ? [
             {
@@ -412,6 +418,30 @@ export function loadTabAnimationsEnabled(): boolean {
 export function saveTabAnimationsEnabled(value: boolean) {
     writeFlag(TAB_ANIMATIONS_ENABLED_KEY, value);
 }
+const TAB_LIMIT_KEY = "loci.tabLimit";
+export const TAB_LIMIT_DEFAULT = 10;
+export const TAB_LIMIT_CHOICES = [0, 6, 8, 10, 12, 16, 24] as const;
+/** How many tabs a project may have open before idle ones are put away; 0 means no limit. */
+export function loadTabLimit(): number {
+    try {
+        const raw = localStorage.getItem(TAB_LIMIT_KEY);
+        if (raw === null)
+            return TAB_LIMIT_DEFAULT;
+        const value = Number(raw);
+        return Number.isInteger(value) && value >= 0 ? value : TAB_LIMIT_DEFAULT;
+    }
+    catch {
+        return TAB_LIMIT_DEFAULT;
+    }
+}
+export function saveTabLimit(value: number) {
+    try {
+        localStorage.setItem(TAB_LIMIT_KEY, String(value));
+    }
+    catch {
+        // private mode / quota
+    }
+}
 export type CollapsedProjectRailMode = "compact" | "hidden";
 export const COLLAPSED_PROJECT_RAIL_MODE_DEFAULT: CollapsedProjectRailMode = "compact";
 export const COLLAPSED_PROJECT_RAIL_MODE_CHANGE_EVENT = "loci:collapsed-project-rail-mode-change";
@@ -588,6 +618,7 @@ export const KEYBINDINGS: KeybindingRow[] = [
     { command: "View: Reset Zoom", keys: `${MOD}0`, when: "Always" },
     { command: "Tab: New", keys: `${MOD}T`, when: "Always" },
     { command: "Tab: Switch", keys: `${MOD}P`, when: "Always" },
+    { command: "Tab: Next Needing You", keys: `${MOD}J`, when: "Always" },
     { command: "Tab: Reopen Closed", keys: `${MOD}${SHIFT}T`, when: "Always" },
     { command: "Tab: Close Others", keys: `${MOD}${ALT}T`, when: "Always" },
     { command: "Tab: Close All", keys: `${MOD}${SHIFT}W`, when: "Always" },

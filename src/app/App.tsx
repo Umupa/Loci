@@ -29,6 +29,10 @@ import { TOGGLE_SECONDARY_SIDEBAR_EVENT } from "./shell/SecondarySidebar";
 import { closedTabs } from "../features/workspace/model/closedTabs";
 import { TabSwitcher } from "./shell/TabSwitcher";
 import { ClosedTabToast } from "./shell/ClosedTabToast";
+import { attentionOrder, heldTabIds, idleTabIds, parkingCandidates, trackTabGrowth, type TabCountMark } from "../features/workspace/model/tabParking";
+import { loadTabLimit } from "../features/settings/model/settings";
+import { pathKey } from "../shared/lib/paths";
+import type { Tab } from "./shell/TitleBar";
 import { summarizeTab } from "../features/workspace/model/tabSummary";
 import { filePaneId, findLeaf, leafIds } from "../features/workspace/model/layout";
 import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
@@ -196,12 +200,23 @@ function Workspace(boot: BootWorkspace) {
   const openCanvas = (id: string) => workspace.openCanvas(id, canvases.find((canvas) => canvas.id === id)?.cwd);
   const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => setSurface("notes")); }, []);
   const toggleProjectRail = useCallback(() => setProjectRailOpen((open) => { saveProjectRailOpen(!open); return !open; }), []);
-  // The shortcut folds whichever second column the page in view has.
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  const openTabSwitcher = useCallback(() => setSwitcherOpen((open) => !open), []);
+  const openTabSwitcher = useCallback(() => {
+    // The switcher lists what the toast announced, so the toast has done its job.
+    closedTabs.dismissNotice();
+    setSwitcherOpen((open) => !open);
+  }, []);
   const closedHistory = useSyncExternalStore(closedTabs.subscribe, closedTabs.history);
   // Tabs in the order they were last in view, for the switcher.
   const recentTabs = useRef<string[]>([]);
+  const summariesRef = useRef<Tab[]>([]);
+  // Go to whatever is waiting on the user, approvals before finished work.
+  const jumpToAttention = useCallback(() => {
+    const view = workspaceRef.current;
+    const next = view && attentionOrder(summariesRef.current, view.activeTabIdRef.current)[0];
+    if (view && next) view.activateTab(next);
+  }, []);
+  // The shortcut folds whichever second column the page in view has.
   const toggleSessionSidebar = useCallback(() => {
     if (surfaceRef.current === "notes" || surfaceRef.current === "canvases") {
       window.dispatchEvent(new Event(TOGGLE_SECONDARY_SIDEBAR_EVENT));
@@ -217,7 +232,7 @@ function Workspace(boot: BootWorkspace) {
   }, [runtime.flushEvents, runtime.flushPersistence]);
   const reload = useCallback(() => { void persistWindow().then(() => window.location.reload()).catch((error) => workspaceRef.current?.setError(String(error))); }, [persistWindow]);
   useAppCommands({ workspace, submission, sessionsRef, surfaceOpen: surface !== "chat", closeSurface,
-    openSearch, openSettings, openNotes, toggleProjectRail, toggleSessionSidebar, openTabSwitcher, reload, sessionOrder,
+    openSearch, openSettings, openNotes, toggleProjectRail, toggleSessionSidebar, openTabSwitcher, jumpToAttention, reload, sessionOrder,
   });
 
   useEffect(() => {
@@ -350,6 +365,24 @@ function Workspace(boot: BootWorkspace) {
     return workspace.visibleTabs.flatMap((tab) => byId.get(tab.id) ?? []);
   }, [tabSummaries, workspace.visibleTabs]);
   const focusedLeaf = workspace.activeTab && findLeaf(workspace.activeTab.layout, workspace.activeTab.focusedId);
+  summariesRef.current = tabSummaries;
+  // Tabs that hold something unfinished are never put away or closed in bulk.
+  const heldIds = useMemo(() => heldTabIds(workspace.tabs, sessions), [workspace.tabs, sessions]);
+  const idleIds = useMemo(() => idleTabIds(titleTabs, workspace.activeTabId, heldIds), [titleTabs, workspace.activeTabId, heldIds]);
+  // When a project's tab count grows past its limit, the longest-idle tabs are
+  // put away. Switching project or restoring a layout is not growth.
+  const parkBaseline = useRef<TabCountMark | null>(null);
+  useEffect(() => {
+    const project = pathKey(workspace.projectCwd);
+    const count = titleTabs.length;
+    const { mark, grew } = trackTabGrowth(parkBaseline.current, project, count);
+    parkBaseline.current = mark;
+    const view = workspaceRef.current;
+    if (!view || !grew) return;
+    const ids = parkingCandidates({ tabs: titleTabs, activeId: view.activeTabIdRef.current, recent: recentTabs.current, held: heldTabIds(view.tabsRef.current, sessionsRef.current), limit: loadTabLimit() });
+    if (ids.length) view.closeTabs(ids, undefined, { parked: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [titleTabs.length, workspace.projectCwd]);
   useEffect(() => {
     recentTabs.current = [workspace.activeTabId, ...recentTabs.current.filter((id) => id !== workspace.activeTabId)].slice(0, 60);
   }, [workspace.activeTabId]);
@@ -362,7 +395,7 @@ function Workspace(boot: BootWorkspace) {
     onClose={(id) => workspace.closeTabs([id])} onCloseMany={workspace.closeTabs}
     onArchiveTab={(id) => { for (const sessionId of leafIds(workspace.tabs.find((tab) => tab.id === id)!.layout).filter((paneId) => sessions.some((session) => session.id === paneId))) void workspace.archiveSession(sessionId, true); }}
     onDeleteTab={(id) => { for (const sessionId of leafIds(workspace.tabs.find((tab) => tab.id === id)!.layout).filter((paneId) => sessions.some((session) => session.id === paneId))) void workspace.removeSession(sessionId); }}
-    onReorder={workspace.reorderTabs} onPin={workspace.pinTab} onOpenSwitcher={openTabSwitcher} onPlaceOnPane={workspace.placeTab} recents={workspace.recents} onSelectProject={workspace.openProject} />;
+    onReorder={workspace.reorderTabs} onPin={workspace.pinTab} onOpenSwitcher={openTabSwitcher} idleTabCount={idleIds.length} onCloseIdle={() => workspace.closeTabs(idleIds)} onPlaceOnPane={workspace.placeTab} recents={workspace.recents} onSelectProject={workspace.openProject} />;
   const sessionPaneProps = {
     recents: workspace.recents, hideProjectPicker: true,
     onFocus: workspace.focusPane, onClose: workspace.closePane, onCwdChange: workspace.changeCwd,
@@ -422,7 +455,7 @@ function Workspace(boot: BootWorkspace) {
           onOpenNotificationSettings={notificationsSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={() => setSurface(settingsReturn.current)} />
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
           <div className={surface === "chat" ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden"} aria-hidden={surface !== "chat"} inert={surface !== "chat" || undefined}>
-            {!IS_MAC ? <MenuBar onNew={() => workspace.createSession()} onSwitchTab={openTabSwitcher} onReopenTab={() => { void workspace.reopenClosed("latest"); }} onToggleSidebar={toggleProjectRail} onToggleSessionSidebar={toggleSessionSidebar}
+            {!IS_MAC ? <MenuBar onNew={() => workspace.createSession()} onSwitchTab={openTabSwitcher} onNextAttention={jumpToAttention} onReopenTab={() => { void workspace.reopenClosed("latest"); }} onToggleSidebar={toggleProjectRail} onToggleSessionSidebar={toggleSessionSidebar}
               onCloseCurrentTab={() => workspace.closeTabs([workspace.activeTabId])} onCloseOtherTabs={() => workspace.closeTabs(workspace.visibleTabs.filter((tab) => tab.id !== workspace.activeTabId).map((tab) => tab.id))}
               onCloseAllTabs={() => workspace.closeTabs(workspace.visibleTabs.map((tab) => tab.id))} onPickProject={workspace.pickProject} onSearch={openSearch} onOpenNotes={notesEnabled ? openNotes : undefined}
               onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}

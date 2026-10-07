@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { MAX_CLOSED_TABS, latestBatch, pushClosed, withoutBatch, type ClosedTab } from "./closedTabs";
+import { MAX_CLOSED_TABS, MAX_PARKED_TABS, latestBatch, pushClosed, withoutBatch, type ClosedTab } from "./closedTabs";
 
-function tab(id: string, batch: number): ClosedTab {
-  return { layout: { type: "leaf", id }, focusedId: id, title: id, project: "p", closedAt: batch, batch };
+function tab(id: string, batch: number, parked = false): ClosedTab {
+  return { layout: { type: "leaf", id }, focusedId: id, title: id, project: "p", closedAt: batch, batch, ...(parked ? { parked } : {}) };
 }
 
 describe("closed tab history", () => {
@@ -22,5 +22,14 @@ describe("closed tab history", () => {
 
   it("has nothing to reopen from an empty history", () => {
     expect(latestBatch([])).toEqual([]);
+  });
+
+  it("keeps parked tabs apart from closed ones: more room, and never what a reopen brings back", () => {
+    const parked = Array.from({ length: MAX_PARKED_TABS + 3 }, (_, index) => tab(`p${index}`, 100 + index, true));
+    const history = pushClosed(pushClosed([], [tab("closed", 1)]), parked);
+    expect(history.filter((entry) => entry.parked)).toHaveLength(MAX_PARKED_TABS);
+    expect(history.filter((entry) => !entry.parked).map((entry) => entry.title)).toEqual(["closed"]);
+    // Parking a lot of tabs does not push the user's own closed tabs out.
+    expect(latestBatch(history).map((entry) => entry.title)).toEqual(["closed"]);
   });
 });

@@ -45,6 +45,9 @@ type Props = {
     onDeleteTab?: (id: string) => void;
     onReorder: (ids: string[], movedId?: string) => void;
     onPin?: (id: string, pinned: boolean) => void;
+    /** How many tabs "Close Idle Tabs" would close, and the action itself. */
+    idleTabCount?: number;
+    onCloseIdle?: () => void;
     /** Open the tab switcher, which reaches every open tab. */
     onOpenSwitcher?: () => void;
     onPlaceOnPane?: (tabId: string, targetId: string, edge: PaneEdge) => void;
@@ -343,7 +346,7 @@ export function OverlayNav({ onBack, onToggleSidebar, }: {
         </IconButton>) : null}
     </div>);
 }
-function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessionSidebarOpen = true, compactRail = false, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onToggleSidebar, onToggleSessionSidebar, onSelect, onOpenSettings, onOpenNotes, onClose, onCloseMany, onArchiveTab, onDeleteTab, onReorder, onPin, onOpenSwitcher, onPlaceOnPane, recents = [], onSelectProject, }: Props) {
+function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessionSidebarOpen = true, compactRail = false, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onToggleSidebar, onToggleSessionSidebar, onSelect, onOpenSettings, onOpenNotes, onClose, onCloseMany, onArchiveTab, onDeleteTab, onReorder, onPin, idleTabCount = 0, onCloseIdle, onOpenSwitcher, onPlaceOnPane, recents = [], onSelectProject, }: Props) {
     const tabIds = tabs.map((tab) => tab.id);
     const { displayed, setTabNode, finishMotion } = useTabCloseMotion(tabs);
     const externalTabDrop = useMemo<ReorderExternalDrop<string> | undefined>(() => onPlaceOnPane
@@ -525,6 +528,17 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
                 label: "Close Other Tabs",
                 disabled: contextCloseIds?.others.length === 0,
             },
+            ...(onCloseIdle
+                ? [
+                    {
+                        kind: "item" as const,
+                        id: "idle",
+                        label: "Close Idle Tabs",
+                        description: idleTabCount > 0 ? `${idleTabCount} finished and quiet; Undo brings them back` : "None are idle right now",
+                        disabled: idleTabCount === 0,
+                    },
+                ]
+                : []),
             {
                 kind: "item",
                 id: "right",
@@ -573,6 +587,10 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
         if (!contextTab || !contextCloseIds)
             return;
         setTabMenu(null);
+        if (id === "idle") {
+            onCloseIdle?.();
+            return;
+        }
         if (id === "pin") {
             onPin?.(contextTab.id, !contextTab.pinned);
             return;

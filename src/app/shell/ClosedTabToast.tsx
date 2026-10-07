@@ -4,6 +4,7 @@ import { X } from "../../shared/ui/icons";
 import { LAYER } from "../../shared/lib/layers";
 import { IS_MAC, MOD, SHIFT } from "../../platform/tauri/platform";
 import { closedTabs } from "../../features/workspace/model/closedTabs";
+import { loadTabLimit } from "../../features/settings/model/settings";
 
 const VISIBLE_MS = 8000;
 
@@ -28,6 +29,7 @@ export function ClosedTabToast({ onUndo }: { onUndo: (batch: number) => void }) 
 
   if (!notice) return null;
   const what = notice.count > 1 ? `${notice.count} tabs` : notice.title ? `“${truncate(notice.title)}”` : "tab";
+  const limit = loadTabLimit();
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 top-[52px] flex justify-center" style={{ zIndex: LAYER.toast }}>
       <div
@@ -39,7 +41,14 @@ export function ClosedTabToast({ onUndo }: { onUndo: (batch: number) => void }) 
         onPointerLeave={() => { hovering.current = false; }}
         className="approval-toast pointer-events-auto flex max-w-[min(520px,calc(100vw-32px))] items-center gap-3 rounded-xl border border-content/10 bg-background-base/90 py-2 pl-4 pr-2 text-[13px] text-content shadow-xl backdrop-blur-xl"
       >
-        <span className="min-w-0 truncate">Closed {what}</span>
+        {notice.parked ? (
+          <span className="min-w-0 truncate">
+            Parked {notice.count > 1 ? `${notice.count} idle tabs` : `idle ${what}`}
+            {limit > 0 ? <span className="text-content/45"> · over the {limit}-tab limit</span> : null}
+          </span>
+        ) : (
+          <span className="min-w-0 truncate">Closed {what}</span>
+        )}
         <button type="button" onClick={() => onUndo(notice.batch)}
           className="flex shrink-0 items-center gap-2 rounded-lg bg-content/10 py-1 pl-3 pr-2 font-medium hover:bg-content/15">
           Undo

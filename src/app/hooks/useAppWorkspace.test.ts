@@ -369,7 +369,7 @@ describe("workspace lifecycle integration", () => {
 });
 
 describe("tab lifecycle", () => {
-  beforeEach(() => { while (closedTabs.history().length) closedTabs.take("latest"); closedTabs.dismissNotice(); });
+  beforeEach(() => { closedTabs.clear(); });
 
   it("goes to the empty tab that is already waiting instead of opening another", async () => {
     const work = chat("work", "/alpha");
@@ -442,6 +442,24 @@ describe("tab lifecycle", () => {
     const count = workspace.tabs.length;
     await act(async () => { await workspace.reopenClosed("latest"); });
     expect(workspace.tabs).toHaveLength(count);
+  });
+
+  it("puts tabs away without losing them, and keeps them out of a plain reopen", async () => {
+    const [a, b, c] = [chat("a"), chat("b"), chat("c")];
+    for (const session of [a, b, c]) records.set(session.id, session);
+    await mount([a, b, c]);
+    const tabIdOf = (id: string) => workspace.tabs.find((tab) => leafIds(tab.layout).includes(id))!.id;
+    await act(async () => { workspace.closeTabs([tabIdOf("b")]); });
+    await act(async () => { workspace.closeTabs([tabIdOf("c")], undefined, { parked: true }); });
+    expect(closedTabs.notice()).toMatchObject({ parked: true, count: 1 });
+    // ⌘⇧T brings back what the user closed, not what was put away.
+    await act(async () => { await workspace.reopenClosed("latest"); });
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes("b"))).toBe(true);
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes("c"))).toBe(false);
+    // The parked tab is still there to restore by name.
+    const batch = closedTabs.history().find((entry) => entry.parked)!.batch;
+    await act(async () => { await workspace.reopenClosed(batch); });
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes("c"))).toBe(true);
   });
 
   it("keeps pinned tabs ahead when the strip is reordered", async () => {

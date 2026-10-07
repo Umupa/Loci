@@ -16,9 +16,7 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  closedTabs.take("latest");
-  while (closedTabs.history().length) closedTabs.take("latest");
-  closedTabs.dismissNotice();
+  closedTabs.clear();
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -44,6 +42,15 @@ describe("ClosedTabToast", () => {
     expect(toast()?.textContent).toContain("Closed 3 tabs");
     act(() => closedTabs.record([record("x".repeat(80))]));
     expect(toast()?.textContent).toContain("…");
+  });
+
+  it("says when idle tabs were put away rather than closed, and why", () => {
+    act(() => root.render(createElement(ClosedTabToast, { onUndo: vi.fn() })));
+    act(() => closedTabs.record([record("one"), record("two")], { parked: true }));
+    expect(toast()?.textContent).toContain("Parked 2 idle tabs");
+    expect(toast()?.textContent).toMatch(/over the \d+-tab limit/);
+    // Parked tabs are not what reopening the last closed tab brings back.
+    expect(closedTabs.take("latest")).toEqual([]);
   });
 
   it("goes away on its own, and on dismiss", () => {

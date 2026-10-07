@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Pin, PinOff, RotateCcw, Search, X } from "../../shared/ui/icons";
+import { Archive, Pin, PinOff, RotateCcw, Search, X } from "../../shared/ui/icons";
 import { Modal } from "../../shared/ui/Modal";
 import { MatchText } from "../../shared/ui/MatchText";
 import { fuzzyMatch } from "../../shared/lib/fuzzy";
@@ -168,15 +168,17 @@ function SwitcherRowView({ row, query, now, selected, showProject, onHover, onOp
     return (
       <div role="option" aria-selected={selected} onMouseMove={onHover} onClick={onOpen}
         className={`flex h-12 cursor-default items-center gap-3 rounded-lg px-2.5 ${selected ? "bg-selection" : ""}`}>
-        <span className="grid size-4 shrink-0 place-items-center text-content/45"><RotateCcw className="size-3.5" strokeWidth={1.75} /></span>
+        <span className="grid size-4 shrink-0 place-items-center text-content/45">
+          {closed.parked ? <Archive className="size-3.5" strokeWidth={1.75} /> : <RotateCcw className="size-3.5" strokeWidth={1.75} />}
+        </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] leading-snug text-content/80">{title}</p>
           <p className="truncate text-[11.5px] leading-snug text-content/40">
-            {closed.project}{row.alsoClosed ? ` · and ${row.alsoClosed} more closed with it` : ""}
+            {closed.project}{row.alsoClosed ? ` · and ${row.alsoClosed} more ${closed.parked ? "parked" : "closed"} with it` : ""}
           </p>
         </div>
-        <span className="shrink-0 text-[11px] text-content/40">Closed {shortAge(now - closed.closedAt)} ago</span>
-        <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] ${selected ? "bg-content/10 text-content" : "text-content/45"}`}>Reopen</span>
+        <span className="shrink-0 text-[11px] text-content/40">{closed.parked ? "Parked" : "Closed"} {shortAge(now - closed.closedAt)} ago</span>
+        <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] ${selected ? "bg-content/10 text-content" : "text-content/45"}`}>{closed.parked ? "Restore" : "Reopen"}</span>
       </div>
     );
   }

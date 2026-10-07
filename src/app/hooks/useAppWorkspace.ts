@@ -313,7 +313,7 @@ export function useAppWorkspace(options: Options) {
     finally { openingSessionIds.current.delete(id); }
   }, [focusPane, loadSession, sessionUnavailable, updateTabs]);
 
-  const closeTabs = useCallback((ids: readonly string[], fallbackId?: string) => {
+  const closeTabs = useCallback((ids: readonly string[], fallbackId?: string, options: { parked?: boolean } = {}) => {
     const closing = new Set(ids);
     const before = tabsRef.current;
     let nextTabs = before;
@@ -353,7 +353,7 @@ export function useAppWorkspace(options: Options) {
     }
     latest.current.updateSessions(nextSessions);
     updateTabs(nextTabs);
-    closedTabs.record(closedRecords);
+    closedTabs.record(closedRecords, { parked: options.parked });
     if (target !== activeTabIdRef.current || nextTabs.find((tab) => tab.id === target)?.focusedId !== focusedBefore) {
       activateTab(target);
     }

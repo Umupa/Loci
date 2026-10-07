@@ -74,6 +74,11 @@ describe("tabCommand", () => {
         expect(tabCommandKeybinding("reopen-tab")).toBe("Tab: Reopen Closed");
         expect(tabCommandForKeybinding("Tab: Switch", key({ key: "k" }))).toBe("switch-tab");
     });
+    it("uses mod-j to jump to the next tab that needs the user", () => {
+        expect(tabCommand(key({ key: "j", metaKey: true }))).toBe("next-attention");
+        expect(tabCommand(key({ key: "j", ctrlKey: true, repeat: true }))).toBeNull();
+        expect(tabCommandKeybinding("next-attention")).toBe("Tab: Next Needing You");
+    });
     it("maps parsed commands to configurable keybinding rows", () => {
         expect(tabCommandKeybinding("new")).toBe("Tab: New");
         expect(tabCommandKeybinding("cycle-next")).toBe("Tab: Cycle Next");
