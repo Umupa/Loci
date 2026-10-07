@@ -1,0 +1,10 @@
+official/: the Excalidraw MCP server, copied unmodified from its release bundle.
+Source: https://github.com/excalidraw/excalidraw-mcp/releases/download/v0.3.2/excalidraw-mcp-app.mcpb
+Version: 0.3.2
+sha256 2b494012b5fee5937f9f7b86f04a76cc4a91ec843ee3339b93e4e15e415274ff  excalidraw-mcp-app.mcpb
+sha256 30b8ec0891fd709695fcdaffbc0867d4823e294e8ab8d92d966043cc678e0304  official/server.js
+sha256 a6989f58aed5e6be06a9569ac959a9b7037bea181d2ffbf751548e9cae334e5e  official/mcp-app.html
+sha256 39868395163564db5a14012d199986e8856141665c9eacd77286eeac0f88b3cf  official/manifest.json
+License: MIT, as declared in official/manifest.json. The bundle inlines its
+npm dependencies, which carry their own notices inside server.js.
+Refresh with: node scripts/vendor-excalidraw-mcp.mjs

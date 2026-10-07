@@ -3,22 +3,21 @@ import { convertToExcalidrawElements, restoreElements } from "@excalidraw/excali
 const elementTypes = new Set(["rectangle", "ellipse", "diamond", "arrow", "line", "text", "image", "freedraw", "frame", "magicframe", "iframe", "embeddable"]);
 const skeletonTypes = new Set(["rectangle", "ellipse", "diamond", "arrow", "line", "text"]);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Accept a native scene or basic programmatic shapes, never MCP stream commands. */
-export function normalizeCanvasScene(dataJson: string): string {
-  let scene: unknown;
-  try { scene = JSON.parse(dataJson); }
-  catch { throw new Error("dataJson must be valid JSON"); }
-  if (!isRecord(scene) || !Array.isArray(scene.elements))
-    throw new Error("dataJson must contain an elements array");
-  if ((scene.appState !== undefined && !isRecord(scene.appState)) ||
-    (scene.files !== undefined && !isRecord(scene.files)))
-    throw new Error("appState and files must be objects");
+export type SceneElement = Record<string, unknown> & { type: string; id?: string };
+
+/** A complete Excalidraw element, as opposed to shorthand a model wrote. */
+export function isNativeElement(element: Record<string, unknown>): boolean {
+  return Number.isInteger(element.version) && (element.version as number) > 0 && typeof element.id === "string";
+}
+
+/** Reject anything Excalidraw would store but could not draw or edit. */
+export function validateSceneElements(elements: unknown[]): SceneElement[] {
   const ids = new Set<string>();
-  for (const element of scene.elements) {
+  for (const element of elements) {
     if (!isRecord(element) || !elementTypes.has(element.type as string) ||
       !Number.isFinite(element.x) || !Number.isFinite(element.y))
       throw new Error("Each element must have a supported Excalidraw type and finite x/y; MCP stream commands are not scene elements");
@@ -40,11 +39,25 @@ export function normalizeCanvasScene(dataJson: string): string {
     if (element.label !== undefined && (!isRecord(element.label) || typeof element.label.text !== "string"))
       throw new Error("Element labels must contain text");
   }
+  return elements as SceneElement[];
+}
+
+/** Accept a native scene or basic programmatic shapes, never MCP stream commands. */
+export function normalizeCanvasScene(dataJson: string): string {
+  let scene: unknown;
+  try { scene = JSON.parse(dataJson); }
+  catch { throw new Error("dataJson must be valid JSON"); }
+  if (!isRecord(scene) || !Array.isArray(scene.elements))
+    throw new Error("dataJson must contain an elements array");
+  if ((scene.appState !== undefined && !isRecord(scene.appState)) ||
+    (scene.files !== undefined && !isRecord(scene.files)))
+    throw new Error("appState and files must be objects");
+  validateSceneElements(scene.elements);
   for (const [id, file] of Object.entries(scene.files ?? {})) {
     if (!isRecord(file) || file.id !== id || typeof file.dataURL !== "string" || typeof file.mimeType !== "string" || !Number.isFinite(file.created))
       throw new Error("Scene files must contain Excalidraw image records with matching id, dataURL, mimeType and created");
   }
-  const native = scene.elements.every((element) => Number.isInteger(element.version) && element.version > 0 && typeof element.id === "string");
+  const native = scene.elements.every(isNativeElement);
   if (!native && scene.elements.some((element) => Number.isInteger(element.version) && element.version > 0))
     throw new Error("Do not mix native scene elements and shorthand; normalize new elements before extending a native scene");
   if (!native && scene.elements.some((element) => !skeletonTypes.has(element.type)))

@@ -810,12 +810,14 @@ function mapToolItem(
         preview,
       };
     }
+    const detail = mcpToolCallText(item);
     return {
       type: "tool.updated",
       callId,
       title,
       kind: "other",
       status,
+      ...(detail ? { detail } : {}),
       preview,
     };
   }
@@ -832,6 +834,19 @@ function mapToolItem(
   void item;
   void completed;
   return null;
+}
+
+/** What an MCP tool answered, or why it failed: the text a row can expand to. */
+function mcpToolCallText(item: Record<string, unknown>): string | undefined {
+  const error = stringField(asRecord(item.error), "message");
+  if (error) return error;
+  const content = asRecord(item.result)?.content;
+  if (!Array.isArray(content)) return undefined;
+  const text = content
+    .flatMap((block) => stringField(asRecord(block), "text") ?? [])
+    .join("\n")
+    .trim();
+  return text ? text.slice(0, 4000) : undefined;
 }
 
 /** Prefer Codex's own best-effort command parsing, then our legacy fallback. */

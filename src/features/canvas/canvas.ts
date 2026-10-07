@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ExcalidrawProps } from "@excalidraw/excalidraw/types";
 
 type CanvasChange = NonNullable<ExcalidrawProps["onChange"]>;
-export type CanvasScene = { elements: Parameters<CanvasChange>[0]; appState: Parameters<CanvasChange>[1]; files: Parameters<CanvasChange>[2] };
+export type CanvasScene = { elements: Parameters<CanvasChange>[0]; appState: Parameters<CanvasChange>[1]; files: Parameters<CanvasChange>[2]; baseDataJson?: string };
 // Shared with persistence so replacements also retire drafts of closed panes.
 export const canvasSceneDrafts = new Map<string, CanvasScene>();
 
@@ -22,11 +22,22 @@ export type CanvasUpsert = {
   dataJson: string;
   tags: string[];
   cwd?: string;
+  /** Excalidraw MCP checkpoint saved with this scene, in one transaction. */
+  checkpoint?: { id: string; baselineJson: string };
+  /** Compare-and-swap revision for read/modify/write updates. */
+  expectedUpdatedAt?: number;
 };
+
+/** A rectangle of the scene an agent asked viewers to look at. */
+export type CanvasViewport = { x: number; y: number; width: number; height: number };
+/** `CANVAS_SCENE_REPLACED_EVENT` detail: the saved canvas and where to look. */
+export type CanvasSceneReplacement = Canvas & { viewport?: CanvasViewport };
 
 export const CANVASES_CHANGED_EVENT = "loci-canvases-changed";
 export const CANVAS_SCENE_ACCESS_EVENT = "loci-canvas-scene-access";
 export const CANVAS_SCENE_REPLACED_EVENT = "loci-canvas-scene-replaced";
+/** Ask the workspace to show the drawing behind an Excalidraw MCP checkpoint id. */
+export const CANVAS_OPEN_CHECKPOINT_EVENT = "loci-canvas-open-checkpoint";
 
 let cache: Canvas[] | null = null;
 
@@ -49,6 +60,11 @@ export async function getCanvas(id: string): Promise<Canvas | null> {
   return invoke<Canvas | null>("canvas_get", { id });
 }
 
+/** The drawing an Excalidraw MCP checkpoint id (or a canvas id) refers to. */
+export function checkpointCanvasId(checkpointId: string): Promise<string | null> {
+  return invoke<string | null>("canvas_checkpoint_canvas", { checkpointId });
+}
+
 export async function upsertCanvas(canvas: CanvasUpsert): Promise<Canvas> {
   const result = await invoke<Canvas>("canvas_upsert", { canvas });
   if (cache) {
@@ -66,13 +82,69 @@ export async function upsertCanvas(canvas: CanvasUpsert): Promise<Canvas> {
 // Preserve scene and title edits in order when a pane is moved or reopened.
 const pendingUpdates = new Map<string, Promise<Canvas>>();
 const deletingCanvases = new Set<string>();
-export function updateCanvas(id: string, changes: Partial<Omit<CanvasUpsert, "id">>): Promise<Canvas> {
+type CanvasChanges = Partial<Omit<CanvasUpsert, "id">>;
+/** Pass a function to derive the change from the canvas as saved at its turn in the queue. */
+const CANVAS_CONFLICT = "Canvas changed since it was read; retry the update.";
+
+/** Reapply local edits, leaving elements and document settings the user did not change intact. */
+function rebaseCanvasScene(baseJson: string, editedJson: string, currentJson: string): string {
+  type Element = Record<string, unknown> & { id: string };
+  type Scene = { elements?: Element[]; appState?: Record<string, unknown>; files?: Record<string, unknown> };
+  const base = JSON.parse(baseJson) as Scene;
+  const edited = JSON.parse(editedJson) as Scene;
+  const current = JSON.parse(currentJson) as Scene;
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const before = new Map((base.elements ?? []).map((element) => [element.id, element]));
+  const after = new Map((edited.elements ?? []).map((element) => [element.id, element]));
+  const changed = new Map([...after].filter(([id, element]) => !same(before.get(id), element)));
+  const present = new Set((current.elements ?? []).map((element) => element.id));
+  let elements = (current.elements ?? []).flatMap((element) =>
+    before.has(element.id) && !after.has(element.id) ? [] : [changed.get(element.id) ?? element]);
+  // Reorder only when the user changed stacking; concurrent new elements keep their slots.
+  const common = new Set([...before.keys()].filter((id) => after.has(id)));
+  const originalOrder = [...before.keys()].filter((id) => common.has(id));
+  const localOrder = [...after.keys()].filter((id) => common.has(id));
+  if (!same(originalOrder, localOrder)) {
+    const byId = new Map(elements.map((element) => [element.id, element]));
+    const ordered = localOrder.flatMap((id) => byId.get(id) ?? []);
+    let index = 0;
+    elements = elements.map((element) => common.has(element.id) ? ordered[index++] : element);
+  }
+  // New local elements keep their position relative to the user's existing shapes.
+  const localElements = edited.elements ?? [];
+  for (let index = 0; index < localElements.length; index++) {
+    const element = localElements[index];
+    if (present.has(element.id) || !changed.has(element.id)) continue;
+    const next = localElements.slice(index + 1).find((candidate) => elements.some((item) => item.id === candidate.id));
+    const at = next ? elements.findIndex((candidate) => candidate.id === next.id) : elements.length;
+    elements.splice(at, 0, element);
+  }
+  const appState = { ...current.appState };
+  for (const key of new Set([...Object.keys(base.appState ?? {}), ...Object.keys(edited.appState ?? {})])) {
+    if (same(base.appState?.[key], edited.appState?.[key])) continue;
+    if (key in (edited.appState ?? {})) appState[key] = edited.appState![key];
+    else delete appState[key];
+  }
+  return JSON.stringify({ ...current, elements, appState, files: { ...current.files, ...edited.files } });
+}
+
+export function updateCanvas(id: string, changes: CanvasChanges | ((canvas: Canvas) => CanvasChanges), options?: { baseDataJson: string }): Promise<Canvas> {
   if (deletingCanvases.has(id)) return Promise.reject(new Error("Drawing is being deleted."));
   const previous = pendingUpdates.get(id);
   const persist = async () => {
-    const canvas = await getCanvas(id);
-    if (!canvas) throw new Error("Drawing no longer exists.");
-    return upsertCanvas({ ...canvas, ...changes });
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const canvas = await getCanvas(id);
+      if (!canvas) throw new Error("Drawing no longer exists.");
+      const update = typeof changes === "function" ? changes(canvas) : changes;
+      const dataJson = options && update.dataJson !== undefined
+        ? rebaseCanvasScene(options.baseDataJson, update.dataJson, canvas.dataJson) : update.dataJson;
+      try {
+        return await upsertCanvas({ ...canvas, ...update, ...(dataJson === undefined ? {} : { dataJson }), expectedUpdatedAt: canvas.updatedAt });
+      } catch (error) {
+        if ((error instanceof Error ? error.message : error) !== CANVAS_CONFLICT) throw error;
+      }
+    }
+    throw new Error(CANVAS_CONFLICT);
   };
   const pending = (previous ?? Promise.resolve()).then(persist, persist).finally(() => {
     if (pendingUpdates.get(id) === pending) pendingUpdates.delete(id);
@@ -88,12 +160,44 @@ export async function readCanvasScene(id: string): Promise<Canvas | null> {
   return getCanvas(id);
 }
 
-export async function writeCanvasScene(id: string, dataJson: string): Promise<Canvas> {
+export type CanvasSceneWrite = { dataJson: string; checkpoint?: CanvasUpsert["checkpoint"]; viewport?: CanvasViewport };
+
+/**
+ * Replace a scene and update open panes. A function receives the scene after
+ * the pane's pending edits were saved, so an agent's change is applied to what
+ * the user currently sees rather than to an older read.
+ */
+export async function writeCanvasScene(id: string, scene: string | ((current: Canvas) => CanvasSceneWrite)): Promise<Canvas> {
+  const initialDraft = canvasSceneDrafts.get(id);
   window.dispatchEvent(new CustomEvent(CANVAS_SCENE_ACCESS_EVENT, { detail: id }));
+  // A pane edit that failed to save must not be overwritten by the replacement.
   await pendingUpdates.get(id);
-  const saved = await updateCanvas(id, { dataJson });
+  let viewport: CanvasViewport | undefined;
+  let saved = await updateCanvas(id, (current) => {
+    if (typeof scene === "string") return { dataJson: scene };
+    const write = scene(current);
+    viewport = write.viewport;
+    return { dataJson: write.dataJson, ...(write.checkpoint ? { checkpoint: write.checkpoint } : {}) };
+  });
+  // A user can keep drawing during the asynchronous write. Drain queued saves,
+  // then rebase any still-debounced draft before publishing a single undo step.
+  let appliedDraft = initialDraft;
+  for (;;) {
+    const pending = pendingUpdates.get(id);
+    if (pending) { saved = await pending; continue; }
+    const draft = canvasSceneDrafts.get(id);
+    if (!draft || draft === appliedDraft) break;
+    if (!draft.baseDataJson) throw new Error("The drawing has an unsaved edit; save it before retrying the update.");
+    const dataJson = JSON.stringify({ elements: draft.elements, appState: {
+      viewBackgroundColor: draft.appState.viewBackgroundColor,
+      currentItemFontFamily: draft.appState.currentItemFontFamily,
+    }, files: draft.files });
+    saved = await updateCanvas(id, { dataJson }, { baseDataJson: draft.baseDataJson });
+    appliedDraft = draft;
+  }
   canvasSceneDrafts.delete(id);
-  window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail: saved }));
+  const detail: CanvasSceneReplacement = viewport ? { ...saved, viewport } : saved;
+  window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail }));
   return saved;
 }
 
@@ -119,10 +223,17 @@ export function createEmptyCanvas(cwd?: string): CanvasUpsert {
   };
 }
 
-/** Serialize selected Excalidraw elements to a text block for injection into a chat. */
+/**
+ * Serialize selected Excalidraw elements to a text block for injection into a chat.
+ * The canvas id doubles as an Excalidraw MCP checkpoint, so the agent can edit it.
+ */
 export function canvasElementsToText(
   canvasTitle: string,
   elementsJson: string,
+  canvasId?: string,
 ): string {
-  return `[Canvas: "${canvasTitle}"]\n<excalidraw-canvas>\n${elementsJson}\n</excalidraw-canvas>`;
+  const checkpoint = canvasId
+    ? `\nExcalidraw checkpoint id: "${canvasId}". To change this drawing, call the loci_excalidraw create_view tool with elements starting with {"type":"restoreCheckpoint","id":"${canvasId}"}.`
+    : "";
+  return `[Canvas: "${canvasTitle}"]${checkpoint}\n<excalidraw-canvas>\n${elementsJson}\n</excalidraw-canvas>`;
 }

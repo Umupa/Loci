@@ -38,6 +38,13 @@ import {
 } from "./codexQuestions";
 import { codexMcpConfirmation } from "./codexElicitation";
 import { snapshotRemainder } from "../../core/streamText";
+import {
+  CANVAS_MCP_NAME,
+  canvasMcpServer,
+  canvasToolAutoAllowed,
+  codexCanvasApprovalTool,
+  codexCanvasMcpArgs,
+} from "../../../../features/canvas/mcpServer";
 import type {
   ApprovalDecision,
   CompactContextInput,
@@ -484,6 +491,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   }
 
   const { path } = await resolveCodexBinaryImpl();
+  const canvasMcp = await canvasMcpServer();
   const liveRef: { current: Live | null } = { current: null };
 
   const rpc = new JsonRpcClient(
@@ -564,7 +572,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   await spawnChild(
     input.sessionId,
     path,
-    ["app-server"],
+    [...(canvasMcp ? codexCanvasMcpArgs(canvasMcp) : []), "app-server"],
     input.cwd,
     {
       provider: "codex",
@@ -1327,7 +1335,21 @@ async function handleServerRequest(
       });
       return;
     }
-    if (!live.planning && live.runtimeMode === "full-access") {
+    // Loci's own drawing tool follows the permission mode, as it does for
+    // Claude: a plan turn cannot draw, Supervised asks, other modes go ahead.
+    const canvasTool = codexCanvasApprovalTool(params);
+    if (canvasTool && live.planning) {
+      await live.rpc.respond(id, {
+        action: "decline",
+        content: null,
+        _meta: null,
+      });
+      return;
+    }
+    if (
+      (!live.planning && live.runtimeMode === "full-access") ||
+      (canvasTool && canvasToolAutoAllowed(canvasTool, live.runtimeMode))
+    ) {
       await live.rpc.respond(id, {
         action: "accept",
         content: confirmation.content,
@@ -1342,7 +1364,7 @@ async function handleServerRequest(
       type: "approval.requested",
       requestId: uiId,
       kind: "other",
-      title: confirmation.title,
+      title: canvasTool ? `${CANVAS_MCP_NAME}:${canvasTool}` : confirmation.title,
     });
     const decision = await pending;
     live.onEvent({ type: "approval.resolved", requestId: uiId, decision });

@@ -3,7 +3,7 @@ import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, getSceneV
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { GripVertical, ExternalLink, MessageSquarePlus, ExcalidrawIcon, X, Maximize2, Minimize2 } from "../../../shared/ui/icons";
-import type { Canvas } from "../canvas";
+import type { Canvas, CanvasSceneReplacement } from "../canvas";
 import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasSceneDrafts as sceneDrafts, canvasElementsToText, updateCanvas } from "../canvas";
 import { registerCanvasRenderer } from "../renderScheduling";
 import "./canvas.css";
@@ -53,9 +53,11 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     else void containerRef.current?.requestFullscreen();
   };
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestDataRef = useRef<Scene | null>(null);
+  const latestDataRef = useRef<(Scene & { baseDataJson?: string }) | null>(null);
+  const savedDataRef = useRef(sceneDrafts.get(canvas.id)?.baseDataJson ?? canvas.dataJson);
   const revisionRef = useRef<SceneRevision | null>(null);
   const applyingSceneRef = useRef(false);
+  const fittedRef = useRef(false);
   const pendingReplacementRef = useRef<Canvas | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [isDark, setIsDark] = useState(() => !document.documentElement.classList.contains("theme-light"));
@@ -84,7 +86,8 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
       viewBackgroundColor: data.appState.viewBackgroundColor,
       currentItemFontFamily: data.appState.currentItemFontFamily,
     }, files: data.files });
-    void updateCanvas(canvasRef.current.id, { dataJson }).then(() => {
+    void updateCanvas(canvasRef.current.id, { dataJson }, { baseDataJson: data.baseDataJson ?? savedDataRef.current }).then(() => {
+      savedDataRef.current = dataJson;
       if (sceneDrafts.get(canvasRef.current.id) === data) sceneDrafts.delete(canvasRef.current.id);
       setSaveError(false);
     }).catch(() => {
@@ -94,6 +97,13 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
   }, []);
 
   const handleChange = useCallback<OnChange>((elements, appState, files) => {
+    if (!fittedRef.current) {
+      // The viewport is not saved, and a pane opened beside a chat is narrow:
+      // start with the whole drawing in view, never enlarged.
+      fittedRef.current = true;
+      if (elements.some((element) => !element.isDeleted))
+        requestAnimationFrame(() => apiRef.current?.scrollToContent(undefined, { fitToViewport: true, viewportZoomFactor: 0.9, maxZoom: 1 }));
+    }
     const restoringDraft = revisionRef.current === null && sceneDrafts.has(canvasRef.current.id);
     const revision: SceneRevision = {
       version: getSceneVersion(elements),
@@ -120,7 +130,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     if (!restoringDraft &&
       previous.version === revision.version && previous.hash === revision.hash && previous.count === revision.count &&
       previous.background === revision.background && previous.font === revision.font && previous.files === files) return;
-    const scene = { elements, appState, files };
+    const scene = { elements, appState, files, baseDataJson: savedDataRef.current };
     latestDataRef.current = scene;
     sceneDrafts.set(canvasRef.current.id, scene);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -139,13 +149,14 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
       save();
     };
     const replace = (event: Event) => {
-      const saved = (event as CustomEvent<Canvas>).detail;
+      const saved = (event as CustomEvent<CanvasSceneReplacement>).detail;
       const api = apiRef.current;
       if (saved.id !== canvas.id) return;
       if (!api) { pendingReplacementRef.current = saved; return; }
       const data = restore(JSON.parse(saved.dataJson), null, null);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       latestDataRef.current = null;
+      savedDataRef.current = saved.dataJson;
       sceneDrafts.delete(canvas.id);
       applyingSceneRef.current = true;
       try {
@@ -161,6 +172,9 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
         };
         setSaveError(false);
       } finally { applyingSceneRef.current = false; }
+      // Follow the agent's last camera, as the official Excalidraw widget does.
+      if (saved.viewport) api.scrollToContent(convertToExcalidrawElements([{ type: "rectangle", ...saved.viewport }]),
+        { fitToViewport: true, viewportZoomFactor: 1, maxZoom: 1, animate: true, duration: 300 });
     };
     window.addEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
     window.addEventListener(CANVAS_SCENE_REPLACED_EVENT, replace);
@@ -197,8 +211,8 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     const all = api.getSceneElements();
     const selectedIds = api.getAppState().selectedElementIds;
     const selected = all.filter((el) => selectedIds[el.id]);
-    onAddToChat(canvasElementsToText(canvas.title, JSON.stringify(selected.length ? selected : all, null, 2)));
-  }, [canvas.title, onAddToChat]);
+    onAddToChat(canvasElementsToText(canvas.title, JSON.stringify(selected.length ? selected : all, null, 2), canvas.id));
+  }, [canvas.id, canvas.title, onAddToChat]);
 
   const commitTitle = () => {
     setEditingTitle(false);

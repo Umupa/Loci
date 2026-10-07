@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
 import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, updateCanvas, type Canvas } from "../canvas";
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { CanvasPane } from "./CanvasPane";
 const scene = vi.hoisted(() => ({ props: null as ExcalidrawProps | null }));
 vi.mock("@excalidraw/excalidraw", () => ({
@@ -39,7 +40,7 @@ it("retains edits while moving to another pane before the save debounce fires", 
   act(() => scene.props!.onChange!(changed as never, { viewBackgroundColor: "#fff" } as never, {}));
   expect(updateCanvas).not.toHaveBeenCalled();
   act(() => root.unmount());
-  expect(updateCanvas).toHaveBeenCalledWith(canvas.id, { dataJson: expect.stringContaining('"rectangle"') });
+  expect(updateCanvas).toHaveBeenCalledWith(canvas.id, { dataJson: expect.stringContaining('"rectangle"') }, { baseDataJson: canvas.dataJson });
   root = createRoot(container);
   act(() => root.render(createElement(CanvasPane, props)));
   expect(scene.props!.initialData).toMatchObject({ elements: changed });
@@ -150,9 +151,44 @@ it("flushes pending edits before an operator scene access", () => {
   expect(updateCanvas).not.toHaveBeenCalled();
   act(() => window.dispatchEvent(new CustomEvent(CANVAS_SCENE_ACCESS_EVENT, { detail: canvas.id })));
   expect(updateCanvas).toHaveBeenCalledTimes(1);
-  expect(updateCanvas).toHaveBeenCalledWith(canvas.id, { dataJson: expect.stringContaining('"local"') });
+  expect(updateCanvas).toHaveBeenCalledWith(canvas.id, { dataJson: expect.stringContaining('"local"') }, { baseDataJson: canvas.dataJson });
   act(() => vi.advanceTimersByTime(2000));
   expect(updateCanvas).toHaveBeenCalledTimes(1);
+});
+
+it("opens with the whole drawing in view and follows an agent's camera without saving either", () => {
+  const elements = [{ id: "rect", type: "rectangle", version: 1 }];
+  act(() => root.render(createElement(CanvasPane, { ...props, canvas: { ...canvas, dataJson: JSON.stringify({ elements }) } })));
+  const api = { addFiles: vi.fn(), getFiles: () => ({}), updateScene: vi.fn(), scrollToContent: vi.fn() };
+  act(() => scene.props!.excalidrawAPI!(api as unknown as ExcalidrawImperativeAPI));
+  change(elements);
+  change(elements, { ...appState, scrollX: 50 });
+  act(() => vi.advanceTimersByTime(100));
+  // Fitting never zooms in, and happens once per opening.
+  expect(api.scrollToContent).toHaveBeenCalledTimes(1);
+  expect(api.scrollToContent).toHaveBeenCalledWith(undefined, { fitToViewport: true, viewportZoomFactor: 0.9, maxZoom: 1 });
+  const frame = [{ id: "camera" }];
+  vi.mocked(convertToExcalidrawElements).mockReturnValueOnce(frame as never);
+  act(() => window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail: {
+    ...canvas, dataJson: JSON.stringify({ elements, appState, files: {} }), viewport: { x: 40, y: 40, width: 800, height: 600 },
+  } })));
+  expect(convertToExcalidrawElements).toHaveBeenCalledWith([{ type: "rectangle", x: 40, y: 40, width: 800, height: 600 }]);
+  expect(api.scrollToContent).toHaveBeenLastCalledWith(frame, { fitToViewport: true, viewportZoomFactor: 1, maxZoom: 1, animate: true, duration: 300 });
+  // A replacement without a camera leaves the user's viewport alone.
+  act(() => window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail: { ...canvas, dataJson: JSON.stringify({ elements, appState, files: {} }) } })));
+  expect(api.scrollToContent).toHaveBeenCalledTimes(2);
+  act(() => vi.advanceTimersByTime(2000));
+  expect(updateCanvas).not.toHaveBeenCalled();
+});
+
+it("does not move the viewport of an empty drawing", () => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const api = { scrollToContent: vi.fn() };
+  act(() => scene.props!.excalidrawAPI!(api as unknown as ExcalidrawImperativeAPI));
+  change([]);
+  change([{ id: "deleted", version: 1, isDeleted: true }]);
+  act(() => vi.advanceTimersByTime(100));
+  expect(api.scrollToContent).not.toHaveBeenCalled();
 });
 
 it("applies an operator replacement and files without saving the old draft over it", () => {
@@ -160,7 +196,7 @@ it("applies an operator replacement and files without saving the old draft over 
   const files = { image: { id: "image", dataURL: "data:image/png;base64,AAAA" } };
   const elements = [{ id: "agent", type: "rectangle", version: 2, versionNonce: 100 }];
   const api = {
-    addFiles: vi.fn(), getFiles: () => files,
+    addFiles: vi.fn(), getFiles: () => files, scrollToContent: vi.fn(),
     updateScene: vi.fn(() => scene.props!.onChange!(elements as never, appState as never, files as never)),
   };
   act(() => scene.props!.excalidrawAPI!(api as unknown as ExcalidrawImperativeAPI));

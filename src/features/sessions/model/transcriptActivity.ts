@@ -16,6 +16,7 @@ import {
 import { INTERRUPT_MESSAGE } from "./inFlight";
 import type { Block, ToolPreview } from "./session";
 import { allModels } from "./models";
+import { canvasWorkSummary } from "./canvasToolCall";
 import { lociWorkSummary } from "./lociToolCall";
 
 export type ToolCallState = "pending" | "accepted" | "rejected";
@@ -828,7 +829,7 @@ function currentWorkKind(steps: Block[]): ActivityWorkKind | undefined {
  * when it folds.
  */
 export function workSummaryLine(steps: Block[], live = false): string {
-  const appSummary = lociWorkSummary(steps, live);
+  const appSummary = lociWorkSummary(steps, live) ?? canvasWorkSummary(steps, live);
   if (appSummary) return appSummary;
   const tally = tallySteps(steps);
   if (tally.order.length === 0) {

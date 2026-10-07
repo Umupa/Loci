@@ -32,7 +32,7 @@ import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
 import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
 import { ADD_NOTE_TO_CHAT_EVENT, type NoteComposerCard } from "../features/notes";
-import { CANVASES_CHANGED_EVENT, createEmptyCanvas, deleteCanvas, loadCanvases, updateCanvas, upsertCanvas, type Canvas } from "../features/canvas/canvas";
+import { CANVASES_CHANGED_EVENT, CANVAS_OPEN_CHECKPOINT_EVENT, checkpointCanvasId, createEmptyCanvas, deleteCanvas, loadCanvases, updateCanvas, upsertCanvas, type Canvas } from "../features/canvas/canvas";
 import { synchronizeProjectLocation, rememberProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
 import { looksLikeProject, replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
@@ -228,6 +228,20 @@ function Workspace(boot: BootWorkspace) {
     refresh();
     window.addEventListener(CANVASES_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(CANVASES_CHANGED_EVENT, refresh);
+  }, []);
+  useEffect(() => {
+    // A drawing call in a transcript opens its canvas beside that session.
+    const open = (event: Event) => {
+      const view = workspaceRef.current!;
+      void checkpointCanvasId((event as CustomEvent<string>).detail).then((canvasId) => {
+        if (!canvasId) throw new Error("This drawing no longer exists.");
+        const sessionId = view.activeSession?.id;
+        if (sessionId && !view.isCanvasOpen(canvasId)) view.revealCanvas(canvasId, sessionId);
+        else view.openCanvas(canvasId);
+      }).catch((error) => view.setError(String(error)));
+    };
+    window.addEventListener(CANVAS_OPEN_CHECKPOINT_EVENT, open);
+    return () => window.removeEventListener(CANVAS_OPEN_CHECKPOINT_EVENT, open);
   }, []);
   useEffect(() => {
     const onAdd = (event: Event) => {
