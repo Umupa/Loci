@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { newSession } from "../../sessions/model/session";
-import { canvasLeaf, findLeaf, layoutLeaves, leaf, leafIds, newTab, placeLayout, setSplitRatio, sourceLeaf, type WorkspaceTab } from "./layout";
+import { canvasLeaf, findLeaf, layoutLeaves, leaf, leafIds, newTab, placeLayout, setSplitRatio, type WorkspaceTab } from "./layout";
 import { applyDetachPaneToTab, applyMoveWorkspacePane, applyPlaceTabOnPane, filterTabsForProject } from "./workspaceTabGroups";
 import { collectWorkspaceSnapshot, hydrateWorkspaceSnapshot } from "./workspaceSnapshot";
 
@@ -29,7 +29,8 @@ describe("mixed workspace panes", () => {
     expect(filterTabsForProject(detached.tabs, [session], "/project")).toHaveLength(2);
   });
 
-  it.each([canvasLeaf("drawing"), sourceLeaf("drawing")])("moves a non-session pane between tabs without replacing its kind: %j", (incoming) => {
+  it("moves a canvas pane between tabs without replacing its kind", () => {
+    const incoming = canvasLeaf("drawing");
     const source = { ...canvasTab(), layout: placeLayout(incoming, leaf("left"), "drawing", "left") };
     const target = { ...newTab("right"), id: "target", cwd: "/project" };
     const moved = applyMoveWorkspacePane([source, target], "drawing", "right", "bottom")!;
@@ -41,7 +42,7 @@ describe("mixed workspace panes", () => {
 
   it("round-trips mixed panes and canvas-only tabs without hydrating fake conversations", () => {
     const session = { ...newSession("codex", "/project"), id: "chat" };
-    const mixed = { ...newTab("chat"), cwd: "/project", layout: placeLayout(leaf("chat"), sourceLeaf("source"), "chat", "right") };
+    const mixed = { ...newTab("chat"), cwd: "/project", layout: placeLayout(leaf("chat"), canvasLeaf("second-drawing"), "chat", "right") };
     const snapshot = collectWorkspaceSnapshot([mixed, canvasTab()], [session], "drawing-tab", "/project", new Map());
     const resumed = hydrateWorkspaceSnapshot(JSON.parse(JSON.stringify(snapshot)), new Map())!;
     expect(resumed.tabs.map((tab) => tab.layout)).toEqual([mixed.layout, canvasLeaf("drawing")]);

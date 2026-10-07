@@ -14,7 +14,7 @@ export type LayoutNode = {
     type: "leaf";
     id: string;
     /** When absent, the leaf is a session pane. */
-    leafKind?: "canvas" | "source";
+    leafKind?: "canvas";
 } | {
     type: "split";
     id: string;
@@ -46,9 +46,6 @@ export function findLeaf(node: LayoutNode, id: string): Extract<LayoutNode, { ty
         if (found) return found;
     }
     return undefined;
-}
-export function sourceLeaf(noteId: string): LayoutNode {
-    return { type: "leaf", id: noteId, leafKind: "source" };
 }
 export function newTab(sessionId: string): WorkspaceTab {
     return {
@@ -213,7 +210,7 @@ export type LayoutRect = {
 };
 export type LayoutLeaf = {
     id: string;
-    kind: "session" | "canvas" | "source";
+    kind: "session" | "canvas";
     rect: LayoutRect;
     axis: "x" | "y";
 };
@@ -227,7 +224,7 @@ export type LayoutSash = {
 export function layoutLeaves(node: LayoutNode, rect: LayoutRect = { x: 0, y: 0, w: 1, h: 1 }, parentDir?: SplitDir): LayoutLeaf[] {
     const axis = parentDir === "down" ? "y" : "x";
     if (node.type === "leaf") {
-        const kind = node.leafKind === "canvas" ? "canvas" : node.leafKind === "source" ? "source" : "session";
+        const kind = node.leafKind === "canvas" ? "canvas" : "session";
         return [{ id: node.id, kind, rect, axis }];
     }
     const row = node.dir === "right";

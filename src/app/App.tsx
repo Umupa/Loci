@@ -31,7 +31,7 @@ import { hiddenApprovalNotices } from "../features/notifications/model/approvalT
 import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
 import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
-import { ADD_NOTE_TO_CHAT_EVENT, loadNotes, type Note, type NoteComposerCard } from "../features/notes";
+import { ADD_NOTE_TO_CHAT_EVENT, type NoteComposerCard } from "../features/notes";
 import { CANVASES_CHANGED_EVENT, createEmptyCanvas, deleteCanvas, loadCanvases, updateCanvas, upsertCanvas, type Canvas } from "../features/canvas/canvas";
 import { synchronizeProjectLocation, rememberProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
@@ -83,7 +83,6 @@ function Workspace(boot: BootWorkspace) {
   const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
   const [transcriptPool] = useState(() => new TranscriptPool());
   const [canvases, setCanvases] = useState<Canvas[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
   const appendToCanvasRef = useRef(new Map<string, (text: string) => void>());
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
   const seenSignInRequests = useRef(new Set(initial.sessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
@@ -230,7 +229,6 @@ function Workspace(boot: BootWorkspace) {
     window.addEventListener(CANVASES_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(CANVASES_CHANGED_EVENT, refresh);
   }, []);
-  useEffect(() => { void loadNotes().then(setNotes); }, []);
   useEffect(() => {
     const onAdd = (event: Event) => {
       const card = (event as CustomEvent<NoteComposerCard>).detail;
@@ -288,7 +286,7 @@ function Workspace(boot: BootWorkspace) {
     const workspaceTab = workspace.tabs.find((entry) => entry.id === tab.id);
     const focused = workspaceTab && findLeaf(workspaceTab.layout, workspaceTab.focusedId);
     const title = focused?.leafKind === "canvas" ? canvases.find((canvas) => canvas.id === focused.id)?.title ?? "Excalidraw"
-      : focused?.leafKind === "source" ? notes.find((note) => note.id === focused.id)?.title ?? "Source" : tab.title;
+      : tab.title;
     return { ...tab, title, paneKind: focused?.leafKind, blank: !!layout && leafIds(layout).length === 1 && tab.blank, multiPane: layout ? leafIds(layout).length > 1 : tab.multiPane, doneHarnesses: [...new Set(done)] };
   });
   const workspaceTitleBar = <TitleBar tabs={titleTabs} activeId={workspace.activeTabId} cwd={workspace.projectCwd}
@@ -351,8 +349,6 @@ function Workspace(boot: BootWorkspace) {
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
-          notes={notes}
-          onOpenSource={(id) => workspace.openSource(id)}
           onOpenCanvases={openCanvases} canvasesActive={surface === "canvases"}
           projectRailOpen={projectRailOpen} compactProjectRail={compactProjectRail} titleBarAbove={compactTitleBar} onToggleProjectRail={toggleProjectRail}
           unseenFinishedIds={unseenFinishedIds} settingsOpen={surface === "settings"} settingsSection={settingsSection} onOpenSettings={() => openSettings()}
@@ -374,14 +370,7 @@ function Workspace(boot: BootWorkspace) {
                     onCanvasFocus={(id) => workspace.focusPane(id)}
                     onCanvasAddToChat={canvasAddToChat}
                     onCanvasTitleChange={renameCanvas}
-                    onCanvasRegisterAppend={registerCanvasAppend}
-                    notes={notes}
-                    onSourceFocus={(id) => workspace.focusPane(id)}
-                    onSourceAddToChat={(text) => {
-                      const view = workspaceRef.current!;
-                      const session = { ...newDefaultSession(view.projectCwdRef.current, view.activeSession?.runtimeMode), title: "Source" };
-                      view.addSession({ ...session, noteCard: { id: crypto.randomUUID(), slug: "source-context", title: "Source", body: text } });
-                    }} />
+                    onCanvasRegisterAppend={registerCanvasAppend} />
                 </div>)}
               </div>
             </main>
