@@ -1,2 +1,4 @@
 # Shell scripts are also embedded in the desktop app and sent to Unix hosts.
 *.sh text eol=lf
+# Vendored release files of the official Excalidraw MCP server; see SOURCE beside them.
+src-tauri/resources/excalidraw-mcp/official/** -diff linguist-vendored
