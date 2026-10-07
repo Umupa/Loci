@@ -6,7 +6,7 @@ export const OPERATOR_COMMAND: BuiltinSkill = {
   name: "operator",
   invocation: "operator",
   description:
-    "Give this thread access to Loci sessions, folders, and notes.",
+    "Give this thread access to Loci sessions, folders, notes, and canvases.",
   scope: "builtin",
   source: "loci",
 };

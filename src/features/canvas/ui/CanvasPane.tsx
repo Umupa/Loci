@@ -1,10 +1,10 @@
 import "@excalidraw/excalidraw/index.css";
-import { convertToExcalidrawElements, Excalidraw, getSceneVersion, hashElementsVersion } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, getSceneVersion, hashElementsVersion, restore } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { GripVertical, ExternalLink, MessageSquarePlus, ExcalidrawIcon, X, Maximize2, Minimize2 } from "../../../shared/ui/icons";
 import type { Canvas } from "../canvas";
-import { canvasElementsToText, updateCanvas } from "../canvas";
+import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasSceneDrafts as sceneDrafts, canvasElementsToText, updateCanvas } from "../canvas";
 import { registerCanvasRenderer } from "../renderScheduling";
 import "./canvas.css";
 
@@ -15,7 +15,6 @@ type Scene = {
   files: Parameters<OnChange>[2];
 };
 // Retain edits synchronously across list switches and workspace reparenting.
-const sceneDrafts = new Map<string, Scene>();
 const SAVE_DEBOUNCE_MS = 1500;
 type SceneRevision = {
   version: number;
@@ -56,6 +55,8 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDataRef = useRef<Scene | null>(null);
   const revisionRef = useRef<SceneRevision | null>(null);
+  const applyingSceneRef = useRef(false);
+  const pendingReplacementRef = useRef<Canvas | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [isDark, setIsDark] = useState(() => !document.documentElement.classList.contains("theme-light"));
   const [editingTitle, setEditingTitle] = useState(false);
@@ -114,6 +115,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
       files,
     };
     revisionRef.current = revision;
+    if (applyingSceneRef.current) return;
     // A restored draft is still dirty, even if hydration did not change it.
     if (!restoringDraft &&
       previous.version === revision.version && previous.hash === revision.hash && previous.count === revision.count &&
@@ -130,6 +132,44 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     save();
   }, [save]);
 
+  useEffect(() => {
+    const flush = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== canvas.id) return;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      save();
+    };
+    const replace = (event: Event) => {
+      const saved = (event as CustomEvent<Canvas>).detail;
+      const api = apiRef.current;
+      if (saved.id !== canvas.id) return;
+      if (!api) { pendingReplacementRef.current = saved; return; }
+      const data = restore(JSON.parse(saved.dataJson), null, null);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      latestDataRef.current = null;
+      sceneDrafts.delete(canvas.id);
+      applyingSceneRef.current = true;
+      try {
+        api.addFiles(Object.values(data.files));
+        const documentState = {
+          viewBackgroundColor: data.appState.viewBackgroundColor,
+          currentItemFontFamily: data.appState.currentItemFontFamily,
+        };
+        api.updateScene({ elements: data.elements, appState: documentState, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+        revisionRef.current = {
+          version: getSceneVersion(data.elements), hash: hashElementsVersion(data.elements), count: data.elements.length,
+          background: documentState.viewBackgroundColor, font: documentState.currentItemFontFamily, files: api.getFiles(),
+        };
+        setSaveError(false);
+      } finally { applyingSceneRef.current = false; }
+    };
+    window.addEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
+    window.addEventListener(CANVAS_SCENE_REPLACED_EVENT, replace);
+    return () => {
+      window.removeEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
+      window.removeEventListener(CANVAS_SCENE_REPLACED_EVENT, replace);
+    };
+  }, [canvas.id, save]);
+
   const appendText = useCallback((text: string) => {
     const api = apiRef.current;
     if (!api) return;
@@ -143,6 +183,11 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
   const registerApi = useCallback((api: ExcalidrawImperativeAPI) => {
     apiRef.current = api;
     registerRef.current?.(canvas.id, appendText);
+    const replacement = pendingReplacementRef.current;
+    if (replacement) {
+      pendingReplacementRef.current = null;
+      window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail: replacement }));
+    }
   }, [canvas.id, appendText]);
   useEffect(() => () => { registerRef.current?.(canvas.id, null); }, [canvas.id]);
 

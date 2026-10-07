@@ -7,6 +7,17 @@ function shell(text: string): Block {
 }
 
 describe("Loci CLI tool calls", () => {
+  it.each([
+    ["canvas.list", "List canvases"],
+    ["canvas.get", "Get a canvas"],
+    ["canvas.create", "Create a canvas"],
+    ["canvas.rename", "Rename a canvas"],
+    ["canvas.delete", "Delete a canvas"],
+    ["canvas.read-data", "Read canvas scene data"],
+    ["canvas.write-data", "Write canvas scene data"],
+  ])("labels %s as an app operation", (action, label) => {
+    expect(lociToolCall(shell(`loci app ${action} --json '{}'`))?.label).toBe(label);
+  });
   it("recognizes app actions with absolute, quoted, or bare executables", () => {
     expect(
       lociToolCall(

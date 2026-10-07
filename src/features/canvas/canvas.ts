@@ -1,4 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { ExcalidrawProps } from "@excalidraw/excalidraw/types";
+
+type CanvasChange = NonNullable<ExcalidrawProps["onChange"]>;
+export type CanvasScene = { elements: Parameters<CanvasChange>[0]; appState: Parameters<CanvasChange>[1]; files: Parameters<CanvasChange>[2] };
+// Shared with persistence so replacements also retire drafts of closed panes.
+export const canvasSceneDrafts = new Map<string, CanvasScene>();
 
 export type Canvas = {
   id: string;
@@ -19,6 +25,8 @@ export type CanvasUpsert = {
 };
 
 export const CANVASES_CHANGED_EVENT = "loci-canvases-changed";
+export const CANVAS_SCENE_ACCESS_EVENT = "loci-canvas-scene-access";
+export const CANVAS_SCENE_REPLACED_EVENT = "loci-canvas-scene-replaced";
 
 let cache: Canvas[] | null = null;
 
@@ -73,12 +81,29 @@ export function updateCanvas(id: string, changes: Partial<Omit<CanvasUpsert, "id
   return pending;
 }
 
+export async function readCanvasScene(id: string): Promise<Canvas | null> {
+  window.dispatchEvent(new CustomEvent(CANVAS_SCENE_ACCESS_EVENT, { detail: id }));
+  // Pane listeners enqueue their current draft synchronously before this lookup.
+  await pendingUpdates.get(id);
+  return getCanvas(id);
+}
+
+export async function writeCanvasScene(id: string, dataJson: string): Promise<Canvas> {
+  window.dispatchEvent(new CustomEvent(CANVAS_SCENE_ACCESS_EVENT, { detail: id }));
+  await pendingUpdates.get(id);
+  const saved = await updateCanvas(id, { dataJson });
+  canvasSceneDrafts.delete(id);
+  window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail: saved }));
+  return saved;
+}
+
 export async function deleteCanvas(id: string): Promise<void> {
   if (deletingCanvases.has(id)) throw new Error("Drawing is being deleted.");
   deletingCanvases.add(id);
   try {
     await pendingUpdates.get(id)?.catch(() => undefined);
     await invoke("canvas_delete", { id });
+    canvasSceneDrafts.delete(id);
     if (cache) cache = cache.filter((c) => c.id !== id);
     window.dispatchEvent(new Event(CANVASES_CHANGED_EVENT));
   } finally { deletingCanvases.delete(id); }

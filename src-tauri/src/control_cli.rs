@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 11] = [
+const APP_ACTIONS: [&str; 18] = [
     "models.list",
     "sessions.list",
     "sessions.read",
@@ -17,6 +17,13 @@ const APP_ACTIONS: [&str; 11] = [
     "notes.list",
     "notes.read",
     "notes.write",
+    "canvas.list",
+    "canvas.get",
+    "canvas.create",
+    "canvas.rename",
+    "canvas.delete",
+    "canvas.read-data",
+    "canvas.write-data",
 ];
 const APP_USAGE: &str = r#"Loci app access — use in a thread enabled by /operator.
 
@@ -65,6 +72,26 @@ Actions:
                   to derive it from the body. Use {"id":"...","body":"..."}
                   to edit an existing note; title and tags are also optional.
                   Omitted fields stay unchanged. Reuse --request-id on retries.
+  canvas.list    {}  Current project drawings, newest first; metadata only.
+  canvas.get     {"id":"..."}  Metadata of one drawing; no scene data.
+  canvas.create  {"title":"Plan"}  Create an empty drawing in this project.
+                  Omit title to use "Untitled drawing". Returns id and title.
+  canvas.rename  {"id":"...","title":"New title"}  Rename a drawing.
+  canvas.delete  {"id":"..."}  Delete a drawing.
+  canvas.read-data  {"id":"..."}  Read full scene data (dataJson) of a drawing
+                  in this project, including pending edits in open panes.
+  canvas.write-data {"id":"...","dataJson":"..."}  Replace a drawing's scene
+                  with Excalidraw JSON. dataJson must be a valid JSON string
+                  containing {"elements":[...],"appState":{...},"files":{}}.
+                  Max 250000 UTF-8 bytes before JSON transport escaping.
+                  Basic shapes may use Excalidraw programmatic elements with
+                  x/y, optional id and label:{text:"..."}; IDs are retained.
+                  Programmatic arrows bind with start:{id:"shape-id"} and
+                  end:{id:"shape-id"}. Native scenes use native bindings.
+                  Full scenes support images, frames and freehand elements.
+                  MCP cameraUpdate/delete/restoreCheckpoint are not elements.
+                  Writes update open panes. Read first to extend a drawing;
+                  this replaces the whole scene, it does not merge elements.
 
 The output is one JSON line: {"ok":true,"result":...} or {"ok":false,"error":"..."}.
 Use --input - to pass JSON on stdin. Never print Loci credentials.
@@ -412,6 +439,21 @@ mod tests {
         assert!(parse_args(&args(&["sessions.start", "--request-id", "bad/id"])).is_err());
         assert!(app_help().contains("notes.read"));
         assert!(app_help().contains("notes.write"));
+        for action in [
+            "canvas.list",
+            "canvas.get",
+            "canvas.create",
+            "canvas.rename",
+            "canvas.delete",
+            "canvas.read-data",
+            "canvas.write-data",
+        ] {
+            assert!(matches!(
+                parse_args(&args(&[action, "--json", r#"{}"#])),
+                Ok(Parsed::Call(parsed, _, _)) if parsed == action
+            ));
+            assert!(app_help().contains(action));
+        }
     }
 
     #[test]

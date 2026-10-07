@@ -184,6 +184,9 @@ describe("session submission", () => {
     await vi.waitFor(() => expect(pending).toHaveLength(1));
     expect(pending[0].input.appAccess).toBe(true);
     expect(pending[0].input.text).toContain("<loci_app>");
+    expect(pending[0].input.text).toContain("list, create, rename, and delete Excalidraw canvases");
+    expect(pending[0].input.text).toContain("canvas.read-data and canvas.write-data");
+    expect(pending[0].input.text).toContain("write-data replaces the whole scene and updates open panes");
     expect(pending[0].input.text).toContain("loci' app --help");
     expect(session().blocks[0]).toMatchObject({ text: "List notes", loci: true, appRequestId: "app-request-1" });
     await settle(pending[0]);

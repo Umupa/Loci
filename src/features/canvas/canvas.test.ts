@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { CANVASES_CHANGED_EVENT, deleteCanvas, updateCanvas, type Canvas } from "./canvas";
+import { CANVASES_CHANGED_EVENT, CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasSceneDrafts, deleteCanvas, readCanvasScene, writeCanvasScene, updateCanvas, type Canvas } from "./canvas";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const original: Canvas = { id: "drawing", title: "Before", dataJson: "old scene", tags: [], cwd: "/project", createdAt: 1, updatedAt: 1 };
 
@@ -29,6 +29,33 @@ describe("canvas edits", () => {
       expect(stored).toBeNull();
       expect(changed).toHaveBeenCalledTimes(2);
     } finally { window.removeEventListener(CANVASES_CHANGED_EVENT, changed); }
+  });
+  it("reads the pane's flushed draft and orders a replacement after queued edits", async () => {
+    let saved = { ...original };
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "canvas_get") return { ...saved };
+      if (command === "canvas_upsert") {
+        saved = { ...saved, ...(args as { canvas: Canvas }).canvas };
+        return { ...saved };
+      }
+      throw new Error("Unexpected command");
+    });
+    const flush = () => { void updateCanvas(original.id, { dataJson: "local draft" }); };
+    const replaced = vi.fn();
+    window.addEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
+    window.addEventListener(CANVAS_SCENE_REPLACED_EVENT, replaced);
+    try {
+      expect(await readCanvasScene(original.id)).toMatchObject({ dataJson: "local draft" });
+      canvasSceneDrafts.set(original.id, { elements: [], appState: {}, files: {} } as never);
+      await writeCanvasScene(original.id, "agent scene");
+      expect(saved.dataJson).toBe("agent scene");
+      expect(canvasSceneDrafts.has(original.id)).toBe(false);
+      expect(replaced).toHaveBeenCalledTimes(1);
+      expect((replaced.mock.calls[0][0] as CustomEvent<Canvas>).detail.dataJson).toBe("agent scene");
+    } finally {
+      window.removeEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
+      window.removeEventListener(CANVAS_SCENE_REPLACED_EVENT, replaced);
+    }
   });
   it("orders scene and title writes, retaining both changes", async () => {
     let saved = { ...original };

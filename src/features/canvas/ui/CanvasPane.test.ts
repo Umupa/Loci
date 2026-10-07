@@ -2,17 +2,19 @@
 import { act, createElement, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { ExcalidrawProps } from "@excalidraw/excalidraw/types";
-import { updateCanvas, type Canvas } from "../canvas";
+import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
+import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, updateCanvas, type Canvas } from "../canvas";
 import { CanvasPane } from "./CanvasPane";
 const scene = vi.hoisted(() => ({ props: null as ExcalidrawProps | null }));
 vi.mock("@excalidraw/excalidraw", () => ({
   Excalidraw: (props: ExcalidrawProps) => { scene.props = props; return null; },
   convertToExcalidrawElements: vi.fn(),
+  restore: (data: object) => data,
+  CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY" },
   getSceneVersion: (elements: { version?: number }[]) => elements.reduce((sum, el) => sum + (el.version ?? 0), 0),
   hashElementsVersion: (elements: { versionNonce?: number }[]) => elements.reduce((hash, el) => ((hash << 5) + hash + (el.versionNonce ?? 0)) >>> 0, 5381),
 }));
-vi.mock("../canvas", () => ({ updateCanvas: vi.fn(), canvasElementsToText: vi.fn() }));
+vi.mock("../canvas", () => ({ updateCanvas: vi.fn(), canvasSceneDrafts: new Map(), canvasElementsToText: vi.fn(), CANVAS_SCENE_ACCESS_EVENT: "loci-canvas-scene-access", CANVAS_SCENE_REPLACED_EVENT: "loci-canvas-scene-replaced" }));
 let container: HTMLDivElement;
 let root: Root;
 const canvas: Canvas = { id: "pane-test", title: "Sketch", dataJson: '{"elements":[]}', tags: [], createdAt: 1, updatedAt: 1 };
@@ -139,4 +141,40 @@ it("retries an unsaved draft after reopening without another content edit", asyn
   await act(async () => vi.advanceTimersByTime(1500));
   expect(updateCanvas).toHaveBeenCalledTimes(2);
   expect(vi.mocked(updateCanvas).mock.calls[1][1]).toEqual(vi.mocked(updateCanvas).mock.calls[0][1]);
+});
+
+it("flushes pending edits before an operator scene access", () => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  change([{ id: "local", version: 1 }]);
+  act(() => window.dispatchEvent(new CustomEvent(CANVAS_SCENE_ACCESS_EVENT, { detail: "another-pane" })));
+  expect(updateCanvas).not.toHaveBeenCalled();
+  act(() => window.dispatchEvent(new CustomEvent(CANVAS_SCENE_ACCESS_EVENT, { detail: canvas.id })));
+  expect(updateCanvas).toHaveBeenCalledTimes(1);
+  expect(updateCanvas).toHaveBeenCalledWith(canvas.id, { dataJson: expect.stringContaining('"local"') });
+  act(() => vi.advanceTimersByTime(2000));
+  expect(updateCanvas).toHaveBeenCalledTimes(1);
+});
+
+it("applies an operator replacement and files without saving the old draft over it", () => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const files = { image: { id: "image", dataURL: "data:image/png;base64,AAAA" } };
+  const elements = [{ id: "agent", type: "rectangle", version: 2, versionNonce: 100 }];
+  const api = {
+    addFiles: vi.fn(), getFiles: () => files,
+    updateScene: vi.fn(() => scene.props!.onChange!(elements as never, appState as never, files as never)),
+  };
+  act(() => scene.props!.excalidrawAPI!(api as unknown as ExcalidrawImperativeAPI));
+  change([{ id: "old-draft", version: 1 }]);
+  act(() => window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail: {
+    ...canvas, dataJson: JSON.stringify({ elements, appState, files }),
+  } })));
+  expect(api.addFiles).toHaveBeenCalledWith(Object.values(files));
+  expect(api.updateScene).toHaveBeenCalledWith({ elements, appState, captureUpdate: "IMMEDIATELY" });
+  change(elements, { ...appState, scrollX: 200 }, files);
+  act(() => vi.advanceTimersByTime(2000));
+  expect(updateCanvas).not.toHaveBeenCalled();
+  // Subsequent manual edits still save normally.
+  change([{ ...elements[0], version: 3 }], appState, files);
+  act(() => vi.advanceTimersByTime(1500));
+  expect(updateCanvas).toHaveBeenCalledTimes(1);
 });

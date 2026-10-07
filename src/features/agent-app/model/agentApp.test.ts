@@ -1,5 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  CANVASES_CHANGED_EVENT,
+  invalidateCanvases,
+  loadCanvases,
+  peekCanvases,
+  type Canvas,
+  type CanvasUpsert,
+} from "../../canvas/canvas";
 import type { Note } from "../../notes";
 import {
 resetHarnessModelOverlays,
@@ -12,6 +21,7 @@ saveSessionFolders,
 } from "../../sessions/model/sessionFolders";
 import { handleAgentApp,notePreview,type AgentAppHost } from "./agentApp";
 
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("../../../integrations/harness/core/availability", () => ({
   isHarnessAvailable: (id: string) => id === "codex",
 }));
@@ -35,6 +45,10 @@ vi.stubGlobal("localStorage", {
 });
 
 beforeEach(() => {
+  vi.stubGlobal("FontFace", class { constructor(family: string, _source: string, descriptors: object) { Object.assign(this, { family }, descriptors); } });
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({ filter: "none", measureText: (text: string) => ({ width: text.length * 10 }) } as never);
+  vi.mocked(invoke).mockReset();
+  invalidateCanvases();
   localStorage.clear();
   setHarnessModels("codex", [
     {
@@ -59,6 +73,8 @@ beforeEach(() => {
 
 afterEach(() => {
   resetHarnessModelOverlays();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 function fixture() {
@@ -89,6 +105,186 @@ function fixture() {
 }
 
 describe("agent app commands", () => {
+  it("refreshes and lists only current project canvas metadata, newest first", async () => {
+    const { source, host } = fixture();
+    const canvas: Canvas = {
+      id: "old", title: "Old", dataJson: "private scene", tags: ["private"],
+      cwd: source.cwd, createdAt: 1, updatedAt: 2,
+    };
+    vi.mocked(invoke).mockResolvedValueOnce([]).mockResolvedValueOnce([
+      canvas,
+      { ...canvas, id: "other", cwd: "/tmp/other", updatedAt: 100 },
+      { ...canvas, id: "global", cwd: undefined },
+      { ...canvas, id: "new", cwd: `${source.cwd}/`, updatedAt: 10 },
+    ]);
+    await loadCanvases();
+    const result = await handleAgentApp(source, "list", "canvas.list", {}, host);
+    expect(result).toEqual({
+      cwd: source.cwd,
+      canvases: [
+        { id: "new", title: "Old", cwd: `${source.cwd}/`, createdAt: 1, updatedAt: 10 },
+        { id: "old", title: "Old", cwd: source.cwd, createdAt: 1, updatedAt: 2 },
+      ],
+    });
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke).toHaveBeenLastCalledWith("canvas_list");
+  });
+
+  it("reads only canvas metadata and reports missing IDs", async () => {
+    const { source, host } = fixture();
+    vi.mocked(invoke).mockResolvedValueOnce({
+      id: "drawing", title: "Plan", cwd: source.cwd, createdAt: 1, updatedAt: 2,
+      dataJson: "private scene", tags: ["private"],
+    }).mockResolvedValueOnce(null);
+    expect(await handleAgentApp(source, "get", "canvas.get", { id: "drawing" }, host))
+      .toEqual({ id: "drawing", title: "Plan", cwd: source.cwd, createdAt: 1, updatedAt: 2 });
+    expect(invoke).toHaveBeenCalledWith("canvas_get", { id: "drawing" });
+    await expect(handleAgentApp(source, "missing", "canvas.get", { id: "missing" }, host))
+      .rejects.toThrow("Canvas was not found");
+  });
+
+  it("creates an empty project canvas, renames it without changing the scene, and deletes it", async () => {
+    const { source, host } = fixture();
+    const stored = new Map<string, Canvas>();
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "canvas_list") return [...stored.values()];
+      if (command === "canvas_get") return stored.get((args as { id: string }).id) ?? null;
+      if (command === "canvas_upsert") {
+        const input = (args as { canvas: CanvasUpsert }).canvas;
+        const saved = { ...input, createdAt: 1, updatedAt: 2 };
+        stored.set(saved.id, saved);
+        return saved;
+      }
+      if (command === "canvas_delete") {
+        stored.delete((args as { id: string }).id);
+        return;
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    await loadCanvases();
+    const changed = vi.fn();
+    window.addEventListener(CANVASES_CHANGED_EVENT, changed);
+    try {
+      const created = await handleAgentApp(source, "create", "canvas.create", { title: "测试画布" }, host) as { id: string; title: string };
+      expect(created).toEqual({ id: expect.any(String), title: "测试画布" });
+      const canvas = stored.get(created.id)!;
+      expect(canvas.cwd).toBe(source.cwd);
+      expect(JSON.parse(canvas.dataJson)).toEqual({ elements: [], appState: {}, files: {} });
+      expect(peekCanvases()).toEqual([canvas]);
+      expect(await handleAgentApp(source, "create", "canvas.create", { title: "测试画布" }, host)).toEqual(created);
+      expect(stored.size).toBe(1);
+      // An existing drawing's scene must survive a management rename.
+      canvas.dataJson = "existing scene";
+      expect(await handleAgentApp(source, "rename", "canvas.rename", { id: created.id, title: "新标题" }, host))
+        .toEqual({ title: "新标题" });
+      expect(stored.get(created.id)).toMatchObject({ title: "新标题", dataJson: "existing scene" });
+      expect(peekCanvases()?.[0].title).toBe("新标题");
+      expect(await handleAgentApp(source, "delete", "canvas.delete", { id: created.id }, host))
+        .toEqual({ deleted: true });
+      expect(stored.has(created.id)).toBe(false);
+      expect(peekCanvases()).toEqual([]);
+      expect(changed).toHaveBeenCalledTimes(3);
+      expect(await handleAgentApp(source, "default", "canvas.create", {}, host))
+        .toEqual({ id: expect.any(String), title: "Untitled drawing" });
+      await expect(handleAgentApp(source, "missing", "canvas.rename", { id: "missing", title: "Title" }, host))
+        .rejects.toThrow("Canvas was not found");
+    } finally {
+      window.removeEventListener(CANVASES_CHANGED_EVENT, changed);
+    }
+  });
+
+  it("reads and writes canvas scene data", async () => {
+    const { source, host } = fixture();
+    const stored = new Map<string, Canvas>();
+    vi.mocked(invoke).mockImplementation(async (command, args) => {
+      if (command === "canvas_list") return [...stored.values()];
+      if (command === "canvas_get") return stored.get((args as { id: string }).id) ?? null;
+      if (command === "canvas_upsert") {
+        const input = (args as { canvas: CanvasUpsert }).canvas;
+        const saved = { ...input, createdAt: 1, updatedAt: 2 };
+        stored.set(saved.id, saved);
+        return saved;
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    await loadCanvases();
+    const changed = vi.fn();
+    window.addEventListener(CANVASES_CHANGED_EVENT, changed);
+    try {
+      const created = await handleAgentApp(source, "create", "canvas.create", { title: "Scene test" }, host) as { id: string };
+      const initialData = await handleAgentApp(source, "read", "canvas.read-data", { id: created.id }, host) as { id: string; title: string; dataJson: string };
+      expect(initialData.id).toBe(created.id);
+      expect(initialData.title).toBe("Scene test");
+      expect(JSON.parse(initialData.dataJson)).toMatchObject({ elements: [] });
+
+      const newScene = JSON.stringify({ elements: [{ type: "text", text: "Hello", x: 0, y: 0 }], appState: {}, files: {} });
+      expect(await handleAgentApp(source, "write", "canvas.write-data", { id: created.id, dataJson: newScene }, host))
+        .toEqual({ updated: true });
+      const updated = await handleAgentApp(source, "read2", "canvas.read-data", { id: created.id }, host) as { dataJson: string };
+      expect(JSON.parse(updated.dataJson)).toMatchObject({ elements: [{ type: "text", text: "Hello" }] });
+      expect(changed).toHaveBeenCalledTimes(2);
+
+      await expect(handleAgentApp(source, "missing", "canvas.read-data", { id: "missing" }, host))
+        .rejects.toThrow("Canvas was not found");
+      await expect(handleAgentApp(source, "missing", "canvas.write-data", { id: "missing", dataJson: newScene }, host))
+        .rejects.toThrow("Canvas was not found");
+      await expect(handleAgentApp(source, "bad-json", "canvas.write-data", { id: created.id, dataJson: "{invalid" }, host))
+        .rejects.toThrow("valid JSON");
+    } finally {
+      window.removeEventListener(CANVASES_CHANGED_EVENT, changed);
+    }
+  });
+
+  it.each(["canvas.get", "canvas.rename", "canvas.delete", "canvas.read-data", "canvas.write-data"])("rejects %s in another project", async (action) => {
+    const { source, host } = fixture();
+    vi.mocked(invoke).mockResolvedValue({ id: "other", cwd: "/tmp/other" });
+    await expect(handleAgentApp(source, "other", action, { id: "other", ...(action === "canvas.rename" ? { title: "Changed" } : {}), ...(action === "canvas.write-data" ? { dataJson: '{"elements":[]}' } : {}) }, host))
+      .rejects.toThrow("not found in this project");
+    expect(vi.mocked(invoke).mock.calls.every(([command]) => command === "canvas_get")).toBe(true);
+  });
+
+  it.each(["null", "[]", "{}", '{"elements":{}}', '{"elements":[{"type":"cameraUpdate","x":0,"y":0}]}'])("rejects invalid scene %s before storage", async (dataJson) => {
+    const { source, host } = fixture();
+    await expect(handleAgentApp(source, "invalid", "canvas.write-data", { id: "drawing", dataJson }, host)).rejects.toThrow();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it("reports persistence failure without announcing a scene replacement", async () => {
+    const { source, host } = fixture();
+    const existing = { id: "drawing", title: "Plan", cwd: source.cwd, dataJson: '{"elements":[]}', tags: [] };
+    vi.mocked(invoke).mockResolvedValueOnce(existing).mockResolvedValueOnce(existing).mockRejectedValueOnce(new Error("disk full"));
+    const replaced = vi.fn();
+    window.addEventListener("loci-canvas-scene-replaced", replaced);
+    try {
+      await expect(handleAgentApp(source, "failure", "canvas.write-data", { id: "drawing", dataJson: '{"elements":[]}' }, host)).rejects.toThrow("disk full");
+      expect(replaced).not.toHaveBeenCalled();
+    } finally { window.removeEventListener("loci-canvas-scene-replaced", replaced); }
+  });
+
+  it("rejects unsupported canvas fields and invalid metadata before invoking storage", async () => {
+    const { source, host } = fixture();
+    for (const [action, input] of [
+      ["canvas.list", { cwd: "/tmp/other" }],
+      ["canvas.get", {}],
+      ["canvas.create", { dataJson: "scene" }],
+      ["canvas.create", { title: " " }],
+      ["canvas.rename", { id: "drawing", title: "x".repeat(201) }],
+      ["canvas.rename", { id: "drawing" }],
+      ["canvas.delete", { id: 42 }],
+      ["canvas.read-data", {}],
+      ["canvas.write-data", { id: "drawing" }],
+      ["canvas.write-data", { id: "drawing", dataJson: 42 }],
+    ] as Array<[string, Record<string, unknown>]>) {
+      await expect(handleAgentApp(source, "invalid", action, input, host)).rejects.toThrow();
+    }
+    source.cwd = "";
+    for (const action of ["canvas.list", "canvas.create"]) {
+      await expect(handleAgentApp(source, "no-project", action, {}, host))
+        .rejects.toThrow("Choose a project folder");
+    }
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it("reads a listed project session in bounded pages", async () => {
     const { source, host } = fixture();
     const result = await handleAgentApp(

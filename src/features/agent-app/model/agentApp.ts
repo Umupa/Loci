@@ -1,5 +1,16 @@
 import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
-import { looksLikeProject } from "../../projects/model/recents";
+import { looksLikeProject, sameProjectPath } from "../../projects/model/recents";
+import {
+  createEmptyCanvas,
+  deleteCanvas,
+  getCanvas,
+  loadCanvases,
+  readCanvasScene,
+  updateCanvas,
+  upsertCanvas,
+  writeCanvasScene,
+  type Canvas,
+} from "../../canvas/canvas";
 import {
   mergeModelSettings,
   modelEffortSetting,
@@ -103,6 +114,13 @@ const FIELDS = new Map<string, readonly string[]>([
   ["notes.list", ["limit", "offset"]],
   ["notes.read", ["id"]],
   ["notes.write", ["id", "title", "body", "tags"]],
+  ["canvas.list", []],
+  ["canvas.get", ["id"]],
+  ["canvas.create", ["title"]],
+  ["canvas.rename", ["id", "title"]],
+  ["canvas.delete", ["id"]],
+  ["canvas.read-data", ["id"]],
+  ["canvas.write-data", ["id", "dataJson"]],
 ]);
 
 function fields(action: string, input: Record<string, unknown>) {
@@ -158,6 +176,18 @@ function requireProject(source: Session): string {
   if (!looksLikeProject(source.cwd))
     throw new Error("Choose a project folder in this session first");
   return source.cwd;
+}
+
+function canvasMetadata({ id, title, cwd, createdAt, updatedAt }: Canvas) {
+  return { id, title, cwd, createdAt, updatedAt };
+}
+
+async function projectCanvas(source: Session, id: string): Promise<Canvas> {
+  const cwd = requireProject(source);
+  const canvas = await getCanvas(id);
+  if (!canvas) throw new Error("Canvas was not found");
+  if (!canvas.cwd || !sameProjectPath(canvas.cwd, cwd)) throw new Error("Canvas was not found in this project");
+  return canvas;
 }
 
 async function projectSession(
@@ -405,6 +435,77 @@ export async function handleAgentApp(
       saveSessionFolders(cwd, next);
       const folder = next.find((entry) => entry.sessionIds.includes(sessionId));
       return { sessionId, folderId: folder?.id, folderName: folder?.name };
+    }
+    case "canvas.list": {
+      const cwd = requireProject(source);
+      const canvases = await loadCanvases(true);
+      return {
+        cwd,
+        canvases: canvases
+          .filter((canvas) => !!canvas.cwd && sameProjectPath(canvas.cwd, cwd))
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          .map(canvasMetadata),
+      };
+    }
+    case "canvas.get": {
+      const id = requiredString(input.id, "id", 256);
+      const canvas = await projectCanvas(source, id);
+      return canvasMetadata(canvas);
+    }
+    case "canvas.create": {
+      const cwd = requireProject(source);
+      const title = optionalString(input.title, "title", 200);
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId)) throw new Error("Invalid request ID");
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([source.id, requestId])));
+      const id = `app-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+      const existing = await getCanvas(id);
+      if (existing) {
+        if (!existing.cwd || !sameProjectPath(existing.cwd, cwd) || existing.title !== (title ?? "Untitled drawing"))
+          throw new Error("Request ID was already used for another drawing");
+        return { id: existing.id, title: existing.title };
+      }
+      const canvas = await upsertCanvas({
+        ...createEmptyCanvas(cwd),
+        id,
+        ...(title === undefined ? {} : { title }),
+      });
+      return { id: canvas.id, title: canvas.title };
+    }
+    case "canvas.rename": {
+      const id = requiredString(input.id, "id", 256);
+      const title = requiredString(input.title, "title", 200);
+      await projectCanvas(source, id);
+      const canvas = await updateCanvas(id, { title });
+      return { title: canvas.title };
+    }
+    case "canvas.delete": {
+      const id = requiredString(input.id, "id", 256);
+      await projectCanvas(source, id);
+      await deleteCanvas(id);
+      return { deleted: true };
+    }
+    case "canvas.read-data": {
+      const cwd = requireProject(source);
+      const id = requiredString(input.id, "id", 256);
+      const canvas = await getCanvas(id);
+      if (!canvas) throw new Error("Canvas was not found");
+      if (!canvas.cwd || !sameProjectPath(canvas.cwd, cwd)) throw new Error("Canvas was not found in this project");
+      const saved = await readCanvasScene(id);
+      if (!saved) throw new Error("Canvas was not found");
+      return { id: saved.id, title: saved.title, dataJson: saved.dataJson };
+    }
+    case "canvas.write-data": {
+      const cwd = requireProject(source);
+      const id = requiredString(input.id, "id", 256);
+      const dataJson = requiredString(input.dataJson, "dataJson", 250_000);
+      if (new TextEncoder().encode(dataJson).length > 250_000) throw new Error("dataJson must be under 250000 UTF-8 bytes");
+      const { normalizeCanvasScene, canonicalizeCanvasImages } = await import("../../canvas/scene");
+      const scene = await canonicalizeCanvasImages(normalizeCanvasScene(dataJson));
+      const existing = await getCanvas(id);
+      if (!existing) throw new Error("Canvas was not found");
+      if (!existing.cwd || !sameProjectPath(existing.cwd, cwd)) throw new Error("Canvas was not found in this project");
+      await writeCanvasScene(id, scene);
+      return { updated: true };
     }
     case "notes.list": {
       const limit = input.limit ?? 30;
