@@ -10,7 +10,7 @@ import {
   respondHarnessApproval, respondHarnessQuestion, rewindHarnessLastTurn,
   runHarnessTextPrompt, sendHarnessTurn, steerHarnessTurn, stopHarnessSession,
 } from "../../integrations/harness/core/registry";
-import type { ApprovalDecision, HarnessEvent } from "../../integrations/harness/core/types";
+import { TurnNotReadyError, type ApprovalDecision, type HarnessEvent } from "../../integrations/harness/core/types";
 import {
   canReplaceSessionTitle, formatSessionTitle, HARNESS_LABEL, HARNESS_TITLE,
   removeSessionDraft, sessionDisplayTitle, sessionDraftBlock, sessionWorkCwd,
@@ -47,7 +47,7 @@ import {
 import type { UserQuestionReply } from "../../features/sessions/model/userQuestion";
 import { discardDraftSessionRecord, shouldPersistSession } from "../../features/sessions/data/sessionStore";
 import {
-  providerAccountExists, selectedProviderAccountId,
+  providerAccountExists, selectedProviderAccountId, supportsProviderAccounts,
 } from "../../features/providers/model/providerAccounts";
 import { composeNoteMessage, noteCardMeta, type NoteComposerCard } from "../../features/notes";
 import { looksLikeProject } from "../../features/projects/model/recents";
@@ -104,6 +104,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
   const projectSyncs = useRef(new Map<string, Promise<void>>());
   const btwRequestsRef = useRef(new Map<string, { sessionId: string; controller: AbortController }>());
   const queueDispatchingRef = useRef(new Set<string>());
+  const pendingSteers = useRef(new Set<string>());
+  const followUpEpochs = useRef(new Map<string, number>());
   const usageResumingRef = useRef(new Set<string>());
 
   const submitSession = useCallback<Submit>((sessionId, text, attachments = [], options) => {
@@ -156,21 +158,62 @@ export function useSessionSubmission(options: SubmissionOptions) {
         return true;
       }
       if (!canSteerHarness(current.harness)) return false;
-      setSessions((previous) => previous.map((session) => {
-        if (session.id !== sessionId) return session;
-        const dequeued = options?.queuedMessageId ? dequeueQueuedMessage(session, options.queuedMessageId) : session;
-        return appendSteerUser({ ...dequeued, noteCard: rawCommand ? session.noteCard : undefined }, visibleText, visible, cards);
-      }));
+      const queued = options?.queuedMessageId
+        ? current.queuedMessages?.find((message) => message.id === options.queuedMessageId)
+        : undefined;
+      const message = queued ?? { id: crypto.randomUUID(), text, attachments, noteCard };
+      if (pendingSteers.current.has(message.id) || current.editingQueuedMessageId === message.id) return false;
+      pendingSteers.current.add(message.id);
+      const epoch = followUpEpochs.current.get(sessionId);
+      const sameSession = (session: Session) => session.id === sessionId &&
+        session.harness === current.harness && session.cwd === current.cwd &&
+        session.providerAccountId === current.providerAccountId &&
+        followUpEpochs.current.get(sessionId) === epoch;
+      // Keep the row until the provider accepts it, including startup/turn-end races.
+      if (!queued) setSessions((previous) => previous.map((session) => session.id === sessionId ? {
+        ...session, noteCard: rawCommand ? session.noteCard : undefined,
+        queuedMessages: [...(session.queuedMessages ?? []), message],
+        queueStatus: session.queueStatus === "paused" ? "paused" : "active",
+      } : session));
       rt.continued(sessionId);
+      let optimisticBlockId: string | undefined;
       void (async () => {
         try {
           const prepared = await prepareAttachments(attachments);
           const prompt = await preparePrompt(promptText, { harness: current.harness, sessionId, cwd: current.cwd });
+          const latest = sessionsRef.current.find((session) => session.id === sessionId);
+          if (!latest || !sameSession(latest) || latest.editingQueuedMessageId === message.id ||
+            !latest.queuedMessages?.includes(message)) return;
+          // ACP prompt replies may settle only after streaming the follow-up answer.
+          setSessions((previous) => previous.map((session) => {
+            if (!sameSession(session)) return session;
+            const next = appendSteerUser(session, visibleText, visible, cards);
+            optimisticBlockId = next.blocks[next.blocks.length - 1]?.id;
+            return { ...next, busy: session.busy };
+          }));
           await steerHarnessTurn({ harness: current.harness, sessionId, cwd: current.cwd,
             model: current.model, modelSettings: current.modelSettings, text: prompt, attachments: prepared });
+          setSessions((previous) => previous.map((session) => {
+            if (!sameSession(session)) return session;
+            return session.queuedMessages?.includes(message)
+              ? dequeueQueuedMessage(session, message.id) : session;
+          }));
         } catch (error) {
+          // Remove only this unaccepted row; never restore an older transcript snapshot.
+          if (optimisticBlockId) setSessions((previous) => previous.map((session) => session.id === sessionId
+            ? { ...session, blocks: session.blocks.filter((block) => block.id !== optimisticBlockId) } : session));
+          const latest = sessionsRef.current.find((session) => session.id === sessionId);
+          if (!latest || !sameSession(latest) || !latest.queuedMessages?.includes(message) ||
+            error instanceof TurnNotReadyError) return;
+          // Other failures stay visible and require an explicit retry of the retained row.
+          setSessions((previous) => previous.map((session) => sameSession(session)
+            ? { ...session, queueStatus: "paused" } : session));
           enqueueHarnessEvent(sessionId, { type: "session.error", message: String(error) });
           flushHarnessEvents();
+        } finally {
+          pendingSteers.current.delete(message.id);
+          // A turn may have ended while delivery was pending; allow its retained head to dispatch.
+          setSessions((previous) => previous.map((session) => sameSession(session) ? { ...session } : session));
         }
       })();
       return true;
@@ -190,14 +233,15 @@ export function useSessionSubmission(options: SubmissionOptions) {
           return false;
         });
     }
-    const providerAccountId = current.providerAccountId ?? selectedProviderAccountId(current.harness, current.cwd);
-    if (!providerAccountExists(current.harness, providerAccountId)) {
+    const providerAccountId = supportsProviderAccounts(current.harness) ? (current.providerAccountId ?? selectedProviderAccountId(current.harness, current.cwd)) : undefined;
+    if (supportsProviderAccounts(current.harness) && !providerAccountExists(current.harness, providerAccountId!)) {
       enqueueHarnessEvent(sessionId, { type: "session.error", message: "This conversation uses a removed provider account. Switch accounts from the usage control to start a new conversation." });
       flushHarnessEvents();
       return false;
     }
     if (!isLiveHarness(current.harness)) return false;
     saveRecentModelChoice(current.harness, current.model);
+    followUpEpochs.current.set(sessionId, (followUpEpochs.current.get(sessionId) ?? 0) + 1);
     const generation = rt.beginTurn(sessionId);
     const isCurrent = () => rt.isCurrentTurn(sessionId, generation);
     const firstTurn = current.blocks.length === 0;
@@ -992,6 +1036,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
 
   const stop = useCallback(async (sessionId: string) => {
     const rt = runtimeRef.current;
+    followUpEpochs.current.set(sessionId, (followUpEpochs.current.get(sessionId) ?? 0) + 1);
     rt.forgetTurn(sessionId);
     flushHarnessEvents();
     const current = sessionsRef.current.find((session) => session.id === sessionId);
@@ -1025,6 +1070,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const current = sessionsRef.current.find((session) => session.id === sessionId);
     if (!current || current.busy || !canCompactHarnessContext(current.harness)) return false;
     const rt = runtimeRef.current;
+    followUpEpochs.current.set(sessionId, (followUpEpochs.current.get(sessionId) ?? 0) + 1);
     const generation = rt.beginTurn(sessionId);
     setSessions((previous) => previous.map((session) => session.id === sessionId ? { ...session, busy: true } : session));
     enqueueHarnessEvent(sessionId, { type: "status", text: "Compacting context…" });
@@ -1032,7 +1078,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       try {
         await compactHarnessContext({ harness: current.harness, sessionId, cwd: current.cwd,
           model: current.model, modelSettings: current.modelSettings,
-          providerAccountId: current.providerAccountId ?? selectedProviderAccountId(current.harness, current.cwd),
+          providerAccountId: supportsProviderAccounts(current.harness) ? (current.providerAccountId ?? selectedProviderAccountId(current.harness, current.cwd)) : undefined,
           runtimeMode: current.runtimeMode,
           onEvent: (event) => { if (rt.isCurrentTurn(sessionId, generation)) enqueueHarnessEvent(sessionId, event); } });
         if (rt.isCurrentTurn(sessionId, generation)) enqueueHarnessEvent(sessionId, { type: "status", text: "Compacted context" });
@@ -1082,7 +1128,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     for (const session of sessions) {
       if (!canDispatchQueuedHead(session) || queueDispatchingRef.current.has(session.id) || runtimeRef.current.hasActiveTurn(session.id)) continue;
       const head = session.queuedMessages?.[0];
-      if (!head) continue;
+      if (!head || pendingSteers.current.has(head.id)) continue;
       queueDispatchingRef.current.add(session.id);
       scheduledIds.add(session.id);
       timers.push(setTimeout(() => {

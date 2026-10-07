@@ -1,13 +1,23 @@
 import type { Block, HarnessId } from "../../../features/sessions/model/session";
 
-/** Account-level login commands without an interactive provider picker. */
+/**
+ * Account-level login commands that can run without an interactive provider
+ * picker. OpenCode, Pi, and omp authenticate individual upstream providers,
+ * so a single generic browser button would be misleading for them.
+ */
 const LOGIN_ARGS: Partial<Record<HarnessId, readonly string[]>> = {
   claude: ["auth", "login"],
   codex: ["login"],
+  cursor: ["login"],
+  grok: ["login", "--oauth"],
+  // Loci uses fx through Vercel AI Gateway. Choosing it explicitly avoids
+  // leaving `fx login` waiting on a TTY-only provider picker.
+  fx: ["login", "vercel"],
 };
 
 export function supportsHarnessLogin(harness: HarnessId): boolean {
-  return LOGIN_ARGS[harness] != null;
+  // Antigravity authenticates its ACP server rather than the interactive CLI.
+  return harness === "antigravity" || LOGIN_ARGS[harness] != null;
 }
 
 /** Exposed for login execution, settings copy, and regression tests. */

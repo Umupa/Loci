@@ -526,6 +526,16 @@ function sanitizeBlock(
   const noteCard = sanitizeNoteCard(block.noteCard);
   if (noteCard) next.noteCard = noteCard;
   if (block.role === "system") {
+    const customType = sanitizeNestedId(block.interjection?.customType);
+    if (customType) {
+      const severity = block.interjection?.severity;
+      next.interjection = {
+        customType,
+        ...(severity === "nit" || severity === "concern" || severity === "blocker"
+          ? { severity }
+          : {}),
+      };
+    }
     if (block.notice === "error" || block.notice === "interrupt") {
       next.notice = block.notice;
     }

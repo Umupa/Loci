@@ -4,7 +4,7 @@
 
 ## 范围与批准
 
-用户确认在 macOS 开发和验收，保留 ACP 通用协议核心，其余抽取清单建议接受。内置 provider 为 Claude Code 和 Codex；没有恢复其它八家 provider，也没有新增自定义 ACP 配置页。
+用户确认在 macOS 开发和验收，保留 ACP 通用协议核心，其余抽取清单建议接受。最初抽取仅保留 Claude Code 和 Codex。2026-10-07 按后续需求恢复 Cursor、Grok Build、OpenCode、Pi、omp、fx、Hermes Agent 和 Antigravity 的适配器、CLI 检测及模型目录；没有新增自定义 ACP 配置页。下方原验收记录仍对应当时的两个 provider。
 
 已带入窗口外壳、项目文件夹、聊天、标签、拖拽分栏、模型与权限选择、提问表单、任务与原生计划显示、会话搜索、设置、笔记、通知、手动提醒、Skills/MCP、SQLite 会话/笔记/布局，以及 `/operator` 的 11 个通用 app 动作。组合根拆为 workspace、runtime、submission、commands、control 等具体职责。
 

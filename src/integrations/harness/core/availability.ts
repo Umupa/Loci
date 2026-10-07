@@ -1,6 +1,17 @@
 import type { HarnessId } from "../../../features/sessions/model/session";
 import { HARNESSES } from "../../../features/sessions/model/session";
-import { resolveClaudeBinary, resolveCodexBinary } from "./child";
+import {
+  resolveAntigravityBinary,
+  resolveClaudeBinary,
+  resolveCodexBinary,
+  resolveCursorBinary,
+  resolveFxBinary,
+  resolveGrokBinary,
+  resolveHermesBinary,
+  resolveOmpBinary,
+  resolveOpenCodeBinary,
+  resolvePiBinary,
+} from "./child";
 import { isLiveHarness } from "./registry";
 import {
   emitHarnessAvailability,
@@ -22,9 +33,37 @@ export {
  * We only ever check whether the binary exists, never whether it is
  * authenticated, so the hint must not blame a login.
  */
-const CLI: Record<HarnessId, { name: string }> = {
+const CLI: Record<HarnessId, { name: string; install?: string }> = {
   claude: { name: "Claude Code CLI" },
   codex: { name: "Codex CLI" },
+  cursor: { name: "Cursor CLI" },
+  grok: {
+    name: "Grok Build CLI",
+    install: "curl -fsSL https://x.ai/cli/install.sh | bash",
+  },
+  opencode: { name: "OpenCode CLI" },
+  pi: { name: "Pi CLI", install: "npm i -g @earendil-works/pi-coding-agent" },
+  omp: { name: "omp CLI", install: "curl -fsSL https://omp.sh/install | sh" },
+  fx: { name: "fx CLI", install: "curl -fsSL https://fx.sh/setup.sh | bash" },
+  hermes: {
+    name: "Hermes Agent CLI",
+    install:
+      "Install from hermes-agent.nousresearch.com, then run hermes model",
+  },
+  antigravity: { name: "Antigravity ACP server (agy_acp_server.par)" },
+};
+
+const RESOLVE: Record<HarnessId, () => Promise<{ path: string }>> = {
+  claude: () => resolveClaudeBinary(),
+  codex: () => resolveCodexBinary(),
+  cursor: () => resolveCursorBinary(),
+  grok: () => resolveGrokBinary(),
+  opencode: () => resolveOpenCodeBinary(),
+  pi: () => resolvePiBinary(),
+  omp: () => resolveOmpBinary(),
+  fx: () => resolveFxBinary(),
+  hermes: () => resolveHermesBinary(),
+  antigravity: () => resolveAntigravityBinary(),
 };
 
 let inflight: Promise<void> | null = null;
@@ -38,8 +77,9 @@ let inflight: Promise<void> | null = null;
 const PROBE_TTL_MS = 30_000;
 
 export function harnessUnavailableHint(id: HarnessId): string {
-  const { name } = CLI[id];
-  return `${name} not found. Install it, or restart Loci if it is already installed.`;
+  const { name, install } = CLI[id];
+  const how = install ? ` (\`${install}\`)` : "";
+  return `${name} not found${how}. Install it, or restart Loci if it is already installed.`;
 }
 
 export function probeHarnessAvailability(
@@ -53,23 +93,20 @@ export function probeHarnessAvailability(
   inflight = Promise.all(
     HARNESSES.map(async (id) => {
       if (!isLiveHarness(id)) return [id, false] as const;
-      if (id === "claude") {
+      if (id === "cursor") {
         try {
-          await resolveClaudeBinary();
+          await resolveCursorBinary();
           return [id, true] as const;
         } catch {
           return [id, false] as const;
         }
       }
-      if (id === "codex") {
-        try {
-          await resolveCodexBinary();
-          return [id, true] as const;
-        } catch {
-          return [id, false] as const;
-        }
+      try {
+        await RESOLVE[id]();
+        return [id, true] as const;
+      } catch {
+        return [id, false] as const;
       }
-      return [id, false] as const;
     }),
   )
     .then((entries) => {

@@ -185,7 +185,21 @@ export function applyHarnessEvent(
           : {}),
       };
     case "status":
-      return appendStatus(session, event.text);
+      return event.key
+        ? upsertKeyedStatus(session, event.key, event.text)
+        : appendStatus(session, event.text);
+    case "interjection":
+      // A visible boundary the user must not miss, so unlike status it never
+      // deduplicates and never reads as turn lifecycle.
+      return appendBlock(session, {
+        id: crypto.randomUUID(),
+        role: "system",
+        text: event.text,
+        interjection: {
+          customType: event.customType,
+          ...(event.severity ? { severity: event.severity } : {}),
+        },
+      });
     case "usage.limited":
       return {
         ...session,
@@ -607,6 +621,37 @@ function stampTurnDuration(blocks: Block[], endedAt: number): Block[] {
   return next;
 }
 
+/** Update provider progress in place within the current turn. */
+function upsertKeyedStatus(
+  session: Session,
+  key: string,
+  text: string,
+): Session {
+  const trimmed = text.trim();
+  const turnStart = lastMatchingBlock(
+    session.blocks,
+    (block) => block.role === "user",
+  );
+  const index = lastMatchingBlock(
+    session.blocks,
+    (block, at) => at > turnStart && block.statusKey === key,
+  );
+  if (index < 0) {
+    if (!trimmed) return session;
+    return appendBlock(session, {
+      id: crypto.randomUUID(),
+      role: "system",
+      text: trimmed,
+      statusKey: key,
+    });
+  }
+  if (session.blocks[index].text === trimmed) return session;
+  const blocks = session.blocks.slice();
+  if (trimmed) blocks[index] = { ...blocks[index], text: trimmed };
+  else blocks.splice(index, 1);
+  return { ...session, blocks };
+}
+
 /** Status pings repeat; keep one row per run instead of stacking identical lines. */
 function appendStatus(session: Session, text: string): Session {
   const trimmed = text.trim();
@@ -644,7 +689,7 @@ function appendBlock(session: Session, block: Block): Session {
   return {
     ...session,
     blocks: [
-      ...(block.role === "system"
+      ...(block.role === "system" && !block.interjection
         ? session.blocks
         : sealLastStream(session.blocks)),
       block,
@@ -667,7 +712,7 @@ function patchStreaming(
   let index = session.blocks.length - 1;
   while (
     index >= 0 &&
-    session.blocks[index].role === "system"
+    session.blocks[index].role === "system" && !session.blocks[index].interjection
   )
     index--;
   const last = session.blocks[index];
@@ -1061,7 +1106,7 @@ function sealLastStream(blocks: Block[]): Block[] {
   let index = blocks.length - 1;
   while (
     index >= 0 &&
-    blocks[index].role === "system"
+    blocks[index].role === "system" && !blocks[index].interjection
   )
     index--;
   const last = blocks[index];

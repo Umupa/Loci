@@ -1,5 +1,6 @@
 import { markTurnInterrupted, type ResumedWorkspace } from "../../sessions/model/inFlight";
 import { layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
+import { workspaceTabCwd } from "./workspaceTabGroups";
 import { pathKey } from "../../../shared/lib/paths";
 import { reconcileProjectReturn, type ProjectReturnMemory } from "../../projects/model/projectReturn";
 import { HARNESSES, RUNTIME_MODES, newSession, type HarnessId, type RuntimeMode, type Session } from "../../sessions/model/session";
@@ -221,8 +222,10 @@ function sanitizeLayout(raw: unknown): LayoutNode | null {
         return null;
     const value = raw as Record<string, unknown>;
     if (value.type === "leaf") {
+        if (value.leafKind !== undefined && value.leafKind !== "canvas")
+            return null;
         return typeof value.id === "string" && value.id
-            ? { type: "leaf", id: value.id, ...(value.leafKind === "canvas" || value.leafKind === "source" ? { leafKind: value.leafKind } : {}) }
+            ? { type: "leaf", id: value.id, ...(value.leafKind === "canvas" ? { leafKind: value.leafKind } : {}) }
             : null;
     }
     if (value.type !== "split" || typeof value.id !== "string" || !value.id) {
@@ -235,8 +238,10 @@ function sanitizeLayout(raw: unknown): LayoutNode | null {
     const children = value.children
         .map(sanitizeLayout)
         .filter((node): node is LayoutNode => node != null);
-    if (children.length < 2)
+    if (children.length === 0)
         return null;
+    if (children.length === 1)
+        return children[0];
     const sizes = Array.isArray(value.sizes)
         ? value.sizes.filter((size): size is number => typeof size === "number" && Number.isFinite(size))
         : [];
@@ -267,7 +272,16 @@ export function parseWorkspaceSnapshot(raw: unknown): WorkspaceSnapshot | null {
  const tabs = value.tabs.map(sanitizeTab).filter((tab): tab is WorkspaceTab => tab !== null);
  if (!tabs.length) return null;
  const sessions = Array.isArray(value.sessions) ? value.sessions.map(sanitizeStub).filter((stub): stub is WorkspaceSessionStub => stub !== null) : [];
- return withProjectReturnTargets({ tabs, sessions, activeTabId: tabs.some(tab=>tab.id===value.activeTabId) ? value.activeTabId : tabs[0].id, projectCwd: typeof value.projectCwd === "string" && value.projectCwd.trim() ? value.projectCwd.trim() : "~" }, parseProjectReturnTargets(value.projectReturnTargets));
+ let projectCwd = typeof value.projectCwd === "string" && value.projectCwd.trim() ? value.projectCwd.trim() : "~";
+ let activeTab = tabs.find((tab) => tab.id === value.activeTabId);
+ if (!activeTab) {
+   activeTab = tabs.find((tab) => {
+     const cwd = workspaceTabCwd(tab, sessions);
+     return cwd !== null && pathKey(cwd) === pathKey(projectCwd);
+   }) ?? tabs[0];
+   projectCwd = workspaceTabCwd(activeTab, sessions) ?? projectCwd;
+ }
+ return withProjectReturnTargets({ tabs, sessions, activeTabId: activeTab.id, projectCwd }, parseProjectReturnTargets(value.projectReturnTargets));
 }
 function sanitizeTab(raw: unknown): WorkspaceTab | null {
  if (!raw || typeof raw !== "object") return null;

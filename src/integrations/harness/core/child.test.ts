@@ -1,5 +1,5 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { afterEach,describe,expect,it,vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   handlers: new Map<string, (event: { payload: never }) => void>(),
@@ -128,7 +128,7 @@ describe("child bridge", () => {
     const onExit = vi.fn();
     child.watchChild("probe", vi.fn(), onExit);
 
-    const spawning = child.spawnChild("probe", "agent", ["--mode", "rpc"], "/repo");
+    const spawning = child.spawnChild("probe", "pi", ["--mode", "rpc"], "/repo");
     mocks.handlers.get("harness-exit")?.({
       payload: { sessionId: "probe", code: 1, pid: 42 } as never,
     });
@@ -140,6 +140,59 @@ describe("child bridge", () => {
     release();
   });
 
+  it("drops old SSE data and end events after reopening the same session", async () => {
+    installResolvedListeners();
+    mocks.invoke.mockResolvedValue(undefined);
+    const child = await loadChild();
+    const release = await child.acquireHarnessBridge();
+    const onData = vi.fn();
+    const onEnd = vi.fn();
+    const emit = (name: string, payload: unknown) =>
+      mocks.handlers.get(name)?.({ payload: payload as never });
+    child.watchSse("thread", onData, onEnd);
+    await child.openHarnessSse("thread", "http://127.0.0.1:1/event");
+    const oldStreamId = mocks.invoke.mock.calls.at(-1)?.[1].streamId;
+    await child.closeHarnessSse("thread");
+    child.watchSse("thread", onData, onEnd);
+    await child.openHarnessSse("thread", "http://127.0.0.1:2/event");
+    const streamId = mocks.invoke.mock.calls.at(-1)?.[1].streamId;
+    emit("harness-sse", { sessionId: "thread", streamId: oldStreamId, data: "old" });
+    emit("harness-sse-end", { sessionId: "thread", streamId: oldStreamId });
+    expect(onData).not.toHaveBeenCalled();
+    expect(onEnd).not.toHaveBeenCalled();
+    expect(streamId).toBeTypeOf("string");
+    expect(streamId).not.toBe(oldStreamId);
+    emit("harness-sse", { sessionId: "thread", streamId, data: "new" });
+    emit("harness-sse-end", { sessionId: "thread", streamId, error: "closed" });
+    expect(onData).toHaveBeenCalledWith("new");
+    expect(onEnd).toHaveBeenCalledWith("closed");
+    release();
+  });
+
+  it("waits for SSE readiness and drops events after a failed connection", async () => {
+    installResolvedListeners();
+    const ready = deferred<void>();
+    mocks.invoke.mockReturnValue(ready.promise);
+    const child = await loadChild();
+    const release = await child.acquireHarnessBridge();
+    const onData = vi.fn();
+    child.watchSse("thread", onData);
+    let opened = false;
+    const opening = child.openHarnessSse("thread", "http://127.0.0.1:1/event")
+      .then(() => { opened = true; });
+    const failure = expect(opening).rejects.toThrow("connection timed out");
+    const streamId = mocks.invoke.mock.calls.at(-1)?.[1].streamId;
+    await flush();
+    expect(opened).toBe(false);
+    ready.reject(new Error("connection timed out"));
+    await failure;
+    mocks.handlers.get("harness-sse")?.({
+      payload: { sessionId: "thread", streamId, data: "late" } as never,
+    });
+    expect(onData).not.toHaveBeenCalled();
+    release();
+  });
+
   it("passes stored overrides through resolution and command validation", async () => {
     vi.stubGlobal("localStorage", {
       getItem: (key: string) =>
@@ -147,6 +200,14 @@ describe("child bridge", () => {
           ? JSON.stringify({
               claude: "/opt/claude/bin/claude",
               codex: "/opt/codex/bin/codex",
+              cursor: "/opt/cursor/bin/cursor-agent",
+              grok: "/opt/grok/bin/grok",
+              opencode: "/opt/opencode/bin/opencode",
+              pi: "/opt/pi/bin/pi",
+              omp: "/opt/omp/bin/omp",
+              fx: "/opt/fx/bin/fx",
+              hermes: "/opt/hermes/bin/hermes",
+              antigravity: "/opt/antigravity/bin/agy_acp_server.par",
             })
           : null,
     });
@@ -161,6 +222,17 @@ describe("child bridge", () => {
 
     for (const [provider, binaryPath, resolve] of [
       ["claude", "/opt/claude/bin/claude", child.resolveClaudeBinary],
+      ["cursor", "/opt/cursor/bin/cursor-agent", child.resolveCursorBinary],
+      ["grok", "/opt/grok/bin/grok", child.resolveGrokBinary],
+      ["pi", "/opt/pi/bin/pi", child.resolvePiBinary],
+      ["omp", "/opt/omp/bin/omp", child.resolveOmpBinary],
+      ["fx", "/opt/fx/bin/fx", child.resolveFxBinary],
+      ["hermes", "/opt/hermes/bin/hermes", child.resolveHermesBinary],
+      [
+        "antigravity",
+        "/opt/antigravity/bin/agy_acp_server.par",
+        child.resolveAntigravityBinary,
+      ],
     ] as const) {
       await resolve();
       expect(mocks.invoke).toHaveBeenLastCalledWith("harness_resolve_configured", {
@@ -169,13 +241,13 @@ describe("child bridge", () => {
       });
     }
 
-    await child.execChild("/resolved", ["--version"], undefined, "codex");
+    await child.execChild("/resolved", ["--version"], undefined, "opencode");
     expect(mocks.invoke).toHaveBeenCalledWith("harness_exec", {
       command: "/resolved",
       args: ["--version"],
       cwd: undefined,
-      binaryProvider: "codex",
-      binaryPath: "/opt/codex/bin/codex",
+      binaryProvider: "opencode",
+      binaryPath: "/opt/opencode/bin/opencode",
     });
 
     await child.execChild("/resolved", ["--version"], undefined, "codex", null);
@@ -231,11 +303,15 @@ describe("child bridge", () => {
     // Events are broadcast to every window; this one never spawned "other".
     for (let i = 0; i < 5; i += 1) {
       emit("harness-stdout", { sessionId: "other", line: `line ${i}` });
+      emit("harness-sse", { sessionId: "other", data: `event ${i}` });
     }
 
     const lines: string[] = [];
+    const events: string[] = [];
     child.watchChild("other", (line) => lines.push(line), vi.fn());
+    child.watchSse("other", (data) => events.push(data));
     expect(lines).toEqual([]);
+    expect(events).toEqual([]);
     release();
   });
 
@@ -249,10 +325,15 @@ describe("child bridge", () => {
 
     await child.spawnChild("mine", "agent", [], "/tmp");
     emit("harness-stdout", { sessionId: "mine", line: "early" });
+    await child.openHarnessSse("mine", "http://127.0.0.1:1/event");
+    emit("harness-sse", { sessionId: "mine", streamId: mocks.invoke.mock.calls.at(-1)?.[1].streamId, data: "early-event" });
 
     const lines: string[] = [];
+    const events: string[] = [];
     child.watchChild("mine", (line) => lines.push(line), vi.fn());
+    child.watchSse("mine", (data) => events.push(data));
     expect(lines).toEqual(["early"]);
+    expect(events).toEqual(["early-event"]);
     release();
   });
 

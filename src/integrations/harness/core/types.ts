@@ -1,6 +1,7 @@
 import type {
   AgentStepKind,
   Attachment,
+  InterjectionMeta,
   RuntimeMode,
   TaskListItem,
   ToolPreview,
@@ -20,7 +21,7 @@ export type HarnessEvent =
       model?: string;
       modelSettings?: Record<string, string>;
     }
-  | { type: "status"; text: string }
+  | { type: "status"; text: string; key?: string }
   /** The provider refused the turn until its usage window resets (epoch ms). */
   | { type: "usage.limited"; resetsAt?: number }
   /**
@@ -28,6 +29,7 @@ export type HarnessEvent =
    * running and will wake it again. Empty once it is back at work.
    */
   | { type: "background.updated"; tasks: string[] }
+  | ({ type: "interjection"; text: string } & InterjectionMeta)
   | { type: "message.delta"; text: string }
   | { type: "message.completed" }
   | {
@@ -152,6 +154,9 @@ export type HarnessEvent =
 
 export type ApprovalDecision = "allow" | "deny";
 
+/** The turn is connecting or has just ended; retain the follow-up for later. */
+export class TurnNotReadyError extends Error {}
+
 export type HarnessSessionInput = {
   sessionId: string;
   cwd: string;
@@ -160,10 +165,7 @@ export type HarnessSessionInput = {
   providerAccountId?: string;
   runtimeMode: RuntimeMode;
   intent?: TurnIntent;
-  /**
-   * Grant this turn access to Loci's app CLI over loopback. Sandboxes
-   * deny network by default, so app access also enables the local socket.
-   */
+  /** Grant this turn access to Loci's app CLI over loopback. */
   appAccess?: boolean;
   onEvent: (event: HarnessEvent) => void;
 };

@@ -5,20 +5,34 @@ import {
   type ConfigurableBinaryProvider,
 } from "../../../features/providers/model/providerBinaryPaths";
 
+export function readHarnessTextFile(path: string): Promise<string> {
+  return invoke("read_text_file", { path });
+}
+
 type LinePayload = { sessionId: string; line: string };
 type ExitPayload = { sessionId: string; code: number | null; pid?: number };
+type SsePayload = { sessionId: string; streamId: string; data: string };
+type SseEndPayload = { sessionId: string; streamId: string; error?: string | null };
 
 type LineHandler = (line: string) => void;
 type ExitHandler = (code: number | null) => void;
+type SseHandler = (data: string) => void;
+type SseEndHandler = (error?: string) => void;
 
 const lineHandlers = new Map<string, LineHandler>();
 const exitHandlers = new Map<string, ExitHandler>();
 const lineBuffer = new Map<string, string[]>();
 const stderrHandlers = new Map<string, LineHandler>();
+const sseHandlers = new Map<string, SseHandler>();
+const sseEndHandlers = new Map<string, SseEndHandler>();
+const sseBuffer = new Map<string, string[]>();
 // Output is broadcast to every window. Only ids this window spawned or opened
 // may buffer while unwatched; anything else would be held until the bridge
 // is torn down, since nothing here ever watches or unwatches it.
 const ownedChildren = new Set<string>();
+const ownedSse = new Set<string>();
+// Chosen before invoke so even events arriving before its response are scoped.
+const sseGenerations = new Map<string, string>();
 const livePid = new Map<string, number>();
 const pendingExit = new Map<
   string,
@@ -107,6 +121,25 @@ function ensureBridge() {
         pendingExit.set(sessionId, exits);
       }),
     ),
+    register(
+      listen<SsePayload>("harness-sse", (event) => {
+        const { sessionId, streamId, data } = event.payload;
+        if (!streamId || sseGenerations.get(sessionId) !== streamId) return;
+        const handler = sseHandlers.get(sessionId);
+        if (handler) {
+          handler(data);
+          return;
+        }
+        if (ownedSse.has(sessionId)) pushBounded(sseBuffer, sessionId, data);
+      }),
+    ),
+    register(
+      listen<SseEndPayload>("harness-sse-end", (event) => {
+        const { sessionId, streamId, error } = event.payload;
+        if (!streamId || sseGenerations.get(sessionId) !== streamId) return;
+        sseEndHandlers.get(sessionId)?.(error ?? undefined);
+      }),
+    ),
   ]).catch((error: unknown) => {
     failed = true;
     installed.splice(0).forEach((unlisten) => unlisten());
@@ -128,7 +161,12 @@ function teardownBridge() {
   exitHandlers.clear();
   lineBuffer.clear();
   stderrHandlers.clear();
+  sseHandlers.clear();
+  sseEndHandlers.clear();
+  sseBuffer.clear();
   ownedChildren.clear();
+  ownedSse.clear();
+  sseGenerations.clear();
   livePid.clear();
   pendingExit.clear();
   void pending?.then((fns) => fns.forEach((fn) => fn())).catch(() => undefined);
@@ -198,6 +236,26 @@ export function unwatchChild(sessionId: string) {
   pendingExit.delete(sessionId);
 }
 
+export function watchSse(
+  sessionId: string,
+  onData: SseHandler,
+  onEnd?: SseEndHandler,
+) {
+  const queued = sseBuffer.get(sessionId);
+  sseBuffer.delete(sessionId);
+  sseHandlers.set(sessionId, onData);
+  if (onEnd) sseEndHandlers.set(sessionId, onEnd);
+  if (queued) queued.forEach(onData);
+}
+
+export function unwatchSse(sessionId: string) {
+  sseHandlers.delete(sessionId);
+  sseEndHandlers.delete(sessionId);
+  sseBuffer.delete(sessionId);
+  ownedSse.delete(sessionId);
+  sseGenerations.delete(sessionId);
+}
+
 export async function spawnChild(
   sessionId: string,
   command: string,
@@ -247,7 +305,12 @@ export function killAllChildren(): Promise<void> {
   exitHandlers.clear();
   lineBuffer.clear();
   stderrHandlers.clear();
+  sseHandlers.clear();
+  sseEndHandlers.clear();
+  sseBuffer.clear();
   ownedChildren.clear();
+  ownedSse.clear();
+  sseGenerations.clear();
   livePid.clear();
   pendingExit.clear();
   return invoke("harness_kill_all");
@@ -272,8 +335,22 @@ async function resolveHarnessBinary(
   const command: Record<ConfigurableBinaryProvider, string> = {
     claude: "harness_resolve_claude",
     codex: "harness_resolve_codex",
+    cursor: "harness_resolve_cursor",
+    grok: "harness_resolve_grok",
+    opencode: "harness_resolve_opencode",
+    pi: "harness_resolve_pi",
+    omp: "harness_resolve_omp",
+    fx: "harness_resolve_fx",
+    hermes: "harness_resolve_hermes",
+    antigravity: "harness_resolve_antigravity",
   };
   return invoke(command[provider]);
+}
+
+export function resolveCursorBinary(
+  binaryPath?: string | null,
+): Promise<{ path: string }> {
+  return resolveHarnessBinary("cursor", binaryPath);
 }
 
 export function resolveCodexBinary(
@@ -282,10 +359,92 @@ export function resolveCodexBinary(
   return resolveHarnessBinary("codex", binaryPath);
 }
 
+export function resolveOpenCodeBinary(
+  binaryPath?: string | null,
+): Promise<{ path: string }> {
+  return resolveHarnessBinary("opencode", binaryPath);
+}
+
 export function resolveClaudeBinary(
   binaryPath?: string | null,
 ): Promise<{ path: string }> {
   return resolveHarnessBinary("claude", binaryPath);
+}
+
+export function resolvePiBinary(
+  binaryPath?: string | null,
+): Promise<{ path: string }> {
+  return resolveHarnessBinary("pi", binaryPath);
+}
+
+export function resolveOmpBinary(
+  binaryPath?: string | null,
+): Promise<{ path: string }> {
+  return resolveHarnessBinary("omp", binaryPath);
+}
+
+export function resolveFxBinary(
+  binaryPath?: string | null,
+): Promise<{ path: string }> {
+  return resolveHarnessBinary("fx", binaryPath);
+}
+
+export function resolveGrokBinary(
+  binaryPath?: string | null,
+): Promise<{ path: string }> {
+  return resolveHarnessBinary("grok", binaryPath);
+}
+
+export function resolveHermesBinary(
+  binaryPath?: string | null,
+): Promise<{ path: string }> {
+  return resolveHarnessBinary("hermes", binaryPath);
+}
+
+export function resolveAntigravityBinary(
+  binaryPath?: string | null,
+): Promise<{ path: string; args: string[] }> {
+  return resolveHarnessBinary("antigravity", binaryPath) as Promise<{
+    path: string;
+    args: string[];
+  }>;
+}
+
+export function freeHarnessPort(): Promise<number> {
+  return invoke("harness_free_port");
+}
+
+export function harnessHttp(input: {
+  url: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: string;
+  timeoutMs?: number;
+}): Promise<{ status: number; body: string }> {
+  return invoke("harness_http", input);
+}
+
+export async function openHarnessSse(
+  sessionId: string,
+  url: string,
+  headers?: Record<string, string>,
+): Promise<void> {
+  const streamId = crypto.randomUUID();
+  sseGenerations.set(sessionId, streamId);
+  sseBuffer.delete(sessionId);
+  ownedSse.add(sessionId);
+  try {
+    // Native resolves only once the HTTP event-stream headers have arrived.
+    await invoke("harness_sse_open", { sessionId, streamId, url, headers });
+  } catch (error) {
+    if (sseGenerations.get(sessionId) === streamId) unwatchSse(sessionId);
+    throw error;
+  }
+}
+
+export function closeHarnessSse(sessionId: string): Promise<void> {
+  unwatchSse(sessionId);
+  return invoke("harness_sse_close", { sessionId });
 }
 
 export type HarnessBinaryInspection = {
@@ -299,6 +458,9 @@ export function inspectHarnessBinary(
   binaryPath?: string | null,
 ): Promise<HarnessBinaryInspection> {
   return resolveHarnessBinary(provider, binaryPath).then(async (resolved) => {
+    if (provider === "antigravity") {
+      return { path: resolved.path, version: "ACP server" };
+    }
     try {
       const version = (
         await execChild(

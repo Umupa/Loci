@@ -16,9 +16,6 @@ export type Note = {
   tags: string[];
   sourceSessionId?: string;
   sourceCwd?: string;
-  isSource: boolean;
-  sourceUrl?: string;
-  sourceKind?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -31,9 +28,6 @@ export type NoteUpsert = {
   sourceSessionId?: string;
   /** Omit on update to keep the saved project directory. */
   sourceCwd?: string;
-  isSource?: boolean;
-  sourceUrl?: string;
-  sourceKind?: string;
 };
 
 /** Note chip shown in the composer and on the user turn in the thread. */
@@ -358,7 +352,6 @@ export function composeNoteMessage(
       title: card.title,
       body: card.body,
       tags: [],
-      isSource: false,
       createdAt: 0,
       updatedAt: 0,
     },

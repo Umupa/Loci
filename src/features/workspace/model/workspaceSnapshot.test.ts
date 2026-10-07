@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { appendUser } from "../../../integrations/harness/core/apply";
 import { CONTINUE_PROMPT, INTERRUPT_MESSAGE, canAutoContinue, } from "../../sessions/model/inFlight";
-import { leaf, leafIds, newTab, splitPane, } from "./layout";
+import { canvasLeaf, leaf, leafIds, newTab, splitPane, } from "./layout";
 import { newSession, type Session } from "../../sessions/model/session";
 import { collectWorkspaceSnapshot, hydrateWorkspaceSnapshot, parseWorkspaceSnapshot, } from "./workspaceSnapshot";
+import { filterTabsForProject } from "./workspaceTabGroups";
 function chat(id: string, cwd: string): Session {
     const session = newSession("claude", cwd);
     session.id = id;
@@ -146,6 +147,65 @@ describe("parseWorkspaceSnapshot", () => {
         });
         expect(parsed?.activeTabId).toBe("t1");
         expect(parsed?.tabs[0] && "extra" in parsed.tabs[0]).toBe(false);
+    });
+    it("drops unsupported panes without hydrating them as conversations", () => {
+        const session = chat("chat", "/project");
+        const retired = { type: "leaf", id: "retired", leafKind: "retired" };
+        const raw = {
+            ...collectWorkspaceSnapshot([newTab("chat")], [session], "mixed", "/project", new Map()),
+            tabs: [
+                { ...newTab("retired"), id: "removed", layout: retired },
+                {
+                    ...newTab("chat"), id: "mixed", focusedId: "retired", cwd: "/project",
+                    layout: {
+                        type: "split", id: "outer", dir: "right",
+                        children: [
+                            { type: "split", id: "inner", dir: "down", children: [retired, leaf("chat")], sizes: [0.5, 0.5] },
+                            canvasLeaf("drawing"),
+                        ],
+                        sizes: [0.4, 0.6],
+                    },
+                },
+            ],
+            activeTabId: "removed",
+        };
+        const parsed = parseWorkspaceSnapshot(raw)!;
+        expect(parsed.tabs).toHaveLength(1);
+        expect(parsed.activeTabId).toBe("mixed");
+        expect(parsed.tabs[0].focusedId).toBe("chat");
+        expect(parsed.tabs[0].layout).toEqual({
+            type: "split", id: "outer", dir: "right",
+            children: [leaf("chat"), canvasLeaf("drawing")], sizes: [0.4, 0.6],
+        });
+        const resumed = hydrateWorkspaceSnapshot(parsed, new Map())!;
+        expect(resumed.sessions.map((entry) => entry.id)).toEqual(["chat"]);
+    });
+    it("returns null when all saved panes are unsupported", () => {
+        expect(parseWorkspaceSnapshot({
+            tabs: [{ ...newTab("retired"), id: "removed", layout: { type: "leaf", id: "retired", leafKind: "retired" } }],
+            activeTabId: "removed",
+        })).toBeNull();
+    });
+    it.each([
+        { label: "keeps the current project when another tab survives", remaining: ["b", "a"], active: "a", cwd: "/a" },
+        { label: "switches to the fallback conversation's project", remaining: ["b"], active: "b", cwd: "/b" },
+        { label: "uses the fallback canvas's project", remaining: ["drawing"], active: "drawing", cwd: "/drawing" },
+    ])("$label after removing the active pane", ({ remaining, active, cwd }) => {
+        const sessions = [chat("a", "/a"), chat("b", "/b")];
+        const tabs = remaining.map((id) => ({
+            ...newTab(id), id: `tab-${id}`,
+            ...(id === "drawing" ? { layout: canvasLeaf(id), cwd: "/drawing" } : {}),
+        }));
+        const raw = {
+            ...collectWorkspaceSnapshot(tabs, sessions, "removed", "/a", new Map()),
+            tabs: [...tabs, { ...newTab("retired"), id: "removed", cwd: "/a", layout: { type: "leaf", id: "retired", leafKind: "retired" } }],
+            activeTabId: "removed",
+        };
+        const parsed = parseWorkspaceSnapshot(raw)!;
+        const resumed = hydrateWorkspaceSnapshot(parsed, new Map())!;
+        expect(resumed.activeTabId).toBe(`tab-${active}`);
+        expect(resumed.projectCwd).toBe(cwd);
+        expect(filterTabsForProject(resumed.tabs, resumed.sessions, resumed.projectCwd).some((tab) => tab.id === resumed.activeTabId)).toBe(true);
     });
 });
 describe("hydrateWorkspaceSnapshot", () => {

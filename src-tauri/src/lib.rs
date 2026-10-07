@@ -1,3 +1,4 @@
+mod cursor_store;
 use tauri::Manager;
 
 mod account_identity;
@@ -243,6 +244,20 @@ pub fn run() {
             fs::delete_path,
             fs::reveal_path,
             fs::open_path_with_default_app,
+            cursor_store::cursor_tool_calls,
+            cursor_store::cursor_subagent_runs,
+            harness::harness_resolve_cursor,
+            harness::harness_resolve_grok,
+            harness::harness_resolve_opencode,
+            harness::harness_resolve_pi,
+            harness::harness_resolve_omp,
+            harness::harness_resolve_fx,
+            harness::harness_resolve_hermes,
+            harness::harness_resolve_antigravity,
+            harness::harness_free_port,
+            harness::harness_http,
+            harness::harness_sse_open,
+            harness::harness_sse_close,
             harness::harness_resolve_codex,
             harness::harness_resolve_configured,
             harness::harness_runtime_binary_paths,

@@ -1,13 +1,15 @@
 Loci is derived from MonoCode by Nick.
 Source: https://github.com/hardbeat920/monocode
 Source revision: 98da85ae7c2b44c2f2427c17b381433ef4f23ea9 (0.7.1).
+Additional agent CLI adapters ported from MonoCode revision d8902e7.
+Antigravity ACP sign-in adapted from MonoCode PR #775 (4a7e7ff).
 
 The original software is distributed under the MIT License; see LICENSE.
 Loci extracts the general desktop agent interface, removes coding-specific
 features and upstream services, and uses its own branding and data storage.
 
 Loci is not affiliated with, endorsed by, or sponsored by the makers of the
-agent harnesses it can drive. Claude and Codex marks are trademarks of their
+agent harnesses it can drive. Provider marks are trademarks of their
 respective owners and are used only to identify those products.
 
 Loci ships the official Excalidraw MCP server unmodified in

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{ChildStdin, Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
@@ -19,6 +20,8 @@ use crate::passwd_identity;
 const STDOUT_EVENT: &str = "harness-stdout";
 const STDERR_EVENT: &str = "harness-stderr";
 const EXIT_EVENT: &str = "harness-exit";
+const SSE_EVENT: &str = "harness-sse";
+const SSE_END_EVENT: &str = "harness-sse-end";
 
 const DEFAULT_PROVIDER_ACCOUNT_ID: &str = "default";
 
@@ -44,6 +47,29 @@ struct HarnessExit {
     pid: u32,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct HarnessSse {
+    session_id: String,
+    stream_id: String,
+    data: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct HarnessSseEnd {
+    session_id: String,
+    stream_id: String,
+    error: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HarnessHttpResponse {
+    pub status: u16,
+    pub body: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HarnessBinary {
@@ -57,10 +83,29 @@ pub struct ConfiguredBinary {
     pub args: Option<Vec<String>>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AntigravityBinary {
+    pub path: String,
+    pub args: Vec<String>,
+}
+
+fn antigravity_args() -> Vec<String> {
+    if cfg!(target_os = "linux") {
+        vec!["--uid=".into()]
+    } else {
+        Vec::new()
+    }
+}
+
 struct LiveChild {
     stdin: Mutex<ChildStdin>,
     pid: u32,
     account: Option<HarnessAccount>,
+}
+
+struct LiveSse {
+    stop: Arc<AtomicBool>,
 }
 
 struct HarnessInner {
@@ -70,6 +115,7 @@ struct HarnessInner {
 
 pub struct HarnessHost {
     inner: Mutex<HarnessInner>,
+    sse: Mutex<HashMap<String, Arc<LiveSse>>>,
     runtime_binary_paths: Mutex<Option<HashMap<String, String>>>,
     /// Bumped by `kill_all` so a spawn that started before quit cannot reinsert.
     kill_all_gen: AtomicU64,
@@ -92,6 +138,7 @@ impl HarnessHost {
                 children: HashMap::new(),
                 epochs: HashMap::new(),
             }),
+            sse: Mutex::new(HashMap::new()),
             runtime_binary_paths: Mutex::new(None),
             kill_all_gen: AtomicU64::new(0),
         }
@@ -181,6 +228,9 @@ impl HarnessHost {
                 })
                 .collect()
         };
+        for (session_id, _) in &children {
+            self.stop_sse(session_id);
+        }
         let pids: Vec<u32> = children.iter().map(|(_, child)| child.pid).collect();
         drop(children);
         terminate_all(&pids);
@@ -192,10 +242,39 @@ impl HarnessHost {
             self.kill_all_gen.fetch_add(1, Ordering::SeqCst);
             inner.children.drain().map(|(_, child)| child).collect()
         };
+        self.stop_all_sse();
         let pids: Vec<u32> = kids.iter().map(|live| live.pid).collect();
         // Drop stdin before signaling so ACP CLIs that watch the pipe can exit.
         drop(kids);
         terminate_all(&pids);
+    }
+
+    fn insert_sse(&self, session_id: String, live: Arc<LiveSse>) -> Option<Arc<LiveSse>> {
+        self.sse
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(session_id, live)
+    }
+
+    fn stop_sse(&self, session_id: &str) {
+        if let Some(live) = self
+            .sse
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(session_id)
+        {
+            live.stop.store(true, Ordering::SeqCst);
+        }
+    }
+
+    fn stop_all_sse(&self) {
+        let streams: Vec<Arc<LiveSse>> = {
+            let mut map = self.sse.lock().unwrap_or_else(|e| e.into_inner());
+            map.drain().map(|(_, live)| live).collect()
+        };
+        for live in streams {
+            live.stop.store(true, Ordering::SeqCst);
+        }
     }
 }
 
@@ -203,6 +282,16 @@ impl Drop for HarnessHost {
     fn drop(&mut self) {
         self.kill_all();
     }
+}
+
+/// Resolve the Cursor CLI (`cursor-agent`), never Grok's `agent` shim.
+#[tauri::command(async)]
+pub fn harness_resolve_cursor() -> Result<HarnessBinary, String> {
+    resolve_cursor_agent()
+        .map(|path| HarnessBinary {
+            path: path.to_string_lossy().into_owned(),
+        })
+        .ok_or_else(|| "Cursor CLI not found. Install it and run `agent login`, then retry.".into())
 }
 
 /// Resolve the Codex CLI (`codex`).
@@ -218,6 +307,19 @@ pub fn harness_resolve_codex() -> Result<HarnessBinary, String> {
         })
 }
 
+/// Resolve the OpenCode CLI (`opencode`).
+#[tauri::command(async)]
+pub fn harness_resolve_opencode() -> Result<HarnessBinary, String> {
+    resolve_opencode()
+        .map(|path| HarnessBinary {
+            path: path.to_string_lossy().into_owned(),
+        })
+        .ok_or_else(|| {
+            "OpenCode CLI not found. Install it from https://opencode.ai and run `opencode auth login`, then retry."
+                .into()
+        })
+}
+
 #[tauri::command(async)]
 pub fn harness_resolve_configured(
     provider: String,
@@ -225,7 +327,7 @@ pub fn harness_resolve_configured(
 ) -> Result<ConfiguredBinary, String> {
     resolve_harness_binary_override(&provider, &binary_path).map(|path| ConfiguredBinary {
         path: path.to_string_lossy().into_owned(),
-        args: None,
+        args: (provider == "antigravity").then(antigravity_args),
     })
 }
 
@@ -592,6 +694,91 @@ fn valid_mcp_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
+/// Resolve the Pi coding agent CLI (`pi`).
+#[tauri::command(async)]
+pub fn harness_resolve_pi() -> Result<HarnessBinary, String> {
+    resolve_pi()
+        .map(|path| HarnessBinary {
+            path: path.to_string_lossy().into_owned(),
+        })
+        .ok_or_else(|| {
+            "Pi CLI not found. Install it with `npm install -g @earendil-works/pi-coding-agent` and authenticate, then retry."
+                .into()
+        })
+}
+
+/// Resolve the omp (oh-my-pi) coding agent CLI.
+#[tauri::command(async)]
+pub fn harness_resolve_omp() -> Result<HarnessBinary, String> {
+    resolve_omp()
+        .map(|path| HarnessBinary {
+            path: path.to_string_lossy().into_owned(),
+        })
+        .ok_or_else(|| {
+            "omp CLI not found. Install it with `curl -fsSL https://omp.sh/install | sh` and authenticate, then retry."
+                .into()
+        })
+}
+
+/// Resolve the Vercel fx coding agent CLI (`fx`), never the JSON viewer of the same name.
+#[tauri::command(async)]
+pub fn harness_resolve_fx() -> Result<HarnessBinary, String> {
+    resolve_fx()
+        .map(|path| HarnessBinary {
+            path: path.to_string_lossy().into_owned(),
+        })
+        .ok_or_else(|| {
+            "fx CLI not found. Install it from https://fx.sh and run `fx login`, then retry.".into()
+        })
+}
+
+/// Resolve xAI Grok Build (`grok`).
+#[tauri::command(async)]
+pub fn harness_resolve_grok() -> Result<HarnessBinary, String> {
+    resolve_grok()
+        .map(|path| HarnessBinary {
+            path: path.to_string_lossy().into_owned(),
+        })
+        .ok_or_else(|| {
+            "Grok Build CLI not found. Install it with `curl -fsSL https://x.ai/cli/install.sh | bash` and run `grok login`, then retry.".into()
+        })
+}
+
+/// Resolve Nous Research Hermes Agent (`hermes`).
+#[tauri::command(async)]
+pub fn harness_resolve_hermes() -> Result<HarnessBinary, String> {
+    resolve_hermes()
+        .map(|path| HarnessBinary {
+            path: path.to_string_lossy().into_owned(),
+        })
+        .ok_or_else(|| {
+            "Hermes Agent CLI not found. Install it from https://hermes-agent.nousresearch.com, run `hermes model`, then retry."
+                .into()
+        })
+}
+
+/// Antigravity's ACP server is separate from the interactive agy CLI.
+#[tauri::command(async)]
+pub fn harness_resolve_antigravity() -> Result<AntigravityBinary, String> {
+    resolve_antigravity()
+        .map(|path| AntigravityBinary {
+            path: path.to_string_lossy().into_owned(),
+            args: antigravity_args(),
+        })
+        .ok_or_else(|| {
+            "Antigravity ACP server (agy_acp_server.par) not found. Install the Antigravity ACP server, then use `Sign in to Antigravity` in Loci.".into()
+        })
+}
+
+/// Bind an ephemeral loopback port for `opencode serve`.
+#[tauri::command]
+pub fn harness_free_port() -> Result<u16, String> {
+    TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .map(|addr| addr.port())
+        .map_err(|e| format!("Failed to reserve a local port: {e}"))
+}
+
 /// Off the main thread: fork/exec, and `apply_gui_env` can wait on the first
 /// login-shell read. Callers await this before writing to the child. Kill can
 /// still race the fork, so a cancelled spawn must not reinsert the child.
@@ -705,7 +892,9 @@ pub fn harness_spawn(
     thread::spawn(move || {
         let code = child.wait().ok().and_then(|status| status.code());
         if let Some(host) = wait_app.try_state::<HarnessHost>() {
-            host.remove_if_pid(&wait_id, wait_pid);
+            if host.remove_if_pid(&wait_id, wait_pid).is_some() {
+                host.stop_sse(&wait_id);
+            }
         }
         let _ = wait_app.emit(
             EXIT_EVENT,
@@ -865,6 +1054,7 @@ pub async fn harness_write(
 /// blocked on a wedged child's stdin.
 #[tauri::command(async)]
 pub fn harness_kill(host: State<'_, HarnessHost>, session_id: String) -> Result<(), String> {
+    host.stop_sse(&session_id);
     if let Some(live) = host.kill_session(&session_id) {
         terminate(live.pid);
     }
@@ -878,7 +1068,240 @@ pub fn harness_kill_all(host: State<'_, HarnessHost>) -> Result<(), String> {
     host.kill_all();
     Ok(())
 }
-const EXEC_ALLOWED_ARGS: &[&[&str]] = &[&["--version"]];
+
+#[tauri::command]
+pub async fn harness_http(
+    url: String,
+    method: String,
+    headers: Option<HashMap<String, String>>,
+    body: Option<String>,
+    timeout_ms: Option<u64>,
+) -> Result<HarnessHttpResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        assert_loopback(&url)?;
+        let timeout = Duration::from_millis(timeout_ms.unwrap_or(30_000).max(1));
+        let agent = ureq::AgentBuilder::new()
+            .redirects(0)
+            .timeout(timeout)
+            .build();
+        let mut request = agent.request(&method, &url);
+        if let Some(headers) = &headers {
+            for (key, value) in headers {
+                request = request.set(key, value);
+            }
+        }
+        let result = match body {
+            Some(payload) => request.send_string(&payload),
+            None => request.call(),
+        };
+        match result {
+            Ok(response) => read_http_response(response),
+            Err(ureq::Error::Status(status, response)) => {
+                let body = response.into_string().unwrap_or_default();
+                Ok(HarnessHttpResponse { status, body })
+            }
+            Err(error) => Err(format!("OpenCode HTTP failed: {error}")),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// Header establishment is a separate bounded phase from the long-lived body.
+// Run the command off the UI thread and resolve only after the event endpoint
+// is subscribed; prompt_async can emit its entire result immediately afterward.
+#[tauri::command(async)]
+pub fn harness_sse_open(
+    app: AppHandle,
+    host: State<HarnessHost>,
+    session_id: String,
+    stream_id: String,
+    url: String,
+    headers: Option<HashMap<String, String>>,
+) -> Result<(), String> {
+    assert_loopback(&url)?;
+    host.stop_sse(&session_id);
+    let stop = Arc::new(AtomicBool::new(false));
+    host.insert_sse(
+        session_id.clone(),
+        Arc::new(LiveSse {
+            stop: Arc::clone(&stop),
+        }),
+    );
+
+    let worker_stop = Arc::clone(&stop);
+    start_sse_stream(
+        url,
+        headers,
+        stop,
+        Duration::from_secs(10),
+        move |response| {
+            let reader = BufReader::new(response.into_reader());
+            read_sse(reader, &app, &session_id, &stream_id, &worker_stop);
+            if !worker_stop.load(Ordering::SeqCst) {
+                emit_sse_end(&app, &session_id, &stream_id, None);
+            }
+        },
+    )
+}
+
+fn start_sse_stream<F>(
+    url: String,
+    headers: Option<HashMap<String, String>>,
+    stop: Arc<AtomicBool>,
+    ready_timeout: Duration,
+    consume: F,
+) -> Result<(), String>
+where
+    F: FnOnce(ureq::Response) + Send + 'static,
+{
+    let (ready_tx, ready_rx) = mpsc::sync_channel(1);
+    let worker_stop = Arc::clone(&stop);
+    thread::spawn(move || {
+        let agent = ureq::AgentBuilder::new()
+            .redirects(0)
+            .timeout_connect(ready_timeout)
+            .timeout_read(Duration::from_secs(60 * 60 * 6))
+            .timeout_write(ready_timeout)
+            .build();
+        let mut request = agent.get(&url).set("Accept", "text/event-stream");
+        if let Some(headers) = &headers {
+            for (key, value) in headers {
+                request = request.set(key, value);
+            }
+        }
+        match request.call() {
+            Ok(response) => {
+                if worker_stop.load(Ordering::SeqCst) {
+                    let _ = ready_tx.send(Err("OpenCode event stream cancelled".into()));
+                    return;
+                }
+                let is_event_stream = response.header("Content-Type").is_some_and(|value| {
+                    value
+                        .split(';')
+                        .next()
+                        .is_some_and(|mime| mime.trim().eq_ignore_ascii_case("text/event-stream"))
+                });
+                if response.status() != 200 || !is_event_stream {
+                    let _ = ready_tx.send(Err(
+                        "OpenCode event endpoint did not return an event stream".into(),
+                    ));
+                    return;
+                }
+                if ready_tx.send(Ok(())).is_ok() && !worker_stop.load(Ordering::SeqCst) {
+                    consume(response);
+                }
+            }
+            Err(error) => {
+                let _ = ready_tx.send(Err(format!("OpenCode event stream failed: {error}")));
+            }
+        }
+    });
+    let ready = ready_rx
+        .recv_timeout(ready_timeout)
+        .unwrap_or_else(|error| {
+            Err(match error {
+                mpsc::RecvTimeoutError::Timeout => {
+                    "OpenCode event stream connection timed out".into()
+                }
+                mpsc::RecvTimeoutError::Disconnected => {
+                    "OpenCode event stream worker stopped".into()
+                }
+            })
+        });
+    if ready.is_err() {
+        stop.store(true, Ordering::SeqCst);
+    }
+    ready
+}
+
+#[tauri::command]
+pub fn harness_sse_close(host: State<HarnessHost>, session_id: String) -> Result<(), String> {
+    host.stop_sse(&session_id);
+    Ok(())
+}
+
+fn read_http_response(response: ureq::Response) -> Result<HarnessHttpResponse, String> {
+    let status = response.status();
+    let body = response
+        .into_string()
+        .map_err(|e| format!("Failed to read OpenCode response: {e}"))?;
+    Ok(HarnessHttpResponse { status, body })
+}
+
+fn read_sse<R: BufRead>(
+    reader: R,
+    app: &AppHandle,
+    session_id: &str,
+    stream_id: &str,
+    stop: &AtomicBool,
+) {
+    let mut data = String::new();
+    for line in reader.lines() {
+        if stop.load(Ordering::SeqCst) {
+            break;
+        }
+        let Ok(line) = line else { break };
+        if line.starts_with(':') {
+            continue;
+        }
+        if line.is_empty() {
+            if data.is_empty() {
+                continue;
+            }
+            let payload = std::mem::take(&mut data);
+            let _ = app.emit(
+                SSE_EVENT,
+                HarnessSse {
+                    session_id: session_id.to_string(),
+                    stream_id: stream_id.to_string(),
+                    data: payload,
+                },
+            );
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("data:") {
+            let piece = rest.strip_prefix(' ').unwrap_or(rest);
+            if !data.is_empty() {
+                data.push('\n');
+            }
+            data.push_str(piece);
+        }
+    }
+}
+
+fn emit_sse_end(app: &AppHandle, session_id: &str, stream_id: &str, error: Option<String>) {
+    let _ = app.emit(
+        SSE_END_EVENT,
+        HarnessSseEnd {
+            session_id: session_id.to_string(),
+            stream_id: stream_id.to_string(),
+            error,
+        },
+    );
+}
+
+fn assert_loopback(url: &str) -> Result<(), String> {
+    let parsed = url::Url::parse(url).map_err(|e| format!("Invalid OpenCode URL: {e}"))?;
+    if parsed.scheme() == "http"
+        && matches!(parsed.host_str(), Some("127.0.0.1" | "localhost"))
+        && parsed.username().is_empty()
+        && parsed.password().is_none()
+    {
+        return Ok(());
+    }
+    Err("OpenCode HTTP is limited to localhost".into())
+}
+
+const EXEC_ALLOWED_ARGS: &[&[&str]] = &[
+    &["--version"],
+    &["--list-models"],
+    &["models", "--verbose"],
+    &["models", "--json"],
+    &["models"],
+    &["status", "--json"],
+    &["agent", "list"],
+];
 
 fn exec_args_allowed(args: &[String]) -> bool {
     EXEC_ALLOWED_ARGS
@@ -904,7 +1327,7 @@ pub(crate) fn is_resolved_harness_binary(
     resolved.is_ok_and(|path| path == Path::new(command))
 }
 
-/// One-shot capture of a configured CLI version.
+/// One-shot capture of stdout (used for `cursor-agent --list-models`).
 #[tauri::command]
 pub async fn harness_exec(
     command: String,
@@ -1252,7 +1675,22 @@ fn is_harness_argv_token(part: &str) -> bool {
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or(part);
-    matches!(name, "claude" | "codex" | "app-server")
+    matches!(
+        name,
+        "cursor-agent"
+            | "pi-coding-agent"
+            | "claude"
+            | "codex"
+            | "opencode"
+            | "grok"
+            | "omp"
+            | "fx"
+            | "hermes"
+            | "agy_acp_server.par"
+            | "pi"
+            | "worker-server"
+            | "app-server"
+    )
 }
 
 #[cfg(any(all(unix, not(target_os = "linux")), test))]
@@ -1452,10 +1890,42 @@ fn parse_proc_ppid(stat: &str) -> Option<u32> {
         .parse()
         .ok()
 }
+
+fn resolve_cursor_agent() -> Option<PathBuf> {
+    let home = dirs_home().map(PathBuf::from);
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    // Stable shims first. `command -v` often returns a versioned path
+    // (`…/versions/<build>/cursor-agent`); macOS TCC then treats each
+    // upgrade as a new binary.
+    if let Some(home) = &home {
+        candidates.push(home.join(".local/bin/cursor-agent"));
+        candidates.push(home.join(".local/bin/agent"));
+        candidates.push(home.join(".cargo/bin/cursor-agent"));
+    }
+    candidates.push(PathBuf::from("/opt/homebrew/bin/cursor-agent"));
+    candidates.push(PathBuf::from("/usr/local/bin/cursor-agent"));
+    candidates.push(PathBuf::from("/usr/bin/cursor-agent"));
+    candidates.push(PathBuf::from("/snap/bin/cursor-agent"));
+    if let Some(from_shell) = which_via_login_shell("cursor-agent") {
+        candidates.push(from_shell);
+    }
+
+    first_binary_matching(candidates, is_cursor_agent)
+}
+
 fn resolve_harness_binary_default(provider: &str) -> Option<PathBuf> {
     match provider {
         "claude" => resolve_claude(),
         "codex" => resolve_codex(),
+        "cursor" => resolve_cursor_agent(),
+        "grok" => resolve_grok(),
+        "opencode" => resolve_opencode(),
+        "pi" => resolve_pi(),
+        "omp" => resolve_omp(),
+        "fx" => resolve_fx(),
+        "hermes" => resolve_hermes(),
+        "antigravity" => resolve_antigravity(),
         _ => None,
     }
 }
@@ -1487,9 +1957,20 @@ fn configured_binary_fingerprint(path: &Path) -> Option<String> {
 }
 
 fn resolve_harness_binary_override(provider: &str, binary_path: &str) -> Result<PathBuf, String> {
+    if provider == "antigravity" && cfg!(windows) {
+        return Err("Antigravity ACP server overrides are not supported on Windows.".into());
+    }
     let names: &[&str] = match provider {
         "claude" => &["claude"],
         "codex" => &["codex"],
+        "cursor" => &["cursor-agent", "agent"],
+        "grok" => &["grok"],
+        "opencode" => &["opencode"],
+        "pi" => &["pi", "pi-coding-agent"],
+        "omp" => &["omp"],
+        "fx" => &["fx"],
+        "hermes" => &["hermes"],
+        "antigravity" => &["agy_acp_server.par"],
         _ => {
             return Err(format!(
                 "Unsupported configured harness provider: {provider}"
@@ -1510,6 +1991,7 @@ fn resolve_harness_binary_override(provider: &str, binary_path: &str) -> Result<
             }
         }
     }
+    validate_configured_harness_binary_identity(provider, &path, binary_path)?;
     validate_harness_binary_version(provider, &path)?;
     if let Some(fingerprint) = fingerprint {
         if let Ok(mut cache) = cache.lock() {
@@ -1551,12 +2033,16 @@ fn is_supported_harness_version(version: &str) -> bool {
 }
 
 fn validate_harness_binary_version(provider: &str, path: &Path) -> Result<(), String> {
+    if provider == "antigravity" {
+        return Ok(());
+    }
     let version = exec_capture(&path.to_string_lossy(), &["--version".to_string()], None)?;
     let lower = version.to_ascii_lowercase();
     let has_version = is_supported_harness_version(&version);
     let provider_marker = match provider {
         "claude" => lower.contains("claude"),
         "codex" => lower.contains("codex"),
+        "hermes" => lower.contains("hermes"),
         _ => true,
     };
     if has_version && provider_marker {
@@ -1598,6 +2084,28 @@ fn resolve_configured_harness_binary(
     Ok(path)
 }
 
+fn validate_configured_harness_binary_identity(
+    provider: &str,
+    path: &Path,
+    binary_path: &str,
+) -> Result<(), String> {
+    let identity_valid = match provider {
+        "cursor" => is_cursor_agent(path),
+        "pi" => is_pi_coding_agent(path),
+        "omp" => is_omp_agent(path),
+        "fx" => is_fx_agent(path),
+        "grok" => is_grok_agent(path),
+        _ => true,
+    };
+    if identity_valid {
+        Ok(())
+    } else {
+        Err(format!(
+            "Configured path is not a valid {provider} binary: {binary_path}"
+        ))
+    }
+}
+
 fn resolve_codex() -> Option<PathBuf> {
     let home = dirs_home().map(PathBuf::from);
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -1626,6 +2134,28 @@ fn resolve_codex() -> Option<PathBuf> {
     candidates.push(PathBuf::from(
         "/Applications/Codex.app/Contents/Resources/codex",
     ));
+
+    first_binary(candidates)
+}
+
+fn resolve_opencode() -> Option<PathBuf> {
+    let home = dirs_home().map(PathBuf::from);
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Some(home) = &home {
+        candidates.push(home.join(".opencode/bin/opencode"));
+        candidates.push(home.join(".local/bin/opencode"));
+        candidates.push(home.join(".npm-global/bin/opencode"));
+        candidates.push(home.join(".cargo/bin/opencode"));
+        candidates.push(home.join("n/bin/opencode"));
+    }
+    candidates.push(PathBuf::from("/opt/homebrew/bin/opencode"));
+    candidates.push(PathBuf::from("/usr/local/bin/opencode"));
+    candidates.push(PathBuf::from("/usr/bin/opencode"));
+    candidates.push(PathBuf::from("/snap/bin/opencode"));
+    if let Some(from_shell) = which_via_login_shell("opencode") {
+        candidates.push(from_shell);
+    }
 
     first_binary(candidates)
 }
@@ -1660,6 +2190,414 @@ fn resolve_claude() -> Option<PathBuf> {
     first_binary(candidates)
 }
 
+fn resolve_pi() -> Option<PathBuf> {
+    let home = dirs_home().map(PathBuf::from);
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Some(home) = &home {
+        for name in ["pi-coding-agent", "pi"] {
+            candidates.push(home.join(".local/bin").join(name));
+            candidates.push(home.join(".npm-global/bin").join(name));
+            candidates.push(home.join(".cargo/bin").join(name));
+            candidates.push(home.join("n/bin").join(name));
+        }
+    }
+    for name in ["pi-coding-agent", "pi"] {
+        #[cfg(target_os = "macos")]
+        candidates.push(PathBuf::from("/opt/homebrew/bin").join(name));
+        candidates.push(PathBuf::from("/usr/local/bin").join(name));
+        candidates.push(PathBuf::from("/usr/bin").join(name));
+        candidates.push(PathBuf::from("/snap/bin").join(name));
+    }
+    if let Some(from_shell) = which_via_login_shell("pi-coding-agent") {
+        candidates.push(from_shell);
+    }
+    if let Some(from_shell) = which_via_login_shell("pi") {
+        candidates.push(from_shell);
+    }
+
+    first_binary_matching(candidates, is_pi_coding_agent)
+}
+
+fn resolve_omp() -> Option<PathBuf> {
+    let home = dirs_home().map(PathBuf::from);
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    // Installer default first, then bun/brew, then anything on the login PATH.
+    if let Some(home) = &home {
+        candidates.push(home.join(".local/bin/omp"));
+        candidates.push(home.join(".bun/bin/omp"));
+        candidates.push(home.join(".npm-global/bin/omp"));
+        candidates.push(home.join(".cargo/bin/omp"));
+        candidates.push(home.join("n/bin/omp"));
+    }
+    #[cfg(target_os = "macos")]
+    candidates.push(PathBuf::from("/opt/homebrew/bin/omp"));
+    candidates.push(PathBuf::from("/usr/local/bin/omp"));
+    candidates.push(PathBuf::from("/usr/bin/omp"));
+    candidates.push(PathBuf::from("/snap/bin/omp"));
+    if let Some(from_shell) = which_via_login_shell("omp") {
+        candidates.push(from_shell);
+    }
+
+    first_binary_matching(candidates, is_omp_agent)
+}
+
+/// omp ships as a ~126MB compiled binary, so the cheap string scan that
+/// identifies the npm-installed Pi CLI finds nothing in its Mach-O header.
+/// Identify it by name plus a `--help` probe instead.
+fn is_omp_agent(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    if !binary_name_eq(path, "omp") {
+        return false;
+    }
+    help_mentions_rpc_mode(path)
+}
+
+fn resolve_fx() -> Option<PathBuf> {
+    let home = dirs_home().map(PathBuf::from);
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    // Installer default first so a Homebrew JSON-viewer `fx` does not win.
+    if let Some(home) = &home {
+        candidates.push(home.join(".local/bin/fx"));
+        candidates.push(home.join(".fx/bin/fx"));
+        candidates.push(home.join(".npm-global/bin/fx"));
+        candidates.push(home.join(".cargo/bin/fx"));
+        candidates.push(home.join("n/bin/fx"));
+    }
+    #[cfg(target_os = "macos")]
+    candidates.push(PathBuf::from("/opt/homebrew/bin/fx"));
+    candidates.push(PathBuf::from("/usr/local/bin/fx"));
+    candidates.push(PathBuf::from("/usr/bin/fx"));
+    candidates.push(PathBuf::from("/snap/bin/fx"));
+    if let Some(from_shell) = which_via_login_shell("fx") {
+        candidates.push(from_shell);
+    }
+
+    first_binary_matching(candidates, is_fx_agent)
+}
+
+fn resolve_grok() -> Option<PathBuf> {
+    let home = dirs_home().map(PathBuf::from);
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Some(home) = &home {
+        candidates.push(home.join(".grok/bin/grok"));
+        candidates.push(home.join(".local/bin/grok"));
+        candidates.push(home.join(".npm-global/bin/grok"));
+        candidates.push(home.join(".cargo/bin/grok"));
+        candidates.push(home.join("n/bin/grok"));
+    }
+    #[cfg(target_os = "macos")]
+    candidates.push(PathBuf::from("/opt/homebrew/bin/grok"));
+    candidates.push(PathBuf::from("/usr/local/bin/grok"));
+    candidates.push(PathBuf::from("/usr/bin/grok"));
+    candidates.push(PathBuf::from("/snap/bin/grok"));
+    if let Some(from_shell) = which_via_login_shell("grok") {
+        candidates.push(from_shell);
+    }
+
+    first_binary_matching(candidates, is_grok_agent)
+}
+
+fn resolve_hermes() -> Option<PathBuf> {
+    let home = dirs_home().map(PathBuf::from);
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Some(home) = &home {
+        // Official per-user installer, then its underlying virtualenv in case
+        // the launcher symlink has not been added to PATH yet.
+        candidates.push(home.join(".local/bin/hermes"));
+        candidates.push(home.join(".hermes/hermes-agent/venv/bin/hermes"));
+        candidates.push(home.join(".hermes/hermes-agent/.venv/bin/hermes"));
+        candidates.push(home.join(".npm-global/bin/hermes"));
+        candidates.push(home.join(".cargo/bin/hermes"));
+        candidates.push(home.join("n/bin/hermes"));
+    }
+    #[cfg(windows)]
+    if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        // Native Windows installer launchers, then the underlying virtualenv.
+        candidates.push(local_app_data.join("hermes/bin/hermes"));
+        candidates.push(local_app_data.join("hermes/hermes-agent/venv/Scripts/hermes"));
+    }
+    #[cfg(target_os = "macos")]
+    candidates.push(PathBuf::from("/opt/homebrew/bin/hermes"));
+    candidates.push(PathBuf::from("/usr/local/bin/hermes"));
+    candidates.push(PathBuf::from("/usr/bin/hermes"));
+    candidates.push(PathBuf::from("/snap/bin/hermes"));
+    if let Some(from_shell) = which_via_login_shell("hermes") {
+        candidates.push(from_shell);
+    }
+
+    first_binary(candidates)
+}
+
+fn resolve_antigravity() -> Option<PathBuf> {
+    // The .par wrapper is a POSIX self-extracting archive — Antigravity ships
+    // no Windows ACP binary, so report the provider unavailable there instead
+    // of probing paths that can never be executable.
+    if cfg!(windows) {
+        return None;
+    }
+    let mut candidates = Vec::new();
+    if let Some(home) = dirs_home().map(PathBuf::from) {
+        // Prefer the wrapper: it sets the server's required resource directory.
+        candidates.push(home.join(".local/bin/agy_acp_server.par"));
+        candidates.push(home.join(".local/share/agy-acp/agy_acp_server.par"));
+    }
+    if let Some(from_shell) = which_via_login_shell("agy_acp_server.par") {
+        candidates.push(from_shell);
+    }
+    first_binary(candidates)
+}
+
+fn is_pi_coding_agent(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    if binary_name_eq(path, "pi-coding-agent") {
+        return true;
+    }
+    if !binary_name_eq(path, "pi") {
+        return false;
+    }
+    file_mentions_pi_coding_agent(path) || help_mentions_rpc_mode(path)
+}
+
+fn file_mentions_pi_coding_agent(path: &Path) -> bool {
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut buf = vec![0u8; 64 * 1024];
+    let Ok(n) = file.read(&mut buf) else {
+        return false;
+    };
+    let text = String::from_utf8_lossy(&buf[..n]);
+    text.contains("pi-coding-agent")
+        || text.contains("@earendil-works/pi")
+        || text.contains("@mariozechner/pi-coding-agent")
+        || text.contains("PI_CODING_AGENT")
+}
+
+fn help_mentions_rpc_mode(path: &Path) -> bool {
+    let mut cmd = Command::new(path);
+    cmd.arg("--help")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    // npm-installed harnesses are `#!/usr/bin/env node` scripts, so this probe
+    // fails outright without a PATH that has node on it.
+    apply_gui_env(&mut cmd);
+    isolate_child(&mut cmd);
+    let Ok(child) = spawn_managed(&mut cmd) else {
+        return false;
+    };
+    let pid = child.id();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(child.wait_with_output());
+    });
+    match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(Ok(output)) => {
+            let text = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .to_ascii_lowercase();
+            text.contains("--mode") && text.contains("rpc")
+        }
+        _ => {
+            terminate(pid);
+            false
+        }
+    }
+}
+
+fn is_fx_agent(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    if !binary_name_eq(path, "fx") {
+        return false;
+    }
+    file_mentions_fx_agent(path) || fx_help_mentions_acp(path)
+}
+
+fn is_grok_agent(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    if !binary_name_eq(path, "grok") {
+        return false;
+    }
+    // Official installer: ~/.grok/bin/grok
+    if path_has_component(path, ".grok") {
+        return true;
+    }
+    file_mentions_grok_agent(path) || grok_help_mentions_agent(path)
+}
+
+/// The fx markers sit megabytes into the compiled binary, so a small head-read
+/// never matched and every resolve fell through to spawning `fx --help`. Scan
+/// the whole file in chunks instead, overlapping enough to catch a marker that
+/// straddles a boundary.
+fn file_mentions_fx_agent(path: &Path) -> bool {
+    const MARKERS: [&str; 4] = ["vercel-labs/fx", "FX_MODEL", "createFxAgent", "fx acp"];
+    const CHUNK: usize = 1024 * 1024;
+    const OVERLAP: usize = 64;
+
+    let Ok(file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut reader = BufReader::new(file);
+    let mut buf = vec![0u8; CHUNK + OVERLAP];
+    let mut carry = 0usize;
+    loop {
+        let Ok(n) = reader.read(&mut buf[carry..]) else {
+            return false;
+        };
+        if n == 0 {
+            return false;
+        }
+        let filled = carry + n;
+        let text = String::from_utf8_lossy(&buf[..filled]);
+        if MARKERS.iter().any(|marker| text.contains(marker)) {
+            return true;
+        }
+        carry = filled.min(OVERLAP);
+        buf.copy_within(filled - carry..filled, 0);
+    }
+}
+
+fn fx_help_mentions_acp(path: &Path) -> bool {
+    let mut cmd = Command::new(path);
+    cmd.arg("--help")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    // npm-installed harnesses are `#!/usr/bin/env node` scripts, so this probe
+    // fails outright without a PATH that has node on it.
+    apply_gui_env(&mut cmd);
+    isolate_child(&mut cmd);
+    let Ok(child) = spawn_managed(&mut cmd) else {
+        return false;
+    };
+    let pid = child.id();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(child.wait_with_output());
+    });
+    match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(Ok(output)) => {
+            let text = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .to_ascii_lowercase();
+            text.contains("acp") && (text.contains("ask") || text.contains("gateway"))
+        }
+        _ => {
+            terminate(pid);
+            false
+        }
+    }
+}
+
+fn file_mentions_grok_agent(path: &Path) -> bool {
+    const MARKERS: [&str; 4] = ["xai-grok", "Grok Build", "docs.x.ai/build", "grok agent"];
+    const CHUNK: usize = 1024 * 1024;
+    const OVERLAP: usize = 64;
+
+    let Ok(file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let mut reader = BufReader::new(file);
+    let mut buf = vec![0u8; CHUNK + OVERLAP];
+    let mut carry = 0usize;
+    loop {
+        let Ok(n) = reader.read(&mut buf[carry..]) else {
+            return false;
+        };
+        if n == 0 {
+            return false;
+        }
+        let filled = carry + n;
+        let text = String::from_utf8_lossy(&buf[..filled]);
+        if MARKERS.iter().any(|marker| text.contains(marker)) {
+            return true;
+        }
+        carry = filled.min(OVERLAP);
+        buf.copy_within(filled - carry..filled, 0);
+    }
+}
+
+fn grok_help_mentions_agent(path: &Path) -> bool {
+    let mut cmd = Command::new(path);
+    cmd.arg("--help")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    apply_gui_env(&mut cmd);
+    isolate_child(&mut cmd);
+    let Ok(child) = spawn_managed(&mut cmd) else {
+        return false;
+    };
+    let pid = child.id();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(child.wait_with_output());
+    });
+    match rx.recv_timeout(Duration::from_secs(2)) {
+        Ok(Ok(output)) => {
+            let text = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .to_ascii_lowercase();
+            text.contains("grok build") || (text.contains("agent") && text.contains("stdio"))
+        }
+        _ => {
+            terminate(pid);
+            false
+        }
+    }
+}
+
+fn is_cursor_agent(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    if path_has_component(path, ".grok") {
+        return false;
+    }
+    if binary_name_eq(path, "cursor-agent") {
+        return true;
+    }
+    if binary_name_eq(path, "agent") {
+        // One symlink hop. canonicalize() can walk into another .app
+        // and trip macOS "data from other apps" TCC.
+        if let Ok(target) = std::fs::read_link(path) {
+            let resolved = if target.is_absolute() {
+                target
+            } else {
+                path.parent().unwrap_or(path).join(target)
+            };
+            return path_has_component(&resolved, "cursor-agent")
+                || resolved
+                    .to_string_lossy()
+                    .to_ascii_lowercase()
+                    .contains("cursor-agent");
+        }
+    }
+    false
+}
+
 /// Look `name` up in the interactive login shell's PATH.
 ///
 /// Reads the cached PATH rather than spawning a shell per lookup: six
@@ -1679,6 +2617,16 @@ fn which_in_path(path: &str, name: &str) -> Option<PathBuf> {
 
 fn first_binary(candidates: Vec<PathBuf>) -> Option<PathBuf> {
     candidates.into_iter().find_map(existing_binary)
+}
+
+fn first_binary_matching(
+    candidates: Vec<PathBuf>,
+    pred: impl Fn(&Path) -> bool,
+) -> Option<PathBuf> {
+    candidates.into_iter().find_map(|path| {
+        let path = existing_binary(path)?;
+        pred(&path).then_some(path)
+    })
 }
 
 fn existing_binary(path: PathBuf) -> Option<PathBuf> {
@@ -1714,6 +2662,15 @@ fn binary_name_eq(path: &Path, expected: &str) -> bool {
                 name == expected
             }
         })
+}
+
+fn path_has_component(path: &Path, needle: &str) -> bool {
+    path.components().any(|component| {
+        component
+            .as_os_str()
+            .to_str()
+            .is_some_and(|name| name == needle)
+    })
 }
 
 fn is_executable_file(path: &Path) -> bool {
@@ -1765,6 +2722,8 @@ fn gui_search_path_from(
         parts.push(format!("{home}/.cargo/bin").into());
         parts.push(format!("{home}/.claude/local").into());
         parts.push(format!("{home}/.local/share/claude").into());
+        parts.push(format!("{home}/.opencode/bin").into());
+        parts.push(format!("{home}/.grok/bin").into());
         parts.push(format!("{home}/.npm-global/bin").into());
         parts.push(format!("{home}/.bun/bin").into());
         parts.push(format!("{home}/AppData/Roaming/npm").into());
@@ -1778,6 +2737,7 @@ fn gui_search_path_from(
     parts.push("/snap/bin".into());
     #[cfg(windows)]
     {
+        parts.push(r"C:\Program Files\Git\cmd".into());
         parts.push(r"C:\Program Files\nodejs".into());
     }
     std::env::join_paths(parts)
@@ -1819,13 +2779,61 @@ pub(crate) fn apply_gui_env(cmd: &mut Command) {
         cmd.env("LANG", "en_US.UTF-8");
     }
 }
-fn prepare_child(cmd: &mut Command, _command: &str) {
+
+fn prepare_child(cmd: &mut Command, command: &str) {
     apply_gui_env(cmd);
+    if command_basename(command) == "fx" {
+        apply_fx_env(cmd);
+    }
+    if command_basename(command) == "grok" {
+        apply_grok_env(cmd);
+    }
     isolate_child(cmd);
 }
 
+/// fx keeps its Gateway credential in the macOS Keychain and reads it by
+/// shelling out to `osascript`. From a bundled app that read can block on a
+/// SecurityAgent prompt nobody ever sees, and fx then rejects `initialize`
+/// outright. Forwarding an API key from the login shell skips the Keychain
+/// entirely for users who have one set.
+fn apply_fx_env(cmd: &mut Command) {
+    for key in [
+        "AI_GATEWAY_API_KEY",
+        "FX_AI_GATEWAY_API_KEY",
+        "VERCEL_OIDC_TOKEN",
+    ] {
+        if std::env::var_os(key).is_some() {
+            continue;
+        }
+        if let Some(value) = login_shell_env(key) {
+            cmd.env(key, value);
+        }
+    }
+}
+
+fn apply_grok_env(cmd: &mut Command) {
+    for key in ["XAI_API_KEY", "GROK_CODE_XAI_API_KEY"] {
+        if std::env::var_os(key).is_some() {
+            continue;
+        }
+        if let Some(value) = login_shell_env(key) {
+            cmd.env(key, value);
+        }
+    }
+}
+
 static LOGIN_SHELL_ENV: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
-const LOGIN_SHELL_KEYS: [&str; 1] = ["PATH"];
+
+/// Keys worth keeping out of `printenv`. PATH is the important one: a
+/// Finder-launched app inherits only launchd's bare PATH.
+const LOGIN_SHELL_KEYS: [&str; 6] = [
+    "PATH",
+    "AI_GATEWAY_API_KEY",
+    "FX_AI_GATEWAY_API_KEY",
+    "VERCEL_OIDC_TOKEN",
+    "XAI_API_KEY",
+    "GROK_CODE_XAI_API_KEY",
+];
 
 fn login_shell_path() -> Option<String> {
     login_shell_env("PATH")
@@ -1905,10 +2913,144 @@ fn load_unix_login_shell_env() -> HashMap<String, String> {
     map
 }
 
-#[cfg(all(test, unix))]
+fn command_basename(command: &str) -> &str {
+    Path::new(command)
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or(command)
+}
+
+#[cfg(unix)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::os::unix::process::CommandExt;
+
+    fn read_local_http_request(stream: &std::net::TcpStream) {
+        let mut reader = BufReader::new(stream);
+        loop {
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            if line == "\r\n" || line.is_empty() {
+                return;
+            }
+        }
+    }
+
+    #[test]
+    fn sse_open_waits_for_headers_but_not_the_stream_body() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/event", listener.local_addr().unwrap());
+        let (request_tx, request_rx) = mpsc::channel();
+        let (headers_tx, headers_rx) = mpsc::channel();
+        let (body_tx, body_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            read_local_http_request(&socket);
+            request_tx.send(()).unwrap();
+            headers_rx.recv().unwrap();
+            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n").unwrap();
+            socket.flush().unwrap();
+            body_rx.recv().unwrap();
+            socket.write_all(b"data: ready\n\n").unwrap();
+        });
+        let (opened_tx, opened_rx) = mpsc::channel();
+        let (consumed_tx, consumed_rx) = mpsc::channel();
+        let opener = thread::spawn(move || {
+            let result = start_sse_stream(
+                url,
+                None,
+                Arc::new(AtomicBool::new(false)),
+                Duration::from_secs(2),
+                move |response| {
+                    let mut body = String::new();
+                    response.into_reader().read_to_string(&mut body).unwrap();
+                    consumed_tx.send(body).unwrap();
+                },
+            );
+            opened_tx.send(result).unwrap();
+        });
+        request_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(matches!(
+            opened_rx.recv_timeout(Duration::from_millis(50)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+        headers_tx.send(()).unwrap();
+        assert!(opened_rx
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap()
+            .is_ok());
+        assert!(matches!(
+            consumed_rx.try_recv(),
+            Err(mpsc::TryRecvError::Empty)
+        ));
+        body_tx.send(()).unwrap();
+        assert_eq!(
+            consumed_rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            "data: ready\n\n"
+        );
+        opener.join().unwrap();
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn sse_open_times_out_without_consuming_a_late_response() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/event", listener.local_addr().unwrap());
+        let (headers_tx, headers_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            read_local_http_request(&socket);
+            headers_rx.recv().unwrap();
+            socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: 0\r\n\r\n").unwrap();
+        });
+        let stop = Arc::new(AtomicBool::new(false));
+        let (consumed_tx, consumed_rx) = mpsc::channel();
+        let result = start_sse_stream(
+            url,
+            None,
+            Arc::clone(&stop),
+            Duration::from_millis(100),
+            move |_| {
+                let _ = consumed_tx.send(());
+            },
+        );
+        assert_eq!(
+            result.unwrap_err(),
+            "OpenCode event stream connection timed out"
+        );
+        assert!(stop.load(Ordering::SeqCst));
+        headers_tx.send(()).unwrap();
+        server.join().unwrap();
+        assert!(matches!(
+            consumed_rx.recv_timeout(Duration::from_secs(2)),
+            Err(mpsc::RecvTimeoutError::Disconnected)
+        ));
+    }
+
+    #[test]
+    fn sse_open_rejects_http_errors_and_non_stream_responses() {
+        for response in [
+            "HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}",
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}/event", listener.local_addr().unwrap());
+            let server = thread::spawn(move || {
+                let (mut socket, _) = listener.accept().unwrap();
+                read_local_http_request(&socket);
+                socket.write_all(response.as_bytes()).unwrap();
+            });
+            let stop = Arc::new(AtomicBool::new(false));
+            let result =
+                start_sse_stream(url, None, Arc::clone(&stop), Duration::from_secs(2), |_| {
+                    panic!("invalid stream reached consumer")
+                });
+            assert!(result.is_err());
+            assert!(stop.load(Ordering::SeqCst));
+            server.join().unwrap();
+        }
+    }
 
     fn spawn_group(script: &str) -> std::process::Child {
         Command::new("sh")
@@ -2263,6 +3405,188 @@ mod tests {
     }
 
     #[test]
+    fn cursor_agent_accepts_symlink_named_agent() {
+        let dir = std::env::temp_dir().join(format!("loci-agent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("cursor-agent-pack")).unwrap();
+        let target = dir.join("cursor-agent-pack/cursor-agent");
+        std::fs::write(&target, b"#!/bin/sh\n").unwrap();
+        let agent = dir.join("agent");
+        std::os::unix::fs::symlink(&target, &agent).unwrap();
+        assert!(is_cursor_agent(&agent));
+        assert!(!is_cursor_agent(&dir.join("missing")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn pi_accepts_coding_agent_and_rejects_other_pi() {
+        let dir = std::env::temp_dir().join(format!("loci-pi-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let named = dir.join("pi-coding-agent");
+        std::fs::write(&named, b"#!/bin/sh\n").unwrap();
+        assert!(is_pi_coding_agent(&named));
+
+        let shim = dir.join("pi");
+        std::fs::write(
+            &shim,
+            b"#!/usr/bin/env node\nrequire('@earendil-works/pi-coding-agent/cli.js');\n",
+        )
+        .unwrap();
+        assert!(is_pi_coding_agent(&shim));
+
+        let other = dir.join("pi");
+        std::fs::write(&other, b"#!/bin/sh\necho 3.14159\n").unwrap();
+        // Overwrite the shim: a calculator named `pi` must not match.
+        assert!(!file_mentions_pi_coding_agent(&other));
+        assert!(!is_pi_coding_agent(&other));
+
+        assert!(!is_pi_coding_agent(&dir.join("missing")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn omp_accepts_rpc_capable_binary_and_rejects_other_names() {
+        let dir = std::env::temp_dir().join(format!("loci-omp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // omp is a compiled binary, so identification leans on the --help probe.
+        // A shell stub that answers `--help` the same way stands in for it here.
+        let agent = dir.join("omp");
+        std::fs::write(
+            &agent,
+            b"#!/bin/sh\necho '--mode=<value> Output mode: text, json, rpc, or rpc-ui'\n",
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&agent, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        #[cfg(unix)]
+        assert!(is_omp_agent(&agent));
+
+        // oh-my-posh and friends must not win the name.
+        let other = dir.join("oh-my-posh");
+        std::fs::write(&other, b"#!/bin/sh\necho prompt theme engine\n").unwrap();
+        assert!(!is_omp_agent(&other));
+
+        assert!(!is_omp_agent(&dir.join("missing")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn fx_accepts_vercel_agent_and_rejects_json_viewer() {
+        let dir = std::env::temp_dir().join(format!("loci-fx-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let agent = dir.join("fx");
+        std::fs::write(&agent, b"#!/bin/sh\necho vercel-labs/fx\n# FX_MODEL\n").unwrap();
+        assert!(is_fx_agent(&agent));
+
+        let viewer = dir.join("fx-viewer");
+        std::fs::write(&viewer, b"#!/bin/sh\necho Terminal JSON viewer\n").unwrap();
+        assert!(!is_fx_agent(&viewer));
+
+        let other = dir.join("fx");
+        std::fs::write(&other, b"#!/bin/sh\necho json viewer\n").unwrap();
+        assert!(!file_mentions_fx_agent(&other));
+        assert!(!is_fx_agent(&other));
+
+        assert!(!is_fx_agent(&dir.join("missing")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The real fx binary carries its markers megabytes in. A head-only read
+    /// missed them and silently fell back to spawning `fx --help`.
+    #[test]
+    fn fx_marker_is_found_past_the_first_chunk() {
+        let dir = std::env::temp_dir().join(format!("loci-fx-deep-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let agent = dir.join("fx");
+        let mut blob = vec![b'\0'; 6 * 1024 * 1024];
+        blob.extend_from_slice(b"https://github.com/vercel-labs/fx");
+        std::fs::write(&agent, &blob).unwrap();
+        assert!(file_mentions_fx_agent(&agent));
+
+        // A marker straddling a chunk boundary must still be caught.
+        let split = dir.join("fx-split");
+        let mut edge = vec![b'\0'; 1024 * 1024 - 4];
+        edge.extend_from_slice(b"vercel-labs/fx");
+        std::fs::write(&split, &edge).unwrap();
+        assert!(file_mentions_fx_agent(&split));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn grok_accepts_official_install_path_and_markers() {
+        let dir = std::env::temp_dir().join(format!("loci-grok-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let home = dir.join(".grok/bin");
+        std::fs::create_dir_all(&home).unwrap();
+
+        let agent = home.join("grok");
+        std::fs::write(&agent, b"#!/bin/sh\necho other grok\n").unwrap();
+        assert!(is_grok_agent(&agent));
+
+        let marked = dir.join("grok");
+        std::fs::write(&marked, b"#!/bin/sh\n# Grok Build\n# xai-grok\n").unwrap();
+        assert!(is_grok_agent(&marked));
+
+        let other = dir.join("grok-cli");
+        std::fs::write(&other, b"#!/bin/sh\necho not grok\n").unwrap();
+        assert!(!is_grok_agent(&other));
+
+        assert!(!is_grok_agent(&dir.join("missing")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn antigravity_resolver_prefers_executable_wrapper_and_tracks_orphans() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("loci-agy-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("bin")).unwrap();
+        let wrapper = dir.join("bin/agy_acp_server.par");
+        let server = dir.join("agy_acp_server.par");
+        std::fs::write(&wrapper, b"#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::write(&server, b"#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::set_permissions(&server, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let candidates = vec![wrapper.clone(), server.clone()];
+        assert_eq!(first_binary(candidates.clone()), Some(server));
+        std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(first_binary(candidates), Some(wrapper));
+        assert!(looks_like_harness_argv(
+            "/home/user/.local/share/agy-acp/agy_acp_server.par"
+        ));
+        assert!(!looks_like_harness_argv("agy --help"));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn antigravity_launch_args_match_the_platform_registry() {
+        if cfg!(target_os = "linux") {
+            assert_eq!(antigravity_args(), vec!["--uid="]);
+        } else {
+            assert!(antigravity_args().is_empty());
+        }
+    }
+
+    #[test]
+    fn command_basename_strips_path() {
+        assert_eq!(command_basename("/Users/me/.local/bin/fx"), "fx");
+        assert_eq!(command_basename("fx"), "fx");
+        assert_eq!(command_basename("/Users/me/.grok/bin/grok"), "grok");
+        assert_eq!(command_basename("fx.exe"), "fx");
+    }
+
+    #[test]
     fn passwd_identity_resolves_the_current_user() {
         let id = passwd_identity().expect("passwd");
         assert!(!id.user.is_empty());
@@ -2504,8 +3828,36 @@ mod exec_tests {
     }
 
     #[test]
+    fn http_bridge_accepts_only_loopback_without_credentials() {
+        for url in [
+            "http://127.0.0.1:4096/session",
+            "http://localhost:4096/event",
+        ] {
+            assert!(assert_loopback(url).is_ok(), "{url}");
+        }
+        for url in [
+            "https://example.com/session",
+            "http://127.0.0.1:4096@example.com/session",
+            "http://localhost.evil.example:4096/event",
+            "file:///tmp/session",
+        ] {
+            assert!(assert_loopback(url).is_err(), "{url}");
+        }
+    }
+
+    #[test]
     fn allows_known_catalog_args() {
-        assert!(exec_args_allowed(&args(&["--version"])));
+        for allowed in [
+            args(&["--version"]),
+            args(&["--list-models"]),
+            args(&["models", "--verbose"]),
+            args(&["models", "--json"]),
+            args(&["models"]),
+            args(&["status", "--json"]),
+            args(&["agent", "list"]),
+        ] {
+            assert!(exec_args_allowed(&allowed));
+        }
     }
 
     #[test]

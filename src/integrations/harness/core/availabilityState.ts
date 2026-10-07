@@ -10,6 +10,14 @@ export type HarnessAvailability = Record<HarnessId, boolean>;
 let availability: HarnessAvailability = {
   claude: false,
   codex: false,
+  cursor: false,
+  grok: false,
+  opencode: false,
+  pi: false,
+  omp: false,
+  fx: false,
+  hermes: false,
+  antigravity: false,
 };
 let version = 0;
 let probedAt = 0;

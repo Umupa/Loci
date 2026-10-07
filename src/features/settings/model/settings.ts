@@ -55,7 +55,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         group: "agents",
         label: "Providers",
         description: "Provider accounts, agent CLIs Loci can drive, and the model new sessions start with.",
-        keywords: "account sign in login model harness claude codex cli default hooks",
+        keywords: "account sign in login model harness claude codex cursor grok opencode pi omp fx hermes antigravity cli default hooks",
     },
     {
         id: "mcp",
@@ -247,7 +247,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         id: "agent-clis",
         section: "providers",
         label: "Agent CLIs",
-        keywords: "claude codex binary path",
+        keywords: "claude codex cursor grok opencode pi omp fx hermes antigravity binary path",
     },
     {
         id: "provider-accounts",

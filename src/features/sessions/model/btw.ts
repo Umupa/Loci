@@ -17,6 +17,11 @@ import { resolveModel } from "./models";
 export const BTW_HARNESSES: readonly HarnessId[] = [
   "claude",
   "codex",
+  "cursor",
+  "grok",
+  "opencode",
+  "pi",
+  "omp",
 ];
 
 export function supportsBtwHarness(
