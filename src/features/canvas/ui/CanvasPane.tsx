@@ -2,7 +2,7 @@ import "@excalidraw/excalidraw/index.css";
 import { convertToExcalidrawElements, Excalidraw, getSceneVersion, hashElementsVersion } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { GripVertical, ExternalLink, MessageSquarePlus, ExcalidrawIcon, X } from "../../../shared/ui/icons";
+import { GripVertical, ExternalLink, MessageSquarePlus, ExcalidrawIcon, X, Maximize2, Minimize2 } from "../../../shared/ui/icons";
 import type { Canvas } from "../canvas";
 import { canvasElementsToText, updateCanvas } from "../canvas";
 import { registerCanvasRenderer } from "../renderScheduling";
@@ -40,8 +40,19 @@ type Props = {
 
 function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorkspace, onPaneDragStart, onAddToChat, onTitleChange, onRegisterAppend }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef(canvas);
   canvasRef.current = canvas;
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const handler = () => setIsFullscreen(document.fullscreenElement === containerRef.current);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+  const toggleFullscreen = () => {
+    if (isFullscreen) void document.exitFullscreen();
+    else void containerRef.current?.requestFullscreen();
+  };
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDataRef = useRef<Scene | null>(null);
   const revisionRef = useRef<SceneRevision | null>(null);
@@ -151,7 +162,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
   };
 
   return (
-    <div className="loci-canvas flex h-full min-h-0 min-w-0 flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
+    <div ref={containerRef} className="loci-canvas flex h-full min-h-0 min-w-0 flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
       <div className={`flex h-9 shrink-0 select-none items-center gap-1.5 border-b border-stroke px-2 ${onPaneDragStart ? "cursor-grab active:cursor-grabbing touch-none" : ""}`}
         onPointerDown={(event) => {
           if (!(event.target as HTMLElement).closest("[data-no-drag]")) onPaneDragStart?.(event);
@@ -170,6 +181,9 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
         <button type="button" data-no-drag aria-label="Add drawing to chat" title="Add selected elements or drawing to chat" onClick={handleAddToChat}
           className="flex h-6 shrink-0 items-center gap-1 rounded px-1.5 text-xs text-content/55 hover:bg-content/10 hover:text-content">
           <MessageSquarePlus className="size-3.5" /><span>Add to chat</span>
+        </button>
+        <button type="button" data-no-drag aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={toggleFullscreen} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content">
+          {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
         </button>
         {onOpenInWorkspace ? <button type="button" data-no-drag aria-label="Open drawing in workspace" title="Open in workspace" onClick={onOpenInWorkspace} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><ExternalLink className="size-3.5" /></button> : null}
         {onClose ? <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose}
