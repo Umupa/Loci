@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import { Folder, LoaderCircle, MessageSquare, Search } from "../../../shared/ui/icons";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, } from "react";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
@@ -17,9 +16,9 @@ const SCOPES: {
     id: SearchScope;
     label: string;
 }[] = [
-    { id: "all", get label() { return t("All"); } },
-    { id: "conversations", get label() { return t("Conversations"); } },
-    { id: "projects", get label() { return t("Projects"); } },
+    { id: "all", label: "All" },
+    { id: "conversations", label: "Conversations" },
+    { id: "projects", label: "Projects" },
 ];
 type Props = {
     open: boolean;
@@ -36,7 +35,6 @@ type Props = {
     onOpenProject: (path: string) => void;
 };
 export function SearchView({ open, cwd, recents, history, sessions, focusToken = 0, besideRail = false, compactRail = false, onClose, onToggleSidebar, onOpenSession, onOpenProject, }: Props) {
-  useLocale();
     const inputRef = useRef<HTMLInputElement>(null);
     const activeSessionOwner = useRef<string | null>(null);
     const onCloseRef = useRef(onClose);
@@ -82,8 +80,8 @@ export function SearchView({ open, cwd, recents, history, sessions, focusToken =
         window.addEventListener("keydown", onKey, true);
         return () => window.removeEventListener("keydown", onKey, true);
     }, [open]);
-    const conversationRows = useMemo(() => conversationRowsFrom(history, sessions), [getLocale(), history, sessions]);
-    const titleHits = useMemo(() => (trimmed ? searchConversationTitles(conversationRows, trimmed) : []), [getLocale(), conversationRows, trimmed]);
+    const conversationRows = useMemo(() => conversationRowsFrom(history, sessions), [history, sessions]);
+    const titleHits = useMemo(() => (trimmed ? searchConversationTitles(conversationRows, trimmed) : []), [conversationRows, trimmed]);
     const liveMessageHits = useMemo(() => trimmed
         ? searchSessionMessages(sessions.map((session) => ({
             id: session.id,
@@ -93,8 +91,8 @@ export function SearchView({ open, cwd, recents, history, sessions, focusToken =
             updatedAt: Date.now(),
             blocks: session.blocks,
         })), trimmed)
-        : [], [getLocale(), sessions, trimmed]);
-    const projectHits = useMemo(() => (trimmed ? searchRecentProjects(recents, trimmed) : []), [getLocale(), recents, trimmed]);
+        : [], [sessions, trimmed]);
+    const projectHits = useMemo(() => (trimmed ? searchRecentProjects(recents, trimmed) : []), [recents, trimmed]);
     useEffect(() => {
         if (!open || !trimmed) {
             setStoredHits([]);
@@ -153,7 +151,7 @@ export function SearchView({ open, cwd, recents, history, sessions, focusToken =
         if (!trimmed)
             return [];
         return flattenGrouped(groupHits(mergeHits(titleHits, liveMessageHits, storedHits, projectHits), scope));
-    }, [getLocale(),
+    }, [
         liveMessageHits,
         projectHits,
         storedHits,
@@ -207,15 +205,16 @@ export function SearchView({ open, cwd, recents, history, sessions, focusToken =
     const empty = !trimmed;
     const noResults = !empty && hits.length === 0 && !loading;
     const limitNotice = truncated ? (<p className="px-2.5 py-1 text-[11px] text-content/45">
-      {t("Results limited to the first matches")}</p>) : null;
-    return (<div role="search" aria-label={t("Search")} data-app-search className="flex min-h-0 min-w-0 flex-1 flex-col text-content">
+      Results limited to the first matches
+    </p>) : null;
+    return (<div role="search" aria-label="Search" data-app-search className="flex min-h-0 min-w-0 flex-1 flex-col text-content">
       <div className="flex h-10 shrink-0 select-none items-center border-b border-stroke" data-tauri-drag-region="deep">
         {IS_MAC && compactRail ? <div className="w-4 shrink-0"/> : null}
         {IS_MAC && !besideRail ? <div className="w-[78px] shrink-0"/> : null}
         {besideRail ? null : (<OverlayNav onBack={onClose} onToggleSidebar={onToggleSidebar}/>)}
         <label className="flex min-w-0 flex-1 items-center gap-2 px-3 text-content/50">
           <Search className="size-3.5 shrink-0" strokeWidth={1.75}/>
-          <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onQueryKeyDown} placeholder={t("Search everything...")} aria-label={t("Search")} spellCheck={false} autoComplete="off" autoCorrect="off" autoCapitalize="off" data-tauri-drag-region="false" className="min-w-0 flex-1 bg-transparent text-[13px] text-content outline-none select-text placeholder:text-content/40"/>
+          <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onQueryKeyDown} placeholder="Search everything..." aria-label="Search" spellCheck={false} autoComplete="off" autoCorrect="off" autoCapitalize="off" data-tauri-drag-region="false" className="min-w-0 flex-1 bg-transparent text-[13px] text-content outline-none select-text placeholder:text-content/40"/>
           {loading ? (<LoaderCircle className="size-3.5 shrink-0 animate-spin text-content/35" strokeWidth={1.75}/>) : null}
         </label>
         {!IS_MAC ? <WindowControls /> : null}
@@ -236,7 +235,7 @@ export function SearchView({ open, cwd, recents, history, sessions, focusToken =
             ? "flex min-h-0 flex-1 items-center justify-center overflow-y-auto overscroll-none"
             : "min-h-0 flex-1 overflow-y-auto overscroll-none px-1.5 py-1.5"}>
         {empty ? (<EmptyState />) : error && hits.length === 0 ? (<p className="px-2 py-1.5 text-[12px] text-red-400">{error}</p>) : noResults ? (<>
-            <p className="px-2 py-1.5 text-[12px] text-content/50">{t("No results")}</p>
+            <p className="px-2 py-1.5 text-[12px] text-content/50">No results</p>
             {limitNotice}
           </>) : (<>
             {limitNotice}
@@ -248,7 +247,6 @@ export function SearchView({ open, cwd, recents, history, sessions, focusToken =
 const EMPTY_DOT_COLS = 27;
 const EMPTY_DOT_ROWS = 19;
 function EmptyState() {
-  useLocale();
     return (<div className="flex flex-col items-center justify-center px-6 pb-24">
       <div className="relative mb-2 grid h-48 w-72 place-items-center">
         <div className="grid gap-[7px] opacity-[0.14] [mask-image:radial-gradient(ellipse_72%_68%_at_50%_50%,#000_18%,transparent_76%)]" style={{
@@ -262,7 +260,8 @@ function EmptyState() {
       </div>
 
       <p className="max-w-xs text-center text-[13px] text-content/45">
-        {t("Find conversations, messages, and projects.")}</p>
+        Find conversations, messages, and projects.
+      </p>
     </div>);
 }
 function ResultList({ hits, active, query, onActive, onOpen, }: {
@@ -272,7 +271,6 @@ function ResultList({ hits, active, query, onActive, onOpen, }: {
     onActive: (index: number) => void;
     onOpen: (hit: AppSearchHit) => void;
 }) {
-  useLocale();
     const activeRef = useRef<HTMLButtonElement>(null);
     const pointer = useRef({ x: Number.NaN, y: Number.NaN, allow: false });
     const fromPointer = useRef(false);
@@ -300,7 +298,7 @@ function ResultList({ hits, active, query, onActive, onOpen, }: {
         fromPointer.current = true;
         onActive(index);
     };
-    return (<div role="listbox" aria-label={t("Search results")} onMouseMove={onListMouseMove}>
+    return (<div role="listbox" aria-label="Search results" onMouseMove={onListMouseMove}>
       {hits.map((hit, index) => {
             const highlighted = index === active;
             const row = rowCopy(hit, query);
@@ -345,7 +343,6 @@ function Highlight({ text, query }: {
     text: string;
     query: string;
 }) {
-  useLocale();
     const needle = query.trim();
     if (!needle)
         return <>{text}</>;

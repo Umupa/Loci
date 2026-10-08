@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
 import {
   AppWindow,
   ChevronRight,
@@ -94,7 +93,7 @@ type MenuItem = {
 const ITEMS: MenuItem[] = [
   {
     id: "new-tab",
-    get label() { return t("New tab in group"); },
+    label: "New tab in group",
     shortcut: `${MOD}T`,
     icon: SquarePlus,
   },
@@ -105,18 +104,18 @@ const ITEMS: MenuItem[] = [
   },
   {
     id: "close-group",
-    get label() { return t("Close group"); },
+    label: "Close group",
     shortcut: `${MOD}W`,
     icon: X,
   },
   {
     id: "ungroup",
-    get label() { return t("Ungroup"); },
+    label: "Ungroup",
     icon: Ungroup,
   },
   {
     id: "delete-group",
-    get label() { return t("Delete group"); },
+    label: "Delete group",
     danger: true,
     icon: Trash2,
   },
@@ -148,7 +147,6 @@ export function TabGroupMenu({
   onExtraPick,
   footer,
 }: Props) {
-  useLocale();
   const menuId = useId();
   const [submenu, setSubmenu] = useState<{
     item: TabGroupMenuExtraItem;
@@ -233,7 +231,7 @@ export function TabGroupMenu({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={commitName}
-          aria-label={t("Group name")}
+          aria-label="Group name"
           className="mb-2 w-full rounded-lg border border-content/10 bg-content/5 px-2.5 py-1.5 text-[13px] text-content outline-none ring-accent/40 focus:ring-1"
         />
 
@@ -241,8 +239,8 @@ export function TabGroupMenu({
           <div className="mb-2 flex items-center gap-2 px-0.5">
             <button
               type="button"
-              title={logoPath ? t("Change project logo") : t("Add project logo")}
-              aria-label={logoPath ? t("Change project logo") : t("Add project logo")}
+              title={logoPath ? "Change project logo" : "Add project logo"}
+              aria-label={logoPath ? "Change project logo" : "Add project logo"}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 void (async () => {
@@ -267,16 +265,16 @@ export function TabGroupMenu({
               />
             </button>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] text-content/50">{t("Project logo")}</p>
+              <p className="text-[11px] text-content/50">Project logo</p>
               <p className="truncate text-[12px] text-content/70">
-                {logoPath ? t("Shown in tabs and composer") : t("Optional — replaces folder icon")}
+                {logoPath ? "Shown in tabs and composer" : "Optional — replaces folder icon"}
               </p>
             </div>
             {logoPath ? (
               <button
                 type="button"
-                title={t("Remove project logo")}
-                aria-label={t("Remove project logo")}
+                title="Remove project logo"
+                aria-label="Remove project logo"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   void clearProjectLogo(projectKey(logoProject)).then(onLogoChange);
@@ -311,7 +309,7 @@ export function TabGroupMenu({
         ) : null}
 
         <div className="mb-2 px-0.5">
-          <p className="mb-1 text-[11px] text-content/50">{t("Mascot")}</p>
+          <p className="mb-1 text-[11px] text-content/50">Mascot</p>
           <div className="flex items-center justify-between gap-1">
             {PROJECT_MASCOTS.map((mascot) => (
               <MascotSwatch
@@ -420,12 +418,11 @@ function MascotSwatch({
   onPick: () => void;
   children: ReactNode;
 }) {
-  useLocale();
   return (
     <button
       type="button"
       title={title}
-      aria-label={t("Mascot {0}", title)}
+      aria-label={`Mascot ${title}`}
       aria-pressed={selected}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onPick}
@@ -451,7 +448,6 @@ function MenuRow({
   onHover?: (anchor: HTMLButtonElement) => void;
   expanded?: boolean;
 }) {
-  useLocale();
   const Icon = item.icon;
   return (
     <button

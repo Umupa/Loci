@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import {
   ChevronDown,
   ChevronRight,
@@ -131,7 +130,6 @@ type TreeCtxValue = {
 const TreeCtx = createContext<TreeCtxValue | null>(null);
 
 function useTree(): TreeCtxValue {
-  useLocale();
   const ctx = useContext(TreeCtx);
   if (!ctx) throw new Error("TreeCtx missing");
   return ctx;
@@ -176,67 +174,67 @@ function treeMenuItems(target: MenuTarget, clip: Clip | null): ContextMenuItem[]
     ...(target.isDir
       ? []
       : [
-          { kind: "item" as const, id: "open", label: t("Open") },
-          { kind: "item" as const, id: "open-pinned", label: t("Open in Its Own Pane") },
-          { kind: "item" as const, id: "open-default", label: t("Open with Default App") },
+          { kind: "item" as const, id: "open", label: "Open" },
+          { kind: "item" as const, id: "open-pinned", label: "Open in Its Own Pane" },
+          { kind: "item" as const, id: "open-default", label: "Open with Default App" },
           { kind: "sep" as const },
         ]),
-    { kind: "item", id: "new-file", label: t("New File") },
-    { kind: "item", id: "new-folder", label: t("New Folder") },
+    { kind: "item", id: "new-file", label: "New File" },
+    { kind: "item", id: "new-folder", label: "New Folder" },
     { kind: "sep" },
     {
       kind: "item",
       id: "cut",
-      label: t("Cut"),
+      label: "Cut",
       shortcut: `${MOD}X`,
       disabled: target.isRoot,
     },
     {
       kind: "item",
       id: "copy",
-      label: t("Copy"),
+      label: "Copy",
       shortcut: `${MOD}C`,
       disabled: target.isRoot,
     },
     {
       kind: "item",
       id: "paste",
-      label: t("Paste"),
+      label: "Paste",
       shortcut: `${MOD}V`,
       disabled: pasteBlocked,
     },
     {
       kind: "item",
       id: "duplicate",
-      label: t("Duplicate"),
+      label: "Duplicate",
       disabled: target.isRoot,
     },
     { kind: "sep" },
     {
       kind: "item",
       id: "add-to-chat",
-      label: t("Add to Chat"),
+      label: "Add to Chat",
       disabled: target.isRoot,
     },
     {
       kind: "item",
       id: "copy-path",
-      label: t("Copy Path"),
+      label: "Copy Path",
       shortcut: `${MOD}${SHIFT}C`,
     },
-    { kind: "item", id: "copy-relative-path", label: t("Copy Relative Path") },
+    { kind: "item", id: "copy-relative-path", label: "Copy Relative Path" },
     { kind: "sep" },
     {
       kind: "item",
       id: "rename",
-      label: t("Rename"),
+      label: "Rename",
       shortcut: "F2",
       disabled: target.isRoot,
     },
     {
       kind: "item",
       id: "delete",
-      label: t("Move to Trash"),
+      label: "Move to Trash",
       shortcut: "⌫",
       disabled: target.isRoot,
       danger: true,
@@ -255,7 +253,6 @@ export const FileTree = memo(function FileTree({
   onFileMoved,
   onFileDeleted,
 }: Props) {
-  useLocale();
   const [expanded, setExpanded] = useState(() => loadExpanded(cwd));
   const [selectedPath, setSelectedPath] = useState(() => loadSelected(cwd));
   const [children, setChildren] = useState<FsEntry[] | null>(() =>
@@ -281,7 +278,7 @@ export const FileTree = memo(function FileTree({
   const searching = query.trim().length > 0;
   const matches = useMemo(
     () => (searching && index ? findFiles(index, query) : []),
-    [getLocale(), index, query, searching],
+    [index, query, searching],
   );
   const creatingRef = useRef(creating);
   creatingRef.current = creating;
@@ -604,8 +601,8 @@ export const FileTree = memo(function FileTree({
     const label = basename(path);
     const ok = window.confirm(
       isDir
-        ? t("Move folder “{0}” and everything inside it to the Trash?", label)
-        : t("Move “{0}” to the Trash?", label),
+        ? `Move folder “${label}” and everything inside it to the Trash?`
+        : `Move “${label}” to the Trash?`,
     );
     if (!ok) return;
     await trashPath(path);
@@ -650,7 +647,7 @@ export const FileTree = memo(function FileTree({
       clip.isDir &&
       (destParent === clip.path || destParent.startsWith(`${clip.path}/`))
     ) {
-      throw new Error(t("Cannot paste a folder into itself."));
+      throw new Error("Cannot paste a folder into itself.");
     }
     const from = clip.path;
     const mode = clip.mode;
@@ -967,20 +964,20 @@ export const FileTree = memo(function FileTree({
           className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-stroke px-2"
           onContextMenu={(e) => e.stopPropagation()}
         >
-          <HeaderIcon label={t("New File")} onClick={() => startCreate(false)}>
+          <HeaderIcon label="New File" onClick={() => startCreate(false)}>
             <FilePlus className="size-3.5" strokeWidth={1.75} />
           </HeaderIcon>
-          <HeaderIcon label={t("New Folder")} onClick={() => startCreate(true)}>
+          <HeaderIcon label="New Folder" onClick={() => startCreate(true)}>
             <FolderPlus className="size-3.5" strokeWidth={1.75} />
           </HeaderIcon>
-          <HeaderIcon label={t("Import Files")} onClick={async () => {
-            const files = await pickFiles(t("Import files to project"));
+          <HeaderIcon label="Import Files" onClick={async () => {
+            const files = await pickFiles("Import files to project");
             if (files) {
               for (const file of files) {
                 try {
                   await copyPath(file, cwd);
                 } catch (err) {
-                  console.error(t("Failed to import {0}:", file), err);
+                  console.error(`Failed to import ${file}:`, err);
                 }
               }
               notifyDirsChanged();
@@ -989,7 +986,7 @@ export const FileTree = memo(function FileTree({
             <FolderOpen className="size-3.5" strokeWidth={1.75} />
           </HeaderIcon>
           <HeaderIcon
-            label={t("Collapse All")}
+            label="Collapse All"
             onClick={() => {
               setCreating(null);
               setRenaming(null);
@@ -1001,7 +998,7 @@ export const FileTree = memo(function FileTree({
             <FoldVertical className="size-3.5" strokeWidth={1.75} />
           </HeaderIcon>
           <HeaderIcon
-            label={showHidden ? t("Hide Hidden Files") : t("Show Hidden Files")}
+            label={showHidden ? "Hide Hidden Files" : "Show Hidden Files"}
             active={showHidden}
             onClick={() => {
               writeShowHidden(!showHidden);
@@ -1024,8 +1021,8 @@ export const FileTree = memo(function FileTree({
             <input
               type="text"
               value={query}
-              placeholder={t("Search files...")}
-              aria-label={t("Search files by name or path")}
+              placeholder="Search files..."
+              aria-label="Search files by name or path"
               spellCheck={false}
               autoComplete="off"
               autoCorrect="off"
@@ -1055,8 +1052,8 @@ export const FileTree = memo(function FileTree({
             {query ? (
               <button
                 type="button"
-                aria-label={t("Clear search")}
-                title={t("Clear search")}
+                aria-label="Clear search"
+                title="Clear search"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setQuery("")}
                 className="absolute right-1 grid size-5 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"
@@ -1088,7 +1085,7 @@ export const FileTree = memo(function FileTree({
             </p>
           ) : null}
           {rootOpen ? (
-            <div role="tree" aria-label={t("{0} files", name)}>
+            <div role="tree" aria-label={`${name} files`}>
               <TreeChildren
                 parent={cwd}
                 depth={0}
@@ -1106,7 +1103,7 @@ export const FileTree = memo(function FileTree({
         <ContextMenu
           x={menu.x}
           y={menu.y}
-          ariaLabel={t("File actions")}
+          ariaLabel="File actions"
           items={treeMenuItems(menu.target, clip)}
           onPick={(id) => {
             const target = menu.target;
@@ -1131,7 +1128,6 @@ function HeaderIcon({
   active?: boolean;
   children: ReactNode;
 }) {
-  useLocale();
   return (
     <button
       type="button"
@@ -1164,7 +1160,6 @@ function TreeChildren({
   loading: boolean;
   error: string | null;
 }) {
-  useLocale();
   const ctx = useTree();
   const creating = ctx.creating;
   const show = creating?.parent === parent;
@@ -1211,7 +1206,6 @@ function TreeChildren({
 }
 
 function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
-  useLocale();
   const {
     expanded,
     selectedPath,
@@ -1358,17 +1352,16 @@ function FileMatches({
   onOpen: (match: FileMatch, pin?: boolean) => void;
   onContextMenu: TreeCtxValue["onItemContextMenu"];
 }) {
-  useLocale();
   return (
     <div
       ref={lockRef}
       role="listbox"
-      aria-label={t("Matching files")}
+      aria-label="Matching files"
       className="min-h-0 flex-1 overflow-y-auto overscroll-none"
     >
       {matches.length === 0 ? (
         <p className="px-3 py-2 text-[12px] text-content/50">
-          {loading ? "…" : t("No matching files")}
+          {loading ? "…" : "No matching files"}
         </p>
       ) : null}
       {matches.map((match, index) => {
@@ -1447,7 +1440,6 @@ export function NameRow({
   onCommit: (raw: string) => Promise<void>;
   onCancel: () => void;
 }) {
-  useLocale();
   const inputRef = useRef<HTMLInputElement>(null);
   const finished = useRef(false);
   const [value, setValue] = useState(initial);
@@ -1519,7 +1511,7 @@ export function NameRow({
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
-          aria-label={t("Type file name. Press Enter to confirm or Escape to cancel.")}
+          aria-label="Type file name. Press Enter to confirm or Escape to cancel."
           onChange={(e) => {
             setValue(e.target.value);
             setSubmitError(null);
@@ -1556,31 +1548,36 @@ function NameIssueView({
   issue: NameIssue | null;
   fallback: string | null;
 }) {
-  useLocale();
   let body: ReactNode = null;
   if (fallback) {
     body = fallback;
   } else if (issue) {
     switch (issue.kind) {
       case "empty":
-        body = t("A file or folder name must be provided.");
+        body = "A file or folder name must be provided.";
         break;
       case "slash":
-        body = t("A file or folder name cannot start with a slash.");
+        body = "A file or folder name cannot start with a slash.";
         break;
       case "exists":
         body = (
-          t("A file or folder “{0}” already exists at this location. Please choose a different name.", issue.name)
+          <>
+            A file or folder <span className="font-semibold">{issue.name}</span>{" "}
+            already exists at this location. Please choose a different name.
+          </>
         );
         break;
       case "invalid":
         body = (
-          t("“{0}” is not a valid file or folder name. Please choose a different name.", issue.name)
+          <>
+            The name <span className="font-semibold">{issue.name}</span> is not
+            valid as a file or folder name. Please choose a different name.
+          </>
         );
         break;
       case "whitespace":
         body =
-          t("Leading or trailing whitespace detected in file or folder name.");
+          "Leading or trailing whitespace detected in file or folder name.";
         break;
     }
   }

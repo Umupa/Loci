@@ -1,3 +1,4 @@
+import { useUiText } from "../i18n/SettingsLanguage";
 import { NativePopupHost } from "./NativePopupHost";
 import {
   useCallback,
@@ -130,11 +131,12 @@ function samePosition(a: PopoverPosition | null, b: PopoverPosition): boolean {
  * viewport flipping, and animated in from the anchored edge.
  */
 export function Popover(props: Props) {
+  const { locale } = useUiText();
   const host = useContext(NativePopupHost);
   return host ? (
-    <NativePopover {...props} host={host} />
+    <NativePopover {...props} lang={locale} host={host} />
   ) : (
-    <WebPopover {...props} />
+    <WebPopover {...props} lang={locale} />
   );
 }
 

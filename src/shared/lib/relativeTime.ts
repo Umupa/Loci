@@ -1,8 +1,7 @@
-import { getLocale } from "../i18n/locale";
 export function formatRelativeTime(
   iso: string,
   now = Date.now(),
-  locale?: string,
+  locale = "en",
 ): string {
   const then = Date.parse(iso);
   if (!Number.isFinite(then)) return "";
@@ -27,7 +26,7 @@ export function formatRelativeTime(
     amount = Math.abs(value);
   }
   try {
-    return new Intl.RelativeTimeFormat(locale ?? getLocale(), { numeric: "auto" }).format(
+    return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
       value,
       unit,
     );

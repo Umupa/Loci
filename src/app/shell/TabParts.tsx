@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../shared/i18n/locale";
 import { Chatting, CheckCircle, ExcalidrawIcon, Pin } from "../../shared/ui/icons";
 import { FileTypeIcon } from "../../shared/ui/FileTypeIcon";
 import { Popover } from "../../shared/ui/Popover";
@@ -16,7 +15,6 @@ export const STATUS_TEXT: Record<TabStatus, string> = {
 
 /** A small mark that a tab needs the user, pulsing to catch the eye without moving anything. */
 export function ApprovalDot() {
-  useLocale();
   return (
     <span aria-hidden className="pointer-events-none absolute -right-[3px] -top-[3px] grid size-2 place-items-center">
       <span className="absolute inline-flex size-full rounded-full bg-amber-400/60 motion-safe:animate-ping" />
@@ -30,7 +28,6 @@ export function ApprovalDot() {
  * Working shows a spinner and finished a check; waiting for the user adds a dot.
  */
 export function TabGlyph({ tab, dimmed = false, size = "sm" }: { tab: Tab; dimmed?: boolean; size?: "sm" | "md" }) {
-  useLocale();
   const box = size === "md" ? "size-4" : "size-3.5";
   let glyph;
   if (tab.status === "busy") {
@@ -57,7 +54,6 @@ export function TabGlyph({ tab, dimmed = false, size = "sm" }: { tab: Tab; dimme
 
 /** The card that unfolds under a tab: everything its narrow label could not say. */
 export function TabHoverCard({ tab, anchor, now }: { tab: Tab; anchor: HTMLElement; now: number }) {
-  useLocale();
   const label = tabStatusLabel(tab, now);
   return (
     <Popover anchor={anchor} side="bottom" align="start" gap={6} width={304} constrainHeight={false} role="tooltip" className="pointer-events-none">
@@ -65,7 +61,7 @@ export function TabHoverCard({ tab, anchor, now }: { tab: Tab; anchor: HTMLEleme
         <div className="flex items-start gap-2.5">
           <span className="mt-0.5"><TabGlyph tab={tab} size="md" /></span>
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-[13px] font-medium leading-snug text-content">{tab.title || t("New session")}</p>
+            <p className="line-clamp-2 text-[13px] font-medium leading-snug text-content">{tab.title || "New session"}</p>
             <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-snug">
               {tab.project ? <span className="min-w-0 truncate text-content/50">{tab.project}</span> : null}
               {tab.project && label ? <span aria-hidden className="text-content/25">·</span> : null}
@@ -79,7 +75,7 @@ export function TabHoverCard({ tab, anchor, now }: { tab: Tab; anchor: HTMLEleme
         ) : null}
         {tab.sessionCount > 1 || tab.multiPane ? (
           <p className="text-[11px] text-content/40">
-            {tab.sessionCount > 1 ? t("{0} conversations", tab.sessionCount) : t("Split view")}
+            {tab.sessionCount > 1 ? `${tab.sessionCount} conversations` : "Split view"}
           </p>
         ) : null}
       </div>

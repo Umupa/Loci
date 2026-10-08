@@ -1,4 +1,3 @@
-import { useLocale } from "../../../shared/i18n/locale";
 import { AiIdea,CircleDashed } from "../../../shared/ui/icons";
 import { planTitle } from "../model/plan";
 
@@ -7,7 +6,6 @@ import { AgentMarkdown } from "./AgentMarkdown";
 type Props = { text: string; streaming?: boolean };
 
 export function PlanPreview({ text, streaming }: Props) {
-  useLocale();
   const title = planTitle(text);
   return (
     <div className="mb-2 overflow-hidden rounded-[12px] border border-content/10 bg-content/7">

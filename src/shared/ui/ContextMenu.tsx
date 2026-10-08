@@ -1,4 +1,4 @@
-import { t, useLocale, getLocale } from "../i18n/locale";
+import { useUiText } from "../i18n/SettingsLanguage";
 import {
   useEffect,
   useId,
@@ -65,7 +65,7 @@ export function ContextMenu({
   ownerId,
   onBack,
   items,
-  ariaLabel = t("Actions"),
+  ariaLabel = "Actions",
   header,
   width = MENU_WIDTH,
   onPick,
@@ -73,7 +73,7 @@ export function ContextMenu({
   onMouseEnter,
   onMouseLeave,
 }: Props) {
-  useLocale();
+  const { t, locale } = useUiText();
   const menuId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
@@ -116,7 +116,7 @@ export function ContextMenu({
           ? [{ index, id: item.id, disabled: !!item.disabled }]
           : [],
       ),
-    [getLocale(), items],
+    [locale, items],
   );
 
   const move = (dir: 1 | -1) => {
@@ -288,7 +288,7 @@ export function ContextMenu({
         data-explorer-menu={menuId}
         role="menu"
         tabIndex={-1}
-        aria-label={ariaLabel}
+        aria-label={t(ariaLabel)}
         aria-activedescendant={`${menuId}-${active}`}
         onKeyDown={onMenuKey}
         onContextMenu={(e) => e.preventDefault()}

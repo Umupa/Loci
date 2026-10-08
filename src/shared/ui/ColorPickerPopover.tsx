@@ -1,4 +1,4 @@
-import { t, useLocale } from "../i18n/locale";
+import { useUiText } from "../i18n/SettingsLanguage";
 import {
   useCallback,
   useEffect,
@@ -33,7 +33,7 @@ export function ColorSwatchRow({
   onPickIndex: (index: number) => void;
   onToggleCustom?: () => void;
 }) {
-  useLocale();
+  const { t } = useUiText();
   const pipetteActive =
     customHighlighted ?? (customColor != null || customPickerOpen);
   return (
@@ -103,7 +103,7 @@ export function ColorSwatchRow({
 }
 
 export function ColorPickerPopover({ value, onChange }: Props) {
-  useLocale();
+  const { t } = useUiText();
   const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(value));
   const svRef = useRef<HTMLDivElement>(null);
   const hueRef = useRef<HTMLDivElement>(null);

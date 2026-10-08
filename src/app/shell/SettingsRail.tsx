@@ -1,3 +1,4 @@
+import { SettingsLanguage } from "../../shared/i18n/SettingsLanguage";
 import { t, useLocale } from "../../shared/i18n/locale";
 import { Archive, ArrowLeft, Bot, Globe, Keyboard, MessageSquare, Palette, SlidersHorizontal, Sparkles, type IconComponent, } from "../../shared/ui/icons";
 import { useLockOverscroll } from "../../shared/hooks/useLockOverscroll";
@@ -18,7 +19,10 @@ type Props = {
     onClose: () => void;
 };
 /** Body of the project rail while settings are open. */
-export function SettingsNav({ section, onSelect, onClose }: Props) {
+export function SettingsNav(props: Props) {
+    return <SettingsLanguage><SettingsNavContent {...props}/></SettingsLanguage>;
+}
+function SettingsNavContent({ section, onSelect, onClose }: Props) {
   useLocale();
     const lockOverscroll = useLockOverscroll<HTMLDivElement>();
     return (<>

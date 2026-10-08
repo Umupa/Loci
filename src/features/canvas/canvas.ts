@@ -1,4 +1,3 @@
-import { t } from "../../shared/i18n/locale";
 import { invoke } from "@tauri-apps/api/core";
 import type { ExcalidrawProps } from "@excalidraw/excalidraw/types";
 
@@ -244,7 +243,7 @@ export async function deleteCanvas(id: string): Promise<void> {
 export function createEmptyCanvas(cwd?: string): CanvasUpsert {
   return {
     id: crypto.randomUUID(),
-    title: t("Untitled drawing"),
+    title: "Untitled drawing",
     dataJson: JSON.stringify({ elements: [], appState: {}, files: {} }),
     tags: [],
     cwd,

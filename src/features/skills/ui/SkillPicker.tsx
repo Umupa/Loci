@@ -1,4 +1,4 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
+import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import { Plus } from "../../../shared/ui/icons";
 import {
   useEffect,
@@ -49,7 +49,7 @@ export function SkillPicker({
   onCancelCreate,
   onCreate,
 }: Props) {
-  useLocale();
+  const { t } = useUiText();
   return (
     <div
       data-skill-picker
@@ -109,7 +109,7 @@ function SkillList({
   onActive: (index: number) => void;
   onPick: (skill: Skill) => void;
 }) {
-  useLocale();
+  const { t } = useUiText();
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const activeRef = useRef<HTMLButtonElement>(null);
   const pointer = useRef({ x: Number.NaN, y: Number.NaN, allow: false });
@@ -218,7 +218,7 @@ export function CreateSkillForm({
   onCancel: () => void;
   onCreate: (name: string, scope: "project" | "user") => void;
 }): ReactNode {
-  useLocale();
+  const { t } = useUiText();
   const input = useRef<HTMLInputElement>(null);
   const project = isLocalProject(cwd);
   const [name, setName] = useState(() => slugSkillName(query));
@@ -321,7 +321,7 @@ function ScopeButton({
   disabled?: boolean;
   onClick: () => void;
 }) {
-  useLocale();
+
   return (
     <button
       type="button"

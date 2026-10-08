@@ -1,4 +1,4 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
+import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import {
   useEffect,
   useRef,
@@ -78,7 +78,7 @@ export function SearchableProjectPicker({
   onProjectContextMenu,
   projectMenuActive = false,
 }: Props) {
-  useLocale();
+  const { t } = useUiText();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);

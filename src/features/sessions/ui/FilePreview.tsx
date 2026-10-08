@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
 import { MAX_PREVIEW_LINES } from "../../../integrations/harness/core/preview";
 import { formatInteger } from "../../../shared/lib/numbers";
 import { displayPath,resolveWorkspacePath } from "../../../shared/lib/paths";
@@ -71,7 +70,6 @@ export function FilePreview({
   onOpenFile,
   variant = "card",
 }: Props) {
-  useLocale();
   const path = preview.path;
   const filePath = path ? (resolveWorkspacePath(path, cwd) ?? path) : undefined;
   const fileName = preview.fileName || fileNameOf(path);
@@ -88,7 +86,7 @@ export function FilePreview({
   const deleted = preview.deletions ?? 0;
   const label = path
     ? displayPath(path, cwd)
-    : fileName || preview.title || t("File");
+    : fileName || preview.title || "File";
 
   return (
     <div
@@ -141,11 +139,12 @@ export function FilePreview({
                 : undefined
             }
             tabIndex={variant === "popover" ? 0 : undefined}
-            aria-label={variant === "popover" ? t("Preview lines") : undefined}
+            aria-label={variant === "popover" ? "Preview lines" : undefined}
           >
             {preview.contentOnly && !lines.length ? (
               <p className="px-3 py-2 font-mono text-xs text-content/50">
-                {t("Empty file")}</p>
+                Empty file
+              </p>
             ) : null}
             {lines.map((line, index) => (
               <PreviewLine
@@ -171,7 +170,6 @@ function PreviewLine({
   showGutter: boolean;
   scrollable?: boolean;
 }) {
-  useLocale();
   const bg =
     line.kind === "add"
       ? "bg-diff-add-bg"
@@ -217,7 +215,6 @@ function PreviewLine({
 }
 
 function StatusIcon({ status }: { status: Status }) {
-  useLocale();
   if (status === "rejected") {
     return <X className="size-3.5 shrink-0 text-red-400" strokeWidth={2} />;
   }

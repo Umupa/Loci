@@ -1,4 +1,3 @@
-import { t } from "../../../shared/i18n/locale";
 import type { Block } from "./session";
 
 export type LociToolCall = {
@@ -104,7 +103,7 @@ export function lociToolCall(block: Block): LociToolCall | undefined {
   if (action === "--help" || action === "help" || action === "-h") {
     return words.length > 3
       ? undefined
-      : { action: "--help", label: t("View CLI commands"), command };
+      : { action: "--help", label: "View CLI commands", command };
   }
   if (!Object.prototype.hasOwnProperty.call(ACTION_LABELS, action))
     return undefined;

@@ -1,4 +1,4 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
+import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import { useEffect,useState,type ReactNode } from "react";
 
 export type MarkdownViewMode = "preview" | "source";
@@ -9,7 +9,7 @@ export function useMarkdownMode(
   key: string,
   fallback: MarkdownViewMode = "preview",
 ): [MarkdownViewMode, (mode: MarkdownViewMode) => void] {
-  useLocale();
+
   const [mode, setMode] = useState<MarkdownViewMode>(
     () => remembered.get(key) ?? fallback,
   );
@@ -33,7 +33,7 @@ type ToggleProps = {
 };
 
 export function MarkdownModeToggle({ mode, onChange }: ToggleProps) {
-  useLocale();
+  const { t } = useUiText();
   return (
     <div
       role="tablist"
@@ -63,7 +63,7 @@ function ModeTab({
   selected: boolean;
   onSelect: () => void;
 }) {
-  useLocale();
+
   return (
     <button
       type="button"
@@ -96,7 +96,7 @@ export function MarkdownViewShell({
   source,
   actions,
 }: ShellProps) {
-  useLocale();
+
   return (
     <div className="markdown-view-shell relative min-h-0 min-w-0 flex-1">
       <div className="markdown-view-actions pointer-events-none absolute right-2 z-20">

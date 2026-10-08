@@ -1,4 +1,4 @@
-import { t, useLocale } from "../i18n/locale";
+import { useUiText } from "../i18n/SettingsLanguage";
 import { LAYER } from "../lib/layers";
 
 export function FileActionError({
@@ -8,7 +8,7 @@ export function FileActionError({
   message: string;
   onDismiss: () => void;
 }) {
-  useLocale();
+  const { t } = useUiText();
   return (
     <div
       role="alert"

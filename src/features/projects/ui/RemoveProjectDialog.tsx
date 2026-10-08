@@ -1,4 +1,4 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
+import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LAYER } from "../../../shared/lib/layers";
@@ -17,7 +17,7 @@ type Props = {
  * disk is left alone; opening it again brings the project back empty.
  */
 export function RemoveProjectDialog({ name, path, onCancel, onConfirm }: Props) {
-  useLocale();
+  const { t } = useUiText();
   const [sessions, setSessions] = useState<number | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 

@@ -1,10 +1,10 @@
-import { t, useLocale } from "../../shared/i18n/locale";
+import { useUiText } from "../../shared/i18n/SettingsLanguage";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, Square, X } from "../../shared/ui/icons";
 import { useEffect, useState } from "react";
 
 export function WindowControls() {
-  useLocale();
+  const { t } = useUiText();
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {

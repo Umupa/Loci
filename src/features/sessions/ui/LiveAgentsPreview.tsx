@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
 import { useEffect,useState } from "react";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { projectKey,projectName } from "../../../shared/lib/paths";
@@ -41,7 +40,6 @@ export function LiveAgentsPreview({
   groupCustomColors: groupCustomColorsProp,
   groupMascots: groupMascotsProp,
 }: Props) {
-  useLocale();
   const [loadedGroupLabels] = useState(loadTabGroupLabels);
   const [loadedGroupColors] = useState(loadTabGroupColors);
   const [loadedGroupCustomColors] = useState(loadTabGroupCustomColors);
@@ -71,12 +69,13 @@ export function LiveAgentsPreview({
 
   return (
     <section
-      aria-label={t("Working agents")}
+      aria-label="Working agents"
       className={`shrink-0 px-2 ${bottomSpacing ? "pb-2" : ""}`}
       data-live-agents-preview="full"
     >
       <span className="sr-only" aria-live="polite" aria-atomic="true">
-        {t("{0} working agents", agents.length)}</span>
+        {agents.length} working agents
+      </span>
       <div className="overflow-hidden rounded-lg bg-content/5">
         <div className="flex items-center gap-2 px-3.5 py-1.5">
           <span
@@ -84,7 +83,8 @@ export function LiveAgentsPreview({
             className="size-1.5 shrink-0 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)] motion-safe:animate-pulse"
           />
           <span className="min-w-0 flex-1 truncate text-xs text-content/50">
-            {t("Working")}</span>
+            Working
+          </span>
           <span className="text-[11px] tabular-nums text-content/40">
             {agents.length}
           </span>
@@ -121,7 +121,7 @@ export function LiveAgentsPreview({
             ) : (
               <ChevronDown className="size-3" strokeWidth={1.75} />
             )}
-            {expanded ? t("Show less") : t("{0} more", extra)}
+            {expanded ? "Show less" : `${extra} more`}
           </button>
         ) : null}
       </div>
@@ -148,7 +148,6 @@ function LiveAgentCard({
   groupCustomColors: Record<string, string>;
   groupMascots: Record<string, string>;
 }) {
-  useLocale();
   const seed = projectName(agent.cwd);
   const key = projectKey(agent.cwd);
   const project = resolveTabGroupLabel(key, groupLabels, seed);
@@ -161,9 +160,9 @@ function LiveAgentCard({
       ? formatLiveElapsed(agent.startedAt, now)
       : "";
   const activity = agent.needsApproval
-    ? t("Need approval")
+    ? "Need approval"
     : agent.done
-      ? t("Done")
+      ? "Done"
       : agent.activity;
   const live = !agent.needsApproval && !agent.done;
   const title = [agent.title, project, activity, elapsed]

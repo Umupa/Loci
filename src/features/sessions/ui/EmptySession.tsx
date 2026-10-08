@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
 import { type ReactNode,useSyncExternalStore } from "react";
 import { basename } from "../../../platform/tauri/fs";
 import { projectKey } from "../../../shared/lib/paths";
@@ -18,7 +17,6 @@ type Props = {
 };
 
 export function EmptySession({ cwd, composer }: Props) {
-  useLocale();
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
 
   const getProjectLabel = () =>
@@ -35,8 +33,8 @@ export function EmptySession({ cwd, composer }: Props) {
     getProjectLabel,
   );
   const title = project
-    ? t("What should we work on in {0}?", project)
-    : t("What should we work on?");
+    ? `What should we work on in ${project}?`
+    : "What should we work on?";
 
   return (
     <div

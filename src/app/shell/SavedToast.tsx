@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../shared/i18n/locale";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { LAYER } from "../../shared/lib/layers";
@@ -16,7 +15,6 @@ type Props = {
 const VISIBLE_MS = 4000;
 
 export function SavedToast({ toast, onOpen, onDismiss }: Props) {
-  useLocale();
   const hovering = useRef(false);
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
@@ -32,8 +30,8 @@ export function SavedToast({ toast, onOpen, onDismiss }: Props) {
 
   const label =
     toast.type === "canvas"
-      ? t("Saved to \"{0}\"", truncate(toast.title || "Untitled drawing"))
-      : t("Saved to Notes");
+      ? `Saved to "${truncate(toast.title || "Untitled drawing")}"`
+      : "Saved to Notes";
 
   return createPortal(
     <div
@@ -54,7 +52,8 @@ export function SavedToast({ toast, onOpen, onDismiss }: Props) {
           onClick={() => { onOpen(toast); onDismiss(); }}
           className="flex shrink-0 items-center gap-1.5 rounded-lg bg-content/10 px-3 py-1 font-medium hover:bg-content/15"
         >
-          {t("Open")}</button>
+          Open
+        </button>
       </div>
     </div>,
     document.body,

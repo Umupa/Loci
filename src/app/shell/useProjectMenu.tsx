@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../shared/i18n/locale";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Archive, BellOff, FolderOpen, FolderTree, ImagePlus, Pin, PinOff, Settings, Trash2, } from "../../shared/ui/icons";
 import { basename, revealPath, } from "../../platform/tauri/fs";
@@ -26,7 +25,7 @@ const REVEAL_LABEL = IS_MAC
         : "Open Containing Folder";
 function projectMenuExtraItems(pinned: boolean, canRemove: boolean, canConfigureNotifications: boolean, notificationReady: boolean, projectGroups: ProjectGroup[], currentProjectGroupId?: string): TabGroupMenuExtraItem[] {
     const groupSubmenu: ContextMenuItem[] = [
-        { kind: "item", id: "project-group:new", label: t("New group…") },
+        { kind: "item", id: "project-group:new", label: "New group…" },
         ...(projectGroups.length > 0 ? [{ kind: "sep" } as const] : []),
         ...projectGroups.map((group) => ({
             kind: "item" as const,
@@ -38,29 +37,29 @@ function projectMenuExtraItems(pinned: boolean, canRemove: boolean, canConfigure
         {
             kind: "item",
             id: "project-group:none",
-            label: t("Ungrouped"),
+            label: "Ungrouped",
             checked: currentProjectGroupId == null,
         },
     ];
     const items: TabGroupMenuExtraItem[] = [
         {
             id: "background",
-            label: t("Background image"),
+            label: "Background image",
             icon: ImagePlus,
         },
         {
             id: "project-group",
-            label: t("Move to group"),
+            label: "Move to group",
             icon: FolderTree,
             submenu: groupSubmenu,
         },
         pinned
-            ? { id: "unpin", label: t("Unpin project"), icon: PinOff }
-            : { id: "pin", label: t("Pin project"), icon: Pin },
+            ? { id: "unpin", label: "Unpin project", icon: PinOff }
+            : { id: "pin", label: "Pin project", icon: Pin },
         { id: "reveal", label: REVEAL_LABEL, icon: FolderOpen },
         {
             id: "notifications-mute",
-            label: t("Mute notifications"),
+            label: "Mute notifications",
             icon: BellOff,
             sepBefore: true,
             disabled: !notificationReady,
@@ -70,12 +69,12 @@ function projectMenuExtraItems(pinned: boolean, canRemove: boolean, canConfigure
     if (canConfigureNotifications) {
         items.push({
             id: "notifications-settings",
-            label: t("Notification settings…"),
+            label: "Notification settings…",
             icon: Settings,
         });
     }
     if (canRemove) {
-        items.push({ id: "archive", label: t("Archive"), icon: Archive, sepBefore: true }, { id: "delete", label: t("Delete"), icon: Trash2, danger: true });
+        items.push({ id: "archive", label: "Archive", icon: Archive, sepBefore: true }, { id: "delete", label: "Delete", icon: Trash2, danger: true });
     }
     return items;
 }
@@ -98,7 +97,6 @@ type Options = {
  * which announces it through `subscribeProjectPathsChanged`.
  */
 export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, onOpen, }: Options) {
-  useLocale();
     const [projectMenu, setProjectMenu] = useState<(Point & {
         path: string;
         projectKey: string;
@@ -218,7 +216,7 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
                 });
             }
             catch {
-                setMenuError(t("Could not save notification preferences. Please try again."));
+                setMenuError("Could not save notification preferences. Please try again.");
                 return false;
             }
         }
@@ -258,7 +256,7 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
             }} showActions={false} leadingAction={menuMuteStatus
                 ? {
                     id: "notifications-resume",
-                    label: t("Resume notifications"),
+                    label: "Resume notifications",
                     description: menuMuteStatus,
                     icon: BellOff,
                 }
@@ -292,8 +290,8 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
             }} showActions={false} ariaLabel="Project group actions" extraItems={[
                 {
                     id: "delete-project-group",
-                    label: t("Delete group"),
-                    description: t("Projects will become ungrouped"),
+                    label: "Delete group",
+                    description: "Projects will become ungrouped",
                     icon: Trash2,
                     danger: true,
                 },
@@ -304,7 +302,7 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
     const element: ReactNode = (<>
       {renderProjectMenu()}
       {renderGroupMenu()}
-      {notificationMenu ? (<Popover key={notificationMenu.path} anchor={{ x: notificationMenu.x, y: notificationMenu.y }} gap={0} width={280} role="dialog" aria-label={t("Mute project notifications")} onDismiss={closeNotificationMenu} className="space-y-1 overflow-y-auto p-3">
+      {notificationMenu ? (<Popover key={notificationMenu.path} anchor={{ x: notificationMenu.x, y: notificationMenu.y }} gap={0} width={280} role="dialog" aria-label="Mute project notifications" onDismiss={closeNotificationMenu} className="space-y-1 overflow-y-auto p-3">
           <p className="truncate px-1 text-xs font-medium text-content/85" title={notificationMenu.project.name}>
             {notificationMenu.project.name}
           </p>

@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import "@excalidraw/excalidraw/index.css";
 import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, getSceneVersion, hashElementsVersion, restore } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
@@ -42,7 +41,6 @@ type Props = {
 };
 
 function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorkspace, onPaneDragStart, onAddToChat, onTitleChange }: Props) {
-  useLocale();
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef(canvas);
@@ -80,7 +78,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     if (draft) return { elements: draft.elements, files: draft.files, appState: { viewBackgroundColor: draft.appState.viewBackgroundColor, currentItemFontFamily: draft.appState.currentItemFontFamily } };
     try { return JSON.parse(canvas.dataJson); }
     catch { return { elements: [], appState: {}, files: {} }; }
-  }, [getLocale(), canvas.id]);
+  }, [canvas.id]);
 
   useLayoutEffect(registerCanvasRenderer, []);
 
@@ -235,7 +233,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
 
   const commitTitle = () => {
     setEditingTitle(false);
-    const title = titleDraft.trim() || t("Untitled drawing");
+    const title = titleDraft.trim() || "Untitled drawing";
     if (title !== canvas.title) { save(); onTitleChange(canvas.id, title); }
   };
 
@@ -248,27 +246,27 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
         {onPaneDragStart ? <GripVertical className="size-3.5 shrink-0 text-content/35" /> : <ExcalidrawIcon className="size-3.5 shrink-0 text-content/45" />}
         <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} />
         {editingTitle ? (
-          <input data-no-drag autoFocus aria-label={t("Drawing title")} className="min-w-0 flex-1 bg-transparent text-xs text-content outline-none" value={titleDraft}
+          <input data-no-drag autoFocus aria-label="Drawing title" className="min-w-0 flex-1 bg-transparent text-xs text-content outline-none" value={titleDraft}
             onChange={(event) => setTitleDraft(event.target.value)} onBlur={commitTitle}
             onKeyDown={(event) => {
               if (event.key === "Enter") event.currentTarget.blur();
               if (event.key === "Escape") { event.preventDefault(); setEditingTitle(false); }
             }} />
-        ) : <span className="min-w-0 flex-1 truncate text-xs" title={t("Double-click to rename")} onDoubleClick={() => { setTitleDraft(canvas.title); setEditingTitle(true); }}>{canvas.title}</span>}
-        {saveError ? <button data-no-drag className="text-xs text-red-400" onClick={save}>{t("Retry save")}</button> : null}
-        <button type="button" data-no-drag aria-label={t("Add drawing to chat")} title={t("Add selected elements or drawing to chat")} onClick={handleAddToChat}
+        ) : <span className="min-w-0 flex-1 truncate text-xs" title="Double-click to rename" onDoubleClick={() => { setTitleDraft(canvas.title); setEditingTitle(true); }}>{canvas.title}</span>}
+        {saveError ? <button data-no-drag className="text-xs text-red-400" onClick={save}>Retry save</button> : null}
+        <button type="button" data-no-drag aria-label="Add drawing to chat" title="Add selected elements or drawing to chat" onClick={handleAddToChat}
           className="flex h-6 shrink-0 items-center gap-1 rounded px-1.5 text-xs text-content/55 hover:bg-content/10 hover:text-content">
-          <MessageSquarePlus className="size-3.5" /><span>{t("Add to chat")}</span>
+          <MessageSquarePlus className="size-3.5" /><span>Add to chat</span>
         </button>
-        <button type="button" data-no-drag aria-label={isFullscreen ? t("Exit fullscreen") : t("Enter fullscreen")} title={isFullscreen ? t("Exit fullscreen") : t("Fullscreen")} onClick={toggleFullscreen} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content">
+        <button type="button" data-no-drag aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={toggleFullscreen} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content">
           {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
         </button>
-        {onOpenInWorkspace ? <button type="button" data-no-drag aria-label={t("Open drawing in workspace")} title={t("Open in workspace")} onClick={onOpenInWorkspace} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><ExternalLink className="size-3.5" /></button> : null}
-        {onClose ? <button type="button" data-no-drag aria-label={t("Close pane")} title={t("Close pane")} onClick={onClose}
+        {onOpenInWorkspace ? <button type="button" data-no-drag aria-label="Open drawing in workspace" title="Open in workspace" onClick={onOpenInWorkspace} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><ExternalLink className="size-3.5" /></button> : null}
+        {onClose ? <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button> : null}
       </div>
       <div className="relative min-h-0 min-w-0 flex-1">
-        <Excalidraw langCode={getLocale() === "zh-CN" ? "zh-CN" : "en"} excalidrawAPI={registerApi} initialData={initialData} onChange={handleChange} onLinkOpen={openLink} theme={isDark ? "dark" : "light"}
+        <Excalidraw excalidrawAPI={registerApi} initialData={initialData} onChange={handleChange} onLinkOpen={openLink} theme={isDark ? "dark" : "light"}
           UIOptions={{ canvasActions: { saveAsImage: false, loadScene: false, export: false, toggleTheme: false } }} />
         {learnMap ? <RecallCover canvasId={canvas.id} /> : null}
       </div>

@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
 import { useCallback,useEffect,useState } from "react";
 import { loginHarness } from "../../../integrations/harness/core/auth";
 import { Modal } from "../../../shared/ui/Modal";
@@ -14,7 +13,6 @@ type Props = {
 };
 
 export function ProviderSignInDialog({ harness, onClose }: Props) {
-  useLocale();
   const [state, setState] = useState<ProviderSignInState>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +31,7 @@ export function ProviderSignInDialog({ harness, onClose }: Props) {
         setError(
           reason instanceof Error
             ? reason.message
-            : t("Could not sign in to {0}.", HARNESS_TITLE[harness]),
+            : `Could not sign in to ${HARNESS_TITLE[harness]}.`,
         );
       },
     );
@@ -42,8 +40,8 @@ export function ProviderSignInDialog({ harness, onClose }: Props) {
   return (
     <Modal
       onClose={onClose}
-      title={t("Authentication required")}
-      description={t("Sign in to continue using {0}.", HARNESS_TITLE[harness])}
+      title="Authentication required"
+      description={`Sign in to continue using ${HARNESS_TITLE[harness]}.`}
       size="sm"
       minimalHeader
     >

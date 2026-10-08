@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../shared/i18n/locale";
 import { BellOff, ChevronDown, ChevronRight, FolderPlus, MoreHorizontal, Pin, PinOff, File, ExcalidrawIcon, Plus, Search, Settings, } from "../../shared/ui/icons";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useDragResize } from "../../shared/hooks/useDragResize";
@@ -61,7 +60,6 @@ type Props = {
     onCloseSettings?: () => void;
 };
 export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onSearch, searchActive = false, notesEnabled = true, onOpenNotes, notesActive = false, onOpenCanvases, canvasesActive = false, onTogglePanel, onSelectProject, onOpenProject, onRemoveProject, liveAgents = [], activeSessionId, onSelectAgent, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, }: Props) {
-  useLocale();
     const resize = useDragResize({
         min: PROJECT_RAIL_WIDTH_MIN,
         max: () => Math.min(PROJECT_RAIL_WIDTH_MAX, Math.floor(window.innerWidth * 0.35)),
@@ -97,7 +95,7 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
         projectMenu.dismiss();
     }, [visible]);
     const notificationPreferences = useProjectNotificationPreferences();
-    const allProjects = useMemo(() => collectRailProjects(recents, cwd), [getLocale(), cwd, recents]);
+    const allProjects = useMemo(() => collectRailProjects(recents, cwd), [cwd, recents]);
     const notificationProjects = useNotificationProjects([...allProjects.keys()]);
     const lockOverscroll = useLockOverscroll<HTMLDivElement>();
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -108,7 +106,7 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
         for (const path of project.paths)
             muteStatuses.set(pathKey(path), status);
     }
-    const sections = useMemo(() => projectRailSections(recents, cwd, railOrder, pinnedPaths), [getLocale(), cwd, pinnedPaths, railOrder, recents]);
+    const sections = useMemo(() => projectRailSections(recents, cwd, railOrder, pinnedPaths), [cwd, pinnedPaths, railOrder, recents]);
     const groupedProjectSections = useMemo(() => {
         const byGroup = new Map<string, RecentProject[]>(projectGroups.map((group) => [group.id, []]));
         const ungrouped: RecentProject[] = [];
@@ -127,13 +125,13 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
                 items: byGroup.get(group.id) ?? [],
             })),
         };
-    }, [getLocale(), projectGroupAssignments, projectGroups, sections.projects]);
+    }, [projectGroupAssignments, projectGroups, sections.projects]);
     const busy = useMemo(() => {
         const set = new Set<string>();
         for (const path of busyPaths ?? [])
             set.add(path);
         return set;
-    }, [getLocale(), busyPaths]);
+    }, [busyPaths]);
     useEffect(() => {
         setRailOrder((prev) => {
             const synced = syncProjectRailOrder(prev, allProjects);
@@ -194,7 +192,7 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
     const projectIds = groupedProjectSections.ungrouped.map((item) => item.path);
     const pinnedSortable = useAnimatedReorder(pinnedIds, onReorderPinned, "y");
     const projectSortable = useAnimatedReorder(projectIds, onReorderProjects, "y");
-    return (<nav ref={resize.setPaneRef} aria-label={t("Projects")} className={`sidebar-glass relative shrink-0 flex-col border-r border-stroke ${visible ? "flex" : "hidden"}`}>
+    return (<nav ref={resize.setPaneRef} aria-label="Projects" className={`sidebar-glass relative shrink-0 flex-col border-r border-stroke ${visible ? "flex" : "hidden"}`}>
       <div className="flex h-10 shrink-0 select-none items-center pr-1.5" data-tauri-drag-region="deep">
         {IS_MAC ? <div className="w-[78px] shrink-0"/> : null}
         <DevModeSlot />
@@ -203,11 +201,11 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
 
       {settingsOpen ? (<SettingsNav section={settingsSection} onSelect={(next) => onSelectSettingsSection?.(next)} onClose={() => onCloseSettings?.()}/>) : (<>
           <div className="flex shrink-0 flex-col gap-px px-2 pb-2 pt-0.5">
-            <RailSearch label={t("Search")} icon={Search} onClick={onSearch} active={searchActive} shortcut={`${MOD}K`} ariaLabel={t("Search ({0}K)", MOD)}/>
+            <RailSearch label="Search" icon={Search} onClick={onSearch} active={searchActive} shortcut={`${MOD}K`} ariaLabel={`Search (${MOD}K)`}/>
             <div className="mt-0.5"/>
 
-            {onOpenCanvases ? (<RailAction label={t("Canvas")} icon={ExcalidrawIcon} onClick={onOpenCanvases} active={canvasesActive} ariaLabel={t("Canvas")}/>) : null}
-            {notesEnabled ? (<RailAction label={t("Notes")} icon={File} onClick={onOpenNotes} active={notesActive} ariaLabel={t("Notes")}/>) : null}
+            {onOpenCanvases ? (<RailAction label="Canvas" icon={ExcalidrawIcon} onClick={onOpenCanvases} active={canvasesActive} ariaLabel="Canvas"/>) : null}
+            {notesEnabled ? (<RailAction label="Notes" icon={File} onClick={onOpenNotes} active={notesActive} ariaLabel="Notes"/>) : null}
 
           </div>
 
@@ -215,10 +213,10 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
                 lockOverscroll(el);
                 scrollRef.current = el;
             }} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none pb-2">
-            {sections.pinned.length > 0 ? (<ProjectSection label={t("Pinned")} items={sections.pinned} muteStatuses={muteStatuses} cwd={cwd} busy={busy} sortable={pinnedSortable} pinned searchActive={searchActive || notesActive || canvasesActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>) : null}
+            {sections.pinned.length > 0 ? (<ProjectSection label="Pinned" items={sections.pinned} muteStatuses={muteStatuses} cwd={cwd} busy={busy} sortable={pinnedSortable} pinned searchActive={searchActive || notesActive || canvasesActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>) : null}
 
             {projectGroups.length > 0 ? (<div className="mb-2 shrink-0">
-                <ProjectSectionHeader label={t("Groups")} onAddGroup={(x, y) => projectMenu.createGroup(x, y)}/>
+                <ProjectSectionHeader label="Groups" onAddGroup={(x, y) => projectMenu.createGroup(x, y)}/>
                 <div className="flex flex-col gap-px px-2">
                   {groupedProjectSections.grouped.map(({ group, items }) => (<ProjectGroupSection key={group.id} group={group} items={items} muteStatuses={muteStatuses} cwd={cwd} busy={busy} searchActive={searchActive || notesActive || canvasesActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} onReorder={onReorderProjects} onToggleCollapsed={() => updateProjectGroup(group.id, (current) => ({
                         ...current,
@@ -227,20 +225,20 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
                 </div>
               </div>) : null}
 
-            <ProjectSection label={t("Projects")} items={groupedProjectSections.ungrouped} muteStatuses={muteStatuses} emptyLabel={sections.projects.length === 0 && projectGroups.length === 0
-                ? t("No projects yet")
+            <ProjectSection label="Projects" items={groupedProjectSections.ungrouped} muteStatuses={muteStatuses} emptyLabel={sections.projects.length === 0 && projectGroups.length === 0
+                ? "No projects yet"
                 : undefined} onAdd={onOpenProject} cwd={cwd} busy={busy} sortable={projectSortable} pinned={false} searchActive={searchActive || notesActive || canvasesActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>
           </div>
           <LiveAgentsPreview agents={liveAgents} activeSessionId={activeSessionId} onSelect={onSelectAgent} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupMascots={groupMascots}/>
 
           <div className="flex shrink-0 flex-col gap-px p-2">
 
-            <RailAction label={t("Settings")} icon={Settings} onClick={onOpenSettings} shortcut={`${MOD},`} ariaLabel={t("Settings ({0},)", MOD)}/>
+            <RailAction label="Settings" icon={Settings} onClick={onOpenSettings} shortcut={`${MOD},`} ariaLabel={`Settings (${MOD},)`}/>
           </div>
         </>)}
       {visible ? projectMenu.element : null}
 
-      <div role="separator" aria-orientation="vertical" aria-label={t("Resize project sidebar")} aria-valuenow={resize.width} aria-valuemin={PROJECT_RAIL_WIDTH_MIN} aria-valuemax={PROJECT_RAIL_WIDTH_MAX} className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick}/>
+      <div role="separator" aria-orientation="vertical" aria-label="Resize project sidebar" aria-valuenow={resize.width} aria-valuemin={PROJECT_RAIL_WIDTH_MIN} aria-valuemax={PROJECT_RAIL_WIDTH_MAX} className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick}/>
     </nav>);
 }
 type SortableHandle = ReturnType<typeof useAnimatedReorder>;
@@ -265,7 +263,6 @@ function ProjectSection({ label, items, muteStatuses, emptyLabel, onAdd, cwd, bu
     groupLogos: ReturnType<typeof useTabGroupLogos>;
     groupMascots: Record<string, string>;
 }) {
-  useLocale();
     return (<div className="shrink-0 mb-2">
       <ProjectSectionHeader label={label} onAdd={onAdd}/>
       {items.length === 0 && emptyLabel ? (<p className="px-4 pb-1 text-[11px] leading-tight text-content/40">
@@ -281,12 +278,11 @@ function ProjectSectionHeader({ label, onAdd, onAddGroup, }: {
     onAdd?: () => void;
     onAddGroup?: (x: number, y: number) => void;
 }) {
-  useLocale();
     return (<div className="flex items-center gap-1 px-3 pb-1.5 pt-1">
       <span className="min-w-0 flex-1 truncate px-1 text-xs text-content/50">
         {label}
       </span>
-      {onAddGroup ? (<button type="button" title={t("New project group")} aria-label={t("New project group")} onClick={(event) => {
+      {onAddGroup ? (<button type="button" title="New project group" aria-label="New project group" onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
                 onAddGroup(rect.left, rect.bottom);
             }} className="grid size-5 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content">
@@ -315,7 +311,6 @@ function ProjectGroupSection({ group, items, muteStatuses, cwd, busy, searchActi
     groupLogos: ReturnType<typeof useTabGroupLogos>;
     groupMascots: Record<string, string>;
 }) {
-  useLocale();
     const sortable = useAnimatedReorder(items.map((item) => item.path), onReorder, "y");
     const countLabel = `${items.length} ${items.length === 1 ? "project" : "projects"}`;
     const expanded = !group.collapsed;
@@ -340,7 +335,7 @@ function ProjectGroupSection({ group, items, muteStatuses, cwd, busy, searchActi
           </div>
           <span className={nameClassName}>{group.name}</span>
         </button>
-        <button type="button" data-no-drag title={t("Group options")} aria-label={t("{0} group options", group.name)} aria-haspopup="menu" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => {
+        <button type="button" data-no-drag title="Group options" aria-label={`${group.name} group options`} aria-haspopup="menu" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => {
             event.stopPropagation();
             openMenu(event.currentTarget);
         }} className="absolute right-1 top-1/2 hidden size-6 -translate-y-1/2 place-items-center rounded-md text-content/55 hover:bg-content/8 hover:text-content group-hover:grid group-has-[:focus-visible]:grid">
@@ -370,7 +365,6 @@ function ProjectCard({ item, muteStatus, selected, busy, pinned, sortable, onSel
     groupLogos: ReturnType<typeof useTabGroupLogos>;
     groupMascots: Record<string, string>;
 }) {
-  useLocale();
     const fallbackName = basename(item.path);
     const key = projectKey(item.path);
     const seed = projectName(item.path);
@@ -378,7 +372,7 @@ function ProjectCard({ item, muteStatus, selected, busy, pinned, sortable, onSel
     const logoPath = resolveTabGroupLogo(key, groupLogos);
     const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
     const labelClassName = nameClassName;
-const cardTitle = [name,item.path,...(busy?[t("Working")]:[])].join("\n");
+const cardTitle = [name,item.path,...(busy?["Working"]:[])].join("\n");
 const cardAriaLabel = [name,...(busy?["working"]:[])].join(", ");
     return (<div ref={(el) => sortable.setItemRef(item.path, el)} data-selected={selected || undefined} className={`reorder-item project-reorder-item group relative flex touch-none items-stretch rounded-md px-2 h-8 ${selected
             ? "bg-selection-strong text-content"
@@ -419,14 +413,14 @@ const cardAriaLabel = [name,...(busy?["working"]:[])].join(", ");
             <BellOff className="size-3.5" strokeWidth={1.75} aria-hidden="true"/>
           </span>) : null}
       </button>
-      <button type="button" data-no-drag title={t("Project options")} aria-label={t("Project options")} aria-haspopup="menu" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => {
+      <button type="button" data-no-drag title="Project options" aria-label="Project options" aria-haspopup="menu" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => {
             event.stopPropagation();
             const rect = event.currentTarget.getBoundingClientRect();
             onOpenMenu(item.path, event.detail === 0 ? rect.left : event.clientX, event.detail === 0 ? rect.bottom : event.clientY);
         }} className="absolute right-1 top-1/2 hidden size-6 -translate-y-1/2 place-items-center rounded-md text-content/55 hover:bg-content/8 hover:text-content group-hover:grid group-has-[:focus-visible]:grid">
         <MoreHorizontal className="size-4" strokeWidth={1.75}/>
       </button>
-      <button type="button" data-no-drag title={pinned ? t("Unpin project") : t("Pin project")} aria-label={pinned ? t("Unpin project") : t("Pin project")} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => {
+      <button type="button" data-no-drag title={pinned ? "Unpin project" : "Pin project"} aria-label={pinned ? "Unpin project" : "Pin project"} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => {
             event.stopPropagation();
             onTogglePin(item.path);
         }} className="absolute left-2 top-1/2 grid size-4 -translate-y-1/2 place-items-center rounded-sm text-content/55 opacity-0 pointer-events-none transition-opacity hover:text-content group-hover:pointer-events-auto group-hover:opacity-100">
@@ -445,21 +439,21 @@ function isBusyPath(path: string, busy: Set<string>): boolean {
 function AddProjectButton({ onOpenFolder }: {
     onOpenFolder: () => void;
 }) {
-  useLocale();
     const anchor = useRef<HTMLButtonElement>(null);
     const [open, setOpen] = useState(false);
     const item = "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-content/80 hover:bg-content/8 hover:text-content";
     return (<>
-      <button ref={anchor} type="button" title={t("Open project")} aria-label={t("Open project")} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="grid size-5 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content aria-expanded:bg-content/8 aria-expanded:text-content">
+      <button ref={anchor} type="button" title="Open project" aria-label="Open project" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="grid size-5 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content aria-expanded:bg-content/8 aria-expanded:text-content">
         <Plus className="size-3.5" strokeWidth={1.75}/>
       </button>
-      {open ? (<Popover anchor={anchor} align="start" width={230} onDismiss={() => setOpen(false)} role="menu" aria-label={t("Open project")} className="p-1">
+      {open ? (<Popover anchor={anchor} align="start" width={230} onDismiss={() => setOpen(false)} role="menu" aria-label="Open project" className="p-1">
           <button type="button" role="menuitem" className={item} onClick={() => {
                 setOpen(false);
                 onOpenFolder();
             }}>
             <FolderPlus className="size-3.5 shrink-0" strokeWidth={1.75}/>
-            {t("Open folder…")}</button>
+            Open folder…
+          </button>
 
         </Popover>) : null}
     </>);

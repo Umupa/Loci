@@ -1,4 +1,4 @@
-import { getLocale, t, useLocale } from "../../../shared/i18n/locale";
+import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import {
   clampUsedPercent,
   formatResetDuration,
@@ -39,11 +39,11 @@ export function AccountStatusLabel({
   status: AccountStatus;
   className?: string;
 }) {
-  useLocale();
+  const { t } = useUiText();
   return (
     <span
       className={`inline-flex min-w-0 items-center gap-1.5 ${className}`}
-      title={status.detail ? `${status.label} · ${status.detail}` : status.label}
+      title={status.detail ? `${t(status.label)} · ${status.detail}` : t(status.label)}
     >
       <span
         className={`size-1.5 shrink-0 rounded-full ${STATUS_DOT[status.tone]}`}
@@ -52,7 +52,7 @@ export function AccountStatusLabel({
       <span
         className={`${status.tone === "unknown" ? "min-w-0 truncate" : "shrink-0"} ${STATUS_TEXT[status.tone]}`}
       >
-        {status.label}
+        {t(status.label)}
       </span>
       {status.detail ? (
         <span className="min-w-0 truncate text-content/40">
@@ -64,7 +64,7 @@ export function AccountStatusLabel({
 }
 
 export function AccountUsageRefresh({ usage }: { usage: AccountUsage }) {
-  useLocale();
+  const { t } = useUiText();
   return (
     <button
       type="button"
@@ -87,9 +87,9 @@ export function meterWindows(
   limits: ProviderRateLimits | undefined,
 ): { title: string; window: RateLimitWindow }[] {
   return [
-    limits?.session ? { title: t("5h"), window: limits.session } : null,
-    limits?.weekly ? { title: t("Weekly"), window: limits.weekly } : null,
-    limits?.monthly ? { title: t("Monthly"), window: limits.monthly } : null,
+    limits?.session ? { title: "5h", window: limits.session } : null,
+    limits?.weekly ? { title: "Weekly", window: limits.weekly } : null,
+    limits?.monthly ? { title: "Monthly", window: limits.monthly } : null,
   ].filter((entry) => entry != null);
 }
 
@@ -101,7 +101,7 @@ export function AccountUsageMeters({
   limits: ProviderRateLimits | undefined;
   now: number;
 }) {
-  useLocale();
+  const { t } = useUiText();
   const windows = meterWindows(limits);
 
   if (windows.length === 0) {
@@ -127,7 +127,7 @@ export function AccountUsageMeters({
       {windows.map((entry) => (
         <UsageMeter
           key={entry.title}
-          title={entry.title}
+          title={t(entry.title)}
           window={entry.window}
           now={now}
         />
@@ -147,7 +147,7 @@ export function UsageMeter({
   now: number;
   className?: string;
 }) {
-  useLocale();
+  const { t, locale } = useUiText();
   const showRemaining = useShowRemainingUsage();
   const pct = clampUsedPercent(window.usedPercent);
   const remaining = 100 - pct;
@@ -165,7 +165,7 @@ export function UsageMeter({
       title={
         window.resetsAt == null
           ? undefined
-          : t("Resets {0}", new Date(window.resetsAt).toLocaleString(getLocale()))
+          : t("Resets {0}", new Date(window.resetsAt).toLocaleString(locale))
       }
     >
       <div className="flex items-baseline justify-between gap-2 text-[10px] leading-3">
@@ -200,7 +200,7 @@ export function UsageMeter({
 }
 
 function MeterSkeleton() {
-  useLocale();
+
   return (
     <div className="w-36 animate-pulse" aria-hidden>
       <div className="h-3 w-20 rounded bg-content/10" />

@@ -1,4 +1,4 @@
-import { t, useLocale } from "../i18n/locale";
+import { useUiText } from "../i18n/SettingsLanguage";
 import { NativePopupHost } from "./NativePopupHost";
 import { X } from "./icons";
 import { useContext, useEffect, useId, useRef, type ReactNode } from "react";
@@ -45,7 +45,7 @@ export function ModalPanel({
   fitViewport = false,
   children,
 }: Props) {
-  useLocale();
+  const { t, locale } = useUiText();
   const popupHost = useContext(NativePopupHost);
   const closeRef = useRef<HTMLButtonElement>(null);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
@@ -76,6 +76,7 @@ export function ModalPanel({
 
   return (
     <div
+      lang={locale}
       className={
         popupHost
           ? "relative w-full"
@@ -140,7 +141,7 @@ export function ModalPanel({
 }
 
 export function Modal(props: Props) {
-  useLocale();
+
   const host = useContext(NativePopupHost);
   if (host) return createPortal(<ModalPanel {...props} />, host);
   return createPortal(

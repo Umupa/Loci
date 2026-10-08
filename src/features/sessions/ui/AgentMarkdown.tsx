@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import { convertFileSrc,invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -146,16 +145,16 @@ function fileLinkMenuItems(
   canCopyRelativePath: boolean,
 ): ContextMenuItem[] {
   return [
-    { kind: "item", id: "open-default", label: t("Open in Default App") },
+    { kind: "item", id: "open-default", label: "Open in Default App" },
     { kind: "item", id: "reveal", label: REVEAL_LABEL },
     { kind: "sep" },
-    { kind: "item", id: "copy-path", label: t("Copy Path") },
+    { kind: "item", id: "copy-path", label: "Copy Path" },
     ...(canCopyRelativePath
       ? [
           {
             kind: "item" as const,
             id: "copy-relative-path",
-            label: t("Copy Relative Path"),
+            label: "Copy Relative Path",
           },
         ]
       : []),
@@ -237,7 +236,6 @@ function MarkdownLink({
   dir,
   ...props
 }: MarkdownLinkProps) {
-  useLocale();
 
   const { cwd, onOpenFile, onFileContextMenu } = useContext(FileOpenContext);
   const resource = href ? parseAppResourceUrl(href) : undefined;
@@ -291,7 +289,6 @@ function MarkdownCode({
   onContextMenu,
   ...props
 }: MarkdownCodeProps) {
-  useLocale();
   const incomplete = useIsCodeFenceIncomplete();
   const block = Object.prototype.hasOwnProperty.call(props, "data-block");
   if (!block) {
@@ -389,7 +386,6 @@ function MarkdownCode({
 }
 
 function CodeCopyButton({ code }: { code: string }) {
-  useLocale();
   const [copied, setCopied] = useState(false);
   const timer = useRef<number | null>(null);
 
@@ -403,8 +399,8 @@ function CodeCopyButton({ code }: { code: string }) {
   return (
     <button
       type="button"
-      title={copied ? t("Copied") : t("Copy code")}
-      aria-label={copied ? t("Copied") : t("Copy code")}
+      title={copied ? "Copied" : "Copy code"}
+      aria-label={copied ? "Copied" : "Copy code"}
       className={`markdown-code-copy ${copied ? "is-copied" : ""}`}
       onClick={() => {
         void copyText(code.replace(/\r?\n$/, "")).then(
@@ -440,7 +436,6 @@ function NoteAssetImage({
   alt,
   ...props
 }: Omit<MarkdownImageProps, "src" | "node"> & { asset: string }) {
-  useLocale();
   const [src, setSrc] = useState(() => noteImageSrcCache.get(asset));
 
   useEffect(() => {
@@ -476,7 +471,6 @@ function MarkdownImage({
   node: _node,
   ...props
 }: MarkdownImageProps) {
-  useLocale();
 
   const url = typeof src === "string" ? src.trim() : "";
   if (url.startsWith("data:image/")) {
@@ -504,7 +498,6 @@ const MARKDOWN_COMPONENTS = {
  * comes from the block inside it.
  */
 function DirectionalBlock({ dir, ...props }: BlockProps) {
-  useLocale();
   const block = <Block {...props} />;
   return dir ? (
     <div dir={dir} className="agent-markdown-block">
@@ -535,9 +528,8 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   /** Show a newline inside a block as a line break, as a document does (#591). */
   hardBreaks?: boolean;
 }) {
-  useLocale();
   const code = useCodePlugin();
-  const plugins = useMemo(() => ({ code, mermaid }), [getLocale(), code]);
+  const plugins = useMemo(() => ({ code, mermaid }), [code]);
   const [fileMenu, setFileMenu] = useState<FileLinkMenu | null>(null);
   const [fileActionError, setFileActionError] = useState<string | null>(null);
   const onFileContextMenu = useCallback(
@@ -550,14 +542,14 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   );
   const fileOpen = useMemo(
     () => ({ cwd, onOpenFile, onFileContextMenu }),
-    [getLocale(), cwd, onOpenFile, onFileContextMenu],
+    [cwd, onOpenFile, onFileContextMenu],
   );
   const remarkPlugins = useMemo<PluggableList>(
     () => [
       ...Object.values(defaultRemarkPlugins),
       [remarkWorkspaceFileLinks, { cwd }],
     ],
-    [getLocale(), cwd],
+    [cwd],
   );
 
   const paced = usePacedText(text, !!streaming, revealOnMount);
@@ -572,7 +564,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   const rehypePlugins = useMemo(
     () =>
       hardBreaks ? [...baseRehypePlugins, rehypeHardBreaks] : baseRehypePlugins,
-    [getLocale(), baseRehypePlugins, hardBreaks],
+    [baseRehypePlugins, hardBreaks],
   );
 
   const onFileMenuPick = (id: string) => {
@@ -603,7 +595,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
     void action.catch((error) => {
       console.error(`Failed to run file-link action ${id}:`, error);
       setFileActionError(
-        t("Could not {0}: {1}", id === "open-default" ? "open the file in its default app" : "complete the file action", String(error)),
+        `Could not ${id === "open-default" ? "open the file in its default app" : "complete the file action"}: ${String(error)}`,
       );
     });
   };
@@ -633,7 +625,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
               x={fileMenu.x}
               y={fileMenu.y}
               items={fileLinkMenuItems(!!cwd)}
-              ariaLabel={t("File link actions")}
+              ariaLabel="File link actions"
               onPick={onFileMenuPick}
               onClose={() => setFileMenu(null)}
             />
@@ -665,7 +657,6 @@ export const MarkdownPreview = memo(function MarkdownPreview({
   header?: ReactNode;
   hardBreaks?: boolean;
 }) {
-  useLocale();
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
 
   return (
@@ -673,7 +664,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
       ref={lockOverscroll}
       tabIndex={0}
       role="region"
-      aria-label={t("Markdown preview")}
+      aria-label="Markdown preview"
       className="markdown-preview h-full overflow-y-auto overscroll-none [overflow-anchor:none]"
     >
       <div className="px-6 py-8">
@@ -695,7 +686,6 @@ export const MarkdownSource = memo(function MarkdownSource({
 }: {
   text: string;
 }) {
-  useLocale();
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
 
   return (
@@ -703,7 +693,7 @@ export const MarkdownSource = memo(function MarkdownSource({
       ref={lockOverscroll}
       tabIndex={0}
       role="region"
-      aria-label={t("Markdown source")}
+      aria-label="Markdown source"
       className="markdown-preview h-full overflow-y-auto overscroll-none [overflow-anchor:none]"
     >
       <pre className="min-h-full min-w-0 whitespace-pre-wrap wrap-break-word px-4 py-3 font-mono text-[13px] leading-5 text-content/85">
@@ -714,7 +704,6 @@ export const MarkdownSource = memo(function MarkdownSource({
 });
 
 export function MarkdownSourceHighlight({ text }: { text: string }) {
-  useLocale();
   if (!text) return null;
   return (
     <>
@@ -740,7 +729,6 @@ function MermaidBlock({
   code: string;
   incomplete: boolean;
 }) {
-  useLocale();
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const colorScheme = useColorScheme();
@@ -882,7 +870,6 @@ function MarkdownCodePath({
   path: string;
   startLine?: number;
 }) {
-  useLocale();
   const { cwd, onOpenFile, onFileContextMenu } = useContext(FileOpenContext);
   const file = resolveWorkspaceFileReference(path, cwd);
   if (!file || !onOpenFile) {

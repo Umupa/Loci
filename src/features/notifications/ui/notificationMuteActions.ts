@@ -1,4 +1,4 @@
-import { getLocale, t } from "../../../shared/i18n/locale";
+import { translate, type Locale } from "../../../shared/i18n/locale";
 import {
   isProjectMuted,
   NOTIFICATION_MUTE_HOURS,
@@ -8,11 +8,12 @@ import {
 /** A single status label for the project rail, menus, and mute controls. */
 export function notificationMuteStatus(
   preference: ProjectNotificationPreference | undefined,
+  locale: Locale = "en",
 ): string | null {
   if (!preference || !isProjectMuted(preference)) return null;
   return preference.mutedUntil === null
-    ? t("Muted until resumed")
-    : t("Muted until {0}", new Date(preference.mutedUntil!).toLocaleString(getLocale(), { dateStyle: "medium", timeStyle: "short" }));
+    ? translate(locale, "Muted until resumed")
+    : translate(locale, "Muted until {0}", new Date(preference.mutedUntil!).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }));
 }
 
 /** The same preset IDs and durations are used by project menus. */
@@ -20,25 +21,27 @@ const mutePresets = [
   ...NOTIFICATION_MUTE_HOURS.map((hours) => ({
     kind: "item" as const,
     id: `mute:${hours}`,
-    get label() { return hours === 1 ? t("1 hour") : t("{0} hours", hours); },
+    label: `${hours} ${hours === 1 ? "hour" : "hours"}`,
     milliseconds: hours * 3_600_000,
   })),
   {
     kind: "item" as const,
     id: "mute:indefinite",
-    get label() { return t("Until resumed"); },
+    label: "Until resumed",
     milliseconds: null,
   },
-  { kind: "item" as const, id: "mute:custom", get label() { return t("Choose date and time"); } },
+  { kind: "item" as const, id: "mute:custom", label: "Choose date and time" },
 ];
 
-export function notificationMuteActions(now = new Date(Date.now())) {
+export function notificationMuteActions(now = new Date(Date.now()), locale: Locale = "en") {
   return mutePresets.map((action) => {
-    if (action.milliseconds == null) return action;
+    if (action.milliseconds == null) return { ...action, label: translate(locale, action.label) };
     const until = new Date(now.getTime() + action.milliseconds);
     const time = `${until.getHours()}:${String(until.getMinutes()).padStart(2, "0")}`;
-    const day = until.toDateString() === now.toDateString() ? "" : t("Tomorrow, ");
-    return { ...action, label: `${action.label} (${day}${time})` };
+    const day = until.toDateString() === now.toDateString() ? "" : translate(locale, "Tomorrow, ");
+    const hours = action.milliseconds / 3_600_000;
+    const duration = hours === 1 ? translate(locale, "1 hour") : translate(locale, "{0} hours", hours);
+    return { ...action, label: `${duration} (${day}${time})` };
   });
 }
 

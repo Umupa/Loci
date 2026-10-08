@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import React, { useLayoutEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { listen } from "@tauri-apps/api/event";
@@ -19,16 +18,8 @@ import { homeDir } from "./platform/tauri/fs";
 import { setHomeDir } from "./shared/lib/paths";
 import { initializeProviderBinaryPaths } from "./features/providers/model/providerBinaryPaths";
 import "./styles/index.css";
-import { loadKeybindingOverrides } from "./features/settings/model/settings";
-import { initLocale, getLocale, subscribeLocale } from "./shared/i18n/locale";
 
 performance.mark("loci:bootstrap");
-initLocale();
-const syncNativeLanguage = () => {
-  void invoke("app_language_set", { locale: getLocale(), overrides: loadKeybindingOverrides() }).catch(console.error);
-};
-syncNativeLanguage();
-subscribeLocale(syncNativeLanguage);
 // Let local boot IPC overlap loading/evaluating the workspace UI.
 const appLoaded = import("./app/App");
 

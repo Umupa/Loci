@@ -16,41 +16,35 @@ export function resolveLocale(preference: LanguagePreference, languages: readonl
   return "en";
 }
 
+let fallbackPreference: LanguagePreference = "system";
+
 export function loadLanguagePreference(): LanguagePreference {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "en" || stored === "zh-CN") return stored;
-  } catch { /* Storage can be unavailable in private windows. */ }
+  } catch { return fallbackPreference; }
   return "system";
 }
 
-let preference = loadLanguagePreference();
-export function getLanguagePreference(): LanguagePreference { return preference; }
+export function getLanguagePreference(): LanguagePreference { return loadLanguagePreference(); }
 export function getLocale(): Locale {
   const languages = typeof navigator === "undefined" ? [] : navigator.languages?.length
     ? navigator.languages : [navigator.language];
-  return resolveLocale(preference, languages);
-}
-
-function applyDocumentLanguage() {
-  if (typeof document !== "undefined") document.documentElement.lang = getLocale();
+  return resolveLocale(getLanguagePreference(), languages);
 }
 
 export function setLanguagePreference(next: LanguagePreference) {
-  preference = next;
+  fallbackPreference = next;
   try { localStorage.setItem(STORAGE_KEY, next); } catch { /* Keep this window usable. */ }
-  applyDocumentLanguage();
   if (typeof window !== "undefined") window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
 const listeners = new Set<() => void>();
 function notifyLocale() {
-  applyDocumentLanguage();
   for (const listener of listeners) listener();
 }
 function onLanguageStorage(event: StorageEvent) {
   if (event.key !== STORAGE_KEY && event.key !== null) return;
-  preference = loadLanguagePreference();
   notifyLocale();
 }
 
@@ -82,14 +76,13 @@ export function useLanguagePreference(): LanguagePreference {
 }
 
 const messages: Readonly<Record<string, string>> = zhCN;
-/** Only app-owned copy belongs here. Never pass user or provider-authored content. */
+/** Settings-owned copy only. Shared controls use useUiText to inherit their surface. */
 export function t(source: string, ...values: (string | number)[]): string {
-  const message = getLocale() === "zh-CN" ? (messages[source] ?? source) : source;
-  return message.replace(/\{(\d+)\}/g, (placeholder, index: string) =>
-    values[Number(index)] === undefined ? placeholder : String(values[Number(index)]));
+  return translate(getLocale(), source, ...values);
 }
 
-export function initLocale() {
-  applyDocumentLanguage();
-  return subscribeLocale(applyDocumentLanguage);
+export function translate(locale: Locale, source: string, ...values: (string | number)[]): string {
+  const message = locale === "zh-CN" ? (messages[source] ?? source) : source;
+  return message.replace(/\{(\d+)\}/g, (placeholder, index: string) =>
+    values[Number(index)] === undefined ? placeholder : String(values[Number(index)]));
 }

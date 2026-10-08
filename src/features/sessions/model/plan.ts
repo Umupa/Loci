@@ -1,4 +1,3 @@
-import { t } from "../../../shared/i18n/locale";
 
 
 /** First markdown heading, or the first non-empty prose line. */
@@ -10,7 +9,7 @@ export function planTitle(text: string): string {
     if (!trimmed || trimmed.startsWith("```") || trimmed === "---") continue;
     return unwrapMarkdown(trimmed).slice(0, 80) || "Plan";
   }
-  return t("Plan");
+  return "Plan";
 }
 
 function unwrapMarkdown(value: string): string {

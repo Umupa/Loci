@@ -6,7 +6,6 @@ import { SettingsView } from "../../src/features/settings/ui/SettingsView";
 import { SettingsNav } from "../../src/app/shell/SettingsRail";
 import { AccessPicker } from "../../src/features/sessions/ui/AccessPicker";
 import { EmptySession } from "../../src/features/sessions/ui/EmptySession";
-import { initLocale, t, useLocale } from "../../src/shared/i18n/locale";
 import type { SettingsSectionId } from "../../src/features/settings/model/settings";
 import type { RuntimeMode } from "../../src/features/sessions/model/session";
 import "../../src/styles/index.css";
@@ -19,10 +18,8 @@ mockIPC((command) => {
   if (command === "plugin:window|is_maximized") return false;
   return undefined;
 });
-initLocale();
 document.documentElement.classList.add("dark");
 function Preview() {
-  useLocale();
   const [section, setSection] = useState<SettingsSectionId>("general");
   const [mode, setMode] = useState<RuntimeMode>("supervised");
   const [draft, setDraft] = useState("");
@@ -33,7 +30,7 @@ function Preview() {
     <SettingsView section={section} onSelectSection={setSection} cwd="/preview/中文项目" sessions={[]} besideRail onClose={() => {}} onOpenSession={() => {}} onArchiveSession={() => {}} onDeleteSession={() => {}}/>
     <aside className="flex w-80 flex-col border-l border-stroke">
       <EmptySession cwd="/preview/中文项目" composer={<div className="rounded-xl border border-stroke p-3">
-        <textarea aria-label="Preview draft" className="w-full bg-transparent text-sm outline-none" placeholder={t("What should we work on?")} value={draft} onChange={(event) => setDraft(event.target.value)}/>
+        <textarea aria-label="Preview draft" className="w-full bg-transparent text-sm outline-none" placeholder="Ask, / for commands, @ for files, notes, drawings…" value={draft} onChange={(event) => setDraft(event.target.value)}/>
         <AccessPicker value={mode} onChange={setMode}/>
       </div>}/>
     </aside>

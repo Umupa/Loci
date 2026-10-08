@@ -318,12 +318,12 @@ export function ProjectNotificationSettings({
                             key={category.id}
                             className="flex min-h-11 cursor-pointer items-center justify-between gap-6 border-b border-content/5 py-3.5 text-[13px] text-content last:border-b-0 hover:text-content/75"
                           >
-                            <span>{category.label}</span>
+                            <span>{t(category.label)}</span>
                             <span className="relative flex shrink-0">
                               <input
                                 type="checkbox"
                                 role="switch"
-                                aria-label={t("{0} for {1}", category.label, project.name)}
+                                aria-label={t("{0} for {1}", t(category.label), project.name)}
                                 aria-describedby={
                                   muted ? muteHintId : undefined
                                 }

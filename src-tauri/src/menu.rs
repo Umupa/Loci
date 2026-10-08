@@ -2,79 +2,11 @@
 use serde::Deserialize;
 #[cfg(target_os = "macos")]
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(target_os = "macos")]
 use tauri::menu::{AboutMetadata, Menu, MenuItem, MenuItemBuilder, SubmenuBuilder};
 #[cfg(target_os = "macos")]
 use tauri::Wry;
 use tauri::{AppHandle, Emitter};
-
-static CHINESE: AtomicBool = AtomicBool::new(false);
-
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-fn translated_menu_text(text: &str) -> String {
-    static MESSAGES: std::sync::OnceLock<std::collections::HashMap<String, String>> =
-        std::sync::OnceLock::new();
-    let messages = MESSAGES.get_or_init(|| {
-        serde_json::from_str(include_str!("../../src/shared/i18n/zh-CN.json"))
-            .expect("valid localization catalog")
-    });
-    if CHINESE.load(Ordering::Relaxed) {
-        messages
-            .get(text)
-            .cloned()
-            .unwrap_or_else(|| text.to_owned())
-    } else {
-        text.to_owned()
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn localize_items(items: Vec<tauri::menu::MenuItemKind<Wry>>) -> tauri::Result<()> {
-    use tauri::menu::MenuItemKind;
-    for item in items {
-        match item {
-            MenuItemKind::MenuItem(item) => item.set_text(translated_menu_text(&item.text()?))?,
-            MenuItemKind::Submenu(item) => {
-                item.set_text(translated_menu_text(&item.text()?))?;
-                localize_items(item.items()?)?;
-            }
-            MenuItemKind::Predefined(item) => item.set_text(translated_menu_text(&item.text()?))?,
-            _ => {}
-        }
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn app_language_set(
-    app: AppHandle,
-    locale: String,
-    overrides: serde_json::Value,
-) -> Result<(), String> {
-    if locale != "en" && locale != "zh-CN" {
-        return Err("Unsupported language".into());
-    }
-    CHINESE.store(locale == "zh-CN", Ordering::Relaxed);
-    #[cfg(target_os = "macos")]
-    {
-        let overrides = serde_json::from_value(overrides).map_err(|e| e.to_string())?;
-        let menu = build(&app, &overrides).map_err(|e| e.to_string())?;
-        localize_items(menu.items().map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-        app.set_menu(menu).map_err(|e| e.to_string())?;
-    }
-    #[cfg(not(target_os = "macos"))]
-    let _ = overrides;
-    #[cfg(target_os = "windows")]
-    crate::tray::set_language(
-        &app,
-        &translated_menu_text("Show Loci"),
-        &translated_menu_text("Quit Loci"),
-    )
-    .map_err(|e| e.to_string())?;
-    let _ = app;
-    Ok(())
-}
 
 #[cfg(target_os = "macos")]
 #[derive(Deserialize)]
@@ -129,8 +61,6 @@ pub fn keybindings_set_overrides(
     overrides: HashMap<String, KeybindingOverride>,
 ) -> Result<(), String> {
     let menu = build(&app, &overrides).map_err(|error| error.to_string())?;
-    localize_items(menu.items().map_err(|error| error.to_string())?)
-        .map_err(|error| error.to_string())?;
     // set_menu hands back the previous menu; this command only needs to know
     // whether it succeeded.
     app.set_menu(menu)

@@ -1,4 +1,3 @@
-import { t } from "../../shared/i18n/locale";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -256,7 +255,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     }
     const providerAccountId = supportsProviderAccounts(current.harness) ? (current.providerAccountId ?? selectedProviderAccountId(current.harness, current.cwd)) : undefined;
     if (supportsProviderAccounts(current.harness) && !providerAccountExists(current.harness, providerAccountId!)) {
-      enqueueHarnessEvent(sessionId, { type: "session.error", get message() { return t("This conversation uses a removed provider account. Switch accounts from the usage control to start a new conversation."); } });
+      enqueueHarnessEvent(sessionId, { type: "session.error", message: "This conversation uses a removed provider account. Switch accounts from the usage control to start a new conversation." });
       flushHarnessEvents();
       return false;
     }

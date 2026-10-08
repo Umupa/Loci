@@ -1,3 +1,4 @@
+import { SettingsLanguage } from "../../../shared/i18n/SettingsLanguage";
 import { t, useLocale, getLocale, useLanguagePreference, setLanguagePreference, type LanguagePreference } from "../../../shared/i18n/locale";
 import { getVersion } from "@tauri-apps/api/app";
 import { shortcutPreview, shortcutFromKeyEvent } from "../../../shared/lib/shortcuts";
@@ -85,7 +86,10 @@ type Props = {
     collapsedProjectRailMode?: CollapsedProjectRailMode;
     onCollapsedProjectRailModeChange?: (mode: CollapsedProjectRailMode) => void;
 };
-export function SettingsView({ section, anchor = null, notificationProjectPath = null, notificationSettingsRequest = 0, recents, cwd, sessions, besideRail = false, onClose, onSelectSection, onOpenSession, onArchiveSession, onDeleteSession, onRestoreProject, onDeleteProject, collapsedProjectRailMode, onCollapsedProjectRailModeChange, }: Props) {
+export function SettingsView(props: Props) {
+    return <SettingsLanguage><SettingsViewContent {...props}/></SettingsLanguage>;
+}
+function SettingsViewContent({ section, anchor = null, notificationProjectPath = null, notificationSettingsRequest = 0, recents, cwd, sessions, besideRail = false, onClose, onSelectSection, onOpenSession, onArchiveSession, onDeleteSession, onRestoreProject, onDeleteProject, collapsedProjectRailMode, onCollapsedProjectRailModeChange, }: Props) {
   useLocale();
     const lockOverscroll = useLockOverscroll<HTMLDivElement>();
     const [revealed, setRevealed] = useState<string | null>(anchor);
@@ -285,8 +289,8 @@ function GeneralPage({}: {}) {
     };
     return (<>
       <Group title={t("Language")}>
-        <Row id="language" label={t("Display language")} description={t("Choose the language used by Loci.")}>
-          <Select label={t("Display language")} value={language} onChange={(value) => setLanguagePreference(value as LanguagePreference)} options={[
+        <Row id="language" label={t("Settings language")} description={t("Choose the language for Settings. The workspace stays in English.")}>
+          <Select label={t("Settings language")} value={language} onChange={(value) => setLanguagePreference(value as LanguagePreference)} options={[
             { value: "system", label: t("Follow system") },
             { value: "zh-CN", label: "简体中文" },
             { value: "en", label: "English" },
@@ -496,7 +500,7 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         setChatBackgroundBusy(true);
         setChatBackgroundError(null);
         try {
-            const path = await pickAndSaveChatBackground();
+            const path = await pickAndSaveChatBackground(t("Choose chat background"));
             if (!path)
                 return;
             saveChatBackgroundPath(path);
@@ -768,10 +772,10 @@ function ChatBackgroundCard({ appearance, }: {
           </p>) : null}
       </div>
       {hasImage ? (<>
-          <Row label={t("Background effect")} description={NEW_THREAD_BACKGROUND_EFFECT_DESCRIPTIONS[appearance.newThreadBackgroundEffect]}>
+          <Row label={t("Background effect")} description={t(NEW_THREAD_BACKGROUND_EFFECT_DESCRIPTIONS[appearance.newThreadBackgroundEffect])}>
             <Segmented label={t("Background effect")} value={appearance.newThreadBackgroundEffect} options={NEW_THREAD_BACKGROUND_EFFECTS.map((effect) => ({
                 value: effect,
-                label: NEW_THREAD_BACKGROUND_EFFECT_LABELS[effect],
+                label: t(NEW_THREAD_BACKGROUND_EFFECT_LABELS[effect]),
             }))} onChange={appearance.onNewThreadBackgroundEffect} optionIdPrefix="new-thread-background-effect"/>
           </Row>
           <Row label={t("Show on")} description={t("Empty sessions only, or every conversation.")}>

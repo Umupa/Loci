@@ -1,4 +1,3 @@
-import { t } from "../../../shared/i18n/locale";
 import { dropContextWindow, type ContextUsage } from "./contextUsage";
 import type { UserQuestionPrompt } from "./userQuestion";
 import type { NoteCardMeta, NoteComposerCard } from "../../notes";
@@ -336,17 +335,18 @@ export const RUNTIME_MODES: RuntimeMode[] = [
 export const DEFAULT_RUNTIME_MODE: RuntimeMode = "supervised";
 
 export const RUNTIME_MODE_LABEL: Record<RuntimeMode, string> = {
-  get supervised() { return t("Supervised"); },
-  get "auto-accept-edits"() { return t("Auto-accept edits"); },
-  get auto() { return t("Auto"); },
-  get "full-access"() { return t("Full access"); },
+  supervised: "Supervised",
+  "auto-accept-edits": "Auto-accept edits",
+  auto: "Auto",
+  "full-access": "Full access",
 };
 
 export const RUNTIME_MODE_HINT: Record<RuntimeMode, string> = {
-  get supervised() { return t("Ask before commands and file changes."); },
-  get "auto-accept-edits"() { return t("Auto-approve edits, ask before other actions."); },
-  get auto() { return t("An AI reviewer can approve or deny actions."); },
-  get "full-access"() { return t("Allow commands, edits, and supported MCP confirmations in non-plan turns without prompts."); },
+  supervised: "Ask before commands and file changes.",
+  "auto-accept-edits": "Auto-approve edits, ask before other actions.",
+  auto: "An AI reviewer can approve or deny actions.",
+  "full-access":
+    "Allow commands, edits, and supported MCP confirmations in non-plan turns without prompts.",
 };
 
 export type Session = {
@@ -645,7 +645,7 @@ export function sessionDisplayTitle(title: string, harness: HarnessId): string {
   const prefix = `${HARNESS_LABEL[harness]} · `;
   if (title.startsWith(prefix)) return title.slice(prefix.length);
   if (title === HARNESS_LABEL[harness] || title === HARNESS_TITLE[harness]) {
-    return t("New session");
+    return "New session";
   }
   return title;
 }

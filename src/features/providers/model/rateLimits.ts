@@ -1,4 +1,3 @@
-import { t } from "../../../shared/i18n/locale";
 import { asRecord } from "../../../integrations/harness/providers/codex/codexProtocol";
 
 export type RateLimitProvider = "claude" | "codex";
@@ -152,19 +151,19 @@ export function formatUsagePercent(usedPercent: number): string {
  * original status-bar copy.
  */
 export function formatWindowLabel(windowMinutes: number): string {
-  if (windowMinutes === WEEKLY_WINDOW_MINUTES) return t("wk");
-  if (windowMinutes === MONTHLY_WINDOW_MINUTES) return t("mo");
-  if (windowMinutes === SESSION_WINDOW_MINUTES) return t("5h");
-  if (windowMinutes === 60) return t("1h");
-  if (windowMinutes < 60) return t("{0}m", windowMinutes);
+  if (windowMinutes === WEEKLY_WINDOW_MINUTES) return "wk";
+  if (windowMinutes === MONTHLY_WINDOW_MINUTES) return "mo";
+  if (windowMinutes === SESSION_WINDOW_MINUTES) return "5h";
+  if (windowMinutes === 60) return "1h";
+  if (windowMinutes < 60) return `${windowMinutes}m`;
   if (windowMinutes % (60 * 24 * 7) === 0) {
-    return t("{0}wk", windowMinutes / (60 * 24 * 7));
+    return `${windowMinutes / (60 * 24 * 7)}wk`;
   }
   if (windowMinutes % (60 * 24) === 0) {
-    return t("{0}d", windowMinutes / (60 * 24));
+    return `${windowMinutes / (60 * 24)}d`;
   }
-  if (windowMinutes % 60 === 0) return t("{0}h", windowMinutes / 60);
-  return t("{0}m", windowMinutes);
+  if (windowMinutes % 60 === 0) return `${windowMinutes / 60}h`;
+  return `${windowMinutes}m`;
 }
 
 /**
@@ -172,22 +171,22 @@ export function formatWindowLabel(windowMinutes: number): string {
  * "6d 7h". Returns "now" once the window has already reset.
  */
 export function formatResetDuration(ms: number): string {
-  if (ms <= 0) return t("now");
+  if (ms <= 0) return "now";
   const totalMins = Math.floor(ms / 60_000);
-  if (totalMins < 60) return t("{0}m", totalMins);
+  if (totalMins < 60) return `${totalMins}m`;
   const hours = Math.floor(totalMins / 60);
   const mins = totalMins % 60;
   if (hours >= 24) {
     const days = Math.floor(hours / 24);
     const remHours = hours % 24;
-    return remHours > 0 ? t("{0}d {1}h", days, remHours) : t("{0}d", days);
+    return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
   }
-  return mins > 0 ? t("{0}h {1}m", hours, mins) : t("{0}h", hours);
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
 export function formatResetCountdown(ms: number): string {
   const duration = formatResetDuration(ms);
-  return ms <= 0 ? t("Resets now") : t("Resets in {0}", duration);
+  return duration === "now" ? "Resets now" : `Resets in ${duration}`;
 }
 
 /**
@@ -210,9 +209,9 @@ export function rateLimitWindowTooltip(
   showRemaining = false,
 ): string {
   const pct = clampUsedPercent(window.usedPercent);
-  const usage = t(showRemaining ? "{0} remaining" : "{0} used", formatUsagePercent(showRemaining ? 100 - pct : pct));
+  const usage = `${formatUsagePercent(showRemaining ? 100 - pct : pct)} ${showRemaining ? "remaining" : "used"}`;
   if (window.resetsAt == null) {
-    return t("{0} · {1} window", usage, formatWindowLabel(window.windowMinutes));
+    return `${usage} · ${formatWindowLabel(window.windowMinutes)} window`;
   }
   return `${usage} · ${formatResetCountdown(window.resetsAt - now)}`;
 }

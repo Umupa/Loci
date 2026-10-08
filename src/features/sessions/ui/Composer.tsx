@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
 useCallback,
@@ -282,7 +281,6 @@ function ToolButton({
   onClick?: () => void;
   children: ReactNode;
 }) {
-  useLocale();
   return (
     <button
       type="button"
@@ -318,7 +316,6 @@ function MessageQueue({
   onSteer?: (messageId: string) => void;
   onResume?: () => void;
 }) {
-  useLocale();
   const [editingId, setEditingId] = useState<string>();
   const [editDraft, setEditDraft] = useState("");
   const onEditingChangeRef = useRef(onEditingChange);
@@ -360,21 +357,23 @@ function MessageQueue({
           <div className="flex h-7 items-center gap-2 border-b border-stroke text-[12px]">
             <Pause className="size-3.5" />
             <span className="min-w-0 flex-1 truncate">
-              {t("Queue paused because you interrupted")}</span>
+              Queue paused because you interrupted
+            </span>
             <button
               type="button"
               onClick={onResume}
               className="flex h-6 shrink-0 items-center gap-1.5 rounded-md px-1.5 hover:bg-content/10 hover:text-content"
             >
               <Play className="size-3.5" />
-              {t("Resume")}</button>
+              Resume
+            </button>
           </div>
         ) : null}
         {messages.map((message, index) => {
           const editing = editingId === message.id;
           const label =
             message.text.trim() ||
-            (message.attachments.length === 1 ? t("1 attachment") : t("{0} attachments", message.attachments.length));
+            `${message.attachments.length} attachment${message.attachments.length === 1 ? "" : "s"}`;
           return (
             <div
               key={message.id}
@@ -387,7 +386,7 @@ function MessageQueue({
                 <>
                   <textarea
                     autoFocus
-                    aria-label={t("Edit queued message")}
+                    aria-label="Edit queued message"
                     value={editDraft}
                     rows={1}
                     onChange={(event) => setEditDraft(event.target.value)}
@@ -405,8 +404,8 @@ function MessageQueue({
                   />
                   <button
                     type="button"
-                    title={t("Save queued message")}
-                    aria-label={t("Save queued message")}
+                    title="Save queued message"
+                    aria-label="Save queued message"
                     disabled={
                       !editDraft.trim() && message.attachments.length === 0
                     }
@@ -417,8 +416,8 @@ function MessageQueue({
                   </button>
                   <button
                     type="button"
-                    title={t("Cancel queued message edit")}
-                    aria-label={t("Cancel queued message edit")}
+                    title="Cancel queued message edit"
+                    aria-label="Cancel queued message edit"
                     onClick={cancelEdit}
                     className="grid size-6 shrink-0 place-items-center rounded-md hover:bg-content/10 hover:text-content"
                   >
@@ -436,11 +435,12 @@ function MessageQueue({
                     className="flex h-6 shrink-0 items-center gap-1.5 rounded-md px-1.5 hover:bg-content/10 hover:text-content"
                   >
                     <CornerDownRight className="size-3.5" />
-                    {t("Steer")}</button>
+                    Steer
+                  </button>
                   <button
                     type="button"
-                    title={t("Edit queued message")}
-                    aria-label={t("Edit queued message")}
+                    title="Edit queued message"
+                    aria-label="Edit queued message"
                     onClick={() => startEdit(message)}
                     className="grid size-6 shrink-0 place-items-center rounded-md hover:bg-content/10 hover:text-content"
                   >
@@ -448,8 +448,8 @@ function MessageQueue({
                   </button>
                   <button
                     type="button"
-                    title={t("Remove queued message")}
-                    aria-label={t("Remove queued message")}
+                    title="Remove queued message"
+                    aria-label="Remove queued message"
                     onClick={() => onDelete?.(message.id)}
                     className="grid size-6 shrink-0 place-items-center rounded-md hover:bg-content/10 hover:text-content"
                   >
@@ -548,7 +548,6 @@ export function Composer({
   onEditingLastTurnChange,
   children,
 }: Props) {
-  useLocale();
   const ref = useRef<HTMLTextAreaElement>(null);
   const observedFocusToken = useRef<number | undefined>(undefined);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -662,7 +661,7 @@ export function Composer({
     ...skills.filter((skill) => skill.kind === "native" ||
       ![OPERATOR_COMMAND.name, COMPACT_COMMAND.name, SESSION_FOLDER_COMMAND.name,
         MCP_COMMAND.name, DRAFT_COMMAND.name, BTW_COMMAND.name, LEARN_COMMAND.name].includes(skill.name)),
-  ], [getLocale(), harness, skills, canSaveDraft, onSaveDraft]);
+  ], [harness, skills, canSaveDraft, onSaveDraft]);
   const skillLimit = hasNativeCommands(harness)
     ? Number.POSITIVE_INFINITY
     : undefined;
@@ -670,7 +669,7 @@ export function Composer({
   const attachmentsSupported = harnessSupportsAttachments(harness);
   const skillNames = useMemo(
     () => new Set(slashItems.map((skill) => skill.invocation)),
-    [getLocale(), slashItems],
+    [slashItems],
   );
   const leadingMode = leadingModeCommand(draft, skillNames);
   const modeIndent = leadingMode ? MODE_COMMAND_INDENT : undefined;
@@ -683,13 +682,13 @@ export function Composer({
     notes: notesEnabled ? notes : [],
     canvases: inProject ? projectCanvases(canvases, cwd) : [],
     files: inProject ? projectFiles : [],
-  }), [getLocale(), notesEnabled, notes, inProject, canvases, cwd, projectFiles]);
-  const mentionIndex = useMemo(() => buildMentionSources(mentionSources), [getLocale(), mentionSources]);
+  }), [notesEnabled, notes, inProject, canvases, cwd, projectFiles]);
+  const mentionIndex = useMemo(() => buildMentionSources(mentionSources), [mentionSources]);
   const mentionIndexRef = useRef<MentionIndex>(mentionIndex);
   mentionIndexRef.current = mentionIndex;
   const rankedFiles = useMemo(
     () => mentionOpen ? rankMentions(mentionSources, mention?.query ?? "") : [],
-    [getLocale(), mentionOpen, mentionSources, mention?.query],
+    [mentionOpen, mentionSources, mention?.query],
   );
 
   const syncHasValue = useCallback(
@@ -817,7 +816,7 @@ export function Composer({
             }
             if (incoming.length === 0) {
               setPasteError(
-                t("Nothing to attach from that drop — the file may have been moved, renamed, or deleted."),
+                "Nothing to attach from that drop — the file may have been moved, renamed, or deleted.",
               );
               return;
             }
@@ -1312,7 +1311,7 @@ export function Composer({
         if (!over || !supported) return;
         if (event.payload.paths.length === 0) {
           setPasteError(
-            t("This drag did not provide a file. Save the image, then drag the saved file here."),
+            "This drag did not provide a file. Save the image, then drag the saved file here.",
           );
           return;
         }
@@ -2047,7 +2046,8 @@ export function Composer({
         >
           {fileDrag ? (
             <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-lg bg-accent/8 text-[12px] text-content/70">
-              {t("Drop files to attach")}</div>
+              Drop files to attach
+            </div>
           ) : null}
           {/* The row only holds the project picker, so it is gone when that is. */}
           {hideTopBar || hideProjectPicker ? null : (
@@ -2114,7 +2114,7 @@ export function Composer({
               rows={2}
               spellCheck={false}
               defaultValue={initialDraft}
-              placeholder={noteCard ? t("Add a message, or send…") : (placeholder ?? t("Ask, / for commands, @ for files, notes, drawings…"))}
+              placeholder={noteCard ? "Add a message, or send…" : (placeholder ?? "Ask, / for commands, @ for files, notes, drawings…")}
               aria-label={inputAriaLabel}
               disabled={disabled}
               className={`composer-field scrollbar-none relative max-h-52 w-full resize-none overflow-x-hidden whitespace-pre-wrap wrap-break-word bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
@@ -2160,7 +2160,7 @@ export function Composer({
               className={compact ? "hidden" : "relative shrink-0"}
             >
               <ToolButton
-                label={t("Add files or choose a mode")}
+                label="Add files or choose a mode"
                 active={plusOpen}
                 onClick={() => setPlusOpen((open) => !open)}
               >
@@ -2177,7 +2177,8 @@ export function Composer({
                   className="p-1.5"
                 >
                   <p className="px-2 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-content/40">
-                    {t("Add to message")}</p>
+                    Add to message
+                  </p>
                   <button
                     type="button"
                     disabled={!attachmentsSupported}
@@ -2190,11 +2191,11 @@ export function Composer({
                   >
                     <FilePlus className="mt-0.5 size-4 shrink-0" />
                     <span className="min-w-0">
-                      <span className="block text-[13px]">{t("Upload file")}</span>
+                      <span className="block text-[13px]">Upload file</span>
                       <span className="block truncate whitespace-nowrap text-[11px] leading-4 text-content/45">
                         {attachmentsSupported
-                          ? t("Attach files or images")
-                          : t("{0} does not support attachments", HARNESS_TITLE[harness])}
+                          ? "Attach files or images"
+                          : `${HARNESS_TITLE[harness]} does not support attachments`}
                       </span>
                     </span>
                   </button>
@@ -2219,9 +2220,10 @@ export function Composer({
                     >
                       <CursorMagicSelection className="mt-0.5 size-4 shrink-0 text-sky-300/80" />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px]">{t("Operator")}</span>
+                        <span className="block text-[13px]">Operator</span>
                         <span className="block truncate whitespace-nowrap text-[11px] leading-4 text-content/45">
-                          {t("Give this thread access to Loci")}</span>
+                          Give this thread access to Loci
+                        </span>
                       </span>
                       {operatorActive ? (
                         <Check className="mt-0.5 size-3.5 shrink-0 text-sky-300/80" />
@@ -2247,9 +2249,10 @@ export function Composer({
                     >
                       <CircleDashed className="mt-0.5 size-4 shrink-0 text-content/60" />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px]">{t("Draft")}</span>
+                        <span className="block text-[13px]">Draft</span>
                         <span className="block truncate whitespace-nowrap text-[11px] leading-4 text-content/45">
-                          {t("Save this message without starting the agent")}</span>
+                          Save this message without starting the agent
+                        </span>
                       </span>
                       {draftActive ? (
                         <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
@@ -2346,14 +2349,14 @@ export function Composer({
             {resendEdited ? (
               <button
                 type="button"
-                title={t("Stop editing last message")}
-                aria-label={t("Stop editing last message")}
+                title="Stop editing last message"
+                aria-label="Stop editing last message"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={exitEditMode}
                 className="edit-last-turn-button flex h-6.5 shrink-0 items-center gap-1 rounded-md border border-current/20 px-2 text-[11px] font-medium transition-[background-color,color,border-color] hover:border-current/35 hover:bg-content/15 hover:text-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
               >
                 <X className="size-3" strokeWidth={1.8} />
-                <span>{t("Cancel edit")}</span>
+                <span>Cancel edit</span>
               </button>
             ) : null}
             <div className="flex shrink-0 items-center gap-1">
@@ -2362,7 +2365,7 @@ export function Composer({
                 disabled={disabled}
                 hasValue={hasValue}
                 allowBusySubmit={allowBusySubmit}
-                label={draftActive ? t("Save draft") : t("Send")}
+                label={draftActive ? "Save draft" : "Send"}
                 onSend={() => submit(ref.current?.value ?? "")}
                 onStop={() => onStop?.()}
               />
@@ -2390,7 +2393,6 @@ function ComposerHighlight({
   mentions: ReadonlyMap<string, ProjectFile>;
   mcpTags: McpTag[];
 }) {
-  useLocale();
   const rest = mode ? text.slice(mode.end) : text;
   const parts = skillTextParts(rest, names);
   return (
@@ -2426,7 +2428,6 @@ function MentionRuns({
   mentions: ReadonlyMap<string, ProjectFile>;
   mcpTags: McpTag[];
 }) {
-  useLocale();
   return (
     <>
       {mcpTagParts(text, mcpTags).map((part, index) =>
@@ -2453,7 +2454,6 @@ function FileMentionRuns({
   text: string;
   mentions: ReadonlyMap<string, ProjectFile>;
 }) {
-  useLocale();
   const parts = fileMentionParts(text, mentions);
   return (
     <>
@@ -2498,7 +2498,7 @@ export function ComposerAction({
   disabled = false,
   hasValue,
   allowBusySubmit = true,
-  label = t("Send"),
+  label = "Send",
   onSend,
   onStop,
 }: {
@@ -2510,7 +2510,6 @@ export function ComposerAction({
   onSend: () => void;
   onStop: () => void;
 }) {
-  useLocale();
   if (disabled) {
     return (
       <button
@@ -2538,8 +2537,8 @@ export function ComposerAction({
     ) : (
       <button
         type="button"
-        title={t("Stop")}
-        aria-label={t("Stop")}
+        title="Stop"
+        aria-label="Stop"
         onClick={onStop}
         className="grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
       >

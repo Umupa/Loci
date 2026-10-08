@@ -1,4 +1,3 @@
-import { t } from "../../../shared/i18n/locale";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { projectKey } from "../../../shared/lib/paths";
@@ -14,7 +13,7 @@ export async function pickImageFile(directory: string): Promise<string | null> {
     defaultPath: directory,
     multiple: false,
     directory: false,
-    title: t("Choose project logo"),
+    title: "Choose project logo",
     filters: [
       {
         name: "Images",

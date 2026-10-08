@@ -1,4 +1,4 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
+import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import { useRef, useState } from "react";
 import { useProjectNotificationPreferences } from "../hooks/useProjectNotificationPreferences";
 import {
@@ -22,7 +22,7 @@ type Props = {
 };
 
 export function NotificationMuteControl({ projectIds, onChanged }: Props) {
-  useLocale();
+  const { t, locale } = useUiText();
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<"menu" | "custom" | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -35,7 +35,7 @@ export function NotificationMuteControl({ projectIds, onChanged }: Props) {
       ? null
       : projectIds.length > 1
         ? t("{0} of {1} projects muted", muted.length, projectIds.length)
-        : notificationMuteStatus(preferences[projectIds[0]]);
+        : notificationMuteStatus(preferences[projectIds[0]], locale);
 
   const close = (restoreFocus = true) => {
     setOpen(null);
@@ -99,7 +99,7 @@ export function NotificationMuteControl({ projectIds, onChanged }: Props) {
             <p className="px-2 py-1.5 text-[11px] text-content/45">
               {t("Mute all notifications for")}</p>
           }
-          items={notificationMuteActions()}
+          items={notificationMuteActions(new Date(), locale)}
           onClose={() =>
             close(Boolean(document.activeElement?.closest('[role="menu"]')))
           }

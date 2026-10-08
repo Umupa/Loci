@@ -8,7 +8,7 @@ Start with the [project README](../README.md) for what Loci is and how to run it
 | [canvas-mcp.md](canvas-mcp.md) | 中文 | Excalidraw canvases and the built-in `loci_excalidraw` MCP server: design, semantics, limits and verification records |
 | [learn.md](learn.md) | 中文 | `/learn`: product decisions, requirements, data model, architecture, and a record of what was and was not verified |
 | [stability-validation.md](stability-validation.md) | 中文 | Session persistence, background work and rendering: regression checks, measurements and remaining verification limits |
-| [localization.md](localization.md) | 中文 | Language preferences, translation conventions and UI verification |
+| [localization.md](localization.md) | 中文 | Settings language preferences, translation boundaries and UI verification |
 | [themes.md](themes.md) | 中文 | Omarchy themes, wallpapers and fonts: settings, palette mapping, importing assets and verification |
 
 Files at the root of the repository:

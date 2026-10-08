@@ -1,4 +1,3 @@
-import { t } from "../../../shared/i18n/locale";
 /**
  * How much of the model context window the session is currently occupying.
  *
@@ -48,10 +47,10 @@ export function contextTooltip(usage: ContextUsage): {
   const percent = contextPercent(usage);
   return {
     headline:
-      percent === null ? t("Context used") : t("{0}% context used", percent),
+      percent === null ? "Context used" : `${percent}% context used`,
     detail: usage.window
-      ? t("{0} / {1} tokens", formatTokens(usage.used), formatTokens(usage.window))
-      : t("{0} tokens", formatTokens(usage.used)),
+      ? `${formatTokens(usage.used)} / ${formatTokens(usage.window)} tokens`
+      : `${formatTokens(usage.used)} tokens`,
   };
 }
 

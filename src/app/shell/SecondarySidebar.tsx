@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../shared/i18n/locale";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { SidebarLeft } from "../../shared/ui/icons";
 import { MOD, SHIFT } from "../../platform/tauri/platform";
@@ -21,9 +20,8 @@ export function SecondarySidebarToggle({ open, onToggle, name }: {
   /** What the column holds, for the tooltip: "workspace sidebar", "notes list". */
   name: string;
 }) {
-  useLocale();
   return (
-    <IconButton label={`${open ? t("Hide") : t("Show")} ${name} (${MOD}${SHIFT}B)`} active={open} onClick={onToggle}>
+    <IconButton label={`${open ? "Hide" : "Show"} ${name} (${MOD}${SHIFT}B)`} active={open} onClick={onToggle}>
       <SidebarLeft className="size-3.5" strokeWidth={1.75} />
     </IconButton>
   );
@@ -31,7 +29,6 @@ export function SecondarySidebarToggle({ open, onToggle, name }: {
 
 /** Open state of a list page's column: remembered, and flipped by the shortcut. */
 export function useSecondarySidebar(id: SecondarySidebarId): [boolean, () => void] {
-  useLocale();
   const [open, setOpen] = useState(() => loadSecondarySidebarOpen(id));
   const toggle = useCallback(() => {
     setOpen((current) => {
@@ -56,7 +53,6 @@ function prefersReducedMotion(): boolean {
  * The column keeps its own width, so a width the user dragged survives.
  */
 export function CollapsiblePane({ open, children }: { open: boolean; children: ReactNode }) {
-  useLocale();
   const ref = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(open);
   const shown = useRef(open);

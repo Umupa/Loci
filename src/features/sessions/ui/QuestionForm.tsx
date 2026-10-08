@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import {
 useEffect,
 useMemo,
@@ -24,7 +23,6 @@ type Props = {
 };
 
 export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
-  useLocale();
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [custom, setCustom] = useState<Record<string, string>>({});
@@ -54,7 +52,7 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
   const last = index >= total - 1;
   const ready = useMemo(
     () => (question ? questionIsComplete(question, answers, custom) : false),
-    [getLocale(), answers, custom, question],
+    [answers, custom, question],
   );
 
   const finish = (nextAnswers = answers, nextCustom = custom) => {
@@ -94,7 +92,7 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
 
   if (!question) return null;
 
-  const title = question.header?.trim() || prompt.title?.trim() || t("Question");
+  const title = question.header?.trim() || prompt.title?.trim() || "Question";
 
   return (
     <div
@@ -123,7 +121,7 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
           </span>
           {total > 1 ? (
             <span className="shrink-0 text-[11px] text-content/40">
-              {t("{0} of {1}", index + 1, total)}
+              {index + 1} of {total}
             </span>
           ) : null}
           <button
@@ -131,7 +129,8 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
             className="h-6 shrink-0 rounded-md px-1.5 text-[11px] text-content/55 hover:bg-content/10 hover:text-content"
             onClick={skipCurrent}
           >
-            {t("Skip")}</button>
+            Skip
+          </button>
         </div>
         <div className="mt-2">
           <QuestionFields
@@ -174,11 +173,11 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
           {prompt.autoResolveAt != null ? (
             <span
               className="mr-auto text-[11px] text-content/40"
-              title={t("Interact to keep this question open.")}
+              title="Interact to keep this question open."
             >
               {prompt.autoResolveAt - now > 60_000
-                ? t("Optional question")
-                : t("Continues without an answer in {0}s", Math.max(0, Math.ceil((prompt.autoResolveAt - now) / 1000)))}
+                ? "Optional question"
+                : `Continues without an answer in ${Math.max(0, Math.ceil((prompt.autoResolveAt - now) / 1000))}s`}
             </span>
           ) : null}
           {index > 0 ? (
@@ -187,14 +186,16 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
               className="h-6 shrink-0 rounded-md px-1.5 text-[11px] text-content/55 hover:bg-content/10 hover:text-content"
               onClick={goBack}
             >
-              {t("Back")}</button>
+              Back
+            </button>
           ) : null}
           <button
             type="submit"
             disabled={!ready}
             className="h-6 rounded-md bg-content px-2.5 text-[11px] font-medium text-background-base hover:bg-content/80 disabled:opacity-40"
           >
-            {t("Continue")}</button>
+            Continue
+          </button>
         </div>
       </form>
     </div>
@@ -214,7 +215,6 @@ function QuestionFields({
   onSelect: (optionId: string) => void;
   onCustom: (value: string) => void;
 }) {
-  useLocale();
   const options = displayOptions(question);
   const customSelected = selected.some((id) => isCustomId(question, id));
   const customId = customOptionId(question);
@@ -273,13 +273,13 @@ function QuestionFields({
         {question.prompt}
       </p>
       {question.multiSelect ? (
-        <p className="mt-0.5 text-[11px] text-content/40">{t("Select all that apply")}</p>
+        <p className="mt-0.5 text-[11px] text-content/40">Select all that apply</p>
       ) : null}
       {options.length === 0 && question.allowCustom ? (
         <input
           value={custom}
           onChange={(event) => onCustom(event.target.value)}
-          placeholder={t("Type your answer")}
+          placeholder="Type your answer"
           className="mt-1.5 w-full rounded-md border border-content/15 bg-transparent px-2 py-1 text-[12px] text-content outline-none placeholder:text-content/35 focus:border-content/30"
         />
       ) : (
@@ -347,7 +347,7 @@ function QuestionFields({
                   <input
                     value={custom}
                     onChange={(event) => onCustom(event.target.value)}
-                    placeholder={t("Type your answer")}
+                    placeholder="Type your answer"
                     className="mt-1 w-full rounded-md border border-content/15 bg-transparent px-2 py-1 text-[12px] text-content outline-none placeholder:text-content/35 focus:border-content/30"
                     onClick={(event) => event.stopPropagation()}
                     onFocus={() => {
@@ -369,7 +369,7 @@ function displayOptions(question: UserQuestion): UserQuestion["options"] {
   if (question.options.some(isOtherOption) || !question.allowCustom) {
     return question.options;
   }
-  return [...question.options, { id: CUSTOM_OPTION_ID, label: t("Other") }];
+  return [...question.options, { id: CUSTOM_OPTION_ID, label: "Other" }];
 }
 
 function customOptionId(question: UserQuestion): string {

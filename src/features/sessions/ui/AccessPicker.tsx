@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
 import {
 useEffect,
 useRef,
@@ -42,7 +41,6 @@ export function AccessPicker({
   onClose,
   busy = false,
 }: Props) {
-  useLocale();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(() =>
     Math.max(0, RUNTIME_MODES.indexOf(value)),
@@ -90,7 +88,7 @@ export function AccessPicker({
       <button
         type="button"
         data-access-picker-trigger
-        title={`${RUNTIME_MODE_HINT[value]}${busy ? t(" Changes apply to the next turn.") : ""}`}
+        title={`${RUNTIME_MODE_HINT[value]}${busy ? " Changes apply to the next turn." : ""}`}
         aria-label={RUNTIME_MODE_LABEL[value]}
         aria-expanded={open}
         aria-haspopup="listbox"
@@ -128,7 +126,7 @@ export function AccessPicker({
           autoFocus
           onDismiss={(reason) => dismiss(reason === "escape")}
           role="listbox"
-          aria-label={t("Access")}
+          aria-label="Access"
           data-access-picker
           tabIndex={-1}
           onKeyDown={onMenuKey}
@@ -170,7 +168,9 @@ export function AccessPicker({
           })}
           {busy ? (
             <p className="px-2 py-1.5 text-[11px] leading-4 text-content/50">
-              {t("Access changes apply to the next turn. Stop and resend to apply them now.")}</p>
+              Access changes apply to the next turn. Stop and resend to apply
+              them now.
+            </p>
           ) : null}
         </Popover>
       ) : null}

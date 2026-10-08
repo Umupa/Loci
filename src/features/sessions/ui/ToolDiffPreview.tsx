@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
 import { useEffect,useId,useRef,useState,type ReactNode } from "react";
 import { Popover } from "../../../shared/ui/Popover";
 import { X } from "../../../shared/ui/icons";
@@ -27,7 +26,6 @@ export function ToolDiffPreview({
   className,
   children,
 }: Props) {
-  useLocale();
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const surface = useRef<HTMLDivElement>(null);
@@ -71,12 +69,12 @@ export function ToolDiffPreview({
 
   const description =
     status === "pending"
-      ? t("Proposed changes")
+      ? "Proposed changes"
       : status === "rejected"
-        ? t("Attempted changes · tool did not complete")
+        ? "Attempted changes · tool did not complete"
         : preview.contentOnly
-          ? t("Written content · previous contents unavailable")
-          : t("Change preview");
+          ? "Written content · previous contents unavailable"
+          : "Change preview";
 
   return (
     <>
@@ -86,8 +84,8 @@ export function ToolDiffPreview({
         className={`${className ?? ""} focus-visible:outline-2 focus-visible:outline-sky-400/60`}
         aria-label={
           onOpen
-            ? t("Open {0}", label)
-            : t("Preview {0}: {1}", preview.contentOnly ? "written content" : "changes", label)
+            ? `Open ${label}`
+            : `Preview ${preview.contentOnly ? "written content" : "changes"}: ${label}`
         }
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -160,7 +158,7 @@ export function ToolDiffPreview({
             <span className="min-w-0 flex-1">{description}</span>
             <button
               type="button"
-              aria-label={t("Close preview")}
+              aria-label="Close preview"
               className="shrink-0 rounded p-0.5 hover:bg-content/8 hover:text-content"
               onClick={() => dismiss(true)}
             >

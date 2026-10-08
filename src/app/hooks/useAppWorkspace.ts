@@ -1,4 +1,3 @@
-import { t } from "../../shared/i18n/locale";
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { archiveProject, forgetProject, lastProjectPath, loadRecents, rememberProject, sameProjectPath, normalizeProjectPath } from "../../features/projects/model/recents";
@@ -500,8 +499,8 @@ export function useAppWorkspace(options: Options) {
         scope: "project",
         replacement: seed,
         confirm: async () => mode === "archive" || await ask(
-          t("Delete “{0}”? This conversation will be permanently removed.", sessionDisplayTitle(seed.title, seed.harness)),
-          { title: t("Delete conversation"), kind: "warning", okLabel: t("Delete"), cancelLabel: t("Cancel") },
+          `Delete “${sessionDisplayTitle(seed.title, seed.harness)}”? This conversation will be permanently removed.`,
+          { title: "Delete conversation", kind: "warning", okLabel: "Delete", cancelLabel: "Cancel" },
         ),
         stop: async (sessionId) => {
           await latest.current.stopSession(sessionId);

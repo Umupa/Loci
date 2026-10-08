@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import { ChevronDown, ChevronRight } from "../../../shared/ui/icons";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, } from "react";
 import { basename } from "../../../platform/tauri/fs";
@@ -43,7 +42,6 @@ type Row = {
     kind: "more";
 };
 export function CwdPicker({ cwd, recents, mode = "switch", activeCwd, renderProjectLabel, projectLogoPath, enabled = true, placement = "above", className, buttonClassName, chevron = false, children, onCwdChange, onClose, }: Props) {
-  useLocale();
     const [open, setOpen] = useState(false);
     const [moreOpen, setMoreOpen] = useState(false);
     const [active, setActive] = useState(0);
@@ -74,7 +72,7 @@ export function CwdPicker({ cwd, recents, mode = "switch", activeCwd, renderProj
         if (hasMore)
             out.push({ kind: "more" });
         return out;
-    }, [getLocale(), hasMore, previewRecents]);
+    }, [hasMore, previewRecents]);
     const dismiss = (restore = false) => {
         setOpen(false);
         setMoreOpen(false);
@@ -154,7 +152,7 @@ export function CwdPicker({ cwd, recents, mode = "switch", activeCwd, renderProj
     };
     const moreIndex = hasMore ? previewRecents.length : -1;
     return (<div ref={root} className={`relative flex h-full min-w-0${className ? ` ${className}` : ""}`}>
-      <button type="button" title={cwd} aria-label={t("Project {0}", label)} aria-expanded={open} aria-haspopup="menu" disabled={!enabled} data-tauri-drag-region="false" onMouseDown={(e) => e.preventDefault()} onClick={() => {
+      <button type="button" title={cwd} aria-label={`Project ${label}`} aria-expanded={open} aria-haspopup="menu" disabled={!enabled} data-tauri-drag-region="false" onMouseDown={(e) => e.preventDefault()} onClick={() => {
             if (!enabled)
                 return;
             if (open) {
@@ -171,11 +169,12 @@ export function CwdPicker({ cwd, recents, mode = "switch", activeCwd, renderProj
           </>)}
         {chevron ? (<ChevronDown className={`size-3 shrink-0 text-content/50 ${open ? "rotate-180" : ""}`} strokeWidth={1.75}/>) : null}
       </button>
-      {open ? (<Popover anchor={root} side={placement === "below" ? "bottom" : "top"} width={MENU_WIDTH} maxHeight={MENU_MAX_HEIGHT} ignore={SELF} onDismiss={(reason) => dismiss(reason === "escape")} role="menu" aria-label={t("Project picker")} data-cwd-picker className="flex flex-col overflow-hidden">
+      {open ? (<Popover anchor={root} side={placement === "below" ? "bottom" : "top"} width={MENU_WIDTH} maxHeight={MENU_MAX_HEIGHT} ignore={SELF} onDismiss={(reason) => dismiss(reason === "escape")} role="menu" aria-label="Project picker" data-cwd-picker className="flex flex-col overflow-hidden">
           <div ref={lockOverscroll} className="min-h-0 flex-1 overflow-y-auto overscroll-none py-1">
             {inProject ? (<>
                 <p className="px-2.5 pb-1 pt-2 text-[10px] uppercase tracking-widest text-content/50">
-                  {t("Current project")}</p>
+                  Current project
+                </p>
                 <div className="px-2.5 py-1.5 text-content/50">
                   <p className="truncate text-[13px] text-content">
                     {renderProjectLabel?.(cwd) ?? basename(cwd)}
@@ -187,10 +186,11 @@ export function CwdPicker({ cwd, recents, mode = "switch", activeCwd, renderProj
               </>) : null}
             {previewRecents.length > 0 || mode === "move" ? (<>
                 <p className="px-2.5 pb-1 pt-2 text-[10px] uppercase tracking-widest text-content/50">
-                  {mode === "move" ? t("Move to project") : t("Recent projects")}
+                  {mode === "move" ? "Move to project" : "Recent projects"}
                 </p>
                 {mode === "move" && previewRecents.length === 0 ? (<p className="px-2.5 py-2 text-[13px] text-content/50">
-                    {t("No other projects")}</p>) : null}
+                    No other projects
+                  </p>) : null}
                 {previewRecents.map((item, index) => (<button key={item.path} ref={active === index ? activeRef : undefined} type="button" role="menuitem" title={item.path} onMouseDown={(e) => e.stopPropagation()} onMouseEnter={() => {
                         setMoreOpen(false);
                         setActive(index);
@@ -214,13 +214,13 @@ export function CwdPicker({ cwd, recents, mode = "switch", activeCwd, renderProj
                 }} className={`flex w-full items-center justify-between gap-3 px-2.5 py-2 text-left ${active === moreIndex || moreOpen
                     ? "bg-selection text-content"
                     : "text-content/80 hover:bg-content/5"}`}>
-                <span className="text-[13px]">{t("More Projects")}</span>
+                <span className="text-[13px]">More Projects</span>
                 <ChevronRight className="size-3.5 shrink-0" strokeWidth={1.75}/>
               </button>) : null}
           </div>
 
         </Popover>) : null}
-      {open && moreOpen ? (<Popover anchor={moreRef} side="right" gap={SUBMENU_GAP} width={MENU_WIDTH} maxHeight={SUBMENU_MAX_HEIGHT} layer={LAYER.submenu} role="menu" aria-label={t("More projects")} data-cwd-submenu className="overflow-y-auto overscroll-none py-1" onMouseEnter={openMore} onMouseLeave={scheduleCloseMore}>
+      {open && moreOpen ? (<Popover anchor={moreRef} side="right" gap={SUBMENU_GAP} width={MENU_WIDTH} maxHeight={SUBMENU_MAX_HEIGHT} layer={LAYER.submenu} role="menu" aria-label="More projects" data-cwd-submenu className="overflow-y-auto overscroll-none py-1" onMouseEnter={openMore} onMouseLeave={scheduleCloseMore}>
           {overflowRecents.map((item) => (<button key={item.path} type="button" role="menuitem" title={item.path} onMouseDown={(e) => e.stopPropagation()} onClick={() => pick({ kind: "recent", path: item.path })} className="flex w-full items-center justify-between gap-3 px-2.5 py-2 text-left text-content/80 hover:bg-content/5 hover:text-content">
               <span className="min-w-0 truncate text-[13px]">
                 {renderProjectLabel?.(item.path) ?? basename(item.path)}

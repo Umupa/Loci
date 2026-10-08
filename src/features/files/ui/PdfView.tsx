@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -29,7 +28,6 @@ type PageSize = { w: number; h: number };
  * is on screen.
  */
 export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array; onError: (message: string) => void; place?: { page: number; token: number }; onPlaced?: () => void }) {
-  useLocale();
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [baseSize, setBaseSize] = useState<PageSize | null>(null);
   const [sizes, setSizes] = useState<ReadonlyMap<number, PageSize>>(new Map());
@@ -159,13 +157,13 @@ export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array
             ))}
           </div>
         ) : (
-          <div className="grid h-full place-items-center text-[12px] text-content/45">{t("Opening…")}</div>
+          <div className="grid h-full place-items-center text-[12px] text-content/45">Opening…</div>
         )}
       </div>
       <footer className="flex h-8 shrink-0 items-center gap-2 border-t border-stroke px-3 text-[11px] text-content/50">
-        <span>{t("Page number")}</span>
+        <span>Page</span>
         <input
-          aria-label={t("Page number")}
+          aria-label="Page number"
           inputMode="numeric"
           value={pageDraft ?? String(page)}
           disabled={!doc}
@@ -185,14 +183,14 @@ export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array
         />
         <span className="tabular-nums">/ {doc?.numPages ?? "—"}</span>
         <span className="flex-1" />
-        <FooterButton label={t("Zoom out")} disabled={!doc} onClick={() => zoomTo(clampZoom(scale / ZOOM_STEP))}>
+        <FooterButton label="Zoom out" disabled={!doc} onClick={() => zoomTo(clampZoom(scale / ZOOM_STEP))}>
           <Minus className="size-3" strokeWidth={1.75} />
         </FooterButton>
-        <button type="button" title={t("Fit to width")} disabled={!doc} onClick={() => zoomTo("fit")}
+        <button type="button" title="Fit to width" disabled={!doc} onClick={() => zoomTo("fit")}
           className="w-11 rounded text-center tabular-nums hover:text-content">
-          {zoom === "fit" ? t("Fit") : `${Math.round(zoom * 100)}%`}
+          {zoom === "fit" ? "Fit" : `${Math.round(zoom * 100)}%`}
         </button>
-        <FooterButton label={t("Zoom in")} disabled={!doc} onClick={() => zoomTo(clampZoom(scale * ZOOM_STEP))}>
+        <FooterButton label="Zoom in" disabled={!doc} onClick={() => zoomTo(clampZoom(scale * ZOOM_STEP))}>
           <Plus className="size-3" strokeWidth={1.75} />
         </FooterButton>
       </footer>
@@ -209,7 +207,6 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
   root: { current: HTMLDivElement | null };
   onSize: (number: number, size: PageSize) => void;
 }) {
-  useLocale();
   const ref = useRef<HTMLDivElement>(null);
   const canvasSlot = useRef<HTMLDivElement>(null);
   const textSlot = useRef<HTMLDivElement>(null);

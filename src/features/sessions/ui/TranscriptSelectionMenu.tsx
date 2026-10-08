@@ -1,4 +1,3 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
 import { useEffect,useRef,useState,type ReactNode } from "react";
 import { FilePlusCorner,MessageSquarePlus } from "../../../shared/ui/icons";
 import { Popover } from "../../../shared/ui/Popover";
@@ -17,7 +16,6 @@ export function TranscriptSelectionMenu({
   onAddToNotes,
   onDismiss,
 }: Props) {
-  useLocale();
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
 
@@ -46,13 +44,13 @@ export function TranscriptSelectionMenu({
         onDismiss();
       }}
       role="toolbar"
-      aria-label={t("Selected text actions")}
+      aria-label="Selected text actions"
       className="p-1"
     >
       <div className="flex min-w-36 flex-col items-stretch gap-0.5">
         {onAddToChat ? (
           <SelectionAction
-            label={t("Add to chat")}
+            label="Add to chat"
             onSelect={() => onAddToChat(selection.text)}
             onDismiss={onDismiss}
           >
@@ -65,7 +63,7 @@ export function TranscriptSelectionMenu({
         ) : null}
         {onAddToNotes ? (
           <SelectionAction
-            label={t("Add to notes")}
+            label="Add to notes"
             onSelect={() => onAddToNotes(selection.text)}
             onDismiss={onDismiss}
           >
@@ -92,7 +90,6 @@ function SelectionAction({
   onSelect: () => void | Promise<void>;
   onDismiss: () => void;
 }) {
-  useLocale();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -125,7 +122,7 @@ function SelectionAction({
           role="alert"
           className="max-w-xs px-2.5 py-1 text-xs text-content/70"
         >
-          {t("Could not save note.")}{" "}{error}
+          Could not save note. {error}
         </span>
       )}
     </>

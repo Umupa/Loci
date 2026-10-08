@@ -1,11 +1,10 @@
-import { t } from "../../../shared/i18n/locale";
 import type { BuiltinSkill } from "../../skills/model/skills";
 
 export const DRAFT_COMMAND: BuiltinSkill = {
   kind: "builtin",
   name: "draft",
   invocation: "draft",
-  get description() { return t("Save this message without starting the agent."); },
+  description: "Save this message without starting the agent.",
   scope: "builtin",
   source: "loci",
 };

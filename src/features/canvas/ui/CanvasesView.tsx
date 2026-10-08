@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { Canvas } from "../canvas";
 import { canvasMcpProblem } from "../mcpServer";
@@ -39,7 +38,6 @@ type Props = {
 };
 
 export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, onToggleSidebar, onOpenCanvas, onNewCanvas, onTitleChange, onDeleteCanvas, onAddToChat }: Props) {
-  useLocale();
   const [query, setQuery] = useState("");
   const projectCwd = cwd && looksLikeProject(cwd) ? cwd : undefined;
   const [selectedId, setSelectedId] = useState(() => rememberedCanvasId ?? canvases[0]?.id ?? null);
@@ -72,7 +70,7 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
       `${canvas.title} ${canvas.cwd ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()) &&
       (since === 0 || canvas.updatedAt >= since)
     ).sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [getLocale(), canvases, query, projectCwd, timeFilter]);
+  }, [canvases, query, projectCwd, timeFilter]);
 
   const selected = drawings.find((canvas) => canvas.id === selectedId) ?? drawings[0];
   const select = (id: string) => { rememberedCanvasId = id; setSelectedId(id); };
@@ -86,22 +84,22 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
   };
 
   const commitRename = (id: string) => {
-    const title = renameDraft.trim() || t("Untitled drawing");
+    const title = renameDraft.trim() || "Untitled drawing";
     if (title !== (canvases.find((c) => c.id === id)?.title ?? "")) onTitleChange(id, title);
     setRenamingId(null);
   };
 
   const canvasMenuItems: ContextMenuItem[] = [
-    { kind: "item", id: "rename", label: t("Rename") },
+    { kind: "item", id: "rename", label: "Rename" },
     { kind: "sep" },
-    { kind: "item", id: "delete", label: t("Delete"), danger: true },
+    { kind: "item", id: "delete", label: "Delete", danger: true },
   ];
 
   const filterItems: ContextMenuItem[] = [
-    { kind: "item", id: "all", label: t("All time"), checked: timeFilter === "all" },
-    { kind: "item", id: "today", label: t("Today"), checked: timeFilter === "today" },
-    { kind: "item", id: "7d", label: t("Last 7 days"), checked: timeFilter === "7d" },
-    { kind: "item", id: "30d", label: t("Last 30 days"), checked: timeFilter === "30d" },
+    { kind: "item", id: "all", label: "All time", checked: timeFilter === "all" },
+    { kind: "item", id: "today", label: "Today", checked: timeFilter === "today" },
+    { kind: "item", id: "7d", label: "Last 7 days", checked: timeFilter === "7d" },
+    { kind: "item", id: "30d", label: "Last 30 days", checked: timeFilter === "30d" },
   ];
 
   return <section className="flex min-h-0 min-w-0 flex-1 flex-col text-content" aria-label="Excalidraw">
@@ -115,33 +113,33 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
     </div>
     <div className="flex min-h-0 min-w-0 flex-1">
       <CollapsiblePane open={listOpen}>
-        <aside ref={resize.setPaneRef} aria-label={t("Drawings")} className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-stroke">
+        <aside ref={resize.setPaneRef} aria-label="Drawings" className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-stroke">
           <div className="flex h-9 shrink-0 items-center gap-1 border-b border-stroke px-2">
             <div className="relative flex h-7 min-w-0 flex-1 items-center">
               <Search className="pointer-events-none absolute left-2 size-3 shrink-0 opacity-50" />
-              <input aria-label={t("Filter drawings")} placeholder={t("Filter drawings")} value={query} onChange={(event) => setQuery(event.target.value)} spellCheck={false} autoComplete="off" className="h-7 w-full rounded-md bg-transparent pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-content/40" />
+              <input aria-label="Filter drawings" placeholder="Filter drawings" value={query} onChange={(event) => setQuery(event.target.value)} spellCheck={false} autoComplete="off" className="h-7 w-full rounded-md bg-transparent pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-content/40" />
             </div>
-            <button type="button" aria-label={t("Filter by time")} title={t("Filter drawings")} onClick={(e: ReactMouseEvent<HTMLButtonElement>) => setFilterAnchor(e.currentTarget)} className={`grid size-6 shrink-0 place-items-center rounded-md hover:bg-content/10 hover:text-content ${timeFilter !== "all" ? "text-accent" : "text-content/45"}`}>
+            <button type="button" aria-label="Filter by time" title="Filter drawings" onClick={(e: ReactMouseEvent<HTMLButtonElement>) => setFilterAnchor(e.currentTarget)} className={`grid size-6 shrink-0 place-items-center rounded-md hover:bg-content/10 hover:text-content ${timeFilter !== "all" ? "text-accent" : "text-content/45"}`}>
               <ListFilter className="size-3.5" />
             </button>
-            <button type="button" aria-label={t("New drawing")} title={t("New drawing")} disabled={creating} onClick={() => void create()} className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content disabled:opacity-40">
+            <button type="button" aria-label="New drawing" title="New drawing" disabled={creating} onClick={() => void create()} className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content disabled:opacity-40">
               {creating ? <LoaderCircle className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
             </button>
           </div>
-          {agentProblem ? <p role="status" className={`shrink-0 border-b border-stroke px-3 py-2 text-[11px] leading-snug ${canvasMcpEnabled ? "text-amber-400" : "text-content/55"}`}>{canvasMcpEnabled ? t("Agents cannot draw yet. ") : ""}{agentProblem}</p> : null}
+          {agentProblem ? <p role="status" className={`shrink-0 border-b border-stroke px-3 py-2 text-[11px] leading-snug ${canvasMcpEnabled ? "text-amber-400" : "text-content/55"}`}>{canvasMcpEnabled ? "Agents cannot draw yet. " : ""}{agentProblem}</p> : null}
           <div ref={listLock} className="min-h-0 flex-1 overflow-y-auto overscroll-none">
             {drawings.length ? <ul className="flex flex-col gap-0.5 p-1.5">
               {drawings.map((canvas) => <li key={canvas.id}>
                 {renamingId === canvas.id ? (
                   <div className={`flex w-full flex-col rounded-md border px-2.5 py-2 ${canvas.id === selected?.id ? "border-transparent bg-selection" : "border-stroke"}`}>
                     <span className="flex w-full items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-[11px] text-content/50">{canvas.cwd ? projectName(canvas.cwd) : t("No project")}</span>
+                      <span className="min-w-0 flex-1 truncate text-[11px] text-content/50">{canvas.cwd ? projectName(canvas.cwd) : "No project"}</span>
                     </span>
                     <span className="mt-1 flex w-full min-w-0 items-center gap-1.5">
                       <ExcalidrawIcon className="size-3 shrink-0 text-content/40" />
                       <input
                         autoFocus
-                        aria-label={t("Rename drawing")}
+                        aria-label="Rename drawing"
                         value={renameDraft}
                         onChange={(e) => setRenameDraft(e.target.value)}
                         onBlur={() => commitRename(canvas.id)}
@@ -166,19 +164,19 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
                     }}
                     className={`flex w-full flex-col rounded-md border border-transparent px-2.5 py-2 text-left ${canvas.id === selected?.id ? "bg-selection text-content" : "text-content/80 hover:bg-content/5 hover:text-content"}`}
                   >
-                    <span className="flex w-full items-center gap-2"><span className="min-w-0 flex-1 truncate text-[11px] text-content/50">{canvas.cwd ? projectName(canvas.cwd) : t("No project")}</span><span className="shrink-0 text-[11px] tabular-nums text-content/45">{formatRelativeTime(new Date(canvas.updatedAt).toISOString())}</span></span>
+                    <span className="flex w-full items-center gap-2"><span className="min-w-0 flex-1 truncate text-[11px] text-content/50">{canvas.cwd ? projectName(canvas.cwd) : "No project"}</span><span className="shrink-0 text-[11px] tabular-nums text-content/45">{formatRelativeTime(new Date(canvas.updatedAt).toISOString())}</span></span>
                     <span className="mt-1 flex w-full min-w-0 items-center gap-1.5 text-[13px] font-semibold leading-snug"><ExcalidrawIcon className="size-3 shrink-0 text-content/40" /><span className="truncate">{canvas.title}</span></span>
                   </button>
                 )}
               </li>)}
-            </ul> : <p className="px-3 py-2 text-[12px] text-content/50">{query || timeFilter !== "all" ? t("No matching drawings") : t("No drawings yet. Create one to start sketching.")}</p>}
+            </ul> : <p className="px-3 py-2 text-[12px] text-content/50">{query || timeFilter !== "all" ? "No matching drawings" : "No drawings yet. Create one to start sketching."}</p>}
           </div>
-          <div role="separator" aria-orientation="vertical" aria-label={t("Resize drawings list")} className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick} />
+          <div role="separator" aria-orientation="vertical" aria-label="Resize drawings list" className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick} />
         </aside>
       </CollapsiblePane>
       <div className="min-h-0 min-w-0 flex-1">
         {selected ? <CanvasPane key={selected.id} canvas={selected} focused onFocus={() => {}} onTitleChange={onTitleChange} onAddToChat={onAddToChat} onOpenInWorkspace={() => onOpenCanvas(selected.id)} />
-          : <div className="grid h-full place-items-center text-sm text-content/40">{t("Create a drawing to start sketching")}</div>}
+          : <div className="grid h-full place-items-center text-sm text-content/40">Create a drawing to start sketching</div>}
       </div>
     </div>
     {canvasMenu ? <ContextMenu x={canvasMenu.x} y={canvasMenu.y} items={canvasMenuItems} onPick={(id) => {

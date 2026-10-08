@@ -1,4 +1,4 @@
-import { t, useLocale } from "../../../shared/i18n/locale";
+import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import { useState } from "react";
 import {
   loadNotificationPreferences,
@@ -22,7 +22,7 @@ export function NotificationMuteDatePicker({
   onChanged,
   onCancel,
 }: Props) {
-  useLocale();
+  const { t } = useUiText();
   const [value, setValue] = useState(() => {
     const until =
       projectIds.length === 1

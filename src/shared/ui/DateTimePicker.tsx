@@ -1,4 +1,4 @@
-import { getLocale, t, useLocale } from "../i18n/locale";
+import { useUiText } from "../i18n/SettingsLanguage";
 import {
   useId,
   useLayoutEffect,
@@ -52,7 +52,7 @@ export function DateTimePicker({
   minDate,
   autoFocus = false,
 }: Props) {
-  useLocale();
+  const { t, locale } = useUiText();
   const today = new Date(Date.now());
   const selected = parseLocalDateTime(`${value.slice(0, 10)}T12:00`) ?? today;
   const minimum = minDate ? parseLocalDateTime(`${minDate}T12:00`) : null;
@@ -83,7 +83,7 @@ export function DateTimePicker({
     !!minimum &&
     month.getFullYear() * 12 + month.getMonth() <=
       minimum.getFullYear() * 12 + minimum.getMonth();
-  const monthLabel = month.toLocaleDateString(getLocale(), { month: "long" });
+  const monthLabel = month.toLocaleDateString(locale, { month: "long" });
   const headingId = useId();
   const timeId = useId();
   const timeHintId = useId();
@@ -208,7 +208,7 @@ export function DateTimePicker({
                     aria-label={dateKey(date)}
                     tabIndex={dateKey(date) === dateKey(focusedDate) ? 0 : -1}
                     onKeyDown={(event) => onDayKeyDown(event, date)}
-                    title={date.toLocaleDateString(getLocale(), {
+                    title={date.toLocaleDateString(locale, {
                       dateStyle: "full",
                     })}
                     disabled={!!minimum && date < minimum}

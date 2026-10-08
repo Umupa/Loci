@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import {
 Fragment,
 useEffect,
@@ -143,7 +142,6 @@ const EFFORT_TILE_COLUMNS = 32;
 const EFFORT_TILE_ROWS = 5;
 
 function EffortTileShimmer() {
-  useLocale();
   return (
     <span className="codex-effort-tiles" aria-hidden="true">
       {Array.from(
@@ -199,8 +197,8 @@ function pillSettings(model: AgentModel): ModelSetting[] {
 
 function settingLabel(setting: ModelSetting): string {
   return setting.id === "effort" || setting.id === "reasoning"
-    ? t("Effort")
-    : t(setting.label);
+    ? "Effort"
+    : setting.label;
 }
 
 function settingValue(
@@ -216,7 +214,7 @@ function settingValueLabel(
 ): string {
   const value = settingValue(setting, values);
   return (
-    t(setting.options.find((option) => option.value === value)?.label ?? value)
+    setting.options.find((option) => option.value === value)?.label ?? value
   );
 }
 
@@ -246,7 +244,6 @@ export function ModelPicker({
   onSettingsChange,
   onClose,
 }: Props) {
-  useLocale();
   const source = useModelSource();
   const catalogVersion = useSyncExternalStore(
     subscribeModels,
@@ -298,7 +295,7 @@ export function ModelPicker({
     // In beside-picker mode every option row renders as a toolbar pill, so the
     // menu lists models only.
     return hideSettings ? [] : pickerSettings(current);
-  }, [getLocale(), catalogVersion, current, hideSettings]);
+  }, [catalogVersion, current, hideSettings]);
   const entries = useMemo<MenuEntry[]>(
     () => [
       ...settings.map((setting) => ({
@@ -307,7 +304,7 @@ export function ModelPicker({
       })),
       { kind: "model" as const },
     ],
-    [getLocale(), settings],
+    [settings],
   );
 
   const triggerEffortSetting = hideSettings
@@ -327,7 +324,7 @@ export function ModelPicker({
     current.provider?.name,
     current.name,
     triggerEffortLabel,
-    fastModeEnabled ? t("Fast mode") : undefined,
+    fastModeEnabled ? "Fast mode" : undefined,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -341,7 +338,7 @@ export function ModelPicker({
         !isProviderHidden(project, id) &&
         showProviderInModelPicker(id, source.available(id), source.probed()),
     );
-  }, [getLocale(),
+  }, [
     source,
     allowedHarnesses,
     availabilityVersion,
@@ -372,7 +369,7 @@ export function ModelPicker({
         .toLowerCase()
         .includes(needle),
     );
-  }, [getLocale(), source, catalogVersion, favorites, providerKey, query, visibleTab]);
+  }, [source, catalogVersion, favorites, providerKey, query, visibleTab]);
 
   const dismiss = (restore: boolean) => {
     setOpen(false);
@@ -659,12 +656,12 @@ export function ModelPicker({
       <button
         ref={button}
         type="button"
-        title={t("{0} · Recent models: right-click or {1}.", triggerTitle, MOD)}
+        title={`${triggerTitle} · Recent models: right-click or ${MOD}.`}
         aria-label={`${HARNESS_TITLE[current.harness]}${
           current.provider ? `, ${current.provider.name},` : ""
         } ${current.name}${
-          triggerEffortLabel ? t(", effort {0}", triggerEffortLabel) : ""
-        }${fastModeEnabled ? t(", fast mode") : ""}`}
+          triggerEffortLabel ? `, effort ${triggerEffortLabel}` : ""
+        }${fastModeEnabled ? ", fast mode" : ""}`}
         aria-keyshortcuts={`${MOD}.`}
         aria-expanded={open || recentMenu != null}
         aria-haspopup={hideSettings ? "dialog" : "menu"}
@@ -730,7 +727,7 @@ export function ModelPicker({
             ignore={SELF}
             onDismiss={() => dismiss(false)}
             role="menu"
-            aria-label={t("Model and settings")}
+            aria-label="Model and settings"
             tabIndex={-1}
             onKeyDown={onMenuKey}
             data-model-picker
@@ -760,7 +757,7 @@ export function ModelPicker({
                         : "text-content hover:bg-content/5"
                     }`}
                   >
-                    <span className="min-w-0 flex-1">{t("Model")}</span>
+                    <span className="min-w-0 flex-1">Model</span>
                     <span className="flex min-w-0 max-w-36 items-center gap-1 text-content/55">
                       <HarnessIcon
                         harness={current.harness}
@@ -791,7 +788,7 @@ export function ModelPicker({
                   aria-expanded={
                     !isToggle && highlighted ? showSubmenu : undefined
                   }
-                  title={setting.description ? t(setting.description) : undefined}
+                  title={setting.description}
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => {
                     setActive(index);
@@ -885,7 +882,7 @@ export function ModelPicker({
                   >
                     {tileTone ? <EffortTileShimmer /> : null}
                     <span className="min-w-0 flex-1 truncate">
-                      {t(option.label)}
+                      {option.label}
                     </span>
                     {selected ? (
                       <Check
@@ -929,7 +926,7 @@ export function ModelPicker({
           autoFocus
           onDismiss={() => setRecentMenu(null)}
           role="menu"
-          aria-label={t("Recently used models")}
+          aria-label="Recently used models"
           aria-activedescendant={`${recentMenuId}-${recentActive}`}
           tabIndex={-1}
           onContextMenu={(event) => event.preventDefault()}
@@ -1000,7 +997,6 @@ export function ModelControlPills({
   Props,
   "harness" | "model" | "values" | "onSettingsChange" | "onClose"
 >) {
-  useLocale();
   const catalogVersion = useSyncExternalStore(
     subscribeModels,
     getModelSnapshot,
@@ -1058,13 +1054,12 @@ function TogglePill({
   values: Record<string, string>;
   onSettingsChange: (settings: Record<string, string>) => void;
 }) {
-  useLocale();
   const on = settingValue(setting, values) === "true";
   return (
     <button
       type="button"
-      title={`${t(setting.label)}: ${on ? t("On") : t("Off")}`}
-      aria-label={`${t(setting.label)}: ${on ? t("On") : t("Off")}`}
+      title={`${setting.label}: ${on ? "On" : "Off"}`}
+      aria-label={`${setting.label}: ${on ? "On" : "Off"}`}
       aria-pressed={on}
       data-model-control
       onMouseDown={(event) => event.preventDefault()}
@@ -1076,7 +1071,7 @@ function TogglePill({
       <span
         className={`min-w-0 truncate text-[11px] ${on ? "" : "text-content/50"}`}
       >
-        {t(setting.label)}
+        {setting.label}
       </span>
     </button>
   );
@@ -1097,7 +1092,6 @@ function SelectPill({
   harness: HarnessId;
   additionalSettings?: ModelSetting[];
 }) {
-  useLocale();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const button = useRef<HTMLButtonElement>(null);
@@ -1115,7 +1109,7 @@ function SelectPill({
   const menuLabel =
     menuLabels.length < 3
       ? menuLabels.join(" and ")
-      : t("{0}, and {1}", menuLabels.slice(0, -1).join(", "), menuLabels[menuLabels.length - 1]);
+      : `${menuLabels.slice(0, -1).join(", ")}, and ${menuLabels[menuLabels.length - 1]}`;
   const dismiss = (restoreFocus: boolean) => {
     setOpen(false);
     if (restoreFocus) onClose?.();
@@ -1236,7 +1230,7 @@ function SelectPill({
                     >
                       {tileTone ? <EffortTileShimmer /> : null}
                       <span className="min-w-0 flex-1 truncate">
-                        {t(option.label)}
+                        {option.label}
                       </span>
                       {selected ? (
                         <Check
@@ -1293,7 +1287,6 @@ function ModelFlyout({
   onPick: (model: AgentModel) => void;
   onToggleFavorite: (id: string) => void;
 }) {
-  useLocale();
   const source = useModelSource();
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const activeRef = useRef<HTMLButtonElement>(null);
@@ -1350,7 +1343,7 @@ function ModelFlyout({
       maxHeight={MODEL_MENU_FRAME_HEIGHT}
       layer={LAYER.submenu}
       role="dialog"
-      aria-label={t("Models")}
+      aria-label="Models"
       onDismiss={onDismiss}
       onKeyDown={(event) => {
         // Keyboard nav once focus leaves the search field (which stops its
@@ -1392,12 +1385,12 @@ function ModelFlyout({
     >
       <nav
         role="tablist"
-        aria-label={t("Providers")}
+        aria-label="Providers"
         aria-orientation="vertical"
         className="flex w-11 shrink-0 flex-col items-center gap-1 border-r border-stroke p-1.5"
       >
         <ProviderTabButton
-          title={t("Favorites")}
+          title="Favorites"
           selected={tab === "favorites"}
           onSelect={() => onSelectTab("favorites")}
         >
@@ -1426,8 +1419,8 @@ function ModelFlyout({
             ref={searchRef}
             type="text"
             value={query}
-            placeholder={t("Search models")}
-            aria-label={t("Search models")}
+            placeholder="Search models"
+            aria-label="Search models"
             className="min-w-0 flex-1 bg-transparent text-[13px] text-content outline-none placeholder:text-content/40"
             onChange={(event) => onQuery(event.target.value)}
             onKeyDown={onSearchKey}
@@ -1437,18 +1430,18 @@ function ModelFlyout({
         <div
           ref={lockOverscroll}
           role="listbox"
-          aria-label={t("Models")}
+          aria-label="Models"
           className="min-h-0 flex-1 overflow-y-auto overscroll-none p-1"
         >
           {models.length === 0 ? (
             <div className="px-2 py-3 text-[12px] text-content/50">
               {tab === "favorites" && !query.trim()
-                ? t("No favorite models")
+                ? "No favorite models"
                 : tab !== "favorites" && !source.available(tab)
                   ? harnessUnavailableHint(tab)
                   : tab === "codex" && !query.trim()
-                    ? t("Loading Codex models…")
-                    : t("No matching models")}
+                    ? "Loading Codex models…"
+                    : "No matching models"}
             </div>
           ) : (
             groups.map((group) => (
@@ -1512,13 +1505,13 @@ function ModelFlyout({
                         type="button"
                         title={
                           favorited
-                            ? t("Remove from favorites")
-                            : t("Add to favorites")
+                            ? "Remove from favorites"
+                            : "Add to favorites"
                         }
                         aria-label={
                           favorited
-                            ? t("Remove from favorites")
-                            : t("Add to favorites")
+                            ? "Remove from favorites"
+                            : "Add to favorites"
                         }
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={(event) => {
@@ -1571,7 +1564,6 @@ function ProviderTabButton({
   onSelect: () => void;
   children: ReactNode;
 }) {
-  useLocale();
   return (
     <button
       type="button"

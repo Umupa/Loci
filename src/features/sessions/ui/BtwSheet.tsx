@@ -1,4 +1,3 @@
-import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import { useEffect,useLayoutEffect,useMemo,useRef,useState } from "react";
 import { ChevronDown,Plus,RefreshCw,X } from "../../../shared/ui/icons";
 
@@ -95,7 +94,6 @@ export function useBtwConversation({
   onStop,
   onModelChange,
 }: Options) {
-  useLocale();
   const [requestedOpen, setRequestedOpen] = useState(false);
   const open = requestedOpen && available;
   // Stay mounted while the close animation plays.
@@ -116,10 +114,10 @@ export function useBtwConversation({
   // Unsent text the side composer starts from; a new key remounts it.
   const [seed, setSeed] = useState({ key: 0, text: "" });
 
-  const turns = useMemo(() => groupTurns(blocks), [getLocale(), blocks]);
+  const turns = useMemo(() => groupTurns(blocks), [blocks]);
   const entries = useMemo(
     () => sessionBtwThreads(blocks),
-    [getLocale(), blocks],
+    [blocks],
   );
   const tabs = useMemo(() => {
     const next: BtwTab[] = entries.map(({ thread, turn }) => ({
@@ -142,7 +140,7 @@ export function useBtwConversation({
         status: tab.thread?.status ?? (pending ? "running" : undefined),
       };
     });
-  }, [getLocale(), drafts, entries, optimistic, turns]);
+  }, [drafts, entries, optimistic, turns]);
   const active =
     tabs.find((tab) => tab.id === activeId) ?? tabs[tabs.length - 1];
   const activeTabId = active?.id ?? null;
@@ -164,7 +162,7 @@ export function useBtwConversation({
       !persistedMessages.some((message) => message.id === optimisticForTab.id)
         ? [...persistedMessages, optimisticForTab]
         : persistedMessages,
-    [getLocale(), optimisticForTab, persistedMessages],
+    [optimisticForTab, persistedMessages],
   );
   const running = persisted?.status === "running" || !!optimisticForTab;
   const selectedModel =
@@ -176,7 +174,7 @@ export function useBtwConversation({
       resolveModel(composerHarness, selectedModel),
       modelSettings,
     );
-  }, [getLocale(),
+  }, [
     composerHarness,
     draftModelSettings,
     modelSettings,
@@ -406,7 +404,7 @@ export function useBtwConversation({
 }
 
 function compactQuestion(text: string | undefined): string {
-  const compact = text?.replace(/\s+/g, " ").trim() || t("New question");
+  const compact = text?.replace(/\s+/g, " ").trim() || "New question";
   return compact.length > 48 ? `${compact.slice(0, 45)}…` : compact;
 }
 
@@ -486,7 +484,6 @@ export function BtwSheet({
   onSaveNote?: (text: string) => void | Promise<void>;
   onOpenFile?: (path: string) => void;
 }) {
-  useLocale();
   const sheetRef = useRef<HTMLElement | null>(null);
   const glassRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -515,7 +512,7 @@ export function BtwSheet({
         harness,
         model: btw.model,
       }),
-    [getLocale(),
+    [
       messages,
       btw.pendingBlocks,
       running,
@@ -694,7 +691,7 @@ export function BtwSheet({
       <section
         ref={sheetRef}
         role="dialog"
-        aria-label={t("By-the-way conversations")}
+        aria-label="By-the-way conversations"
         className="btw-sheet absolute inset-x-0 bottom-0 isolate mx-auto w-full max-w-4xl"
       >
         <GlassBackdrop
@@ -708,7 +705,7 @@ export function BtwSheet({
           <div className="btw-sheet-body flex h-11 shrink-0 items-center gap-1 border-b border-content/8 pr-2 pl-2.5">
             <div
               role="tablist"
-              aria-label={t("Side questions")}
+              aria-label="Side questions"
               className="scrollbar-none flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
             >
               {tabs.map((tab) => {
@@ -743,10 +740,10 @@ export function BtwSheet({
                       type="button"
                       aria-label={
                         tab.thread
-                          ? t("Delete “{0}”", label)
-                          : t("Discard new question")
+                          ? `Delete “${label}”`
+                          : "Discard new question"
                       }
-                      title={tab.thread ? t("Delete") : t("Discard")}
+                      title={tab.thread ? "Delete" : "Discard"}
                       onClick={() => btw.closeTab(tab)}
                       className={`mr-1 grid size-5 shrink-0 place-items-center rounded text-content/40 transition-opacity hover:bg-content/10 hover:text-content focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent ${
                         selected ? "" : "opacity-0 group-hover:opacity-100"
@@ -761,8 +758,8 @@ export function BtwSheet({
             {btw.canStartDraft ? (
               <button
                 type="button"
-                aria-label={t("New side question")}
-                title={t("New side question")}
+                aria-label="New side question"
+                title="New side question"
                 onClick={btw.startDraft}
                 className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
               >
@@ -771,8 +768,8 @@ export function BtwSheet({
             ) : null}
             <button
               type="button"
-              aria-label={t("Back to the conversation")}
-              title={t("Back to the conversation (Esc)")}
+              aria-label="Back to the conversation"
+              title="Back to the conversation (Esc)"
               onClick={btw.close}
               className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
             >
@@ -799,10 +796,11 @@ export function BtwSheet({
               <div className="btw-error" role="alert">
                 <div className="min-w-0">
                   <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-red-200/70">
-                    {t("Couldn’t finish")}</div>
+                    Couldn’t finish
+                  </div>
                   <div className="mt-1 text-[12px] leading-4.5 text-red-100/75">
                     {persisted.error ||
-                      t("{0} could not answer this side question.", HARNESS_TITLE[harness])}
+                      `${HARNESS_TITLE[harness]} could not answer this side question.`}
                   </div>
                 </div>
                 <button
@@ -811,7 +809,8 @@ export function BtwSheet({
                   className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-red-100/80 transition-colors hover:bg-red-200/10 hover:text-red-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-red-200/60"
                 >
                   <RefreshCw className="size-3" strokeWidth={1.75} />
-                  {t("Retry")}</button>
+                  Retry
+                </button>
               </div>
             </div>
           ) : null}
@@ -835,7 +834,7 @@ export function BtwSheet({
                 hideProjectPicker
 
                 hideTopBar
-                placeholder={t("Ask a side question…")}
+                placeholder="Ask a side question…"
                 inputAriaLabel="By-the-way question"
                 allowedModelHarnesses={[harness]}
                 initialDraft={btw.seed.text}
