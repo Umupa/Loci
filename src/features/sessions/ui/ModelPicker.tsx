@@ -313,6 +313,7 @@ export function ModelPicker({
   const triggerEffortLabel = triggerEffortSetting
     ? settingValueLabel(triggerEffortSetting, values)
     : undefined;
+  const serviceTierValue = values["serviceTier"];
   const triggerTitle = [
     HARNESS_TITLE[current.harness],
     current.provider?.name,
@@ -677,6 +678,9 @@ export function ModelPicker({
           <span className="shrink-0 text-[11px] text-content/50">
             {triggerEffortLabel}
           </span>
+        ) : null}
+        {serviceTierValue === "fast" ? (
+          <Zap className="size-3.5 shrink-0 text-accent" strokeWidth={1.75} />
         ) : null}
         <ChevronDown
           className={`size-3 shrink-0 text-content/50 ${open ? "rotate-180" : ""}`}

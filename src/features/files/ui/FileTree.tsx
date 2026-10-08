@@ -4,6 +4,7 @@ import {
   Eye,
   EyeOff,
   FilePlus,
+  FolderOpen,
   FolderPlus,
   FoldVertical,
   Search,
@@ -53,6 +54,7 @@ import {
   createPath,
   movePath,
   openPathWithDefaultApp,
+  pickFiles,
   renamePath,
   revealPath,
   trashPath,
@@ -967,6 +969,21 @@ export const FileTree = memo(function FileTree({
           </HeaderIcon>
           <HeaderIcon label="New Folder" onClick={() => startCreate(true)}>
             <FolderPlus className="size-3.5" strokeWidth={1.75} />
+          </HeaderIcon>
+          <HeaderIcon label="Import Files" onClick={async () => {
+            const files = await pickFiles("Import files to project");
+            if (files) {
+              for (const file of files) {
+                try {
+                  await copyPath(file, cwd);
+                } catch (err) {
+                  console.error(`Failed to import ${file}:`, err);
+                }
+              }
+              notifyDirsChanged();
+            }
+          }}>
+            <FolderOpen className="size-3.5" strokeWidth={1.75} />
           </HeaderIcon>
           <HeaderIcon
             label="Collapse All"

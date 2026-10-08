@@ -1424,6 +1424,7 @@ function SaveToCanvasButton({
             if (timer.current != null) window.clearTimeout(timer.current);
             timer.current = window.setTimeout(() => setSaved(false), 2000);
           } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") return;
             setError(error instanceof Error ? error.message : String(error));
           } finally {
             setPending(false);

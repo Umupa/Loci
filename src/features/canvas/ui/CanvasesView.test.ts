@@ -18,7 +18,7 @@ const canvases: Canvas[] = [
 let container: HTMLDivElement;
 let root: Root;
 const noop = vi.fn();
-const props: ComponentProps<typeof CanvasesView> = { canvases, cwd: "/work/A", besideRail: true, compactRail: false, onClose: noop, onToggleSidebar: noop, onOpenCanvas: noop, onNewCanvas: vi.fn(), onTitleChange: noop, onDeleteCanvas: noop, onAddToChat: noop, onRegisterAppend: noop };
+const props: ComponentProps<typeof CanvasesView> = { canvases, cwd: "/work/A", besideRail: true, compactRail: false, onClose: noop, onToggleSidebar: noop, onOpenCanvas: noop, onNewCanvas: vi.fn(), onTitleChange: noop, onDeleteCanvas: noop, onAddToChat: noop };
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);

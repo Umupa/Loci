@@ -61,6 +61,7 @@ import { useIdleSessionDetach } from "./hooks/useIdleSessionDetach";
 import { useAppCommands } from "./hooks/useAppCommands";
 import { useAppControl } from "./hooks/useAppControl";
 import { useAppResourceNavigation } from "./hooks/useAppResourceNavigation";
+import { useSaveToCanvas } from "./hooks/useSaveToCanvas";
 import type { NoteOpenRequest } from "../features/notes/ui/NotesView";
 
 const SearchView = lazySurface(async () => ({ default: (await import("../features/search/ui/SearchView")).SearchView }), { suspense: false });
@@ -101,8 +102,6 @@ function Workspace(boot: BootWorkspace) {
   const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
   const [transcriptPool] = useState(() => new TranscriptPool());
   const [canvases, setCanvases] = useState<Canvas[]>([]);
-  const appendToCanvasRef = useRef(new Map<string, (text: string) => void>());
-  const [canvasSelection, setCanvasSelection] = useState<{ text: string; canvases: Canvas[]; resolver: (id: string) => void; rejecter: (error: Error) => void } | null>(null);
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
   const seenSignInRequests = useRef(new Set(initial.sessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
   const workspaceRef = useRef<ReturnType<typeof useAppWorkspace> | null>(null);
@@ -143,6 +142,7 @@ function Workspace(boot: BootWorkspace) {
     onNavigate: closeSurface,
   });
   workspaceRef.current = workspace;
+  const { saveToCanvas, selection: canvasSelection } = useSaveToCanvas({ canvases, workspaceRef });
   const active = workspace.activeSession;
   const busySessionIds = useMemo(() => new Set(sessions.filter((session) => session.busy).map((session) => session.id)), [sessions]);
   const approvalSessionIds = useMemo(() => new Set(sessions.filter(sessionNeedsInput).map((session) => session.id)), [sessions]);
@@ -203,10 +203,6 @@ function Workspace(boot: BootWorkspace) {
     const view = workspaceRef.current!;
     const session = { ...newDefaultSession(view.projectCwdRef.current, view.activeSession?.runtimeMode), title: "Canvas context" };
     view.addSession({ ...session, noteCard: { id: crypto.randomUUID(), slug: "canvas-context", title: "Canvas context", body: text } });
-  };
-  const registerCanvasAppend = (id: string, fn: ((text: string) => void) | null) => {
-    if (fn) appendToCanvasRef.current.set(id, fn);
-    else appendToCanvasRef.current.delete(id);
   };
   const openCanvas = (id: string) => workspace.openCanvas(id, canvases.find((canvas) => canvas.id === id)?.cwd);
   const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => { setNoteOpenRequest(undefined); setSurface("notes"); }); }, []);
@@ -409,57 +405,7 @@ function Workspace(boot: BootWorkspace) {
     onQueuedMessageEditingChange: submission.queuedMessageEditingChange, onSteerQueuedMessage: submission.steerQueuedMessage, onResumeQueue: submission.resumeQueue,
     onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
     onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((session) => session.id === id ? { ...session, noteCard: undefined } : session)),
-    onSaveToCanvas: async (text: string) => {
-      const view = workspaceRef.current;
-      if (!view) return;
-      const tab = view.tabsRef.current.find((t) => t.id === view.activeTabIdRef.current);
-      if (!tab) return;
-
-      const registeredIds = Array.from(appendToCanvasRef.current.keys());
-      if (registeredIds.length === 0) {
-        throw new Error("No available Canvas");
-      }
-
-      const focused = tab.focusedId;
-      const fn = appendToCanvasRef.current.get(focused);
-      if (fn) { fn(text); return; }
-
-      for (const paneId of leafIds(tab.layout)) {
-        const append = appendToCanvasRef.current.get(paneId);
-        if (append) { append(text); return; }
-      }
-
-      if (registeredIds.length === 1) {
-        const appendFn = appendToCanvasRef.current.get(registeredIds[0]);
-        if (appendFn) { appendFn(text); return; }
-      }
-
-      const availableCanvases = canvases.filter((c) => registeredIds.includes(c.id));
-      if (availableCanvases.length === 0) {
-        throw new Error("No available Canvas");
-      }
-
-      return new Promise<void>((resolve, reject) => {
-        setCanvasSelection({
-          text,
-          canvases: availableCanvases,
-          resolver: (selectedId: string) => {
-            const appendFn = appendToCanvasRef.current.get(selectedId);
-            if (appendFn) {
-              appendFn(text);
-              setCanvasSelection(null);
-              resolve();
-            } else {
-              reject(new Error("Canvas no longer available"));
-            }
-          },
-          rejecter: (error: Error) => {
-            setCanvasSelection(null);
-            reject(error);
-          },
-        });
-      });
-    },
+    onSaveToCanvas: saveToCanvas,
     onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
     onOpenFile: openFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
     onBtwStop: submission.btwStop, onBtwModelChange: submission.btwModelChange,
@@ -509,7 +455,6 @@ function Workspace(boot: BootWorkspace) {
                     onCanvasFocus={(id) => workspace.focusPane(id)}
                     onCanvasAddToChat={canvasAddToChat}
                     onCanvasTitleChange={renameCanvas}
-                    onCanvasRegisterAppend={registerCanvasAppend}
                     projectCwd={tab.cwd ?? workspace.projectCwd} onFilePaneFocus={workspace.focusPane}
                     onFilePanePin={pinFile} onOpenProjectFile={openProjectFile} />
                 </div>)}
@@ -520,7 +465,7 @@ function Workspace(boot: BootWorkspace) {
             focusToken={searchFocusToken} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
             onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}
           {surface === "notes" ? <NotesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} cwd={workspace.projectCwd} openRequest={noteOpenRequest} recents={workspace.recents} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
-          {surface === "canvases" ? <CanvasesView canvases={canvases} cwd={workspace.projectCwd} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail} onOpenCanvas={openCanvas} onNewCanvas={newCanvas} onTitleChange={renameCanvas} onDeleteCanvas={handleDeleteCanvas} onAddToChat={canvasAddToChat} onRegisterAppend={registerCanvasAppend} /> : null}
+          {surface === "canvases" ? <CanvasesView canvases={canvases} cwd={workspace.projectCwd} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail} onOpenCanvas={openCanvas} onNewCanvas={newCanvas} onTitleChange={renameCanvas} onDeleteCanvas={handleDeleteCanvas} onAddToChat={canvasAddToChat} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest}
             recents={workspace.recents} cwd={workspace.projectCwd} sessions={workspace.sidebarHistory} besideRail onClose={() => setSurface(settingsReturn.current)} onSelectSection={onSelectSettingsSection}
             onOpenSession={(id) => void workspace.openSession(id)} onArchiveSession={(...args) => void workspace.archiveSession(...args)} onDeleteSession={(id) => void workspace.removeSession(id)}
@@ -547,7 +492,7 @@ function Workspace(boot: BootWorkspace) {
         onReopen={(batch) => { void workspace.reopenClosed(batch); }} onOpenOverview={openTabOverview} /> : null}
       <ClosedTabToast onUndo={(batch) => { void workspace.reopenClosed(batch); }} />
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
-      {canvasSelection ? <SelectCanvasDialog canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new Error("Cancelled")); }} /> : null}
+      {canvasSelection ? <SelectCanvasDialog canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new DOMException("Cancelled", "AbortError")); }} /> : null}
       {workspace.error ? <FileActionError message={workspace.error} onDismiss={() => workspace.setError(null)} /> : null}
     </div>
     <TranscriptPoolOutlet pool={transcriptPool} />

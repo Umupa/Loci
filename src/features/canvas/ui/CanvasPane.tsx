@@ -34,10 +34,9 @@ type Props = {
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onAddToChat: (text: string) => void;
   onTitleChange: (id: string, title: string) => void;
-  onRegisterAppend?: (canvasId: string, fn: ((text: string) => void) | null) => void;
 };
 
-function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorkspace, onPaneDragStart, onAddToChat, onTitleChange, onRegisterAppend }: Props) {
+function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorkspace, onPaneDragStart, onAddToChat, onTitleChange }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef(canvas);
@@ -184,26 +183,14 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     };
   }, [canvas.id, save]);
 
-  const appendText = useCallback((text: string) => {
-    const api = apiRef.current;
-    if (!api) return;
-    const existing = api.getSceneElements();
-    const maxY = existing.reduce((acc, el) => Math.max(acc, el.y + el.height), 0);
-    const added = convertToExcalidrawElements([{ type: "text", x: 40, y: maxY + 40, text, fontSize: 16, width: 500 }]);
-    api.updateScene({ elements: [...existing, ...added] });
-  }, []);
-  const registerRef = useRef(onRegisterAppend);
-  registerRef.current = onRegisterAppend;
   const registerApi = useCallback((api: ExcalidrawImperativeAPI) => {
     apiRef.current = api;
-    registerRef.current?.(canvas.id, appendText);
     const replacement = pendingReplacementRef.current;
     if (replacement) {
       pendingReplacementRef.current = null;
       window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail: replacement }));
     }
-  }, [canvas.id, appendText]);
-  useEffect(() => () => { registerRef.current?.(canvas.id, null); }, [canvas.id]);
+  }, []);
 
   const handleAddToChat = useCallback(() => {
     const api = apiRef.current;

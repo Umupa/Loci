@@ -35,10 +35,9 @@ type Props = {
   onTitleChange: (id: string, title: string) => void;
   onDeleteCanvas: (id: string) => void;
   onAddToChat: (text: string) => void;
-  onRegisterAppend: (canvasId: string, fn: ((text: string) => void) | null) => void;
 };
 
-export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, onToggleSidebar, onOpenCanvas, onNewCanvas, onTitleChange, onDeleteCanvas, onAddToChat, onRegisterAppend }: Props) {
+export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, onToggleSidebar, onOpenCanvas, onNewCanvas, onTitleChange, onDeleteCanvas, onAddToChat }: Props) {
   const [query, setQuery] = useState("");
   const projectCwd = cwd && looksLikeProject(cwd) ? cwd : undefined;
   const [selectedId, setSelectedId] = useState(() => rememberedCanvasId ?? canvases[0]?.id ?? null);
@@ -176,7 +175,7 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
         </aside>
       </CollapsiblePane>
       <div className="min-h-0 min-w-0 flex-1">
-        {selected ? <CanvasPane key={selected.id} canvas={selected} focused onFocus={() => {}} onTitleChange={onTitleChange} onAddToChat={onAddToChat} onRegisterAppend={onRegisterAppend} onOpenInWorkspace={() => onOpenCanvas(selected.id)} />
+        {selected ? <CanvasPane key={selected.id} canvas={selected} focused onFocus={() => {}} onTitleChange={onTitleChange} onAddToChat={onAddToChat} onOpenInWorkspace={() => onOpenCanvas(selected.id)} />
           : <div className="grid h-full place-items-center text-sm text-content/40">Create a drawing to start sketching</div>}
       </div>
     </div>
