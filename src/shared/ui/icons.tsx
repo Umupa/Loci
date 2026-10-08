@@ -49,6 +49,7 @@ import LayoutAlignRightIcon from "@hugeicons/core-free-icons/LayoutAlignRightIco
 import ListEndIcon from "@hugeicons/core-free-icons/ListEndIcon";
 import LinkSquare02Icon from "@hugeicons/core-free-icons/LinkSquare02Icon";
 import Loading03Icon from "@hugeicons/core-free-icons/Loading03Icon";
+import Mortarboard01Icon from "@hugeicons/core-free-icons/Mortarboard01Icon";
 import MinusSignIcon from "@hugeicons/core-free-icons/MinusSignIcon";
 import MoreHorizontalIcon from "@hugeicons/core-free-icons/MoreHorizontalIcon";
 import Note01Icon from "@hugeicons/core-free-icons/Note01Icon";
@@ -157,6 +158,7 @@ export const Maximize2 = wrap(ArrowExpand01Icon, "Maximize2");
 export const Minimize2 = wrap(ArrowShrink01Icon, "Minimize2");
 export const MessageSquare = wrap(Comment01Icon, "MessageSquare");
 export const MessageSquarePlus = wrap(CommentAdd01Icon, "MessageSquarePlus");
+export const Mortarboard = wrap(Mortarboard01Icon, "Mortarboard");
 export const Minus = wrap(MinusSignIcon, "Minus");
 export const MoreHorizontal = wrap(MoreHorizontalIcon, "MoreHorizontal");
 export const Palette = wrap(PaintBoardIcon, "Palette");

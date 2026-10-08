@@ -30,8 +30,8 @@ export type CanvasUpsert = {
 
 /** A rectangle of the scene an agent asked viewers to look at. */
 export type CanvasViewport = { x: number; y: number; width: number; height: number };
-/** `CANVAS_SCENE_REPLACED_EVENT` detail: the saved canvas and where to look. */
-export type CanvasSceneReplacement = Canvas & { viewport?: CanvasViewport };
+/** `CANVAS_SCENE_REPLACED_EVENT` detail: the saved canvas, where to look, and whether undo should skip it. */
+export type CanvasSceneReplacement = Canvas & { viewport?: CanvasViewport; silent?: boolean };
 
 export const CANVASES_CHANGED_EVENT = "loci-canvases-changed";
 export const CANVAS_SCENE_ACCESS_EVENT = "loci-canvas-scene-access";
@@ -184,7 +184,8 @@ export async function readCanvasScene(id: string): Promise<Canvas | null> {
   return getCanvas(id);
 }
 
-export type CanvasSceneWrite = { dataJson: string; checkpoint?: CanvasUpsert["checkpoint"]; viewport?: CanvasViewport };
+/** `silent` marks a change the app derives by itself, which is not a step for the user to undo. */
+export type CanvasSceneWrite = { dataJson: string; checkpoint?: CanvasUpsert["checkpoint"]; viewport?: CanvasViewport; silent?: boolean };
 
 /**
  * Replace a scene and update open panes. A function receives the scene after
@@ -197,10 +198,12 @@ export async function writeCanvasScene(id: string, scene: string | ((current: Ca
   // A pane edit that failed to save must not be overwritten by the replacement.
   await pendingUpdates.get(id);
   let viewport: CanvasViewport | undefined;
+  let silent = false;
   let saved = await updateCanvas(id, (current) => {
     if (typeof scene === "string") return { dataJson: scene };
     const write = scene(current);
     viewport = write.viewport;
+    silent = write.silent === true;
     return { dataJson: write.dataJson, ...(write.checkpoint ? { checkpoint: write.checkpoint } : {}) };
   });
   // A user can keep drawing during the asynchronous write. Drain queued saves,
@@ -220,7 +223,7 @@ export async function writeCanvasScene(id: string, scene: string | ((current: Ca
     appliedDraft = draft;
   }
   canvasSceneDrafts.delete(id);
-  const detail: CanvasSceneReplacement = viewport ? { ...saved, viewport } : saved;
+  const detail: CanvasSceneReplacement = viewport || silent ? { ...saved, ...(viewport ? { viewport } : {}), ...(silent ? { silent } : {}) } : saved;
   window.dispatchEvent(new CustomEvent(CANVAS_SCENE_REPLACED_EVENT, { detail }));
   return saved;
 }

@@ -292,6 +292,7 @@ pub fn run() {
             canvas::canvas_checkpoint_canvas,
             canvas::canvas_checkpoint_latest,
             canvas_mcp::canvas_mcp_server,
+            canvas_mcp::learn_mcp_server,
             notes::notes_list,
             notes::notes_get,
             notes::notes_upsert,

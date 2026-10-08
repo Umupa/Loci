@@ -1,0 +1,75 @@
+name: Release
+
+# Pushing a tag such as v0.1.0 builds the installers and attaches them to a
+# draft GitHub release. Review the draft, then publish it by hand.
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon)
+            os: macos-latest
+          - name: Linux (x64)
+            os: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Check that the tag matches the app version
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in package.json. Run 'npm run set-version -- X.Y.Z', commit, and tag again."
+            exit 1
+          fi
+
+      - name: Install Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Loci ${{ github.ref_name }}
+          releaseBody: |
+            These builds are not code-signed or notarized, so your operating system may ask you to confirm the first time you open one. See the [changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for what changed.
+          generateReleaseNotes: true
+          releaseDraft: true
+          prerelease: false
+          # Loci has no auto-updater, so there is no update manifest to publish.
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false

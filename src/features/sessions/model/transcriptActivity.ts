@@ -17,6 +17,7 @@ import { INTERRUPT_MESSAGE } from "./inFlight";
 import type { Block, ToolPreview } from "./session";
 import { allModels } from "./models";
 import { canvasWorkSummary } from "./canvasToolCall";
+import { learnToolCall, learnWorkSummary } from "./learnToolCall";
 import { lociWorkSummary } from "./lociToolCall";
 
 export type ToolCallState = "pending" | "accepted" | "rejected";
@@ -65,6 +66,8 @@ export function toolCallState(block: Block): ToolCallState {
 }
 
 export function toolCallLabel(block: Block, cwd?: string): string {
+  const learnCall = learnToolCall(block);
+  if (learnCall) return learnCall.ask;
   const preview = block.tool?.preview;
   const path = preview?.path
     ? displayPath(preview.path, cwd)
@@ -829,7 +832,7 @@ function currentWorkKind(steps: Block[]): ActivityWorkKind | undefined {
  * when it folds.
  */
 export function workSummaryLine(steps: Block[], live = false): string {
-  const appSummary = lociWorkSummary(steps, live) ?? canvasWorkSummary(steps, live);
+  const appSummary = lociWorkSummary(steps, live) ?? canvasWorkSummary(steps, live) ?? learnWorkSummary(steps, live);
   if (appSummary) return appSummary;
   const tally = tallySteps(steps);
   if (tally.order.length === 0) {

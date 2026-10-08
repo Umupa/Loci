@@ -126,6 +126,7 @@ import {
 consumeOperatorCommand,
 OPERATOR_COMMAND,
 } from "../model/operatorCommand";
+import { LEARN_COMMAND, supportsLearnHarness } from "../../learn/learnCommand";
 
 import { type McpConnection } from "../../settings/model/mcp";
 import {
@@ -654,11 +655,12 @@ export function Composer({
   const skills = skillCatalog.skills;
   const slashItems = useMemo(() => [
     SESSION_FOLDER_COMMAND, MCP_COMMAND, OPERATOR_COMMAND,
+    ...(supportsLearnHarness(harness) ? [LEARN_COMMAND] : []),
     ...(canSaveDraft && onSaveDraft ? [DRAFT_COMMAND] : []), COMPACT_COMMAND,
     ...(supportsBtwHarness(harness) ? [BTW_COMMAND] : []),
     ...skills.filter((skill) => skill.kind === "native" ||
       ![OPERATOR_COMMAND.name, COMPACT_COMMAND.name, SESSION_FOLDER_COMMAND.name,
-        MCP_COMMAND.name, DRAFT_COMMAND.name, BTW_COMMAND.name].includes(skill.name)),
+        MCP_COMMAND.name, DRAFT_COMMAND.name, BTW_COMMAND.name, LEARN_COMMAND.name].includes(skill.name)),
   ], [harness, skills, canSaveDraft, onSaveDraft]);
   const skillLimit = hasNativeCommands(harness)
     ? Number.POSITIVE_INFINITY

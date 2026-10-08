@@ -48,7 +48,7 @@ describe("app resource links in replies", () => {
     await render(text, false);
     expect(container.querySelector("a")?.getAttribute("href")).toBe("loci://note/plan");
   });
-  it.each(["loci://session/id", "loci://note/../id", "loci://canvas/id?command=delete", "loci://note/id/extra"])("does not turn an invalid resource address into a link: %s", async (href) => {
+  it.each(["loci://project/id", "loci://note/../id", "loci://canvas/id?command=delete", "loci://note/id/extra"])("does not turn an invalid resource address into a link: %s", async (href) => {
     await render(`[Invalid](${href})`);
     expect(container.querySelector("a[href]" )).toBeNull();
     expect(container.textContent).toContain("Invalid");

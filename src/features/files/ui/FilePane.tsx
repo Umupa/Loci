@@ -14,6 +14,7 @@ import { MarkdownDocumentPreview } from "../../sessions/ui/MarkdownDocumentPrevi
 import { fileKind } from "../model/fileKind";
 import { syncWatchedMtime, watchFile } from "../model/fileWatch";
 import { draftConflicts, editDraft, getFileDraft, setFileDraft, type FileDraft } from "../model/fileDrafts";
+import { consumeFilePlace, lineOffset, lineRange, textareaOffsetTop, useFilePlace } from "../model/filePlace";
 import { MarkdownModeToggle, useMarkdownMode } from "../../sessions/ui/MarkdownModeToggle";
 import { FileCard } from "./FileCard";
 import { ImageView } from "./ImageView";
@@ -170,6 +171,37 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     return () => { window.clearTimeout(timer); stop(); };
   }, [path, reload]);
 
+  // A link to lines of this file. Plain text scrolls to the first line; Markdown has no lines in
+  // its preview, so the link shows the source and selects them there.
+  const placeRequest = useFilePlace(path);
+  const shownPlainText = content.status === "text" && kind !== "markdown" ? content.text : null;
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!placeRequest || !("lines" in placeRequest.place) || content.status !== "text") return;
+    const [first, last] = placeRequest.place.lines;
+    if (kind === "markdown") {
+      if (mode !== "source") { setMode("source"); return; }
+      const area = areaRef.current;
+      if (!area) return;
+      const [from, to] = lineRange(area.value, first, last);
+      area.focus({ preventScroll: true });
+      area.setSelectionRange(from, to);
+      area.scrollTop = Math.max(0, textareaOffsetTop(area, from) - 24);
+      consumeFilePlace(path, placeRequest.token);
+      return;
+    }
+    const pre = textRef.current;
+    const node = pre?.firstChild;
+    if (shownPlainText === null || !pre || node?.nodeType !== Node.TEXT_NODE) return;
+    const range = document.createRange();
+    range.setStart(node, Math.min(lineOffset(shownPlainText, first), shownPlainText.length));
+    range.collapse(true);
+    const scroller = pre.parentElement;
+    if (scroller) scroller.scrollTop += range.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;
+    consumeFilePlace(path, placeRequest.token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placeRequest, content.status, kind, mode, shownPlainText, path]);
+
   let body: ReactNode;
   if (content.status === "loading") {
     body = <div className="grid h-full place-items-center text-[12px] text-content/45">Opening {name}…</div>;
@@ -180,12 +212,15 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     body = <FileCard path={path} cwd={cwd} title={name} detail={content.detail}
       icon={<div className="mx-auto mb-3 flex justify-center"><FileTypeIcon name={name} isDir={false} size={28} /></div>} />;
   } else if (content.status === "pdf") {
-    body = <PdfView bytes={content.bytes} onError={(message) => setContent({ status: "error", message })} />;
+    body = <PdfView bytes={content.bytes} onError={(message) => setContent({ status: "error", message })}
+      place={placeRequest && "page" in placeRequest.place ? { page: placeRequest.place.page, token: placeRequest.token } : undefined}
+      onPlaced={() => { if (placeRequest) consumeFilePlace(path, placeRequest.token); }} />;
   } else if (content.status === "image") {
     body = <ImageView url={content.url} size={content.size} mime={content.mime} />;
   } else if (kind === "markdown") {
     body = editing ? (
       <textarea
+        ref={areaRef}
         aria-label={`Edit ${name}`}
         value={shownText}
         spellCheck={false}
