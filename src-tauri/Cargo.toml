@@ -5,6 +5,8 @@ edition.workspace = true
 description = "Loci — one UI for every agent harness"
 authors = ["Nick"]
 license.workspace = true
+repository.workspace = true
+publish = false
 
 [lib]
 name = "loci_lib"

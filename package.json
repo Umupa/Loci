@@ -2,6 +2,19 @@
   "name": "loci-desktop",
   "private": true,
   "version": "0.1.0",
+  "description": "Loci — one desktop app for every agent CLI",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Umupa/Loci.git"
+  },
+  "homepage": "https://github.com/Umupa/Loci#readme",
+  "bugs": {
+    "url": "https://github.com/Umupa/Loci/issues"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
