@@ -95,15 +95,17 @@ pub fn dispatch(app: &AppHandle, id: &str) {
             let _ = crate::window::open_new_window(app);
         }
         "quit" => crate::window::request_quit(app),
-        "new_tab" | "close_tab" | "close_other_tabs" | "next_tab" | "prev_tab" | "back_tab"
-        | "forward_tab" | "split_right" | "split_down" | "focus_left" | "focus_right"
-        | "focus_up" | "focus_down" | "sidebar_opacity" | "open_project" | "open_search"
-        | "open_notes" | "open_model_picker" | "open_settings" => {
+        "close_other_tabs" | "next_tab" | "prev_tab" | "back_tab" | "forward_tab"
+        | "split_right" | "split_down" | "focus_left" | "focus_right" | "focus_up"
+        | "focus_down" | "sidebar_opacity" | "open_project" | "open_search" | "open_notes"
+        | "open_model_picker" | "open_settings" => {
             let _ = app.emit(id, ());
         }
-        // Sidebar, Zoom, Reload, Command Palette, and Close All Tabs target one window: a broadcast would
-        // make every window act on a single menu click.
-        "toggle_sidebar"
+        // Tab creation/closing and other window actions target one window:
+        // a broadcast would make every window act on a single menu click.
+        "new_tab"
+        | "close_tab"
+        | "toggle_sidebar"
         | "toggle_session_sidebar"
         | "zoom_in"
         | "zoom_out"

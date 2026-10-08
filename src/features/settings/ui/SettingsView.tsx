@@ -28,7 +28,7 @@ import { inspectHarnessBinary, type HarnessBinaryInspection, } from "../../../in
 import { loadProviderBinaryPath, providerBinaryPathChangePending, saveProviderBinaryPath, type ConfigurableBinaryProvider, } from "../../providers/model/providerBinaryPaths";
 import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
 import { loginHarness } from "../../../integrations/harness/core/auth";
-import { defaultModelId, firstEnabledHarness, getModelSnapshot, loadDefaultModels, loadHiddenPickerProviders, loadLastModelChoice, modelsFor, resolveModel, saveDefaultModel, saveLastModelChoice, savePickerProviderVisible, subscribeModels, } from "../../sessions/model/models";
+import { defaultModelId, firstEnabledHarness, getModelSnapshot, hasLiveCatalog, loadDefaultModels, loadHiddenPickerProviders, loadLastModelChoice, modelsFor, resolveModel, saveDefaultModel, saveLastModelChoice, savePickerProviderVisible, subscribeModels, } from "../../sessions/model/models";
 import { pathKey, prettyCwd, projectKey, projectName, } from "../../../shared/lib/paths";
 import { revealPath } from "../../../platform/tauri/fs";
 import { IS_LINUX, IS_MAC, IS_WIN } from "../../../platform/tauri/platform";
@@ -1552,10 +1552,10 @@ function ProviderRow({ harness, selectedModel, isDefault, inPicker, pickerLocked
     const available = isHarnessAvailable(harness);
     const current = models.length > 0 ? resolveModel(harness, selectedModel) : null;
     useEffect(() => {
-        if (!available || models.length > 0)
+        if (!available || hasLiveCatalog(harness))
             return;
         void refreshHarnessCatalogs([harness]);
-    }, [available, harness, models.length]);
+    }, [available, harness]);
     return (<Row label={<span className="flex items-center gap-2">
           <HarnessIcon harness={harness} className="size-4 shrink-0"/>
           {HARNESS_TITLE[harness]}

@@ -16,6 +16,8 @@ export type Note = {
   tags: string[];
   sourceSessionId?: string;
   sourceCwd?: string;
+  /** Generated for a blank title; replaced once when the first real title is finished. */
+  slugPending: boolean;
   createdAt: number;
   updatedAt: number;
 };
@@ -28,6 +30,8 @@ export type NoteUpsert = {
   sourceSessionId?: string;
   /** Omit on update to keep the saved project directory. */
   sourceCwd?: string;
+  /** Finalize a pending slug on title blur or editor close. */
+  finalizeSlug?: boolean;
 };
 
 /** Note chip shown in the composer and on the user turn in the thread. */
@@ -99,6 +103,13 @@ export async function getNote(id: string): Promise<Note | null> {
 
 export async function upsertNote(note: NoteUpsert): Promise<Note> {
   const saved = await invoke<Note>("notes_upsert", { note });
+  cache = null;
+  return saved;
+}
+
+/** Finalize only the slug of an unchanged editor, preserving concurrent edits/deletion. */
+export async function finalizeNoteSlug(id: string, title: string): Promise<Note | null> {
+  const saved = await invoke<Note | null>("notes_finalize_slug", { id, title });
   cache = null;
   return saved;
 }
@@ -352,6 +363,7 @@ export function composeNoteMessage(
       title: card.title,
       body: card.body,
       tags: [],
+      slugPending: false,
       createdAt: 0,
       updatedAt: 0,
     },

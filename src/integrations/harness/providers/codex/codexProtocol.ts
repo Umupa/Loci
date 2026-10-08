@@ -158,21 +158,28 @@ export function buildTurnStartParams(input: {
           input.appAccess,
         )
       : runtimeConfig;
+  // Codex requires settings.model to be a string. Until a model is known,
+  // omit the override so it keeps the model selected when the thread started.
+  const model = input.model?.trim() ?? "";
   return {
     threadId: input.threadId,
     input: codexInput(input.prompt, input.attachments),
     approvalPolicy: config.approvalPolicy,
     approvalsReviewer: config.approvalsReviewer,
     sandboxPolicy: config.sandboxPolicy,
-    collaborationMode: {
-      mode: input.intent === "plan" ? "plan" : "default",
-      settings: {
-        model: input.model ?? null,
-        reasoning_effort: input.effort ?? null,
-        developer_instructions: null,
-      },
-    },
-    ...(input.model ? { model: input.model } : {}),
+    ...(model
+      ? {
+          model,
+          collaborationMode: {
+            mode: input.intent === "plan" ? "plan" : "default",
+            settings: {
+              model,
+              reasoning_effort: input.effort ?? null,
+              developer_instructions: null,
+            },
+          },
+        }
+      : {}),
     ...(input.effort ? { effort: input.effort } : {}),
     ...(input.serviceTier && input.serviceTier !== "default"
       ? { serviceTier: input.serviceTier }

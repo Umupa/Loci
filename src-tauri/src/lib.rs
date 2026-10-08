@@ -296,6 +296,7 @@ pub fn run() {
             notes::notes_list,
             notes::notes_get,
             notes::notes_upsert,
+            notes::notes_finalize_slug,
             notes::notes_delete,
             notes::notes_save_image,
             notes::notes_image_path,
