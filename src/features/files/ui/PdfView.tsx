@@ -27,7 +27,7 @@ type PageSize = { w: number; h: number };
  * rasterised while they are near the viewport, so a long document costs what
  * is on screen.
  */
-export function PdfView({ bytes, onError }: { bytes: Uint8Array; onError: (message: string) => void }) {
+export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array; onError: (message: string) => void; place?: { page: number; token: number }; onPlaced?: () => void }) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [baseSize, setBaseSize] = useState<PageSize | null>(null);
   const [sizes, setSizes] = useState<ReadonlyMap<number, PageSize>>(new Map());
@@ -119,6 +119,16 @@ export function PdfView({ bytes, onError }: { bytes: Uint8Array; onError: (messa
     const node = pageElement(target);
     if (node && scrollRef.current) scrollRef.current.scrollTop = node.offsetTop - GUTTER;
   };
+
+  // A link to a page of this document: go there once the pages are laid out.
+  const placePage = place?.page;
+  const placeToken = place?.token;
+  useEffect(() => {
+    if (!doc || !baseSize || placePage === undefined) return;
+    const frame = requestAnimationFrame(() => { goToPage(placePage); onPlaced?.(); });
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc, baseSize, placePage, placeToken]);
 
   // Zooming keeps the page being read in view rather than the scroll offset.
   const zoomTo = (next: number | "fit") => {

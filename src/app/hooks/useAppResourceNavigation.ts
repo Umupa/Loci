@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
-import { APP_RESOURCE_OPEN_EVENT, parseAppResourceUrl, type AppResource } from "../../shared/lib/appResourceLinks";
+import { APP_RESOURCE_OPEN_EVENT, fileResourcePath, parseAppResourceUrl, resourceUrl, type AppResource } from "../../shared/lib/appResourceLinks";
+import { joinPath } from "../../shared/lib/paths";
+import { requestFilePlace } from "../../features/files/model/filePlace";
 import { CANVAS_OPEN_CHECKPOINT_EVENT, checkpointCanvasId, getCanvas } from "../../features/canvas/canvas";
 import { sameProjectPath } from "../../features/projects/model/recents";
 import type { useAppWorkspace } from "./useAppWorkspace";
 
 type Options = {
-  workspace: Pick<ReturnType<typeof useAppWorkspace>, "projectCwdRef" | "isCanvasOpen" | "openCanvas" | "showCanvas" | "setError">;
+  workspace: Pick<ReturnType<typeof useAppWorkspace>, "projectCwdRef" | "isCanvasOpen" | "openCanvas" | "showCanvas" | "openSession" | "openFile" | "setError">;
   notesEnabled: boolean;
   onOpenNote(id: string): void;
 };
@@ -24,6 +26,20 @@ export function useAppResourceNavigation(options: Options) {
           latest.current.onOpenNote(resource.id);
           return;
         }
+        if (resource.kind === "session") {
+          await latest.current.workspace.openSession(resource.id);
+          return;
+        }
+        if (resource.kind === "file") {
+          // File links are relative to the project they were written in: the one on screen.
+          const relative = fileResourcePath(resource);
+          const cwd = latest.current.workspace.projectCwdRef.current;
+          if (!relative || !cwd) throw new Error("Open the project this file belongs to first.");
+          const path = joinPath(cwd, relative);
+          if (resource.place) requestFilePlace(path, resource.place);
+          latest.current.workspace.openFile(path, true);
+          return;
+        }
         const id = checkpoint ? await checkpointCanvasId(resource.id) : resource.id;
         if (!id) throw new Error("This drawing no longer exists.");
         const canvas = await getCanvas(id);
@@ -40,7 +56,7 @@ export function useAppResourceNavigation(options: Options) {
     const open = (event: Event) => {
       const resource = (event as CustomEvent<AppResource>).detail;
       if (!resource || typeof resource.id !== "string") return;
-      const parsed = parseAppResourceUrl(`loci://${resource.kind}/${resource.id}`);
+      const parsed = parseAppResourceUrl(resourceUrl(resource));
       if (parsed) void navigate(parsed);
     };
     const openCheckpoint = (event: Event) => {
