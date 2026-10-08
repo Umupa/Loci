@@ -4,6 +4,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
+import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
+import { hasLiveCatalog, modelsFor, resetHarnessModelOverlays, setHarnessModels } from "../../sessions/model/models";
 import { SettingsView } from "./SettingsView";
 import { rememberNotificationProjects } from "../../notifications/model/notificationProjects";
 import { SETTINGS_INDEX, SETTINGS_SECTIONS, type SettingsSectionId, } from "../model/settings";
@@ -24,13 +27,14 @@ vi.mock("@tauri-apps/api/window", () => ({
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(async () => true) }));
 vi.mock("../../../integrations/harness/core/availability", () => ({
-    isHarnessAvailable: (id: string) => id === "claude" || id === "codex",
+    isHarnessAvailable: vi.fn((id: string) => id === "claude" || id === "codex"),
     hasProbedHarnessAvailability: () => true,
     getHarnessAvailabilitySnapshot: () => 0,
     subscribeHarnessAvailability: () => () => { },
     probeHarnessAvailability: async () => { },
     harnessUnavailableHint: () => "",
 }));
+vi.mock("../../../integrations/harness/core/registry", () => ({ refreshHarnessCatalogs: vi.fn(async () => {}) }));
 let container: HTMLDivElement;
 let root: Root;
 let onSelectSection: ReturnType<typeof vi.fn>;
@@ -66,6 +70,8 @@ function renderedSettingIds(): string[] {
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     mockLocalStorage();
+    resetHarnessModelOverlays();
+    vi.mocked(refreshHarnessCatalogs).mockClear();
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -82,6 +88,19 @@ afterEach(async () => {
     vi.useRealTimers();
 });
 describe("settings pages", () => {
+    it.each(["pi", "antigravity"] as const)("refreshes %s despite built-in fallback models", async (harness) => {
+        vi.mocked(isHarnessAvailable).mockImplementation((id) => id === harness);
+        expect(modelsFor(harness).length).toBeGreaterThan(0);
+        expect(hasLiveCatalog(harness)).toBe(false);
+        await render("providers");
+        expect(refreshHarnessCatalogs).toHaveBeenCalledWith([harness]);
+    });
+    it("skips live catalogs and unavailable harnesses", async () => {
+        vi.mocked(isHarnessAvailable).mockImplementation((id) => id === "pi");
+        setHarnessModels("pi", modelsFor("pi"));
+        await render("providers");
+        expect(refreshHarnessCatalogs).not.toHaveBeenCalled();
+    });
     it("keeps account emails blurred until clicked and hides them when settings reopen", async () => {
         saveMaskEmails(true);
         vi.mocked(invoke).mockImplementation(async (command, args) => {

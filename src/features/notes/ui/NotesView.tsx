@@ -25,6 +25,7 @@ import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import {
   createNote,
+  finalizeNoteSlug,
   getNote,
   deleteNote,
   loadNotes,
@@ -284,7 +285,7 @@ export function NotesView({
     setCreating(true);
     try {
       const note = await createNote({
-        title: "Untitled",
+        title: "",
         body: "",
         ...(projectCwd ? { sourceCwd: projectCwd } : {}),
       });
@@ -753,6 +754,8 @@ function NoteEditor({
   const lastDropAt = useRef(0);
   const skipSave = useRef(false);
   const saveTimer = useRef<number | null>(null);
+  // Bind finalization to the finished title; later edits invalidate queued requests.
+  const finalizeRef = useRef<{ title: string } | null>(null);
   const onSavedRef = useRef(onSaved);
   const onDeleteRef = useRef(onDelete);
   onDeleteRef.current = onDelete;
@@ -768,6 +771,7 @@ function NoteEditor({
   }, []);
 
   const editNote = useCallback((change: Edits) => {
+    if (change.title !== undefined) finalizeRef.current = null;
     const next = { ...editsRef.current, ...change };
     editsRef.current = next;
     if (change.body !== undefined) bodyRef.current = change.body;
@@ -799,23 +803,32 @@ function NoteEditor({
       }
       setSaveError(null);
     };
-    if (
+    const finalizeRequest = finalizeRef.current;
+    const finalizeSlug = finalizeRequest?.title === nextTitle;
+    const unchanged =
       nextTitle === current.title &&
       nextBody === current.body &&
       sameTags(nextTags, current.tags) &&
-      (!nextProject || nextProject.path === current.sourceCwd)
-    ) {
+      (!nextProject || nextProject.path === current.sourceCwd);
+    if (unchanged && !finalizeSlug) {
       acceptSaved(current);
       return current;
     }
     try {
-      const saved = await upsertNote({
-        id: current.id,
-        title: nextTitle,
-        body: nextBody,
-        tags: nextTags,
-        ...(nextProject ? { sourceCwd: nextProject.path } : {}),
-      });
+      const saved = unchanged
+        ? await finalizeNoteSlug(current.id, nextTitle)
+        : await upsertNote({
+            id: current.id,
+            title: nextTitle,
+            body: nextBody,
+            tags: nextTags,
+            ...(finalizeSlug ? { finalizeSlug } : {}),
+            ...(nextProject ? { sourceCwd: nextProject.path } : {}),
+          });
+      if (finalizeSlug && finalizeRef.current === finalizeRequest) {
+        finalizeRef.current = null;
+      }
+      if (!saved) return;
       acceptSaved(saved);
       onSavedRef.current(saved);
       return saved;
@@ -843,7 +856,11 @@ function NoteEditor({
   }, [note.id]);
 
   useEffect(() => {
-    onActions({ id: note.id, rename: (title) => { editNote({ title }); void saveNow(); }, remove });
+    onActions({ id: note.id, rename: (title) => {
+      editNote({ title });
+      if (noteRef.current.slugPending) finalizeRef.current = { title };
+      void saveNow();
+    }, remove });
     return () => onActions(null);
   }, [note.id, onActions, editNote, saveNow, remove]);
 
@@ -961,6 +978,11 @@ function NoteEditor({
 
   useEffect(() => {
     return () => {
+      if (noteRef.current.slugPending) {
+        finalizeRef.current = {
+          title: (editsRef.current.title ?? noteRef.current.title).trim() || noteTitle(bodyRef.current),
+        };
+      }
       void saveNow();
     };
   }, [saveNow]);
@@ -1016,6 +1038,7 @@ function NoteEditor({
             onBlur={() => {
               const next = title.trim() || noteTitle(body);
               if (next !== title) editNote({ title: next });
+              if (noteRef.current.slugPending) finalizeRef.current = { title: next };
               void saveNow();
             }}
             onKeyDown={onTitleKeyDown}

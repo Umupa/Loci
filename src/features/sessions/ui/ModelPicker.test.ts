@@ -389,17 +389,22 @@ describe("model picker", () => {
         expect(serviceTierPill.textContent).toBe("Standard");
         expect(serviceTierPill.querySelectorAll("svg")).toHaveLength(2);
     });
-    it("shimmers only Codex max and ultra effort options", () => {
-        setHarnessModels("codex", [
+    it.each([
+        ["codex", "reasoningEffort", "Reasoning"],
+        ["opencode", "variant", "Variant"],
+        ["claude", "effort", "Effort"],
+        ["cursor", "effort", "Effort"],
+    ] as const)("shimmers max and ultra effort options for %s", (harness, settingId, settingLabel) => {
+        setHarnessModels(harness, [
             {
-                id: "codex:gpt-5.6",
-                harness: "codex",
+                id: `${harness}:test-model`,
+                harness,
                 name: "GPT-5.6",
                 nativeId: "gpt-5.6",
                 settings: [
                     {
-                        id: "reasoningEffort",
-                        label: "Reasoning",
+                        id: settingId,
+                        label: settingLabel,
                         kind: "select",
                         value: "high",
                         options: [
@@ -412,19 +417,20 @@ describe("model picker", () => {
                 ],
             },
         ]);
+        const onSettingsChange = vi.fn();
         act(() => root.render(createElement(ModelPicker, {
-            harness: "codex",
-            model: "codex:gpt-5.6",
-            values: { reasoningEffort: "high" },
+            harness,
+            model: `${harness}:test-model`,
+            values: { [settingId]: "high" },
             onChange: vi.fn(),
-            onSettingsChange: vi.fn(),
+            onSettingsChange,
         })));
         act(() => container
             .querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')
             ?.click());
         const effortRow = [
             ...container.querySelectorAll<HTMLButtonElement>("button"),
-        ].find((button) => button.textContent?.startsWith("Reasoning"))!;
+        ].find((button) => button.textContent?.startsWith(settingLabel))!;
         hover(effortRow);
         expect(container.querySelectorAll('[data-effort-tone="max"]')).toHaveLength(1);
         expect(container.querySelectorAll('[data-effort-tone="ultra"]')).toHaveLength(1);
@@ -437,6 +443,35 @@ describe("model picker", () => {
             ...container.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'),
         ].find((button) => button.textContent === "High")!;
         expect(high.classList.contains("codex-effort-option")).toBe(false);
+        expect(high.classList.contains("bg-selection")).toBe(true);
+        const mainMenu = container.querySelector<HTMLElement>('[role="menu"][aria-label="Model and settings"]')!;
+        act(() => mainMenu.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+        const max = container.querySelector<HTMLButtonElement>('[data-effort-tone="max"]')!;
+        expect(max.classList.contains("bg-selection")).toBe(true);
+        expect(high.classList.contains("bg-selection")).toBe(false);
+        act(() => mainMenu.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+        expect(onSettingsChange).toHaveBeenCalledWith({ [settingId]: "max" });
+
+        // The beside-composer control uses a separate popover path.
+        act(() => root.render(createElement(ModelControlPills, {
+            harness,
+            model: `${harness}:test-model`,
+            values: { [settingId]: "high" },
+            onSettingsChange,
+        })));
+        act(() => container.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')!.click());
+        const pillMenu = container.querySelector<HTMLElement>('[role="menu"]')!;
+        const pillMax = pillMenu.querySelector<HTMLElement>('[data-effort-tone="max"]')!;
+        const pillUltra = pillMenu.querySelector<HTMLElement>('[data-effort-tone="ultra"]')!;
+        expect(pillMax.querySelectorAll(".codex-effort-tile")).toHaveLength(160);
+        expect(pillUltra.querySelectorAll(".codex-effort-tile")).toHaveLength(160);
+        act(() => pillMenu.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+        expect(pillMax.classList.contains("bg-selection")).toBe(true);
+        act(() => pillMenu.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+        expect(pillUltra.classList.contains("bg-selection")).toBe(true);
+        expect(pillMax.classList.contains("bg-selection")).toBe(false);
+        act(() => pillMenu.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+        expect(onSettingsChange).toHaveBeenLastCalledWith({ [settingId]: "ultra" });
     });
     it("groups the service tier inside the effort popover", () => {
         setHarnessModels("codex", [
