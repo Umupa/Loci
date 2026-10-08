@@ -6,6 +6,10 @@ import { GripVertical, ExternalLink, MessageSquarePlus, ExcalidrawIcon, X, Maxim
 import type { Canvas, CanvasSceneReplacement } from "../canvas";
 import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasSceneDrafts as sceneDrafts, canvasElementsToText, updateCanvas } from "../canvas";
 import { registerCanvasRenderer } from "../renderScheduling";
+import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
+import { refreshLearnMap } from "../../learn/bridge";
+import { isLearnMap, viewOf, type MapNode } from "../../learn/model/learnMap";
+import { LearnInspector, RecallCover } from "../../learn/ui/LearnMapPanel";
 import "./canvas.css";
 
 type OnChange = NonNullable<ExcalidrawProps["onChange"]>;
@@ -62,6 +66,13 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
   const [isDark, setIsDark] = useState(() => !document.documentElement.classList.contains("theme-light"));
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(canvas.title);
+  // A learning map shows the state of the node the learner selects.
+  const learnMap = isLearnMap(canvas);
+  const learnMapRef = useRef(learnMap);
+  learnMapRef.current = learnMap;
+  const learnKeyRef = useRef<string | null>(null);
+  const [learnNode, setLearnNode] = useState<MapNode | null>(null);
+  useEffect(() => { if (learnMap) void refreshLearnMap(canvas.id).catch(() => undefined); }, [canvas.id, learnMap]);
   const initialData = useMemo(() => {
     const draft = sceneDrafts.get(canvas.id);
     if (draft) return { elements: draft.elements, files: draft.files, appState: { viewBackgroundColor: draft.appState.viewBackgroundColor, currentItemFontFamily: draft.appState.currentItemFontFamily } };
@@ -102,6 +113,17 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
       fittedRef.current = true;
       if (elements.some((element) => !element.isDeleted))
         requestAnimationFrame(() => apiRef.current?.scrollToContent(undefined, { fitToViewport: true, viewportZoomFactor: 0.9, maxZoom: 1 }));
+    }
+    if (learnMapRef.current) {
+      // A bound label stands for its shape. Re-read when the scene changes under the selection.
+      const ids = Object.keys(appState.selectedElementIds).filter((id) => appState.selectedElementIds[id]);
+      const picked = ids.length === 1 ? elements.find((element) => element.id === ids[0]) : undefined;
+      const nodeId = picked ? (picked.type === "text" && picked.containerId) || picked.id : null;
+      const key = nodeId ? `${nodeId}:${getSceneVersion(elements)}` : null;
+      if (key !== learnKeyRef.current) {
+        learnKeyRef.current = key;
+        setLearnNode(nodeId ? viewOf(elements as unknown as Parameters<typeof viewOf>[0], Date.now()).nodes.find((node) => node.id === nodeId) ?? null : null);
+      }
     }
     const restoringDraft = revisionRef.current === null && sceneDrafts.has(canvasRef.current.id);
     const revision: SceneRevision = {
@@ -164,7 +186,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
           viewBackgroundColor: data.appState.viewBackgroundColor,
           currentItemFontFamily: data.appState.currentItemFontFamily,
         };
-        api.updateScene({ elements: data.elements, appState: documentState, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+        api.updateScene({ elements: data.elements, appState: documentState, captureUpdate: saved.silent ? CaptureUpdateAction.NEVER : CaptureUpdateAction.IMMEDIATELY });
         revisionRef.current = {
           version: getSceneVersion(data.elements), hash: hashElementsVersion(data.elements), count: data.elements.length,
           background: documentState.viewBackgroundColor, font: documentState.currentItemFontFamily, files: api.getFiles(),
@@ -201,6 +223,14 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
     onAddToChat(canvasElementsToText(canvas.title, JSON.stringify(selected.length ? selected : all, null, 2), canvas.id));
   }, [canvas.id, canvas.title, onAddToChat]);
 
+  // Links to notes, canvases, sessions and files open inside Loci; other links keep Excalidraw's behavior.
+  const openLink = useCallback<NonNullable<ExcalidrawProps["onLinkOpen"]>>((element, event) => {
+    const resource = element.link ? parseAppResourceUrl(element.link) : undefined;
+    if (!resource) return;
+    event.preventDefault();
+    requestOpenAppResource(resource);
+  }, []);
+
   const commitTitle = () => {
     setEditingTitle(false);
     const title = titleDraft.trim() || "Untitled drawing";
@@ -235,10 +265,12 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
         {onClose ? <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button> : null}
       </div>
-      <div className="min-h-0 min-w-0 flex-1">
-        <Excalidraw excalidrawAPI={registerApi} initialData={initialData} onChange={handleChange} theme={isDark ? "dark" : "light"}
+      <div className="relative min-h-0 min-w-0 flex-1">
+        <Excalidraw excalidrawAPI={registerApi} initialData={initialData} onChange={handleChange} onLinkOpen={openLink} theme={isDark ? "dark" : "light"}
           UIOptions={{ canvasActions: { saveAsImage: false, loadScene: false, export: false, toggleTheme: false } }} />
+        {learnMap ? <RecallCover canvasId={canvas.id} /> : null}
       </div>
+      {learnMap && learnNode ? <LearnInspector canvasId={canvas.id} node={learnNode} /> : null}
     </div>
   );
 }
