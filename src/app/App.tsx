@@ -47,6 +47,7 @@ import { useInputNotifications } from "../features/notifications/hooks/useInputN
 import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
 import { ADD_NOTE_TO_CHAT_EVENT, type NoteComposerCard } from "../features/notes";
 import { CANVASES_CHANGED_EVENT, createEmptyCanvas, deleteCanvas, loadCanvases, updateCanvas, upsertCanvas, type Canvas } from "../features/canvas/canvas";
+import { SelectCanvasDialog } from "../features/canvas/ui/SelectCanvasDialog";
 import { synchronizeProjectLocation, rememberProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
 import { looksLikeProject, replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
@@ -101,6 +102,7 @@ function Workspace(boot: BootWorkspace) {
   const [transcriptPool] = useState(() => new TranscriptPool());
   const [canvases, setCanvases] = useState<Canvas[]>([]);
   const appendToCanvasRef = useRef(new Map<string, (text: string) => void>());
+  const [canvasSelection, setCanvasSelection] = useState<{ text: string; canvases: Canvas[]; resolver: (id: string) => void; rejecter: (error: Error) => void } | null>(null);
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
   const seenSignInRequests = useRef(new Set(initial.sessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
   const workspaceRef = useRef<ReturnType<typeof useAppWorkspace> | null>(null);
@@ -407,20 +409,56 @@ function Workspace(boot: BootWorkspace) {
     onQueuedMessageEditingChange: submission.queuedMessageEditingChange, onSteerQueuedMessage: submission.steerQueuedMessage, onResumeQueue: submission.resumeQueue,
     onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
     onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((session) => session.id === id ? { ...session, noteCard: undefined } : session)),
-    onSaveToCanvas: (text: string) => {
+    onSaveToCanvas: async (text: string) => {
       const view = workspaceRef.current;
       if (!view) return;
       const tab = view.tabsRef.current.find((t) => t.id === view.activeTabIdRef.current);
       if (!tab) return;
+
+      const registeredIds = Array.from(appendToCanvasRef.current.keys());
+      if (registeredIds.length === 0) {
+        throw new Error("No available Canvas");
+      }
+
       const focused = tab.focusedId;
       const fn = appendToCanvasRef.current.get(focused);
       if (fn) { fn(text); return; }
-      for (const paneId of tab ? leafIds(tab.layout) : []) {
+
+      for (const paneId of leafIds(tab.layout)) {
         const append = appendToCanvasRef.current.get(paneId);
         if (append) { append(text); return; }
       }
-      for (const [, appendFn] of appendToCanvasRef.current) { appendFn(text); return; }
-      throw new Error("Open an Excalidraw drawing before saving a response.");
+
+      if (registeredIds.length === 1) {
+        const appendFn = appendToCanvasRef.current.get(registeredIds[0]);
+        if (appendFn) { appendFn(text); return; }
+      }
+
+      const availableCanvases = canvases.filter((c) => registeredIds.includes(c.id));
+      if (availableCanvases.length === 0) {
+        throw new Error("No available Canvas");
+      }
+
+      return new Promise<void>((resolve, reject) => {
+        setCanvasSelection({
+          text,
+          canvases: availableCanvases,
+          resolver: (selectedId: string) => {
+            const appendFn = appendToCanvasRef.current.get(selectedId);
+            if (appendFn) {
+              appendFn(text);
+              setCanvasSelection(null);
+              resolve();
+            } else {
+              reject(new Error("Canvas no longer available"));
+            }
+          },
+          rejecter: (error: Error) => {
+            setCanvasSelection(null);
+            reject(error);
+          },
+        });
+      });
     },
     onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
     onOpenFile: openFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
@@ -509,6 +547,7 @@ function Workspace(boot: BootWorkspace) {
         onReopen={(batch) => { void workspace.reopenClosed(batch); }} onOpenOverview={openTabOverview} /> : null}
       <ClosedTabToast onUndo={(batch) => { void workspace.reopenClosed(batch); }} />
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
+      {canvasSelection ? <SelectCanvasDialog canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new Error("Cancelled")); }} /> : null}
       {workspace.error ? <FileActionError message={workspace.error} onDismiss={() => workspace.setError(null)} /> : null}
     </div>
     <TranscriptPoolOutlet pool={transcriptPool} />
