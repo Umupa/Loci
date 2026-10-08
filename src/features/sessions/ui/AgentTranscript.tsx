@@ -23,6 +23,7 @@ Copy,
 FilePlusCorner,
 Minus,
 ExcalidrawIcon,
+Mortarboard,
 Pencil,
 PenLine,
 Search,
@@ -87,6 +88,11 @@ import {
   canvasWorkSummary,
   type CanvasToolCall,
 } from "../model/canvasToolCall";
+import {
+  learnToolCall,
+  learnWorkSummary,
+  type LearnToolCall,
+} from "../model/learnToolCall";
 import { CANVAS_OPEN_CHECKPOINT_EVENT } from "../../canvas/canvas";
 import {
 isOperatorUserTurn,
@@ -1833,6 +1839,16 @@ function UserMessageBlock({
             <LociSparkles blockId={block.id} startedAt={block.startedAt} />
           ) : null}
         </div>
+        {block.learn ? (
+          <span
+            data-learn-turn="true"
+            title="This conversation works on the project's learning map"
+            className="flex items-center gap-1 px-1 pt-1 font-sans text-[11px] text-content/45"
+          >
+            <Mortarboard className="size-3" strokeWidth={1.75} />
+            Learning
+          </span>
+        ) : null}
         {text ||
         block.attachments?.length ||
         block.startedAt != null ||
@@ -2264,6 +2280,7 @@ function ActivityPhaseGroup({
   const title = activityPhaseTitle(phase, active);
   const lociPhase = !!lociWorkSummary(phase.steps, active);
   const canvasPhase = !lociPhase && !!canvasWorkSummary(phase.steps, active);
+  const learnPhase = !lociPhase && !canvasPhase && !!learnWorkSummary(phase.steps, active);
   // Opening a group on purpose is also how you read the line that titled it,
   // whole. The auto-open while it runs is a live view, not a reading one, and
   // a one-line note the header already shows in full has nothing to add.
@@ -2278,7 +2295,7 @@ function ActivityPhaseGroup({
   if (!phase.headline && phase.steps.length === 1) {
     return (
       <div className="flex min-w-0 items-start gap-1.5">
-        {lociPhase || canvasPhase ? null : (
+        {lociPhase || canvasPhase || learnPhase ? null : (
           <ActivityPhaseIcon kind={phase.kind} className="mt-[7px]" />
         )}
         <div className="min-w-0 flex-1">
@@ -2337,6 +2354,11 @@ function ActivityPhaseGroup({
             <LociMark className="size-3.5 group-hover:opacity-0" />
           ) : canvasPhase ? (
             <ExcalidrawIcon
+              className="size-3.5 text-content/50 group-hover:opacity-0"
+              strokeWidth={1.75}
+            />
+          ) : learnPhase ? (
+            <Mortarboard
               className="size-3.5 text-content/50 group-hover:opacity-0"
               strokeWidth={1.75}
             />
@@ -3079,6 +3101,12 @@ function ActivityToolRow({
       <CanvasCallRow block={block} call={canvasCall} onApproval={onApproval} />
     );
   }
+  const learnCall = learnToolCall(block);
+  if (learnCall) {
+    return (
+      <LearnCallRow block={block} call={learnCall} onApproval={onApproval} />
+    );
+  }
   const label = toolCallLabel(block, cwd);
   const state = toolCallState(block);
   const pending = needsApproval(block);
@@ -3311,6 +3339,73 @@ function CanvasCallRow({
   );
 }
 
+/** A call to the learning map: named for what it did, with no raw tool name or JSON. */
+function LearnCallRow({
+  block,
+  call,
+  onApproval,
+}: {
+  block: Block;
+  call: LearnToolCall;
+  onApproval?: (requestId: number, decision: ApprovalDecision) => void;
+}) {
+  const state = toolCallState(block);
+  const output = block.tool?.detail?.trim();
+  const [errorOpen, setErrorOpen] = useState(false);
+  const hasError = state === "rejected" && !!output;
+  const label =
+    needsApproval(block) || state === "rejected"
+      ? call.ask
+      : state === "pending"
+        ? call.running
+        : call.done;
+  const summary = (
+    <>
+      <Mortarboard
+        className={`size-3.5 shrink-0 ${state === "rejected" ? "text-red-400" : "text-content/50"}`}
+        strokeWidth={1.75}
+      />
+      <span
+        className={`min-w-0 truncate font-sans text-sm ${state === "rejected" ? "text-red-400" : "text-content/50"}`}
+      >
+        {label}
+      </span>
+      <ToolCallStatusIcon state={state} />
+      {hasError ? (
+        <ChevronRight
+          className={`size-3.5 shrink-0 text-red-400/60 transition-transform ${errorOpen ? "rotate-90" : ""}`}
+          strokeWidth={1.75}
+        />
+      ) : null}
+    </>
+  );
+  return (
+    <div data-learn-tool-call={call.tool} className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1.5 py-1">
+        {hasError ? (
+          <button
+            type="button"
+            aria-expanded={errorOpen}
+            aria-label={`${errorOpen ? "Hide" : "Show"} error details for the learning map: ${call.ask}`}
+            onClick={() => setErrorOpen((value) => !value)}
+            className="flex min-w-0 items-center gap-1.5 text-left"
+          >
+            {summary}
+          </button>
+        ) : (
+          summary
+        )}
+      </div>
+      {errorOpen && hasError ? (
+        <pre className="min-w-0 whitespace-pre-wrap break-words py-1 pl-5 font-mono text-[12px] leading-5 text-red-400/80">
+          {output}
+        </pre>
+      ) : null}
+      <ApprovalControls block={block} onApproval={onApproval} />
+    </div>
+  );
+}
+
 function ActivityToolIcon({
   state,
   live = false,
@@ -3457,6 +3552,14 @@ function ToolCall({
     return (
       <div className={frame}>
         <CanvasCallRow block={block} call={canvasCall} onApproval={onApproval} />
+      </div>
+    );
+  }
+  const learnCall = learnToolCall(block);
+  if (learnCall) {
+    return (
+      <div className={frame}>
+        <LearnCallRow block={block} call={learnCall} onApproval={onApproval} />
       </div>
     );
   }
