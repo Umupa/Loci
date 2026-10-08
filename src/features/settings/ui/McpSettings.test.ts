@@ -455,7 +455,7 @@ it("caches an empty list until manually refreshed", async () => {
   expect(connectionCalls()).toHaveLength(2);
 });
 
-it("caches discovery failures and lets Refresh retry", async () => {
+it("retries discovery failures when reopened and still supports explicit Refresh", async () => {
   const original = invoke.getMockImplementation()!;
   let failed = false;
   invoke.mockImplementation((command: string, args: unknown) => {
@@ -468,17 +468,20 @@ it("caches discovery failures and lets Refresh retry", async () => {
   await act(async () =>
     root.render(createElement(McpSettings, { cwd: "/repo" })),
   );
-  await act(async () => root.render(null));
-  await act(() => root.render(createElement(McpSettings, { cwd: "/repo" })));
   expect(container.textContent).toContain("Discovery failed");
   expect(connectionCalls()).toHaveLength(1);
+  await act(async () => root.render(null));
+  await act(() => root.render(createElement(McpSettings, { cwd: "/repo" })));
+  expect(container.textContent).not.toContain("Discovery failed");
+  expect(container.textContent).toContain("sentry");
+  expect(connectionCalls()).toHaveLength(3);
   const refresh = [...container.querySelectorAll("button")].find(
     (button) => button.textContent === "Refresh",
   )!;
   await act(async () => refresh.click());
   expect(container.textContent).toContain("sentry");
   expect(container.textContent).not.toContain("Discovery failed");
-  expect(connectionCalls()).toHaveLength(3);
+  expect(connectionCalls()).toHaveLength(5);
 });
 
 it("uses the shared project picker and caches each project's list", async () => {

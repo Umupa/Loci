@@ -54,7 +54,7 @@ import { rebaseProjectData } from "../features/projects/model/projectData";
 import { looksLikeProject, replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
 import { rebaseProjectSessions } from "../features/sessions/data/sessionStore";
 import { ProjectNotFoundError } from "../features/projects/model/projectLocationError";
-import { closeBusyWindow, closeCurrentWindow, hasInFlightSessions, hideCurrentWindow, isAppQuitting, persistLiveTranscripts, persistQuitState, setQuitWorkspace, type BootWorkspace } from "./model/appLifecycle";
+import { closeBusyWindow, hasInFlightSessions, hideCurrentWindow, isAppQuitting, persistAndCloseWindow, persistLiveTranscripts, persistQuitState, setQuitWorkspace, type BootWorkspace, type WorkspaceSaveMode } from "./model/appLifecycle";
 import { useAppWorkspace, initialWorkspace } from "./hooks/useAppWorkspace";
 import { useSessionRuntime } from "./hooks/useSessionRuntime";
 import { useSessionSubmission } from "./hooks/useSessionSubmission";
@@ -123,6 +123,7 @@ function Workspace(boot: BootWorkspace) {
     onFinished: (session) => { void announceSessionFinished(session, isForeground(session.id)); },
   });
   const submission = useSessionSubmission({ runtime,
+    canStartSessionWork: (id) => !workspaceRef.current?.isSessionUnavailable(id),
     synchronizeProject: async (cwd) => {
       const location = await synchronizeProjectLocation(cwd);
       if (!location) throw new ProjectNotFoundError(cwd);
@@ -137,9 +138,9 @@ function Workspace(boot: BootWorkspace) {
   });
   const workspace = useAppWorkspace({ boot, initial, sessions, sessionsRef,
     updateSessions: runtime.updateSessions,
-    persistSession: (session) => { if (session) return runtime.persistSession(session); },
+    persistSession: runtime.persistSession,
     bindSession: runtime.bindRestoredSession,
-    stopSession: submission.stop,
+    stopSession: submission.stopSessionWork,
     flushPersistence: runtime.flushPersistence,
     onNavigate: closeSurface,
   });
@@ -176,7 +177,8 @@ function Workspace(boot: BootWorkspace) {
   useIdleSessionDetach({ sessions, sessionsRef, tabs: workspace.tabs, tabsRef: workspace.tabsRef,
     liveAgentsEnabled, unseenFinishedIds, openingSessionIds: workspace.openingSessionIds,
     loadedSessionCache: workspace.loadedSessionCache, skipForgetSessionIds: workspace.skipForgetSessionIds,
-    persistSession: (session) => { if (session) void runtime.persistSession(session); }, setSessions: runtime.updateSessions,
+    persistSession: runtime.persistSession,
+    onError: (error) => workspaceRef.current?.setError(String(error)), setSessions: runtime.updateSessions,
   });
   useAppControl({ workspace, runtime, submission });
   useAppResourceNavigation({ workspace, notesEnabled, onOpenNote: (id) => {
@@ -244,7 +246,7 @@ function Workspace(boot: BootWorkspace) {
     }
     setSessionSidebarOpen((open) => { saveSessionSidebarOpen(!open); return !open; });
   }, []);
-  const persistWindow = useCallback(async (mode: "quit" | "unload" = "unload") => {
+  const persistWindow = useCallback(async (mode: WorkspaceSaveMode = "transition") => {
     runtime.flushEvents();
     await runtime.flushPersistence();
     const view = workspaceRef.current!;
@@ -312,9 +314,9 @@ function Workspace(boot: BootWorkspace) {
         void hideCurrentWindow();
         return;
       }
-      void persistWindow().finally(() => { void (toTray ? hideCurrentWindow() : closeCurrentWindow()); });
+      void persistAndCloseWindow(persistWindow, toTray).catch((error) => workspaceRef.current?.setError(String(error)));
     }).then((unlisten) => { if (disposed) unlisten(); else stop = unlisten; });
-    const unload = () => { if (!isAppQuitting()) void persistWindow(); };
+    const unload = () => { if (!isAppQuitting()) void persistWindow("unload"); };
     window.addEventListener("beforeunload", unload);
     return () => { disposed = true; release(); stop?.(); window.removeEventListener("beforeunload", unload); };
   }, [runtime.flushEvents, persistWindow, workspace.tabsRef, workspace.activeTabIdRef, workspace.projectCwdRef, workspace.projectReturnMemory]);

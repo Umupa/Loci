@@ -39,6 +39,7 @@ let root: Root | undefined;
 let container: HTMLDivElement | undefined;
 let workspace: ReturnType<typeof useAppWorkspace>;
 let liveSessions: Session[];
+let updateLiveSessions: (update: SetStateAction<Session[]>) => void;
 
 function summary(session: StoredSession): SessionSummary {
   return {
@@ -76,6 +77,7 @@ async function mount(initialSessions: Session[], initialTabs = initialSessions.m
       sessionsRef.current = next;
       setSessions(next);
     }, []);
+    updateLiveSessions = updateSessions;
     workspace = useAppWorkspace({
       boot: { resumed: null, history: [], historyCwd: initial.projectCwd },
       initial, sessions, sessionsRef, updateSessions, persistSession,
@@ -95,6 +97,7 @@ beforeEach(() => {
   localStorage.clear();
   records.clear();
   for (const mock of [...Object.values(mocks), stopSession, flushPersistence, bindSession, persistSession, onNavigate]) mock.mockReset();
+  persistSession.mockResolvedValue(undefined);
   mocks.ask.mockResolvedValue(true);
   mocks.pickFolders.mockResolvedValue([]);
   mocks.getSession.mockImplementation(async (id: string) => records.get(id) ?? null);
@@ -128,6 +131,73 @@ afterEach(async () => {
 });
 
 describe("workspace lifecycle integration", () => {
+  it("keeps new-work admission closed through the final archive write", async () => {
+    const original = chat("archiving");
+    await mount([original]);
+    const gate = deferred<void>();
+    mocks.setSessionArchived.mockReturnValueOnce(gate.promise);
+    let archiving!: Promise<boolean>;
+    await act(async () => { archiving = workspace.archiveSession(original.id, true); });
+    expect(mocks.setSessionArchived).toHaveBeenCalledWith(original.id, true);
+    expect(workspace.isSessionUnavailable(original.id)).toBe(true);
+    await act(async () => { gate.resolve(); expect(await archiving).toBe(true); });
+    expect(workspace.isSessionUnavailable(original.id)).toBe(false);
+  });
+
+  it("keeps a running side question attached when its project is closed without purging", async () => {
+    const original = chat("side-running");
+    original.blocks[0].btwThreads = [{ id: "side", sourceEndBlockId: original.blocks[0].id,
+      createdAt: 1, updatedAt: 1, status: "running", messages: [], harness: "codex" }];
+    rememberProject(original.cwd);
+    await mount([original]);
+    await act(async () => workspace.removeProject(original.cwd, { purgeData: false }));
+    expect(liveSessions).toContain(original);
+    expect(workspace.loadedSessionCache.current.has(original.id)).toBe(false);
+    expect(persistSession).not.toHaveBeenCalledWith(original);
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes(original.id))).toBe(false);
+  });
+
+  it("keeps a project and its latest content when closing the project cannot save", async () => {
+    const original = chat("unsaved");
+    rememberProject(original.cwd);
+    await mount([original]);
+    const failure = Promise.reject(new Error("disk unavailable"));
+    void failure.catch(() => undefined);
+    persistSession.mockReturnValueOnce(failure);
+    await act(async () => workspace.removeProject(original.cwd, { purgeData: false }));
+    expect(workspace.error).toContain("disk unavailable");
+    expect(liveSessions).toContain(original);
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes(original.id))).toBe(true);
+    expect(workspace.recents.some((project) => project.path === original.cwd)).toBe(true);
+  });
+
+  it("does not drop a newer project snapshot when an older save completes", async () => {
+    const original = chat("changing");
+    rememberProject(original.cwd);
+    await mount([original]);
+    const save = deferred<void>();
+    persistSession.mockReturnValueOnce(save.promise);
+    let closing!: Promise<void>;
+    await act(async () => { closing = workspace.removeProject(original.cwd, { purgeData: false }); });
+    expect(liveSessions).toContain(original);
+    const newer = { ...original, blocks: [{ id: "latest", role: "user" as const, text: "Latest unsaved content" }] };
+    await act(async () => updateLiveSessions([newer]));
+    await act(async () => { save.resolve(); await closing; });
+    expect(liveSessions).toContain(newer);
+    expect(workspace.loadedSessionCache.current.get(original.id)).not.toBe(original);
+  });
+
+  it("reports an eager tab-close save failure while keeping the session attached", async () => {
+    const original = chat("closing");
+    await mount([original, chat("other")]);
+    const failure = Promise.reject(new Error("tab save failed"));
+    void failure.catch(() => undefined);
+    persistSession.mockReturnValueOnce(failure);
+    await act(async () => workspace.closeTabs([workspace.tabs[0].id]));
+    expect(workspace.error).toContain("tab save failed");
+    expect(liveSessions).toContain(original);
+  });
+
   it("coalesces two concurrent opens into one pane for the stored session", async () => {
     const stored = chat("stored");
     const pending = deferred<Session>();

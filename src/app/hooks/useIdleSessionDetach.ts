@@ -10,6 +10,7 @@ type SetStateAction,
 import { rememberLoadedSession } from "../../features/sessions/data/sessionCache";
 import { shouldPersistSession } from "../../features/sessions/data/sessionStore";
 import { sessionChildHarnesses } from "../../features/sessions/model/handoff";
+import { hasLiveSessionWork } from "../../features/sessions/model/inFlight";
 import type { Session } from "../../features/sessions/model/session";
 import {
 leafIds,
@@ -30,6 +31,7 @@ export function useIdleSessionDetach({
   loadedSessionCache,
   skipForgetSessionIds,
   persistSession,
+  onError,
   setSessions,
 }: {
   sessions: Session[];
@@ -41,20 +43,27 @@ export function useIdleSessionDetach({
   openingSessionIds: RefObject<Set<string>>;
   loadedSessionCache: RefObject<Map<string, Session>>;
   skipForgetSessionIds: RefObject<Set<string>>;
-  persistSession: (session: Session | undefined) => void;
+  persistSession: (session: Session | undefined) => Promise<void>;
+  onError: (error: unknown) => void;
   setSessions: Dispatch<SetStateAction<Session[]>>;
 }) {
   // Dropping a session re-renders the whole app, so it waits until a switch
   // has painted, and a burst of switches pays for it once.
-  const detachInputs = useRef({ liveAgentsEnabled });
-  detachInputs.current = { liveAgentsEnabled };
+  const detachInputs = useRef({ liveAgentsEnabled, persistSession, onError });
+  detachInputs.current = { liveAgentsEnabled, persistSession, onError };
   const unseenFinishedRef = useRef(unseenFinishedIds);
   unseenFinishedRef.current = unseenFinishedIds;
   const detachTimer = useRef<number | null>(null);
-  const detachIdleSessions = useCallback(() => {
+  const mounted = useRef(true);
+  const saving = useRef(new Set<string>());
+  // A failed snapshot is retried after navigation or editing, not on every
+  // background update. Observe navigation even when it is faster than the timer.
+  const navigationEpoch = useRef(0);
+  const failed = useRef(new WeakMap<Session, number>());
+  useEffect(() => { navigationEpoch.current += 1; }, [tabs]);
+  const detachIdleSessions = useCallback(function detachIdleSessions() {
     detachTimer.current = null;
     const sessions = sessionsRef.current;
-    const { liveAgentsEnabled } = detachInputs.current;
     const visibleIds = new Set(
       tabsRef.current.flatMap((tab) => leafIds(tab.layout)),
     );
@@ -63,42 +72,55 @@ export function useIdleSessionDetach({
       openingSessionIds.current.delete(sessionId);
       loadedSessionCache.current.delete(sessionId);
     }
-    const keepUnseen = liveAgentsEnabled;
-    const idleDetached = sessions.filter(
-      (session) =>
-        !visibleIds.has(session.id) &&
-        !session.busy &&
-        !openingSessionIds.current.has(session.id) &&
-        !(keepUnseen && unseenFinishedRef.current.has(session.id)),
-    );
-    if (idleDetached.length === 0) return;
-    for (const session of idleDetached) {
-      if (skipForgetSessionIds.current.has(session.id)) continue;
-      if (shouldPersistSession(session)) {
-        rememberLoadedSession(loadedSessionCache.current, session);
-      }
-      persistSession(session);
-      for (const harness of sessionChildHarnesses(session)) {
-        void forgetHarnessSession(harness, session.id);
-      }
+
+    const canDetach = (session: Session) =>
+      !tabsRef.current.some((tab) => leafIds(tab.layout).includes(session.id)) &&
+      !hasLiveSessionWork(session) &&
+      !openingSessionIds.current.has(session.id) &&
+      !skipForgetSessionIds.current.has(session.id) &&
+      !(detachInputs.current.liveAgentsEnabled && unseenFinishedRef.current.has(session.id));
+
+    for (const session of sessions) {
+      if (!canDetach(session) || saving.current.has(session.id) || failed.current.get(session) === navigationEpoch.current) continue;
+      saving.current.add(session.id);
+      const attemptEpoch = navigationEpoch.current;
+      void (async () => {
+        try {
+          await detachInputs.current.persistSession(session);
+          if (!mounted.current) return;
+          const current = sessionsRef.current.find((entry) => entry.id === session.id);
+          // Saving yields to navigation and new turns. Only release the exact
+          // snapshot that was saved, and recheck ownership after the await.
+          if (current !== session || !canDetach(session)) return;
+          if (shouldPersistSession(session)) {
+            rememberLoadedSession(loadedSessionCache.current, session);
+          }
+          for (const harness of sessionChildHarnesses(session)) {
+            void forgetHarnessSession(harness, session.id).catch((error) => {
+              if (mounted.current) detachInputs.current.onError(error);
+            });
+          }
+          setSessions((previous) => previous.filter((entry) => entry !== session));
+        } catch (error) {
+          failed.current.set(session, attemptEpoch);
+          if (mounted.current) detachInputs.current.onError(error);
+        } finally {
+          saving.current.delete(session.id);
+          const current = sessionsRef.current.find((entry) => entry.id === session.id);
+          // An edit during this write may already have consumed its detach
+          // timer. Give the newer snapshot its own save before releasing it.
+          if (mounted.current && current && (current !== session || attemptEpoch !== navigationEpoch.current) && canDetach(current) && detachTimer.current == null) {
+            detachTimer.current = window.setTimeout(detachIdleSessions, SESSION_DETACH_DELAY_MS);
+          }
+        }
+      })();
     }
-    setSessions((prev) =>
-      prev.filter(
-        (session) =>
-          visibleIds.has(session.id) ||
-          session.busy ||
-          openingSessionIds.current.has(session.id) ||
-          (keepUnseen && unseenFinishedRef.current.has(session.id)) ||
-          skipForgetSessionIds.current.has(session.id),
-      ),
-    );
   }, [
     sessionsRef,
     tabsRef,
     openingSessionIds,
     loadedSessionCache,
     skipForgetSessionIds,
-    persistSession,
     setSessions,
   ]);
 
@@ -115,10 +137,12 @@ export function useIdleSessionDetach({
     detachIdleSessions,
   ]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       if (detachTimer.current != null) window.clearTimeout(detachTimer.current);
-    },
-    [],
-  );
+      detachTimer.current = null;
+    };
+  }, []);
 }

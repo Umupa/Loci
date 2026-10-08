@@ -1681,6 +1681,7 @@ function UserMessageBlock({
   const roundsSingleLine = chat && textOnly;
 
   useLayoutEffect(() => {
+    if (!visible) return;
     const el = textRef.current;
     if (!el || !text) {
       setOverflows(false);
@@ -1695,6 +1696,9 @@ function UserMessageBlock({
     // once here rather than on every delivery.
     let lineHeight = 0;
     const measure = () => {
+      // Reading dimensions inside a content-visibility:auto skipped turn
+      // forces the browser to lay out its entire history subtree.
+      if (!el.isConnected || el.checkVisibility?.({ contentVisibilityAuto: true }) === false) return;
       if (!expanded) {
         setOverflows(el.scrollHeight > el.clientHeight + 1);
       }
@@ -1718,7 +1722,12 @@ function UserMessageBlock({
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    return () => observer.disconnect();
+    const turn = el.closest("[data-transcript-turn]");
+    turn?.addEventListener("contentvisibilityautostatechange", measure);
+    return () => {
+      observer.disconnect();
+      turn?.removeEventListener("contentvisibilityautostatechange", measure);
+    };
   }, [text, roundsSingleLine, expanded, visible]);
 
   const toggle = () => {
