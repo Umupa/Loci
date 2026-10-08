@@ -350,7 +350,7 @@ Claude Code / Codex（会话子进程，环境里有会话凭据）
 
 ## 实现与验证记录
 
-2026-10-08 到 10-09 在 Arch Linux ARM（aarch64）上完成。分支 `feat/learn`，已提交，未推送、未合并。
+在 Arch Linux ARM（aarch64）上完成实现与下述验证，代码位于分支 `feat/learn`。
 
 ### 代码在哪里
 
@@ -366,6 +366,8 @@ Claude Code / Codex（会话子进程，环境里有会话凭据）
 | 对话记录、设置页 | `src/features/sessions/model/learnToolCall.ts`、`AgentTranscript.tsx`、`McpSettings.tsx` |
 
 ### 自动检查
+
+2026-10-08 合入主干 `64f071b` 后重新验证：`npm run check:web` 通过（295 个测试文件、3316 项测试及 TypeScript 检查）；`cargo test --workspace` 通过。主干已经修复下面历史记录中的两项 `useSaveToCanvas` 测试，当前没有这些失败。
 
 `cargo fmt --check`、`cargo clippy --workspace --all-targets -- -D warnings`、Rust 196 项测试、`tsc --noEmit`、`npm run build` 都通过。Vitest 294 个文件、3272 项，3270 项通过；失败的 2 项在 `src/app/hooks/useSaveToCanvas.test.ts`，在干净的 `main` 上同样失败（原因是提交 `ebdfc21` 重写了保存到画布的选择对话框，测试仍在找 `[role="dialog"]`），与本功能无关，没有改动。
 
@@ -415,4 +417,3 @@ Claude Code / Codex（会话子进程，环境里有会话凭据）
 - Markdown 文件在点过带行号的链接后会一直停在源码模式，直到手动切回预览。
 - 实机里模型偶尔的小问题：把 `loci://canvas/…` 当纯文本打出而不是 Markdown 链接；一次调用里对同一节点记两条（宿主已能处理）；把"实线"说成"已掌握"（工具说明和规则里已写明"实线只表示讲过，不等于掌握"）。
 - 阶段 3 的候选项没有动。
-
