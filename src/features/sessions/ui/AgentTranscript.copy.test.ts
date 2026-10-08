@@ -8,6 +8,23 @@ import { messageFilesFromClipboard } from "../../../platform/tauri/clipboard";
 let container: HTMLDivElement;
 let root: Root;
 
+it("cancels saving to canvas without showing an error or success, then allows retry", async () => {
+  const save = vi.fn().mockRejectedValueOnce(new DOMException("Cancelled", "AbortError")).mockResolvedValueOnce(undefined);
+  act(() => root.render(createElement(AgentTranscript, {
+    blocks: [{ id: "prompt", role: "user", text: "Hello", durationMs: 1000 }, { id: "answer", role: "assistant", text: "Reply" }],
+    onSaveToCanvas: save,
+  })));
+  const button = container.querySelector<HTMLButtonElement>('button[aria-label="Save to canvas"]')!;
+  expect(button).not.toBeNull();
+  await act(async () => button.click());
+  expect(container.querySelector('[role="alert"]')).toBeNull();
+  expect(button.getAttribute("aria-label")).toBe("Save to canvas");
+  expect(button.disabled).toBe(false);
+  await act(async () => button.click());
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(button.getAttribute("aria-label")).toBe("Saved to Canvas");
+});
+
 it("shows the user's send time next to the message actions", () => {
   act(() =>
     root.render(

@@ -313,7 +313,12 @@ export function ModelPicker({
   const triggerEffortLabel = triggerEffortSetting
     ? settingValueLabel(triggerEffortSetting, values)
     : undefined;
-  const serviceTierValue = values["serviceTier"];
+  const serviceTierSetting = current.settings?.find(
+    (s) => s.id === "serviceTier" && s.kind === "select",
+  );
+  const serviceTierValue = serviceTierSetting
+    ? settingValue(serviceTierSetting, values)
+    : undefined;
   const triggerTitle = [
     HARNESS_TITLE[current.harness],
     current.provider?.name,

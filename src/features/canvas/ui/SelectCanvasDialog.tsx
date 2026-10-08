@@ -14,29 +14,9 @@ export function SelectCanvasDialog({ canvases, onSelect, onCancel }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, canvases.length - 1));
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        setSelectedIndex((i) => Math.max(i - 1, 0));
-      } else if (event.key === "Enter") {
-        event.preventDefault();
-        onSelect(canvases[selectedIndex].id);
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        onCancel();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [canvases, selectedIndex, onSelect, onCancel]);
-
-  useEffect(() => {
-    const selected = listRef.current?.querySelector("[data-selected=true]");
+    const selected = listRef.current?.querySelector<HTMLButtonElement>("[data-selected=true]");
     if (selected) {
+      selected.focus({ preventScroll: true });
       selected.scrollIntoView({ block: "nearest" });
     }
   }, [selectedIndex]);
@@ -45,12 +25,20 @@ export function SelectCanvasDialog({ canvases, onSelect, onCancel }: Props) {
     <Modal
       onClose={onCancel}
       title="Save to Canvas"
-      description={`Choose one of ${canvases.length} open canvas${canvases.length === 1 ? "" : "es"}`}
+      description={`Choose one of ${canvases.length} available canvas${canvases.length === 1 ? "" : "es"}`}
       size="sm"
       fitViewport
     >
       <div className="flex flex-col gap-0">
-        <div ref={listRef} className="max-h-[320px] overflow-y-auto">
+        <div ref={listRef} className="max-h-[320px] overflow-y-auto" onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            setSelectedIndex((i) => Math.max(0, Math.min(i + (event.key === "ArrowDown" ? 1 : -1), canvases.length - 1)));
+          } else if (event.key === "Enter") {
+            event.preventDefault();
+            if (canvases[selectedIndex]) onSelect(canvases[selectedIndex].id);
+          }
+        }}>
           {canvases.map((canvas, index) => {
             const isSelected = index === selectedIndex;
             const formattedDate = new Date(canvas.updatedAt).toLocaleDateString(
@@ -62,6 +50,8 @@ export function SelectCanvasDialog({ canvases, onSelect, onCancel }: Props) {
                 key={canvas.id}
                 data-selected={isSelected}
                 type="button"
+                aria-pressed={isSelected}
+                onFocus={() => setSelectedIndex(index)}
                 onClick={() => {
                   setSelectedIndex(index);
                   onSelect(canvas.id);
@@ -119,6 +109,7 @@ export function SelectCanvasDialog({ canvases, onSelect, onCancel }: Props) {
           </button>
           <button
             type="button"
+            disabled={!canvases[selectedIndex]}
             onClick={() => onSelect(canvases[selectedIndex].id)}
             className="rounded-md px-4 py-2 text-sm bg-accent text-background font-medium hover:bg-accent/90 transition-colors"
           >

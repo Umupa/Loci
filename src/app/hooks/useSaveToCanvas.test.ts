@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act, createElement, type RefObject } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { appendCanvasText } from "../../features/canvas/saveToCanvas";
@@ -18,9 +18,8 @@ const workspaceRef = { current: {
   tabsRef: { current: [{ kind: "session", id: "chat", focusedId: "chat", layout: leaf("chat") } as WorkspaceTab] },
   activeTabIdRef: { current: "chat" }, projectCwdRef: { current: "/project" },
 } };
-const appendToCanvasRef: RefObject<Map<string, (text: string) => void>> = { current: new Map() };
 function Harness({ canvases }: { canvases: Canvas[] }) {
-  const options = { canvases, workspaceRef, appendToCanvasRef };
+  const options = { canvases, workspaceRef };
   const result = useSaveToCanvas(options);
   save = result.saveToCanvas;
   currentSelection = result.selection;
@@ -35,7 +34,6 @@ beforeEach(() => {
   vi.mocked(appendCanvasText).mockReset().mockResolvedValue(canvas("saved"));
   workspaceRef.current.projectCwdRef.current = "/project";
   workspaceRef.current.tabsRef.current[0].layout = leaf("chat");
-  appendToCanvasRef.current.clear();
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
 });
 afterEach(async () => {
@@ -63,16 +61,61 @@ it("offers multiple saved canvases and writes only to the selected one", async (
   expect(appendCanvasText).toHaveBeenCalledExactlyOnceWith("second", "reply");
   expect(currentSelection).toBeNull();
 });
-it("still asks when multiple canvases are mounted beside the chat", async () => {
-  const append = vi.fn();
-  appendToCanvasRef.current.set("first", append);
-  appendToCanvasRef.current.set("second", append);
+it("does not automatically choose a canvas in the active tab's layout", async () => {
   workspaceRef.current.tabsRef.current[0].layout = { type: "split", id: "split", dir: "right", sizes: [0.34, 0.33, 0.33], children: [leaf("chat"), canvasLeaf("first"), canvasLeaf("second")] };
   await render([canvas("first"), canvas("second")]);
   let pending!: Promise<void>;
   await act(async () => { pending = save("reply"); void pending.catch(() => {}); });
   expect(document.querySelector('[role="dialog"]')).not.toBeNull();
-  expect(append).not.toHaveBeenCalled();
+  expect(appendCanvasText).not.toHaveBeenCalled();
   await act(async () => { currentSelection!.resolver("second"); await pending; });
   expect(appendCanvasText).toHaveBeenCalledExactlyOnceWith("second", "reply");
+});
+
+it("reports an empty project and does not save to another project's drawing", async () => {
+  await render([canvas("other", "/other")]);
+  await expect(save("reply")).rejects.toThrow("Create a drawing in this project first");
+  expect(appendCanvasText).not.toHaveBeenCalled();
+});
+it("cancels with Escape and permits a fresh save afterward", async () => {
+  await render([canvas("first"), canvas("second")]);
+  let pending!: Promise<void>;
+  let cancelled!: Promise<unknown>;
+  await act(async () => { pending = save("cancelled reply"); cancelled = pending.catch((error) => error); });
+  await act(async () => { document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  expect(await cancelled).toMatchObject({ name: "AbortError" });
+  expect(currentSelection).toBeNull();
+  expect(appendCanvasText).not.toHaveBeenCalled();
+  await act(async () => { pending = save("new reply"); });
+  await act(async () => {
+    document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  });
+  expect(document.activeElement?.textContent).toContain("second");
+  await act(async () => {
+    document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await pending;
+  });
+  expect(appendCanvasText).toHaveBeenCalledExactlyOnceWith("second", "new reply");
+});
+it("waits for persistence and propagates storage errors", async () => {
+  let fail!: (error: Error) => void;
+  vi.mocked(appendCanvasText).mockReturnValueOnce(new Promise((_resolve, reject) => { fail = reject; }));
+  await render([canvas("only")]);
+  let settled = false;
+  const saving = save("reply").finally(() => { settled = true; });
+  const failed = expect(saving).rejects.toThrow("disk full");
+  await Promise.resolve();
+  expect(settled).toBe(false);
+  fail(new Error("disk full"));
+  await failed;
+  expect(settled).toBe(true);
+});
+it("settles the pending selection when the workspace unmounts", async () => {
+  await render([canvas("first"), canvas("second")]);
+  let cancelled!: Promise<unknown>;
+  await act(async () => { cancelled = save("reply").catch((error) => error); });
+  await act(async () => root.unmount());
+  expect(await cancelled).toMatchObject({ name: "AbortError" });
+  expect(appendCanvasText).not.toHaveBeenCalled();
+  root = createRoot(container);
 });
