@@ -423,6 +423,7 @@ function lastMatchingBlock(
 type UserTurnExtra = {
   noteCard?: Block["noteCard"];
   loci?: boolean;
+  learn?: boolean;
   appRequestId?: string;
 };
 
@@ -430,6 +431,7 @@ function userTurnFields(extra?: UserTurnExtra) {
   return {
     ...(extra?.noteCard ? { noteCard: extra.noteCard } : {}),
     ...(extra?.loci ? { loci: true } : {}),
+    ...(extra?.learn ? { learn: true } : {}),
     ...(extra?.appRequestId ? { appRequestId: extra.appRequestId } : {}),
   };
 }

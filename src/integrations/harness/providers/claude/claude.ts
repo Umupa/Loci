@@ -77,8 +77,12 @@ import {
   canvasMcpServer,
   canvasMcpTool,
   canvasToolAutoAllowed,
-  claudeCanvasMcpConfig,
 } from "../../../../features/canvas/mcpServer";
+import {
+  claudeBuiltinMcpConfig,
+  learnMcpServer,
+  learnMcpTool,
+} from "../../../../features/learn/mcpServer";
 import {
   questionPromptTitle,
   questionsFromUnknown,
@@ -135,6 +139,8 @@ type BackgroundTask = {
 type Live = {
   cwd: string;
   canvasMcpEnabled: boolean;
+  /** This process was started with the loci_learn server, for a thread that used /learn. */
+  learnMcp: boolean;
   claudeSessionId: string;
   providerAccountId?: string;
   runtimeMode: RuntimeMode;
@@ -433,11 +439,14 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   const canvasMcpEnabled = loadCanvasMcpEnabled();
   const planning = input.intent === "plan";
   const existing = liveByThread.get(input.sessionId);
+  // Callers that are not a user turn (compaction, rewind) do not say; keep what the process has.
+  const learnMcp = input.learnAccess ?? existing?.learnMcp ?? false;
   if (
     existing &&
     existing.cwd === input.cwd &&
     existing.settingsKey === settingsKey &&
     existing.canvasMcpEnabled === canvasMcpEnabled &&
+    existing.learnMcp === learnMcp &&
     existing.planning === planning
   ) {
     existing.onEvent = input.onEvent;
@@ -466,6 +475,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   }
   const { path } = await resolveClaudeBinaryImpl();
   const canvasMcp = await canvasMcpServer(canvasMcpEnabled);
+  const mcpConfig = claudeBuiltinMcpConfig(canvasMcp, learnMcp ? await learnMcpServer() : null);
   const liveRef: { current: Live | null } = { current: null };
   const claudeSessionId =
     canResume && resume ? resume.sessionId : crypto.randomUUID();
@@ -487,6 +497,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   const live: Live = {
     cwd: input.cwd,
     canvasMcpEnabled,
+    learnMcp,
     claudeSessionId,
     providerAccountId: input.providerAccountId,
     runtimeMode: input.runtimeMode,
@@ -554,7 +565,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
     path,
     buildClaudeSpawnArgs({
       ...launch,
-      ...(canvasMcp ? { mcpConfig: claudeCanvasMcpConfig(canvasMcp) } : {}),
+      ...(mcpConfig ? { mcpConfig } : {}),
     }),
     input.cwd,
     { provider: "claude", id: input.providerAccountId ?? "default" },
@@ -1108,7 +1119,9 @@ async function handleControlRequest(
   const canvasTool = canvasMcpTool(toolName);
   if (
     live.runtimeMode === "full-access" ||
-    (canvasTool && canvasToolAutoAllowed(canvasTool, live.runtimeMode))
+    (canvasTool && canvasToolAutoAllowed(canvasTool, live.runtimeMode)) ||
+    // A plan turn was handled above; outside one the learning tools never prompt.
+    learnMcpTool(toolName)
   ) {
     await writeJson(
       sessionId,

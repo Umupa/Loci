@@ -346,4 +346,44 @@ describe("session submission", () => {
     expect(session().blocks.some((block) => block.text.includes("replacement unavailable"))).toBe(true);
     expect(session().busy).toBe(false);
   });
+  it("starts a learning thread with /learn: the command leaves the message, the rules go to the agent once, access stays", async () => {
+    await mount(newSession("codex", "/project", "codex:test"));
+    await act(async () => { expect(actions.onSubmit(session().id, "/learn kubernetes")).toBe(true); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    expect(session().blocks[0]).toMatchObject({ role: "user", text: "kubernetes", learn: true });
+    expect(pending[0].input).toMatchObject({ learnAccess: true, appAccess: false });
+    expect(pending[0].input.text.startsWith("kubernetes\n\n<loci_learn>")).toBe(true);
+    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, learnAccess: true });
+    await settle(pending[0]);
+    await act(async () => { expect(actions.onSubmit(session().id, "Service 是什么？")).toBe(true); });
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[1].input).toMatchObject({ learnAccess: true, text: "Service 是什么？" });
+    expect(session().blocks.filter((block) => block.role === "user").map((block) => block.learn)).toEqual([true, undefined]);
+  });
+
+  it("continues on the map when /learn is sent alone, and tells the agent which node a session was opened from", async () => {
+    await mount(newSession("codex", "/project", "codex:test"));
+    await act(async () => { expect(actions.onSubmit(session().id, "/learn")).toBe(true); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    expect(session().blocks[0].text).toBe("Continue on my learning map.");
+    await settle(pending[0]);
+    await act(async () => { await actions.submit(session().id, "/learn Service", [], { learnFocus: { nodeId: "n42", intent: "revisit" } }); });
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[1].input.text).toContain('<loci_learn_focus>The learner opened this session from the map node with id "n42", named in their message, to revisit it.');
+  });
+
+  it("refuses /learn where the learning map cannot be reached, without starting a turn", async () => {
+    await mount(newSession("codex", "~", "codex:test"));
+    await act(async () => { expect(actions.onSubmit(session().id, "/learn kubernetes")).toBe(false); });
+    expect(pending).toHaveLength(0);
+    expect(session().blocks.some((block) => block.role === "user")).toBe(false);
+    expect(JSON.stringify(session().blocks)).toContain("one learning map per project");
+  });
+
+  it("refuses /learn on a provider that is not given the learning server", async () => {
+    await mount(newSession("cursor", "/project"));
+    await act(async () => { expect(actions.onSubmit(session().id, "/learn kubernetes")).toBe(false); });
+    expect(pending).toHaveLength(0);
+    expect(JSON.stringify(session().blocks)).toContain("needs a Claude Code or Codex session");
+  });
 });
