@@ -21,11 +21,17 @@ export type ResumedWorkspace = {
   projectReturnMemory?: ProjectReturnMemory;
 };
 
-/** A turn or approval that would be lost if this webview died. */
+/** Main-turn work used by quit/resume; side questions have their own lifetime. */
 export function isInFlightSession(session: Session): boolean {
   return (
     (!!session.busy || sessionNeedsInput(session))
   );
+}
+
+/** Work that needs its in-memory owner. Side questions are not main turns to auto-resume. */
+export function hasLiveSessionWork(session: Session): boolean {
+  return isInFlightSession(session) || session.blocks.some((block) =>
+    block.btwThreads?.some((thread) => thread.status === "running"));
 }
 
 export function hasInFlightSessions(sessions: Session[]): boolean {

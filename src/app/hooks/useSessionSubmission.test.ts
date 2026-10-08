@@ -29,15 +29,16 @@ let actions: SessionSubmission;
 let pending: Pending[];
 let acceptImmediately: boolean;
 let adapter: HarnessAdapter;
+const canStartSessionWork = vi.fn(() => true);
 
 async function mount(initial: Session) {
   function Harness() {
     const [sessions, setSessions] = useState([initial]);
     const sessionsRef = useRef(sessions);
-    sessionsRef.current = sessions;
+    // Match Workspace: useSessionRuntime owns ref and state commits.
     runtime = useSessionRuntime({ sessions, sessionsRef, setSessions });
-    actions = useSessionSubmission({ runtime });
-    return null;
+    actions = useSessionSubmission({ runtime, canStartSessionWork });
+    return createElement("output", null, JSON.stringify(sessions));
   }
   host = document.createElement("div");
   document.body.append(host);
@@ -60,6 +61,7 @@ beforeEach(() => {
   localStorage.clear();
   pending = [];
   acceptImmediately = true;
+  canStartSessionWork.mockReset().mockReturnValue(true);
   mocks.prepare.mockReset();
   mocks.prepare.mockImplementation(async (text: string) => text);
   mocks.invoke.mockReset();
@@ -96,6 +98,66 @@ afterEach(async () => {
 });
 
 describe("session submission", () => {
+  it("refuses new main and side work while the workspace is removing the session", async () => {
+    const initial = newSession("codex", "/project", "codex:test");
+    initial.blocks = [{ id: "user", role: "user", text: "Main question", btwThreads: [{
+      id: "side", sourceEndBlockId: "user", createdAt: 1, updatedAt: 1,
+      status: "error", harness: "codex", model: "test", messages: [{ id: "question", role: "user", text: "Explain", createdAt: 1 }],
+    }] }];
+    adapter.runTextPrompt = vi.fn(async () => "Recovered");
+    adapter.compactContext = vi.fn(async () => undefined);
+    await mount(initial);
+    canStartSessionWork.mockReturnValue(false);
+    await act(async () => {
+      expect(actions.onSubmit(initial.id, "New turn")).toBe(false);
+      expect(actions.btwSubmit(initial.id, initial.blocks, "side", "retry", "Retry")).toBe(false);
+      actions.btwRetry(initial.id, initial.blocks, "side");
+      await actions.compact(initial.id);
+    });
+    expect(adapter.sendTurn).not.toHaveBeenCalled();
+    expect(adapter.runTextPrompt).not.toHaveBeenCalled();
+    expect(adapter.compactContext).not.toHaveBeenCalled();
+    canStartSessionWork.mockReturnValue(true);
+    await act(async () => { expect(actions.btwSubmit(initial.id, initial.blocks, "side", "retry", "Retry")).toBe(true); });
+    expect(adapter.runTextPrompt).toHaveBeenCalledOnce();
+  });
+
+  it("renders a 100-delta side answer and persists the final result without per-delta writes", async () => {
+    const initial = newSession("codex", "/project", "codex:test");
+    initial.blocks = [{ id: "user", role: "user", text: "Main question" }, { id: "answer", role: "assistant", text: "Main answer" }];
+    const output = Array.from({ length: 100 }, (_, i) => `${i},`).join("");
+    adapter.runTextPrompt = vi.fn(async (input) => {
+      input.onThreadId?.("side-provider");
+      for (let i = 0; i < 100; i += 1) input.onEvent?.({ type: "message.delta", text: `${i},` });
+      input.onEvent?.({ type: "message.completed" });
+      return output;
+    });
+    await mount(initial);
+    await act(async () => { expect(actions.btwSubmit(initial.id, initial.blocks, "side", "side-user", "Explain further")).toBe(true); });
+    const rendered = JSON.parse(host.textContent!)[0];
+    expect(rendered.blocks[0].btwThreads[0]).toMatchObject({ status: "ready", providerThreadId: "side-provider" });
+    expect(rendered.blocks[0].btwThreads[0].messages[1].text).toBe(output);
+    await runtime.flushPersistence();
+    const writes = mocks.invoke.mock.calls.filter(([command]) => command === "session_upsert");
+    expect(writes).toHaveLength(1);
+    expect(writes[0][1].session.blocks[0].btwThreads[0].messages[1].text).toBe(output);
+  });
+
+  it("commits side-question changes and deletion to React state", async () => {
+    const initial = newSession("codex", "/project", "codex:test");
+    initial.blocks = [{ id: "user", role: "user", text: "Main question", btwThreads: [{
+      id: "side", sourceEndBlockId: "user", createdAt: 1, updatedAt: 1,
+      status: "ready", harness: "codex", model: "test", messages: [],
+    }] }];
+    await mount(initial);
+    expect(host.textContent).toContain('"model":"test"');
+    await act(async () => actions.btwModelChange(initial.id, initial.blocks, "side", "new-model", {}));
+    expect(session().blocks[0].btwThreads?.[0].model).toBe("new-model");
+    expect(JSON.parse(host.textContent!)[0].blocks[0].btwThreads[0].model).toBe("new-model");
+    await act(async () => actions.btwDelete(initial.id, session().blocks, "side"));
+    expect(JSON.parse(host.textContent!)[0].blocks[0].btwThreads).toBeUndefined();
+  });
+
   it("keeps streamed output before an approval and delivers the user's decision", async () => {
     await mount(newSession("codex", "/project", "codex:test"));
     await act(async () => { expect(actions.onSubmit(session().id, "Read the report")).toBe(true); });

@@ -49,6 +49,8 @@ export type BootWorkspace = {
   historyCwd: string | null;
 };
 
+export type WorkspaceSaveMode = "quit" | "transition" | "unload";
+
 let resumedPromise: Promise<ResumedWorkspace | null> | null = null;
 let bootPromise: Promise<BootWorkspace> | null = null;
 let quitting = false;
@@ -315,6 +317,12 @@ export async function closeCurrentWindow(): Promise<void> {
   await invoke("destroy_window");
 }
 
+/** Persist the idle window before performing its native close action. */
+export async function persistAndCloseWindow(persist: () => Promise<void>, toTray: boolean): Promise<void> {
+  await persist();
+  await (toTray ? hideCurrentWindow() : closeCurrentWindow());
+}
+
 export async function persistLiveTranscripts(
   sessions: Session[],
 ): Promise<void> {
@@ -331,15 +339,15 @@ export async function persistQuitState(
   activeTabId: string,
   projectCwd: string,
   memory: ProjectReturnMemory,
-  mode: "quit" | "unload" = "quit",
+  mode: WorkspaceSaveMode = "quit",
 ): Promise<void> {
   const refs = inFlightRefs(sessions, tabs);
   const interrupted = new Set(refs.map((ref) => ref.sessionId));
-  // A quit ends the process, so a swallowed write is work that never comes
-  // back: let it reject and let the caller call the quit off. An unload is a
-  // reload, where best effort is enough and failing loudly helps nobody.
+  // Explicit quit/close/reload can still be aborted on failure. Only the
+  // unavoidable beforeunload path is best-effort. An idle window transition
+  // must not clear the in-flight records owned by other windows.
   const write = <T,>(pending: Promise<T>): Promise<T | null> =>
-    mode === "quit" ? pending : pending.catch(() => null);
+    mode === "unload" ? pending.catch(() => null) : pending;
 
   await Promise.all(
     sessions.map(async (session) => {

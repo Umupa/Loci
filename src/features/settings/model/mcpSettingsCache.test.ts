@@ -26,6 +26,44 @@ beforeEach(() => {
 });
 afterEach(clearMcpSettingsCache);
 
+it("retries a failed discovery on the next access without a forced refresh", async () => {
+  invoke.mockRejectedValueOnce(new Error("temporary discovery failure")).mockResolvedValue(configured);
+  const failed = await loadMcpSettings("/retry", false, { claudeHealth: false });
+  expect(failed.error).toContain("temporary discovery failure");
+  const recovered = await loadMcpSettings("/retry", false, { claudeHealth: false });
+  expect(recovered.error).toBe("");
+  expect(recovered.servers[0].name).toBe("docs");
+  expect(invoke).toHaveBeenCalledTimes(2);
+});
+
+it("shares concurrent retries after a discovery failure", async () => {
+  invoke.mockRejectedValueOnce(new Error("offline"));
+  await loadMcpSettings("/concurrent", false, { claudeHealth: false });
+  let finish!: (servers: McpConnection[]) => void;
+  invoke.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  const consumers = Array.from({ length: 20 }, () => loadMcpSettings("/concurrent", false, { claudeHealth: false }));
+  expect(invoke).toHaveBeenCalledTimes(2);
+  finish(configured);
+  const results = await Promise.all(consumers);
+  expect(results.every((snapshot) => snapshot.servers[0].name === "docs" && !snapshot.error)).toBe(true);
+});
+
+it("retries failed health while continuing to share successful discovery", async () => {
+  let healthCalls = 0;
+  invoke.mockImplementation(async (command: string) => {
+    if (command === "mcp_discover") return configured;
+    if (++healthCalls === 1) throw new Error("temporary health failure");
+    return "docs: local - Connected";
+  });
+  await loadMcpSettings("/retry-health");
+  await vi.waitFor(() => expect(getCachedMcpSettings("/retry-health")?.claudeError).toContain("temporary health failure"));
+  await loadMcpSettings("/retry-health");
+  await vi.waitFor(() => expect(getCachedMcpSettings("/retry-health")?.claudeError).toBe(""));
+  expect(getCachedMcpSettings("/retry-health")?.servers[0].status).toBe("Connected");
+  expect(invoke.mock.calls.filter(([command]) => command === "mcp_discover")).toHaveLength(1);
+  expect(healthCalls).toBe(2);
+});
+
 it("publishes discovery before slow health and shares both requests across consumers", async () => {
   let resolveHealth!: (output: string) => void;
   invoke.mockImplementation((command: string) =>

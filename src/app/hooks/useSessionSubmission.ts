@@ -72,6 +72,8 @@ export type SubmitOptions = ComposerTurnOptions & {
 type Submit = (sessionId: string, text: string, attachments?: Attachment[], options?: SubmitOptions) => SubmissionAcceptance;
 type SubmissionOptions = {
   runtime: SessionRuntime;
+  /** Workspace archive/delete holds this gate until its transaction settles. */
+  canStartSessionWork?: (sessionId: string) => boolean;
   /** Resolve a moved project and update session paths before accepting a turn. */
   synchronizeProject?: (cwd: string) => Promise<void>;
   onDraftDiscarded?: (sessionId: string) => void;
@@ -115,6 +117,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
   const usageResumingRef = useRef(new Set<string>());
 
   const submitSession = useCallback<Submit>((sessionId, text, attachments = [], options) => {
+    if (optionsRef.current.canStartSessionWork?.(sessionId) === false) return false;
     const rt = runtimeRef.current;
     if (editedResends.isActive(sessionId)) return false;
     flushHarnessEvents();
@@ -447,12 +450,11 @@ export function useSessionSubmission(options: SubmissionOptions) {
         return updatedSession;
       });
       if (!updatedSession) return undefined;
-      sessionsRef.current = next;
+      // Runtime owns both the ref and React state; its autosave batches deltas.
       setSessions(next);
-      void persistSession(updatedSession).catch(() => undefined);
       return updatedSession;
     },
-    [persistSession],
+    [sessionsRef, setSessions],
   );
 
   const removeBtwThread = useCallback(
@@ -483,12 +485,10 @@ export function useSessionSubmission(options: SubmissionOptions) {
         return updatedSession;
       });
       if (!updatedSession) return undefined;
-      sessionsRef.current = next;
       setSessions(next);
-      void persistSession(updatedSession).catch(() => undefined);
       return updatedSession;
     },
-    [persistSession],
+    [sessionsRef, setSessions],
   );
 
   const runBtwRequest = useCallback(
@@ -716,6 +716,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       model?: string,
       modelSettings?: Record<string, string>,
     ) => {
+      if (optionsRef.current.canStartSessionWork?.(sessionId) === false) return false;
       const source = sessionsRef.current.find(
         (session) => session.id === sessionId,
       );
@@ -948,6 +949,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
 
   const onBtwRetry = useCallback(
     (sessionId: string, turn: Block[], threadId: string) => {
+      if (optionsRef.current.canStartSessionWork?.(sessionId) === false) return;
       const source = sessionsRef.current.find(
         (session) => session.id === sessionId,
       );
@@ -1074,6 +1076,18 @@ export function useSessionSubmission(options: SubmissionOptions) {
     await persistSession(sessionId);
   }, [flushHarnessEvents, persistSession, sessionsRef, setSessions]);
 
+  /** Archive/delete stops all owned work; the composer Stop remains main-turn-only. */
+  const stopSessionWork = useCallback(async (sessionId: string) => {
+    const current = sessionsRef.current.find((session) => session.id === sessionId);
+    for (const block of current?.blocks ?? []) {
+      if (block.role !== "user") continue;
+      for (const thread of block.btwThreads ?? []) {
+        if (thread.status === "running") onBtwStop(sessionId, [block], thread.id);
+      }
+    }
+    await stop(sessionId);
+  }, [onBtwStop, sessionsRef, stop]);
+
   const approve = useCallback((sessionId: string, requestId: number, decision: ApprovalDecision) => {
     const session = sessionsRef.current.find((entry) => entry.id === sessionId);
     if (session) respondHarnessApproval(session.harness, sessionId, requestId, decision);
@@ -1088,6 +1102,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
   }, [sessionsRef]);
 
   const compact = useCallback((sessionId: string) => {
+    if (optionsRef.current.canStartSessionWork?.(sessionId) === false) return false;
     const current = sessionsRef.current.find((session) => session.id === sessionId);
     if (!current || current.busy || !canCompactHarnessContext(current.harness)) return false;
     const rt = runtimeRef.current;
@@ -1223,13 +1238,26 @@ export function useSessionSubmission(options: SubmissionOptions) {
     return () => clearTimeout(timer);
   }, [autoContinueKey, onSubmit, sessionsRef]);
 
+  useEffect(() => {
+    // Removing a session or rewinding its source turn can bypass BTW's Delete action.
+    if (!btwRequestsRef.current.size) return;
+    const owners = new Set([...btwRequestsRef.current.values()].map((request) => request.sessionId));
+    const retained = new Set(sessionsRef.current.filter((session) => owners.has(session.id)).flatMap((session) =>
+      session.blocks.flatMap((block) => block.btwThreads?.map((thread) => `${session.id}:${thread.id}`) ?? [])));
+    for (const [key, request] of btwRequestsRef.current) {
+      if (retained.has(key)) continue;
+      btwRequestsRef.current.delete(key);
+      request.controller.abort();
+    }
+  }, [sessions, sessionsRef]);
+
   useEffect(() => () => {
     for (const request of btwRequestsRef.current.values()) request.controller.abort();
     btwRequestsRef.current.clear();
   }, []);
 
   return {
-    submit: submitSession, onSubmit, stop, approve, answer, keepQuestionOpen,
+    submit: submitSession, onSubmit, stop, stopSessionWork, approve, answer, keepQuestionOpen,
     compact, saveDraft, removeDraft, changeModel, changeModelSettings, changeRuntimeMode,
     deleteQueuedMessage, queuedMessageEditingChange, editQueuedMessage, steerQueuedMessage, resumeQueue,
     usageLimitDismiss, usageLimitResume, usageLimitResumeAtReset,
