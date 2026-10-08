@@ -510,6 +510,28 @@ describe("live catalog overlays", () => {
     ).toBe("claude-opus-5-5");
   });
 
+  it.each([
+    "sub2api/deepseek-flash",
+    "deepseek-v3.2",
+    "omarchy-vm/claude/claude-sonnet-4-6",
+    "codex/gpt-5.6-sol",
+    "custom-model-2",
+    "opus",
+    "claude-opus-5-5",
+  ])("preserves the external Claude model id %s across launch paths", (native) => {
+    const model: AgentModel = {
+      id: `claude:${native}`,
+      harness: "claude",
+      name: native,
+      nativeId: native,
+    };
+    // Saved keys must also work before a live catalog has been loaded.
+    expect(nativeModelId(model.id)).toBe(native);
+    expect(nativeModelId(model)).toBe(native);
+    setHarnessModels("claude", [model]);
+    expect(nativeModelId(model.id)).toBe(native);
+  });
+
   it("rebuilds a Claude native id for a key no list knows", () => {
     expect(nativeModelId("claude:opus-4-8")).toBe("claude-opus-4-8");
     expect(nativeModelId("claude:opus-4-7")).toBe("claude-opus-4-7");

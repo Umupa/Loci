@@ -1,4 +1,5 @@
 import { describe,expect,it } from "vitest";
+import { nativeModelId } from "../../../../features/sessions/model/models";
 import {
 modelsForClaudeVersion,
 modelsFromClaudeListModels,
@@ -565,6 +566,36 @@ describe("list_models catalog", () => {
     expect(
       models[0]?.settings?.find((setting) => setting.id === "context")?.value,
     ).toBe("1m");
+  });
+
+  it.each([
+    ["sub2api/deepseek-flash", "sub2api/deepseek-flash"],
+    ["deepseek-v3.2", "deepseek-v3.2"],
+    ["omarchy-vm/claude/claude-sonnet-4-6", "omarchy-vm/claude/claude-sonnet-4-6"],
+    ["custom-model-2", "claude-opus-5-5"],
+  ])("preserves catalog value %s through CLI argument construction", (value, resolvedModel) => {
+    const [model] = modelsFromClaudeListModels([
+      { value: `${value}[1m]`, resolvedModel, supportsEffort: true },
+    ]);
+    expect(model.nativeId).toBe(value);
+    const context = model.settings?.find((setting) => setting.id === "context")?.value;
+    const args = buildClaudeSpawnArgs({
+      model: resolveClaudeApiModelId(nativeModelId(model), context),
+      effort: "high",
+    });
+    expect(args[args.indexOf("--model") + 1]).toBe(`${value}[1m]`);
+    expect(args[args.indexOf("--effort") + 1]).toBe("high");
+  });
+
+  it.each([
+    ["opus-5-5", "claude-opus-5-5"],
+    ["sonnet-4.6", "claude-sonnet-4-6"],
+    ["haiku-4-5-20251001", "claude-haiku-4-5-20251001"],
+    ["fable-5-1", "claude-fable-5-1"],
+  ])("normalizes the known Claude shorthand %s without a resolved id", (value, expected) => {
+    const [model] = modelsFromClaudeListModels([{ value }]);
+    expect(model.nativeId).toBe(expected);
+    expect(nativeModelId(model)).toBe(expected);
   });
 
   it("launches a versioned short value with the claude- prefix", () => {
