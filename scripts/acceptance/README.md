@@ -15,3 +15,5 @@ node scripts/acceptance/real-protocol.mjs acp /path/to/a/scratch/folder
 ```
 
 Use a scratch folder you do not mind the agent reading. Without a `workspace` argument the script makes a temporary one. Each run writes a JSON report into that folder (`<mode>-acceptance.json`) and exits non-zero if a check fails. A missing event counts as a failure; it is not skipped.
+
+The separate `stability/` fixtures run offline with `npm run test:stability`; they do not need signed-in agent CLIs. See [the stability validation record](../../docs/stability-validation.md) for the persistence tests, browser fixtures and measurements.
