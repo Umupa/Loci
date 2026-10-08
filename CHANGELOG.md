@@ -22,6 +22,14 @@ Nothing has been tagged yet; the first release will be 0.1.0. Until then this se
 
 - The README is now written in English; the Chinese version is `README.zh-CN.md`.
 
+### Fixed
+
+- Settings now loads live provider catalogs even when fallback models are available.
+- Codex turns omit collaboration overrides until a model is known, avoiding rejected requests.
+- Notes created without a title finalize their slug when title editing ends; existing slugs stay stable.
+- Max and Ultra effort animations now apply to every provider exposing those options.
+- Native New Tab and Close Tab menu actions target the focused window.
+
 ### Removed
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
