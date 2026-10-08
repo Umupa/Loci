@@ -167,6 +167,8 @@ export type HarnessSessionInput = {
   intent?: TurnIntent;
   /** Grant this turn access to Loci's app CLI over loopback. */
   appAccess?: boolean;
+  /** The thread used /learn: attach the loci_learn MCP server and let it reach the learning map. */
+  learnAccess?: boolean;
   onEvent: (event: HarnessEvent) => void;
 };
 

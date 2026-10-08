@@ -114,7 +114,7 @@ describe("session submission", () => {
     await settle(run);
     expect(session().busy).toBe(false);
     await runtime.flushPersistence();
-    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false });
+    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, learnAccess: false });
     expect(mocks.invoke).toHaveBeenCalledWith("control_turn_finished", { sessionId: session().id });
   });
 

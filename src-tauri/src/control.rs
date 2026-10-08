@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 
 const APP_TURN_INACTIVE: &str = "Loci app access is inactive. Use /operator once in this thread to enable it, then call the CLI during an active agent turn. Retrying this request now will not enable access.";
 const CANVAS_TURN_INACTIVE: &str = "Loci canvas access is only available while this session's agent turn is running. Retrying this request now will not enable access.";
+const LEARN_TURN_INACTIVE: &str = "Loci learning access is inactive. The learner starts it with /learn in this thread, and it is only available during an active agent turn. Retrying this request now will not enable access.";
 const APP_REQUEST_MAX: usize = 262_144;
 /// A canvas save carries drawing elements. The official Excalidraw MCP server
 /// accepts 5 MB of them, so leave room for the JSON envelope around that.
@@ -31,6 +32,7 @@ struct Pending {
 struct ActiveTurn {
     window: String,
     app_allowed: bool,
+    learn_allowed: bool,
 }
 
 #[derive(Default)]
@@ -124,9 +126,10 @@ struct Event {
 }
 /// `app` is the /operator CLI and needs the thread's opt-in. `canvas` is the
 /// built-in Excalidraw MCP: every session may draw, but only on its own
-/// project's canvases and only while its turn runs.
+/// project's canvases and only while its turn runs. `learn` is the built-in
+/// learning MCP and needs the thread's /learn opt-in.
 fn request_grant(host: &Inner, namespace: &str, token: &str) -> Result<Grant, String> {
-    if !matches!(namespace, "app" | "canvas") {
+    if !matches!(namespace, "app" | "canvas" | "learn") {
         return Err("Unknown control namespace".into());
     }
     let grant = host
@@ -142,6 +145,8 @@ fn request_grant(host: &Inner, namespace: &str, token: &str) -> Result<Grant, St
     match namespace {
         "canvas" if turn.is_some() => Ok(grant),
         "canvas" => Err(CANVAS_TURN_INACTIVE.into()),
+        "learn" if turn.is_some_and(|turn| turn.learn_allowed) => Ok(grant),
+        "learn" => Err(LEARN_TURN_INACTIVE.into()),
         _ if turn.is_some_and(|turn| turn.app_allowed) => Ok(grant),
         _ => Err(APP_TURN_INACTIVE.into()),
     }
@@ -253,7 +258,10 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
         result
     })();
     let response = result.unwrap_or_else(|error| {
-        if error == APP_TURN_INACTIVE || error == CANVAS_TURN_INACTIVE {
+        if error == APP_TURN_INACTIVE
+            || error == CANVAS_TURN_INACTIVE
+            || error == LEARN_TURN_INACTIVE
+        {
             json!({"ok": false, "error": error, "retryable": false})
         } else {
             json!({"ok": false, "error": error})
@@ -268,6 +276,7 @@ pub fn control_authorize_turn(
     session_id: String,
     cwd: String,
     app_access: bool,
+    learn_access: bool,
 ) -> Result<(), String> {
     let cwd = std::fs::canonicalize(crate::fs::expand_home(&cwd)).map_err(|e| e.to_string())?;
     if !cwd.is_dir() {
@@ -283,6 +292,7 @@ pub fn control_authorize_turn(
         ActiveTurn {
             window: window.label().into(),
             app_allowed: app_access,
+            learn_allowed: learn_access,
         },
     );
     Ok(())
@@ -366,6 +376,7 @@ mod tests {
             ActiveTurn {
                 window: "main".into(),
                 app_allowed: false,
+                learn_allowed: false,
             },
         );
         assert!(request_grant(&inner, "app", &token).is_err());
@@ -393,6 +404,7 @@ mod tests {
             ActiveTurn {
                 window: "main".into(),
                 app_allowed: false,
+                learn_allowed: false,
             },
         );
         assert_eq!(
@@ -404,6 +416,39 @@ mod tests {
         assert!(request_grant(&inner, "canvas", "wrong-token").is_err());
         inner.active.get_mut("session").unwrap().window = "other".into();
         assert!(request_grant(&inner, "canvas", &token).is_err());
+    }
+    #[test]
+    fn learn_access_needs_its_own_opt_in_and_grants_nothing_else() {
+        let mut inner = Inner::default();
+        inner.prepare_app_grant("session", "main");
+        let token = inner.app_grants["session"].token.clone();
+        assert_eq!(
+            request_grant(&inner, "learn", &token).err().as_deref(),
+            Some(LEARN_TURN_INACTIVE)
+        );
+        inner.active.insert(
+            "session".into(),
+            ActiveTurn {
+                window: "main".into(),
+                app_allowed: true,
+                learn_allowed: false,
+            },
+        );
+        // Operator access does not open the learning map.
+        assert!(request_grant(&inner, "learn", &token).is_err());
+        let turn = inner.active.get_mut("session").unwrap();
+        turn.app_allowed = false;
+        turn.learn_allowed = true;
+        assert_eq!(
+            request_grant(&inner, "learn", &token).unwrap().session,
+            "session"
+        );
+        // Learning does not widen what the operator CLI may do; drawing stays as it was.
+        assert!(request_grant(&inner, "app", &token).is_err());
+        assert!(request_grant(&inner, "canvas", &token).is_ok());
+        assert!(request_grant(&inner, "learn", "wrong-token").is_err());
+        inner.active.remove("session");
+        assert!(request_grant(&inner, "learn", &token).is_err());
     }
     #[test]
     fn only_canvas_requests_may_exceed_the_cli_limit() {
@@ -423,6 +468,7 @@ mod tests {
                 ActiveTurn {
                     window: window.into(),
                     app_allowed: true,
+                    learn_allowed: false,
                 },
             );
         }
