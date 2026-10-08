@@ -57,6 +57,24 @@ afterEach(async () => {
 });
 
 describe("session runtime", () => {
+  it("keeps failed writes pending so a later quit flush cannot silently succeed", async () => {
+    const session = newSession("claude", "/project");
+    await mount(session);
+    await act(async () => runtime.updateSessions((previous) => previous.map((entry) => ({
+      ...entry, blocks: [{ id: "user", role: "user", text: "Keep the latest content" }],
+    }))));
+    mocks.invoke.mockRejectedValueOnce(new Error("disk unavailable"))
+      .mockRejectedValueOnce(new Error("disk still unavailable"));
+    await expect(runtime.flushPersistence()).rejects.toThrow("disk unavailable");
+    await expect(runtime.flushPersistence()).rejects.toThrow("disk still unavailable");
+    expect(onPersisted).not.toHaveBeenCalled();
+    await runtime.flushPersistence();
+    expect(onPersisted).toHaveBeenCalledOnce();
+    expect(mocks.invoke).toHaveBeenLastCalledWith("session_upsert", expect.objectContaining({
+      session: expect.objectContaining({ blocks: [{ id: "user", role: "user", text: "Keep the latest content" }] }),
+    }));
+  });
+
   it("binds a restored provider thread and its task state only once", async () => {
     const session = newSession("claude", "/project", "claude:sonnet-5");
     const tasks = { key: "tasks", items: [{ id: "1", text: "Read report", status: "pending" as const }] };

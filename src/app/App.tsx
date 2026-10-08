@@ -137,7 +137,7 @@ function Workspace(boot: BootWorkspace) {
   });
   const workspace = useAppWorkspace({ boot, initial, sessions, sessionsRef,
     updateSessions: runtime.updateSessions,
-    persistSession: (session) => { if (session) return runtime.persistSession(session); },
+    persistSession: runtime.persistSession,
     bindSession: runtime.bindRestoredSession,
     stopSession: submission.stop,
     flushPersistence: runtime.flushPersistence,
@@ -176,7 +176,8 @@ function Workspace(boot: BootWorkspace) {
   useIdleSessionDetach({ sessions, sessionsRef, tabs: workspace.tabs, tabsRef: workspace.tabsRef,
     liveAgentsEnabled, unseenFinishedIds, openingSessionIds: workspace.openingSessionIds,
     loadedSessionCache: workspace.loadedSessionCache, skipForgetSessionIds: workspace.skipForgetSessionIds,
-    persistSession: (session) => { if (session) void runtime.persistSession(session); }, setSessions: runtime.updateSessions,
+    persistSession: runtime.persistSession,
+    onError: (error) => workspaceRef.current?.setError(String(error)), setSessions: runtime.updateSessions,
   });
   useAppControl({ workspace, runtime, submission });
   useAppResourceNavigation({ workspace, notesEnabled, onOpenNote: (id) => {

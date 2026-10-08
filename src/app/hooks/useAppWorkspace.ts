@@ -40,7 +40,7 @@ type Options = {
   sessions: Session[];
   sessionsRef: RefObject<Session[]>;
   updateSessions: Dispatch<SetStateAction<Session[]>>;
-  persistSession: (session: Session | undefined) => unknown;
+  persistSession: (session: Session | undefined) => Promise<void>;
   bindSession: (session: Session) => void;
   stopSession: (id: string) => void | Promise<void>;
   flushPersistence: () => Promise<void>;
@@ -327,7 +327,7 @@ export function useAppWorkspace(options: Options) {
       if (!tab) continue;
       for (const id of leafIds(tab.layout)) {
         if (!skipForgetSessionIds.current.has(id)) {
-          latest.current.persistSession(nextSessions.find((session) => session.id === id));
+          void latest.current.persistSession(nextSessions.find((session) => session.id === id)).catch((reason) => setError(String(reason)));
         }
       }
       const plan = planWorkspaceTabClose({
@@ -413,7 +413,9 @@ export function useAppWorkspace(options: Options) {
   const closePane = useCallback((id: string) => {
     const tab = tabsRef.current.find((entry) => leafIds(entry.layout).includes(id));
     if (!tab) return;
-    if (!skipForgetSessionIds.current.has(id)) latest.current.persistSession(latest.current.sessionsRef.current.find((session) => session.id === id));
+    if (!skipForgetSessionIds.current.has(id)) {
+      void latest.current.persistSession(latest.current.sessionsRef.current.find((session) => session.id === id)).catch((reason) => setError(String(reason)));
+    }
     const next = closeLeaf(tab, id);
     if (!next) { closeTabs([tab.id]); return; }
     updateTabs((current) => current.map((entry) => entry.id === tab.id ? next : entry));
@@ -574,6 +576,7 @@ export function useAppWorkspace(options: Options) {
     removingProjects.current.add(normalized);
     const removedIds = new Set<string>();
     const lockedIds = new Set<string>();
+    const savedSnapshots = new Set<Session>();
     try {
       if (settings.purgeData) {
         for (const id of new Set([...loadedSessionCache.current.keys(), ...sessionLoads.current.keys()])) {
@@ -599,10 +602,13 @@ export function useAppWorkspace(options: Options) {
         await removeProjectData(normalized);
         forgetProjectLocation(normalized);
       } else {
-        for (const session of latest.current.sessionsRef.current) {
-          if (sameProjectPath(session.cwd, normalized) && !session.busy) {
+        const idle = latest.current.sessionsRef.current.filter((session) =>
+          sameProjectPath(session.cwd, normalized) && !session.busy);
+        await Promise.all(idle.map((session) => latest.current.persistSession(session)));
+        for (const session of idle) {
+          savedSnapshots.add(session);
+          if (latest.current.sessionsRef.current.includes(session)) {
             rememberLoadedSession(loadedSessionCache.current, session);
-            latest.current.persistSession(session);
           }
         }
       }
@@ -610,7 +616,7 @@ export function useAppWorkspace(options: Options) {
       const projectTabs = new Set(filterTabsForProject(tabsRef.current, sessions, normalized).map((tab) => tab.id));
       let nextTabs = tabsRef.current.filter((tab) => !projectTabs.has(tab.id));
       let nextSessions = sessions.filter((session) => !sameProjectPath(session.cwd, normalized)
-        || (!settings.purgeData && session.busy));
+        || (!settings.purgeData && (session.busy || !savedSnapshots.has(session))));
       let target = activeTabIdRef.current;
       if (nextTabs.length === 0) {
         const blank = newDefaultSession("~");

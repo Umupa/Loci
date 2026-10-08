@@ -140,6 +140,11 @@ export function useSessionRuntime(options: RuntimeOptions) {
     saving.current.add(save);
     try {
       await save;
+    } catch (error) {
+      // flushPersistence drains pending IDs before saving. Keep failures dirty
+      // so the next explicit flush (especially quit) retries and can reject.
+      pendingSaves.current.add(session.id);
+      throw error;
     } finally {
       saving.current.delete(save);
     }

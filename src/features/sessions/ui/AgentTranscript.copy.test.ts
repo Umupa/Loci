@@ -118,6 +118,49 @@ it("lets keyboard users expand and collapse a truncated prompt", async () => {
   );
 });
 
+it("does not force layout inside a skipped turn, then measures when it becomes visible", () => {
+  let rendered = false;
+  vi.spyOn(Element.prototype, "checkVisibility").mockImplementation(() => rendered);
+  let promptReads = 0;
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function () {
+    if (this.tagName === "PRE") { promptReads += 1; return 100; }
+    return 0;
+  });
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(20);
+  act(() => root.render(createElement(AgentTranscript, {
+    blocks: [{ id: "prompt", role: "user", text: "A prompt that needs expanding" }],
+  })));
+  expect(promptReads).toBe(0);
+  expect(container.querySelector('[aria-expanded="false"]')).toBeNull();
+  rendered = true;
+  act(() => container.querySelector("[data-transcript-turn]")!.dispatchEvent(new Event("contentvisibilityautostatechange")));
+  expect(promptReads).toBeGreaterThan(0);
+  expect(container.querySelector('[aria-expanded="false"]')?.textContent).toBe("Show more");
+});
+
+it("does not measure hidden pooled prompts or keep their resize observers subscribed", () => {
+  const targets = new Set<Element>();
+  vi.stubGlobal("ResizeObserver", class {
+    observed: Element[] = [];
+    observe(el: Element) { this.observed.push(el); targets.add(el); }
+    disconnect() { for (const el of this.observed) targets.delete(el); }
+  });
+  let promptReads = 0;
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function () {
+    if (this.tagName === "PRE") promptReads += 1;
+    return 0;
+  });
+  const blocks = [{ id: "prompt", role: "user" as const, text: "Hello" }];
+  act(() => root.render(createElement(AgentTranscript, { blocks, visible: true })));
+  const prompt = container.querySelector("pre")!;
+  expect(targets.has(prompt)).toBe(true);
+  expect(promptReads).toBeGreaterThan(0);
+  promptReads = 0;
+  act(() => root.render(createElement(AgentTranscript, { blocks, visible: false })));
+  expect(promptReads).toBe(0);
+  expect(targets.has(prompt)).toBe(false);
+});
+
 it("remeasures prompt corners when a pooled tab is shown at a new width", () => {
   let textWidth = 200;
   let textHeight = 20;
@@ -163,7 +206,8 @@ it("remeasures prompt corners when a pooled tab is shown at a new width", () => 
   textWidth = 0;
   textHeight = 0;
   show(false);
-  expect(bubble().classList).toContain("rounded-xl");
+  // Hidden content keeps its last useful measurement instead of reading zero.
+  expect(bubble().classList).toContain("rounded-full");
 
   // Reattached in a narrower pane, so the same prompt wraps onto two lines.
   textWidth = 260;
