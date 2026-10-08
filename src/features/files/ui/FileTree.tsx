@@ -1058,41 +1058,6 @@ export const FileTree = memo(function FileTree({
           />
         ) : (
         <>
-        <div className="flex h-8 shrink-0 items-center">
-          <button
-            type="button"
-            data-explorer-root
-            aria-expanded={rootOpen}
-            title={cwd}
-            onClick={() => {
-              onSelect(cwd);
-              toggle(cwd);
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openMenu(
-                { path: cwd, isDir: true, isRoot: true },
-                e.clientX,
-                e.clientY,
-              );
-            }}
-            className={`flex min-w-0 flex-1 items-center gap-1 h-full pl-2 text-left ${
-              dragOverPath === cwd ? "bg-selection" : ""
-            }`}
-          >
-            <span className="grid size-4 shrink-0 place-items-center text-content/50">
-              {rootOpen ? (
-                <ChevronDown className="size-3.5" strokeWidth={1.75} />
-              ) : (
-                <ChevronRight className="size-3.5" strokeWidth={1.75} />
-              )}
-            </span>
-            <span className="min-w-0 truncate text-[11px] font-semibold tracking-[0.08em] text-content/50 uppercase">
-              {name}
-            </span>
-          </button>
-        </div>
         <div
           ref={lockOverscroll}
           className="min-h-0 flex-1 overflow-y-auto overscroll-none"
