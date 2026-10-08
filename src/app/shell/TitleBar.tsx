@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../../shared/i18n/locale";
 import { CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ExcalidrawIcon, PanelLeft, Settings, SidebarLeft, StickyNote, X, } from "../../shared/ui/icons";
 import { FileTypeIcon } from "../../shared/ui/FileTypeIcon";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, } from "react";
@@ -62,7 +63,7 @@ function sessionMeta(tab: Tab): string {
     if (tab.more.length === 1)
         return tab.more[0];
     if (tab.sessionCount > 1)
-        return `${tab.sessionCount} sessions`;
+        return t("{0} sessions", tab.sessionCount);
     return "";
 }
 export function tabCopy(tab: Tab): {
@@ -77,7 +78,7 @@ export function tabCopy(tab: Tab): {
     if (conversation)
         tooltipParts.push(conversation);
     tooltipParts.push(...tab.more);
-    return { headline: conversation || "New session", meta, tooltip: tooltipParts.join(" · ") };
+    return { headline: conversation || t("New session"), meta, tooltip: tooltipParts.join(" · ") };
 }
 /** Which tab-strip edges still have overflow to scroll toward. */
 export function tabStripOverflow(scrollLeft: number, clientWidth: number, scrollWidth: number): {
@@ -117,6 +118,7 @@ function TabHarnesses({ harnesses, busyHarnesses, doneHarnesses, dimmed, approva
     dimmed: boolean;
     approval: boolean;
 }) {
+  useLocale();
     const shown = harnesses.slice(0, 3);
     const extra = harnesses.length - shown.length;
     const opacity = dimmed ? "opacity-55" : "opacity-100";
@@ -151,9 +153,12 @@ function FamilyChip({ tab, expanded, onToggle, corner, }: {
     /** On an icon tab it is a small badge on the corner rather than a chip. */
     corner?: boolean;
 }) {
+  useLocale();
     const status = tab.descendantStatus ?? "idle";
     const tone = status === "approval" ? "bg-amber-400/20 text-amber-400" : status === "done" ? "bg-teal-400/20 text-teal-400" : status === "busy" ? "bg-accent/20 text-accent" : "bg-content/10 text-content/60";
-    const label = `${expanded ? "Hide" : "Show"} ${tab.descendantCount} started ${tab.descendantCount === 1 ? "tab" : "tabs"}`;
+    const label = tab.descendantCount === 1
+      ? (expanded ? t("Hide 1 started tab") : t("Show 1 started tab"))
+      : (expanded ? t("Hide {0} started tabs", tab.descendantCount ?? 0) : t("Show {0} started tabs", tab.descendantCount ?? 0));
     return (<button type="button" data-family-toggle aria-expanded={expanded} title={label} aria-label={label} data-no-drag data-tauri-drag-region="false" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => {
             event.stopPropagation();
             onToggle();
@@ -179,11 +184,12 @@ function TitleTabItem({ tab, active, closable, canDrag, variant, expanded = fals
     onHover?: (id: string, element: HTMLElement | null) => void;
     itemRef?: (el: HTMLDivElement | null) => void;
 }) {
+  useLocale();
     const { headline, meta, tooltip } = tabCopy(tab);
     const accessibleLabel = (tab.doneHarnesses?.length ?? 0) > 0
-        ? `${tooltip} · Response complete`
+        ? t("{0} · Response complete", tooltip)
         : tab.status === "approval"
-            ? `${tooltip} · Needs your approval`
+            ? t("{0} · Needs your approval", tooltip)
             : tooltip;
     return (<div ref={(el) => {
             sortable.setItemRef(tab.id, el);
@@ -243,7 +249,7 @@ function TitleTabItem({ tab, active, closable, canDrag, variant, expanded = fals
           </span>
         </button>
         {tab.descendantCount && onToggleFamily ? (<FamilyChip tab={tab} expanded={expanded} onToggle={onToggleFamily} corner={variant === "icon"}/>) : null}
-        {closable && variant === "full" ? (<button type="button" title="Close Tab" aria-label={`Close ${headline}`} data-no-drag data-tauri-drag-region="false" onPointerDown={(event) => event.stopPropagation()} onClick={(e) => {
+        {closable && variant === "full" ? (<button type="button" title={t("Close Tab")} aria-label={t("Close {0}", headline)} data-no-drag data-tauri-drag-region="false" onPointerDown={(event) => event.stopPropagation()} onClick={(e) => {
                 e.stopPropagation();
                 onClose(tab.id);
             }} className="absolute right-1 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded text-content/50 opacity-0 hover:bg-content/10 hover:text-content group-hover:opacity-100">
@@ -258,7 +264,8 @@ function TabSwitcherButton({ count, attention, onClick, }: {
     attention: "approval" | "done" | null;
     onClick: () => void;
 }) {
-    return (<IconButton label={`Switch tabs (${MOD}P)`} onClick={onClick}>
+  useLocale();
+    return (<IconButton label={t("Switch tabs ({0}P)", MOD)} onClick={onClick}>
       <span className="relative flex items-center gap-1 px-0.5" data-tab-switcher>
         <span className="text-[11px] font-medium leading-none tabular-nums">{count}</span>
         <ChevronDown className="size-3" strokeWidth={1.75}/>
@@ -270,7 +277,8 @@ function TabStripChevron({ side, onClick, }: {
     side: "left" | "right";
     onClick: () => void;
 }) {
-    const label = side === "left" ? "Scroll tabs left" : "Scroll tabs right";
+  useLocale();
+    const label = side === "left" ? t("Scroll tabs left") : t("Scroll tabs right");
     const Icon = side === "left" ? ChevronLeft : ChevronRight;
     return (<button type="button" title={label} aria-label={label} data-tauri-drag-region="false" onPointerDown={(event) => event.stopPropagation()} onClick={onClick} className={`absolute top-1/2 z-40 grid size-6.5 -translate-y-1/2 place-items-center rounded-md bg-content/10 backdrop-blur-xl text-content/70 hover:bg-content/15 hover:text-content ${side === "left" ? "left-1" : "right-1"}`}>
       <Icon className="size-3.5" strokeWidth={1.75}/>
@@ -285,6 +293,7 @@ export function IconButton({ label, active, accent, disabled, onClick, onOpenCon
     onOpenContextMenu?: (x: number, y: number) => void;
     children: ReactNode;
 }) {
+  useLocale();
     return (<button type="button" title={label} aria-label={label} aria-pressed={active || accent} aria-disabled={disabled} data-tauri-drag-region="false" onClick={() => {
             if (disabled)
                 return;
@@ -322,19 +331,20 @@ export function IconButton({ label, active, accent, disabled, onClick, onOpenCon
     </button>);
 }
 export function DevModeLabel() {
+  useLocale();
     if (!import.meta.env.DEV)
         return null;
-    return (<span title="Development build" className="mr-1 min-w-0 truncate rounded-md bg-skill/15 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-skill">
-      Development
-    </span>);
+    return (<span title={t("Development build")} className="mr-1 min-w-0 truncate rounded-md bg-skill/15 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-skill">
+      {t("Development")}</span>);
 }
 /** Flex spacer that keeps the Development badge next to the visit arrows. */
 export function DevModeSlot() {
+  useLocale();
     return (<div className="flex min-w-0 flex-1 items-center justify-end">
       <DevModeLabel />
     </div>);
 }
-export function TabVisitNav({ canGoBack = false, canGoForward = false, onGoBack, onGoForward, onTogglePanel, panelActive = false, panelLabel = "Toggle Projects", }: {
+export function TabVisitNav({ canGoBack = false, canGoForward = false, onGoBack, onGoForward, onTogglePanel, panelActive = false, panelLabel = t("Toggle Projects"), }: {
     canGoBack?: boolean;
     canGoForward?: boolean;
     onGoBack?: () => void;
@@ -343,11 +353,12 @@ export function TabVisitNav({ canGoBack = false, canGoForward = false, onGoBack,
     panelActive?: boolean;
     panelLabel?: string;
 }) {
+  useLocale();
     return (<div className="flex shrink-0 items-center">
-      <IconButton label={`Back (${MOD}[)`} disabled={!canGoBack} onClick={onGoBack}>
+      <IconButton label={t("Back ({0}[)", MOD)} disabled={!canGoBack} onClick={onGoBack}>
         <ChevronLeft className="size-3.5" strokeWidth={1.75}/>
       </IconButton>
-      <IconButton label={`Forward (${MOD}])`} disabled={!canGoForward} onClick={onGoForward}>
+      <IconButton label={t("Forward ({0}])", MOD)} disabled={!canGoForward} onClick={onGoForward}>
         <ChevronRight className="size-3.5" strokeWidth={1.75}/>
       </IconButton>
       {onTogglePanel ? (<IconButton label={panelLabel} active={panelActive} onClick={onTogglePanel}>
@@ -360,18 +371,20 @@ export function OverlayNav({ onBack, onToggleSidebar, }: {
     onBack?: () => void;
     onToggleSidebar?: () => void;
 }) {
+  useLocale();
     if (!onBack && !onToggleSidebar)
         return null;
     return (<div className="flex shrink-0 items-center px-1.5">
-      {onBack ? (<IconButton label={`Back (${MOD}[)`} onClick={onBack}>
+      {onBack ? (<IconButton label={t("Back ({0}[)", MOD)} onClick={onBack}>
           <ChevronLeft className="size-3.5" strokeWidth={1.75}/>
         </IconButton>) : null}
-      {onToggleSidebar ? (<IconButton label={`Toggle Sidebar (${MOD}B)`} onClick={onToggleSidebar}>
+      {onToggleSidebar ? (<IconButton label={t("Toggle Sidebar ({0}B)", MOD)} onClick={onToggleSidebar}>
           <PanelLeft className="size-3.5" strokeWidth={1.75}/>
         </IconButton>) : null}
     </div>);
 }
 function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessionSidebarOpen = true, compactRail = false, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onToggleSidebar, onToggleSessionSidebar, onSelect, onOpenSettings, onOpenNotes, onClose, onCloseMany, onArchiveTab, onDeleteTab, onReorder, onPin, recent = [], idleTabCount = 0, onCloseIdle, onOpenSwitcher, onPlaceOnPane, recents = [], onSelectProject, }: Props) {
+  useLocale();
     // A parent can fold away the tabs it started; the strip lays out what is left.
     const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
     const toggleFamily = useCallback((id: string) => setUnfolded((current) => {
@@ -382,9 +395,9 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
             next.add(id);
         return next;
     }), []);
-    const folded = useMemo(() => foldFamilies(tabs, unfolded, activeId), [tabs, unfolded, activeId]);
-    const stripTabs = useMemo(() => folded.map((entry) => entry.tab), [folded]);
-    const depthOf = useMemo(() => new Map(folded.map((entry) => [entry.tab.id, entry.depth])), [folded]);
+    const folded = useMemo(() => foldFamilies(tabs, unfolded, activeId), [getLocale(), tabs, unfolded, activeId]);
+    const stripTabs = useMemo(() => folded.map((entry) => entry.tab), [getLocale(), folded]);
+    const depthOf = useMemo(() => new Map(folded.map((entry) => [entry.tab.id, entry.depth])), [getLocale(), folded]);
     const tabIds = stripTabs.map((tab) => tab.id);
     const { displayed, setTabNode, finishMotion } = useTabCloseMotion(stripTabs);
     const externalTabDrop = useMemo<ReorderExternalDrop<string> | undefined>(() => onPlaceOnPane
@@ -413,7 +426,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
             },
             onEnd: () => setExternalPaneDrop(null),
         }
-        : undefined, [activeId, onPlaceOnPane]);
+        : undefined, [getLocale(), activeId, onPlaceOnPane]);
     const sortable = useAnimatedReorder(tabIds, onReorder, "x", externalTabDrop);
     const paneToTabDrop = useExternalTitleTabDrop();
     const lockOverscroll = useLockOverscroll<HTMLDivElement>();
@@ -495,7 +508,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
     useLayoutEffect(() => {
         syncTabOverflow();
     }, [activeId, syncTabOverflow, tabs]);
-    const activeTab = useMemo(() => tabs.find((t) => t.id === activeId), [activeId, tabs]);
+    const activeTab = useMemo(() => tabs.find((t) => t.id === activeId), [getLocale(), activeId, tabs]);
     const systemTitle = useMemo(() => {
         const activeName = activeTab?.project ?? "";
         const project = cwd ? basename(cwd) : "";
@@ -506,7 +519,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
             return `${project} — Loci`;
         }
         return "Loci";
-    }, [activeTab, cwd]);
+    }, [getLocale(), activeTab, cwd]);
     useEffect(() => {
         document.title = systemTitle;
         try {
@@ -541,11 +554,11 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
         previous: titledMemory.current,
     }), 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [regularKey, activeId, recent, stripLayout.crowded, stripLayout.titledCount]);
+    [getLocale(), regularKey, activeId, recent, stripLayout.crowded, stripLayout.titledCount]);
     useLayoutEffect(() => {
         titledMemory.current = titledIds;
     }, [titledIds]);
-    const titledSet = useMemo(() => new Set(titledIds), [titledIds]);
+    const titledSet = useMemo(() => new Set(titledIds), [getLocale(), titledIds]);
     const pillRef = useRef<HTMLDivElement | null>(null);
     useGlide({
         pill: pillRef,
@@ -579,8 +592,8 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
                     {
                         kind: "item" as const,
                         id: "family",
-                        label: `${unfolded.has(contextTab.id) ? "Hide" : "Show"} Started Tabs`,
-                        description: `${contextTab.descendantCount} started from this tab`,
+                        label: t("{0} Started Tabs", unfolded.has(contextTab.id) ? "Hide" : "Show"),
+                        description: t("{0} started from this tab", contextTab.descendantCount),
                     },
                 ]
                 : []),
@@ -589,8 +602,8 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
                     {
                         kind: "item" as const,
                         id: "pin",
-                        label: contextTab.pinned ? "Unpin Tab" : "Pin Tab",
-                        description: contextTab.pinned ? undefined : "Keep it at the left as an icon",
+                        label: contextTab.pinned ? t("Unpin Tab") : t("Pin Tab"),
+                        description: contextTab.pinned ? undefined : t("Keep it at the left as an icon"),
                     },
                     { kind: "sep" as const },
                 ]
@@ -598,7 +611,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
             {
                 kind: "item",
                 id: "close",
-                label: "Close Tab",
+                label: t("Close Tab"),
                 shortcut: `${MOD}W`,
                 disabled: !titleTabClosable(contextTab, tabs.length),
             },
@@ -606,7 +619,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
             {
                 kind: "item",
                 id: "others",
-                label: "Close Other Tabs",
+                label: t("Close Other Tabs"),
                 disabled: contextCloseIds?.others.length === 0,
             },
             ...(onCloseIdle
@@ -614,8 +627,8 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
                     {
                         kind: "item" as const,
                         id: "idle",
-                        label: "Close Idle Tabs",
-                        description: idleTabCount > 0 ? `${idleTabCount} finished and quiet; Undo brings them back` : "None are idle right now",
+                        label: t("Close Idle Tabs"),
+                        description: idleTabCount > 0 ? t("{0} finished and quiet; Undo brings them back", idleTabCount) : t("None are idle right now"),
                         disabled: idleTabCount === 0,
                     },
                 ]
@@ -623,13 +636,13 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
             {
                 kind: "item",
                 id: "right",
-                label: "Close Tabs to the Right",
+                label: t("Close Tabs to the Right"),
                 disabled: contextCloseIds?.right.length === 0,
             },
             {
                 kind: "item",
                 id: "left",
-                label: "Close Tabs to the Left",
+                label: t("Close Tabs to the Left"),
                 disabled: contextCloseIds?.left.length === 0,
             },
             ...(contextTab.sessionCount > 0 && (onArchiveTab || onDeleteTab)
@@ -640,9 +653,9 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
                             {
                                 kind: "item" as const,
                                 id: "archive",
-                                label: "Archive",
+                                label: t("Archive"),
                                 description: contextTab.sessionCount > 1
-                                    ? `All ${contextTab.sessionCount} conversations in this tab`
+                                    ? t("All {0} conversations in this tab", contextTab.sessionCount)
                                     : undefined,
                             },
                         ]
@@ -652,9 +665,9 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
                             {
                                 kind: "item" as const,
                                 id: "delete",
-                                label: "Delete",
+                                label: t("Delete"),
                                 description: contextTab.sessionCount > 1
-                                    ? `Permanently delete all ${contextTab.sessionCount} conversations in this tab`
+                                    ? t("Permanently delete all {0} conversations in this tab", contextTab.sessionCount)
                                     : undefined,
                                 danger: true,
                             },
@@ -709,10 +722,10 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
     const trailingControls = showTrailingActions || !IS_MAC ? (<div className="flex h-full shrink-0 items-stretch">
         {showTrailingActions ? (<div className="flex items-center gap-0.5 px-2">
 
-            {projectless && railClosed && onOpenNotes ? (<IconButton label="Notes" onClick={onOpenNotes}>
+            {projectless && railClosed && onOpenNotes ? (<IconButton label={t("Notes")} onClick={onOpenNotes}>
                 <StickyNote className="size-3.5" strokeWidth={1.75}/>
               </IconButton>) : null}
-            {!projectRailOpen && !showCurrentProject && onOpenSettings ? (<IconButton label={`Settings (${MOD},)`} onClick={onOpenSettings}>
+            {!projectRailOpen && !showCurrentProject && onOpenSettings ? (<IconButton label={t("Settings ({0},)", MOD)} onClick={onOpenSettings}>
                 <Settings className="size-3.5" strokeWidth={1.75}/>
               </IconButton>) : null}
           </div>) : null}
@@ -730,19 +743,19 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
       {projectless && railClosed && !compactRail ? (<>
           <div className="w-[78px] shrink-0"/>
           <div className="flex shrink-0 items-center px-1.5">
-            <IconButton label={`Toggle Sidebar (${MOD}B)`} onClick={onToggleSidebar}>
+            <IconButton label={t("Toggle Sidebar ({0}B)", MOD)} onClick={onToggleSidebar}>
               <PanelLeft className="size-3.5" strokeWidth={1.75}/>
             </IconButton>
           </div>
         </>) : null}
       {!sessionSidebarOpen && !projectless && onToggleSessionSidebar ? (<div className="flex shrink-0 items-center px-1.5">
           {IS_MAC && railClosed && !compactRail ? (<div className="w-[70px] shrink-0"/>) : null}
-          <IconButton label={`Show workspace sidebar (${MOD}${SHIFT}B)`} onClick={onToggleSessionSidebar}>
+          <IconButton label={t("Show workspace sidebar ({0}{1}B)", MOD, SHIFT)} onClick={onToggleSessionSidebar}>
             <SidebarLeft className="size-3.5" strokeWidth={1.75}/>
           </IconButton>
         </div>) : null}
       {showProjectButton && onSelectProject ? (<CwdPicker cwd={cwd} recents={recents} placement="below" onCwdChange={onSelectProject} buttonClassName="flex h-full min-w-0 max-w-64 shrink items-center gap-2 px-6 text-left text-sm font-medium leading-tight">
-          <span className="min-w-0 truncate text-content/50">No project</span>
+          <span className="min-w-0 truncate text-content/50">{t("No project")}</span>
         </CwdPicker>) : null}
 
       <div className={`flex min-w-0 flex-1 items-stretch${showProjectButton ? " border-l border-stroke" : ""}`}>
@@ -822,7 +835,7 @@ function TitleBarComponent({ tabs, activeId, cwd, projectRailOpen = true, sessio
         {trailingControls}
       </div>
       {hoveredTab && hovered ? (<TabHoverCard tab={hoveredTab} anchor={hovered.element} now={Date.now()}/>) : null}
-      {tabMenu && contextTab ? (<ContextMenu x={tabMenu.x} y={tabMenu.y} width={244} items={contextMenuItems} ariaLabel={`Tab actions for ${tabCopy(contextTab).headline}`} onPick={onPickTabMenu} onClose={() => setTabMenu(null)}/>) : null}
+      {tabMenu && contextTab ? (<ContextMenu x={tabMenu.x} y={tabMenu.y} width={244} items={contextMenuItems} ariaLabel={t("Tab actions for {0}", tabCopy(contextTab).headline)} onPick={onPickTabMenu} onClose={() => setTabMenu(null)}/>) : null}
     </header>);
 }
 export const TitleBar = memo(TitleBarComponent);

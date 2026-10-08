@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n/locale";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { hslToRgb, isHexColor, type Rgb } from "../../../shared/lib/colorUtils";
 import { IS_LINUX, IS_MAC } from "../../../platform/tauri/platform";
@@ -64,24 +65,24 @@ export const NEW_THREAD_BACKGROUND_EFFECT_LABELS: Record<
   NewThreadBackgroundEffect,
   string
 > = {
-  none: "None",
-  dither: "Dither",
-  ascii: "ASCII",
-  halftone: "Halftone",
-  scanlines: "Scanlines",
-  "gradient-blur": "Haze",
+  get none() { return t("None"); },
+  get dither() { return t("Dither"); },
+  get ascii() { return t("ASCII"); },
+  get halftone() { return t("Halftone"); },
+  get scanlines() { return t("Scanlines"); },
+  get "gradient-blur"() { return t("Haze"); },
 };
 
 export const NEW_THREAD_BACKGROUND_EFFECT_DESCRIPTIONS: Record<
   NewThreadBackgroundEffect,
   string
 > = {
-  none: "Shows the original artwork.",
-  dither: "Rebuilds the artwork with a dithered color palette.",
-  ascii: "Recreates the artwork with colored characters on black.",
-  halftone: "Recreates the artwork with colored print dots on black.",
-  scanlines: "Adds a pronounced horizontal display-line texture.",
-  "gradient-blur": "Blurs and fades the artwork into the background below.",
+  get none() { return t("Shows the original artwork."); },
+  get dither() { return t("Rebuilds the artwork with a dithered color palette."); },
+  get ascii() { return t("Recreates the artwork with colored characters on black."); },
+  get halftone() { return t("Recreates the artwork with colored print dots on black."); },
+  get scanlines() { return t("Adds a pronounced horizontal display-line texture."); },
+  get "gradient-blur"() { return t("Blurs and fades the artwork into the background below."); },
 };
 
 export const THEME_PREFERENCE_DEFAULT: ThemePreference = "dark";

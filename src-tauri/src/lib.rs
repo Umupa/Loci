@@ -285,6 +285,7 @@ pub fn run() {
             mcp::mcp_discover,
             #[cfg(target_os = "macos")]
             menu::keybindings_set_overrides,
+            menu::app_language_set,
             canvas::canvas_list,
             canvas::canvas_get,
             canvas::canvas_upsert,

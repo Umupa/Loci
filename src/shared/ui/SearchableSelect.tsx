@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../i18n/locale";
 import {
   useEffect,
   useId,
@@ -23,9 +24,9 @@ export function SearchableSelect({
   value,
   options,
   onChange,
-  placeholder = "Choose an option…",
-  searchPlaceholder = "Search options…",
-  emptyLabel = "No matching options",
+  placeholder = t("Choose an option…"),
+  searchPlaceholder = t("Search options…"),
+  emptyLabel = t("No matching options"),
   disabled = false,
   layer,
   variant = "field",
@@ -45,6 +46,7 @@ export function SearchableSelect({
   searchable?: boolean;
   align?: PopoverAlign;
 }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -66,7 +68,7 @@ export function SearchableSelect({
               .includes(normalizedQuery),
           )
         : [...options],
-    [normalizedQuery, options],
+    [getLocale(), normalizedQuery, options],
   );
   const activeId =
     filtered[active] != null ? `${listId}-option-${active}` : undefined;
@@ -231,7 +233,7 @@ export function SearchableSelect({
           constrainHeight={longMenu}
           layer={popoverLayer}
           role="dialog"
-          aria-label={`${label} options`}
+          aria-label={t("{0} options", label)}
           data-dialog-popover
           onDismiss={(reason) => close(reason === "escape")}
           className="flex flex-col overflow-hidden"

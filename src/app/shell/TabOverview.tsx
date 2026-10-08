@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../../shared/i18n/locale";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Archive, Check, Pin, PinOff, Search, X } from "../../shared/ui/icons";
 import { Modal } from "../../shared/ui/Modal";
@@ -41,6 +42,7 @@ const ACCENT_BAR: Record<string, string> = {
  * more tabs than a strip can say anything useful about.
  */
 export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, onCloseTabs, onParkTabs, onPinTabs, onDismiss }: Props) {
+  useLocale();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<OverviewScope>(() => defaultScope(tabs, projectPath));
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
@@ -52,7 +54,7 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
   const cancelEntrance = useRef<(() => void) | null>(null);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
 
-  const cards = useMemo(() => overviewCards({ tabs, scope, projectPath, query, recent }), [tabs, scope, projectPath, query, recent]);
+  const cards = useMemo(() => overviewCards({ tabs, scope, projectPath, query, recent }), [getLocale(), tabs, scope, projectPath, query, recent]);
   const first = cards.find((card) => card.tab.id !== activeId) ?? cards[0];
   const cursorIndex = Math.max(0, cards.findIndex((card) => card.tab.id === (cursorId ?? first?.tab.id)));
   const cursor = cards[cursorIndex];
@@ -199,7 +201,7 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
   const needYou = tabs.filter((tab) => tab.status === "approval" || tab.status === "done").length;
   const working = tabs.filter((tab) => tab.status === "busy").length;
   return (
-    <Modal title="Tab overview" onClose={onDismiss} size="lg" minimalHeader>
+    <Modal title={t("Tab overview")} onClose={onDismiss} size="lg" minimalHeader>
       <div className="flex h-[min(700px,84vh)] flex-col" onKeyDown={onKeyDown} data-tab-overview>
         <div className="flex shrink-0 items-center gap-3 border-b border-stroke py-3 pl-4 pr-12">
           <Search className="size-4 shrink-0 text-content/40" strokeWidth={1.75} />
@@ -207,29 +209,29 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
             autoFocus
             value={query}
             onChange={(event) => { setQuery(event.target.value); setCursorId(null); }}
-            placeholder="Find among tabs…"
-            aria-label="Search tabs"
+            placeholder={t("Find among tabs…")}
+            aria-label={t("Search tabs")}
             spellCheck={false}
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-[15px] leading-6 text-content outline-none placeholder:text-content/35"
           />
-          <div role="tablist" aria-label="Scope" className="flex shrink-0 rounded-md border border-content/10 bg-content/8 p-0.5">
-            {([["project", "This project"], ["all", "All projects"]] as const).map(([id, label]) => (
+          <div role="tablist" aria-label={t("Scope")} className="flex shrink-0 rounded-md border border-content/10 bg-content/8 p-0.5">
+            {([["project", t("This project")], ["all", t("All projects")]] as const).map(([id, label]) => (
               <button key={id} type="button" role="tab" aria-selected={scope === id} onClick={() => setScope(id)}
                 className={`rounded px-2 py-0.5 text-[11px] ${scope === id ? "bg-selection-strong text-content" : "text-content/50 hover:text-content/80"}`}>{label}</button>
             ))}
           </div>
         </div>
         <p className="shrink-0 px-4 pb-1 pt-2.5 text-[11px] text-content/40">
-          {cards.length} {cards.length === 1 ? "tab" : "tabs"}
-          {!query && needYou ? <span className="text-amber-400"> · {needYou} need you</span> : null}
-          {!query && working ? <span className="text-accent"> · {working} working</span> : null}
+          {cards.length === 1 ? t("1 tab") : t("{0} tabs", cards.length)}
+          {!query && needYou ? <span className="text-amber-400"> · {t("{0} need you", needYou)}</span> : null}
+          {!query && working ? <span className="text-accent"> · {t("{0} working", working)}</span> : null}
         </p>
         <div ref={lockOverscroll} className="min-h-0 flex-1 overflow-y-auto overscroll-none px-4 pb-4 pt-1">
           {cards.length === 0 ? (
-            <p className="py-16 text-center text-[13px] text-content/45">{query ? `No tab matches “${query.trim()}”` : "No tabs open here"}</p>
+            <p className="py-16 text-center text-[13px] text-content/45">{query ? t("No tab matches “{0}”", query.trim()) : t("No tabs open here")}</p>
           ) : null}
-          <div ref={gridRef} role="listbox" aria-label="Open tabs" aria-multiselectable className="grid gap-3" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${CARD_MIN_WIDTH}px, 1fr))` }}>
+          <div ref={gridRef} role="listbox" aria-label={t("Open tabs")} aria-multiselectable className="grid gap-3" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${CARD_MIN_WIDTH}px, 1fr))` }}>
             {cards.map((card) => (
               <CardView
                 key={card.tab.id}
@@ -252,21 +254,21 @@ export function TabOverview({ tabs, activeId, projectPath, recent, onActivate, o
         </div>
         {chosen.length > 0 ? (
           <footer className="flex h-12 shrink-0 items-center gap-2 border-t border-stroke px-4 text-[12px]" data-bulk-bar>
-            <span className="mr-2 font-medium text-content">{chosen.length} selected</span>
-            <BulkButton onClick={() => act((ids) => onPinTabs(ids, !allPinned))}>{allPinned ? <PinOff className="size-3.5" strokeWidth={1.75} /> : <Pin className="size-3.5" strokeWidth={1.75} />}{allPinned ? "Unpin" : "Pin"}</BulkButton>
-            <BulkButton onClick={() => act(onParkTabs, true)}><Archive className="size-3.5" strokeWidth={1.75} />Park</BulkButton>
-            <BulkButton onClick={() => act(onCloseTabs, true)} danger><X className="size-3.5" strokeWidth={1.75} />Close</BulkButton>
+            <span className="mr-2 font-medium text-content">{t("{0} selected", chosen.length)}</span>
+            <BulkButton onClick={() => act((ids) => onPinTabs(ids, !allPinned))}>{allPinned ? <PinOff className="size-3.5" strokeWidth={1.75} /> : <Pin className="size-3.5" strokeWidth={1.75} />}{allPinned ? t("Unpin") : t("Pin")}</BulkButton>
+            <BulkButton onClick={() => act(onParkTabs, true)}><Archive className="size-3.5" strokeWidth={1.75} />{t("Park")}</BulkButton>
+            <BulkButton onClick={() => act(onCloseTabs, true)} danger><X className="size-3.5" strokeWidth={1.75} />{t("Close")}</BulkButton>
             <span className="flex-1" />
-            <button type="button" onClick={() => setSelected(new Set())} className="rounded-md px-2 py-1 text-content/55 hover:bg-content/8 hover:text-content">Clear</button>
+            <button type="button" onClick={() => setSelected(new Set())} className="rounded-md px-2 py-1 text-content/55 hover:bg-content/8 hover:text-content">{t("Clear")}</button>
           </footer>
         ) : (
           <footer className="flex h-9 shrink-0 items-center gap-4 border-t border-stroke px-4 text-[11px] text-content/45">
-            <Hint keys={["↑", "↓", "←", "→"]} label="Move" />
-            <Hint keys={["↵"]} label="Open" />
-            <Hint keys={["Space"]} label="Select" />
-            <Hint keys={[COMMAND_KEY, "⌫"]} label="Close" />
+            <Hint keys={["↑", "↓", "←", "→"]} label={t("Move")} />
+            <Hint keys={["↵"]} label={t("Open")} />
+            <Hint keys={["Space"]} label={t("Select")} />
+            <Hint keys={[COMMAND_KEY, "⌫"]} label={t("Close")} />
             <span className="flex-1" />
-            <span>{COMMAND_KEY}-click to select several</span>
+            <span>{COMMAND_KEY}{t("-click to select several")}</span>
           </footer>
         )}
       </div>
@@ -290,6 +292,7 @@ function CardView({ card, now, current, cursor, selected, selecting, leaving, sh
   onPin: () => void;
   onClose: () => void;
 }) {
+  useLocale();
   const { tab, depth } = card;
   const status = tab.status ?? "idle";
   const label = tabStatusLabel(tab, now);
@@ -311,7 +314,7 @@ function CardView({ card, now, current, cursor, selected, selecting, leaving, sh
       <div className="flex items-start gap-2">
         <span className="relative mt-0.5 grid size-4 shrink-0 place-items-center">
           <span className={selecting || selected ? "invisible" : "group-hover:invisible"}><TabGlyph tab={tab} size="md" /></span>
-          <button type="button" role="checkbox" aria-checked={selected} aria-label={selected ? "Deselect tab" : "Select tab"}
+          <button type="button" role="checkbox" aria-checked={selected} aria-label={selected ? t("Deselect tab") : t("Select tab")}
             onClick={(event) => { event.stopPropagation(); onToggle(); }}
             className={`absolute inset-0 grid place-items-center rounded border ${selected ? "border-accent bg-accent text-white" : "border-content/30 bg-background-base/60 text-transparent hover:border-content/60"} ${selecting || selected ? "" : "invisible group-hover:visible"}`}>
             <Check className="size-3" strokeWidth={2.5} />
@@ -319,13 +322,13 @@ function CardView({ card, now, current, cursor, selected, selecting, leaving, sh
         </span>
         <p className="line-clamp-2 min-w-0 flex-1 text-[13px] font-medium leading-snug text-content">
           {depth > 0 ? <span aria-hidden className="mr-1 text-content/30">↳</span> : null}
-          {tab.title || "New session"}
+          {tab.title || t("New session")}
         </p>
         <span className="flex shrink-0 items-center gap-0.5">
           {tab.pinned ? <Pin className="size-3 text-content/40 group-hover:hidden" strokeWidth={1.75} /> : null}
           <span className="hidden items-center gap-0.5 group-hover:flex">
-            <CardAction label={tab.pinned ? "Unpin tab" : "Pin tab"} onClick={onPin}>{tab.pinned ? <PinOff className="size-3.5" strokeWidth={1.75} /> : <Pin className="size-3.5" strokeWidth={1.75} />}</CardAction>
-            <CardAction label="Close tab" onClick={onClose}><X className="size-3.5" strokeWidth={1.75} /></CardAction>
+            <CardAction label={tab.pinned ? t("Unpin tab") : t("Pin tab")} onClick={onPin}>{tab.pinned ? <PinOff className="size-3.5" strokeWidth={1.75} /> : <Pin className="size-3.5" strokeWidth={1.75} />}</CardAction>
+            <CardAction label={t("Close tab")} onClick={onClose}><X className="size-3.5" strokeWidth={1.75} /></CardAction>
           </span>
         </span>
       </div>
@@ -335,8 +338,8 @@ function CardView({ card, now, current, cursor, selected, selecting, leaving, sh
       <div className="mt-2 flex items-center gap-2 text-[11px]">
         <span className={`min-w-0 truncate ${STATUS_TEXT[status]}`}>{label}</span>
         <span className="flex-1" />
-        {tab.descendantCount ? <span className="shrink-0 rounded-full bg-content/10 px-1.5 py-px text-[10px] tabular-nums text-content/60" title="Tabs started from this one">↳ {tab.descendantCount}</span> : null}
-        {current ? <span className="shrink-0 rounded bg-content/10 px-1 py-px text-[10px] text-content/60">Current</span> : null}
+        {tab.descendantCount ? <span className="shrink-0 rounded-full bg-content/10 px-1.5 py-px text-[10px] tabular-nums text-content/60" title={t("Tabs started from this one")}>↳ {tab.descendantCount}</span> : null}
+        {current ? <span className="shrink-0 rounded bg-content/10 px-1 py-px text-[10px] text-content/60">{t("Current")}</span> : null}
         {showProject ? <span className="max-w-24 shrink-0 truncate text-content/40">{tab.project}</span> : null}
       </div>
     </div>
@@ -344,6 +347,7 @@ function CardView({ card, now, current, cursor, selected, selecting, leaving, sh
 }
 
 function CardAction({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  useLocale();
   return (
     <button type="button" title={label} aria-label={label} onClick={(event) => { event.stopPropagation(); onClick(); }}
       className="grid size-6 place-items-center rounded-md text-content/50 hover:bg-content/12 hover:text-content">{children}</button>
@@ -351,6 +355,7 @@ function CardAction({ label, onClick, children }: { label: string; onClick: () =
 }
 
 function BulkButton({ onClick, danger, children }: { onClick: () => void; danger?: boolean; children: ReactNode }) {
+  useLocale();
   return (
     <button type="button" onClick={onClick}
       className={`flex h-7 items-center gap-1.5 rounded-md bg-content/10 px-2.5 hover:bg-content/15 ${danger ? "text-red-400" : "text-content"}`}>{children}</button>
@@ -358,6 +363,7 @@ function BulkButton({ onClick, danger, children }: { onClick: () => void; danger
 }
 
 function Hint({ keys, label }: { keys: string[]; label: string }) {
+  useLocale();
   return (
     <span className="flex items-center gap-1.5">
       <span className="flex items-center gap-0.5">

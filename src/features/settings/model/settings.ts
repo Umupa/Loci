@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n/locale";
 import { ALT, IS_MAC, IS_WIN, MOD, SHIFT } from "../../../platform/tauri/platform";
 import { canonicalShortcut, shortcutLabel, shortcutFromKeyEvent, shortcutTokens } from "../../../shared/lib/shortcuts";
 import { readFlag, writeFlag } from "./storageFlags";
@@ -9,9 +10,9 @@ export const SETTINGS_GROUPS: {
     id: SettingsGroupId;
     label: string;
 }[] = [
-    { id: "app", label: "App" },
-    { id: "agents", label: "Agents" },
-    { id: "workspace", label: "Workspace" },
+    { id: "app", get label() { return t("App"); } },
+    { id: "agents", get label() { return t("Agents"); } },
+    { id: "workspace", get label() { return t("Workspace"); } },
 ];
 export type SettingsSection = {
     id: SettingsSectionId;
@@ -25,57 +26,57 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     {
         id: "general",
         group: "app",
-        label: "General",
-        description: "The build you are running, how Loci reaches you, and the panels it shows.",
+        get label() { return t("General"); },
+        get description() { return t("The build you are running, how Loci reaches you, and the panels it shows."); },
         keywords: "sounds notifications notes rail",
     },
     {
         id: "appearance",
         group: "app",
-        label: "Appearance",
-        description: "Theme, tint, translucency, workspace layout, and conversation backgrounds.",
+        get label() { return t("Appearance"); },
+        get description() { return t("Theme, tint, translucency, workspace layout, and conversation backgrounds."); },
         keywords: "theme dark light color accent glass blur zoom scale wallpaper rail sidebar",
     },
     {
         id: "keybindings",
         group: "app",
-        label: "Keybindings",
-        description: "Every shortcut the workspace handles, from the app menu and the key handler.",
+        get label() { return t("Keybindings"); },
+        get description() { return t("Every shortcut the workspace handles, from the app menu and the key handler."); },
         keywords: "shortcut hotkey keyboard binding",
     },
     {
         id: "chat",
         group: "agents",
-        label: "Chat",
-        description: "How transcripts read and what the composer does with a follow-up.",
+        get label() { return t("Chat"); },
+        get description() { return t("How transcripts read and what the composer does with a follow-up."); },
         keywords: "transcript composer prompt message",
     },
     {
         id: "providers",
         group: "agents",
-        label: "Providers",
-        description: "Provider accounts, agent CLIs Loci can drive, and the model new sessions start with.",
+        get label() { return t("Providers"); },
+        get description() { return t("Provider accounts, agent CLIs Loci can drive, and the model new sessions start with."); },
         keywords: "account sign in login model harness claude codex cursor grok opencode pi omp fx hermes antigravity cli default hooks",
     },
     {
         id: "mcp",
         group: "agents",
         label: "MCP",
-        description: "Manage Loci's built-in MCP servers and your provider connections.",
+        get description() { return t("Manage Loci's built-in MCP servers and your provider connections."); },
         keywords: "tools servers connections oauth authenticate login claude codex built-in excalidraw canvas",
     },
     {
         id: "skills",
         group: "agents",
-        label: "Skills",
-        description: "Discover and manage file skills from project, personal, and harness folders.",
+        get label() { return t("Skills"); },
+        get description() { return t("Discover and manage file skills from project, personal, and harness folders."); },
         keywords: "skill instructions prompt",
     },
     {
         id: "archive",
         group: "workspace",
-        label: "Archive",
-        description: "Projects and conversations you have archived.",
+        get label() { return t("Archive"); },
+        get description() { return t("Projects and conversations you have archived."); },
         keywords: "archived restore delete hidden",
     },
 ];
@@ -100,59 +101,65 @@ export type SettingsEntry = {
     keywords?: string;
 };
 export const SETTINGS_INDEX: SettingsEntry[] = [
-{ id: "version", section: "general", label: "Version", keywords: "build about" },
+    {
+        id: "language",
+        section: "general",
+        get label() { return t("Display language"); },
+        keywords: "language locale english chinese 中文 简体 语言 英文",
+    },
+{ id: "version", section: "general", get label() { return t("Version"); }, keywords: "build about" },
     {
         id: "builtin-excalidraw",
         section: "mcp",
-        label: "Built-in Excalidraw MCP",
+        get label() { return t("Built-in Excalidraw MCP"); },
         keywords: "loci_excalidraw drawing canvas built-in enable disable claude codex",
     },
     {
         id: "builtin-learn",
         section: "mcp",
-        label: "Built-in learning MCP",
+        get label() { return t("Built-in learning MCP"); },
         keywords: "loci_learn learn learning map revisit built-in claude codex",
     },
     {
         id: "mcp-servers",
         section: "mcp",
-        label: "MCP servers",
+        get label() { return t("MCP servers"); },
         keywords: "claude tools connections oauth authenticate login add remove",
     },
     {
         id: "sounds",
         section: "general",
-        label: "Sounds",
+        get label() { return t("Sounds"); },
         keywords: "audio cue chime mute volume",
     },
     {
         id: "notifications",
         section: "general",
-        label: "Notifications",
+        get label() { return t("Notifications"); },
         keywords: "notify alert toast permission reminder background",
     },
     {
         id: "notes",
         section: "general",
-        label: "Notes",
+        get label() { return t("Notes"); },
         keywords: "notebook markdown rail scratchpad",
     },
     {
         id: "working-agents",
         section: "general",
-        label: "Working agents",
+        get label() { return t("Working agents"); },
         keywords: "live running sessions rail card",
     },
     {
         id: "tab-animations",
         section: "general",
-        label: "Tab animations",
+        get label() { return t("Tab animations"); },
         keywords: "motion open close resize transition",
     },
     {
         id: "tab-limit",
         section: "general",
-        label: "Tab limit",
+        get label() { return t("Tab limit"); },
         keywords: "park idle maximum open tabs too many clutter auto close",
     },
     ...(IS_WIN
@@ -160,7 +167,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
             {
                 id: "close-to-tray",
                 section: "general" as const,
-                label: "Close to tray",
+                get label() { return t("Close to tray"); },
                 keywords: "minimize background quit exit window taskbar windows",
             },
         ]
@@ -168,157 +175,157 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     {
         id: "color-theme",
         section: "appearance",
-        label: "Color theme",
+        get label() { return t("Color theme"); },
         keywords: "omarchy palette wallpaper catppuccin gruvbox tokyo night nord rose pine everforest kanagawa matte black white dark light colors",
     },
     {
         id: "theme",
         section: "appearance",
-        label: "Mode",
+        get label() { return t("Mode"); },
         keywords: "theme dark light system appearance",
     },
     {
         id: "accent-color",
         section: "appearance",
-        label: "Accent color",
+        get label() { return t("Accent color"); },
         keywords: "highlight bubble send button tint",
     },
     {
         id: "hue",
         section: "appearance",
-        label: "Hue",
+        get label() { return t("Hue"); },
         keywords: "tint color chrome",
     },
     {
         id: "saturation",
         section: "appearance",
-        label: "Saturation",
+        get label() { return t("Saturation"); },
         keywords: "tint color neutral grey gray",
     },
     {
         id: "dark-lightness",
         section: "appearance",
-        label: "Dark-mode lightness",
+        get label() { return t("Dark-mode lightness"); },
         keywords: "black brightness contrast background",
     },
     {
         id: "code-font",
         section: "appearance",
-        label: "Code font",
+        get label() { return t("Code font"); },
         keywords: "monospace typeface jetbrains nerd font omarchy code blocks",
     },
     {
         id: "interface-font",
         section: "appearance",
-        label: "Interface font",
+        get label() { return t("Interface font"); },
         keywords: "typeface sans system font ui text",
     },
     {
         id: "sidebar-opacity",
         section: "appearance",
-        label: "Sidebar opacity",
+        get label() { return t("Sidebar opacity"); },
         keywords: "glass translucent transparency vibrancy",
     },
     {
         id: "blur",
         section: "appearance",
-        label: "Blur radius",
+        get label() { return t("Blur radius"); },
         keywords: "glass translucent vibrancy backdrop",
     },
     {
         id: "main-pane-glass",
         section: "appearance",
-        label: "Main pane glass",
+        get label() { return t("Main pane glass"); },
         keywords: "translucent transparency body window",
     },
     {
         id: "interface-scale",
         section: "appearance",
-        label: "Interface scale",
+        get label() { return t("Interface scale"); },
         keywords: "zoom font size bigger smaller ui",
     },
     {
         id: "collapsed-project-rail",
         section: "appearance",
-        label: "Collapsed project rail",
+        get label() { return t("Collapsed project rail"); },
         keywords: "sidebar compact icons hidden navigation layout",
     },
     {
         id: "chat-background",
         section: "appearance",
-        label: "Chat background",
+        get label() { return t("Chat background"); },
         keywords: "wallpaper image picture opacity backdrop",
     },
     {
         id: "transcript-layout",
         section: "chat",
-        label: "Transcript layout",
+        get label() { return t("Transcript layout"); },
         keywords: "full width chat bubble message",
     },
     {
         id: "anchor-prompts",
         section: "chat",
-        label: "Anchor prompts to top",
+        get label() { return t("Anchor prompts to top"); },
         keywords: "scroll position sticky message",
     },
     {
         id: "follow-up",
         section: "chat",
-        label: "Follow-up behavior",
+        get label() { return t("Follow-up behavior"); },
         keywords: "queue steer interrupt send while running",
     },
     {
         id: "model-controls",
         section: "chat",
-        label: "Model controls",
+        get label() { return t("Model controls"); },
         keywords: "effort thinking reasoning fast service tier model picker composer",
     },
     {
         id: "composer-mascot",
         section: "chat",
-        label: "Composer mascot",
+        get label() { return t("Composer mascot"); },
         keywords: "runner animation coin pixel",
     },
     {
         id: "agent-clis",
         section: "providers",
-        label: "Agent CLIs",
+        get label() { return t("Agent CLIs"); },
         keywords: "claude codex cursor grok opencode pi omp fx hermes antigravity binary path",
     },
     {
         id: "provider-accounts",
         section: "providers",
-        label: "Provider accounts",
+        get label() { return t("Provider accounts"); },
         keywords: "account sign in login rename remove delete credentials profile usage limit quota exhausted",
     },
     {
         id: "show-remaining-usage",
         section: "providers",
-        label: "Show remaining usage",
+        get label() { return t("Show remaining usage"); },
         keywords: "usage limit meter bar left used quota percent",
     },
     {
         id: "mask-emails",
         section: "providers",
-        label: "Mask account emails",
+        get label() { return t("Mask account emails"); },
         keywords: "email privacy blur hide screenshot account",
     },
     {
         id: "claude-hooks",
         section: "providers",
-        label: "Claude Code hooks",
+        get label() { return t("Claude Code hooks"); },
         keywords: "pretooluse settings.json block command notification",
     },
     {
         id: "project-notifications",
         section: "general",
-        label: "Project notifications",
+        get label() { return t("Project notifications"); },
         keywords: "mute resume sounds banners reminders categories",
     },
     {
         id: "show-archived",
         section: "archive",
-        label: "Show archived in the sidebar",
+        get label() { return t("Show archived in the sidebar"); },
         keywords: "hidden conversations list",
     },
 ];
@@ -951,7 +958,7 @@ export function filterKeybindings(rows: KeybindingRow[], query: string): Keybind
     const needle = query.trim().toLowerCase();
     if (!needle)
         return rows;
-    return rows.filter((row) => row.command.toLowerCase().includes(needle) ||
+    return rows.filter((row) => (row.command.toLowerCase().includes(needle) || t(row.command).toLowerCase().includes(needle)) ||
         row.keys.toLowerCase().includes(needle) ||
-        row.when.toLowerCase().includes(needle));
+        (row.when.toLowerCase().includes(needle) || t(row.when).toLowerCase().includes(needle)));
 }

@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n/locale";
 import type { Block, HarnessId } from "../sessions/model/session";
 import type { BuiltinSkill } from "../skills/model/skills";
 
@@ -5,8 +6,7 @@ export const LEARN_COMMAND: BuiltinSkill = {
   kind: "builtin",
   name: "learn",
   invocation: "learn",
-  description:
-    "Learn a subject on a map that only records what you have explained yourself.",
+  get description() { return t("Learn a subject on a map that only records what you have explained yourself."); },
   scope: "builtin",
   source: "loci",
 };

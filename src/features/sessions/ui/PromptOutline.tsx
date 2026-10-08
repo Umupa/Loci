@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import {
 useCallback,
 useEffect,
@@ -60,7 +61,8 @@ export function PromptOutline({
   visible = true,
   revealBlock,
 }: Props) {
-  const prompts = useMemo(() => promptBlocks(blocks), [blocks]);
+  useLocale();
+  const prompts = useMemo(() => promptBlocks(blocks), [getLocale(), blocks]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [stackBudget, setStackBudget] = useState(BAR_STACK_MAX_PX);
   const [hover, setHover] = useState<Hover | null>(null);
@@ -186,7 +188,7 @@ export function PromptOutline({
   const hoverId = hover?.id ?? null;
   const preview = useMemo(
     () => (hoverId ? promptPreview(blocks, hoverId) : null),
-    [blocks, hoverId],
+    [getLocale(), blocks, hoverId],
   );
 
   const jumpTo = (id: string) => {
@@ -251,7 +253,7 @@ export function PromptOutline({
     <div
       ref={rail}
       role="toolbar"
-      aria-label="Prompts"
+      aria-label={t("Prompts")}
       aria-orientation="vertical"
       style={{ width: BAR_WIDTH_LIFTED_PX }}
       onMouseEnter={() => {
@@ -313,7 +315,7 @@ export function PromptOutline({
           gap={10}
           width={POPOVER_WIDTH}
           onDismiss={close}
-          aria-label="Prompt preview"
+          aria-label={t("Prompt preview")}
           className="pointer-events-none flex flex-col gap-1.5 p-3 font-sans"
         >
           <p className="line-clamp-2 text-sm leading-snug text-content">

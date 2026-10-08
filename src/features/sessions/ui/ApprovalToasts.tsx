@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../../shared/i18n/locale";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { ApprovalDecision } from "../../../integrations/harness";
@@ -33,6 +34,7 @@ export function ApprovalToasts({
   onApproval,
   topOffset = 12,
 }: Props) {
+  useLocale();
   useProjectNotificationPreferences();
   if (notices.length === 0) return null;
 
@@ -60,6 +62,7 @@ function ProjectApprovalToast(props: {
   onFocusSession: Props["onFocusSession"];
   onApproval: Props["onApproval"];
 }) {
+  useLocale();
   const path = props.notice.session.cwd;
   // The keyed gate stays mounted even while hidden. Resuming notifications
   // must not turn a pending request into a new popup.
@@ -87,6 +90,7 @@ function ApprovalToastCard({
   onFocusSession: (sessionId: string) => void;
   onApproval: Props["onApproval"];
 }) {
+  useLocale();
   const { session, label, requestId } = notice;
   const title = sessionDisplayTitle(session.title, session.harness);
   const harness = HARNESS_TITLE[session.harness];
@@ -110,7 +114,7 @@ function ApprovalToastCard({
           </span>
           <span className="flex shrink-0 items-center gap-1 text-[11px] text-amber-400">
             <CircleAlert className="size-3.5" strokeWidth={1.75} />
-            <span>{notice.kind === "question" ? "Question" : "Approval"}</span>
+            <span>{notice.kind === "question" ? t("Question") : t("Approval")}</span>
           </span>
         </span>
         <span className="line-clamp-3 text-[12px] leading-relaxed text-content/70">
@@ -125,15 +129,13 @@ function ApprovalToastCard({
             className="flex-1 rounded-md bg-content px-2.5 py-1 text-[11px] font-medium text-background-base hover:bg-content/80"
             onClick={() => onApproval(session.id, requestId, "allow")}
           >
-            Allow
-          </button>
+            {t("Allow")}</button>
           <button
             type="button"
             className="flex-1 rounded-md bg-content/10 px-2.5 py-1 text-[11px] font-medium text-content/70 hover:bg-content/20"
             onClick={() => onApproval(session.id, requestId, "deny")}
           >
-            Deny
-          </button>
+            {t("Deny")}</button>
         </div>
       )}
     </article>

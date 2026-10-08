@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import { memo, useMemo, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import type { Canvas } from "../canvas";
 import { DashboardSquare, ExcalidrawIcon, LoaderCircle, Plus } from "../../../shared/ui/icons";
@@ -21,15 +22,16 @@ type Props = {
 };
 
 const MENU_ITEMS: ContextMenuItem[] = [
-  { kind: "item", id: "open", label: "Open" },
-  { kind: "item", id: "open-tab", label: "Open in New Tab" },
+  { kind: "item", id: "open", get label() { return t("Open"); } },
+  { kind: "item", id: "open-tab", get label() { return t("Open in New Tab"); } },
   { kind: "sep" },
-  { kind: "item", id: "rename", label: "Rename" },
-  { kind: "item", id: "delete", label: "Delete", danger: true },
+  { kind: "item", id: "rename", get label() { return t("Rename"); } },
+  { kind: "item", id: "delete", get label() { return t("Delete"); }, danger: true },
 ];
 
 /** The current project's drawings, as a sidebar list that opens them in panes. */
 export const CanvasList = memo(function CanvasList({ canvases, cwd, activeId, onOpen, onOpenInTab, onNew, onRename, onDelete, onOpenAll }: Props) {
+  useLocale();
   const [creating, setCreating] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -37,7 +39,7 @@ export const CanvasList = memo(function CanvasList({ canvases, cwd, activeId, on
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const drawings = useMemo(
     () => canvases.filter((canvas) => !!canvas.cwd && sameProjectPath(canvas.cwd, cwd)).sort((a, b) => b.updatedAt - a.updatedAt),
-    [canvases, cwd],
+    [getLocale(), canvases, cwd],
   );
 
   const create = async () => {
@@ -49,7 +51,7 @@ export const CanvasList = memo(function CanvasList({ canvases, cwd, activeId, on
   };
 
   const commitRename = (canvas: Canvas) => {
-    const title = renameDraft.trim() || "Untitled drawing";
+    const title = renameDraft.trim() || t("Untitled drawing");
     if (title !== canvas.title) onRename(canvas.id, title);
     setRenamingId(null);
   };
@@ -57,25 +59,25 @@ export const CanvasList = memo(function CanvasList({ canvases, cwd, activeId, on
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center gap-px border-b border-stroke px-2">
-        <HeaderIcon label="New Drawing" disabled={creating} onClick={() => void create()}>
+        <HeaderIcon label={t("New Drawing")} disabled={creating} onClick={() => void create()}>
           {creating ? <LoaderCircle className="size-3.5 animate-spin" /> : <Plus className="size-3.5" strokeWidth={1.75} />}
         </HeaderIcon>
         {onOpenAll ? (
-          <HeaderIcon label="All Drawings" onClick={onOpenAll}>
+          <HeaderIcon label={t("All Drawings")} onClick={onOpenAll}>
             <DashboardSquare className="size-3.5" strokeWidth={1.75} />
           </HeaderIcon>
         ) : null}
       </div>
       <div ref={lockOverscroll} className="min-h-0 flex-1 overflow-y-auto overscroll-none py-1">
         {drawings.length === 0 ? (
-          <p className="px-3 py-2 text-[12px] text-content/50">No drawings in this project yet.</p>
+          <p className="px-3 py-2 text-[12px] text-content/50">{t("No drawings in this project yet.")}</p>
         ) : null}
         {drawings.map((canvas) => renamingId === canvas.id ? (
           <div key={canvas.id} className="flex h-7.5 w-full items-center gap-1.5 bg-content/10 pl-3 pr-2">
             <ExcalidrawIcon className="size-3.5 shrink-0 text-content/50" />
             <input
               autoFocus
-              aria-label="Rename drawing"
+              aria-label={t("Rename drawing")}
               value={renameDraft}
               spellCheck={false}
               onFocus={(event) => event.currentTarget.select()}
@@ -112,7 +114,7 @@ export const CanvasList = memo(function CanvasList({ canvases, cwd, activeId, on
         ))}
       </div>
       {menu ? (
-        <ContextMenu x={menu.x} y={menu.y} items={MENU_ITEMS} ariaLabel="Drawing actions"
+        <ContextMenu x={menu.x} y={menu.y} items={MENU_ITEMS} ariaLabel={t("Drawing actions")}
           onPick={(id) => {
             const canvas = drawings.find((entry) => entry.id === menu.id);
             setMenu(null);
@@ -120,7 +122,7 @@ export const CanvasList = memo(function CanvasList({ canvases, cwd, activeId, on
             if (id === "open") onOpen(canvas.id);
             else if (id === "open-tab") onOpenInTab(canvas.id);
             else if (id === "rename") { setRenameDraft(canvas.title); setRenamingId(canvas.id); }
-            else if (id === "delete" && window.confirm(`Delete drawing “${canvas.title}”? This can’t be undone.`)) onDelete(canvas.id);
+            else if (id === "delete" && window.confirm(t("Delete drawing “{0}”? This can’t be undone.", canvas.title))) onDelete(canvas.id);
           }}
           onClose={() => setMenu(null)} />
       ) : null}
@@ -129,6 +131,7 @@ export const CanvasList = memo(function CanvasList({ canvases, cwd, activeId, on
 });
 
 function HeaderIcon({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: ReactNode }) {
+  useLocale();
   return (
     <button type="button" title={label} aria-label={label} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onClick}
       className="flex h-6 min-w-0 flex-1 items-center justify-center self-center rounded-md text-content/50 hover:bg-content/5 hover:text-content disabled:opacity-40">

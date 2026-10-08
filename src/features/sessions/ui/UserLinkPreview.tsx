@@ -1,12 +1,15 @@
+import { t, useLocale } from "../../../shared/i18n/locale";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect,useState,type MouseEvent } from "react";
 import { fetchLinkPreviewMetadata,type LinkPreviewMetadata,type UserLink } from "../model/linkPreview";
 
 export function UserLinkPreview({ link }: { link: UserLink }) {
+  useLocale();
   return <GenericLinkPreview link={link} />;
 }
 
 function GenericLinkPreview({ link }: { link: UserLink }) {
+  useLocale();
   const [metadata, setMetadata] = useState<LinkPreviewMetadata | null>(null);
   const [faviconFailed, setFaviconFailed] = useState(false);
 
@@ -32,7 +35,7 @@ function GenericLinkPreview({ link }: { link: UserLink }) {
       href={link.url}
       data-user-link-preview
       title={link.url}
-      aria-label={`Open ${title}`}
+      aria-label={t("Open {0}", title)}
       className="user-link-preview group mx-0.5 text-sky-400/90 hover:text-sky-300 hover:underline"
       onClick={(event) => openExternalLink(event, link.url)}
     >

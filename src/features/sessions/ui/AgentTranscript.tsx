@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import {
 memo,
 startTransition,
@@ -245,6 +246,7 @@ function AgentTranscriptComponent({
   onScrollerChange,
 
 }: Props) {
+  useLocale();
   const blocks = useMemo(() => {
     if (!harness || !supportsHarnessLogin(harness)) return sourceBlocks;
     const visibleBlocks = sourceBlocks.filter(
@@ -258,10 +260,10 @@ function AgentTranscriptComponent({
     return visibleBlocks.length === sourceBlocks.length
       ? sourceBlocks
       : visibleBlocks;
-  }, [harness, sourceBlocks]);
+  }, [getLocale(), harness, sourceBlocks]);
   const editableUserBlockId = useMemo(
     () => lastUserTurnBlock(blocks)?.id,
-    [blocks],
+    [getLocale(), blocks],
   );
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const scroller = useRef<HTMLDivElement>(null);
@@ -703,8 +705,7 @@ function AgentTranscriptComponent({
               className="rounded-md bg-content/8 px-2.5 py-1.5 font-sans text-[12px] text-content/60 hover:bg-content/12 hover:text-content"
               onClick={loadEarlier}
             >
-              Load earlier messages
-            </button>
+              {t("Load earlier messages")}</button>
           </div>
         ) : null}
         {visibleTurns.map((turn, turnIndex) => {
@@ -755,7 +756,7 @@ function AgentTranscriptComponent({
               startedAt={startedAt}
               paused={waitingForApproval}
               waitingLabel={
-                "Waiting for approval"
+                t("Waiting for approval")
               }
               background={backgroundTasks}
               modelName={turnModelName}
@@ -1018,11 +1019,12 @@ function InitialThinking({
   live: boolean;
   embedded?: boolean;
 }) {
+  useLocale();
   return (
     <div
       className={`min-w-0 pt-3 pb-1 font-sans text-sm text-content/50 ${embedded ? "" : "px-4"}`}
     >
-      {live ? <Shimmer duration={1.6}>Thinking…</Shimmer> : "Thinking…"}
+      {live ? <Shimmer duration={1.6}>{t("Thinking…")}</Shimmer> : t("Thinking…")}
     </div>
   );
 }
@@ -1046,11 +1048,12 @@ function LiveFoldTitle({
   background?: string[];
   modelName?: string;
 }) {
+  useLocale();
   const elapsedMs = useElapsedFrom(startedAt, paused);
   // Yielding with a command still going is not the end of the turn. The clock
   // keeps running and the line says what it is waiting on.
   const text = paused
-    ? (waitingLabel ?? "Waiting for approval")
+    ? (waitingLabel ?? t("Waiting for approval"))
     : background?.length
       ? `${formatWorkingDuration(elapsedMs, modelName)} · ${backgroundLabel(background)}`
       : formatWorkingDuration(elapsedMs, modelName);
@@ -1070,8 +1073,8 @@ function LiveFoldTitle({
 
 function backgroundLabel(tasks: string[]): string {
   return tasks.length === 1
-    ? "running in background"
-    : `${tasks.length} tasks running in background`;
+    ? t("running in background")
+    : t("{0} tasks running in background", tasks.length);
 }
 
 /**
@@ -1108,6 +1111,7 @@ function TurnDuration({
 
 
 }) {
+  useLocale();
   const label = formatWorkingDuration(elapsedMs, modelName, true);
   const dot = (
     <span
@@ -1170,6 +1174,7 @@ function TurnMetricsBadge({
   metrics?: TurnMetrics;
   elapsedMs: number | null;
 }) {
+  useLocale();
   const root = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
   if (!metrics || !hasTurnMetrics(metrics)) return null;
@@ -1181,23 +1186,23 @@ function TurnMetricsBadge({
   const headline =
     [
       metrics.cacheHitPercent != null
-        ? `Cache hit ${Math.round(metrics.cacheHitPercent)}%`
+        ? t("Cache hit {0}%", Math.round(metrics.cacheHitPercent))
         : null,
       outputRate != null
-        ? `Output ${formatMetricCount(outputRate)} tok/s`
+        ? t("Output {0} tok/s", formatMetricCount(outputRate))
         : null,
     ]
       .filter(Boolean)
-      .join(" · ") || "Turn tokens";
+      .join(" · ") || t("Turn tokens");
   const detail = [
     metrics.inputTokens != null
-      ? `${formatMetricCount(metrics.inputTokens)} input`
+      ? t("{0} input", formatMetricCount(metrics.inputTokens))
       : null,
     metrics.outputTokens != null
-      ? `${formatMetricCount(metrics.outputTokens)} output`
+      ? t("{0} output", formatMetricCount(metrics.outputTokens))
       : null,
     metrics.cacheReadTokens != null
-      ? `${formatMetricCount(metrics.cacheReadTokens)} cached`
+      ? t("{0} cached", formatMetricCount(metrics.cacheReadTokens))
       : null,
   ]
     .filter(Boolean)
@@ -1216,8 +1221,8 @@ function TurnMetricsBadge({
       <span
         role="img"
         tabIndex={0}
-        aria-label={`Turn metrics: ${label}`}
-        title="Turn metrics"
+        aria-label={t("Turn metrics: {0}", label)}
+        title={t("Turn metrics")}
         className="grid rounded-md p-1 text-content/40 outline-none hover:bg-content/8 hover:text-content/70 focus-visible:ring-1 focus-visible:ring-accent"
       >
         <ChartBreakoutSquare className="size-3.5" strokeWidth={1.75} />
@@ -1252,7 +1257,7 @@ function hasTurnMetrics(metrics: TurnMetrics): boolean {
 }
 
 function formatMetricCount(value: number): string {
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(getLocale(), {
     notation: "compact",
     maximumFractionDigits: value >= 1000 ? 1 : 0,
   }).format(Math.max(0, Math.round(value)));
@@ -1260,7 +1265,7 @@ function formatMetricCount(value: number): string {
 
 /** Wall-clock stamp for a finished turn, in the reader's own locale. */
 function formatClockTime(epochMs: number): string {
-  return new Date(epochMs).toLocaleTimeString(undefined, {
+  return new Date(epochMs).toLocaleTimeString(getLocale(), {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -1269,12 +1274,13 @@ function formatClockTime(epochMs: number): string {
 function CopyTurnButton({
   text,
   attachments,
-  label = "Copy response",
+  label = t("Copy response"),
 }: {
   text: string;
   attachments?: Attachment[];
   label?: string;
 }) {
+  useLocale();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1293,8 +1299,8 @@ function CopyTurnButton({
       <button
         type="button"
         disabled={pending}
-        title={copied ? "Copied" : label}
-        aria-label={copied ? "Copied" : label}
+        title={copied ? t("Copied") : label}
+        aria-label={copied ? t("Copied") : label}
         className="-ml-1 rounded-md p-1 text-content/40 hover:bg-content/8 hover:text-content/70"
         onClick={(event) => {
           event.stopPropagation();
@@ -1324,7 +1330,7 @@ function CopyTurnButton({
       </button>
       {error && (
         <span role="alert" className="max-w-xs text-xs text-content/70">
-          Copy failed. {error}
+          {t("Copy failed.")}{" "}{error}
         </span>
       )}
     </>
@@ -1338,6 +1344,7 @@ function SaveNoteButton({
   text: string;
   onSave: (text: string) => void | Promise<void>;
 }) {
+  useLocale();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1356,8 +1363,8 @@ function SaveNoteButton({
       <button
         type="button"
         disabled={pending}
-        title={saved ? "Saved to Notes" : "Save as note"}
-        aria-label={saved ? "Saved to Notes" : "Save as note"}
+        title={saved ? t("Saved to Notes") : t("Save as note")}
+        aria-label={saved ? t("Saved to Notes") : t("Save as note")}
         className="rounded-md p-1 text-content/40 hover:bg-content/8 hover:text-content/70"
         onClick={async () => {
           setError(null);
@@ -1384,7 +1391,7 @@ function SaveNoteButton({
       </button>
       {error && (
         <span role="alert" className="max-w-xs text-xs text-content/70">
-          Could not save note. {error}
+          {t("Could not save note.")}{" "}{error}
         </span>
       )}
     </>
@@ -1398,6 +1405,7 @@ function SaveToCanvasButton({
   text: string;
   onSave: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
 }) {
+  useLocale();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1416,8 +1424,8 @@ function SaveToCanvasButton({
       <button
         type="button"
         disabled={pending}
-        title={saved ? "Saved to Canvas" : "Save to canvas"}
-        aria-label={saved ? "Saved to Canvas" : "Save to canvas"}
+        title={saved ? t("Saved to Canvas") : t("Save to canvas")}
+        aria-label={saved ? t("Saved to Canvas") : t("Save to canvas")}
         className="rounded-md p-1 text-content/40 hover:bg-content/8 hover:text-content/70"
         onClick={async (event) => {
           setError(null);
@@ -1445,7 +1453,7 @@ function SaveToCanvasButton({
       </button>
       {error && (
         <span role="alert" className="max-w-xs text-xs text-content/70">
-          Could not save to canvas. {error}
+          {t("Could not save to canvas.")}{" "}{error}
         </span>
       )}
     </>
@@ -1459,7 +1467,8 @@ function EditLastTurnButton({
   onEdit: () => void;
   editing?: boolean;
 }) {
-  const label = editing ? "Cancel edit" : "Edit and resend";
+  useLocale();
+  const label = editing ? t("Cancel edit") : t("Edit and resend");
   return (
     <button
       type="button"
@@ -1518,6 +1527,7 @@ const TranscriptBlock = memo(function TranscriptBlock({
   onEditLastTurn?: () => void;
   editing?: boolean;
 }) {
+  useLocale();
   if (block.role === "user") {
     return (
       <UserMessageBlock
@@ -1663,6 +1673,7 @@ function UserMessageBlock({
   onSendDraft?: (block: Block) => boolean | void;
   onRemoveDraft?: (block: Block) => boolean | void;
 }) {
+  useLocale();
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
   const [singleLine, setSingleLine] = useState(false);
@@ -1810,7 +1821,7 @@ function UserMessageBlock({
               className="mt-1 rounded px-1 py-0.5 text-xs text-content/60 hover:bg-content/8 hover:text-content"
               onClick={toggle}
             >
-              {expanded ? "Show less" : "Show more"}
+              {expanded ? t("Show less") : t("Show more")}
             </button>
           ) : null}
 
@@ -1818,28 +1829,25 @@ function UserMessageBlock({
             <div className="mt-2 flex items-center justify-between gap-4 border-t border-dashed border-content/20 pt-2">
               <span className="flex items-center gap-1.5 text-xs text-content/50">
                 <CircleDashed className="size-3.5" strokeWidth={1.75} />
-                Draft
-              </span>
+                {t("Draft")}</span>
               <span className="flex items-center gap-1">
                 <button
                   type="button"
-                  title="Remove draft"
-                  aria-label="Remove draft"
+                  title={t("Remove draft")}
+                  aria-label={t("Remove draft")}
                   onClick={() => onRemoveDraft?.(block)}
                   className="flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-content/55 hover:bg-content/10 hover:text-content"
                 >
                   <Trash2 className="size-3.5" strokeWidth={1.75} />
-                  Remove
-                </button>
+                  {t("Remove")}</button>
                 <button
                   type="button"
-                  title="Send draft"
-                  aria-label="Send draft"
+                  title={t("Send draft")}
+                  aria-label={t("Send draft")}
                   onClick={() => onSendDraft?.(block)}
                   className="primary-action flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-transform duration-150 active:scale-[0.97]"
                 >
-                  Send
-                  <ArrowUp className="size-3.5" strokeWidth={2.25} />
+                  {t("Send")}<ArrowUp className="size-3.5" strokeWidth={2.25} />
                 </button>
               </span>
             </div>
@@ -1851,12 +1859,11 @@ function UserMessageBlock({
         {block.learn ? (
           <span
             data-learn-turn="true"
-            title="This conversation works on the project's learning map"
+            title={t("This conversation works on the project's learning map")}
             className="flex items-center gap-1 px-1 pt-1 font-sans text-[11px] text-content/45"
           >
             <Mortarboard className="size-3" strokeWidth={1.75} />
-            Learning
-          </span>
+            {t("Learning")}</span>
         ) : null}
         {text ||
         block.attachments?.length ||
@@ -1867,7 +1874,7 @@ function UserMessageBlock({
               <CopyTurnButton
                 text={text}
                 attachments={block.attachments}
-                label="Copy message"
+                label={t("Copy message")}
               />
             ) : null}
             {onEdit ? (
@@ -1879,7 +1886,7 @@ function UserMessageBlock({
             {block.startedAt != null ? (
               <time
                 dateTime={new Date(block.startedAt).toISOString()}
-                title={new Date(block.startedAt).toLocaleString()}
+                title={new Date(block.startedAt).toLocaleString(getLocale())}
                 className="ml-1 font-sans text-xs text-content/40"
               >
                 {formatClockTime(block.startedAt)}
@@ -1904,6 +1911,7 @@ function TurnRow({
   folded: boolean;
   children: ReactNode | (() => ReactNode);
 }) {
+  useLocale();
   const [foldState, setFoldState] = useState<
     "open" | "opening" | "closing" | "closed"
   >(folded ? "closed" : "open");
@@ -1980,6 +1988,7 @@ function WorkFoldLine({
   open: boolean;
   onToggle: () => void;
 }) {
+  useLocale();
   const icon = (
     <span className="relative flex size-3.5 shrink-0 items-center justify-center">
       {open ? (
@@ -2041,7 +2050,7 @@ function WorkFoldLine({
     <button
       type="button"
       aria-expanded={open}
-      aria-label={open ? "Hide the work" : "Show the work"}
+      aria-label={open ? t("Hide the work") : t("Show the work")}
       aria-live={live ? "polite" : undefined}
       onClick={onToggle}
       className={`group ${row}`}
@@ -2078,7 +2087,8 @@ const ActivityPhases = memo(function ActivityPhases({
   onOpenFile,
 
 }: ActivityPhasesProps) {
-  const phases = useMemo(() => buildActivityPhases(blocks), [blocks]);
+  useLocale();
+  const phases = useMemo(() => buildActivityPhases(blocks), [getLocale(), blocks]);
 
   return (
     <div className={`flex min-w-0 flex-col gap-1 ${padded ? "px-4" : ""}`}>
@@ -2127,6 +2137,7 @@ function useTurnScrollAnchor(
   stickToBottom: RefObject<boolean>,
   onAdjust: (el: HTMLElement) => void,
 ) {
+  useLocale();
   useLayoutEffect(() => {
     const inner = el?.firstElementChild;
     if (!enabled || !el || !inner) return;
@@ -2196,6 +2207,7 @@ function useLivePhaseScroll(
   enabled: boolean,
   steps: Block[],
 ) {
+  useLocale();
   const stickToBottom = useRef(true);
   const lastScrollTop = useRef(0);
   const wasEnabled = useRef(false);
@@ -2273,6 +2285,7 @@ function ActivityPhaseGroup({
   onOpenFile?: (path: string) => void;
 
 }) {
+  useLocale();
   const [override, setOverride] = useState<boolean | null>(null);
   const waiting = phase.steps.some(needsApproval);
   const open = waiting || (override ?? active);
@@ -2349,7 +2362,7 @@ function ActivityPhaseGroup({
         type="button"
         aria-expanded={open}
         aria-label={
-          open ? `Hide the steps for ${title}` : `Show the steps for ${title}`
+          open ? t("Hide the steps for {0}", title) : t("Show the steps for {0}", title)
         }
         onClick={() => setOverride(!open)}
         className="group flex w-full min-w-0 items-center gap-1.5 py-1 text-left"
@@ -2442,6 +2455,7 @@ type StepTurn = { wait: number; pace: number };
  * the turn it was first given however often the group renders.
  */
 function useStepQueue() {
+  useLocale();
   const queue = useRef({ next: 0, turns: new Map<Block["id"], StepTurn>() });
 
   return (id: Block["id"]) => {
@@ -2482,6 +2496,7 @@ function PhaseStep({
   turn?: StepTurn;
   children: ReactNode;
 }) {
+  useLocale();
   const [turn] = useState(arrival);
   const [stage, setStage] = useState<"waiting" | "entering" | "settled">(() =>
     !turn ? "settled" : turn.wait > 0 ? "waiting" : "entering",
@@ -2543,6 +2558,7 @@ function SubagentStack({
   onOpenFile?: (path: string) => void;
 
 }) {
+  useLocale();
   return (
     <div className={`flex min-w-0 flex-col ${embedded ? "" : "px-4"}`}>
       {blocks.map((block) => (
@@ -2579,6 +2595,7 @@ function SubagentRow({
   onOpenFile?: (path: string) => void;
 
 }) {
+  useLocale();
   const [override, setOverride] = useState<boolean | null>(null);
   const open = override ?? toolCallState(block) === "rejected";
   return (
@@ -2617,6 +2634,7 @@ function SubagentPanel({
   onOpenFile?: (path: string) => void;
 
 }) {
+  useLocale();
   const name = subagentName(block);
   const brief = subagentBrief(block);
   const model = subagentModelName(block);
@@ -2626,7 +2644,7 @@ function SubagentPanel({
   // The run's trail as transcript blocks, so the panel groups it the way the
   // main transcript groups the agent's own work: what it said, then the calls
   // that line introduced, folding behind it once it moves on.
-  const stepBlocks = useMemo(() => steps.map(agentStepBlock), [steps]);
+  const stepBlocks = useMemo(() => steps.map(agentStepBlock), [getLocale(), steps]);
   const status = subagentStatusLine(block, steps);
   const report = subagentReport(block);
   const failed = state === "rejected";
@@ -2656,7 +2674,7 @@ function SubagentPanel({
       {model || status ? (
         <span className="flex min-w-0 max-w-[55%] shrink-0 items-baseline gap-2 font-sans text-[12px] text-content/40">
           {model ? (
-            <span className="truncate" title={`Model: ${model}`}>
+            <span className="truncate" title={t("Model: {0}", model)}>
               {model}
             </span>
           ) : null}
@@ -2671,7 +2689,7 @@ function SubagentPanel({
   if (steps.length === 0 && !report) {
     return (
       <div
-        aria-label={`Subagent: ${name}`}
+        aria-label={t("Subagent: {0}", name)}
         title={brief}
         className="-mx-1.5 flex min-w-0 items-center gap-2 px-1.5 py-1"
       >
@@ -2687,7 +2705,7 @@ function SubagentPanel({
       <button
         type="button"
         aria-expanded={open}
-        aria-label={open ? `Hide ${name}'s work` : `Show ${name}'s work`}
+        aria-label={open ? t("Hide {0}'s work", name) : t("Show {0}'s work", name)}
         title={brief}
         onClick={onToggle}
         // An open row keeps the wash it lit up under the cursor, so the panel
@@ -2758,6 +2776,7 @@ function SubagentMascot({
   state: ToolCallState;
   active?: boolean;
 }) {
+  useLocale();
   return (
     <ProjectMascot
       project={name}
@@ -2810,14 +2829,14 @@ function subagentStatusLine(block: Block, steps: AgentStep[]): string {
   if (toolCallState(block) === "rejected") return "failed";
   const tools = steps.filter((step) => step.kind === "tool").length;
   if (tools === 0) return "";
-  const count = tools === 1 ? "1 step" : `${tools} steps`;
+  const count = tools === 1 ? "1 step" : t("{0} steps", tools);
   // A step that failed inside a run that went on to finish still has to say so
   // here, or the row reads clean until someone opens the trail.
   const failed = steps.filter(
     (step) => step.kind === "tool" && isFailedStatus(step.status),
   ).length;
   if (!failed) return count;
-  return `${count}, ${failed === 1 ? "1 failed" : `${failed} failed`}`;
+  return `${count}, ${failed === 1 ? "1 failed" : t("{0} failed", failed)}`;
 }
 
 /** Whether the line that titled a group has more in it than the header shows. */
@@ -2834,6 +2853,7 @@ function ActivityPhaseIcon({
   kind: ActivityPhaseKind;
   className?: string;
 }) {
+  useLocale();
   const props = {
     className: `size-3.5 shrink-0 text-content/45 ${className}`,
     strokeWidth: 1.75,
@@ -2867,6 +2887,7 @@ function ActivityRow({
   onOpenFile?: (path: string) => void;
 
 }) {
+  useLocale();
   if (isThinkingBlock(block)) {
     return (
       <ActivityThinkingRow
@@ -2922,6 +2943,7 @@ function ActivityRow({
 
 /** A status row folded into the trail: one muted line, nothing to open. */
 function ActivityStatusRow({ block }: { block: Block }) {
+  useLocale();
   return (
     <div className="flex min-w-0 items-center gap-1.5 py-1">
       <span
@@ -2955,8 +2977,9 @@ function ActivityThinkingRow({
   bare?: boolean;
   onOpenFile?: (path: string) => void;
 }) {
+  useLocale();
   const [open, setOpen] = useState(false);
-  const text = proseSummary(block.text) || "Thinking";
+  const text = proseSummary(block.text) || t("Thinking");
   // In a group the rail is the bullet, so there is nothing to breathe while
   // reasoning streams in — the line itself does.
   const pulse = block.streaming ? "zen-thinking-pulse" : "";
@@ -2979,7 +3002,7 @@ function ActivityThinkingRow({
   if (!expandable) {
     return (
       <div
-        aria-label={`Thinking: ${text}`}
+        aria-label={t("Thinking: {0}", text)}
         className="flex min-w-0 items-center gap-1.5 py-1"
       >
         {icon}
@@ -2993,7 +3016,7 @@ function ActivityThinkingRow({
       <button
         type="button"
         aria-expanded={open}
-        aria-label={open ? "Hide thinking" : `Show thinking: ${text}`}
+        aria-label={open ? t("Hide thinking") : t("Show thinking: {0}", text)}
         onClick={() => setOpen((value) => !value)}
         className="group flex min-w-0 items-center gap-1.5 py-1 text-left"
       >
@@ -3037,6 +3060,7 @@ function ActivityNoteRow({
   expandable?: boolean;
   onOpenFile?: (path: string) => void;
 }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   const text = proseSummary(block.text);
   const icon = bare ? null : (
@@ -3046,7 +3070,7 @@ function ActivityNoteRow({
   if (!expandable) {
     return (
       <div
-        aria-label={`Agent said: ${text}`}
+        aria-label={t("Agent said: {0}", text)}
         className="flex min-w-0 items-center gap-1.5 py-1"
       >
         {icon}
@@ -3062,7 +3086,7 @@ function ActivityNoteRow({
       <button
         type="button"
         aria-expanded={open}
-        aria-label={open ? "Hide the full note" : `Agent said: ${text}`}
+        aria-label={open ? t("Hide the full note") : t("Agent said: {0}", text)}
         onClick={() => setOpen((value) => !value)}
         className="group flex min-w-0 items-center gap-1.5 py-1 text-left"
       >
@@ -3097,6 +3121,7 @@ function ActivityToolRow({
   onOpenFile?: (path: string) => void;
 
 }) {
+  useLocale();
   const [errorOpen, setErrorOpen] = useState(false);
   const appCall = lociToolCall(block);
   if (appCall) {
@@ -3138,7 +3163,7 @@ function ActivityToolRow({
     <div className="flex min-w-0 flex-col">
       {errorDetail ? (
         <div
-          aria-label={`Failed tool call: ${label}`}
+          aria-label={t("Failed tool call: {0}", label)}
           className="group flex min-w-0 items-center gap-1.5 py-1"
         >
           {bare ? null : <ActivityToolIcon state={state} live={live} />}
@@ -3152,7 +3177,7 @@ function ActivityToolRow({
           <button
             type="button"
             aria-expanded={errorOpen}
-            aria-label={`${errorOpen ? "Hide" : "Show"} error details for ${label}`}
+            aria-label={t("{0} error details for {1}", errorOpen ? "Hide" : "Show", label)}
             onClick={() => setErrorOpen((value) => !value)}
             className="-m-1 shrink-0 rounded p-1"
           >
@@ -3164,7 +3189,7 @@ function ActivityToolRow({
         </div>
       ) : (
         <div
-          aria-label={`Tool call: ${label}`}
+          aria-label={t("Tool call: {0}", label)}
           className="flex min-w-0 items-center gap-1.5 py-1"
         >
           {bare ? null : <ActivityToolIcon state={state} live={live} />}
@@ -3187,6 +3212,7 @@ function ActivityToolRow({
 }
 
 function LociMark({ className = "size-4" }: { className?: string }) {
+  useLocale();
   return <img src="/loci.png" alt="" className={`shrink-0 ${className}`} />;
 }
 
@@ -3200,6 +3226,7 @@ function LociCallRow({
   call: LociToolCall;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
 }) {
+  useLocale();
   const state = toolCallState(block);
   const output =
     block.tool?.detail?.trim() || block.tool?.preview?.output?.trim();
@@ -3208,10 +3235,10 @@ function LociCallRow({
   const pendingApproval = needsApproval(block);
   const command = `loci app ${call.action}`;
   const verb = pendingApproval
-    ? "Run"
+    ? t("Run")
     : state === "pending"
-      ? "Running"
-      : "Ran";
+      ? t("Running")
+      : t("Ran");
   const summary = (
     <>
       <span
@@ -3241,7 +3268,7 @@ function LociCallRow({
         <button
           type="button"
           aria-expanded={errorOpen}
-          aria-label={`${errorOpen ? "Hide" : "Show"} error details for Loci: ${call.label}`}
+          aria-label={t("{0} error details for Loci: {1}", errorOpen ? "Hide" : "Show", call.label)}
           onClick={() => setErrorOpen((value) => !value)}
           className="flex w-full min-w-0 items-center gap-1.5 py-1 text-left"
         >
@@ -3275,6 +3302,7 @@ function CanvasCallRow({
   call: CanvasToolCall;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
 }) {
+  useLocale();
   const state = toolCallState(block);
   const output = block.tool?.detail?.trim();
   const [errorOpen, setErrorOpen] = useState(false);
@@ -3312,7 +3340,7 @@ function CanvasCallRow({
           <button
             type="button"
             aria-expanded={errorOpen}
-            aria-label={`${errorOpen ? "Hide" : "Show"} error details for Excalidraw: ${call.ask}`}
+            aria-label={t("{0} error details for Excalidraw: {1}", errorOpen ? "Hide" : "Show", call.ask)}
             onClick={() => setErrorOpen((value) => !value)}
             className="flex min-w-0 items-center gap-1.5 text-left"
           >
@@ -3324,7 +3352,7 @@ function CanvasCallRow({
         {call.checkpointId && state === "accepted" ? (
           <button
             type="button"
-            aria-label="Open the drawing"
+            aria-label={t("Open the drawing")}
             onClick={() =>
               window.dispatchEvent(
                 new CustomEvent(CANVAS_OPEN_CHECKPOINT_EVENT, {
@@ -3334,8 +3362,7 @@ function CanvasCallRow({
             }
             className="shrink-0 rounded px-1.5 py-0.5 font-sans text-xs text-content/55 hover:bg-content/10 hover:text-content"
           >
-            Open
-          </button>
+            {t("Open")}</button>
         ) : null}
       </div>
       {errorOpen && hasError ? (
@@ -3358,6 +3385,7 @@ function LearnCallRow({
   call: LearnToolCall;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
 }) {
+  useLocale();
   const state = toolCallState(block);
   const output = block.tool?.detail?.trim();
   const [errorOpen, setErrorOpen] = useState(false);
@@ -3395,7 +3423,7 @@ function LearnCallRow({
           <button
             type="button"
             aria-expanded={errorOpen}
-            aria-label={`${errorOpen ? "Hide" : "Show"} error details for the learning map: ${call.ask}`}
+            aria-label={t("{0} error details for the learning map: {1}", errorOpen ? "Hide" : "Show", call.ask)}
             onClick={() => setErrorOpen((value) => !value)}
             className="flex min-w-0 items-center gap-1.5 text-left"
           >
@@ -3422,6 +3450,7 @@ function ActivityToolIcon({
   state: ToolCallState;
   live?: boolean;
 }) {
+  useLocale();
   if (state === "pending") {
     return (
       <CircleDashed
@@ -3438,6 +3467,7 @@ function ActivityToolIcon({
 
 /** Failure stays marked. Running and success do not get a trailing icon. */
 function ToolCallStatusIcon({ state }: { state: ToolCallState }) {
+  useLocale();
   if (state === "rejected") {
     return <X className="size-3.5 shrink-0 text-red-400" strokeWidth={2} />;
   }
@@ -3448,6 +3478,7 @@ function useElapsedFrom(
   startedAt: number | undefined,
   paused: boolean,
 ): number | null {
+  useLocale();
   const fallback = useRef<number | null>(null);
   const pausedMs = useRef(0);
   const pauseStarted = useRef<number | null>(null);
@@ -3492,12 +3523,12 @@ function formatWorkingDuration(
 ): string {
   const who = modelName?.trim();
   const elapsed = formatElapsed(elapsedMs);
-  const verb = done ? (who ? "worked" : "Worked") : who ? "working" : "Working";
+  const verb = done ? (who ? "worked" : t("Worked")) : who ? "working" : t("Working");
   if (elapsed == null) {
     if (done) return who ? `${who} ${verb}` : verb;
     return who ? `${who} ${verb}…` : `${verb}…`;
   }
-  return who ? `${who} ${verb} for ${elapsed}` : `${verb} for ${elapsed}`;
+  return who ? t("{0} {1} for {2}", who, verb, elapsed) : t("{0} for {1}", verb, elapsed);
 }
 
 function formatElapsed(elapsedMs: number | null): string | null {
@@ -3524,6 +3555,7 @@ function ToolCall({
 
   embedded?: boolean;
 }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   const preview = block.tool?.preview;
   const label = toolCallLabel(block, cwd);
@@ -3532,10 +3564,10 @@ function ToolCall({
   const state = toolCallState(block);
   const stateLabel =
     state === "accepted"
-      ? "Accepted"
+      ? t("Accepted")
       : state === "rejected"
-        ? "Rejected"
-        : "Pending";
+        ? t("Rejected")
+        : t("Pending");
   const editTool = isEditTool(
     block.tool?.kind,
     block.text || block.tool?.title,
@@ -3610,7 +3642,7 @@ function ToolCall({
         <button
           type="button"
           aria-expanded={open}
-          aria-label={`${stateLabel} tool call: ${label}`}
+          aria-label={t("{0} tool call: {1}", stateLabel, label)}
           onClick={() => setOpen((value) => !value)}
           className="flex w-full min-w-0 items-center gap-2 rounded-lg py-1.5 text-left"
         >
@@ -3629,7 +3661,7 @@ function ToolCall({
         </button>
       ) : (
         <div
-          aria-label={`${stateLabel} tool call: ${label}`}
+          aria-label={t("{0} tool call: {1}", stateLabel, label)}
           className="flex w-full min-w-0 items-center gap-2"
         >
           <ToolCallIcon state={state} />
@@ -3674,6 +3706,7 @@ function ToolCallSummary({
   failed?: boolean;
   status?: ToolCallState;
 }) {
+  useLocale();
   const { action, target, fileName, filePath, isFile, previewMatchesFile } =
     resolveToolCallDisplay(label, preview, cwd);
   if (!action || !target) {
@@ -3772,6 +3805,7 @@ function ToolCallSummary({
 }
 
 function ToolCallIcon({ state }: { state: ToolCallState }) {
+  useLocale();
   if (state === "rejected") {
     return <X className="size-3.5 shrink-0 text-red-400" strokeWidth={2} />;
   }
@@ -3793,6 +3827,7 @@ function ApprovalControls({
   block: Block;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
 }) {
+  useLocale();
   const approval = block.approval;
   if (!approval || approval.decided || !onApproval) return null;
   return (
@@ -3802,25 +3837,24 @@ function ApprovalControls({
         className="rounded-md bg-content px-2.5 py-0.5 text-[11px] hover:bg-content/80     text-background-base"
         onClick={() => onApproval(approval.requestId, "allow")}
       >
-        Allow
-      </button>
+        {t("Allow")}</button>
       <button
         type="button"
         className="rounded-md bg-content/10 px-2.5 py-0.5 text-[11px] text-content/70 hover:bg-content/20"
         onClick={() => onApproval(approval.requestId, "deny")}
       >
-        Deny
-      </button>
+        {t("Deny")}</button>
     </div>
   );
 }
 
 function HandoffDivider({ block }: { block: Block }) {
+  useLocale();
   const meta = block.handoff;
   if (!meta) return null;
 
   const preparing = meta.status === "preparing";
-  const label = preparing ? "Preparing a handoff" : HARNESS_TITLE[meta.to];
+  const label = preparing ? t("Preparing a handoff") : HARNESS_TITLE[meta.to];
 
   return (
     <div className="px-4 py-5">
@@ -3830,8 +3864,8 @@ function HandoffDivider({ block }: { block: Block }) {
           role="separator"
           aria-label={
             preparing
-              ? `Preparing a handoff to ${HARNESS_TITLE[meta.to]}`
-              : `Continued with ${label}`
+              ? t("Preparing a handoff to {0}", HARNESS_TITLE[meta.to])
+              : t("Continued with {0}", label)
           }
           className="flex max-w-[min(100%,20rem)] items-center gap-1.5 px-1.5 font-sans text-[12px] text-content/55"
         >

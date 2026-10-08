@@ -1,7 +1,8 @@
+import { t } from "../../../shared/i18n/locale";
 export const NOTIFICATION_CATEGORIES = [
-  { id: "agentFinished", label: "Agent finished" },
-  { id: "agentInput", label: "Agent approvals and questions" },
-  { id: "reminders", label: "Reminders" },
+  { id: "agentFinished", get label() { return t("Agent finished"); } },
+  { id: "agentInput", get label() { return t("Agent approvals and questions"); } },
+  { id: "reminders", get label() { return t("Reminders"); } },
 ] as const;
 
 export type NotificationCategory =

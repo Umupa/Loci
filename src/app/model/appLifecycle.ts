@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n/locale";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
@@ -152,7 +153,7 @@ export async function askQuitConfirmation(
       confirmed = await ask(quitWhileBusyMessage(inFlight), {
         title: "Loci",
         kind: "warning",
-        okLabel: "Quit",
+        okLabel: t("Quit"),
       });
     } catch {
       confirmed = false;
@@ -408,8 +409,8 @@ async function confirmAndCloseWindow(
     const refs = inFlightRefs(sessions, tabs);
     if (refs.length > 0) {
       const ok = await ask(
-        "Close this window and stop its running chats? Other windows will stay open.",
-        { title: "Loci", kind: "warning", okLabel: "Close window" },
+        t("Close this window and stop its running chats? Other windows will stay open."),
+        { title: "Loci", kind: "warning", okLabel: t("Close window") },
       );
       if (!ok) return;
     }

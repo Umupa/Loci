@@ -46,3 +46,13 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     tray.build(app)?;
     Ok(())
 }
+
+/// Updating labels keeps the existing tray actions and running windows intact.
+pub fn set_language(app: &AppHandle, show_label: &str, quit_label: &str) -> tauri::Result<()> {
+    if let Some(tray) = app.tray_by_id("main") {
+        let show = MenuItemBuilder::with_id(SHOW, show_label).build(app)?;
+        let quit = MenuItemBuilder::with_id(QUIT, quit_label).build(app)?;
+        tray.set_menu(Some(MenuBuilder::new(app).items(&[&show, &quit]).build()?))?;
+    }
+    Ok(())
+}

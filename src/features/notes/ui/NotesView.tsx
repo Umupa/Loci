@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import { LoaderCircle, Plus, Search, File, Trash2, X, ListFilter } from "../../../shared/ui/icons";
 import { ContextMenu, type ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -111,6 +112,7 @@ export function NotesView({
   onToggleSidebar,
   openRequest,
 }: Props) {
+  useLocale();
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const listLock = useLockOverscroll<HTMLDivElement>();
@@ -196,7 +198,7 @@ export function NotesView({
     setSelectedId(null);
     void Promise.all([loadNotes(true), getNote(openRequest.id)]).then(([next, note]) => {
       if (cancelled || navigation !== navigationVersion.current) return;
-      if (!note) throw new Error("This note no longer exists.");
+      if (!note) throw new Error(t("This note no longer exists."));
       setNotes((current) => {
         const known = new Map(current.map((entry) => [entry.id, entry]));
         // Project-only saves keep updatedAt. Preserve observations made since
@@ -244,7 +246,7 @@ export function NotesView({
   }, []);
 
   const scopedNotes = useMemo(() => notes.filter((note) => !projectCwd ||
-    !!note.sourceCwd && sameProjectPath(note.sourceCwd, projectCwd)), [notes, projectCwd]);
+    !!note.sourceCwd && sameProjectPath(note.sourceCwd, projectCwd)), [getLocale(), notes, projectCwd]);
   const visible = useMemo(() => {
     const now = Date.now();
     const since = timeFilter === "today" ? new Date(now).setHours(0, 0, 0, 0)
@@ -264,7 +266,7 @@ export function NotesView({
         project.includes(needle)
       );
     });
-  }, [scopedNotes, query, timeFilter]);
+  }, [getLocale(), scopedNotes, query, timeFilter]);
 
   const navigating = !!openRequest && (noteNavigation?.sequence !== openRequest.sequence || noteNavigation.status === "loading");
   const navigationError = noteNavigation?.status === "error" ? noteNavigation.error : undefined;
@@ -284,7 +286,7 @@ export function NotesView({
     setCreating(true);
     try {
       const note = await createNote({
-        title: "Untitled",
+        title: t("Untitled"),
         body: "",
         ...(projectCwd ? { sourceCwd: projectCwd } : {}),
       });
@@ -333,23 +335,23 @@ export function NotesView({
     if (!note) { setRenamingId(null); return; }
     const title = renameDraft.trim() || note.title;
     if (title !== note.title) {
-      if (editorActions.current?.id !== id) { setError("Select the note before renaming it."); return; }
+      if (editorActions.current?.id !== id) { setError(t("Select the note before renaming it.")); return; }
       editorActions.current.rename(title);
     }
     setRenamingId(null);
   };
 
   const noteMenuItems: ContextMenuItem[] = [
-    { kind: "item", id: "rename", label: "Rename" },
+    { kind: "item", id: "rename", label: t("Rename") },
     { kind: "sep" },
-    { kind: "item", id: "delete", label: "Delete", danger: true },
+    { kind: "item", id: "delete", label: t("Delete"), danger: true },
   ];
 
   const filterItems: ContextMenuItem[] = [
-    { kind: "item", id: "all", label: "All time", checked: timeFilter === "all" },
-    { kind: "item", id: "today", label: "Today", checked: timeFilter === "today" },
-    { kind: "item", id: "7d", label: "Last 7 days", checked: timeFilter === "7d" },
-    { kind: "item", id: "30d", label: "Last 30 days", checked: timeFilter === "30d" },
+    { kind: "item", id: "all", label: t("All time"), checked: timeFilter === "all" },
+    { kind: "item", id: "today", label: t("Today"), checked: timeFilter === "today" },
+    { kind: "item", id: "7d", label: t("Last 7 days"), checked: timeFilter === "7d" },
+    { kind: "item", id: "30d", label: t("Last 30 days"), checked: timeFilter === "30d" },
   ];
 
   const list = (
@@ -363,8 +365,8 @@ export function NotesView({
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter notes"
-            aria-label="Filter notes"
+            placeholder={t("Filter notes")}
+            aria-label={t("Filter notes")}
             spellCheck={false}
             autoComplete="off"
             className="h-7 w-full rounded-md bg-transparent pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-content/40"
@@ -372,8 +374,8 @@ export function NotesView({
         </div>
         <button
           type="button"
-          aria-label="Filter by time"
-          title="Filter notes"
+          aria-label={t("Filter by time")}
+          title={t("Filter notes")}
           onClick={(e: ReactMouseEvent<HTMLButtonElement>) => setFilterAnchor(e.currentTarget)}
           className={`grid size-6 shrink-0 place-items-center rounded-md hover:bg-content/10 hover:text-content ${timeFilter !== "all" ? "text-accent" : "text-content/45"}`}
         >
@@ -381,8 +383,8 @@ export function NotesView({
         </button>
         <button
           type="button"
-          title="New note"
-          aria-label="New note"
+          title={t("New note")}
+          aria-label={t("New note")}
           disabled={creating}
           onClick={() => void onCreate()}
           className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content disabled:opacity-40"
@@ -410,8 +412,8 @@ export function NotesView({
         ) : visible.length === 0 ? (
           <p className="px-3 py-2 text-[12px] text-content/50">
             {query.trim() || timeFilter !== "all"
-              ? "No matching notes"
-              : "No notes yet. Save a turn from the transcript, or create one here."}
+              ? t("No matching notes")
+              : t("No notes yet. Save a turn from the transcript, or create one here.")}
           </p>
         ) : (
           <ul className="flex flex-col gap-0.5 p-1.5">
@@ -421,7 +423,7 @@ export function NotesView({
                   <div className={`flex w-full flex-col rounded-md border px-2.5 py-2 ${selected?.id === note.id ? "border-transparent bg-selection" : "border-stroke"}`}>
                     <input
                       autoFocus
-                      aria-label="Rename note"
+                      aria-label={t("Rename note")}
                       value={renameDraft}
                       onChange={(e) => setRenameDraft(e.target.value)}
                       onBlur={() => void commitNoteRename(note.id)}
@@ -456,7 +458,7 @@ export function NotesView({
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize notes list"
+        aria-label={t("Resize notes list")}
         className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${
           resize.dragging ? "bg-content/15" : "hover:bg-content/10"
         }`}
@@ -469,7 +471,7 @@ export function NotesView({
   return (
     <div
       role="region"
-      aria-label="Notes"
+      aria-label={t("Notes")}
       data-app-notes
       className="flex min-h-0 min-w-0 flex-1 flex-col text-content"
     >
@@ -490,13 +492,13 @@ export function NotesView({
             className="size-3.5 shrink-0 text-content/45"
             strokeWidth={1.75}
           />
-          <span className="min-w-0 truncate text-content">Notes</span>
+          <span className="min-w-0 truncate text-content">{t("Notes")}</span>
         </div>
         {IS_MAC ? null : <WindowControls />}
       </div>
       <div className="flex min-h-0 min-w-0 flex-1">
         <CollapsiblePane open={listOpen}>{list}</CollapsiblePane>
-        {navigating ? <div role="status" className="flex flex-1 items-center justify-center text-sm text-content/50">Loading note…</div> : navigationError ?
+        {navigating ? <div role="status" className="flex flex-1 items-center justify-center text-sm text-content/50">{t("Loading note…")}</div> : navigationError ?
           <div role="alert" className="flex flex-1 items-center justify-center px-4 text-sm text-content/60">{navigationError}</div> : <NoteDetail
           note={selected}
           recents={recents}
@@ -538,6 +540,7 @@ function NoteProjectMark({
   colors,
   customColors,
 }: { cwd: string } & ProjectMarks) {
+  useLocale();
   const project = projectName(cwd);
   const key = projectKey(cwd);
   const logoPath = resolveTabGroupLogo(key, logos);
@@ -573,6 +576,7 @@ function NoteDetailTab({
   selected: boolean;
   onSelect: () => void;
 }) {
+  useLocale();
   return (
     <button
       type="button"
@@ -606,6 +610,7 @@ function NoteCard({
   onSelect: () => void;
   onContextMenu?: (e: ReactMouseEvent<HTMLButtonElement>) => void;
 } & ProjectMarks) {
+  useLocale();
   const preview = notePreview(note.body, note.title);
   const project = noteSourceProject(note.sourceCwd);
   const time = formatRelativeTime(new Date(note.updatedAt).toISOString());
@@ -689,11 +694,12 @@ function NoteDetail({
   onActions: (actions: NoteEditorActions | null) => void;
   onAddToChat: (note: Note) => void;
 }) {
+  useLocale();
   if (!note) {
     return (
       <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-center px-6 text-center">
         <File className="mb-3 size-6 text-content/30" strokeWidth={1.75} />
-        <p className="text-[13px] text-content/45">Select a note</p>
+        <p className="text-[13px] text-content/45">{t("Select a note")}</p>
       </div>
     );
   }
@@ -728,6 +734,7 @@ function NoteEditor({
   onActions: (actions: NoteEditorActions | null) => void;
   onAddToChat: (note: Note) => void;
 }) {
+  useLocale();
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const blank = !note.body.trim() && note.title === "Untitled";
   const [mode, setMode] = useMarkdownMode(note.id);
@@ -989,7 +996,7 @@ function NoteEditor({
         <header className="flex flex-col gap-3">
           <div className="flex min-w-0 items-center gap-2 text-[12px] text-content/50">
             <File className="size-3.5 shrink-0" strokeWidth={1.75} />
-            <span>Note</span>
+            <span>{t("Note")}</span>
             {note.slug ? (
               <span className="min-w-0 truncate">{note.slug}</span>
             ) : null}
@@ -1019,12 +1026,12 @@ function NoteEditor({
               void saveNow();
             }}
             onKeyDown={onTitleKeyDown}
-            aria-label="Note title"
+            aria-label={t("Note title")}
             className="w-full border-0 bg-transparent p-0 text-[20px] font-semibold leading-tight text-content outline-none placeholder:text-content/35"
-            placeholder="Untitled"
+            placeholder={t("Untitled")}
           />
           {time ? (
-            <div className="text-[12px] text-content/50">Updated {time}</div>
+            <div className="text-[12px] text-content/50">{t("Updated")}{" "}{time}</div>
           ) : null}
           <NoteTagsEditor
             tags={tags}
@@ -1040,23 +1047,21 @@ function NoteEditor({
               onClick={() => onAddToChat(draft)}
               className="inline-flex items-center gap-1 rounded-md bg-content px-3 h-6.5 text-[12px] text-background-base hover:bg-content/80 disabled:cursor-default disabled:opacity-40"
             >
-              Add to chat
-            </button>
+              {t("Add to chat")}</button>
             <button
               type="button"
               onClick={() => { void remove(); }}
               className="inline-flex items-center gap-1.5 rounded-md px-3 h-7 text-[12px] text-content/70 hover:bg-content/10 hover:text-red-400"
             >
               <Trash2 className="size-3.5" strokeWidth={1.75} />
-              Delete
-            </button>
+              {t("Delete")}</button>
           </div>
           {saveError ? (
             <div
               role="alert"
               className="flex items-center gap-2 text-[12px] text-red-400/90"
             >
-              <span>Could not save note: {saveError}</span>
+              <span>{t("Could not save note:")}{" "}{saveError}</span>
               <button
                 type="button"
                 onClick={() => {
@@ -1065,23 +1070,22 @@ function NoteEditor({
                 }}
                 className="shrink-0 underline hover:no-underline"
               >
-                Retry
-              </button>
+                {t("Retry")}</button>
             </div>
           ) : null}
         </header>
         <div
           role="tablist"
-          aria-label="Note sections"
+          aria-label={t("Note sections")}
           className="flex h-9 items-stretch gap-4 border-b border-stroke"
         >
           <NoteDetailTab
-            label="Preview"
+            label={t("Preview")}
             selected={mode === "preview"}
             onSelect={() => setMode("preview")}
           />
           <NoteDetailTab
-            label="Source"
+            label={t("Source")}
             selected={mode === "source"}
             onSelect={() => setMode("source")}
           />
@@ -1120,7 +1124,7 @@ function NoteEditor({
         >
           {imageDrag || imageBusy ? (
             <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-lg bg-background-base/80 text-[12px] text-content/70 backdrop-blur-sm">
-              {imageBusy ? "Adding images…" : "Drop images here"}
+              {imageBusy ? t("Adding images…") : t("Drop images here")}
             </div>
           ) : null}
           {mode === "source" ? (
@@ -1136,7 +1140,7 @@ function NoteEditor({
           ) : body.trim() ? (
             <AgentMarkdown text={body} cwd={sourceCwd} hardBreaks />
           ) : (
-            <p className="text-[13px] text-content/45">No description</p>
+            <p className="text-[13px] text-content/45">{t("No description")}</p>
           )}
         </div>
       </div>
@@ -1155,6 +1159,7 @@ function NoteSource({
   textareaRef: { current: HTMLTextAreaElement | null };
   autoFocus?: boolean;
 }) {
+  useLocale();
   const lines = value.split("\n");
   const gutterWidth = `calc(${Math.max(String(lines.length).length, 2)}ch + 0.75rem)`;
   const textOffset = `calc(${gutterWidth} + 0.75rem)`;
@@ -1190,7 +1195,7 @@ function NoteSource({
         autoFocus={autoFocus}
         onChange={(event) => onChange(event.target.value)}
         spellCheck={false}
-        placeholder="Write markdown…"
+        placeholder={t("Write markdown…")}
         className="markdown-source-field absolute inset-0 h-full w-full resize-none overflow-hidden border-0 bg-transparent py-0 pr-0 font-mono text-[13px] leading-5 whitespace-pre-wrap wrap-break-word outline-none"
         style={{ paddingLeft: textOffset }}
       />
@@ -1205,6 +1210,7 @@ function NoteTagsEditor({
   tags: string[];
   onChange: (tags: string[]) => void;
 }) {
+  useLocale();
   const [value, setValue] = useState("");
 
   const addTag = (input = value) => {
@@ -1216,9 +1222,9 @@ function NoteTagsEditor({
   return (
     <div
       className="flex min-w-0 flex-wrap items-center gap-1.5"
-      aria-label="Tags"
+      aria-label={t("Tags")}
     >
-      <span className="mr-0.5 text-[11px] text-content/45">Tags</span>
+      <span className="mr-0.5 text-[11px] text-content/45">{t("Tags")}</span>
       {tags.map((tag) => (
         <span
           key={tag}
@@ -1227,8 +1233,8 @@ function NoteTagsEditor({
           <span className="truncate">#{tag}</span>
           <button
             type="button"
-            title={`Remove #${tag}`}
-            aria-label={`Remove #${tag}`}
+            title={t("Remove #{0}", tag)}
+            aria-label={t("Remove #{0}", tag)}
             onClick={() => onChange(tags.filter((item) => item !== tag))}
             className="grid size-4 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content"
           >
@@ -1257,8 +1263,8 @@ function NoteTagsEditor({
               onChange(tags.slice(0, -1));
             }
           }}
-          aria-label="Add note tag"
-          placeholder="Add tag…"
+          aria-label={t("Add note tag")}
+          placeholder={t("Add tag…")}
           spellCheck={false}
           autoComplete="off"
           className="h-6 min-w-20 flex-1 border-0 bg-transparent px-1 text-[11px] text-content outline-none placeholder:text-content/35"

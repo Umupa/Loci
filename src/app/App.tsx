@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../shared/i18n/locale";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "./shell/Sidebar";
@@ -76,6 +77,7 @@ registerBuiltinHarnesses();
 type Surface = "chat" | "search" | "notes" | "canvases" | "settings";
 
 export default function App(boot: BootWorkspace) {
+  useLocale();
   return <Suspense fallback={null}><Workspace {...boot} /></Suspense>;
 }
 
@@ -85,6 +87,7 @@ function signInRequestKey(session: Session): string {
 }
 
 function Workspace(boot: BootWorkspace) {
+  useLocale();
   const [initial] = useState(() => initialWorkspace(boot));
   const [sessions, setSessions] = useState<Session[]>(initial.sessions);
   const sessionsRef = useRef(sessions);
@@ -153,10 +156,10 @@ function Workspace(boot: BootWorkspace) {
     setSavedToast({ type: "canvas", id, title });
   };
   const active = workspace.activeSession;
-  const busySessionIds = useMemo(() => new Set(sessions.filter((session) => session.busy).map((session) => session.id)), [sessions]);
-  const approvalSessionIds = useMemo(() => new Set(sessions.filter(sessionNeedsInput).map((session) => session.id)), [sessions]);
+  const busySessionIds = useMemo(() => new Set(sessions.filter((session) => session.busy).map((session) => session.id)), [getLocale(), sessions]);
+  const approvalSessionIds = useMemo(() => new Set(sessions.filter(sessionNeedsInput).map((session) => session.id)), [getLocale(), sessions]);
   const unseenFinishedIds = useUnseenFinishedSessions(busySessionIds, surface === "chat" ? active?.id : undefined);
-  const liveAgents = useMemo(() => liveAgentsEnabled ? liveAgentsFromSessions(sessions, unseenFinishedIds) : [], [sessions, unseenFinishedIds, liveAgentsEnabled]);
+  const liveAgents = useMemo(() => liveAgentsEnabled ? liveAgentsFromSessions(sessions, unseenFinishedIds) : [], [getLocale(), sessions, unseenFinishedIds, liveAgentsEnabled]);
   useInputNotifications(sessions, surface === "chat" ? active?.id : undefined);
   useEffect(() => syncDockBadge(sessions), [sessions]);
   useEffect(() => {
@@ -212,8 +215,8 @@ function Workspace(boot: BootWorkspace) {
   };
   const canvasAddToChat = (text: string) => {
     const view = workspaceRef.current!;
-    const session = { ...newDefaultSession(view.projectCwdRef.current, view.activeSession?.runtimeMode), title: "Canvas context" };
-    view.addSession({ ...session, noteCard: { id: crypto.randomUUID(), slug: "canvas-context", title: "Canvas context", body: text } });
+    const session = { ...newDefaultSession(view.projectCwdRef.current, view.activeSession?.runtimeMode), title: t("Canvas context") };
+    view.addSession({ ...session, noteCard: { id: crypto.randomUUID(), slug: "canvas-context", title: t("Canvas context"), body: text } });
   };
   const openCanvas = (id: string) => workspace.openCanvas(id, canvases.find((canvas) => canvas.id === id)?.cwd);
   const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => { setNoteOpenRequest(undefined); setSurface("notes"); }); }, []);
@@ -368,17 +371,17 @@ function Workspace(boot: BootWorkspace) {
     needsInput: approvalSessionIds,
     unseenFinished: unseenFinishedIds,
     fallbackCwd: workspace.projectCwd,
-  })), workspace.tabs), [workspace.tabs, sessions, canvases, approvalSessionIds, unseenFinishedIds, workspace.projectCwd]);
+  })), workspace.tabs), [getLocale(), workspace.tabs, sessions, canvases, approvalSessionIds, unseenFinishedIds, workspace.projectCwd]);
   // The strip shows this project's tabs; the switcher reaches all of them.
   const titleTabs = useMemo(() => {
     const byId = new Map(tabSummaries.map((tab) => [tab.id, tab]));
     return workspace.visibleTabs.flatMap((tab) => byId.get(tab.id) ?? []);
-  }, [tabSummaries, workspace.visibleTabs]);
+  }, [getLocale(), tabSummaries, workspace.visibleTabs]);
   const focusedLeaf = workspace.activeTab && findLeaf(workspace.activeTab.layout, workspace.activeTab.focusedId);
   summariesRef.current = tabSummaries;
   // Tabs that hold something unfinished are never put away or closed in bulk.
-  const heldIds = useMemo(() => heldTabIds(workspace.tabs, sessions), [workspace.tabs, sessions]);
-  const idleIds = useMemo(() => idleTabIds(titleTabs, workspace.activeTabId, heldIds), [titleTabs, workspace.activeTabId, heldIds]);
+  const heldIds = useMemo(() => heldTabIds(workspace.tabs, sessions), [getLocale(), workspace.tabs, sessions]);
+  const idleIds = useMemo(() => idleTabIds(titleTabs, workspace.activeTabId, heldIds), [getLocale(), titleTabs, workspace.activeTabId, heldIds]);
   // When a project's tab count grows past its limit, the longest-idle tabs are
   // put away. Switching project or restoring a layout is not growth.
   const parkBaseline = useRef<TabCountMark | null>(null);
@@ -518,7 +521,7 @@ function Workspace(boot: BootWorkspace) {
         />
       )}
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
-      {canvasSelection ? <SelectCanvasDialog anchor={canvasSelection.anchor ?? null} canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new DOMException("Cancelled", "AbortError")); }} /> : null}
+      {canvasSelection ? <SelectCanvasDialog anchor={canvasSelection.anchor ?? null} canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new DOMException(t("Cancelled"), "AbortError")); }} /> : null}
       {workspace.error ? <FileActionError message={workspace.error} onDismiss={() => workspace.setError(null)} /> : null}
     </div>
     <TranscriptPoolOutlet pool={transcriptPool} />

@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../shared/i18n/locale";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { X } from "../../shared/ui/icons";
@@ -13,6 +14,7 @@ const VISIBLE_MS = 8000;
  * few seconds. The same history stays reachable from ⌘⇧T and the switcher.
  */
 export function ClosedTabToast({ onUndo }: { onUndo: (batch: number) => void }) {
+  useLocale();
   const notice = useSyncExternalStore(closedTabs.subscribe, closedTabs.notice);
   const hovering = useRef(false);
 
@@ -28,7 +30,7 @@ export function ClosedTabToast({ onUndo }: { onUndo: (batch: number) => void }) 
   }, [notice]);
 
   if (!notice) return null;
-  const what = notice.count > 1 ? `${notice.count} tabs` : notice.title ? `“${truncate(notice.title)}”` : "tab";
+  const what = notice.count > 1 ? t("{0} tabs", notice.count) : notice.title ? `“${truncate(notice.title)}”` : "tab";
   const limit = loadTabLimit();
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 top-[52px] flex justify-center" style={{ zIndex: LAYER.toast }}>
@@ -43,20 +45,19 @@ export function ClosedTabToast({ onUndo }: { onUndo: (batch: number) => void }) 
       >
         {notice.parked ? (
           <span className="min-w-0 truncate">
-            Parked {notice.count > 1 ? `${notice.count} idle tabs` : `idle ${what}`}
-            {limit > 0 ? <span className="text-content/45"> · over the {limit}-tab limit</span> : null}
+            {t("Parked")}{" "}{notice.count > 1 ? t("{0} idle tabs", notice.count) : t("idle {0}", what)}
+            {limit > 0 ? <span className="text-content/45">{t(" · over the {0}-tab limit", limit)}</span> : null}
           </span>
         ) : (
-          <span className="min-w-0 truncate">Closed {what}</span>
+          <span className="min-w-0 truncate">{t("Closed")}{" "}{what}</span>
         )}
         <button type="button" onClick={() => onUndo(notice.batch)}
           className="flex shrink-0 items-center gap-2 rounded-lg bg-content/10 py-1 pl-3 pr-2 font-medium hover:bg-content/15">
-          Undo
-          <kbd className="rounded border border-content/12 bg-content/6 px-1 font-sans text-[10px] font-normal leading-4 text-content/55">
+          {t("Undo")}<kbd className="rounded border border-content/12 bg-content/6 px-1 font-sans text-[10px] font-normal leading-4 text-content/55">
             {IS_MAC ? `${MOD}${SHIFT}T` : `Ctrl+Shift+T`}
           </kbd>
         </button>
-        <button type="button" aria-label="Dismiss" title="Dismiss" onClick={() => closedTabs.dismissNotice()}
+        <button type="button" aria-label={t("Dismiss")} title={t("Dismiss")} onClick={() => closedTabs.dismissNotice()}
           className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content">
           <X className="size-3" strokeWidth={1.75} />
         </button>

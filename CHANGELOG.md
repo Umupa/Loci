@@ -8,6 +8,7 @@ Nothing has been tagged yet; the first release will be 0.1.0. Until then this se
 
 ### Added
 
+- Simplified Chinese interface with system language detection, instant language switching, localized menus, and preserved drafts and shortcuts.
 - Desktop shell for agent CLIs: projects as local folders, sessions through Claude Code, Codex, Cursor, Grok Build, OpenCode, Pi, omp, fx, Hermes Agent and Antigravity, model and permission selection, agent questions, plan and task display, tabs and drag-to-split panes, session folders, ⌘K search, attachments, reminders and desktop notifications.
 - Markdown notes with `@` mentions, and Excalidraw canvases.
 - 22 Omarchy color themes with matching code highlighting, 72 bundled wallpapers, and configurable code and interface fonts.

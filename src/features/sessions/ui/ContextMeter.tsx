@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../../shared/i18n/locale";
 import { useRef,useState } from "react";
 import { Popover } from "../../../shared/ui/Popover";
 import {
@@ -39,6 +40,7 @@ export function ContextMeter({
   /** Say the numbers beside the ring: the percentage, and the tokens used. */
   detailed?: boolean;
 }) {
+  useLocale();
   const [hovered, setHovered] = useState(false);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -60,8 +62,8 @@ export function ContextMeter({
       {onCompact ? (
         <button
           type="button"
-          title="Context usage"
-          aria-label={`${headline}, ${detail}. Open context actions`}
+          title={t("Context usage")}
+          aria-label={t("{0}, {1}. Open context actions", headline, detail)}
           aria-expanded={actionsOpen}
           onClick={() => setOpen((value) => !value)}
           className="-m-1 flex items-center gap-1.5 rounded-sm p-1 outline-none focus-visible:ring-1 focus-visible:ring-accent"
@@ -91,8 +93,8 @@ export function ContextMeter({
               disabled={compactDisabled}
               title={
                 compactDisabled
-                  ? "Wait for the current operation to finish"
-                  : "Compact this conversation's context"
+                  ? t("Wait for the current operation to finish")
+                  : t("Compact this conversation's context")
               }
               onClick={() => {
                 setOpen(false);
@@ -100,8 +102,7 @@ export function ContextMeter({
               }}
               className="mt-1.5 w-full rounded-md bg-content/10 px-2 py-1 text-[11px] text-content hover:bg-content/15 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Compact now
-            </button>
+              {t("Compact now")}</button>
           ) : null}
         </Popover>
       ) : null}
@@ -111,16 +112,18 @@ export function ContextMeter({
 
 /** "69%  Tokens: 176K", tinted like the ring as the window fills. */
 function MeterText({ usage, ratio }: { usage: ContextUsage; ratio: number | null }) {
+  useLocale();
   const percent = contextPercent(usage);
   return (
     <span className={`flex items-center gap-2.5 whitespace-nowrap text-[11px] tabular-nums leading-none ${ratio === null ? "text-content/45" : ringClass(ratio)}`}>
       {percent === null ? null : <span>{percent}%</span>}
-      <span className="text-content/45">Tokens: {formatTokens(usage.used)}</span>
+      <span className="text-content/45">{t("Tokens:")}{" "}{formatTokens(usage.used)}</span>
     </span>
   );
 }
 
 function MeterRing({ ratio, label }: { ratio: number; label?: string }) {
+  useLocale();
   return (
     <svg
       width={SIZE}

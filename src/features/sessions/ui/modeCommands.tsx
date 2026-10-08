@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../../shared/i18n/locale";
 import {
 AiIdea,
 CircleDashed,
@@ -28,14 +29,14 @@ export const MODE_COMMAND_STYLES: Record<string, ModeCommandStyle> = {
     Icon: CursorMagicSelection,
     className: "text-sky-700 dark:text-sky-200/90",
     pill: {
-      label: "Operator",
-      title: "Operator",
+      get label() { return t("Operator"); },
+      get title() { return t("Operator"); },
       className:
         "bg-sky-500/15 font-medium text-sky-700 hover:bg-sky-500/20 dark:bg-sky-400/10 dark:text-sky-200/90 dark:hover:bg-sky-400/15",
     },
     menu: {
-      label: "Operator",
-      description: "Give this thread access to Loci",
+      get label() { return t("Operator"); },
+      get description() { return t("Give this thread access to Loci"); },
       iconClassName: "text-sky-300/80",
     },
   },
@@ -43,14 +44,14 @@ export const MODE_COMMAND_STYLES: Record<string, ModeCommandStyle> = {
     Icon: CircleDashed,
     className: "text-content/70",
     pill: {
-      label: "Draft",
-      title: "Draft mode",
+      get label() { return t("Draft"); },
+      get title() { return t("Draft mode"); },
       className:
         "border border-dashed border-content/25 bg-content/5 text-content/70 hover:bg-content/10 hover:text-content",
     },
     menu: {
-      label: "Draft",
-      description: "Save this message without starting the agent",
+      get label() { return t("Draft"); },
+      get description() { return t("Save this message without starting the agent"); },
       iconClassName: "text-content/60",
     },
   },
@@ -102,6 +103,7 @@ export function ModeCommandText({
   indent?: string;
   iconClassName?: string;
 }) {
+  useLocale();
   return (
     <span className={mode.style.className}>
       <span className="relative">
@@ -125,14 +127,15 @@ export function ModeCommandPill({
   name: string;
   onClear: () => void;
 }) {
+  useLocale();
   const style = MODE_COMMAND_STYLES[name];
   if (!style?.pill) return null;
   const { Icon, pill } = style;
   return (
     <button
       type="button"
-      title={`Turn off ${pill.title}`}
-      aria-label={`Turn off ${pill.title}`}
+      title={t("Turn off {0}", pill.title)}
+      aria-label={t("Turn off {0}", pill.title)}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClear}
       className={`flex h-6.5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] ${pill.className}`}

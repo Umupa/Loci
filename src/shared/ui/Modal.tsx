@@ -1,3 +1,4 @@
+import { t, useLocale } from "../i18n/locale";
 import { NativePopupHost } from "./NativePopupHost";
 import { X } from "./icons";
 import { useContext, useEffect, useId, useRef, type ReactNode } from "react";
@@ -44,6 +45,7 @@ export function ModalPanel({
   fitViewport = false,
   children,
 }: Props) {
+  useLocale();
   const popupHost = useContext(NativePopupHost);
   const closeRef = useRef<HTMLButtonElement>(null);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
@@ -118,7 +120,7 @@ export function ModalPanel({
             <button
               ref={closeRef}
               type="button"
-              aria-label="Close"
+              aria-label={t("Close")}
               onClick={onClose}
               className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/8 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
@@ -138,6 +140,7 @@ export function ModalPanel({
 }
 
 export function Modal(props: Props) {
+  useLocale();
   const host = useContext(NativePopupHost);
   if (host) return createPortal(<ModalPanel {...props} />, host);
   return createPortal(

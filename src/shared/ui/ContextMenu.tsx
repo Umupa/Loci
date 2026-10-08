@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../i18n/locale";
 import {
   useEffect,
   useId,
@@ -64,7 +65,7 @@ export function ContextMenu({
   ownerId,
   onBack,
   items,
-  ariaLabel = "Actions",
+  ariaLabel = t("Actions"),
   header,
   width = MENU_WIDTH,
   onPick,
@@ -72,6 +73,7 @@ export function ContextMenu({
   onMouseEnter,
   onMouseLeave,
 }: Props) {
+  useLocale();
   const menuId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
@@ -114,7 +116,7 @@ export function ContextMenu({
           ? [{ index, id: item.id, disabled: !!item.disabled }]
           : [],
       ),
-    [items],
+    [getLocale(), items],
   );
 
   const move = (dir: 1 | -1) => {

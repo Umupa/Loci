@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../../shared/i18n/locale";
 import { ContextMenu, type ContextMenuItem } from "../../shared/ui/ContextMenu";
 import { Archive, Chatting, Check, ChevronDown, ChevronRight, CircleAlert, CircleDashed, Clock, Folder, ListFilter, ExcalidrawIcon, FileScript, PanelLeft, Pin, Plus, Search, Settings, StickyNote, } from "../../shared/ui/icons";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, } from "react";
@@ -51,9 +52,9 @@ type SidebarTab = "sessions" | "files" | "canvases";
 const SIDEBAR_TABS: SidebarTab[] = ["sessions", "files", "canvases"];
 let rememberedTab: SidebarTab = "sessions";
 const TAB_LABELS: Record<SidebarTab, string> = {
-    sessions: "Sessions",
-    files: "Files",
-    canvases: "Canvas",
+    get sessions() { return t("Sessions"); },
+    get files() { return t("Files"); },
+    get canvases() { return t("Canvas"); },
 };
 const COMPACT_TAB_ICONS: Record<SidebarTab, typeof PanelLeft> = {
     sessions: Chatting,
@@ -144,6 +145,7 @@ type Props = {
     onCloseSettings?: () => void;
 };
 function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, openSessions = [], status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, reminders = [], onSetReminders, onCancelReminders, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, searchActive = false, notesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, onOpenCanvases, canvasesActive = false, onOpenFile, onToggleSidebar, onFileMoved, onFileDeleted, canvases = [], activeCanvasId, onOpenCanvas, onOpenCanvasInTab, onNewCanvas, onRenameCanvas, onDeleteCanvas, }: Props) {
+  useLocale();
     const [tab, setTab] = useState<SidebarTab>(() => rememberedTab);
     const pickTab = (next: SidebarTab) => {
         rememberedTab = next;
@@ -527,9 +529,9 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
         ? sessionFolders.find((folder) => folder.id === folderMenu.folderId)
         : undefined;
     const folderMenuItems: ContextMenuItem[] = [
-        { kind: "item", id: "rename", label: "Rename", shortcut: "F2" },
+        { kind: "item", id: "rename", label: t("Rename"), shortcut: "F2" },
         { kind: "sep" },
-        { kind: "item", id: "ungroup", label: "Ungroup" },
+        { kind: "item", id: "ungroup", label: t("Ungroup") },
     ];
     const sessionMenuItems: ContextMenuItem[] = [
         ...(onCancelReminders && menuReminderTimes.length > 0
@@ -537,10 +539,10 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
                 {
                     kind: "item" as const,
                     id: "reminder:cancel",
-                    label: "Cancel reminder",
+                    label: t("Cancel reminder"),
                     description: menuReminderTimes.length === 1
                         ? formatReminderTime(menuReminderTimes[0])
-                        : "Multiple reminder times",
+                        : t("Multiple reminder times"),
                 },
                 { kind: "sep" as const },
             ]
@@ -550,7 +552,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
                 {
                     kind: "item" as const,
                     id: "pin",
-                    label: allMenuSessionsPinned ? "Unpin" : "Pin",
+                    label: allMenuSessionsPinned ? t("Unpin") : t("Pin"),
                 },
             ]
             : []),
@@ -559,7 +561,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
                 {
                     kind: "item" as const,
                     id: "rename",
-                    label: "Rename",
+                    label: t("Rename"),
                     shortcut: "F2",
                 },
             ]
@@ -569,18 +571,18 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
                 {
                     kind: "item" as const,
                     id: "copy-session-id",
-                    label: "Copy session ID",
+                    label: t("Copy session ID"),
                     submenu: [
                         {
                             kind: "item" as const,
                             id: "copy-harness-session-id",
-                            label: "Harness session ID",
+                            label: t("Harness session ID"),
                             disabled: !menuSessions[0]?.providerSessionId,
                         },
                         {
                             kind: "item" as const,
                             id: "copy-loci-session-id",
-                            label: "Loci session ID",
+                            label: t("Loci session ID"),
                         },
                     ],
                 },
@@ -589,17 +591,17 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
         {
             kind: "item",
             id: "reminder",
-            label: "Remind me",
+            label: t("Remind me"),
             disabled: !onSetReminders,
             submenu: sessionReminderPresets(),
         },
         { kind: "sep" as const },
-        { kind: "item" as const, id: "folder-new", label: "New folder" },
+        { kind: "item" as const, id: "folder-new", label: t("New folder") },
         ...(sessionFolders.length > 0 ? [{ kind: "sep" as const }] : []),
         ...sessionFolders.map((folder) => ({
             kind: "item" as const,
             id: `folder-add:${folder.id}`,
-            label: `Add to ${folder.name}`,
+            label: t("Add to {0}", folder.name),
             checked: menuSessionIds.length > 0 &&
                 menuSessionIds.every((sessionId) => folder.sessionIds.includes(sessionId)),
         })),
@@ -609,8 +611,8 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
                     kind: "item" as const,
                     id: "folder-remove",
                     label: multipleMenuSessions
-                        ? "Remove from folders"
-                        : "Remove from folder",
+                        ? t("Remove from folders")
+                        : t("Remove from folder"),
                 },
             ]
             : []),
@@ -625,7 +627,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
                         {
                             kind: "item" as const,
                             id: "archive",
-                            label: allMenuSessionsArchived ? "Unarchive" : "Archive",
+                            label: allMenuSessionsArchived ? t("Unarchive") : t("Archive"),
                         },
                     ]
                     : []),
@@ -634,7 +636,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
                         {
                             kind: "item" as const,
                             id: "delete",
-                            label: "Delete",
+                            label: t("Delete"),
                             shortcut: "⌫",
                             danger: true,
                         },
@@ -854,7 +856,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
         archive: (sessionId: string, archived: boolean) => cardHandlers.current.onArchiveSession?.(sessionId, archived),
         rename: (sessionId: string) => cardHandlers.current.setRenamingSessionId(sessionId),
         delete: (sessionId: string) => cardHandlers.current.onDeleteSession?.(sessionId),
-    }), []);
+    }), [getLocale(), ]);
     const sessionInsertMotion = useRef<SessionInsertMotion>({
         cwd: "",
         seen: new Set(),
@@ -888,7 +890,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
             y: rect.bottom + 2,
         });
     };
-    const sessionSearchInput = (<input ref={searchInputRef} type="text" value={searchQuery} placeholder="Search conversations..." aria-label="Search conversations" spellCheck={false} autoComplete="off" autoCorrect="off" autoCapitalize="off" onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => {
+    const sessionSearchInput = (<input ref={searchInputRef} type="text" value={searchQuery} placeholder={t("Search conversations...")} aria-label={t("Search conversations")} spellCheck={false} autoComplete="off" autoCorrect="off" autoCapitalize="off" onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => {
             if (event.key !== "Escape")
                 return;
             event.preventDefault();
@@ -914,15 +916,14 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
       {sidebarToggle}
       <div className="flex min-w-0 flex-1 items-center">
         {(<span className="min-w-0 truncate text-sm font-medium leading-tight">
-            Workspace
-          </span>)}
+            {t("Workspace")}</span>)}
       </div>
       <WorkspaceTitleActions onNew={onNew}/>
     </div>);
     const sidebarContent = (<aside ref={resize.setPaneRef} className="body-glass relative flex h-full min-h-0 shrink-0 flex-col border-r border-stroke">
       {railVisible ? (<>
           {workspaceHeader}
-          <div role="tablist" aria-label="Workspace" className="flex h-9 shrink-0 items-center gap-px border-b border-stroke px-2">
+          <div role="tablist" aria-label={t("Workspace")} className="flex h-9 shrink-0 items-center gap-px border-b border-stroke px-2">
             {workspaceTabItems}
           </div>
         </>) : (<>
@@ -934,20 +935,18 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
             </div>)}
           {compactRailVisible ? workspaceHeader : null}
           {onSelectProject && !compactRailVisible ? (<SidebarProjectPicker cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onNew={onNew} onSearch={onSearch} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} searchActive={searchActive} notesActive={notesActive}/>) : null}
-          {!compactRailVisible ? (<div role="tablist" aria-label="Workspace" className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-stroke px-2">
+          {!compactRailVisible ? (<div role="tablist" aria-label={t("Workspace")} className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-stroke px-2">
               {workspaceTabItems}
             </div>) : null}
         </>)}
       <>
         <div className={`flex min-h-0 flex-1 flex-col overflow-hidden ${tab === "files" ? "" : "hidden"}`}>
           {cwd && cwd !== "~" && onOpenFile ? (<FileTree key={cwd} cwd={cwd} onOpenFile={onOpenFile} onFileMoved={onFileMoved} onFileDeleted={onFileDeleted}/>) : (<p className="px-3 py-2 text-[12px] text-content/50">
-              No project folder
-            </p>)}
+              {t("No project folder")}</p>)}
         </div>
         {tab === "canvases" ? (<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {cwd && cwd !== "~" && onOpenCanvas && onOpenCanvasInTab && onNewCanvas && onRenameCanvas && onDeleteCanvas ? (<CanvasList canvases={canvases} cwd={cwd} activeId={activeCanvasId} onOpen={onOpenCanvas} onOpenInTab={onOpenCanvasInTab} onNew={onNewCanvas} onRename={onRenameCanvas} onDelete={onDeleteCanvas} onOpenAll={onOpenCanvases}/>) : (<p className="px-3 py-2 text-[12px] text-content/50">
-                No project folder
-              </p>)}
+                {t("No project folder")}</p>)}
           </div>) : null}
 
         {tab === "sessions" && cwd && cwd !== "~" ? (<div className="flex h-9 shrink-0 items-center gap-1 border-b border-stroke px-2">
@@ -955,7 +954,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
               <Search className="pointer-events-none absolute left-2 size-3 shrink-0 opacity-50"/>
               {sessionSearchInput}
             </div>
-            <SessionsHeaderButton label="Filter sessions" active={filtersActive} open={!!filterMenu} hasPopup onClick={onFilterButtonClick}>
+            <SessionsHeaderButton label={t("Filter sessions")} active={filtersActive} open={!!filterMenu} hasPopup onClick={onFilterButtonClick}>
               <ListFilter className="size-3" strokeWidth={1.75}/>
             </SessionsHeaderButton>
           </div>) : null}
@@ -964,8 +963,7 @@ function SidebarComponent({ cwd, open, sessions, busySessionIds, approvalSession
             sessionsScrollRef.current = el;
         }} className={`sidebar-session-scroll min-h-0 flex-1 overflow-y-auto overscroll-none ${tab === "sessions" ? "" : "hidden"}`}>
           {!cwd || cwd === "~" ? (<p className="px-3 py-2 text-[12px] text-content/50">
-              No project folder
-            </p>) : (<div>
+              {t("No project folder")}</p>) : (<div>
               {/*
 A project's first load stays deliberately blank. The listing is
 served from a covering index and resolves within a frame or two,
@@ -975,17 +973,16 @@ cannot claim "No sessions yet" before the rows have landed.
 */}
               {pendingFirstLoad ? null : status === "error" &&
                 projectSessions.length === 0 ? (<p className="px-3 py-2 text-[12px] text-content/50">
-                  Couldn’t load sessions
-                </p>) : visibleSessions.length === 0 ? (
+                  {t("Couldn’t load sessions")}</p>) : visibleSessions.length === 0 ? (
             // A narrowed-down result is a transient answer to what the user
             // just typed, so it stays a quiet line of text. Only the genuine
             // "this project has nothing in it" case earns the illustration.
             narrowedByUser ? (<p className="px-3 py-2 text-[12px] text-content/50">
                     {searchNarrowed
-                    ? "No matching sessions"
-                    : "No sessions match these filters"}
+                    ? t("No matching sessions")
+                    : t("No sessions match these filters")}
                   </p>) :
-                (<SessionsEmpty message="Sessions you start will show up here"/>)) : (<ul data-session-list className="flex flex-col gap-0.5 p-1.5 pb-10">
+                (<SessionsEmpty message={t("Sessions you start will show up here")}/>)) : (<ul data-session-list className="flex flex-col gap-0.5 p-1.5 pb-10">
                   {sessionListEntries.map((entry, index) => {
                     if (entry.kind === "pinned" || entry.kind === "reminders") {
                         const isReminders = entry.kind === "reminders";
@@ -995,10 +992,10 @@ cannot claim "No sessions yet" before the rows have landed.
                           <div className="overflow-hidden rounded-md bg-content/5">
                             <FolderRow folder={isReminders
                                 ? {
-                                    name: "Reminders",
+                                    name: t("Reminders"),
                                     customColor: REMINDERS_COLOR,
                                 }
-                                : { name: "Pinned" }} sessions={entry.sessions} expanded={expanded} dropTarget={false} busy={entry.sessions.some((session) => listedBusySessionIds.has(session.id))} done={entry.sessions.some((session) => unseenFinishedIds.has(session.id))} needsApproval={entry.sessions.some((session) => listedApprovalSessionIds.has(session.id))} groupIcon={isReminders ? (<Clock className="size-3.5" strokeWidth={1.75}/>) : (<Pin className="size-3.5 text-content" strokeWidth={1.75}/>)} onToggle={() => {
+                                : { name: t("Pinned") }} sessions={entry.sessions} expanded={expanded} dropTarget={false} busy={entry.sessions.some((session) => listedBusySessionIds.has(session.id))} done={entry.sessions.some((session) => unseenFinishedIds.has(session.id))} needsApproval={entry.sessions.some((session) => listedApprovalSessionIds.has(session.id))} groupIcon={isReminders ? (<Clock className="size-3.5" strokeWidth={1.75}/>) : (<Pin className="size-3.5 text-content" strokeWidth={1.75}/>)} onToggle={() => {
                                 if (searchNarrowed)
                                     return;
                                 const collapsed = !entry.collapsed;
@@ -1053,11 +1050,10 @@ cannot claim "No sessions yet" before the rows have landed.
                                     </SessionListItem>))}
                                 </ul>
                                 {onNew ? (<div className="border-t border-stroke p-1">
-                                    <button type="button" data-no-drag data-tauri-drag-region="false" title="New session" aria-label="New session" onClick={() => onNewInFolder(entry.folder.id)} className="relative flex w-full items-center gap-1 rounded-md border border-transparent px-2.5 py-1.5 text-left text-content/45 hover:bg-content/10 hover:text-content">
+                                    <button type="button" data-no-drag data-tauri-drag-region="false" title={t("New session")} aria-label={t("New session")} onClick={() => onNewInFolder(entry.folder.id)} className="relative flex w-full items-center gap-1 rounded-md border border-transparent px-2.5 py-1.5 text-left text-content/45 hover:bg-content/10 hover:text-content">
                                       <Plus className="size-3 shrink-0" strokeWidth={1.75}/>
                                       <span className="text-[13px] font-semibold leading-snug">
-                                        New session
-                                      </span>
+                                        {t("New session")}</span>
                                     </button>
                                   </div>) : null}
                               </>) : null}
@@ -1078,17 +1074,17 @@ cannot claim "No sessions yet" before the rows have landed.
 
             <div className="flex shrink-0 flex-col gap-px p-2 empty:hidden">
 
-              {!compactProjectRail ? (<RailAction label="Settings" icon={Settings} onClick={onOpenSettings} shortcut={`${MOD},`} ariaLabel={`Settings (${MOD},)`}/>) : null}
+              {!compactProjectRail ? (<RailAction label={t("Settings")} icon={Settings} onClick={onOpenSettings} shortcut={`${MOD},`} ariaLabel={t("Settings ({0},)", MOD)}/>) : null}
             </div>
           </>) : null}
       </>
       {sessionMenu ? (<ContextMenu x={sessionMenu.x} y={sessionMenu.y} items={sessionMenuItems} ariaLabel={multipleMenuSessions
-                ? `${menuSessionIds.length} selected session actions`
-                : "Session actions"} onPick={onSessionMenuPick} onClose={closeSessionMenu}/>) : null}
-      {folderMenu ? (<ContextMenu x={folderMenu.x} y={folderMenu.y} items={folderMenuItems} ariaLabel="Folder actions" width={260} header={<FolderColorSwatches colorIndex={menuFolder?.colorIndex} customColor={menuFolder?.customColor} onChange={onFolderColorChange} onCustomChange={onFolderCustomColorChange}/>} onPick={onFolderMenuPick} onClose={() => setFolderMenu(null)}/>) : null}
+                ? t("{0} selected session actions", menuSessionIds.length)
+                : t("Session actions")} onPick={onSessionMenuPick} onClose={closeSessionMenu}/>) : null}
+      {folderMenu ? (<ContextMenu x={folderMenu.x} y={folderMenu.y} items={folderMenuItems} ariaLabel={t("Folder actions")} width={260} header={<FolderColorSwatches colorIndex={menuFolder?.colorIndex} customColor={menuFolder?.customColor} onChange={onFolderColorChange} onCustomChange={onFolderCustomColorChange}/>} onPick={onFolderMenuPick} onClose={() => setFolderMenu(null)}/>) : null}
       {filterMenu ? (<SessionFiltersMenu x={filterMenu.x} y={filterMenu.y} harnesses={sessionHarnesses} filters={sessionFilters} onChange={onSessionFiltersChange} onClose={() => setFilterMenu(null)}/>) : null}
 
-      <div role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuenow={resize.width} aria-valuemin={MIN_WIDTH} aria-valuemax={MAX_WIDTH} className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick}/>
+      <div role="separator" aria-orientation="vertical" aria-label={t("Resize sidebar")} aria-valuenow={resize.width} aria-valuemin={MIN_WIDTH} aria-valuemax={MAX_WIDTH} className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick}/>
     </aside>);
     return (<div className={`flex h-full shrink-0 ${railVisible || compactRailVisible || sidebarVisible ? "" : "hidden"}`}>
       {compactRailVisible ? (<CompactProjectRail cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} tabs={visibleTabs} activeTab={tab} tabShown={panelOpen} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onTabChange={onCompactTabPick} onSearch={onSearch} searchActive={searchActive} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} notesActive={notesActive} onOpenCanvases={onOpenCanvases} canvasesActive={canvasesActive} onOpenSettings={onOpenSettings} onTogglePanel={onToggleProjectRail} onLeaveActive={onGoBack} titleBarAbove={titleBarAbove}/>) : null}
@@ -1107,6 +1103,7 @@ function SearchableProjectPickerWithMenu({ onRemoveProject, onOpenNotificationSe
     onRemoveProject?: Props["onRemoveProject"];
     onOpenNotificationSettings?: (projectPath?: string) => void;
 }) {
+  useLocale();
     const projectMenu = useProjectMenu({
         onRemoveProject,
         onOpenNotificationSettings,
@@ -1130,17 +1127,18 @@ function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProje
     searchActive?: boolean;
     notesActive?: boolean;
 }) {
+  useLocale();
     return (<div className="flex h-9 items-center gap-0.5 border-b border-stroke px-2" data-tauri-drag-region="deep">
       <SearchableProjectPickerWithMenu cwd={cwd} recents={recents} busy={busy} className="flex-1" onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onOpenNotificationSettings={onOpenNotificationSettings}/>
       <div className="ml-auto flex items-center">
-        {onNew ? (<IconButton label={`New tab (${MOD}T)`} onClick={onNew}>
+        {onNew ? (<IconButton label={t("New tab ({0}T)", MOD)} onClick={onNew}>
             <Plus className="size-3.5" strokeWidth={1.75}/>
           </IconButton>) : null}
-        {onSearch ? (<IconButton label={`Search (${MOD}K)`} active={searchActive} onClick={onSearch}>
+        {onSearch ? (<IconButton label={t("Search ({0}K)", MOD)} active={searchActive} onClick={onSearch}>
             <Search className="size-3.5" strokeWidth={1.75}/>
           </IconButton>) : null}
 
-        {onOpenNotes ? (<IconButton label="Notes" active={notesActive} onClick={onOpenNotes}>
+        {onOpenNotes ? (<IconButton label={t("Notes")} active={notesActive} onClick={onOpenNotes}>
             <StickyNote className="size-3.5" strokeWidth={1.75}/>
           </IconButton>) : null}
 
@@ -1171,6 +1169,7 @@ function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onS
     onLeaveActive?: () => void;
     titleBarAbove: boolean;
 }) {
+  useLocale();
     const action = (active: boolean, open?: () => void) => active && onLeaveActive ? onLeaveActive : open;
     const workspaceActive = !searchActive && !notesActive && !canvasesActive;
     const openWorkspaceTab = (nextTab: SidebarTab) => {
@@ -1182,23 +1181,23 @@ function CompactProjectRail({ cwd, recents, busy, tabs, activeTab, tabShown, onS
             onLeaveActive?.();
         onTabChange(nextTab);
     };
-    return (<nav aria-label="Project shortcuts" data-compact-project-rail className="sidebar-glass relative flex h-full w-12 shrink-0 flex-col items-center">
+    return (<nav aria-label={t("Project shortcuts")} data-compact-project-rail className="sidebar-glass relative flex h-full w-12 shrink-0 flex-col items-center">
       {titleBarAbove ? null : (<div className="h-10 w-full shrink-0 border-b border-stroke" data-tauri-drag-region="deep"/>)}
       <span aria-hidden data-compact-rail-divider className={`pointer-events-none absolute bottom-0 right-0 w-px bg-stroke ${titleBarAbove ? "top-0" : "top-10"}`}/>
       <div data-compact-rail-actions className="flex w-full shrink-0 flex-col items-center gap-1.5 py-1.5">
-        <CompactRailAction label="Expand projects" icon={PanelLeft} onClick={onTogglePanel}/>
+        <CompactRailAction label={t("Expand projects")} icon={PanelLeft} onClick={onTogglePanel}/>
         {onSelectProject ? (<SearchableProjectPickerWithMenu cwd={cwd} recents={recents} busy={busy} compact className="w-full justify-center" onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onOpenNotificationSettings={onOpenNotificationSettings}/>) : null}
-        <div role="tablist" aria-label="Workspace" aria-orientation="vertical" className="flex flex-col items-center gap-1.5">
+        <div role="tablist" aria-label={t("Workspace")} aria-orientation="vertical" className="flex flex-col items-center gap-1.5">
           {tabs.map((itemId) => (<CompactRailAction key={itemId} tab label={TAB_LABELS[itemId]} icon={COMPACT_TAB_ICONS[itemId]} active={itemId === "canvases" && canvasesActive ? true : workspaceActive && tabShown && activeTab === itemId} onClick={() => openWorkspaceTab(itemId)}/>))}
         </div>
-        <CompactRailAction label={`Search (${MOD}K)`} icon={Search} active={searchActive} onClick={action(searchActive, onSearch)}/>
+        <CompactRailAction label={t("Search ({0}K)", MOD)} icon={Search} active={searchActive} onClick={action(searchActive, onSearch)}/>
 
-        {onOpenNotes ? (<CompactRailAction label="Notes" icon={StickyNote} active={notesActive} onClick={action(notesActive, onOpenNotes)}/>) : null}
+        {onOpenNotes ? (<CompactRailAction label={t("Notes")} icon={StickyNote} active={notesActive} onClick={action(notesActive, onOpenNotes)}/>) : null}
 
       </div>
       <div className="min-h-2 flex-1"/>
       <div className="flex w-full flex-col items-center gap-1 py-1.5">
-        <CompactRailAction label={`Settings (${MOD},)`} icon={Settings} onClick={onOpenSettings}/>
+        <CompactRailAction label={t("Settings ({0},)", MOD)} icon={Settings} onClick={onOpenSettings}/>
       </div>
 
     </nav>);
@@ -1212,6 +1211,7 @@ function CompactRailAction({ label, icon: Icon, tab = false, active = false, dot
     onClick?: () => void;
     onOpenContextMenu?: (x: number, y: number) => void;
 }) {
+  useLocale();
     return (<button type="button" role={tab ? "tab" : undefined} title={label} aria-label={label} aria-selected={tab ? active : undefined} aria-pressed={tab ? undefined : active} disabled={!onClick} onClick={onClick} onContextMenu={onOpenContextMenu
             ? (event) => {
                 event.preventDefault();
@@ -1240,11 +1240,12 @@ function CompactRailAction({ label, icon: Icon, tab = false, active = false, dot
 function WorkspaceTitleActions({ onNew, }: {
     onNew?: () => void;
 }) {
+  useLocale();
     if (!onNew)
         return null;
     return (<div className="flex shrink-0 items-center gap-0.5" data-tauri-drag-region="false">
 
-      {onNew ? (<IconButton label={`New session (${MOD}T)`} onClick={onNew}>
+      {onNew ? (<IconButton label={t("New session ({0}T)", MOD)} onClick={onNew}>
           <Plus className="size-3.5" strokeWidth={1.75}/>
         </IconButton>) : null}
     </div>);
@@ -1257,6 +1258,7 @@ function SessionsHeaderButton({ label, active = false, open = false, hasPopup = 
     onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
     children: ReactNode;
 }) {
+  useLocale();
     return (<button type="button" title={label} aria-label={label} aria-expanded={open} aria-haspopup={hasPopup ? "menu" : undefined} onPointerDown={(event) => event.stopPropagation()} onClick={onClick} className={`relative z-50 grid size-6 place-items-center rounded-md text-content/50 hover:bg-content/10 hover:text-content ${open || active ? "bg-selection text-content" : ""}`}>
       {children}
     </button>);
@@ -1288,6 +1290,7 @@ function FolderColorSwatches({ colorIndex, customColor, onChange, onCustomChange
     onChange: (index: number | null) => void;
     onCustomChange: (color: string) => void;
 }) {
+  useLocale();
     const paletteColor = colorIndex != null ? TAB_GROUP_COLORS[colorIndex] : TAB_GROUP_COLORS[0];
     const pickerValue = customColor ?? normalizeHex(paletteColor ?? TAB_GROUP_COLORS[0]);
     return (<div className="px-1 py-1">
@@ -1309,6 +1312,7 @@ function FolderRow({ folder, sessions, expanded, dropTarget, busy, done, needsAp
     onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
     onRename?: () => void;
 }) {
+  useLocale();
     const count = sessions.length;
     const accent = folderAccent(folder.colorIndex, folder.customColor);
     return (<button type="button" title={folder.name} aria-expanded={expanded} data-tauri-drag-region="false" onPointerDown={onPointerDown} onClick={onToggle} onContextMenu={onContextMenu} onKeyDown={(event) => {
@@ -1351,6 +1355,7 @@ function FolderRenameRow({ folder, memberCount, dropTarget, onCommit, onCancel, 
     onCommit: (name: string) => void;
     onCancel: () => void;
 }) {
+  useLocale();
     const inputRef = useRef<HTMLInputElement>(null);
     const finished = useRef(false);
     const [value, setValue] = useState(folder.name);
@@ -1412,6 +1417,7 @@ function SessionListItem({ session, cwd, motion, children, }: {
     motion: RefObject<SessionInsertMotion>;
     children: ReactNode;
 }) {
+  useLocale();
     const ref = useRef<HTMLLIElement>(null);
     // Decided once per row: effects can replay (StrictMode, reordering), and a
     // row that already slid in must not do it again.
@@ -1482,6 +1488,7 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
     onRename?: (sessionId: string) => void;
     onDelete?: (sessionId: string) => void;
 }) {
+  useLocale();
     const skipClickUntil = useRef(0);
     const prefetchTimer = useRef<number | null>(null);
     const [dragging, setDragging] = useState(false);
@@ -1503,16 +1510,16 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
     const status = (<span className={`flex shrink-0 items-center gap-1 text-[11px] tabular-nums ${statusClass}`}>
       {needsApproval ? (<>
           <CircleAlert className="size-3" strokeWidth={1.75}/>
-          <span>{"Need approval"}</span>
+          <span>{t("Need approval")}</span>
         </>) : busy ? (<>
           <ActivitySpinner className="inline-block w-3 select-none text-center text-[11px] leading-none text-accent"/>
-          <span>Working...</span>
+          <span>{t("Working...")}</span>
         </>) : done ? (<>
           <Check className="size-3" strokeWidth={2.25}/>
-          <span>Done</span>
+          <span>{t("Done")}</span>
         </>) : draft ? (<>
           <CircleDashed className="size-3" strokeWidth={1.75}/>
-          <span>Draft</span>
+          <span>{t("Draft")}</span>
         </>) : (<span>{time}</span>)}
     </span>);
     const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1661,7 +1668,7 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
         window.clearTimeout(prefetchTimer.current);
         prefetchTimer.current = null;
     };
-    const archiveLabel = session.archived ? "Unarchive" : "Archive";
+    const archiveLabel = session.archived ? t("Unarchive") : t("Archive");
     const cardPaddingY = compact ? "py-1.5" : "py-2";
     return (<div className="group relative">
       <div title={title} data-session-card={session.id} data-session-selected={isSelected ? "true" : undefined} data-tauri-drag-region="false" onPointerDown={onPointerDown} onPointerEnter={schedulePrefetch} onPointerLeave={cancelScheduledPrefetch} onClick={(event) => {
@@ -1740,6 +1747,7 @@ function SessionRenameRow({ session, isActive, needsApproval, onCommit, onCancel
     onCommit: (title: string) => void;
     onCancel: () => void;
 }) {
+  useLocale();
     const inputRef = useRef<HTMLInputElement>(null);
     const finished = useRef(false);
     const [value, setValue] = useState(() => sessionDisplayTitle(session.title, session.harness));
@@ -1803,7 +1811,7 @@ function formatRelative(value: number, now: number): string {
     if (days < 7)
         return `${days}d`;
     try {
-        return new Intl.DateTimeFormat(undefined, {
+        return new Intl.DateTimeFormat(getLocale(), {
             month: "short",
             day: "numeric",
         }).format(new Date(value));

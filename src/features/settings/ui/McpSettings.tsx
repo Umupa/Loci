@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
@@ -52,6 +53,7 @@ const SCOPES: Record<Provider, Scope[]> = {
 };
 
 function ProviderIcon({ provider }: { provider: Provider }) {
+  useLocale();
   return (
     <HarnessIcon
       harness={provider}
@@ -71,6 +73,7 @@ function McpPicker<T extends string>({
   options: { value: T; label: string; icon?: ReactNode }[];
   onChange: (value: T) => void;
 }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -169,6 +172,7 @@ function AddServerModal({
   onClose: () => void;
   onAdded: () => Promise<void>;
 }) {
+  useLocale();
   const [provider, setProvider] = useState<Provider>(initialProvider);
   const [scope, setScope] = useState<Scope>(SCOPES[initialProvider][0]);
   const [name, setName] = useState("");
@@ -181,7 +185,7 @@ function AddServerModal({
     try {
       const parsed: unknown = JSON.parse(config);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("Configuration must be a JSON object");
+        throw new Error(t("Configuration must be a JSON object"));
       }
       setBusy(true);
       setError("");
@@ -203,15 +207,15 @@ function AddServerModal({
 
   return (
     <Modal
-      title="Add MCP server"
-      description="Paste a server configuration and choose where to add it."
+      title={t("Add MCP server")}
+      description={t("Paste a server configuration and choose where to add it.")}
       onClose={onClose}
       fitViewport
     >
       <form onSubmit={(event) => void add(event)} className="space-y-4 p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <McpPicker
-            label="Provider"
+            label={t("Provider")}
             value={provider}
             options={PROVIDERS.map((option) => ({
               value: option,
@@ -224,7 +228,7 @@ function AddServerModal({
             }}
           />
           <McpPicker
-            label="Scope"
+            label={t("Scope")}
             value={scope}
             options={SCOPES[provider].map((option) => ({
               value: option,
@@ -234,9 +238,9 @@ function AddServerModal({
           />
         </div>
         <label className="block text-xs text-content/65">
-          Name{" "}
+          {t("Name")}{" "}
           <span className="text-content/40">
-            (optional for an mcpServers block)
+            {t("(optional for an mcpServers block)")}
           </span>
           <input
             value={name}
@@ -247,8 +251,7 @@ function AddServerModal({
           />
         </label>
         <label className="block text-xs text-content/65">
-          JSON configuration
-          <textarea
+          {t("JSON configuration")}<textarea
             required
             value={config}
             onChange={(event) => setConfig(event.target.value)}
@@ -261,8 +264,7 @@ function AddServerModal({
           />
         </label>
         <p className="text-xs text-content/45">
-          Paste one entry from an mcpServers block, or a single server object
-          with a name above.
+          {t("Paste one entry from an mcpServers block, or a single server object with a name above.")}
         </p>
         {error ? (
           <p
@@ -278,14 +280,13 @@ function AddServerModal({
             onClick={onClose}
             className="rounded-md border border-stroke px-3 py-1.5 text-xs hover:bg-content/5"
           >
-            Cancel
-          </button>
+            {t("Cancel")}</button>
           <button
             type="submit"
             disabled={busy}
             className="rounded-md border border-stroke px-3 py-1.5 text-xs hover:bg-content/5 disabled:opacity-50"
           >
-            {busy ? "Adding…" : "Add server"}
+            {busy ? t("Adding…") : t("Add server")}
           </button>
         </div>
       </form>
@@ -300,6 +301,7 @@ export function McpSettings({
   cwd: string;
   recents?: RecentProject[];
 }) {
+  useLocale();
   const [selection, setSelection] = useState({ initialCwd: cwd, project: cwd });
   const project = selection.initialCwd === cwd ? selection.project : cwd;
   return (
@@ -326,6 +328,7 @@ export function McpSettings({
 }
 
 function BuiltinCanvasMcp() {
+  useLocale();
   const enabled = useCanvasMcpEnabled();
   const [problem, setProblem] = useState<string | null | undefined>(undefined);
   const [check, setCheck] = useState(0);
@@ -335,13 +338,13 @@ function BuiltinCanvasMcp() {
     void canvasMcpProblem().then((result) => { if (current) setProblem(result); });
     return () => { current = false; };
   }, [enabled, check]);
-  const status = !enabled ? "Disabled" : problem === undefined ? "Checking…" : problem ? "Unavailable" : "Enabled";
+  const status = !enabled ? t("Disabled") : problem === undefined ? t("Checking…") : problem ? t("Unavailable") : t("Enabled");
 
   return (
     <div id="setting-builtin-excalidraw" data-setting-id="builtin-excalidraw" className="space-y-3">
       <div>
-        <h2 className="text-sm font-semibold">Built-in MCP</h2>
-        <p className="mt-1 text-xs text-content/55">Servers provided by Loci. These settings apply to all projects.</p>
+        <h2 className="text-sm font-semibold">{t("Built-in MCP")}</h2>
+        <p className="mt-1 text-xs text-content/55">{t("Servers provided by Loci. These settings apply to all projects.")}</p>
       </div>
       <div className="rounded-xl border border-content/10 bg-content/3 px-4 py-3.5">
         <div className="flex items-start gap-3">
@@ -351,12 +354,11 @@ function BuiltinCanvasMcp() {
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-content">
               Excalidraw
-              <span className="rounded bg-content/5 px-1.5 py-0.5 text-[10px] font-normal text-content/55">Built-in</span>
+              <span className="rounded bg-content/5 px-1.5 py-0.5 text-[10px] font-normal text-content/55">{t("Built-in")}</span>
             </div>
-            <p className="text-[12px] text-content/45">{CANVAS_MCP_NAME} · Local · {status}</p>
+            <p className="text-[12px] text-content/45">{CANVAS_MCP_NAME}{" "}{t("· Local ·")}{" "}{status}</p>
             <p id="builtin-excalidraw-description" className="text-[12px] leading-relaxed text-content/65">
-              Let agents read and edit this project's Loci canvases. Drawings are saved locally.
-            </p>
+              {t("Let agents read and edit this project's Loci canvases. Drawings are saved locally.")}</p>
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-content/50">
               {PROVIDERS.map((provider) => <span key={provider} className="inline-flex items-center gap-1.5"><ProviderIcon provider={provider} />{MCP_PROVIDER_LABELS[provider]}</span>)}
             </p>
@@ -364,7 +366,7 @@ function BuiltinCanvasMcp() {
           <button
             type="button"
             role="switch"
-            aria-label="Enable built-in Excalidraw MCP"
+            aria-label={t("Enable built-in Excalidraw MCP")}
             aria-checked={enabled}
             aria-describedby="builtin-excalidraw-description builtin-excalidraw-timing"
             onClick={() => saveCanvasMcpEnabled(!enabled)}
@@ -374,12 +376,11 @@ function BuiltinCanvasMcp() {
           </button>
         </div>
         <p id="builtin-excalidraw-timing" className="mt-3 text-[11px] leading-relaxed text-content/45">
-          Changes apply from each session's next turn. A turn already in progress can finish.
-        </p>
+          {t("Changes apply from each session's next turn. A turn already in progress can finish.")}</p>
         {enabled && problem ? (
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
             <p role="status" className="min-w-0 flex-1 text-amber-400">{problem}</p>
-            <button type="button" onClick={() => setCheck((value) => value + 1)} className="rounded-md border border-stroke px-2 py-1 hover:bg-content/5">Check again</button>
+            <button type="button" onClick={() => setCheck((value) => value + 1)} className="rounded-md border border-stroke px-2 py-1 hover:bg-content/5">{t("Check again")}</button>
           </div>
         ) : null}
       </div>
@@ -390,6 +391,7 @@ function BuiltinCanvasMcp() {
 
 /** The learning server has no switch: it is only attached to threads where the user typed /learn. */
 function BuiltinLearnMcp() {
+  useLocale();
   const [problem, setProblem] = useState<string | null | undefined>(undefined);
   const [check, setCheck] = useState(0);
   useEffect(() => {
@@ -398,7 +400,7 @@ function BuiltinLearnMcp() {
     void learnMcpProblem().then((result) => { if (current) setProblem(result); });
     return () => { current = false; };
   }, [check]);
-  const status = problem === undefined ? "Checking…" : problem ? "Unavailable" : "Available";
+  const status = problem === undefined ? t("Checking…") : problem ? t("Unavailable") : t("Available");
 
   return (
     <div id="setting-builtin-learn" data-setting-id="builtin-learn" className="rounded-xl border border-content/10 bg-content/3 px-4 py-3.5">
@@ -408,13 +410,11 @@ function BuiltinLearnMcp() {
         </span>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-content">
-            Learning
-            <span className="rounded bg-content/5 px-1.5 py-0.5 text-[10px] font-normal text-content/55">Built-in</span>
+            {t("Learning")}<span className="rounded bg-content/5 px-1.5 py-0.5 text-[10px] font-normal text-content/55">{t("Built-in")}</span>
           </div>
-          <p className="text-[12px] text-content/45">{LEARN_MCP_NAME} · Local · {status}</p>
+          <p className="text-[12px] text-content/45">{LEARN_MCP_NAME}{" "}{t("· Local ·")}{" "}{status}</p>
           <p className="text-[12px] leading-relaxed text-content/65">
-            Lets an agent keep a project's learning map with you. It is attached only to threads where you type /learn, and it records a node as learned only from your own words.
-          </p>
+            {t("Lets an agent keep a project's learning map with you. It is attached only to threads where you type /learn, and it records a node as learned only from your own words.")}</p>
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-content/50">
             {PROVIDERS.map((provider) => <span key={provider} className="inline-flex items-center gap-1.5"><ProviderIcon provider={provider} />{MCP_PROVIDER_LABELS[provider]}</span>)}
           </p>
@@ -423,7 +423,7 @@ function BuiltinLearnMcp() {
       {problem ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <p role="status" className="min-w-0 flex-1 text-amber-400">{problem}</p>
-          <button type="button" onClick={() => setCheck((value) => value + 1)} className="rounded-md border border-stroke px-2 py-1 hover:bg-content/5">Check again</button>
+          <button type="button" onClick={() => setCheck((value) => value + 1)} className="rounded-md border border-stroke px-2 py-1 hover:bg-content/5">{t("Check again")}</button>
         </div>
       ) : null}
     </div>
@@ -437,6 +437,7 @@ function McpConnections({
   cwd: string;
   projectPicker: ReactNode;
 }) {
+  useLocale();
   const cached = getCachedMcpSettings(cwd);
   const [servers, setServers] = useState<ServerRow[]>(cached?.servers ?? []);
   const [filter, setFilter] = useState<Filter>("all");
@@ -491,7 +492,7 @@ function McpConnections({
       filter === "all"
         ? servers
         : servers.filter((server) => server.provider === filter),
-    [filter, servers],
+    [getLocale(), filter, servers],
   );
   const filterProviders = showAllProviders
     ? PROVIDERS
@@ -525,8 +526,8 @@ function McpConnections({
       ? server.scope
       : (removeScopes[server.name] ?? "local");
     if (
-      !(await ask(`Remove ${server.name} from ${selectedScope} scope?`, {
-        title: "Remove MCP server",
+      !(await ask(t("Remove {0} from {1} scope?", server.name, selectedScope), {
+        title: t("Remove MCP server"),
       }))
     )
       return;
@@ -555,13 +556,11 @@ function McpConnections({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-sm font-semibold">MCP connections</h2>
+            <h2 className="text-sm font-semibold">{t("MCP connections")}</h2>
             {projectPicker}
           </div>
           <p className="mt-1 text-xs text-content/55">
-            Configured servers for the selected project and your provider
-            accounts.
-          </p>
+            {t("Configured servers for the selected project and your provider accounts.")}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -571,20 +570,19 @@ function McpConnections({
             className="flex items-center gap-1.5 rounded-md border border-stroke px-3 py-1.5 text-xs hover:bg-content/5 disabled:opacity-50"
           >
             <RefreshCw className="size-3.5" />
-            Refresh
-          </button>
+            {t("Refresh")}</button>
           <button
             type="button"
             aria-label={
               showAllProviders
-                ? "Show available providers"
-                : "Show all providers"
+                ? t("Show available providers")
+                : t("Show all providers")
             }
             aria-pressed={showAllProviders}
             title={
               showAllProviders
-                ? "Showing all providers"
-                : "Showing available providers"
+                ? t("Showing all providers")
+                : t("Showing available providers")
             }
             onClick={() => setShowAllProviders(!showAllProviders)}
             className={`grid size-7 place-items-center rounded-md border border-content/10 hover:bg-content/5 ${showAllProviders ? "bg-selection text-content" : "text-content/55"}`}
@@ -593,7 +591,7 @@ function McpConnections({
           </button>
           <button
             type="button"
-            aria-label="Add MCP server"
+            aria-label={t("Add MCP server")}
             onClick={() => setAddOpen(true)}
             className="grid size-7 place-items-center rounded-md border border-stroke hover:bg-content/5"
           >
@@ -604,7 +602,7 @@ function McpConnections({
       <div
         role="group"
         className="inline-flex max-w-full flex-wrap gap-0.5 rounded-md border border-content/10 p-0.5 text-[12px]"
-        aria-label="Filter MCP servers by provider"
+        aria-label={t("Filter MCP servers by provider")}
       >
         {(["all", ...filterProviders] as const).map((provider) => (
           <button
@@ -619,7 +617,7 @@ function McpConnections({
             ) : (
               <ProviderIcon provider={provider} />
             )}
-            {provider === "all" ? "All" : MCP_PROVIDER_LABELS[provider]}
+            {provider === "all" ? t("All") : MCP_PROVIDER_LABELS[provider]}
             <span className="opacity-60">
               {provider === "all"
                 ? servers.length
@@ -639,15 +637,14 @@ function McpConnections({
       ) : null}
       {claudeError && (filter === "all" || filter === "claude") ? (
         <p className="text-xs text-content/55">
-          Claude connection status unavailable: {claudeError}
+          {t("Claude connection status unavailable:")}{" "}{claudeError}
         </p>
       ) : null}
       {loading ? (
-        <p className="text-sm text-content/55">Checking servers…</p>
+        <p className="text-sm text-content/55">{t("Checking servers…")}</p>
       ) : visible.length === 0 ? (
         <p className="text-sm text-content/55">
-          No MCP servers configured for this provider.
-        </p>
+          {t("No MCP servers configured for this provider.")}</p>
       ) : (
         <div className="overflow-hidden rounded-xl border border-content/10 bg-content/3">
           {visible.map((server) => (
@@ -683,16 +680,15 @@ function McpConnections({
                   onClick={() => void login(server)}
                   className="rounded-md border border-stroke px-2 py-1 text-xs hover:bg-content/5 disabled:opacity-50"
                 >
-                  Sign in
-                </button>
+                  {t("Sign in")}</button>
               ) : null}
               {server.provider === "claude" ? (
                 <>
                   {!server.configPath ? (
                     <label className="text-xs text-content/55">
-                      Scope{" "}
+                      {t("Scope")}{" "}
                       <select
-                        aria-label={`Scope to remove ${server.name} from`}
+                        aria-label={t("Scope to remove {0} from", server.name)}
                         value={removeScopes[server.name] ?? "local"}
                         onChange={(event) =>
                           setRemoveScopes((current) => ({
@@ -702,9 +698,9 @@ function McpConnections({
                         }
                         className="rounded border border-stroke bg-background-base px-1 py-1 text-content"
                       >
-                        <option value="local">Local</option>
-                        <option value="project">Project</option>
-                        <option value="user">User</option>
+                        <option value="local">{t("Local")}</option>
+                        <option value="project">{t("Project")}</option>
+                        <option value="user">{t("User")}</option>
                       </select>
                     </label>
                   ) : null}
@@ -714,8 +710,7 @@ function McpConnections({
                     onClick={() => void remove(server)}
                     className="rounded-md border border-stroke px-2 py-1 text-xs hover:bg-content/5 disabled:opacity-50"
                   >
-                    Remove
-                  </button>
+                    {t("Remove")}</button>
                 </>
               ) : (
                 <button
@@ -727,17 +722,14 @@ function McpConnections({
                   }
                   className="rounded-md border border-stroke px-2 py-1 text-xs hover:bg-content/5"
                 >
-                  Show config
-                </button>
+                  {t("Show config")}</button>
               )}
             </div>
           ))}
         </div>
       )}
       <p className="text-xs text-content/45">
-        Claude Code status comes from its CLI. Other providers show configured
-        entries. Sign in opens your browser when supported.
-      </p>
+        {t("Claude Code status comes from its CLI. Other providers show configured entries. Sign in opens your browser when supported.")}</p>
       {addOpen ? (
         <AddServerModal
           cwd={cwd}

@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n/locale";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import {
   clampUsedPercent,
@@ -64,7 +65,7 @@ export function accountStatus(
   const headroom = accountHeadroom(limits, now);
   if (!limits || headroom == null) {
     if (!limits || limits.status === "idle" || limits.status === "fetching") {
-      return { tone: "checking", label: "Checking…", detail: null };
+      return { tone: "checking", label: t("Checking…"), detail: null };
     }
     return {
       tone: "unknown",
@@ -78,18 +79,18 @@ export function accountStatus(
   if (headroom <= 0) {
     return {
       tone: "exhausted",
-      label: "Exhausted",
+      label: t("Exhausted"),
       detail: backIn(limits, now),
     };
   }
   if (headroom <= LOW_HEADROOM_PERCENT) {
     return {
       tone: "low",
-      label: "Running low",
+      label: t("Running low"),
       detail: `${Math.round(headroom)}% left`,
     };
   }
-  return { tone: "ready", label: "Ready", detail: null };
+  return { tone: "ready", label: t("Ready"), detail: null };
 }
 
 /** "back in 31m" for the used-up window that stays blocked longest. */

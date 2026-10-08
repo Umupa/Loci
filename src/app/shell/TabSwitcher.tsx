@@ -1,3 +1,4 @@
+import { t, useLocale, getLocale } from "../../shared/i18n/locale";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Archive, Pin, PinOff, RotateCcw, Search, X } from "../../shared/ui/icons";
 import { Modal } from "../../shared/ui/Modal";
@@ -35,13 +36,14 @@ const COMMAND_KEY = IS_MAC ? "⌘" : "Ctrl";
  * strip has folded into an icon.
  */
 export function TabSwitcher({ tabs, activeId, projectPath, recent, closed, onActivate, onCloseTab, onPin, onReopen, onOpenOverview, onDismiss }: Props) {
+  useLocale();
   const [query, setQuery] = useState("");
   const [now] = useState(() => Date.now());
   const sections = useMemo(
     () => buildSwitcher({ tabs, activeId, projectPath, recent, closed, query }),
-    [tabs, activeId, projectPath, recent, closed, query],
+    [getLocale(), tabs, activeId, projectPath, recent, closed, query],
   );
-  const rows = useMemo(() => flattenSwitcher(sections), [sections]);
+  const rows = useMemo(() => flattenSwitcher(sections), [getLocale(), sections]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const selectedIndex = Math.max(0, rows.findIndex((row) => row.key === selectedKey));
   const selected = rows[selectedKey ? selectedIndex : initialSelection(rows)];
@@ -92,7 +94,7 @@ export function TabSwitcher({ tabs, activeId, projectPath, recent, closed, onAct
 
   const tabCount = tabs.length;
   return (
-    <Modal title="Switch tabs" onClose={onDismiss} size="md" minimalHeader>
+    <Modal title={t("Switch tabs")} onClose={onDismiss} size="md" minimalHeader>
       <div className="flex max-h-[min(540px,72vh)] flex-col" onKeyDown={onKeyDown} data-tab-switcher-panel>
         <div className="flex shrink-0 items-center gap-2.5 border-b border-stroke py-3 pl-4 pr-12">
           <Search className="size-4 shrink-0 text-content/40" strokeWidth={1.75} />
@@ -100,8 +102,8 @@ export function TabSwitcher({ tabs, activeId, projectPath, recent, closed, onAct
             autoFocus
             value={query}
             onChange={(event) => { setQuery(event.target.value); setSelectedKey(null); }}
-            placeholder="Switch to a tab…"
-            aria-label="Search open tabs"
+            placeholder={t("Switch to a tab…")}
+            aria-label={t("Search open tabs")}
             spellCheck={false}
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-[15px] leading-6 text-content outline-none placeholder:text-content/35"
@@ -110,12 +112,12 @@ export function TabSwitcher({ tabs, activeId, projectPath, recent, closed, onAct
         <div
           ref={(el) => { listRef.current = el; lockOverscroll(el); }}
           role="listbox"
-          aria-label="Open tabs"
+          aria-label={t("Open tabs")}
           onPointerMove={(event) => { pointer.current = { x: event.clientX, y: event.clientY }; }}
           className="min-h-0 flex-1 overflow-y-auto overscroll-none px-1.5 pb-1.5"
         >
           {rows.length === 0 ? (
-            <p className="px-3 py-8 text-center text-[13px] text-content/45">No tab matches “{query.trim()}”</p>
+            <p className="px-3 py-8 text-center text-[13px] text-content/45">{t("No tab matches “{0}”", query.trim())}</p>
           ) : null}
           {sections.map((section) => (
             <section key={section.id} aria-label={section.label}>
@@ -142,17 +144,16 @@ export function TabSwitcher({ tabs, activeId, projectPath, recent, closed, onAct
           ))}
         </div>
         <footer className="flex h-9 shrink-0 items-center gap-3.5 border-t border-stroke px-4 text-[11px] text-content/45">
-          <Hint keys={["↑", "↓"]} label="Move" />
-          <Hint keys={["↵"]} label="Open" />
-          <Hint keys={[COMMAND_KEY, "⌫"]} label="Close tab" />
+          <Hint keys={["↑", "↓"]} label={t("Move")} />
+          <Hint keys={["↵"]} label={t("Open")} />
+          <Hint keys={[COMMAND_KEY, "⌫"]} label={t("Close tab")} />
           <span className="flex-1" />
           {onOpenOverview ? (
             <button type="button" onClick={onOpenOverview} className="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-content/55 hover:bg-content/8 hover:text-content">
-              Overview
-              <kbd className="rounded border border-content/12 bg-content/6 px-1 font-sans text-[10px] leading-4 text-content/60">{COMMAND_KEY}⇧O</kbd>
+              {t("Overview")}<kbd className="rounded border border-content/12 bg-content/6 px-1 font-sans text-[10px] leading-4 text-content/60">{COMMAND_KEY}⇧O</kbd>
             </button>
           ) : null}
-          <span className="tabular-nums">{tabCount} open</span>
+          <span className="tabular-nums">{t("{0} open", tabCount)}</span>
         </footer>
       </div>
     </Modal>
@@ -170,9 +171,10 @@ function SwitcherRowView({ row, query, now, selected, showProject, onHover, onOp
   onClose?: () => void;
   onPin?: () => void;
 }) {
+  useLocale();
   if (row.kind === "closed") {
     const { closed } = row;
-    const title = closed.title || "New session";
+    const title = closed.title || t("New session");
     return (
       <div role="option" aria-selected={selected} onMouseMove={onHover} onClick={onOpen}
         className={`flex h-12 cursor-default items-center gap-3 rounded-lg px-2.5 ${selected ? "bg-selection" : ""}`}>
@@ -182,16 +184,16 @@ function SwitcherRowView({ row, query, now, selected, showProject, onHover, onOp
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] leading-snug text-content/80">{title}</p>
           <p className="truncate text-[11.5px] leading-snug text-content/40">
-            {closed.project}{row.alsoClosed ? ` · and ${row.alsoClosed} more ${closed.parked ? "parked" : "closed"} with it` : ""}
+            {closed.project}{row.alsoClosed ? (closed.parked ? t(" · and {0} more parked with it", row.alsoClosed) : t(" · and {0} more closed with it", row.alsoClosed)) : ""}
           </p>
         </div>
-        <span className="shrink-0 text-[11px] text-content/40">{closed.parked ? "Parked" : "Closed"} {shortAge(now - closed.closedAt)} ago</span>
-        <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] ${selected ? "bg-content/10 text-content" : "text-content/45"}`}>{closed.parked ? "Restore" : "Reopen"}</span>
+        <span className="shrink-0 text-[11px] text-content/40">{t("{0} {1} ago", closed.parked ? t("Parked") : t("Closed"), shortAge(now - closed.closedAt))}</span>
+        <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] ${selected ? "bg-content/10 text-content" : "text-content/45"}`}>{closed.parked ? t("Restore") : t("Reopen")}</span>
       </div>
     );
   }
   const { tab } = row;
-  const title = tab.title || "New session";
+  const title = tab.title || t("New session");
   const hit = query ? fuzzyMatch(query, title) : null;
   const label = tabStatusLabel(tab, now);
   const loud = tab.status === "approval" || tab.status === "done" || tab.status === "busy";
@@ -206,30 +208,32 @@ function SwitcherRowView({ row, query, now, selected, showProject, onHover, onOp
           <span className="min-w-0 truncate text-[13px] leading-snug text-content">
             <MatchText text={title} positions={hit?.positions ?? []} active={!!hit} />
           </span>
-          {row.current ? <Chip>Current</Chip> : null}
+          {row.current ? <Chip>{t("Current")}</Chip> : null}
           {tab.pinned ? <Pin className="size-3 shrink-0 text-content/35" strokeWidth={1.75} /> : null}
         </p>
         <p className="truncate text-[11.5px] leading-snug text-content/45">{tab.blank ? "Empty: nothing said yet" : tab.preview || label}</p>
       </div>
       {showProject ? <span className="max-w-28 shrink-0 truncate text-[11px] text-content/40">{tab.project}</span> : null}
-      {loud ? <span className={`shrink-0 text-[11px] ${STATUS_TEXT[tab.status ?? "idle"]} ${selected ? "hidden" : "group-hover:hidden"}`}>{tab.status === "busy" ? "Working" : tab.status === "approval" ? "Needs you" : "Finished"}</span> : null}
+      {loud ? <span className={`shrink-0 text-[11px] ${STATUS_TEXT[tab.status ?? "idle"]} ${selected ? "hidden" : "group-hover:hidden"}`}>{tab.status === "busy" ? t("Working") : tab.status === "approval" ? t("Needs you") : t("Finished")}</span> : null}
       <span className={`shrink-0 items-center gap-0.5 ${selected ? "flex" : "hidden group-hover:flex"}`}>
         {onPin ? (
-          <RowButton label={tab.pinned ? "Unpin tab" : "Pin tab"} onClick={onPin}>
+          <RowButton label={tab.pinned ? t("Unpin tab") : t("Pin tab")} onClick={onPin}>
             {tab.pinned ? <PinOff className="size-3.5" strokeWidth={1.75} /> : <Pin className="size-3.5" strokeWidth={1.75} />}
           </RowButton>
         ) : null}
-        {onClose ? <RowButton label="Close tab" onClick={onClose}><X className="size-3.5" strokeWidth={1.75} /></RowButton> : null}
+        {onClose ? <RowButton label={t("Close tab")} onClick={onClose}><X className="size-3.5" strokeWidth={1.75} /></RowButton> : null}
       </span>
     </div>
   );
 }
 
 function Chip({ children }: { children: ReactNode }) {
+  useLocale();
   return <span className="shrink-0 rounded bg-content/10 px-1 py-px text-[10px] leading-4 text-content/60">{children}</span>;
 }
 
 function RowButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  useLocale();
   return (
     <button type="button" title={label} aria-label={label} onMouseDown={(event) => event.preventDefault()}
       onClick={(event) => { event.stopPropagation(); onClick(); }}
@@ -240,6 +244,7 @@ function RowButton({ label, onClick, children }: { label: string; onClick: () =>
 }
 
 function Hint({ keys, label }: { keys: string[]; label: string }) {
+  useLocale();
   return (
     <span className="flex items-center gap-1.5">
       <span className="flex items-center gap-0.5">

@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n/locale";
 import { fuzzyMatch } from "../../../shared/lib/fuzzy";
 import { sameProjectPath } from "../../projects/model/recents";
 import type { ClosedTab } from "./closedTabs";
@@ -50,7 +51,7 @@ function closedRows(closed: readonly ClosedTab[], shown = MAX_CLOSED_SHOWN): Swi
 }
 
 function score(query: string, tab: Tab): number | null {
-  const title = fuzzyMatch(query, tab.title || "New session");
+  const title = fuzzyMatch(query, tab.title || t("New session"));
   if (title) return title.score + TITLE_BONUS;
   const project = fuzzyMatch(query, tab.project);
   if (project) return project.score + PROJECT_BONUS;
@@ -68,15 +69,15 @@ export function buildSwitcher(input: SwitcherInput): SwitcherSection[] {
       return value === null ? [] : [{ tab, value }];
     }).sort((a, b) => b.value - a.value);
     const closedHits = closed.flatMap((entry) => {
-      const hit = fuzzyMatch(query, entry.title || "New session");
+      const hit = fuzzyMatch(query, entry.title || t("New session"));
       return hit ? [{ entry, value: hit.score }] : [];
     }).sort((a, b) => b.value - a.value);
     const sections: SwitcherSection[] = [];
-    if (hits.length) sections.push({ id: "results", label: "Tabs", rows: hits.map(({ tab }) => tabRow(tab, activeId)) });
+    if (hits.length) sections.push({ id: "results", label: t("Tabs"), rows: hits.map(({ tab }) => tabRow(tab, activeId)) });
     const parkedHits = closedHits.filter(({ entry }) => entry.parked).map(({ entry }) => entry);
     const closedOnlyHits = closedHits.filter(({ entry }) => !entry.parked).map(({ entry }) => entry);
-    if (parkedHits.length) sections.push({ id: "parked", label: "Parked", rows: closedRows(parkedHits, MAX_PARKED_SHOWN) });
-    if (closedOnlyHits.length) sections.push({ id: "closed", label: "Recently closed", rows: closedRows(closedOnlyHits) });
+    if (parkedHits.length) sections.push({ id: "parked", label: t("Parked"), rows: closedRows(parkedHits, MAX_PARKED_SHOWN) });
+    if (closedOnlyHits.length) sections.push({ id: "closed", label: t("Recently closed"), rows: closedRows(closedOnlyHits) });
     return sections;
   }
 
@@ -90,18 +91,18 @@ export function buildSwitcher(input: SwitcherInput): SwitcherSection[] {
   const elsewhere = rest.filter((tab) => !here.includes(tab));
 
   const sections: SwitcherSection[] = [];
-  if (needsYou.length) sections.push({ id: "attention", label: "Needs you", rows: needsYou.map((tab) => tabRow(tab, activeId)) });
+  if (needsYou.length) sections.push({ id: "attention", label: t("Needs you"), rows: needsYou.map((tab) => tabRow(tab, activeId)) });
   // Tabs an agent started follow the tab that started them, indented.
-  if (here.length) sections.push({ id: "here", label: "This project", rows: familyOrder(here).map(({ tab, depth }) => tabRow(tab, activeId, depth)) });
+  if (here.length) sections.push({ id: "here", label: t("This project"), rows: familyOrder(here).map(({ tab, depth }) => tabRow(tab, activeId, depth)) });
   const projects = new Map<string, Tab[]>();
   for (const tab of elsewhere) projects.set(tab.project, [...(projects.get(tab.project) ?? []), tab]);
   for (const [project, group] of projects) {
-    sections.push({ id: `project:${project}`, label: project || "No project", rows: group.map((tab) => tabRow(tab, activeId)) });
+    sections.push({ id: `project:${project}`, label: project || t("No project"), rows: group.map((tab) => tabRow(tab, activeId)) });
   }
   const parked = closedRows(closed.filter((entry) => entry.parked), MAX_PARKED_SHOWN);
-  if (parked.length) sections.push({ id: "parked", label: "Parked", rows: parked });
+  if (parked.length) sections.push({ id: "parked", label: t("Parked"), rows: parked });
   const reopen = closedRows(closed.filter((entry) => !entry.parked));
-  if (reopen.length) sections.push({ id: "closed", label: "Recently closed", rows: reopen });
+  if (reopen.length) sections.push({ id: "closed", label: t("Recently closed"), rows: reopen });
   return sections;
 }
 

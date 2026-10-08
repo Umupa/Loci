@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../../shared/i18n/locale";
 import { useEffect,useRef,type MouseEvent as ReactMouseEvent } from "react";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
@@ -23,6 +24,7 @@ export function NoteMentionPicker({
   onActive,
   onPick,
 }: Props) {
+  useLocale();
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const activeRef = useRef<HTMLButtonElement>(null);
   const pointer = useRef({ x: Number.NaN, y: Number.NaN, allow: false });
@@ -62,16 +64,16 @@ export function NoteMentionPicker({
       {files.length === 0 ? (
         <p className="px-3 py-2.5 text-[12px] text-content/50">
             {loading
-              ? "Loading…"
+              ? t("Loading…")
               : query.trim()
-                ? "No matches"
-                : "Nothing to mention yet"}
+                ? t("No matches")
+                : t("Nothing to mention yet")}
         </p>
       ) : (
         <div
           ref={lockOverscroll}
           role="listbox"
-          aria-label="Mention"
+          aria-label={t("Mention")}
           onMouseMove={onListMouseMove}
           className="max-h-[min(240px,40vh)] overflow-y-auto overscroll-none px-1 py-1"
         >
@@ -128,7 +130,7 @@ export function NoteMentionPicker({
                 </span>
                 {note ? (
                   <span className="shrink-0 font-mono text-[11px] text-content/40">
-                    {kind === "canvas" ? "Drawing" : "Note"}
+                    {kind === "canvas" ? t("Drawing") : t("Note")}
                   </span>
                 ) : dir ? (
                   <span className="min-w-0 max-w-[45%] truncate font-mono text-[11px] text-content/40">

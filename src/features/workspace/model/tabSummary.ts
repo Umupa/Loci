@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n/locale";
 import { basename } from "../../../platform/tauri/fs";
 import { projectName } from "../../../shared/lib/paths";
 import { isBlankSession } from "../../projects/model/projectReturn";
@@ -154,34 +155,34 @@ export function summarizeTab(tab: WorkspaceTab, context: TabSummaryContext): Tab
   };
 }
 
-/** "now", "5m", "3h", "2d": how long ago, as short as it can be said. */
+/** t("now"), "5m", "3h", "2d": how long ago, as short as it can be said. */
 export function shortAge(ms: number): string {
   const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  if (minutes < 1) return "now";
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1) return t("now");
+  if (minutes < 60) return t("{0}m", minutes);
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  if (hours < 24) return t("{0}h", hours);
+  return t("{0}d", Math.floor(hours / 24));
 }
 
 function duration(ms: number): string {
   const seconds = Math.floor(Math.max(0, ms) / 1000);
-  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 60) return t("{0}s", seconds);
   const minutes = Math.floor(seconds / 60);
-  return minutes < 60 ? `${minutes}m ${seconds % 60}s` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return minutes < 60 ? t("{0}m {1}s", minutes, seconds % 60) : t("{0}h {1}m", Math.floor(minutes / 60), minutes % 60);
 }
 
 /** What a tab is up to, in words: the line under its title on the hover card. */
 export function tabStatusLabel(tab: Pick<Tab, "status" | "busySince" | "activityAt" | "blank">, now: number): string {
   switch (tab.status) {
     case "approval":
-      return "Needs your approval";
+      return t("Needs your approval");
     case "busy":
-      return tab.busySince ? `Working · ${duration(now - tab.busySince)}` : "Working";
+      return tab.busySince ? t("Working · {0}", duration(now - tab.busySince)) : t("Working");
     case "done":
-      return "Finished · not yet seen";
+      return t("Finished · not yet seen");
     default:
-      if (tab.blank) return "New session";
-      return tab.activityAt ? `Idle · ${shortAge(now - tab.activityAt)} ago` : "Idle";
+      if (tab.blank) return t("New session");
+      return tab.activityAt ? t("Idle · {0} ago", shortAge(now - tab.activityAt)) : t("Idle");
   }
 }

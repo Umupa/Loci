@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../shared/i18n/locale";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ContextMenu, type ContextMenuItem, } from "../../shared/ui/ContextMenu";
@@ -23,6 +24,7 @@ type Props = {
     onZoomReset?: () => void;
 };
 export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, onReopenTab, onToggleSidebar, onToggleSessionSidebar, onCloseCurrentTab, onCloseOtherTabs, onCloseAllTabs, onPickProject, onSearch, onOpenNotes, onZoomIn, onZoomOut, onZoomReset, }: Props) {
+  useLocale();
     const [open, setOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{
@@ -163,69 +165,69 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
                     {
                         kind: "item",
                         id: "new_tab",
-                        label: "New Tab",
+                        label: t("New Tab"),
                         shortcut: shortcut("Tab: New", `${MOD}T`),
                     },
                     {
                         kind: "item",
                         id: "switch_tab",
-                        label: "Switch Tab…",
+                        label: t("Switch Tab…"),
                         shortcut: shortcut("Tab: Switch", `${MOD}P`),
                     },
                     {
                         kind: "item",
                         id: "next_attention",
-                        label: "Next Tab Needing You",
+                        label: t("Next Tab Needing You"),
                         shortcut: shortcut("Tab: Next Needing You", `${MOD}J`),
                     },
                     {
                         kind: "item",
                         id: "tab_overview",
-                        label: "Tab Overview",
+                        label: t("Tab Overview"),
                         shortcut: shortcut("Tab: Overview", `${MOD}${SHIFT}O`),
                     },
                     {
                         kind: "item",
                         id: "reopen_tab",
-                        label: "Reopen Closed Tab",
+                        label: t("Reopen Closed Tab"),
                         shortcut: shortcut("Tab: Reopen Closed", `${MOD}${SHIFT}T`),
                     },
                     {
                         kind: "item",
                         id: "new_window",
-                        label: "New Window",
+                        label: t("New Window"),
                         shortcut: shortcut("App: New Window", `${MOD}${SHIFT}N`),
                     },
                     { kind: "sep" },
                     {
                         kind: "item",
                         id: "open_project",
-                        label: "Open Project…",
+                        label: t("Open Project…"),
                         shortcut: shortcut("App: Open Project", `${MOD}O`),
                     },
                     {
                         kind: "item",
                         id: "open_search",
-                        label: "Search…",
+                        label: t("Search…"),
                         shortcut: shortcut("App: Search", `${MOD}K`),
                     },
                     { kind: "sep" },
                     {
                         kind: "item",
                         id: "close_tab",
-                        label: "Close Pane",
+                        label: t("Close Pane"),
                         shortcut: shortcut("Pane: Close", `${MOD}W`),
                     },
                     {
                         kind: "item",
                         id: "close_other_tabs",
-                        label: "Close Other Tabs",
+                        label: t("Close Other Tabs"),
                         shortcut: shortcut("Tab: Close Others", `${MOD}${ALT}T`),
                     },
                     {
                         kind: "item",
                         id: "close_all_tabs",
-                        label: "Close All Tabs",
+                        label: t("Close All Tabs"),
                         shortcut: shortcut("Tab: Close All", `${MOD}${SHIFT}W`),
                     },
                 ];
@@ -234,41 +236,41 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
                     {
                         kind: "item",
                         id: "toggle_sidebar",
-                        label: "Toggle Sidebar",
+                        label: t("Toggle Sidebar"),
                         shortcut: shortcut("App: Toggle Sidebar", `${MOD}B`),
                     },
                     {
                         kind: "item",
                         id: "toggle_session_sidebar",
-                        label: "Toggle Session Sidebar",
+                        label: t("Toggle Session Sidebar"),
                         shortcut: shortcut("App: Toggle Session Sidebar", `${MOD}${SHIFT}B`),
                     },
                     ...(onOpenNotes
-                        ? [{ kind: "item" as const, id: "open_notes", label: "Notes" }]
+                        ? [{ kind: "item" as const, id: "open_notes", label: t("Notes") }]
                         : []),
                     {
                         kind: "item",
                         id: "open_model_picker",
-                        label: "Switch Model…",
+                        label: t("Switch Model…"),
                         shortcut: shortcut("App: Switch Model", `${MOD}.`),
                     },
                     { kind: "sep" },
                     {
                         kind: "item",
                         id: "zoom_in",
-                        label: "Zoom In",
+                        label: t("Zoom In"),
                         shortcut: shortcut("View: Zoom In", `${MOD}+`),
                     },
                     {
                         kind: "item",
                         id: "zoom_out",
-                        label: "Zoom Out",
+                        label: t("Zoom Out"),
                         shortcut: shortcut("View: Zoom Out", `${MOD}-`),
                     },
                     {
                         kind: "item",
                         id: "zoom_reset",
-                        label: "Reset Zoom",
+                        label: t("Reset Zoom"),
                         shortcut: shortcut("View: Reset Zoom", `${MOD}0`),
                     },
                 ];
@@ -281,8 +283,8 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
         key: MenuKey;
         label: string;
     }[] = [
-        { key: "file", label: "File" },
-        { key: "view", label: "View" },
+        { key: "file", label: t("File") },
+        { key: "view", label: t("View") },
     ];
     return (<div ref={barRef} className="flex h-7 shrink-0 items-center gap-0.5 border-b border-stroke bg-content/5 px-2 text-[12px]" data-tauri-drag-region="false">
       {MENUS.map(({ key, label }) => {
@@ -305,6 +307,6 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
           </button>);
         })}
 
-      {activeMenu && menuAnchor ? (<ContextMenu x={menuAnchor.x} y={menuAnchor.y} items={getMenuItems(activeMenu)} ariaLabel={`${activeMenu} menu`} onPick={handlePick} onClose={closeMenu}/>) : null}
+      {activeMenu && menuAnchor ? (<ContextMenu x={menuAnchor.x} y={menuAnchor.y} items={getMenuItems(activeMenu)} ariaLabel={t("{0} menu", activeMenu)} onPick={handlePick} onClose={closeMenu}/>) : null}
     </div>);
 }

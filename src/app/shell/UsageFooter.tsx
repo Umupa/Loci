@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../shared/i18n/locale";
 import { RefreshCw } from "../../shared/ui/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HarnessIcon } from "../../features/sessions/ui/HarnessIcon";
@@ -26,6 +27,7 @@ export function UsageFooter({ providers, session, project, onSelectAccount, onMa
     onSelectAccount?: (provider: ProviderAccountProvider, accountId: string) => void;
     onManageAccounts?: (provider: ProviderAccountProvider) => void;
 }) {
+  useLocale();
     const wantClaude = providers.includes("claude");
     const wantCodex = providers.includes("codex");
     const [now, setNow] = useState(() => Date.now());
@@ -46,10 +48,10 @@ export function UsageFooter({ providers, session, project, onSelectAccount, onMa
     const cachedCodex = useCachedRateLimits("codex", codexAccountId);
     const claude = claudeAccountAvailable
         ? cachedClaude
-        : unavailableRateLimits("claude", "This conversation uses a removed account");
+        : unavailableRateLimits("claude", t("This conversation uses a removed account"));
     const codex = codexAccountAvailable
         ? cachedCodex
-        : unavailableRateLimits("codex", "This conversation uses a removed account");
+        : unavailableRateLimits("codex", t("This conversation uses a removed account"));
     useEffect(() => subscribeProviderAccounts(() => setAccountsVersion((value) => value + 1)), []);
     // New accounts load once. Returning from Settings or focusing the window
     // reads the shared snapshot without starting another provider request.
@@ -108,7 +110,7 @@ export function UsageFooter({ providers, session, project, onSelectAccount, onMa
             catch (error) {
                 const message = error instanceof Error
                     ? error.message
-                    : "Could not use Codex reset";
+                    : t("Could not use Codex reset");
                 setCachedRateLimits("codex", codexAccountId, errorRateLimits("codex", message, getCachedRateLimits("codex", codexAccountId)));
                 throw error;
             }
@@ -133,13 +135,13 @@ export function UsageFooter({ providers, session, project, onSelectAccount, onMa
                 const value = await loadRateLimits(provider, accountId, true);
                 if (value.status !== "ok") {
                     throw new Error(value.error ||
-                        `${HARNESS_TITLE[provider]} sign-in could not be verified`);
+                        t("{0} sign-in could not be verified", HARNESS_TITLE[provider]));
                 }
             }
             catch (error) {
                 const message = error instanceof Error
                     ? error.message
-                    : "Could not complete sign-in";
+                    : t("Could not complete sign-in");
                 setCachedRateLimits(provider, accountId, errorRateLimits(provider, message, getCachedRateLimits(provider, accountId)));
                 throw error;
             }
@@ -165,13 +167,13 @@ export function UsageFooter({ providers, session, project, onSelectAccount, onMa
         return account;
     }, [selectAccount]);
     const showUsage = wantClaude || wantCodex;
-    const ariaLabel = showUsage ? "Provider usage" : session ? "Session" : undefined;
+    const ariaLabel = showUsage ? t("Provider usage") : session ? t("Session") : undefined;
     return (<footer aria-label={ariaLabel} className="flex h-7 shrink-0 items-center gap-1.5 overflow-x-auto border-t border-stroke px-3 text-[11px] text-content/55">
       {showUsage ? (<>
           {wantClaude ? (<UsageProviderChip limits={claude} now={now} accounts={claudeAccounts} accountId={claudeAccountId} onSelectAccount={(accountId) => selectAccount("claude", accountId)} onAddAccount={(label) => addAccount("claude", label)} onManageAccounts={onManageAccounts ? () => onManageAccounts("claude") : undefined} onReconnect={reconnectClaude}/>) : null}
           {wantCodex ? (<UsageProviderChip limits={codex} now={now} project={project} accounts={codexAccounts} accountId={codexAccountId} onSelectAccount={(accountId) => selectAccount("codex", accountId)} onAddAccount={(label) => addAccount("codex", label)} onManageAccounts={onManageAccounts ? () => onManageAccounts("codex") : undefined} onConsumeReset={consumeCodexReset} onReconnect={reconnectCodex}/>) : null}
 
-          <button type="button" className="grid size-4.5 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content disabled:opacity-50" aria-label="Refresh usage" title="Refresh usage" disabled={refreshing} onClick={() => void refresh()}>
+          <button type="button" className="grid size-4.5 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content disabled:opacity-50" aria-label={t("Refresh usage")} title={t("Refresh usage")} disabled={refreshing} onClick={() => void refresh()}>
             <RefreshCw className={`size-2.5 ${refreshing ? "animate-spin" : ""}`} strokeWidth={1.75} aria-hidden/>
           </button>
         </>) : session ? (<SessionChip key={session.id ?? session.harness} session={session}/>) : null}
@@ -181,6 +183,7 @@ export function UsageFooter({ providers, session, project, onSelectAccount, onMa
 function SessionChip({ session }: {
     session: UsageFooterSession;
 }) {
+  useLocale();
     const trigger = useRef<HTMLButtonElement>(null);
     const [open, setOpen] = useState(false);
     const [loginState, setLoginState] = useState<ProviderSignInState>("idle");
@@ -207,7 +210,7 @@ function SessionChip({ session }: {
             setLoginState("complete");
         }
         catch (error) {
-            setLoginError(error instanceof Error ? error.message : "Could not complete sign-in");
+            setLoginError(error instanceof Error ? error.message : t("Could not complete sign-in"));
             setLoginState("error");
         }
     };
@@ -218,14 +221,13 @@ function SessionChip({ session }: {
       </span>);
     }
     return (<>
-      <button ref={trigger} type="button" className="-mx-1 inline-flex h-5 min-w-0 shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-1 text-content/55 transition-[background-color,color,transform] duration-150 ease-out hover:bg-content/10 hover:text-content focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.97]" aria-label={`${HARNESS_TITLE[session.harness]} sign-in required`} aria-expanded={open} aria-haspopup="dialog" title={`${HARNESS_TITLE[session.harness]} sign-in required`} onClick={() => setOpen((value) => !value)}>
+      <button ref={trigger} type="button" className="-mx-1 inline-flex h-5 min-w-0 shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-1 text-content/55 transition-[background-color,color,transform] duration-150 ease-out hover:bg-content/10 hover:text-content focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.97]" aria-label={t("{0} sign-in required", HARNESS_TITLE[session.harness])} aria-expanded={open} aria-haspopup="dialog" title={t("{0} sign-in required", HARNESS_TITLE[session.harness])} onClick={() => setOpen((value) => !value)}>
         <HarnessIcon harness={session.harness} className="size-3 shrink-0"/>
         <span>{HARNESS_LABEL[session.harness]}</span>
         {authRequired ? (<span className="text-[10px] text-amber-600 dark:text-amber-300">
-            sign in
-          </span>) : null}
+            {t("sign in")}</span>) : null}
       </button>
-      {open ? (<Popover anchor={trigger} side="top" align="start" gap={7} width={300} autoFocus onDismiss={dismiss} role="dialog" aria-label={`${HARNESS_TITLE[session.harness]} sign-in`} tabIndex={-1} className="text-content">
+      {open ? (<Popover anchor={trigger} side="top" align="start" gap={7} width={300} autoFocus onDismiss={dismiss} role="dialog" aria-label={t("{0} sign-in", HARNESS_TITLE[session.harness])} tabIndex={-1} className="text-content">
           <ProviderSignInPanel harness={session.harness} state={loginState} error={loginError} onSignIn={() => void signIn()}/>
         </Popover>) : null}
     </>);

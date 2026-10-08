@@ -1,3 +1,4 @@
+import { getLocale } from "../i18n/locale";
 export function formatRelativeTime(
   iso: string,
   now = Date.now(),
@@ -26,7 +27,7 @@ export function formatRelativeTime(
     amount = Math.abs(value);
   }
   try {
-    return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
+    return new Intl.RelativeTimeFormat(locale ?? getLocale(), { numeric: "auto" }).format(
       value,
       unit,
     );

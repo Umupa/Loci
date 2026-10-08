@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../../shared/i18n/locale";
 import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { CircleAlert, ExternalLink, Folder, GripVertical, MessageSquarePlus, Pin, X } from "../../../shared/ui/icons";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
@@ -46,6 +47,7 @@ type Content =
 const REVEAL_LABEL = IS_MAC ? "Reveal in Finder" : "Open containing folder";
 
 function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart }: Props) {
+  useLocale();
   const name = basename(path);
   const kind = fileKind(name);
   const [content, setContent] = useState<Content>({ status: "loading" });
@@ -111,7 +113,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     }
   };
   const close = () => {
-    if (draft && !window.confirm(`Close “${name}” and discard its unsaved changes?`)) return;
+    if (draft && !window.confirm(t("Close “{0}” and discard its unsaved changes?", name))) return;
     setDraft(null);
     onClose();
   };
@@ -141,7 +143,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         // named `.png` that holds markup can't become a same-origin document.
         const mime = sniffImageMime(bytes);
         if (!mime) {
-          show({ status: "unsupported", detail: `${formatFileSize(bytes.byteLength)} · not a readable image` });
+          show({ status: "unsupported", detail: t("{0} · not a readable image", formatFileSize(bytes.byteLength)) });
           return;
         }
         created = URL.createObjectURL(new Blob([bytes], { type: mime }));
@@ -151,7 +153,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       readTextFile(path).then((text) => show({ status: "text", text }), (cause: unknown) => {
         const message = cause instanceof Error ? cause.message : String(cause);
         // Binary and oversized files are not errors, just not ours to render.
-        if (/binary|utf-8|too large/i.test(message)) show({ status: "unsupported", detail: "Loci can’t display this kind of file." });
+        if (/binary|utf-8|too large/i.test(message)) show({ status: "unsupported", get detail() { return t("Loci can’t display this kind of file."); } });
         else fail(cause);
       });
     }
@@ -204,9 +206,9 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
 
   let body: ReactNode;
   if (content.status === "loading") {
-    body = <div className="grid h-full place-items-center text-[12px] text-content/45">Opening {name}…</div>;
+    body = <div className="grid h-full place-items-center text-[12px] text-content/45">{t("Opening")}{" "}{name}…</div>;
   } else if (content.status === "error") {
-    body = <FileCard path={path} cwd={cwd} title={`Couldn’t open ${name}`} detail={content.message}
+    body = <FileCard path={path} cwd={cwd} title={t("Couldn’t open {0}", name)} detail={content.message}
       icon={<CircleAlert className="mx-auto mb-3 size-5 text-red-400" />} onRetry={reload} />;
   } else if (content.status === "unsupported") {
     body = <FileCard path={path} cwd={cwd} title={name} detail={content.detail}
@@ -221,7 +223,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     body = editing ? (
       <textarea
         ref={areaRef}
-        aria-label={`Edit ${name}`}
+        aria-label={t("Edit {0}", name)}
         value={shownText}
         spellCheck={false}
         onChange={(event) => edit(event.target.value)}
@@ -255,28 +257,28 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         {onPaneDragStart ? <GripVertical className="size-3.5 shrink-0 text-content/35" /> : null}
         <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} />
         <span className="shrink-0"><FileTypeIcon name={name} isDir={false} /></span>
-        <span className={`min-w-0 shrink truncate text-xs ${preview ? "italic" : ""}`} title={preview ? `${path}\nPreview — double-click to keep this pane` : path}>{name}</span>
-        {draft ? <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-content/60" /> : null}
+        <span className={`min-w-0 shrink truncate text-xs ${preview ? "italic" : ""}`} title={preview ? t("{0}\nPreview — double-click to keep this pane", path) : path}>{name}</span>
+        {draft ? <span aria-label={t("Unsaved changes")} title={t("Unsaved changes")} className="size-1.5 shrink-0 rounded-full bg-content/60" /> : null}
         {folder && folder !== "." ? <span className="min-w-0 flex-1 truncate text-[11px] text-content/40">{folder}</span> : <span className="flex-1" />}
         {editable ? <div data-no-drag className="shrink-0"><MarkdownModeToggle mode={mode} onChange={setMode} /></div> : null}
         {draft ? (
-          <button type="button" data-no-drag disabled={conflict || saving} onClick={() => void save()} title={conflict ? "Resolve the conflict first" : "Save (Ctrl/Cmd+S)"}
-            className="h-6 shrink-0 rounded px-2 text-[11px] text-content hover:bg-content/10 disabled:opacity-40">{saving ? "Saving…" : "Save"}</button>
+          <button type="button" data-no-drag disabled={conflict || saving} onClick={() => void save()} title={conflict ? t("Resolve the conflict first") : t("Save (Ctrl/Cmd+S)")}
+            className="h-6 shrink-0 rounded px-2 text-[11px] text-content hover:bg-content/10 disabled:opacity-40">{saving ? t("Saving…") : t("Save")}</button>
         ) : null}
-        {preview ? <PaneButton label="Keep open" onClick={onPin}><Pin className="size-3.5" /></PaneButton> : null}
-        <PaneButton label="Add file to chat" onClick={() => requestAddToChat(fileReference(relative), "plain")}><MessageSquarePlus className="size-3.5" /></PaneButton>
-        <PaneButton label="Open with default app" onClick={() => void openPathWithDefaultApp(path).catch(() => {})}><ExternalLink className="size-3.5" /></PaneButton>
+        {preview ? <PaneButton label={t("Keep open")} onClick={onPin}><Pin className="size-3.5" /></PaneButton> : null}
+        <PaneButton label={t("Add file to chat")} onClick={() => requestAddToChat(fileReference(relative), "plain")}><MessageSquarePlus className="size-3.5" /></PaneButton>
+        <PaneButton label={t("Open with default app")} onClick={() => void openPathWithDefaultApp(path).catch(() => {})}><ExternalLink className="size-3.5" /></PaneButton>
         <PaneButton label={REVEAL_LABEL} onClick={() => void revealPath(path).catch(() => {})}><Folder className="size-3.5" /></PaneButton>
-        <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={close}
+        <button type="button" data-no-drag aria-label={t("Close pane")} title={t("Close pane")} onClick={close}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button>
       </div>
       {conflict && draft ? (
-        <Banner tone="warn" message="This file changed on disk while you were editing.">
-          <BannerButton onClick={() => setDraft({ ...draft, base: diskText ?? draft.base })}>Keep my version</BannerButton>
-          <BannerButton onClick={() => setDraft(null)}>Load disk version</BannerButton>
+        <Banner tone="warn" message={t("This file changed on disk while you were editing.")}>
+          <BannerButton onClick={() => setDraft({ ...draft, base: diskText ?? draft.base })}>{t("Keep my version")}</BannerButton>
+          <BannerButton onClick={() => setDraft(null)}>{t("Load disk version")}</BannerButton>
         </Banner>
       ) : null}
-      {saveError ? <Banner tone="error" message={`Couldn’t save: ${saveError}`}><BannerButton onClick={() => void save()}>Retry</BannerButton></Banner> : null}
+      {saveError ? <Banner tone="error" message={t("Couldn’t save: {0}", saveError)}><BannerButton onClick={() => void save()}>{t("Retry")}</BannerButton></Banner> : null}
       <div ref={bodyRef} className="min-h-0 min-w-0 flex-1">{body}</div>
       <TranscriptSelectionMenu selection={selection} onAddToChat={addSelection} onDismiss={dismiss} />
     </div>
@@ -284,6 +286,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
 }
 
 function Banner({ tone, message, children }: { tone: "warn" | "error"; message: string; children: ReactNode }) {
+  useLocale();
   return (
     <div role="status" className={`flex shrink-0 flex-wrap items-center gap-2 border-b border-stroke px-3 py-1.5 text-[12px] ${tone === "error" ? "text-red-400" : "text-amber-400"}`}>
       <span className="min-w-0 flex-1">{message}</span>
@@ -293,10 +296,12 @@ function Banner({ tone, message, children }: { tone: "warn" | "error"; message: 
 }
 
 function BannerButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  useLocale();
   return <button type="button" onClick={onClick} className="h-6 shrink-0 rounded-md bg-content/10 px-2 text-[11px] text-content hover:bg-content/15">{children}</button>;
 }
 
 function PaneButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+  useLocale();
   return (
     <button type="button" data-no-drag aria-label={label} title={label} onClick={onClick}
       className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content">{children}</button>

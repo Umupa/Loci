@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n/locale";
 import type { BuiltinSkill } from "../../skills/model/skills";
 import type { Block } from "./session";
 
@@ -5,8 +6,7 @@ export const OPERATOR_COMMAND: BuiltinSkill = {
   kind: "builtin",
   name: "operator",
   invocation: "operator",
-  description:
-    "Give this thread access to Loci sessions, folders, notes, and canvases.",
+  get description() { return t("Give this thread access to Loci sessions, folders, notes, and canvases."); },
   scope: "builtin",
   source: "loci",
 };

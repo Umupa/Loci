@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n/locale";
 import { leafIds, newTab, type WorkspaceTab } from "../../workspace/model/layout";
 import { sessionNeedsInput, type Session } from "./session";
 import { stopStreaming } from "../../../integrations/harness/core/apply";
@@ -66,9 +67,9 @@ export function inFlightRefs(
 
 export function quitWhileBusyMessage(count: number): string {
   if (count === 1) {
-    return "1 chat is still running. Quit anyway? It will resume when you reopen Loci.";
+    return t("1 chat is still running. Quit anyway? It will resume when you reopen Loci.");
   }
-  return `${count} chats are still running. Quit anyway? They will resume when you reopen Loci.`;
+  return t("{0} chats are still running. Quit anyway? They will resume when you reopen Loci.", count);
 }
 
 /**

@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../../shared/i18n/locale";
 import { useState } from "react";
 import { Minus, Plus } from "../../../shared/ui/icons";
 import { formatFileSize } from "../../../shared/lib/filePreview";
@@ -7,6 +8,7 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 16;
 
 export function ImageView({ url, size, mime }: { url: string; size: number; mime: string }) {
+  useLocale();
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState<number | "fit">("fit");
 
@@ -38,13 +40,13 @@ export function ImageView({ url, size, mime }: { url: string; size: number; mime
         <span className="tabular-nums">{formatFileSize(size)}</span>
         <span className="uppercase">{mime.replace(/^image\//, "")}</span>
         <span className="flex-1" />
-        <FooterButton label="Zoom out" onClick={() => setZoom((value) => clampZoom((value === "fit" ? 1 : value) / 1.5))}>
+        <FooterButton label={t("Zoom out")} onClick={() => setZoom((value) => clampZoom((value === "fit" ? 1 : value) / 1.5))}>
           <Minus className="size-3" strokeWidth={1.75} />
         </FooterButton>
-        <button type="button" title="Fit to window" onClick={() => setZoom("fit")} className="w-11 rounded text-center tabular-nums hover:text-content">
-          {zoom === "fit" ? "Fit" : `${Math.round(zoom * 100)}%`}
+        <button type="button" title={t("Fit to window")} onClick={() => setZoom("fit")} className="w-11 rounded text-center tabular-nums hover:text-content">
+          {zoom === "fit" ? t("Fit") : `${Math.round(zoom * 100)}%`}
         </button>
-        <FooterButton label="Zoom in" onClick={() => setZoom((value) => clampZoom((value === "fit" ? 1 : value) * 1.5))}>
+        <FooterButton label={t("Zoom in")} onClick={() => setZoom((value) => clampZoom((value === "fit" ? 1 : value) * 1.5))}>
           <Plus className="size-3" strokeWidth={1.75} />
         </FooterButton>
       </footer>

@@ -1,3 +1,4 @@
+import { t } from "../../../shared/i18n/locale";
 import type { ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import { reminderTime } from "../model/sessionReminders";
 
@@ -8,19 +9,19 @@ export function sessionReminderPresets(now = new Date()) {
   };
 
   return [
-    { kind: "item", id: "reminder:1h", label: `In 1 hour (${timeInHours(1)})` },
+    { kind: "item", id: "reminder:1h", label: t("In 1 hour ({0})", timeInHours(1)) },
     {
       kind: "item",
       id: "reminder:3h",
-      label: `In 3 hours (${timeInHours(3)})`,
+      label: t("In 3 hours ({0})", timeInHours(3)),
     },
     {
       kind: "item",
       id: "reminder:evening",
-      label: "This evening (18:00)",
+      label: t("This evening (18:00)"),
       disabled: reminderTime("reminder:evening", now) == null,
     },
-    { kind: "item", id: "reminder:tomorrow", label: "Tomorrow (9:00)" },
-    { kind: "item", id: "reminder:next-week", label: "Next week (Mon 9:00)" },
+    { kind: "item", id: "reminder:tomorrow", label: t("Tomorrow (9:00)") },
+    { kind: "item", id: "reminder:next-week", label: t("Next week (Mon 9:00)") },
   ] satisfies ContextMenuItem[];
 }
