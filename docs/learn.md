@@ -350,7 +350,7 @@ Claude Code / Codex（会话子进程，环境里有会话凭据）
 
 ## 实现与验证记录
 
-2026-10-08 到 10-09 在 Arch Linux ARM（aarch64）上完成。分支 `feat/learn`，已提交，未推送、未合并。
+2026-10-08 到 10-09 在 Arch Linux ARM（aarch64）上完成。
 
 ### 代码在哪里
 
