@@ -55,8 +55,18 @@ export function useSessionRuntime(options: RuntimeOptions) {
     .filter(shouldPersistSession)
     .map((session) => [session.id, persistFingerprint(session)])));
   const saving = useRef(new Set<Promise<unknown>>());
+  const saveTails = useRef(new Map<string, { fingerprint: string; promise: Promise<void> }>());
   const pendingSaves = useRef(new Set<string>());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mounted = useRef(true);
+  const autosave = useRef<() => Promise<void>>(async () => {});
+  const scheduleAutosave = useCallback(() => {
+    if (!mounted.current || !pendingSaves.current.size || saveTimer.current) return;
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = undefined;
+      void autosave.current().catch((error) => currentOptions.current.onPersistenceError?.(error));
+    }, 350);
+  }, []);
 
   const pruneDetached = useCallback((sessions: Session[]) => {
     const retained = new Set(sessions.map((session) => session.id));
@@ -140,16 +150,23 @@ export function useSessionRuntime(options: RuntimeOptions) {
       : input;
     if (!session || !shouldPersistSession(session)) return;
     const fingerprint = persistFingerprint(session);
-    if (saved.get(session.id) === fingerprint) return;
+    const tail = saveTails.current.get(session.id);
+    if (tail?.fingerprint === fingerprint) return tail.promise;
+    // A queued different snapshot can overwrite the last saved one. Reverting
+    // to that saved value still needs a write after the queued change.
+    if (!tail && saved.get(session.id) === fingerprint) return;
     const save = upsertSession(session).then((summary) => {
       if (!summary) return;
       // A late completion must not recreate bookkeeping for a detached session.
       if (sessionsRef.current.some((entry) => entry.id === session.id)) saved.set(session.id, fingerprint);
       currentOptions.current.onPersisted?.(summary);
     });
+    saveTails.current.set(session.id, { fingerprint, promise: save });
     saving.current.add(save);
+    let succeeded = false;
     try {
       await save;
+      succeeded = true;
     } catch (error) {
       // flushPersistence drains pending IDs before saving. Keep failures dirty
       // so the next explicit flush (especially quit) retries and can reject.
@@ -157,8 +174,21 @@ export function useSessionRuntime(options: RuntimeOptions) {
       throw error;
     } finally {
       saving.current.delete(save);
+      if (saveTails.current.get(session.id)?.promise === save) saveTails.current.delete(session.id);
+      // Resume deferred newer snapshots after a successful write. Failure stays
+      // dirty for an explicit flush or state change, without a timed retry loop.
+      if (succeeded) scheduleAutosave();
     }
-  }, [sessionsRef, saved]);
+  }, [sessionsRef, saved, scheduleAutosave]);
+
+  autosave.current = async () => {
+    flushEvents();
+    const ready = [...pendingSaves.current].filter((id) => !saveTails.current.has(id));
+    for (const id of ready) pendingSaves.current.delete(id);
+    // Background autosave keeps only IDs while storage is busy. Read the latest
+    // session when it is ready, instead of retaining every intermediate payload.
+    await Promise.all(ready.map((id) => persistSession(id)));
+  };
 
   const flushPersistence = useCallback(async () => {
     flushEvents();
@@ -215,19 +245,19 @@ export function useSessionRuntime(options: RuntimeOptions) {
     pruneDetached(sessions);
     for (const session of sessions) {
       if (!session.busy && !activeTurns.current.has(session.id)) bindRestoredSession(session);
-      if (shouldPersistSession(session) && saved.get(session.id) !== persistFingerprint(session)) {
+      const latestFingerprint = saveTails.current.get(session.id)?.fingerprint ?? saved.get(session.id);
+      if (shouldPersistSession(session) && latestFingerprint !== persistFingerprint(session)) {
         pendingSaves.current.add(session.id);
       }
     }
-    if (!pendingSaves.current.size || saveTimer.current) return;
-    saveTimer.current = setTimeout(() => {
-      void flushPersistence().catch((error) => currentOptions.current.onPersistenceError?.(error));
-    }, 350);
-  }, [sessions, bindRestoredSession, flushPersistence, pruneDetached, saved]);
+    scheduleAutosave();
+  }, [sessions, bindRestoredSession, pruneDetached, saved, scheduleAutosave]);
 
   useEffect(() => {
+    mounted.current = true;
     const releaseBridge = startHarnessBridge();
     return () => {
+      mounted.current = false;
       flushEvents();
       void flushPersistence().catch((error) => currentOptions.current.onPersistenceError?.(error));
       releaseBridge();

@@ -426,12 +426,11 @@ export function useSessionSubmission(options: SubmissionOptions) {
         return updatedSession;
       });
       if (!updatedSession) return undefined;
-      sessionsRef.current = next;
+      // Runtime owns both the ref and React state; its autosave batches deltas.
       setSessions(next);
-      void persistSession(updatedSession).catch(() => undefined);
       return updatedSession;
     },
-    [persistSession],
+    [sessionsRef, setSessions],
   );
 
   const removeBtwThread = useCallback(
@@ -462,12 +461,10 @@ export function useSessionSubmission(options: SubmissionOptions) {
         return updatedSession;
       });
       if (!updatedSession) return undefined;
-      sessionsRef.current = next;
       setSessions(next);
-      void persistSession(updatedSession).catch(() => undefined);
       return updatedSession;
     },
-    [persistSession],
+    [sessionsRef, setSessions],
   );
 
   const runBtwRequest = useCallback(
