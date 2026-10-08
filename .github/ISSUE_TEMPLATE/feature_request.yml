@@ -1,0 +1,46 @@
+name: Feature request
+description: Suggest an improvement or a new capability
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Some things were removed from Loci on purpose; see [Out of scope](https://github.com/Umupa/Loci/blob/main/docs/architecture.md#out-of-scope) before you propose one of them.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the problem or the workflow, not the solution yet.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Loci to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried or considered instead?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Sessions and agent CLIs
+        - Notes
+        - Canvases
+        - Learning (/learn)
+        - Workspace (tabs, panes, projects)
+        - Settings
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and this has not been requested.
+          required: true

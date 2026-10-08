@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in Loci does not work the way it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Security problems do not belong here; please use the private report form linked on the issue chooser page.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a project
+        2. Start a session with ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Loci version
+      description: Shown in Settings → General, or the commit if you built from source.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent CLI
+      description: The CLI the session was using, if it matters.
+      options:
+        - Not related to a specific CLI
+        - Claude Code
+        - Codex
+        - Cursor
+        - Grok Build
+        - OpenCode
+        - Pi
+        - omp
+        - fx
+        - Hermes Agent
+        - Antigravity
+    validations:
+      required: true
+  - type: input
+    id: agent-version
+    attributes:
+      label: Agent CLI version
+      description: For example the output of `claude --version`. Leave empty if the bug is not related to a CLI.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error text
+      description: Paste anything relevant. It is rendered as code. Remove tokens, paths and other private details first.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and this has not been reported.
+          required: true
+        - label: This is not a security problem.
+          required: true
