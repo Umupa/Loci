@@ -47,6 +47,12 @@ import {
   codexCanvasApprovalTool,
   codexCanvasMcpArgs,
 } from "../../../../features/canvas/mcpServer";
+import {
+  codexLearnApprovalTool,
+  codexLearnMcpArgs,
+  learnMcpServer,
+  learnToolAllowed,
+} from "../../../../features/learn/mcpServer";
 import type {
   ApprovalDecision,
   CompactContextInput,
@@ -91,6 +97,8 @@ type Live = {
   /** Thread-level network policy used when this app-server opened the thread. */
   appAccess: boolean;
   canvasMcpEnabled: boolean;
+  /** This app-server was started with the loci_learn server, for a thread that used /learn. */
+  learnMcp: boolean;
   runtimeMode: RuntimeMode;
   planning: boolean;
   onEvent: (event: HarnessEvent) => void;
@@ -459,12 +467,15 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   const existing = liveByThread.get(input.sessionId);
   const appAccess = input.appAccess === true;
   const canvasMcpEnabled = loadCanvasMcpEnabled();
+  // Callers that are not a user turn (compaction, rewind) do not say; keep what the process has.
+  const learnMcp = input.learnAccess ?? existing?.learnMcp ?? false;
   if (
     existing &&
     existing.cwd === input.cwd &&
     sameProviderAccountId(existing.providerAccountId, input.providerAccountId) &&
     existing.appAccess === appAccess &&
-    existing.canvasMcpEnabled === canvasMcpEnabled
+    existing.canvasMcpEnabled === canvasMcpEnabled &&
+    existing.learnMcp === learnMcp
   ) {
     existing.onEvent = input.onEvent;
     return existing;
@@ -497,6 +508,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
 
   const { path } = await resolveCodexBinaryImpl();
   const canvasMcp = await canvasMcpServer(canvasMcpEnabled);
+  const learnServer = learnMcp ? await learnMcpServer() : null;
   const liveRef: { current: Live | null } = { current: null };
 
   const rpc = new JsonRpcClient(
@@ -577,7 +589,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   await spawnChild(
     input.sessionId,
     path,
-    [...(canvasMcp ? codexCanvasMcpArgs(canvasMcp) : []), "app-server"],
+    [...(canvasMcp ? codexCanvasMcpArgs(canvasMcp) : []), ...(learnServer ? codexLearnMcpArgs(learnServer) : []), "app-server"],
     input.cwd,
     {
       provider: "codex",
@@ -657,6 +669,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
       providerAccountId: input.providerAccountId,
       appAccess,
       canvasMcpEnabled,
+      learnMcp,
       runtimeMode: input.runtimeMode,
       planning: input.intent === "plan",
       onEvent: input.onEvent,
@@ -1339,6 +1352,14 @@ async function handleServerRequest(
         content: null,
         _meta: null,
       });
+      return;
+    }
+    // The learning tools never prompt: a plan turn may only read, every other turn goes ahead.
+    const learnTool = codexLearnApprovalTool(params);
+    if (learnTool) {
+      await live.rpc.respond(id, learnToolAllowed(learnTool, live.planning)
+        ? { action: "accept", content: confirmation.content, _meta: null }
+        : { action: "decline", content: null, _meta: null });
       return;
     }
     // Loci's own drawing tool follows the permission mode, as it does for

@@ -25,6 +25,10 @@ import { titleFromPrompt } from "../../features/sessions/model/session";
 import { displayAttachments, prepareAttachments } from "../../features/sessions/model/attachments";
 import { preparePrompt } from "../../features/sessions/model/promptPreparation";
 import { consumeOperatorCommand, operatorEnabledInThread } from "../../features/sessions/model/operatorCommand";
+import { learnEditHint } from "../../features/learn/bridge";
+import {
+  consumeLearnCommand, LEARN_CONTINUE_PROMPT, LEARN_PROMPT, learnEnabledInThread, supportsLearnHarness,
+} from "../../features/learn/learnCommand";
 import {
   appendPreparingHandoff, buildDeterministicHandoff, chooseHandoffBrief,
   completeHandoff, consumeHandoff, isPreparingHandoff, pendingHandoff,
@@ -58,6 +62,8 @@ import type { SessionRuntime } from "./useSessionRuntime";
 
 export type SubmitOptions = ComposerTurnOptions & {
   followUpBehavior?: FollowUpBehavior;
+  /** The map node a /learn turn was started from, told to the agent with the turn. */
+  learnFocus?: { nodeId: string; intent: "explore" | "revisit" };
   noteCard?: NoteComposerCard;
   queuedMessageId?: string;
   refreshTitle?: boolean;
@@ -135,21 +141,32 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const noteCard = options && "noteCard" in options ? options.noteCard : current.noteCard;
     if (!text.trim() && !attachments.length && !noteCard) return false;
     const activation = consumeOperatorCommand(text);
-    const visibleText = activation.matched ? activation.text.trim() || "Explain what you can do in Loci with the app CLI." : text;
+    const learning = activation.matched ? { text, matched: false } : consumeLearnCommand(text);
+    if (learning.matched && (!supportsLearnHarness(current.harness) || !looksLikeProject(current.cwd))) {
+      enqueueHarnessEvent(sessionId, { type: "session.error", message: supportsLearnHarness(current.harness)
+        ? "Open the subject's folder as a project first: /learn keeps one learning map per project."
+        : "/learn needs a Claude Code or Codex session: the learning map is reached through Loci's built-in MCP server." });
+      flushHarnessEvents();
+      return false;
+    }
+    const visibleText = activation.matched ? activation.text.trim() || "Explain what you can do in Loci with the app CLI."
+      : learning.matched ? learning.text.trim() || LEARN_CONTINUE_PROMPT : text;
     const appAccess = activation.matched || operatorEnabledInThread(current.blocks);
-    const rawCommand = !activation.matched && isNativeCommandPrompt(text, current.harness);
+    const learnAccess = supportsLearnHarness(current.harness) && (learning.matched || learnEnabledInThread(current.blocks));
+    const rawCommand = !activation.matched && !learning.matched && isNativeCommandPrompt(text, current.harness);
     const promptText = rawCommand ? text : composeNoteMessage(noteCard, visibleText);
     const pendingSwitch = current.pendingSwitch?.from !== current.harness ? current.pendingSwitch : undefined;
     const visible = displayAttachments(attachments);
     const cards = {
       ...(!rawCommand && noteCard ? { noteCard: noteCardMeta(noteCard) } : {}),
       ...(activation.matched ? { loci: true } : {}),
+      ...(learning.matched ? { learn: true } : {}),
       ...((options?.appRequestId ?? draft?.appRequestId)
         ? { appRequestId: options?.appRequestId ?? draft?.appRequestId } : {}),
     };
     if (current.busy && !pendingSwitch) {
-      if (activation.matched && options?.queuedMessageId && options.followUpBehavior === "steer") return false;
-      const followUp = activation.matched ? "queue"
+      if ((activation.matched || learning.matched) && options?.queuedMessageId && options.followUpBehavior === "steer") return false;
+      const followUp = activation.matched || learning.matched ? "queue"
         : current.backgroundTasks?.length ? "steer" : options?.followUpBehavior ?? loadFollowUpBehavior();
       if (followUp === "queue") {
         setSessions((previous) => previous.map((session) => session.id === sessionId ? {
@@ -338,10 +355,14 @@ export function useSessionSubmission(options: SubmissionOptions) {
         let sendText = wrap && !rawCommand ? wrapHandoffPrompt(wrap.text, wrap.from, prompt.trim() || CONTINUE_PROMPT,
           queuedHandoff ? userMessagesAfterHandoff(current) : []) : prompt;
         if (activation.matched) sendText += await operatorPrompt();
+        if (learning.matched) sendText += LEARN_PROMPT;
+        if (learning.matched && options?.learnFocus) sendText += `\n\n<loci_learn_focus>The learner opened this session from the map node with id "${options.learnFocus.nodeId}", named in their message, to ${options.learnFocus.intent === "revisit" ? "revisit it" : "explore it"}. After map_read, go straight to that.</loci_learn_focus>`;
+        // What the learner drew on the map since this session last read it is part of the turn.
+        if (learnAccess) sendText += await learnEditHint(current).catch(() => "");
         if (!isCurrent()) return;
         await sendHarnessTurn({ harness: current.harness, sessionId, cwd: current.cwd,
           model: current.model, modelSettings: current.modelSettings, providerAccountId,
-          runtimeMode: current.runtimeMode, appAccess, text: sendText, attachments: prepared,
+          runtimeMode: current.runtimeMode, appAccess, learnAccess, text: sendText, attachments: prepared,
           ...(edited ? { onAccepted: accepted } : {}),
           onEvent: (event) => {
             if (!isCurrent()) return;

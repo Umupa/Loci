@@ -61,6 +61,7 @@ import { useSessionSubmission } from "./hooks/useSessionSubmission";
 import { useIdleSessionDetach } from "./hooks/useIdleSessionDetach";
 import { useAppCommands } from "./hooks/useAppCommands";
 import { useAppControl } from "./hooks/useAppControl";
+import { useLearnSessions } from "./hooks/useLearnSessions";
 import { useAppResourceNavigation } from "./hooks/useAppResourceNavigation";
 import { useSaveToCanvas } from "./hooks/useSaveToCanvas";
 import type { NoteOpenRequest } from "../features/notes/ui/NotesView";
@@ -181,6 +182,7 @@ function Workspace(boot: BootWorkspace) {
     onError: (error) => workspaceRef.current?.setError(String(error)), setSessions: runtime.updateSessions,
   });
   useAppControl({ workspace, runtime, submission });
+  useLearnSessions({ workspace, runtime, submission });
   useAppResourceNavigation({ workspace, notesEnabled, onOpenNote: (id) => {
     setNoteOpenRequest((previous) => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
     setSurface("notes");

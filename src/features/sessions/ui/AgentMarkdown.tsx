@@ -40,7 +40,7 @@ import { ContextMenu,type ContextMenuItem } from "../../../shared/ui/ContextMenu
 import { FileActionError } from "../../../shared/ui/FileActionError";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { ExcalidrawIcon } from "../../../shared/ui/ExcalidrawIcon";
-import { File } from "../../../shared/ui/icons";
+import { File, MessageSquare } from "../../../shared/ui/icons";
 import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 
 type OpenFileFn = (path: string) => void;
@@ -242,7 +242,7 @@ function MarkdownLink({
   const resource = href ? parseAppResourceUrl(href) : undefined;
   const file = href ? resolveWorkspaceFileReference(href, cwd) : undefined;
   if (href?.startsWith("loci:") && !resource) return <span dir={dir ?? "auto"}>{children}</span>;
-  const ResourceIcon = resource?.kind === "canvas" ? ExcalidrawIcon : File;
+  const ResourceIcon = resource?.kind === "canvas" ? ExcalidrawIcon : resource?.kind === "session" ? MessageSquare : File;
   return (
     <a
       href={href}

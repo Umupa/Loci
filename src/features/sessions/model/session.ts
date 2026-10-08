@@ -283,6 +283,8 @@ export type Block = {
   draft?: boolean;
   /** This user turn activated Loci app access for its thread. */
   loci?: boolean;
+  /** This user turn used /learn: its thread reaches the project's learning map. */
+  learn?: boolean;
   /** Stable CLI request that submitted this turn, for safe retries. */
   appRequestId?: string;
   /** Provider-reported token metrics for this user turn, when available. */
