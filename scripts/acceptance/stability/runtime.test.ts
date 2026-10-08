@@ -64,6 +64,49 @@ afterEach(async () => {
 });
 
 describe("repeated runtime transitions", () => {
+  it("releases per-session bookkeeping after 1000 saved and detached sessions", async () => {
+    const base = newSession("codex", "/runtime-retention-fixture", "codex:test");
+    const make = (id: string): Session => ({ ...base, id, blocks: [
+      { id: `${id}-user`, role: "user", text: "Synthetic retention probe" },
+    ] });
+    // Observe the actual long-lived maps, without exposing test-only production
+    // APIs or retaining every temporary map created by React/library code.
+    let saved: Map<unknown, unknown> | undefined;
+    let turns: Map<unknown, unknown> | undefined;
+    const set = Map.prototype.set;
+    const spy = vi.spyOn(Map.prototype, "set").mockImplementation(function (this: Map<unknown, unknown>, key, value) {
+      if (typeof key === "string" && key.startsWith("retention-")) {
+        if (typeof value === "number") turns ??= this;
+        if (typeof value === "string" && value.includes('"cwd":"/runtime-retention-fixture"')) saved ??= this;
+      }
+      return set.call(this, key, value);
+    });
+    try {
+      const initial = make("retention-initial");
+      await mount([initial]);
+      const initialTurn = runtime.beginTurn(initial.id);
+      runtime.finishTurn(initial.id, initialTurn);
+      const checkpoints: Array<{ closed: number; saved: number; turns: number }> = [];
+      for (let i = 0; i < 1000; i += 1) {
+        const session = make(`retention-${i}`);
+        await act(async () => runtime.updateSessions([session]));
+        const turn = runtime.beginTurn(session.id);
+        runtime.finishTurn(session.id, turn);
+        await runtime.persistSession(session);
+        await act(async () => runtime.updateSessions([]));
+        if ((i + 1) % 250 === 0) checkpoints.push({ closed: i + 1, saved: saved!.size, turns: turns!.size });
+        // The observer must not itself retain all test payloads/temporary maps.
+        spy.mockClear();
+        mocks.invoke.mockClear();
+      }
+      expect(saved).toBeDefined();
+      expect(turns).toBeDefined();
+      console.info(JSON.stringify({ scenario: "detached-session-bookkeeping", checkpoints }));
+      expect(saved!.size).toBe(0);
+      expect(turns!.size).toBe(0);
+    } finally { spy.mockRestore(); }
+  });
+
   it("isolates late text, approval and terminal events over 100 cancel/resubmit cycles", async () => {
     const session = newSession("codex", "/stability-fixture", "codex:test");
     await mount([session]);

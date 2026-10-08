@@ -54,7 +54,7 @@ import { rebaseProjectData } from "../features/projects/model/projectData";
 import { looksLikeProject, replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
 import { rebaseProjectSessions } from "../features/sessions/data/sessionStore";
 import { ProjectNotFoundError } from "../features/projects/model/projectLocationError";
-import { closeBusyWindow, closeCurrentWindow, hasInFlightSessions, hideCurrentWindow, isAppQuitting, persistLiveTranscripts, persistQuitState, setQuitWorkspace, type BootWorkspace } from "./model/appLifecycle";
+import { closeBusyWindow, hasInFlightSessions, hideCurrentWindow, isAppQuitting, persistAndCloseWindow, persistLiveTranscripts, persistQuitState, setQuitWorkspace, type BootWorkspace, type WorkspaceSaveMode } from "./model/appLifecycle";
 import { useAppWorkspace, initialWorkspace } from "./hooks/useAppWorkspace";
 import { useSessionRuntime } from "./hooks/useSessionRuntime";
 import { useSessionSubmission } from "./hooks/useSessionSubmission";
@@ -245,7 +245,7 @@ function Workspace(boot: BootWorkspace) {
     }
     setSessionSidebarOpen((open) => { saveSessionSidebarOpen(!open); return !open; });
   }, []);
-  const persistWindow = useCallback(async (mode: "quit" | "unload" = "unload") => {
+  const persistWindow = useCallback(async (mode: WorkspaceSaveMode = "transition") => {
     runtime.flushEvents();
     await runtime.flushPersistence();
     const view = workspaceRef.current!;
@@ -313,9 +313,9 @@ function Workspace(boot: BootWorkspace) {
         void hideCurrentWindow();
         return;
       }
-      void persistWindow().finally(() => { void (toTray ? hideCurrentWindow() : closeCurrentWindow()); });
+      void persistAndCloseWindow(persistWindow, toTray).catch((error) => workspaceRef.current?.setError(String(error)));
     }).then((unlisten) => { if (disposed) unlisten(); else stop = unlisten; });
-    const unload = () => { if (!isAppQuitting()) void persistWindow(); };
+    const unload = () => { if (!isAppQuitting()) void persistWindow("unload"); };
     window.addEventListener("beforeunload", unload);
     return () => { disposed = true; release(); stop?.(); window.removeEventListener("beforeunload", unload); };
   }, [runtime.flushEvents, persistWindow, workspace.tabsRef, workspace.activeTabIdRef, workspace.projectCwdRef, workspace.projectReturnMemory]);

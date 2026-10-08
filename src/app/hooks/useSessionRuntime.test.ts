@@ -5,6 +5,7 @@ import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 import { newSession,type Session } from "../../features/sessions/model/session";
 import { registerHarness,resetHarnessIdlePark } from "../../integrations/harness/core/registry";
 import { useSessionRuntime,type SessionRuntime } from "./useSessionRuntime";
+import * as sessionStore from "../../features/sessions/data/sessionStore";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), release: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, isTauri: () => true }));
@@ -13,6 +14,7 @@ vi.mock("../../integrations/harness/core/child", () => ({ startHarnessBridge: ()
 let root: Root;
 let host: HTMLDivElement;
 let runtime: SessionRuntime;
+let rerender: () => Promise<void>;
 const onInput = vi.fn();
 const onPersisted = vi.fn();
 const onPersistenceError = vi.fn();
@@ -30,7 +32,8 @@ async function mount(initial: Session) {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root.render(createElement(Harness)));
+  rerender = async () => { await act(async () => root.render(createElement(Harness))); };
+  await rerender();
 }
 
 beforeEach(() => {
@@ -57,6 +60,41 @@ afterEach(async () => {
 });
 
 describe("session runtime", () => {
+  it("does not rescan unchanged transcripts on parent-only renders", async () => {
+    const session = newSession("claude", "/project");
+    session.blocks = Array.from({ length: 10_000 }, (_, i) => ({
+      id: `block-${i}`, role: "user" as const, text: `Message ${i}`,
+    }));
+    const fingerprint = vi.spyOn(sessionStore, "persistFingerprint");
+    try {
+      await mount(session);
+      expect(fingerprint).toHaveBeenCalled();
+      fingerprint.mockClear();
+      const started = performance.now();
+      for (let i = 0; i < 100; i += 1) await rerender();
+      console.info(JSON.stringify({ scenario: "unchanged-parent-renders", renders: 100,
+        blocks: 10_000, elapsedMs: performance.now() - started, fingerprintCalls: fingerprint.mock.calls.length }));
+      expect(fingerprint).not.toHaveBeenCalled();
+    } finally { fingerprint.mockRestore(); }
+  });
+
+  it("invalidates removed turns without reusing their token when the session reopens", async () => {
+    const session = newSession("claude", "/project");
+    await mount(session);
+    const first = runtime.beginTurn(session.id);
+    await act(async () => runtime.updateSessions([]));
+    expect(runtime.isCurrentTurn(session.id, first)).toBe(false);
+    expect(runtime.hasActiveTurn(session.id)).toBe(false);
+    await act(async () => runtime.updateSessions([session]));
+    const second = runtime.beginTurn(session.id);
+    expect(second).not.toBe(first);
+    expect(runtime.isCurrentTurn(session.id, first)).toBe(false);
+    expect(runtime.isCurrentTurn(session.id, second)).toBe(true);
+    runtime.forgetTurn(session.id);
+    expect(runtime.isCurrentTurn(session.id, second)).toBe(false);
+    expect(runtime.beginTurn(session.id)).not.toBe(second);
+  });
+
   it("keeps failed writes pending so a later quit flush cannot silently succeed", async () => {
     const session = newSession("claude", "/project");
     await mount(session);
