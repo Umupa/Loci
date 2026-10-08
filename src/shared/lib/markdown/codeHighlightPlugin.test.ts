@@ -3,8 +3,12 @@ import * as shiki from "shiki";
 import type { BundledLanguage } from "shiki";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import { describe, expect, it, vi } from "vitest";
+import { buildCodeTheme, findTheme } from "../../../features/settings/model/themes";
 import {
+  boundedCode,
   createBoundedCodePlugin,
+  DEFAULT_CODE_THEMES,
+  themedCodePlugin,
   type BoundedCodePlugin,
 } from "./codeHighlightPlugin";
 
@@ -168,4 +172,44 @@ describe("bounded code highlight plugin", () => {
     const plain = await highlight(plugin, "anything", "not-a-language");
     expect(text(plain)).toBe("anything");
   }, 20_000);
+});
+
+describe("themed code plugins", () => {
+  const [light] = DEFAULT_CODE_THEMES;
+
+  it("keeps GitHub's colors for the default theme", () => {
+    expect(boundedCode.getThemes()).toEqual(["github-light", "github-dark"]);
+  });
+
+  it("reuses a plugin for the same theme and gives each theme its own colors", () => {
+    const nord = buildCodeTheme(findTheme("nord")!);
+    const gruvbox = buildCodeTheme(findTheme("gruvbox")!);
+    const first = themedCodePlugin("test-nord", [light, nord]);
+    expect(themedCodePlugin("test-nord", [light, nord])).toBe(first);
+    expect(first.getThemes()).toEqual([light, nord]);
+    expect(themedCodePlugin("test-gruvbox", [light, gruvbox])).not.toBe(first);
+  });
+
+  it("releases the oldest themes instead of keeping every one tried", () => {
+    const theme = buildCodeTheme(findTheme("kanagawa")!);
+    const oldest = themedCodePlugin("test-a", [light, theme]);
+    themedCodePlugin("test-b", [light, theme]);
+    themedCodePlugin("test-c", [light, theme]);
+    themedCodePlugin("test-d", [light, theme]);
+    expect(themedCodePlugin("test-a", [light, theme])).not.toBe(oldest);
+  });
+
+  it("highlights with the palette's colors", async () => {
+    const theme = findTheme("tokyo-night")!;
+    const colors = buildCodeTheme(theme);
+    const plugin = themedCodePlugin("test-tokyo", [light, colors]);
+    const result = await highlight(plugin, "const answer = 42;");
+    const painted = result.tokens.flat().map((token) => token.htmlStyle);
+    // The theme fills the half of the pair that matches its mode; Shiki writes
+    // the hex in capitals.
+    const styles = JSON.stringify(painted).toLowerCase();
+    expect(styles).toContain(theme.palette.bright_blue);
+    expect(styles).toContain(colors.fg!.toLowerCase());
+    expect(text(result)).toBe("const answer = 42;");
+  });
 });

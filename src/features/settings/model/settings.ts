@@ -166,10 +166,16 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         ]
         : []),
     {
+        id: "color-theme",
+        section: "appearance",
+        label: "Color theme",
+        keywords: "omarchy palette wallpaper catppuccin gruvbox tokyo night nord rose pine everforest kanagawa matte black white dark light colors",
+    },
+    {
         id: "theme",
         section: "appearance",
-        label: "Theme",
-        keywords: "dark light system appearance mode",
+        label: "Mode",
+        keywords: "theme dark light system appearance",
     },
     {
         id: "accent-color",
@@ -194,6 +200,18 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         section: "appearance",
         label: "Dark-mode lightness",
         keywords: "black brightness contrast background",
+    },
+    {
+        id: "code-font",
+        section: "appearance",
+        label: "Code font",
+        keywords: "monospace typeface jetbrains nerd font omarchy code blocks",
+    },
+    {
+        id: "interface-font",
+        section: "appearance",
+        label: "Interface font",
+        keywords: "typeface sans system font ui text",
     },
     {
         id: "sidebar-opacity",

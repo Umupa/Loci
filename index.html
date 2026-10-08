@@ -37,6 +37,28 @@
               ? "light"
               : "dark";
           }
+          // Paint the saved named theme before React and its palette catalog load.
+          // Ignore incomplete, stale or malformed snapshots and use the tint above.
+          try {
+            var theme = JSON.parse(localStorage.getItem("loci.themeBoot"));
+            if (
+              Array.isArray(theme) && theme.length === 5 &&
+              theme[0] === localStorage.getItem("loci.themeId") &&
+              typeof theme[0] === "string" && theme[0].length > 0 &&
+              (theme[1] === "dark" || theme[1] === "light") &&
+              theme.slice(2).every(function (value) {
+                return typeof value === "number" && Number.isFinite(value);
+              }) &&
+              theme[2] >= 0 && theme[2] <= 360 &&
+              theme[3] >= 0 && theme[3] <= 100 &&
+              theme[4] >= 0 && theme[4] <= 100
+            ) {
+              scheme = theme[1];
+              root.style.setProperty("--theme-hue", String(theme[2]));
+              root.style.setProperty("--theme-saturation", theme[3] + "%");
+              root.style.setProperty("--background-lightness", theme[4] + "%");
+            }
+          } catch (_) {}
           if (scheme === "light") {
             root.classList.add("theme-light");
           }

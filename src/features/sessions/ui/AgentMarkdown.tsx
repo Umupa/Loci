@@ -29,7 +29,7 @@ import type { PluggableList } from "unified";
 import type { Plugin } from "unified";
 import type { Schema } from "hast-util-sanitize";
 import type { Root, RootContent } from "hast";
-import { boundedCode } from "../../../shared/lib/markdown/codeHighlightPlugin";
+import { useCodePlugin } from "../../../shared/hooks/useCodePlugin";
 import { createLazyMermaidPlugin } from "../../../shared/lib/markdown/mermaidPlugin";
 import {
 displayPath,
@@ -71,7 +71,6 @@ const mermaid = createLazyMermaidPlugin({
   },
 });
 
-const MARKDOWN_PLUGINS = { code: boundedCode, mermaid };
 const [sanitizeMarkdown, sanitizeSchema] = defaultRehypePlugins.sanitize as [Plugin, Schema];
 
 // Validate before harden normalizes URLs (e.g. a path containing ../).
@@ -246,7 +245,7 @@ function MarkdownLink({
   return (
     <a
       href={href}
-      className={`${resource ? "inline-flex max-w-full items-baseline gap-1 rounded bg-content/8 px-1.5 text-content hover:bg-content/12 hover:underline" : "text-sky-400/90 hover:text-sky-300 hover:underline"} ${className ?? ""}`}
+      className={`${resource ? "inline-flex max-w-full items-baseline gap-1 rounded bg-content/8 px-1.5 text-content hover:bg-content/12 hover:underline" : "markdown-link text-sky-400/90 hover:text-sky-300 hover:underline"} ${className ?? ""}`}
       {...props}
       dir={dir ?? "auto"}
       onClick={(event) => {
@@ -529,6 +528,8 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   /** Show a newline inside a block as a line break, as a document does (#591). */
   hardBreaks?: boolean;
 }) {
+  const code = useCodePlugin();
+  const plugins = useMemo(() => ({ code, mermaid }), [code]);
   const [fileMenu, setFileMenu] = useState<FileLinkMenu | null>(null);
   const [fileActionError, setFileActionError] = useState<string | null>(null);
   const onFileContextMenu = useCallback(
@@ -613,7 +614,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
             controls={false}
             dir="auto"
             isAnimating={!!streaming || paced.revealing}
-            plugins={MARKDOWN_PLUGINS}
+            plugins={plugins}
             remarkPlugins={remarkPlugins}
             rehypePlugins={rehypePlugins}
           >

@@ -28,8 +28,11 @@
   --color-background-base: hsl(
     var(--theme-hue) var(--theme-saturation) var(--background-lightness)
   );
+  /* A named theme gives the text its own hue and saturation; without one the
+     text shares the page tint. */
   --color-content: hsl(
-    var(--theme-hue) var(--theme-saturation) var(--content-lightness)
+    var(--content-hue, var(--theme-hue))
+      var(--content-saturation, var(--theme-saturation)) var(--content-lightness)
   );
   /* Structural separators: use border-stroke, divide-stroke, or bg-stroke. */
   --color-stroke: color-mix(in srgb, var(--color-content) 7%, transparent);
@@ -63,12 +66,9 @@
   --color-accent: hsl(211 92% 62%);
   --color-skill: #e8c547;
   --color-mention: #38bdf8;
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
-  --font-sans:
-    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  /* Settings > Appearance > Fonts sets --font-*-user in front of the system stack. */
+  --font-mono: var(--font-mono-user, var(--font-mono-system));
+  --font-sans: var(--font-sans-user, var(--font-sans-system));
   /* Diff colors. `diff-add`/`diff-del` are the solid marker hues, `-fg` is
      readable text on the theme background, `-bg`/`-gutter` are row tints.
      Tool previews also show a +/- glyph so color is
@@ -100,6 +100,12 @@
 }
 
 :root {
+  --font-mono-system:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  --font-sans-system:
+    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   --motion-reorder-duration: 160ms;
   --motion-tab-close-duration: 200ms;
   --motion-feedback-duration: 120ms;
@@ -172,6 +178,13 @@ html:not(.is-mac) #root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* A font picked in Settings applies on macOS too. */
+html.has-ui-font,
+html.has-ui-font body,
+html.has-ui-font #root {
+  font-family: var(--font-sans);
 }
 
 html:not(.is-mac) ::-webkit-scrollbar {
@@ -1556,6 +1569,21 @@ header[data-tauri-drag-region] button {
   cursor: pointer;
 }
 
+/* Markdown links are Tailwind's sky unless a theme gives them a blue that reads
+   on its own page: sky is too pale on the light ones. */
+html.has-theme .agent-markdown .markdown-link {
+  color: var(--link-color);
+}
+
+html.has-theme .agent-markdown :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--color-markdown-heading);
+}
+
+html.has-theme .agent-markdown .markdown-link:hover,
+html.has-theme .agent-markdown code[role="link"]:hover {
+  color: color-mix(in srgb, var(--link-color) 75%, var(--color-content));
+}
+
 .agent-markdown .markdown-code-path-link:hover {
   color: var(--link-color);
   text-decoration: underline;
@@ -1851,12 +1879,8 @@ header[data-tauri-drag-region] button {
       transparent calc(50% + var(--spread))
     ),
     linear-gradient(
-      hsl(
-        var(--theme-hue) var(--theme-saturation) var(--content-lightness) / 0.4
-      ),
-      hsl(
-        var(--theme-hue) var(--theme-saturation) var(--content-lightness) / 0.4
-      )
+      color-mix(in srgb, var(--color-content) 40%, transparent),
+      color-mix(in srgb, var(--color-content) 40%, transparent)
     );
   background-size:
     250% 100%,

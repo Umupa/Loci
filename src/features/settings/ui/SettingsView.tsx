@@ -14,8 +14,12 @@ import { RemoveProjectDialog } from "../../projects/ui/RemoveProjectDialog";
 import { WindowControls } from "../../../app/shell/WindowControls";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { useColorScheme } from "../../../shared/hooks/useColorScheme";
-import { applyChatBackground, applyChatBackgroundEmptyOpacity, applyChatBackgroundSessionOpacity, applyChatBackgroundScope, applyAccentColor, applyBodyGlass, applySidebarBlur, applySidebarOpacity, applyThemeDarkLightness, applyThemePreference, applyThemeTint, BODY_GLASS_DEFAULT, ACCENT_COLOR_DEFAULT, CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT, CHAT_BACKGROUND_OPACITY_MAX, CHAT_BACKGROUND_OPACITY_MIN, CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT, CHAT_BACKGROUND_SCOPE_DEFAULT, THEME_PREFERENCE_DEFAULT, chatBackgroundSrc, loadBodyGlass, loadAccentColor, loadChatBackgroundEmptyOpacity, loadChatBackgroundPath, loadChatBackgroundSessionOpacity, loadChatBackgroundScope, loadNewThreadBackgroundEffect, loadThemeDarkLightness, loadThemePreference, loadSidebarBlur, loadSidebarOpacity, loadThemeHue, loadThemeSaturation, loadTranscriptLayout, loadTranscriptAnchor, saveBodyGlass, saveAccentColor, saveChatBackgroundEmptyOpacity, saveChatBackgroundPath, saveChatBackgroundSessionOpacity, saveChatBackgroundScope, setNewThreadBackgroundEffect, saveThemeDarkLightness, saveThemePreference, saveSidebarBlur, saveSidebarOpacity, saveThemeHue, saveThemeSaturation, isLightScheme, saveTranscriptLayout, saveTranscriptAnchor, syncNativeGlass, TRANSCRIPT_ANCHOR_CHANGE_EVENT, SIDEBAR_BLUR_DEFAULT, SIDEBAR_BLUR_MAX, SIDEBAR_BLUR_MIN, SIDEBAR_OPACITY_DEFAULT, SIDEBAR_OPACITY_MAX, SIDEBAR_OPACITY_MIN, THEME_DARK_LIGHTNESS_DEFAULT, THEME_DARK_LIGHTNESS_MAX, THEME_DARK_LIGHTNESS_MIN, THEME_HUE_DEFAULT, THEME_HUE_MAX, THEME_HUE_MIN, THEME_SATURATION_DEFAULT, THEME_SATURATION_MAX, THEME_SATURATION_MIN, type ThemePreference, type ChatBackgroundScope, NEW_THREAD_BACKGROUND_EFFECTS, NEW_THREAD_BACKGROUND_EFFECT_LABELS, NEW_THREAD_BACKGROUND_EFFECT_DESCRIPTIONS, NEW_THREAD_BACKGROUND_EFFECT_DEFAULT, type NewThreadBackgroundEffect, type TranscriptLayout, } from "../model/appearance";
+import { applyChatBackground, applyChatBackgroundEmptyOpacity, applyChatBackgroundSessionOpacity, applyChatBackgroundScope, applyBodyGlass, applySidebarBlur, applySidebarOpacity, applyThemeDarkLightness, applyThemePreference, applyThemeTint, BODY_GLASS_DEFAULT, ACCENT_COLOR_DEFAULT, CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT, CHAT_BACKGROUND_OPACITY_MAX, CHAT_BACKGROUND_OPACITY_MIN, CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT, CHAT_BACKGROUND_SCOPE_DEFAULT, THEME_PREFERENCE_DEFAULT, chatBackgroundSrc, loadBodyGlass, loadAccentColor, loadChatBackgroundEmptyOpacity, loadChatBackgroundPath, loadChatBackgroundSessionOpacity, loadChatBackgroundScope, loadNewThreadBackgroundEffect, loadThemeDarkLightness, loadThemePreference, loadSidebarBlur, loadSidebarOpacity, loadThemeHue, loadThemeSaturation, loadTranscriptLayout, loadTranscriptAnchor, saveBodyGlass, saveAccentColor, saveChatBackgroundEmptyOpacity, saveChatBackgroundPath, saveChatBackgroundSessionOpacity, saveChatBackgroundScope, setNewThreadBackgroundEffect, saveThemeDarkLightness, saveThemePreference, saveSidebarBlur, saveSidebarOpacity, saveThemeHue, saveThemeSaturation, isLightScheme, saveTranscriptLayout, saveTranscriptAnchor, syncNativeGlass, TRANSCRIPT_ANCHOR_CHANGE_EVENT, SIDEBAR_BLUR_DEFAULT, SIDEBAR_BLUR_MAX, SIDEBAR_BLUR_MIN, SIDEBAR_OPACITY_DEFAULT, SIDEBAR_OPACITY_MAX, SIDEBAR_OPACITY_MIN, THEME_DARK_LIGHTNESS_DEFAULT, THEME_DARK_LIGHTNESS_MAX, THEME_DARK_LIGHTNESS_MIN, THEME_HUE_DEFAULT, THEME_HUE_MAX, THEME_HUE_MIN, THEME_SATURATION_DEFAULT, THEME_SATURATION_MAX, THEME_SATURATION_MIN, type ThemePreference, type ChatBackgroundScope, NEW_THREAD_BACKGROUND_EFFECTS, NEW_THREAD_BACKGROUND_EFFECT_LABELS, NEW_THREAD_BACKGROUND_EFFECT_DESCRIPTIONS, NEW_THREAD_BACKGROUND_EFFECT_DEFAULT, type NewThreadBackgroundEffect, type TranscriptLayout, } from "../model/appearance";
 import { pickAndSaveChatBackground, removeChatBackground, } from "../../projects/model/chatBackground";
+import { applyEffectiveAccent, loadThemeId, saveThemeWallpaperAuto, setTheme, } from "../model/appearance";
+import { applyFonts, loadCodeFont, loadUiFont, normalizeFontFamily, OMARCHY_FONTS, rendersMonospace, saveCodeFont, saveUiFont, subscribeFonts, UI_FONT_FOLLOWS_CODE, } from "../model/fonts";
+import { findTheme, isThemeWallpaperPath, resolveTheme, type ThemeWallpaper, } from "../model/themes";
+import { ThemeGallery, WallpaperStrip } from "./ThemeGallery";
 import { applyUiScale, loadUiScale, saveUiScale, subscribeUiScale, UI_SCALE_DEFAULT, UI_SCALE_PERCENTS, } from "../model/uiScale";
 import { getHarnessAvailabilitySnapshot, harnessUnavailableHint, isHarnessAvailable, probeHarnessAvailability, subscribeHarnessAvailability, } from "../../../integrations/harness/core/availability";
 import { inspectHarnessBinary, type HarnessBinaryInspection, } from "../../../integrations/harness/core/child";
@@ -387,7 +391,10 @@ function ChatPage() {
 type AppearanceSettings = ReturnType<typeof useAppearanceSettings>;
 function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedProjectRailMode, onControlledCollapsedProjectRailModeChange?: (mode: CollapsedProjectRailMode) => void) {
     const [themePreference, setThemePreference] = useState<ThemePreference>(loadThemePreference);
+    const [themeId, setThemeId] = useState(loadThemeId);
     const [accentColor, setAccentColor] = useState(loadAccentColor);
+    const [codeFont, setCodeFont] = useState(loadCodeFont);
+    const [uiFont, setUiFont] = useState(loadUiFont);
     const [opacity, setOpacity] = useState(loadSidebarOpacity);
     const [blur, setBlur] = useState(loadSidebarBlur);
     const [themeHue, setThemeHue] = useState(loadThemeHue);
@@ -405,15 +412,43 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
     const [storedCollapsedProjectRailMode, setStoredCollapsedProjectRailMode] = useState<CollapsedProjectRailMode>(loadCollapsedProjectRailMode);
     const collapsedProjectRailMode = controlledCollapsedProjectRailMode ?? storedCollapsedProjectRailMode;
     useEffect(() => subscribeUiScale(() => setUiScale(loadUiScale())), []);
+    useEffect(() => subscribeFonts(() => {
+        setCodeFont(loadCodeFont());
+        setUiFont(loadUiFont());
+    }), []);
     const onThemePreference = useCallback((next: ThemePreference) => {
         applyThemePreference(next);
         saveThemePreference(next);
         setThemePreference(next);
     }, []);
     const onAccentColor = useCallback((value: string | null) => {
-        const next = applyAccentColor(value);
-        saveAccentColor(next);
-        setAccentColor(next);
+        saveAccentColor(value);
+        // The theme's accent shows through while none is picked.
+        applyEffectiveAccent();
+        setAccentColor(loadAccentColor());
+    }, []);
+    const onTheme = useCallback((id: string | null) => {
+        setTheme(id);
+        setThemeId(loadThemeId());
+        // Picking a theme may also have moved the chat background to its wallpaper.
+        setChatBackgroundPath(loadChatBackgroundPath());
+    }, []);
+    const onSelectThemeWallpaper = useCallback((wallpaper: ThemeWallpaper) => {
+        saveChatBackgroundPath(wallpaper.path);
+        applyChatBackground(wallpaper.path);
+        saveThemeWallpaperAuto(true);
+        setChatBackgroundPath(wallpaper.path);
+        setChatBackgroundError(null);
+    }, []);
+    const onCodeFont = useCallback((value: string | null) => {
+        saveCodeFont(value);
+        applyFonts();
+        setCodeFont(loadCodeFont());
+    }, []);
+    const onUiFont = useCallback((value: string | null) => {
+        saveUiFont(value);
+        applyFonts();
+        setUiFont(loadUiFont());
     }, []);
     const onOpacity = useCallback((percent: number) => {
         const next = applySidebarOpacity(percent / 100);
@@ -453,6 +488,7 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
                 return;
             saveChatBackgroundPath(path);
             applyChatBackground(path);
+            saveThemeWallpaperAuto(true);
             setChatBackgroundPath(path);
         }
         catch (error) {
@@ -467,6 +503,9 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         setChatBackgroundError(null);
         try {
             await removeChatBackground();
+            // Removing a theme's wallpaper means: stop bringing it back with the theme.
+            if (isThemeWallpaperPath(loadChatBackgroundPath()))
+                saveThemeWallpaperAuto(false);
             saveChatBackgroundPath(null);
             applyChatBackground(null);
             setChatBackgroundPath(null);
@@ -508,6 +547,10 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         onControlledCollapsedProjectRailModeChange?.(next);
     }, [onControlledCollapsedProjectRailModeChange]);
     const restoreDefaults = useCallback(() => {
+        onTheme(null);
+        saveThemeWallpaperAuto(true);
+        onCodeFont(null);
+        onUiFont(null);
         onThemePreference(THEME_PREFERENCE_DEFAULT);
         onAccentColor(ACCENT_COLOR_DEFAULT);
         onOpacity(Math.round(SIDEBAR_OPACITY_DEFAULT * 100));
@@ -533,6 +576,9 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         onNewThreadBackgroundEffect,
         onClearChatBackground,
         onAccentColor,
+        onTheme,
+        onCodeFont,
+        onUiFont,
         onThemePreference,
         onOpacity,
         onTint,
@@ -542,7 +588,10 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
     ]);
     return {
         themePreference,
+        themeId,
         accentColor,
+        codeFont,
+        uiFont,
         opacity,
         blur,
         themeHue,
@@ -559,7 +608,11 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         uiScale,
         collapsedProjectRailMode,
         onThemePreference,
+        onTheme,
         onAccentColor,
+        onCodeFont,
+        onUiFont,
+        onSelectThemeWallpaper,
         onOpacity,
         onBlur,
         onTint,
@@ -581,32 +634,51 @@ function AppearancePage({ appearance }: {
 }) {
     const percent = Math.round(appearance.opacity * 100);
     const glassDisabled = useColorScheme() === "light";
+    const theme = findTheme(appearance.themeId);
     return (<>
-      <Group title="Theme" description="Dark and light share the same tint, so the color settings below apply to both.">
-        <Row id="theme" label="Theme" description="System follows the OS appearance.">
-          <Segmented label="Theme" value={appearance.themePreference} options={[
+      <Group title="Theme" description={theme
+            ? `${theme.name} sets the colors, the code colors and whether Loci is dark or light.`
+            : "Dark and light share the same tint, so the color settings below apply to both."}>
+        <BlockRow id="color-theme" label="Color theme" description="Palettes and wallpapers from Omarchy's themes. Default keeps Loci's own colors, which the controls below adjust.">
+          <ThemeGallery activeId={appearance.themeId} onSelect={appearance.onTheme}/>
+        </BlockRow>
+        <Row id="theme" label="Mode" description={theme ? `Set by the ${theme.name} theme.` : "System follows the OS appearance."}>
+          <Segmented label="Mode" value={theme ? theme.mode : appearance.themePreference} disabled={theme != null} options={[
             { value: "system", label: "System" },
             { value: "dark", label: "Dark" },
             { value: "light", label: "Light" },
         ]} onChange={appearance.onThemePreference}/>
         </Row>
-        <Row id="accent-color" label="Accent color" description="Used for the composer send button and your message bubbles.">
-          <AccentColorPicker value={appearance.accentColor} onChange={appearance.onAccentColor}/>
+        <Row id="accent-color" label="Accent color" description={theme
+            ? "Used for the composer send button and your message bubbles. The theme picks one unless you do."
+            : "Used for the composer send button and your message bubbles."}>
+          <AccentColorPicker value={appearance.accentColor} themeAccent={theme ? resolveTheme(theme).accent : null} onChange={appearance.onAccentColor}/>
         </Row>
 
       </Group>
 
-      <Group title="Color" description="Hue and saturation tint every surface. Lightness only moves the dark theme.">
+      <Group title="Color" description={theme
+            ? `The ${theme.name} theme sets these colors. Choose Default above to adjust them.`
+            : "Hue and saturation tint every surface. Lightness only moves the dark theme."}>
         <Row id="hue" label="Hue" description="Base hue for accents and tinted surfaces.">
-          <Slider label="Hue" value={appearance.themeHue} display={`${appearance.themeHue}°`} min={THEME_HUE_MIN} max={THEME_HUE_MAX} onChange={(value) => appearance.onTint(value, appearance.themeSaturation)}/>
+          <Slider label="Hue" value={appearance.themeHue} display={`${appearance.themeHue}°`} min={THEME_HUE_MIN} max={THEME_HUE_MAX} onChange={(value) => appearance.onTint(value, appearance.themeSaturation)} disabled={theme != null}/>
         </Row>
         <Row id="saturation" label="Saturation" description="How strongly the hue tints the interface. Zero keeps it neutral.">
-          <Slider label="Saturation" value={appearance.themeSaturation} display={`${appearance.themeSaturation}%`} min={THEME_SATURATION_MIN} max={THEME_SATURATION_MAX} onChange={(value) => appearance.onTint(appearance.themeHue, value)}/>
+          <Slider label="Saturation" value={appearance.themeSaturation} display={`${appearance.themeSaturation}%`} min={THEME_SATURATION_MIN} max={THEME_SATURATION_MAX} onChange={(value) => appearance.onTint(appearance.themeHue, value)} disabled={theme != null}/>
         </Row>
         <Row id="dark-lightness" label="Dark-mode lightness" description={glassDisabled
             ? "This only affects dark mode. Your dark-mode value is preserved."
             : "Base brightness of the dark theme. Lower values are darker; zero is true black."}>
-          <Slider label="Dark-mode lightness" value={appearance.themeDarkLightness} display={`${appearance.themeDarkLightness}%`} min={THEME_DARK_LIGHTNESS_MIN} max={THEME_DARK_LIGHTNESS_MAX} onChange={appearance.onDarkLightness} disabled={glassDisabled}/>
+          <Slider label="Dark-mode lightness" value={appearance.themeDarkLightness} display={`${appearance.themeDarkLightness}%`} min={THEME_DARK_LIGHTNESS_MIN} max={THEME_DARK_LIGHTNESS_MAX} onChange={appearance.onDarkLightness} disabled={glassDisabled || theme != null}/>
+        </Row>
+      </Group>
+
+      <Group title="Fonts" description="Omarchy uses one monospace font everywhere. Pick one of its fonts here, or type the name of any font installed on this computer.">
+        <Row id="code-font" label="Code font" description="Code blocks, file paths and anything set in monospace.">
+          <FontSelect label="Code font" value={appearance.codeFont} emptyLabel="System monospace" monospaceOnly onChange={appearance.onCodeFont}/>
+        </Row>
+        <Row id="interface-font" label="Interface font" description="Chat, menus and notes.">
+          <FontSelect label="Interface font" value={appearance.uiFont} emptyLabel="System default" followLabel="Same as code font" onChange={appearance.onUiFont}/>
         </Row>
       </Group>
 
@@ -651,7 +723,9 @@ function ChatBackgroundCard({ appearance, }: {
     const emptyVisibility = Math.round(appearance.chatBackgroundEmptyOpacity * 100);
     const sessionVisibility = Math.round(appearance.chatBackgroundSessionOpacity * 100);
     const busy = appearance.chatBackgroundBusy;
+    const theme = findTheme(appearance.themeId);
     return (<Group id="chat-background" title="Chat background" description="An image behind your chat panes. It stays on this device.">
+      {theme && theme.wallpapers.length > 0 ? (<WallpaperStrip theme={theme} selectedPath={appearance.chatBackgroundPath} onSelect={appearance.onSelectThemeWallpaper}/>) : null}
       <div className="border-b border-content/5 p-4 last:border-b-0">
         <div className="overflow-hidden rounded-lg border border-content/10">
           {hasImage ? (<div className={`relative h-36 ${appearance.newThreadBackgroundEffect === "gradient-blur" ? "bg-background-base" : ""}`}>
@@ -1651,7 +1725,97 @@ function Row({ id, label, description, children, }: {
       </div>
     </div>);
 }
-function Segmented<T extends string>({ label, value, options, onChange, optionIdPrefix, }: {
+/** A row whose control needs the full width, such as the theme gallery. */
+function BlockRow({ id, label, description, children, }: {
+    id?: string;
+    label: ReactNode;
+    description?: string;
+    children: ReactNode;
+}) {
+    const revealed = useContext(RevealedSetting);
+    const flash = id != null && revealed === id;
+    return (<div id={id ? settingDomId(id) : undefined} data-setting-id={id} className={`border-b border-content/5 px-4 py-3.5 transition-colors last:border-b-0 ${flash ? "bg-accent/10" : ""}`}>
+      <div className="text-[13px] font-medium text-content">{label}</div>
+      {description ? (<p className="mt-1 text-[12px] leading-relaxed text-content/45">
+          {description}
+        </p>) : null}
+      <div className="mt-3">{children}</div>
+    </div>);
+}
+const CUSTOM_FONT = "__custom";
+/**
+ * A font choice: the system's, one of Omarchy's, or any family a person types.
+ * Typed names are checked before they are kept. A code font that does not come
+ * out as monospace (it is not installed, or it is not a code font) is not
+ * applied, and the row says so.
+ */
+function FontSelect({ label, value, emptyLabel, followLabel, monospaceOnly = false, onChange, }: {
+    label: string;
+    value: string | null;
+    emptyLabel: string;
+    /** Offered for the interface font: use whatever the code font is. */
+    followLabel?: string;
+    /** The code font: it has to render as monospace to be used. */
+    monospaceOnly?: boolean;
+    onChange: (value: string | null) => void;
+}) {
+    const preset = OMARCHY_FONTS.find((font) => font.family === value);
+    const selected = value == null ? "" : value === UI_FONT_FOLLOWS_CODE ? value : preset ? preset.family : CUSTOM_FONT;
+    const [custom, setCustom] = useState(selected === CUSTOM_FONT);
+    const [draft, setDraft] = useState(selected === CUSTOM_FONT ? (value ?? "") : "");
+    const [invalid, setInvalid] = useState(false);
+    useEffect(() => {
+        setCustom(selected === CUSTOM_FONT);
+        setInvalid(false);
+        if (selected === CUSTOM_FONT)
+            setDraft(value ?? "");
+        else
+            setDraft("");
+    }, [selected, value]);
+    const options = [
+        { value: "", label: emptyLabel },
+        ...(followLabel ? [{ value: UI_FONT_FOLLOWS_CODE, label: followLabel }] : []),
+        ...OMARCHY_FONTS.map((font) => ({ value: font.family, label: font.label })),
+        { value: CUSTOM_FONT, label: "Custom…" },
+    ];
+    const commit = () => {
+        if (draft.trim() === "") {
+            setInvalid(false);
+            return;
+        }
+        const next = normalizeFontFamily(draft);
+        setInvalid(next == null);
+        if (next != null && next !== value)
+            onChange(next);
+    };
+    const unusable = monospaceOnly && value != null && value !== UI_FONT_FOLLOWS_CODE && rendersMonospace(value) === false;
+    return (<div className="flex w-52 max-w-full flex-col items-stretch gap-1.5">
+      <Select label={label} value={custom ? CUSTOM_FONT : selected} options={options} onChange={(next) => {
+            setInvalid(false);
+            if (next === CUSTOM_FONT) {
+                setCustom(true);
+                return;
+            }
+            setCustom(false);
+            onChange(next === "" ? null : next);
+        }}/>
+      {custom ? (<input type="text" aria-label={`${label} name`} aria-invalid={invalid || undefined} value={draft} placeholder="Font name, e.g. Fira Code" spellCheck={false} autoCapitalize="off" autoComplete="off" onChange={(event) => {
+                setDraft(event.target.value);
+                setInvalid(false);
+            }} onBlur={commit} onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    commit();
+                }
+            }} className={`w-full rounded-md border bg-content/5 px-2 py-1 text-[12px] text-content outline-none placeholder:text-content/30 focus:border-content/30 ${invalid ? "border-red-400/70" : "border-content/10"}`}/>) : null}
+      {invalid ? (<p role="alert" className="text-[11px] text-red-400">
+          Use plain font names, such as Fira Code, monospace.
+        </p>) : unusable ? (<p className="text-[11px] text-content/45">
+          Not installed, or not a monospace font, so the system monospace is used.
+        </p>) : null}
+    </div>);
+}
+function Segmented<T extends string>({ label, value, options, onChange, optionIdPrefix, disabled = false, }: {
     label: string;
     value: T;
     options: {
@@ -1660,13 +1824,14 @@ function Segmented<T extends string>({ label, value, options, onChange, optionId
     }[];
     onChange: (value: T) => void;
     optionIdPrefix?: string;
+    disabled?: boolean;
 }) {
-    return (<div role="radiogroup" aria-label={label} className="inline-grid max-w-full shrink-0 gap-0.5 rounded-md border border-content/10 p-0.5 text-[12px]" style={{
+    return (<div role="radiogroup" aria-label={label} aria-disabled={disabled || undefined} className={`inline-grid max-w-full shrink-0 gap-0.5 rounded-md border border-content/10 p-0.5 text-[12px] ${disabled ? "opacity-40" : ""}`} style={{
             gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
         }}>
       {options.map((option) => (<button id={optionIdPrefix
                 ? `${optionIdPrefix}-${option.value.toLowerCase()}`
-                : undefined} key={option.value} type="button" role="radio" aria-checked={value === option.value} onClick={() => onChange(option.value)} className={`min-w-0 rounded-[5px] px-2.5 py-1 ${value === option.value
+                : undefined} key={option.value} type="button" role="radio" aria-checked={value === option.value} disabled={disabled} onClick={() => onChange(option.value)} className={`min-w-0 rounded-[5px] px-2.5 py-1 disabled:cursor-not-allowed ${value === option.value
                 ? "bg-selection text-content"
                 : "text-content/50 hover:text-content"}`}>
           {option.label}
@@ -1698,8 +1863,10 @@ const ACCENT_COLOR_PRESETS = [
     "#f59e0b",
     "#10b981",
 ] as const;
-function AccentColorPicker({ value, onChange, }: {
+function AccentColorPicker({ value, themeAccent = null, onChange, }: {
     value: string | null;
+    /** The accent the theme in effect picks; the first swatch stands for it while none is chosen. */
+    themeAccent?: string | null;
     onChange: (value: string | null) => void;
 }) {
     const [open, setOpen] = useState(false);
@@ -1709,7 +1876,7 @@ function AccentColorPicker({ value, onChange, }: {
         : -1;
     const presetIndex = value == null ? 0 : colorIndex >= 0 ? colorIndex + 1 : -1;
     return (<div ref={root} className="w-48">
-      <ColorSwatchRow colors={["var(--color-content)", ...ACCENT_COLOR_PRESETS]} labels={["Default", "Blue", "Violet", "Pink", "Red", "Orange", "Green"]} colorIndex={presetIndex >= 0 ? presetIndex : undefined} customColor={presetIndex < 0 ? (value ?? undefined) : undefined} customPickerOpen={open} onPickIndex={(index) => {
+      <ColorSwatchRow colors={[themeAccent ?? "var(--color-content)", ...ACCENT_COLOR_PRESETS]} labels={[themeAccent ? "Theme" : "Default", "Blue", "Violet", "Pink", "Red", "Orange", "Green"]} colorIndex={presetIndex >= 0 ? presetIndex : undefined} customColor={presetIndex < 0 ? (value ?? undefined) : undefined} customPickerOpen={open} onPickIndex={(index) => {
             setOpen(false);
             onChange(index === 0
                 ? ACCENT_COLOR_DEFAULT

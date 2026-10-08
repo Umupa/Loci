@@ -31,6 +31,7 @@ Loci 是一个本地优先的 agent CLI 桌面外壳，使用 Tauri 2、Rust、R
 - **会画图的 agent。** Claude Code 和 Codex 会话自带内置的 `loci_excalidraw` MCP：未经修改的官方 Excalidraw MCP 服务，写入 Loci 自己的画布存储。你的手动修改会被保留，面板实时更新。见 [docs/canvas-mcp.md](docs/canvas-mcp.md)。
 - **`/operator`。** 让 agent 操作 Loci 本身：读取模型、启动和发送会话、调整分栏、整理文件夹、读写笔记和画布。它走一条带认证的本机回环通道，只在你启用它的那一个 turn 内有效。
 - **`/learn`。** 在一张只由你用自己的话讲出来的内容长出来的图上学习一个主题。见[用 Loci 学习](#用-loci-学习)。
+- **主题、壁纸与字体。** Settings → Appearance 提供 22 个 Omarchy 主题、配套代码高亮和 72 张壁纸，也支持自选背景与系统已安装的字体。沿用背景效果、显示范围和透明度，自定义强调色优先。见 [docs/themes.md](docs/themes.md)。
 - **本地优先。** 本地 SQLite 数据库，不需要账号，没有统计，没有自动更新。见[数据与隐私](#数据与隐私)。
 
 ## 安装

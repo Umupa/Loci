@@ -23,7 +23,11 @@ import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
  * Mounted blocks hold their tokens in component state, so eviction only means
  * a remounted block briefly shows plain text while it is highlighted again.
  */
-const DEFAULT_THEMES: [ThemeInput, ThemeInput] = ["github-light", "github-dark"];
+export const DEFAULT_CODE_THEMES: [ThemeInput, ThemeInput] = [
+  "github-light",
+  "github-dark",
+];
+const DEFAULT_THEMES = DEFAULT_CODE_THEMES;
 const MAX_ENTRIES = 100;
 const MAX_CACHED_CHARS = 500_000;
 
@@ -143,3 +147,32 @@ export function createBoundedCodePlugin(
 }
 
 export const boundedCode = createBoundedCodePlugin();
+
+const MAX_THEMED_PLUGINS = 3;
+const themedPlugins = new Map<string, BoundedCodePlugin>();
+
+/**
+ * Streamdown reads the syntax themes from its code plugin, so a different set
+ * of colors means a different plugin. They are kept by `key` for the few most
+ * recent themes, so flipping back and forth reuses highlighted blocks, and the
+ * rest are released rather than piling up as people try themes.
+ */
+export function themedCodePlugin(
+  key: string,
+  themes: [ThemeInput, ThemeInput],
+): BoundedCodePlugin {
+  const existing = themedPlugins.get(key);
+  if (existing) {
+    themedPlugins.delete(key);
+    themedPlugins.set(key, existing);
+    return existing;
+  }
+  const plugin = createBoundedCodePlugin({ themes });
+  themedPlugins.set(key, plugin);
+  while (themedPlugins.size > MAX_THEMED_PLUGINS) {
+    const oldest = themedPlugins.keys().next().value;
+    if (oldest === undefined) break;
+    themedPlugins.delete(oldest);
+  }
+  return plugin;
+}

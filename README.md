@@ -31,6 +31,7 @@ Loci is a local-first desktop shell for agent CLIs, built with Tauri 2, Rust, Re
 - **Agents that can draw.** Claude Code and Codex sessions get a built-in `loci_excalidraw` MCP server: the official Excalidraw MCP server, unmodified, writing into Loci's own canvas store. Your hand edits are kept and the panel updates live. See [docs/canvas-mcp.md](docs/canvas-mcp.md).
 - **`/operator`.** Let an agent drive Loci itself: read models, start and message sessions, arrange panes, organise folders, read and write notes and canvases. It uses an authenticated loopback channel that is valid only during the turn you enabled it for.
 - **`/learn`.** Learn a subject on a map that grows only from what you can explain in your own words. See [Learning with Loci](#learning-with-loci).
+- **Themes, wallpapers and fonts.** Settings → Appearance offers 22 Omarchy themes, matching code highlighting and 72 wallpapers, alongside custom backgrounds and system-installed fonts. Existing background effects, visibility settings and custom accent colors still apply. See [docs/themes.md](docs/themes.md).
 - **Local-first.** A local SQLite database, no account, no analytics, no auto-updater. See [Data and privacy](#data-and-privacy).
 
 ## Install
