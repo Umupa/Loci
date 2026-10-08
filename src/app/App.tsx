@@ -123,6 +123,7 @@ function Workspace(boot: BootWorkspace) {
     onFinished: (session) => { void announceSessionFinished(session, isForeground(session.id)); },
   });
   const submission = useSessionSubmission({ runtime,
+    canStartSessionWork: (id) => !workspaceRef.current?.isSessionUnavailable(id),
     synchronizeProject: async (cwd) => {
       const location = await synchronizeProjectLocation(cwd);
       if (!location) throw new ProjectNotFoundError(cwd);
@@ -139,7 +140,7 @@ function Workspace(boot: BootWorkspace) {
     updateSessions: runtime.updateSessions,
     persistSession: runtime.persistSession,
     bindSession: runtime.bindRestoredSession,
-    stopSession: submission.stop,
+    stopSession: submission.stopSessionWork,
     flushPersistence: runtime.flushPersistence,
     onNavigate: closeSurface,
   });

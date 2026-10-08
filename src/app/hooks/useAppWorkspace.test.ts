@@ -131,6 +131,32 @@ afterEach(async () => {
 });
 
 describe("workspace lifecycle integration", () => {
+  it("keeps new-work admission closed through the final archive write", async () => {
+    const original = chat("archiving");
+    await mount([original]);
+    const gate = deferred<void>();
+    mocks.setSessionArchived.mockReturnValueOnce(gate.promise);
+    let archiving!: Promise<boolean>;
+    await act(async () => { archiving = workspace.archiveSession(original.id, true); });
+    expect(mocks.setSessionArchived).toHaveBeenCalledWith(original.id, true);
+    expect(workspace.isSessionUnavailable(original.id)).toBe(true);
+    await act(async () => { gate.resolve(); expect(await archiving).toBe(true); });
+    expect(workspace.isSessionUnavailable(original.id)).toBe(false);
+  });
+
+  it("keeps a running side question attached when its project is closed without purging", async () => {
+    const original = chat("side-running");
+    original.blocks[0].btwThreads = [{ id: "side", sourceEndBlockId: original.blocks[0].id,
+      createdAt: 1, updatedAt: 1, status: "running", messages: [], harness: "codex" }];
+    rememberProject(original.cwd);
+    await mount([original]);
+    await act(async () => workspace.removeProject(original.cwd, { purgeData: false }));
+    expect(liveSessions).toContain(original);
+    expect(workspace.loadedSessionCache.current.has(original.id)).toBe(false);
+    expect(persistSession).not.toHaveBeenCalledWith(original);
+    expect(workspace.tabs.some((tab) => leafIds(tab.layout).includes(original.id))).toBe(false);
+  });
+
   it("keeps a project and its latest content when closing the project cannot save", async () => {
     const original = chat("unsaved");
     rememberProject(original.cwd);

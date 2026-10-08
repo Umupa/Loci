@@ -50,6 +50,8 @@ export function loadMcpSettings(
     const discovery = fetchMcpSettings(cwd).then((snapshot) => {
       if (requests.get(cwd) === discovery) {
         healthRequests.delete(cwd);
+        // Share an in-flight failure, but let the next user access retry it.
+        if (snapshot.error) requests.delete(cwd);
         publish(cwd, snapshot);
       }
       return snapshot;
@@ -128,6 +130,7 @@ function loadClaudeHealth(
     })
     .catch((cause) => {
       if (requests.get(cwd) !== discovery) return;
+      healthRequests.delete(cwd);
       publish(cwd, { ...snapshots.get(cwd)!, claudeError: String(cause) });
     });
   healthRequests.set(cwd, request);

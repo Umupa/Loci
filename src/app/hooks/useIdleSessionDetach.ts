@@ -10,6 +10,7 @@ type SetStateAction,
 import { rememberLoadedSession } from "../../features/sessions/data/sessionCache";
 import { shouldPersistSession } from "../../features/sessions/data/sessionStore";
 import { sessionChildHarnesses } from "../../features/sessions/model/handoff";
+import { hasLiveSessionWork } from "../../features/sessions/model/inFlight";
 import type { Session } from "../../features/sessions/model/session";
 import {
 leafIds,
@@ -74,7 +75,7 @@ export function useIdleSessionDetach({
 
     const canDetach = (session: Session) =>
       !tabsRef.current.some((tab) => leafIds(tab.layout).includes(session.id)) &&
-      !session.busy &&
+      !hasLiveSessionWork(session) &&
       !openingSessionIds.current.has(session.id) &&
       !skipForgetSessionIds.current.has(session.id) &&
       !(detachInputs.current.liveAgentsEnabled && unseenFinishedRef.current.has(session.id));

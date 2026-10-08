@@ -5,6 +5,7 @@ CONTINUE_PROMPT,
 INTERRUPT_MESSAGE,
 canAutoContinue,
 hasInFlightSessions,
+hasLiveSessionWork,
 inFlightRefs,
 isInFlightSession,
 markTurnInterrupted,
@@ -24,6 +25,18 @@ function chat(
 }
 
 describe("isInFlightSession", () => {
+  it("retains running side questions without treating them as main turns to resume", () => {
+    const session = chat("/tmp/side");
+    session.blocks[0].btwThreads = [{ id: "side", sourceEndBlockId: "u1",
+      createdAt: 1, updatedAt: 1, status: "running", messages: [] }];
+    expect(hasLiveSessionWork(session)).toBe(true);
+    expect(isInFlightSession(session)).toBe(false);
+    expect(inFlightRefs([session], [newTab(session.id)])).toEqual([]);
+    expect(canAutoContinue(session)).toBe(false);
+    session.blocks[0].btwThreads[0].status = "ready";
+    expect(hasLiveSessionWork(session)).toBe(false);
+  });
+
   it("is true for a busy turn, a live approval, or a parked question", () => {
     expect(isInFlightSession(chat("/tmp/a"))).toBe(false);
     expect(isInFlightSession(chat("/tmp/a", { busy: true }))).toBe(true);
