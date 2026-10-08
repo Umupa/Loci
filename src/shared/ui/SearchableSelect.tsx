@@ -1,3 +1,4 @@
+import { useUiText } from "../i18n/SettingsLanguage";
 import {
   useEffect,
   useId,
@@ -45,6 +46,7 @@ export function SearchableSelect({
   searchable?: boolean;
   align?: PopoverAlign;
 }) {
+  const { t, locale } = useUiText();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -66,7 +68,7 @@ export function SearchableSelect({
               .includes(normalizedQuery),
           )
         : [...options],
-    [normalizedQuery, options],
+    [locale, normalizedQuery, options],
   );
   const activeId =
     filtered[active] != null ? `${listId}-option-${active}` : undefined;
@@ -188,7 +190,7 @@ export function SearchableSelect({
         ref={trigger}
         type="button"
         disabled={disabled}
-        aria-label={`${label}: ${selected?.label ?? placeholder}`}
+        aria-label={`${label}: ${selected?.label ?? t(placeholder)}`}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => (open ? close() : openMenu())}
@@ -213,7 +215,7 @@ export function SearchableSelect({
         <span
           className={`min-w-0 truncate ${variant === "panel" ? "flex-1 text-right" : variant === "pill" || variant === "row" ? "" : "flex-1"} ${selected ? "text-content" : "text-content/40"}`}
         >
-          {selected?.label ?? placeholder}
+          {selected?.label ?? t(placeholder)}
         </span>
         <ChevronDown
           className={`shrink-0 text-content/45 transition-transform duration-150 ease-out ${variant === "pill" || variant === "row" ? "size-3" : "size-3.5"} ${open ? "rotate-180" : ""}`}
@@ -231,7 +233,7 @@ export function SearchableSelect({
           constrainHeight={longMenu}
           layer={popoverLayer}
           role="dialog"
-          aria-label={`${label} options`}
+          aria-label={t("{0} options", label)}
           data-dialog-popover
           onDismiss={(reason) => close(reason === "escape")}
           className="flex flex-col overflow-hidden"
@@ -249,7 +251,7 @@ export function SearchableSelect({
                 aria-controls={listId}
                 aria-activedescendant={activeId}
                 value={query}
-                placeholder={searchPlaceholder}
+                placeholder={t(searchPlaceholder)}
                 autoComplete="off"
                 spellCheck={false}
                 onChange={(event) => {
@@ -308,7 +310,7 @@ export function SearchableSelect({
               })
             ) : (
               <p className="px-2 py-3 text-center text-[12px] text-content/45">
-                {emptyLabel}
+                {t(emptyLabel)}
               </p>
             )}
           </div>

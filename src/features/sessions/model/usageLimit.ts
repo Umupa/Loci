@@ -8,7 +8,7 @@ export const USAGE_LIMIT_RESUME_GRACE_MS = 30_000;
 export function formatUsageLimitReset(resetsAt: number, now: number): string {
   const reset = new Date(resetsAt);
   const sameDay = reset.toDateString() === new Date(now).toDateString();
-  const when = reset.toLocaleString(undefined, {
+  const when = reset.toLocaleString("en", {
     ...(sameDay ? {} : { month: "short", day: "numeric" }),
     hour: "numeric",
     minute: "2-digit",

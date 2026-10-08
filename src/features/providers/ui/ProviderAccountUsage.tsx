@@ -1,3 +1,4 @@
+import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import {
   clampUsedPercent,
   formatResetDuration,
@@ -38,10 +39,11 @@ export function AccountStatusLabel({
   status: AccountStatus;
   className?: string;
 }) {
+  const { t } = useUiText();
   return (
     <span
       className={`inline-flex min-w-0 items-center gap-1.5 ${className}`}
-      title={status.detail ? `${status.label} · ${status.detail}` : status.label}
+      title={status.detail ? `${t(status.label)} · ${status.detail}` : t(status.label)}
     >
       <span
         className={`size-1.5 shrink-0 rounded-full ${STATUS_DOT[status.tone]}`}
@@ -50,7 +52,7 @@ export function AccountStatusLabel({
       <span
         className={`${status.tone === "unknown" ? "min-w-0 truncate" : "shrink-0"} ${STATUS_TEXT[status.tone]}`}
       >
-        {status.label}
+        {t(status.label)}
       </span>
       {status.detail ? (
         <span className="min-w-0 truncate text-content/40">
@@ -62,13 +64,14 @@ export function AccountStatusLabel({
 }
 
 export function AccountUsageRefresh({ usage }: { usage: AccountUsage }) {
+  const { t } = useUiText();
   return (
     <button
       type="button"
       disabled={usage.refreshing}
       onClick={usage.refresh}
-      aria-label="Refresh usage limits"
-      title="Refresh usage limits"
+      aria-label={t("Refresh usage limits")}
+      title={t("Refresh usage limits")}
       className="grid size-7 place-items-center rounded-md text-content/40 transition-transform duration-150 hover:bg-content/10 hover:text-content active:scale-[0.96] disabled:opacity-40"
     >
       <RefreshCw
@@ -98,6 +101,7 @@ export function AccountUsageMeters({
   limits: ProviderRateLimits | undefined;
   now: number;
 }) {
+  const { t } = useUiText();
   const windows = meterWindows(limits);
 
   if (windows.length === 0) {
@@ -123,7 +127,7 @@ export function AccountUsageMeters({
       {windows.map((entry) => (
         <UsageMeter
           key={entry.title}
-          title={entry.title}
+          title={t(entry.title)}
           window={entry.window}
           now={now}
         />
@@ -143,6 +147,7 @@ export function UsageMeter({
   now: number;
   className?: string;
 }) {
+  const { t, locale } = useUiText();
   const showRemaining = useShowRemainingUsage();
   const pct = clampUsedPercent(window.usedPercent);
   const remaining = 100 - pct;
@@ -152,7 +157,7 @@ export function UsageMeter({
     window.resetsAt == null
       ? formatWindowLabel(window.windowMinutes)
       : window.resetsAt <= now
-        ? "reset due"
+        ? t("reset due")
         : formatResetDuration(window.resetsAt - now);
   return (
     <div
@@ -160,7 +165,7 @@ export function UsageMeter({
       title={
         window.resetsAt == null
           ? undefined
-          : `Resets ${new Date(window.resetsAt).toLocaleString()}`
+          : t("Resets {0}", new Date(window.resetsAt).toLocaleString(locale))
       }
     >
       <div className="flex items-baseline justify-between gap-2 text-[10px] leading-3">
@@ -171,16 +176,16 @@ export function UsageMeter({
           className={`shrink-0 tabular-nums ${full ? "font-medium text-red-400" : "text-content/60"}`}
         >
           {showRemaining
-            ? `${formatUsagePercent(remaining)} left`
+            ? t("{0} left", formatUsagePercent(remaining))
             : full
-              ? "Full"
+              ? t("Full")
               : formatUsagePercent(pct)}
         </span>
       </div>
       <div
         className="mt-1.5 h-1 overflow-hidden rounded-full bg-content/10"
         role="progressbar"
-        aria-label={`${title} limit ${showRemaining ? "remaining" : "used"}`}
+        aria-label={t("{0} limit {1}", title, showRemaining ? "remaining" : "used")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(shown)}
@@ -195,6 +200,7 @@ export function UsageMeter({
 }
 
 function MeterSkeleton() {
+
   return (
     <div className="w-36 animate-pulse" aria-hidden>
       <div className="h-3 w-20 rounded bg-content/10" />

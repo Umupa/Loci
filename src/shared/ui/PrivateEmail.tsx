@@ -1,3 +1,4 @@
+import { useUiText } from "../i18n/SettingsLanguage";
 import { useState } from "react";
 import { useMaskEmails } from "../../features/settings/model/displayPrefs";
 
@@ -6,6 +7,7 @@ import { useMaskEmails } from "../../features/settings/model/displayPrefs";
  * explicitly revealed; otherwise show them as plain text.
  */
 export function PrivateEmail({ email }: { email: string }) {
+  const { t } = useUiText();
   const masked = useMaskEmails();
   const [revealed, setRevealed] = useState(false);
   const [wasMasked, setWasMasked] = useState(masked);
@@ -21,7 +23,7 @@ export function PrivateEmail({ email }: { email: string }) {
       </span>
     );
   }
-  const action = revealed ? "Hide email" : "Reveal email";
+  const action = revealed ? t("Hide email") : t("Reveal email");
 
   return (
     <button

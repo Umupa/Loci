@@ -1,11 +1,11 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
-export async function pickAndSaveChatBackground(): Promise<string | null> {
+export async function pickAndSaveChatBackground(title = "Choose chat background"): Promise<string | null> {
   const sourcePath = await open({
     multiple: false,
     directory: false,
-    title: "Choose chat background",
+    title,
     filters: [
       {
         name: "Images",

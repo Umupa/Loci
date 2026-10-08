@@ -1252,7 +1252,7 @@ function hasTurnMetrics(metrics: TurnMetrics): boolean {
 }
 
 function formatMetricCount(value: number): string {
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat("en", {
     notation: "compact",
     maximumFractionDigits: value >= 1000 ? 1 : 0,
   }).format(Math.max(0, Math.round(value)));
@@ -1260,7 +1260,7 @@ function formatMetricCount(value: number): string {
 
 /** Wall-clock stamp for a finished turn, in the reader's own locale. */
 function formatClockTime(epochMs: number): string {
-  return new Date(epochMs).toLocaleTimeString(undefined, {
+  return new Date(epochMs).toLocaleTimeString("en", {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -1879,7 +1879,7 @@ function UserMessageBlock({
             {block.startedAt != null ? (
               <time
                 dateTime={new Date(block.startedAt).toISOString()}
-                title={new Date(block.startedAt).toLocaleString()}
+                title={new Date(block.startedAt).toLocaleString("en")}
                 className="ml-1 font-sans text-xs text-content/40"
               >
                 {formatClockTime(block.startedAt)}

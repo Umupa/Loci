@@ -34,7 +34,7 @@ export function reminderTime(preset: string, now = new Date()): number | null {
 }
 
 export function formatReminderTime(dueAt: number): string {
-  return new Date(dueAt).toLocaleString(undefined, {
+  return new Date(dueAt).toLocaleString("en", {
     weekday: "short",
     month: "short",
     day: "numeric",

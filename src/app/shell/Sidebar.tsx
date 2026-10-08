@@ -1803,7 +1803,7 @@ function formatRelative(value: number, now: number): string {
     if (days < 7)
         return `${days}d`;
     try {
-        return new Intl.DateTimeFormat(undefined, {
+        return new Intl.DateTimeFormat("en", {
             month: "short",
             day: "numeric",
         }).format(new Date(value));

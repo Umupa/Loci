@@ -8,6 +8,7 @@ import { refreshHarnessCatalogs } from "../../../integrations/harness/core/regis
 import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
 import { hasLiveCatalog, modelsFor, resetHarnessModelOverlays, setHarnessModels } from "../../sessions/model/models";
 import { SettingsView } from "./SettingsView";
+import { setLanguagePreference } from "../../../shared/i18n/locale";
 import { rememberNotificationProjects } from "../../notifications/model/notificationProjects";
 import { SETTINGS_INDEX, SETTINGS_SECTIONS, type SettingsSectionId, } from "../model/settings";
 import { providerAccounts, saveProviderAccount, } from "../../providers/model/providerAccounts";
@@ -523,6 +524,26 @@ describe("settings search", () => {
         expect(options()).toHaveLength(0);
         expect(input.value).toBe("");
         expect(onSelectSection).not.toHaveBeenCalled();
+    });
+    it("records a Chinese shortcut label under the original command ID", async () => {
+        setLanguagePreference("zh-CN");
+        try {
+            await render("keybindings");
+            const input = container.querySelector<HTMLInputElement>('[aria-label="更改“应用：搜索”的快捷键"]')!;
+            expect(input).not.toBeNull();
+            await act(async () => input.click());
+            await act(async () => document.body.dispatchEvent(new KeyboardEvent("keydown", {
+                code: "KeyM", key: "m", ctrlKey: true, shiftKey: true,
+                bubbles: true, cancelable: true,
+            })));
+            expect(JSON.parse(localStorage.getItem("loci.keybindingOverrides")!)).toEqual({
+                "App: Search": { shortcut: "Control+Shift+KeyM" },
+            });
+            await act(async () => setLanguagePreference("en"));
+            expect(container.querySelector('[aria-label="Change App: Search shortcut"]')).toBe(input);
+        } finally {
+            await act(async () => setLanguagePreference("en"));
+        }
     });
     it("records a custom keybinding from the key cell", async () => {
         await render("keybindings");

@@ -17,7 +17,7 @@ const EVENT_LABEL: Record<string, string> = {
 };
 const VERDICTS: readonly RecallVerdict[] = ["solid", "shaky", "gone"];
 
-const date = (ms: number) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+const date = (ms: number) => new Date(ms).toLocaleDateString("en", { year: "numeric", month: "short", day: "numeric" });
 const button = "h-6 shrink-0 rounded px-2 text-[11px] text-content/75 hover:bg-content/10 hover:text-content disabled:opacity-40";
 
 function openSource(source: LearnSource) {

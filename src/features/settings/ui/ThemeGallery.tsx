@@ -1,3 +1,4 @@
+import { t, useLocale } from "../../../shared/i18n/locale";
 import type { ReactNode } from "react";
 import { hslToHex } from "../../../shared/lib/colorUtils";
 import { Check } from "../../../shared/ui/icons";
@@ -35,6 +36,7 @@ function ThemeCard({
   dots: readonly string[];
   onSelect: () => void;
 }) {
+  useLocale();
   return (
     <button
       type="button"
@@ -110,6 +112,7 @@ function themeCard(
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
+  useLocale();
   return (
     <div>
       <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-content/40">
@@ -128,20 +131,21 @@ export function ThemeGallery({
   activeId: string | null;
   onSelect: (id: string | null) => void;
 }) {
+  useLocale();
   return (
-    <div role="radiogroup" aria-label="Color theme" className="space-y-4">
+    <div role="radiogroup" aria-label={t("Color theme")} className="space-y-4">
       <Section title="Loci">
         <ThemeCard
-          name="Default"
+          name={t("Default")}
           active={activeId == null}
           {...DEFAULT_PREVIEW}
           onSelect={() => onSelect(null)}
         />
       </Section>
-      <Section title="Dark">
+      <Section title={t("Dark")}>
         {themesWithMode("dark").map((theme) => themeCard(theme, activeId, onSelect))}
       </Section>
-      <Section title="Light">
+      <Section title={t("Light")}>
         {themesWithMode("light").map((theme) => themeCard(theme, activeId, onSelect))}
       </Section>
     </div>
@@ -158,14 +162,15 @@ export function WallpaperStrip({
   selectedPath: string | null;
   onSelect: (wallpaper: ThemeWallpaper) => void;
 }) {
+  useLocale();
   return (
     <div className="border-b border-content/5 p-4">
       <div className="mb-2 text-[12px] text-content/45">
-        {theme.name} wallpapers
+        {t("{0} wallpapers", theme.name)}
       </div>
       <div
         role="radiogroup"
-        aria-label={`${theme.name} wallpapers`}
+        aria-label={t("{0} wallpapers", theme.name)}
         className="flex gap-2 overflow-x-auto pb-1"
       >
         {theme.wallpapers.map((wallpaper) => {

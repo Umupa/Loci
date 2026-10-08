@@ -1,7 +1,7 @@
 export function formatRelativeTime(
   iso: string,
   now = Date.now(),
-  locale?: string,
+  locale = "en",
 ): string {
   const then = Date.parse(iso);
   if (!Number.isFinite(then)) return "";

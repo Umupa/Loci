@@ -1,3 +1,4 @@
+import { translate, type Locale } from "../../../shared/i18n/locale";
 import {
   isProjectMuted,
   NOTIFICATION_MUTE_HOURS,
@@ -7,11 +8,12 @@ import {
 /** A single status label for the project rail, menus, and mute controls. */
 export function notificationMuteStatus(
   preference: ProjectNotificationPreference | undefined,
+  locale: Locale = "en",
 ): string | null {
   if (!preference || !isProjectMuted(preference)) return null;
   return preference.mutedUntil === null
-    ? "Muted until resumed"
-    : `Muted until ${new Date(preference.mutedUntil!).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`;
+    ? translate(locale, "Muted until resumed")
+    : translate(locale, "Muted until {0}", new Date(preference.mutedUntil!).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" }));
 }
 
 /** The same preset IDs and durations are used by project menus. */
@@ -31,13 +33,15 @@ const mutePresets = [
   { kind: "item" as const, id: "mute:custom", label: "Choose date and time" },
 ];
 
-export function notificationMuteActions(now = new Date(Date.now())) {
+export function notificationMuteActions(now = new Date(Date.now()), locale: Locale = "en") {
   return mutePresets.map((action) => {
-    if (action.milliseconds == null) return action;
+    if (action.milliseconds == null) return { ...action, label: translate(locale, action.label) };
     const until = new Date(now.getTime() + action.milliseconds);
     const time = `${until.getHours()}:${String(until.getMinutes()).padStart(2, "0")}`;
-    const day = until.toDateString() === now.toDateString() ? "" : "Tomorrow, ";
-    return { ...action, label: `${action.label} (${day}${time})` };
+    const day = until.toDateString() === now.toDateString() ? "" : translate(locale, "Tomorrow, ");
+    const hours = action.milliseconds / 3_600_000;
+    const duration = hours === 1 ? translate(locale, "1 hour") : translate(locale, "{0} hours", hours);
+    return { ...action, label: `${duration} (${day}${time})` };
   });
 }
 
