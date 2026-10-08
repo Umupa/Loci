@@ -1,6 +1,6 @@
 # Loci 学习：需求、架构与开发计划
 
-**设计稿，实现尚未开始。** 2026-10-08 与用户确认了定位、核心体验和范围，本文把它们展开为需求、架构和分阶段计划。文中标注"已核对"的事实来自提交 `ebdfc21` 的代码，其余是设计。
+**第一版（阶段 1 和阶段 2）已实现并在真实应用里验证过，验证记录和没验证的部分见文末"实现与验证记录"。** 2026-10-08 与用户确认了定位、核心体验和范围，本文把它们展开为需求、架构和分阶段计划。文中标注"已核对"的事实来自提交 `ebdfc21` 的代码；需求表里的编号和"保证方"仍是设计时的写法，实现与它们的差异在文末列出。
 
 同一天用户又做了两个决定：`/learn` 从一开始就内置在 Loci 里，不做仓库之外的文件 skill；不等原型试用期，直接完整实现并验证第一版，也就是下文的阶段 1 和阶段 2。
 
@@ -122,7 +122,7 @@ Loci 的学习功能是一张由学习者和 agent 共同维护的**学习图**�
 | V2 | 到期节点在图上变淡。任何地方都不显示到期数量 | 宿主 | 2 |
 | V3 | 续学时先回访，最多 3 个。到期超过 9 个时优先选连线最多的节点 | 宿主选择，提示词执行 | 2 |
 | V4 | 回访开始时宿主遮住学习图。学习者可以掀开，掀开记为不稳 | 宿主 | 2 |
-| V5 | 回访期间 agent 读不到该节点的旧原话；提交判定后宿主才返回，用于对照 | 宿主 | 2 |
+| V5 | 回访期间 agent 读不到该节点的旧原话，包括与它相连的连线上的措辞；提交判定后宿主才返回，用于对照 | 宿主 | 2 |
 | V6 | 间隔达到 7 天后仍讲得出，或有做过的证据，节点加粗 | 宿主 | 2 |
 | V7 | 学习者可以在检查器里推翻判定 | 宿主 | 2 |
 
@@ -165,6 +165,7 @@ Loci 的学习功能是一张由学习者和 agent 共同维护的**学习图**�
 ```ts
 type LearnNode = {
   v: 1;
+  self: string;                            // 元素自己的 id；复制粘贴出的元素 id 不同，宿主不认它的状态
   kind: "concept" | "judgment" | "mission";
   state: "ghost" | "solid" | "anchored";   // 判断节点为 "open" | "closed"
   noteId?: string;                         // 存原话的笔记
@@ -178,11 +179,12 @@ type LearnNode = {
     type: "said" | "drew" | "prior" | "did" | "recall" | "reality";
     verdict?: "right" | "partly" | "wrong" | "solid" | "shaky" | "gone";
     sessionId: string;
+    from?: { state: "ghost" | "solid" | "anchored"; step?: number };  // 回访：回访前的位置，学习者改判时从这里重算
   }>;
 };
 ```
 
-**连线。** 绑定到两个节点的箭头，标签是学习者的说法。`customData.learn = { v: 1, kind: "edge", by: "learner" | "proposed" }`。agent 提议的连线为虚线，学习者确认后变实。
+**连线。** 绑定到两个节点的箭头，标签是学习者的说法（不超过 14 个汉字或 28 个字母，且必须是学习者原话里的片段）。`customData.learn = { v: 1, self, kind: "edge", by: "learner" | "proposed" }`。agent 提议的连线为虚线，学习者确认后变实；学习者用自己的话重新表述同一条连线时，新连线替换提议。节点另带 Excalidraw 自己的 `link` 字段指向它的笔记，所以节点角上的链接图标可以直接打开笔记。
 
 **样式由状态推导，宿主每次写入时重新计算：**
 
@@ -236,11 +238,11 @@ Claude Code / Codex（会话子进程，环境里有会话凭据）
 
 | 工具 | 输入 | 宿主做什么 |
 | --- | --- | --- |
-| `map_read` | `nodeId?`、`stats?` | 返回语义视图：mission、节点（ID、名称、类型、状态、是否到期）、连线、未认领的手绘、最多 3 个到期节点。带 `nodeId` 返回该节点的原话和历史；到期节点的原话不返回。不返回 Excalidraw 原始 JSON |
-| `map_init` | `subject`、`why`（引用）、`success`（引用数组） | 没有学习图时创建并显示在会话旁；写入 mission 区。可重复调用 |
-| `map_sketch` | `near`、`nodes`（每次最多 3 个名称）、`edges?` | 在锚点附近添加虚线节点和提议的连线。超过上限时拒绝并说明原因 |
-| `map_record` | `kind`、节点（已有 ID，或名称加锚点）、`quote`、`verdict`、`edges?`、`sources?`、`corrections?`；判断节点另有 `wrongIf`、`lookBackAt`；做过的证据用 `evidence` | 核对引用和出处；更新状态、样式和到期时间；创建或追加笔记；画出或确认连线；认领手绘元素。定向时可一次记录多个节点 |
-| `revisit` | `phase: start`、`nodeId`；或 `phase: finish`、`nodeId`、`quote`、`verdict` | 开始：遮住学习图，返回提示（节点名；判断节点返回全文）。结束：核对引用出现在开始之后，更新阶梯和状态，取消遮挡，返回旧原话供对照 |
+| `map_read` | `nodeId?`、`stats?` | 返回语义视图：mission、节点（ID、名称、类型、状态、是否到期）、连线（与到期或正在回访的节点相连的连线不带措辞）、学习者手绘但未认领的形状和箭头、最多 3 个待回访节点、未探索节点数。带 `nodeId` 返回该节点的历史和笔记；节点到期或正在回访时笔记不返回（回访结束才给）。`stats:true` 另给统计。不返回 Excalidraw 原始 JSON |
+| `map_init` | `subject`、`why`（学习者原话）、`success?`（原话数组） | 没有学习图时创建、打上 `learn-map` 标签并显示在会话旁；把 mission 写在图顶部。已有时不改动 |
+| `map_sketch` | `near?`、`nodes`（每次最多 3 个名称）、`edges?` | 在锚点附近添加虚线节点和提议的连线；虚线节点总数超过 9 个时拒绝并说明原因 |
+| `map_record` | `nodes[]`、`edges[]`。节点：`kind`（concept 或 judgment）、`id` 或 `label`、`near?`、`evidence`（said、prior、drew、did）、`quote`、`verdict`、`sources?`、`correction?`；判断另有 `wrongIf`、`lookBackAt`；did 另有 `detail` | 核对引用、出处和连线措辞；更新状态、样式和到期时间；创建或追加节点笔记；画出或确认连线；认领手绘形状；一次最多 12 个节点，定向时可一次记录学习者已有的全部知识 |
+| `revisit` | `phase`（start、finish、cancel）、`nodeId`；finish 另有 `quote`、`verdict`（solid、shaky、gone），判断的 finish 可带 `principle` | start：遮住学习图，返回要问的节点（判断节点返回当时的全文）。finish：核对引用来自 start 之后，更新阶梯和状态，取消遮挡，返回旧原话供对照；学习者回访期间掀开过地图，solid 降为 shaky。cancel：什么都不改 |
 
 ### 不变量落在哪里
 
@@ -256,20 +258,22 @@ Claude Code / Codex（会话子进程，环境里有会话凭据）
 
 | 位置 | 改动 |
 | --- | --- |
-| 输入框的命令列表 | 内置项 `/learn`，仅 Claude Code 和 Codex 会话显示。激活的那一轮带标记 |
-| 画布面板 `src/features/canvas/ui/CanvasPane.tsx` | 接上 `onLinkOpen`，`loci://` 链接走应用内导航（当前未接，已核对：第 239 行的 `<Excalidraw>` 没有该属性） |
-| 画布面板底部 | 节点检查器：学习图中选中单个学习节点时显示一行（名称、状态、上次回访），展开后显示原话、出处、历史。按钮：探索、回访、打开笔记、改判 |
-| 画布面板 | 回访遮挡层，带"掀开"入口 |
-| 画布面板 | 宿主对样式的推导写入不进入撤销历史。现有的替换事件固定用 `CaptureUpdateAction.IMMEDIATELY`，需要增加不记录的选项 |
-| 应用内链接 `src/shared/lib/appResourceLinks.ts` | 资源类型从 `canvas`、`note` 扩展到 `session` 和 `file`。`file` 带页码或行号，路径限制在项目内。正文渲染的协议白名单同步扩展 |
-| 文件面板 `src/features/files/ui/PdfView.tsx` | 支持从外部指定起始页（当前页码是组件内部状态，已核对：第 36 行） |
-| Settings → MCP 的 Built-in 区域 | 增加 `loci_learn` 一行，开关沿用 `src/features/settings/model/builtinMcp.ts` 的做法 |
+| 输入框的命令列表 | 内置项 `/learn`，仅 Claude Code 和 Codex 会话显示，带学位帽图标。激活的那一轮带 `learn` 标记；在不是项目的目录里或别的 provider 上输入会直接说明原因，不开始一轮 |
+| 画布面板 `src/features/canvas/ui/CanvasPane.tsx` | 接上 `onLinkOpen`，`loci://` 链接走应用内导航（此前未接）。节点上的链接图标因此直接打开笔记 |
+| 画布面板底部 | 节点检查器：学习图中选中单个学习节点时显示一行（名称、状态或"需要回访"、探索、回访、笔记），展开后显示出处、历史，以及对上一次回访判定的改判按钮 |
+| 画布面板 | 回访遮挡层，带"显示地图"入口；掀开不会中止回访，但会让这次回访最多记为"不稳" |
+| 画布面板 | 宿主为到期节点淡化等推导写入不进入撤销历史：`writeCanvasScene` 的写入带 `silent` 标记，面板用 `CaptureUpdateAction.NEVER` 应用 |
+| 应用内链接 `src/shared/lib/appResourceLinks.ts` | 资源类型从 `canvas`、`note` 扩展到 `session` 和 `file`。`file` 的路径用 base64url 编码，带页码（`#p4`）或行号（`#L6-8`），解析时拒绝能逃出项目的路径。正文渲染的协议白名单同步扩展 |
+| 文件面板 | PDF 从外部请求跳到指定页；纯文本滚动到指定行；Markdown 的预览没有行号，指定行的链接会切到源码模式并选中这些行。请求"用完即清"，之后正常打开同一文件不会被旧请求拉走 |
+| 对话记录 | 学习工具的调用按"读取学习图""记录到学习图""回访节点"命名，阶段标题和图标与画布工具一致；Claude Code 先查找延迟工具的那一行归入学习工具的使用 |
+| Settings → MCP 的 Built-in 区域 | 增加 `loci_learn` 一行。它没有开关：只在输入过 `/learn` 的会话里挂上，所以只显示是否可用（缺少 Node.js 时说明原因） |
+| 从节点开会话 | 选中虚线节点点"探索"，或到期节点点"回访"，在地图右侧开一个新会话，标题是节点名。provider 和模型沿用该项目上一次的学习会话；应用重启后内存里没有它，就用项目历史里最近一个未归档、非草稿、能学习且已安装的会话，都没有才用第一个可用的 provider（`learnSeed.ts`） |
 
 ### 需要先确认的技术前提
 
-阶段 1 的第一步用测试确认下面四点，任何一点不成立都要回到设计。
+阶段 1 的第一步用测试确认下面四点，任何一点不成立都要回到设计。结果见"实现与验证记录"。
 
-1. Excalidraw 0.18.1 的 `restore`、`convertToExcalidrawElements` 和常规编辑会保留 `customData`，复制粘贴会原样复制它。
+1. Excalidraw 0.18.1 的 `restore`、`convertToExcalidrawElements` 和常规编辑会保留 `customData`。复制粘贴是否原样复制它没有依赖：设计里节点状态带 `self`，复制出的元素 id 不同，宿主不认它的状态。
 2. 在已有会话中追加第二个内置 MCP 后，Claude Code 和 Codex 都能恢复原对话。画布开关已验证过同类重启。
 3. 模型能逐字引用用户的原话。引用校验的失败率要实测；失败率高时放宽归一化规则，不取消校验。
 4. Codex 对新服务的工具同样能用 `approval_mode` 把批准交给 Loci。
@@ -290,7 +294,7 @@ Claude Code / Codex（会话子进程，环境里有会话凭据）
 4. 投资里的判断节点和回看是否自然？"不替你判断"的边界是否可行？
 5. 图到 30 到 50 个节点时还看得清吗？
 
-### 阶段 1：状态与不变量
+### 阶段 1：状态与不变量（已实现）
 
 | 步骤 | 内容 | 规模 |
 | --- | --- | --- |
@@ -303,7 +307,7 @@ Claude Code / Codex（会话子进程，环境里有会话凭据）
 
 完成标准：两个主题、两个 provider 上走通定向、探索、落图；不变量各有回归测试；用真实的桥进程经 MCP 行协议调用生产处理代码，做法同 `src/features/canvas/mcpBridge.test.ts`。
 
-### 阶段 2：回访与时间
+### 阶段 2：回访与时间（已实现）
 
 | 步骤 | 内容 | 规模 |
 | --- | --- | --- |
@@ -343,3 +347,72 @@ Claude Code / Codex（会话子进程，环境里有会话凭据）
 2. **每个实线节点一条笔记。** 可以被搜索、被 `@` 引用、被学习者扩写。代价是笔记列表里条目变多。
 3. **起始数字：虚线上限 9、回访上限 3、阶梯 1/3/7/21/60/150 天。** 阶段 0 之后按实际感受调整。
 4. **从节点开的新会话沿用该项目上一次学习会话的模型选择。**
+
+## 实现与验证记录
+
+2026-10-08 到 10-09 在 Arch Linux ARM（aarch64）上完成。分支 `feat/learn`，已提交，未推送、未合并。
+
+### 代码在哪里
+
+| 部分 | 位置 |
+| --- | --- |
+| 学习图模型：状态、读取、引用校验、放置、间隔、统计 | `src/features/learn/model/`（`learnMap`、`mapScene`、`quote`、`placement`、`schedule`） |
+| 宿主处理：`loci_learn` 的五个工具、笔记追加、手改提示、改判 | `src/features/learn/bridge.ts` |
+| 内置 MCP 服务（只转发，不做决定） | `src-tauri/resources/learn-mcp/loci-learn.mjs` |
+| 控制通道 `learn` 命名空间；启动命令 | `src-tauri/src/control.rs`、`src-tauri/src/canvas_mcp.rs`（`learn_mcp_server`） |
+| `/learn` 命令、说明文字、两个 provider 的挂载与批准 | `src/features/learn/learnCommand.ts`、`mcpServer.ts`；`useSessionSubmission.ts`；`providers/claude/claude.ts`、`providers/codex/codex.ts` |
+| 界面：检查器、遮挡层、从节点开会话 | `src/features/learn/ui/LearnMapPanel.tsx`、`CanvasPane.tsx`、`src/app/hooks/useLearnSessions.ts` |
+| 链接和定位：session、file 链接，PDF 页，Markdown 行 | `src/shared/lib/appResourceLinks.ts`、`src/features/files/` |
+| 对话记录、设置页 | `src/features/sessions/model/learnToolCall.ts`、`AgentTranscript.tsx`、`McpSettings.tsx` |
+
+### 自动检查
+
+`cargo fmt --check`、`cargo clippy --workspace --all-targets -- -D warnings`、Rust 196 项测试、`tsc --noEmit`、`npm run build` 都通过。Vitest 294 个文件、3272 项，3270 项通过；失败的 2 项在 `src/app/hooks/useSaveToCanvas.test.ts`，在干净的 `main` 上同样失败（原因是提交 `ebdfc21` 重写了保存到画布的选择对话框，测试仍在找 `[role="dialog"]`），与本功能无关，没有改动。
+
+新增 9 个测试文件共 72 项：`learnModel` 23、`learnBridge` 15（起真实的 MCP 服务进程，经控制通道的行协议调用生产处理代码，只替换 Tauri 窗口和 SQLite）、`learnCommand` 8、`claudeLearnMcp` 7、`codexLearnMcp` 6、`filePlace` 4、`learnSeed` 4、`learnToolCall` 3、`excalidrawPremises` 2；并在 `appResourceLinks`、`useSessionSubmission`、`AgentTranscript` 等原有文件里增加了用例；Rust 另在 `control.rs` 和 `canvas_mcp.rs` 里各加一项。
+
+实机验证中发现的两个问题都先写了会失败的回归测试再修复：同一次调用对同一节点记两条时，并发追加笔记互相覆盖，学习者的原话丢失（测试里把顺序追加改回并发会失败）；Excalidraw 把节点标签按宽度折行，导致按名称找节点对不上（现在读 `originalText`）。
+
+### 实机验证
+
+用真实的 Tauri 调试二进制、WebKitGTK 2.52.6、真实 SQLite，窗口在 Xvfb 里，用真实鼠标键盘操作；应用数据重定向到临时目录。Codex 0.160（GPT-6.1-Sol）和 Claude Code 2.1.293（Haiku 5.5）都已登录。因为本机缺少系统包，做法同 `docs/canvas-mcp.md` 的验证记录。
+
+| 场景 | 结果 |
+| --- | --- |
+| 输入框命令列表 | `/learn` 排在第一位，带说明；输入后命令带图标高亮 |
+| Codex 定向（Kubernetes） | 先读图，一次问清"为什么学、已知什么"；`map_init`、`map_record`、`map_sketch` 落图：任务说明是学习者原话，说清的两个概念是实线，三个未探索概念是虚线；整个过程没有为学习工具弹出批准 |
+| 从节点开会话 | 选中虚线节点点"探索"，在地图右侧开新会话；agent 读了 `sources/`，找官方文档并把摘要存成 `sources/web/*.md`（写明 URL 和访问日期），带出处讲解 |
+| 只说"好的，懂了" | 节点保持虚线，agent 说明要等学习者自己解释 |
+| 学习者用自己的话讲回去 | 节点变实，宿主按学习者措辞画了两条连线；笔记里有原话、出处和日期、回到当时会话的链接 |
+| 回访 | 到期节点在图上变淡；回访开始后地图被遮住；agent 只报节点名；回答后 `solid`，下次 3 天后，agent 先给出旧原话对照；说"今天先不回顾"后 `cancel`，节点仍是到期；回访笔记按段追加 |
+| 检查器 | 选中节点显示状态、下次回访；展开有出处和历史；"Note"打开笔记；笔记里的会话链接回到当时的会话 |
+| Claude Code 定向（投资） | 同样的定向；只把说清楚的"市盈率"记为实线，听过但说不清的"安全边际"画成虚线 |
+| 投资判断 | 记为菱形判断节点，回看日期 2027-03-01，笔记里是学习者的判断和"出现什么情况说明我错了"的原话；被直接问"该买还是不该买"时拒绝给结论，并指出判断里"跟上"没有定义、两个条件须同时成立才算错 |
+| 手绘 | 用鼠标画一个方框和一条连到判断节点的箭头，随后发一条完全没提这件事的消息"继续"；agent 读图时在 `drawnByLearner` 里看到它们，没有改或删，先问"这是什么意思"；学习者解释后它把方框和箭头记入，位置没动。注意：agent 每一轮本来就先读图，所以这次没能单独证明"宿主在学习者手改后附带的提示"起了作用，那条提示只有单元测试 |
+| 出处链接 | 检查器里点 PDF 出处，新面板打开并显示"第 4 页"；点 Markdown 出处，文件切到源码模式并选中第 6 到 8 行 |
+| 设置页 | Settings → MCP 的 Built-in 区域出现 Learning 卡片（`loci_learn`、Local、Available，列出 Claude Code 和 Codex） |
+| 中途输入 `/learn` | 在已经聊过的 Claude Code 和 Codex 会话里，先发普通消息要它记住一个暗号，再输入 `/learn` 并问暗号：两个 provider 都带着原对话恢复（答出了暗号），并挂上了学习服务、读到地图 |
+| 重启 | 布局、地图、笔记都恢复；文件面板重新打开时回到第 1 页和预览，没有被旧的定位请求拉走（"请求用完即清"只有单元测试） |
+
+`loci_learn` 在五个真实会话里共被调用 28 次（`map_read` 14、`map_record` 5、`revisit` 5、`map_init` 2、`map_sketch` 2），没有一次被宿主拒绝或失败。这说明在这两个模型上，逐字引用的校验没有造成摩擦；它不说明别的模型也如此，也没有验证过校验会拒掉越界的调用（那部分只有自动测试）。
+
+### 没有验证的
+
+- macOS 和 Windows；打包后的应用能否找到 `resources/learn-mcp`（只有"清单里登记了、文件存在"的测试）；Bun 运行时。
+- 多窗口；计划模式的实机行为（只有自动测试）；Claude 的 Opus 和 Sonnet、其他 provider 的表现。
+- 回访时隐藏连线措辞（V5 的后半）是在实机验证之后才发现并补上的漏洞：此前完整的 `map_read` 会把与到期节点相连的连线标签原样给 agent。这一条只有自动测试，没有再做实机回访。
+- "不替学习者判断"和"讲解带出处"只靠说明文字，宿主不保证：只在 Claude Code 的 Haiku 5.5 上试了一次投资判断，它守住了；换一个模型、换一种问法都可能不同。
+- 真实的时间流逝：到期用数据库里改日期模拟（状态注入），1 天以后的几级间隔只靠单元测试，没有真的等。
+- 地图超过约 10 个节点后的可读性；节点摆放在更大地图上的表现；回访遮挡层在地图面板未打开时的表现；撤销历史里"静默写入"的实际效果。
+- 最关键的问题没法靠这类验证回答：学得是否更牢、是否愿意坚持。阶段 0 里列的五个问题（落图像巩固还是像作业、摆放位置能否接受、每次三个回访是否想躲、判断节点是否自然、地图变大后是否还看得清）需要真实使用来答。
+
+### 与设计的差异和已知缺口
+
+- 引用校验归一化后只比较字母和数字（忽略空白、标点、大小写、全半角），不是严格的逐字符。
+- `loci://file/` 链接相对窗口里当前打开的项目解析；从另一个项目的笔记里点，会指到错的位置。
+- 教学规则的完整文字只在输入 `/learn` 的那一轮发给 agent；换 provider 或上下文被压缩后，agent 仍有工具说明和 `map_read` 返回的 `rules`，但没有完整文字。
+- "做过"的证据是 agent 自己的陈述：宿主要求节点已被学习者解释过，并在检查器历史里注明"agent's statement"，但它仍能让节点加粗。
+- Markdown 文件在点过带行号的链接后会一直停在源码模式，直到手动切回预览。
+- 实机里模型偶尔的小问题：把 `loci://canvas/…` 当纯文本打出而不是 Markdown 链接；一次调用里对同一节点记两条（宿主已能处理）；把"实线"说成"已掌握"（工具说明和规则里已写明"实线只表示讲过，不等于掌握"）。
+- 阶段 3 的候选项没有动。
+

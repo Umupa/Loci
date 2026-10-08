@@ -30,6 +30,8 @@ Excalidraw 画布是一等对象：Claude Code / Codex 会话默认带上内置�
 
 Loci 使用 `com.loci.desktop` 的独立应用数据目录，数据库为 `loci.db`。会话、笔记、布局、图片和隔离 provider 账号保存在该目录；应用不会迁入来源应用的数据。默认 provider 账号仍使用各 CLI 自己的登录和配置。
 
+在输入框以 `/learn` 开头，可在 Claude Code / Codex 会话里学习一个主题。项目文件夹就是主题，Loci 在其中维护一张"学习图"画布：实线节点只表示你自己用自己的话讲出来过的东西，宿主逐字核对 agent 记下的原话，agent 只能用 `loci_learn` 工具改这张图，并且不能移动或删除已有内容。你手画的形状和连线是你的主张，agent 会先问清楚再记。节点按 1、3、7、21、60、150 天的间隔回访，回访时地图被遮住，要凭记忆讲，agent 在你答完之前读不到你上次的原话。投资一类判断型主题还有带回看日期的判断节点，agent 只检查你的判断与你以前说过的话是否一致，不给买卖建议。该服务同样需要本机有 Node.js 20.11+（或 Bun）。设计与验收见 [docs/learn.md](docs/learn.md)。
+
 回复支持可点击的笔记和画布链接：`loci://note/<id>`、`loci://canvas/<id>`，直接在当前 Loci 窗口打开资源。内置绘图 MCP 和 `/operator` 的笔记、画布操作返回这些地址，写入成功后返回保存回执；远端 Excalidraw 服务仍可使用，其结果不自动保存到 Loci。宿主绘图引导通过工具描述和结果提供，不注入 system/developer 提示词。
 
 抽取范围与批准记录见 [docs/extraction.md](docs/extraction.md)，实际验收结果见 [docs/status.md](docs/status.md)。许可和来源声明见 [LICENSE](LICENSE)、[NOTICE](NOTICE)。
