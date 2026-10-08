@@ -2,6 +2,14 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { hslToRgb, isHexColor, type Rgb } from "../../../shared/lib/colorUtils";
 import { IS_LINUX, IS_MAC } from "../../../platform/tauri/platform";
 import { readFlag, writeFlag } from "./storageFlags";
+import { applyFonts } from "./fonts";
+import {
+  findTheme,
+  isThemeWallpaperPath,
+  resolveTheme,
+  resolveThemeWallpaper,
+  type ThemeDefinition,
+} from "./themes";
 import { applyUiScale, loadUiScale } from "./uiScale";
 import {
   applyPreparedNewThreadBackground,
@@ -28,6 +36,9 @@ const CHAT_BACKGROUND_SESSION_OPACITY_KEY =
   "loci.chatBackgroundSessionOpacity";
 const CHAT_BACKGROUND_SCOPE_KEY = "loci.chatBackgroundScope";
 const NEW_THREAD_BACKGROUND_EFFECT_KEY = "loci.newThreadBackgroundEffect";
+const THEME_ID_KEY = "loci.themeId";
+const THEME_BOOT_KEY = "loci.themeBoot";
+const THEME_WALLPAPER_AUTO_KEY = "loci.themeWallpaperAuto";
 let chatBackgroundRevision = Date.now();
 let nativeGlassReady = false;
 let glassFadeTimer: number | undefined;
@@ -79,6 +90,9 @@ export const ACCENT_COLOR_DEFAULT = null;
 
 /** Fired on `window` whenever the color scheme flips (detail: ColorScheme). */
 export const SCHEME_CHANGE_EVENT = "loci:schemechange";
+
+/** Fired on `window` whenever the color theme changes (detail: theme id or null). */
+export const THEME_CHANGE_EVENT = "loci:themechange";
 
 export const TRANSCRIPT_LAYOUT_DEFAULT: TranscriptLayout = "chat";
 
@@ -270,20 +284,25 @@ export function applyThemeTint(hue: number, saturation: number) {
   const nextSaturation = Math.round(
     clamp(saturation, THEME_SATURATION_MIN, THEME_SATURATION_MAX),
   );
-  document.documentElement.style.setProperty("--theme-hue", String(nextHue));
-  document.documentElement.style.setProperty(
-    "--theme-saturation",
-    `${nextSaturation}%`,
-  );
+  // A named theme sets these channels itself; the stored tint comes back with
+  // the default theme.
+  if (!activeTheme()) {
+    document.documentElement.style.setProperty("--theme-hue", String(nextHue));
+    document.documentElement.style.setProperty(
+      "--theme-saturation",
+      `${nextSaturation}%`,
+    );
+  }
   refreshNativeTint();
   return { hue: nextHue, saturation: nextSaturation };
 }
 
 export function initAppearance() {
   document.documentElement.classList.toggle("is-mac", IS_MAC);
-  applyAccentColor(loadAccentColor());
-  applyThemeTint(loadThemeHue(), loadThemeSaturation());
-  applyThemeDarkLightness(loadThemeDarkLightness());
+  applyFonts();
+  // The page channels come first: the native window reads them below.
+  applyThemeColors();
+  applyEffectiveAccent();
   applyThemePreference(loadThemePreference());
   watchSystemColorScheme();
   applySidebarOpacity(loadSidebarOpacity());
@@ -334,8 +353,13 @@ export function isLightScheme(): boolean {
   return document.documentElement.classList.contains("theme-light");
 }
 
+/** The scheme in effect: a named theme is dark or light, otherwise the preference decides. */
+export function currentColorScheme(): ColorScheme {
+  return activeTheme()?.mode ?? resolveColorScheme(loadThemePreference());
+}
+
 export function applyThemePreference(value: ThemePreference): ColorScheme {
-  const next = resolveColorScheme(value);
+  const next = activeTheme()?.mode ?? resolveColorScheme(value);
   document.documentElement.classList.toggle("theme-light", next === "light");
   if (nativeGlassReady) syncNativeGlass(next);
   window.dispatchEvent(
@@ -455,8 +479,161 @@ export function watchSystemColorScheme() {
   if (!query) return;
   query.addEventListener("change", () => {
     const preference = loadThemePreference();
-    if (preference === "system") applyThemePreference(preference);
+    // A named theme is dark or light by itself, whatever the OS does.
+    if (preference === "system" && !activeTheme()) {
+      applyThemePreference(preference);
+    }
   });
+}
+
+export function loadThemeId(): string | null {
+  try {
+    return findTheme(localStorage.getItem(THEME_ID_KEY))?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveThemeId(id: string | null) {
+  try {
+    if (id != null && findTheme(id)) localStorage.setItem(THEME_ID_KEY, id);
+    else localStorage.removeItem(THEME_ID_KEY);
+  } catch {
+    // private mode / quota
+  }
+  saveThemeBoot(activeTheme());
+}
+
+/** Small validated snapshot for the inline splash script, before the bundle loads. */
+function saveThemeBoot(theme: ThemeDefinition | null) {
+  try {
+    if (!theme) {
+      localStorage.removeItem(THEME_BOOT_KEY);
+      return;
+    }
+    const { h, s, l } = resolveTheme(theme).backgroundHsl;
+    localStorage.setItem(THEME_BOOT_KEY, JSON.stringify([
+      theme.id, theme.mode, Number(channel(h)), Number(channel(s)), Number(channel(l)),
+    ]));
+  } catch {
+    // private mode / quota
+  }
+}
+
+/** The named theme in effect, or null for Loci's own tint-based theme. */
+export function activeTheme(): ThemeDefinition | null {
+  return findTheme(loadThemeId());
+}
+
+/** Whether picking a theme also puts its wallpaper behind the chat. */
+export const THEME_WALLPAPER_AUTO_DEFAULT = true;
+
+export function loadThemeWallpaperAuto(): boolean {
+  return readFlag(THEME_WALLPAPER_AUTO_KEY) ?? THEME_WALLPAPER_AUTO_DEFAULT;
+}
+
+export function saveThemeWallpaperAuto(value: boolean) {
+  writeFlag(THEME_WALLPAPER_AUTO_KEY, value);
+}
+
+const THEME_CHANNELS = [
+  "--content-hue",
+  "--content-saturation",
+  "--content-lightness",
+  "--background-lightness",
+  "--link-color",
+  "--color-markdown-heading",
+  "--color-skill",
+  "--color-mention",
+  "--color-diff-add",
+  "--color-diff-add-fg",
+  "--color-diff-del",
+  "--color-diff-del-fg",
+] as const;
+
+function channel(value: number): string {
+  return String(Math.round(value * 100) / 100);
+}
+
+/**
+ * Writes the active theme's colors into the CSS channels the tokens are built
+ * from, or hands the page back to the stored tint when there is none. Going
+ * through the existing channels is what keeps the glass panes, the native
+ * window tint and the background effects in step without knowing about themes.
+ */
+export function applyThemeColors(): ThemeDefinition | null {
+  const root = document.documentElement;
+  const theme = activeTheme();
+  saveThemeBoot(theme);
+  if (!theme) {
+    root.classList.remove("has-theme");
+    delete root.dataset.theme;
+    for (const property of THEME_CHANNELS) root.style.removeProperty(property);
+    applyThemeTint(loadThemeHue(), loadThemeSaturation());
+    applyThemeDarkLightness(loadThemeDarkLightness());
+    return null;
+  }
+  const colors = resolveTheme(theme);
+  const set = (name: string, value: string) =>
+    root.style.setProperty(name, value);
+  set("--theme-hue", channel(colors.backgroundHsl.h));
+  set("--theme-saturation", `${channel(colors.backgroundHsl.s)}%`);
+  set("--background-lightness", `${channel(colors.backgroundHsl.l)}%`);
+  set("--content-hue", channel(colors.contentHsl.h));
+  set("--content-saturation", `${channel(colors.contentHsl.s)}%`);
+  set("--content-lightness", `${channel(colors.contentHsl.l)}%`);
+  set("--link-color", colors.link);
+  set("--color-markdown-heading", colors.heading);
+  set("--color-skill", colors.skill);
+  set("--color-mention", colors.mention);
+  set("--color-diff-add", colors.diffAdd);
+  set("--color-diff-add-fg", colors.diffAddText);
+  set("--color-diff-del", colors.diffDel);
+  set("--color-diff-del-fg", colors.diffDelText);
+  root.classList.add("has-theme");
+  root.dataset.theme = theme.id;
+  return theme;
+}
+
+/** The accent a person picked wins; otherwise the theme's; otherwise Loci's own. */
+export function applyEffectiveAccent(): string | null {
+  const theme = activeTheme();
+  return applyAccentColor(
+    loadAccentColor() ?? (theme ? resolveTheme(theme).accent : null),
+  );
+}
+
+/**
+ * A theme's wallpaper follows the theme only while the chat background is
+ * empty or already one of the bundled wallpapers. A picture a person chose
+ * stays, and so does a background they removed on purpose.
+ */
+function followThemeWallpaper(theme: ThemeDefinition | null) {
+  const current = loadChatBackgroundPath();
+  const bundled = isThemeWallpaperPath(current);
+  let next: string | null | undefined;
+  if (!theme) next = bundled ? null : undefined;
+  else if (bundled || (current == null && loadThemeWallpaperAuto())) {
+    next = theme.wallpapers[0]?.path ?? null;
+  }
+  if (next === undefined || next === current) return;
+  saveChatBackgroundPath(next);
+  applyChatBackground(next);
+}
+
+/** Switches the color theme; null returns to Loci's own tint-based theme. */
+export function setTheme(id: string | null): ThemeDefinition | null {
+  saveThemeId(id);
+  const theme = applyThemeColors();
+  applyThemePreference(loadThemePreference());
+  applyEffectiveAccent();
+  followThemeWallpaper(theme);
+  window.dispatchEvent(
+    new CustomEvent<string | null>(THEME_CHANGE_EVENT, {
+      detail: theme?.id ?? null,
+    }),
+  );
+  return theme;
 }
 
 export function loadSidebarOpacity(): number {
@@ -519,7 +696,10 @@ export function applyBodyGlass(value: boolean) {
 
 export function loadChatBackgroundPath(): string | null {
   try {
-    return localStorage.getItem(CHAT_BACKGROUND_PATH_KEY)?.trim() || null;
+    const value = localStorage.getItem(CHAT_BACKGROUND_PATH_KEY)?.trim() || null;
+    // A bundled wallpaper that no longer exists is no background at all.
+    if (isThemeWallpaperPath(value) && !resolveThemeWallpaper(value)) return null;
+    return value;
   } catch {
     return null;
   }
@@ -559,7 +739,14 @@ export function applyChatBackground(path: string | null) {
 }
 
 export function chatBackgroundSrc(path: string | null): string | null {
-  return path ? `${convertFileSrc(path)}?v=${chatBackgroundRevision}` : null;
+  if (!path) return null;
+  if (isThemeWallpaperPath(path)) {
+    const bundled = resolveThemeWallpaper(path);
+    return bundled
+      ? `${bundled.wallpaper.src}?v=${chatBackgroundRevision}`
+      : null;
+  }
+  return `${convertFileSrc(path)}?v=${chatBackgroundRevision}`;
 }
 
 function isNewThreadBackgroundEffect(

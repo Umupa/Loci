@@ -32,4 +32,6 @@ Loci 使用 `com.loci.desktop` 的独立应用数据目录，数据库为 `loci.
 
 回复支持可点击的笔记和画布链接：`loci://note/<id>`、`loci://canvas/<id>`，直接在当前 Loci 窗口打开资源。内置绘图 MCP 和 `/operator` 的笔记、画布操作返回这些地址，写入成功后返回保存回执；远端 Excalidraw 服务仍可使用，其结果不自动保存到 Loci。宿主绘图引导通过工具描述和结果提供，不注入 system/developer 提示词。
 
+Settings → Appearance 提供 22 个 Omarchy 主题，配套代码高亮、72 张壁纸和字体预设。主题壁纸沿用 Chat background 的效果、范围与透明度，自选图片和强调色优先；代码与界面字体也可自定义。字体需要在系统中安装，选择 Default 可回到 Loci 原有配色。设计、来源与验证见 [docs/themes.md](docs/themes.md)。
+
 抽取范围与批准记录见 [docs/extraction.md](docs/extraction.md)，实际验收结果见 [docs/status.md](docs/status.md)。许可和来源声明见 [LICENSE](LICENSE)、[NOTICE](NOTICE)。
