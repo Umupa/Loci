@@ -48,8 +48,45 @@ vi.mock("../../../shared/ui/Popover", () => ({
 }));
 import { ModelControlPills, ModelPicker } from "./ModelPicker";
 import { resetHarnessModelOverlays, saveRecentModelChoice, setHarnessModels, modelsFor, } from "../model/models";
+import type { ModelSetting } from "../model/models";
 let container: HTMLDivElement;
 let root: Root;
+
+describe("fast mode indicator", () => {
+    const cases = [
+        { harness: "codex" as const, id: "serviceTier", kind: "select" as const, enabled: "priority", disabled: "default" },
+        { harness: "codex" as const, id: "serviceTier", kind: "select" as const, enabled: "fast", disabled: "default" },
+        { harness: "claude" as const, id: "fast", kind: "toggle" as const, enabled: "true", disabled: "false" },
+        { harness: "omp" as const, id: "fast", kind: "toggle" as const, enabled: "true", disabled: "false" },
+    ];
+    it.each(cases)("follows $harness $id=$enabled when toggled, defaulted, or unsupported", ({ harness, id, kind, enabled, disabled }) => {
+        const model = `${harness}:fast-indicator`;
+        const plainModel = `${harness}:plain-model`;
+        const setting: ModelSetting = { id, kind, label: "Fast", value: disabled,
+            options: [{ value: enabled, label: "On" }, { value: disabled, label: "Off" }] };
+        const catalog = (value = disabled) => act(() => setHarnessModels(harness, [
+            { id: model, harness, name: "Fast indicator", nativeId: "fast-indicator", settings: [{ ...setting, value }] },
+            { id: plainModel, harness, name: "Plain model", nativeId: "plain-model" },
+        ]));
+        const render = (values: Record<string, string>, selected = model) => act(() => root.render(createElement(ModelPicker, {
+            harness, model: selected, values, hideSettings: true, onChange: vi.fn(), onSettingsChange: vi.fn(),
+        })));
+        const lightning = () => container.querySelector('button[aria-haspopup] svg.text-accent');
+        catalog();
+        render({ [id]: enabled });
+        expect(lightning()).not.toBeNull();
+        expect(container.querySelector('button[aria-haspopup]')?.getAttribute("aria-label")).toContain("fast mode");
+        render({ [id]: disabled });
+        expect(lightning()).toBeNull();
+        catalog(enabled);
+        render({});
+        expect(lightning()).not.toBeNull();
+        render({ [id]: disabled });
+        expect(lightning()).toBeNull();
+        render({ [id]: enabled }, plainModel);
+        expect(lightning()).toBeNull();
+    });
+});
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     localStorage.clear();

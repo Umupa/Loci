@@ -57,7 +57,7 @@ type Shared = {
     onCanvasFocus?: (canvasId: string) => void;
     onCanvasAddToChat?: (text: string) => void;
     onCanvasTitleChange?: (canvasId: string, title: string) => void;
-    onSaveToCanvas?: (text: string) => void | Promise<void>;
+    onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
     /** Project folder that file panes show their paths relative to. */
     projectCwd?: string;
     onFilePaneFocus?: (paneId: string) => void;

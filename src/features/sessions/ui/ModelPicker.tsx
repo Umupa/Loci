@@ -313,17 +313,18 @@ export function ModelPicker({
   const triggerEffortLabel = triggerEffortSetting
     ? settingValueLabel(triggerEffortSetting, values)
     : undefined;
-  const serviceTierSetting = current.settings?.find(
-    (s) => s.id === "serviceTier" && s.kind === "select",
-  );
-  const serviceTierValue = serviceTierSetting
-    ? settingValue(serviceTierSetting, values)
-    : undefined;
+  const fastModeEnabled = current.settings?.some((setting) => {
+    const value = settingValue(setting, values);
+    return (setting.id === "serviceTier" && setting.kind === "select" &&
+      (value === "priority" || value === "fast")) ||
+      (setting.id === "fast" && setting.kind === "toggle" && value === "true");
+  }) ?? false;
   const triggerTitle = [
     HARNESS_TITLE[current.harness],
     current.provider?.name,
     current.name,
     triggerEffortLabel,
+    fastModeEnabled ? "Fast mode" : undefined,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -660,7 +661,7 @@ export function ModelPicker({
           current.provider ? `, ${current.provider.name},` : ""
         } ${current.name}${
           triggerEffortLabel ? `, effort ${triggerEffortLabel}` : ""
-        }`}
+        }${fastModeEnabled ? ", fast mode" : ""}`}
         aria-keyshortcuts={`${MOD}.`}
         aria-expanded={open || recentMenu != null}
         aria-haspopup={hideSettings ? "dialog" : "menu"}
@@ -684,7 +685,7 @@ export function ModelPicker({
             {triggerEffortLabel}
           </span>
         ) : null}
-        {serviceTierValue === "fast" ? (
+        {fastModeEnabled ? (
           <Zap className="size-3.5 shrink-0 text-accent" strokeWidth={1.75} />
         ) : null}
         <ChevronDown

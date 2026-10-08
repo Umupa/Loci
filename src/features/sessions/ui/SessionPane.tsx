@@ -135,7 +135,8 @@ export type SessionPaneProps = {
 
 
   onNoteCardDismiss?: (sessionId: string) => void;
-  onSaveToCanvas?: (text: string) => void | Promise<void>;
+  onNoteSaved?: (noteId: string) => void;
+  onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
 
 
   onApproval: (
@@ -238,6 +239,7 @@ export const SessionPane = memo(function SessionPane({
 
 
   onNoteCardDismiss,
+  onNoteSaved,
   onSaveToCanvas,
 
   onApproval,
@@ -427,7 +429,7 @@ export const SessionPane = memo(function SessionPane({
   const saveNote = useCallback(
     async (text: string) => {
       const sessionTitle = sessionDisplayTitle(session.title, session.harness);
-      await createNote({
+      const note = await createNote({
         title:
           sessionTitle && sessionTitle !== "New session"
             ? sessionTitle
@@ -436,8 +438,9 @@ export const SessionPane = memo(function SessionPane({
         sourceSessionId: session.id,
         sourceCwd: session.cwd,
       });
+      onNoteSaved?.(note.id);
     },
-    [session.cwd, session.harness, session.id, session.title],
+    [session.cwd, session.harness, session.id, session.title, onNoteSaved],
   );
   const saveSelectionNote = useCallback(
     async (text: string) => {

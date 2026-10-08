@@ -7,7 +7,12 @@ type Options = {
   canvases: Canvas[];
   workspaceRef: RefObject<{ projectCwdRef: RefObject<string> } | null>;
 };
-type Selection = { canvases: Canvas[]; resolver: (id: string) => void; rejecter: (error: Error) => void };
+type Selection = {
+  canvases: Canvas[];
+  anchor?: HTMLElement | null;
+  resolver: (id: string) => void;
+  rejecter: (error: Error) => void;
+};
 
 /** Saved drawings are available even when their editors are not mounted. */
 export function useSaveToCanvas({ canvases, workspaceRef }: Options) {
@@ -17,7 +22,7 @@ export function useSaveToCanvas({ canvases, workspaceRef }: Options) {
     pending.current?.rejecter(new DOMException("Cancelled", "AbortError"));
   }, []);
 
-  const saveToCanvas = async (text: string) => {
+  const saveToCanvas = async (text: string, anchor?: HTMLElement | null): Promise<string> => {
     const cwd = workspaceRef.current?.projectCwdRef.current;
     const available = canvases.filter((canvas) => !cwd || !looksLikeProject(cwd) ||
       !!canvas.cwd && sameProjectPath(canvas.cwd, cwd));
@@ -26,6 +31,7 @@ export function useSaveToCanvas({ canvases, workspaceRef }: Options) {
     const id = available.length === 1 ? available[0].id : await new Promise<string>((resolve, reject) => {
       const request: Selection = {
         canvases: available,
+        anchor,
         resolver: (id) => { pending.current = null; setSelection(null); resolve(id); },
         rejecter: (error) => { pending.current = null; setSelection(null); reject(error); },
       };
@@ -33,6 +39,7 @@ export function useSaveToCanvas({ canvases, workspaceRef }: Options) {
       setSelection(request);
     });
     await appendCanvasText(id, text);
+    return id;
   };
   return { saveToCanvas, selection };
 }

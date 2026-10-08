@@ -172,7 +172,7 @@ type Props = {
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
   onAddToChat?: (text: string) => void;
   onSaveNote?: (text: string) => void | Promise<void>;
-  onSaveToCanvas?: (text: string) => void | Promise<void>;
+  onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
   onSendDraft?: (block: Block) => boolean | void;
   onRemoveDraft?: (block: Block) => boolean | void;
   onSaveSelectionNote?: (text: string) => void | Promise<void>;
@@ -1095,7 +1095,7 @@ function TurnDuration({
   completedAt?: number;
   copyText?: string;
   onSaveNote?: (text: string) => void | Promise<void>;
-  onSaveToCanvas?: (text: string) => void | Promise<void>;
+  onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
 
   /** The turn's own model, so a same-harness second opinion can hide it. */
 
@@ -1390,7 +1390,7 @@ function SaveToCanvasButton({
   onSave,
 }: {
   text: string;
-  onSave: (text: string) => void | Promise<void>;
+  onSave: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -1413,12 +1413,12 @@ function SaveToCanvasButton({
         title={saved ? "Saved to Canvas" : "Save to canvas"}
         aria-label={saved ? "Saved to Canvas" : "Save to canvas"}
         className="rounded-md p-1 text-content/40 hover:bg-content/8 hover:text-content/70"
-        onClick={async () => {
+        onClick={async (event) => {
           setError(null);
           setSaved(false);
           setPending(true);
           try {
-            await onSave(text);
+            await onSave(text, event.currentTarget as HTMLElement);
             playCue("copy");
             setSaved(true);
             if (timer.current != null) window.clearTimeout(timer.current);

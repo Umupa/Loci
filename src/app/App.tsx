@@ -30,6 +30,7 @@ import { closedTabs } from "../features/workspace/model/closedTabs";
 import { TabSwitcher } from "./shell/TabSwitcher";
 import { TabOverview } from "./shell/TabOverview";
 import { ClosedTabToast } from "./shell/ClosedTabToast";
+import { SavedToast, type SavedToastData } from "./shell/SavedToast";
 import { attentionOrder, heldTabIds, idleTabIds, parkingCandidates, trackTabGrowth, type TabCountMark } from "../features/workspace/model/tabParking";
 import { loadTabLimit } from "../features/settings/model/settings";
 import { pathKey } from "../shared/lib/paths";
@@ -98,6 +99,7 @@ function Workspace(boot: BootWorkspace) {
   const [sessionSidebarOpen, setSessionSidebarOpen] = useState(loadSessionSidebarOpen);
   const [searchFocusToken, setSearchFocusToken] = useState(0);
   const [noteOpenRequest, setNoteOpenRequest] = useState<NoteOpenRequest>();
+  const [savedToast, setSavedToast] = useState<SavedToastData | null>(null);
   const [sessionOrder, setSessionOrder] = useState<readonly string[]>([]);
   const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
   const [transcriptPool] = useState(() => new TranscriptPool());
@@ -142,7 +144,12 @@ function Workspace(boot: BootWorkspace) {
     onNavigate: closeSurface,
   });
   workspaceRef.current = workspace;
-  const { saveToCanvas, selection: canvasSelection } = useSaveToCanvas({ canvases, workspaceRef });
+  const { saveToCanvas: _saveToCanvas, selection: canvasSelection } = useSaveToCanvas({ canvases, workspaceRef });
+  const saveToCanvas = async (text: string, anchor?: HTMLElement | null) => {
+    const id = await _saveToCanvas(text, anchor);
+    const title = canvases.find((c) => c.id === id)?.title ?? "";
+    setSavedToast({ type: "canvas", id, title });
+  };
   const active = workspace.activeSession;
   const busySessionIds = useMemo(() => new Set(sessions.filter((session) => session.busy).map((session) => session.id)), [sessions]);
   const approvalSessionIds = useMemo(() => new Set(sessions.filter(sessionNeedsInput).map((session) => session.id)), [sessions]);
@@ -405,6 +412,7 @@ function Workspace(boot: BootWorkspace) {
     onQueuedMessageEditingChange: submission.queuedMessageEditingChange, onSteerQueuedMessage: submission.steerQueuedMessage, onResumeQueue: submission.resumeQueue,
     onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
     onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((session) => session.id === id ? { ...session, noteCard: undefined } : session)),
+    onNoteSaved: (noteId: string) => setSavedToast({ type: "note", id: noteId }),
     onSaveToCanvas: saveToCanvas,
     onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
     onOpenFile: openFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
@@ -491,8 +499,22 @@ function Workspace(boot: BootWorkspace) {
         onActivate={workspace.activateTab} onCloseTab={(id) => workspace.closeTabs([id])} onPin={workspace.pinTab}
         onReopen={(batch) => { void workspace.reopenClosed(batch); }} onOpenOverview={openTabOverview} /> : null}
       <ClosedTabToast onUndo={(batch) => { void workspace.reopenClosed(batch); }} />
+      {savedToast && (
+        <SavedToast
+          toast={savedToast}
+          onDismiss={() => setSavedToast(null)}
+          onOpen={(t) => {
+            if (t.type === "canvas") {
+              workspace.showCanvas(t.id);
+            } else {
+              setNoteOpenRequest((prev) => ({ id: t.id, sequence: (prev?.sequence ?? 0) + 1 }));
+              setSurface("notes");
+            }
+          }}
+        />
+      )}
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
-      {canvasSelection ? <SelectCanvasDialog canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new DOMException("Cancelled", "AbortError")); }} /> : null}
+      {canvasSelection ? <SelectCanvasDialog anchor={canvasSelection.anchor ?? null} canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new DOMException("Cancelled", "AbortError")); }} /> : null}
       {workspace.error ? <FileActionError message={workspace.error} onDismiss={() => workspace.setError(null)} /> : null}
     </div>
     <TranscriptPoolOutlet pool={transcriptPool} />
