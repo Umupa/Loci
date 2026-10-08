@@ -2109,13 +2109,13 @@ export function Composer({
               ref={ref}
               data-composer-empty={navigationEmpty ? "true" : undefined}
               style={{ textIndent: modeIndent }}
-              rows={1}
+              rows={3}
               spellCheck={false}
               defaultValue={initialDraft}
               placeholder={noteCard ? "Add a message, or send…" : (placeholder ?? "Ask, / for commands, @ for files, notes, drawings…")}
               aria-label={inputAriaLabel}
               disabled={disabled}
-              className={`composer-field scrollbar-none relative max-h-40 w-full resize-none overflow-x-hidden whitespace-pre-wrap wrap-break-word bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
+              className={`composer-field scrollbar-none relative max-h-60 w-full resize-none overflow-x-hidden whitespace-pre-wrap wrap-break-word bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
                 shell ? "py-4" : "py-3"
               }`}
               onFocus={onFocus}
