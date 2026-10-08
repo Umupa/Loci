@@ -24,7 +24,8 @@ function Harness({ canvases }: { canvases: Canvas[] }) {
   save = result.saveToCanvas;
   currentSelection = result.selection;
   return result.selection ? createElement(SelectCanvasDialog, {
-    canvases: result.selection.canvases, anchor: result.selection.anchor ?? null, onSelect: result.selection.resolver,
+    canvases: result.selection.canvases, onSelect: result.selection.resolver,
+    anchor: { x: 100, y: 100 },
     onCancel: () => result.selection!.rejecter(new DOMException("Cancelled", "AbortError")),
   }) : null;
 }
@@ -51,9 +52,7 @@ it("offers multiple saved canvases and writes only to the selected one", async (
   await render([canvas("first"), canvas("second")]);
   let pending!: Promise<void>;
   await act(async () => { pending = save("reply"); void pending.catch(() => {}); });
-  // The choice is a popover on the document body, anchored to the save button.
-  expect(document.querySelector("[data-popover-side]")).not.toBeNull();
-  expect(document.querySelector("[data-popover-side]")!.textContent).toContain("second");
+  expect([...document.querySelectorAll("button")].map((button) => button.textContent?.trim())).toEqual(["first", "second"]);
   expect(appendCanvasText).not.toHaveBeenCalled();
   await act(async () => {
     const button = [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.includes("second"))!;
@@ -67,7 +66,7 @@ it("does not automatically choose a canvas in the active tab's layout", async ()
   await render([canvas("first"), canvas("second")]);
   let pending!: Promise<void>;
   await act(async () => { pending = save("reply"); void pending.catch(() => {}); });
-  expect(document.querySelector("[data-popover-side]")).not.toBeNull();
+  expect([...document.querySelectorAll("button")].map((button) => button.textContent?.trim())).toEqual(["first", "second"]);
   expect(appendCanvasText).not.toHaveBeenCalled();
   await act(async () => { currentSelection!.resolver("second"); await pending; });
   expect(appendCanvasText).toHaveBeenCalledExactlyOnceWith("second", "reply");

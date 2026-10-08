@@ -8,6 +8,8 @@ import { newTab } from "../../features/workspace/model/layout";
 import {
   askQuitConfirmation,
   closeBusyWindow,
+  persistAndCloseWindow,
+  persistQuitState,
   commitQuit,
   reportQuitPoll,
   setQuitWorkspace,
@@ -44,6 +46,52 @@ vi.mock("../../integrations/harness/core/registry", () => ({
 vi.mock("../../integrations/harness/core/child", () => ({
   killAllChildren: vi.fn().mockResolvedValue(undefined),
 }));
+
+describe("idle window close persistence", () => {
+  beforeEach(() => { vi.mocked(invoke).mockReset().mockResolvedValue(undefined); });
+
+  it.each([false, true])("waits for durable state before closing (toTray=%s)", async (toTray) => {
+    let saved!: () => void;
+    const persistence = new Promise<void>((resolve) => { saved = resolve; });
+    const closing = persistAndCloseWindow(() => persistence, toTray);
+    await Promise.resolve();
+    expect(invoke).not.toHaveBeenCalled();
+    saved();
+    await closing;
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(toTray ? "hide_window" : "destroy_window");
+  });
+
+  it.each([false, true])("keeps the window open after failure and permits retry (toTray=%s)", async (toTray) => {
+    const persist = vi.fn().mockRejectedValueOnce(new Error("disk unavailable")).mockResolvedValue(undefined);
+    await expect(persistAndCloseWindow(persist, toTray)).rejects.toThrow("disk unavailable");
+    expect(invoke).not.toHaveBeenCalled();
+    await persistAndCloseWindow(persist, toTray);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(toTray ? "hide_window" : "destroy_window");
+  });
+
+  it.each(["session_upsert", "workspace_set_snapshot"])("does not close when the actual %s transition write fails", async (failedCommand) => {
+    const session = { ...newSession("codex", "/project"), blocks: [{ id: "user", role: "user" as const, text: "Unsaved" }] };
+    const tab = newTab(session.id);
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === failedCommand) throw new Error("write failed");
+    });
+    await expect(persistAndCloseWindow(() => persistQuitState(
+      [session], [tab], tab.id, "/project", new Map(), "transition",
+    ), false)).rejects.toThrow("write failed");
+    expect(invoke).not.toHaveBeenCalledWith("destroy_window");
+  });
+
+  it("does not erase other windows' in-flight records when an idle window closes", async () => {
+    const session = newSession("codex", "/project");
+    const tab = newTab(session.id);
+    await persistAndCloseWindow(() => persistQuitState(
+      [session], [tab], tab.id, "/project", new Map(), "transition",
+    ), false);
+    expect(invoke).toHaveBeenCalledWith("workspace_set_snapshot", expect.anything());
+    expect(invoke).toHaveBeenCalledWith("destroy_window");
+    expect(invoke).not.toHaveBeenCalledWith("session_set_in_flight", expect.anything());
+  });
+});
 
 describe("project choices through lifecycle saves", () => {
   beforeEach(() => {
