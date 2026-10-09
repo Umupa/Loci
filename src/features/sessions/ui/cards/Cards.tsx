@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { createContext, useContext, useMemo, useRef, useState } from "react";
 import { requestOpenAppResource } from "../../../../shared/lib/appResourceLinks";
 import { Check, ChevronRight, File, Palette } from "../../../../shared/ui/icons";
 import {
@@ -11,7 +11,12 @@ import {
   type MindmapNode,
 } from "../../model/cards";
 
-const shell = "my-1.5 w-fit min-w-[min(100%,18rem)] max-w-full rounded-2xl border border-stroke bg-background-base/50 font-sans";
+// One width for every card, so several in a reply line up.
+const shell = "my-1.5 w-full max-w-[34rem] rounded-2xl border border-stroke bg-background-base/50 font-sans";
+
+const NO_REPLIES: ReadonlySet<string> = new Set();
+/** The user's messages in the conversation a card sits in: its only memory of what was done with it. */
+export const CardRepliesContext = createContext<ReadonlySet<string>>(NO_REPLIES);
 
 /** A card's line of text, with `code` spans drawn as code. */
 function inline(text: string) {
@@ -68,9 +73,11 @@ export function TodoCard({ source }: { source: string }) {
   const list = useMemo(() => parseTodo(source), [source]);
   // Ticked here but not yet redrawn by the agent.
   const [ticked, setTicked] = useState<ReadonlySet<number>>(new Set());
+  // What the user already told the agent is done, so a tick survives a restart without the card keeping it.
+  const replies = useContext(CardRepliesContext);
   const root = useRef<HTMLDivElement>(null);
   if (!list) return null;
-  const done = list.items.filter((item, index) => item.done || ticked.has(index)).length;
+  const done = list.items.filter((item, index) => item.done || ticked.has(index) || replies.has(`Done: ${item.text}`)).length;
   return (
     <div ref={root} data-card="todo" className={`${shell} flex flex-col gap-1 p-3`}>
       <div className="flex items-baseline gap-2 px-1 pb-1">
@@ -78,7 +85,7 @@ export function TodoCard({ source }: { source: string }) {
         <span className="shrink-0 text-xs tabular-nums text-content/45">{done}/{list.items.length}</span>
       </div>
       {list.items.map((item, index) => {
-        const checked = item.done || ticked.has(index);
+        const checked = item.done || ticked.has(index) || replies.has(`Done: ${item.text}`);
         return (
           <button key={`${index}:${item.text}`} type="button" role="checkbox" aria-checked={checked} disabled={checked}
             onClick={() => {
@@ -97,18 +104,21 @@ export function TodoCard({ source }: { source: string }) {
   );
 }
 
+
+/** One idea and, to its right, the ideas under it, joined by a rail. */
 function MindmapBranch({ node, depth }: { node: MindmapNode; depth: number }) {
-  const [open, setOpen] = useState(depth < 2);
+  const [open, setOpen] = useState(depth < 3);
   const leaf = node.children.length === 0;
   return (
-    <li className="relative">
+    <li className="flex items-center gap-2">
       <button type="button" disabled={leaf} aria-expanded={leaf ? undefined : open} onClick={() => setOpen((value) => !value)}
-        className={`flex max-w-full items-center gap-1.5 rounded-lg px-2 py-1 text-left text-[13px] leading-snug enabled:hover:bg-content/8 disabled:cursor-default ${depth === 0 ? "bg-content text-background-base font-medium" : depth === 1 ? "bg-content/10 text-content" : "text-content/80"}`}>
-        {leaf ? null : <ChevronRight className={`size-3 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} strokeWidth={2} />}
+        title={leaf ? undefined : open ? "Fold" : `Unfold ${node.children.length}`}
+        className={`flex max-w-[16rem] shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-left text-[13px] leading-snug enabled:hover:brightness-125 disabled:cursor-default ${depth === 0 ? "bg-content font-medium text-background-base" : leaf ? "text-content/75" : "bg-content/10 text-content"}`}>
         <span className="min-w-0">{inline(node.text)}</span>
+        {!leaf && !open ? <span className="shrink-0 rounded-full bg-content/15 px-1.5 text-[11px] tabular-nums text-content/60">{node.children.length}</span> : null}
       </button>
       {!leaf && open ? (
-        <ul className="ml-3 mt-1 flex flex-col gap-1 border-l border-content/15 pl-3">
+        <ul className="flex flex-col gap-1 border-l border-content/20 pl-2">
           {node.children.map((child, index) => <MindmapBranch key={`${index}:${child.text}`} node={child} depth={depth + 1} />)}
         </ul>
       ) : null}
@@ -116,14 +126,13 @@ function MindmapBranch({ node, depth }: { node: MindmapNode; depth: number }) {
   );
 }
 
-/** An outline as a tree whose branches fold. */
 export function MindmapCard({ source }: { source: string }) {
   const root = useMemo(() => parseMindmap(source), [source]);
   if (!root) return null;
   const branches = root.text ? [root] : root.children;
   return (
     <div data-card="mindmap" className={`${shell} overflow-x-auto p-3`}>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex w-max flex-col gap-2">
         {branches.map((node, index) => <MindmapBranch key={`${index}:${node.text}`} node={node} depth={root.text ? 0 : 1} />)}
       </ul>
     </div>

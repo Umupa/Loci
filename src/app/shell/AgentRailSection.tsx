@@ -184,15 +184,18 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             <span className="grid size-6 shrink-0 place-items-center rounded-md bg-content/8 text-content/70"><Plus className="size-3.5" strokeWidth={1.75} /></span>
             <span className="flex min-w-0 flex-col">
               <span className="text-[13px] text-content">New agent</span>
-              <span className="truncate text-xs text-content/45">Tell it what its job is.</span>
+              <span className="text-xs leading-snug text-content/45">Blank. It asks what its job should be.</span>
             </span>
           </button>
-          <div className="px-2.5 pb-1 pt-2 text-[11px] text-content/40">Start from a template</div>
+          <div className="mx-2.5 mb-1 mt-1.5 border-t border-stroke pt-2 text-[11px] text-content/40">Or start from a template</div>
           {AGENT_TEMPLATES.map((template) => (
             <button key={template.id} type="button" role="menuitem" onClick={() => { setCreating(undefined); onCreate(template.id); }}
-              className="flex w-full flex-col rounded-lg px-2.5 py-1.5 text-left hover:bg-content/8">
-              <span className="text-[13px] text-content">{template.name} <span className="text-content/45">· {template.role}</span></span>
-              <span className="truncate text-xs text-content/45">{template.description}</span>
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-content/8">
+              <span className="grid size-6 shrink-0 place-items-center"><AgentAvatar name={template.avatar} color={template.color} className="size-5" /></span>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-[13px] text-content">{template.name}</span>
+                <span className="text-xs leading-snug text-content/45">{template.description}</span>
+              </span>
             </button>
           ))}
         </Popover>

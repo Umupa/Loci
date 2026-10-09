@@ -140,7 +140,7 @@ export function useAgents(options: Options) {
    */
   const create = useCallback(async (templateId?: string) => {
     const template = agentTemplate(templateId);
-    const agent = createAgent([], template ? { name: template.name, role: template.role } : {});
+    const agent = createAgent([], template ? { name: template.name, role: template.role, avatar: template.avatar, color: template.color } : {});
     const turn = ++request.current;
     try {
       const session = await ensureAgentSession(agent.id, {
