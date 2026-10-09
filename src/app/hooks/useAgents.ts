@@ -1,3 +1,4 @@
+import { deleteCanvas, loadCanvases } from "../../features/canvas/canvas";
 import { agentTemplate, templateSoul } from "../../features/agents/model/agentTemplates";
 import { deleteAgentDocument, saveAgentDocuments } from "../../features/agents/model/agentDocuments";
 import { documentsInText } from "../../features/sessions/model/cards";
@@ -9,7 +10,7 @@ import { deleteSession } from "../../features/sessions/data/sessionStore";
 import { sessionChildHarnesses } from "../../features/sessions/model/handoff";
 import { newDefaultSession, type Block, type Session } from "../../features/sessions/model/session";
 import {
-  agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
+  agentCanvasScope, agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
 } from "../../features/agents/model/agent";
 import { agentSetupPrompt, forgetAgentContext, loadAgentFiles, saveAgentFile } from "../../features/agents/model/agentFiles";
@@ -160,7 +161,7 @@ export function useAgents(options: Options) {
   /**
    * Makes an agent on the default provider and model and opens its chat, where
    * it sets itself up by asking: what it is for, its name, its instructions.
-   * From a template its job is already settled, and it asks only what that job needs.
+   * From a template it starts with that template's soul instead, and waits for the user.
    */
   const create = useCallback(async (templateId?: string) => {
     const template = agentTemplate(templateId);
@@ -177,9 +178,9 @@ export function useAgents(options: Options) {
       setDetailsOpen(true);
       setViewId(agent.id);
       latest.current.onShow();
-      // What the template brings is its soul from the start, where the user can read and change it.
+      // A template is an agent whose soul is already written: nothing else is sent to it.
       if (template) await saveAgentFile(agent.id, "soul", templateSoul(template), (await loadAgentFiles(agent.id)).soulHash);
-      await latest.current.submission.submit(session.id, "New agent", [], { agentSetup: agentSetupPrompt(latest.current.knownProjects(), template) });
+      else await latest.current.submission.submit(session.id, "New agent", [], { agentSetup: agentSetupPrompt(latest.current.knownProjects()) });
     } catch (error) {
       latest.current.onError(error);
     }
@@ -238,6 +239,8 @@ export function useAgents(options: Options) {
       }
       removeAgent(agentId);
       void deleteAgentDocument(agentId).catch(() => undefined);
+      // Its library goes with it, canvases included.
+      void loadCanvases(true).then((all) => Promise.all(all.filter((canvas) => canvas.cwd === agentCanvasScope(agentId)).map((canvas) => deleteCanvas(canvas.id)))).catch(() => undefined);
       saveAgentPreview(agentId, undefined);
     } catch (error) {
       latest.current.onError(error);

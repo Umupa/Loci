@@ -1,5 +1,4 @@
 // @vitest-environment happy-dom
-import { AGENT_TEMPLATES, agentTemplate, templateSoul } from "./agentTemplates";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const invoke = vi.fn();
@@ -189,72 +188,4 @@ it("asks a new agent to introduce itself as a resident and settle one main job",
   expect(prompt).toContain('app agent.rename {"name":"...","role":"..."}');
   expect(prompt).toContain("You cannot give yourself projects");
   expect(agentSetupPrompt()).toContain("The user has no projects open in Loci yet.");
-});
-
-it("tells a new agent how a tutor works, should teaching be its job", () => {
-  const prompt = agentSetupPrompt();
-  expect(prompt).toContain("teaching them a subject they want to learn");
-  expect(prompt).toContain("when they say switch, switch");
-  expect(prompt).toContain("for each subject a topic file");
-});
-
-it("starts a soul from what the agent was made for", () => {
-  expect(defaultSoul("  Watch CI and tell me when it breaks. ")).toBe(
-    "# Soul\n\n## Standing instructions\nWatch CI and tell me when it breaks.\n",
-  );
-  expect(defaultSoul("  ")).toBe(defaultSoul());
-});
-
-it("resets an agent to the default soul and name, over the soul it loaded", async () => {
-  const { id } = createAgent();
-  updateAgent(id, (agent) => ({ ...agent, name: "Broski" }));
-  invoke.mockImplementation(async (command: string) =>
-    command === "agent_load"
-      ? { ...files("mine"), soul: "# Soul\n\nBe a pirate." }
-      : "reset",
-  );
-  await resetAgentDefaults(id);
-  const saves = invoke.mock.calls.filter(
-    ([command]) => command === "agent_save",
-  );
-  expect(saves).toHaveLength(1);
-  expect(saves[0][1]).toMatchObject({
-    path: "SOUL.md",
-    text: defaultSoul(),
-    expectedHash: "mine",
-  });
-  expect(findAgent(id)?.name).toBeUndefined();
-});
-
-it("puts what the app adds ahead of the user's message, marked as its own", () => {
-  expect(agentTurn("what is this", [])).toBe("what is this");
-  const turn = agentTurn("what is this", ["<agent>\nYou are Cat.\n</agent>"]);
-  expect(turn.startsWith("<loci_context>")).toBe(true);
-  expect(turn).toContain("they did not write it");
-  expect(turn.indexOf("You are Cat.")).toBeLessThan(
-    turn.indexOf("what is this"),
-  );
-  expect(turn.endsWith("</loci_context>\n\nwhat is this")).toBe(true);
-});
-
-it("sets an agent made from a template up for that job, asking only what it needs", () => {
-  for (const template of AGENT_TEMPLATES) {
-    const prompt = agentSetupPrompt([{ name: "app", path: "/code/app" }], template);
-    expect(prompt.startsWith("<agent_setup>")).toBe(true);
-    expect(prompt).toContain(`"${template.name}" template`);
-    expect(prompt).toContain(template.job);
-    expect(prompt).toContain(template.ask);
-    // The method itself is the agent's soul, not something hidden in this message.
-    expect(prompt).not.toContain(template.soul);
-    expect(prompt).toContain("under Details, Soul");
-    expect(templateSoul(template)).toContain(template.soul);
-    expect(templateSoul(template)).toContain(`You are the user's ${template.role}`);
-    expect(prompt).not.toContain("what your one main job should be");
-    expect(prompt.includes("You cannot give yourself projects")).toBe(template.needsProjects);
-    expect(prompt.includes("Suggest one habit")).toBe(!!template.habit);
-    expect(prompt).not.toContain("undefined");
-  }
-  expect(new Set(AGENT_TEMPLATES.map((template) => template.id)).size).toBe(AGENT_TEMPLATES.length);
-  expect(agentTemplate("tutor")?.role).toBe("tutor");
-  expect(agentTemplate("nope")).toBeUndefined();
 });

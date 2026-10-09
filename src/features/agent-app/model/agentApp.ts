@@ -1,3 +1,4 @@
+import { agentCanvasScope } from "../../agents/model/agent";
 import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
 import { appResourceUrl } from "../../../shared/lib/appResourceLinks";
 import { pathKey, projectName } from "../../../shared/lib/paths";
@@ -355,6 +356,20 @@ function requireProject(
   throw new Error(`Pass "project" to choose one. Yours: ${choices()}`);
 }
 
+/**
+ * Where a canvas action works. An agent's canvases are in its library, in
+ * no project, and that is where it draws unless it names one of its projects.
+ */
+function canvasPlace(
+  source: Session,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): string {
+  const agent = host.agentOf?.(source.id);
+  if (agent && input.project === undefined) return agentCanvasScope(agent.id);
+  return requireProject(source, input, host);
+}
+
 /** An agent's chat lives outside its projects; project access follows its roster. */
 export function canAccessAgentAppProject(
   source: Session,
@@ -380,7 +395,7 @@ async function projectCanvas(
   input: Record<string, unknown>,
   host: AgentAppHost,
 ): Promise<Canvas> {
-  const cwd = requireProject(source, input, host);
+  const cwd = canvasPlace(source, input, host);
   const canvas = await getCanvas(id);
   if (!canvas) throw new Error("Canvas was not found");
   if (!canvas.cwd || !sameProjectPath(canvas.cwd, cwd)) throw new Error("Canvas was not found in this project");
@@ -1063,7 +1078,7 @@ export async function handleAgentApp(
       return { sessionId, folderId: folder?.id, folderName: folder?.name };
     }
     case "canvas.list": {
-      const cwd = requireProject(source, input, host);
+      const cwd = canvasPlace(source, input, host);
       const canvases = await loadCanvases(true);
       return {
         cwd,
@@ -1079,7 +1094,7 @@ export async function handleAgentApp(
       return canvasMetadata(canvas);
     }
     case "canvas.create": {
-      const cwd = requireProject(source, input, host);
+      const cwd = canvasPlace(source, input, host);
       const title = optionalString(input.title, "title", 200);
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId)) throw new Error("Invalid request ID");
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([source.id, requestId])));
@@ -1111,7 +1126,7 @@ export async function handleAgentApp(
       return { deleted: true };
     }
     case "canvas.read-data": {
-      const cwd = requireProject(source, input, host);
+      const cwd = canvasPlace(source, input, host);
       const id = requiredString(input.id, "id", 256);
       const canvas = await getCanvas(id);
       if (!canvas) throw new Error("Canvas was not found");
@@ -1121,7 +1136,7 @@ export async function handleAgentApp(
       return { id: saved.id, title: saved.title, dataJson: saved.dataJson, url: appResourceUrl("canvas", saved.id) };
     }
     case "canvas.write-data": {
-      const cwd = requireProject(source, input, host);
+      const cwd = canvasPlace(source, input, host);
       const id = requiredString(input.id, "id", 256);
       const dataJson = requiredString(input.dataJson, "dataJson", 250_000);
       if (new TextEncoder().encode(dataJson).length > 250_000) throw new Error("dataJson must be under 250000 UTF-8 bytes");

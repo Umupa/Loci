@@ -98,13 +98,13 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 
 
 ## Agents
 
-点击侧栏 *Agents* 旁边的 **+**。**New agent** 创建一个空白 agent，它会先问你它的主要工作是什么，然后给自己起名，并根据你的回答写下自己的常驻指令。也可以从内置模板开始（Tutor、Lead、Watch、Reviewer、Scout、Chief）：工作已经定好，它的工作方法直接写进 soul 里可以查看，agent 只问这份工作需要知道的事。模板的措辞可以在 **Settings → Your agents → Agent templates** 里修改。这些之后都可以在 **Details** 里修改。
+点击侧栏 *Agents* 旁边的 **+**。**New agent** 创建一个空白 agent，它会先问你它的主要工作是什么，然后给自己起名，并根据你的回答写下自己的常驻指令。也可以从内置模板开始（Tutor、Lead、Watch、Reviewer、Scout、Chief）。模板就是一个已经写好 soul 的 agent，仅此而已：这份 soul 在 Details → Soul 里查看和编辑，模板本身在 **Settings → Your agents → Agent templates** 里改写。这些之后都可以在 **Details** 里修改。
 
 - **它一直在。** 一个 agent 有一段不会结束的对话、一份 soul（常驻指令）和一份边学边记的记忆。两者都是 Loci 数据目录里的文件，不在你的仓库里，换模型也不会丢。
 - **它在你的项目里干活。** 在 Details 里把项目交给它。它可以在其中启动会话、跟进，并在完成后回来汇报。
 - **习惯。** Loci 开着的时候按计划自己做的事，只有值得说时才给你发消息。
 - **卡片。** 回复不只是文字：可点选的提问、在对话旁打开的文档、可以勾选的清单、可折叠的思维导图、Mermaid 图、指向画布的链接。卡片自己不保存任何状态；你对它做的操作会作为下一条消息发给 agent。
-- **文档库。** agent 写的文档保存在 Details → Library，按主题分组。同一篇再写一次就是修订，任何一篇都可以存为笔记。
+- **文档库。** agent 写的文档保存在 Details → Library，按主题分组；它画的画布也在这里，不需要先有项目。同一篇再写一次就是修订，任何一篇都可以存为笔记。
 - **比如做导师。** 选 Tutor 模板。它会访谈你，把你的水平和进度记在记忆里，把路线图和讲解写成文档，你说换主题就换。
 
 agent 做什么由提示词决定，所以效果取决于它背后的模型。

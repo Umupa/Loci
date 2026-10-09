@@ -1,3 +1,4 @@
+import { agentCanvasScope, agentForSession } from "../agents/model/agent";
 import { invoke } from "@tauri-apps/api/core";
 import { appResourceUrl } from "../../shared/lib/appResourceLinks";
 import { looksLikeProject, sameProjectPath } from "../projects/model/recents";
@@ -29,6 +30,9 @@ function checkpointId(value: unknown, name: string): string {
 }
 
 function projectOf(source: Session): string {
+  // An agent's chat is in no project; what it draws there goes into its library.
+  const agent = agentForSession(source.id);
+  if (agent) return agentCanvasScope(agent.id);
   if (!looksLikeProject(source.cwd)) throw new Error("Choose a project folder in this session before drawing");
   return source.cwd;
 }

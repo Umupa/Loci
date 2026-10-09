@@ -189,6 +189,20 @@ describe("agent app commands", () => {
         .toMatchObject({ id: expect.any(String), title: "Untitled drawing", url: expect.stringMatching(/^loci:\/\/canvas\//), saved: true });
       await expect(handleAgentApp(source, "missing", "canvas.rename", { id: "missing", title: "Title" }, host))
         .rejects.toThrow("Canvas was not found");
+      // An agent with no project still has somewhere to draw: its own drawings.
+      const before = host.agentOf;
+      host.agentOf = () => ({ id: "a", projects: [] });
+      const own = await handleAgentApp(source, "own", "canvas.create", { title: "Lesson" }, host) as { id: string };
+      expect(stored.get(own.id)!.cwd).toBe("loci-agent://a");
+      expect(await handleAgentApp(source, "own-list", "canvas.list", {}, host))
+        .toMatchObject({ cwd: "loci-agent://a", canvases: [{ id: own.id, title: "Lesson" }] });
+      // Another agent does not see it, and a named project is still a project.
+      host.agentOf = () => ({ id: "b", projects: [source.cwd] });
+      await expect(handleAgentApp(source, "other", "canvas.get", { id: own.id }, host))
+        .rejects.toThrow("Canvas was not found in this project");
+      expect(await handleAgentApp(source, "named", "canvas.list", { project: source.cwd }, host))
+        .toMatchObject({ cwd: source.cwd });
+      host.agentOf = before;
     } finally {
       window.removeEventListener(CANVASES_CHANGED_EVENT, changed);
     }

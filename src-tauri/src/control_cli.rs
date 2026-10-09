@@ -97,6 +97,8 @@ Actions:
   canvas.list    {}  Current project drawings, newest first; metadata only.
   canvas.get     {"id":"..."}  Metadata of one drawing; no scene data.
   canvas.create  {"title":"Plan"}  Create an empty drawing in this project.
+                  An agent's drawings go into its library, in no project,
+                  unless it passes "project".
                   Omit title to use "Untitled drawing". Returns id and title.
   canvas.rename  {"id":"...","title":"New title"}  Rename a drawing.
   canvas.delete  {"id":"..."}  Delete a drawing.
@@ -117,7 +119,8 @@ Actions:
 
 An agent works on several projects rather than in one. Its sessions.*,
 folders.* and canvas.* actions also take "project":"<path or name>" to choose
-which; it may be left out with one project. Ordinary sessions cannot pass it.
+which; it may be left out with one project. canvas.* without it works on the
+canvases in the agent's library. Ordinary sessions cannot pass it.
   sessions.stop    {"sessionId":"..."}  Cancel another session's current turn.
   sessions.archive {"sessionId":"..."}  Stop it and put it away; it can be restored.
   sessions.delete  {"sessionId":"..."}  Remove it for good. The user is asked to

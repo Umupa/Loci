@@ -98,13 +98,13 @@ Commands work at the start of a prompt.
 
 ## Agents
 
-Press **+** beside *Agents* on the rail. **New agent** makes a blank one that asks what its one main job should be, names itself, and writes its own standing instructions from your answers. Or start from a built-in template (Tutor, Lead, Watch, Reviewer, Scout, Chief): the job is already settled, its way of working is written into its soul where you can read it, and the agent asks only what that job needs. The templates' wording can be changed under **Settings → Your agents → Agent templates**. Everything it settles can be changed later under **Details**.
+Press **+** beside *Agents* on the rail. **New agent** makes a blank one that asks what its one main job should be, names itself, and writes its own standing instructions from your answers. Or start from a built-in template (Tutor, Lead, Watch, Reviewer, Scout, Chief). A template is an agent with its soul already written and nothing more: you read and edit that soul under Details → Soul, and rewrite the templates themselves under **Settings → Your agents → Agent templates**. Everything it settles can be changed later under **Details**.
 
 - **It stays.** An agent has one conversation that never ends, a soul (its standing instructions) and a memory it keeps as it learns. Both are files in Loci's data folder, outside your repositories, and they survive a change of model.
 - **It works in your projects.** Give it projects under Details. It can start sessions there, follow them, and report back when they finish.
 - **Habits.** Things it does on a schedule while Loci is open, messaging you only when something is worth saying.
 - **Cards.** A reply can carry more than text: a question with choices to click, a document that opens beside the chat, a checklist you tick, a mind map that folds, a Mermaid diagram, a link to a canvas. Cards keep nothing themselves; what you do with one is sent to the agent as your next message.
-- **Library.** Documents an agent writes are kept under Details → Library, grouped by subject. Writing one again revises it, and any of them can be saved to your notes.
+- **Library.** Documents an agent writes are kept under Details → Library, grouped by subject, along with the canvases it draws, which need no project. Writing one again revises it, and any of them can be saved to your notes.
 - **A tutor, for example.** Pick the Tutor template. It interviews you, keeps your level and progress in its memory, writes roadmaps and lessons as documents, and switches subject when you say so.
 
 What an agent does is its prompt at work, so how well it goes depends on the model behind it.
