@@ -686,4 +686,40 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       await settle(pending[0]);
     });
   });
+
+  describe("a question left standing", () => {
+    const asked = 'Which one?\n\n```loci-question\n{"questions":[{"header":"Pick","question":"Which one?","options":[{"label":"First"},{"label":"Second"}]}]}\n```';
+    async function ask() {
+      await mount(newSession("codex", "/project", "codex:test"));
+      await act(async () => { actions.onSubmit(session().id, "Help me choose"); });
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      await act(async () => { pending[0].input.onEvent({ type: "message.delta", text: asked }); runtime.flushEvents(); });
+      await settle(pending[0]);
+      await vi.waitFor(() => expect(session().busy).toBeFalsy());
+    }
+
+    it("stays after the turn that asked it has ended", async () => {
+      await ask();
+      expect(session().pendingQuestion).toMatchObject({ standing: true, title: "Pick" });
+      expect(session().pendingQuestion!.questions[0].options.map((option) => option.label)).toEqual(["First", "Second"]);
+    });
+
+    it("sends the choice as the user's next message, which settles it", async () => {
+      await ask();
+      const question = session().pendingQuestion!;
+      await act(async () => actions.answer(session().id, question.requestId, { kind: "answered", answers: { [question.questions[0].id]: [question.questions[0].options[1].id] } }));
+      await vi.waitFor(() => expect(pending).toHaveLength(2));
+      expect(pending[1].input.text).toBe("Second");
+      expect(session().pendingQuestion).toBeUndefined();
+      expect(adapter.respondQuestion).not.toHaveBeenCalled();
+      await settle(pending[1]);
+    });
+
+    it("is put away when skipped, and when the user writes something else", async () => {
+      await ask();
+      await act(async () => actions.answer(session().id, session().pendingQuestion!.requestId, { kind: "skipped" }));
+      expect(session().pendingQuestion).toBeUndefined();
+      expect(pending).toHaveLength(1);
+    });
+  });
 });

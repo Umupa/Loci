@@ -1,3 +1,4 @@
+import { standingQuestionFromBlocks } from "../model/standingQuestion";
 import { isAgentSession } from "../../agents/model/agent";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -930,6 +931,7 @@ function recordToSession(record: SessionRecord): Session {
         .map((block) => sanitizeBlock(block, { hydrate: true }))
         .filter((block): block is Block => block != null)
     : [];
+  const standing = standingQuestionFromBlocks(blocks);
   return {
     id: record.id,
     cwd: record.cwd,
@@ -943,6 +945,8 @@ function recordToSession(record: SessionRecord): Session {
     title: record.title,
     blocks,
     busy: false,
+    // A question the chat ended on is still there to answer after a restart.
+    ...(standing ? { pendingQuestion: standing } : {}),
     ...(record.providerSessionId
       ? { providerSessionId: record.providerSessionId }
       : {}),
