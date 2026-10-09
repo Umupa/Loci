@@ -664,6 +664,19 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       await settle(pending[0]);
     });
 
+    it("opens a new agent's chat with the app's setup message, shown as a marker", async () => {
+      await mountAgent();
+      await act(async () => { await actions.submit(session().id, "Ember joined", [], { agentSetup: "<agent_setup>Ask what you are for.</agent_setup>" }); });
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      const text = pending[0].input.text;
+      // It learns who it is first, then what the app asks of it; the user's chat shows neither.
+      expect(text.startsWith("<loci_context>")).toBe(true);
+      expect(text.endsWith("<agent_setup>Ask what you are for.</agent_setup>")).toBe(true);
+      expect(text).not.toContain("Ember joined");
+      expect(session().blocks[0]).toMatchObject({ role: "user", text: "Ember joined", agentSetup: true });
+      await settle(pending[0]);
+    });
+
     it("sends the turn without its memory when the files cannot be read", async () => {
       await mountAgent();
       mocks.invoke.mockImplementation(async (command: string) => { if (command === "agent_load") throw new Error("disk"); return undefined; });

@@ -176,6 +176,13 @@ it("seeds SOUL.md once, over the missing file only", async () => {
   });
 });
 
+it("starts a soul from what the agent was made for", () => {
+  expect(defaultSoul("  Watch CI and tell me when it breaks. ")).toBe(
+    "# Soul\n\n## Standing instructions\nWatch CI and tell me when it breaks.\n",
+  );
+  expect(defaultSoul("  ")).toBe(defaultSoul());
+});
+
 it("resets an agent to the default soul and name, over the soul it loaded", async () => {
   const { id } = createAgent();
   updateAgent(id, (agent) => ({ ...agent, name: "Broski" }));

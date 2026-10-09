@@ -871,4 +871,25 @@ describe("agent app commands", () => {
       handleAgentApp(source, "r2", "sessions.read", { sessionId: "elsewhere" }, host),
     ).rejects.toThrow();
   });
+
+  it("lets an agent take the name it settled on with the user, in its own chat only", async () => {
+    const { source, host } = fixture();
+    const renameAgent = vi.fn();
+    host.renameAgent = renameAgent;
+    await expect(
+      handleAgentApp(source, "r1", "agent.rename", { name: "Scout" }, host),
+    ).rejects.toThrow("Only an agent's own conversation can rename it");
+    host.agentOf = () => ({ id: "a", projects: [] });
+    expect(
+      await handleAgentApp(source, "r2", "agent.rename", { name: "  CI   Scout " }, host),
+    ).toEqual({ name: "CI Scout" });
+    expect(renameAgent).toHaveBeenCalledWith("a", "CI Scout");
+    await expect(
+      handleAgentApp(source, "r3", "agent.rename", { name: "x".repeat(41) }, host),
+    ).rejects.toThrow();
+    host.agentOf = () => ({ id: "a", projects: [], habitRun: true });
+    await expect(
+      handleAgentApp(source, "r4", "agent.rename", { name: "Scout" }, host),
+    ).rejects.toThrow("Only an agent's own conversation can rename it");
+  });
 });

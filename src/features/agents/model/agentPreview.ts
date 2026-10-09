@@ -37,7 +37,10 @@ export function agentPreview(
     const block = blocks[i];
     const spoken =
       (block.role === "assistant" && !block.tool && !block.streaming) ||
-      (block.role === "user" && !block.draft && !block.agentSessionCompletion);
+      (block.role === "user" &&
+        !block.draft &&
+        !block.agentSessionCompletion &&
+        !block.agentSetup);
     if (!spoken) continue;
     const text = oneLine(block.text);
     if (!text) continue;

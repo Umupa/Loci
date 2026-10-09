@@ -1,12 +1,13 @@
 import { SettingsLanguage } from "../../shared/i18n/SettingsLanguage";
 import { t, useLocale } from "../../shared/i18n/locale";
-import { Archive, ArrowLeft, Bot, Globe, Keyboard, MessageSquare, Palette, SlidersHorizontal, Sparkles, type IconComponent, } from "../../shared/ui/icons";
+import { Archive, ArrowLeft, Bot, Chatting, Globe, Keyboard, MessageSquare, Palette, SlidersHorizontal, Sparkles, type IconComponent, } from "../../shared/ui/icons";
 import { useLockOverscroll } from "../../shared/hooks/useLockOverscroll";
 import { settingsSectionsByGroup, type SettingsSectionId, } from "../../features/settings/model/settings";
 const SECTION_ICONS: Record<SettingsSectionId, IconComponent> = {
     general: SlidersHorizontal,
     appearance: Palette,
     keybindings: Keyboard,
+    agents: Chatting,
     chat: MessageSquare,
     providers: Bot,
     mcp: Globe,

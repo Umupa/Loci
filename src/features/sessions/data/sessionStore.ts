@@ -520,6 +520,7 @@ function sanitizeBlock(
     Number.isFinite(habit.at)
   )
     next.agentHabit = { id: habit.id, name: habit.name, at: habit.at };
+  if (block.role === "user" && block.agentSetup) next.agentSetup = true;
   const completion = block.agentSessionCompletion;
   if (
     block.role === "user" &&

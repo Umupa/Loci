@@ -300,6 +300,8 @@ export type Block = {
   appRequestId?: string;
   /** Hidden app prompt that starts a separate completion report in an agent's chat. */
   agentSessionCompletion?: AgentSessionCompletion;
+  /** The app's own first message to a new agent, asking it to set itself up with the user. */
+  agentSetup?: boolean;
   /** Posted to an agent's chat by one of its habits, outside any turn. */
   agentHabit?: { id: string; name: string; at: number };
   /** Provider-reported token metrics for this user turn, when available. */

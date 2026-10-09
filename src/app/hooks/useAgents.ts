@@ -9,7 +9,7 @@ import {
   agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
 } from "../../features/agents/model/agent";
-import { forgetAgentContext } from "../../features/agents/model/agentFiles";
+import { AGENT_SETUP_PROMPT, forgetAgentContext } from "../../features/agents/model/agentFiles";
 import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession } from "../../features/agents/model/agentWorkspace";
@@ -129,11 +129,29 @@ export function useAgents(options: Options) {
     }
   }, [addSession]);
 
-  /** A new agent opens straight away, ready to be told what it works on. */
-  const create = useCallback(() => {
-    setDetailsOpen(true);
-    void open(createAgent().id);
-  }, [open]);
+  /**
+   * Makes an agent on the default provider and model and opens its chat, where
+   * it sets itself up by asking: what it is for, its name, its instructions.
+   */
+  const create = useCallback(async () => {
+    const agent = createAgent();
+    const turn = ++request.current;
+    try {
+      const session = await ensureAgentSession(agent.id, {
+        home: homeDir,
+        load: (id) => latest.current.loadSession(id),
+        create: (cwd) => newDefaultSession(cwd),
+        add: addSession,
+      });
+      if (!session || turn !== request.current) return;
+      setDetailsOpen(true);
+      setViewId(agent.id);
+      latest.current.onShow();
+      await latest.current.submission.submit(session.id, `${agentLook(agent).name} joined`, [], { agentSetup: AGENT_SETUP_PROMPT });
+    } catch (error) {
+      latest.current.onError(error);
+    }
+  }, [addSession]);
 
   const close = useCallback(() => {
     request.current += 1;

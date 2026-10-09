@@ -1535,7 +1535,7 @@ const TranscriptBlock = memo(function TranscriptBlock({
   editing?: boolean;
 }) {
   // An app notification to an agent reads as a marker, not as something the user said.
-  if (block.role === "user" && block.agentSessionCompletion) {
+  if (block.role === "user" && (block.agentSessionCompletion || block.agentSetup)) {
     return <AgentNotice label={block.text} at={block.startedAt} />;
   }
 

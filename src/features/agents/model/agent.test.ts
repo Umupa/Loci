@@ -37,6 +37,15 @@ it("gives each new agent an avatar and color the others are not using", () => {
   expect(first.projects).toEqual([]);
 });
 
+it("takes the look and name chosen for it when it is set up", () => {
+  const first = createAgent(["/code/app"], { name: "  Scout ", avatar: "dew", color: "#123456" });
+  expect(first).toMatchObject({ name: "Scout", avatar: "dew", color: "#123456", projects: ["/code/app"] });
+  // What was not chosen still comes from what the others are not using.
+  const second = createAgent([], { name: "  " });
+  expect(second.name).toBeUndefined();
+  expect(second.avatar).toBe("ember");
+});
+
 it("goes by the user's name once it has one, and back when it is cleared", () => {
   const { id } = createAgent();
   updateAgent(id, (agent) => ({ ...agent, name: "Scout" }));

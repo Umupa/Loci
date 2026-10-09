@@ -3,7 +3,7 @@ import { ALT, IS_MAC, IS_WIN, MOD, SHIFT } from "../../../platform/tauri/platfor
 import { canonicalShortcut, shortcutLabel, shortcutFromKeyEvent, shortcutTokens } from "../../../shared/lib/shortcuts";
 import { readFlag, writeFlag } from "./storageFlags";
 const SECTION_KEY = "loci.settingsSection";
-export type SettingsSectionId = "general" | "appearance" | "keybindings" | "chat" | "providers" | "mcp" | "skills" | "archive";
+export type SettingsSectionId = "general" | "appearance" | "keybindings" | "agents" | "chat" | "providers" | "mcp" | "skills" | "archive";
 /** Rail buckets. Sections list in order under their group label. */
 export type SettingsGroupId = "app" | "agents" | "workspace";
 export const SETTINGS_GROUPS: {
@@ -43,6 +43,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         get label() { return t("Keybindings"); },
         get description() { return t("Every shortcut the workspace handles, from the app menu and the key handler."); },
         keywords: "shortcut hotkey keyboard binding",
+    },
+    {
+        id: "agents",
+        group: "agents",
+        get label() { return t("Your agents"); },
+        get description() { return t("Long-lived agents on the project rail: whether they are shown, and the ones you have."); },
+        keywords: "agent persistent memory soul habits schedule rail reset",
     },
     {
         id: "chat",
@@ -145,10 +152,16 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "notebook markdown rail scratchpad",
     },
     {
-        id: "agents",
-        section: "general",
-        get label() { return t("Agents"); },
-        keywords: "agent persistent memory soul habits schedule rail",
+        id: "agents-enabled",
+        section: "agents",
+        get label() { return t("Show agents"); },
+        keywords: "agent persistent memory soul habits schedule rail hide",
+    },
+    {
+        id: "agent-list",
+        section: "agents",
+        get label() { return t("Your agents"); },
+        keywords: "agent reset soul name projects",
     },
     {
         id: "working-agents",

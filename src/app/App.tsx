@@ -468,7 +468,7 @@ function Workspace(boot: BootWorkspace) {
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
       {compactTitleBar ? workspaceTitleBar : null}
       <div className="flex min-h-0 min-w-0 flex-1">
-        <Sidebar cwd={workspace.projectCwd} open={sessionSidebarOpen} sessions={workspace.sidebarHistory} openSessions={workspace.openProjectSessions}
+        <Sidebar cwd={workspace.projectCwd} open={sessionSidebarOpen && surface !== "agent"} sessions={workspace.sidebarHistory} openSessions={workspace.openProjectSessions}
           busySessionIds={busySessionIds} approvalSessionIds={approvalSessionIds} activeSessionId={active?.id}
           status={workspace.historyFailed ? "error" : "idle"} pending={workspace.historyPending}
           onSelectSession={(id) => void workspace.openSession(id)} onSessionNavigationOrder={setSessionOrder}
@@ -483,7 +483,7 @@ function Workspace(boot: BootWorkspace) {
           recents={workspace.recents} busyProjectPaths={shownSessions.filter((session) => session.busy).map((session) => session.cwd)}
           agentActive={surface === "agent"}
           agentRail={!agentsEnabled ? undefined : <AgentRailSection activeId={surface === "agent" ? agents.viewAgent?.id : undefined} states={agents.states} unseenIds={unseenAgentIds}
-            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpen(true); void agents.open(id); }} onCreate={agents.create} onDelete={(id) => void agents.remove(id)} />}
+            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpen(true); void agents.open(id); }} onCreate={() => void agents.create()} onDelete={(id) => void agents.remove(id)} />}
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}

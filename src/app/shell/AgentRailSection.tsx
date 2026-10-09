@@ -40,7 +40,7 @@ const IDLE: AgentState = { status: "idle" };
 /**
  * The user's agents, above the projects. Each opens like a project does, but
  * into its conversation; none belongs to a project, so they get a section of
- * their own and a round face rather than a project's flat mascot.
+ * their own and a face with eyes rather than a project's flat mascot.
  */
 export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDetails, onCreate, onDelete }: Props) {
   const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
@@ -97,7 +97,7 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
               ref={(el) => sortable.setItemRef(agent.id, el)}
               data-selected={selected || undefined}
               data-agent-status={state.status}
-              className={`reorder-item project-reorder-item group relative flex h-11 cursor-default touch-none items-stretch rounded-lg px-2 ${
+              className={`reorder-item project-reorder-item group relative flex h-8 cursor-default touch-none items-stretch rounded-md px-2 ${
                 selected ? "bg-selection-strong text-content" : "opacity-65"
               }`}
               onPointerDown={(event) => {
@@ -117,29 +117,23 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             >
               <button
                 type="button"
-                title={[look.name, projects || "No projects yet", status].filter(Boolean).join("\n")}
+                title={[look.name, projects || "No projects yet", status ?? (preview ? `${preview.text}${preview.at != null ? ` · ${previewTimeLabel(preview.at)}` : ""}` : undefined)].filter(Boolean).join("\n")}
                 aria-label={[look.name, status ?? "idle", projects || "no projects yet"].join(", ")}
                 aria-current={selected ? "true" : undefined}
-                className="flex min-w-0 flex-1 cursor-default items-center gap-2.5 text-left group-hover:pr-6 group-has-[:focus-visible]:pr-6"
+                className="flex min-w-0 flex-1 cursor-default items-center gap-2 text-left group-hover:pr-6 group-has-[:focus-visible]:pr-6"
               >
-                <span className="relative grid size-7 shrink-0 place-items-center">
-                  <AgentAvatar name={look.avatar} color={look.color} className="size-7" />
-                  <AgentStatusDot status={state.status} color={look.color} className="-right-0.5 -top-0.5 size-2" />
+                {/* The same size and place as a project's mascot, so the rail reads as one list. */}
+                <span className="relative grid size-4 shrink-0 place-items-center">
+                  <AgentAvatar name={look.avatar} color={look.color} className="size-4" />
+                  {state.status === "idle" ? null : (
+                    <AgentStatusDot status={state.status} color={look.color} className="-right-1 -top-1 size-1.5" />
+                  )}
                 </span>
-                {/* Like a contact in a messenger: who it is and when it last spoke, then what it said or is doing. */}
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="flex min-w-0 items-baseline gap-1.5">
-                    {state.status === "working" ? (
-                      <Shimmer as="span" duration={1.4} className="min-w-0 flex-1 truncate text-[13px] leading-4">{look.name}</Shimmer>
-                    ) : (
-                      <span className="min-w-0 flex-1 truncate text-[13px] leading-4">{look.name}</span>
-                    )}
-                    {preview?.at != null ? (
-                      <span className="shrink-0 text-[10px] leading-4 text-content/40 group-hover:hidden group-has-[:focus-visible]:hidden">{previewTimeLabel(preview.at)}</span>
-                    ) : null}
-                  </span>
-                  <span className="truncate text-[11px] leading-4 text-content/50">{status ?? preview?.text ?? (projects || "No projects yet")}</span>
-                </span>
+                {state.status === "working" ? (
+                  <Shimmer as="span" duration={1.4} className="min-w-0 flex-1 truncate text-[13px]">{look.name}</Shimmer>
+                ) : (
+                  <span className="min-w-0 flex-1 truncate text-[13px]">{look.name}</span>
+                )}
                 {unseen ? <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-content/60 group-hover:hidden group-has-[:focus-visible]:hidden" /> : null}
               </button>
               <button

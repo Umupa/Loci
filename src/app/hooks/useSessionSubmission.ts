@@ -80,6 +80,11 @@ export type SubmitOptions = ComposerTurnOptions & {
    */
   agentCompletion?: { completion: AgentSessionCompletion; report: string };
   /**
+   * The app's first message to a new agent. The chat shows the message's text
+   * as a marker; the agent reads these instructions instead.
+   */
+  agentSetup?: string;
+  /**
    * Called once when the turn this submission starts has ended. Never called
    * for a message that is refused, queued or steered into a running turn.
    */
@@ -178,8 +183,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const appAccess = !!agent || activation.matched || operatorEnabledInThread(current.blocks);
     const learnAccess = supportsLearnHarness(current.harness) && (learning.matched || learnEnabledInThread(current.blocks));
     const rawCommand = !activation.matched && !learning.matched && isNativeCommandPrompt(text, current.harness);
-    const promptText = options?.agentCompletion ? options.agentCompletion.report
-      : rawCommand ? text : composeNoteMessage(noteCard, visibleText);
+    const promptText = options?.agentSetup ?? (options?.agentCompletion ? options.agentCompletion.report
+      : rawCommand ? text : composeNoteMessage(noteCard, visibleText));
     const pendingSwitch = current.pendingSwitch?.from !== current.harness ? current.pendingSwitch : undefined;
     const visible = displayAttachments(attachments);
     const cards = {
@@ -187,6 +192,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       ...(activation.matched ? { loci: true } : {}),
       ...(learning.matched ? { learn: true } : {}),
       ...(options?.agentCompletion ? { agentSessionCompletion: options.agentCompletion.completion } : {}),
+      ...(options?.agentSetup ? { agentSetup: true } : {}),
       ...((options?.appRequestId ?? draft?.appRequestId)
         ? { appRequestId: options?.appRequestId ?? draft?.appRequestId } : {}),
     };
