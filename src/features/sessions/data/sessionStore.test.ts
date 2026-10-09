@@ -278,6 +278,20 @@ describe("persisting a subagent's trail", () => {
 });
 
 describe("sanitizeSessionForPersist", () => {
+  it("keeps what an agent's chat needs to tell a habit's post and a completion report apart", () => {
+    const session = newSession("codex", "/home/me", "codex:test");
+    session.blocks = [
+      { id: "u", role: "user", text: "results", agentSessionCompletion: { sessionId: "s1", title: "Fix CI", status: "failed", sessionCount: 2 } },
+      { id: "h", role: "assistant", text: "CI is red.", agentHabit: { id: "h1", name: "Morning CI check", at: 5 } },
+      { id: "q", role: "approval", text: "", approval: { requestId: 1_000_000_001 }, agentHabit: { id: "h1", name: "Morning CI check", at: 6 } },
+    ];
+    const saved = sanitizeSessionForPersist(session).blocks;
+    expect(saved[0].agentSessionCompletion).toEqual({ sessionId: "s1", title: "Fix CI", status: "failed", sessionCount: 2 });
+    expect(saved[1].agentHabit).toEqual({ id: "h1", name: "Morning CI check", at: 5 });
+    // A relayed question cannot be answered after a restart, so it is not kept.
+    expect(saved).toHaveLength(2);
+  });
+
   it("keeps the stripped /operator turn marker for later turns", () => {
     const submitted = appendUser(newSession("codex", "/repo"), "list notes", [], {
       loci: true,

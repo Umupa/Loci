@@ -49,7 +49,7 @@ import { loadTabGroupColors, loadTabGroupCustomColors, loadTabGroupLabels, loadT
 import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { ProjectLogoIcon } from "../../projects/ui/ProjectLogoIcon";
 import { ProjectMascot } from "../../projects/ui/ProjectMascot";
-import { filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, loadTabLimit, saveTabLimit, TAB_LIMIT_CHOICES, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
+import { loadAgentsEnabled, saveAgentsEnabled, filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, loadTabLimit, saveTabLimit, TAB_LIMIT_CHOICES, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
 import { cachedNotificationPermission, loadNotificationsEnabled, openNotificationSettings, probeNotificationPermission, requestNotificationPermission, saveNotificationsEnabled, type NotificationPermission, } from "../../notifications/model/notifications";
 import { SkillsPage } from "../../skills/ui/SkillsPage";
@@ -240,6 +240,7 @@ function GeneralPage({}: {}) {
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(cachedNotificationPermission);
     const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
     const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(loadLiveAgentsEnabled);
+    const [agentsEnabled, setAgentsEnabled] = useState(loadAgentsEnabled);
     const [tabAnimationsEnabled, setTabAnimationsEnabled] = useState(loadTabAnimationsEnabled);
     const [tabLimit, setTabLimit] = useState(loadTabLimit);
     const [closeToTray, setCloseToTray] = useState(loadCloseToTray);
@@ -269,6 +270,10 @@ function GeneralPage({}: {}) {
     const onNotesEnabled = (next: boolean) => {
         saveNotesEnabled(next);
         setNotesEnabled(next);
+    };
+    const onAgentsEnabled = (next: boolean) => {
+        saveAgentsEnabled(next);
+        setAgentsEnabled(next);
     };
     const onLiveAgentsEnabled = (next: boolean) => {
         saveLiveAgentsEnabled(next);
@@ -319,6 +324,10 @@ function GeneralPage({}: {}) {
         </Row>
         <Row id="notes" label={t("Notes")} description={t("A global markdown notebook on the project rail. Save a finished turn from the transcript, then mention it later with @note or add it to chat.")}>
           <Toggle label={t("Notes")} on={notesEnabled} onChange={onNotesEnabled}/>
+        </Row>
+
+        <Row id="agents" label={t("Agents")} description={t("Long-lived agents on the project rail, each with its own conversation, memory and habits. Turning this off hides them and pauses their habits; nothing is deleted.")}>
+          <Toggle label={t("Agents")} on={agentsEnabled} onChange={onAgentsEnabled}/>
         </Row>
 
         <Row id="working-agents" label={t("Working agents")} description={t("When two or more chats are in flight, a card on the project rail lists them so you can jump across projects. Finished turns stay until you open that session.")}>

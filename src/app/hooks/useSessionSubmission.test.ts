@@ -3,6 +3,7 @@ import { act,createElement,useRef,useState } from "react";
 import { createRoot,type Root } from "react-dom/client";
 import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 import { newSession,type Session } from "../../features/sessions/model/session";
+import { createAgent, saveAgentSessionId } from "../../features/agents/model/agent";
 import { saveCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { registerHarness,resetHarnessIdlePark,type HarnessAdapter } from "../../integrations/harness/core/registry";
 import { TurnNotReadyError, type SendTurnInput } from "../../integrations/harness/core/types";
@@ -540,5 +541,136 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await act(async () => { expect(actions.onSubmit(session().id, "Service 是什么？")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(2));
     expect(pending[1].input).toMatchObject({ learnAccess: true, text: "Service 是什么？" });
+  });
+
+  it("resolves a run with the turn's answer once it has ended", async () => {
+    await mount(newSession("codex", "/project", "codex:test"));
+    let outcome: unknown;
+    await act(async () => { void actions.runTurn(session().id, "Check CI").then((result) => { outcome = result; }); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await act(async () => {
+      pending[0].input.onEvent({ type: "message.delta", text: "All green." });
+      runtime.flushEvents();
+    });
+    expect(outcome).toBeUndefined();
+    await settle(pending[0]);
+    await vi.waitFor(() => expect(outcome).toEqual({ status: "completed", text: "All green." }));
+  });
+
+  it("reports a failed run with the provider's error, and a stopped one as cancelled", async () => {
+    await mount(newSession("codex", "/project", "codex:test"));
+    let failed: unknown;
+    await act(async () => { void actions.runTurn(session().id, "First").then((result) => { failed = result; }); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await act(async () => {
+      pending[0].input.onEvent({ type: "session.error", message: "Not signed in" });
+      pending[0].done.resolve();
+      await pending[0].done.promise;
+    });
+    await vi.waitFor(() => expect(failed).toMatchObject({ status: "failed", error: "Not signed in" }));
+
+    let stopped: unknown;
+    await act(async () => { void actions.runTurn(session().id, "Second").then((result) => { stopped = result; }); });
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    await act(async () => actions.stop(session().id));
+    await act(async () => { pending[1].done.resolve(); await pending[1].done.promise; });
+    await vi.waitFor(() => expect(stopped).toMatchObject({ status: "cancelled" }));
+  });
+
+  it("does not wait on a busy session, whose message would only be queued", async () => {
+    await mount(newSession("codex", "/project", "codex:test"));
+    await act(async () => { actions.onSubmit(session().id, "First"); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    expect(await actions.runTurn(session().id, "Second")).toEqual({ status: "failed", text: "", error: "The session is busy." });
+    expect(session().queuedMessages ?? []).toHaveLength(0);
+    await settle(pending[0]);
+  });
+
+  it("never saves a hidden run", async () => {
+    await mount({ ...newSession("codex", "/project", "codex:test"), ephemeral: true });
+    await act(async () => { actions.onSubmit(session().id, "Run the habit"); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await settle(pending[0]);
+    await act(async () => runtime.flushPersistence());
+    expect(mocks.invoke.mock.calls.some(([command]) => command === "session_upsert")).toBe(false);
+    // The provider is told too, so it keeps no thread of its own.
+    expect(pending[0].input.ephemeral).toBe(true);
+  });
+
+  describe("an agent's conversation", () => {
+    const bound = (run: Pending, providerSessionId: string) => act(async () => { run.input.onEvent({ type: "session.providerBound", providerSessionId }); });
+    const files = { id: "a", dir: "/data/agents/a", soul: "# Soul\n\n- Be brief.", soulHash: "soul-1", memory: "- 2026-10-01 · CI runs on Actions", memoryHash: "memory-1", memoryPath: "/data/agents/a/MEMORY.md", topics: [] };
+    async function mountAgent(extra: Partial<Session> = {}) {
+      const chat = { ...newSession("codex", "/home/me", "codex:test"), ...extra };
+      const agent = createAgent(["/code/app"]);
+      saveAgentSessionId(agent.id, chat.id);
+      const invoke = mocks.invoke.getMockImplementation()!;
+      mocks.invoke.mockImplementation(async (command: string, args?: never) => command === "agent_load" ? files : invoke(command, args));
+      await mount(chat);
+    }
+
+    it("tells a fresh provider session who it is, then only what changed", async () => {
+      await mountAgent();
+      await act(async () => { actions.onSubmit(session().id, "What broke?"); });
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      const first = pending[0].input;
+      expect(first.appAccess).toBe(true);
+      expect(first.text.startsWith("<loci_context>")).toBe(true);
+      expect(first.text.endsWith("</loci_context>\n\nWhat broke?")).toBe(true);
+      expect(first.text).toContain("You are Ember, an agent in Loci");
+      expect(first.text).toContain("- app: /code/app");
+      expect(first.text).toContain("- Be brief.");
+      expect(first.text).toContain("CI runs on Actions");
+      expect(first.text).toContain("App access is always enabled in this thread.");
+      // What the user sees is only what they wrote.
+      expect(session().blocks[0].text).toBe("What broke?");
+      await bound(pending[0], "thread-1");
+      await settle(pending[0]);
+
+      await act(async () => { actions.onSubmit(session().id, "And now?"); });
+      await vi.waitFor(() => expect(pending).toHaveLength(2));
+      expect(pending[1].input).toMatchObject({ appAccess: true, text: "And now?" });
+      await settle(pending[1]);
+
+      files.memory += "\n- 2026-10-02 · Deploys go through Fly";
+      files.memoryHash = "memory-2";
+      await act(async () => { actions.onSubmit(session().id, "Third"); });
+      await vi.waitFor(() => expect(pending).toHaveLength(3));
+      expect(pending[2].input.text).toContain("Deploys go through Fly");
+      expect(pending[2].input.text).not.toContain("<soul>");
+      expect(pending[2].input.text).not.toContain("<loci_app>");
+      await settle(pending[2]);
+    });
+
+    it("starts a fresh provider session, briefed on the chat, once its context is nearly full", async () => {
+      await mountAgent({
+        providerSessionId: "thread-1", context: { used: 170_000, window: 200_000 },
+        blocks: [
+          { id: "u1", role: "user", text: "Rename the flag to --dry-run" },
+          { id: "a1", role: "assistant", text: "Renamed in cli.ts and the docs." },
+        ] as Session["blocks"],
+      });
+      await act(async () => { actions.onSubmit(session().id, "Ship it"); });
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      expect(adapter.forgetSession).toHaveBeenCalledWith(session().id);
+      const text = pending[0].input.text;
+      expect(text).toContain("<previous_conversation>");
+      expect(text).toContain("Rename the flag to --dry-run");
+      expect(text).toContain("Renamed in cli.ts and the docs.");
+      expect(text).toContain("<soul>");
+      expect(text.endsWith("Ship it")).toBe(true);
+      expect(session().providerSessionId).toBeUndefined();
+      expect(session().context).toBeUndefined();
+      await settle(pending[0]);
+    });
+
+    it("sends the turn without its memory when the files cannot be read", async () => {
+      await mountAgent();
+      mocks.invoke.mockImplementation(async (command: string) => { if (command === "agent_load") throw new Error("disk"); return undefined; });
+      await act(async () => { actions.onSubmit(session().id, "Hello"); });
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      expect(pending[0].input.text).toBe("Hello");
+      await settle(pending[0]);
+    });
   });
 });

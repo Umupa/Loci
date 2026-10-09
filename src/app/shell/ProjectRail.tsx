@@ -1,5 +1,5 @@
 import { BellOff, ChevronDown, ChevronRight, FolderPlus, MoreHorizontal, Pin, PinOff, File, ExcalidrawIcon, Plus, Search, Settings, } from "../../shared/ui/icons";
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useDragResize } from "../../shared/hooks/useDragResize";
 import { useLockOverscroll } from "../../shared/hooks/useLockOverscroll";
 import { useAnimatedReorder } from "../../shared/hooks/useAnimatedReorder";
@@ -50,6 +50,10 @@ type Props = {
         purgeData: boolean;
     }) => void;
     liveAgents?: LiveAgent[];
+    /** The agents section, above the projects. */
+    agentRail?: ReactNode;
+    /** An agent's conversation covers the workspace, so no project reads as selected. */
+    agentActive?: boolean;
     activeSessionId?: string;
     onSelectAgent?: (sessionId: string) => void;
     settingsOpen?: boolean;
@@ -59,7 +63,7 @@ type Props = {
     onSelectSettingsSection?: (section: SettingsSectionId) => void;
     onCloseSettings?: () => void;
 };
-export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onSearch, searchActive = false, notesEnabled = true, onOpenNotes, notesActive = false, onOpenCanvases, canvasesActive = false, onTogglePanel, onSelectProject, onOpenProject, onRemoveProject, liveAgents = [], activeSessionId, onSelectAgent, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, }: Props) {
+export function ProjectRail({ visible = true, agentRail, agentActive = false, cwd, recents, busyPaths, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onSearch, searchActive = false, notesEnabled = true, onOpenNotes, notesActive = false, onOpenCanvases, canvasesActive = false, onTogglePanel, onSelectProject, onOpenProject, onRemoveProject, liveAgents = [], activeSessionId, onSelectAgent, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, }: Props) {
     const resize = useDragResize({
         min: PROJECT_RAIL_WIDTH_MIN,
         max: () => Math.min(PROJECT_RAIL_WIDTH_MAX, Math.floor(window.innerWidth * 0.35)),
@@ -213,12 +217,13 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
                 lockOverscroll(el);
                 scrollRef.current = el;
             }} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none pb-2">
-            {sections.pinned.length > 0 ? (<ProjectSection label="Pinned" items={sections.pinned} muteStatuses={muteStatuses} cwd={cwd} busy={busy} sortable={pinnedSortable} pinned searchActive={searchActive || notesActive || canvasesActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>) : null}
+            {agentRail}
+            {sections.pinned.length > 0 ? (<ProjectSection label="Pinned" items={sections.pinned} muteStatuses={muteStatuses} cwd={cwd} busy={busy} sortable={pinnedSortable} pinned searchActive={searchActive || notesActive || canvasesActive || agentActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>) : null}
 
             {projectGroups.length > 0 ? (<div className="mb-2 shrink-0">
                 <ProjectSectionHeader label="Groups" onAddGroup={(x, y) => projectMenu.createGroup(x, y)}/>
                 <div className="flex flex-col gap-px px-2">
-                  {groupedProjectSections.grouped.map(({ group, items }) => (<ProjectGroupSection key={group.id} group={group} items={items} muteStatuses={muteStatuses} cwd={cwd} busy={busy} searchActive={searchActive || notesActive || canvasesActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} onReorder={onReorderProjects} onToggleCollapsed={() => updateProjectGroup(group.id, (current) => ({
+                  {groupedProjectSections.grouped.map(({ group, items }) => (<ProjectGroupSection key={group.id} group={group} items={items} muteStatuses={muteStatuses} cwd={cwd} busy={busy} searchActive={searchActive || notesActive || canvasesActive || agentActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} onReorder={onReorderProjects} onToggleCollapsed={() => updateProjectGroup(group.id, (current) => ({
                         ...current,
                         collapsed: !current.collapsed,
                     }))} onOpenGroupMenu={(x, y) => projectMenu.openGroupMenu(group.id, x, y)} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>))}
@@ -227,7 +232,7 @@ export function ProjectRail({ visible = true, cwd, recents, busyPaths, canGoBack
 
             <ProjectSection label="Projects" items={groupedProjectSections.ungrouped} muteStatuses={muteStatuses} emptyLabel={sections.projects.length === 0 && projectGroups.length === 0
                 ? "No projects yet"
-                : undefined} onAdd={onOpenProject} cwd={cwd} busy={busy} sortable={projectSortable} pinned={false} searchActive={searchActive || notesActive || canvasesActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>
+                : undefined} onAdd={onOpenProject} cwd={cwd} busy={busy} sortable={projectSortable} pinned={false} searchActive={searchActive || notesActive || canvasesActive || agentActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>
           </div>
           <LiveAgentsPreview agents={liveAgents} activeSessionId={activeSessionId} onSelect={onSelectAgent} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupMascots={groupMascots}/>
 

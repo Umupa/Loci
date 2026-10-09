@@ -9,12 +9,15 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 18] = [
+const APP_ACTIONS: [&str; 33] = [
     "models.list",
     "sessions.list",
     "sessions.read",
     "sessions.send",
     "sessions.draft",
+    "sessions.stop",
+    "sessions.archive",
+    "sessions.delete",
     "sessions.start",
     "folders.list",
     "folders.move",
@@ -28,6 +31,18 @@ const APP_ACTIONS: [&str; 18] = [
     "canvas.delete",
     "canvas.read-data",
     "canvas.write-data",
+    "soul.read",
+    "soul.update",
+    "memory.read",
+    "memory.search",
+    "memory.add",
+    "memory.replace",
+    "memory.remove",
+    "habits.list",
+    "habits.add",
+    "habits.update",
+    "habits.run",
+    "habits.remove",
 ];
 const APP_USAGE: &str = r#"Loci app access — use in a thread enabled by /operator.
 
@@ -96,6 +111,41 @@ Actions:
                   MCP cameraUpdate/delete/restoreCheckpoint are not elements.
                   Writes update open panes. Read first to extend a drawing;
                   this replaces the whole scene, it does not merge elements.
+
+An agent works on several projects rather than in one. Its sessions.*,
+folders.* and canvas.* actions also take "project":"<path or name>" to choose
+which; it may be left out with one project. Ordinary sessions cannot pass it.
+  sessions.stop    {"sessionId":"..."}  Cancel another session's current turn.
+  sessions.archive {"sessionId":"..."}  Stop it and put it away; it can be restored.
+  sessions.delete  {"sessionId":"..."}  Remove it for good. The user is asked to
+                  confirm first; the call fails if they decline.
+                  None of these can target the caller, an agent's chat or a habit run.
+  In an agent's chat, sessions.start reports the session's result back when it
+  stops; pass "notifyOnComplete":false to opt out, or "notifyOnComplete":true
+  on sessions.send to hear back about a follow-up.
+
+Only in an agent's own conversation:
+  soul.read      {}  Its standing instructions (SOUL.md) and their hash.
+  soul.update    {"text":"<complete Markdown>","expectedHash":"<from soul.read>"}
+                  Replace them, only at the user's request. A stale hash is
+                  rejected: read again and reapply the change.
+  memory.add     {"fact":"...","until":"YYYY-MM-DD","topic":"<name>"}
+                  Remember one dated fact; until and topic are optional.
+  memory.replace {"find":"<text of the old entry>","fact":"..."}
+                  Supersede an entry that changed.
+  memory.remove  {"find":"..."}  Drop an entry that was wrong.
+  memory.read    {"topic":"<name>"}  One topic file, or MEMORY.md without topic.
+  memory.search  {"query":"...","since":"7d"}  Search memory, topic notes and
+                  the archive. since is a date or a span like 24h, 7d, 2w.
+  habits.list    {}  What it does on its own, with schedules and last outcomes.
+  habits.add     {"name":"Morning CI check","instructions":"...",
+                  "schedule":{"kind":"weekdays","time":"09:00"}}
+                  kind is hourly (with "minute":0-59), daily, weekdays or
+                  weekly (with "dayOfWeek":0-6, 0 is Sunday). Times are local.
+                  Add one only once the user agrees.
+  habits.update  {"id":"...","enabled":false}  Also name, instructions, schedule.
+  habits.run     {"id":"..."}  Run it now; the schedule is left alone.
+  habits.remove  {"id":"..."}
 
 The output is one JSON line: {"ok":true,"result":...} or {"ok":false,"error":"..."}.
 Note and canvas results include a stable loci://note/ID or loci://canvas/ID url.

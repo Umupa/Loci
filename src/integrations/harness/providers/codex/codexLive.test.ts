@@ -100,6 +100,7 @@ async function startTurn(
     beforeThreadReply?: () => Promise<void>;
     onAccepted?: () => void;
     appAccess?: boolean;
+    ephemeral?: boolean;
   } = {},
 ) {
   const events: HarnessEvent[] = [];
@@ -119,6 +120,7 @@ async function startTurn(
     providerAccountId: options.providerAccountId,
     runtimeMode: options.runtimeMode ?? "supervised",
     appAccess: options.appAccess,
+    ephemeral: options.ephemeral,
     intent: options.intent,
     text: "summarize the changelog",
     attachments: [],
@@ -177,6 +179,18 @@ describe("codex live turn sequence", () => {
     expect(onAccepted).toHaveBeenCalledOnce();
     notify("turn/completed", { turn: { id: "turn_1", status: "completed" } });
     await turn;
+  });
+
+  it("starts a hidden run on a thread Codex keeps no record of", async () => {
+    await startTurn("codex-live", { ephemeral: true });
+    const hidden = parse().find((m) => m.method === "thread/start")!;
+    expect((hidden.params as { ephemeral?: boolean }).ephemeral).toBe(true);
+    await stopCodexSession("codex-live");
+    __codexTestReset();
+    sent.length = 0;
+    await startTurn("codex-live");
+    const ordinary = parse().find((m) => m.method === "thread/start")!;
+    expect(ordinary.params).not.toHaveProperty("ephemeral");
   });
 
   it("reopens a thread when app access changes its network policy", async () => {

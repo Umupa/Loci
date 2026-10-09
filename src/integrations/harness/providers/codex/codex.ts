@@ -646,13 +646,17 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
     if (!threadId) {
       const opened = await rpc.request<{ thread?: { id?: string } }>(
         "thread/start",
-        buildThreadStartParams({
-          cwd: input.cwd,
-          runtimeMode: input.runtimeMode,
-          appAccess: input.appAccess,
-          model,
-          serviceTier,
-        }),
+        {
+          ...buildThreadStartParams({
+            cwd: input.cwd,
+            runtimeMode: input.runtimeMode,
+            appAccess: input.appAccess,
+            model,
+            serviceTier,
+          }),
+          // A hidden run leaves no thread in the user's own Codex history.
+          ...(input.ephemeral ? { ephemeral: true } : {}),
+        },
       );
       threadId = opened.thread?.id?.trim();
     }
