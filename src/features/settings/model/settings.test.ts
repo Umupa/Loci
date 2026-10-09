@@ -294,6 +294,7 @@ describe("settings navigation", () => {
             "general",
             "appearance",
             "keybindings",
+            "agents",
             "chat",
             "providers",
             "mcp",

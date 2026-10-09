@@ -10,6 +10,10 @@ import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
 import { ColorPickerPopover, ColorSwatchRow, } from "../../../shared/ui/ColorPickerPopover";
 import { Popover } from "../../../shared/ui/Popover";
 import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
+import { agentLook, agentProjectsPhrase, agentsSnapshot, listAgents, subscribeAgents, type Agent } from "../../agents/model/agent";
+import { defaultAgentName } from "../../agents/model/agentAvatars";
+import { resetAgentDefaults } from "../../agents/model/agentFiles";
+import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { GradientBlurBackground } from "./GradientBlurBackground";
 import { McpSettings } from "./McpSettings";
 import { RemoveProjectDialog } from "../../projects/ui/RemoveProjectDialog";
@@ -49,7 +53,7 @@ import { loadTabGroupColors, loadTabGroupCustomColors, loadTabGroupLabels, loadT
 import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { ProjectLogoIcon } from "../../projects/ui/ProjectLogoIcon";
 import { ProjectMascot } from "../../projects/ui/ProjectMascot";
-import { loadAgentsEnabled, saveAgentsEnabled, filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, loadTabLimit, saveTabLimit, TAB_LIMIT_CHOICES, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
+import { loadAgentsEnabled, saveAgentsEnabled, subscribeAgentsEnabled, filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, loadTabLimit, saveTabLimit, TAB_LIMIT_CHOICES, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
 import { cachedNotificationPermission, loadNotificationsEnabled, openNotificationSettings, probeNotificationPermission, requestNotificationPermission, saveNotificationsEnabled, type NotificationPermission, } from "../../notifications/model/notifications";
 import { SkillsPage } from "../../skills/ui/SkillsPage";
@@ -156,6 +160,7 @@ function SettingsViewContent({ section, anchor = null, notificationProjectPath =
               {section === "general" ? (<><GeneralPage /><div id={settingDomId("project-notifications")} data-setting-id="project-notifications"><ProjectNotificationSettings cwd={cwd} recents={recents} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest} highlighted={revealed === "project-notifications"} /></div></>) : null}
 
               {section === "appearance" ? (<AppearancePage appearance={appearance}/>) : null}
+              {section === "agents" ? <AgentsPage /> : null}
               {section === "chat" ? <ChatPage /> : null}
               {section === "keybindings" ? <KeybindingsPage /> : null}
               {section === "mcp" ? (<McpSettings cwd={cwd} recents={recents}/>) : null}
@@ -240,7 +245,6 @@ function GeneralPage({}: {}) {
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(cachedNotificationPermission);
     const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
     const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(loadLiveAgentsEnabled);
-    const [agentsEnabled, setAgentsEnabled] = useState(loadAgentsEnabled);
     const [tabAnimationsEnabled, setTabAnimationsEnabled] = useState(loadTabAnimationsEnabled);
     const [tabLimit, setTabLimit] = useState(loadTabLimit);
     const [closeToTray, setCloseToTray] = useState(loadCloseToTray);
@@ -270,10 +274,6 @@ function GeneralPage({}: {}) {
     const onNotesEnabled = (next: boolean) => {
         saveNotesEnabled(next);
         setNotesEnabled(next);
-    };
-    const onAgentsEnabled = (next: boolean) => {
-        saveAgentsEnabled(next);
-        setAgentsEnabled(next);
     };
     const onLiveAgentsEnabled = (next: boolean) => {
         saveLiveAgentsEnabled(next);
@@ -324,10 +324,6 @@ function GeneralPage({}: {}) {
         </Row>
         <Row id="notes" label={t("Notes")} description={t("A global markdown notebook on the project rail. Save a finished turn from the transcript, then mention it later with @note or add it to chat.")}>
           <Toggle label={t("Notes")} on={notesEnabled} onChange={onNotesEnabled}/>
-        </Row>
-
-        <Row id="agents" label={t("Agents")} description={t("Long-lived agents on the project rail, each with its own conversation, memory and habits. Turning this off hides them and pauses their habits; nothing is deleted.")}>
-          <Toggle label={t("Agents")} on={agentsEnabled} onChange={onAgentsEnabled}/>
         </Row>
 
         <Row id="working-agents" label={t("Working agents")} description={t("When two or more chats are in flight, a card on the project rail lists them so you can jump across projects. Finished turns stay until you open that session.")}>
@@ -1698,6 +1694,40 @@ function PageHeader({ title, description, }: {
  * A titled card of related settings. Everything on a page lives in one, so a
  * page reads as a handful of topics instead of one long list of switches.
  */
+/** The agents the user has, and whether the app shows them at all. */
+function AgentsPage() {
+    useLocale();
+    const enabled = useSyncExternalStore(subscribeAgentsEnabled, loadAgentsEnabled, () => true);
+    const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const agents = useMemo(() => listAgents(), [snapshot]);
+    return (<>
+      <Group title={t("Agents")}>
+        <Row id="agents-enabled" label={t("Show agents")} description={t("Long-lived agents on the project rail, each with its own conversation, memory and habits. Turning this off hides them and pauses their habits; nothing is deleted.")}>
+          <Toggle label={t("Show agents")} on={enabled} onChange={saveAgentsEnabled}/>
+        </Row>
+      </Group>
+      <Group id="agent-list" title={t("Your agents")} description={t("Add an agent with the plus beside Agents on the project rail. Its model, projects, soul, habits and memory are set in its Details panel.")}>
+        {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No agents yet.")}</p>)}
+      </Group>
+    </>);
+}
+function AgentRow({ agent }: { agent: Agent }) {
+    useLocale();
+    const look = agentLook(agent);
+    const [error, setError] = useState<string>();
+    const reset = async () => {
+        if (!await ask(t("Its soul goes back to the default and its name to {0}. Changes to its soul can't be recovered. Its conversation, projects, memory and habits are kept.", defaultAgentName(look.avatar)), { title: t("Reset {0} to its defaults?", look.name), kind: "warning", okLabel: t("Reset"), cancelLabel: t("Cancel") }))
+            return;
+        await resetAgentDefaults(agent.id).then(() => setError(undefined), (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
+    };
+    return (<Row label={<span className="flex min-w-0 items-center gap-2">
+          <AgentAvatar name={look.avatar} color={look.color} className="size-4 shrink-0"/>
+          <span className="truncate">{look.name}</span>
+        </span>} description={error ?? (look.projects.length ? t("Works on {0}", agentProjectsPhrase(look.projects)) : t("No projects yet"))}>
+      <SecondaryButton onClick={() => void reset()}>{t("Reset")}</SecondaryButton>
+    </Row>);
+}
 function Group({ id, title, description, action, children, }: {
     /** Matches a `SETTINGS_INDEX` id when the whole card is the search target. */
     id?: string;
