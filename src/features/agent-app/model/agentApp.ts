@@ -79,7 +79,6 @@ export type SessionLaunch = {
 };
 import type { SplitDir } from "../../workspace/model/layout";
 import { consumeOperatorCommand } from "../../sessions/model/operatorCommand";
-import { isLearnMap, LEARN_MAP_WRITE_REFUSED } from "../../learn/model/learnMap";
 import { sessionConversationPage, type SessionReadOptions } from "./sessionConversation";
 
 export type AppSessionListing = {
@@ -1056,8 +1055,7 @@ export async function handleAgentApp(
     }
     case "canvas.delete": {
       const id = requiredString(input.id, "id", 256);
-      // An agent neither deletes nor overwrites the map of what the learner said.
-      if (isLearnMap(await projectCanvas(source, id, input, host))) throw new Error(LEARN_MAP_WRITE_REFUSED);
+      await projectCanvas(source, id, input, host);
       await deleteCanvas(id);
       return { deleted: true };
     }
@@ -1081,7 +1079,6 @@ export async function handleAgentApp(
       const existing = await getCanvas(id);
       if (!existing) throw new Error("Canvas was not found");
       if (!existing.cwd || !sameProjectPath(existing.cwd, cwd)) throw new Error("Canvas was not found in this project");
-      if (isLearnMap(existing)) throw new Error(LEARN_MAP_WRITE_REFUSED);
       await writeCanvasScene(id, scene);
       return { updated: true, url: appResourceUrl("canvas", id), saved: true };
     }

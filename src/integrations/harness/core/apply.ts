@@ -425,7 +425,6 @@ function lastMatchingBlock(
 type UserTurnExtra = {
   noteCard?: Block["noteCard"];
   loci?: boolean;
-  learn?: boolean;
   canvasCli?: boolean;
   appRequestId?: string;
   agentSessionCompletion?: Block["agentSessionCompletion"];
@@ -436,7 +435,6 @@ function userTurnFields(extra?: UserTurnExtra) {
   return {
     ...(extra?.noteCard ? { noteCard: extra.noteCard } : {}),
     ...(extra?.loci ? { loci: true } : {}),
-    ...(extra?.learn ? { learn: true } : {}),
     ...(extra?.canvasCli ? { canvasCli: true } : {}),
     ...(extra?.appRequestId ? { appRequestId: extra.appRequestId } : {}),
     ...(extra?.agentSessionCompletion

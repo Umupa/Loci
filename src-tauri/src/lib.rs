@@ -295,7 +295,6 @@ pub fn run() {
             canvas::canvas_checkpoint_canvas,
             canvas::canvas_checkpoint_latest,
             canvas_mcp::canvas_mcp_server,
-            canvas_mcp::learn_mcp_server,
             agent::agent_load,
             agent::agent_read,
             agent::agent_save,

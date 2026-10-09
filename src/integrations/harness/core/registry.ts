@@ -215,7 +215,6 @@ export function sendHarnessTurn(input: SendTurnInput & { harness: HarnessId }) {
         sessionId: input.sessionId,
         cwd: input.cwd,
         appAccess: input.appAccess === true,
-        learnAccess: input.learnAccess === true,
         // The built-in Excalidraw switch as it is now: a change applies from
         // the next turn, however the agent reaches the canvas tools.
         canvasAccess: loadCanvasMcpEnabled(),

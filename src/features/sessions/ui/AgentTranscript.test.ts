@@ -39,31 +39,6 @@ describe("AgentTranscript collapsed work", () => {
         expect(markup).toContain("list my notes");
         expect(markup).not.toContain("/operator");
     });
-    it("marks a /learn turn, without the command, and the learning calls under it by what they did", () => {
-        const markup = render([
-            { id: "user", role: "user", text: "kubernetes", learn: true },
-            { id: "other", role: "user", text: "an ordinary question" },
-            {
-                id: "read",
-                role: "tool",
-                text: "loci_learn:map_read",
-                tool: { title: "loci_learn:map_read", kind: "other", status: "completed" },
-            },
-            {
-                id: "record",
-                role: "tool",
-                text: "loci_learn:map_record",
-                tool: { title: "loci_learn:map_record", kind: "other", status: "in_progress" },
-            },
-        ], true);
-        expect(markup.match(/data-learn-turn="true"/g)).toHaveLength(1);
-        expect(markup).toContain("kubernetes");
-        expect(markup).not.toContain("/learn");
-        expect(markup).toContain('data-learn-tool-call="map_read"');
-        expect(markup).toContain('data-learn-tool-call="map_record"');
-        expect(markup).toContain("Recording on the learning map");
-        expect(markup).not.toContain("loci_learn:map_record");
-    });
     it("shows Loci CLI actions instead of their long shell commands", () => {
         const command = "/repo/target/debug/Loci.app/Contents/MacOS/loci";
         const markup = render([

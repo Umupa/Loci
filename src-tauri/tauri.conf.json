@@ -52,8 +52,7 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "resources/excalidraw-mcp/**/*",
-      "resources/learn-mcp/**/*"
+      "resources/excalidraw-mcp/**/*"
     ],
     "macOS": {
       "entitlements": "Entitlements.plist",

@@ -26,10 +26,6 @@ import { displayAttachments, prepareAttachments } from "../../features/sessions/
 import { preparePrompt } from "../../features/sessions/model/promptPreparation";
 import { consumeOperatorCommand, operatorEnabledInThread } from "../../features/sessions/model/operatorCommand";
 import { canvasCliPrompt, usesBuiltinCli } from "../../features/sessions/model/builtinCli";
-import { learnEditHint } from "../../features/learn/bridge";
-import {
-  consumeLearnCommand, LEARN_CONTINUE_PROMPT, LEARN_PROMPT, learnCliPrompt, learnEnabledInThread, supportsLearnHarness,
-} from "../../features/learn/learnCommand";
 import {
   appendPreparingHandoff, buildDeterministicHandoff, chooseHandoffBrief,
   completeHandoff, consumeHandoff, isPreparingHandoff, pendingHandoff,
@@ -69,8 +65,6 @@ import type { SessionRuntime } from "./useSessionRuntime";
 
 export type SubmitOptions = ComposerTurnOptions & {
   followUpBehavior?: FollowUpBehavior;
-  /** The map node a /learn turn was started from, told to the agent with the turn. */
-  learnFocus?: { nodeId: string; intent: "explore" | "revisit" };
   noteCard?: NoteComposerCard;
   queuedMessageId?: string;
   refreshTitle?: boolean;
@@ -169,21 +163,11 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const noteCard = options && "noteCard" in options ? options.noteCard : current.noteCard;
     if (!text.trim() && !attachments.length && !noteCard) return false;
     const activation = consumeOperatorCommand(text);
-    const learning = activation.matched ? { text, matched: false } : consumeLearnCommand(text);
-    if (learning.matched && (!supportsLearnHarness(current.harness) || !looksLikeProject(current.cwd))) {
-      enqueueHarnessEvent(sessionId, { type: "session.error", message: supportsLearnHarness(current.harness)
-        ? "Open the subject's folder as a project first: /learn keeps one learning map per project."
-        : "/learn needs a Claude Code, Codex, Antigravity or Pi session: other agent CLIs cannot reach the learning map yet." });
-      flushHarnessEvents();
-      return false;
-    }
-    const visibleText = activation.matched ? activation.text.trim() || "Explain what you can do in Loci with the app CLI."
-      : learning.matched ? learning.text.trim() || LEARN_CONTINUE_PROMPT : text;
+    const visibleText = activation.matched ? activation.text.trim() || "Explain what you can do in Loci with the app CLI." : text;
     // An agent has app access in every turn, without the command.
     const agent = agentForSession(sessionId);
     const appAccess = !!agent || activation.matched || operatorEnabledInThread(current.blocks);
-    const learnAccess = supportsLearnHarness(current.harness) && (learning.matched || learnEnabledInThread(current.blocks));
-    const rawCommand = !activation.matched && !learning.matched && isNativeCommandPrompt(text, current.harness);
+    const rawCommand = !activation.matched && isNativeCommandPrompt(text, current.harness);
     const promptText = options?.agentSetup ?? (options?.agentCompletion ? options.agentCompletion.report
       : rawCommand ? text : composeNoteMessage(noteCard, visibleText));
     const pendingSwitch = current.pendingSwitch?.from !== current.harness ? current.pendingSwitch : undefined;
@@ -191,7 +175,6 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const cards = {
       ...(!rawCommand && noteCard ? { noteCard: noteCardMeta(noteCard) } : {}),
       ...(activation.matched ? { loci: true } : {}),
-      ...(learning.matched ? { learn: true } : {}),
       ...(options?.agentCompletion ? { agentSessionCompletion: options.agentCompletion.completion } : {}),
       ...(options?.agentSetup ? { agentSetup: true } : {}),
       ...((options?.appRequestId ?? draft?.appRequestId)
@@ -203,8 +186,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const canvasNote = cliTools && !rawCommand && looksLikeProject(current.cwd) && loadCanvasMcpEnabled() &&
       (!current.providerSessionId || !current.blocks.some((block) => block.role === "user" && !block.draft && block.canvasCli));
     if (current.busy && !pendingSwitch) {
-      if ((activation.matched || learning.matched) && options?.queuedMessageId && options.followUpBehavior === "steer") return false;
-      const followUp = activation.matched || learning.matched ? "queue"
+      if (activation.matched && options?.queuedMessageId && options.followUpBehavior === "steer") return false;
+      const followUp = activation.matched ? "queue"
         : current.backgroundTasks?.length ? "steer" : options?.followUpBehavior ?? loadFollowUpBehavior();
       if (followUp === "queue") {
         setSessions((previous) => previous.map((session) => session.id === sessionId ? {
@@ -394,10 +377,6 @@ export function useSessionSubmission(options: SubmissionOptions) {
         let sendText = wrap && !rawCommand ? wrapHandoffPrompt(wrap.text, wrap.from, prompt.trim() || CONTINUE_PROMPT,
           queuedHandoff ? userMessagesAfterHandoff(current) : []) : prompt;
         if (activation.matched && !agent) sendText += `\n\n${await operatorPrompt()}`;
-        if (learning.matched) sendText += cliTools ? learnCliPrompt(await appCli()) : LEARN_PROMPT;
-        if (learning.matched && options?.learnFocus) sendText += `\n\n<loci_learn_focus>The learner opened this session from the map node with id "${options.learnFocus.nodeId}", named in their message, to ${options.learnFocus.intent === "revisit" ? "revisit it" : "explore it"}. After map_read, go straight to that.</loci_learn_focus>`;
-        // What the learner drew on the map since this session last read it is part of the turn.
-        if (learnAccess) sendText += await learnEditHint(current).catch(() => "");
         // A turn must not fail over a note.
         if (canvasNote) sendText += await appCli().then(canvasCliPrompt, () => "");
         // An agent reads who it is ahead of the message, so it never takes it for
@@ -421,7 +400,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
         if (!isCurrent()) return;
         await sendHarnessTurn({ harness: current.harness, sessionId, cwd: current.cwd,
           model: current.model, modelSettings: current.modelSettings, providerAccountId,
-          runtimeMode: current.runtimeMode, appAccess, learnAccess, text: sendText, attachments: prepared,
+          runtimeMode: current.runtimeMode, appAccess, text: sendText, attachments: prepared,
           ...(current.ephemeral ? { ephemeral: true } : {}),
           ...(edited ? { onAccepted: accepted } : {}),
           onEvent: (event) => {

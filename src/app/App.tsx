@@ -71,7 +71,6 @@ import { useSessionSubmission } from "./hooks/useSessionSubmission";
 import { useIdleSessionDetach } from "./hooks/useIdleSessionDetach";
 import { useAppCommands } from "./hooks/useAppCommands";
 import { useAppControl } from "./hooks/useAppControl";
-import { useLearnSessions } from "./hooks/useLearnSessions";
 import { useAppResourceNavigation } from "./hooks/useAppResourceNavigation";
 import { useSaveToCanvas } from "./hooks/useSaveToCanvas";
 import type { NoteOpenRequest } from "../features/notes/ui/NotesView";
@@ -222,7 +221,6 @@ function Workspace(boot: BootWorkspace) {
   });
   const delegation = useAgentDelegation({ runtime, submission, loadSession: (id) => workspaceRef.current!.loadSession(id) });
   useAppControl({ workspace, runtime, submission, delegation });
-  useLearnSessions({ workspace, runtime, submission });
   useAppResourceNavigation({ workspace, notesEnabled, onOpenNote: (id) => {
     setNoteOpenRequest((previous) => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
     setSurface("notes");

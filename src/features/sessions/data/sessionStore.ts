@@ -485,7 +485,6 @@ function sanitizeBlock(
   if (block.role === "user" && turnModel) next.turnModel = turnModel;
   if (block.role === "user" && block.draft) next.draft = true;
   if (block.role === "user" && block.loci) next.loci = true;
-  if (block.role === "user" && block.learn) next.learn = true;
   if (block.role === "user" && block.canvasCli) next.canvasCli = true;
   if (
     block.role === "user" &&

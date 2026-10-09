@@ -24,14 +24,11 @@ describe("built-in tools through the app's CLI", () => {
   it("recognizes one tool call however the path and the input are quoted", () => {
     expect(builtinCliCall(`${CLI} canvas create_view --input /tmp/drawing.json`, CLI)).toEqual({ namespace: "canvas", tool: "create_view" });
     expect(builtinCliCall(`'${CLI}' canvas read_widget_context --json '{"checkpointId":"abc"}'`, CLI)).toEqual({ namespace: "canvas", tool: "read_widget_context" });
-    expect(builtinCliCall(`"${CLI}" learn map_read`, CLI)).toEqual({ namespace: "learn", tool: "map_read" });
-    expect(builtinCliCall(`  ${CLI} learn revisit --json '{"phase":"start","nodeId":"n1"}'  `, CLI)).toEqual({ namespace: "learn", tool: "revisit" });
     // Text inside single quotes is one argument, whatever it holds.
-    expect(builtinCliCall(`${CLI} learn map_record --json '{"nodes":[{"quote":"cost $5; then | more"}]}'`, CLI)).toEqual({ namespace: "learn", tool: "map_record" });
+    expect(builtinCliCall(`${CLI} canvas create_view --json '{"elements":[{"text":"cost $5; then | more"}]}'`, CLI)).toEqual({ namespace: "canvas", tool: "create_view" });
     // Asking for the tools, of a server or of one tool.
     for (const help of ["canvas", "canvas --help", "canvas help", "canvas -h", "canvas create_view --help"])
       expect(builtinCliCall(`${CLI} ${help}`, CLI)).toEqual({ namespace: "canvas", tool: "help" });
-    expect(builtinCliCall(`${CLI} learn map_record -h`, CLI)).toEqual({ namespace: "learn", tool: "help" });
   });
 
   it("recognizes nothing a shell would expand, chain or redirect, and no other program", () => {
@@ -51,7 +48,6 @@ describe("built-in tools through the app's CLI", () => {
       `${CLI} app notes.list`,
       `${CLI} canvas save_checkpoint --json '{}'`,
       `${CLI} canvas map_read`,
-      `${CLI} learn create_view`,
       `${CLI} canvas read_me --json '{}' --input x`,
       `${CLI} canvas read_me --request-id abc`,
       `${CLI} canvas read_me extra`,
@@ -69,7 +65,6 @@ describe("built-in tools through the app's CLI", () => {
 
   it("names a transcript row for any loci, since that decides nothing", () => {
     expect(builtinCliCall("loci canvas read_me")).toEqual({ namespace: "canvas", tool: "read_me" });
-    expect(builtinCliCall("'/repo/target/debug/loci' learn map_sketch --json '{}'")).toEqual({ namespace: "learn", tool: "map_sketch" });
     expect(builtinCliCall('"C:\\Program Files\\Loci\\loci.exe" canvas get_elements --json \'{"checkpointId":"a"}\'')).toEqual({ namespace: "canvas", tool: "get_elements" });
     expect(builtinCliCall("notloci canvas read_me")).toBeUndefined();
     expect(builtinCliCall("loci canvas read_me; ls")).toBeUndefined();
@@ -77,7 +72,6 @@ describe("built-in tools through the app's CLI", () => {
 
   it("answers for the user by the rules the MCP tools follow", () => {
     const canvas = (tool: "read_me" | "read_widget_context" | "get_elements" | "create_view" | "update_elements") => ({ namespace: "canvas" as const, tool });
-    const learn = (tool: "map_read" | "map_init" | "map_sketch" | "map_record" | "revisit") => ({ namespace: "learn" as const, tool });
     for (const mode of MODES) {
       // Reading the reference or a drawing never asks.
       for (const tool of ["read_me", "read_widget_context", "get_elements"] as const) {
@@ -89,21 +83,13 @@ describe("built-in tools through the app's CLI", () => {
         expect(builtinCliDecision(canvas(tool), mode, false)).toBe(mode === "supervised" ? undefined : "allow");
         expect(builtinCliDecision(canvas(tool), mode, true)).toBe("deny");
       }
-      // The learning tools never ask; a plan turn may only read the map.
-      for (const tool of ["map_init", "map_sketch", "map_record", "revisit"] as const) {
-        expect(builtinCliDecision(learn(tool), mode, false)).toBe("allow");
-        expect(builtinCliDecision(learn(tool), mode, true)).toBe("deny");
-      }
-      expect(builtinCliDecision(learn("map_read"), mode, true)).toBe("allow");
       expect(builtinCliDecision({ namespace: "canvas", tool: "help" }, mode, true)).toBe("allow");
-      expect(builtinCliDecision({ namespace: "learn", tool: "help" }, mode, false)).toBe("allow");
     }
   });
 
   it("reads the command of a row from the shell preview before a shortened title", () => {
     const row = (tool: Block["tool"], text = ""): Block => ({ id: "row", role: "tool", text, tool });
     expect(blockShellCommand(row({ title: "Run loci", preview: { kind: "shell", title: "loci canvas read_me" } }))).toBe("loci canvas read_me");
-    expect(blockShellCommand(row({ title: "Running command: loci learn map_read" }))).toBe("loci learn map_read");
     expect(blockShellCommand(row(undefined, "loci canvas read_me"))).toBe("loci canvas read_me");
     expect(blockShellCommand({ id: "say", role: "assistant", text: "loci canvas read_me" })).toBeUndefined();
   });

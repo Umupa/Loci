@@ -292,8 +292,6 @@ export type Block = {
   draft?: boolean;
   /** This user turn activated Loci app access for its thread. */
   loci?: boolean;
-  /** This user turn used /learn: its thread reaches the project's learning map. */
-  learn?: boolean;
   /** This user turn told the agent how to reach the project's canvases through the app's CLI. */
   canvasCli?: boolean;
   /** Stable CLI request that submitted this turn, for safe retries. */

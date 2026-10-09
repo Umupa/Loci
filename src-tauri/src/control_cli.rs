@@ -1,6 +1,6 @@
 //! The desktop executable also provides a small control client: the JSON-only
-//! `app` actions of /operator, and the built-in canvas and learning tools for
-//! agent CLIs that cannot be given an MCP server.
+//! `app` actions of /operator, and the built-in canvas tools for agent CLIs
+//! that cannot be given an MCP server.
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -436,21 +436,14 @@ const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(60);
 /// The tools an agent may call. The servers also list tools that only the
 /// official drawing widget uses; those stay out of reach here as they do for
 /// agents that attach the servers over MCP. The window knows the same names
-/// (`CANVAS_MCP_TOOLS` and `LEARN_MCP_TOOLS` in `src/features`), which is how
-/// it names and answers approvals for these calls; keep the lists in step.
+/// (`CANVAS_MCP_TOOLS` in `src/features`), which is how it names and answers
+/// approvals for these calls; keep the lists in step.
 const CANVAS_TOOLS: [&str; 5] = [
     "read_me",
     "create_view",
     "read_widget_context",
     "get_elements",
     "update_elements",
-];
-const LEARN_TOOLS: [&str; 5] = [
-    "map_read",
-    "map_init",
-    "map_sketch",
-    "map_record",
-    "revisit",
 ];
 const TOOL_USAGE: &str = r#"Loci {subject} — call one tool during an agent turn started in Loci.
 
@@ -464,23 +457,15 @@ succeeded; otherwise the output says what to change.
 The CLI uses a session credential already in your environment; never print it.
 "#;
 
-fn tools_of(namespace: &str) -> &'static [&'static str] {
-    if namespace == "learn" {
-        &LEARN_TOOLS
-    } else {
-        &CANVAS_TOOLS
-    }
+fn tools_of(_namespace: &str) -> &'static [&'static str] {
+    &CANVAS_TOOLS
 }
 
 pub fn tool_help(namespace: &str) -> String {
     let exe = std::env::current_exe()
         .map(|path| quoted(&path.to_string_lossy()))
         .unwrap_or_else(|_| "loci".into());
-    let subject = if namespace == "learn" {
-        "learning map tools"
-    } else {
-        "canvas tools"
-    };
+    let subject = "canvas tools";
     TOOL_USAGE
         .replace("{exe}", &exe)
         .replace("{namespace}", namespace)
@@ -492,9 +477,9 @@ enum ToolParsed {
     Call(String, Value),
 }
 
-/// Run one tool of a built-in server: `canvas` is the Excalidraw server,
-/// `learn` the learning map. The same server process an MCP client would
-/// attach is started for the call, so the tools and their rules are identical.
+/// Run one tool of the built-in Excalidraw server. The same server process an
+/// MCP client would attach is started for the call, so the tools and their
+/// rules are identical.
 pub fn run_tool(namespace: &str, args: Vec<String>) -> i32 {
     let parsed = match parse_tool_args(namespace, &args) {
         Ok(parsed) => parsed,
@@ -971,7 +956,7 @@ mod tests {
         assert_eq!(name, "read_widget_context");
         assert_eq!(input["checkpointId"], "abc");
         // A tool without arguments is called with an empty object.
-        assert_eq!(tool("learn", &["map_read"]).unwrap().1, json!({}));
+        assert_eq!(tool("canvas", &["read_me"]).unwrap().1, json!({}));
         for values in [
             &["create_view", "--json", "[]"][..],
             &["create_view", "--json", "{}", "--json", "{}"],
@@ -986,7 +971,7 @@ mod tests {
             Ok(ToolParsed::Help)
         ));
         assert!(matches!(
-            parse_tool_args("learn", &args(&["map_record", "--help"])),
+            parse_tool_args("canvas", &args(&["create_view", "--help"])),
             Ok(ToolParsed::Help)
         ));
     }
@@ -997,9 +982,7 @@ mod tests {
             let error = tool("canvas", &[hidden]).unwrap_err();
             assert!(error.contains("Unknown tool"), "{error}");
         }
-        // Each server has its own tools.
         assert!(tool("canvas", &["map_read"]).is_err());
-        assert!(tool("learn", &["create_view"]).is_err());
         let listed = tools_text(
             "canvas",
             &json!({"tools": [
@@ -1039,7 +1022,7 @@ mod tests {
             r#"{"revision":3}"#
         );
         assert_eq!(tool_text(&json!({})), "The tool returned no text.");
-        assert!(tool_help("learn").contains(" learn TOOL "));
+        assert!(tool_help("canvas").contains(" canvas TOOL "));
         assert!(tool_help("canvas").contains("canvas tools"));
         assert!(!tool_help("canvas").contains("{exe}"));
     }
@@ -1058,10 +1041,7 @@ mod tests {
             return;
         }
         let resources = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
-        for (namespace, script) in [
-            ("learn", "learn-mcp/loci-learn.mjs"),
-            ("canvas", "excalidraw-mcp/loci-bridge.mjs"),
-        ] {
+        for (namespace, script) in [("canvas", "excalidraw-mcp/loci-bridge.mjs")] {
             let script = resources.join(script).to_string_lossy().into_owned();
             let mut server = ToolServer::start("node", &[script]).unwrap();
             let listed = server

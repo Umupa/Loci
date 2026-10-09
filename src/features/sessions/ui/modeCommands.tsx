@@ -3,13 +3,11 @@ AiIdea,
 CircleDashed,
 CursorMagicSelection,
 MessageSquare,
-Mortarboard,
 X
 } from "../../../shared/ui/icons";
 import { BTW_COMMAND } from "../model/btw";
 import { DRAFT_COMMAND } from "../model/draftCommand";
 import { OPERATOR_COMMAND } from "../model/operatorCommand";
-import { LEARN_COMMAND } from "../../learn/learnCommand";
 
 
 
@@ -57,16 +55,6 @@ export const MODE_COMMAND_STYLES: Record<string, ModeCommandStyle> = {
   [BTW_COMMAND.name]: {
     Icon: MessageSquare,
     className: "text-emerald-700 dark:text-emerald-200/90",
-  },
-  [LEARN_COMMAND.name]: {
-    Icon: Mortarboard,
-    className: "text-amber-700 dark:text-amber-200/90",
-    pill: {
-      label: "Learn",
-      title: "Learn mode",
-      className:
-        "bg-amber-500/15 font-medium text-amber-700 hover:bg-amber-500/20 dark:bg-amber-400/10 dark:text-amber-200/90 dark:hover:bg-amber-400/15",
-    },
   },
 };
 

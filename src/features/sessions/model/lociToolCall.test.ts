@@ -120,12 +120,9 @@ describe("Loci CLI tool calls", () => {
     ).toBe("loci app sessions.send --json '{\"prompt\":\"a; b\"}'");
   });
 
-  it("names a look at the built-in tools, and leaves their calls to the canvas and learning rows", () => {
+  it("names a look at the built-in tools, and leaves their calls to the canvas rows", () => {
     expect(lociToolCall(shell("loci canvas --help"))?.label).toBe("View canvas tools");
-    expect(lociToolCall(shell("'/Applications/Loci App/loci' learn"))?.label).toBe("View learning tools");
-    expect(lociToolCall(shell("loci learn map_record --help"))?.label).toBe("View learning tools");
     expect(lociToolCall(shell("loci canvas create_view --input drawing.json"))).toBeUndefined();
-    expect(lociToolCall(shell("loci learn map_read"))).toBeUndefined();
     expect(lociToolCall(shell("loci canvas --help; ls"))).toBeUndefined();
     expect(lociToolCall(shell("loci other --help"))).toBeUndefined();
   });
