@@ -1,3 +1,4 @@
+import type { OpenFileFn } from "../../files/model/filePlace";
 import { useEffect,useId,useRef,useState,type ReactNode } from "react";
 import { Popover } from "../../../shared/ui/Popover";
 import { X } from "../../../shared/ui/icons";
@@ -10,7 +11,7 @@ type Props = {
   status: "pending" | "accepted" | "rejected";
   cwd?: string;
   onOpen?: () => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
   className?: string;
   children: ReactNode;
 };
@@ -172,9 +173,9 @@ export function ToolDiffPreview({
             variant="popover"
             onOpenFile={
               onOpenFile
-                ? (path) => {
+                ? (...args) => {
                     dismiss();
-                    onOpenFile(path);
+                    onOpenFile(...args);
                   }
                 : undefined
             }

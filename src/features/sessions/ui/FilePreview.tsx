@@ -1,3 +1,4 @@
+import type { OpenFileFn } from "../../files/model/filePlace";
 import { MAX_PREVIEW_LINES } from "../../../integrations/harness/core/preview";
 import { formatInteger } from "../../../shared/lib/numbers";
 import { displayPath,resolveWorkspacePath } from "../../../shared/lib/paths";
@@ -59,7 +60,7 @@ type Props = {
   preview: ToolPreview;
   status: Status;
   cwd?: string;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
   variant?: "card" | "popover";
 };
 

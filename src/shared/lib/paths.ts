@@ -147,7 +147,7 @@ export function resolveWorkspacePath(
 export function resolveWorkspaceFileReference(
   href: string,
   cwd?: string,
-): { path: string; navigation?: { line: number; column?: number } } | undefined {
+): { path: string; navigation?: { line: number; column?: number; endLine?: number } } | undefined {
   return parseWorkspaceFileReference(href, cwd, true);
 }
 
@@ -165,12 +165,14 @@ function parseWorkspaceFileReference(
     if (hash > 0 && !/^L\d+(?:-L\d+)?$/.test(value.slice(hash + 1)))
       value = value.slice(0, hash);
   }
-  const location = value.match(/(?::(\d+)(?::(\d+))?|#L(\d+)(?:-L\d+)?)$/);
+  const location = value.match(/(?::(\d+)(?::(\d+))?|#L(\d+)(?:-L(\d+))?)$/);
   const line = Number(location?.[1] ?? location?.[3]);
   const column = location?.[2] ? Number(location[2]) : undefined;
+  const endLine = location?.[4] ? Number(location[4]) : undefined;
   const navigation =
     Number.isSafeInteger(line) && line > 0
-      ? { line, ...(column && Number.isSafeInteger(column) ? { column } : {}) }
+      ? { line, ...(column && Number.isSafeInteger(column) ? { column } : {}),
+          ...(endLine && Number.isSafeInteger(endLine) && endLine >= line ? { endLine } : {}) }
       : undefined;
   if (location) value = value.slice(0, location.index);
 

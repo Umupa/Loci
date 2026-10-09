@@ -43,9 +43,8 @@ import { ExcalidrawIcon } from "../../../shared/ui/ExcalidrawIcon";
 import { File, MessageSquare } from "../../../shared/ui/icons";
 import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 
-type OpenFileFn = (path: string) => void;
-
 import { copyText } from "../../../platform/tauri/clipboard";
+import type { OpenFileFn } from "../../files/model/filePlace";
 import { openPathWithDefaultApp,readBinaryFile,revealPath } from "../../../platform/tauri/fs";
 import { useColorScheme } from "../../../shared/hooks/useColorScheme";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
@@ -228,6 +227,14 @@ function highlightLanguageFor(language: string): string {
 
 type MarkdownLinkProps = ComponentProps<"a"> & { node?: unknown };
 
+/** Keep source positions through ordinary links, inline paths and code citations. */
+function openFileReference(file: NonNullable<ReturnType<typeof resolveWorkspaceFileReference>>, open: OpenFileFn) {
+  const { line, endLine } = file.navigation ?? {};
+  if (line !== undefined && Number.isSafeInteger(line) && line > 0) {
+    open(file.path, { lines: [line, endLine !== undefined && Number.isSafeInteger(endLine) && endLine >= line ? endLine : line] });
+  } else open(file.path);
+}
+
 function MarkdownLink({
   href,
   children,
@@ -260,7 +267,7 @@ function MarkdownLink({
         }
         if (file && onOpenFile) {
           event.preventDefault();
-          onOpenFile(file.path);
+          openFileReference(file, onOpenFile);
           return;
         }
         event.preventDefault();
@@ -302,7 +309,7 @@ function MarkdownCode({
       : undefined;
     const open =
       file && onOpenFile
-        ? () => onOpenFile(file.path)
+        ? () => openFileReference(file, onOpenFile)
         : undefined;
     return (
       <code
@@ -370,7 +377,7 @@ function MarkdownCode({
         </span>
       ) : null}
       {fence.filePath ? (
-        <MarkdownCodePath path={fence.filePath} startLine={fence.startLine} />
+        <MarkdownCodePath path={fence.filePath} startLine={fence.startLine} endLine={fence.endLine} />
       ) : isPlaintextFallback ? (
         <span className="markdown-code-fallback-label">{fence.language}</span>
       ) : null}
@@ -878,6 +885,7 @@ function parseCodeFence(
 ): {
   language: string;
   startLine?: number;
+  endLine?: number;
   fileName?: string;
   filePath?: string;
 } {
@@ -892,6 +900,7 @@ function parseCodeFence(
     return {
       language: languageFromFileName(fileName),
       startLine: Number(citation[1]),
+      endLine: Number(citation[2]),
       fileName,
       filePath,
     };
@@ -912,9 +921,12 @@ function parseCodeFence(
 
 function MarkdownCodePath({
   path,
+  startLine,
+  endLine,
 }: {
   path: string;
   startLine?: number;
+  endLine?: number;
 }) {
   const { cwd, onOpenFile, onFileContextMenu } = useContext(FileOpenContext);
   const file = resolveWorkspaceFileReference(path, cwd);
@@ -927,7 +939,7 @@ function MarkdownCodePath({
       type="button"
       className="markdown-code-path markdown-code-path-link"
       title={file.path}
-      onClick={() => onOpenFile(file.path)}
+      onClick={() => openFileReference({ ...file, navigation: startLine === undefined ? file.navigation : { line: startLine, endLine } }, onOpenFile)}
       onContextMenu={(event) =>
         onFileContextMenu?.(event, file.path)
       }

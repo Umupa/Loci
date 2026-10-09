@@ -20,7 +20,7 @@ export function remarkWorkspaceFileLinks({ cwd }: { cwd?: string }) {
         node.url =
           href +
           (target
-            ? `:${target.line}${target.column ? `:${target.column}` : ""}`
+            ? target.endLine !== undefined ? `#L${target.line}-L${target.endLine}` : `:${target.line}${target.column ? `:${target.column}` : ""}`
             : "");
       }
     }

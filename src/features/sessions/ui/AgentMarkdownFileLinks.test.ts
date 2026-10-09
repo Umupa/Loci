@@ -47,7 +47,7 @@ describe("markdown file navigation", () => {
         await render("`src/main.ts:12:3`");
         const link = container.querySelector<HTMLElement>('code[role="link"]')!;
         await act(async () => link.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-        expect(onOpenFile).toHaveBeenCalledWith("/repo/src/main.ts");
+        expect(onOpenFile).toHaveBeenCalledWith("/repo/src/main.ts", { lines: [12, 12] });
     });
     it.each([
         ["docs/my%20file.md", "/repo/docs/my file.md", undefined],
@@ -62,20 +62,21 @@ describe("markdown file navigation", () => {
         const link = container.querySelector<HTMLElement>('code[role="link"]');
         expect(link).not.toBeNull();
         await act(async () => link!.click());
-        expect(onOpenFile).toHaveBeenCalledWith(path);
+        if (navigation) expect(onOpenFile).toHaveBeenCalledWith(path, { lines: [navigation.line, navigation.line] });
+        else expect(onOpenFile).toHaveBeenCalledWith(path);
     });
-    it("decodes spaces in markdown file links for the default application", async () => {
+    it("preserves a Markdown link's line range when opening its decoded path", async () => {
         await render("[Guide](<docs/My Guide.md#L7-L9>)");
         expect(container.innerHTML).toContain("<a");
         await act(async () => container.querySelector<HTMLAnchorElement>("a")!.click());
-        expect(onOpenFile).toHaveBeenCalledWith("/repo/docs/My Guide.md");
+        expect(onOpenFile).toHaveBeenCalledWith("/repo/docs/My Guide.md", { lines: [7, 9] });
     });
     it.each(["`main.ts:12`", "[Source](main.ts:12)"])("opens a bare filename with a line number: %s", async (text) => {
         await render(text);
         const link = container.querySelector<HTMLElement>('code[role="link"], a');
         expect(link).not.toBeNull();
         await act(async () => link!.click());
-        expect(onOpenFile).toHaveBeenCalledWith("/repo/main.ts");
+        expect(onOpenFile).toHaveBeenCalledWith("/repo/main.ts", { lines: [12, 12] });
     });
     it.each([
         "/%2Fhost/share/file.md",
@@ -96,11 +97,11 @@ describe("markdown file navigation", () => {
         await act(async () => container.querySelector<HTMLAnchorElement>("a")!.click());
         expect(onOpenFile).toHaveBeenCalledWith(path);
     });
-    it("opens absolute file URLs for the default application", async () => {
+    it("opens absolute file URLs with their source location", async () => {
         await render("[Source](file:///Users/me/My%20Project/main.ts#L4)");
         expect(container.innerHTML).toContain("<a");
         await act(async () => container.querySelector<HTMLAnchorElement>("a")!.click());
-        expect(onOpenFile).toHaveBeenCalledWith("/Users/me/My Project/main.ts");
+        expect(onOpenFile).toHaveBeenCalledWith("/Users/me/My Project/main.ts", { lines: [4, 4] });
     });
     it.each([
         "[Source](file://localhost/%2Fhost/share/file.md)",
@@ -121,7 +122,7 @@ describe("markdown file navigation", () => {
         const link = container.querySelector<HTMLButtonElement>(".markdown-code-path-link");
         expect(link).not.toBeNull();
         await act(async () => link!.click());
-        expect(onOpenFile).toHaveBeenCalledWith("/repo/src/main.ts");
+        expect(onOpenFile).toHaveBeenCalledWith("/repo/src/main.ts", { lines: [12, 16] });
     });
     it("preserves external web links and keeps executable URL schemes blocked", async () => {
         await render([

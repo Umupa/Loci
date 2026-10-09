@@ -1,3 +1,4 @@
+import type { OpenFileFn } from "../../files/model/filePlace";
 import { useEffect,useLayoutEffect,useMemo,useRef,useState } from "react";
 import { ChevronDown,Plus,RefreshCw,X } from "../../../shared/ui/icons";
 
@@ -482,7 +483,7 @@ export function BtwSheet({
   /** The session composer's box, which the sheet grows out of. */
   origin?: () => HTMLElement | null;
   onSaveNote?: (text: string) => void | Promise<void>;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 }) {
   const sheetRef = useRef<HTMLElement | null>(null);
   const glassRef = useRef<HTMLDivElement | null>(null);

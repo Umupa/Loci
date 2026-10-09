@@ -11,6 +11,7 @@ import { TranscriptPool, TranscriptPoolOutlet } from "../features/sessions/ui/Tr
 import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
 import { openPathWithDefaultApp } from "../platform/tauri/fs";
+import { requestFilePlace, type OpenFileFn } from "../features/files/model/filePlace";
 import { isEqualOrInside } from "../shared/lib/paths";
 import { FILE_POINTER_DRAG_EVENT, type FilePointerDragDetail } from "../shared/lib/drag";
 import { paneDropFromPoint, setExternalPaneDrop } from "../features/workspace/model/paneDrop";
@@ -328,12 +329,14 @@ function Workspace(boot: BootWorkspace) {
   const compactTitleBar = IS_MAC && compactRailActive && surface === "chat";
   const openFile = useCallback((path: string) => { void openPathWithDefaultApp(path).catch((error) => workspaceRef.current?.setError(String(error))); }, []);
   const pinFile = useCallback((path: string) => workspaceRef.current?.openFile(path, true), []);
-  // A link inside an open document: project files open beside it, anything
+  // Links in replies and documents share the file tree's internal preview. Anything
   // else goes to the app the system uses for it.
-  const openProjectFile = useCallback((path: string) => {
+  const openProjectFile = useCallback<OpenFileFn>((path, place) => {
     const view = workspaceRef.current;
-    if (view && isEqualOrInside(path, view.projectCwdRef.current)) view.openFile(path);
-    else openFile(path);
+    if (view && isEqualOrInside(path, view.projectCwdRef.current)) {
+      if (place) requestFilePlace(path, place);
+      view.openFile(path);
+    } else openFile(path);
   }, [openFile]);
   useEffect(() => {
     // A file dragged out of the Files tree shows the same edge hint as a
@@ -419,7 +422,7 @@ function Workspace(boot: BootWorkspace) {
     onNoteSaved: (noteId: string) => setSavedToast({ type: "note", id: noteId }),
     onSaveToCanvas: saveToCanvas,
     onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
-    onOpenFile: openFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
+    onOpenFile: openProjectFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
     onBtwStop: submission.btwStop, onBtwModelChange: submission.btwModelChange,
   };
 

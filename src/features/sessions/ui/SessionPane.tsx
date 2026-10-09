@@ -1,3 +1,4 @@
+import type { OpenFileFn } from "../../files/model/filePlace";
 import {
 memo,
 useCallback,
@@ -150,7 +151,7 @@ export type SessionPaneProps = {
     reply: UserQuestionReply,
   ) => void;
   onQuestionInteraction?: (sessionId: string, requestId: number) => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile: OpenFileFn;
 
 
 

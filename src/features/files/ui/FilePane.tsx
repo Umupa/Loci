@@ -14,7 +14,7 @@ import { MarkdownDocumentPreview } from "../../sessions/ui/MarkdownDocumentPrevi
 import { fileKind } from "../model/fileKind";
 import { syncWatchedMtime, watchFile } from "../model/fileWatch";
 import { draftConflicts, editDraft, getFileDraft, setFileDraft, type FileDraft } from "../model/fileDrafts";
-import { consumeFilePlace, findHeading, headingAbove, lineOffset, lineRange, textareaOffsetTop, useFilePlace } from "../model/filePlace";
+import { type OpenFileFn, consumeFilePlace, findHeading, headingAbove, lineOffset, lineRange, textareaOffsetTop, useFilePlace } from "../model/filePlace";
 import { MarkdownModeToggle, useMarkdownMode } from "../../sessions/ui/MarkdownModeToggle";
 import { FileCard } from "./FileCard";
 import { ImageView } from "./ImageView";
@@ -31,7 +31,7 @@ type Props = {
   onFocus: () => void;
   onPin: () => void;
   onClose: () => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile: OpenFileFn;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
 };
 

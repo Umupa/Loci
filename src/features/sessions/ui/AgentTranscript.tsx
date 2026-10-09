@@ -1,3 +1,4 @@
+import type { OpenFileFn } from "../../files/model/filePlace";
 import {
 memo,
 startTransition,
@@ -183,7 +184,7 @@ type Props = {
   onSendDraft?: (block: Block) => boolean | void;
   onRemoveDraft?: (block: Block) => boolean | void;
   onSaveSelectionNote?: (text: string) => void | Promise<void>;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
 
 
@@ -1514,7 +1515,7 @@ const TranscriptBlock = memo(function TranscriptBlock({
   onSaveNote?: (text: string) => void | Promise<void>;
   onSendDraft?: (block: Block) => boolean | void;
   onRemoveDraft?: (block: Block) => boolean | void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
   onEditLastTurn?: () => void;
   editing?: boolean;
@@ -2069,7 +2070,7 @@ type ActivityPhasesProps = {
   /** False inside a nested panel, which supplies its own gutter. */
   padded?: boolean;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
 };
 
@@ -2274,7 +2275,7 @@ function ActivityPhaseGroup({
   cwd?: string;
   active: boolean;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
 }) {
   const [override, setOverride] = useState<boolean | null>(null);
@@ -2544,7 +2545,7 @@ function SubagentStack({
   cwd?: string;
   live?: boolean;
   embedded?: boolean;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
 }) {
   return (
@@ -2580,7 +2581,7 @@ function SubagentRow({
   block: Block;
   cwd?: string;
   live?: boolean;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
 }) {
   const [override, setOverride] = useState<boolean | null>(null);
@@ -2618,7 +2619,7 @@ function SubagentPanel({
   live?: boolean;
   open: boolean;
   onToggle: () => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
 }) {
   const name = subagentName(block);
@@ -2868,7 +2869,7 @@ function ActivityRow({
   cwd?: string;
   live?: boolean;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
 }) {
   if (isThinkingBlock(block)) {
@@ -2957,7 +2958,7 @@ function ActivityThinkingRow({
   cwd?: string;
   expandable?: boolean;
   bare?: boolean;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 }) {
   const [open, setOpen] = useState(false);
   const text = proseSummary(block.text) || "Thinking";
@@ -3039,7 +3040,7 @@ function ActivityNoteRow({
   cwd?: string;
   bare?: boolean;
   expandable?: boolean;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 }) {
   const [open, setOpen] = useState(false);
   const text = proseSummary(block.text);
@@ -3098,7 +3099,7 @@ function ActivityToolRow({
   live?: boolean;
   bare?: boolean;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
 }) {
   const [errorOpen, setErrorOpen] = useState(false);
@@ -3524,7 +3525,7 @@ function ToolCall({
   block: Block;
   cwd?: string;
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
   embedded?: boolean;
 }) {
@@ -3670,7 +3671,7 @@ function ToolCallSummary({
   label: string;
   preview?: ToolPreview;
   cwd?: string;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
 
   interactive?: boolean;
   /** Sets the file off in a chip, for rows that lean on a rail for structure. */

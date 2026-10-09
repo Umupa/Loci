@@ -17,6 +17,9 @@ describe("workspace file references", () => {
   it.each([
     ["main.ts:12", "/repo", "/repo/main.ts", { line: 12 }],
     ["main.ts:12:3", "/repo", "/repo/main.ts", { line: 12, column: 3 }],
+    ["main.ts#L12-L16", "/repo", "/repo/main.ts", { line: 12, endLine: 16 }],
+    ["main.ts#L12-L3", "/repo", "/repo/main.ts", { line: 12 }],
+    ["main.ts#L12-L99999999999999999", "/repo", "/repo/main.ts", { line: 12 }],
     ["main.ts:12#heading", "/repo", "/repo/main.ts", { line: 12 }],
     [".gitignore:2", "/repo", "/repo/.gitignore", { line: 2 }],
     ["Dockerfile:4", "/repo", "/repo/Dockerfile", { line: 4 }],
@@ -25,7 +28,7 @@ describe("workspace file references", () => {
       "./docs/My%20Guide.md#L7-L9",
       "/repo",
       "/repo/docs/My Guide.md",
-      { line: 7 },
+      { line: 7, endLine: 9 },
     ],
     ["C:\\repo\\main.ts:4", "C:/repo", "C:/repo/main.ts", { line: 4 }],
     [

@@ -1,3 +1,4 @@
+import type { OpenFileFn } from "../../files/model/filePlace";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
 useCallback,
@@ -261,7 +262,7 @@ type Props = {
   onUsageLimitResume?: () => void;
   onUsageLimitResumeAtReset?: (enabled: boolean) => void;
   onUsageLimitDismiss?: () => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: OpenFileFn;
   onDraftChange?: (text: string) => void;
   onRecallLastTurnReady?: (recall: () => void) => void;
   onEditingLastTurnChange?: (editing: boolean) => void;

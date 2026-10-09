@@ -1,8 +1,8 @@
+import type { OpenFileFn } from "../../files/model/filePlace";
 import { memo,useMemo } from "react";
 import { splitMarkdownFrontmatter } from "../../../shared/lib/markdownFrontmatter";
 import { ChevronDown,ChevronRight } from "../../../shared/ui/icons";
 import { MarkdownPreview } from "./AgentMarkdown";
-type OpenFileFn = (path: string) => void;
 
 export const MarkdownDocumentPreview = memo(function MarkdownDocumentPreview({
   text,

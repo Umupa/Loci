@@ -28,6 +28,7 @@ Nothing has been tagged yet; the first release will be 0.1.0. Until then this se
 
 ### Fixed
 
+- Project file links in chat open in Loci's file pane, preserving line references and ranges. Opening in the system's default application remains available in the context menu.
 - Settings now loads live provider catalogs even when fallback models are available.
 - Codex turns omit collaboration overrides until a model is known, avoiding rejected requests.
 - Notes created without a title finalize their slug when title editing ends; existing slugs stay stable.

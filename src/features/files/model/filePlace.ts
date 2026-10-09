@@ -1,6 +1,9 @@
 import { useSyncExternalStore } from "react";
 import type { FilePlace } from "../../../shared/lib/appResourceLinks";
 
+/** A file link carries its location to the owner that decides where to open it. */
+export type OpenFileFn = (path: string, place?: FilePlace) => void;
+
 /** A place a link asked a file pane to show; `token` tells two requests for the same place apart. */
 export type FilePlaceRequest = { place: FilePlace; token: number };
 
