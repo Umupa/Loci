@@ -5,6 +5,7 @@ import { canAccessAgentAppProject, handleAgentApp, type AppSessionListing } from
 import { agentForSession, findAgent } from "../../features/agents/model/agent";
 import { habitRunAgent, loadHabits, updateHabits } from "../../features/agents/model/agentHabits";
 import { loadAgentFiles, readAgentFile, writeAgentFile } from "../../features/agents/model/agentFiles";
+import { readAgentConversation } from "../../features/agents/model/agentTranscript";
 import { handleCanvasBridge } from "../../features/canvas/checkpoints";
 import { handleLearnBridge } from "../../features/learn/bridge";
 import { listSessionsByProject } from "../../features/sessions/data/sessionStore";
@@ -148,7 +149,12 @@ export function useAppControl(options: Options) {
             await runtime.flushPersistence();
             return { alreadySaved: false, draft: true };
           },
-          agentOf: () => agent && { id: agent.id, projects: agent.projects, ...(habitRunOf ? { habitRun: true } : {}) },
+          agentOf: () => agent && { id: agent.id, projects: agent.projects, ...(agent.sessionId ? { chatId: agent.sessionId } : {}), ...(habitRunOf ? { habitRun: true } : {}) },
+          readAgentChat: async (chatId, options) => {
+            const chat = runtime.sessionsRef.current.find((session) => session.id === chatId) ?? await workspace.loadSession(chatId);
+            if (!chat) throw new Error("The conversation is no longer available");
+            return readAgentConversation(chat, options);
+          },
           habits: { load: loadHabits, update: updateHabits },
           files: { load: loadAgentFiles, read: readAgentFile, write: writeAgentFile },
           notes: () => loadNotes(true), note: getNote,

@@ -80,7 +80,7 @@ export type SessionLaunch = {
 import type { SplitDir } from "../../workspace/model/layout";
 import { consumeOperatorCommand } from "../../sessions/model/operatorCommand";
 import { isLearnMap, LEARN_MAP_WRITE_REFUSED } from "../../learn/model/learnMap";
-import { sessionConversationPage } from "./sessionConversation";
+import { sessionConversationPage, type SessionReadOptions } from "./sessionConversation";
 
 export type AppSessionListing = {
   id: string;
@@ -131,10 +131,17 @@ export type AgentAppHost = {
     | {
         id: string;
         projects: readonly string[];
+        /** Its own conversation, which it may read though it is in no project. */
+        chatId?: string;
         /** A hidden run of one of its habits: it may remember, not schedule. */
         habitRun?: boolean;
       }
     | undefined;
+  /** An agent's own chat, read through its archived pages when the request reaches that far. */
+  readAgentChat?(
+    chatId: string,
+    options: SessionReadOptions,
+  ): Promise<ReturnType<typeof sessionConversationPage>>;
   habits?: {
     load(agentId: string): Promise<Habit[]>;
     update<T>(
@@ -840,12 +847,17 @@ export async function handleAgentApp(
     }
     case "sessions.read": {
       const id = requiredString(input.sessionId, "sessionId", 256);
-      const target = await projectSession(source, id, input, host);
-      return sessionConversationPage(target, {
+      const options = {
         before: optionalString(input.before, "before", 256),
         limit: input.limit as number | undefined,
         maxChars: input.maxChars as number | undefined,
-      });
+      };
+      // An agent's own chat is in none of its projects, and reaches back
+      // into pages the live conversation no longer holds.
+      if (host.readAgentChat && host.agentOf?.(source.id)?.chatId === id)
+        return host.readAgentChat(id, options);
+      const target = await projectSession(source, id, input, host);
+      return sessionConversationPage(target, options);
     }
     case "sessions.send": {
       const id = requiredString(input.sessionId, "sessionId", 256);

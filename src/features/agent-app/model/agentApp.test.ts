@@ -856,4 +856,19 @@ describe("agent app commands", () => {
       await handleAgentApp(source, "r3", "sessions.read", { sessionId: "other", project: "project" }, host),
     ).toMatchObject({ turns: [] });
   });
+
+  it("lets an agent read its own chat, which is in none of its projects", async () => {
+    const { source, host } = fixture();
+    source.cwd = "/home/me";
+    host.agentOf = () => ({ id: "a", projects: ["/code/app"], chatId: source.id });
+    host.readAgentChat = vi.fn(async (chatId) => ({ sessionId: chatId, title: "", busy: false, hasDraft: false, turns: [], nextBefore: null }));
+    expect(
+      await handleAgentApp(source, "r1", "sessions.read", { sessionId: source.id, before: "u9", limit: 2 }, host),
+    ).toMatchObject({ sessionId: source.id });
+    expect(host.readAgentChat).toHaveBeenCalledWith(source.id, { before: "u9", limit: 2, maxChars: undefined });
+    // Any other session still has to be in the project it names.
+    await expect(
+      handleAgentApp(source, "r2", "sessions.read", { sessionId: "elsewhere" }, host),
+    ).rejects.toThrow();
+  });
 });

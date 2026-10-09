@@ -1,10 +1,10 @@
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { homeDir } from "../../platform/tauri/fs";
 import { forgetHarnessSession } from "../../integrations/harness/core/registry";
 import { deleteSession } from "../../features/sessions/data/sessionStore";
 import { sessionChildHarnesses } from "../../features/sessions/model/handoff";
-import { newDefaultSession, type Session } from "../../features/sessions/model/session";
+import { newDefaultSession, type Block, type Session } from "../../features/sessions/model/session";
 import {
   agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
@@ -12,6 +12,7 @@ import {
 import { forgetAgentContext } from "../../features/agents/model/agentFiles";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession } from "../../features/agents/model/agentWorkspace";
+import { archiveOlderTurns, canArchive, loadTranscriptPage, planArchive, type TranscriptPage } from "../../features/agents/model/agentTranscript";
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
 
@@ -54,6 +55,47 @@ export function useAgents(options: Options) {
     }
     return map;
   }, [agents, sessions]);
+
+  /** Earlier turns of the conversation in view, read back from its archived pages. */
+  const [earlier, setEarlier] = useState<{ sessionId: string; blocks: Block[]; next?: TranscriptPage }>();
+  const viewSessionId = viewSession?.id;
+  useEffect(() => {
+    setEarlier(undefined);
+    if (!viewSessionId) return;
+    let current = true;
+    void loadTranscriptPage(viewSessionId).then((next) => {
+      if (current && next) setEarlier({ sessionId: viewSessionId, blocks: [], next });
+    }).catch(() => undefined);
+    return () => { current = false; };
+  }, [viewSessionId]);
+  const earlierBlocks = earlier && earlier.sessionId === viewSessionId ? earlier.blocks : undefined;
+  const hasEarlier = !!earlier?.next && earlier.sessionId === viewSessionId;
+  const loadEarlier = useCallback(async () => {
+    const shown = earlier;
+    if (!shown?.next) return;
+    const page = shown.next;
+    const next = page.hasOlder ? await loadTranscriptPage(shown.sessionId, page.seq).catch(() => undefined) : undefined;
+    setEarlier((latestShown) => latestShown === shown ? { sessionId: shown.sessionId, blocks: [...page.blocks, ...shown.blocks], next } : latestShown);
+  }, [earlier]);
+
+  // An idle chat that has grown long hands its oldest turns to the page store. One in
+  // view waits until the user leaves, so nothing they are reading disappears.
+  const archiving = useRef(new Set<string>());
+  useEffect(() => {
+    for (const agent of agents) {
+      const chat = agent.sessionId && agent.sessionId !== viewSessionId
+        ? sessions.find((session) => session.id === agent.sessionId) : undefined;
+      if (!chat || archiving.current.has(chat.id) || !canArchive(chat) || !planArchive(chat.blocks)) continue;
+      archiving.current.add(chat.id);
+      void archiveOlderTurns(chat).then(async (kept) => {
+        if (!kept) return;
+        const { runtime } = latest.current;
+        // Only the exact chat that was archived gives up its turns.
+        runtime.updateSessions((current) => current.map((session) => session === chat ? { ...session, blocks: kept } : session));
+        await runtime.persistSession(chat.id);
+      }).catch((error) => latest.current.onError(error)).finally(() => archiving.current.delete(chat.id));
+    }
+  }, [agents, sessions, viewSessionId]);
 
   const addSession = useCallback((session: Session) => {
     const { runtime } = latest.current;
@@ -142,7 +184,7 @@ export function useAgents(options: Options) {
   }, [close, discardSession]);
 
   return {
-    agents, states, viewAgent, viewSession, detailsOpen, setDetailsOpen,
+    agents, states, viewAgent, viewSession, earlierBlocks, hasEarlier, loadEarlier, detailsOpen, setDetailsOpen,
     open, create, close, reset, remove,
   };
 }

@@ -177,6 +177,9 @@ function Workspace(boot: BootWorkspace) {
   useEffect(() => { if (!agentsEnabled && surface === "agent") closeSurface(); }, [agentsEnabled, surface, closeSurface]);
   const agentSession = surface === "agent" ? agents.viewSession : undefined;
   agentSessionIdRef.current = agentSession?.id;
+  // Turns read back from the archive are shown ahead of the live ones, and saved with neither.
+  const shownAgentSession = useMemo(() => agentSession && agents.earlierBlocks?.length
+    ? { ...agentSession, blocks: [...agents.earlierBlocks, ...agentSession.blocks] } : agentSession, [agentSession, agents.earlierBlocks]);
   const closeAgentView = agents.close;
   useEffect(() => { if (surface !== "agent") closeAgentView(); }, [surface, closeAgentView]);
   // The conversation the user is looking at, in a tab or an agent's view.
@@ -513,10 +516,11 @@ function Workspace(boot: BootWorkspace) {
           {surface === "agent" && agents.viewAgent && agentSession ? <AgentView agent={agents.viewAgent} state={agents.states.get(agents.viewAgent.id) ?? { status: "idle" }}
             detailsOpen={agents.detailsOpen} onToggleDetails={() => agents.setDetailsOpen((open) => !open)} onClose={closeSurface}
             besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onToggleSidebar={toggleProjectRail}
+            onLoadEarlier={agents.hasEarlier ? () => void agents.loadEarlier() : undefined}
             details={<AgentDetails agent={agents.viewAgent} recents={workspace.recents} refreshKey={agentSession.busy} onPickFolders={() => pickFolders("Choose projects")}
               onReset={() => void agents.reset(agents.viewAgent!.id)} onDelete={() => void agents.remove(agents.viewAgent!.id)} onClose={() => agents.setDetailsOpen(false)} />}>
             {/* It belongs to no tab or project, so pane actions that move it have nothing to act on. */}
-            <SessionPane {...sessionPaneProps} key={agentSession.id} session={agentSession} visible focused inSplit={false} composerFocused emptyIntro={<AgentIntro agent={agents.viewAgent} />}
+            <SessionPane {...sessionPaneProps} key={agentSession.id} session={shownAgentSession ?? agentSession} visible focused inSplit={false} composerFocused emptyIntro={<AgentIntro agent={agents.viewAgent} />}
               onFocus={() => undefined} onClose={closeSurface} onCwdChange={() => undefined} onApproval={agentHabits.approve} />
           </AgentView> : null}
           {surface === "search" ? <SearchView open cwd={workspace.projectCwd} recents={workspace.recents} history={workspace.history} sessions={sessions}

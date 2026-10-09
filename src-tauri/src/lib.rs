@@ -3,6 +3,7 @@ use tauri::Manager;
 
 mod account_identity;
 mod agent;
+mod agent_transcript;
 mod canvas;
 mod canvas_mcp;
 mod chat_background;
@@ -298,6 +299,9 @@ pub fn run() {
             agent::agent_load,
             agent::agent_read,
             agent::agent_save,
+            agent_transcript::agent_transcript_append,
+            agent_transcript::agent_transcript_page,
+            agent_transcript::agent_transcript_clear,
             notes::notes_list,
             notes::notes_get,
             notes::notes_upsert,

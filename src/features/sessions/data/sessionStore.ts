@@ -914,6 +914,15 @@ function normalizeSummary(summary: SessionSummary): SessionSummary {
   };
 }
 
+/** Blocks read back from storage, checked the same way a loaded session's are. */
+export function hydrateStoredBlocks(blocks: unknown): Block[] {
+  return Array.isArray(blocks)
+    ? blocks
+        .map((block) => sanitizeBlock(block as Block, { hydrate: true }))
+        .filter((block): block is Block => block != null)
+    : [];
+}
+
 function recordToSession(record: SessionRecord): Session {
   const blocks = Array.isArray(record.blocks)
     ? record.blocks

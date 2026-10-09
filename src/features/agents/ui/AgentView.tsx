@@ -17,6 +17,8 @@ type Props = {
   onToggleSidebar: () => void;
   onToggleDetails: () => void;
   onClose: () => void;
+  /** Reads the next archived page back into view, when older turns exist. */
+  onLoadEarlier?: () => void;
   /** The conversation itself. */
   children: ReactNode;
   /** The details panel, beside the conversation. */
@@ -27,7 +29,7 @@ type Props = {
  * An agent's conversation in the main area. It covers the workspace rather
  * than joining its tabs: an agent belongs to no project.
  */
-export function AgentView({ agent, state, detailsOpen, besideRail, compactRail, onToggleSidebar, onToggleDetails, onClose, children, details }: Props) {
+export function AgentView({ agent, state, detailsOpen, besideRail, compactRail, onToggleSidebar, onToggleDetails, onClose, onLoadEarlier, children, details }: Props) {
   const look = agentLook(agent);
   const projects = agentProjectsPhrase(look.projects);
   return (
@@ -51,7 +53,17 @@ export function AgentView({ agent, state, detailsOpen, besideRail, compactRail, 
         {IS_MAC ? null : <WindowControls />}
       </header>
       <div className="flex min-h-0 min-w-0 flex-1">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {onLoadEarlier ? (
+            <div className="flex shrink-0 justify-center border-b border-stroke py-1">
+              <button type="button" onClick={onLoadEarlier}
+                className="rounded-md px-2 py-0.5 text-xs text-content/50 hover:bg-content/8 hover:text-content">
+                Show archived history
+              </button>
+            </div>
+          ) : null}
+          {children}
+        </div>
         {detailsOpen ? details : null}
       </div>
     </section>
