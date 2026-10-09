@@ -806,4 +806,54 @@ describe("agent app commands", () => {
       ),
     ).rejects.toThrow("body is required");
   });
+
+  it("lets an agent name which of its projects an action works in", async () => {
+    const { source, host } = fixture();
+    source.cwd = "/home/me";
+    host.agentOf = () => ({ id: "a", projects: ["/code/app", "/code/site"] });
+    await expect(
+      handleAgentApp(source, "r1", "sessions.list", {}, host),
+    ).rejects.toThrow(
+      'Pass "project" to choose one. Yours: app (/code/app), site (/code/site)',
+    );
+    await expect(
+      handleAgentApp(source, "r2", "sessions.list", { project: "/code/other" }, host),
+    ).rejects.toThrow("Not one of your projects");
+    expect(
+      await handleAgentApp(source, "r3", "sessions.list", { project: "site" }, host),
+    ).toMatchObject({ cwd: "/code/site" });
+    expect(host.sessions).toHaveBeenLastCalledWith("/code/site");
+    expect(
+      await handleAgentApp(source, "r4", "sessions.list", { project: "/code/app/" }, host),
+    ).toMatchObject({ cwd: "/code/app" });
+  });
+
+  it("uses an agent's only project, and tells one with none where they come from", async () => {
+    const { source, host } = fixture();
+    source.cwd = "/home/me";
+    host.agentOf = () => ({ id: "a", projects: ["/code/app"] });
+    expect(
+      await handleAgentApp(source, "r1", "sessions.list", {}, host),
+    ).toMatchObject({ cwd: "/code/app" });
+    host.agentOf = () => ({ id: "a", projects: [] });
+    await expect(
+      handleAgentApp(source, "r2", "sessions.list", {}, host),
+    ).rejects.toThrow("none yet; the user adds them from your details panel");
+  });
+
+  it("keeps project for agents, and a session read inside the chosen project", async () => {
+    const { source, host } = fixture();
+    await expect(
+      handleAgentApp(source, "r1", "sessions.list", { project: "/tmp/project" }, host),
+    ).rejects.toThrow("project is only for an agent");
+    source.cwd = "/home/me";
+    host.agentOf = () => ({ id: "a", projects: ["/code/app", "/tmp/project"] });
+    host.session = vi.fn(async (id) => ({ ...newSession("codex", "/tmp/project"), id }));
+    await expect(
+      handleAgentApp(source, "r2", "sessions.read", { sessionId: "other", project: "app" }, host),
+    ).rejects.toThrow("Session was not found in this project");
+    expect(
+      await handleAgentApp(source, "r3", "sessions.read", { sessionId: "other", project: "project" }, host),
+    ).toMatchObject({ turns: [] });
+  });
 });

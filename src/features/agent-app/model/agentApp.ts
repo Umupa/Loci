@@ -1,5 +1,34 @@
 import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
 import { appResourceUrl } from "../../../shared/lib/appResourceLinks";
+import { pathKey, projectName } from "../../../shared/lib/paths";
+import {
+  AgentFileConflict,
+  memoryWithinBudget,
+  type AgentFilePath,
+  type AgentFiles,
+} from "../../agents/model/agentFiles";
+import {
+  addMemoryEntry,
+  archiveMemoryEntries,
+  fitMemoryBudget,
+  memoryDate,
+  memoryEntry,
+  removeMemoryEntry,
+  searchMemory,
+  sinceDate,
+  supersedeMemoryEntry,
+  topicName,
+} from "../../agents/model/agentMemory";
+import {
+  checkHabitsNow,
+  HABITS_MAX,
+  habitRunningSince,
+  habitSchedule,
+  habitScheduleLabel,
+  newHabit,
+  nextHabitRunAt,
+  type Habit,
+} from "../../agents/model/agentHabits";
 import { looksLikeProject, sameProjectPath } from "../../projects/model/recents";
 import {
   createEmptyCanvas,
@@ -68,10 +97,12 @@ export type AppSessionPlacement = {
 };
 
 export type AgentAppHost = {
+  /** `notify` reports the session's result to the calling agent once it stops. */
   start(
     launch: SessionLaunch,
     id: string,
     placement?: AppSessionPlacement,
+    notify?: boolean,
   ): Promise<void>;
   sessions(cwd: string): Promise<AppSessionListing[]>;
   session(id: string): Promise<Session | null>;
@@ -79,7 +110,11 @@ export type AgentAppHost = {
     id: string,
     prompt: string,
     requestId: string,
+    notify?: boolean,
   ): Promise<{ alreadySubmitted: boolean }>;
+  stop?(id: string): Promise<void>;
+  /** Deleting asks the user first; it rejects when they decline. */
+  remove?(id: string, mode: "archive" | "delete"): Promise<void>;
   draft(
     id: string,
     prompt: string,
@@ -88,14 +123,55 @@ export type AgentAppHost = {
   notes(): Promise<Note[]>;
   note(id: string): Promise<Note | null>;
   saveNote(note: NoteUpsert): Promise<Note>;
+  /**
+   * The agent this session speaks for, when it is an agent's conversation.
+   * Its projects are the ones it may name with "project".
+   */
+  agentOf?(sessionId: string):
+    | {
+        id: string;
+        projects: readonly string[];
+        /** A hidden run of one of its habits: it may remember, not schedule. */
+        habitRun?: boolean;
+      }
+    | undefined;
+  habits?: {
+    load(agentId: string): Promise<Habit[]>;
+    update<T>(
+      agentId: string,
+      change: (habits: Habit[]) => { habits: Habit[]; result: T },
+    ): Promise<T>;
+  };
+  /** The agents' own files: soul, memory and topic notes. */
+  files?: AgentFileStore;
+  /** The clock entries are dated by; tests pin it. */
+  now?(): Date;
+};
+
+export type AgentFileStore = {
+  load(agentId: string): Promise<AgentFiles>;
+  read(
+    agentId: string,
+    path: AgentFilePath,
+  ): Promise<{ text: string | null; hash: string }>;
+  /** Throws `AgentFileConflict` when the file moved past `hash`. */
+  write(
+    agentId: string,
+    path: AgentFilePath,
+    text: string,
+    hash: string,
+  ): Promise<string>;
 };
 
 const FIELDS = new Map<string, readonly string[]>([
   ["models.list", []],
-  ["sessions.list", []],
-  ["sessions.read", ["sessionId", "before", "limit", "maxChars"]],
-  ["sessions.send", ["sessionId", "prompt"]],
-  ["sessions.draft", ["sessionId", "prompt"]],
+  ["sessions.list", ["project"]],
+  ["sessions.read", ["sessionId", "before", "limit", "maxChars", "project"]],
+  ["sessions.send", ["sessionId", "prompt", "project", "notifyOnComplete"]],
+  ["sessions.stop", ["sessionId", "project"]],
+  ["sessions.archive", ["sessionId", "project"]],
+  ["sessions.delete", ["sessionId", "project"]],
+  ["sessions.draft", ["sessionId", "prompt", "project"]],
   [
     "sessions.start",
     [
@@ -109,20 +185,34 @@ const FIELDS = new Map<string, readonly string[]>([
       "reveal",
       "placement",
       "besideSessionId",
+      "project",
+      "notifyOnComplete",
     ],
   ],
-  ["folders.list", []],
-  ["folders.move", ["sessionId", "folderId", "newFolderName"]],
+  ["folders.list", ["project"]],
+  ["folders.move", ["sessionId", "folderId", "newFolderName", "project"]],
   ["notes.list", ["limit", "offset"]],
   ["notes.read", ["id"]],
   ["notes.write", ["id", "title", "body", "tags"]],
-  ["canvas.list", []],
-  ["canvas.get", ["id"]],
-  ["canvas.create", ["title"]],
-  ["canvas.rename", ["id", "title"]],
-  ["canvas.delete", ["id"]],
-  ["canvas.read-data", ["id"]],
-  ["canvas.write-data", ["id", "dataJson"]],
+  ["soul.read", []],
+  ["soul.update", ["text", "expectedHash"]],
+  ["memory.read", ["topic"]],
+  ["memory.search", ["query", "since"]],
+  ["memory.add", ["fact", "topic", "until"]],
+  ["memory.replace", ["find", "fact", "topic", "until"]],
+  ["memory.remove", ["find", "topic"]],
+  ["habits.list", []],
+  ["habits.add", ["name", "instructions", "schedule"]],
+  ["habits.update", ["id", "name", "instructions", "schedule", "enabled"]],
+  ["habits.run", ["id"]],
+  ["habits.remove", ["id"]],
+  ["canvas.list", ["project"]],
+  ["canvas.get", ["id", "project"]],
+  ["canvas.create", ["title", "project"]],
+  ["canvas.rename", ["id", "title", "project"]],
+  ["canvas.delete", ["id", "project"]],
+  ["canvas.read-data", ["id", "project"]],
+  ["canvas.write-data", ["id", "dataJson", "project"]],
 ]);
 
 function fields(action: string, input: Record<string, unknown>) {
@@ -146,6 +236,30 @@ function agentPrompt(value: unknown): string {
   if (consumeOperatorCommand(prompt).matched)
     throw new Error("App calls cannot enable /operator in another session");
   return prompt;
+}
+
+/**
+ * Whether the calling agent is told when the session stops. Its own launches
+ * report back unless it opts out; a follow-up reports only when asked.
+ */
+function notifiesOnComplete(
+  source: Session,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+  defaultForAgent = false,
+): boolean {
+  const requested = input.notifyOnComplete;
+  if (requested !== undefined && typeof requested !== "boolean")
+    throw new Error("notifyOnComplete must be a boolean");
+  const agent = !!ownConversation(source, host);
+  if (!(requested ?? (defaultForAgent && agent && !input.draft))) return false;
+  if (!agent)
+    throw new Error(
+      "Completion notifications are only available in an agent's chat",
+    );
+  if (input.draft === true)
+    throw new Error("An unsent draft cannot send a completion notification");
+  return true;
 }
 
 function optionalString(
@@ -174,10 +288,58 @@ function noteTags(value: unknown): string[] {
   return normalizeNoteTags(value as string[]);
 }
 
-function requireProject(source: Session): string {
-  if (!looksLikeProject(source.cwd))
-    throw new Error("Choose a project folder in this session first");
-  return source.cwd;
+/**
+ * The project an action works in. A session works in its own; an agent works
+ * on several, so it names one with "project" (its path or name), and may leave
+ * it out when it has one project or is in one of its own.
+ */
+function requireProject(
+  source: Session,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): string {
+  const agent = host.agentOf?.(source.id);
+  const named = optionalString(input.project, "project", 4096);
+  if (!agent) {
+    if (named) throw new Error("project is only for an agent");
+    if (!looksLikeProject(source.cwd))
+      throw new Error("Choose a project folder in this session first");
+    return source.cwd;
+  }
+  const choices = () =>
+    agent.projects.length
+      ? agent.projects
+          .map((path) => `${projectName(path)} (${path})`)
+          .join(", ")
+      : "none yet; the user adds them from your details panel";
+  if (named) {
+    const byPath = agent.projects.find(
+      (path) => pathKey(path) === pathKey(named),
+    );
+    const byName = agent.projects.filter(
+      (path) => projectName(path) === named,
+    );
+    const match = byPath ?? (byName.length === 1 ? byName[0] : undefined);
+    if (!match) throw new Error(`Not one of your projects. Yours: ${choices()}`);
+    return match;
+  }
+  const own = agent.projects.find(
+    (path) => pathKey(path) === pathKey(source.cwd),
+  );
+  if (own) return own;
+  if (agent.projects.length === 1) return agent.projects[0];
+  throw new Error(`Pass "project" to choose one. Yours: ${choices()}`);
+}
+
+/** An agent's chat lives outside its projects; project access follows its roster. */
+export function canAccessAgentAppProject(
+  source: Session,
+  cwd: string,
+  agentProjects?: readonly string[],
+): boolean {
+  return (agentProjects ?? [source.cwd]).some(
+    (project) => pathKey(project) === pathKey(cwd),
+  );
 }
 
 function canvasMetadata({ id, title, cwd, createdAt, updatedAt }: Canvas) {
@@ -188,8 +350,13 @@ function savedNote(note: Note) {
   return { ...note, url: appResourceUrl("note", note.id), saved: true };
 }
 
-async function projectCanvas(source: Session, id: string): Promise<Canvas> {
-  const cwd = requireProject(source);
+async function projectCanvas(
+  source: Session,
+  id: string,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): Promise<Canvas> {
+  const cwd = requireProject(source, input, host);
   const canvas = await getCanvas(id);
   if (!canvas) throw new Error("Canvas was not found");
   if (!canvas.cwd || !sameProjectPath(canvas.cwd, cwd)) throw new Error("Canvas was not found in this project");
@@ -199,14 +366,350 @@ async function projectCanvas(source: Session, id: string): Promise<Canvas> {
 async function projectSession(
   source: Session,
   id: string,
+  input: Record<string, unknown>,
   host: AgentAppHost,
 ): Promise<Session> {
-  const cwd = requireProject(source);
+  const cwd = requireProject(source, input, host);
   if (!(await host.sessions(cwd)).some((session) => session.id === id))
     throw new Error("Session was not found in this project");
   const target = await host.session(id);
-  if (!target) throw new Error("Session was not found in this project");
+  if (!target || pathKey(target.cwd) !== pathKey(cwd))
+    throw new Error("Session was not found in this project");
   return target;
+}
+
+/** The agent, when this is its chat rather than one of its habits' runs. */
+function ownConversation(source: Session, host: AgentAppHost) {
+  const agent = host.agentOf?.(source.id);
+  return agent && !agent.habitRun ? agent : undefined;
+}
+
+function memoryPath(topic: unknown): AgentFilePath {
+  return topic === undefined
+    ? "MEMORY.md"
+    : `memory/${topicName(requiredString(topic, "topic", 80))}.md`;
+}
+
+async function handleSoul(
+  source: Session,
+  action: string,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): Promise<unknown> {
+  const agentId = ownConversation(source, host)?.id;
+  if (!agentId || !host.files)
+    throw new Error("Only an agent's own conversation can manage its soul");
+  const files = host.files;
+  if (action === "soul.read") {
+    const loaded = await files.load(agentId);
+    return { file: "SOUL.md", text: loaded.soul, hash: loaded.soulHash };
+  }
+  if (typeof input.text !== "string" || input.text.length > 240_000)
+    throw new Error("text must be a string under 240000 characters");
+  const expectedHash = requiredString(input.expectedHash, "expectedHash", 128);
+  try {
+    const hash = await files.write(
+      agentId,
+      "SOUL.md",
+      input.text,
+      expectedHash,
+    );
+    return { file: "SOUL.md", updated: true, hash };
+  } catch (error) {
+    if (error instanceof AgentFileConflict)
+      throw new Error(
+        "SOUL.md changed since you read it. Run soul.read and reapply the user's requested changes to the current text before calling soul.update again.",
+      );
+    throw error;
+  }
+}
+
+/**
+ * Read, change and write one memory file over the version it read, again
+ * from the top when the user saved the same file in between.
+ */
+async function editAgentFile<T>(
+  files: AgentFileStore,
+  agentId: string,
+  path: AgentFilePath,
+  edit: (text: string) => { text: string; result: T },
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const current = await files.read(agentId, path);
+    const fallback =
+      current.text == null && path !== "MEMORY.md"
+        ? `# ${path.slice("memory/".length, -".md".length)}\n\n`
+        : "";
+    const next = edit(current.text ?? fallback);
+    try {
+      if (next.text !== (current.text ?? ""))
+        await files.write(agentId, path, next.text, current.hash);
+      return next.result;
+    } catch (error) {
+      if (!(error instanceof AgentFileConflict) || attempt >= 2)
+        throw error;
+    }
+  }
+}
+
+/**
+ * Keeps MEMORY.md within what loads. The archive is written first, so a line
+ * is never out of one file without already being in the other. If the user
+ * saved MEMORY.md in between, the trim waits for the next write.
+ */
+async function keepMemoryInBudget(
+  files: AgentFileStore,
+  agentId: string,
+  keep: string,
+  date: string,
+): Promise<string[]> {
+  const memory = await files.read(agentId, "MEMORY.md");
+  const fitted = fitMemoryBudget(memory.text ?? "", keep, date);
+  if (!fitted.moved.length) return [];
+  await editAgentFile(files, agentId, "memory/archive.md", (archive) => ({
+    text: archiveMemoryEntries(archive, fitted.moved, date),
+    result: undefined,
+  }));
+  try {
+    await files.write(agentId, "MEMORY.md", fitted.text, memory.hash);
+  } catch (error) {
+    if (!(error instanceof AgentFileConflict)) throw error;
+    return [];
+  }
+  return fitted.moved;
+}
+
+async function handleMemory(
+  source: Session,
+  action: string,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): Promise<unknown> {
+  const agentId = host.agentOf?.(source.id)?.id;
+  if (!agentId || !host.files)
+    throw new Error("Memory belongs to an agent's conversation");
+  const store = host.files;
+  const path = memoryPath(input.topic);
+  const date = memoryDate(host.now?.() ?? new Date());
+  const until = optionalString(input.until, "until", 10);
+  const report = async (result: Record<string, unknown>, keep?: string) => {
+    const moved =
+      path === "MEMORY.md" && keep
+        ? await keepMemoryInBudget(store, agentId, keep, date)
+        : [];
+    return {
+      file: path,
+      ...result,
+      ...(moved.length
+        ? { movedToArchive: moved.length, moved: moved.slice(0, 5) }
+        : {}),
+    };
+  };
+  switch (action) {
+    case "memory.search": {
+      const query =
+        input.query === undefined
+          ? ""
+          : requiredString(input.query, "query", 500);
+      const since =
+        input.since === undefined
+          ? undefined
+          : sinceDate(
+              requiredString(input.since, "since", 20),
+              host.now?.() ?? new Date(),
+            );
+      const loaded = await store.load(agentId);
+      const paths: AgentFilePath[] = [
+        "MEMORY.md",
+        ...loaded.topics.map((topic) => `memory/${topic}.md` as const),
+        "memory/archive.md",
+      ];
+      const texts = await Promise.all(
+        paths.map(async (file) => ({
+          file,
+          text:
+            file === "MEMORY.md"
+              ? loaded.memory
+              : ((await store.read(agentId, file)).text ?? ""),
+        })),
+      );
+      const hits = searchMemory(texts, query, { since });
+      return hits.length
+        ? { hits }
+        : { hits, note: "Nothing in memory matches. It may never have been saved." };
+    }
+    case "memory.read": {
+      if (path !== "MEMORY.md") {
+        const topic = await store.read(agentId, path);
+        if (topic.text == null) throw new Error("No such memory topic");
+        return { file: path, text: topic.text };
+      }
+      const loaded = await store.load(agentId);
+      const budget = memoryWithinBudget(loaded.memory);
+      return {
+        file: path,
+        text: loaded.memory,
+        lines: budget.lines,
+        notLoaded: budget.droppedLines,
+        topics: loaded.topics,
+      };
+    }
+    case "memory.add": {
+      const entry = memoryEntry(requiredString(input.fact, "fact"), date, until);
+      const added = await editAgentFile(store, agentId, path, (text) => {
+        const next = addMemoryEntry(text, entry);
+        return { text: next.text, result: next.added };
+      });
+      return added
+        ? report({ added: entry }, entry)
+        : { file: path, alreadyRemembered: true };
+    }
+    case "memory.replace": {
+      const find = requiredString(input.find, "find", 2000);
+      const entry = memoryEntry(requiredString(input.fact, "fact"), date, until);
+      await editAgentFile(store, agentId, path, (text) => ({
+        text: supersedeMemoryEntry(text, find, entry, date),
+        result: undefined,
+      }));
+      return report({ superseded: find, added: entry }, entry);
+    }
+    case "memory.remove": {
+      const find = requiredString(input.find, "find", 2000);
+      const removed = await editAgentFile(store, agentId, path, (text) => {
+        const next = removeMemoryEntry(text, find);
+        return { text: next.text, result: next.removed };
+      });
+      return { file: path, removed };
+    }
+  }
+  throw new Error(`Unknown app action: ${action}`);
+}
+
+function habitView(habit: Habit) {
+  return {
+    id: habit.id,
+    name: habit.name,
+    instructions: habit.instructions,
+    schedule: habitScheduleLabel(habit.schedule),
+    enabled: habit.enabled,
+    nextRun: habit.enabled ? new Date(habit.nextRunAt).toLocaleString() : null,
+    ...(habitRunningSince(habit.id) != null ? { running: true } : {}),
+    ...(habit.lastRunAt
+      ? {
+          lastRun: new Date(habit.lastRunAt).toLocaleString(),
+          lastOutcome: habit.lastOutcome,
+          ...(habit.lastError ? { lastError: habit.lastError } : {}),
+        }
+      : {}),
+  };
+}
+
+async function handleHabits(
+  source: Session,
+  action: string,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): Promise<unknown> {
+  const habits = host.habits;
+  // A habit's own run cannot schedule more runs.
+  const agentId = ownConversation(source, host)?.id;
+  if (!habits || !agentId)
+    throw new Error("Only an agent's own conversation can manage its habits");
+  const now = host.now?.() ?? new Date();
+  const find = (list: Habit[]) => {
+    const id = requiredString(input.id, "id", 128);
+    const habit = list.find((entry) => entry.id === id);
+    if (!habit) throw new Error("No habit with that id; run habits.list");
+    return habit;
+  };
+  switch (action) {
+    case "habits.list":
+      return { habits: (await habits.load(agentId)).map(habitView) };
+    case "habits.add": {
+      const name = requiredString(input.name, "name", 80);
+      const instructions = requiredString(input.instructions, "instructions", 4_000);
+      const schedule = habitSchedule(input.schedule);
+      const habit = await habits.update(agentId, (list) => {
+        if (list.length >= HABITS_MAX)
+          throw new Error(`An agent can have at most ${HABITS_MAX} habits`);
+        const created = newHabit(
+          { name, instructions, schedule },
+          now.getTime(),
+        );
+        return { habits: [...list, created], result: created };
+      });
+      return { habit: habitView(habit) };
+    }
+    case "habits.update": {
+      const patch = {
+        ...(input.name === undefined
+          ? {}
+          : { name: requiredString(input.name, "name", 80) }),
+        ...(input.instructions === undefined
+          ? {}
+          : {
+              instructions: requiredString(
+                input.instructions,
+                "instructions",
+                4_000,
+              ),
+            }),
+        ...(input.schedule === undefined
+          ? {}
+          : { schedule: habitSchedule(input.schedule) }),
+      };
+      if (input.enabled !== undefined && typeof input.enabled !== "boolean")
+        throw new Error("enabled must be true or false");
+      const habit = await habits.update(agentId, (list) => {
+        const current = find(list);
+        const next: Habit = {
+          ...current,
+          ...patch,
+          ...(input.enabled === undefined
+            ? {}
+            : { enabled: input.enabled as boolean }),
+        };
+        // A new schedule, or turning it back on, counts from now.
+        if (patch.schedule || (next.enabled && !current.enabled))
+          next.nextRunAt = nextHabitRunAt(next.schedule, now.getTime());
+        return {
+          habits: list.map((entry) => (entry.id === next.id ? next : entry)),
+          result: next,
+        };
+      });
+      return { habit: habitView(habit) };
+    }
+    case "habits.run": {
+      const running = habitRunningSince(requiredString(input.id, "id", 128));
+      if (running != null)
+        throw new Error(
+          `That habit is already running (started ${new Date(running).toLocaleTimeString()}); its result will be posted here when it ends`,
+        );
+      const habit = await habits.update(agentId, (list) => {
+        const next = { ...find(list), runRequested: true };
+        return {
+          habits: list.map((entry) => (entry.id === next.id ? next : entry)),
+          result: next,
+        };
+      });
+      checkHabitsNow();
+      return {
+        habit: habitView(habit),
+        note: "It starts now, on its own. Whatever it finds is posted to this chat, or nothing if there is nothing to say.",
+      };
+    }
+    case "habits.remove": {
+      const removed = await habits.update(agentId, (list) => {
+        const habit = find(list);
+        return {
+          habits: list.filter((entry) => entry.id !== habit.id),
+          result: habit,
+        };
+      });
+      return { removed: removed.name };
+    }
+  }
+  throw new Error(`Unknown app action: ${action}`);
 }
 
 /** Two short body paragraphs, with a hard cap independent of Markdown length. */
@@ -224,8 +727,9 @@ export function notePreview(body: string): string {
 function startLaunch(
   source: Session,
   input: Record<string, unknown>,
+  host: AgentAppHost,
 ): SessionLaunch {
-  const cwd = requireProject(source);
+  const cwd = requireProject(source, input, host);
   const prompt = agentPrompt(input.prompt);
   const draft = input.draft ?? false;
   if (typeof draft !== "boolean") throw new Error("draft must be a boolean");
@@ -306,6 +810,12 @@ export async function handleAgentApp(
   host: AgentAppHost,
 ): Promise<unknown> {
   fields(action, input);
+  if (action.startsWith("soul."))
+    return handleSoul(source, action, input, host);
+  if (action.startsWith("memory."))
+    return handleMemory(source, action, input, host);
+  if (action.startsWith("habits."))
+    return handleHabits(source, action, input, host);
   switch (action) {
     case "models.list":
       return {
@@ -324,14 +834,13 @@ export async function handleAgentApp(
           })),
         })),
       };
-    case "sessions.list":
-      return {
-        cwd: requireProject(source),
-        sessions: await host.sessions(source.cwd),
-      };
+    case "sessions.list": {
+      const cwd = requireProject(source, input, host);
+      return { cwd, sessions: await host.sessions(cwd) };
+    }
     case "sessions.read": {
       const id = requiredString(input.sessionId, "sessionId", 256);
-      const target = await projectSession(source, id, host);
+      const target = await projectSession(source, id, input, host);
       return sessionConversationPage(target, {
         before: optionalString(input.before, "before", 256),
         limit: input.limit as number | undefined,
@@ -341,19 +850,48 @@ export async function handleAgentApp(
     case "sessions.send": {
       const id = requiredString(input.sessionId, "sessionId", 256);
       const prompt = agentPrompt(input.prompt);
+      const notify = notifiesOnComplete(source, input, host);
       if (id === source.id)
         throw new Error(
           "Use the current conversation to continue this session",
         );
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId))
         throw new Error("Invalid request ID");
-      await projectSession(source, id, host);
+      await projectSession(source, id, input, host);
       const result = await host.send(
         id,
         prompt,
         `app-${source.id}-${requestId}`,
+        ...(notify ? [true] : []),
       );
-      return { sessionId: id, submitted: true, ...result };
+      return {
+        sessionId: id,
+        submitted: true,
+        ...result,
+        ...(notify ? { notifyOnComplete: true } : {}),
+      };
+    }
+    case "sessions.stop":
+    case "sessions.archive":
+    case "sessions.delete": {
+      const id = requiredString(input.sessionId, "sessionId", 256);
+      if (id === source.id)
+        throw new Error("Cannot stop, archive or delete the calling session");
+      if (!host.stop || !host.remove)
+        throw new Error("Sessions cannot be managed from here");
+      const target = await projectSession(source, id, input, host);
+      if (target.ephemeral || host.agentOf?.(id))
+        throw new Error("Only regular project sessions can be managed here");
+      if (action === "sessions.stop") {
+        await host.stop(id);
+        return { sessionId: id, stopped: true };
+      }
+      const mode = action === "sessions.archive" ? "archive" : "delete";
+      await host.remove(id, mode);
+      return {
+        sessionId: id,
+        [mode === "archive" ? "archived" : "deleted"]: true,
+      };
     }
     case "sessions.draft": {
       const id = requiredString(input.sessionId, "sessionId", 256);
@@ -362,7 +900,7 @@ export async function handleAgentApp(
         throw new Error("Use the composer to save a draft in this session");
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId))
         throw new Error("Invalid request ID");
-      await projectSession(source, id, host);
+      await projectSession(source, id, input, host);
       const result = await host.draft(
         id,
         prompt,
@@ -375,7 +913,8 @@ export async function handleAgentApp(
         throw new Error(
           "request ID must use letters, digits, underscores or hyphens",
         );
-      const launch = startLaunch(source, input);
+      const notify = notifiesOnComplete(source, input, host, true);
+      const launch = startLaunch(source, input, host);
       const placement = input.placement ?? "tab";
       if (placement !== "tab" && placement !== "right" && placement !== "down")
         throw new Error("placement must be tab, right or down");
@@ -387,11 +926,11 @@ export async function handleAgentApp(
           : (optionalString(input.besideSessionId, "besideSessionId", 256) ??
             source.id);
       const id = `app-${source.id}-${requestId}`;
-      if (besideSessionId)
-        await host.start(launch, id, {
-          direction: placement as SplitDir,
-          besideSessionId,
-        });
+      const beside = besideSessionId
+        ? { direction: placement as SplitDir, besideSessionId }
+        : undefined;
+      if (notify) await host.start(launch, id, beside, true);
+      else if (beside) await host.start(launch, id, beside);
       else await host.start(launch, id);
       return {
         id,
@@ -400,10 +939,11 @@ export async function handleAgentApp(
         model: launch.model,
         submitted: !launch.draft,
         draft: !!launch.draft,
+        ...(notify ? { notifyOnComplete: true } : {}),
       };
     }
     case "folders.list": {
-      const cwd = requireProject(source);
+      const cwd = requireProject(source, input, host);
       return {
         cwd,
         folders: loadSessionFolders(cwd).map(({ id, name, sessionIds }) => ({
@@ -414,7 +954,7 @@ export async function handleAgentApp(
       };
     }
     case "folders.move": {
-      const cwd = requireProject(source);
+      const cwd = requireProject(source, input, host);
       const sessionId = requiredString(input.sessionId, "sessionId", 256);
       const folderId = optionalString(input.folderId, "folderId", 256);
       const newFolderName = optionalString(
@@ -443,7 +983,7 @@ export async function handleAgentApp(
       return { sessionId, folderId: folder?.id, folderName: folder?.name };
     }
     case "canvas.list": {
-      const cwd = requireProject(source);
+      const cwd = requireProject(source, input, host);
       const canvases = await loadCanvases(true);
       return {
         cwd,
@@ -455,11 +995,11 @@ export async function handleAgentApp(
     }
     case "canvas.get": {
       const id = requiredString(input.id, "id", 256);
-      const canvas = await projectCanvas(source, id);
+      const canvas = await projectCanvas(source, id, input, host);
       return canvasMetadata(canvas);
     }
     case "canvas.create": {
-      const cwd = requireProject(source);
+      const cwd = requireProject(source, input, host);
       const title = optionalString(input.title, "title", 200);
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId)) throw new Error("Invalid request ID");
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([source.id, requestId])));
@@ -480,19 +1020,19 @@ export async function handleAgentApp(
     case "canvas.rename": {
       const id = requiredString(input.id, "id", 256);
       const title = requiredString(input.title, "title", 200);
-      await projectCanvas(source, id);
+      await projectCanvas(source, id, input, host);
       const canvas = await updateCanvas(id, { title });
       return { title: canvas.title, url: appResourceUrl("canvas", canvas.id), saved: true };
     }
     case "canvas.delete": {
       const id = requiredString(input.id, "id", 256);
       // An agent neither deletes nor overwrites the map of what the learner said.
-      if (isLearnMap(await projectCanvas(source, id))) throw new Error(LEARN_MAP_WRITE_REFUSED);
+      if (isLearnMap(await projectCanvas(source, id, input, host))) throw new Error(LEARN_MAP_WRITE_REFUSED);
       await deleteCanvas(id);
       return { deleted: true };
     }
     case "canvas.read-data": {
-      const cwd = requireProject(source);
+      const cwd = requireProject(source, input, host);
       const id = requiredString(input.id, "id", 256);
       const canvas = await getCanvas(id);
       if (!canvas) throw new Error("Canvas was not found");
@@ -502,7 +1042,7 @@ export async function handleAgentApp(
       return { id: saved.id, title: saved.title, dataJson: saved.dataJson, url: appResourceUrl("canvas", saved.id) };
     }
     case "canvas.write-data": {
-      const cwd = requireProject(source);
+      const cwd = requireProject(source, input, host);
       const id = requiredString(input.id, "id", 256);
       const dataJson = requiredString(input.dataJson, "dataJson", 250_000);
       if (new TextEncoder().encode(dataJson).length > 250_000) throw new Error("dataJson must be under 250000 UTF-8 bytes");
