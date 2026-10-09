@@ -14,6 +14,7 @@ import {
   memoryWithinBudget,
   planAgentContext,
   agentContext,
+  agentSetupPrompt,
   agentTurn,
   recordAgentContext,
   resetAgentDefaults,
@@ -116,7 +117,9 @@ it("says how to keep memory and update the soul only at the user's request", () 
     ],
   };
   const full = agentContext(look, files(), { soul: true, memory: true });
-  expect(full).toContain("You are Skull, an agent in Loci");
+  expect(full).toContain("You are Skull: a resident agent in Loci");
+  expect(full).toContain("not a general chat assistant");
+  expect(agentContext({ ...look, role: "CI watcher" }, files(), { soul: true, memory: false })).toContain("You are Skull, the user's CI watcher: a resident agent in Loci");
   expect(full).toContain("these 2 projects (app and site)");
   expect(full).toContain("- site: /code/site");
   expect(full).toContain("Be brief.");
@@ -174,6 +177,17 @@ it("seeds SOUL.md once, over the missing file only", async () => {
     path: "SOUL.md",
     expectedHash: "empty",
   });
+});
+
+it("asks a new agent to introduce itself as a resident and settle one main job", () => {
+  const prompt = agentSetupPrompt([{ name: "app", path: "/code/app" }]);
+  expect(prompt.startsWith("<agent_setup>")).toBe(true);
+  expect(prompt).toContain("a resident agent in Loci, not a general assistant");
+  expect(prompt).toContain("your one main job");
+  expect(prompt).toContain("The projects the user has open in Loci: app (/code/app).");
+  expect(prompt).toContain('app agent.rename {"name":"...","role":"..."}');
+  expect(prompt).toContain("You cannot give yourself projects");
+  expect(agentSetupPrompt()).toContain("The user has no projects open in Loci yet.");
 });
 
 it("starts a soul from what the agent was made for", () => {

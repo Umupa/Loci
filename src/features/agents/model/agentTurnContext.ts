@@ -54,7 +54,7 @@ export async function prepareAgentTurn(
   // projects is handed over too, and so is a change to the fixed rules.
   const handed = files && {
     ...files,
-    soulHash: `${files.soulHash}:${look.name}:${look.projects
+    soulHash: `${files.soulHash}:${look.name}:${look.role ?? ""}:${look.projects
       .map((project) => project.path)
       .join("|")}:${AGENT_PROMPT_VERSION}`,
   };

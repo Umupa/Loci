@@ -150,7 +150,7 @@ export type AgentAppHost = {
     ): Promise<T>;
   };
   /** Gives the agent the name it and the user settled on. */
-  renameAgent?(agentId: string, name: string): void;
+  renameAgent?(agentId: string, look: { name: string; role?: string }): void;
   /** The agents' own files: soul, memory and topic notes. */
   files?: AgentFileStore;
   /** The clock entries are dated by; tests pin it. */
@@ -203,7 +203,7 @@ const FIELDS = new Map<string, readonly string[]>([
   ["notes.list", ["limit", "offset"]],
   ["notes.read", ["id"]],
   ["notes.write", ["id", "title", "body", "tags"]],
-  ["agent.rename", ["name"]],
+  ["agent.rename", ["name", "role"]],
   ["soul.read", []],
   ["soul.update", ["text", "expectedHash"]],
   ["memory.read", ["topic"]],
@@ -828,8 +828,12 @@ export async function handleAgentApp(
       .replace(/\s+/g, " ")
       .trim();
     if (!name) throw new Error("name must not be empty");
-    host.renameAgent(agent.id, name);
-    return { name };
+    const role =
+      input.role === undefined
+        ? undefined
+        : requiredString(input.role, "role", 60).replace(/\s+/g, " ").trim();
+    host.renameAgent(agent.id, { name, ...(role ? { role } : {}) });
+    return { name, ...(role ? { role } : {}) };
   }
   if (action.startsWith("soul."))
     return handleSoul(source, action, input, host);

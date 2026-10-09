@@ -28,6 +28,8 @@ export type Agent = {
   sessionId?: string;
   /** Replaces the avatar's own name. */
   name?: string;
+  /** Its one main job in a few words, shown beside its name: "CI watcher". */
+  role?: string;
   avatar: string;
   color: string;
   /** Project folders it works on, in the order they were added. */
@@ -70,10 +72,12 @@ function parseAgent(value: unknown): Agent | undefined {
     typeof entry[key] === "string" ? (entry[key] as string) : undefined;
   const sessionId = text("sessionId");
   const name = text("name");
+  const role = text("role");
   return {
     id: entry.id,
     ...(sessionId ? { sessionId } : {}),
     ...(name ? { name } : {}),
+    ...(role ? { role } : {}),
     avatar: text("avatar") ?? AGENT_AVATARS[0].name,
     color: text("color") ?? AGENT_COLORS[0],
     projects: Array.isArray(entry.projects)
@@ -178,6 +182,7 @@ export function updateAgent(
   if (index < 0) return undefined;
   const next = change(roster[index]);
   if (!next.name?.trim()) delete next.name;
+  if (!next.role?.trim()) delete next.role;
   next.projects = uniqueProjects(next.projects);
   roster[index] = next;
   saveRoster(roster);
@@ -251,6 +256,8 @@ export type AgentProject = { path: string; name: string };
 export type AgentLook = {
   /** The user's name for it, or its avatar's: "Ember", "Wisp". */
   name: string;
+  /** Its one main job, when it has been given one. */
+  role?: string;
   avatar: string;
   color: string;
   projects: AgentProject[];
@@ -261,6 +268,7 @@ export function agentLook(agent: Agent): AgentLook {
   const labels = loadTabGroupLabels();
   return {
     name: agent.name?.trim() || defaultAgentName(agent.avatar),
+    ...(agent.role?.trim() ? { role: agent.role.trim() } : {}),
     avatar: agent.avatar,
     color: agent.color,
     projects: agent.projects.map((path) => ({

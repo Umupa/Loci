@@ -9,7 +9,7 @@ import {
   agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
 } from "../../features/agents/model/agent";
-import { AGENT_SETUP_PROMPT, forgetAgentContext } from "../../features/agents/model/agentFiles";
+import { agentSetupPrompt, forgetAgentContext } from "../../features/agents/model/agentFiles";
 import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession } from "../../features/agents/model/agentWorkspace";
@@ -23,6 +23,8 @@ type Options = {
   /** A saved conversation by id, from memory or the store. */
   loadSession: (id: string) => Promise<Session | null>;
   onError: (error: unknown) => void;
+  /** The projects open in the app, which a new agent may be told about. */
+  knownProjects: () => { name: string; path: string }[];
   /** The agent's conversation is ready to be shown. */
   onShow: () => void;
   /** The conversation in view went away. */
@@ -147,7 +149,7 @@ export function useAgents(options: Options) {
       setDetailsOpen(true);
       setViewId(agent.id);
       latest.current.onShow();
-      await latest.current.submission.submit(session.id, `${agentLook(agent).name} joined`, [], { agentSetup: AGENT_SETUP_PROMPT });
+      await latest.current.submission.submit(session.id, "New agent", [], { agentSetup: agentSetupPrompt(latest.current.knownProjects()) });
     } catch (error) {
       latest.current.onError(error);
     }

@@ -617,7 +617,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       expect(first.appAccess).toBe(true);
       expect(first.text.startsWith("<loci_context>")).toBe(true);
       expect(first.text.endsWith("</loci_context>\n\nWhat broke?")).toBe(true);
-      expect(first.text).toContain("You are Ember, an agent in Loci");
+      expect(first.text).toContain("You are Ember: a resident agent in Loci");
       expect(first.text).toContain("- app: /code/app");
       expect(first.text).toContain("- Be brief.");
       expect(first.text).toContain("CI runs on Actions");

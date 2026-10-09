@@ -133,7 +133,10 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="flex flex-col items-center gap-3 px-4 pb-5 pt-3">
             <AgentAvatar name={look.avatar} color={look.color} className="size-10" />
-            <NameField key={agent.id} agent={agent} />
+            <div className="flex w-full flex-col items-center">
+              <NameField key={`name:${agent.id}:${agent.name ?? ""}`} agent={agent} />
+              <RoleField key={`role:${agent.id}:${agent.role ?? ""}`} agent={agent} />
+            </div>
             <FacePicker current={agent.avatar} color={agent.color} onPick={(avatar) => updateAgent(agent.id, (current) => ({ ...current, avatar }))} />
             <ColorPicker current={agent.color} onPick={(color) => updateAgent(agent.id, (current) => ({ ...current, color }))} />
           </div>
@@ -220,6 +223,18 @@ function NameField({ agent }: { agent: Agent }) {
     <input aria-label="Name" value={name} maxLength={40} placeholder={defaultAgentName(agent.avatar)}
       className="w-full rounded-lg bg-transparent px-2 py-1 text-center text-[15px] font-medium text-content outline-none placeholder:text-content/60 hover:bg-content/5 focus:bg-content/6"
       onChange={(event) => setName(event.target.value)} onBlur={save}
+      onKeyDown={(event) => { if (event.key === "Enter" && !isImeComposition(event.nativeEvent)) event.currentTarget.blur(); }} />
+  );
+}
+
+/** Its one main job in a few words, under its name; the agent proposes it during setup. */
+function RoleField({ agent }: { agent: Agent }) {
+  const [role, setRole] = useState(agent.role ?? "");
+  const save = () => updateAgent(agent.id, (current) => ({ ...current, role: role.trim() }));
+  return (
+    <input aria-label="Role" value={role} maxLength={60} placeholder="What it is for, in a few words"
+      className="w-full rounded-md bg-transparent px-2 py-0.5 text-center text-xs text-content/60 outline-none placeholder:text-content/30 hover:bg-content/5 focus:bg-content/6"
+      onChange={(event) => setRole(event.target.value)} onBlur={save}
       onKeyDown={(event) => { if (event.key === "Enter" && !isImeComposition(event.nativeEvent)) event.currentTarget.blur(); }} />
   );
 }

@@ -883,7 +883,11 @@ describe("agent app commands", () => {
     expect(
       await handleAgentApp(source, "r2", "agent.rename", { name: "  CI   Scout " }, host),
     ).toEqual({ name: "CI Scout" });
-    expect(renameAgent).toHaveBeenCalledWith("a", "CI Scout");
+    expect(renameAgent).toHaveBeenCalledWith("a", { name: "CI Scout" });
+    expect(
+      await handleAgentApp(source, "r2b", "agent.rename", { name: "Scout", role: " CI  watcher " }, host),
+    ).toEqual({ name: "Scout", role: "CI watcher" });
+    expect(renameAgent).toHaveBeenLastCalledWith("a", { name: "Scout", role: "CI watcher" });
     await expect(
       handleAgentApp(source, "r3", "agent.rename", { name: "x".repeat(41) }, host),
     ).rejects.toThrow();

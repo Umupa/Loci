@@ -41,6 +41,7 @@ export function AgentView({ agent, state, detailsOpen, besideRail, compactRail, 
         <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
           <AgentAvatar name={look.avatar} color={look.color} className="size-4 shrink-0" />
           <h1 className="shrink-0 truncate text-[13px] font-medium">{look.name}</h1>
+          {look.role ? <span className="shrink-0 rounded-md bg-content/8 px-1.5 py-px text-[11px] text-content/60">{look.role}</span> : null}
           <AgentStatus state={state} />
           {projects ? <span className="min-w-0 truncate text-xs text-content/35">{projects}</span> : null}
         </div>
