@@ -47,7 +47,7 @@ import { linkFamilies } from "../features/workspace/model/tabFamily";
 import { summarizeTab } from "../features/workspace/model/tabSummary";
 import { filePaneId, findLeaf, leafIds } from "../features/workspace/model/layout";
 import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
-import { loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
+import { loadAgentsEnabled, subscribeAgentsEnabled, loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../features/settings/model/uiScale";
 import { announceSessionFinished } from "../features/notifications/model/notifications";
 import { hiddenApprovalNotices } from "../features/notifications/model/approvalToast";
@@ -169,10 +169,12 @@ function Workspace(boot: BootWorkspace) {
     onError: (error) => workspaceRef.current?.setError(String(error)),
     onShow: () => setSurface("agent"), onHide: closeSurface,
   });
+  const agentsEnabled = useSyncExternalStore(subscribeAgentsEnabled, loadAgentsEnabled);
   const agentHabits = useAgentHabits({ runtime, submission,
     loadSession: (id) => workspaceRef.current!.loadSession(id),
     onPosted: (chat, name) => { void announceSessionFinished({ ...chat, title: name }, isForeground(chat.id)); },
-  });
+  }, agentsEnabled);
+  useEffect(() => { if (!agentsEnabled && surface === "agent") closeSurface(); }, [agentsEnabled, surface, closeSurface]);
   const agentSession = surface === "agent" ? agents.viewSession : undefined;
   agentSessionIdRef.current = agentSession?.id;
   const closeAgentView = agents.close;
@@ -184,6 +186,8 @@ function Workspace(boot: BootWorkspace) {
   const busySessionIds = useMemo(() => new Set(shownSessions.filter((session) => session.busy).map((session) => session.id)), [shownSessions]);
   const approvalSessionIds = useMemo(() => new Set(shownSessions.filter(sessionNeedsInput).map((session) => session.id)), [shownSessions]);
   const unseenFinishedIds = useUnseenFinishedSessions(busySessionIds, viewedSessionId);
+  // An agent that finished a reply while the user was elsewhere.
+  const unseenAgentIds = useMemo(() => new Set(agents.agents.filter((agent) => agent.sessionId && unseenFinishedIds.has(agent.sessionId)).map((agent) => agent.id)), [agents.agents, unseenFinishedIds]);
   const liveAgents = useMemo(() => liveAgentsEnabled ? liveAgentsFromSessions(shownSessions, unseenFinishedIds) : [], [shownSessions, unseenFinishedIds, liveAgentsEnabled]);
   useInputNotifications(shownSessions, viewedSessionId);
   useEffect(() => syncDockBadge(shownSessions), [shownSessions]);
@@ -471,7 +475,8 @@ function Workspace(boot: BootWorkspace) {
           onGoBack={onRailBack} onGoForward={() => workspace.visit("forward")}
           recents={workspace.recents} busyProjectPaths={shownSessions.filter((session) => session.busy).map((session) => session.cwd)}
           agentActive={surface === "agent"}
-          agentRail={<AgentRailSection activeId={surface === "agent" ? agents.viewAgent?.id : undefined} states={agents.states} onOpen={(id) => void agents.open(id)} onCreate={agents.create} />}
+          agentRail={!agentsEnabled ? undefined : <AgentRailSection activeId={surface === "agent" ? agents.viewAgent?.id : undefined} states={agents.states} unseenIds={unseenAgentIds}
+            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpen(true); void agents.open(id); }} onCreate={agents.create} onDelete={(id) => void agents.remove(id)} />}
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
