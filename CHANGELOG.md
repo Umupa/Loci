@@ -17,6 +17,8 @@ Nothing has been tagged yet; the first release will be 0.1.0. Until then this se
 - Links to notes, canvases, sessions and project files that open inside the app (`loci://note/<id>`, `loci://canvas/<id>`, session and file links with page and line ranges).
 - `/learn` for Claude Code and Codex: a learning map canvas that records a node as learned only from the learner's own words, checked by the app; revisits on a 1, 3, 7, 21, 60 and 150 day ladder with the map covered; judgment nodes with a look-back date; learning calls shown in the transcript.
 - `/btw`, `/draft`, `/compact`, `/mcp` and `/add-to-folder`.
+- `/learn` sets a subject up before teaching: an overview of the field, an interview that becomes `profile.md` (goal, level, depth, language, how explanations land), a roadmap in `roadmap.md` whose stages and topics appear on the map as dashed nodes, and the reading for each topic gathered into `sources/` as complete texts in the learner's language. The agent does this with its own tools, as the skill's prompt describes.
+- Markdown files show pictures stored beside them, and a link to lines of a Markdown file opens the section in the preview instead of the raw source.
 - Project files for contributors: README in English and Chinese, a documentation index and architecture overview, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, issue and pull request templates, and GitHub Actions for checks, releases and dependency updates.
 
 ### Changed

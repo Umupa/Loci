@@ -1,10 +1,10 @@
 import { newElementWith } from "@excalidraw/excalidraw";
 import { applyCheckpointPatch, type SceneViewport } from "../../canvas/checkpointScene";
 import {
-  GHOST_LIMIT, MISSION_ID, TITLE_ID, isRecord, labelsByOwner, learnData, live, parseScene,
-  type ConceptData, type EdgeData, type El, type JudgmentData, type LearnSource, type RecallVerdict, type RecordVerdict,
+  GHOST_LIMIT, MISSION_ID, STAGE_LIMIT, STAGE_TOPIC_LIMIT, TITLE_ID, isRecord, labelsByOwner, learnData, live, parseScene, stageNames,
+  type ConceptData, type EdgeData, type El, type JudgmentData, type LearnSource, type RecallVerdict, type RecordVerdict, type StageData,
 } from "./learnMap";
-import { connect, placeInRows, placeNear, type Box } from "./placement";
+import { STAGE, besideStages, connect, placeBeside, placeInRows, placeInStage, placeNear, placeStage, stageCell, stageSize, type Box } from "./placement";
 import { labelColumns } from "./quote";
 import { afterRecall, scheduleFirst } from "./schedule";
 
@@ -122,11 +122,33 @@ function workspace(dataJson: string, context: WriteContext) {
     nodes.set(target.id, target);
     byLabel.set(key(target.label), [...(byLabel.get(key(target.label)) ?? []), target]);
   };
+  /** The roadmap's stages by frame id. A stage's box grows when a topic is added to it. */
+  const stages = new Map([...stageNames(elements)].map(([id, name]) => [id, { id, name, box: boxOf(elements.find((element) => element.id === id)!) }]));
+  /** The stage each node sits in. */
+  const stageOf = new Map<string, string>();
   for (const element of elements) {
     const data = live(element) ? learnData(element) : undefined;
-    if (data?.kind === "concept" || data?.kind === "judgment") remember({ id: element.id, box: boxOf(element), label: labels.get(element.id) ?? "" });
+    if (data?.kind !== "concept" && data?.kind !== "judgment") continue;
+    remember({ id: element.id, box: boxOf(element), label: labels.get(element.id) ?? "" });
+    if (typeof element.frameId === "string" && stages.has(element.frameId)) stageOf.set(element.id, element.frameId);
   }
-  const taken = elements.filter((element) => live(element) && element.type !== "arrow" && element.type !== "line" && !(element.type === "text" && element.containerId)).map(boxOf);
+  // What a new node keeps clear of. `bodies` leaves the stages' frames out, because a topic goes inside one.
+  const boxById = new Map(elements
+    .filter((element) => live(element) && element.type !== "arrow" && element.type !== "line" && !(element.type === "text" && element.containerId) && !stages.has(element.id))
+    .map((element) => [element.id, boxOf(element)]));
+  const bodies = [...boxById.values()];
+  const taken = [...bodies, ...[...stages.values()].map((stage) => stage.box)];
+  const occupy = (box: Box) => { bodies.push(box); taken.push(box); };
+  /** Forget a node or a stage that this write removes, so its place is free again. */
+  const release = (id: string) => {
+    const box = boxById.get(id) ?? stages.get(id)?.box;
+    for (const list of [bodies, taken]) if (box && list.includes(box)) list.splice(list.indexOf(box), 1);
+    const target = nodes.get(id);
+    if (target) byLabel.set(key(target.label), (byLabel.get(key(target.label)) ?? []).filter((entry) => entry.id !== id));
+    nodes.delete(id);
+    stageOf.delete(id);
+    stages.delete(id);
+  };
   const mission = elements.filter((element) => live(element) && learnData(element)?.kind === "mission");
   const top = mission.length ? Math.max(...mission.map((element) => element.y + element.height)) + 80 : 0;
   /** A node named by id or, when unambiguous, by label. */
@@ -142,13 +164,19 @@ function workspace(dataJson: string, context: WriteContext) {
       ? `${role} "${reference}" names more than one node; use its id`
       : `${role} "${reference ?? ""}" is not a node on this map; call map_read for ids`);
   };
+  /** A place for a node of the learner's own. Beside the roadmap when it has one: the stages' rows are for their topics. */
   const place = (near: Target | undefined, size: { width: number; height: number }): Box => {
-    const box = { ...(near ? placeNear(taken, near.box, size) : placeInRows(taken, top, size)), ...size };
-    taken.push(box);
+    const stage = near ? stages.get(stageOf.get(near.id) ?? "") : undefined;
+    const road = [...stages.values()].map((entry) => entry.box);
+    const spot = near
+      ? stage ? placeBeside(taken, stage.box, near.box, size) : placeNear(taken, near.box, size)
+      : road.length ? placeInRows(taken, Math.min(...road.map((box) => box.y)), size, besideStages(road)) : placeInRows(taken, top, size);
+    const box = { ...spot, ...size };
+    occupy(box);
     return box;
   };
   const named = (label: string) => byLabel.get(key(label)) ?? [];
-  return { elements, labels, nodes, find, named, need, newId, place, remember };
+  return { elements, labels, nodes, stages, stageOf, bodies, top, find, named, need, newId, place, occupy, release, remember };
 }
 
 function conceptShape(id: string, label: string, box: Box, data: ConceptData, now: number) {
@@ -173,31 +201,122 @@ function frame(boxes: readonly Box[]): SceneViewport | undefined {
   return { x: left, y: top, width: Math.max(...boxes.map((box) => box.x + box.width)) + 120 - left, height: Math.max(...boxes.map((box) => box.y + box.height)) + 120 - top };
 }
 
+export type Sketch = {
+  /** The roadmap stage the nodes are topics of, by name. Without it they are sketched beside `near`. */
+  stage?: string;
+  near?: string;
+  labels: readonly string[];
+  edges?: readonly EdgeRecord[];
+  /** Unexplored nodes to take off the map again. */
+  remove?: readonly string[];
+};
+type Named = { id: string; label: string };
+export type SketchWrite = MapWrite & { /** Topics that were on the map before the call. */ already: Named[]; removed: Named[] };
+
 /**
- * Add unexplored nodes beside what the learner knows. The cap is the point:
- * a map filled in by the agent would show the agent's understanding.
+ * Add unexplored nodes: the topics of a roadmap stage, or a few beside what
+ * the learner knows. An agent names what there is to learn and nothing more,
+ * and the caps keep the map a road, not a textbook. It may take off the map
+ * only what nobody has touched.
  */
-export function sketchOnMap(dataJson: string, input: { near?: string; labels: readonly string[]; edges?: readonly EdgeRecord[] }, context: WriteContext): MapWrite {
+export function sketchOnMap(dataJson: string, input: Sketch, context: WriteContext): SketchWrite {
   const map = workspace(dataJson, context);
-  const waiting = [...map.nodes.keys()].filter((id) => {
+  const ghost = (id: string) => {
     const data = learnData(map.elements.find((element) => element.id === id)!);
-    return data?.kind === "concept" && data.state === "ghost";
-  }).length;
-  if (waiting + input.labels.length > GHOST_LIMIT)
-    throw new Error(`The map already has ${waiting} unexplored nodes and may hold ${GHOST_LIMIT}. Explore some with the learner, or let the learner delete some, before adding more.`);
-  const near = input.near ? map.need(input.near, "near") : undefined;
+    return data?.kind === "concept" && data.state === "ghost" ? data : undefined;
+  };
+  const arrows = map.elements.filter((element) => live(element) && element.type === "arrow");
+  const touching = (id: string) => arrows.filter((element) => [element.startBinding, element.endBinding].some((end) => isRecord(end) && end.elementId === id));
+  /** An arrow the agent proposed and the learner has not taken up goes with the node it proposes. */
+  const proposed = (element: El) => { const data = learnData(element); return data?.kind === "edge" && data.by === "proposed"; };
+
+  const deletedIds: string[] = [];
+  const removed: Named[] = [];
+  const emptied = new Set<string>();
+  for (const reference of input.remove ?? []) {
+    const target = map.need(reference, "remove");
+    if (!ghost(target.id) || ghost(target.id)!.history.length) throw new Error(`"${target.label}" holds what the learner said about it, so only the learner can take it off the map`);
+    if (touching(target.id).some((element) => !proposed(element))) throw new Error(`The learner has connected "${target.label}" to other nodes, so only the learner can take it off the map`);
+    const stage = map.stageOf.get(target.id);
+    if (stage) emptied.add(stage);
+    deletedIds.push(target.id, ...touching(target.id).map((element) => element.id).filter((id) => !deletedIds.includes(id)));
+    removed.push({ id: target.id, label: target.label });
+    map.release(target.id);
+  }
+  // A stage goes with its last topic, unless this call refills it or the learner keeps something else in its frame.
+  for (const stage of emptied) {
+    const refilled = input.stage !== undefined && key(map.stages.get(stage)?.name ?? "") === key(input.stage);
+    const kept = map.elements.some((element) => live(element) && element.frameId === stage && !deletedIds.includes(element.id) && !deletedIds.includes(String(element.containerId)));
+    if (refilled || kept) continue;
+    deletedIds.push(stage);
+    map.release(stage);
+  }
+
   const added: unknown[] = [];
   const nodes: WrittenNode[] = [];
-  const boxes: Box[] = near ? [near.box] : [];
-  for (const label of input.labels) {
-    if (map.named(label).length) throw new Error(`"${label}" is already on the map (id ${map.named(label)[0].id})`);
+  const already: Named[] = [];
+  let boxes: Box[] = [];
+  /** Topics added to a stage that was already on the map, and the size its frame grew to. */
+  let extended: { stage: string; ids: string[]; box: Box } | undefined;
+  const topic = (label: string, box: Box) => {
     const id = map.newId("n");
-    const box = map.place(near, CONCEPT);
     const data: ConceptData = { v: 1, self: id, kind: "concept", state: "ghost", history: [] };
     added.push(conceptShape(id, label, box, data, context.now));
     map.remember({ id, box, label });
     nodes.push({ id, label, kind: "concept", state: "ghost", created: true });
-    boxes.push(box);
+    return id;
+  };
+
+  if (input.stage !== undefined) {
+    const fresh: string[] = [];
+    for (const label of input.labels) {
+      const [existing] = map.named(label);
+      if (existing) already.push({ id: existing.id, label: existing.label });
+      else if (fresh.some((other) => key(other) === key(label))) throw new Error(`"${label}" appears twice in this call`);
+      else fresh.push(label);
+    }
+    const stage = [...map.stages.values()].find((entry) => key(entry.name) === key(input.stage!));
+    const topics = stage ? [...map.stageOf.values()].filter((id) => id === stage.id).length : 0;
+    if (topics + fresh.length > STAGE_TOPIC_LIMIT)
+      throw new Error(`A stage holds at most ${STAGE_TOPIC_LIMIT} topics${stage ? ` and "${stage.name}" has ${topics}` : ""}. Split it into two stages, or keep the topics that matter most for the learner's goal.`);
+    const road = [...map.stages.values()].map((entry) => entry.box);
+    if (fresh.length && !stage) {
+      if (map.stages.size >= STAGE_LIMIT) throw new Error(`The roadmap already has ${STAGE_LIMIT} stages, which is the most it holds. Merge stages, or take one off with remove.`);
+      const size = stageSize(Math.ceil(fresh.length / STAGE.columns), CONCEPT);
+      const box = { ...placeStage(map.bodies, road, map.top, size), ...size };
+      const id = map.newId("s");
+      const ids = fresh.map((label, index) => {
+        const cell = { ...stageCell(box, index % STAGE.columns, Math.floor(index / STAGE.columns)), ...CONCEPT };
+        map.occupy(cell);
+        return topic(label, cell);
+      });
+      added.push({ type: "frame", id, ...box, name: input.stage.trim(), children: ids, customData: { learn: { v: 1, self: id, kind: "stage" } satisfies StageData } });
+      road.push(box);
+    } else if (fresh.length && stage) {
+      const others = road.filter((box) => box !== stage.box);
+      const ids = fresh.map((label) => {
+        const cell = { ...placeInStage(map.bodies, others, stage.box, CONCEPT), ...CONCEPT };
+        map.occupy(cell);
+        stage.box.width = Math.max(stage.box.width, cell.x + cell.width + STAGE.pad - stage.box.x);
+        stage.box.height = Math.max(stage.box.height, cell.y + cell.height + STAGE.pad - stage.box.y);
+        return topic(label, cell);
+      });
+      extended = { stage: stage.id, ids, box: stage.box };
+    }
+    // Show the whole road, not only the stage that changed.
+    boxes = road;
+  } else {
+    const waiting = [...map.nodes.keys()].filter((id) => ghost(id) && !map.stageOf.has(id)).length;
+    if (waiting + input.labels.length > GHOST_LIMIT)
+      throw new Error(`The map already has ${waiting} unexplored nodes outside the roadmap and may hold ${GHOST_LIMIT}. Explore some with the learner, or take some off with remove, before adding more.`);
+    const near = input.near ? map.need(input.near, "near") : undefined;
+    if (near) boxes.push(near.box);
+    for (const label of input.labels) {
+      if (map.named(label).length) throw new Error(`"${label}" is already on the map (id ${map.named(label)[0].id})`);
+      const box = map.place(near, CONCEPT);
+      topic(label, box);
+      boxes.push(box);
+    }
   }
   const edges: string[] = [];
   for (const edge of input.edges ?? []) {
@@ -205,7 +324,17 @@ export function sketchOnMap(dataJson: string, input: { near?: string; labels: re
     added.push(arrow(id, map.need(edge.from, "edge from"), map.need(edge.to, "edge to"), edge.label, "proposed"));
     edges.push(id);
   }
-  return { dataJson: applyCheckpointPatch(dataJson, { elements: added }).dataJson, nodes, edges, viewport: frame(boxes) };
+
+  let written = added.length || deletedIds.length ? applyCheckpointPatch(dataJson, { elements: added, deletedIds }).dataJson : dataJson;
+  if (extended) {
+    // The converter frames only what it draws together with a frame, so topics joining a stage are framed here.
+    const scene = parseScene(written);
+    for (const element of [...scene.elements])
+      if (live(element) && (extended.ids.includes(element.id) || extended.ids.includes(String(element.containerId)))) patch(scene.elements, element.id, { frameId: extended.stage });
+    patch(scene.elements, extended.stage, { width: extended.box.width, height: extended.box.height });
+    written = JSON.stringify(scene);
+  }
+  return { dataJson: written, nodes, edges, already, removed, viewport: frame(boxes) };
 }
 
 function recordedConcept(base: ConceptData, record: NodeRecord, context: WriteContext): ConceptData {

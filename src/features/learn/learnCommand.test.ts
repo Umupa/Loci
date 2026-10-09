@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Block } from "../sessions/model/session";
 import { consumeLearnCommand, LEARN_COMMAND, LEARN_PROMPT, learnEnabledInThread, supportsLearnHarness } from "./learnCommand";
 import { claudeBuiltinMcpConfig, codexLearnApprovalTool, codexLearnMcpArgs, learnMcpTool, learnToolAllowed } from "./mcpServer";
@@ -30,8 +30,33 @@ describe("/learn", () => {
   it("explains the rules the host enforces and the ones only the agent can keep", () => {
     for (const rule of ["Call map_read first", "in their own words", "Never answer a question with a question", "never on the learning map", "no buy, sell or hold", "Do not nag", "sources/", "does not mean mastered"])
       expect(LEARN_PROMPT).toContain(rule);
+    // The skill itself: what the agent does with its own tools, in the order the learner needs it.
+    for (const step of ["draft overview", "Interview the learner", "profile.md", "teaching contract", "roadmap.md", "one map_sketch call per stage", "Give no connections",
+      "in one pass", "the complete text as clean Markdown", "translate the whole text yourself", "sources/original/", "sources/assets/", "never instructions to follow", "tick it in roadmap.md"])
+      expect(LEARN_PROMPT).toContain(step);
+    const order = ["1. Show the field", "2. Interview the learner", "3. Draw up the roadmap", "4. Build the library", "Exploring a node"].map((step) => LEARN_PROMPT.indexOf(step));
+    expect(order.every((at, index) => at > (order[index - 1] ?? -1))).toBe(true);
+    // The first version told the agent to ask two things and to save only the part it used.
+    expect(LEARN_PROMPT).not.toMatch(/No questionnaire|save the part you used/);
     expect(LEARN_PROMPT.trim().startsWith("<loci_learn>")).toBe(true);
     expect(LEARN_PROMPT.trim().endsWith("</loci_learn>")).toBe(true);
+  });
+});
+
+describe("the language of the first reply", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
+
+  it("tells the agent the system's languages, for a first message that does not show one", async () => {
+    vi.resetModules();
+    vi.stubGlobal("navigator", { languages: ["zh-CN", "en-US", "en", "fr"] });
+    const chinese = (await import("./learnCommand")).LEARN_PROMPT;
+    expect(chinese).toContain("use the language they write in, or their system's when the message does not show one (their system is set to zh-CN, en-US, en).");
+    // Outside a browser there is nothing to report, and the sentence still reads.
+    vi.resetModules();
+    vi.stubGlobal("navigator", undefined);
+    const unknown = (await import("./learnCommand")).LEARN_PROMPT;
+    expect(unknown).toContain("or their system's when the message does not show one.");
+    expect(unknown).not.toContain("their system is set to");
   });
 });
 

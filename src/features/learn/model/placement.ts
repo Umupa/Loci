@@ -41,15 +41,87 @@ export function placeNear(taken: readonly Box[], anchor: Box, size: { width: num
   return spot;
 }
 
-/** Where a node with nothing to connect to goes: rows of four under the mission text. */
-export function placeInRows(taken: readonly Box[], top: number, size: { width: number; height: number }): { x: number; y: number } {
+/** Where a node with nothing to connect to goes: rows of four from `left`, under the mission text. */
+export function placeInRows(taken: readonly Box[], top: number, size: { width: number; height: number }, left = 0): { x: number; y: number } {
   for (let row = 0; row < 200; row++) {
     for (let column = 0; column < 4; column++) {
-      const candidate = { x: column * STEP_X, y: top + row * STEP_Y, ...size };
+      const candidate = { x: left + column * STEP_X, y: top + row * STEP_Y, ...size };
       if (!taken.some((box) => overlaps(candidate, box))) return { x: candidate.x, y: candidate.y };
     }
   }
-  return { x: 0, y: top };
+  return { x: left, y: top };
+}
+
+/**
+ * A roadmap stage is a band of topics in rows. Topics sit closer than the
+ * learner's own nodes do, so that the whole road can be seen at once. The gap
+ * between bands holds the next stage's name, which Excalidraw draws above its
+ * frame at the same size however far the learner zooms out.
+ */
+export const STAGE = { columns: 5, stepX: 300, stepY: 130, pad: 30, gap: 90 } as const;
+/** Room between the roadmap and what the learner grows beside it. */
+const BESIDE = 120;
+
+type Size = { width: number; height: number };
+
+/** The frame of a stage with this many rows of topics. */
+export function stageSize(rows: number, node: Size): Size {
+  return { width: STAGE.pad * 2 + (STAGE.columns - 1) * STAGE.stepX + node.width, height: STAGE.pad * 2 + (rows - 1) * STAGE.stepY + node.height };
+}
+
+export function stageCell(frame: { x: number; y: number }, column: number, row: number): { x: number; y: number } {
+  return { x: frame.x + STAGE.pad + column * STAGE.stepX, y: frame.y + STAGE.pad + row * STAGE.stepY };
+}
+
+/** Where a new stage goes: under the last one, lined up with it, and below anything already in the way. */
+export function placeStage(bodies: readonly Box[], stages: readonly Box[], top: number, size: Size): { x: number; y: number } {
+  const last = [...stages].sort((a, b) => a.y + a.height - (b.y + b.height)).pop();
+  const band = { x: last?.x ?? 0, y: last ? last.y + last.height + STAGE.gap : top, ...size };
+  for (let pass = 0; pass < 1000; pass++) {
+    const hit = [...bodies, ...stages].filter((box) => overlaps(band, box));
+    if (!hit.length) break;
+    band.y = Math.max(...hit.map((box) => box.y + box.height)) + STAGE.gap;
+  }
+  return { x: band.x, y: band.y };
+}
+
+/**
+ * The next free cell of a stage that is already on the map: in its rows first,
+ * then in a new row under them when nothing is there, otherwise further along
+ * its first row. Nothing moves; the caller grows the frame to hold the cell.
+ */
+export function placeInStage(bodies: readonly Box[], others: readonly Box[], frame: Box, node: Size): { x: number; y: number } {
+  const rows = Math.max(1, Math.round((frame.height - STAGE.pad * 2 - node.height) / STAGE.stepY) + 1);
+  const columns = Math.max(STAGE.columns, Math.round((frame.width - STAGE.pad * 2 - node.width) / STAGE.stepX) + 1);
+  const free = (cell: { x: number; y: number }, outside: boolean) => {
+    const box = { ...cell, ...node };
+    return !bodies.some((body) => overlaps(box, body)) && (!outside || !others.some((other) => overlaps(box, other)));
+  };
+  for (let row = 0; row < rows; row++)
+    for (let column = 0; column < columns; column++)
+      if (free(stageCell(frame, column, row), false)) return stageCell(frame, column, row);
+  for (let column = 0; column < STAGE.columns; column++)
+    if (free(stageCell(frame, column, rows), true)) return stageCell(frame, column, rows);
+  for (let column = columns; column < columns + 200; column++)
+    if (free(stageCell(frame, column, 0), true)) return stageCell(frame, column, 0);
+  return stageCell(frame, columns, 0);
+}
+
+/** Where the learner's own node goes when it hangs off a topic of the roadmap: right of that stage, level with the topic. */
+export function placeBeside(taken: readonly Box[], frame: Box, anchor: Box, size: Size): { x: number; y: number } {
+  const y = anchor.y + anchor.height / 2 - size.height / 2;
+  let spot = { x: frame.x + frame.width + BESIDE, y };
+  for (let column = 0; column < 200; column++) {
+    spot = { x: frame.x + frame.width + BESIDE + column * STEP_X, y };
+    const candidate = { ...spot, ...size };
+    if (!taken.some((box) => overlaps(candidate, box))) return spot;
+  }
+  return spot;
+}
+
+/** The left edge for nodes that belong to no stage, once there is a roadmap: they go beside it, not under it. */
+export function besideStages(stages: readonly Box[]): number {
+  return Math.max(...stages.map((stage) => stage.x + stage.width)) + BESIDE;
 }
 
 /** An arrow from the side of `from` that faces `to`, to the facing side of `to`. */

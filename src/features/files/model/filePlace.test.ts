@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { consumeFilePlace, lineOffset, lineRange, requestFilePlace, textareaOffsetTop, useFilePlace } from "./filePlace";
+import { consumeFilePlace, findHeading, headingAbove, lineOffset, lineRange, requestFilePlace, textareaOffsetTop, useFilePlace } from "./filePlace";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -70,5 +70,52 @@ describe("the offset of a line in a textarea", () => {
     expect(typeof textareaOffsetTop(area, 8)).toBe("number");
     expect(document.body.children.length).toBe(before);
     area.remove();
+  });
+});
+
+describe("the section a line of a Markdown file falls in", () => {
+  const reading = [
+    "---",                                  // 1
+    "title: Pod 的生命周期",                 // 2
+    "# not a heading: a comment in YAML",   // 3
+    "---",                                  // 4
+    "",                                     // 5
+    "# Pod 的生命周期",                      // 6
+    "正文。",                                // 7
+    "## 容器探针",                           // 8
+    "```sh",                                // 9
+    "# 这是 shell 注释，不是标题",           // 10
+    "kubectl get pods",                     // 11
+    "```",                                  // 12
+    "## 示例",                               // 13
+    "第一个示例。",                          // 14
+    "## `kubectl` 与 [探针](https://example.com/probe) ##", // 15
+    "## 示例",                               // 16
+    "第二个示例。",                          // 17
+  ].join("\n");
+
+  it("is the last heading at or above the line, and nothing above the first one", () => {
+    expect(headingAbove(reading, 3)).toBeNull();
+    expect(headingAbove(reading, 5)).toBeNull();
+    expect(headingAbove(reading, 6)).toEqual({ text: "pod的生命周期", index: 0 });
+    expect(headingAbove(reading, 7)).toEqual({ text: "pod的生命周期", index: 0 });
+    // A comment inside a code block is not a heading.
+    expect(headingAbove(reading, 11)).toEqual({ text: "容器探针", index: 0 });
+    expect(headingAbove(reading, 14)).toEqual({ text: "示例", index: 0 });
+    // Marks the preview does not show, and a link's address, take no part in the match.
+    expect(headingAbove(reading, 15)).toEqual({ text: "kubectl与探针", index: 0 });
+    // The second heading with the same words is told from the first.
+    expect(headingAbove(reading, 17)).toEqual({ text: "示例", index: 1 });
+    expect(headingAbove(reading, 999)).toEqual({ text: "示例", index: 1 });
+    expect(headingAbove("no headings\nat all", 2)).toBeNull();
+  });
+
+  it("finds that heading in the rendered document", () => {
+    const root = document.createElement("div");
+    root.innerHTML = "<h1>Pod 的生命周期</h1><h2>容器探针</h2><h2 id='a'>示例</h2><h2><code>kubectl</code> 与 <a href='#'>探针</a></h2><h2 id='b'>示例</h2>";
+    expect(findHeading(root, headingAbove(reading, 14)!)?.id).toBe("a");
+    expect(findHeading(root, headingAbove(reading, 17)!)?.id).toBe("b");
+    expect(findHeading(root, headingAbove(reading, 15)!)?.textContent).toBe("kubectl 与 探针");
+    expect(findHeading(root, { text: "不存在", index: 0 })).toBeNull();
   });
 });
