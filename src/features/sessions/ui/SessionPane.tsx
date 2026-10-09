@@ -68,6 +68,7 @@ import { AgentTranscript } from "./AgentTranscript";
 import { AstraWelcome } from "./AstraWelcome";
 import { BtwSheet,useBtwConversation } from "./BtwSheet";
 import { EmptySession } from "./EmptySession";
+import { QuestionCard } from "./QuestionCard";
 import { OpusWelcome } from "./OpusWelcome";
 import { PromptOutline } from "./PromptOutline";
 import { TranscriptFind } from "./TranscriptFind";
@@ -520,7 +521,8 @@ export const SessionPane = memo(function SessionPane({
 
       noteCard={session.noteCard}
 
-      question={session.pendingQuestion}
+      // A chat puts the question in the conversation itself, as a card.
+      question={chatPlaceholder != null ? undefined : session.pendingQuestion}
       onQuoteRequestConsumed={acknowledgeQuote}
 
       onNoteCardDismiss={() => onNoteCardDismiss?.(session.id)}
@@ -711,6 +713,16 @@ export const SessionPane = memo(function SessionPane({
                   model={session.model}
                   modelSettings={session.modelSettings}
                   pendingQuestion={!!session.pendingQuestion}
+                  latestTurnAccessory={
+                    chatPlaceholder != null && session.pendingQuestion ? (
+                      <QuestionCard
+                        key={session.pendingQuestion.requestId}
+                        prompt={session.pendingQuestion}
+                        onReply={replyQuestion}
+                        onInteraction={(id) => onQuestionInteraction?.(session.id, id)}
+                      />
+                    ) : undefined
+                  }
                   backgroundTasks={session.backgroundTasks}
                   onApproval={approve}
                   onAddToChat={addSelectionToChat}
