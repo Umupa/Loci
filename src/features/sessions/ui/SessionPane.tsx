@@ -3,6 +3,7 @@ import {
 memo,
 useCallback,
 useEffect,
+useMemo,
 useRef,
 useState,
 useSyncExternalStore,
@@ -70,6 +71,7 @@ import { BtwSheet,useBtwConversation } from "./BtwSheet";
 import { EmptySession } from "./EmptySession";
 import { QuestionCard } from "./QuestionCard";
 import { CARD_REPLY_EVENT } from "../model/cards";
+import { CardRepliesContext } from "./cards/Cards";
 import { OpusWelcome } from "./OpusWelcome";
 import { PromptOutline } from "./PromptOutline";
 import { TranscriptFind } from "./TranscriptFind";
@@ -327,6 +329,11 @@ export const SessionPane = memo(function SessionPane({
   );
 
 
+  // What cards were told is read back from the user's own messages, so cards keep nothing.
+  const cardReplies = useMemo(
+    () => new Set(session.blocks.filter((block) => block.role === "user" && block.text.startsWith("Done: ")).map((block) => block.text)),
+    [session.blocks],
+  );
   const jumpToBottomRef = useRef<(() => void) | null>(null);
   const transcriptScope = useRef<HTMLDivElement>(null);
   // What the user does with a card goes to the agent as their next message.
@@ -693,6 +700,7 @@ export const SessionPane = memo(function SessionPane({
             dockComposer ? " transcript-composer-fade" : ""
           }`}
         >
+          <CardRepliesContext.Provider value={cardReplies}>
 
           {isEmpty ? (
             (
@@ -823,6 +831,7 @@ export const SessionPane = memo(function SessionPane({
               ) : null}
             </>
           )}
+          </CardRepliesContext.Provider>
         </div>
         {dockComposer ? (
           <div

@@ -11,6 +11,9 @@ export type AgentTemplate = {
   name: string;
   /** Its one main job in a few words, read as "the user's <role>". */
   role: string;
+  /** The face and color it starts with, so a template is recognisable in the menu. */
+  avatar: string;
+  color: string;
   /** One line for the menu. */
   description: string;
   /** The job, completing "your job is settled: you are here to ...". */
@@ -28,6 +31,8 @@ export type AgentTemplate = {
 export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   {
     id: "tutor",
+    avatar: "luna",
+    color: "hsl(280 55% 62%)",
     name: "Tutor",
     role: "tutor",
     description: "Teaches you a subject and remembers where you are.",
@@ -44,6 +49,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "project-lead",
+    avatar: "flint",
+    color: "hsl(211 92% 62%)",
     name: "Lead",
     role: "project lead",
     description: "Looks after a project and keeps its sessions moving.",
@@ -60,6 +67,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "watch",
+    avatar: "nova",
+    color: "hsl(45 90% 55%)",
     name: "Watch",
     role: "watcher",
     description: "Runs regular checks and speaks up only when needed.",
@@ -76,6 +85,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "reviewer",
+    avatar: "pebble",
+    color: "hsl(12 80% 58%)",
     name: "Reviewer",
     role: "code reviewer",
     description: "Reads changes before you ship them.",
@@ -91,6 +102,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "researcher",
+    avatar: "tide",
+    color: "hsl(175 55% 48%)",
     name: "Scout",
     role: "researcher",
     description: "Looks into a question and writes up what it found.",
@@ -106,6 +119,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "chief-of-staff",
+    avatar: "nimbus",
+    color: "hsl(330 70% 62%)",
     name: "Chief",
     role: "chief of staff",
     description: "Keeps your decisions, open threads and a daily brief.",
