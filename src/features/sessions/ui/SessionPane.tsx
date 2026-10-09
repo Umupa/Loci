@@ -90,6 +90,11 @@ export type SessionPaneProps = {
   hideProjectPicker?: boolean;
   /** Shown above the composer of an empty conversation that belongs to no project. */
   emptyIntro?: ReactNode;
+  /**
+   * Stands in for the composer, for a conversation that reads like a chat.
+   * A question from the agent still takes over with the full composer.
+   */
+  composerOverride?: ReactNode;
   onFocus: (sessionId: string) => void;
   onClose: (sessionId: string) => void;
   onCwdChange: (sessionId: string, cwd: string) => void;
@@ -215,6 +220,7 @@ export const SessionPane = memo(function SessionPane({
   recents,
   hideProjectPicker,
   emptyIntro,
+  composerOverride,
   onFocus,
   onClose,
   onCwdChange,
@@ -473,7 +479,7 @@ export const SessionPane = memo(function SessionPane({
   const dockComposer = !draftBlock && (!isEmpty || inSplit);
   const composerDockMotion = useComposerDockMotion(dockComposer);
   const draftRef = useRef<string | undefined>(getComposerDraft(session.id));
-  const composer = (
+  const composer = composerOverride && !session.pendingQuestion ? composerOverride : (
     <Composer
       key={session.id}
 

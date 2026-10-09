@@ -18,6 +18,8 @@ import { AgentRailSection } from "./shell/AgentRailSection";
 import { AgentView } from "../features/agents/ui/AgentView";
 import { AgentDetails } from "../features/agents/ui/AgentDetails";
 import { AgentIntro } from "../features/agents/ui/AgentIntro";
+import { AgentComposer } from "../features/agents/ui/AgentComposer";
+import { agentLook } from "../features/agents/model/agent";
 import { SessionPane } from "../features/sessions/ui/SessionPane";
 import { isEqualOrInside } from "../shared/lib/paths";
 import { FILE_POINTER_DRAG_EVENT, type FilePointerDragDetail } from "../shared/lib/drag";
@@ -517,10 +519,15 @@ function Workspace(boot: BootWorkspace) {
             detailsOpen={agents.detailsOpen} onToggleDetails={() => agents.setDetailsOpen((open) => !open)} onClose={closeSurface}
             besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onToggleSidebar={toggleProjectRail}
             onLoadEarlier={agents.hasEarlier ? () => void agents.loadEarlier() : undefined}
-            details={<AgentDetails agent={agents.viewAgent} recents={workspace.recents} refreshKey={agentSession.busy} onPickFolders={() => pickFolders("Choose projects")}
+            details={<AgentDetails agent={agents.viewAgent} session={agentSession}
+              onModelChange={(harness, model) => submission.changeModel(agentSession.id, harness, model)}
+              onModelSettingsChange={(settings) => submission.changeModelSettings(agentSession.id, settings)}
+              onRuntimeModeChange={(mode) => submission.changeRuntimeMode(agentSession.id, mode)} recents={workspace.recents} refreshKey={agentSession.busy} onPickFolders={() => pickFolders("Choose projects")}
               onReset={() => void agents.reset(agents.viewAgent!.id)} onDelete={() => void agents.remove(agents.viewAgent!.id)} onClose={() => agents.setDetailsOpen(false)} />}>
             {/* It belongs to no tab or project, so pane actions that move it have nothing to act on. */}
             <SessionPane {...sessionPaneProps} key={agentSession.id} session={shownAgentSession ?? agentSession} visible focused inSplit={false} composerFocused emptyIntro={<AgentIntro agent={agents.viewAgent} />}
+              composerOverride={<AgentComposer key={agentSession.id} sessionId={agentSession.id} name={agentLook(agents.viewAgent).name} busy={!!agentSession.busy}
+                onSubmit={(text, attachments) => submission.onSubmit(agentSession.id, text, attachments)} onStop={() => void submission.stop(agentSession.id)} />}
               onFocus={() => undefined} onClose={closeSurface} onCwdChange={() => undefined} onApproval={agentHabits.approve} />
           </AgentView> : null}
           {surface === "search" ? <SearchView open cwd={workspace.projectCwd} recents={workspace.recents} history={workspace.history} sessions={sessions}

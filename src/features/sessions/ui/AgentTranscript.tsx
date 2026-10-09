@@ -1119,6 +1119,7 @@ function TurnDuration({
   return (
     <div
       aria-label={label}
+      data-turn-actions
       className="flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden px-4 pt-1 pb-3 font-sans text-sm text-content/40"
     >
       <span className="flex shrink-0 items-center gap-1">
@@ -1643,13 +1644,16 @@ const TranscriptBlock = memo(function TranscriptBlock({
           at={block.agentHabit.at}
         />
       ) : null}
-      <AgentMarkdown
-        text={block.text}
-        streaming={block.streaming}
-        revealOnMount={revealOnMount}
-        cwd={cwd}
-        onOpenFile={onOpenFile}
-      />
+      {/* A chat-styled surface draws this as the speaker's bubble. */}
+      <div data-agent-prose>
+        <AgentMarkdown
+          text={block.text}
+          streaming={block.streaming}
+          revealOnMount={revealOnMount}
+          cwd={cwd}
+          onOpenFile={onOpenFile}
+        />
+      </div>
     </div>
   );
 });

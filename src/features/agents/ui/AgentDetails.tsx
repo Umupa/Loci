@@ -3,6 +3,12 @@ import { isImeComposition } from "../../../shared/lib/keyboard";
 import { projectKey, projectName } from "../../../shared/lib/paths";
 import { Plus, Trash2, X } from "../../../shared/ui/icons";
 import type { RecentProject } from "../../projects/model/recents";
+import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
+import { modelsFor, preferredModelId, resolveModel } from "../../sessions/model/models";
+import {
+  HARNESSES, HARNESS_TITLE, RUNTIME_MODES, RUNTIME_MODE_HINT, RUNTIME_MODE_LABEL,
+  type HarnessId, type RuntimeMode, type Session,
+} from "../../sessions/model/session";
 import {
   AGENT_COLORS,
   addAgentProject,
@@ -34,6 +40,11 @@ import { AgentHabits } from "./AgentHabits";
 
 type Props = {
   agent: Agent;
+  /** Its conversation, whose model and permissions are set here rather than in the composer. */
+  session: Pick<Session, "harness" | "model" | "modelSettings" | "runtimeMode" | "busy">;
+  onModelChange: (harness: HarnessId, model: string) => void;
+  onModelSettingsChange: (settings: Record<string, string>) => void;
+  onRuntimeModeChange: (mode: RuntimeMode) => void;
   recents: readonly RecentProject[];
   /** Bumped when the agent finishes a turn, since it may have rewritten its files. */
   refreshKey: unknown;
@@ -88,7 +99,7 @@ const fieldClass =
   "w-full rounded-md border border-stroke bg-content/5 px-2 py-1.5 text-[13px] text-content outline-none placeholder:text-content/35 focus:border-content/30";
 
 /** Who the agent is, what it works on, its standing instructions and what it remembers. */
-export function AgentDetails({ agent, recents, refreshKey, onPickFolders, onReset, onDelete, onClose }: Props) {
+export function AgentDetails({ agent, session, onModelChange, onModelSettingsChange, onRuntimeModeChange, recents, refreshKey, onPickFolders, onReset, onDelete, onClose }: Props) {
   const look = agentLook(agent);
   const { files, error } = useAgentFiles(agent.id, refreshKey);
   const candidates = recents.filter((recent) => !agentWorksOn(agent, recent.path));
@@ -122,6 +133,10 @@ export function AgentDetails({ agent, recents, refreshKey, onPickFolders, onRese
                 style={{ backgroundColor: color }} />
             ))}
           </div>
+        </Section>
+
+        <Section title="Model" hint={session.busy ? "Applies from its next reply" : undefined}>
+          <ModelFields session={session} onModelChange={onModelChange} onModelSettingsChange={onModelSettingsChange} onRuntimeModeChange={onRuntimeModeChange} />
         </Section>
 
         <Section title="Projects" hint="Where it may read, start and message sessions">
@@ -175,6 +190,47 @@ export function AgentDetails({ agent, recents, refreshKey, onPickFolders, onRese
         </Section>
       </div>
     </aside>
+  );
+}
+
+/** The provider, model, its settings and how much the agent may do unasked. */
+function ModelFields({ session, onModelChange, onModelSettingsChange, onRuntimeModeChange }: Pick<Props, "session" | "onModelChange" | "onModelSettingsChange" | "onRuntimeModeChange">) {
+  const harnesses = HARNESSES.filter((harness) => harness === session.harness || isHarnessAvailable(harness));
+  const models = modelsFor(session.harness);
+  const model = resolveModel(session.harness, session.model);
+  const row = "flex items-center gap-2";
+  const label = "w-20 shrink-0 text-xs text-content/50";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className={row}>
+        <span className={label}>Provider</span>
+        <select value={session.harness} className={`${fieldClass} min-w-0 flex-1`}
+          onChange={(event) => { const harness = event.target.value as HarnessId; onModelChange(harness, preferredModelId(harness)); }}>
+          {harnesses.map((harness) => <option key={harness} value={harness}>{HARNESS_TITLE[harness]}</option>)}
+        </select>
+      </label>
+      <label className={row}>
+        <span className={label}>Model</span>
+        <select value={model.id} className={`${fieldClass} min-w-0 flex-1`} onChange={(event) => onModelChange(session.harness, event.target.value)}>
+          {models.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
+        </select>
+      </label>
+      {(model.settings ?? []).filter((setting) => setting.options.length > 1).map((setting) => (
+        <label key={setting.id} className={row}>
+          <span className={label}>{setting.label}</span>
+          <select value={session.modelSettings[setting.id] ?? setting.value} className={`${fieldClass} min-w-0 flex-1`}
+            onChange={(event) => onModelSettingsChange({ ...session.modelSettings, [setting.id]: event.target.value })}>
+            {setting.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+      ))}
+      <label className={row} title={RUNTIME_MODE_HINT[session.runtimeMode]}>
+        <span className={label}>Permissions</span>
+        <select value={session.runtimeMode} className={`${fieldClass} min-w-0 flex-1`} onChange={(event) => onRuntimeModeChange(event.target.value as RuntimeMode)}>
+          {RUNTIME_MODES.map((mode) => <option key={mode} value={mode}>{RUNTIME_MODE_LABEL[mode]}</option>)}
+        </select>
+      </label>
+    </div>
   );
 }
 

@@ -3203,3 +3203,48 @@ html.theme-light .btw-burst {
 .overview-card {
   transition-property: transform, box-shadow, background-color, border-color, opacity;
 }
+
+/*
+ * An agent's conversation reads like a chat with someone: both sides speak in
+ * bubbles, the user's in the inverse of the page, and the input is one rounded
+ * field. Sessions keep the document layout; only `[data-agent-view]` gets this.
+ */
+[data-agent-view] [data-agent-prose] {
+  width: fit-content;
+  max-width: min(100%, 46rem);
+  padding: 0.625rem 0.875rem;
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--color-content) 6%, transparent);
+}
+
+[data-agent-view] .user-message-bubble:not([data-draft="true"]) {
+  max-width: min(100%, 40rem);
+  padding: 0.625rem 0.875rem;
+  border-radius: 1.25rem;
+  background: var(--color-content);
+  color: var(--color-background-base);
+}
+
+[data-agent-view] .user-message-bubble:not([data-draft="true"]) :is(pre, p, span, a, code) {
+  color: inherit;
+}
+
+.agent-composer-send {
+  background: var(--color-content);
+  color: var(--color-background-base);
+}
+
+.agent-composer-send:disabled {
+  opacity: 0.25;
+}
+
+/* A chat keeps a reply's actions out of the way until the pointer is on it. */
+[data-agent-view] [data-transcript-turn] [data-turn-actions] {
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+[data-agent-view] [data-transcript-turn]:hover [data-turn-actions],
+[data-agent-view] [data-transcript-turn]:focus-within [data-turn-actions] {
+  opacity: 1;
+}

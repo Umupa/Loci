@@ -87,7 +87,7 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
               ref={(el) => sortable.setItemRef(agent.id, el)}
               data-selected={selected || undefined}
               data-agent-status={state.status}
-              className={`reorder-item project-reorder-item group relative flex h-8 cursor-default touch-none items-stretch rounded-md px-2 ${
+              className={`reorder-item project-reorder-item group relative flex h-11 cursor-default touch-none items-stretch rounded-lg px-2 ${
                 selected ? "bg-selection-strong text-content" : "opacity-65"
               }`}
               onPointerDown={(event) => {
@@ -110,17 +110,21 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
                 title={[look.name, projects || "No projects yet", status].filter(Boolean).join("\n")}
                 aria-label={[look.name, status ?? "idle", projects || "no projects yet"].join(", ")}
                 aria-current={selected ? "true" : undefined}
-                className="flex min-w-0 flex-1 cursor-default items-center gap-2 text-left group-hover:pr-6 group-has-[:focus-visible]:pr-6"
+                className="flex min-w-0 flex-1 cursor-default items-center gap-2.5 text-left group-hover:pr-6 group-has-[:focus-visible]:pr-6"
               >
-                <span className="relative grid size-4 shrink-0 place-items-center">
-                  <AgentAvatar name={look.avatar} color={look.color} className="size-4" />
-                  <AgentStatusDot status={state.status} color={look.color} className="-right-1 -top-1 size-1.5" />
+                <span className="relative grid size-7 shrink-0 place-items-center">
+                  <AgentAvatar name={look.avatar} color={look.color} className="size-7" />
+                  <AgentStatusDot status={state.status} color={look.color} className="-right-0.5 -top-0.5 size-2" />
                 </span>
-                {state.status === "working" ? (
-                  <Shimmer as="span" duration={1.4} className="min-w-0 flex-1 truncate text-[13px]">{look.name}</Shimmer>
-                ) : (
-                  <span className="min-w-0 flex-1 truncate text-[13px]">{look.name}</span>
-                )}
+                {/* Like a contact in a messenger: who it is, then what it is up to. */}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  {state.status === "working" ? (
+                    <Shimmer as="span" duration={1.4} className="truncate text-[13px] leading-4">{look.name}</Shimmer>
+                  ) : (
+                    <span className="truncate text-[13px] leading-4">{look.name}</span>
+                  )}
+                  <span className="truncate text-[11px] leading-4 text-content/50">{status ?? (projects || "No projects yet")}</span>
+                </span>
                 {unseen ? <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-content/60 group-hover:hidden group-has-[:focus-visible]:hidden" /> : null}
               </button>
               <button
