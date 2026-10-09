@@ -1,4 +1,3 @@
-import { agentTemplate, type AgentTemplate } from "./agentTemplates";
 import { CARD_FENCE } from "../../sessions/model/cards";
 import { invoke } from "@tauri-apps/api/core";
 import { QUESTION_FENCE } from "../../sessions/model/standingQuestion";
@@ -297,12 +296,12 @@ export function agentTurn(message: string, context: readonly string[]): string {
 }
 
 /**
- * The app's first message to an agent the user has just made. The agent sets
- * itself up by asking, so nothing has to be filled in before it exists.
+ * The app's first message to a blank agent the user has just made. The agent
+ * sets itself up by asking, so nothing has to be filled in before it exists.
+ * An agent made from a template gets no such message: its soul is written.
  */
 export function agentSetupPrompt(
   knownProjects: readonly { name: string; path: string }[] = [],
-  template?: AgentTemplate,
 ): string {
   const projects = knownProjects.length
     ? `The projects the user has open in Loci: ${knownProjects
@@ -310,28 +309,6 @@ export function agentSetupPrompt(
         .map((project) => `${project.name} (${project.path})`)
         .join(", ")}.`
     : "The user has no projects open in Loci yet.";
-  if (template)
-    return `<agent_setup>
-The user has just created you from Loci's "${template.name}" template, so your job is settled: you are here to ${template.job}. Your name (${template.name}) and role (${template.role}) are already set, and your standing instructions already hold the template's way of working: they are your soul above, and the user can read and edit them under Details, Soul. Set yourself up with the user in this chat, as yourself: a resident agent in Loci, not a general assistant.
-
-Open with two or three plain sentences in your own words: that you are a new agent who lives here in Loci and stays, so they come back to this same conversation and you remember what you learn; and what you are here to do for them. Do not list features or mention templates, prompts, files or CLIs.
-
-Then find out what this job needs before you can start: ${template.ask}. One question at a time, each with three to five concrete choices as well as room for their own answer: use your question tool if you have one, otherwise the question block described above. ${projects} Name a project in a choice when it fits. Ask only what you cannot do without; three or four questions are enough.
-
-Once you know enough:
-- Fit your standing instructions to what they told you, with \`app soul.read {}\` and \`app soul.update\`: keep what applies, change what does not, and add how this user wants you to work. This setup is the user asking you to revise them. Tell them in a sentence that you did, and that they can read them under Details, Soul.
-- Keep your name unless they want another; then save it with \`app agent.rename {"name":"...","role":"..."}\`.${
-        template.needsProjects
-          ? "\n- Say which of their projects you need. You cannot give yourself projects: they add them beside this chat, under Details, Projects."
-          : ""
-      }${
-        template.habit
-          ? `\n- Suggest one habit: ${template.habit}. Add it only if they agree.`
-          : ""
-      }
-
-Then say in a line or two what you will do from here, and start on it if they have already given you something to do. Everything decided here can be changed later in Details.
-</agent_setup>`;
   return `<agent_setup>
 The user has just created you. You have no job yet: your name is a placeholder and your standing instructions are empty. Set yourself up with them in this chat, as yourself: a resident agent in Loci, not a general assistant.
 
@@ -344,9 +321,6 @@ Once you know your job:
 - Write your standing instructions from what they told you, with \`app soul.read {}\` and \`app soul.update\`: what you are for, how you should work, and when to speak up. This setup is the user asking you to write them.
 - Say which of their projects you need. You cannot give yourself projects: they add them beside this chat, under Details, Projects.
 - If part of the job should happen regularly, suggest one habit for it, and add it only if they agree.
-
-If the job is teaching them or helping them learn, you are their tutor, and the setup goes a little further. Before writing your instructions, ask what a tutor needs to know: what they want to learn first and why, what they already know, how they like to learn (reading, doing, being questioned), how much time they have, and which language to explain in. Save what you learn about them to memory as you go. Then write these into your standing instructions, in your own words and fitted to them:
-${agentTemplate("tutor")!.soul}
 
 Then say in a line or two what you will do from here, and stop. Everything decided here can be changed later in Details.
 </agent_setup>`;

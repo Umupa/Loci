@@ -19,7 +19,7 @@ it("uses the user's wording for a template and goes back to what ships", () => {
   expect(edited.soul).toBe("- Teach by asking.");
   expect(edited.name).toBe("Mentor");
   // What was left as shipped follows later changes to the shipped text.
-  expect(edited.ask).toBe(shipped.ask);
+  expect(edited.role).toBe(shipped.role);
   expect(JSON.parse(localStorage.getItem("loci:agent-template-edits")!)).toEqual({
     tutor: { soul: "- Teach by asking.", name: "  Mentor " },
   });
@@ -32,12 +32,21 @@ it("uses the user's wording for a template and goes back to what ships", () => {
   expect(agentTemplateEdited("tutor")).toBe(false);
 });
 
-it("keeps the shipped text for a field left empty, except a habit, which may be removed", () => {
+it("keeps the shipped text for a field left empty", () => {
   const shipped = AGENT_TEMPLATES.find((template) => template.id === "project-lead")!;
-  saveAgentTemplate("project-lead", { ...shipped, soul: "   ", habit: "" });
+  saveAgentTemplate("project-lead", { ...shipped, soul: "   ", role: "tech lead" });
   const edited = agentTemplate("project-lead")!;
   expect(edited.soul).toBe(shipped.soul);
-  expect(edited.habit).toBeUndefined();
+  expect(edited.role).toBe("tech lead");
+});
+
+it("is nothing but a named face and a written soul", () => {
+  for (const template of AGENT_TEMPLATES) {
+    expect(Object.keys(template).sort()).toEqual(["avatar", "color", "description", "id", "name", "role", "soul"]);
+    expect(template.soul.startsWith(`You are the user's ${template.role}: `)).toBe(true);
+    expect(templateSoul(template)).toBe(`# Soul\n\n## Standing instructions\n${template.soul}\n`);
+  }
+  expect(new Set(AGENT_TEMPLATES.map((template) => template.id)).size).toBe(AGENT_TEMPLATES.length);
 });
 
 it("saving a template unchanged leaves nothing behind, and broken storage is ignored", () => {

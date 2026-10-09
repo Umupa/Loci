@@ -1714,7 +1714,7 @@ function AgentsPage() {
       <Group id="agent-list" title={t("Your agents")} description={t("Add an agent with the plus beside Agents on the project rail. Its model, projects, soul, habits and memory are set in its Details panel.")}>
         {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No agents yet.")}</p>)}
       </Group>
-      <Group id="agent-templates" title={t("Agent templates")} description={t("What a new agent starts from when you pick a template. The soul is written into the new agent's SOUL.md; the rest is what Loci tells it while it sets itself up. Changes apply to agents made afterwards, not to ones you already have.")}>
+      <Group id="agent-templates" title={t("Agent templates")} description={t("A template is an agent with its soul already written. Picking one writes this soul into the new agent's SOUL.md, and nothing else is sent to it. Changes apply to agents made afterwards.")}>
         {templates.map((template) => <TemplateRow key={template.id} template={template}/>)}
       </Group>
     </>);
@@ -1755,10 +1755,7 @@ function TemplateRow({ template }: { template: AgentTemplate }) {
             {line("role", t("Role"))}
           </div>
           {line("description", t("Line in the menu"))}
-          {text("soul", t("Soul"), t("Written into the new agent's SOUL.md, where you can keep editing it."), 14, true)}
-          {text("job", t("Its job"), t("Completes the sentence \"you are here to …\"."), 2)}
-          {text("ask", t("What it asks you first"), t("Completes \"find out what this job needs: …\"."), 3)}
-          {text("habit", t("Habit it suggests"), t("Optional. Leave empty for none."), 2)}
+          {text("soul", t("Soul"), t("Written into the new agent's SOUL.md. It is everything that makes it this kind of agent."), 18, true)}
           <div className="flex justify-end gap-2">
             <SecondaryButton onClick={() => setDraft(undefined)}>{t("Cancel")}</SecondaryButton>
             <button type="button" className="primary-action rounded-md px-3 py-1 text-xs font-medium" onClick={() => { saveAgentTemplate(template.id, draft); setDraft(undefined); }}>{t("Save")}</button>

@@ -98,7 +98,7 @@ Commands work at the start of a prompt.
 
 ## Agents
 
-Press **+** beside *Agents* on the rail. **New agent** makes a blank one that asks what its one main job should be, names itself, and writes its own standing instructions from your answers. Or start from a built-in template (Tutor, Lead, Watch, Reviewer, Scout, Chief): the job is already settled, its way of working is written into its soul where you can read it, and the agent asks only what that job needs. The templates' wording can be changed under **Settings → Your agents → Agent templates**. Everything it settles can be changed later under **Details**.
+Press **+** beside *Agents* on the rail. **New agent** makes a blank one that asks what its one main job should be, names itself, and writes its own standing instructions from your answers. Or start from a built-in template (Tutor, Lead, Watch, Reviewer, Scout, Chief). A template is an agent with its soul already written and nothing more: you read and edit that soul under Details → Soul, and rewrite the templates themselves under **Settings → Your agents → Agent templates**. Everything it settles can be changed later under **Details**.
 
 - **It stays.** An agent has one conversation that never ends, a soul (its standing instructions) and a memory it keeps as it learns. Both are files in Loci's data folder, outside your repositories, and they survive a change of model.
 - **It works in your projects.** Give it projects under Details. It can start sessions there, follow them, and report back when they finish.

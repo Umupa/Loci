@@ -98,7 +98,7 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 
 
 ## Agents
 
-点击侧栏 *Agents* 旁边的 **+**。**New agent** 创建一个空白 agent，它会先问你它的主要工作是什么，然后给自己起名，并根据你的回答写下自己的常驻指令。也可以从内置模板开始（Tutor、Lead、Watch、Reviewer、Scout、Chief）：工作已经定好，它的工作方法直接写进 soul 里可以查看，agent 只问这份工作需要知道的事。模板的措辞可以在 **Settings → Your agents → Agent templates** 里修改。这些之后都可以在 **Details** 里修改。
+点击侧栏 *Agents* 旁边的 **+**。**New agent** 创建一个空白 agent，它会先问你它的主要工作是什么，然后给自己起名，并根据你的回答写下自己的常驻指令。也可以从内置模板开始（Tutor、Lead、Watch、Reviewer、Scout、Chief）。模板就是一个已经写好 soul 的 agent，仅此而已：这份 soul 在 Details → Soul 里查看和编辑，模板本身在 **Settings → Your agents → Agent templates** 里改写。这些之后都可以在 **Details** 里修改。
 
 - **它一直在。** 一个 agent 有一段不会结束的对话、一份 soul（常驻指令）和一份边学边记的记忆。两者都是 Loci 数据目录里的文件，不在你的仓库里，换模型也不会丢。
 - **它在你的项目里干活。** 在 Details 里把项目交给它。它可以在其中启动会话、跟进，并在完成后回来汇报。
