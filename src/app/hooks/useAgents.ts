@@ -1,5 +1,6 @@
-import { agentTemplate } from "../../features/agents/model/agentTemplates";
-import { deleteAgentDocument } from "../../features/agents/model/agentDocuments";
+import { agentTemplate, templateSoul } from "../../features/agents/model/agentTemplates";
+import { deleteAgentDocument, saveAgentDocuments } from "../../features/agents/model/agentDocuments";
+import { documentsInText } from "../../features/sessions/model/cards";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { homeDir } from "../../platform/tauri/fs";
@@ -11,7 +12,7 @@ import {
   agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
 } from "../../features/agents/model/agent";
-import { agentSetupPrompt, forgetAgentContext } from "../../features/agents/model/agentFiles";
+import { agentSetupPrompt, forgetAgentContext, loadAgentFiles, saveAgentFile } from "../../features/agents/model/agentFiles";
 import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession } from "../../features/agents/model/agentWorkspace";
@@ -59,6 +60,29 @@ export function useAgents(options: Options) {
       if (session) map.set(agent.id, agentState(session));
     }
     return map;
+  }, [agents, sessions]);
+
+  // A document goes into the agent's library as soon as its message is complete, not when
+  // the turn ends: a turn can run on for minutes after the document was written.
+  const filed = useRef(new Map<string, Set<string>>());
+  useEffect(() => {
+    for (const agent of agents) {
+      const session = agent.sessionId ? sessions.find((entry) => entry.id === agent.sessionId) : undefined;
+      if (!session) continue;
+      const known = filed.current.get(session.id);
+      const seen = known ?? new Set<string>();
+      if (!known) filed.current.set(session.id, seen);
+      for (const block of session.blocks) {
+        if (block.role !== "assistant" || block.tool || block.streaming) continue;
+        const key = `${block.id}:${block.text.length}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // What was already there when the conversation loaded is in the library, or was removed from it.
+        if (!known) continue;
+        const documents = documentsInText(block.text);
+        if (documents.length) void saveAgentDocuments(agent.id, documents).catch(() => undefined);
+      }
+    }
   }, [agents, sessions]);
 
   /** Earlier turns of the conversation in view, read back from its archived pages. */
@@ -153,6 +177,8 @@ export function useAgents(options: Options) {
       setDetailsOpen(true);
       setViewId(agent.id);
       latest.current.onShow();
+      // What the template brings is its soul from the start, where the user can read and change it.
+      if (template) await saveAgentFile(agent.id, "soul", templateSoul(template), (await loadAgentFiles(agent.id)).soulHash);
       await latest.current.submission.submit(session.id, "New agent", [], { agentSetup: agentSetupPrompt(latest.current.knownProjects(), template) });
     } catch (error) {
       latest.current.onError(error);
