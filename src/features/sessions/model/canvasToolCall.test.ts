@@ -53,3 +53,37 @@ it("names existing-element edits and links their returned checkpoint", () => {
   expect(canvasWorkSummary([edit], false)).toBe("Edited canvas elements");
   expect(canvasToolCall(tool("loci_excalidraw:get_elements", { kind: "read" }))).toMatchObject({ tool: "get_elements", done: "Inspected canvas elements" });
 });
+
+describe("canvas calls through the app's CLI", () => {
+  // As an agent without the MCP server runs them: a shell row holding the command.
+  const shell = (command: string, extra: Partial<NonNullable<Block["tool"]>> = {}): Block =>
+    tool(command, { kind: "execute", preview: { kind: "shell", title: command }, ...extra });
+  const cli = "'/Applications/Loci.app/Contents/MacOS/loci'";
+  const draw = shell(`${cli} canvas create_view --input /tmp/drawing.json`, {
+    detail: 'Saved to Loci: [Plan](loci://canvas/c1). Include this link in your reply so the user can open the canvas.\nCheckpoint id: "9f8e7d6c5b4a392817".',
+  });
+  const help = shell(`${cli} canvas --help`);
+
+  it("reads as the same canvas work as a call over MCP, and links the drawing", () => {
+    expect(canvasToolCall(draw)).toEqual({ tool: "create_view", ask: "Draw on the canvas", running: "Drawing on the canvas", done: "Drew on the canvas", checkpointId: "9f8e7d6c5b4a392817" });
+    expect(canvasToolCall(shell(`${cli} canvas read_widget_context`))).toMatchObject({ tool: "read_widget_context", done: "Read the canvas" });
+    expect(canvasToolCall(shell(`${cli} canvas update_elements --json '{"checkpointId":"a","expectedRevision":1,"updates":[]}'`, { detail: '{"checkpointId":"changed_1"}' })))
+      .toMatchObject({ tool: "update_elements", checkpointId: "changed_1" });
+    // An approval for the command is named the same way.
+    expect(canvasToolCall({ ...draw, role: "approval" })).toMatchObject({ tool: "create_view" });
+    // A title that was shortened for display still resolves through the shell preview.
+    expect(canvasToolCall(tool("Run loci", { kind: "execute", preview: { kind: "shell", title: "loci canvas read_me" } }))).toMatchObject({ tool: "read_me" });
+  });
+
+  it("leaves compound commands, other servers and mentions to the shell row", () => {
+    for (const command of [`${cli} canvas read_me; rm -rf ~`, `${cli} learn map_read`, `${cli} app canvas.list`, `echo ${cli} canvas read_me`, `${cli} canvas save_checkpoint --json '{}'`])
+      expect(canvasToolCall(shell(command)), command).toBeUndefined();
+    expect(canvasToolCall(help)).toBeUndefined();
+  });
+
+  it("titles the group for the drawing, counting a look at the tool list as part of it", () => {
+    expect(workSummaryLine([help, draw], false)).toBe("Drew on the canvas");
+    expect(workSummaryLine([help, shell(`${cli} canvas read_me`)], true)).toBe("Reading the Excalidraw reference");
+    expect(canvasWorkSummary([draw, shell("ls -la")], false)).toBeUndefined();
+  });
+});

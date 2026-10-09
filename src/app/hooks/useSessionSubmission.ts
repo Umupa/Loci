@@ -25,9 +25,10 @@ import { titleFromPrompt } from "../../features/sessions/model/session";
 import { displayAttachments, prepareAttachments } from "../../features/sessions/model/attachments";
 import { preparePrompt } from "../../features/sessions/model/promptPreparation";
 import { consumeOperatorCommand, operatorEnabledInThread } from "../../features/sessions/model/operatorCommand";
+import { canvasCliPrompt, usesBuiltinCli } from "../../features/sessions/model/builtinCli";
 import { learnEditHint } from "../../features/learn/bridge";
 import {
-  consumeLearnCommand, LEARN_CONTINUE_PROMPT, LEARN_PROMPT, learnEnabledInThread, supportsLearnHarness,
+  consumeLearnCommand, LEARN_CONTINUE_PROMPT, LEARN_PROMPT, learnCliPrompt, learnEnabledInThread, supportsLearnHarness,
 } from "../../features/learn/learnCommand";
 import {
   appendPreparingHandoff, buildDeterministicHandoff, chooseHandoffBrief,
@@ -57,6 +58,7 @@ import { composeNoteMessage, noteCardMeta, type NoteComposerCard } from "../../f
 import { looksLikeProject } from "../../features/projects/model/recents";
 import { isNativeCommandPrompt } from "../../features/skills/model/skills";
 import { loadFollowUpBehavior, type FollowUpBehavior } from "../../features/settings/model/settings";
+import { loadCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import type { SubmissionAcceptance } from "../model/submissionAcceptance";
 import type { SessionRuntime } from "./useSessionRuntime";
 
@@ -83,8 +85,13 @@ function shellPath(path: string): string {
   return `'${path.replace(/'/g, `'"'"'`)}'`;
 }
 
+/** The app's own executable as an agent types it: it is also the CLI for /operator and the built-in tools. */
+async function appCli(): Promise<string> {
+  return shellPath(await invoke<string>("app_cli_path"));
+}
+
 async function operatorPrompt(): Promise<string> {
-  const cli = `${shellPath(await invoke<string>("app_cli_path"))} app`;
+  const cli = `${await appCli()} app`;
   return `\n\n<loci_app>\nThe user's Operator command enables app access in this thread, including later turns without the command. You can start session tabs or split session panes right or down, read and continue other project sessions, save unsent drafts, organize session folders, and read or write saved notes through its local CLI. You can also list, create, rename, and delete Excalidraw canvases, and read or write their scene data (Excalidraw JSON) via canvas.read-data and canvas.write-data in the current project. Read the existing scene before extending it: write-data replaces the whole scene and updates open panes. Basic programmatic shapes support labels and are normalized by Excalidraw; full scenes retain images and bindings. Each write must use either all native elements or all shorthand elements; normalize new elements before appending to a native scene. When the built-in loci_excalidraw MCP tools (read_me, create_view, read_widget_context, get_elements, update_elements) are available, use create_view for new elements, and get_elements plus update_elements for precise edits to existing IDs: they draw on these same canvases, keep the user's edits, and a canvas id from canvas.list works as their checkpoint id. Use this CLI for listing, renaming, deleting, or replacing a whole scene; canvas.write-data does not accept MCP cameraUpdate/delete/restoreCheckpoint commands. Run \`${cli} --help\` for exact commands and JSON fields, then use it as needed for the user's request. When reading another session, start with its latest two or three user/assistant exchanges. Request older exchanges with nextBefore or a larger excerpt only if needed. The CLI uses a session credential already in your environment; never print it. New sessions inherit this session's permission mode unless runtimeMode is set explicitly. For a new session with a draft, call sessions.start with its prompt and draft:true; do not submit a seed prompt. The returned ID can be used as besideSessionId to split its pane again or moved into a folder immediately. A normal sessions.start submits its prompt but returns after acceptance, so do not wait for that agent to finish before organizing it.\n</loci_app>`;
 }
 
@@ -145,7 +152,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     if (learning.matched && (!supportsLearnHarness(current.harness) || !looksLikeProject(current.cwd))) {
       enqueueHarnessEvent(sessionId, { type: "session.error", message: supportsLearnHarness(current.harness)
         ? "Open the subject's folder as a project first: /learn keeps one learning map per project."
-        : "/learn needs a Claude Code or Codex session: the learning map is reached through Loci's built-in MCP server." });
+        : "/learn needs a Claude Code, Codex, Antigravity or Pi session: other agent CLIs cannot reach the learning map yet." });
       flushHarnessEvents();
       return false;
     }
@@ -164,6 +171,11 @@ export function useSessionSubmission(options: SubmissionOptions) {
       ...((options?.appRequestId ?? draft?.appRequestId)
         ? { appRequestId: options?.appRequestId ?? draft?.appRequestId } : {}),
     };
+    // An agent without the MCP server learns of the project's canvases from a note on a turn,
+    // once per provider conversation. Turning the switch on later sends it with the next turn.
+    const cliTools = usesBuiltinCli(current.harness);
+    const canvasNote = cliTools && !rawCommand && looksLikeProject(current.cwd) && loadCanvasMcpEnabled() &&
+      (!current.providerSessionId || !current.blocks.some((block) => block.role === "user" && !block.draft && block.canvasCli));
     if (current.busy && !pendingSwitch) {
       if ((activation.matched || learning.matched) && options?.queuedMessageId && options.followUpBehavior === "steer") return false;
       const followUp = activation.matched || learning.matched ? "queue"
@@ -282,7 +294,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       if (edited) next = edited.replace(next);
       if (options?.queuedMessageId) next = dequeueQueuedMessage(next, options.queuedMessageId);
       if (pendingSwitch) next = appendPreparingHandoff(stopStreaming({ ...next, pendingSwitch: undefined }), pendingSwitch.from, next.harness);
-      return appendUser(next, visibleText, visible, cards);
+      return appendUser(next, visibleText, visible, canvasNote ? { ...cards, canvasCli: true } : cards);
     }));
     if (edited) editedResends.start(sessionId);
     else commitSubmittedTurn();
@@ -355,10 +367,12 @@ export function useSessionSubmission(options: SubmissionOptions) {
         let sendText = wrap && !rawCommand ? wrapHandoffPrompt(wrap.text, wrap.from, prompt.trim() || CONTINUE_PROMPT,
           queuedHandoff ? userMessagesAfterHandoff(current) : []) : prompt;
         if (activation.matched) sendText += await operatorPrompt();
-        if (learning.matched) sendText += LEARN_PROMPT;
+        if (learning.matched) sendText += cliTools ? learnCliPrompt(await appCli()) : LEARN_PROMPT;
         if (learning.matched && options?.learnFocus) sendText += `\n\n<loci_learn_focus>The learner opened this session from the map node with id "${options.learnFocus.nodeId}", named in their message, to ${options.learnFocus.intent === "revisit" ? "revisit it" : "explore it"}. After map_read, go straight to that.</loci_learn_focus>`;
         // What the learner drew on the map since this session last read it is part of the turn.
         if (learnAccess) sendText += await learnEditHint(current).catch(() => "");
+        // A turn must not fail over a note.
+        if (canvasNote) sendText += await appCli().then(canvasCliPrompt, () => "");
         if (!isCurrent()) return;
         await sendHarnessTurn({ harness: current.harness, sessionId, cwd: current.cwd,
           model: current.model, modelSettings: current.modelSettings, providerAccountId,

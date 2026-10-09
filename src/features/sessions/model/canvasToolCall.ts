@@ -1,4 +1,5 @@
 import { CANVAS_MCP_NAME, canvasMcpTool, isCanvasWriteTool, type CanvasMcpTool } from "../../canvas/mcpServer";
+import { blockShellCommand, builtinCliCall } from "./builtinCli";
 import type { Block } from "./session";
 
 export type CanvasToolCall = {
@@ -19,16 +20,23 @@ const WORDING: Record<CanvasMcpTool, [ask: string, running: string, done: string
   update_elements: ["Edit canvas elements", "Editing canvas elements", "Edited canvas elements"],
 };
 
-/** A call to Loci's built-in Excalidraw MCP server, as Claude or Codex titles it. */
+/** The canvas tool a shell row ran through the app's CLI, for agents without the MCP server. */
+function canvasCliTool(block: Block): CanvasMcpTool | undefined {
+  const call = builtinCliCall(blockShellCommand(block));
+  return call?.namespace === "canvas" && call.tool !== "help" ? call.tool : undefined;
+}
+
+/** A call to Loci's built-in Excalidraw server: an MCP tool as Claude or Codex titles it, or the app's CLI. */
 export function canvasToolCall(block: Block): CanvasToolCall | undefined {
   if (block.role !== "tool" && block.role !== "approval") return undefined;
   const tool =
     canvasMcpTool(block.tool?.title) ??
     canvasMcpTool(block.text) ??
-    canvasMcpTool(block.tool?.kind);
+    canvasMcpTool(block.tool?.kind) ??
+    canvasCliTool(block);
   if (!tool) return undefined;
   const [ask, running, done] = WORDING[tool];
-  // Claude reports the structured result, Codex the server's sentence.
+  // Claude reports the structured result, Codex and the CLI the server's sentence.
   const checkpointId =
     isCanvasWriteTool(tool)
       ? block.tool?.detail?.match(
@@ -38,13 +46,12 @@ export function canvasToolCall(block: Block): CanvasToolCall | undefined {
   return { tool, ask, running, done, ...(checkpointId ? { checkpointId } : {}) };
 }
 
-/** Looking a deferred canvas tool up is part of using it, not a project search. */
+/** Looking a deferred canvas tool up, or listing the CLI's tools, is part of using it, not a project search. */
 function isCanvasToolLookup(block: Block): boolean {
   const query = block.tool?.preview?.query ?? block.tool?.title ?? block.text;
-  return (
-    block.role === "tool" &&
-    new RegExp(`(?:^|\\s)select:mcp__${CANVAS_MCP_NAME}__[a-z_,:]+$`).test(query?.trim() ?? "")
-  );
+  if (block.role === "tool" && new RegExp(`(?:^|\\s)select:mcp__${CANVAS_MCP_NAME}__[a-z_,:]+$`).test(query?.trim() ?? "")) return true;
+  const call = builtinCliCall(blockShellCommand(block));
+  return call?.namespace === "canvas" && call.tool === "help";
 }
 
 /** A group of only canvas calls is named for what it did to the drawing. */

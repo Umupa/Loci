@@ -13,12 +13,12 @@ export const CANVAS_MCP_NAME = "loci_excalidraw";
 const FORWARDED_ENV = ["LOCI_APP_ENDPOINT", "LOCI_APP_TOKEN"];
 
 export type CanvasMcpTool = "read_me" | "create_view" | "read_widget_context" | "get_elements" | "update_elements";
-const TOOLS: readonly CanvasMcpTool[] = ["read_me", "create_view", "read_widget_context", "get_elements", "update_elements"];
+export const CANVAS_MCP_TOOLS: readonly CanvasMcpTool[] = ["read_me", "create_view", "read_widget_context", "get_elements", "update_elements"];
 
 /** Recognize the built-in server's tools as Claude (`mcp__loci_excalidraw__x`) and Codex (`loci_excalidraw:x`) name them. */
 export function canvasMcpTool(name: string | undefined): CanvasMcpTool | undefined {
   const match = name?.trim().match(new RegExp(`(?:^|\\s)(?:mcp__${CANVAS_MCP_NAME}__|${CANVAS_MCP_NAME}[:.])([a-z_]+)$`));
-  return TOOLS.find((tool) => tool === match?.[1]);
+  return CANVAS_MCP_TOOLS.find((tool) => tool === match?.[1]);
 }
 
 /**
@@ -78,5 +78,5 @@ export function codexCanvasApprovalTool(params: unknown): CanvasMcpTool | undefi
   const request = params as { serverName?: unknown; message?: unknown; _meta?: { codex_approval_kind?: unknown } } | null;
   if (request?.serverName !== CANVAS_MCP_NAME || request._meta?.codex_approval_kind !== "mcp_tool_call") return undefined;
   const named = typeof request.message === "string" ? request.message.match(/\btool "([a-z_]+)"/)?.[1] : undefined;
-  return TOOLS.find((tool) => tool === named);
+  return CANVAS_MCP_TOOLS.find((tool) => tool === named);
 }

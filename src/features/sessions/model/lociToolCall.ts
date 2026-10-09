@@ -1,4 +1,6 @@
+import { builtinCliCall } from "./builtinCli";
 import type { Block } from "./session";
+import { shellWords } from "./shellWords";
 
 export type LociToolCall = {
   action: string;
@@ -27,61 +29,6 @@ const ACTION_LABELS: Record<string, string> = {
   "canvas.write-data": "Write canvas scene data",
 };
 
-/** Conservatively parse one shell invocation; compound commands use the shell row. */
-function shellWords(command: string): string[] | undefined {
-  const words: string[] = [];
-  let word = "";
-  let started = false;
-  let quote: "'" | '"' | null = null;
-  for (let index = 0; index < command.length; index += 1) {
-    const char = command[index];
-    if (quote === "'") {
-      if (char === "'") quote = null;
-      else word += char;
-      continue;
-    }
-    if (char === "'" && !quote) {
-      quote = "'";
-      started = true;
-      continue;
-    }
-    if (char === '"') {
-      quote = quote === '"' ? null : '"';
-      started = true;
-      continue;
-    }
-    if (char === "\\") {
-      const next = command[index + 1];
-      if (!next) return undefined;
-      // Preserve ordinary path separators, including quoted Windows paths.
-      if (
-        (quote === '"' && !/[\\"$`]/.test(next)) ||
-        (!quote && !/[\s'"\\;&|<>()[\]{}$`#]/.test(next))
-      ) {
-        word += char;
-      } else {
-        word += next;
-        index += 1;
-      }
-      started = true;
-      continue;
-    }
-    if (char === "$" || char === "`") return undefined;
-    if (!quote && /[\r\n;&|<>()[\]{}#]/.test(char)) return undefined;
-    if (!quote && /\s/.test(char)) {
-      if (started) words.push(word);
-      word = "";
-      started = false;
-      continue;
-    }
-    word += char;
-    started = true;
-  }
-  if (quote) return undefined;
-  if (started) words.push(word);
-  return words;
-}
-
 /** Recognize the actual app CLI command, not a mention of it in prose/output. */
 export function lociToolCall(block: Block): LociToolCall | undefined {
   if (block.role !== "tool" && block.role !== "approval") return undefined;
@@ -98,6 +45,16 @@ export function lociToolCall(block: Block): LociToolCall | undefined {
   const words = shellWords(command);
   if (!words || !/(?:^|[/\\])loci(?:\.exe)?$/i.test(words[0] ?? ""))
     return undefined;
+  // Asking which canvas or learning tools exist; a call of one is named by
+  // canvasToolCall or learnToolCall for what it does.
+  const builtin = builtinCliCall(command);
+  if (builtin?.tool === "help") {
+    return {
+      action: "--help",
+      label: builtin.namespace === "learn" ? "View learning tools" : "View canvas tools",
+      command,
+    };
+  }
   if (words[1] !== "app") return undefined;
   const action = words[2] ?? "--help";
   if (action === "--help" || action === "help" || action === "-h") {

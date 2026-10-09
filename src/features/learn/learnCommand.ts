@@ -11,8 +11,12 @@ export const LEARN_COMMAND: BuiltinSkill = {
   source: "loci",
 };
 
-/** The learning map is reached through a built-in MCP server, which only these harnesses are given. */
-export const LEARN_HARNESSES: readonly HarnessId[] = ["claude", "codex"];
+/**
+ * The harnesses that can reach the learning map: Claude Code and Codex are
+ * given the built-in MCP server, the others call the same server through the
+ * app's CLI (see builtinCli.ts). The order is the preference for a new session.
+ */
+export const LEARN_HARNESSES: readonly HarnessId[] = ["claude", "codex", "antigravity", "pi"];
 
 export function supportsLearnHarness(harness: HarnessId | undefined): boolean {
   return harness != null && LEARN_HARNESSES.includes(harness);
@@ -128,3 +132,11 @@ export const LEARN_PROMPT = learnPrompt(
   "through the loci_learn MCP tools (map_read, map_init, map_sketch, map_record, revisit)",
   "with the loci_excalidraw tools",
 );
+
+/** The same rules for an agent that calls the learning tools through the app's CLI, `cli` being its quoted path. */
+export function learnCliPrompt(cli: string): string {
+  return learnPrompt(
+    `through the learning tools of Loci's local CLI (map_read, map_init, map_sketch, map_record, revisit): run \`${cli} learn TOOL --json '<arguments>'\`, and \`${cli} learn --help\` once for each tool's arguments. The CLI uses a session credential already in your environment; never print it`,
+    `with \`${cli} canvas\` (\`${cli} canvas --help\` lists its tools)`,
+  );
+}

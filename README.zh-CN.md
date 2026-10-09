@@ -28,7 +28,7 @@ Loci 是一个本地优先的 agent CLI 桌面外壳，使用 Tauri 2、Rust、R
 - **十个 agent CLI，一个界面。** Claude Code、Codex、Cursor、Grok Build、OpenCode、Pi、omp、fx、Hermes Agent 和 Antigravity。每个 CLI 继续使用它自己的登录和设置。每个会话可以单独选择模型和权限模式（Supervised、Auto-accept edits、Auto、Full access）。
 - **为长时间运行的 agent 准备的工作区。** 标签和拖拽分栏、agent 提问、计划与任务显示、带文件夹的会话列表、⌘K 跨会话搜索、图片和文档附件、手动提醒及桌面通知。
 - **笔记和画布是一等对象。** 可以在输入框里用 `@` 引用的 Markdown 笔记，以及 Excalidraw 画布。回复里可以用 `loci://note/<id>`、`loci://canvas/<id>` 链接它们，点击后在当前窗口打开。
-- **会画图的 agent。** Claude Code 和 Codex 会话自带内置的 `loci_excalidraw` MCP：未经修改的官方 Excalidraw MCP 服务，写入 Loci 自己的画布存储。你的手动修改会被保留，面板实时更新。见 [docs/canvas-mcp.md](docs/canvas-mcp.md)。
+- **会画图的 agent。** Claude Code 和 Codex 会话自带内置的 `loci_excalidraw` MCP：未经修改的官方 Excalidraw MCP 服务，写入 Loci 自己的画布存储。Antigravity 和 Pi 会话通过 Loci 自带的 CLI 使用同一组工具，不需要安装或配置。你的手动修改会被保留，面板实时更新。见 [docs/canvas-mcp.md](docs/canvas-mcp.md)。
 - **`/operator`。** 让 agent 操作 Loci 本身：读取模型、启动和发送会话、调整分栏、整理文件夹、读写笔记和画布。它走一条带认证的本机回环通道，只在你启用它的那一个 turn 内有效。
 - **`/learn`。** 在一张只由你用自己的话讲出来的内容长出来的图上学习一个主题。见[用 Loci 学习](#用-loci-学习)。
 - **主题、壁纸与字体。** Settings → Appearance 提供 22 个 Omarchy 主题、配套代码高亮和 72 张壁纸，也支持自选背景与系统已安装的字体。沿用背景效果、显示范围和透明度，自定义强调色优先。见 [docs/themes.md](docs/themes.md)。
@@ -71,12 +71,14 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 
 | CLI | 说明 |
 | --- | --- |
 | Claude Code、Codex | 完整功能：账号管理与额度查询、内置 MCP 服务、`/learn` |
-| Cursor、Grok Build、OpenCode、Pi、omp、fx、Hermes Agent、Antigravity | 通过 CLI 自己的协议聊天，并选择模型和权限。除此之外能显示多少（提问、计划、工具详情）取决于 CLI 上报什么 |
+| Antigravity、Pi | 对话、模型和权限选择，并通过 Loci 的 CLI 使用画布工具和 `/learn` |
+| Cursor、Grok Build、OpenCode、omp、fx、Hermes Agent | 通过 CLI 自己的协议聊天，并选择模型和权限。除此之外能显示多少（提问、计划、工具详情）取决于 CLI 上报什么 |
 
 需要知道的细节：
 
 - 账号管理和额度查询目前只支持 Claude Code 和 Codex。
 - Antigravity 使用独立的 ACP server。遇到认证提示时，请点击应用内的 **Sign in to Antigravity**；交互式 `agy` 的登录不能替代它。
+- Antigravity 和 Pi 通过运行命令来调用画布和学习工具，所以它们是在对话里被告知这些工具的，而不是通过工具列表。Pi 做任何事之前都不询问，画图也一样；Plan 模式下 Pi 没有 shell，用不了这些工具。
 - fx 暂不支持附件。
 - 未安装的 CLI 仍会显示在设置里，并附安装提示。
 
@@ -87,7 +89,7 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 
 | 命令 | 作用 |
 | --- | --- |
 | `/operator` | 让当前会话能访问 Loci 的会话、文件夹、笔记和画布 |
-| `/learn` | 在一张只记录你自己讲出来的内容的图上学习一个主题（Claude Code 和 Codex） |
+| `/learn` | 在一张只记录你自己讲出来的内容的图上学习一个主题（Claude Code、Codex、Antigravity 和 Pi） |
 | `/btw` | 就当前 turn 问一个只读的旁问 |
 | `/draft` | 保存这条消息，但不启动 agent |
 | `/compact` | 总结较早的对话内容，腾出上下文空间 |
@@ -96,7 +98,7 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 
 
 ## 用 Loci 学习
 
-在 Claude Code 或 Codex 会话里输入 `/learn`。项目文件夹就是主题，比如 `~/learn/kubernetes`，Loci 在其中维护一张“学习图”画布。
+在 Claude Code、Codex、Antigravity 或 Pi 会话里输入 `/learn`。项目文件夹就是主题，比如 `~/learn/kubernetes`，Loci 在其中维护一张“学习图”画布。
 
 - **实心表示你讲出来过。** 节点只有在你用自己的话讲出来之后才变成实心。agent 记下一段原话，Loci 逐字核对它是不是你真的输入过的内容；它不能是摘要，也不能是 agent 自己的解释。
 - **先有画像、路线图和资料。** 开讲之前，agent 先给你看这个领域的全景，访谈你（目标、水平、深度、语言、怎么讲你最容易懂），写成 `profile.md`；再把路线排进 `roadmap.md`，把阶段和主题作为虚线节点画到图上，并把每个主题的阅读资料收进 `sources/`：完整的全文，用你选的语言，原文没有该语言版本时全文翻译。这一部分由技能的提示词规定，agent 用它自己的搜索和文件工具完成。

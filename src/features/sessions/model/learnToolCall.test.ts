@@ -47,3 +47,33 @@ describe("learning map calls in a transcript", () => {
     expect(learnWorkSummary([claudeRecord, { id: "note", role: "system", text: "Compacted" }], false)).toBeUndefined();
   });
 });
+
+describe("learning map calls through the app's CLI", () => {
+  // As an agent without the MCP server runs them: a shell row holding the command.
+  const shell = (command: string, extra: Partial<NonNullable<Block["tool"]>> = {}): Block =>
+    tool(command, { kind: "execute", preview: { kind: "shell", title: command }, ...extra });
+  const cli = "/Applications/Loci.app/Contents/MacOS/loci";
+  const read = shell(`${cli} learn map_read`);
+  const record = shell(`${cli} learn map_record --input /tmp/record.json`);
+  const help = shell(`${cli} learn --help`);
+
+  it("reads as the same learning work as a call over MCP", () => {
+    expect(learnToolCall(record)).toEqual({ tool: "map_record", ask: "Record on the learning map", running: "Recording on the learning map", done: "Recorded on the learning map" });
+    expect(learnToolCall(read)).toMatchObject({ tool: "map_read" });
+    expect(learnToolCall(shell(`'${cli}' learn revisit --json '{"phase":"start","nodeId":"n1"}'`))).toMatchObject({ tool: "revisit" });
+    expect(learnToolCall({ ...record, role: "approval" })).toMatchObject({ tool: "map_record" });
+    expect(toolCallLabel(record)).toBe("Record on the learning map");
+  });
+
+  it("leaves compound commands, other servers and unknown tools to the shell row", () => {
+    for (const command of [`${cli} learn map_read && cat notes.md`, `${cli} canvas read_me`, `${cli} learn delete_everything`, `echo ${cli} learn map_read`])
+      expect(learnToolCall(shell(command)), command).toBeUndefined();
+    expect(learnToolCall(help)).toBeUndefined();
+  });
+
+  it("titles the group for the map, counting a look at the tool list as part of it", () => {
+    expect(workSummaryLine([help, read], false)).toBe("Read the learning map");
+    expect(workSummaryLine([help, read, record], true)).toBe("Recording on the learning map");
+    expect(learnWorkSummary([read, shell("ls sources/")], false)).toBeUndefined();
+  });
+});

@@ -14,6 +14,10 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 const APP_TURN_INACTIVE: &str = "Loci app access is inactive. Use /operator once in this thread to enable it, then call the CLI during an active agent turn. Retrying this request now will not enable access.";
 const CANVAS_TURN_INACTIVE: &str = "Loci canvas access is only available while this session's agent turn is running. Retrying this request now will not enable access.";
 const LEARN_TURN_INACTIVE: &str = "Loci learning access is inactive. The learner starts it with /learn in this thread, and it is only available during an active agent turn. Retrying this request now will not enable access.";
+const CANVAS_DISABLED: &str = "Loci's built-in Excalidraw canvas tools are turned off in Settings → MCP. Turning them on there applies from this session's next turn. Retrying this request now will not enable access.";
+/// Asked by the app's own CLI: which stdio command runs a built-in MCP server.
+/// The host answers it; a window never sees it.
+const MCP_SERVER_ACTION: &str = "mcp.server";
 const APP_REQUEST_MAX: usize = 262_144;
 /// A canvas save carries drawing elements. The official Excalidraw MCP server
 /// accepts 5 MB of them, so leave room for the JSON envelope around that.
@@ -33,6 +37,9 @@ struct ActiveTurn {
     window: String,
     app_allowed: bool,
     learn_allowed: bool,
+    /// The built-in Excalidraw switch as it was when the turn started, so a
+    /// change applies from the next turn and a running turn can finish.
+    canvas_allowed: bool,
 }
 
 #[derive(Default)]
@@ -125,9 +132,11 @@ struct Event {
     input: Value,
 }
 /// `app` is the /operator CLI and needs the thread's opt-in. `canvas` is the
-/// built-in Excalidraw MCP: every session may draw, but only on its own
-/// project's canvases and only while its turn runs. `learn` is the built-in
-/// learning MCP and needs the thread's /learn opt-in.
+/// built-in Excalidraw server: every session may draw while the switch in
+/// Settings is on, but only on its own project's canvases and only while its
+/// turn runs. `learn` is the built-in learning server and needs the thread's
+/// /learn opt-in. Both servers are reached the same way whether an agent CLI
+/// attached them over MCP or calls them through the app's CLI.
 fn request_grant(host: &Inner, namespace: &str, token: &str) -> Result<Grant, String> {
     if !matches!(namespace, "app" | "canvas" | "learn") {
         return Err("Unknown control namespace".into());
@@ -143,7 +152,8 @@ fn request_grant(host: &Inner, namespace: &str, token: &str) -> Result<Grant, St
         .get(&grant.session)
         .filter(|turn| turn.window == grant.window);
     match namespace {
-        "canvas" if turn.is_some() => Ok(grant),
+        "canvas" if turn.is_some_and(|turn| turn.canvas_allowed) => Ok(grant),
+        "canvas" if turn.is_some() => Err(CANVAS_DISABLED.into()),
         "canvas" => Err(CANVAS_TURN_INACTIVE.into()),
         "learn" if turn.is_some_and(|turn| turn.learn_allowed) => Ok(grant),
         "learn" => Err(LEARN_TURN_INACTIVE.into()),
@@ -222,21 +232,34 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
         }
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = mpsc::channel();
+        let hosted = request.action == MCP_SERVER_ACTION
+            && matches!(request.namespace.as_str(), "canvas" | "learn");
         let grant = {
             let mut host = inner.lock().map_err(|_| "Control service unavailable")?;
             let grant = request_grant(&host, &request.namespace, &request.token)?;
-            if host.pending.len() >= 24 {
-                return Err("Too many pending control requests".into());
+            if !hosted {
+                if host.pending.len() >= 24 {
+                    return Err("Too many pending control requests".into());
+                }
+                host.pending.insert(
+                    id.clone(),
+                    Pending {
+                        window: grant.window.clone(),
+                        reply: tx,
+                    },
+                );
             }
-            host.pending.insert(
-                id.clone(),
-                Pending {
-                    window: grant.window.clone(),
-                    reply: tx,
-                },
-            );
             grant
         };
+        if hosted {
+            // Looking up the runtime can take a moment; the lock is released.
+            let server = if request.namespace == "learn" {
+                crate::canvas_mcp::learn_server(app)
+            } else {
+                crate::canvas_mcp::canvas_server(app)
+            }?;
+            return Ok(json!({"ok": true, "result": server}));
+        }
         let event = Event {
             id: id.clone(),
             namespace: request.namespace,
@@ -261,6 +284,7 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
         if error == APP_TURN_INACTIVE
             || error == CANVAS_TURN_INACTIVE
             || error == LEARN_TURN_INACTIVE
+            || error == CANVAS_DISABLED
         {
             json!({"ok": false, "error": error, "retryable": false})
         } else {
@@ -277,6 +301,7 @@ pub fn control_authorize_turn(
     cwd: String,
     app_access: bool,
     learn_access: bool,
+    canvas_access: bool,
 ) -> Result<(), String> {
     let cwd = std::fs::canonicalize(crate::fs::expand_home(&cwd)).map_err(|e| e.to_string())?;
     if !cwd.is_dir() {
@@ -293,6 +318,7 @@ pub fn control_authorize_turn(
             window: window.label().into(),
             app_allowed: app_access,
             learn_allowed: learn_access,
+            canvas_allowed: canvas_access,
         },
     );
     Ok(())
@@ -318,6 +344,15 @@ pub fn window_closed(app: &AppHandle, label: &str) {
         inner.close_window(label);
     };
 }
+/// A provider may start its process under a generation-scoped id
+/// (`<session>#<n>`, as Antigravity does). The credential belongs to the
+/// session that owns the process, whatever generation it is.
+fn owning_session(child_id: &str) -> &str {
+    child_id
+        .split_once('#')
+        .map_or(child_id, |(session, _)| session)
+}
+
 pub fn configure_child(app: &AppHandle, session_id: &str, cmd: &mut Command) {
     cmd.env_remove("LOCI_APP_ENDPOINT")
         .env_remove("LOCI_APP_TOKEN");
@@ -325,7 +360,7 @@ pub fn configure_child(app: &AppHandle, session_id: &str, cmd: &mut Command) {
         return;
     };
     if let Ok(inner) = host.inner.lock() {
-        if let Some(grant) = inner.app_grants.get(session_id) {
+        if let Some(grant) = inner.app_grants.get(owning_session(session_id)) {
             cmd.env("LOCI_APP_ENDPOINT", &host.endpoint)
                 .env("LOCI_APP_TOKEN", &grant.token);
         }
@@ -377,6 +412,7 @@ mod tests {
                 window: "main".into(),
                 app_allowed: false,
                 learn_allowed: false,
+                canvas_allowed: true,
             },
         );
         assert!(request_grant(&inner, "app", &token).is_err());
@@ -405,6 +441,7 @@ mod tests {
                 window: "main".into(),
                 app_allowed: false,
                 learn_allowed: false,
+                canvas_allowed: true,
             },
         );
         assert_eq!(
@@ -416,6 +453,42 @@ mod tests {
         assert!(request_grant(&inner, "canvas", "wrong-token").is_err());
         inner.active.get_mut("session").unwrap().window = "other".into();
         assert!(request_grant(&inner, "canvas", &token).is_err());
+    }
+    #[test]
+    fn the_canvas_switch_is_fixed_for_a_turn_and_refuses_when_off() {
+        let mut inner = Inner::default();
+        inner.prepare_app_grant("session", "main");
+        let token = inner.app_grants["session"].token.clone();
+        inner.active.insert(
+            "session".into(),
+            ActiveTurn {
+                window: "main".into(),
+                app_allowed: true,
+                learn_allowed: true,
+                canvas_allowed: false,
+            },
+        );
+        // Off means off however the agent reaches the server, MCP or CLI.
+        assert_eq!(
+            request_grant(&inner, "canvas", &token).err().as_deref(),
+            Some(CANVAS_DISABLED)
+        );
+        // The switch is about drawing only.
+        assert!(request_grant(&inner, "app", &token).is_ok());
+        assert!(request_grant(&inner, "learn", &token).is_ok());
+        // The next turn carries the new value; nothing changes mid-turn.
+        inner.active.get_mut("session").unwrap().canvas_allowed = true;
+        assert!(request_grant(&inner, "canvas", &token).is_ok());
+    }
+    #[test]
+    fn a_generation_scoped_process_uses_its_sessions_credential() {
+        assert_eq!(owning_session("session"), "session");
+        assert_eq!(owning_session("session#0"), "session");
+        assert_eq!(owning_session("session#12"), "session");
+        let mut inner = Inner::default();
+        inner.prepare_app_grant("session", "main");
+        assert!(inner.app_grants.contains_key(owning_session("session#3")));
+        assert!(!inner.app_grants.contains_key(owning_session("other#3")));
     }
     #[test]
     fn learn_access_needs_its_own_opt_in_and_grants_nothing_else() {
@@ -432,6 +505,7 @@ mod tests {
                 window: "main".into(),
                 app_allowed: true,
                 learn_allowed: false,
+                canvas_allowed: true,
             },
         );
         // Operator access does not open the learning map.
@@ -469,6 +543,7 @@ mod tests {
                     window: window.into(),
                     app_allowed: true,
                     learn_allowed: false,
+                    canvas_allowed: true,
                 },
             );
         }

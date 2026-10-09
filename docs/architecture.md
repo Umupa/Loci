@@ -18,7 +18,7 @@ Loci is a [Tauri 2](https://v2.tauri.app/) app: a Rust host process and the syst
          │ HarnessEvent stream                          │ spawn, stdio pipes
          ▼                                              ▼
    session UI, notes, canvases            agent CLI (claude, codex, ...)
-                                                        │ stdio MCP
+                                                        │ stdio MCP, or `loci canvas|learn`
                                                         ▼
                                   loci_excalidraw / loci_learn (Node or Bun)
                                                         │ loopback + per-turn token
@@ -72,8 +72,10 @@ Loci reads a few things other tools already keep, and writes none of them: the s
 | Namespace | Used by | Rule |
 | --- | --- | --- |
 | `app` | `/operator`, through the `app` subcommand of the desktop executable (`control_cli.rs`) | the thread must have opted in |
-| `canvas` | the built-in Excalidraw MCP server | every session may draw, only in its own project |
-| `learn` | the built-in learning MCP server | only threads where `/learn` has been used |
+| `canvas` | the built-in Excalidraw server | every session may draw while the switch in **Settings → MCP** is on, only in its own project |
+| `learn` | the built-in learning server | only threads where `/learn` has been used |
+
+The switch is read when a turn starts and kept for that turn, so a change applies from the next turn and a running turn can finish. A provider may start its process under a generation-scoped id (`<session>#<n>`, as Antigravity does); the credential is looked up by the session that owns the process.
 
 ## Built-in MCP servers
 
@@ -83,6 +85,26 @@ Two stdio MCP servers ship in `src-tauri/resources` and run on the user's Node.j
 - **`learn-mcp/loci-learn.mjs`** is a thin forwarder: each `loci_learn` tool call goes over the control channel to the window, where `src/features/learn/bridge.ts` applies it.
 
 Claude Code receives them through `--mcp-config`, Codex through `-c mcp_servers.*` overrides. The Excalidraw server can be turned off in **Settings → MCP**. The learning server has no switch because it is attached only to threads where `/learn` is used.
+
+### Agent CLIs that cannot be given an MCP server
+
+Antigravity and Pi offer no way to attach an MCP server to one session without editing the user's own configuration, so they reach the same two servers through the desktop executable (`control_cli.rs`):
+
+```sh
+loci canvas create_view --input drawing.json
+loci learn map_read
+loci canvas --help
+```
+
+One call asks the running app which command starts the server (the reserved `mcp.server` request, answered by `control.rs` under the namespace's own rule), starts that server, makes the MCP handshake, calls the one tool and prints its text. The server is the same process an MCP client would attach, so the tools, their descriptions, the save receipts and every rule in the window are identical. Only the tools agents are given are accepted; the official widget's private tools stay out of reach.
+
+What differs is how the agent finds out and how it is asked:
+
+- **Knowing.** `useSessionSubmission.ts` appends a note to a turn: `<loci_canvas>` once per provider conversation while the switch is on, and the CLI wording of the `/learn` rules on the turn that used `/learn`. The harnesses that work this way are listed in `features/sessions/model/builtinCli.ts`.
+- **Asking.** A provider that asks before running a command (Antigravity) sends the command with the request. `builtinCliCall` recognizes it only when it is exactly one tool call of this app's own executable, with nothing a shell would expand, chain or redirect; `builtinCliDecision` then answers with the rules of the MCP tools. Anything else is an ordinary command request. Pi never asks, and in Plan mode it has no shell, so the tools are out of reach there.
+- **Showing.** The transcript names such a shell row as the canvas or learning call it is (`canvasToolCall.ts`, `learnToolCall.ts`).
+
+A new provider that can run shell commands needs an entry in that list, and an approval branch like Antigravity's if it asks before running commands.
 
 ## The learning map
 

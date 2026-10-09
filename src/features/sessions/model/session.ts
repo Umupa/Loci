@@ -285,6 +285,8 @@ export type Block = {
   loci?: boolean;
   /** This user turn used /learn: its thread reaches the project's learning map. */
   learn?: boolean;
+  /** This user turn told the agent how to reach the project's canvases through the app's CLI. */
+  canvasCli?: boolean;
   /** Stable CLI request that submitted this turn, for safe retries. */
   appRequestId?: string;
   /** Provider-reported token metrics for this user turn, when available. */
