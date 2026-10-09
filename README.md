@@ -7,7 +7,7 @@
 **One desktop app for every agent CLI you already use.**
 
 Projects are plain folders. Sessions run through the agent CLIs installed on your machine.<br />
-Notes, canvases and a learning map live next to the conversation.
+Notes, canvases and resident agents live next to the conversation.
 
 [![CI](https://github.com/Umupa/Loci/actions/workflows/ci.yml/badge.svg)](https://github.com/Umupa/Loci/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -30,7 +30,7 @@ Loci is a local-first desktop shell for agent CLIs, built with Tauri 2, Rust, Re
 - **Notes and canvases as first-class objects.** Markdown notes you can `@`-mention in a prompt, and Excalidraw canvases. Replies can link to them with `loci://note/<id>` and `loci://canvas/<id>`, which open inside the current window.
 - **Agents that can draw.** Claude Code and Codex sessions get a built-in `loci_excalidraw` MCP server: the official Excalidraw MCP server, unmodified, writing into Loci's own canvas store. Antigravity and Pi sessions reach the same tools through Loci's own CLI, with nothing to install or configure. Your hand edits are kept and the panel updates live. See [docs/canvas-mcp.md](docs/canvas-mcp.md).
 - **`/operator`.** Let an agent drive Loci itself: read models, start and message sessions, arrange panes, organise folders, read and write notes and canvases. It uses an authenticated loopback channel that is valid only during the turn you enabled it for.
-- **`/learn`.** Learn a subject on a map that grows only from what you can explain in your own words. See [Learning with Loci](#learning-with-loci).
+- **Resident agents.** Long-lived agents that belong to no project: one conversation you keep coming back to, standing instructions, a memory, habits that run on a schedule, and sessions they start and follow in your projects. They ask with choices to click, and reply with cards. See [Agents](#agents).
 - **Themes, wallpapers and fonts.** Settings → Appearance offers 22 Omarchy themes, matching code highlighting and 72 wallpapers, alongside custom backgrounds and system-installed fonts. Existing background effects, visibility settings and custom accent colors still apply. See [docs/themes.md](docs/themes.md).
 - **Settings in English or Simplified Chinese.** Settings can follow the system language or use your choice in General → Settings language. The workspace stays in English.
 - **Local-first.** A local SQLite database, no account, no analytics, no auto-updater. See [Data and privacy](#data-and-privacy).
@@ -64,21 +64,21 @@ On macOS, `./script/build_and_run.sh --verify` builds and launches a release bun
 ### Before the first session
 
 - Install and sign in to at least one supported agent CLI. Loci looks for each CLI on your `PATH` and in the usual install locations. **Settings → Agent CLIs** lets you point at a specific binary, set a default model, and hide CLIs you do not use.
-- Install Node.js 20.11+ (or Bun) if you want the built-in MCP servers (`loci_excalidraw`, `loci_learn`). Without it sessions still start; Settings and the canvas panel say what is missing.
+- Install Node.js 20.11+ (or Bun) if you want the built-in MCP servers (`loci_excalidraw`). Without it sessions still start; Settings and the canvas panel say what is missing.
 
 ## Supported agent CLIs
 
 | CLI | Notes |
 | --- | --- |
-| Claude Code, Codex | The full feature set: account management and usage meters, the built-in MCP servers, `/learn` |
-| Antigravity, Pi | Chat with model and permission selection, plus the canvas tools and `/learn` through Loci's CLI |
+| Claude Code, Codex | The full feature set: account management and usage meters, the built-in MCP server |
+| Antigravity, Pi | Chat with model and permission selection, plus the canvas tools through Loci's CLI |
 | Cursor, Grok Build, OpenCode, omp, fx, Hermes Agent | Chat with model and permission selection through the CLI's own protocol. How much more shows up (questions, plans, tool details) depends on what the CLI reports |
 
 Details worth knowing:
 
 - Accounts and usage meters are implemented for Claude Code and Codex only.
 - Antigravity runs through its own ACP server. If you are asked to authenticate, use **Sign in to Antigravity** in the app; signing in to the interactive `agy` does not carry over.
-- Antigravity and Pi call the canvas and learning tools by running a command, so they are told about them in the conversation rather than through a tool list. Pi never asks before it acts, so drawing does not ask there either, and in Plan mode Pi has no shell and cannot reach these tools.
+- Antigravity and Pi call the canvas tools by running a command, so they are told about them in the conversation rather than through a tool list. Pi never asks before it acts, so drawing does not ask there either, and in Plan mode Pi has no shell and cannot reach these tools.
 - fx does not support attachments yet.
 - CLIs that are not installed still appear in Settings, with an install hint.
 
@@ -89,24 +89,25 @@ Commands work at the start of a prompt.
 | Command | What it does |
 | --- | --- |
 | `/operator` | Give this thread access to Loci sessions, folders, notes and canvases |
-| `/learn` | Learn a subject on a map that only records what you have explained yourself (Claude Code, Codex, Antigravity and Pi) |
 | `/btw` | Ask a read-only side question about the current turn |
 | `/draft` | Save this message without starting the agent |
 | `/compact` | Summarize older conversation context to free space |
 | `/mcp` | Find an MCP server for this message |
 | `/add-to-folder` | Place this session in an existing or new sidebar folder |
 
-## Learning with Loci
 
-Type `/learn` in a Claude Code, Codex, Antigravity or Pi session. The project folder is the subject, for example `~/learn/kubernetes`, and Loci keeps a *learning map* canvas in it.
+## Agents
 
-- **Solid means you explained it.** A node turns solid only when you say it in your own words. The agent records a quote, and Loci checks that quote against what you actually typed; it cannot be a summary or the agent's own explanation.
-- **A profile, a roadmap and readings first.** Before teaching, the agent shows you the field, interviews you (goal, level, depth, language, how explanations land) and writes `profile.md`. It plans a route in `roadmap.md`, puts the stages and topics on the map as dashed nodes, and gathers the reading for every topic into `sources/`: complete texts in your language, translated in full when a source has no edition in it. This part is the skill's prompt, carried out with the agent's own search and file tools.
-- **You say it, the agent draws.** The agent names what there is to learn: the roadmap's topics, and a few dashed nodes next to what you know. How they connect is yours to say. It cannot move anything on the map, can take off only dashed nodes nobody has touched, and does not get to call something mastered.
-- **Revisits on a ladder.** Nodes come back after 1, 3, 7, 21, 60 and 150 days. During a revisit the map is covered and your earlier words are withheld until you have answered, so you explain from memory.
-- **Judgments for subjects like investing.** A judgment node carries a date to look back on. The agent checks it against what you said before and names what you left out. It never gives buy or sell advice.
+Press **+** beside *Agents* on the rail. **New agent** makes a blank one that asks what its one main job should be, names itself, and writes its own standing instructions from your answers. Or start from a built-in template (Tutor, Lead, Watch, Reviewer, Scout, Chief): the job is already settled, and the agent asks only what that job needs. Everything it settles can be changed later under **Details**.
 
-The map's rules live in the app, not in the prompt, so they hold whichever model you use. What the agent does around the map (the interview, the roadmap, the readings) is the prompt at work, and how well it goes depends on the model. The design, data model and a record of what was and was not verified are in [docs/learn.md](docs/learn.md) (written in Chinese).
+- **It stays.** An agent has one conversation that never ends, a soul (its standing instructions) and a memory it keeps as it learns. Both are files in Loci's data folder, outside your repositories, and they survive a change of model.
+- **It works in your projects.** Give it projects under Details. It can start sessions there, follow them, and report back when they finish.
+- **Habits.** Things it does on a schedule while Loci is open, messaging you only when something is worth saying.
+- **Cards.** A reply can carry more than text: a question with choices to click, a document that opens beside the chat, a checklist you tick, a mind map that folds, a Mermaid diagram, a link to a canvas. Cards keep nothing themselves; what you do with one is sent to the agent as your next message.
+- **Library.** Documents an agent writes are kept under Details → Library, grouped by subject. Writing one again revises it, and any of them can be saved to your notes.
+- **A tutor, for example.** Pick the Tutor template. It interviews you, keeps your level and progress in its memory, writes roadmaps and lessons as documents, and switches subject when you say so.
+
+What an agent does is its prompt at work, so how well it goes depends on the model behind it.
 
 ## Data and privacy
 
@@ -148,12 +149,12 @@ Layout:
 ```text
 src/                      React front end
   app/                    window shell and workspace composition
-  features/               sessions, notes, canvas, learn, projects, search, settings, skills, ...
+  features/               sessions, agents, notes, canvas, projects, search, settings, skills, ...
   integrations/harness/   agent CLI protocol core and the ten providers
   platform/tauri/         thin wrappers over Tauri commands
   shared/                 UI components, hooks and utilities
 src-tauri/                Rust back end: processes, SQLite stores, app control, MCP resources
-  resources/              bundled MCP servers (excalidraw-mcp, learn-mcp)
+  resources/              bundled MCP servers (excalidraw-mcp)
 docs/                     guides and design records
 scripts/                  version bump, vendoring and live protocol probes
 ```
@@ -162,7 +163,7 @@ scripts/                  version bump, vendoring and live protocol probes
 
 ## Documentation
 
-The [documentation index](docs/README.md) lists every guide. Design records for the canvas MCP and `/learn` are written in Chinese.
+The [documentation index](docs/README.md) lists every guide. The design record for the canvas MCP is written in Chinese.
 
 ## License
 
