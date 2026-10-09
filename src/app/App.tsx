@@ -18,6 +18,8 @@ import { useAgentDelegation } from "./hooks/useAgentDelegation";
 import { AgentRailSection } from "./shell/AgentRailSection";
 import { AgentView } from "../features/agents/ui/AgentView";
 import { AgentDetails } from "../features/agents/ui/AgentDetails";
+import { AgentDocumentReader } from "../features/agents/ui/AgentDocumentReader";
+import { OPEN_DOCUMENT_EVENT, type AgentDocument } from "../features/sessions/model/cards";
 import { AgentIntro } from "../features/agents/ui/AgentIntro";
 import { agentLook } from "../features/agents/model/agent";
 import { SessionPane } from "../features/sessions/ui/SessionPane";
@@ -172,6 +174,15 @@ function Workspace(boot: BootWorkspace) {
     knownProjects: () => (workspaceRef.current?.recents ?? []).map((recent) => ({ name: projectName(recent.path), path: recent.path })),
   });
   const agentsEnabled = useSyncExternalStore(subscribeAgentsEnabled, loadAgentsEnabled);
+  // A document card or a library row asks for its document; it opens beside whatever is shown.
+  const [openedDocument, setOpenedDocument] = useState<AgentDocument>();
+  useEffect(() => {
+    const open = (event: Event) => setOpenedDocument((event as CustomEvent<AgentDocument>).detail);
+    window.addEventListener(OPEN_DOCUMENT_EVENT, open);
+    return () => window.removeEventListener(OPEN_DOCUMENT_EVENT, open);
+  }, []);
+  const viewedAgentId = agents.viewAgent?.id;
+  useEffect(() => setOpenedDocument(undefined), [viewedAgentId, surface]);
   const agentHabits = useAgentHabits({ runtime, submission,
     loadSession: (id) => workspaceRef.current!.loadSession(id),
     onPosted: (chat, name) => { void announceSessionFinished({ ...chat, title: name }, isForeground(chat.id)); },
@@ -482,7 +493,7 @@ function Workspace(boot: BootWorkspace) {
           recents={workspace.recents} busyProjectPaths={shownSessions.filter((session) => session.busy).map((session) => session.cwd)}
           agentActive={surface === "agent"}
           agentRail={!agentsEnabled ? undefined : <AgentRailSection activeId={surface === "agent" ? agents.viewAgent?.id : undefined} states={agents.states} unseenIds={unseenAgentIds}
-            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpen(true); void agents.open(id); }} onCreate={() => void agents.create()} onDelete={(id) => void agents.remove(id)} />}
+            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpen(true); void agents.open(id); }} onCreate={(templateId) => void agents.create(templateId)} onDelete={(id) => void agents.remove(id)} />}
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
@@ -520,6 +531,7 @@ function Workspace(boot: BootWorkspace) {
             detailsOpen={agents.detailsOpen} onToggleDetails={() => agents.setDetailsOpen((open) => !open)} onClose={closeSurface}
             besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onToggleSidebar={toggleProjectRail}
             onLoadEarlier={agents.hasEarlier ? () => void agents.loadEarlier() : undefined}
+            reader={openedDocument ? <AgentDocumentReader agentId={agents.viewAgent.id} document={openedDocument} onClose={() => setOpenedDocument(undefined)} /> : undefined}
             details={<AgentDetails agent={agents.viewAgent} session={agentSession}
               onModelChange={(harness, model) => submission.changeModel(agentSession.id, harness, model)}
               onModelSettingsChange={(settings) => submission.changeModelSettings(agentSession.id, settings)}
@@ -530,6 +542,9 @@ function Workspace(boot: BootWorkspace) {
               chatPlaceholder={`Message ${agentLook(agents.viewAgent).name}`}
               onFocus={() => undefined} onClose={closeSurface} onCwdChange={() => undefined} onApproval={agentHabits.approve} />
           </AgentView> : null}
+          {surface !== "agent" && openedDocument ? <div className="absolute inset-y-0 right-0 z-30 flex w-full justify-end">
+            <AgentDocumentReader document={openedDocument} onClose={() => setOpenedDocument(undefined)} />
+          </div> : null}
           {surface === "search" ? <SearchView open cwd={workspace.projectCwd} recents={workspace.recents} history={workspace.history} sessions={sessions}
             focusToken={searchFocusToken} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
             onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}

@@ -23,13 +23,15 @@ type Props = {
   children: ReactNode;
   /** The details panel, beside the conversation. */
   details?: ReactNode;
+  /** A document the user opened; while it is open it has the side of the chat. */
+  reader?: ReactNode;
 };
 
 /**
  * An agent's conversation in the main area. It covers the workspace rather
  * than joining its tabs: an agent belongs to no project.
  */
-export function AgentView({ agent, state, detailsOpen, besideRail, compactRail, onToggleSidebar, onToggleDetails, onClose, onLoadEarlier, children, details }: Props) {
+export function AgentView({ agent, state, detailsOpen, besideRail, compactRail, onToggleSidebar, onToggleDetails, onClose, onLoadEarlier, children, details, reader }: Props) {
   const look = agentLook(agent);
   const projects = agentProjectsPhrase(look.projects);
   return (
@@ -65,7 +67,7 @@ export function AgentView({ agent, state, detailsOpen, besideRail, compactRail, 
           ) : null}
           {children}
         </div>
-        {detailsOpen ? details : null}
+        {reader ?? (detailsOpen ? details : null)}
       </div>
     </section>
   );

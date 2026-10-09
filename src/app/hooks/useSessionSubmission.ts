@@ -59,6 +59,8 @@ import { agentForSession } from "../../features/agents/model/agent";
 import { agentTurn } from "../../features/agents/model/agentFiles";
 import { prepareAgentTurn } from "../../features/agents/model/agentTurnContext";
 import { questionReplyText } from "../../features/sessions/model/standingQuestion";
+import { documentsInText } from "../../features/sessions/model/cards";
+import { saveAgentDocuments } from "../../features/agents/model/agentDocuments";
 import { turnOutcome, type TurnOutcome } from "../../features/sessions/model/turnOutcome";
 import type { SubmissionAcceptance } from "../model/submissionAcceptance";
 import type { SessionRuntime } from "./useSessionRuntime";
@@ -102,6 +104,15 @@ function shellPath(path: string): string {
 /** The app's own executable as an agent types it: it is also the CLI for /operator and the built-in tools. */
 async function appCli(): Promise<string> {
   return shellPath(await invoke<string>("app_cli_path"));
+}
+
+/** Everything the agent said in the latest turn, in order. */
+function turnProse(blocks: readonly Block[]): string {
+  const said: string[] = [];
+  for (let i = blocks.length - 1; i >= 0 && blocks[i].role !== "user"; i--) {
+    if (blocks[i].role === "assistant" && !blocks[i].tool) said.unshift(blocks[i].text);
+  }
+  return said.join("\n\n");
 }
 
 /** How to use the app CLI. An agent always has it; a session has it once /operator is used. */
@@ -438,6 +449,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
             return stopped;
           }));
           rt.finishTurn(sessionId, generation);
+          // What an agent wrote for the user to keep goes into its library.
+          if (agent) void saveAgentDocuments(agent.id, documentsInText(turnProse(sessionsRef.current.find((session) => session.id === sessionId)?.blocks ?? []))).catch(() => undefined);
           await persistSession(sessionId).catch(() => undefined);
         }
       } finally {

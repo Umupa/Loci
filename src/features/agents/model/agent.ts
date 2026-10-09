@@ -147,7 +147,7 @@ export function nextAgentLook(
  */
 export function createAgent(
   projects: readonly string[] = [],
-  chosen: Partial<Pick<Agent, "name" | "avatar" | "color">> = {},
+  chosen: Partial<Pick<Agent, "name" | "role" | "avatar" | "color">> = {},
 ): Agent {
   const roster = listAgents();
   const name = chosen.name?.trim();
@@ -157,6 +157,7 @@ export function createAgent(
     ...(chosen.avatar ? { avatar: chosen.avatar } : {}),
     ...(chosen.color ? { color: chosen.color } : {}),
     ...(name ? { name } : {}),
+    ...(chosen.role?.trim() ? { role: chosen.role.trim() } : {}),
     projects: uniqueProjects(projects),
   };
   saveRoster([...roster, agent]);

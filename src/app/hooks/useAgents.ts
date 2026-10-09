@@ -1,3 +1,5 @@
+import { agentTemplate } from "../../features/agents/model/agentTemplates";
+import { deleteAgentDocument } from "../../features/agents/model/agentDocuments";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { homeDir } from "../../platform/tauri/fs";
@@ -134,9 +136,11 @@ export function useAgents(options: Options) {
   /**
    * Makes an agent on the default provider and model and opens its chat, where
    * it sets itself up by asking: what it is for, its name, its instructions.
+   * From a template its job is already settled, and it asks only what that job needs.
    */
-  const create = useCallback(async () => {
-    const agent = createAgent();
+  const create = useCallback(async (templateId?: string) => {
+    const template = agentTemplate(templateId);
+    const agent = createAgent([], template ? { name: template.name, role: template.role } : {});
     const turn = ++request.current;
     try {
       const session = await ensureAgentSession(agent.id, {
@@ -149,7 +153,7 @@ export function useAgents(options: Options) {
       setDetailsOpen(true);
       setViewId(agent.id);
       latest.current.onShow();
-      await latest.current.submission.submit(session.id, "New agent", [], { agentSetup: agentSetupPrompt(latest.current.knownProjects()) });
+      await latest.current.submission.submit(session.id, "New agent", [], { agentSetup: agentSetupPrompt(latest.current.knownProjects(), template) });
     } catch (error) {
       latest.current.onError(error);
     }
@@ -192,7 +196,7 @@ export function useAgents(options: Options) {
   const remove = useCallback(async (agentId: string) => {
     const agent = findAgent(agentId);
     if (!agent) return;
-    if (!await ask(`Delete ${agentLook(agent).name}? Its conversation is permanently removed. Its soul and memory files stay on disk.`,
+    if (!await ask(`Delete ${agentLook(agent).name}? Its conversation is permanently removed. Its documents go with it; its soul and memory files stay on disk.`,
       { title: "Delete agent", kind: "warning", okLabel: "Delete", cancelLabel: "Cancel" })) return;
     try {
       if (viewIdRef.current === agentId) {
@@ -207,6 +211,7 @@ export function useAgents(options: Options) {
         forgetAgentRotation(agent.sessionId);
       }
       removeAgent(agentId);
+      void deleteAgentDocument(agentId).catch(() => undefined);
       saveAgentPreview(agentId, undefined);
     } catch (error) {
       latest.current.onError(error);

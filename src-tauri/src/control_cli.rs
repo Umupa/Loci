@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 34] = [
+const APP_ACTIONS: [&str; 36] = [
     "models.list",
     "sessions.list",
     "sessions.read",
@@ -39,6 +39,8 @@ const APP_ACTIONS: [&str; 34] = [
     "memory.add",
     "memory.replace",
     "memory.remove",
+    "documents.list",
+    "documents.read",
     "habits.list",
     "habits.add",
     "habits.update",
@@ -140,6 +142,8 @@ Only in an agent's own conversation:
   memory.read    {"topic":"<name>"}  One topic file, or MEMORY.md without topic.
   memory.search  {"query":"...","since":"7d"}  Search memory, topic notes and
                   the archive. since is a date or a span like 24h, 7d, 2w.
+  documents.list {}  The documents it has written for the user, newest first.
+  documents.read {"id":"pods"}  One of them, in full, to revise or build on.
   habits.list    {}  What it does on its own, with schedules and last outcomes.
   habits.add     {"name":"Morning CI check","instructions":"...",
                   "schedule":{"kind":"weekdays","time":"09:00"}}

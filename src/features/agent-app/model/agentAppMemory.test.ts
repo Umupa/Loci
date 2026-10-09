@@ -44,6 +44,11 @@ function fixture(agent = true) {
         .map((path) => path.slice(7, -3)),
     }),
     },
+    documents: {
+      list: async () => [{ id: "pods", title: "Pods, explained", subject: "Kubernetes", updatedAt: Date.UTC(2026, 9, 9) }],
+      read: async (_agentId: string, id: string) =>
+        id === "pods" ? { id, title: "Pods, explained", subject: "Kubernetes", body: "# Pods", updatedAt: Date.UTC(2026, 9, 9) } : undefined,
+    },
     now: () => new Date(2026, 9, 4, 12),
   } as unknown as AgentAppHost;
   const run = (action: string, input: Record<string, unknown> = {}) =>
@@ -113,4 +118,14 @@ it("searches MEMORY.md, topics and the archive", async () => {
   expect(await run("memory.search", { query: "fly" })).toMatchObject({
     hits: [{ file: "MEMORY.md" }, { file: "memory/infra.md" }],
   });
+});
+
+it("lets an agent read back the documents it wrote, and nobody else", async () => {
+  const { run } = fixture();
+  expect(await run("documents.list")).toEqual({
+    documents: [{ id: "pods", title: "Pods, explained", subject: "Kubernetes", updatedAt: "2026-10-09T00:00:00.000Z" }],
+  });
+  expect(await run("documents.read", { id: "pods" })).toMatchObject({ title: "Pods, explained", text: "# Pods" });
+  await expect(run("documents.read", { id: "missing" })).rejects.toThrow("No such document");
+  await expect(fixture(false).run("documents.list")).rejects.toThrow("Only an agent's own conversation");
 });
