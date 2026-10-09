@@ -178,7 +178,7 @@ describe("session submission", () => {
     await settle(run);
     expect(session().busy).toBe(false);
     await runtime.flushPersistence();
-    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, learnAccess: false, canvasAccess: true });
+    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: true });
     expect(mocks.invoke).toHaveBeenCalledWith("control_turn_finished", { sessionId: session().id });
   });
 
@@ -410,46 +410,9 @@ describe("session submission", () => {
     expect(session().blocks.some((block) => block.text.includes("replacement unavailable"))).toBe(true);
     expect(session().busy).toBe(false);
   });
-  it("starts a learning thread with /learn: the command leaves the message, the rules go to the agent once, access stays", async () => {
-    await mount(newSession("codex", "/project", "codex:test"));
-    await act(async () => { expect(actions.onSubmit(session().id, "/learn kubernetes")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(session().blocks[0]).toMatchObject({ role: "user", text: "kubernetes", learn: true });
-    expect(pending[0].input).toMatchObject({ learnAccess: true, appAccess: false });
-    expect(pending[0].input.text.startsWith("kubernetes\n\n<loci_learn>")).toBe(true);
-    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, learnAccess: true, canvasAccess: true });
-    await settle(pending[0]);
-    await act(async () => { expect(actions.onSubmit(session().id, "Service 是什么？")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input).toMatchObject({ learnAccess: true, text: "Service 是什么？" });
-    expect(session().blocks.filter((block) => block.role === "user").map((block) => block.learn)).toEqual([true, undefined]);
-  });
 
-  it("continues on the map when /learn is sent alone, and tells the agent which node a session was opened from", async () => {
-    await mount(newSession("codex", "/project", "codex:test"));
-    await act(async () => { expect(actions.onSubmit(session().id, "/learn")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(session().blocks[0].text).toBe("Continue on my learning map.");
-    await settle(pending[0]);
-    await act(async () => { await actions.submit(session().id, "/learn Service", [], { learnFocus: { nodeId: "n42", intent: "revisit" } }); });
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input.text).toContain('<loci_learn_focus>The learner opened this session from the map node with id "n42", named in their message, to revisit it.');
-  });
 
-  it("refuses /learn where the learning map cannot be reached, without starting a turn", async () => {
-    await mount(newSession("codex", "~", "codex:test"));
-    await act(async () => { expect(actions.onSubmit(session().id, "/learn kubernetes")).toBe(false); });
-    expect(pending).toHaveLength(0);
-    expect(session().blocks.some((block) => block.role === "user")).toBe(false);
-    expect(JSON.stringify(session().blocks)).toContain("one learning map per project");
-  });
 
-  it("refuses /learn on a provider that cannot reach the learning server", async () => {
-    await mount(newSession("cursor", "/project"));
-    await act(async () => { expect(actions.onSubmit(session().id, "/learn kubernetes")).toBe(false); });
-    expect(pending).toHaveLength(0);
-    expect(JSON.stringify(session().blocks)).toContain("needs a Claude Code, Codex, Antigravity or Pi session");
-  });
 });
 
 describe("agents that reach the built-in tools through the app's CLI", () => {
@@ -468,10 +431,9 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await vi.waitFor(() => expect(pending).toHaveLength(1));
     expect(pending[0].input.text.startsWith("Draw the architecture\n\n<loci_canvas>\n")).toBe(true);
     expect(pending[0].input.text).toContain(`\`${CLI} canvas TOOL --json '<arguments>'\``);
-    expect(pending[0].input.text).not.toContain("<loci_learn>");
     // The note is Loci's: the transcript keeps what the user typed, and remembers that it was sent.
     expect(users()[0]).toMatchObject({ text: "Draw the architecture", canvasCli: true });
-    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, learnAccess: false, canvasAccess: true });
+    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: true });
     await bind(pending[0], "pi-conversation-1");
     await settle(pending[0]);
     await act(async () => { expect(actions.onSubmit(session().id, "Add a cache")).toBe(true); });
@@ -497,14 +459,14 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await vi.waitFor(() => expect(pending).toHaveLength(1));
     expect(pending[0].input.text).toBe("Draw the architecture");
     expect(users()[0].canvasCli).toBeUndefined();
-    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, learnAccess: false, canvasAccess: false });
+    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: false });
     await bind(pending[0], "pi-conversation-1");
     await settle(pending[0]);
     saveCanvasMcpEnabled(true);
     await act(async () => { expect(actions.onSubmit(session().id, "Now draw it")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(2));
     expect(pending[1].input.text.startsWith("Now draw it\n\n<loci_canvas>")).toBe(true);
-    expect(mocks.invoke).toHaveBeenLastCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, learnAccess: false, canvasAccess: true });
+    expect(mocks.invoke).toHaveBeenLastCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: true });
     expect(users().map((block) => block.canvasCli)).toEqual([undefined, true]);
   });
 
@@ -524,24 +486,6 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     expect(mocks.invoke).not.toHaveBeenCalledWith("app_cli_path");
   });
 
-  it.each(["pi", "antigravity"] as const)("starts a learning thread on %s with the CLI in place of the MCP tools", async (harness) => {
-    await mount(newSession(harness, "/project"));
-    await act(async () => { expect(actions.onSubmit(session().id, "/learn kubernetes")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    const text = pending[0].input.text;
-    expect(users()[0]).toMatchObject({ text: "kubernetes", learn: true, canvasCli: true });
-    expect(pending[0].input).toMatchObject({ learnAccess: true, appAccess: false });
-    expect(text.startsWith("kubernetes\n\n<loci_learn>")).toBe(true);
-    expect(text).toContain(`\`${CLI} learn TOOL --json '<arguments>'\``);
-    expect(text).not.toContain("loci_learn MCP tools");
-    // The rules tell it to draw elsewhere, so it also learns how.
-    expect(text.indexOf("<loci_canvas>")).toBeGreaterThan(text.indexOf("</loci_learn>"));
-    await bind(pending[0], `${harness}-conversation-1`);
-    await settle(pending[0]);
-    await act(async () => { expect(actions.onSubmit(session().id, "Service 是什么？")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input).toMatchObject({ learnAccess: true, text: "Service 是什么？" });
-  });
 
   it("resolves a run with the turn's answer once it has ended", async () => {
     await mount(newSession("codex", "/project", "codex:test"));

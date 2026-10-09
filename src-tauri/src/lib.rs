@@ -3,6 +3,7 @@ use tauri::Manager;
 
 mod account_identity;
 mod agent;
+mod agent_documents;
 mod agent_transcript;
 mod canvas;
 mod canvas_mcp;
@@ -295,10 +296,13 @@ pub fn run() {
             canvas::canvas_checkpoint_canvas,
             canvas::canvas_checkpoint_latest,
             canvas_mcp::canvas_mcp_server,
-            canvas_mcp::learn_mcp_server,
             agent::agent_load,
             agent::agent_read,
             agent::agent_save,
+            agent_documents::agent_documents_list,
+            agent_documents::agent_documents_get,
+            agent_documents::agent_documents_upsert,
+            agent_documents::agent_documents_delete,
             agent_transcript::agent_transcript_append,
             agent_transcript::agent_transcript_page,
             agent_transcript::agent_transcript_clear,

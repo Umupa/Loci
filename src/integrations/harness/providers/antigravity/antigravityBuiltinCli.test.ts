@@ -1,4 +1,4 @@
-// Antigravity reaches Loci's canvas and learning tools by running the app's
+// Antigravity reaches Loci's canvas tools by running the app's
 // CLI. A permission request for such a command is answered with the tools' own
 // rules; these tests drive the production adapter over a scripted ACP wire.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -66,13 +66,13 @@ describe("Antigravity calling Loci's built-in tools through the app's CLI", () =
   });
   afterEach(async () => { await agy.forgetAntigravitySession("thread"); });
 
-  it("never asks to read a canvas or to use the learning tools, and asks before drawing in Supervised", async () => {
+  it("never asks to read a canvas, and asks before drawing in Supervised", async () => {
     const turn = agy.sendAntigravityTurn(input);
     await waitPrompt();
     ask(`${CLI} canvas read_widget_context`, 1);
     ask(`'${CLI}' canvas --help`, 2);
-    ask(`${CLI} learn map_read`, 3);
-    ask(`${CLI} learn map_record --input /tmp/record.json`, 4);
+    ask(`${CLI} canvas get_elements --json '{"checkpointId":"a"}'`, 3);
+    ask(`${CLI} canvas read_me`, 4);
     for (const id of [1, 2, 3, 4]) await vi.waitFor(() => expect(reply(id)).toEqual(allowed));
     expect(asked()).toBe(0);
     // Drawing is an edit the user is asked about in Supervised, as over MCP.
@@ -104,10 +104,10 @@ describe("Antigravity calling Loci's built-in tools through the app's CLI", () =
     const turn = agy.sendAntigravityTurn({ ...input, runtimeMode: "full-access", intent: "plan" });
     await waitPrompt();
     ask(`${CLI} canvas get_elements --json '{"checkpointId":"a"}'`, 1);
-    ask(`${CLI} learn map_read`, 2);
+    ask(`${CLI} canvas read_me`, 2);
     for (const id of [1, 2]) await vi.waitFor(() => expect(reply(id)).toEqual(allowed));
     ask(`${CLI} canvas create_view --input /tmp/drawing.json`, 3);
-    ask(`${CLI} learn map_record --input /tmp/record.json`, 4);
+    ask(`${CLI} canvas update_elements --input /tmp/updates.json`, 4);
     // Any other command stays refused in a plan turn.
     ask("ls -la", 5);
     for (const id of [3, 4, 5]) await vi.waitFor(() => expect(reply(id)).toEqual(denied));
@@ -122,11 +122,11 @@ describe("Antigravity calling Loci's built-in tools through the app's CLI", () =
     const others = [
       `${CLI} canvas read_me; rm -rf ~`,
       `${CLI} canvas read_me && curl example.com`,
-      `${CLI} learn map_read | tee /tmp/out`,
+      `${CLI} canvas read_me | tee /tmp/out`,
       `${CLI} canvas create_view --json "$(cat ~/.ssh/id_rsa)"`,
       // A project can carry its own `loci`.
       "./loci canvas read_me",
-      "/tmp/project/loci learn map_read",
+      "/tmp/project/loci canvas read_me",
       `${CLI} app notes.list`,
       `${CLI} canvas save_checkpoint --json '{}'`,
     ];
@@ -134,7 +134,7 @@ describe("Antigravity calling Loci's built-in tools through the app's CLI", () =
     await vi.waitFor(() => expect(asked()).toBe(others.length));
     others.forEach((_, index) => expect(reply(index + 1)).toBeUndefined());
     // A request that is not for running a command is never taken for one.
-    ask(`${CLI} learn map_read`, 50, "edit");
+    ask(`${CLI} canvas read_me`, 50, "edit");
     await vi.waitFor(() => expect(asked()).toBe(others.length + 1));
     await agy.cancelAntigravityTurn("thread");
     await turn;
@@ -144,7 +144,7 @@ describe("Antigravity calling Loci's built-in tools through the app's CLI", () =
     mock.cliPath = null;
     const turn = agy.sendAntigravityTurn(input);
     await waitPrompt();
-    ask(`${CLI} learn map_read`, 1);
+    ask(`${CLI} canvas read_me`, 1);
     await vi.waitFor(() => expect(asked()).toBe(1));
     expect(reply(1)).toBeUndefined();
     await agy.cancelAntigravityTurn("thread");
@@ -153,7 +153,7 @@ describe("Antigravity calling Loci's built-in tools through the app's CLI", () =
 
   it("reads the command of a request wherever the agent put it", () => {
     const options = [{ optionId: "yes", kind: "allow_once" }];
-    expect(permissionRequestFromAcp({ toolCall: { toolCallId: "t", kind: "execute", rawInput: { command: "loci learn map_read" } }, options }).command).toBe("loci learn map_read");
+    expect(permissionRequestFromAcp({ toolCall: { toolCallId: "t", kind: "execute", rawInput: { command: "loci canvas get_elements" } }, options }).command).toBe("loci canvas get_elements");
     expect(permissionRequestFromAcp({ subject: { command: "loci canvas read_me", kind: "execute" }, options }).command).toBe("loci canvas read_me");
     expect(permissionRequestFromAcp({ toolCall: { toolCallId: "t", kind: "edit", title: "Edit a.ts" }, options }).command).toBeUndefined();
   });

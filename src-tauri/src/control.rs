@@ -13,7 +13,6 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 
 const APP_TURN_INACTIVE: &str = "Loci app access is inactive. Use /operator once in this thread to enable it, then call the CLI during an active agent turn. Retrying this request now will not enable access.";
 const CANVAS_TURN_INACTIVE: &str = "Loci canvas access is only available while this session's agent turn is running. Retrying this request now will not enable access.";
-const LEARN_TURN_INACTIVE: &str = "Loci learning access is inactive. The learner starts it with /learn in this thread, and it is only available during an active agent turn. Retrying this request now will not enable access.";
 const CANVAS_DISABLED: &str = "Loci's built-in Excalidraw canvas tools are turned off in Settings → MCP. Turning them on there applies from this session's next turn. Retrying this request now will not enable access.";
 /// Asked by the app's own CLI: which stdio command runs a built-in MCP server.
 /// The host answers it; a window never sees it.
@@ -36,7 +35,6 @@ struct Pending {
 struct ActiveTurn {
     window: String,
     app_allowed: bool,
-    learn_allowed: bool,
     /// The built-in Excalidraw switch as it was when the turn started, so a
     /// change applies from the next turn and a running turn can finish.
     canvas_allowed: bool,
@@ -134,11 +132,10 @@ struct Event {
 /// `app` is the /operator CLI and needs the thread's opt-in. `canvas` is the
 /// built-in Excalidraw server: every session may draw while the switch in
 /// Settings is on, but only on its own project's canvases and only while its
-/// turn runs. `learn` is the built-in learning server and needs the thread's
-/// /learn opt-in. Both servers are reached the same way whether an agent CLI
-/// attached them over MCP or calls them through the app's CLI.
+/// turn runs. The server is reached the same way whether an agent CLI
+/// attached it over MCP or calls it through the app's CLI.
 fn request_grant(host: &Inner, namespace: &str, token: &str) -> Result<Grant, String> {
-    if !matches!(namespace, "app" | "canvas" | "learn") {
+    if !matches!(namespace, "app" | "canvas") {
         return Err("Unknown control namespace".into());
     }
     let grant = host
@@ -155,8 +152,6 @@ fn request_grant(host: &Inner, namespace: &str, token: &str) -> Result<Grant, St
         "canvas" if turn.is_some_and(|turn| turn.canvas_allowed) => Ok(grant),
         "canvas" if turn.is_some() => Err(CANVAS_DISABLED.into()),
         "canvas" => Err(CANVAS_TURN_INACTIVE.into()),
-        "learn" if turn.is_some_and(|turn| turn.learn_allowed) => Ok(grant),
-        "learn" => Err(LEARN_TURN_INACTIVE.into()),
         _ if turn.is_some_and(|turn| turn.app_allowed) => Ok(grant),
         _ => Err(APP_TURN_INACTIVE.into()),
     }
@@ -232,8 +227,7 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
         }
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = mpsc::channel();
-        let hosted = request.action == MCP_SERVER_ACTION
-            && matches!(request.namespace.as_str(), "canvas" | "learn");
+        let hosted = request.action == MCP_SERVER_ACTION && request.namespace == "canvas";
         let grant = {
             let mut host = inner.lock().map_err(|_| "Control service unavailable")?;
             let grant = request_grant(&host, &request.namespace, &request.token)?;
@@ -253,11 +247,7 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
         };
         if hosted {
             // Looking up the runtime can take a moment; the lock is released.
-            let server = if request.namespace == "learn" {
-                crate::canvas_mcp::learn_server(app)
-            } else {
-                crate::canvas_mcp::canvas_server(app)
-            }?;
+            let server = crate::canvas_mcp::canvas_server(app)?;
             return Ok(json!({"ok": true, "result": server}));
         }
         let event = Event {
@@ -281,11 +271,7 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
         result
     })();
     let response = result.unwrap_or_else(|error| {
-        if error == APP_TURN_INACTIVE
-            || error == CANVAS_TURN_INACTIVE
-            || error == LEARN_TURN_INACTIVE
-            || error == CANVAS_DISABLED
-        {
+        if error == APP_TURN_INACTIVE || error == CANVAS_TURN_INACTIVE || error == CANVAS_DISABLED {
             json!({"ok": false, "error": error, "retryable": false})
         } else {
             json!({"ok": false, "error": error})
@@ -300,7 +286,6 @@ pub fn control_authorize_turn(
     session_id: String,
     cwd: String,
     app_access: bool,
-    learn_access: bool,
     canvas_access: bool,
 ) -> Result<(), String> {
     let cwd = std::fs::canonicalize(crate::fs::expand_home(&cwd)).map_err(|e| e.to_string())?;
@@ -317,7 +302,6 @@ pub fn control_authorize_turn(
         ActiveTurn {
             window: window.label().into(),
             app_allowed: app_access,
-            learn_allowed: learn_access,
             canvas_allowed: canvas_access,
         },
     );
@@ -411,7 +395,6 @@ mod tests {
             ActiveTurn {
                 window: "main".into(),
                 app_allowed: false,
-                learn_allowed: false,
                 canvas_allowed: true,
             },
         );
@@ -440,7 +423,6 @@ mod tests {
             ActiveTurn {
                 window: "main".into(),
                 app_allowed: false,
-                learn_allowed: false,
                 canvas_allowed: true,
             },
         );
@@ -464,7 +446,6 @@ mod tests {
             ActiveTurn {
                 window: "main".into(),
                 app_allowed: true,
-                learn_allowed: true,
                 canvas_allowed: false,
             },
         );
@@ -475,7 +456,6 @@ mod tests {
         );
         // The switch is about drawing only.
         assert!(request_grant(&inner, "app", &token).is_ok());
-        assert!(request_grant(&inner, "learn", &token).is_ok());
         // The next turn carries the new value; nothing changes mid-turn.
         inner.active.get_mut("session").unwrap().canvas_allowed = true;
         assert!(request_grant(&inner, "canvas", &token).is_ok());
@@ -489,40 +469,6 @@ mod tests {
         inner.prepare_app_grant("session", "main");
         assert!(inner.app_grants.contains_key(owning_session("session#3")));
         assert!(!inner.app_grants.contains_key(owning_session("other#3")));
-    }
-    #[test]
-    fn learn_access_needs_its_own_opt_in_and_grants_nothing_else() {
-        let mut inner = Inner::default();
-        inner.prepare_app_grant("session", "main");
-        let token = inner.app_grants["session"].token.clone();
-        assert_eq!(
-            request_grant(&inner, "learn", &token).err().as_deref(),
-            Some(LEARN_TURN_INACTIVE)
-        );
-        inner.active.insert(
-            "session".into(),
-            ActiveTurn {
-                window: "main".into(),
-                app_allowed: true,
-                learn_allowed: false,
-                canvas_allowed: true,
-            },
-        );
-        // Operator access does not open the learning map.
-        assert!(request_grant(&inner, "learn", &token).is_err());
-        let turn = inner.active.get_mut("session").unwrap();
-        turn.app_allowed = false;
-        turn.learn_allowed = true;
-        assert_eq!(
-            request_grant(&inner, "learn", &token).unwrap().session,
-            "session"
-        );
-        // Learning does not widen what the operator CLI may do; drawing stays as it was.
-        assert!(request_grant(&inner, "app", &token).is_err());
-        assert!(request_grant(&inner, "canvas", &token).is_ok());
-        assert!(request_grant(&inner, "learn", "wrong-token").is_err());
-        inner.active.remove("session");
-        assert!(request_grant(&inner, "learn", &token).is_err());
     }
     #[test]
     fn only_canvas_requests_may_exceed_the_cli_limit() {
@@ -542,7 +488,6 @@ mod tests {
                 ActiveTurn {
                     window: window.into(),
                     app_allowed: true,
-                    learn_allowed: false,
                     canvas_allowed: true,
                 },
             );

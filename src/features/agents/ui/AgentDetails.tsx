@@ -16,6 +16,8 @@ import {
   subscribeAgentFiles,
   type AgentFiles,
 } from "../model/agentFiles";
+import { listAgentDocuments, readAgentDocument, subscribeAgentDocuments, type StoredDocument } from "../model/agentDocuments";
+import { openDocument } from "../../sessions/model/cards";
 import { loadHabits, subscribeHabitsRunning } from "../model/agentHabits";
 import { addMemoryEntry, memoryDate, memoryEntry, memoryLines, withoutLine } from "../model/agentMemory";
 import { AgentAvatar } from "./AgentAvatar";
@@ -38,9 +40,9 @@ type Props = {
   onClose: () => void;
 };
 
-type Page = "soul" | "habits" | "memory";
+type Page = "soul" | "habits" | "memory" | "library";
 
-const PAGE_TITLE: Record<Page, string> = { soul: "Soul", habits: "Habits", memory: "Memory" };
+const PAGE_TITLE: Record<Page, string> = { soul: "Soul", habits: "Habits", memory: "Memory", library: "Library" };
 
 /** The agent's files, reloaded when it finishes a turn, a save lands or the app regains focus. */
 function useAgentFiles(agentId: string, refreshKey: unknown) {
@@ -89,6 +91,22 @@ function useHabitCount(agentId: string): number | undefined {
   return count;
 }
 
+/** What the agent has written for the user, newest first, kept current as it writes. */
+function useLibrary(agentId: string): StoredDocument[] | undefined {
+  const [documents, setDocuments] = useState<StoredDocument[]>();
+  useEffect(() => {
+    let current = true;
+    const load = () => void listAgentDocuments(agentId).then((found) => { if (current) setDocuments(found); }, () => undefined);
+    load();
+    const stop = subscribeAgentDocuments(load);
+    return () => {
+      current = false;
+      stop();
+    };
+  }, [agentId]);
+  return documents;
+}
+
 const fieldClass =
   "w-full rounded-lg border border-stroke bg-content/5 px-2.5 py-1.5 text-[13px] text-content outline-none placeholder:text-content/35 focus:border-content/30";
 const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content";
@@ -101,6 +119,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
   const look = agentLook(agent);
   const { files, error } = useAgentFiles(agent.id, refreshKey);
   const habits = useHabitCount(agent.id);
+  const library = useLibrary(agent.id);
   const [page, setPage] = useState<Page>();
   // Another agent's details start from the top.
   useEffect(() => setPage(undefined), [agent.id]);
@@ -124,6 +143,8 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         files ? <SoulPage key={agent.id} agentId={agent.id} files={files} /> : <PageNote>{error ?? "Loading…"}</PageNote>
       ) : page === "memory" ? (
         files ? <MemoryPage agentId={agent.id} files={files} /> : <PageNote>{error ?? "Loading…"}</PageNote>
+      ) : page === "library" ? (
+        <LibraryPage agentId={agent.id} documents={library ?? []} />
       ) : page === "habits" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4">
           <p className="text-xs leading-snug text-content/45">What it does on its own, on a schedule, while Loci is open. It writes to this chat only when there is something to say.</p>
@@ -159,6 +180,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
             <PageRow title="Soul" description="Who it is and the rules it always follows." onOpen={() => setPage("soul")} />
             <PageRow title="Habits" description="Recurring tasks it runs on its own." count={habits} onOpen={() => setPage("habits")} />
             <PageRow title="Memory" description="Facts and preferences it remembers." count={facts} onOpen={() => setPage("memory")} />
+            <PageRow title="Library" description="Documents it wrote for you to read." count={library?.length} onOpen={() => setPage("library")} />
           </div>
 
           <div className="flex flex-col border-t border-stroke p-2">
@@ -212,6 +234,37 @@ function ActionRow({ title, description, icon, danger = false, onClick }: { titl
         <span className="truncate text-xs text-content/45">{description}</span>
       </span>
     </button>
+  );
+}
+
+const libraryDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
+/** The agent's documents, grouped by what they are about. Opening one shows it beside the chat. */
+function LibraryPage({ agentId, documents }: { agentId: string; documents: StoredDocument[] }) {
+  const open = (entry: StoredDocument) => void readAgentDocument(agentId, entry.id).then((found) => {
+    if (found?.body != null) openDocument({ id: found.id, title: found.title, ...(found.subject ? { subject: found.subject } : {}), body: found.body });
+  }, () => undefined);
+  const groups = new Map<string, StoredDocument[]>();
+  for (const entry of documents) {
+    const subject = entry.subject?.trim() || "";
+    groups.set(subject, [...(groups.get(subject) ?? []), entry]);
+  }
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 pb-4">
+      <p className="px-2 text-xs leading-snug text-content/45">What it has written for you to read. Each opens beside the chat, and can be saved to your notes.</p>
+      {documents.length === 0 ? <p className="py-6 text-center text-xs text-content/40">Nothing written yet.</p> : null}
+      {[...groups].map(([subject, entries]) => (
+        <section key={subject} className="flex flex-col">
+          {subject ? <h3 className="px-2 pb-1 text-xs text-content/50">{subject}</h3> : null}
+          {entries.map((entry) => (
+            <button key={entry.id} type="button" onClick={() => open(entry)} className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-content/6">
+              <span className="min-w-0 flex-1 truncate text-[13px] text-content">{entry.title}</span>
+              <span className="shrink-0 text-[11px] text-content/40">{libraryDate.format(entry.updatedAt)}</span>
+            </button>
+          ))}
+        </section>
+      ))}
+    </div>
   );
 }
 

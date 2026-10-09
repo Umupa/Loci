@@ -796,7 +796,7 @@ async function handlePermission(live: Live, id: number, params: unknown) {
       preview: request.preview,
     });
   }
-  // Antigravity reaches Loci's canvas and learning tools by running the app's
+  // Antigravity reaches Loci's canvas tools by running the app's
   // CLI. Such a call follows the tools' own rules, as it would over MCP, not
   // the rule for arbitrary shell commands. Only this app's executable counts.
   const builtin =

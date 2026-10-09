@@ -79,7 +79,6 @@ export type SessionLaunch = {
 };
 import type { SplitDir } from "../../workspace/model/layout";
 import { consumeOperatorCommand } from "../../sessions/model/operatorCommand";
-import { isLearnMap, LEARN_MAP_WRITE_REFUSED } from "../../learn/model/learnMap";
 import { sessionConversationPage, type SessionReadOptions } from "./sessionConversation";
 
 export type AppSessionListing = {
@@ -153,8 +152,21 @@ export type AgentAppHost = {
   renameAgent?(agentId: string, look: { name: string; role?: string }): void;
   /** The agents' own files: soul, memory and topic notes. */
   files?: AgentFileStore;
+  /** What an agent has written for the user to read: its library. */
+  documents?: {
+    list(agentId: string): Promise<AgentLibraryEntry[]>;
+    read(agentId: string, id: string): Promise<AgentLibraryEntry | undefined>;
+  };
   /** The clock entries are dated by; tests pin it. */
   now?(): Date;
+};
+
+export type AgentLibraryEntry = {
+  id: string;
+  title: string;
+  subject?: string | null;
+  body?: string;
+  updatedAt: number;
 };
 
 export type AgentFileStore = {
@@ -211,6 +223,8 @@ const FIELDS = new Map<string, readonly string[]>([
   ["memory.add", ["fact", "topic", "until"]],
   ["memory.replace", ["find", "fact", "topic", "until"]],
   ["memory.remove", ["find", "topic"]],
+  ["documents.list", []],
+  ["documents.read", ["id"]],
   ["habits.list", []],
   ["habits.add", ["name", "instructions", "schedule"]],
   ["habits.update", ["id", "name", "instructions", "schedule", "enabled"]],
@@ -398,6 +412,40 @@ function memoryPath(topic: unknown): AgentFilePath {
   return topic === undefined
     ? "MEMORY.md"
     : `memory/${topicName(requiredString(topic, "topic", 80))}.md`;
+}
+
+async function handleDocuments(
+  source: Session,
+  action: string,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): Promise<unknown> {
+  const agentId = ownConversation(source, host)?.id;
+  if (!agentId || !host.documents)
+    throw new Error("Only an agent's own conversation can read its library");
+  if (action === "documents.list") {
+    const documents = await host.documents.list(agentId);
+    return {
+      documents: documents.map((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        ...(entry.subject ? { subject: entry.subject } : {}),
+        updatedAt: new Date(entry.updatedAt).toISOString(),
+      })),
+    };
+  }
+  const found = await host.documents.read(
+    agentId,
+    requiredString(input.id, "id", 80),
+  );
+  if (found?.body == null) throw new Error("No such document");
+  return {
+    id: found.id,
+    title: found.title,
+    ...(found.subject ? { subject: found.subject } : {}),
+    updatedAt: new Date(found.updatedAt).toISOString(),
+    text: found.body,
+  };
 }
 
 async function handleSoul(
@@ -839,6 +887,8 @@ export async function handleAgentApp(
     return handleSoul(source, action, input, host);
   if (action.startsWith("memory."))
     return handleMemory(source, action, input, host);
+  if (action.startsWith("documents."))
+    return handleDocuments(source, action, input, host);
   if (action.startsWith("habits."))
     return handleHabits(source, action, input, host);
   switch (action) {
@@ -1056,8 +1106,7 @@ export async function handleAgentApp(
     }
     case "canvas.delete": {
       const id = requiredString(input.id, "id", 256);
-      // An agent neither deletes nor overwrites the map of what the learner said.
-      if (isLearnMap(await projectCanvas(source, id, input, host))) throw new Error(LEARN_MAP_WRITE_REFUSED);
+      await projectCanvas(source, id, input, host);
       await deleteCanvas(id);
       return { deleted: true };
     }
@@ -1081,7 +1130,6 @@ export async function handleAgentApp(
       const existing = await getCanvas(id);
       if (!existing) throw new Error("Canvas was not found");
       if (!existing.cwd || !sameProjectPath(existing.cwd, cwd)) throw new Error("Canvas was not found in this project");
-      if (isLearnMap(existing)) throw new Error(LEARN_MAP_WRITE_REFUSED);
       await writeCanvasScene(id, scene);
       return { updated: true, url: appResourceUrl("canvas", id), saved: true };
     }

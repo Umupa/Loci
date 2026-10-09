@@ -3,6 +3,7 @@ import { useAnimatedReorder } from "../../shared/hooks/useAnimatedReorder";
 import { MoreHorizontal, Plus, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
 import { Popover, type PopoverAnchor } from "../../shared/ui/Popover";
 import { Shimmer } from "../../shared/ui/Shimmer";
+import { AGENT_TEMPLATES } from "../../features/agents/model/agentTemplates";
 import { AgentAvatar } from "../../features/agents/ui/AgentAvatar";
 import { AgentStatusDot } from "../../features/agents/ui/AgentStatus";
 import {
@@ -31,7 +32,8 @@ type Props = {
   unseenIds?: ReadonlySet<string>;
   onOpen: (agentId: string) => void;
   onOpenDetails: (agentId: string) => void;
-  onCreate: () => void;
+  /** Makes an agent: from a built-in template, or blank to settle its job in the chat. */
+  onCreate: (templateId?: string) => void;
   onDelete: (agentId: string) => void;
 };
 
@@ -51,6 +53,7 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
   const agents = useMemo(() => listAgents(), [snapshot]);
   const sortable = useAnimatedReorder(agents.map((agent) => agent.id), reorderAgents, "y");
   const [menu, setMenu] = useState<{ id: string; anchor: PopoverAnchor }>();
+  const [creating, setCreating] = useState<PopoverAnchor>();
   const menuAgent = menu ? agents.find((agent) => agent.id === menu.id) : undefined;
   return (
     <div className="mb-2 shrink-0" data-agent-rail>
@@ -64,7 +67,8 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             type="button"
             title="New agent"
             aria-label="New agent"
-            onClick={onCreate}
+            aria-haspopup="menu"
+            onClick={(event) => setCreating(event.currentTarget)}
             className="grid size-5 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content"
           >
             <Plus className="size-3.5" strokeWidth={1.75} />
@@ -77,7 +81,8 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             type="button"
             title="New agent"
             aria-label="New agent"
-            onClick={onCreate}
+            aria-haspopup="menu"
+            onClick={(event) => setCreating(event.currentTarget)}
             className="grid h-8 w-full cursor-default place-items-center rounded-md border border-dashed border-content/15 text-content/50 hover:border-content/30 hover:text-content"
           >
             <Plus className="size-3.5" strokeWidth={1.75} />
@@ -169,6 +174,27 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             <Trash2 className="size-3.5 shrink-0" strokeWidth={1.75} />
             Delete agent…
           </button>
+        </Popover>
+      ) : null}
+      {creating ? (
+        <Popover anchor={creating} side="right" align="start" gap={6} width={320} constrainHeight={false}
+          onDismiss={() => setCreating(undefined)} role="menu" aria-label="New agent" className="p-1.5">
+          <button type="button" role="menuitem" onClick={() => { setCreating(undefined); onCreate(); }}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-content/8">
+            <span className="grid size-6 shrink-0 place-items-center rounded-md bg-content/8 text-content/70"><Plus className="size-3.5" strokeWidth={1.75} /></span>
+            <span className="flex min-w-0 flex-col">
+              <span className="text-[13px] text-content">New agent</span>
+              <span className="truncate text-xs text-content/45">Tell it what its job is.</span>
+            </span>
+          </button>
+          <div className="px-2.5 pb-1 pt-2 text-[11px] text-content/40">Start from a template</div>
+          {AGENT_TEMPLATES.map((template) => (
+            <button key={template.id} type="button" role="menuitem" onClick={() => { setCreating(undefined); onCreate(template.id); }}
+              className="flex w-full flex-col rounded-lg px-2.5 py-1.5 text-left hover:bg-content/8">
+              <span className="text-[13px] text-content">{template.name} <span className="text-content/45">· {template.role}</span></span>
+              <span className="truncate text-xs text-content/45">{template.description}</span>
+            </button>
+          ))}
         </Popover>
       ) : null}
     </div>

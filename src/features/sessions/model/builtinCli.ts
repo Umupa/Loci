@@ -5,14 +5,13 @@ import {
   isCanvasWriteTool,
   type CanvasMcpTool,
 } from "../../canvas/mcpServer";
-import { LEARN_MCP_TOOLS, learnToolAllowed, type LearnMcpTool } from "../../learn/mcpServer";
 import type { Block, HarnessId, RuntimeMode } from "./session";
 import { shellWords } from "./shellWords";
 
 /**
  * Agent CLIs that cannot be handed an MCP server for one session without
- * editing the user's own configuration. They reach Loci's built-in canvas and
- * learning tools by running the app's CLI (`loci canvas …`, `loci learn …`),
+ * editing the user's own configuration. They reach Loci's built-in canvas
+ * tools by running the app's CLI (`loci canvas …`),
  * which starts the same servers for one call. A prompt tells them it exists.
  */
 export const BUILTIN_CLI_HARNESSES: readonly HarnessId[] = ["antigravity", "pi"];
@@ -30,9 +29,7 @@ export async function appCliPath(): Promise<string | undefined> {
 }
 
 /** One call of a built-in tool through the app's CLI. `help` lists the tools. */
-export type BuiltinCliCall =
-  | { namespace: "canvas"; tool: CanvasMcpTool | "help" }
-  | { namespace: "learn"; tool: LearnMcpTool | "help" };
+export type BuiltinCliCall = { namespace: "canvas"; tool: CanvasMcpTool | "help" };
 
 const HELP: readonly string[] = ["help", "--help", "-h"];
 
@@ -49,28 +46,23 @@ export function builtinCliCall(command: string | undefined, cliPath?: string): B
   if (!words) return undefined;
   const [program, namespace, name, ...rest] = words;
   if (cliPath ? program !== cliPath : !/(?:^|[/\\])loci(?:\.exe)?$/i.test(program ?? "")) return undefined;
-  if (namespace !== "canvas" && namespace !== "learn") return undefined;
+  if (namespace !== "canvas") return undefined;
   if (name === undefined || HELP.includes(name)) return rest.length === 0 ? { namespace, tool: "help" } : undefined;
   const asksHelp = rest.length === 1 && HELP.includes(rest[0]);
   const oneInput = rest.length === 2 && (rest[0] === "--json" || rest[0] === "--input");
   if (rest.length !== 0 && !asksHelp && !oneInput) return undefined;
-  if (namespace === "canvas") {
-    const tool = CANVAS_MCP_TOOLS.find((known) => known === name);
-    return tool ? { namespace, tool: asksHelp ? "help" : tool } : undefined;
-  }
-  const tool = LEARN_MCP_TOOLS.find((known) => known === name);
+  const tool = CANVAS_MCP_TOOLS.find((known) => known === name);
   return tool ? { namespace, tool: asksHelp ? "help" : tool } : undefined;
 }
 
 /**
  * How Loci answers a permission request for a built-in tool call without
  * asking, with the rules the MCP tools follow: reading never asks, drawing
- * asks in Supervised, the learning tools never ask, and a plan turn may only
+ * asks in Supervised, and a plan turn may only
  * read. Undefined leaves the request to the user.
  */
 export function builtinCliDecision(call: BuiltinCliCall, runtimeMode: RuntimeMode, planning: boolean): "allow" | "deny" | undefined {
   if (call.tool === "help") return "allow";
-  if (call.namespace === "learn") return learnToolAllowed(call.tool, planning) ? "allow" : "deny";
   if (planning) return isCanvasWriteTool(call.tool) ? "deny" : "allow";
   return canvasToolAutoAllowed(call.tool, runtimeMode) ? "allow" : undefined;
 }

@@ -1,6 +1,6 @@
 # Architecture
 
-How Loci is put together, for people who want to change it. It covers the moving parts and the rules that are easy to break by accident. The design records for the canvas MCP server and `/learn` go deeper; they are linked from the [documentation index](README.md).
+How Loci is put together, for people who want to change it. It covers the moving parts and the rules that are easy to break by accident. The design record for the canvas MCP server goes deeper; it is linked from the [documentation index](README.md).
 
 ## The shape of the app
 
@@ -18,9 +18,9 @@ Loci is a [Tauri 2](https://v2.tauri.app/) app: a Rust host process and the syst
          │ HarnessEvent stream                          │ spawn, stdio pipes
          ▼                                              ▼
    session UI, notes, canvases            agent CLI (claude, codex, ...)
-                                                        │ stdio MCP, or `loci canvas|learn`
+                                                        │ stdio MCP, or `loci canvas`      
                                                         ▼
-                                  loci_excalidraw / loci_learn (Node or Bun)
+                                  loci_excalidraw (Node or Bun)             
                                                         │ loopback + per-turn token
                                                         ▼
                                             control.rs ──▶ the owning window
@@ -42,7 +42,7 @@ Permission modes are not enforced by Loci's own sandbox. Loci answers the CLI's 
 
 - `features/sessions` holds the session model (a list of typed blocks), transcript rendering, the composer, slash commands and the submission pipeline (`app/hooks/useSessionSubmission.ts`).
 - `features/workspace` and `app/` hold tabs and the split-pane tree, which is saved as a snapshot so a restart restores the layout.
-- `features/notes`, `features/canvas`, `features/learn`, `features/projects`, `features/search`, `features/settings`, `features/skills` and `features/notifications` are feature folders. Code shared by several features lives in `shared/`, and the thin wrappers over Tauri commands in `platform/tauri/`.
+- `features/agents`, `features/notes`, `features/canvas`, `features/projects`, `features/search`, `features/settings`, `features/skills` and `features/notifications` are feature folders. Code shared by several features lives in `shared/`, and the thin wrappers over Tauri commands in `platform/tauri/`.
 
 ## Storage
 
@@ -76,26 +76,23 @@ Loci reads a few things other tools already keep, and writes none of them: the s
 | --- | --- | --- |
 | `app` | `/operator` and agents, through the `app` subcommand of the desktop executable (`control_cli.rs`) | the thread must have opted in; an agent's conversation and its habit runs always have |
 | `canvas` | the built-in Excalidraw server | every session may draw while the switch in **Settings → MCP** is on, only in its own project |
-| `learn` | the built-in learning server | only threads where `/learn` has been used |
 
 The switch is read when a turn starts and kept for that turn, so a change applies from the next turn and a running turn can finish. A provider may start its process under a generation-scoped id (`<session>#<n>`, as Antigravity does); the credential is looked up by the session that owns the process.
 
 ## Built-in MCP servers
 
-Two stdio MCP servers ship in `src-tauri/resources` and run on the user's Node.js (20.11+) or Bun, located by `canvas_mcp.rs`.
+One stdio MCP server ships in `src-tauri/resources` and runs on the user's Node.js (20.11+) or Bun, located by `canvas_mcp.rs`.
 
 - **`excalidraw-mcp/`** runs the official Excalidraw MCP server unmodified (`official/`; origin, version and hashes are in the `SOURCE` file beside it) behind `loci-bridge.mjs`, which swaps the official checkpoint store for Loci's canvases and adds tools to read canvases and update elements by id. To update the vendored server run `node scripts/vendor-excalidraw-mcp.mjs`. See [canvas-mcp.md](canvas-mcp.md).
-- **`learn-mcp/loci-learn.mjs`** is a thin forwarder: each `loci_learn` tool call goes over the control channel to the window, where `src/features/learn/bridge.ts` applies it.
 
-Claude Code receives them through `--mcp-config`, Codex through `-c mcp_servers.*` overrides. The Excalidraw server can be turned off in **Settings → MCP**. The learning server has no switch because it is attached only to threads where `/learn` is used.
+Claude Code receives it through `--mcp-config`, Codex through `-c mcp_servers.*` overrides. It can be turned off in **Settings → MCP**.
 
 ### Agent CLIs that cannot be given an MCP server
 
-Antigravity and Pi offer no way to attach an MCP server to one session without editing the user's own configuration, so they reach the same two servers through the desktop executable (`control_cli.rs`):
+Antigravity and Pi offer no way to attach an MCP server to one session without editing the user's own configuration, so they reach the same server through the desktop executable (`control_cli.rs`):
 
 ```sh
 loci canvas create_view --input drawing.json
-loci learn map_read
 loci canvas --help
 ```
 
@@ -103,9 +100,9 @@ One call asks the running app which command starts the server (the reserved `mcp
 
 What differs is how the agent finds out and how it is asked:
 
-- **Knowing.** `useSessionSubmission.ts` appends a note to a turn: `<loci_canvas>` once per provider conversation while the switch is on, and the CLI wording of the `/learn` rules on the turn that used `/learn`. The harnesses that work this way are listed in `features/sessions/model/builtinCli.ts`.
+- **Knowing.** `useSessionSubmission.ts` appends a note to a turn: `<loci_canvas>` once per provider conversation while the switch is on. The harnesses that work this way are listed in `features/sessions/model/builtinCli.ts`.
 - **Asking.** A provider that asks before running a command (Antigravity) sends the command with the request. `builtinCliCall` recognizes it only when it is exactly one tool call of this app's own executable, with nothing a shell would expand, chain or redirect; `builtinCliDecision` then answers with the rules of the MCP tools. Anything else is an ordinary command request. Pi never asks, and in Plan mode it has no shell, so the tools are out of reach there.
-- **Showing.** The transcript names such a shell row as the canvas or learning call it is (`canvasToolCall.ts`, `learnToolCall.ts`).
+- **Showing.** The transcript names such a shell row as the canvas call it is (`canvasToolCall.ts`).
 
 A new provider that can run shell commands needs an entry in that list, and an approval branch like Antigravity's if it asks before running commands.
 
@@ -118,23 +115,16 @@ An agent is long-lived and belongs to no project: a name, a pixel face in its ow
 - **What a turn carries.** `model/agentFiles.ts` puts a `<loci_context>` block ahead of the user's message: who the agent is, its projects, its soul, and the rules for memory, habits and delegation. A provider conversation is handed this once, and memory again only when it changes (`planAgentContext` records what was handed, by provider conversation and file hash). Bump `CONTEXT_VERSION` when the fixed rules change. The chat shows only what the user wrote.
 - **Rotation.** The chat never ends, but the provider conversation behind it does. At 80% of the reported context window the next turn starts a fresh one (`model/agentRotation.ts`), briefed with the last two exchanges word for word and one line for each earlier one. No model is called to summarize; the full transcript stays readable through `app sessions.read`.
 - **Paging.** The transcript itself would also grow without bound. Past 60 turns an idle chat that is not in view moves its oldest turns, down to 40, into `agent_transcript_pages` (`agent_transcript.rs`, `model/agentTranscript.ts`). The page is written before the session is trimmed and is keyed by its first block, so a crash in between archives nothing twice. The view offers the pages back with "Show archived history", above the transcript's own window of recent turns, and the agent's own `sessions.read` reaches into them. Pages are deleted with their session.
-- **The app CLI.** An agent's conversation has `app` access in every turn, plus actions an ordinary thread does not have: `soul.*`, `memory.*`, `habits.*`, `sessions.stop`, `sessions.archive`, `sessions.delete`, and `"project"` on the session, folder and canvas actions, limited to the projects on its roster. Memory is changed only through the CLI, which dates entries, redacts common credential formats and moves old entries to an archive once `MEMORY.md` passes what loads into a turn.
+- **The app CLI.** An agent's conversation has `app` access in every turn, plus actions an ordinary thread does not have: `soul.*`, `memory.*`, `documents.*`, `habits.*`, `sessions.stop`, `sessions.archive`, `sessions.delete`, and `"project"` on the session, folder and canvas actions, limited to the projects on its roster. Memory is changed only through the CLI, which dates entries, redacts common credential formats and moves old entries to an archive once `MEMORY.md` passes what loads into a turn.
 - **Questions.** An agent asks with choices rather than making the user type. A CLI with a question tool uses it. Any other ends its reply with a fenced `loci-question` block of JSON, which `features/sessions/model/standingQuestion.ts` turns into the same form and hides from the prose. Such a question is *standing*: no provider request waits on it, so it outlives the turn that asked it and a restart, and the choice goes out as the user's next message. Codex's own non-blocking questions become standing when their turn ends instead of being cancelled. This works in every session, not only an agent's.
+- **Cards.** A card is a fenced block in a reply that `features/sessions/ui/AgentMarkdown.tsx` draws as something better than code: `loci-question` (a form), `loci-document`, `loci-todo`, `loci-mindmap`, `loci-canvas`, and `mermaid`. Parsing is in `features/sessions/model/cards.ts`, the components in `ui/cards/`. It is only text, so any agent CLI can write one, and the rules for when to use which are in the `<cards_rules>` block of the agent's context. Cards hold no state: a ticked checklist item bubbles a `loci-card-reply` event that `SessionPane` submits as the user's next message, and the agent keeps what is worth keeping in its memory.
+- **Library.** A document is the one card that outlives its message. When an agent's turn ends, `useSessionSubmission.ts` saves the `loci-document` blocks of that turn into `agent_documents` (`agent_documents.rs`), keyed by agent and document id, so writing the same id again revises it. A document opens beside the chat (`ui/AgentDocumentReader.tsx`), is listed under Details → Library, and can be saved as a note. The agent reads its library back with `documents.list` and `documents.read`. Deleting an agent deletes its documents.
+- **Templates.** `model/agentTemplates.ts` lists the built-in starting points. A template is a brief, not a configuration: a name, a role, what to ask and the points to write a soul from. `agentSetupPrompt` in `model/agentFiles.ts` turns it into the first message, and the agent sets itself up in the chat. Adding a template is adding an entry there.
+- **Teaching.** There is no learning feature in the app. The Tutor template gives an agent its method, which it writes into its own soul, and keeps the learner's profile and progress in its memory. Nothing about it is checked by the app.
 - **Habits.** `useAgentHabits.ts` checks every minute while the app is open. A due habit runs in a hidden session (`ephemeral`: never saved, never shown, never counted) with full access, because nobody is watching it. With Codex the run uses an ephemeral thread, so it leaves nothing in the user's own Codex history; other CLIs keep whatever record they normally keep. Its last reply is posted to the agent's chat, or nothing when the reply is `NOTHING_TO_REPORT`. An approval the run asks for is put to the user in the agent's chat and the answer routed back. A run may work for an hour; one that came due more than two hours ago is skipped rather than caught up; one runs at a time.
 - **Delegation.** A session an agent starts reports back by default. The ones started in the same agent turn form a group (`model/agentSessionCompletion.ts`); when that turn has ended and all of them have stopped, the agent is sent their results as one new turn, once it is idle and the user has nothing queued (`useAgentDelegation.ts`). Reports waiting to be delivered live in memory only, so they do not survive a restart.
 
 Everything an agent can reach goes through the same control channel and the same window-side handlers as `/operator`. Widening what agents can do deserves the same care as any other change there. `sessions.delete` asks the user to confirm; an agent cannot remove a conversation on its own.
-
-## The learning map
-
-The rules that make a learning map trustworthy are enforced in the window, not in the prompt, so they hold for any model. In `src/features/learn`:
-
-- `model/` is pure logic with no UI or I/O: node states, host placement, the quote check, the revisit schedule.
-- `bridge.ts` applies tool calls to the canvas and notes and refuses anything the rules forbid.
-- `learnCommand.ts` defines `/learn` and its prompt, which is the learning skill itself: the overview, the interview and `profile.md`, the roadmap and `roadmap.md`, the readings gathered into `sources/`, and how to teach from them. The agent does that work with its own tools, so it is as good as the model. Change it in the prompt, and judge a change by running it with real agents (`scripts/acceptance/learn/`).
-- `ui/LearnMapPanel.tsx` is the inspector and the revisit cover.
-
-Canvas writes from other tools are refused on a learning map, which is how "the agent cannot move anything, and can take off only unexplored nodes nobody has touched" is enforced. Read [learn.md](learn.md) before changing any of this; its rules were chosen on purpose.
 
 ## Links between objects
 

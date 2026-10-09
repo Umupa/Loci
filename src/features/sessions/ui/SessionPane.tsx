@@ -69,6 +69,7 @@ import { AstraWelcome } from "./AstraWelcome";
 import { BtwSheet,useBtwConversation } from "./BtwSheet";
 import { EmptySession } from "./EmptySession";
 import { QuestionCard } from "./QuestionCard";
+import { CARD_REPLY_EVENT } from "../model/cards";
 import { OpusWelcome } from "./OpusWelcome";
 import { PromptOutline } from "./PromptOutline";
 import { TranscriptFind } from "./TranscriptFind";
@@ -328,6 +329,20 @@ export const SessionPane = memo(function SessionPane({
 
   const jumpToBottomRef = useRef<(() => void) | null>(null);
   const transcriptScope = useRef<HTMLDivElement>(null);
+  // What the user does with a card goes to the agent as their next message.
+  const submitRef = useRef(onSubmit);
+  submitRef.current = onSubmit;
+  useEffect(() => {
+    const scope = transcriptScope.current;
+    if (!scope) return;
+    const onReply = (event: Event) => {
+      const text = (event as CustomEvent<{ text?: unknown }>).detail?.text;
+      if (typeof text === "string" && text.trim()) submitRef.current(session.id, text, []);
+    };
+    scope.addEventListener(CARD_REPLY_EVENT, onReply);
+    return () => scope.removeEventListener(CARD_REPLY_EVENT, onReply);
+    // The transcript is only mounted once the conversation has something in it.
+  }, [session.id, session.blocks.length === 0]);
   const [transcriptScroller, setTranscriptScroller] =
     useState<HTMLDivElement | null>(null);
   const focusPane = useCallback(

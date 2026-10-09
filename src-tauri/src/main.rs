@@ -5,10 +5,11 @@ fn main() {
         Some("app") => std::process::exit(loci_lib::control_cli::run_app(
             std::env::args().skip(2).collect(),
         )),
-        // The built-in Excalidraw and learning tools, one call at a time.
-        Some(namespace @ ("canvas" | "learn")) => std::process::exit(
-            loci_lib::control_cli::run_tool(namespace, std::env::args().skip(2).collect()),
-        ),
+        // The built-in Excalidraw tools, one call at a time.
+        Some(namespace @ "canvas") => std::process::exit(loci_lib::control_cli::run_tool(
+            namespace,
+            std::env::args().skip(2).collect(),
+        )),
         _ => {}
     }
     #[cfg(all(debug_assertions, target_os = "macos"))]

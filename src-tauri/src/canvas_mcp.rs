@@ -1,6 +1,5 @@
-//! How to start Loci's built-in MCP servers with a local JavaScript runtime:
-//! the official Excalidraw server bundle behind Loci's store bridge, and the
-//! learning server that reaches a project's learning map.
+//! How to start Loci's built-in MCP server with a local JavaScript runtime:
+//! the official Excalidraw server bundle behind Loci's store bridge.
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -10,7 +9,6 @@ use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
 
 const BRIDGE: &str = "resources/excalidraw-mcp/loci-bridge.mjs";
-const LEARN_SERVER: &str = "resources/learn-mcp/loci-learn.mjs";
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct CanvasMcpServer {
@@ -20,18 +18,11 @@ pub struct CanvasMcpServer {
 
 // A missing runtime is looked up again, so installing Node needs no restart.
 static RESOLVED: Mutex<Option<CanvasMcpServer>> = Mutex::new(None);
-static LEARN_RESOLVED: Mutex<Option<CanvasMcpServer>> = Mutex::new(None);
 
 /// The stdio command agent CLIs should run, or why drawing tools are unavailable.
 #[tauri::command(async)]
 pub fn canvas_mcp_server(app: AppHandle) -> Result<CanvasMcpServer, String> {
     canvas_server(&app)
-}
-
-/// The stdio command for the learning MCP server, or why it is unavailable.
-#[tauri::command(async)]
-pub fn learn_mcp_server(app: AppHandle) -> Result<CanvasMcpServer, String> {
-    learn_server(&app)
 }
 
 /// Also answers the app's own CLI, which runs the same server for one call.
@@ -47,25 +38,6 @@ pub fn canvas_server(app: &AppHandle) -> Result<CanvasMcpServer, String> {
         args: vec![plain_path(&bridge)],
     };
     if let Ok(mut cached) = RESOLVED.lock() {
-        *cached = Some(server.clone());
-    }
-    Ok(server)
-}
-
-pub fn learn_server(app: &AppHandle) -> Result<CanvasMcpServer, String> {
-    if let Some(server) = LEARN_RESOLVED.lock().ok().and_then(|cached| cached.clone()) {
-        return Ok(server);
-    }
-    let script = resource_path(app, LEARN_SERVER)
-        .ok_or_else(|| "Loci's learning MCP files are missing from this build.".to_string())?;
-    let runtime = runtime().map_err(|_| {
-        "The learning map needs Node.js 20.11 or newer (or Bun) on your PATH.".to_string()
-    })?;
-    let server = CanvasMcpServer {
-        command: plain_path(&runtime),
-        args: vec![plain_path(&script)],
-    };
-    if let Ok(mut cached) = LEARN_RESOLVED.lock() {
         *cached = Some(server.clone());
     }
     Ok(server)
@@ -175,17 +147,5 @@ mod tests {
         assert!(resources
             .iter()
             .any(|entry| entry.as_str() == Some("resources/excalidraw-mcp/**/*")));
-    }
-
-    #[test]
-    fn the_learning_server_ships_with_the_app() {
-        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-        assert!(manifest.join(LEARN_SERVER).is_file());
-        let config = std::fs::read_to_string(manifest.join("tauri.conf.json")).unwrap();
-        let config: serde_json::Value = serde_json::from_str(&config).unwrap();
-        let resources = config["bundle"]["resources"].as_array().unwrap();
-        assert!(resources
-            .iter()
-            .any(|entry| entry.as_str() == Some("resources/learn-mcp/**/*")));
     }
 }

@@ -87,9 +87,11 @@ SQLite 保存成功后才返回 `canvasId`、`title`、`url`、`saved:true` 及�
 
 ## 通过应用 CLI 调用（Antigravity、Pi）
 
+> 2026-10-09 更新：`/learn` 技能和它的 `loci_learn` 服务、`learn` 命名空间、`loci learn …` 命令已经移除，学习改由常驻 agent 承担（见 [architecture.md](architecture.md) 的 Agents 一节）。下文“怎么调用”和“agent 怎么知道”描述的是现状；验证记录里提到 `/learn` 的条目是当时的历史记录，保留原样。
+
 ### 为什么不是给它们也挂 MCP
 
-内置服务此前只支持 Claude Code 和 Codex，是因为“挂载”这一步用的是这两家各自的启动参数（`--mcp-config`、`-c mcp_servers.*`）。能力本身不分 provider：控制通道的 `canvas` / `learn` 命名空间和窗口里的处理器对谁都一样。其余 provider 缺的只是“模型怎么调用、怎么知道能调用”。
+内置服务此前只支持 Claude Code 和 Codex，是因为“挂载”这一步用的是这两家各自的启动参数（`--mcp-config`、`-c mcp_servers.*`）。能力本身不分 provider：控制通道的 `canvas` 命名空间和窗口里的处理器对谁都一样。其余 provider 缺的只是“模型怎么调用、怎么知道能调用”。
 
 2026-10-08 核对到的事实：
 
@@ -107,14 +109,13 @@ SQLite 保存成功后才返回 `canvasId`、`title`、`url`、`saved:true` 及�
 ```sh
 loci canvas create_view --input drawing.json
 loci canvas read_widget_context --json '{"checkpointId":"<id>"}'
-loci learn map_read
 loci canvas --help        # 工具、说明和参数，直接取自服务的 tools/list
 ```
 
 `loci` 是应用自己的可执行文件，与 `/operator` 的 `loci app` 并列（`src-tauri/src/control_cli.rs`）。一次调用做四件事：
 
 1. 用环境里的会话凭据向应用询问“这个服务用什么命令启动”。这是保留请求 `mcp.server`，由 `control.rs` 直接回答，受该命名空间自己的授权规则约束，窗口看不到它。应用已经知道资源路径和 Node/Bun 在哪，CLI 不重复解析。
-2. 启动这条命令。它就是 MCP 客户端会挂的那个进程（`loci-bridge.mjs` 或 `loci-learn.mjs`），继承同一份凭据。
+2. 启动这条命令。它就是 MCP 客户端会挂的那个进程（`loci-bridge.mjs`），继承同一份凭据。
 3. 做 MCP 握手，调用这一个工具。
 4. 把结果的文本块原样打印；失败时退出码非 0。
 
@@ -125,7 +126,6 @@ loci canvas --help        # 工具、说明和参数，直接取自服务的 too
 没有工具列表可看，所以由 Loci 在消息后追加说明（`src/app/hooks/useSessionSubmission.ts`，文本在 `features/sessions/model/builtinCli.ts`）：
 
 - 画布开关开启、会话在项目里时，**每个 provider 对话的第一轮**附带 `<loci_canvas>`，约 190 token。带过说明的用户消息记 `canvasCli` 标记；provider 会话换新（切换 provider、无法恢复）后重新附带；开关由关到开后的下一轮附带。
-- `/learn` 的那一轮附带 CLI 措辞的 `<loci_learn>`，除“怎么调用工具”两句外与 MCP 版相同。
 - 令牌只在环境变量里，说明里只有可执行文件路径。
 
 走这条路的 provider 列在 `BUILTIN_CLI_HARNESSES`，目前是 Antigravity 和 Pi。
@@ -135,11 +135,11 @@ loci canvas --help        # 工具、说明和参数，直接取自服务的 too
 - **开关。** turn 开始时把 Settings → MCP 的 Excalidraw 开关记进这一轮的授权，`canvas` 命名空间按它放行或拒绝（`control.rs`）。关闭后下一轮起请求被拒并说明原因，进行中的 turn 正常完成。这对两种调用方式一视同仁；Claude Code / Codex 关闭后本来就不再挂载，行为不变。`/operator` 的 `canvas.*` 走 `app` 命名空间，不受开关影响，与此前相同。
 - **批准（Antigravity）。** 它运行命令前会发批准请求并带上命令。`builtinCliCall` 只在命令**恰好是本应用可执行文件的一次工具调用**时才认：路径必须等于应用自己的路径，参数只能是一个 `--json` 或 `--input`，任何会被 shell 展开、串接或重定向的写法（`;`、`&&`、管道、`$()`、反引号、heredoc）都不认。认出后按 MCP 工具的同一套规则作答：读取不问；`create_view` / `update_elements` 在 Supervised 询问、其余模式直接执行；学习工具不问；计划 turn 只读。认不出的照常作为普通命令询问。
 - **批准（Pi）。** Pi 没有批准协议，任何工具都不询问，画布写入也一样；计划 turn 里 Pi 没有 shell，这些工具不可用，包括读取。
-- **显示。** 对话记录把这样的 shell 行显示成对应的画布或学习调用，绘图行的 Open 按钮照常可用；查看工具列表显示为“View canvas tools”。
+- **显示。** 对话记录把这样的 shell 行显示成对应的画布调用，绘图行的 Open 按钮照常可用；查看工具列表显示为“View canvas tools”。
 
 ### 这条路的限制
 
-- 说明只存在于对话里。上下文被压缩后 agent 可能不再知道这个 CLI；提醒它，或重新输入 `/learn`。
+- 说明只存在于对话里。上下文被压缩后 agent 可能不再知道这个 CLI；提醒它即可。
 - 大的 `create_view` 参数要经文件或标准输入传入。在 Supervised 下这通常意味着先批准一次文件写入，再批准一次绘图。
 - 需要 agent 的 shell 能连本机回环，并继承会话进程的环境变量。
 - 每次调用启动一次 Node 进程。

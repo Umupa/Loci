@@ -90,7 +90,7 @@ it("shows the app-owned canvas server and preserves its off switch across settin
   expect(builtin().textContent).toContain("Claude Code");
   expect(builtin().textContent).toContain("Codex");
   // Agents that call the built-in servers through Loci's CLI are listed with those that attach them.
-  for (const id of ["builtin-excalidraw", "builtin-learn"]) {
+  for (const id of ["builtin-excalidraw"]) {
     const card = container.querySelector(`[data-setting-id="${id}"]`)!;
     for (const name of ["Claude Code", "Codex", "Antigravity", "Pi"]) expect(card.textContent).toContain(name);
     expect(card.textContent).not.toContain("Cursor");

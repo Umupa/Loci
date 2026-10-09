@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { appResourceUrl } from "../../shared/lib/appResourceLinks";
 import { looksLikeProject, sameProjectPath } from "../projects/model/recents";
 import type { Session } from "../sessions/model/session";
-import { isLearnMap, LEARN_MAP_WRITE_REFUSED } from "../learn/model/learnMap";
 import { checkpointCanvasId, createEmptyCanvas, getCanvas, loadCanvases, readCanvasScene, upsertCanvas, writeCanvasScene, type Canvas } from "./canvas";
 
 /** What the canvas bridge needs from the window it runs in. */
@@ -80,8 +79,6 @@ export async function handleCanvasBridge(source: Session, action: string, input:
       // A repeated id is the same drawing: the official widget re-saves its checkpoint.
       const target = await checkpointCanvas(source, baseId ?? id);
       if (!target && (baseId || patch.replace)) throw new Error(`Checkpoint "${baseId ?? id}" was not found in this project`);
-      // A learning map holds what the learner said; an agent only changes it through loci_learn.
-      if (target && isLearnMap(target)) throw new Error(LEARN_MAP_WRITE_REFUSED);
       if (!target) {
         const scene = scenes.applyCheckpointPatch("", patch);
         const canvas = await upsertCanvas({
@@ -123,7 +120,6 @@ export async function handleCanvasBridge(source: Session, action: string, input:
         throw new Error("expectedRevision must be the revision returned by get_elements");
       const target = await checkpointCanvas(source, id);
       if (!target) throw new Error(`Checkpoint "${id}" was not found in this project`);
-      if (isLearnMap(target)) throw new Error(LEARN_MAP_WRITE_REFUSED);
       const { applyElementUpdates } = await import("./elementUpdates");
       const nextId = crypto.randomUUID().replace(/-/g, "");
       let updatedIds: string[] = [];

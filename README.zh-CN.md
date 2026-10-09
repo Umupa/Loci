@@ -7,7 +7,7 @@
 **一个桌面应用，容纳你已经在用的所有 agent CLI。**
 
 项目就是普通文件夹，会话通过本机已安装的 agent CLI 运行。<br />
-笔记、画布和学习图就放在对话旁边。
+笔记、画布和常驻 agent 就放在对话旁边。
 
 [![CI](https://github.com/Umupa/Loci/actions/workflows/ci.yml/badge.svg)](https://github.com/Umupa/Loci/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -30,7 +30,7 @@ Loci 是一个本地优先的 agent CLI 桌面外壳，使用 Tauri 2、Rust、R
 - **笔记和画布是一等对象。** 可以在输入框里用 `@` 引用的 Markdown 笔记，以及 Excalidraw 画布。回复里可以用 `loci://note/<id>`、`loci://canvas/<id>` 链接它们，点击后在当前窗口打开。
 - **会画图的 agent。** Claude Code 和 Codex 会话自带内置的 `loci_excalidraw` MCP：未经修改的官方 Excalidraw MCP 服务，写入 Loci 自己的画布存储。Antigravity 和 Pi 会话通过 Loci 自带的 CLI 使用同一组工具，不需要安装或配置。你的手动修改会被保留，面板实时更新。见 [docs/canvas-mcp.md](docs/canvas-mcp.md)。
 - **`/operator`。** 让 agent 操作 Loci 本身：读取模型、启动和发送会话、调整分栏、整理文件夹、读写笔记和画布。它走一条带认证的本机回环通道，只在你启用它的那一个 turn 内有效。
-- **`/learn`。** 在一张只由你用自己的话讲出来的内容长出来的图上学习一个主题。见[用 Loci 学习](#用-loci-学习)。
+- **常驻 agent。** 不属于任何项目、长期存在的 agent：一段你会反复回来的对话、常驻指令、记忆、按计划自己运行的习惯，以及它在你的项目里启动并跟进的会话。它用可点选的选项提问，用卡片回复。见 [Agents](#agents)。
 - **主题、壁纸与字体。** Settings → Appearance 提供 22 个 Omarchy 主题、配套代码高亮和 72 张壁纸，也支持自选背景与系统已安装的字体。沿用背景效果、显示范围和透明度，自定义强调色优先。见 [docs/themes.md](docs/themes.md)。
 - **中文设置页。** 设置页默认跟随系统语言，也可在“Settings → 通用 → 设置页语言”切换简体中文或英文，立即生效。工作区保持英文。
 - **本地优先。** 本地 SQLite 数据库，不需要账号，没有统计，没有自动更新。见[数据与隐私](#数据与隐私)。
@@ -64,21 +64,21 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 
 ### 开始第一个会话之前
 
 - 至少安装并登录一个受支持的 agent CLI。Loci 会在 `PATH` 和常见安装位置里找每个 CLI。**Settings → Agent CLIs** 可以指定具体的可执行文件、默认模型，以及隐藏你不用的 CLI。
-- 想用内置 MCP 服务（`loci_excalidraw`、`loci_learn`），需要安装 Node.js 20.11+（或 Bun）。没有它会话照常启动，设置页和画布面板会说明缺什么。
+- 想用内置 MCP 服务（`loci_excalidraw`），需要安装 Node.js 20.11+（或 Bun）。没有它会话照常启动，设置页和画布面板会说明缺什么。
 
 ## 支持的 agent CLI
 
 | CLI | 说明 |
 | --- | --- |
-| Claude Code、Codex | 完整功能：账号管理与额度查询、内置 MCP 服务、`/learn` |
-| Antigravity、Pi | 对话、模型和权限选择，并通过 Loci 的 CLI 使用画布工具和 `/learn` |
+| Claude Code、Codex | 完整功能：账号管理与额度查询、内置 MCP 服务 |
+| Antigravity、Pi | 对话、模型和权限选择，并通过 Loci 的 CLI 使用画布工具 |
 | Cursor、Grok Build、OpenCode、omp、fx、Hermes Agent | 通过 CLI 自己的协议聊天，并选择模型和权限。除此之外能显示多少（提问、计划、工具详情）取决于 CLI 上报什么 |
 
 需要知道的细节：
 
 - 账号管理和额度查询目前只支持 Claude Code 和 Codex。
 - Antigravity 使用独立的 ACP server。遇到认证提示时，请点击应用内的 **Sign in to Antigravity**；交互式 `agy` 的登录不能替代它。
-- Antigravity 和 Pi 通过运行命令来调用画布和学习工具，所以它们是在对话里被告知这些工具的，而不是通过工具列表。Pi 做任何事之前都不询问，画图也一样；Plan 模式下 Pi 没有 shell，用不了这些工具。
+- Antigravity 和 Pi 通过运行命令来调用画布工具，所以它们是在对话里被告知这些工具的，而不是通过工具列表。Pi 做任何事之前都不询问，画图也一样；Plan 模式下 Pi 没有 shell，用不了这些工具。
 - fx 暂不支持附件。
 - 未安装的 CLI 仍会显示在设置里，并附安装提示。
 
@@ -89,24 +89,25 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 
 | 命令 | 作用 |
 | --- | --- |
 | `/operator` | 让当前会话能访问 Loci 的会话、文件夹、笔记和画布 |
-| `/learn` | 在一张只记录你自己讲出来的内容的图上学习一个主题（Claude Code、Codex、Antigravity 和 Pi） |
 | `/btw` | 就当前 turn 问一个只读的旁问 |
 | `/draft` | 保存这条消息，但不启动 agent |
 | `/compact` | 总结较早的对话内容，腾出上下文空间 |
 | `/mcp` | 为这条消息查找合适的 MCP 服务 |
 | `/add-to-folder` | 把这个会话放进已有或新建的侧栏文件夹 |
 
-## 用 Loci 学习
 
-在 Claude Code、Codex、Antigravity 或 Pi 会话里输入 `/learn`。项目文件夹就是主题，比如 `~/learn/kubernetes`，Loci 在其中维护一张“学习图”画布。
+## Agents
 
-- **实心表示你讲出来过。** 节点只有在你用自己的话讲出来之后才变成实心。agent 记下一段原话，Loci 逐字核对它是不是你真的输入过的内容；它不能是摘要，也不能是 agent 自己的解释。
-- **先有画像、路线图和资料。** 开讲之前，agent 先给你看这个领域的全景，访谈你（目标、水平、深度、语言、怎么讲你最容易懂），写成 `profile.md`；再把路线排进 `roadmap.md`，把阶段和主题作为虚线节点画到图上，并把每个主题的阅读资料收进 `sources/`：完整的全文，用你选的语言，原文没有该语言版本时全文翻译。这一部分由技能的提示词规定，agent 用它自己的搜索和文件工具完成。
-- **你说，它画。** agent 只负责说出有什么可学：路线图上的主题，以及你已有知识旁边的几个虚线节点。它们之间怎么连由你来说。它不能移动图上的任何东西，只能拿掉没人碰过的虚线节点，也不能自己宣布某个节点“已掌握”。
-- **按间隔回访。** 节点在 1、3、7、21、60、150 天后回来。回访时地图被遮住，你之前的原话在你答完之前不会给 agent 看，所以你得凭记忆讲。
-- **投资这类主题有判断节点。** 判断节点带一个回看日期。agent 把它和你以前说过的话对照，指出你漏掉的考虑，但从不给买卖建议。
+点击侧栏 *Agents* 旁边的 **+**。**New agent** 创建一个空白 agent，它会先问你它的主要工作是什么，然后给自己起名，并根据你的回答写下自己的常驻指令。也可以从内置模板开始（Tutor、Lead、Watch、Reviewer、Scout、Chief）：工作已经定好，agent 只问这份工作需要知道的事。这些之后都可以在 **Details** 里修改。
 
-学习图的规则写在应用里而不是提示词里，所以无论用哪个模型都成立。agent 围绕这张图做的事（访谈、路线图、资料）由提示词规定，做得好不好取决于模型。设计、数据模型，以及哪些验证过、哪些没验证，见 [docs/learn.md](docs/learn.md)。
+- **它一直在。** 一个 agent 有一段不会结束的对话、一份 soul（常驻指令）和一份边学边记的记忆。两者都是 Loci 数据目录里的文件，不在你的仓库里，换模型也不会丢。
+- **它在你的项目里干活。** 在 Details 里把项目交给它。它可以在其中启动会话、跟进，并在完成后回来汇报。
+- **习惯。** Loci 开着的时候按计划自己做的事，只有值得说时才给你发消息。
+- **卡片。** 回复不只是文字：可点选的提问、在对话旁打开的文档、可以勾选的清单、可折叠的思维导图、Mermaid 图、指向画布的链接。卡片自己不保存任何状态；你对它做的操作会作为下一条消息发给 agent。
+- **文档库。** agent 写的文档保存在 Details → Library，按主题分组。同一篇再写一次就是修订，任何一篇都可以存为笔记。
+- **比如做导师。** 选 Tutor 模板。它会访谈你，把你的水平和进度记在记忆里，把路线图和讲解写成文档，你说换主题就换。
+
+agent 做什么由提示词决定，所以效果取决于它背后的模型。
 
 ## 数据与隐私
 
@@ -148,12 +149,12 @@ npm run build         # 类型检查并构建 Web 包
 ```text
 src/                      React 前端
   app/                    窗口外壳与工作区组合
-  features/               sessions、notes、canvas、learn、projects、search、settings、skills 等
+  features/               sessions、agents、notes、canvas、projects、search、settings、skills 等
   integrations/harness/   agent CLI 协议核心和十个 provider
   platform/tauri/         对 Tauri 命令的薄封装
   shared/                 UI 组件、hooks 和工具函数
 src-tauri/                Rust 后端：进程、SQLite 存储、应用控制、MCP 资源
-  resources/              内置 MCP 服务（excalidraw-mcp、learn-mcp）
+  resources/              内置 MCP 服务（excalidraw-mcp）
 docs/                     指南和设计记录
 scripts/                  版本号更新、第三方文件引入和真实协议探测
 ```
@@ -162,7 +163,7 @@ scripts/                  版本号更新、第三方文件引入和真实协议
 
 ## 文档
 
-[文档索引](docs/README.md)列出了全部指南。画布 MCP 和 `/learn` 的设计记录以中文撰写。
+[文档索引](docs/README.md)列出了全部指南。画布 MCP 的设计记录以中文撰写。
 
 ## 许可证
 

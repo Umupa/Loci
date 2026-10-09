@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { AGENT_TEMPLATES, agentTemplate } from "./agentTemplates";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const invoke = vi.fn();
@@ -190,6 +191,13 @@ it("asks a new agent to introduce itself as a resident and settle one main job",
   expect(agentSetupPrompt()).toContain("The user has no projects open in Loci yet.");
 });
 
+it("tells a new agent how a tutor works, should teaching be its job", () => {
+  const prompt = agentSetupPrompt();
+  expect(prompt).toContain("teaching them a subject they want to learn");
+  expect(prompt).toContain("when they say switch, switch");
+  expect(prompt).toContain("for each subject a topic file");
+});
+
 it("starts a soul from what the agent was made for", () => {
   expect(defaultSoul("  Watch CI and tell me when it breaks. ")).toBe(
     "# Soul\n\n## Standing instructions\nWatch CI and tell me when it breaks.\n",
@@ -227,4 +235,22 @@ it("puts what the app adds ahead of the user's message, marked as its own", () =
     turn.indexOf("what is this"),
   );
   expect(turn.endsWith("</loci_context>\n\nwhat is this")).toBe(true);
+});
+
+it("sets an agent made from a template up for that job, asking only what it needs", () => {
+  for (const template of AGENT_TEMPLATES) {
+    const prompt = agentSetupPrompt([{ name: "app", path: "/code/app" }], template);
+    expect(prompt.startsWith("<agent_setup>")).toBe(true);
+    expect(prompt).toContain(`"${template.name}" template`);
+    expect(prompt).toContain(template.job);
+    expect(prompt).toContain(template.ask);
+    expect(prompt).toContain(template.soul);
+    expect(prompt).not.toContain("what your one main job should be");
+    expect(prompt.includes("You cannot give yourself projects")).toBe(template.needsProjects);
+    expect(prompt.includes("Suggest one habit")).toBe(!!template.habit);
+    expect(prompt).not.toContain("undefined");
+  }
+  expect(new Set(AGENT_TEMPLATES.map((template) => template.id)).size).toBe(AGENT_TEMPLATES.length);
+  expect(agentTemplate("tutor")?.role).toBe("tutor");
+  expect(agentTemplate("nope")).toBeUndefined();
 });

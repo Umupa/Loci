@@ -1,3 +1,4 @@
+import { listAgentDocuments, readAgentDocument } from "../../features/agents/model/agentDocuments";
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -7,7 +8,6 @@ import { habitRunAgent, loadHabits, updateHabits } from "../../features/agents/m
 import { loadAgentFiles, readAgentFile, writeAgentFile } from "../../features/agents/model/agentFiles";
 import { readAgentConversation } from "../../features/agents/model/agentTranscript";
 import { handleCanvasBridge } from "../../features/canvas/checkpoints";
-import { handleLearnBridge } from "../../features/learn/bridge";
 import { listSessionsByProject } from "../../features/sessions/data/sessionStore";
 import { newSession, sessionDraftBlock, type Session } from "../../features/sessions/model/session";
 import { sameProjectPath } from "../../features/projects/model/recents";
@@ -35,11 +35,6 @@ export function useAppControl(options: Options) {
         if (payload.namespace === "canvas") {
           if (!source) throw new Error("This session cannot draw on Loci canvases");
           return handleCanvasBridge(source, payload.action, payload.input, { isOpen: workspace.isCanvasOpen, reveal: workspace.revealCanvas });
-        }
-        // The built-in learning MCP server reaches the project's learning map here, in threads that used /learn.
-        if (payload.namespace === "learn") {
-          if (!source) throw new Error("This session cannot use the Loci learning map");
-          return handleLearnBridge(source, payload.action, payload.input, { reveal: workspace.revealCanvas });
         }
         if (payload.namespace !== "app") throw new Error("Unknown CLI namespace");
         if (!source) throw new Error("This session cannot use the Loci app CLI");
@@ -158,6 +153,7 @@ export function useAppControl(options: Options) {
           habits: { load: loadHabits, update: updateHabits },
           renameAgent: (agentId, look) => { updateAgent(agentId, (current) => ({ ...current, ...look })); },
           files: { load: loadAgentFiles, read: readAgentFile, write: writeAgentFile },
+          documents: { list: listAgentDocuments, read: readAgentDocument },
           notes: () => loadNotes(true), note: getNote,
           saveNote: async (note) => { const saved = await upsertNote(note); window.dispatchEvent(new Event(NOTES_CHANGED_EVENT)); return saved; },
         });

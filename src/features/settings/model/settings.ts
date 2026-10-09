@@ -122,12 +122,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "loci_excalidraw drawing canvas built-in enable disable claude codex",
     },
     {
-        id: "builtin-learn",
-        section: "mcp",
-        get label() { return t("Built-in learning MCP"); },
-        keywords: "loci_learn learn learning map revisit built-in claude codex",
-    },
-    {
         id: "mcp-servers",
         section: "mcp",
         get label() { return t("MCP servers"); },

@@ -27,10 +27,8 @@ import {
   ListFilter,
   Check,
   ExcalidrawIcon,
-  Mortarboard,
 } from "../../../shared/ui/icons";
 import { CANVAS_MCP_NAME, canvasMcpProblem } from "../../canvas/mcpServer";
-import { LEARN_MCP_NAME, learnMcpProblem } from "../../learn/mcpServer";
 import { saveCanvasMcpEnabled, useCanvasMcpEnabled } from "../model/builtinMcp";
 import { MCP_PROVIDER_LABELS, type McpConnection } from "../model/mcp";
 import {
@@ -399,46 +397,6 @@ function BuiltinCanvasMcp() {
           </div>
         ) : null}
       </div>
-      <BuiltinLearnMcp />
-    </div>
-  );
-}
-
-/** The learning server has no switch: it is only attached to threads where the user typed /learn. */
-function BuiltinLearnMcp() {
-  useLocale();
-  const [problem, setProblem] = useState<string | null | undefined>(undefined);
-  const [check, setCheck] = useState(0);
-  useEffect(() => {
-    let current = true;
-    setProblem(undefined);
-    void learnMcpProblem().then((result) => { if (current) setProblem(result); });
-    return () => { current = false; };
-  }, [check]);
-  const status = problem === undefined ? t("Checking…") : problem ? t("Unavailable") : t("Available");
-
-  return (
-    <div id="setting-builtin-learn" data-setting-id="builtin-learn" className="rounded-xl border border-content/10 bg-content/3 px-4 py-3.5">
-      <div className="flex items-start gap-3">
-        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-content/[0.05] ring-1 ring-inset ring-content/[0.06]">
-          <Mortarboard className="size-4" />
-        </span>
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-content">
-            {t("Learning")}<span className="rounded bg-content/5 px-1.5 py-0.5 text-[10px] font-normal text-content/55">{t("Built-in")}</span>
-          </div>
-          <p className="text-[12px] text-content/45">{LEARN_MCP_NAME}{" "}{t("· Local ·")}{" "}{status}</p>
-          <p className="text-[12px] leading-relaxed text-content/65">
-            {t("Lets an agent keep a project's learning map with you. It is attached only to threads where you type /learn, and it records a node as learned only from your own words.")}</p>
-          <BuiltinProviders />
-        </div>
-      </div>
-      {problem ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-          <p role="status" className="min-w-0 flex-1 text-amber-400">{problem}</p>
-          <button type="button" onClick={() => setCheck((value) => value + 1)} className="rounded-md border border-stroke px-2 py-1 hover:bg-content/5">{t("Check again")}</button>
-        </div>
-      ) : null}
     </div>
   );
 }

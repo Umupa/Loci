@@ -45,13 +45,13 @@ export function lociToolCall(block: Block): LociToolCall | undefined {
   const words = shellWords(command);
   if (!words || !/(?:^|[/\\])loci(?:\.exe)?$/i.test(words[0] ?? ""))
     return undefined;
-  // Asking which canvas or learning tools exist; a call of one is named by
-  // canvasToolCall or learnToolCall for what it does.
+  // Asking which canvas tools exist; a call of one is named by
+  // canvasToolCall for what it does.
   const builtin = builtinCliCall(command);
   if (builtin?.tool === "help") {
     return {
       action: "--help",
-      label: builtin.namespace === "learn" ? "View learning tools" : "View canvas tools",
+      label: "View canvas tools",
       command,
     };
   }
