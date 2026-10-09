@@ -156,7 +156,7 @@ export function useAppControl(options: Options) {
             return readAgentConversation(chat, options);
           },
           habits: { load: loadHabits, update: updateHabits },
-          renameAgent: (agentId, name) => { updateAgent(agentId, (current) => ({ ...current, name })); },
+          renameAgent: (agentId, look) => { updateAgent(agentId, (current) => ({ ...current, ...look })); },
           files: { load: loadAgentFiles, read: readAgentFile, write: writeAgentFile },
           notes: () => loadNotes(true), note: getNote,
           saveNote: async (note) => { const saved = await upsertNote(note); window.dispatchEvent(new Event(NOTES_CHANGED_EVENT)); return saved; },

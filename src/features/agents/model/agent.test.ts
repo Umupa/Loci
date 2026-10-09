@@ -55,6 +55,15 @@ it("goes by the user's name once it has one, and back when it is cleared", () =>
   expect(agentLook(findAgent(id)!).name).toBe("Ember");
 });
 
+it("carries its one main job beside its name, and drops an empty one", () => {
+  const { id } = createAgent();
+  updateAgent(id, (agent) => ({ ...agent, name: "Scout", role: " CI watcher " }));
+  expect(agentLook(findAgent(id)!)).toMatchObject({ name: "Scout", role: "CI watcher" });
+  updateAgent(id, (agent) => ({ ...agent, role: " " }));
+  expect(findAgent(id)?.role).toBeUndefined();
+  expect(agentLook(findAgent(id)!).role).toBeUndefined();
+});
+
 it("adds each project once and takes one away by its path", () => {
   const { id } = createAgent(["/code/app"]);
   addAgentProject(id, "/code/site");

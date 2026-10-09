@@ -117,7 +117,7 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             >
               <button
                 type="button"
-                title={[look.name, projects || "No projects yet", status ?? (preview ? `${preview.text}${preview.at != null ? ` · ${previewTimeLabel(preview.at)}` : ""}` : undefined)].filter(Boolean).join("\n")}
+                title={[look.role ? `${look.name} · ${look.role}` : look.name, projects || "No projects yet", status ?? (preview ? `${preview.text}${preview.at != null ? ` · ${previewTimeLabel(preview.at)}` : ""}` : undefined)].filter(Boolean).join("\n")}
                 aria-label={[look.name, status ?? "idle", projects || "no projects yet"].join(", ")}
                 aria-current={selected ? "true" : undefined}
                 className="flex min-w-0 flex-1 cursor-default items-center gap-2 text-left group-hover:pr-6 group-has-[:focus-visible]:pr-6"

@@ -21,7 +21,7 @@ import { AgentDetails } from "../features/agents/ui/AgentDetails";
 import { AgentIntro } from "../features/agents/ui/AgentIntro";
 import { agentLook } from "../features/agents/model/agent";
 import { SessionPane } from "../features/sessions/ui/SessionPane";
-import { isEqualOrInside } from "../shared/lib/paths";
+import { isEqualOrInside, projectName } from "../shared/lib/paths";
 import { FILE_POINTER_DRAG_EVENT, type FilePointerDragDetail } from "../shared/lib/drag";
 import { paneDropFromPoint, setExternalPaneDrop } from "../features/workspace/model/paneDrop";
 import { lazySurface } from "../shared/ui/lazySurface";
@@ -170,6 +170,7 @@ function Workspace(boot: BootWorkspace) {
     loadSession: (id) => workspaceRef.current!.loadSession(id),
     onError: (error) => workspaceRef.current?.setError(String(error)),
     onShow: () => setSurface("agent"), onHide: closeSurface,
+    knownProjects: () => (workspaceRef.current?.recents ?? []).map((recent) => ({ name: projectName(recent.path), path: recent.path })),
   });
   const agentsEnabled = useSyncExternalStore(subscribeAgentsEnabled, loadAgentsEnabled);
   const agentHabits = useAgentHabits({ runtime, submission,

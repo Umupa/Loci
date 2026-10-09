@@ -126,7 +126,8 @@ which; it may be left out with one project. Ordinary sessions cannot pass it.
   on sessions.send to hear back about a follow-up.
 
 Only in an agent's own conversation:
-  agent.rename   {"name":"Scout"}  Take the name it and the user settled on.
+  agent.rename   {"name":"Scout","role":"CI watcher"}  Take the name, and the
+                  few words for its one main job, it and the user settled on.
   soul.read      {}  Its standing instructions (SOUL.md) and their hash.
   soul.update    {"text":"<complete Markdown>","expectedHash":"<from soul.read>"}
                   Replace them, only at the user's request. A stale hash is
