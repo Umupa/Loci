@@ -137,12 +137,22 @@ export function nextAgentLook(
   };
 }
 
-/** A new agent with the next look, starting with the projects given, if any. */
-export function createAgent(projects: readonly string[] = []): Agent {
+/**
+ * A new agent starting with the projects given, if any. It takes the look
+ * and name chosen for it, or the next look the others are not using.
+ */
+export function createAgent(
+  projects: readonly string[] = [],
+  chosen: Partial<Pick<Agent, "name" | "avatar" | "color">> = {},
+): Agent {
   const roster = listAgents();
+  const name = chosen.name?.trim();
   const agent: Agent = {
     id: newAgentId(),
     ...nextAgentLook(roster),
+    ...(chosen.avatar ? { avatar: chosen.avatar } : {}),
+    ...(chosen.color ? { color: chosen.color } : {}),
+    ...(name ? { name } : {}),
     projects: uniqueProjects(projects),
   };
   saveRoster([...roster, agent]);

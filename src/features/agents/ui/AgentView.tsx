@@ -39,7 +39,7 @@ export function AgentView({ agent, state, detailsOpen, besideRail, compactRail, 
         {IS_MAC && !besideRail ? <div className="w-[78px] shrink-0" /> : null}
         {besideRail ? null : <OverlayNav onBack={onClose} onToggleSidebar={onToggleSidebar} />}
         <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
-          <AgentAvatar name={look.avatar} color={look.color} className="size-5 shrink-0" />
+          <AgentAvatar name={look.avatar} color={look.color} className="size-4 shrink-0" />
           <h1 className="shrink-0 truncate text-[13px] font-medium">{look.name}</h1>
           <AgentStatus state={state} />
           {projects ? <span className="min-w-0 truncate text-xs text-content/35">{projects}</span> : null}

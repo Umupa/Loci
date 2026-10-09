@@ -2,24 +2,26 @@ import { describe, expect, it } from "vitest";
 import { PROJECT_MASCOTS } from "../../projects/model/projectMascots";
 import {
   AGENT_AVATARS,
-  AVATAR_BOX,
+  AVATAR_GRID,
   agentAvatar,
+  avatarPath,
   defaultAgentName,
 } from "./agentAvatars";
 
 describe("agentAvatars", () => {
-  it("gives every avatar a closed shape and eyes inside the box", () => {
+  it("keeps every face on the mascots' grid, each with its own head and two eyes", () => {
     expect(AGENT_AVATARS).toHaveLength(10);
-    expect(new Set(AGENT_AVATARS.map((avatar) => avatar.body)).size).toBe(10);
+    expect(new Set(AGENT_AVATARS.map((avatar) => avatar.headPath)).size).toBe(10);
     for (const avatar of AGENT_AVATARS) {
-      expect(avatar.body).toMatch(/^M[\d. ]/);
-      expect(avatar.body.endsWith("z")).toBe(true);
-      const [x, y] = avatar.eyes;
-      // Both eyes, each a short stroke, stay well within the shape's box.
-      expect(x).toBeGreaterThan(4);
-      expect(x + 3.8).toBeLessThan(AVATAR_BOX - 4);
-      expect(y).toBeGreaterThan(4);
-      expect(y + 2.8).toBeLessThan(AVATAR_BOX - 4);
+      expect(avatar.rows).toHaveLength(AVATAR_GRID);
+      for (const row of avatar.rows) {
+        expect(row).toMatch(new RegExp(`^[#o.]{${AVATAR_GRID}}$`));
+      }
+      // Two eyes, two cells tall, side by side.
+      const eyes = avatar.rows.filter((row) => row.includes("o"));
+      expect(eyes).toHaveLength(2);
+      expect(eyes[0]).toBe(eyes[1]);
+      expect(eyes[0].split("o")).toHaveLength(3);
     }
   });
 
@@ -28,6 +30,12 @@ describe("agentAvatars", () => {
     for (const avatar of AGENT_AVATARS) {
       expect(mascots.has(avatar.name)).toBe(false);
     }
+  });
+
+  it("merges the chosen cells' runs into one rect each", () => {
+    expect(avatarPath(["##o##o.#"], "#o")).toBe("M0 0h6v1h-6zM7 0h1v1h-1z");
+    expect(avatarPath(["##o##o.#"], "o")).toBe("M2 0h1v1h-1zM5 0h1v1h-1z");
+    expect(avatarPath(["........"], "#o")).toBe("");
   });
 
   it("falls back to the first avatar for an unknown name", () => {

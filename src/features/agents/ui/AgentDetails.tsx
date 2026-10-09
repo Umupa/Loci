@@ -1,24 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
-import { projectKey, projectName } from "../../../shared/lib/paths";
-import { Plus, Trash2, X } from "../../../shared/ui/icons";
+import { ChevronLeft, ChevronRight, Plus, RotateCcw, Trash2, X } from "../../../shared/ui/icons";
 import type { RecentProject } from "../../projects/model/recents";
-import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
-import { modelsFor, preferredModelId, resolveModel } from "../../sessions/model/models";
-import {
-  HARNESSES, HARNESS_TITLE, RUNTIME_MODES, RUNTIME_MODE_HINT, RUNTIME_MODE_LABEL,
-  type HarnessId, type RuntimeMode, type Session,
-} from "../../sessions/model/session";
-import {
-  AGENT_COLORS,
-  addAgentProject,
-  agentLook,
-  agentWorksOn,
-  removeAgentProject,
-  updateAgent,
-  type Agent,
-} from "../model/agent";
-import { AGENT_AVATARS, defaultAgentName } from "../model/agentAvatars";
+import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/session";
+import { AccessPicker } from "../../sessions/ui/AccessPicker";
+import { ModelPicker } from "../../sessions/ui/ModelPicker";
+import { addAgentProject, agentLook, removeAgentProject, updateAgent, type Agent } from "../model/agent";
+import { defaultAgentName } from "../model/agentAvatars";
 import {
   AgentFileConflict,
   editAgentFile,
@@ -28,15 +16,11 @@ import {
   subscribeAgentFiles,
   type AgentFiles,
 } from "../model/agentFiles";
-import {
-  addMemoryEntry,
-  memoryDate,
-  memoryEntry,
-  memoryLines,
-  withoutLine,
-} from "../model/agentMemory";
+import { loadHabits, subscribeHabitsRunning } from "../model/agentHabits";
+import { addMemoryEntry, memoryDate, memoryEntry, memoryLines, withoutLine } from "../model/agentMemory";
 import { AgentAvatar } from "./AgentAvatar";
 import { AgentHabits } from "./AgentHabits";
+import { ColorPicker, FacePicker, ProjectsField } from "./agentPanelParts";
 
 type Props = {
   agent: Agent;
@@ -53,6 +37,10 @@ type Props = {
   onDelete: () => void;
   onClose: () => void;
 };
+
+type Page = "soul" | "habits" | "memory";
+
+const PAGE_TITLE: Record<Page, string> = { soul: "Soul", habits: "Habits", memory: "Memory" };
 
 /** The agent's files, reloaded when it finishes a turn, a save lands or the app regains focus. */
 function useAgentFiles(agentId: string, refreshKey: unknown) {
@@ -83,170 +71,161 @@ function useAgentFiles(agentId: string, refreshKey: unknown) {
   return { files, error };
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-2 border-t border-stroke px-4 py-3.5 first:border-t-0">
-      <div className="flex items-baseline gap-2">
-        <h3 className="text-xs font-medium text-content/70">{title}</h3>
-        {hint ? <span className="min-w-0 truncate text-[11px] text-content/40">{hint}</span> : null}
-      </div>
-      {children}
-    </section>
-  );
+/** How many habits it has, kept current as they are added, removed or run. */
+function useHabitCount(agentId: string): number | undefined {
+  const [count, setCount] = useState<number>();
+  useEffect(() => {
+    let current = true;
+    const load = () => void loadHabits(agentId).then((habits) => { if (current) setCount(habits.length); }, () => undefined);
+    load();
+    const stopFiles = subscribeAgentFiles(load);
+    const stopRuns = subscribeHabitsRunning(load);
+    return () => {
+      current = false;
+      stopFiles();
+      stopRuns();
+    };
+  }, [agentId]);
+  return count;
 }
 
 const fieldClass =
-  "w-full rounded-md border border-stroke bg-content/5 px-2 py-1.5 text-[13px] text-content outline-none placeholder:text-content/35 focus:border-content/30";
+  "w-full rounded-lg border border-stroke bg-content/5 px-2.5 py-1.5 text-[13px] text-content outline-none placeholder:text-content/35 focus:border-content/30";
+const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content";
 
-/** Who the agent is, what it works on, its standing instructions and what it remembers. */
+/**
+ * Who the agent is and what it works with, on one page; its soul, habits and
+ * memory each open as a page of their own, so none of them crowds the others.
+ */
 export function AgentDetails({ agent, session, onModelChange, onModelSettingsChange, onRuntimeModeChange, recents, refreshKey, onPickFolders, onReset, onDelete, onClose }: Props) {
   const look = agentLook(agent);
   const { files, error } = useAgentFiles(agent.id, refreshKey);
-  const candidates = recents.filter((recent) => !agentWorksOn(agent, recent.path));
+  const habits = useHabitCount(agent.id);
+  const [page, setPage] = useState<Page>();
+  // Another agent's details start from the top.
+  useEffect(() => setPage(undefined), [agent.id]);
+  const facts = files ? memoryLines(files.memory).filter((fact) => !fact.struck).length : undefined;
+
   return (
-    <aside aria-label={`${look.name} details`} className="flex w-80 shrink-0 flex-col border-l border-stroke bg-background-base/60">
-      <header className="flex h-11 shrink-0 items-center gap-2 px-4">
-        <h2 className="min-w-0 flex-1 truncate text-[13px] font-medium">Details</h2>
-        <button type="button" title="Close details" aria-label="Close details" onClick={onClose}
-          className="grid size-6 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content">
+    <aside aria-label={`${look.name} details`} className="flex w-[340px] shrink-0 flex-col border-l border-stroke bg-background-base/70 backdrop-blur-xl">
+      <header className="flex h-11 shrink-0 items-center gap-1.5 px-3">
+        {page ? (
+          <button type="button" title="Back" aria-label="Back to details" onClick={() => setPage(undefined)} className={iconButton}>
+            <ChevronLeft className="size-4" strokeWidth={1.75} />
+          </button>
+        ) : null}
+        <h2 className="min-w-0 flex-1 truncate px-1 text-[13px] font-medium">{page ? PAGE_TITLE[page] : "Details"}</h2>
+        <button type="button" title="Close details" aria-label="Close details" onClick={onClose} className={iconButton}>
           <X className="size-3.5" strokeWidth={1.75} />
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <Section title="Identity">
-          <NameField key={agent.id} agent={agent} />
-          <div role="radiogroup" aria-label="Avatar" className="grid grid-cols-5 gap-1.5">
-            {AGENT_AVATARS.map((avatar) => (
-              <button key={avatar.name} type="button" role="radio" aria-checked={avatar.name === agent.avatar}
-                title={defaultAgentName(avatar.name)} aria-label={defaultAgentName(avatar.name)}
-                onClick={() => updateAgent(agent.id, (current) => ({ ...current, avatar: avatar.name }))}
-                className={`grid place-items-center rounded-md p-1 ${avatar.name === agent.avatar ? "bg-selection-strong" : "hover:bg-content/8"}`}>
-                <AgentAvatar name={avatar.name} color={agent.color} className="size-9" />
-              </button>
-            ))}
-          </div>
-          <div role="radiogroup" aria-label="Color" className="flex flex-wrap gap-1.5">
-            {AGENT_COLORS.map((color) => (
-              <button key={color} type="button" role="radio" aria-checked={color === agent.color} aria-label={color}
-                onClick={() => updateAgent(agent.id, (current) => ({ ...current, color }))}
-                className={`size-5 rounded-full ring-offset-2 ring-offset-background-base ${color === agent.color ? "ring-2 ring-content/60" : ""}`}
-                style={{ backgroundColor: color }} />
-            ))}
-          </div>
-        </Section>
 
-        <Section title="Model" hint={session.busy ? "Applies from its next reply" : undefined}>
-          <ModelFields session={session} onModelChange={onModelChange} onModelSettingsChange={onModelSettingsChange} onRuntimeModeChange={onRuntimeModeChange} />
-        </Section>
-
-        <Section title="Projects" hint="Where it may read, start and message sessions">
-          {look.projects.length === 0 ? <p className="text-xs text-content/45">None yet. It can still talk, but cannot reach any project.</p> : null}
-          <ul className="flex flex-col gap-px">
-            {look.projects.map((project) => (
-              <li key={projectKey(project.path)} className="group flex h-7 items-center gap-2 rounded-md px-1.5 hover:bg-content/5" title={project.path}>
-                <span className="min-w-0 flex-1 truncate text-[13px]">{project.name}</span>
-                <button type="button" title="Remove project" aria-label={`Remove ${project.name}`}
-                  onClick={() => removeAgentProject(agent.id, project.path)}
-                  className="grid size-5 place-items-center rounded text-content/40 opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100">
-                  <X className="size-3" strokeWidth={1.75} />
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="flex gap-1.5">
-            {candidates.length ? (
-              <select aria-label="Add a recent project" value="" className={`${fieldClass} min-w-0 flex-1`}
-                onChange={(event) => { if (event.target.value) addAgentProject(agent.id, event.target.value); }}>
-                <option value="">Add a project…</option>
-                {candidates.map((recent) => <option key={recent.path} value={recent.path}>{projectName(recent.path)}</option>)}
-              </select>
-            ) : null}
-            <button type="button" onClick={() => void onPickFolders().then((paths) => { for (const path of paths) addAgentProject(agent.id, path); })}
-              className="shrink-0 rounded-md border border-stroke px-2 py-1.5 text-xs text-content/70 hover:bg-content/8 hover:text-content">
-              Choose folder…
-            </button>
-          </div>
-        </Section>
-
-        {error ? <p className="px-4 py-3 text-xs text-red-400/90">{error}</p> : null}
-        {files ? <SoulSection key={`soul:${agent.id}`} agentId={agent.id} files={files} /> : null}
-        {files ? <MemorySection agentId={agent.id} files={files} /> : null}
-        <Section title="Habits" hint="What it does on its own while Loci is open">
+      {page === "soul" ? (
+        files ? <SoulPage key={agent.id} agentId={agent.id} files={files} /> : <PageNote>{error ?? "Loading…"}</PageNote>
+      ) : page === "memory" ? (
+        files ? <MemoryPage agentId={agent.id} files={files} /> : <PageNote>{error ?? "Loading…"}</PageNote>
+      ) : page === "habits" ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4">
+          <p className="text-xs leading-snug text-content/45">What it does on its own, on a schedule, while Loci is open. It writes to this chat only when there is something to say.</p>
           <AgentHabits key={agent.id} agentId={agent.id} />
-        </Section>
-
-        <Section title="Conversation">
-          <div className="flex gap-1.5">
-            <button type="button" onClick={onReset}
-              className="rounded-md border border-stroke px-2 py-1.5 text-xs text-content/70 hover:bg-content/8 hover:text-content">
-              Reset conversation
-            </button>
-            <button type="button" onClick={onDelete}
-              className="inline-flex items-center gap-1.5 rounded-md border border-stroke px-2 py-1.5 text-xs text-content/70 hover:bg-content/8 hover:text-red-400">
-              <Trash2 className="size-3" strokeWidth={1.75} /> Delete agent
-            </button>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="flex flex-col items-center gap-3 px-4 pb-5 pt-3">
+            <AgentAvatar name={look.avatar} color={look.color} className="size-10" />
+            <NameField key={agent.id} agent={agent} />
+            <FacePicker current={agent.avatar} color={agent.color} onPick={(avatar) => updateAgent(agent.id, (current) => ({ ...current, avatar }))} />
+            <ColorPicker current={agent.color} onPick={(color) => updateAgent(agent.id, (current) => ({ ...current, color }))} />
           </div>
-          <p className="text-[11px] leading-snug text-content/40">Resetting clears the messages and keeps its soul and memory.</p>
-        </Section>
-      </div>
+
+          <div className="flex flex-col gap-1 border-t border-stroke px-4 py-3">
+            <Property label="Model">
+              <ModelPicker harness={session.harness} model={session.model} values={session.modelSettings}
+                onChange={onModelChange} onSettingsChange={onModelSettingsChange} />
+            </Property>
+            <Property label="Permissions">
+              <AccessPicker value={session.runtimeMode} busy={!!session.busy} onChange={onRuntimeModeChange} />
+            </Property>
+            <Property label="Projects" top>
+              <ProjectsField projects={agent.projects} recents={recents} onPickFolders={onPickFolders}
+                onAdd={(path) => addAgentProject(agent.id, path)} onRemove={(path) => removeAgentProject(agent.id, path)} />
+            </Property>
+          </div>
+
+          <div className="flex flex-col border-t border-stroke p-2">
+            <PageRow title="Soul" description="Who it is and the rules it always follows." onOpen={() => setPage("soul")} />
+            <PageRow title="Habits" description="Recurring tasks it runs on its own." count={habits} onOpen={() => setPage("habits")} />
+            <PageRow title="Memory" description="Facts and preferences it remembers." count={facts} onOpen={() => setPage("memory")} />
+          </div>
+
+          <div className="flex flex-col border-t border-stroke p-2">
+            <ActionRow icon={<RotateCcw className="size-3.5" strokeWidth={1.75} />} onClick={onReset}
+              title="Reset conversation" description="Clears the messages. Its soul, memory and habits stay." />
+            <ActionRow danger icon={<Trash2 className="size-3.5" strokeWidth={1.75} />} onClick={onDelete}
+              title="Delete agent" description="Removes it and its conversation." />
+          </div>
+          {error ? <p className="px-4 pb-3 text-xs text-red-400/90">{error}</p> : null}
+        </div>
+      )}
     </aside>
   );
 }
 
-/** The provider, model, its settings and how much the agent may do unasked. */
-function ModelFields({ session, onModelChange, onModelSettingsChange, onRuntimeModeChange }: Pick<Props, "session" | "onModelChange" | "onModelSettingsChange" | "onRuntimeModeChange">) {
-  const harnesses = HARNESSES.filter((harness) => harness === session.harness || isHarnessAvailable(harness));
-  const models = modelsFor(session.harness);
-  const model = resolveModel(session.harness, session.model);
-  const row = "flex items-center gap-2";
-  const label = "w-20 shrink-0 text-xs text-content/50";
+function PageNote({ children }: { children: ReactNode }) {
+  return <p className="px-4 py-3 text-xs text-content/45">{children}</p>;
+}
+
+/** One labelled setting: the label in a fixed column, its control beside it. */
+function Property({ label, top = false, children }: { label: string; top?: boolean; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className={row}>
-        <span className={label}>Provider</span>
-        <select value={session.harness} className={`${fieldClass} min-w-0 flex-1`}
-          onChange={(event) => { const harness = event.target.value as HarnessId; onModelChange(harness, preferredModelId(harness)); }}>
-          {harnesses.map((harness) => <option key={harness} value={harness}>{HARNESS_TITLE[harness]}</option>)}
-        </select>
-      </label>
-      <label className={row}>
-        <span className={label}>Model</span>
-        <select value={model.id} className={`${fieldClass} min-w-0 flex-1`} onChange={(event) => onModelChange(session.harness, event.target.value)}>
-          {models.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
-        </select>
-      </label>
-      {(model.settings ?? []).filter((setting) => setting.options.length > 1).map((setting) => (
-        <label key={setting.id} className={row}>
-          <span className={label}>{setting.label}</span>
-          <select value={session.modelSettings[setting.id] ?? setting.value} className={`${fieldClass} min-w-0 flex-1`}
-            onChange={(event) => onModelSettingsChange({ ...session.modelSettings, [setting.id]: event.target.value })}>
-            {setting.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
-      ))}
-      <label className={row} title={RUNTIME_MODE_HINT[session.runtimeMode]}>
-        <span className={label}>Permissions</span>
-        <select value={session.runtimeMode} className={`${fieldClass} min-w-0 flex-1`} onChange={(event) => onRuntimeModeChange(event.target.value as RuntimeMode)}>
-          {RUNTIME_MODES.map((mode) => <option key={mode} value={mode}>{RUNTIME_MODE_LABEL[mode]}</option>)}
-        </select>
-      </label>
+    <div className={`flex min-h-8 gap-2 ${top ? "items-start" : "items-center"}`}>
+      <span className={`w-24 shrink-0 text-[13px] text-content/50 ${top ? "pt-1.5" : ""}`}>{label}</span>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
 
-/** The agent's name, edited in place; empty goes back to its avatar's name. */
+/** A row that opens a page: its name, what it holds, how many, and a chevron. */
+function PageRow({ title, description, count, onOpen }: { title: string; description: string; count?: number; onOpen: () => void }) {
+  return (
+    <button type="button" onClick={onOpen} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-content/6">
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-[13px] text-content">{title}</span>
+        <span className="truncate text-xs text-content/45">{description}</span>
+      </span>
+      {count ? <span className="shrink-0 text-xs tabular-nums text-content/45">{count}</span> : null}
+      <ChevronRight className="size-3.5 shrink-0 text-content/35" strokeWidth={1.75} />
+    </button>
+  );
+}
+
+function ActionRow({ title, description, icon, danger = false, onClick }: { title: string; description: string; icon: ReactNode; danger?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-content/6 ${danger ? "text-red-400" : "text-content/80"}`}>
+      <span className="grid size-5 shrink-0 place-items-center">{icon}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-[13px]">{title}</span>
+        <span className="truncate text-xs text-content/45">{description}</span>
+      </span>
+    </button>
+  );
+}
+
+/** The agent's name under its face, edited in place; empty goes back to its face's name. */
 function NameField({ agent }: { agent: Agent }) {
   const [name, setName] = useState(agent.name ?? "");
   const save = () => updateAgent(agent.id, (current) => ({ ...current, name: name.trim() }));
   return (
-    <input aria-label="Name" value={name} maxLength={40} placeholder={defaultAgentName(agent.avatar)} className={fieldClass}
+    <input aria-label="Name" value={name} maxLength={40} placeholder={defaultAgentName(agent.avatar)}
+      className="w-full rounded-lg bg-transparent px-2 py-1 text-center text-[15px] font-medium text-content outline-none placeholder:text-content/60 hover:bg-content/5 focus:bg-content/6"
       onChange={(event) => setName(event.target.value)} onBlur={save}
       onKeyDown={(event) => { if (event.key === "Enter" && !isImeComposition(event.nativeEvent)) event.currentTarget.blur(); }} />
   );
 }
 
 /** The soul as its Markdown source; saved when you leave it, never over what the agent wrote meanwhile. */
-function SoulSection({ agentId, files }: { agentId: string; files: AgentFiles }) {
+function SoulPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
   const [text, setText] = useState(files.soul);
   const opened = useRef({ text: files.soul, hash: files.soulHash });
   const [conflict, setConflict] = useState(false);
@@ -270,9 +249,14 @@ function SoulSection({ agentId, files }: { agentId: string; files: AgentFiles })
       setConflict(true);
     }
   };
+  // Leaving the page is leaving the field.
+  const latest = useRef(save);
+  latest.current = save;
+  useEffect(() => () => void latest.current().catch(() => undefined), []);
   return (
-    <Section title="Soul" hint="Standing instructions, sent once per provider session">
-      <textarea aria-label="Soul" value={text} rows={8} spellCheck={false} className={`${fieldClass} resize-y font-mono text-xs leading-relaxed`}
+    <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pb-4">
+      <p className="text-xs leading-snug text-content/45">Its standing instructions, in Markdown. It reads them at the start of each provider conversation; it changes them only when you ask.</p>
+      <textarea aria-label="Soul" value={text} spellCheck={false} className={`${fieldClass} min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed`}
         onChange={(event) => setText(event.target.value)} onBlur={() => void save()} />
       {conflict ? (
         <div className="flex items-center gap-2 text-[11px] text-red-400/90">
@@ -281,12 +265,12 @@ function SoulSection({ agentId, files }: { agentId: string; files: AgentFiles })
           <button type="button" className="underline" onClick={() => { opened.current = { ...opened.current, hash: files.soulHash }; void save(); }}>Keep mine</button>
         </div>
       ) : null}
-    </Section>
+    </div>
   );
 }
 
 /** What the agent remembers, one fact per row. */
-function MemorySection({ agentId, files }: { agentId: string; files: AgentFiles }) {
+function MemoryPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string>();
   const facts = memoryLines(files.memory);
@@ -300,14 +284,28 @@ function MemorySection({ agentId, files }: { agentId: string; files: AgentFiles 
     void run((text) => addMemoryEntry(text, memoryEntry(fact, memoryDate(new Date()))).text);
   };
   return (
-    <Section title="Memory" hint={budget.droppedLines ? `${budget.droppedLines} lines do not load` : `${facts.length} ${facts.length === 1 ? "fact" : "facts"}`}>
-      {facts.length === 0 ? <p className="text-xs text-content/45">Nothing yet. It saves what stays useful as it learns it.</p> : null}
-      <ul className="flex flex-col gap-px">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pb-4">
+      <p className="text-xs leading-snug text-content/45">
+        It saves what stays useful as it learns it, and reads this at the start of each provider conversation.
+        {budget.droppedLines ? ` ${budget.droppedLines} lines are past what loads.` : ""}
+      </p>
+      <div className="flex gap-1.5">
+        <input aria-label="Add a fact" value={draft} placeholder="Add a fact…" className={`${fieldClass} min-w-0 flex-1`}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => { if (event.key === "Enter" && !isImeComposition(event.nativeEvent)) add(); }} />
+        <button type="button" title="Add" aria-label="Add fact" onClick={add} disabled={!draft.trim()}
+          className="grid size-[32px] shrink-0 place-items-center rounded-lg border border-stroke text-content/60 hover:bg-content/8 hover:text-content disabled:opacity-40">
+          <Plus className="size-3.5" strokeWidth={1.75} />
+        </button>
+      </div>
+      {error ? <p className="text-[11px] text-red-400/90">{error}</p> : null}
+      {facts.length === 0 ? <p className="py-6 text-center text-xs text-content/40">Nothing remembered yet.</p> : null}
+      <ul className="-mx-1.5 flex min-h-0 flex-1 flex-col gap-px overflow-y-auto">
         {facts.map((fact) => (
-          <li key={`${fact.index}:${fact.text}`} className="group flex items-start gap-2 rounded-md px-1.5 py-1 hover:bg-content/5">
-            <span className={`min-w-0 flex-1 text-xs leading-snug ${fact.struck ? "text-content/35 line-through" : "text-content/80"}`}>
-              {fact.text}
-              {fact.date ? <span className="ml-1.5 text-[11px] text-content/35">{fact.date}</span> : null}
+          <li key={`${fact.index}:${fact.text}`} className="group flex items-start gap-2 rounded-lg px-1.5 py-1.5 hover:bg-content/5">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className={`text-[13px] leading-snug ${fact.struck ? "text-content/35 line-through" : "text-content/85"}`}>{fact.text}</span>
+              {fact.date ? <span className="text-[11px] text-content/35">{fact.date}{fact.until ? ` · until ${fact.until}` : ""}</span> : null}
             </span>
             <button type="button" title="Forget" aria-label={`Forget: ${fact.text}`}
               onClick={() => void run((text) => text.split("\n")[fact.index]?.includes(fact.text) ? withoutLine(text, fact.index) : text)}
@@ -317,16 +315,6 @@ function MemorySection({ agentId, files }: { agentId: string; files: AgentFiles 
           </li>
         ))}
       </ul>
-      <div className="flex gap-1.5">
-        <input aria-label="Add a fact" value={draft} placeholder="Add a fact…" className={`${fieldClass} min-w-0 flex-1`}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => { if (event.key === "Enter" && !isImeComposition(event.nativeEvent)) add(); }} />
-        <button type="button" title="Add" aria-label="Add fact" onClick={add} disabled={!draft.trim()}
-          className="grid size-[30px] shrink-0 place-items-center rounded-md border border-stroke text-content/60 hover:bg-content/8 hover:text-content disabled:opacity-40">
-          <Plus className="size-3.5" strokeWidth={1.75} />
-        </button>
-      </div>
-      {error ? <p className="text-[11px] text-red-400/90">{error}</p> : null}
-    </Section>
+    </div>
   );
 }

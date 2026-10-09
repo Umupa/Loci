@@ -7,7 +7,7 @@ export function AgentIntro({ agent }: { agent: Agent }) {
   const projects = agentProjectsPhrase(look.projects);
   return (
     <div className="flex items-center gap-3">
-      <AgentAvatar name={look.avatar} color={look.color} className="size-10 shrink-0" />
+      <AgentAvatar name={look.avatar} color={look.color} className="size-7 shrink-0" />
       <div className="min-w-0">
         <h1 className="truncate text-lg text-content">{look.name}</h1>
         <p className="truncate text-[13px] text-content/50">
