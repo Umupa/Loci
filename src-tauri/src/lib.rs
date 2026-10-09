@@ -2,6 +2,7 @@ mod cursor_store;
 use tauri::Manager;
 
 mod account_identity;
+mod agent;
 mod canvas;
 mod canvas_mcp;
 mod chat_background;
@@ -294,6 +295,9 @@ pub fn run() {
             canvas::canvas_checkpoint_latest,
             canvas_mcp::canvas_mcp_server,
             canvas_mcp::learn_mcp_server,
+            agent::agent_load,
+            agent::agent_read,
+            agent::agent_save,
             notes::notes_list,
             notes::notes_get,
             notes::notes_upsert,
