@@ -1519,6 +1519,11 @@ const TranscriptBlock = memo(function TranscriptBlock({
   onEditLastTurn?: () => void;
   editing?: boolean;
 }) {
+  // An app notification to an agent reads as a marker, not as something the user said.
+  if (block.role === "user" && block.agentSessionCompletion) {
+    return <AgentNotice label={block.text} at={block.startedAt} />;
+  }
+
   if (block.role === "user") {
     return (
       <UserMessageBlock
@@ -1631,6 +1636,13 @@ const TranscriptBlock = memo(function TranscriptBlock({
       data-selectable-agent-response={block.streaming ? undefined : block.id}
       className={`min-w-0 pb-1 text-content ${embedded ? "" : "px-4"} ${underLine ? "pt-1" : "pt-3"}`}
     >
+      {block.agentHabit ? (
+        <AgentNotice
+          embedded
+          label={`From its habit “${block.agentHabit.name}”`}
+          at={block.agentHabit.at}
+        />
+      ) : null}
       <AgentMarkdown
         text={block.text}
         streaming={block.streaming}
@@ -3815,6 +3827,38 @@ function ApprovalControls({
       >
         Deny
       </button>
+    </div>
+  );
+}
+
+/** Marks something an agent's chat received from the app itself: a habit's post, or finished sessions. */
+function AgentNotice({
+  label,
+  at,
+  embedded = false,
+}: {
+  label: string;
+  at?: number;
+  embedded?: boolean;
+}) {
+  return (
+    <div className={embedded ? "pb-3 pt-2" : "px-4 py-4"}>
+      <div className="flex items-center gap-3">
+        <div className="h-px min-w-4 flex-1 bg-content/12" />
+        <div
+          role="separator"
+          aria-label={label}
+          className="flex max-w-[min(100%,28rem)] items-center gap-1.5 px-1.5 font-sans text-[12px] text-content/55"
+        >
+          <span className="min-w-0 truncate">{label}</span>
+          {at != null ? (
+            <span className="shrink-0 text-content/35">
+              {formatClockTime(at)}
+            </span>
+          ) : null}
+        </div>
+        <div className="h-px min-w-4 flex-1 bg-content/12" />
+      </div>
     </div>
   );
 }
