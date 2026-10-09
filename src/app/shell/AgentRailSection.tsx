@@ -15,6 +15,12 @@ import {
   subscribeAgents,
   type AgentState,
 } from "../../features/agents/model/agent";
+import {
+  agentPreviewsSnapshot,
+  loadAgentPreviews,
+  previewTimeLabel,
+  subscribeAgentPreviews,
+} from "../../features/agents/model/agentPreview";
 
 type Props = {
   /** The agent open in the main area, if any. */
@@ -34,10 +40,13 @@ const IDLE: AgentState = { status: "idle" };
 /**
  * The user's agents, above the projects. Each opens like a project does, but
  * into its conversation; none belongs to a project, so they get a section of
- * their own and a framed avatar rather than a project's flat mascot.
+ * their own and a round face rather than a project's flat mascot.
  */
 export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDetails, onCreate, onDelete }: Props) {
   const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
+  const previewSnapshot = useSyncExternalStore(subscribeAgentPreviews, agentPreviewsSnapshot);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const previews = useMemo(() => loadAgentPreviews(), [previewSnapshot]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const agents = useMemo(() => listAgents(), [snapshot]);
   const sortable = useAnimatedReorder(agents.map((agent) => agent.id), reorderAgents, "y");
@@ -80,6 +89,7 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
           const selected = agent.id === activeId;
           const projects = agentProjectsPhrase(look.projects);
           const unseen = !selected && !!unseenIds?.has(agent.id);
+          const preview = previews[agent.id];
           const status = state.status === "idle" ? undefined : (state.activity ?? AGENT_STATUS_LABEL[state.status]);
           return (
             <div
@@ -116,14 +126,19 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
                   <AgentAvatar name={look.avatar} color={look.color} className="size-7" />
                   <AgentStatusDot status={state.status} color={look.color} className="-right-0.5 -top-0.5 size-2" />
                 </span>
-                {/* Like a contact in a messenger: who it is, then what it is up to. */}
+                {/* Like a contact in a messenger: who it is and when it last spoke, then what it said or is doing. */}
                 <span className="flex min-w-0 flex-1 flex-col">
-                  {state.status === "working" ? (
-                    <Shimmer as="span" duration={1.4} className="truncate text-[13px] leading-4">{look.name}</Shimmer>
-                  ) : (
-                    <span className="truncate text-[13px] leading-4">{look.name}</span>
-                  )}
-                  <span className="truncate text-[11px] leading-4 text-content/50">{status ?? (projects || "No projects yet")}</span>
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    {state.status === "working" ? (
+                      <Shimmer as="span" duration={1.4} className="min-w-0 flex-1 truncate text-[13px] leading-4">{look.name}</Shimmer>
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate text-[13px] leading-4">{look.name}</span>
+                    )}
+                    {preview?.at != null ? (
+                      <span className="shrink-0 text-[10px] leading-4 text-content/40 group-hover:hidden group-has-[:focus-visible]:hidden">{previewTimeLabel(preview.at)}</span>
+                    ) : null}
+                  </span>
+                  <span className="truncate text-[11px] leading-4 text-content/50">{status ?? preview?.text ?? (projects || "No projects yet")}</span>
                 </span>
                 {unseen ? <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-content/60 group-hover:hidden group-has-[:focus-visible]:hidden" /> : null}
               </button>

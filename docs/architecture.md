@@ -111,7 +111,7 @@ A new provider that can run shell commands needs an entry in that list, and an a
 
 ## Agents
 
-An agent is long-lived and belongs to no project: a name, a framed pixel avatar and a color, one conversation that never ends, and the projects it has been given. It lives on the rail above the projects. The code is in `src/features/agents`, with the wiring in `src/app/hooks/useAgents.ts`, `useAgentHabits.ts` and `useAgentDelegation.ts`.
+An agent is long-lived and belongs to no project: a name, a round face in its own color, one conversation that never ends, and the projects it has been given. It lives on the rail above the projects. The code is in `src/features/agents`, with the wiring in `src/app/hooks/useAgents.ts`, `useAgentHabits.ts` and `useAgentDelegation.ts`.
 
 - **Roster.** `model/agent.ts` keeps the agents in `localStorage` (`loci:agent-roster`). An agent's conversation is an ordinary session whose working folder is the home folder and whose permission mode starts as Auto. It is shown in a view that covers the workspace and is never part of a tab.
 - **Files.** `agent.rs` keeps `SOUL.md`, `MEMORY.md`, `habits.json` and `memory/<topic>.md` under `<app data>/agents/<id>/`, never in a repository: an agent works in repositories with full file access, so a soul kept there could be rewritten outside the app's CLI or by a pull request. Paths are checked against that short list, writes are atomic and owner-only, and a save names the hash it read, so the user and the agent cannot overwrite each other. The same check is how two windows avoid running one habit twice.

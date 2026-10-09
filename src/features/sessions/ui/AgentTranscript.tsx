@@ -1261,6 +1261,19 @@ function formatMetricCount(value: number): string {
 }
 
 /** Wall-clock stamp for a finished turn, in the reader's own locale. */
+/** When a message was sent, as a messenger heads it: the time today, the day before that. */
+export function chatTimeLabel(epochMs: number, now = Date.now()): string {
+  const at = new Date(epochMs);
+  const time = formatClockTime(epochMs);
+  const days = Math.round(
+    (new Date(now).setHours(0, 0, 0, 0) - new Date(epochMs).setHours(0, 0, 0, 0)) /
+      86_400_000,
+  );
+  if (days <= 0) return time;
+  if (days === 1) return `Yesterday ${time}`;
+  return `${at.toLocaleDateString("en", { month: "short", day: "numeric" })}, ${time}`;
+}
+
 function formatClockTime(epochMs: number): string {
   return new Date(epochMs).toLocaleTimeString("en", {
     hour: "numeric",
@@ -1765,6 +1778,15 @@ function UserMessageBlock({
         chat ? "flex flex-col items-end pt-1.5 pr-4 pb-5 pl-14" : "p-1.5 pb-4"
       }`}
     >
+      {/* A chat-styled surface heads each message with when it was sent. */}
+      {block.startedAt != null && !block.draft ? (
+        <div
+          data-chat-time
+          className="hidden w-full self-center pb-3 text-center font-sans text-[12px] text-content/45"
+        >
+          {chatTimeLabel(block.startedAt)}
+        </div>
+      ) : null}
       <div
         className={`user-message-hover-zone min-w-0 overflow-visible ${chat ? "flex w-fit max-w-full flex-col items-end" : "w-full"}`}
       >
@@ -2045,21 +2067,30 @@ function WorkFoldLine({
     open ? " zen-fold-drop" : ""
   }`;
 
+  // A chat-styled surface draws the line as a card and shows this as its state.
+  const state = (
+    <span data-work-status className="hidden">
+      {live ? "Working" : "Done"}
+    </span>
+  );
   if (!expandable) {
     return (
       <div
+        data-work-fold={live ? "live" : "done"}
         className={`group ${row}`}
         role={live ? "status" : undefined}
         aria-live={live ? "polite" : undefined}
       >
         {icon}
         {label}
+        {state}
       </div>
     );
   }
   return (
     <button
       type="button"
+      data-work-fold={live ? "live" : "done"}
       aria-expanded={open}
       aria-label={open ? "Hide the work" : "Show the work"}
       aria-live={live ? "polite" : undefined}
@@ -2068,6 +2099,7 @@ function WorkFoldLine({
     >
       {icon}
       {label}
+      {state}
     </button>
   );
 }

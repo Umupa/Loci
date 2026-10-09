@@ -18,7 +18,7 @@ export const AGENT_COLORS = [
 ] as const;
 
 /**
- * An agent is long-lived and its own: a name, an avatar and a color, one
+ * An agent is long-lived and its own: a name, a face and a color, one
  * conversation, and the projects it works on. It is not tied to any one of
  * them; it lives on the rail beside the projects and can be given more.
  */

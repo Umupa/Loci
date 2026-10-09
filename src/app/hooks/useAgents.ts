@@ -10,6 +10,7 @@ import {
   type AgentState,
 } from "../../features/agents/model/agent";
 import { forgetAgentContext } from "../../features/agents/model/agentFiles";
+import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession } from "../../features/agents/model/agentWorkspace";
 import { archiveOlderTurns, canArchive, loadTranscriptPage, planArchive, type TranscriptPage } from "../../features/agents/model/agentTranscript";
@@ -97,6 +98,14 @@ export function useAgents(options: Options) {
     }
   }, [agents, sessions, viewSessionId]);
 
+  // The rail shows what each agent last said, also for chats that are not loaded.
+  useEffect(() => {
+    for (const agent of agents) {
+      const chat = agent.sessionId ? sessions.find((session) => session.id === agent.sessionId) : undefined;
+      if (chat && !chat.busy) saveAgentPreview(agent.id, agentPreview(chat));
+    }
+  }, [agents, sessions]);
+
   const addSession = useCallback((session: Session) => {
     const { runtime } = latest.current;
     runtime.bindRestoredSession(session);
@@ -178,6 +187,7 @@ export function useAgents(options: Options) {
         forgetAgentRotation(agent.sessionId);
       }
       removeAgent(agentId);
+      saveAgentPreview(agentId, undefined);
     } catch (error) {
       latest.current.onError(error);
     }

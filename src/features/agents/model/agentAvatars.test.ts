@@ -2,22 +2,24 @@ import { describe, expect, it } from "vitest";
 import { PROJECT_MASCOTS } from "../../projects/model/projectMascots";
 import {
   AGENT_AVATARS,
-  AVATAR_GRID,
+  AVATAR_BOX,
   agentAvatar,
-  avatarPath,
   defaultAgentName,
 } from "./agentAvatars";
 
 describe("agentAvatars", () => {
-  it("keeps every avatar on the shared grid with an inked, filled figure", () => {
+  it("gives every avatar a closed shape and eyes inside the box", () => {
     expect(AGENT_AVATARS).toHaveLength(10);
+    expect(new Set(AGENT_AVATARS.map((avatar) => avatar.body)).size).toBe(10);
     for (const avatar of AGENT_AVATARS) {
-      expect(avatar.rows).toHaveLength(AVATAR_GRID);
-      for (const row of avatar.rows) {
-        expect(row).toMatch(new RegExp(`^[#o+.]{${AVATAR_GRID}}$`));
-      }
-      expect(avatar.inkPath).not.toBe("");
-      expect(avatar.fillPath).not.toBe("");
+      expect(avatar.body).toMatch(/^M[\d. ]/);
+      expect(avatar.body.endsWith("z")).toBe(true);
+      const [x, y] = avatar.eyes;
+      // Both eyes, each a short stroke, stay well within the shape's box.
+      expect(x).toBeGreaterThan(4);
+      expect(x + 3.8).toBeLessThan(AVATAR_BOX - 4);
+      expect(y).toBeGreaterThan(4);
+      expect(y + 2.8).toBeLessThan(AVATAR_BOX - 4);
     }
   });
 
@@ -26,12 +28,6 @@ describe("agentAvatars", () => {
     for (const avatar of AGENT_AVATARS) {
       expect(mascots.has(avatar.name)).toBe(false);
     }
-  });
-
-  it("merges one tone's runs into rects inside the frame", () => {
-    expect(avatarPath(["##.oo+###."], "#")).toBe("M1 1h2v1h-2zM7 1h3v1h-3z");
-    expect(avatarPath(["##.oo+###."], "o")).toBe("M4 1h2v1h-2z");
-    expect(avatarPath([".........."], "#")).toBe("");
   });
 
   it("falls back to the first avatar for an unknown name", () => {

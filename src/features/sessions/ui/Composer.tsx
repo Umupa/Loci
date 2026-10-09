@@ -196,6 +196,8 @@ type Props = {
   hideProjectPicker?: boolean;
 
   hideTopBar?: boolean;
+  /** A messenger's one-line input: the model and permission controls live elsewhere. */
+  chat?: boolean;
   /** Keeps local file mentions, skills, and app modes off for host sessions. */
 
 
@@ -488,6 +490,7 @@ export function Composer({
   hideProjectPicker = false,
 
   hideTopBar = false,
+  chat = false,
 
 
   context,
@@ -2031,6 +2034,7 @@ export function Composer({
         <div
           ref={boxRef}
           data-composer-box
+          data-composer-chat={chat ? "" : undefined}
           data-composer-editing={resendEdited ? "" : undefined}
           className={`relative z-10 border bg-content/3 backdrop-blur-sm ${
             resendEdited
@@ -2090,13 +2094,13 @@ export function Composer({
 
 
 
-          <div className="relative">
+          <div className="relative" data-composer-field>
             <div
               ref={highlightRef}
               aria-hidden
               style={{ textIndent: modeIndent }}
               className={`composer-highlight pointer-events-none absolute inset-0 max-h-40 overflow-hidden whitespace-pre-wrap wrap-break-word px-3 text-sm leading-5.5 text-content font-sans ${
-                shell ? "py-4" : "py-3"
+                chat ? "py-2" : shell ? "py-4" : "py-3"
               }`}
             >
               <ComposerHighlight
@@ -2111,14 +2115,14 @@ export function Composer({
               ref={ref}
               data-composer-empty={navigationEmpty ? "true" : undefined}
               style={{ textIndent: modeIndent }}
-              rows={2}
+              rows={chat ? 1 : 2}
               spellCheck={false}
               defaultValue={initialDraft}
               placeholder={noteCard ? "Add a message, or send…" : (placeholder ?? "Ask, / for commands, @ for files, notes, drawings…")}
               aria-label={inputAriaLabel}
               disabled={disabled}
               className={`composer-field scrollbar-none relative max-h-52 w-full resize-none overflow-x-hidden whitespace-pre-wrap wrap-break-word bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
-                shell ? "py-4" : "py-3"
+                chat ? "py-2" : shell ? "py-4" : "py-3"
               }`}
               onFocus={onFocus}
               onKeyDown={onKeyDown}
@@ -2154,9 +2158,10 @@ export function Composer({
             />
           </div>
 
-          <div className="flex items-center gap-1 px-2 pb-2">
+          <div className="flex items-center gap-1 px-2 pb-2" data-composer-tools>
             <div
               ref={plusRef}
+              data-composer-plus-slot
               className={compact ? "hidden" : "relative shrink-0"}
             >
               <ToolButton
@@ -2368,7 +2373,7 @@ export function Composer({
                 <span>Cancel edit</span>
               </button>
             ) : null}
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1" data-composer-send>
               <ComposerAction
                 busy={busy}
                 disabled={disabled}

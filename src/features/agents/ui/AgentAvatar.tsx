@@ -1,38 +1,38 @@
-import { AVATAR_TILE, agentAvatar } from "../model/agentAvatars";
+import { AVATAR_BOX, agentAvatar } from "../model/agentAvatars";
 
 type Props = {
   /** Avatar name; see `agentAvatars`. */
   name: string;
-  /** The agent's color, which fills the tile behind the figure. */
+  /** The agent's color, which fills the whole shape. */
   color: string;
   className?: string;
 };
 
-/** An agent's framed pixel avatar: its color as the ground, the figure inked over it. */
+/** An agent's face: its shape in its color, with a pair of eyes looking up and to the side. */
 export function AgentAvatar({
   name,
   color,
   className = "size-4 shrink-0",
 }: Props) {
   const avatar = agentAvatar(name);
+  const [x, y] = avatar.eyes;
   return (
     <svg
       aria-hidden
-      viewBox={`0 0 ${AVATAR_TILE} ${AVATAR_TILE}`}
-      shapeRendering="crispEdges"
+      viewBox={`0 0 ${AVATAR_BOX} ${AVATAR_BOX}`}
       className={className}
     >
-      <rect width={AVATAR_TILE} height={AVATAR_TILE} fill="#111" />
-      <rect
-        x={1}
-        y={1}
-        width={AVATAR_TILE - 2}
-        height={AVATAR_TILE - 2}
+      <path
+        d={avatar.body}
         fill={color}
+        stroke={color}
+        strokeWidth={3}
+        strokeLinejoin="round"
       />
-      <path d={avatar.fillPath} fill="#fff" />
-      <path d={avatar.shadePath} fill="#fff" fillOpacity={0.55} />
-      <path d={avatar.inkPath} fill="#111" />
+      <g stroke="#fff" strokeWidth={1.7} strokeLinecap="round">
+        <path d={`M${x} ${y}l.6 2.3`} />
+        <path d={`M${x + 3.2} ${y + 0.5}l.6 2.3`} />
+      </g>
     </svg>
   );
 }
