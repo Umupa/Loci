@@ -14,9 +14,11 @@ import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 type Props = {
   cwd: string;
   composer?: ReactNode;
+  /** Stands in for the question above the composer, such as an agent's introduction. */
+  intro?: ReactNode;
 };
 
-export function EmptySession({ cwd, composer }: Props) {
+export function EmptySession({ cwd, composer, intro }: Props) {
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
 
   const getProjectLabel = () =>
@@ -47,12 +49,14 @@ export function EmptySession({ cwd, composer }: Props) {
         // keeps its width when the first message docks it.
         <div className="pointer-events-none relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-1.5 py-12">
           <div className="pointer-events-auto mb-4 px-2.5">
-            <h1
-              className="truncate text-lg text-content"
-              title={project ? cwd : undefined}
-            >
-              {title}
-            </h1>
+            {intro ?? (
+              <h1
+                className="truncate text-lg text-content"
+                title={project ? cwd : undefined}
+              >
+                {title}
+              </h1>
+            )}
           </div>
 
           <div className="pointer-events-auto w-full">{composer}</div>

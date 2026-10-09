@@ -127,6 +127,7 @@
   "Remove {0}": "移除 {0}",
   "Steer": "立即补充",
   "Working agents": "正在工作的智能体",
+  "Long-lived agents on the project rail, each with its own conversation, memory and habits. Turning this off hides them and pauses their habits; nothing is deleted.": "项目栏上的长期智能体，各有自己的对话、记忆和习惯。关闭后会隐藏它们并暂停习惯，不会删除任何内容。",
   "Markdown view": "Markdown 视图",
   "MCP servers": "MCP 服务",
   "Available": "可用",

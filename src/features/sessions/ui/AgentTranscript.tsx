@@ -1119,6 +1119,7 @@ function TurnDuration({
   return (
     <div
       aria-label={label}
+      data-turn-actions
       className="flex w-full min-w-0 max-w-full items-center gap-2.5 overflow-hidden px-4 pt-1 pb-3 font-sans text-sm text-content/40"
     >
       <span className="flex shrink-0 items-center gap-1">
@@ -1260,6 +1261,19 @@ function formatMetricCount(value: number): string {
 }
 
 /** Wall-clock stamp for a finished turn, in the reader's own locale. */
+/** When a message was sent, as a messenger heads it: the time today, the day before that. */
+export function chatTimeLabel(epochMs: number, now = Date.now()): string {
+  const at = new Date(epochMs);
+  const time = formatClockTime(epochMs);
+  const days = Math.round(
+    (new Date(now).setHours(0, 0, 0, 0) - new Date(epochMs).setHours(0, 0, 0, 0)) /
+      86_400_000,
+  );
+  if (days <= 0) return time;
+  if (days === 1) return `Yesterday ${time}`;
+  return `${at.toLocaleDateString("en", { month: "short", day: "numeric" })}, ${time}`;
+}
+
 function formatClockTime(epochMs: number): string {
   return new Date(epochMs).toLocaleTimeString("en", {
     hour: "numeric",
@@ -1519,6 +1533,11 @@ const TranscriptBlock = memo(function TranscriptBlock({
   onEditLastTurn?: () => void;
   editing?: boolean;
 }) {
+  // An app notification to an agent reads as a marker, not as something the user said.
+  if (block.role === "user" && block.agentSessionCompletion) {
+    return <AgentNotice label={block.text} at={block.startedAt} />;
+  }
+
   if (block.role === "user") {
     return (
       <UserMessageBlock
@@ -1631,13 +1650,23 @@ const TranscriptBlock = memo(function TranscriptBlock({
       data-selectable-agent-response={block.streaming ? undefined : block.id}
       className={`min-w-0 pb-1 text-content ${embedded ? "" : "px-4"} ${underLine ? "pt-1" : "pt-3"}`}
     >
-      <AgentMarkdown
-        text={block.text}
-        streaming={block.streaming}
-        revealOnMount={revealOnMount}
-        cwd={cwd}
-        onOpenFile={onOpenFile}
-      />
+      {block.agentHabit ? (
+        <AgentNotice
+          embedded
+          label={`From its habit “${block.agentHabit.name}”`}
+          at={block.agentHabit.at}
+        />
+      ) : null}
+      {/* A chat-styled surface draws this as the speaker's bubble. */}
+      <div data-agent-prose>
+        <AgentMarkdown
+          text={block.text}
+          streaming={block.streaming}
+          revealOnMount={revealOnMount}
+          cwd={cwd}
+          onOpenFile={onOpenFile}
+        />
+      </div>
     </div>
   );
 });
@@ -1749,6 +1778,15 @@ function UserMessageBlock({
         chat ? "flex flex-col items-end pt-1.5 pr-4 pb-5 pl-14" : "p-1.5 pb-4"
       }`}
     >
+      {/* A chat-styled surface heads each message with when it was sent. */}
+      {block.startedAt != null && !block.draft ? (
+        <div
+          data-chat-time
+          className="hidden w-full self-center pb-3 text-center font-sans text-[12px] text-content/45"
+        >
+          {chatTimeLabel(block.startedAt)}
+        </div>
+      ) : null}
       <div
         className={`user-message-hover-zone min-w-0 overflow-visible ${chat ? "flex w-fit max-w-full flex-col items-end" : "w-full"}`}
       >
@@ -2029,21 +2067,30 @@ function WorkFoldLine({
     open ? " zen-fold-drop" : ""
   }`;
 
+  // A chat-styled surface draws the line as a card and shows this as its state.
+  const state = (
+    <span data-work-status className="hidden">
+      {live ? "Working" : "Done"}
+    </span>
+  );
   if (!expandable) {
     return (
       <div
+        data-work-fold={live ? "live" : "done"}
         className={`group ${row}`}
         role={live ? "status" : undefined}
         aria-live={live ? "polite" : undefined}
       >
         {icon}
         {label}
+        {state}
       </div>
     );
   }
   return (
     <button
       type="button"
+      data-work-fold={live ? "live" : "done"}
       aria-expanded={open}
       aria-label={open ? "Hide the work" : "Show the work"}
       aria-live={live ? "polite" : undefined}
@@ -2052,6 +2099,7 @@ function WorkFoldLine({
     >
       {icon}
       {label}
+      {state}
     </button>
   );
 }
@@ -3815,6 +3863,38 @@ function ApprovalControls({
       >
         Deny
       </button>
+    </div>
+  );
+}
+
+/** Marks something an agent's chat received from the app itself: a habit's post, or finished sessions. */
+function AgentNotice({
+  label,
+  at,
+  embedded = false,
+}: {
+  label: string;
+  at?: number;
+  embedded?: boolean;
+}) {
+  return (
+    <div className={embedded ? "pb-3 pt-2" : "px-4 py-4"}>
+      <div className="flex items-center gap-3">
+        <div className="h-px min-w-4 flex-1 bg-content/12" />
+        <div
+          role="separator"
+          aria-label={label}
+          className="flex max-w-[min(100%,28rem)] items-center gap-1.5 px-1.5 font-sans text-[12px] text-content/55"
+        >
+          <span className="min-w-0 truncate">{label}</span>
+          {at != null ? (
+            <span className="shrink-0 text-content/35">
+              {formatClockTime(at)}
+            </span>
+          ) : null}
+        </div>
+        <div className="h-px min-w-4 flex-1 bg-content/12" />
+      </div>
     </div>
   );
 }

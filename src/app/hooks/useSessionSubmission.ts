@@ -21,7 +21,7 @@ import {
   nativeModelId, preferredModelSettings, resolveModel,
   saveLastModelSettings, saveRecentModelChoice,
 } from "../../features/sessions/model/models";
-import { titleFromPrompt } from "../../features/sessions/model/session";
+import { titleFromPrompt, type AgentSessionCompletion } from "../../features/sessions/model/session";
 import { displayAttachments, prepareAttachments } from "../../features/sessions/model/attachments";
 import { preparePrompt } from "../../features/sessions/model/promptPreparation";
 import { consumeOperatorCommand, operatorEnabledInThread } from "../../features/sessions/model/operatorCommand";
@@ -59,6 +59,10 @@ import { looksLikeProject } from "../../features/projects/model/recents";
 import { isNativeCommandPrompt } from "../../features/skills/model/skills";
 import { loadFollowUpBehavior, type FollowUpBehavior } from "../../features/settings/model/settings";
 import { loadCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
+import { agentForSession } from "../../features/agents/model/agent";
+import { agentTurn } from "../../features/agents/model/agentFiles";
+import { prepareAgentTurn } from "../../features/agents/model/agentTurnContext";
+import { turnOutcome, type TurnOutcome } from "../../features/sessions/model/turnOutcome";
 import type { SubmissionAcceptance } from "../model/submissionAcceptance";
 import type { SessionRuntime } from "./useSessionRuntime";
 
@@ -70,6 +74,16 @@ export type SubmitOptions = ComposerTurnOptions & {
   queuedMessageId?: string;
   refreshTitle?: boolean;
   projectLocationReady?: boolean;
+  /**
+   * An app notification to an agent that sessions it started have stopped.
+   * The chat shows the message's text; the agent reads the report instead.
+   */
+  agentCompletion?: { completion: AgentSessionCompletion; report: string };
+  /**
+   * Called once when the turn this submission starts has ended. Never called
+   * for a message that is refused, queued or steered into a running turn.
+   */
+  onSettled?: (outcome: TurnOutcome) => void;
 };
 type Submit = (sessionId: string, text: string, attachments?: Attachment[], options?: SubmitOptions) => SubmissionAcceptance;
 type SubmissionOptions = {
@@ -90,9 +104,10 @@ async function appCli(): Promise<string> {
   return shellPath(await invoke<string>("app_cli_path"));
 }
 
-async function operatorPrompt(): Promise<string> {
+/** How to use the app CLI. An agent always has it; a session has it once /operator is used. */
+async function operatorPrompt(always = false): Promise<string> {
   const cli = `${await appCli()} app`;
-  return `\n\n<loci_app>\nThe user's Operator command enables app access in this thread, including later turns without the command. You can start session tabs or split session panes right or down, read and continue other project sessions, save unsent drafts, organize session folders, and read or write saved notes through its local CLI. You can also list, create, rename, and delete Excalidraw canvases, and read or write their scene data (Excalidraw JSON) via canvas.read-data and canvas.write-data in the current project. Read the existing scene before extending it: write-data replaces the whole scene and updates open panes. Basic programmatic shapes support labels and are normalized by Excalidraw; full scenes retain images and bindings. Each write must use either all native elements or all shorthand elements; normalize new elements before appending to a native scene. When the built-in loci_excalidraw MCP tools (read_me, create_view, read_widget_context, get_elements, update_elements) are available, use create_view for new elements, and get_elements plus update_elements for precise edits to existing IDs: they draw on these same canvases, keep the user's edits, and a canvas id from canvas.list works as their checkpoint id. Use this CLI for listing, renaming, deleting, or replacing a whole scene; canvas.write-data does not accept MCP cameraUpdate/delete/restoreCheckpoint commands. Run \`${cli} --help\` for exact commands and JSON fields, then use it as needed for the user's request. When reading another session, start with its latest two or three user/assistant exchanges. Request older exchanges with nextBefore or a larger excerpt only if needed. The CLI uses a session credential already in your environment; never print it. New sessions inherit this session's permission mode unless runtimeMode is set explicitly. For a new session with a draft, call sessions.start with its prompt and draft:true; do not submit a seed prompt. The returned ID can be used as besideSessionId to split its pane again or moved into a folder immediately. A normal sessions.start submits its prompt but returns after acceptance, so do not wait for that agent to finish before organizing it.\n</loci_app>`;
+  return `<loci_app>\n${always ? "App access is always enabled in this thread." : "The user's Operator command enables app access in this thread, including later turns without the command."} You can start session tabs or split session panes right or down, read and continue other project sessions, save unsent drafts, organize session folders, and read or write saved notes through its local CLI. You can also list, create, rename, and delete Excalidraw canvases, and read or write their scene data (Excalidraw JSON) via canvas.read-data and canvas.write-data in the current project. Read the existing scene before extending it: write-data replaces the whole scene and updates open panes. Basic programmatic shapes support labels and are normalized by Excalidraw; full scenes retain images and bindings. Each write must use either all native elements or all shorthand elements; normalize new elements before appending to a native scene. When the built-in loci_excalidraw MCP tools (read_me, create_view, read_widget_context, get_elements, update_elements) are available, use create_view for new elements, and get_elements plus update_elements for precise edits to existing IDs: they draw on these same canvases, keep the user's edits, and a canvas id from canvas.list works as their checkpoint id. Use this CLI for listing, renaming, deleting, or replacing a whole scene; canvas.write-data does not accept MCP cameraUpdate/delete/restoreCheckpoint commands. Run \`${cli} --help\` for exact commands and JSON fields, then use it as needed for the user's request. When reading another session, start with its latest two or three user/assistant exchanges. Request older exchanges with nextBefore or a larger excerpt only if needed. The CLI uses a session credential already in your environment; never print it. New sessions inherit this session's permission mode unless runtimeMode is set explicitly. For a new session with a draft, call sessions.start with its prompt and draft:true; do not submit a seed prompt. The returned ID can be used as besideSessionId to split its pane again or moved into a folder immediately. A normal sessions.start submits its prompt but returns after acceptance, so do not wait for that agent to finish before organizing it.\n</loci_app>`;
 }
 
 function withHarnessChoice(session: Session, harness: HarnessId, model: string, modelSettings: Record<string, string>): Session {
@@ -158,16 +173,20 @@ export function useSessionSubmission(options: SubmissionOptions) {
     }
     const visibleText = activation.matched ? activation.text.trim() || "Explain what you can do in Loci with the app CLI."
       : learning.matched ? learning.text.trim() || LEARN_CONTINUE_PROMPT : text;
-    const appAccess = activation.matched || operatorEnabledInThread(current.blocks);
+    // An agent has app access in every turn, without the command.
+    const agent = agentForSession(sessionId);
+    const appAccess = !!agent || activation.matched || operatorEnabledInThread(current.blocks);
     const learnAccess = supportsLearnHarness(current.harness) && (learning.matched || learnEnabledInThread(current.blocks));
     const rawCommand = !activation.matched && !learning.matched && isNativeCommandPrompt(text, current.harness);
-    const promptText = rawCommand ? text : composeNoteMessage(noteCard, visibleText);
+    const promptText = options?.agentCompletion ? options.agentCompletion.report
+      : rawCommand ? text : composeNoteMessage(noteCard, visibleText);
     const pendingSwitch = current.pendingSwitch?.from !== current.harness ? current.pendingSwitch : undefined;
     const visible = displayAttachments(attachments);
     const cards = {
       ...(!rawCommand && noteCard ? { noteCard: noteCardMeta(noteCard) } : {}),
       ...(activation.matched ? { loci: true } : {}),
       ...(learning.matched ? { learn: true } : {}),
+      ...(options?.agentCompletion ? { agentSessionCompletion: options.agentCompletion.completion } : {}),
       ...((options?.appRequestId ?? draft?.appRequestId)
         ? { appRequestId: options?.appRequestId ?? draft?.appRequestId } : {}),
     };
@@ -299,7 +318,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     if (edited) editedResends.start(sessionId);
     else commitSubmittedTurn();
     rt.continued(sessionId);
-    if (shouldGenerateSessionTitle(firstTurn, placeholder, options?.refreshTitle)) {
+    if (!agent && shouldGenerateSessionTitle(firstTurn, placeholder, options?.refreshTitle)) {
       void generateHarnessTitle(current.harness, { sessionId, cwd: current.cwd, message: promptText || attachments.map((file) => file.name).join(", "), providerAccountId })
         .then((generated) => {
           if (!generated || !isCurrent()) return;
@@ -311,10 +330,11 @@ export function useSessionSubmission(options: SubmissionOptions) {
     void (async () => {
       let wrap = queuedHandoff;
       let providerFailed = false;
+      let failure: string | undefined;
       const heldEvents: HarnessEvent[] = [];
       const applyEvent = (event: HarnessEvent) => {
         if (!isCurrent()) return;
-        if (event.type === "session.error") providerFailed = true;
+        if (event.type === "session.error") { providerFailed = true; failure ??= event.message; }
         if (wrap && (event.type === "session.started" || event.type === "session.providerBound")) {
           setSessions((previous) => previous.map((session) => session.id === sessionId && isPreparingHandoff(session)
             ? { ...completeHandoff(session, wrap!.text), busy: true } : session));
@@ -366,17 +386,36 @@ export function useSessionSubmission(options: SubmissionOptions) {
         }
         let sendText = wrap && !rawCommand ? wrapHandoffPrompt(wrap.text, wrap.from, prompt.trim() || CONTINUE_PROMPT,
           queuedHandoff ? userMessagesAfterHandoff(current) : []) : prompt;
-        if (activation.matched) sendText += await operatorPrompt();
+        if (activation.matched && !agent) sendText += `\n\n${await operatorPrompt()}`;
         if (learning.matched) sendText += cliTools ? learnCliPrompt(await appCli()) : LEARN_PROMPT;
         if (learning.matched && options?.learnFocus) sendText += `\n\n<loci_learn_focus>The learner opened this session from the map node with id "${options.learnFocus.nodeId}", named in their message, to ${options.learnFocus.intent === "revisit" ? "revisit it" : "explore it"}. After map_read, go straight to that.</loci_learn_focus>`;
         // What the learner drew on the map since this session last read it is part of the turn.
         if (learnAccess) sendText += await learnEditHint(current).catch(() => "");
         // A turn must not fail over a note.
         if (canvasNote) sendText += await appCli().then(canvasCliPrompt, () => "");
+        // An agent reads who it is ahead of the message, so it never takes it for
+        // something the user pasted. A native command must stay first.
+        const agentTurnContext = agent && !rawCommand
+          ? await prepareAgentTurn(agent, current, { canRotate: !pendingSwitch && !edited }) : undefined;
+        if (!isCurrent()) return;
+        if (agentTurnContext) {
+          if (agentTurnContext.rotates) {
+            // Its chat never ends, but the provider session behind it does.
+            await forgetHarnessSession(current.harness, sessionId);
+            if (!isCurrent()) return;
+            setSessions((previous) => previous.map((session) => session.id === sessionId
+              ? { ...session, providerSessionId: undefined, context: undefined } : session));
+            agentTurnContext.commitRotation();
+          }
+          const context = [...agentTurnContext.context];
+          if (agentTurnContext.introduces || activation.matched) context.push(await operatorPrompt(true));
+          sendText = agentTurn(sendText, context);
+        }
         if (!isCurrent()) return;
         await sendHarnessTurn({ harness: current.harness, sessionId, cwd: current.cwd,
           model: current.model, modelSettings: current.modelSettings, providerAccountId,
           runtimeMode: current.runtimeMode, appAccess, learnAccess, text: sendText, attachments: prepared,
+          ...(current.ephemeral ? { ephemeral: true } : {}),
           ...(edited ? { onAccepted: accepted } : {}),
           onEvent: (event) => {
             if (!isCurrent()) return;
@@ -384,6 +423,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
             else applyEvent(event);
           } });
         accepted();
+        if (isCurrent() && !providerFailed) agentTurnContext?.record(sessionsRef.current.find((session) => session.id === sessionId)?.providerSessionId);
         if (isCurrent() && wrap) setSessions((previous) => previous.map((session) => {
           if (session.id !== sessionId) return session;
           const ready = isPreparingHandoff(session) ? completeHandoff(session, wrap!.text) : session;
@@ -395,9 +435,10 @@ export function useSessionSubmission(options: SubmissionOptions) {
           heldEvents.length = 0;
           setSessions((previous) => previous.map((session) => session.id === sessionId ? edited.recoverAfterFailure(session) : session));
         }
-        if (!providerFailed) enqueueHarnessEvent(sessionId, { type: "session.error", message: error instanceof Error ? error.message : String(error) });
+        failure ??= error instanceof Error ? error.message : String(error);
+        if (!providerFailed) enqueueHarnessEvent(sessionId, { type: "session.error", message: failure });
         providerFailed = true;
-      } finally {
+      } finally { try {
         edited?.reject();
         if (edited) editedResends.finish(sessionId);
         if (isCurrent()) {
@@ -413,7 +454,11 @@ export function useSessionSubmission(options: SubmissionOptions) {
           rt.finishTurn(sessionId, generation);
           await persistSession(sessionId).catch(() => undefined);
         }
-      }
+      } finally {
+        // A turn that is no longer the session's own was stopped or replaced.
+        options?.onSettled?.(turnOutcome(sessionsRef.current.find((session) => session.id === sessionId)?.blocks ?? [],
+          !isCurrent() ? "cancelled" : providerFailed ? "failed" : "completed", failure));
+      } }
     })().catch((error: unknown) => {
       if (!isCurrent()) return;
       enqueueHarnessEvent(sessionId, { type: "session.error", message: String(error) });
@@ -423,6 +468,18 @@ export function useSessionSubmission(options: SubmissionOptions) {
     return true;
   }, [editedResends, enqueueHarnessEvent, flushHarnessEvents, persistSession, sessionsRef, setSessions]);
   submitRef.current = submitSession;
+
+  /** Sends a turn to an idle session and resolves once it has ended, with its answer. */
+  const runTurn = useCallback(async (sessionId: string, text: string, options?: SubmitOptions): Promise<TurnOutcome> => {
+    // A busy session would queue the message, and a queued message reports no outcome.
+    if (sessionsRef.current.find((session) => session.id === sessionId)?.busy) {
+      return { status: "failed", text: "", error: "The session is busy." };
+    }
+    let settle!: (outcome: TurnOutcome) => void;
+    const settled = new Promise<TurnOutcome>((resolve) => { settle = resolve; });
+    const accepted = await submitSession(sessionId, text, [], { ...options, onSettled: settle });
+    return accepted ? settled : { status: "failed", text: "", error: "The session could not accept the prompt." };
+  }, [sessionsRef, submitSession]);
 
   const onSubmit = useCallback((...args: Parameters<Submit>): boolean => {
     const acceptance = submitSession(...args);
@@ -1271,7 +1328,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
   }, []);
 
   return {
-    submit: submitSession, onSubmit, stop, stopSessionWork, approve, answer, keepQuestionOpen,
+    submit: submitSession, onSubmit, runTurn, stop, stopSessionWork, approve, answer, keepQuestionOpen,
     compact, saveDraft, removeDraft, changeModel, changeModelSettings, changeRuntimeMode,
     deleteQueuedMessage, queuedMessageEditingChange, editQueuedMessage, steerQueuedMessage, resumeQueue,
     usageLimitDismiss, usageLimitResume, usageLimitResumeAtReset,

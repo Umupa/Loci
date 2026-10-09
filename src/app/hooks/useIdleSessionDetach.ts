@@ -30,6 +30,7 @@ export function useIdleSessionDetach({
   openingSessionIds,
   loadedSessionCache,
   skipForgetSessionIds,
+  keepSessionId,
   persistSession,
   onError,
   setSessions,
@@ -43,14 +44,16 @@ export function useIdleSessionDetach({
   openingSessionIds: RefObject<Set<string>>;
   loadedSessionCache: RefObject<Map<string, Session>>;
   skipForgetSessionIds: RefObject<Set<string>>;
+  /** A conversation in view outside any tab, such as an agent's. */
+  keepSessionId?: string;
   persistSession: (session: Session | undefined) => Promise<void>;
   onError: (error: unknown) => void;
   setSessions: Dispatch<SetStateAction<Session[]>>;
 }) {
   // Dropping a session re-renders the whole app, so it waits until a switch
   // has painted, and a burst of switches pays for it once.
-  const detachInputs = useRef({ liveAgentsEnabled, persistSession, onError });
-  detachInputs.current = { liveAgentsEnabled, persistSession, onError };
+  const detachInputs = useRef({ liveAgentsEnabled, keepSessionId, persistSession, onError });
+  detachInputs.current = { liveAgentsEnabled, keepSessionId, persistSession, onError };
   const unseenFinishedRef = useRef(unseenFinishedIds);
   unseenFinishedRef.current = unseenFinishedIds;
   const detachTimer = useRef<number | null>(null);
@@ -74,6 +77,9 @@ export function useIdleSessionDetach({
     }
 
     const canDetach = (session: Session) =>
+      // A hidden run is removed by whoever started it, once its answer is read.
+      !session.ephemeral &&
+      session.id !== detachInputs.current.keepSessionId &&
       !tabsRef.current.some((tab) => leafIds(tab.layout).includes(session.id)) &&
       !hasLiveSessionWork(session) &&
       !openingSessionIds.current.has(session.id) &&

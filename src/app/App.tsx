@@ -10,7 +10,16 @@ import { ReminderNotices } from "../features/sessions/ui/ReminderNotices";
 import { TranscriptPool, TranscriptPoolOutlet } from "../features/sessions/ui/TranscriptPool";
 import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
-import { openPathWithDefaultApp } from "../platform/tauri/fs";
+import { openPathWithDefaultApp, pickFolders } from "../platform/tauri/fs";
+import { useAgents } from "./hooks/useAgents";
+import { useAgentHabits } from "./hooks/useAgentHabits";
+import { useAgentDelegation } from "./hooks/useAgentDelegation";
+import { AgentRailSection } from "./shell/AgentRailSection";
+import { AgentView } from "../features/agents/ui/AgentView";
+import { AgentDetails } from "../features/agents/ui/AgentDetails";
+import { AgentIntro } from "../features/agents/ui/AgentIntro";
+import { agentLook } from "../features/agents/model/agent";
+import { SessionPane } from "../features/sessions/ui/SessionPane";
 import { isEqualOrInside } from "../shared/lib/paths";
 import { FILE_POINTER_DRAG_EVENT, type FilePointerDragDetail } from "../shared/lib/drag";
 import { paneDropFromPoint, setExternalPaneDrop } from "../features/workspace/model/paneDrop";
@@ -39,7 +48,7 @@ import { linkFamilies } from "../features/workspace/model/tabFamily";
 import { summarizeTab } from "../features/workspace/model/tabSummary";
 import { filePaneId, findLeaf, leafIds } from "../features/workspace/model/layout";
 import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
-import { loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
+import { loadAgentsEnabled, subscribeAgentsEnabled, loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../features/settings/model/uiScale";
 import { announceSessionFinished } from "../features/notifications/model/notifications";
 import { hiddenApprovalNotices } from "../features/notifications/model/approvalToast";
@@ -73,7 +82,7 @@ const NotesView = lazySurface(async () => ({ default: (await import("../features
 const CanvasesView = lazySurface(async () => ({ default: (await import("../features/canvas/ui/CanvasesView")).CanvasesView }), { suspense: false });
 
 registerBuiltinHarnesses();
-type Surface = "chat" | "search" | "notes" | "canvases" | "settings";
+type Surface = "chat" | "search" | "notes" | "canvases" | "settings" | "agent";
 
 export default function App(boot: BootWorkspace) {
   return <Suspense fallback={null}><Workspace {...boot} /></Suspense>;
@@ -113,15 +122,18 @@ function Workspace(boot: BootWorkspace) {
   const liveAgentsEnabled = useSyncExternalStore(subscribeLiveAgentsEnabled, loadLiveAgentsEnabled);
   const collapsedProjectRailMode = useSyncExternalStore(subscribeCollapsedProjectRailMode, loadCollapsedProjectRailMode);
 
+  // The agent conversation in view, which sits outside the workspace's tabs.
+  const agentSessionIdRef = useRef<string | undefined>(undefined);
   const isForeground = useCallback((id: string) => {
     const workspace = workspaceRef.current;
     const tab = workspace?.tabsRef.current.find((entry) => entry.id === workspace.activeTabIdRef.current);
+    if (surfaceRef.current === "agent") return id === agentSessionIdRef.current;
     return surfaceRef.current === "chat" && !!tab && leafIds(tab.layout).includes(id);
   }, []);
   const runtime = useSessionRuntime({ sessions, sessionsRef, setSessions, isForeground,
     onPersisted: (summary) => workspaceRef.current?.acceptSummary(summary),
     onPersistenceError: (error) => workspaceRef.current?.setError(String(error)),
-    onFinished: (session) => { void announceSessionFinished(session, isForeground(session.id)); },
+    onFinished: (session) => { if (!session.ephemeral) void announceSessionFinished(session, isForeground(session.id)); },
   });
   const submission = useSessionSubmission({ runtime,
     canStartSessionWork: (id) => !workspaceRef.current?.isSessionUnavailable(id),
@@ -153,12 +165,36 @@ function Workspace(boot: BootWorkspace) {
     setSavedToast({ type: "canvas", id, title });
   };
   const active = workspace.activeSession;
-  const busySessionIds = useMemo(() => new Set(sessions.filter((session) => session.busy).map((session) => session.id)), [sessions]);
-  const approvalSessionIds = useMemo(() => new Set(sessions.filter(sessionNeedsInput).map((session) => session.id)), [sessions]);
-  const unseenFinishedIds = useUnseenFinishedSessions(busySessionIds, surface === "chat" ? active?.id : undefined);
-  const liveAgents = useMemo(() => liveAgentsEnabled ? liveAgentsFromSessions(sessions, unseenFinishedIds) : [], [sessions, unseenFinishedIds, liveAgentsEnabled]);
-  useInputNotifications(sessions, surface === "chat" ? active?.id : undefined);
-  useEffect(() => syncDockBadge(sessions), [sessions]);
+  const agents = useAgents({ runtime, submission,
+    loadSession: (id) => workspaceRef.current!.loadSession(id),
+    onError: (error) => workspaceRef.current?.setError(String(error)),
+    onShow: () => setSurface("agent"), onHide: closeSurface,
+  });
+  const agentsEnabled = useSyncExternalStore(subscribeAgentsEnabled, loadAgentsEnabled);
+  const agentHabits = useAgentHabits({ runtime, submission,
+    loadSession: (id) => workspaceRef.current!.loadSession(id),
+    onPosted: (chat, name) => { void announceSessionFinished({ ...chat, title: name }, isForeground(chat.id)); },
+  }, agentsEnabled);
+  useEffect(() => { if (!agentsEnabled && surface === "agent") closeSurface(); }, [agentsEnabled, surface, closeSurface]);
+  const agentSession = surface === "agent" ? agents.viewSession : undefined;
+  agentSessionIdRef.current = agentSession?.id;
+  // Turns read back from the archive are shown ahead of the live ones, and saved with neither.
+  const shownAgentSession = useMemo(() => agentSession && agents.earlierBlocks?.length
+    ? { ...agentSession, blocks: [...agents.earlierBlocks, ...agentSession.blocks] } : agentSession, [agentSession, agents.earlierBlocks]);
+  const closeAgentView = agents.close;
+  useEffect(() => { if (surface !== "agent") closeAgentView(); }, [surface, closeAgentView]);
+  // The conversation the user is looking at, in a tab or an agent's view.
+  const viewedSessionId = surface === "chat" ? active?.id : agentSession?.id;
+  // A hidden run speaks through whoever started it, so nothing here counts or announces it.
+  const shownSessions = useMemo(() => sessions.some((session) => session.ephemeral) ? sessions.filter((session) => !session.ephemeral) : sessions, [sessions]);
+  const busySessionIds = useMemo(() => new Set(shownSessions.filter((session) => session.busy).map((session) => session.id)), [shownSessions]);
+  const approvalSessionIds = useMemo(() => new Set(shownSessions.filter(sessionNeedsInput).map((session) => session.id)), [shownSessions]);
+  const unseenFinishedIds = useUnseenFinishedSessions(busySessionIds, viewedSessionId);
+  // An agent that finished a reply while the user was elsewhere.
+  const unseenAgentIds = useMemo(() => new Set(agents.agents.filter((agent) => agent.sessionId && unseenFinishedIds.has(agent.sessionId)).map((agent) => agent.id)), [agents.agents, unseenFinishedIds]);
+  const liveAgents = useMemo(() => liveAgentsEnabled ? liveAgentsFromSessions(shownSessions, unseenFinishedIds) : [], [shownSessions, unseenFinishedIds, liveAgentsEnabled]);
+  useInputNotifications(shownSessions, viewedSessionId);
+  useEffect(() => syncDockBadge(shownSessions), [shownSessions]);
   useEffect(() => {
     let stopped = false;
     let unlisten: (() => void) | undefined;
@@ -178,10 +214,12 @@ function Workspace(boot: BootWorkspace) {
   useIdleSessionDetach({ sessions, sessionsRef, tabs: workspace.tabs, tabsRef: workspace.tabsRef,
     liveAgentsEnabled, unseenFinishedIds, openingSessionIds: workspace.openingSessionIds,
     loadedSessionCache: workspace.loadedSessionCache, skipForgetSessionIds: workspace.skipForgetSessionIds,
+    keepSessionId: agents.viewSession?.id,
     persistSession: runtime.persistSession,
     onError: (error) => workspaceRef.current?.setError(String(error)), setSessions: runtime.updateSessions,
   });
-  useAppControl({ workspace, runtime, submission });
+  const delegation = useAgentDelegation({ runtime, submission, loadSession: (id) => workspaceRef.current!.loadSession(id) });
+  useAppControl({ workspace, runtime, submission, delegation });
   useLearnSessions({ workspace, runtime, submission });
   useAppResourceNavigation({ workspace, notesEnabled, onOpenNote: (id) => {
     setNoteOpenRequest((previous) => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
@@ -439,7 +477,10 @@ function Workspace(boot: BootWorkspace) {
           reminders={reminders.reminders} onSetReminders={reminders.schedule} onCancelReminders={reminders.cancel}
           onTabChange={closeSurface} canGoBack={surface !== "chat" || workspace.visits.back.length > 0} canGoForward={workspace.visits.forward.length > 0}
           onGoBack={onRailBack} onGoForward={() => workspace.visit("forward")}
-          recents={workspace.recents} busyProjectPaths={sessions.filter((session) => session.busy).map((session) => session.cwd)}
+          recents={workspace.recents} busyProjectPaths={shownSessions.filter((session) => session.busy).map((session) => session.cwd)}
+          agentActive={surface === "agent"}
+          agentRail={!agentsEnabled ? undefined : <AgentRailSection activeId={surface === "agent" ? agents.viewAgent?.id : undefined} states={agents.states} unseenIds={unseenAgentIds}
+            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpen(true); void agents.open(id); }} onCreate={agents.create} onDelete={(id) => void agents.remove(id)} />}
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
@@ -473,6 +514,20 @@ function Workspace(boot: BootWorkspace) {
               </div>
             </main>
           </div>
+          {surface === "agent" && agents.viewAgent && agentSession ? <AgentView agent={agents.viewAgent} state={agents.states.get(agents.viewAgent.id) ?? { status: "idle" }}
+            detailsOpen={agents.detailsOpen} onToggleDetails={() => agents.setDetailsOpen((open) => !open)} onClose={closeSurface}
+            besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onToggleSidebar={toggleProjectRail}
+            onLoadEarlier={agents.hasEarlier ? () => void agents.loadEarlier() : undefined}
+            details={<AgentDetails agent={agents.viewAgent} session={agentSession}
+              onModelChange={(harness, model) => submission.changeModel(agentSession.id, harness, model)}
+              onModelSettingsChange={(settings) => submission.changeModelSettings(agentSession.id, settings)}
+              onRuntimeModeChange={(mode) => submission.changeRuntimeMode(agentSession.id, mode)} recents={workspace.recents} refreshKey={agentSession.busy} onPickFolders={() => pickFolders("Choose projects")}
+              onReset={() => void agents.reset(agents.viewAgent!.id)} onDelete={() => void agents.remove(agents.viewAgent!.id)} onClose={() => agents.setDetailsOpen(false)} />}>
+            {/* It belongs to no tab or project, so pane actions that move it have nothing to act on. */}
+            <SessionPane {...sessionPaneProps} key={agentSession.id} session={shownAgentSession ?? agentSession} visible focused inSplit={false} composerFocused emptyIntro={<AgentIntro agent={agents.viewAgent} />}
+              chatPlaceholder={`Message ${agentLook(agents.viewAgent).name}`}
+              onFocus={() => undefined} onClose={closeSurface} onCwdChange={() => undefined} onApproval={agentHabits.approve} />
+          </AgentView> : null}
           {surface === "search" ? <SearchView open cwd={workspace.projectCwd} recents={workspace.recents} history={workspace.history} sessions={sessions}
             focusToken={searchFocusToken} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
             onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}
@@ -492,7 +547,7 @@ function Workspace(boot: BootWorkspace) {
             }} /> : null}
         </div>
       </div>
-      <ApprovalToasts notices={hiddenApprovalNotices(sessions, workspace.activeTabId, workspace.tabs, surface === "chat")} topOffset={12 + (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0)} onFocusSession={(id) => void workspace.openSession(id)} onApproval={submission.approve} />
+      <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, workspace.activeTabId, workspace.tabs, surface === "chat")} topOffset={12 + (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0)} onFocusSession={(id) => void workspace.openSession(id)} onApproval={submission.approve} />
       <ReminderNotices reminders={reminders.due} error={reminders.error} onOpen={reminders.open} onSnooze={reminders.schedule} onDismiss={reminders.cancel} onRetry={reminders.refresh} onOpenSettings={() => openSettings("general", "notifications")} onHeightChange={setReminderNoticesHeight} />
       {overviewOpen ? <TabOverview tabs={tabSummaries} activeId={workspace.activeTabId} projectPath={workspace.projectCwd} recent={recentTabs.current}
         onDismiss={() => setOverviewOpen(false)} onActivate={workspace.activateTab}

@@ -145,6 +145,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "notebook markdown rail scratchpad",
     },
     {
+        id: "agents",
+        section: "general",
+        get label() { return t("Agents"); },
+        keywords: "agent persistent memory soul habits schedule rail",
+    },
+    {
         id: "working-agents",
         section: "general",
         get label() { return t("Working agents"); },
@@ -578,6 +584,27 @@ export function subscribeNotesEnabled(onStoreChange: () => void) {
         return () => { };
     window.addEventListener(NOTES_ENABLED_CHANGE_EVENT, onStoreChange);
     return () => window.removeEventListener(NOTES_ENABLED_CHANGE_EVENT, onStoreChange);
+}
+const AGENTS_ENABLED_KEY = "loci.agentsEnabled";
+/** Fired on `window` when the agents setting flips. */
+export const AGENTS_ENABLED_CHANGE_EVENT = "loci:agents-enabled-change";
+/** Agents on the rail, and their habits; on unless the user turns them off. */
+export function loadAgentsEnabled(): boolean {
+    return readFlag(AGENTS_ENABLED_KEY) ?? true;
+}
+export function saveAgentsEnabled(value: boolean) {
+    writeFlag(AGENTS_ENABLED_KEY, value);
+    if (typeof window === "undefined")
+        return;
+    window.dispatchEvent(new CustomEvent<boolean>(AGENTS_ENABLED_CHANGE_EVENT, {
+        detail: value,
+    }));
+}
+export function subscribeAgentsEnabled(onStoreChange: () => void) {
+    if (typeof window === "undefined")
+        return () => { };
+    window.addEventListener(AGENTS_ENABLED_CHANGE_EVENT, onStoreChange);
+    return () => window.removeEventListener(AGENTS_ENABLED_CHANGE_EVENT, onStoreChange);
 }
 const LIVE_AGENTS_ENABLED_KEY = "loci.liveAgentsEnabled";
 export const LIVE_AGENTS_ENABLED_DEFAULT = true;

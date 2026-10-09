@@ -7,6 +7,7 @@ useState,
 useSyncExternalStore,
 type CSSProperties,
 type PointerEvent as ReactPointerEvent,
+type ReactNode,
 } from "react";
 import { ChevronDown,GripVertical,X } from "../../../shared/ui/icons";
 import { Composer } from "./Composer";
@@ -87,6 +88,10 @@ export type SessionPaneProps = {
   composerFocusToken?: number;
   recents: RecentProject[];
   hideProjectPicker?: boolean;
+  /** Shown above the composer of an empty conversation that belongs to no project. */
+  emptyIntro?: ReactNode;
+  /** Gives the conversation a messenger's one-line input with this placeholder. */
+  chatPlaceholder?: string;
   onFocus: (sessionId: string) => void;
   onClose: (sessionId: string) => void;
   onCwdChange: (sessionId: string, cwd: string) => void;
@@ -211,6 +216,8 @@ export const SessionPane = memo(function SessionPane({
   composerFocusToken,
   recents,
   hideProjectPicker,
+  emptyIntro,
+  chatPlaceholder,
   onFocus,
   onClose,
   onCwdChange,
@@ -472,6 +479,8 @@ export const SessionPane = memo(function SessionPane({
   const composer = (
     <Composer
       key={session.id}
+      chat={chatPlaceholder != null}
+      placeholder={chatPlaceholder}
 
 
 
@@ -491,7 +500,7 @@ export const SessionPane = memo(function SessionPane({
       compactSupported={canCompactHarnessContext(session.harness)}
       recents={recents}
       hideProjectPicker={
-        (hideProjectPicker ? !showDeckProjectPicker : false)
+        (hideProjectPicker ? !showDeckProjectPicker || !!emptyIntro : false)
       }
 
 
@@ -671,6 +680,7 @@ export const SessionPane = memo(function SessionPane({
             (
               <EmptySession
                 cwd={session.cwd}
+                intro={emptyIntro}
 
                 composer={
                   dockComposer ? undefined : (
