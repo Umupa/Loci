@@ -46,10 +46,12 @@ import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib
 type OpenFileFn = (path: string) => void;
 
 import { copyText } from "../../../platform/tauri/clipboard";
-import { openPathWithDefaultApp,revealPath } from "../../../platform/tauri/fs";
+import { openPathWithDefaultApp,readBinaryFile,revealPath } from "../../../platform/tauri/fs";
 import { useColorScheme } from "../../../shared/hooks/useColorScheme";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
+import { imageDataUrl } from "../../../shared/lib/filePreview";
 import { remarkWorkspaceFileLinks } from "../../../shared/lib/markdown/markdownFileLinks";
+import { localImagePath,remarkLocalImages } from "../../../shared/lib/markdown/markdownLocalImages";
 import { isAtxHeadingLine } from "../../../shared/lib/markdown/markdownSource";
 
 import { IS_MAC,IS_WIN } from "../../../platform/tauri/platform";
@@ -465,6 +467,40 @@ function NoteAssetImage({
   );
 }
 
+/** A picture stored beside the document, such as a figure saved with a reading. Anything that is not a picture stays blank. */
+function LocalImage({
+  path,
+  alt,
+  ...props
+}: Omit<MarkdownImageProps, "src" | "node"> & { path: string }) {
+  const [src, setSrc] = useState<string>();
+
+  useEffect(() => {
+    let cancelled = false;
+    setSrc(undefined);
+    void readBinaryFile(path)
+      .then((bytes) => {
+        const next = imageDataUrl(bytes);
+        if (!cancelled && next) setSrc(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
+  return (
+    <img
+      {...props}
+      src={src}
+      alt={alt ?? ""}
+      data-local-image={path}
+      draggable={false}
+      loading="lazy"
+    />
+  );
+}
+
 function MarkdownImage({
   src,
   alt,
@@ -478,6 +514,10 @@ function MarkdownImage({
   }
   if (isNoteImagePath(url)) {
     return <NoteAssetImage {...props} asset={url} alt={alt} />;
+  }
+  const local = localImagePath(url);
+  if (local) {
+    return <LocalImage {...props} path={local} alt={alt} />;
   }
 
   return null;
@@ -516,6 +556,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   cwd,
   onOpenFile,
   hardBreaks,
+  wholeDocument = false,
 }: {
   text: string;
   streaming?: boolean;
@@ -527,6 +568,8 @@ export const AgentMarkdown = memo(function AgentMarkdown({
 
   /** Show a newline inside a block as a line break, as a document does (#591). */
   hardBreaks?: boolean;
+  /** Keep reference definitions available across paragraphs in saved documents. */
+  wholeDocument?: boolean;
 }) {
   const code = useCodePlugin();
   const plugins = useMemo(() => ({ code, mermaid }), [code]);
@@ -547,6 +590,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   const remarkPlugins = useMemo<PluggableList>(
     () => [
       ...Object.values(defaultRemarkPlugins),
+      [remarkLocalImages, { cwd }],
       [remarkWorkspaceFileLinks, { cwd }],
     ],
     [cwd],
@@ -605,6 +649,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
       <FileOpenContext.Provider value={fileOpen}>
         <>
           <Streamdown
+            mode={wholeDocument ? "static" : "streaming"}
             // Streamdown keeps a parsed tree while the text is unchanged, so
             // the plugin swap has to remount it once the fade is over.
             key={fading ? "fade" : "plain"}
@@ -671,6 +716,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
         {header}
         <AgentMarkdown
           text={text}
+          wholeDocument={!streaming}
           streaming={streaming}
           cwd={cwd}
           onOpenFile={onOpenFile}

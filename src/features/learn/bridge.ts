@@ -6,10 +6,10 @@ import { getNote, normalizeNoteTags, NOTES_CHANGED_EVENT, upsertNote } from "../
 import { looksLikeProject, sameProjectPath } from "../projects/model/recents";
 import { sessionDisplayTitle, type Session } from "../sessions/model/session";
 import {
-  GHOST_LIMIT, LEARN_MAP_TAG, RECORD_LIMIT, SKETCH_LIMIT, isLearnMap, isRecord, readMap,
+  GHOST_LIMIT, LEARN_MAP_TAG, RECORD_LIMIT, SKETCH_LIMIT, STAGE_TOPIC_LIMIT, isLearnMap, isRecord, readMap,
   type LearnSource, type MapNode, type MapView, type RecallVerdict, type RecordVerdict,
 } from "./model/learnMap";
-import type { EdgeRecord, NodeRecord, WriteContext, WrittenNode } from "./model/mapScene";
+import type { EdgeRecord, NodeRecord, SketchWrite, WriteContext, WrittenNode } from "./model/mapScene";
 import { EDGE_LABEL_COLUMNS, labelColumns, QUOTE_MIN, saidByLearner, wordedByLearner } from "./model/quote";
 import { mapStats, pickRevisits } from "./model/schedule";
 
@@ -31,7 +31,7 @@ const seenEdits = new Map<string, string>();
 const FIELDS: Record<string, readonly string[]> = {
   "map.read": ["nodeId", "stats"],
   "map.init": ["subject", "why", "success"],
-  "map.sketch": ["near", "nodes", "edges"],
+  "map.sketch": ["stage", "near", "nodes", "edges", "remove"],
   "map.record": ["nodes", "edges"],
   "revisit.start": ["nodeId"],
   "revisit.finish": ["nodeId", "quote", "verdict", "principle"],
@@ -69,7 +69,7 @@ export async function projectLearnMap(cwd: string): Promise<Canvas | null> {
 async function requireMap(cwd: string): Promise<Canvas> {
   const map = await projectLearnMap(cwd);
   const saved = map && await readCanvasScene(map.id);
-  if (!saved) throw new Error("This project has no learning map yet. Ask the learner why they are learning this and what they already know, then call map_init.");
+  if (!saved) throw new Error("This project has no learning map yet. Set the subject up as your /learn instructions describe, and call map_init with the learner's own words once they have stated their goal.");
   return saved;
 }
 
@@ -178,7 +178,7 @@ function writeContext(source: Session, canvasId: string, now: number): WriteCont
 }
 
 const nodeLine = (node: MapNode) => ({
-  id: node.id, label: node.label, ...(node.kind === "judgment" ? { kind: node.kind } : {}), state: node.state,
+  id: node.id, label: node.label, ...(node.kind === "judgment" ? { kind: node.kind } : {}), state: node.state, ...(node.stage ? { stage: node.stage } : {}),
   ...(node.due ? { due: true } : {}), ...(node.links ? { links: node.links } : {}), ...(node.unsourced ? { unsourced: true } : {}),
 });
 
@@ -246,7 +246,7 @@ export async function handleLearnBridge(source: Session, action: string, input: 
     case "map.read": {
       const found = await projectLearnMap(cwd);
       const saved = found && await readCanvasScene(found.id);
-      if (!saved) return { exists: false, next: "No learning map in this project yet. Ask the learner two things in one message: why they are learning this (what they want to be able to do), and what they already know, told freely. Then call map_init with their words, and map_record for what they said they know." };
+      if (!saved) return { exists: false, next: "No learning map in this project yet. Set the subject up as your /learn instructions describe: show the learner an overview of the field first, then interview them. Call map_init with their own words once they have said why they are learning this and what they want to be able to do." };
       const canvas = await showDue(saved, now);
       const view = readMap(canvas.dataJson, now);
       seenEdits.set(source.id, editSignature(view));
@@ -265,13 +265,14 @@ export async function handleLearnBridge(source: Session, action: string, input: 
           ...(pending ? { note: "Withheld: a revisit is due. Call revisit with phase start; the learner's earlier words come back when it finishes." } : { note: note?.body ?? "" }),
         };
       }
-      const ghosts = view.nodes.filter((node) => node.state === "ghost").length;
+      const sketched = view.nodes.filter((node) => node.state === "ghost" && !node.stage).length;
       // What a connection says is what the learner said about its ends, so it is withheld like the note
       // while either end is due or being revisited. It comes back when the revisit finishes.
       const hidden = new Set(view.nodes.filter((node) => node.kind === "concept" && (node.due || recalls.get(source.id)?.nodeId === node.id)).map((node) => node.id));
       const withheld = (edge: { from: string | null; to: string | null }) => (!!edge.from && hidden.has(edge.from)) || (!!edge.to && hidden.has(edge.to));
       return {
         exists: true, canvasId: canvas.id, url, title: view.title, mission: view.mission,
+        ...(view.stages.length ? { roadmap: view.stages } : {}),
         nodes: view.nodes.map(nodeLine),
         edges: view.edges.map((edge) => ({
           id: edge.id, from: edge.from, to: edge.to,
@@ -280,9 +281,9 @@ export async function handleLearnBridge(source: Session, action: string, input: 
         })),
         ...(view.untracked.shapes.length || view.untracked.edges.length ? { drawnByLearner: view.untracked } : {}),
         revisit: pickRevisits(view.nodes).map(({ id, label, kind }) => ({ id, label, kind })),
-        unexplored: `${ghosts} of at most ${GHOST_LIMIT}`,
+        unexplored: `${sketched} outside the roadmap, of at most ${GHOST_LIMIT}`,
         ...(input.stats === true ? { stats: mapStats(view, now) } : {}),
-        rules: "Solid nodes are what the learner has explained in their own words; dashed ones are not learned yet. Only map_record with the learner's words makes a node solid. Never present a dashed node, or anything you explained, as something the learner knows.",
+        rules: "Solid nodes are what the learner has explained in their own words. Dashed ones are not learned yet: the topics of the roadmap, each in its stage, and sketches beside what the learner knows. Only map_record with the learner's words makes a node solid. Never present a dashed node, or anything you explained, as something the learner knows.",
       };
     }
 
@@ -303,22 +304,29 @@ export async function handleLearnBridge(source: Session, action: string, input: 
 
     case "map.sketch": {
       const map = await requireMap(cwd);
-      const labels = list(input.nodes, "nodes", SKETCH_LIMIT, 1).map((entry) => text(entry, "node label", 60));
+      const stage = optionalText(input.stage, "stage", 60);
+      const labels = list(input.nodes, "nodes", stage === undefined ? SKETCH_LIMIT : STAGE_TOPIC_LIMIT).map((entry) => text(entry, "node label", 60));
+      const remove = list(input.remove, "remove", 40).map((entry) => text(entry, "remove", 256));
+      if (!labels.length && !remove.length) throw new Error("Nothing to sketch: pass nodes to add, remove to take unexplored nodes off the map, or both");
       const edges = list(input.edges, "edges", 6).map((entry): EdgeRecord => {
         const edge = fields(entry, "edge", ["from", "to", "label"]);
         return { from: text(edge.from, "edge from", 256), to: text(edge.to, "edge to", 256), label: optionalText(edge.label, "edge label", 40) };
       });
       const near = optionalText(input.near, "near", 256);
+      // The roadmap says what there is to learn. How its topics connect is the learner's to say.
+      if (stage !== undefined && (near !== undefined || edges.length))
+        throw new Error("A roadmap stage places its own topics and has no connections: pass stage with nodes only, and leave how topics connect to the learner.");
       const { sketchOnMap } = await import("./model/mapScene");
-      let written: { nodes: WrittenNode[]; edges: string[] } = { nodes: [], edges: [] };
+      let written: Pick<SketchWrite, "nodes" | "edges" | "already" | "removed"> = { nodes: [], edges: [], already: [], removed: [] };
       const saved = await writeCanvasScene(map.id, (current) => {
-        const result = sketchOnMap(current.dataJson, { near, labels, edges }, writeContext(source, map.id, now));
+        const result = sketchOnMap(current.dataJson, { stage, near, labels, edges, remove }, writeContext(source, map.id, now));
         written = result;
         return { dataJson: result.dataJson, viewport: result.viewport };
       });
       host.reveal(saved.id, source.id);
-      return { canvasId: saved.id, title: saved.title, url: appResourceUrl("canvas", saved.id), saved: true,
-        nodes: written.nodes.map(({ id, label }) => ({ id, label, state: "ghost" })), edges: written.edges };
+      return { canvasId: saved.id, title: saved.title, url: appResourceUrl("canvas", saved.id), saved: true, ...(stage === undefined ? {} : { stage }),
+        nodes: written.nodes.map(({ id, label }) => ({ id, label, state: "ghost" })), edges: written.edges,
+        ...(written.already.length ? { alreadyOnMap: written.already } : {}), ...(written.removed.length ? { removed: written.removed } : {}) };
     }
 
     case "map.record": {

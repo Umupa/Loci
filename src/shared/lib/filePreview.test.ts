@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatFileSize, sniffImageMime } from "./filePreview";
+import { formatFileSize, imageDataUrl, sniffImageMime } from "./filePreview";
 function bytes(...values: number[]): Uint8Array {
     return new Uint8Array(values);
 }
@@ -29,5 +29,28 @@ describe("formatFileSize", () => {
         expect(formatFileSize(48 * 1024)).toBe("48 KB");
         expect(formatFileSize(3 * 1024 * 1024)).toBe("3.0 MB");
         expect(formatFileSize(2 * 1024 * 1024 * 1024)).toBe("2.0 GB");
+    });
+});
+describe("imageDataUrl", () => {
+    it("gives pictures an inline address named for what the bytes are", () => {
+        expect(imageDataUrl(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3))).toBe("data:image/png;base64,iVBORw0KGgoBAgM=");
+        // Diagrams in documentation are usually SVG, with or without an XML prolog.
+        for (const svg of ['<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>', '\uFEFF<?xml version="1.0"?>\n<!-- drawn by hand -->\n<!DOCTYPE svg>\n<svg viewBox="0 0 1 1"/>']) {
+            const url = imageDataUrl(new TextEncoder().encode(svg))!;
+            expect(url.startsWith("data:image/svg+xml;base64,")).toBe(true);
+            expect(new TextDecoder("utf-8", { ignoreBOM: true }).decode(Uint8Array.from(atob(url.split(",")[1]), (char) => char.charCodeAt(0)))).toBe(svg);
+        }
+    });
+    it("gives nothing for a file that is not a picture, is empty, or is too large to inline", () => {
+        expect(imageDataUrl(new TextEncoder().encode("<html><svg/><script>x()</script>"))).toBeNull();
+        expect(imageDataUrl(new TextEncoder().encode("ssh-ed25519 AAAA"))).toBeNull();
+        expect(imageDataUrl(bytes())).toBeNull();
+        const huge = new Uint8Array(8 * 1024 * 1024 + 1);
+        huge.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        expect(imageDataUrl(huge)).toBeNull();
+        // A large picture under the limit is encoded in pieces without overflowing the call stack.
+        const large = new Uint8Array(300_000);
+        large.set([0xff, 0xd8, 0xff]);
+        expect(imageDataUrl(large)!.length).toBeGreaterThan(400_000);
     });
 });

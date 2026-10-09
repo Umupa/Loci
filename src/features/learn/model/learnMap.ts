@@ -3,10 +3,13 @@ export const LEARN_MAP_TAG = "learn-map";
 /** What an agent is told when it tries to draw on a learning map with a general canvas tool. */
 export const LEARN_MAP_WRITE_REFUSED =
   "This drawing is the learner's learning map. Change it with the loci_learn tools (map_sketch, map_record, revisit), and draw explanatory diagrams on another canvas.";
-/** Unexplored nodes that may wait on a map at once, so it never turns into a syllabus. */
+/** Unexplored nodes that may wait outside the roadmap at once: sketches of what lies next to what the learner knows. */
 export const GHOST_LIMIT = 9;
-/** Unexplored nodes one sketch may add. */
+/** Unexplored nodes one sketch may add outside a stage. */
 export const SKETCH_LIMIT = 3;
+/** Stages a roadmap may have, and topics one stage may hold: enough to show a field, too few to become a textbook. */
+export const STAGE_LIMIT = 8;
+export const STAGE_TOPIC_LIMIT = 8;
 /** Nodes one record may hold: orientation records everything the learner already knows. */
 export const RECORD_LIMIT = 12;
 /** Revisits offered at the start of a sitting. */
@@ -55,7 +58,9 @@ export type JudgmentData = Common & {
 };
 export type MissionData = Common & { kind: "mission" };
 export type EdgeData = Common & { kind: "edge"; by: "learner" | "proposed" };
-export type LearnData = ConceptData | JudgmentData | MissionData | EdgeData;
+/** A stage of the roadmap: a frame whose name is the stage's and whose nodes are its topics. */
+export type StageData = Common & { kind: "stage" };
+export type LearnData = ConceptData | JudgmentData | MissionData | EdgeData | StageData;
 
 export type El = Record<string, unknown> & { id: string; type: string; x: number; y: number; width: number; height: number; isDeleted?: boolean };
 export type Scene = { elements: El[]; appState: Record<string, unknown>; files: Record<string, unknown> };
@@ -84,10 +89,16 @@ export function learnData(element: El): LearnData | undefined {
   const data = isRecord(element.customData) ? element.customData.learn : undefined;
   if (!isRecord(data) || data.v !== 1 || data.self !== element.id) return undefined;
   if (data.kind === "concept" || data.kind === "judgment") return Array.isArray(data.history) ? data as LearnData : undefined;
-  return data.kind === "mission" || data.kind === "edge" ? data as LearnData : undefined;
+  return data.kind === "mission" || data.kind === "edge" || data.kind === "stage" ? data as LearnData : undefined;
 }
 
 export const live = (element: El) => !element.isDeleted;
+
+/** The roadmap's stages, in the order they run down the map, by the id of each stage's frame. */
+export function stageNames(elements: readonly El[]): Map<string, string> {
+  const frames = elements.filter((element) => live(element) && element.type === "frame" && learnData(element)?.kind === "stage");
+  return new Map([...frames].sort((a, b) => a.y - b.y || a.x - b.x).map((frame) => [frame.id, typeof frame.name === "string" ? frame.name.trim() : ""]));
+}
 const containerOf = (element: El) => typeof element.containerId === "string" ? element.containerId : null;
 const boundTo = (element: El, end: "startBinding" | "endBinding") => {
   const binding = element[end];
@@ -120,11 +131,15 @@ export type MapNode = {
   history: LearnEvent[];
   /** Arrows touching the node. */
   links: number;
+  /** The roadmap stage the node sits in, by name. The learner moves a node between stages by dragging it. */
+  stage?: string;
 };
 export type MapEdge = { id: string; from: string | null; to: string | null; label: string; by: EdgeData["by"] };
 export type MapView = {
   title: string;
   mission: string;
+  /** The roadmap's stages by name, first to last. */
+  stages: string[];
   nodes: MapNode[];
   edges: MapEdge[];
   /** What the learner drew by hand and nobody has recorded yet. */
@@ -145,7 +160,8 @@ export function readMap(dataJson: string, now: number): MapView {
 export function viewOf(scene: readonly El[], now: number): MapView {
   const elements = scene.filter(live);
   const labels = labelsByOwner(elements);
-  const view: MapView = { title: "", mission: "", nodes: [], edges: [], untracked: { shapes: [], edges: [] } };
+  const stages = stageNames(elements);
+  const view: MapView = { title: "", mission: "", stages: [...stages.values()], nodes: [], edges: [], untracked: { shapes: [], edges: [] } };
   const degree = new Map<string, number>();
   for (const element of elements) {
     if (element.type !== "arrow") continue;
@@ -169,6 +185,7 @@ export function viewOf(scene: readonly El[], now: number): MapView {
         ...(data.kind === "concept" && data.unsourced ? { unsourced: true as const } : {}),
         ...(data.kind === "concept" && data.sources?.length ? { sources: data.sources } : {}),
         history: data.history, links: degree.get(element.id) ?? 0,
+        ...(typeof element.frameId === "string" && stages.has(element.frameId) ? { stage: stages.get(element.frameId)! } : {}),
       });
     } else if (element.type === "arrow") {
       const edge = { id: element.id, from: boundTo(element, "startBinding"), to: boundTo(element, "endBinding"), label };
