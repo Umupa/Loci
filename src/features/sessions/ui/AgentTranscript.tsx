@@ -35,6 +35,7 @@ X,
 import { AttachmentChip } from "./AttachmentChip";
 import { GeneratedImage } from "./GeneratedImage";
 import { LociSparkles } from "./LociSparkles";
+import { LearnSparkles } from "../../learn/ui/LearnSparkles";
 
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { FilePreview } from "./FilePreview";
@@ -1846,6 +1847,9 @@ function UserMessageBlock({
           ) : null}
           {loci ? (
             <LociSparkles blockId={block.id} startedAt={block.startedAt} />
+          ) : null}
+          {block.learn ? (
+            <LearnSparkles blockId={block.id} startedAt={block.startedAt} />
           ) : null}
         </div>
         {block.learn ? (
