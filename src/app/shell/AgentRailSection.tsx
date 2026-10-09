@@ -3,7 +3,7 @@ import { useAnimatedReorder } from "../../shared/hooks/useAnimatedReorder";
 import { MoreHorizontal, Plus, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
 import { Popover, type PopoverAnchor } from "../../shared/ui/Popover";
 import { Shimmer } from "../../shared/ui/Shimmer";
-import { AGENT_TEMPLATES } from "../../features/agents/model/agentTemplates";
+import { agentTemplatesSnapshot, listAgentTemplates, subscribeAgentTemplates } from "../../features/agents/model/agentTemplates";
 import { AgentAvatar } from "../../features/agents/ui/AgentAvatar";
 import { AgentStatusDot } from "../../features/agents/ui/AgentStatus";
 import {
@@ -54,6 +54,9 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
   const sortable = useAnimatedReorder(agents.map((agent) => agent.id), reorderAgents, "y");
   const [menu, setMenu] = useState<{ id: string; anchor: PopoverAnchor }>();
   const [creating, setCreating] = useState<PopoverAnchor>();
+  const templateSnapshot = useSyncExternalStore(subscribeAgentTemplates, agentTemplatesSnapshot);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const templates = useMemo(() => listAgentTemplates(), [templateSnapshot]);
   const menuAgent = menu ? agents.find((agent) => agent.id === menu.id) : undefined;
   return (
     <div className="mb-2 shrink-0" data-agent-rail>
@@ -188,7 +191,7 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             </span>
           </button>
           <div className="mx-2.5 mb-1 mt-1.5 border-t border-stroke pt-2 text-[11px] text-content/40">Or start from a template</div>
-          {AGENT_TEMPLATES.map((template) => (
+          {templates.map((template) => (
             <button key={template.id} type="button" role="menuitem" onClick={() => { setCreating(undefined); onCreate(template.id); }}
               className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-content/8">
               <span className="grid size-6 shrink-0 place-items-center"><AgentAvatar name={template.avatar} color={template.color} className="size-5" /></span>

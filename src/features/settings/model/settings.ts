@@ -158,6 +158,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "agent reset soul name projects",
     },
     {
+        id: "agent-templates",
+        section: "agents",
+        get label() { return t("Agent templates"); },
+        keywords: "agent template prompt soul tutor reviewer built-in edit instructions",
+    },
+    {
         id: "working-agents",
         section: "general",
         get label() { return t("Working agents"); },
