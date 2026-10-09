@@ -8,6 +8,7 @@ import {
   type Hsl,
 } from "../../../shared/lib/colorUtils";
 import {
+  OMARCHY_SOURCE,
   OMARCHY_THEME_SOURCES,
   OMARCHY_TOKEN_RULES,
 } from "./omarchyThemes.generated";
@@ -50,7 +51,7 @@ export type ThemeSource = {
   name: string;
   mode: ThemeMode;
   palette: ThemePalette;
-  wallpapers: { id: string; name: string }[];
+  wallpapers: { id: string; name: string; ext?: string }[];
 };
 
 /** A syntax rule from Omarchy's editor template: scopes painted in one palette color. */
@@ -64,8 +65,10 @@ export type TokenRule = {
 export type ThemeWallpaper = {
   id: string;
   name: string;
-  /** Same-origin URL of the shrunk wallpaper. */
-  src: string;
+  /** Original file extension (e.g. "jpg", "webp"). */
+  ext: string;
+  /** jsDelivr CDN URL of the original full-resolution wallpaper. */
+  cdnUrl: string;
   thumb: string;
   /** What the chat background setting stores to refer to this wallpaper. */
   path: string;
@@ -78,16 +81,22 @@ export type ThemeDefinition = Omit<ThemeSource, "wallpapers"> & {
 const ASSET_BASE = "/themes";
 /** A chat background value that names a bundled wallpaper instead of a file. */
 const WALLPAPER_PREFIX = "theme:";
+// Read the public source at the imported revision; this app's repository may be private.
+const CDN_BASE = `https://cdn.jsdelivr.net/gh/${OMARCHY_SOURCE.repository.replace("https://github.com/", "")}@${OMARCHY_SOURCE.commit}/themes`;
 
 function withWallpapers(source: ThemeSource): ThemeDefinition {
   return {
     ...source,
-    wallpapers: source.wallpapers.map((wallpaper) => ({
-      ...wallpaper,
-      src: `${ASSET_BASE}/${source.id}/${wallpaper.id}.webp`,
-      thumb: `${ASSET_BASE}/${source.id}/${wallpaper.id}.thumb.webp`,
-      path: `${WALLPAPER_PREFIX}${source.id}/${wallpaper.id}`,
-    })),
+    wallpapers: source.wallpapers.map((wallpaper) => {
+      const ext = wallpaper.ext ?? "webp";
+      return {
+        ...wallpaper,
+        ext,
+        cdnUrl: `${CDN_BASE}/${source.id}/backgrounds/${wallpaper.id}.${ext}`,
+        thumb: `${ASSET_BASE}/${source.id}/${wallpaper.id}.thumb.webp`,
+        path: `${WALLPAPER_PREFIX}${source.id}/${wallpaper.id}`,
+      };
+    }),
   };
 }
 

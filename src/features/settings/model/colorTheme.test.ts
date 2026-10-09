@@ -26,7 +26,8 @@ import {
 import { findTheme, resolveTheme, THEMES } from "./themes";
 
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(async () => undefined),
+  invoke: vi.fn(async (command, args) => command === "download_wallpaper"
+    ? `/app-data/wallpaper-cache/${args.cacheKey}` : undefined),
   convertFileSrc: (path: string) => `asset://${path}`,
 }));
 
@@ -277,13 +278,13 @@ describe("accent with a theme", () => {
 describe("theme wallpapers", () => {
   const first = (id: string) => findTheme(id)!.wallpapers[0].path;
 
-  it("puts the theme's first wallpaper behind the chat", () => {
+  it("puts the theme's first wallpaper behind the chat", async () => {
     setTheme("nord");
     expect(loadChatBackgroundPath()).toBe(first("nord"));
     expect(root().classList.contains("has-chat-background")).toBe(true);
-    expect(root().style.getPropertyValue("--chat-background-image")).toContain(
-      "/themes/nord/0-black-moon.webp",
-    );
+    await vi.waitFor(() => expect(root().style.getPropertyValue("--chat-background-image")).toContain(
+      "asset:///app-data/wallpaper-cache/nord/0-black-moon.jpg",
+    ));
   });
 
   it("moves to the next theme's wallpaper and drops it with the default theme", () => {
@@ -317,10 +318,11 @@ describe("theme wallpapers", () => {
     expect(loadChatBackgroundPath()).toBe(first("gruvbox"));
   });
 
-  it("resolves a bundled wallpaper to a same-origin URL", () => {
-    expect(chatBackgroundSrc(first("nord"))).toMatch(
-      /^\/themes\/nord\/0-black-moon\.webp\?v=\d+$/,
-    );
+  it("resolves a downloaded wallpaper to a local asset URL", async () => {
+    setTheme("nord");
+    await vi.waitFor(() => expect(chatBackgroundSrc(first("nord"))).toMatch(
+      /^asset:\/\/\/app-data\/wallpaper-cache\/nord\/0-black-moon\.jpg\?v=\d+$/,
+    ));
     expect(chatBackgroundSrc("/app-data/backgrounds/chat-background.png")).toMatch(
       /^asset:\/\/\/app-data\/backgrounds\/chat-background\.png\?v=\d+$/,
     );

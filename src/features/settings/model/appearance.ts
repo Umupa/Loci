@@ -727,26 +727,57 @@ export function subscribeChatBackgroundPath(onStoreChange: () => void) {
 }
 
 export function applyChatBackground(path: string | null) {
+  const revision = ++chatBackgroundRevision;
   const root = document.documentElement;
   root.classList.toggle("has-chat-background", !!path);
   if (!path) {
     clearPreparedNewThreadBackground();
     return null;
   }
-  chatBackgroundRevision += 1;
   renderChatBackground(path);
+  if (isThemeWallpaperPath(path) && !wallpaperLocalPaths.has(path)) {
+    void ensureThemeWallpaperCached(path).then((ok) => {
+      // A slow download must not replace a newer selection or restore a removed image.
+      if (ok && revision === chatBackgroundRevision) applyChatBackground(path);
+    });
+  }
   return path;
 }
+
+/** Maps "theme:<id>/<wid>" → asset:// URL of the downloaded original. */
+const wallpaperLocalPaths = new Map<string, string>();
+const wallpaperDownloads = new Map<string, Promise<boolean>>();
 
 export function chatBackgroundSrc(path: string | null): string | null {
   if (!path) return null;
   if (isThemeWallpaperPath(path)) {
-    const bundled = resolveThemeWallpaper(path);
-    return bundled
-      ? `${bundled.wallpaper.src}?v=${chatBackgroundRevision}`
-      : null;
+    const src = wallpaperLocalPaths.get(path)
+      ?? resolveThemeWallpaper(path)?.wallpaper.thumb;
+    return src ? `${src}?v=${chatBackgroundRevision}` : null;
   }
   return `${convertFileSrc(path)}?v=${chatBackgroundRevision}`;
+}
+
+/** Downloads the original wallpaper if not already cached, then populates wallpaperLocalPaths. */
+function ensureThemeWallpaperCached(path: string): Promise<boolean> {
+  if (wallpaperLocalPaths.has(path)) return Promise.resolve(true);
+  const pending = wallpaperDownloads.get(path);
+  if (pending) return pending;
+  const resolved = resolveThemeWallpaper(path);
+  if (!resolved) return Promise.resolve(false);
+  const { theme, wallpaper } = resolved;
+  const download = invoke<string>("download_wallpaper", {
+    cdnUrl: wallpaper.cdnUrl,
+    cacheKey: `${theme.id}/${wallpaper.id}.${wallpaper.ext}`,
+  })
+    .then((localPath) => {
+      wallpaperLocalPaths.set(path, convertFileSrc(localPath));
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => wallpaperDownloads.delete(path));
+  wallpaperDownloads.set(path, download);
+  return download;
 }
 
 function isNewThreadBackgroundEffect(

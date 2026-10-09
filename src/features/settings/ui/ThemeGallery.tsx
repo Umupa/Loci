@@ -123,7 +123,39 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** Every theme as a card: Loci's own first, then the dark ones, then the light ones. */
+const DARK_THEME_ORDER = [
+  "tokyo-night",
+  "catppuccin",
+  "nord",
+  "gruvbox",
+  "kanagawa",
+  "everforest",
+  "hackerman",
+  "lumon",
+  "retro-82",
+  "ethereal",
+  "osaka-jade",
+  "last-horizon",
+  "miasma",
+  "matte-black",
+  "ristretto",
+  "solitude",
+  "vantablack",
+];
+
+function sortedDarkThemes(): ThemeDefinition[] {
+  const dark = themesWithMode("dark");
+  return [...dark].sort((a, b) => {
+    const ai = DARK_THEME_ORDER.indexOf(a.id);
+    const bi = DARK_THEME_ORDER.indexOf(b.id);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+}
+
+/** Every theme as a card: Default first inside Dark, then Light. */
 export function ThemeGallery({
   activeId,
   onSelect,
@@ -134,16 +166,14 @@ export function ThemeGallery({
   useLocale();
   return (
     <div role="radiogroup" aria-label={t("Color theme")} className="space-y-4">
-      <Section title="Loci">
+      <Section title={t("Dark")}>
         <ThemeCard
           name={t("Default")}
           active={activeId == null}
           {...DEFAULT_PREVIEW}
           onSelect={() => onSelect(null)}
         />
-      </Section>
-      <Section title={t("Dark")}>
-        {themesWithMode("dark").map((theme) => themeCard(theme, activeId, onSelect))}
+        {sortedDarkThemes().map((theme) => themeCard(theme, activeId, onSelect))}
       </Section>
       <Section title={t("Light")}>
         {themesWithMode("light").map((theme) => themeCard(theme, activeId, onSelect))}
