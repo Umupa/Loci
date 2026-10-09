@@ -72,6 +72,15 @@ export type EditedResendRejection = {
   /** The provider removed the old turn, so retry as a normal unsent prompt. */
   providerRewound: boolean;
 };
+/** What an agent is told when sessions it started have finished. */
+export type AgentSessionCompletion = {
+  sessionId: string;
+  title: string;
+  status: "completed" | "failed" | "cancelled";
+  /** A single report covering several sessions launched in one agent turn. */
+  sessionCount?: number;
+};
+
 export type ComposerTurnOptions = {
   /** Local app request receipt used to deduplicate submitted turns. */
   appRequestId?: string;
@@ -289,6 +298,10 @@ export type Block = {
   canvasCli?: boolean;
   /** Stable CLI request that submitted this turn, for safe retries. */
   appRequestId?: string;
+  /** Hidden app prompt that starts a separate completion report in an agent's chat. */
+  agentSessionCompletion?: AgentSessionCompletion;
+  /** Posted to an agent's chat by one of its habits, outside any turn. */
+  agentHabit?: { id: string; name: string; at: number };
   /** Provider-reported token metrics for this user turn, when available. */
   turnMetrics?: TurnMetrics;
   tool?: {
@@ -396,6 +409,11 @@ export type Session = {
    * In-memory; request ids do not survive restarts.
    */
   pendingQuestion?: UserQuestionPrompt;
+  /**
+   * A hidden run nobody opens, such as one of an agent's habits: never saved,
+   * and left out of the rail, the dock badge and notifications.
+   */
+  ephemeral?: boolean;
 };
 
 export type PendingHarnessSwitch = {

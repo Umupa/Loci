@@ -1,3 +1,4 @@
+import { isAgentSession } from "../../agents/model/agent";
 import { fuzzyMatch } from "../../../shared/lib/fuzzy";
 import { sameProjectPath } from "../../projects/model/recents";
 import {
@@ -112,6 +113,8 @@ export function historyWithLiveSessions(
   let rows = history.filter((entry) => sameProjectPath(entry.cwd, cwd));
   for (const session of sessions) {
     if (!sameProjectPath(session.cwd, cwd)) continue;
+    // A hidden run or an agent's own chat is nobody's project session.
+    if (session.ephemeral || isAgentSession(session.id)) continue;
     const live = session.busy || sessionNeedsInput(session);
     if (!shouldPersistSession(session) && !live) continue;
     const storedIndex = rows.findIndex((row) => row.id === session.id);

@@ -1,3 +1,4 @@
+import { isAgentSession } from "../../agents/model/agent";
 import { invoke } from "@tauri-apps/api/core";
 import {
   isWeakToolTitle,
@@ -80,6 +81,7 @@ type SessionUpsertPayload = {
 /** Only real chats belong in project history — blank tabs stay ephemeral. */
 export function shouldPersistSession(session: Session): boolean {
   return (
+    !session.ephemeral &&
     session.cwd !== "~" &&
     session.blocks.some((block) => block.role === "user")
   );
@@ -200,7 +202,8 @@ export async function listSessionsByProject(
   const rows = await invoke<SessionSummary[]>("session_list_by_project", {
     cwd: normalizeProjectPath(cwd),
   });
-  return rows.map(normalizeSummary);
+  // An agent's chat starts in the home folder but belongs to no project.
+  return rows.filter((row) => !isAgentSession(row.id)).map(normalizeSummary);
 }
 
 export function rebaseProjectSessions(
@@ -249,7 +252,9 @@ export async function searchSessions(options: {
     },
   });
   return {
-    hits: Array.isArray(result?.hits) ? result.hits : [],
+    hits: (Array.isArray(result?.hits) ? result.hits : []).filter(
+      (hit) => !isAgentSession(hit.sessionId),
+    ),
     truncated: !!result?.truncated,
   };
 }
@@ -507,6 +512,30 @@ function sanitizeBlock(
   }
   const agentRun = sanitizeAgentRun(block.agentRun);
   if (agentRun) next.agentRun = agentRun;
+  const habit = block.agentHabit;
+  if (
+    habit &&
+    typeof habit.id === "string" &&
+    typeof habit.name === "string" &&
+    Number.isFinite(habit.at)
+  )
+    next.agentHabit = { id: habit.id, name: habit.name, at: habit.at };
+  const completion = block.agentSessionCompletion;
+  if (
+    block.role === "user" &&
+    completion &&
+    typeof completion.sessionId === "string" &&
+    typeof completion.title === "string" &&
+    ["completed", "failed", "cancelled"].includes(completion.status)
+  )
+    next.agentSessionCompletion = {
+      sessionId: completion.sessionId,
+      title: completion.title,
+      status: completion.status,
+      ...(Number.isInteger(completion.sessionCount)
+        ? { sessionCount: completion.sessionCount }
+        : {}),
+    };
   const taskList = sanitizeTaskList(block.taskList);
   if (taskList) next.taskList = taskList;
   else if (block.role === "tasks") return null;
