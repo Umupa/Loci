@@ -1,3 +1,5 @@
+import { CARD_FENCE } from "../model/cards";
+import { CanvasCard, DocumentCard, MindmapCard, TodoCard } from "./cards/Cards";
 import { convertFileSrc,invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -354,6 +356,19 @@ function MarkdownCode({
       <MermaidBlock code={textContent(children)} incomplete={incomplete} />
     );
   }
+  // A fence Loci knows is drawn as its card rather than as code.
+  const card = fence.language.toLowerCase();
+  if (card === CARD_FENCE.document)
+    return <DocumentCard source={textContent(children)} incomplete={!!incomplete} />;
+  // A half-written list or tree would only flicker as code, so it waits.
+  if (card === CARD_FENCE.todo)
+    return incomplete ? null : <TodoCard source={textContent(children)} />;
+  if (card === CARD_FENCE.mindmap)
+    return incomplete ? null : <MindmapCard source={textContent(children)} />;
+  // The form is drawn where the conversation continues, not here.
+  if (card === CARD_FENCE.canvas)
+    return incomplete ? null : <CanvasCard source={textContent(children)} />;
+  if (card === CARD_FENCE.question) return null;
   const iconName =
     fence.fileName ??
     (fence.language ? fileNameForLanguage(fence.language) : "");
