@@ -16,6 +16,7 @@ Nothing has been tagged yet; the first release will be 0.1.0. Until then this se
 - `/operator`, which lets an agent drive Loci itself over an authenticated loopback channel that is valid only during the turn it was enabled for.
 - Links to notes, canvases, sessions and project files that open inside the app (`loci://note/<id>`, `loci://canvas/<id>`, session and file links with page and line ranges).
 - `/learn` for Claude Code and Codex: a learning map canvas that records a node as learned only from the learner's own words, checked by the app; revisits on a 1, 3, 7, 21, 60 and 150 day ladder with the map covered; judgment nodes with a look-back date; learning calls shown in the transcript.
+- The canvas tools and `/learn` for Antigravity and Pi. These agent CLIs cannot be given an MCP server for one session, so they call the same built-in servers through Loci's own CLI (`loci canvas …`, `loci learn …`), with the same rules, the Excalidraw switch in Settings, and nothing to install or configure.
 - `/btw`, `/draft`, `/compact`, `/mcp` and `/add-to-folder`.
 - Project files for contributors: README in English and Chinese, a documentation index and architecture overview, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, issue and pull request templates, and GitHub Actions for checks, releases and dependency updates.
 

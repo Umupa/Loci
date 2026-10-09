@@ -2,7 +2,7 @@
 
 ## 结论
 
-Claude Code / Codex 会话默认带上内置的 `loci_excalidraw` MCP。Settings → MCP 的 **Built-in MCP** 区域显示服务名、用途、支持的 provider 和可用状态；全局开关会保存到 Loci 设置，不写入 provider 的用户配置。关闭或重新开启后，已有会话在下一轮用新配置恢复原对话，正在执行的 turn 正常完成。缺少运行时时可在设置页查看原因并重新检查。
+Claude Code / Codex 会话默认带上内置的 `loci_excalidraw` MCP。Antigravity / Pi 会话通过应用自带的 CLI 调用同一个服务，见“[通过应用 CLI 调用](#通过应用-cli-调用antigravitypi)”。Settings → MCP 的 **Built-in MCP** 区域显示服务名、用途、支持的 provider 和可用状态；全局开关会保存到 Loci 设置，不写入 provider 的用户配置。关闭或重新开启后，已有会话在下一轮用新配置恢复原对话，正在执行的 turn 正常完成。缺少运行时时可在设置页查看原因并重新检查。
 
 它运行**未经修改的官方 Excalidraw MCP 服务**（v0.3.2 `.mcpb` 里的 `dist/server.js`），由 bridge 接入 Loci checkpoint 存储，并调整工具描述和保存结果。agent 用官方的 `read_me`、`create_view` 创建画布、添加或删除元素；修改已有元素用 Loci 提供的 `get_elements` 和 `update_elements`，按原 ID 合并属性，不需要重建整个元素。人工修改被保留，已打开的面板立即更新，结果写入 SQLite，重启后旧 checkpoint 仍可续画。
 
@@ -85,6 +85,65 @@ SQLite 保存成功后才返回 `canvasId`、`title`、`url`、`saved:true` 及�
 
 读取无需批准；`update_elements` 和 `create_view` 在 Supervised 模式询问，Plan turn 拒绝写入。官方参考和绘图回复会补充 Loci 的精确编辑说明，官方 bundle 保持原样。
 
+## 通过应用 CLI 调用（Antigravity、Pi）
+
+### 为什么不是给它们也挂 MCP
+
+内置服务此前只支持 Claude Code 和 Codex，是因为“挂载”这一步用的是这两家各自的启动参数（`--mcp-config`、`-c mcp_servers.*`）。能力本身不分 provider：控制通道的 `canvas` / `learn` 命名空间和窗口里的处理器对谁都一样。其余 provider 缺的只是“模型怎么调用、怎么知道能调用”。
+
+2026-10-08 核对到的事实：
+
+| 对象 | 事实 | 结论 |
+| --- | --- | --- |
+| 上游 MonoCode（`d26871f`） | 不给任何 Agent 注入 MCP，所有 ACP 适配器都发 `mcpServers: []`。它的内置能力（`/operator`、编排、Mono 的记忆与 artifacts）一律是：内置命令 → 在该轮消息后追加说明 → 应用自身的可执行文件充当 CLI → 回环控制通道 | 只要求 Agent 能跑 shell，十个 provider 一致。Loci 的 `/operator` 就是这条路 |
+| Pi 1.1.0（本机实测） | 0.99.0（2026-09-29）才有内置 MCP；配置只在 `~/.pi/agent/mcp.json` 和项目的 `.pi/mcp.json`，都是用户自己的配置。不改配置的唯一办法是 `--extension` 调 `pi.registerMcpServer`，实测可行，但要求新版本。Pi 没有批准协议，shell 会继承 `LOCI_APP_*` | 走 CLI 对所有 Pi 版本都成立 |
+| Antigravity | 本机未安装，无法实测。ACP 的 `mcpServers` 是否被它的官方 server 采纳没有文档，且已有其他 ACP Agent 忽略该字段的报告；它自己的 MCP 配置是全局用户文件 | 不依赖未证实的行为，也不写用户配置 |
+| Antigravity 的进程 | 以 `<会话ID>#<n>` 启动，而会话凭据按会话 ID 查，所以此前它的进程里没有 `LOCI_APP_ENDPOINT/TOKEN`（`/operator` 的 CLI 在它上面同样连不上） | 凭据改为按所属会话查找 |
+
+所以没有再做一套各家专用的挂载，而是给同一组服务加了一种调用方式。Claude Code 和 Codex 的 MCP 挂载没有改动。
+
+### 怎么调用
+
+```sh
+loci canvas create_view --input drawing.json
+loci canvas read_widget_context --json '{"checkpointId":"<id>"}'
+loci learn map_read
+loci canvas --help        # 工具、说明和参数，直接取自服务的 tools/list
+```
+
+`loci` 是应用自己的可执行文件，与 `/operator` 的 `loci app` 并列（`src-tauri/src/control_cli.rs`）。一次调用做四件事：
+
+1. 用环境里的会话凭据向应用询问“这个服务用什么命令启动”。这是保留请求 `mcp.server`，由 `control.rs` 直接回答，受该命名空间自己的授权规则约束，窗口看不到它。应用已经知道资源路径和 Node/Bun 在哪，CLI 不重复解析。
+2. 启动这条命令。它就是 MCP 客户端会挂的那个进程（`loci-bridge.mjs` 或 `loci-learn.mjs`），继承同一份凭据。
+3. 做 MCP 握手，调用这一个工具。
+4. 把结果的文本块原样打印；失败时退出码非 0。
+
+因此官方 Excalidraw 服务、工具说明、保存回执和窗口里的全部规则都与 MCP 路径逐字相同，没有第二份实现。CLI 只接受给 agent 的那五个工具；官方 widget 私有的 `save_checkpoint`（会整幅替换）、`read_checkpoint` 和被屏蔽的 `export_to_excalidraw` 不可调用，与 Claude Code / Codex 看不到它们一致。输入上限 6 MiB，大的参数用 `--input 文件` 或 `--input -`。
+
+### agent 怎么知道
+
+没有工具列表可看，所以由 Loci 在消息后追加说明（`src/app/hooks/useSessionSubmission.ts`，文本在 `features/sessions/model/builtinCli.ts`）：
+
+- 画布开关开启、会话在项目里时，**每个 provider 对话的第一轮**附带 `<loci_canvas>`，约 190 token。带过说明的用户消息记 `canvasCli` 标记；provider 会话换新（切换 provider、无法恢复）后重新附带；开关由关到开后的下一轮附带。
+- `/learn` 的那一轮附带 CLI 措辞的 `<loci_learn>`，除“怎么调用工具”两句外与 MCP 版相同。
+- 令牌只在环境变量里，说明里只有可执行文件路径。
+
+走这条路的 provider 列在 `BUILTIN_CLI_HARNESSES`，目前是 Antigravity 和 Pi。
+
+### 开关、批准和显示
+
+- **开关。** turn 开始时把 Settings → MCP 的 Excalidraw 开关记进这一轮的授权，`canvas` 命名空间按它放行或拒绝（`control.rs`）。关闭后下一轮起请求被拒并说明原因，进行中的 turn 正常完成。这对两种调用方式一视同仁；Claude Code / Codex 关闭后本来就不再挂载，行为不变。`/operator` 的 `canvas.*` 走 `app` 命名空间，不受开关影响，与此前相同。
+- **批准（Antigravity）。** 它运行命令前会发批准请求并带上命令。`builtinCliCall` 只在命令**恰好是本应用可执行文件的一次工具调用**时才认：路径必须等于应用自己的路径，参数只能是一个 `--json` 或 `--input`，任何会被 shell 展开、串接或重定向的写法（`;`、`&&`、管道、`$()`、反引号、heredoc）都不认。认出后按 MCP 工具的同一套规则作答：读取不问；`create_view` / `update_elements` 在 Supervised 询问、其余模式直接执行；学习工具不问；计划 turn 只读。认不出的照常作为普通命令询问。
+- **批准（Pi）。** Pi 没有批准协议，任何工具都不询问，画布写入也一样；计划 turn 里 Pi 没有 shell，这些工具不可用，包括读取。
+- **显示。** 对话记录把这样的 shell 行显示成对应的画布或学习调用，绘图行的 Open 按钮照常可用；查看工具列表显示为“View canvas tools”。
+
+### 这条路的限制
+
+- 说明只存在于对话里。上下文被压缩后 agent 可能不再知道这个 CLI；提醒它，或重新输入 `/learn`。
+- 大的 `create_view` 参数要经文件或标准输入传入。在 Supervised 下这通常意味着先批准一次文件写入，再批准一次绘图。
+- 需要 agent 的 shell 能连本机回环，并继承会话进程的环境变量。
+- 每次调用启动一次 Node 进程。
+
 ## 存储：继续用 SQLite
 
 画布是有两个写入方（人和 agent）的实时状态，需要串行写入、读前落盘和撤销集成；这些都在应用内完成。改成项目里的 `.excalidraw` 文件会多出一条绕过校验的写入路径（agent 直接改 JSON），并需要文件监听和冲突处理。会话、笔记、布局也都在同一个库里。
@@ -98,6 +157,7 @@ SQLite 方案的真实代价是不可移植、不随项目进版本库。需要�
 - 需要本机有 Node.js 20.11+ 或 Bun。没有时会话照常启动但没有绘图工具，Excalidraw 页面会显示原因。应用包没有自带运行时。
 - agent 不能新增图片：官方格式没有图片数据通道。已有图片只要不删除就保留。
 - 同一画布在另一个窗口打开时不会实时刷新。
+- Antigravity 和 Pi 通过 CLI 调用，另有“[这条路的限制](#这条路的限制)”。
 - `loci_excalidraw` 是应用保留的服务名；用户自己的 `excalidraw` 或远端官方连接器保留原配置，不接到本地画布。内置工具只识别保留名称，不会给用户服务套用本地画布的自动批准规则。
 
 Codex 的 `-c` 覆盖会逐字段合并，连完整 inline table 也不会清除旧字段。如果复用用户的远端 `excalidraw` 名称，遗留的 `url` 和新增 `command` 会使整个 Codex 会话启动失败；独立的应用名称避免了这一冲突。
@@ -161,3 +221,33 @@ Codex 的 `-c` 覆盖会逐字段合并，连完整 inline table 也不会清除
 工具描述降低误选概率，不能保证选择结果；本轮 Claude 的调用再次证明这一限制。若要求每次默认绘图都保存到 Loci，需要另外决定会话内是否屏蔽远端工具。跨平台及多窗口的完整原生验收未在本轮执行。另发现既有 debug 启动逻辑会重写 bundle identifier，本轮使用 release 包隔离验收，未修改该逻辑。
 
 上述原生流程在提交前竞态修正之前完成。修正后的完整 release 包已重新构建；额外 GUI 复验时驱动返回 `cgWindowNotFound`，未取得最终包的新界面证据。新增竞态和长 ID 行为已通过生产组件/处理器的控制时序回归验证，不将它们记为额外原生实测通过。
+
+## CLI 调用的检查记录（2026-10-08，Arch Linux ARM aarch64）
+
+这一轮按要求只完成实现，没有做实机验收。下面如实区分做过的检查和没做的验收。
+
+自动检查：Vitest 303 个文件、3584 项测试；TypeScript；`cargo fmt --check`；Clippy `-D warnings`；Rust 212 项测试。新增的覆盖：
+
+- 授权：画布开关关闭时 `canvas` 被拒而 `app` / `learn` 不受影响；带代号的子进程 ID 找到所属会话的凭据（`control.rs`）。
+- CLI：参数解析、只接受给 agent 的工具、解析失败不回显文件内容、结果按文本打印；对随应用发布的两个服务做真实的 MCP 握手并核对每个工具都存在（`control_cli.rs`，需要本机有 Node）。
+- 说明注入：Pi / Antigravity 每个 provider 对话只附带一次、provider 会话换新后重发、开关关闭时不发且该轮无画布权限、开关打开后的下一轮补发、非项目目录不发、Claude Code / Codex 不受影响；`/learn` 在这两个 provider 上使用 CLI 措辞（`useSessionSubmission.test.ts`）。
+- 命令识别与批准：只认本应用可执行文件的单次调用，串接、展开、重定向和别处的 `loci` 一律不认；批准规则逐模式核对（`builtinCli.test.ts`）；Antigravity 适配器经脚本化的 ACP 线路走完“读取不问、Supervised 下绘图询问、计划 turn 拒绝写入、认不出就照常询问”（`antigravityBuiltinCli.test.ts`）。
+- 显示：shell 行被命名为对应的画布或学习调用并带出 checkpoint；用生产代码生成 Pi 的 bash 行和 Antigravity 的 execute 行、批准行，确认都能认出。
+- Claude Code / Codex：原有的 MCP 挂载、批准和显示测试没有改动，全部通过；发给它们的 `/learn` 说明文字与改动前逐字节相同。
+
+手动检查（不是验收）：用真实的调试版二进制运行 `loci learn map_read`、`loci canvas read_widget_context`、`loci canvas create_view`（文件和标准输入两种）、两个 `--help`，以及未知工具、非法 JSON、错误凭据、没有凭据、命名空间被拒五种失败。服务是真实的 `loci-bridge.mjs`（含官方服务）和 `loci-learn.mjs`（Node 24.21）；控制端点是一个按协议应答的替身脚本，不是应用。`create_view` 返回了保存回执和 `Checkpoint id: "…"`。另在本机的 Pi 1.1.0 上确认 RPC 模式的 shell 会继承 `LOCI_APP_*`。
+
+没有验证的：
+
+- 在运行中的应用里走完整流程，包括 `control.rs` 回答 `mcp.server`、画布面板随调用更新、会话重启后恢复。
+- 任何真实的 agent turn。本机的 Pi 没有登录模型；本机没有安装 Antigravity，它的官方 ACP server 还需要 Google 账号登录。因此“真实模型是否按说明使用 CLI”“Antigravity 的 shell 是否继承会话环境变量”“它的批准请求里命令放在哪个字段”都只有推断和脚本化测试。
+- macOS、Windows 和打包后的应用。
+
+在装有并登录了 Antigravity 和 Pi 的机器上验收时，建议按这个顺序看：
+
+1. 新开 Pi 会话，直接让它画一张图：对话记录出现“Drew on the canvas”，画布出现在会话旁，回复带画布链接。接着手动改图，再让它“在原图上加一个方框”：手动改动保留。
+2. 同一会话里关闭 Settings → MCP 的 Excalidraw 开关，再让它画：它被告知工具已关闭；重新打开后的下一轮恢复。
+3. 退出并重启应用，回到该会话继续让它改图：不需要重新说明。
+4. 在项目里输入 `/learn 某主题`：读图、初始化、记录都成功，学习工具不弹批准；没有输入过 `/learn` 的会话运行 `loci learn map_read` 被拒。
+5. 在 Antigravity 上重复 1 到 4，并分别在 Supervised、Auto-accept edits 和计划 turn 下确认：读取不问；绘图只在 Supervised 询问；计划 turn 里写入被拒。若读取也弹出批准，说明它的批准请求没有被认出，需要按实际字段调整 `permissionRequestFromAcp`。
+6. 在 Claude Code 和 Codex 上各画一次图、各用一次 `/learn`，确认与之前一致。

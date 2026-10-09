@@ -28,7 +28,7 @@ Loci is a local-first desktop shell for agent CLIs, built with Tauri 2, Rust, Re
 - **Ten agent CLIs, one interface.** Claude Code, Codex, Cursor, Grok Build, OpenCode, Pi, omp, fx, Hermes Agent and Antigravity. Each CLI keeps using its own sign-in and settings. Pick the model and a permission mode (Supervised, Auto-accept edits, Auto, Full access) per session.
 - **A workspace for long-running agents.** Tabs and drag-to-split panes, agent questions, plan and task display, a session list with folders, ⌘K search across sessions, image and document attachments, manual reminders and desktop notifications.
 - **Notes and canvases as first-class objects.** Markdown notes you can `@`-mention in a prompt, and Excalidraw canvases. Replies can link to them with `loci://note/<id>` and `loci://canvas/<id>`, which open inside the current window.
-- **Agents that can draw.** Claude Code and Codex sessions get a built-in `loci_excalidraw` MCP server: the official Excalidraw MCP server, unmodified, writing into Loci's own canvas store. Your hand edits are kept and the panel updates live. See [docs/canvas-mcp.md](docs/canvas-mcp.md).
+- **Agents that can draw.** Claude Code and Codex sessions get a built-in `loci_excalidraw` MCP server: the official Excalidraw MCP server, unmodified, writing into Loci's own canvas store. Antigravity and Pi sessions reach the same tools through Loci's own CLI, with nothing to install or configure. Your hand edits are kept and the panel updates live. See [docs/canvas-mcp.md](docs/canvas-mcp.md).
 - **`/operator`.** Let an agent drive Loci itself: read models, start and message sessions, arrange panes, organise folders, read and write notes and canvases. It uses an authenticated loopback channel that is valid only during the turn you enabled it for.
 - **`/learn`.** Learn a subject on a map that grows only from what you can explain in your own words. See [Learning with Loci](#learning-with-loci).
 - **Themes, wallpapers and fonts.** Settings → Appearance offers 22 Omarchy themes, matching code highlighting and 72 wallpapers, alongside custom backgrounds and system-installed fonts. Existing background effects, visibility settings and custom accent colors still apply. See [docs/themes.md](docs/themes.md).
@@ -71,12 +71,14 @@ On macOS, `./script/build_and_run.sh --verify` builds and launches a release bun
 | CLI | Notes |
 | --- | --- |
 | Claude Code, Codex | The full feature set: account management and usage meters, the built-in MCP servers, `/learn` |
-| Cursor, Grok Build, OpenCode, Pi, omp, fx, Hermes Agent, Antigravity | Chat with model and permission selection through the CLI's own protocol. How much more shows up (questions, plans, tool details) depends on what the CLI reports |
+| Antigravity, Pi | Chat with model and permission selection, plus the canvas tools and `/learn` through Loci's CLI |
+| Cursor, Grok Build, OpenCode, omp, fx, Hermes Agent | Chat with model and permission selection through the CLI's own protocol. How much more shows up (questions, plans, tool details) depends on what the CLI reports |
 
 Details worth knowing:
 
 - Accounts and usage meters are implemented for Claude Code and Codex only.
 - Antigravity runs through its own ACP server. If you are asked to authenticate, use **Sign in to Antigravity** in the app; signing in to the interactive `agy` does not carry over.
+- Antigravity and Pi call the canvas and learning tools by running a command, so they are told about them in the conversation rather than through a tool list. Pi never asks before it acts, so drawing does not ask there either, and in Plan mode Pi has no shell and cannot reach these tools.
 - fx does not support attachments yet.
 - CLIs that are not installed still appear in Settings, with an install hint.
 
@@ -87,7 +89,7 @@ Commands work at the start of a prompt.
 | Command | What it does |
 | --- | --- |
 | `/operator` | Give this thread access to Loci sessions, folders, notes and canvases |
-| `/learn` | Learn a subject on a map that only records what you have explained yourself (Claude Code and Codex) |
+| `/learn` | Learn a subject on a map that only records what you have explained yourself (Claude Code, Codex, Antigravity and Pi) |
 | `/btw` | Ask a read-only side question about the current turn |
 | `/draft` | Save this message without starting the agent |
 | `/compact` | Summarize older conversation context to free space |
@@ -96,7 +98,7 @@ Commands work at the start of a prompt.
 
 ## Learning with Loci
 
-Type `/learn` in a Claude Code or Codex session. The project folder is the subject, for example `~/learn/kubernetes`, and Loci keeps a *learning map* canvas in it.
+Type `/learn` in a Claude Code, Codex, Antigravity or Pi session. The project folder is the subject, for example `~/learn/kubernetes`, and Loci keeps a *learning map* canvas in it.
 
 - **Solid means you explained it.** A node turns solid only when you say it in your own words. The agent records a quote, and Loci checks that quote against what you actually typed; it cannot be a summary or the agent's own explanation.
 - **You say it, the agent draws.** The agent may sketch a few dashed nodes of territory next to what you know. It cannot move or delete anything on the map, and it does not get to call something mastered.
