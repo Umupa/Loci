@@ -415,6 +415,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
         await sendHarnessTurn({ harness: current.harness, sessionId, cwd: current.cwd,
           model: current.model, modelSettings: current.modelSettings, providerAccountId,
           runtimeMode: current.runtimeMode, appAccess, learnAccess, text: sendText, attachments: prepared,
+          ...(current.ephemeral ? { ephemeral: true } : {}),
           ...(edited ? { onAccepted: accepted } : {}),
           onEvent: (event) => {
             if (!isCurrent()) return;

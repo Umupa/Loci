@@ -593,6 +593,8 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await settle(pending[0]);
     await act(async () => runtime.flushPersistence());
     expect(mocks.invoke.mock.calls.some(([command]) => command === "session_upsert")).toBe(false);
+    // The provider is told too, so it keeps no thread of its own.
+    expect(pending[0].input.ephemeral).toBe(true);
   });
 
   describe("an agent's conversation", () => {
