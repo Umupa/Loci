@@ -1,3 +1,5 @@
+import { CANVASES_CHANGED_EVENT, loadCanvases, type Canvas } from "../../canvas/canvas";
+import { requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
 import { ChevronLeft, ChevronRight, Plus, RotateCcw, Trash2, X } from "../../../shared/ui/icons";
@@ -5,7 +7,7 @@ import type { RecentProject } from "../../projects/model/recents";
 import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/session";
 import { AccessPicker } from "../../sessions/ui/AccessPicker";
 import { ModelPicker } from "../../sessions/ui/ModelPicker";
-import { addAgentProject, agentLook, removeAgentProject, updateAgent, type Agent } from "../model/agent";
+import { addAgentProject, agentCanvasScope, agentLook, removeAgentProject, updateAgent, type Agent } from "../model/agent";
 import { defaultAgentName } from "../model/agentAvatars";
 import {
   AgentFileConflict,
@@ -107,6 +109,25 @@ function useLibrary(agentId: string): StoredDocument[] | undefined {
   return documents;
 }
 
+/** The canvases in the agent's library: the ones it drew for itself, in no project. */
+function useLibraryCanvases(agentId: string): Canvas[] {
+  const [canvases, setCanvases] = useState<Canvas[]>([]);
+  useEffect(() => {
+    let current = true;
+    const scope = agentCanvasScope(agentId);
+    const load = () => void loadCanvases().then((all) => {
+      if (current) setCanvases(all.filter((canvas) => canvas.cwd === scope).sort((a, b) => b.updatedAt - a.updatedAt));
+    }, () => undefined);
+    load();
+    window.addEventListener(CANVASES_CHANGED_EVENT, load);
+    return () => {
+      current = false;
+      window.removeEventListener(CANVASES_CHANGED_EVENT, load);
+    };
+  }, [agentId]);
+  return canvases;
+}
+
 const fieldClass =
   "w-full rounded-lg border border-stroke bg-content/5 px-2.5 py-1.5 text-[13px] text-content outline-none placeholder:text-content/35 focus:border-content/30";
 const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content";
@@ -120,6 +141,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
   const { files, error } = useAgentFiles(agent.id, refreshKey);
   const habits = useHabitCount(agent.id);
   const library = useLibrary(agent.id);
+  const libraryCanvases = useLibraryCanvases(agent.id);
   const [page, setPage] = useState<Page>();
   // Another agent's details start from the top.
   useEffect(() => setPage(undefined), [agent.id]);
@@ -144,7 +166,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
       ) : page === "memory" ? (
         files ? <MemoryPage agentId={agent.id} files={files} /> : <PageNote>{error ?? "Loading…"}</PageNote>
       ) : page === "library" ? (
-        <LibraryPage agentId={agent.id} documents={library ?? []} />
+        <LibraryPage agentId={agent.id} documents={library ?? []} canvases={libraryCanvases} />
       ) : page === "habits" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4">
           <p className="text-xs leading-snug text-content/45">What it does on its own, on a schedule, while Loci is open. It writes to this chat only when there is something to say.</p>
@@ -180,7 +202,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
             <PageRow title="Soul" description="Who it is and the rules it always follows." onOpen={() => setPage("soul")} />
             <PageRow title="Habits" description="Recurring tasks it runs on its own." count={habits} onOpen={() => setPage("habits")} />
             <PageRow title="Memory" description="Facts and preferences it remembers." count={facts} onOpen={() => setPage("memory")} />
-            <PageRow title="Library" description="Documents it wrote for you to read." count={library?.length} onOpen={() => setPage("library")} />
+            <PageRow title="Library" description="Documents and canvases it made for you." count={library ? library.length + libraryCanvases.length : undefined} onOpen={() => setPage("library")} />
           </div>
 
           <div className="flex flex-col border-t border-stroke p-2">
@@ -239,8 +261,8 @@ function ActionRow({ title, description, icon, danger = false, onClick }: { titl
 
 const libraryDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
-/** The agent's documents, grouped by what they are about. Opening one shows it beside the chat. */
-function LibraryPage({ agentId, documents }: { agentId: string; documents: StoredDocument[] }) {
+/** What the agent made to keep: documents grouped by what they are about, then its canvases. */
+function LibraryPage({ agentId, documents, canvases }: { agentId: string; documents: StoredDocument[]; canvases: Canvas[] }) {
   const open = (entry: StoredDocument) => void readAgentDocument(agentId, entry.id).then((found) => {
     if (found?.body != null) openDocument({ id: found.id, title: found.title, ...(found.subject ? { subject: found.subject } : {}), body: found.body });
   }, () => undefined);
@@ -251,8 +273,8 @@ function LibraryPage({ agentId, documents }: { agentId: string; documents: Store
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 pb-4">
-      <p className="px-2 text-xs leading-snug text-content/45">What it has written for you to read. Each opens beside the chat, and can be saved to your notes.</p>
-      {documents.length === 0 ? <p className="py-6 text-center text-xs text-content/40">Nothing written yet.</p> : null}
+      <p className="px-2 text-xs leading-snug text-content/45">What it has made for you to keep. A document opens beside the chat and can be saved to your notes; a canvas opens to draw on.</p>
+      {documents.length + canvases.length === 0 ? <p className="py-6 text-center text-xs text-content/40">Nothing here yet.</p> : null}
       {[...groups].map(([subject, entries]) => (
         <section key={subject} className="flex flex-col">
           {subject ? <h3 className="px-2 pb-1 text-xs text-content/50">{subject}</h3> : null}
@@ -264,6 +286,17 @@ function LibraryPage({ agentId, documents }: { agentId: string; documents: Store
           ))}
         </section>
       ))}
+      {canvases.length ? (
+        <section className="flex flex-col">
+          <h3 className="px-2 pb-1 text-xs text-content/50">Canvases</h3>
+          {canvases.map((canvas) => (
+            <button key={canvas.id} type="button" onClick={() => requestOpenAppResource({ kind: "canvas", id: canvas.id })} className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-content/6">
+              <span className="min-w-0 flex-1 truncate text-[13px] text-content">{canvas.title}</span>
+              <span className="shrink-0 text-[11px] text-content/40">{libraryDate.format(canvas.updatedAt)}</span>
+            </button>
+          ))}
+        </section>
+      ) : null}
     </div>
   );
 }

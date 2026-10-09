@@ -1,3 +1,4 @@
+import { canvasScopeAgentId } from "../../features/agents/model/agent";
 import { useEffect, useRef } from "react";
 import { APP_RESOURCE_OPEN_EVENT, fileResourcePath, parseAppResourceUrl, resourceUrl, type AppResource } from "../../shared/lib/appResourceLinks";
 import { joinPath } from "../../shared/lib/paths";
@@ -46,8 +47,10 @@ export function useAppResourceNavigation(options: Options) {
         if (current !== request) return;
         if (!canvas) throw new Error("This drawing no longer exists.");
         const view = latest.current.workspace;
-        if (view.isCanvasOpen(canvas.id) || !canvas.cwd || !sameProjectPath(canvas.cwd, view.projectCwdRef.current)) {
-          view.openCanvas(canvas.id, canvas.cwd);
+        // An agent's own drawing belongs to no project: it opens wherever the user is.
+        const cwd = canvasScopeAgentId(canvas.cwd) ? undefined : canvas.cwd;
+        if (view.isCanvasOpen(canvas.id) || !cwd || !sameProjectPath(cwd, view.projectCwdRef.current)) {
+          view.openCanvas(canvas.id, cwd);
         } else view.showCanvas(canvas.id);
       } catch (error) {
         if (current === request) latest.current.workspace.setError(String(error));

@@ -104,7 +104,7 @@ Press **+** beside *Agents* on the rail. **New agent** makes a blank one that as
 - **It works in your projects.** Give it projects under Details. It can start sessions there, follow them, and report back when they finish.
 - **Habits.** Things it does on a schedule while Loci is open, messaging you only when something is worth saying.
 - **Cards.** A reply can carry more than text: a question with choices to click, a document that opens beside the chat, a checklist you tick, a mind map that folds, a Mermaid diagram, a link to a canvas. Cards keep nothing themselves; what you do with one is sent to the agent as your next message.
-- **Library.** Documents an agent writes are kept under Details → Library, grouped by subject. Writing one again revises it, and any of them can be saved to your notes.
+- **Library.** Documents an agent writes are kept under Details → Library, grouped by subject, along with the canvases it draws, which need no project. Writing one again revises it, and any of them can be saved to your notes.
 - **A tutor, for example.** Pick the Tutor template. It interviews you, keeps your level and progress in its memory, writes roadmaps and lessons as documents, and switches subject when you say so.
 
 What an agent does is its prompt at work, so how well it goes depends on the model behind it.

@@ -1,3 +1,4 @@
+import { canvasScopeAgentId } from "../features/agents/model/agent";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "./shell/Sidebar";
@@ -264,7 +265,7 @@ function Workspace(boot: BootWorkspace) {
     const session = { ...newDefaultSession(view.projectCwdRef.current, view.activeSession?.runtimeMode), title: "Canvas context" };
     view.addSession({ ...session, noteCard: { id: crypto.randomUUID(), slug: "canvas-context", title: "Canvas context", body: text } });
   };
-  const openCanvas = (id: string) => workspace.openCanvas(id, canvases.find((canvas) => canvas.id === id)?.cwd);
+  const openCanvas = (id: string) => { const cwd = canvases.find((canvas) => canvas.id === id)?.cwd; workspace.openCanvas(id, canvasScopeAgentId(cwd) ? undefined : cwd); };
   const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => { setNoteOpenRequest(undefined); setSurface("notes"); }); }, []);
   const toggleProjectRail = useCallback(() => setProjectRailOpen((open) => { saveProjectRailOpen(!open); return !open; }), []);
   const [switcherOpen, setSwitcherOpen] = useState(false);

@@ -1,3 +1,4 @@
+import { agentLook, canvasScopeAgentId, findAgent } from "../../agents/model/agent";
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { Canvas } from "../canvas";
 import { canvasMcpProblem } from "../mcpServer";
@@ -36,6 +37,15 @@ type Props = {
   onDeleteCanvas: (id: string) => void;
   onAddToChat: (text: string) => void;
 };
+
+/** Where a canvas lives, for its row: a project, an agent's library, or nowhere. */
+function canvasHome(cwd: string | undefined): string {
+  if (!cwd) return "No project";
+  const agentId = canvasScopeAgentId(cwd);
+  if (!agentId) return projectName(cwd);
+  const agent = findAgent(agentId);
+  return agent ? `${agentLook(agent).name}'s library` : "An agent's library";
+}
 
 export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, onToggleSidebar, onOpenCanvas, onNewCanvas, onTitleChange, onDeleteCanvas, onAddToChat }: Props) {
   const [query, setQuery] = useState("");
@@ -133,7 +143,7 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
                 {renamingId === canvas.id ? (
                   <div className={`flex w-full flex-col rounded-md border px-2.5 py-2 ${canvas.id === selected?.id ? "border-transparent bg-selection" : "border-stroke"}`}>
                     <span className="flex w-full items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-[11px] text-content/50">{canvas.cwd ? projectName(canvas.cwd) : "No project"}</span>
+                      <span className="min-w-0 flex-1 truncate text-[11px] text-content/50">{canvasHome(canvas.cwd)}</span>
                     </span>
                     <span className="mt-1 flex w-full min-w-0 items-center gap-1.5">
                       <ExcalidrawIcon className="size-3 shrink-0 text-content/40" />
@@ -164,7 +174,7 @@ export function CanvasesView({ canvases, cwd, besideRail, compactRail, onClose, 
                     }}
                     className={`flex w-full flex-col rounded-md border border-transparent px-2.5 py-2 text-left ${canvas.id === selected?.id ? "bg-selection text-content" : "text-content/80 hover:bg-content/5 hover:text-content"}`}
                   >
-                    <span className="flex w-full items-center gap-2"><span className="min-w-0 flex-1 truncate text-[11px] text-content/50">{canvas.cwd ? projectName(canvas.cwd) : "No project"}</span><span className="shrink-0 text-[11px] tabular-nums text-content/45">{formatRelativeTime(new Date(canvas.updatedAt).toISOString())}</span></span>
+                    <span className="flex w-full items-center gap-2"><span className="min-w-0 flex-1 truncate text-[11px] text-content/50">{canvasHome(canvas.cwd)}</span><span className="shrink-0 text-[11px] tabular-nums text-content/45">{formatRelativeTime(new Date(canvas.updatedAt).toISOString())}</span></span>
                     <span className="mt-1 flex w-full min-w-0 items-center gap-1.5 text-[13px] font-semibold leading-snug"><ExcalidrawIcon className="size-3 shrink-0 text-content/40" /><span className="truncate">{canvas.title}</span></span>
                   </button>
                 )}

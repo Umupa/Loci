@@ -194,7 +194,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     // An agent without the MCP server learns of the project's canvases from a note on a turn,
     // once per provider conversation. Turning the switch on later sends it with the next turn.
     const cliTools = usesBuiltinCli(current.harness);
-    const canvasNote = cliTools && !rawCommand && looksLikeProject(current.cwd) && loadCanvasMcpEnabled() &&
+    const canvasNote = cliTools && !rawCommand && (looksLikeProject(current.cwd) || !!agent) && loadCanvasMcpEnabled() &&
       (!current.providerSessionId || !current.blocks.some((block) => block.role === "user" && !block.draft && block.canvasCli));
     if (current.busy && !pendingSwitch) {
       if (activation.matched && options?.queuedMessageId && options.followUpBehavior === "steer") return false;
