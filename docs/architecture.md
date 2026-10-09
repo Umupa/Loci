@@ -57,6 +57,8 @@ State lives in SQLite (`rusqlite`, bundled) as `loci.db` in the app data folder 
 | `session_reminders` | `reminders.rs` | manual reminders |
 | `schema_migrations` | `session_store.rs` | the baseline schema version |
 
+Agents keep their own files beside the database, in `agents/<id>/` (see [Agents](#agents)).
+
 A canvas and its checkpoint are written in one transaction, so an agent is never given a checkpoint id the next call cannot find. Tables are created on demand with `CREATE TABLE IF NOT EXISTS` (the `ensure_*` helpers), and `schema_migrations` only records the baseline version. There is no migration framework yet, so a change to an existing table has to keep reading databases written by older versions: for many people this file is the only copy of their notes and canvases.
 
 Loci reads a few things other tools already keep, and writes none of them: the sign-in identity a CLI cached on disk (`account_identity.rs`), the Claude Code token for its usage meter (`rate_limits.rs`), and Cursor's own store to recover sub-agent activity its ACP stream omits (`cursor_store.rs`).
@@ -71,7 +73,7 @@ Loci reads a few things other tools already keep, and writes none of them: the s
 
 | Namespace | Used by | Rule |
 | --- | --- | --- |
-| `app` | `/operator`, through the `app` subcommand of the desktop executable (`control_cli.rs`) | the thread must have opted in |
+| `app` | `/operator` and agents, through the `app` subcommand of the desktop executable (`control_cli.rs`) | the thread must have opted in; an agent's conversation and its habit runs always have |
 | `canvas` | the built-in Excalidraw server | every session may draw while the switch in **Settings → MCP** is on, only in its own project |
 | `learn` | the built-in learning server | only threads where `/learn` has been used |
 
@@ -105,6 +107,20 @@ What differs is how the agent finds out and how it is asked:
 - **Showing.** The transcript names such a shell row as the canvas or learning call it is (`canvasToolCall.ts`, `learnToolCall.ts`).
 
 A new provider that can run shell commands needs an entry in that list, and an approval branch like Antigravity's if it asks before running commands.
+
+## Agents
+
+An agent is long-lived and belongs to no project: a name, a framed pixel avatar and a color, one conversation that never ends, and the projects it has been given. It lives on the rail above the projects. The code is in `src/features/agents`, with the wiring in `src/app/hooks/useAgents.ts`, `useAgentHabits.ts` and `useAgentDelegation.ts`.
+
+- **Roster.** `model/agent.ts` keeps the agents in `localStorage` (`loci:agent-roster`). An agent's conversation is an ordinary session whose working folder is the home folder and whose permission mode starts as Auto. It is shown in a view that covers the workspace and is never part of a tab.
+- **Files.** `agent.rs` keeps `SOUL.md`, `MEMORY.md`, `habits.json` and `memory/<topic>.md` under `<app data>/agents/<id>/`, never in a repository: an agent works in repositories with full file access, so a soul kept there could be rewritten outside the app's CLI or by a pull request. Paths are checked against that short list, writes are atomic and owner-only, and a save names the hash it read, so the user and the agent cannot overwrite each other. The same check is how two windows avoid running one habit twice.
+- **What a turn carries.** `model/agentFiles.ts` puts a `<loci_context>` block ahead of the user's message: who the agent is, its projects, its soul, and the rules for memory, habits and delegation. A provider conversation is handed this once, and memory again only when it changes (`planAgentContext` records what was handed, by provider conversation and file hash). Bump `CONTEXT_VERSION` when the fixed rules change. The chat shows only what the user wrote.
+- **Rotation.** The chat never ends, but the provider conversation behind it does. At 80% of the reported context window the next turn starts a fresh one (`model/agentRotation.ts`), briefed with the last two exchanges word for word and one line for each earlier one. No model is called to summarize; the full transcript stays readable through `app sessions.read`.
+- **The app CLI.** An agent's conversation has `app` access in every turn, plus actions an ordinary thread does not have: `soul.*`, `memory.*`, `habits.*`, `sessions.stop`, `sessions.archive`, `sessions.delete`, and `"project"` on the session, folder and canvas actions, limited to the projects on its roster. Memory is changed only through the CLI, which dates entries, redacts common credential formats and moves old entries to an archive once `MEMORY.md` passes what loads into a turn.
+- **Habits.** `useAgentHabits.ts` checks every minute while the app is open. A due habit runs in a hidden session (`ephemeral`: never saved, never shown, never counted) with full access, because nobody is watching it. Its last reply is posted to the agent's chat, or nothing when the reply is `NOTHING_TO_REPORT`. An approval the run asks for is put to the user in the agent's chat and the answer routed back. A run may work for an hour; one that came due more than two hours ago is skipped rather than caught up; one runs at a time.
+- **Delegation.** A session an agent starts reports back by default. The ones started in the same agent turn form a group (`model/agentSessionCompletion.ts`); when that turn has ended and all of them have stopped, the agent is sent their results as one new turn, once it is idle and the user has nothing queued (`useAgentDelegation.ts`). Reports waiting to be delivered live in memory only, so they do not survive a restart.
+
+Everything an agent can reach goes through the same control channel and the same window-side handlers as `/operator`. Widening what agents can do deserves the same care as any other change there. `sessions.delete` asks the user to confirm; an agent cannot remove a conversation on its own.
 
 ## The learning map
 
@@ -142,7 +158,7 @@ Replies can link to notes (`loci://note/<id>`), canvases (`loci://canvas/<id>`),
 
 ## Out of scope
 
-Loci was extracted from a larger coding-focused app by removing what an agent shell does not need. These were removed on purpose and are not planned: source control and worktree views, a code editor and file tree, an application terminal, inbox and chat-platform integrations, application-level multi-agent orchestration, scheduled automations, remote hosts over SSH, an auto-updater, and any telemetry. If you think one belongs back, open an issue to discuss it before writing code.
+Loci was extracted from a larger coding-focused app by removing what an agent shell does not need. These were removed on purpose and are not planned: source control and worktree views, a code editor and file tree, an application terminal, inbox and chat-platform integrations, application-level multi-agent orchestration, standalone scheduled automations, remote hosts over SSH, an auto-updater, and any telemetry. Agents are the exception that came back in a narrower form: an agent can run habits on a schedule and start sessions that report to it, but there is no orchestration view, no automation list outside an agent, and nothing runs while the app is closed. If you think one belongs back, open an issue to discuss it before writing code.
 
 ## Known limitations
 
