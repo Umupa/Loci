@@ -100,7 +100,10 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  vi.mocked(invoke).mockReset().mockResolvedValue(undefined);
+  vi.mocked(invoke).mockReset().mockImplementation(async (command, args) =>
+    command === "download_wallpaper"
+      ? `/app-data/wallpaper-cache/${(args as { cacheKey: string }).cacheKey}`
+      : undefined);
   // A background effect reads the image it reshapes; there is no server here.
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false })));
 });

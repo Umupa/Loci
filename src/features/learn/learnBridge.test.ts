@@ -209,7 +209,7 @@ describe("the learning server", () => {
     });
     expect(view().edges).toEqual([{ id: expect.any(String), from: node("Deployment").id, to: pod.id, label: "管理一组 Pod 的副本", by: "learner" }]);
     const read = (await agent.tool("map_read")).data!;
-    expect(read).toMatchObject({ exists: true, title: "Kubernetes", unexplored: "0 of at most 9", revisit: [] });
+    expect(read).toMatchObject({ exists: true, title: "Kubernetes", unexplored: "0 outside the roadmap, of at most 9", revisit: [] });
     expect(read.nodes).toEqual([{ id: pod.id, label: "Pod", state: "solid", links: 1 }, { id: node("Deployment").id, label: "Deployment", state: "solid", links: 1 }]);
     expect(read.drawnByLearner).toBeUndefined();
   });
@@ -291,7 +291,53 @@ describe("the learning server", () => {
     expect(await agent.tool("map_sketch", { near: "Pod", nodes: ["StatefulSet"] })).toMatchObject({ isError: true, text: expect.stringContaining("may hold 9") });
     const after = (JSON.parse(map().dataJson).elements as El[]).filter((entry) => before.some(([id]) => id === entry.id)).map(({ id, x, y }) => [id, x, y]);
     expect(after).toEqual(before);
-    expect((await agent.tool("map_read")).data).toMatchObject({ unexplored: "9 of at most 9" });
+    expect((await agent.tool("map_read")).data).toMatchObject({ unexplored: "9 outside the roadmap, of at most 9" });
+  });
+
+  it("draws the roadmap stage by stage, with no connections, and takes off only what nobody touched", async () => {
+    const agent = await connect();
+    await oriented(agent);
+    const { tools } = await agent.request("tools/list");
+    expect(Object.keys(tools.find((tool: El) => tool.name === "map_sketch").inputSchema.properties)).toEqual(["stage", "near", "nodes", "edges", "remove"]);
+
+    const first = await agent.tool("map_sketch", { stage: "1 · 工作负载", nodes: ["Pod", "Service", "Ingress", "StatefulSet"] });
+    expect(first.isError, first.text).toBe(false);
+    // What the learner already explained stays where it is; the stage gets the rest.
+    expect(first.data).toMatchObject({ saved: true, stage: "1 · 工作负载", alreadyOnMap: [{ id: node("Pod").id, label: "Pod" }],
+      nodes: [{ label: "Service", state: "ghost" }, { label: "Ingress", state: "ghost" }, { label: "StatefulSet", state: "ghost" }] });
+    const platform = ["CRD", "Operator", "client-go", "informer", "admission webhook", "controller-runtime", "leader election", "finalizer"];
+    expect((await agent.tool("map_sketch", { stage: "2 · 平台开发", nodes: platform })).isError).toBe(false);
+    // More than three at a time only as the topics of a stage, and a stage takes eight.
+    expect((await agent.tool("map_sketch", { near: "Pod", nodes: ["A", "B", "C", "D"] })).isError).toBe(true);
+    expect(await agent.tool("map_sketch", { stage: "2 · 平台开发", nodes: ["webhook 证书"] })).toMatchObject({ isError: true, text: expect.stringContaining("at most 8 topics") });
+    // How topics connect is for the learner to say.
+    expect(await agent.tool("map_sketch", { stage: "1 · 工作负载", nodes: ["Job"], edges: [{ from: "Job", to: "Pod" }] })).toMatchObject({ isError: true, text: expect.stringContaining("no connections") });
+    expect(await agent.tool("map_sketch", { stage: "1 · 工作负载", near: "Pod", nodes: ["Job"] })).toMatchObject({ isError: true });
+    expect(view().edges.every((edge) => edge.by === "learner")).toBe(true);
+
+    const read = (await agent.tool("map_read")).data!;
+    expect(read.roadmap).toEqual(["1 · 工作负载", "2 · 平台开发"]);
+    expect(read.nodes.filter((entry: El) => entry.stage === "1 · 工作负载").map((entry: El) => entry.label)).toEqual(["Service", "Ingress", "StatefulSet"]);
+    expect(read.nodes.filter((entry: El) => entry.stage === "2 · 平台开发").map((entry: El) => entry.label)).toEqual(platform);
+    // The roadmap's eleven topics do not use up the sketches beside what the learner knows.
+    expect(read.unexplored).toBe("0 outside the roadmap, of at most 9");
+    expect(read.rules).toContain("the topics of the roadmap");
+
+    // A topic the learner explains turns solid in its stage, and is then theirs.
+    learnerSays("Service 给一组 Pod 一个固定的访问入口，靠标签选中它们。");
+    const recorded = await agent.tool("map_record", { nodes: [{ label: "Service", evidence: "said", quote: "Service 给一组 Pod 一个固定的访问入口", verdict: "right" }] });
+    expect(recorded.isError, recorded.text).toBe(false);
+    expect(node("Service")).toMatchObject({ state: "solid", stage: "1 · 工作负载" });
+    const before = map().dataJson;
+    expect(await agent.tool("map_sketch", { remove: ["Service"] })).toMatchObject({ isError: true, text: expect.stringContaining("only the learner") });
+    expect(await agent.tool("map_sketch", {})).toMatchObject({ isError: true, text: expect.stringContaining("Nothing to sketch") });
+    expect(map().dataJson).toBe(before);
+    const removed = await agent.tool("map_sketch", { remove: ["Ingress", "StatefulSet"] });
+    expect(removed.data).toMatchObject({ saved: true, nodes: [], removed: [{ label: "Ingress" }, { label: "StatefulSet" }] });
+    expect(view().nodes.filter((entry) => entry.stage === "1 · 工作负载").map((entry) => entry.label)).toEqual(["Service"]);
+    // Taking the whole of a stage off takes the stage with it.
+    expect((await agent.tool("map_sketch", { remove: platform })).isError).toBe(false);
+    expect(view().stages).toEqual(["1 · 工作负载"]);
   });
 
   it("does not let general canvas tools or the operator CLI change a learning map", async () => {

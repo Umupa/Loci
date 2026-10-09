@@ -112,10 +112,10 @@ The rules that make a learning map trustworthy are enforced in the window, not i
 
 - `model/` is pure logic with no UI or I/O: node states, host placement, the quote check, the revisit schedule.
 - `bridge.ts` applies tool calls to the canvas and notes and refuses anything the rules forbid.
-- `learnCommand.ts` defines `/learn` and the prompt that explains the rules to the agent.
+- `learnCommand.ts` defines `/learn` and its prompt, which is the learning skill itself: the overview, the interview and `profile.md`, the roadmap and `roadmap.md`, the readings gathered into `sources/`, and how to teach from them. The agent does that work with its own tools, so it is as good as the model. Change it in the prompt, and judge a change by running it with real agents (`scripts/acceptance/learn/`).
 - `ui/LearnMapPanel.tsx` is the inspector and the revisit cover.
 
-Canvas writes from other tools are refused on a learning map, which is how "the agent cannot move or delete anything" is enforced. Read [learn.md](learn.md) before changing any of this; its rules were chosen on purpose.
+Canvas writes from other tools are refused on a learning map, which is how "the agent cannot move anything, and can take off only unexplored nodes nobody has touched" is enforced. Read [learn.md](learn.md) before changing any of this; its rules were chosen on purpose.
 
 ## Links between objects
 

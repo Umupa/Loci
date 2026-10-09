@@ -10,7 +10,7 @@ import {
   isHexColor,
   mixHex,
 } from "../../../shared/lib/colorUtils";
-import { OMARCHY_TOKEN_RULES } from "./omarchyThemes.generated";
+import { OMARCHY_SOURCE, OMARCHY_TOKEN_RULES } from "./omarchyThemes.generated";
 import {
   buildCodeTheme,
   codeSurface,
@@ -77,16 +77,19 @@ describe("the Omarchy catalog", () => {
 
   it("ships every wallpaper it lists, and nothing else", () => {
     const listed = new Set<string>();
+    const originals = new Set<string>();
     for (const theme of THEMES) {
       expect(theme.wallpapers.length, theme.id).toBeGreaterThan(0);
       const ids = theme.wallpapers.map((wallpaper) => wallpaper.id);
       expect(new Set(ids).size, theme.id).toBe(ids.length);
       for (const wallpaper of theme.wallpapers) {
-        for (const url of [wallpaper.src, wallpaper.thumb]) {
-          expect(url.startsWith("/themes/"), url).toBe(true);
-          expect(existsSync(join(PUBLIC, url)), url).toBe(true);
-          listed.add(url);
-        }
+        const key = `${theme.id}/${wallpaper.id}.${wallpaper.ext}`;
+        expect(wallpaper.cdnUrl).toBe(`https://cdn.jsdelivr.net/gh/omacom/omarchy@${OMARCHY_SOURCE.commit}/themes/${theme.id}/backgrounds/${wallpaper.id}.${wallpaper.ext}`);
+        expect(existsSync(join(process.cwd(), "wallpapers", key)), key).toBe(true);
+        originals.add(key);
+        expect(wallpaper.thumb.startsWith("/themes/")).toBe(true);
+        expect(existsSync(join(PUBLIC, wallpaper.thumb)), wallpaper.thumb).toBe(true);
+        listed.add(wallpaper.thumb);
       }
     }
     const onDisk = readdirSync(join(PUBLIC, "themes"), { recursive: true })
@@ -95,6 +98,10 @@ describe("the Omarchy catalog", () => {
       .map((file) => `/themes/${file}`);
     expect(onDisk.sort()).toEqual([...listed].sort());
     expect(existsSync(join(PUBLIC, "themes", "LICENSE"))).toBe(true);
+    const originalFiles = readdirSync(join(process.cwd(), "wallpapers"), { recursive: true })
+      .map(String).filter((file) => /\.(webp|jpg|jpeg|png|gif)$/.test(file));
+    expect(originalFiles.sort()).toEqual([...originals].sort());
+    expect(existsSync(join(process.cwd(), "wallpapers", "LICENSE"))).toBe(true);
   });
 
   it("names wallpapers for people", () => {

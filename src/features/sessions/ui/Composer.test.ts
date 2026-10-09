@@ -452,6 +452,27 @@ describe("Composer question focus", () => {
         expect(textarea.selectionStart).toBe(initialDraft.length);
         expect(textarea.selectionEnd).toBe(initialDraft.length);
     });
+    it.each(["claude", "codex"] as const)("shows and dismisses the Learn pill on %s without losing the prompt", async (harness) => {
+        const sessionId = `learn-pill-${harness}`;
+        const onSubmit = vi.fn();
+        await renderComposer(undefined, vi.fn(), false, 0, "/learn explain closures", undefined, onSubmit, sessionId, harness);
+        const textarea = container.querySelector("textarea")!;
+        const pill = () => container.querySelector<HTMLButtonElement>('[aria-label="Turn off Learn mode"]');
+        expect(pill()).not.toBeNull();
+        await typeInto(textarea, "/learn explain closures with examples");
+        expect(pill()).not.toBeNull();
+        await act(async () => pill()!.click());
+        expect(pill()).toBeNull();
+        expect(textarea.value).toBe("explain closures with examples");
+        expect(getComposerDraft(sessionId)).toBe("explain closures with examples");
+        expect(document.activeElement).toBe(textarea);
+        await typeInto(textarea, "/learn explain closures");
+        expect(pill()).not.toBeNull();
+        await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Send"]')!.click());
+        expect(onSubmit).toHaveBeenCalledWith("/learn explain closures", [], {});
+        expect(pill()).toBeNull();
+        clearComposerDraft(sessionId);
+    });
     it("offers /operator in the slash picker and submits it as a local command", async () => {
         const onSubmit = vi.fn(() => true);
         await act(async () => root.render(createElement(Composer, {

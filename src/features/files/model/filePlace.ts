@@ -52,6 +52,46 @@ export function lineRange(text: string, first: number, last: number): [number, n
   return [start, newline === -1 ? text.length : newline];
 }
 
+/** A Markdown heading as a reader meets it: its text, and which of the headings with that text it is. */
+export type HeadingPlace = { text: string; index: number };
+
+// Headings are matched by letters and digits only: the preview drops the marks the source carries.
+const headingKey = (text: string) => text.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+
+/**
+ * The heading a line of a Markdown source falls under, or null above the first
+ * one. Lines in the front matter and in fenced code are not headings.
+ */
+export function headingAbove(text: string, line: number): HeadingPlace | null {
+  const lines = text.split(/\r?\n/);
+  let start = 0;
+  if (/^\uFEFF?---[ \t]*$/.test(lines[0] ?? "")) {
+    const close = lines.findIndex((entry, index) => index > 0 && /^(?:---|\.\.\.)[ \t]*$/.test(entry));
+    if (close > 0) start = close + 1;
+  }
+  const seen = new Map<string, number>();
+  let found: HeadingPlace | null = null;
+  let fence: string | null = null;
+  for (let index = start; index < Math.min(line, lines.length); index++) {
+    const marker = /^\s{0,3}(`{3,}|~{3,})/.exec(lines[index])?.[1];
+    if (marker && (!fence || (marker[0] === fence[0] && marker.length >= fence.length))) { fence = fence ? null : marker; continue; }
+    const heading = fence ? null : /^\s{0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$/.exec(lines[index]);
+    if (!heading) continue;
+    // A link shows its text, not its address.
+    const key = headingKey(heading[1].replace(/\]\([^)]*\)/g, "]"));
+    if (!key) continue;
+    found = { text: key, index: seen.get(key) ?? 0 };
+    seen.set(key, found.index + 1);
+  }
+  return found;
+}
+
+/** The element a rendered Markdown document shows for a heading found by `headingAbove`. */
+export function findHeading(root: ParentNode, place: HeadingPlace): HTMLElement | null {
+  const matches = [...root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")].filter((element) => headingKey(element.textContent ?? "") === place.text);
+  return matches[place.index] ?? null;
+}
+
 const MIRRORED = ["boxSizing", "width", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "tabSize",
   "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"] as const;
 

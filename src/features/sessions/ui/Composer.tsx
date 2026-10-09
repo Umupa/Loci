@@ -2284,6 +2284,15 @@ export function Composer({
                 }}
               />
             ) : null}
+            {!compact && leadingMode?.name === LEARN_COMMAND.name ? (
+              <ModeCommandPill
+                name={LEARN_COMMAND.name}
+                onClear={() => {
+                  clearLeadingMode(LEARN_COMMAND.name);
+                  ref.current?.focus();
+                }}
+              />
+            ) : null}
             <div
               className="composer-toolbar flex min-w-0 flex-1 items-center"
               onWheel={(e) => {

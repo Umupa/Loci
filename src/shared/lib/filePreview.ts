@@ -29,6 +29,28 @@ export function sniffImageMime(bytes: Uint8Array): string | null {
   return null;
 }
 
+/** The largest picture shown inline in a document. */
+const MAX_INLINE_IMAGE_BYTES = 8 * 1024 * 1024;
+
+function looksLikeSvg(bytes: Uint8Array): boolean {
+  const head = new TextDecoder().decode(bytes.subarray(0, 2048)).replace(/^\uFEFF/, "");
+  return /^\s*(?:<\?xml[^>]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE[^>]*>\s*)?<svg[\s>]/i.test(head);
+}
+
+/**
+ * A `data:` URL for picture bytes, to show inline in a document. An SVG is
+ * recognised by its opening markup: as the source of an `<img>` it draws but
+ * cannot run scripts, the same as a `data:` picture written in the document.
+ */
+export function imageDataUrl(bytes: Uint8Array): string | null {
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_INLINE_IMAGE_BYTES) return null;
+  const mime = sniffImageMime(bytes) ?? (looksLikeSvg(bytes) ? "image/svg+xml" : null);
+  if (!mime) return null;
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+
 /** Byte count for the viewer footer, in the units a file manager would show. */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

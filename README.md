@@ -101,11 +101,12 @@ Commands work at the start of a prompt.
 Type `/learn` in a Claude Code, Codex, Antigravity or Pi session. The project folder is the subject, for example `~/learn/kubernetes`, and Loci keeps a *learning map* canvas in it.
 
 - **Solid means you explained it.** A node turns solid only when you say it in your own words. The agent records a quote, and Loci checks that quote against what you actually typed; it cannot be a summary or the agent's own explanation.
-- **You say it, the agent draws.** The agent may sketch a few dashed nodes of territory next to what you know. It cannot move or delete anything on the map, and it does not get to call something mastered.
+- **A profile, a roadmap and readings first.** Before teaching, the agent shows you the field, interviews you (goal, level, depth, language, how explanations land) and writes `profile.md`. It plans a route in `roadmap.md`, puts the stages and topics on the map as dashed nodes, and gathers the reading for every topic into `sources/`: complete texts in your language, translated in full when a source has no edition in it. This part is the skill's prompt, carried out with the agent's own search and file tools.
+- **You say it, the agent draws.** The agent names what there is to learn: the roadmap's topics, and a few dashed nodes next to what you know. How they connect is yours to say. It cannot move anything on the map, can take off only dashed nodes nobody has touched, and does not get to call something mastered.
 - **Revisits on a ladder.** Nodes come back after 1, 3, 7, 21, 60 and 150 days. During a revisit the map is covered and your earlier words are withheld until you have answered, so you explain from memory.
 - **Judgments for subjects like investing.** A judgment node carries a date to look back on. The agent checks it against what you said before and names what you left out. It never gives buy or sell advice.
 
-The rules live in the app, not in the prompt, so they hold whichever model you use. The design, data model and a record of what was and was not verified are in [docs/learn.md](docs/learn.md) (written in Chinese).
+The map's rules live in the app, not in the prompt, so they hold whichever model you use. What the agent does around the map (the interview, the roadmap, the readings) is the prompt at work, and how well it goes depends on the model. The design, data model and a record of what was and was not verified are in [docs/learn.md](docs/learn.md) (written in Chinese).
 
 ## Data and privacy
 

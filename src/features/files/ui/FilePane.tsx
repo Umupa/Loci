@@ -14,7 +14,7 @@ import { MarkdownDocumentPreview } from "../../sessions/ui/MarkdownDocumentPrevi
 import { fileKind } from "../model/fileKind";
 import { syncWatchedMtime, watchFile } from "../model/fileWatch";
 import { draftConflicts, editDraft, getFileDraft, setFileDraft, type FileDraft } from "../model/fileDrafts";
-import { consumeFilePlace, lineOffset, lineRange, textareaOffsetTop, useFilePlace } from "../model/filePlace";
+import { consumeFilePlace, findHeading, headingAbove, lineOffset, lineRange, textareaOffsetTop, useFilePlace } from "../model/filePlace";
 import { MarkdownModeToggle, useMarkdownMode } from "../../sessions/ui/MarkdownModeToggle";
 import { FileCard } from "./FileCard";
 import { ImageView } from "./ImageView";
@@ -171,16 +171,16 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     return () => { window.clearTimeout(timer); stop(); };
   }, [path, reload]);
 
-  // A link to lines of this file. Plain text scrolls to the first line; Markdown has no lines in
-  // its preview, so the link shows the source and selects them there.
+  // A link to lines of this file. Plain text scrolls to the first line. Markdown is read in its
+  // preview, which has no lines, so the link shows the section they fall in; only a pane that is
+  // already showing the source selects the lines there.
   const placeRequest = useFilePlace(path);
   const shownPlainText = content.status === "text" && kind !== "markdown" ? content.text : null;
   const areaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (!placeRequest || !("lines" in placeRequest.place) || content.status !== "text") return;
     const [first, last] = placeRequest.place.lines;
-    if (kind === "markdown") {
-      if (mode !== "source") { setMode("source"); return; }
+    if (kind === "markdown" && mode === "source") {
       const area = areaRef.current;
       if (!area) return;
       const [from, to] = lineRange(area.value, first, last);
@@ -189,6 +189,20 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       area.scrollTop = Math.max(0, textareaOffsetTop(area, from) - 24);
       consumeFilePlace(path, placeRequest.token);
       return;
+    }
+    if (kind === "markdown") {
+      const place = headingAbove(shownText, first);
+      let timer = 0;
+      // The preview may still be laying its blocks out; look again for a moment before settling for the top.
+      const show = (tries: number) => {
+        const scroller = bodyRef.current?.querySelector<HTMLElement>(".markdown-preview");
+        const heading = scroller && place ? findHeading(scroller, place) : null;
+        if (place && !heading && tries > 0) { timer = window.setTimeout(() => show(tries - 1), 50); return; }
+        if (scroller) scroller.scrollTop = heading ? scroller.scrollTop + heading.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16 : 0;
+        consumeFilePlace(path, placeRequest.token);
+      };
+      show(20);
+      return () => window.clearTimeout(timer);
     }
     const pre = textRef.current;
     const node = pre?.firstChild;

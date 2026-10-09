@@ -33,7 +33,7 @@ const TOOLS = [
   {
     name: "map_read", title: "Read the Learning Map",
     description:
-      "Read the learner's learning map for this Loci project: their mission, every node with its state, the connections, anything the learner drew by hand, and the few nodes due for a revisit. " +
+      "Read the learner's learning map for this Loci project: their mission, the stages of the roadmap, every node with its state and stage, the connections, anything the learner drew by hand, and the few nodes due for a revisit. " +
       "Call it at the start of every /learn turn and before any other loci_learn tool. " +
       "Pass nodeId for one node's history and the learner's own words about it. While a node is due for a revisit, what the learner said about it earlier, including the wording on its connections, is withheld until the revisit finishes. Pass stats:true for how well explanations have lasted.",
     inputSchema: { type: "object", additionalProperties: false, properties: { nodeId: text, stats: { type: "boolean" } } },
@@ -57,15 +57,18 @@ const TOOLS = [
   {
     name: "map_sketch", title: "Sketch Unexplored Nodes",
     description:
-      "Add up to 3 unexplored (dashed) nodes beside a node the learner already has, to show what lies just past what they know. Loci chooses where they go. " +
-      "A map holds at most 9 unexplored nodes: sketch only what is adjacent to the learner's knowledge and serves their mission, never an overview of the field. " +
-      "Optional edges are proposals (dashed) until the learner states the connection themselves.",
+      "Add unexplored (dashed) nodes: what there is to learn, never what the learner knows. Loci chooses where they go. " +
+      "With `stage`, the nodes are that roadmap stage's topics, up to 8 of them: call it once per stage, first stage first, and name the stage with its number (\"1 · Containers\"). Calling it again with a stage that is on the map adds topics to it. A roadmap holds at most 8 stages and has no connections: how topics connect is for the learner to say. Topics that are already on the map are left as they are and reported back. " +
+      "Without `stage`, add up to 3 nodes beside `near`, a node the learner already has, for something worth learning that the roadmap does not cover; at most 9 such nodes wait outside the roadmap. Optional edges are proposals (dashed) until the learner states the connection themselves. " +
+      "`remove` takes unexplored nodes off the map again, by id or label, when the roadmap changes. Only nodes nobody has touched can go: one the learner has explained or connected is theirs to delete. A stage disappears with its last topic.",
     inputSchema: {
-      type: "object", additionalProperties: false, required: ["nodes"],
+      type: "object", additionalProperties: false,
       properties: {
-        near: { ...text, description: "Id or label of the node to place them beside" },
-        nodes: { type: "array", minItems: 1, maxItems: 3, items: { ...text, maxLength: 60 }, description: "Labels: a name only, no explanation" },
+        stage: { ...text, maxLength: 60, description: "Name of the roadmap stage these nodes are topics of" },
+        near: { ...text, description: "Without stage: id or label of the node to place them beside" },
+        nodes: { type: "array", maxItems: 8, items: { ...text, maxLength: 60 }, description: "Labels: a name only, no explanation. Up to 8 with stage, up to 3 without" },
         edges: { type: "array", maxItems: 6, items: edge },
+        remove: { type: "array", maxItems: 40, items: text, description: "Ids or labels of unexplored nodes to take off the map" },
       },
     },
     annotations: { readOnlyHint: false, destructiveHint: false },

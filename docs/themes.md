@@ -27,10 +27,11 @@ Settings → Appearance 新增 **Color theme**：22 个来自 [Omarchy](https://
 `scripts/import-omarchy-themes.mjs <Omarchy 检出>` 读取 `themes/` 和 `default/themed/`，生成：
 
 - `src/features/settings/model/omarchyThemes.generated.ts`：22 份调色盘、壁纸清单、语法规则（含来源 commit）；
-- `public/themes/<主题>/<壁纸>.webp` 及 `.thumb.webp`；
-- `public/themes/LICENSE`：Omarchy 的 MIT 许可文本。
+- `public/themes/<主题>/<壁纸>.thumb.webp`：应用内置缩略图；
+- `wallpapers/<主题>/<壁纸>.<ext>`：保留原始格式和分辨率的图片，不打包进应用；
+- `public/themes/LICENSE` 与 `wallpapers/LICENSE`：Omarchy 的 MIT 许可文本。
 
-调色盘按 Omarchy 自己的 `bin/omarchy-theme-color` 补全缺失的色阶（例如 `white` 没有 `orange`，由 `yellow` 代替）。壁纸用 libvips 缩到能盖住 1600×900（不放大），WebP q66，72 张共约 6 MB；缩略图 320px。只有 “OMARCHY” 字样的占位图（`omarchy.webp`）不算壁纸，没有导入。
+调色盘按 Omarchy 自己的 `bin/omarchy-theme-color` 补全缺失的色阶（例如 `white` 没有 `orange`，由 `yellow` 代替）。72 张原图约 52 MiB，按需下载；内置缩略图用 libvips 生成 320px WebP q60，共约 315 KiB。只有 “OMARCHY” 字样的占位图（`omarchy.webp`）不算壁纸，没有导入。
 
 ### 调色盘到 Loci 变量
 
@@ -66,7 +67,7 @@ Omarchy 的颜色是为终端配的，暗淡的黄色或灰色在终端里没问
 
 ### 壁纸
 
-壁纸以 `theme:<主题>/<壁纸>` 的形式存进 `loci.chatBackgroundPath`（原来存的是本地文件路径），`chatBackgroundSrc` 把它解析成同源的 `/themes/...webp`。因此背景效果、显示范围、两档透明度、项目背景对话框的预览都不需要改动。
+壁纸以 `theme:<主题>/<壁纸>` 的形式存进 `loci.chatBackgroundPath`。`applyChatBackground` 统一处理启动恢复、主题跟随和手动选择：先显示内置缩略图，再由 Rust 从 jsDelivr 下载公开 Omarchy 仓库的原图，地址固定到 `OMARCHY_SOURCE.commit`，不依赖 Loci 仓库公开。原图缓存到应用数据目录的 `wallpaper-cache/`；再次使用时直接读取缓存。`chatBackgroundSrc` 返回本地 asset URL，下载未完成或失败时返回缩略图地址。重复请求共用一次下载；较早的下载完成后不会覆盖新选择或恢复已移除的背景。
 
 - 选主题时，壁纸只在聊天背景为空或本来就是主题壁纸时才跟着换；用户自己选的图片不会被覆盖。
 - 选回 Default，主题壁纸随之撤掉；用户的图片保留。
@@ -104,7 +105,7 @@ node scripts/import-omarchy-themes.mjs ../omarchy
 npm test
 ```
 
-需要 libvips（`vips`、`vipsheader`）。生成的文件整体提交，`NOTICE` 里的来源 commit 随之更新。
+需要 libvips（`vips`）。生成的文件整体提交，`NOTICE` 里的来源 commit 随之更新。
 
 ## 验证
 

@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Manager};
@@ -6,6 +7,51 @@ use crate::fs::expand_home;
 
 const MAX_BACKGROUND_BYTES: u64 = 25 * 1024 * 1024;
 const ALLOWED_EXT: [&str; 5] = ["png", "jpg", "jpeg", "gif", "webp"];
+const MAX_WALLPAPER_BYTES: u64 = 50 * 1024 * 1024;
+
+fn wallpaper_cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("wallpaper-cache");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+fn download_wallpaper_sync(
+    app: &AppHandle,
+    cdn_url: &str,
+    cache_key: &str,
+) -> Result<String, String> {
+    // cache_key is like "tokyo-night/1-quattro.jpg"
+    let cache_path = wallpaper_cache_dir(app)?.join(cache_key);
+    if cache_path.exists() {
+        return Ok(cache_path.to_string_lossy().into_owned());
+    }
+    if let Some(parent) = cache_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let response = ureq::get(cdn_url).call().map_err(|e| e.to_string())?;
+    if response.status() != 200 {
+        return Err(format!("HTTP {}", response.status()));
+    }
+    let mut bytes = Vec::new();
+    response
+        .into_reader()
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > MAX_WALLPAPER_BYTES {
+        return Err(format!(
+            "Wallpaper too large ({} MB).",
+            bytes.len() / 1024 / 1024
+        ));
+    }
+    let tmp = cache_path.with_extension("tmp");
+    std::fs::write(&tmp, &bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &cache_path).map_err(|e| e.to_string())?;
+    Ok(cache_path.to_string_lossy().into_owned())
+}
 
 fn backgrounds_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
@@ -169,6 +215,19 @@ pub async fn remove_project_chat_background(app: AppHandle, project: String) -> 
     tauri::async_runtime::spawn_blocking(move || {
         let dir = backgrounds_dir(&app)?;
         remove_project_background(&dir, &project)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn download_wallpaper(
+    app: AppHandle,
+    cdn_url: String,
+    cache_key: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        download_wallpaper_sync(&app, &cdn_url, &cache_key)
     })
     .await
     .map_err(|e| e.to_string())?

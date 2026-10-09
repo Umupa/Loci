@@ -61,6 +61,12 @@ export const MODE_COMMAND_STYLES: Record<string, ModeCommandStyle> = {
   [LEARN_COMMAND.name]: {
     Icon: Mortarboard,
     className: "text-amber-700 dark:text-amber-200/90",
+    pill: {
+      label: "Learn",
+      title: "Learn mode",
+      className:
+        "bg-amber-500/15 font-medium text-amber-700 hover:bg-amber-500/20 dark:bg-amber-400/10 dark:text-amber-200/90 dark:hover:bg-amber-400/15",
+    },
   },
 };
 
