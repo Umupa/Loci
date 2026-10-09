@@ -427,6 +427,7 @@ type UserTurnExtra = {
   canvasCli?: boolean;
   appRequestId?: string;
   agentSessionCompletion?: Block["agentSessionCompletion"];
+  agentSetup?: boolean;
 };
 
 function userTurnFields(extra?: UserTurnExtra) {
@@ -439,6 +440,7 @@ function userTurnFields(extra?: UserTurnExtra) {
     ...(extra?.agentSessionCompletion
       ? { agentSessionCompletion: extra.agentSessionCompletion }
       : {}),
+    ...(extra?.agentSetup ? { agentSetup: true } : {}),
   };
 }
 

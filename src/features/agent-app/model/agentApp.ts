@@ -149,6 +149,8 @@ export type AgentAppHost = {
       change: (habits: Habit[]) => { habits: Habit[]; result: T },
     ): Promise<T>;
   };
+  /** Gives the agent the name it and the user settled on. */
+  renameAgent?(agentId: string, name: string): void;
   /** The agents' own files: soul, memory and topic notes. */
   files?: AgentFileStore;
   /** The clock entries are dated by; tests pin it. */
@@ -201,6 +203,7 @@ const FIELDS = new Map<string, readonly string[]>([
   ["notes.list", ["limit", "offset"]],
   ["notes.read", ["id"]],
   ["notes.write", ["id", "title", "body", "tags"]],
+  ["agent.rename", ["name"]],
   ["soul.read", []],
   ["soul.update", ["text", "expectedHash"]],
   ["memory.read", ["topic"]],
@@ -817,6 +820,17 @@ export async function handleAgentApp(
   host: AgentAppHost,
 ): Promise<unknown> {
   fields(action, input);
+  if (action === "agent.rename") {
+    const agent = ownConversation(source, host);
+    if (!agent || !host.renameAgent)
+      throw new Error("Only an agent's own conversation can rename it");
+    const name = requiredString(input.name, "name", 40)
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!name) throw new Error("name must not be empty");
+    host.renameAgent(agent.id, name);
+    return { name };
+  }
   if (action.startsWith("soul."))
     return handleSoul(source, action, input, host);
   if (action.startsWith("memory."))

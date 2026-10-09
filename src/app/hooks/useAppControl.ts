@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { canAccessAgentAppProject, handleAgentApp, type AppSessionListing } from "../../features/agent-app/model/agentApp";
-import { agentForSession, findAgent } from "../../features/agents/model/agent";
+import { agentForSession, findAgent, updateAgent } from "../../features/agents/model/agent";
 import { habitRunAgent, loadHabits, updateHabits } from "../../features/agents/model/agentHabits";
 import { loadAgentFiles, readAgentFile, writeAgentFile } from "../../features/agents/model/agentFiles";
 import { readAgentConversation } from "../../features/agents/model/agentTranscript";
@@ -156,6 +156,7 @@ export function useAppControl(options: Options) {
             return readAgentConversation(chat, options);
           },
           habits: { load: loadHabits, update: updateHabits },
+          renameAgent: (agentId, name) => { updateAgent(agentId, (current) => ({ ...current, name })); },
           files: { load: loadAgentFiles, read: readAgentFile, write: writeAgentFile },
           notes: () => loadNotes(true), note: getNote,
           saveNote: async (note) => { const saved = await upsertNote(note); window.dispatchEvent(new Event(NOTES_CHANGED_EVENT)); return saved; },
