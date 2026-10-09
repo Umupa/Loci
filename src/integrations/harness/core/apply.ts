@@ -424,6 +424,7 @@ type UserTurnExtra = {
   noteCard?: Block["noteCard"];
   loci?: boolean;
   learn?: boolean;
+  canvasCli?: boolean;
   appRequestId?: string;
 };
 
@@ -432,6 +433,7 @@ function userTurnFields(extra?: UserTurnExtra) {
     ...(extra?.noteCard ? { noteCard: extra.noteCard } : {}),
     ...(extra?.loci ? { loci: true } : {}),
     ...(extra?.learn ? { learn: true } : {}),
+    ...(extra?.canvasCli ? { canvasCli: true } : {}),
     ...(extra?.appRequestId ? { appRequestId: extra.appRequestId } : {}),
   };
 }

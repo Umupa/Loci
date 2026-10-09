@@ -25,10 +25,21 @@ static LEARN_RESOLVED: Mutex<Option<CanvasMcpServer>> = Mutex::new(None);
 /// The stdio command agent CLIs should run, or why drawing tools are unavailable.
 #[tauri::command(async)]
 pub fn canvas_mcp_server(app: AppHandle) -> Result<CanvasMcpServer, String> {
+    canvas_server(&app)
+}
+
+/// The stdio command for the learning MCP server, or why it is unavailable.
+#[tauri::command(async)]
+pub fn learn_mcp_server(app: AppHandle) -> Result<CanvasMcpServer, String> {
+    learn_server(&app)
+}
+
+/// Also answers the app's own CLI, which runs the same server for one call.
+pub fn canvas_server(app: &AppHandle) -> Result<CanvasMcpServer, String> {
     if let Some(server) = RESOLVED.lock().ok().and_then(|cached| cached.clone()) {
         return Ok(server);
     }
-    let bridge = resource_path(&app, BRIDGE)
+    let bridge = resource_path(app, BRIDGE)
         .ok_or_else(|| "Loci's Excalidraw MCP files are missing from this build.".to_string())?;
     let runtime = runtime()?;
     let server = CanvasMcpServer {
@@ -41,13 +52,11 @@ pub fn canvas_mcp_server(app: AppHandle) -> Result<CanvasMcpServer, String> {
     Ok(server)
 }
 
-/// The stdio command for the learning MCP server, or why it is unavailable.
-#[tauri::command(async)]
-pub fn learn_mcp_server(app: AppHandle) -> Result<CanvasMcpServer, String> {
+pub fn learn_server(app: &AppHandle) -> Result<CanvasMcpServer, String> {
     if let Some(server) = LEARN_RESOLVED.lock().ok().and_then(|cached| cached.clone()) {
         return Ok(server);
     }
-    let script = resource_path(&app, LEARN_SERVER)
+    let script = resource_path(app, LEARN_SERVER)
         .ok_or_else(|| "Loci's learning MCP files are missing from this build.".to_string())?;
     let runtime = runtime().map_err(|_| {
         "The learning map needs Node.js 20.11 or newer (or Bun) on your PATH.".to_string()

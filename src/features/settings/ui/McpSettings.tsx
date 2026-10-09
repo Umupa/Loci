@@ -12,6 +12,8 @@ import {
 } from "react";
 import { revealPath } from "../../../platform/tauri/fs";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
+import { BUILTIN_CLI_HARNESSES } from "../../sessions/model/builtinCli";
+import { HARNESS_TITLE, type HarnessId } from "../../sessions/model/session";
 import { SearchableProjectPicker } from "../../projects/ui/SearchableProjectPicker";
 import type { RecentProject } from "../../projects/model/recents";
 import { Modal } from "../../../shared/ui/Modal";
@@ -51,6 +53,7 @@ const SCOPES: Record<Provider, Scope[]> = {
   claude: ["local", "project", "user"],
   codex: ["user"],
 };
+const BUILTIN_PROVIDERS: readonly HarnessId[] = [...PROVIDERS, ...BUILTIN_CLI_HARNESSES];
 
 function ProviderIcon({ provider }: { provider: Provider }) {
   useLocale();
@@ -327,6 +330,20 @@ export function McpSettings({
   );
 }
 
+/** Who can use the built-in servers: the first two are given them over MCP, the others call them through Loci's CLI. */
+function BuiltinProviders() {
+  useLocale();
+  return (
+    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-content/50">
+      {BUILTIN_PROVIDERS.map((harness) => (
+        <span key={harness} className="inline-flex items-center gap-1.5">
+          <HarnessIcon harness={harness} className="size-3.5 shrink-0" />{HARNESS_TITLE[harness]}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function BuiltinCanvasMcp() {
   useLocale();
   const enabled = useCanvasMcpEnabled();
@@ -359,9 +376,7 @@ function BuiltinCanvasMcp() {
             <p className="text-[12px] text-content/45">{CANVAS_MCP_NAME}{" "}{t("· Local ·")}{" "}{status}</p>
             <p id="builtin-excalidraw-description" className="text-[12px] leading-relaxed text-content/65">
               {t("Let agents read and edit this project's Loci canvases. Drawings are saved locally.")}</p>
-            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-content/50">
-              {PROVIDERS.map((provider) => <span key={provider} className="inline-flex items-center gap-1.5"><ProviderIcon provider={provider} />{MCP_PROVIDER_LABELS[provider]}</span>)}
-            </p>
+            <BuiltinProviders />
           </div>
           <button
             type="button"
@@ -415,9 +430,7 @@ function BuiltinLearnMcp() {
           <p className="text-[12px] text-content/45">{LEARN_MCP_NAME}{" "}{t("· Local ·")}{" "}{status}</p>
           <p className="text-[12px] leading-relaxed text-content/65">
             {t("Lets an agent keep a project's learning map with you. It is attached only to threads where you type /learn, and it records a node as learned only from your own words.")}</p>
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-content/50">
-            {PROVIDERS.map((provider) => <span key={provider} className="inline-flex items-center gap-1.5"><ProviderIcon provider={provider} />{MCP_PROVIDER_LABELS[provider]}</span>)}
-          </p>
+          <BuiltinProviders />
         </div>
       </div>
       {problem ? (

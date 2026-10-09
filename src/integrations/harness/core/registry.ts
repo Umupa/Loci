@@ -7,6 +7,7 @@ import type {
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { GeneratedSessionTitle } from "../../../features/sessions/model/sessionTitle";
 import { hasLiveCatalog } from "../../../features/sessions/model/models";
+import { loadCanvasMcpEnabled } from "../../../features/settings/model/builtinMcp";
 import type { UserQuestionReply } from "../../../features/sessions/model/userQuestion";
 import type { NativeCommandProvider } from "./nativeCommands";
 import type {
@@ -215,6 +216,9 @@ export function sendHarnessTurn(input: SendTurnInput & { harness: HarnessId }) {
         cwd: input.cwd,
         appAccess: input.appAccess === true,
         learnAccess: input.learnAccess === true,
+        // The built-in Excalidraw switch as it is now: a change applies from
+        // the next turn, however the agent reaches the canvas tools.
+        canvasAccess: loadCanvasMcpEnabled(),
       });
     activeTurnSessions.add(input.sessionId);
     try {

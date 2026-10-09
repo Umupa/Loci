@@ -17,6 +17,8 @@ export type AntigravityModeId = "default" | "auto_edit" | "yolo";
 export type AntigravityPermissionRequest = {
   title: string;
   kind?: string;
+  /** The shell command the request is about, when it is one. */
+  command?: string;
   callId?: string;
   preview?: ToolPreview;
   optionIds: string[];
@@ -130,6 +132,7 @@ export function permissionRequestFromAcp(
   return {
     title,
     kind,
+    command: command ?? extractShellCommand(tool),
     callId:
       stringField(tool, "toolCallId") ??
       stringField(tool, "tool_call_id") ??

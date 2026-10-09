@@ -5,7 +5,7 @@ export const CANVAS_MCP_ENABLED_KEY = "loci.builtinExcalidrawMcpEnabled";
 const CHANGE_EVENT = "loci:builtinexcalidrawmcpchange";
 let unsaved: boolean | null = null;
 
-/** App-wide preference, shared by Claude Code and Codex. */
+/** App-wide preference, for every agent CLI that can use the built-in Excalidraw server. */
 export function loadCanvasMcpEnabled(): boolean {
   return unsaved ?? readFlag(CANVAS_MCP_ENABLED_KEY) ?? true;
 }

@@ -8,12 +8,12 @@ export const LEARN_MCP_NAME = "loci_learn";
 const FORWARDED_ENV = ["LOCI_APP_ENDPOINT", "LOCI_APP_TOKEN"];
 
 export type LearnMcpTool = "map_read" | "map_init" | "map_sketch" | "map_record" | "revisit";
-const TOOLS: readonly LearnMcpTool[] = ["map_read", "map_init", "map_sketch", "map_record", "revisit"];
+export const LEARN_MCP_TOOLS: readonly LearnMcpTool[] = ["map_read", "map_init", "map_sketch", "map_record", "revisit"];
 
 /** Recognize the learning server's tools as Claude (`mcp__loci_learn__x`) and Codex (`loci_learn:x`) name them. */
 export function learnMcpTool(name: string | undefined): LearnMcpTool | undefined {
   const match = name?.trim().match(new RegExp(`(?:^|\\s)(?:mcp__${LEARN_MCP_NAME}__|${LEARN_MCP_NAME}[:.])([a-z_]+)$`));
-  return TOOLS.find((tool) => tool === match?.[1]);
+  return LEARN_MCP_TOOLS.find((tool) => tool === match?.[1]);
 }
 
 export function isLearnWriteTool(tool: LearnMcpTool): boolean {
@@ -58,7 +58,7 @@ export function codexLearnMcpArgs(server: CanvasMcpServer): string[] {
     "-c", `${key}.args=${JSON.stringify(server.args)}`,
     "-c", `${key}.env_vars=${JSON.stringify(FORWARDED_ENV)}`,
     // Route write approvals to Loci, which accepts them outside plan turns.
-    ...TOOLS.filter(isLearnWriteTool).flatMap((tool) => ["-c", `${key}.tools.${tool}.approval_mode="prompt"`]),
+    ...LEARN_MCP_TOOLS.filter(isLearnWriteTool).flatMap((tool) => ["-c", `${key}.tools.${tool}.approval_mode="prompt"`]),
   ];
 }
 
@@ -67,5 +67,5 @@ export function codexLearnApprovalTool(params: unknown): LearnMcpTool | undefine
   const request = params as { serverName?: unknown; message?: unknown; _meta?: { codex_approval_kind?: unknown } } | null;
   if (request?.serverName !== LEARN_MCP_NAME || request._meta?.codex_approval_kind !== "mcp_tool_call") return undefined;
   const named = typeof request.message === "string" ? request.message.match(/\btool "([a-z_]+)"/)?.[1] : undefined;
-  return TOOLS.find((tool) => tool === named);
+  return LEARN_MCP_TOOLS.find((tool) => tool === named);
 }

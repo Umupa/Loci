@@ -1,0 +1,106 @@
+import { invoke } from "@tauri-apps/api/core";
+import {
+  CANVAS_MCP_TOOLS,
+  canvasToolAutoAllowed,
+  isCanvasWriteTool,
+  type CanvasMcpTool,
+} from "../../canvas/mcpServer";
+import { LEARN_MCP_TOOLS, learnToolAllowed, type LearnMcpTool } from "../../learn/mcpServer";
+import type { Block, HarnessId, RuntimeMode } from "./session";
+import { shellWords } from "./shellWords";
+
+/**
+ * Agent CLIs that cannot be handed an MCP server for one session without
+ * editing the user's own configuration. They reach Loci's built-in canvas and
+ * learning tools by running the app's CLI (`loci canvas …`, `loci learn …`),
+ * which starts the same servers for one call. A prompt tells them it exists.
+ */
+export const BUILTIN_CLI_HARNESSES: readonly HarnessId[] = ["antigravity", "pi"];
+
+export function usesBuiltinCli(harness: HarnessId | undefined): boolean {
+  return harness != null && BUILTIN_CLI_HARNESSES.includes(harness);
+}
+
+/** This app's executable, which is also its CLI. Undefined when it cannot be asked, as outside the desktop app. */
+export async function appCliPath(): Promise<string | undefined> {
+  try {
+    const path = await invoke<string>("app_cli_path");
+    return typeof path === "string" && path ? path : undefined;
+  } catch { return undefined; }
+}
+
+/** One call of a built-in tool through the app's CLI. `help` lists the tools. */
+export type BuiltinCliCall =
+  | { namespace: "canvas"; tool: CanvasMcpTool | "help" }
+  | { namespace: "learn"; tool: LearnMcpTool | "help" };
+
+const HELP: readonly string[] = ["help", "--help", "-h"];
+
+/**
+ * Recognize a shell command that is exactly one built-in tool call: the CLI,
+ * the server, a tool it has, and at most one input. Anything a shell would
+ * expand, chain or redirect is not recognized, so the command can be trusted
+ * to do what it says. With `cliPath` the program must be this app's own
+ * executable; without it any `loci` is taken, which is only good for naming a
+ * row in the transcript.
+ */
+export function builtinCliCall(command: string | undefined, cliPath?: string): BuiltinCliCall | undefined {
+  const words = command ? shellWords(command.trim()) : undefined;
+  if (!words) return undefined;
+  const [program, namespace, name, ...rest] = words;
+  if (cliPath ? program !== cliPath : !/(?:^|[/\\])loci(?:\.exe)?$/i.test(program ?? "")) return undefined;
+  if (namespace !== "canvas" && namespace !== "learn") return undefined;
+  if (name === undefined || HELP.includes(name)) return rest.length === 0 ? { namespace, tool: "help" } : undefined;
+  const asksHelp = rest.length === 1 && HELP.includes(rest[0]);
+  const oneInput = rest.length === 2 && (rest[0] === "--json" || rest[0] === "--input");
+  if (rest.length !== 0 && !asksHelp && !oneInput) return undefined;
+  if (namespace === "canvas") {
+    const tool = CANVAS_MCP_TOOLS.find((known) => known === name);
+    return tool ? { namespace, tool: asksHelp ? "help" : tool } : undefined;
+  }
+  const tool = LEARN_MCP_TOOLS.find((known) => known === name);
+  return tool ? { namespace, tool: asksHelp ? "help" : tool } : undefined;
+}
+
+/**
+ * How Loci answers a permission request for a built-in tool call without
+ * asking, with the rules the MCP tools follow: reading never asks, drawing
+ * asks in Supervised, the learning tools never ask, and a plan turn may only
+ * read. Undefined leaves the request to the user.
+ */
+export function builtinCliDecision(call: BuiltinCliCall, runtimeMode: RuntimeMode, planning: boolean): "allow" | "deny" | undefined {
+  if (call.tool === "help") return "allow";
+  if (call.namespace === "learn") return learnToolAllowed(call.tool, planning) ? "allow" : "deny";
+  if (planning) return isCanvasWriteTool(call.tool) ? "deny" : "allow";
+  return canvasToolAutoAllowed(call.tool, runtimeMode) ? "allow" : undefined;
+}
+
+/** The shell command a tool or approval row stands for, as the provider reported it. */
+export function blockShellCommand(block: Block): string | undefined {
+  if (block.role !== "tool" && block.role !== "approval") return undefined;
+  // A shell preview retains the original command when the display title was
+  // simplified. Never accept a shorter title in place of that command.
+  const candidate =
+    (block.tool?.preview?.kind === "shell" ? block.tool.preview.title : undefined) ??
+    block.tool?.title ??
+    block.text;
+  return candidate?.trim().replace(/^Run(?:ning)?\s+command:\s*/i, "") || undefined;
+}
+
+/**
+ * Tells an agent that this project's canvases are within reach, and how.
+ * `cli` is the app's executable, quoted for the agent's shell. An agent with
+ * the MCP server attached learns the same from the tool descriptions.
+ */
+export function canvasCliPrompt(cli: string): string {
+  return `
+
+<loci_canvas>
+Loci added this note; the user did not write it. This project has Loci canvases: Excalidraw drawings the user sees and edits inside Loci. You can create, read and edit them with Loci's local CLI, \`${cli} canvas TOOL --json '<arguments>'\`:
+- read_me: the element format. Call it once before your first drawing.
+- create_view: draw and save. Without restoreCheckpoint it starts a new drawing; with it, it adds to or removes from an existing one and keeps the user's own edits.
+- read_widget_context: list this project's drawings, or read one as it is now.
+- get_elements and update_elements: change properties of existing elements by id.
+Run \`${cli} canvas --help\` for each tool's arguments. Pass large arguments as a file with --input FILE. Use these tools when the user asks for a diagram or a drawing in Loci, and put the canvas link a successful call returns in your reply. They work only during your turn in this session, through a credential already in your environment; never print it.
+</loci_canvas>`;
+}
