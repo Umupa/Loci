@@ -1,3 +1,4 @@
+import { stripQuestionBlock } from "../model/standingQuestion";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import {
 memo,
@@ -1661,7 +1662,7 @@ const TranscriptBlock = memo(function TranscriptBlock({
       {/* A chat-styled surface draws this as the speaker's bubble. */}
       <div data-agent-prose>
         <AgentMarkdown
-          text={block.text}
+          text={stripQuestionBlock(block.text)}
           streaming={block.streaming}
           revealOnMount={revealOnMount}
           cwd={cwd}

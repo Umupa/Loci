@@ -62,6 +62,7 @@ import { loadCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { agentForSession } from "../../features/agents/model/agent";
 import { agentTurn } from "../../features/agents/model/agentFiles";
 import { prepareAgentTurn } from "../../features/agents/model/agentTurnContext";
+import { questionReplyText } from "../../features/sessions/model/standingQuestion";
 import { turnOutcome, type TurnOutcome } from "../../features/sessions/model/turnOutcome";
 import type { SubmissionAcceptance } from "../model/submissionAcceptance";
 import type { SessionRuntime } from "./useSessionRuntime";
@@ -1171,8 +1172,18 @@ export function useSessionSubmission(options: SubmissionOptions) {
   }, [sessionsRef]);
   const answer = useCallback((sessionId: string, requestId: number, reply: UserQuestionReply) => {
     const session = sessionsRef.current.find((entry) => entry.id === sessionId);
-    if (session) respondHarnessQuestion(session.harness, sessionId, requestId, reply);
-  }, [sessionsRef]);
+    if (!session) return;
+    const question = session.pendingQuestion;
+    if (question?.standing && question.requestId === requestId) {
+      // No request is waiting on it: the choice goes out as the user's next message.
+      const text = questionReplyText(question.questions, reply);
+      if (text && submitRef.current(sessionId, text) !== false) return;
+      setSessions((previous) => previous.map((entry) => entry.id === sessionId && entry.pendingQuestion?.requestId === requestId
+        ? { ...entry, pendingQuestion: undefined } : entry));
+      return;
+    }
+    respondHarnessQuestion(session.harness, sessionId, requestId, reply);
+  }, [sessionsRef, setSessions]);
   const keepQuestionOpen = useCallback((sessionId: string, requestId: number) => {
     const session = sessionsRef.current.find((entry) => entry.id === sessionId);
     if (session) keepHarnessQuestionOpen(session.harness, sessionId, requestId);

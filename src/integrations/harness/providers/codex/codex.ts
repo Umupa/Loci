@@ -79,6 +79,8 @@ type PendingQuestion = {
   threadId: string;
   turnId?: string;
   sending?: boolean;
+  /** Its turn ended unanswered; the chat keeps the question, not this entry. */
+  standing?: boolean;
   event: Extract<HarnessEvent, { type: "question.asked" }>;
   isBlocking: boolean;
   timer?: ReturnType<typeof setTimeout>;
@@ -964,21 +966,25 @@ function showCodexAsyncQuestion(
     questions,
     callId: itemId,
   };
+  let entry: PendingQuestion | undefined;
   const outcome = new Promise<UserQuestionReply | "cancelled">((resolve) => {
-    live.questions.set(uiId, {
+    entry = {
       rpcId: null,
       threadId: live.threadId,
       turnId,
       event,
       isBlocking: false,
       resolve,
-    });
+    };
+    live.questions.set(uiId, entry);
   }).finally(() => {
     clearTimeout(live.questions.get(uiId)?.timer);
     live.questions.delete(uiId);
   });
   showNextQuestion(live);
   void outcome.then((reply) => {
+    // Left standing when its turn ended: the chat keeps it, not this request.
+    if (reply === "cancelled" && entry?.standing) return;
     live.onEvent({
       type: "question.resolved",
       requestId: uiId,
@@ -1249,6 +1255,15 @@ function publishCodexText(
 }
 
 function finishActiveTurn(live: Live, extraEvents: HarnessEvent[] = []): void {
+  // A question Codex asked without waiting has no request behind it. It
+  // outlives the turn: the user answers it with their next message.
+  for (const [requestId, pending] of live.questions) {
+    if (pending.rpcId !== null || pending.sending || live.cancelled) continue;
+    clearTimeout(pending.timer);
+    pending.timer = undefined;
+    pending.standing = true;
+    live.onEvent({ type: "question.updated", requestId, standing: true });
+  }
   clearServerRequests(live);
   closeOpenAgentRows(live);
   live.turnEndPending = false;

@@ -119,6 +119,8 @@ export type HarnessEvent =
       type: "question.updated";
       requestId: number;
       autoResolveAt?: number;
+      /** The turn ended with the question unanswered; it stays, to be answered as a message. */
+      standing?: boolean;
     }
   | {
       type: "question.resolved";

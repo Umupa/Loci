@@ -1,3 +1,4 @@
+import { standingQuestionFromBlocks } from "../../../features/sessions/model/standingQuestion";
 import type {
   AgentRunMeta,
   AgentStep,
@@ -122,6 +123,7 @@ export function applyHarnessEvent(
             pendingQuestion: {
               ...session.pendingQuestion,
               autoResolveAt: event.autoResolveAt,
+              ...(event.standing ? { standing: true } : {}),
             },
           }
         : session;
@@ -463,7 +465,14 @@ export function appendUser(
 ): Session {
   session = settlePendingApprovals(session);
   return appendBlock(
-    { ...session, busy: true },
+    {
+      ...session,
+      busy: true,
+      // Whatever the user sends next answers a question left standing.
+      ...(session.pendingQuestion?.standing
+        ? { pendingQuestion: undefined }
+        : {}),
+    },
     {
       id: crypto.randomUUID(),
       role: "user",
@@ -503,11 +512,19 @@ export function appendSteerUser(
 export function stopStreaming(session: Session, endedAt = Date.now()): Session {
   const { backgroundTasks: _cleared, ...settled } =
     settlePendingApprovals(session);
+  const blocks = stampTurnDuration(
+    settled.blocks.map(stopBlockProgress),
+    endedAt,
+  );
   return {
     ...settled,
     busy: false,
-    pendingQuestion: undefined,
-    blocks: stampTurnDuration(settled.blocks.map(stopBlockProgress), endedAt),
+    // A provider's own request dies with the turn. A question the agent left
+    // standing does not: it waits for the user's next message.
+    pendingQuestion: settled.pendingQuestion?.standing
+      ? settled.pendingQuestion
+      : standingQuestionFromBlocks(blocks),
+    blocks,
   };
 }
 

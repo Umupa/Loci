@@ -80,7 +80,7 @@ it("refreshes standing rules in an existing conversation after a context upgrade
   localStorage.setItem(
     "loci:agent-handed",
     JSON.stringify({
-      chat: { provider: "native-1", soulHash: "s1:v6", memoryHash: "m1" },
+      chat: { provider: "native-1", soulHash: "s1:v0", memoryHash: "m1" },
     }),
   );
   expect(planAgentContext("chat", "native-1", files())).toEqual({

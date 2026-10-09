@@ -23,6 +23,11 @@ export type UserQuestionPrompt = {
   questions: UserQuestion[];
   /** Deadline owned by the harness; interaction can disable automatic skipping. */
   autoResolveAt?: number;
+  /**
+   * No provider request is waiting on it: the agent asked and ended its turn,
+   * and the answer goes out as the user's next message. See `standingQuestion`.
+   */
+  standing?: boolean;
 };
 
 export type UserQuestionReply =

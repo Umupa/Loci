@@ -193,6 +193,21 @@ describe("codex live turn sequence", () => {
     expect(ordinary.params).not.toHaveProperty("ephemeral");
   });
 
+  it("leaves a question it did not wait on standing when its turn ends", async () => {
+    const { events, turn } = await startTurn("codex-live");
+    notifyAsyncQuestion("msg_q");
+    await waitFor(() => events.some((event) => event.type === "question.asked"), "the question");
+    const asked = events.find((event) => event.type === "question.asked")!;
+    notify("turn/completed", { turn: { id: "turn_1", status: "completed" } });
+    await turn;
+    // The chat keeps it for the user's next message; nothing cancels it.
+    expect(events).toContainEqual({ type: "question.updated", requestId: (asked as { requestId: number }).requestId, standing: true });
+    expect(events.some((event) => event.type === "question.resolved")).toBe(false);
+    // The answer is the user's next message now, never a steer into the ended turn.
+    respondCodexQuestion("codex-live", (asked as { requestId: number }).requestId, { kind: "answered", answers: { q1: ["Local"] } });
+    expect(parse().some((message) => message.method === "turn/steer")).toBe(false);
+  });
+
   it("reopens a thread when app access changes its network policy", async () => {
     const first = await startTurn("codex-live", { runtimeMode: "auto" });
     notify("turn/completed", { turn: { id: "turn_1", status: "completed" } });
@@ -829,7 +844,8 @@ describe("codex live turn sequence", () => {
     },
   );
 
-  it.each(["complete", "cancel", "stop"])(
+  // A turn that completes leaves its question standing instead; see above.
+  it.each(["cancel", "stop"])(
     "clears async questions on %s without sending a stale answer",
     async (action) => {
       const { events, turn } = await startTurn("codex-live");
@@ -842,11 +858,7 @@ describe("codex live turn sequence", () => {
         )!;
         reply(interrupt.id as number, {});
         await cancel;
-      } else if (action === "stop") await stopCodexSession("codex-live");
-      else
-        notify("turn/completed", {
-          turn: { id: "turn_1", status: "completed" },
-        });
+      } else await stopCodexSession("codex-live");
       await turn;
       await waitFor(
         () => events.some((event) => event.type === "question.resolved"),
