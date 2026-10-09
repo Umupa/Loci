@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { AGENT_TEMPLATES, agentTemplate } from "./agentTemplates";
+import { AGENT_TEMPLATES, agentTemplate, templateSoul } from "./agentTemplates";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const invoke = vi.fn();
@@ -244,7 +244,11 @@ it("sets an agent made from a template up for that job, asking only what it need
     expect(prompt).toContain(`"${template.name}" template`);
     expect(prompt).toContain(template.job);
     expect(prompt).toContain(template.ask);
-    expect(prompt).toContain(template.soul);
+    // The method itself is the agent's soul, not something hidden in this message.
+    expect(prompt).not.toContain(template.soul);
+    expect(prompt).toContain("under Details, Soul");
+    expect(templateSoul(template)).toContain(template.soul);
+    expect(templateSoul(template)).toContain(`You are the user's ${template.role}`);
     expect(prompt).not.toContain("what your one main job should be");
     expect(prompt.includes("You cannot give yourself projects")).toBe(template.needsProjects);
     expect(prompt.includes("Suggest one habit")).toBe(!!template.habit);

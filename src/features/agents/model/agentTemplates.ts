@@ -11,13 +11,16 @@ export type AgentTemplate = {
   name: string;
   /** Its one main job in a few words, read as "the user's <role>". */
   role: string;
+  /** The face and color it starts with, so a template is recognisable in the menu. */
+  avatar: string;
+  color: string;
   /** One line for the menu. */
   description: string;
   /** The job, completing "your job is settled: you are here to ...". */
   job: string;
   /** What it has to find out before it can start. */
   ask: string;
-  /** How it works: the points it writes its standing instructions from. */
+  /** How it works: written into its SOUL.md when it is made, for the user to read and change. */
   soul: string;
   /** A habit worth suggesting, when the job has a rhythm. */
   habit?: string;
@@ -25,9 +28,12 @@ export type AgentTemplate = {
   needsProjects: boolean;
 };
 
+/** The templates as shipped. What the app uses is `listAgentTemplates`, which has the user's edits. */
 export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   {
     id: "tutor",
+    avatar: "luna",
+    color: "hsl(280 55% 62%)",
     name: "Tutor",
     role: "tutor",
     description: "Teaches you a subject and remembers where you are.",
@@ -44,6 +50,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "project-lead",
+    avatar: "flint",
+    color: "hsl(211 92% 62%)",
     name: "Lead",
     role: "project lead",
     description: "Looks after a project and keeps its sessions moving.",
@@ -60,6 +68,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "watch",
+    avatar: "nova",
+    color: "hsl(45 90% 55%)",
     name: "Watch",
     role: "watcher",
     description: "Runs regular checks and speaks up only when needed.",
@@ -76,6 +86,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "reviewer",
+    avatar: "pebble",
+    color: "hsl(12 80% 58%)",
     name: "Reviewer",
     role: "code reviewer",
     description: "Reads changes before you ship them.",
@@ -91,6 +103,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "researcher",
+    avatar: "tide",
+    color: "hsl(175 55% 48%)",
     name: "Scout",
     role: "researcher",
     description: "Looks into a question and writes up what it found.",
@@ -106,6 +120,8 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "chief-of-staff",
+    avatar: "nimbus",
+    color: "hsl(330 70% 62%)",
     name: "Chief",
     role: "chief of staff",
     description: "Keeps your decisions, open threads and a daily brief.",
@@ -122,6 +138,115 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
 ];
 
+/** The parts of a template the user can rewrite in Settings: its wording, not its identity. */
+export const TEMPLATE_TEXT_FIELDS = ["name", "role", "description", "job", "ask", "soul", "habit"] as const;
+export type TemplateTextField = (typeof TEMPLATE_TEXT_FIELDS)[number];
+type TemplateEdits = Partial<Record<TemplateTextField, string>>;
+
+const EDITS_KEY = "loci:agent-template-edits";
+const EDITS_CHANGED = "loci:agent-templates-changed";
+
+function readEdits(): Record<string, TemplateEdits> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(EDITS_KEY) ?? "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, TemplateEdits>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeEdits(edits: Record<string, TemplateEdits>): void {
+  try {
+    localStorage.setItem(EDITS_KEY, JSON.stringify(edits));
+  } catch {
+    // Without storage the edit lasts for this window only, which the event still serves.
+  }
+  window.dispatchEvent(new CustomEvent(EDITS_CHANGED));
+}
+
+function withEdits(template: AgentTemplate, edits: TemplateEdits | undefined): AgentTemplate {
+  if (!edits) return template;
+  const next = { ...template };
+  for (const field of TEMPLATE_TEXT_FIELDS) {
+    const value = edits[field];
+    if (typeof value !== "string") continue;
+    // A habit may be cleared; everything else needs words to stand in for it.
+    if (field === "habit") {
+      if (value.trim()) next.habit = value.trim();
+      else delete next.habit;
+    } else if (value.trim()) next[field] = value.trim();
+  }
+  return next;
+}
+
+/** The templates a new agent can start from, with the user's own wording where they changed it. */
+export function listAgentTemplates(): AgentTemplate[] {
+  const edits = readEdits();
+  return AGENT_TEMPLATES.map((template) => withEdits(template, edits[template.id]));
+}
+
 export function agentTemplate(id: string | undefined): AgentTemplate | undefined {
-  return id ? AGENT_TEMPLATES.find((template) => template.id === id) : undefined;
+  return id ? listAgentTemplates().find((template) => template.id === id) : undefined;
+}
+
+/** Whether the user has changed this template from what ships. */
+export function agentTemplateEdited(id: string): boolean {
+  return Object.keys(readEdits()[id] ?? {}).length > 0;
+}
+
+/** Replace one template's wording. A field equal to what ships is not kept as an edit. */
+export function saveAgentTemplate(id: string, fields: TemplateEdits): void {
+  const shipped = AGENT_TEMPLATES.find((template) => template.id === id);
+  if (!shipped) return;
+  const kept: TemplateEdits = {};
+  for (const field of TEMPLATE_TEXT_FIELDS) {
+    const value = fields[field];
+    if (typeof value === "string" && value.trim() !== (shipped[field] ?? "").trim()) kept[field] = value;
+  }
+  const edits = readEdits();
+  if (Object.keys(kept).length) edits[id] = kept;
+  else delete edits[id];
+  writeEdits(edits);
+}
+
+/** Back to the template as shipped. */
+export function resetAgentTemplate(id: string): void {
+  const edits = readEdits();
+  delete edits[id];
+  writeEdits(edits);
+}
+
+export function subscribeAgentTemplates(onChange: () => void): () => void {
+  window.addEventListener(EDITS_CHANGED, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(EDITS_CHANGED, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+/** Changes whenever the templates do, for `useSyncExternalStore`. */
+export function agentTemplatesSnapshot(): string {
+  try {
+    return localStorage.getItem(EDITS_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * The template's working method as the agent's first SOUL.md, so what a
+ * template brings is there to read and edit from the start, under Details,
+ * Soul, rather than only inside a prompt.
+ */
+export function templateSoul(template: AgentTemplate): string {
+  return `# Soul
+
+## Standing instructions
+You are the user's ${template.role}: you are here to ${template.job}.
+
+${template.soul}
+`;
 }

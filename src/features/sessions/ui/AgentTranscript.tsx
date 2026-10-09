@@ -136,6 +136,7 @@ transcriptMutationNeedsRepaint,
 transcriptWordRanges,
 } from "../model/transcriptHighlights";
 import { AgentMarkdown } from "./AgentMarkdown";
+import { cardsOnly } from "../model/cards";
 import { HarnessIcon } from "./HarnessIcon";
 import { TranscriptSelectionMenu } from "./TranscriptSelectionMenu";
 import { UserLinkPreview } from "./UserLinkPreview";
@@ -926,6 +927,22 @@ function AgentTranscriptComponent({
                         ))
                       }
                     </TurnRow>,
+                    // A document or a checklist written along the way is
+                    // for the user, not part of the work: it stays in view
+                    // when the work around it folds.
+                    ...(workOpen
+                      ? []
+                      : foldWork.flatMap(({ entry }) => {
+                          if (entry.type !== "block" || !isProseBlock(entry.block)) return [];
+                          const cards = cardsOnly(entry.block.text);
+                          return cards
+                            ? [
+                                <div key={`cards:${entry.block.id}`} className="flow-root px-4 pb-1" data-kept-cards>
+                                  <AgentMarkdown text={cards} cwd={cwd} onOpenFile={onOpenFile} />
+                                </div>,
+                              ]
+                            : [];
+                        })),
                     // Delegated runs sit under the agent's own work, not
                     // among it: they are a second thing the turn is doing,
                     // and reading them as the first steps of the main trail

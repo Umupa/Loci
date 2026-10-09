@@ -499,5 +499,20 @@
   "sessionFocus && !overlay": "会话获得焦点且无浮层时",
   "!overlay && (!textFocus || emptyComposer)": "无浮层，且未编辑文本或输入框为空时",
   "Settings language": "设置页语言",
-  "Choose the language for Settings. The workspace stays in English.": "选择设置页使用的语言。工作区保持英文。"
+  "Choose the language for Settings. The workspace stays in English.": "选择设置页使用的语言。工作区保持英文。",
+  "Agent templates": "智能体模板",
+  "What a new agent starts from when you pick a template. The soul is written into the new agent's SOUL.md; the rest is what Loci tells it while it sets itself up. Changes apply to agents made afterwards, not to ones you already have.": "选择模板时新智能体的起点。灵魂会写入新智能体的 SOUL.md；其余是它自我设置时 Loci 告诉它的内容。修改只影响之后创建的智能体，不影响已有的。",
+  "Your changes to this template are discarded. Agents already made from it keep their own soul.": "你对这个模板的修改会被丢弃。已经用它创建的智能体保留各自的灵魂。",
+  "Edited": "已修改",
+  "Edit": "编辑",
+  "Role": "角色",
+  "Line in the menu": "菜单里的说明",
+  "Soul": "灵魂",
+  "Written into the new agent's SOUL.md, where you can keep editing it.": "写入新智能体的 SOUL.md，之后可以继续编辑。",
+  "Its job": "它的工作",
+  "Completes the sentence \"you are here to …\".": "接在“you are here to …”之后。",
+  "What it asks you first": "它先问你什么",
+  "Completes \"find out what this job needs: …\".": "接在“find out what this job needs: …”之后。",
+  "Habit it suggests": "它建议的习惯",
+  "Optional. Leave empty for none.": "可选。留空表示没有。"
 }

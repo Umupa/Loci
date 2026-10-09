@@ -13,6 +13,7 @@ import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
 import { agentLook, agentProjectsPhrase, agentsSnapshot, listAgents, subscribeAgents, type Agent } from "../../agents/model/agent";
 import { defaultAgentName } from "../../agents/model/agentAvatars";
 import { resetAgentDefaults } from "../../agents/model/agentFiles";
+import { TEMPLATE_TEXT_FIELDS, agentTemplateEdited, agentTemplatesSnapshot, listAgentTemplates, resetAgentTemplate, saveAgentTemplate, subscribeAgentTemplates, type AgentTemplate, type TemplateTextField } from "../../agents/model/agentTemplates";
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { GradientBlurBackground } from "./GradientBlurBackground";
 import { McpSettings } from "./McpSettings";
@@ -1701,6 +1702,9 @@ function AgentsPage() {
     const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const agents = useMemo(() => listAgents(), [snapshot]);
+    const templateSnapshot = useSyncExternalStore(subscribeAgentTemplates, agentTemplatesSnapshot, () => "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const templates = useMemo(() => listAgentTemplates(), [templateSnapshot]);
     return (<>
       <Group title={t("Agents")}>
         <Row id="agents-enabled" label={t("Show agents")} description={t("Long-lived agents on the project rail, each with its own conversation, memory and habits. Turning this off hides them and pauses their habits; nothing is deleted.")}>
@@ -1710,7 +1714,57 @@ function AgentsPage() {
       <Group id="agent-list" title={t("Your agents")} description={t("Add an agent with the plus beside Agents on the project rail. Its model, projects, soul, habits and memory are set in its Details panel.")}>
         {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No agents yet.")}</p>)}
       </Group>
+      <Group id="agent-templates" title={t("Agent templates")} description={t("What a new agent starts from when you pick a template. The soul is written into the new agent's SOUL.md; the rest is what Loci tells it while it sets itself up. Changes apply to agents made afterwards, not to ones you already have.")}>
+        {templates.map((template) => <TemplateRow key={template.id} template={template}/>)}
+      </Group>
     </>);
+}
+const TEMPLATE_FIELD_CLASS = "mt-1 block w-full rounded-md border border-stroke bg-background-base px-2 py-1.5 text-[13px] text-content outline-none focus:border-content/30";
+/** One built-in template: its wording, open to edit, with the way back to what ships. */
+function TemplateRow({ template }: { template: AgentTemplate }) {
+    useLocale();
+    const [draft, setDraft] = useState<Record<TemplateTextField, string>>();
+    const edited = agentTemplateEdited(template.id);
+    const open = () => setDraft(Object.fromEntries(TEMPLATE_TEXT_FIELDS.map((field) => [field, template[field] ?? ""])) as Record<TemplateTextField, string>);
+    const set = (field: TemplateTextField) => (event: { target: { value: string } }) => setDraft((current) => current && ({ ...current, [field]: event.target.value }));
+    const reset = async () => {
+        if (!await ask(t("Your changes to this template are discarded. Agents already made from it keep their own soul."), { title: t("Reset {0} to its defaults?", template.name), kind: "warning", okLabel: t("Reset"), cancelLabel: t("Cancel") }))
+            return;
+        resetAgentTemplate(template.id);
+        setDraft(undefined);
+    };
+    const line = (field: TemplateTextField, label: string) => (<label className="block text-xs text-content/65">
+          {label}<input value={draft?.[field] ?? ""} onChange={set(field)} spellCheck={false} className={TEMPLATE_FIELD_CLASS}/>
+        </label>);
+    const text = (field: TemplateTextField, label: string, hint: string, rows: number, mono = false) => (<label className="block text-xs text-content/65">
+          {label}<span className="ml-1.5 text-content/40">{hint}</span>
+          <textarea value={draft?.[field] ?? ""} onChange={set(field)} rows={rows} spellCheck={false} className={`${TEMPLATE_FIELD_CLASS} resize-y leading-relaxed ${mono ? "font-mono text-xs" : ""}`}/>
+        </label>);
+    return (<div data-template={template.id} className="border-b border-content/5 last:border-b-0">
+      <Row label={<span className="flex min-w-0 items-center gap-2">
+            <AgentAvatar name={template.avatar} color={template.color} className="size-4 shrink-0"/>
+            <span className="truncate">{template.name}</span>
+            {edited ? <span className="shrink-0 rounded bg-content/10 px-1.5 py-px text-[10px] font-normal text-content/55">{t("Edited")}</span> : null}
+          </span>} description={template.description}>
+        {edited ? <SecondaryButton onClick={() => void reset()}>{t("Reset")}</SecondaryButton> : null}
+        <SecondaryButton onClick={() => draft ? setDraft(undefined) : open()}>{draft ? t("Cancel") : t("Edit")}</SecondaryButton>
+      </Row>
+      {draft ? (<div className="flex flex-col gap-3 px-4 pb-4">
+          <div className="grid grid-cols-2 gap-3">
+            {line("name", t("Name"))}
+            {line("role", t("Role"))}
+          </div>
+          {line("description", t("Line in the menu"))}
+          {text("soul", t("Soul"), t("Written into the new agent's SOUL.md, where you can keep editing it."), 14, true)}
+          {text("job", t("Its job"), t("Completes the sentence \"you are here to …\"."), 2)}
+          {text("ask", t("What it asks you first"), t("Completes \"find out what this job needs: …\"."), 3)}
+          {text("habit", t("Habit it suggests"), t("Optional. Leave empty for none."), 2)}
+          <div className="flex justify-end gap-2">
+            <SecondaryButton onClick={() => setDraft(undefined)}>{t("Cancel")}</SecondaryButton>
+            <button type="button" className="primary-action rounded-md px-3 py-1 text-xs font-medium" onClick={() => { saveAgentTemplate(template.id, draft); setDraft(undefined); }}>{t("Save")}</button>
+          </div>
+        </div>) : null}
+    </div>);
 }
 function AgentRow({ agent }: { agent: Agent }) {
     useLocale();

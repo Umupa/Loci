@@ -102,6 +102,33 @@ export function fencedBlocks(text: string, fence: string): string[] {
   return blocks;
 }
 
+/** The fences whose cards are worth keeping in view once the message around them is folded away. */
+const KEPT_FENCES: readonly string[] = [
+  CARD_FENCE.document,
+  CARD_FENCE.todo,
+  CARD_FENCE.mindmap,
+  CARD_FENCE.canvas,
+];
+
+/**
+ * Only the cards of a message, as Markdown that draws them again. A message
+ * the agent wrote while working is folded into the turn's work; what it made
+ * for the user should not go with it.
+ */
+export function cardsOnly(text: string): string {
+  if (!text.includes("loci-")) return "";
+  const kept: { at: number; block: string }[] = [];
+  for (const fence of KEPT_FENCES) {
+    for (const source of fencedBlocks(text, fence)) {
+      // Longer than any fence inside, so the source stays one block.
+      const longest = Math.max(2, ...(source.match(/~+/g) ?? []).map((run) => run.length));
+      const wrap = "~".repeat(longest + 1);
+      kept.push({ at: text.indexOf(source), block: `${wrap}${fence}\n${source}\n${wrap}` });
+    }
+  }
+  return kept.sort((a, b) => a.at - b.at).map((entry) => entry.block).join("\n\n");
+}
+
 /** The documents a reply wrote, each ready to save; a later one with the same id wins. */
 export function documentsInText(text: string): AgentDocument[] {
   const byId = new Map<string, AgentDocument>();

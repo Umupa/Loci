@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cardsOnly,
   documentsInText,
   fencedBlocks,
   parseDocument,
@@ -114,5 +115,18 @@ describe("canvas links", () => {
     expect(parseCanvasLink("id: abc-123\ntitle: Pod lifecycle")).toEqual({ id: "abc-123", title: "Pod lifecycle" });
     expect(parseCanvasLink("abc-123\n")).toEqual({ id: "abc-123" });
     expect(parseCanvasLink("the canvas I drew")).toBeUndefined();
+  });
+});
+
+describe("cards kept when a message folds", () => {
+  it("keeps the cards, in order, and drops the prose and other code", () => {
+    const text = "Here it is.\n\n````loci-document\n---\nid: a\ntitle: A\n---\n```sh\nls\n```\n````\n\n```sh\necho no\n```\n\n```loci-todo\n- [ ] one\n```\n";
+    const kept = cardsOnly(text);
+    expect(kept).not.toContain("Here it is");
+    expect(kept).not.toContain("echo no");
+    expect(documentsInText(kept)).toEqual(documentsInText(text));
+    expect(fencedBlocks(kept, "loci-todo")).toEqual(["- [ ] one"]);
+    expect(kept.indexOf("loci-document")).toBeLessThan(kept.indexOf("loci-todo"));
+    expect(cardsOnly("Just prose, and ```loci-question\n{}\n```")).toBe("");
   });
 });
