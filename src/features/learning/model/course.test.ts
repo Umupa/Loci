@@ -4,7 +4,8 @@ import { courseItems, loadCourse, parseCourse, parseCourseData, parseDiff } from
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const step = { id: "s01", title: "Agent loop", summary: "Add the loop", file: "main.py", before: "", after: "  run()\n\n", explanation: "A **loop**", runCommand: "python main.py" };
-const concept = (id: string) => ({ id, title: id.toUpperCase(), content: `Learn ${id}`, prerequisites: [], leadsTo: [] });
+const read = (id: string) => ({ id, title: id.toUpperCase(), document: `k8s-${id}` });
+const chapters = (...lessons: unknown[]) => ({ chapters: [{ title: "Workloads", lessons }] });
 const courseSource = (engine: string, data: unknown, metadata = "") => `---\nid: sample\nengine: ${engine}\ntitle: Sample course\n${metadata}---\n${JSON.stringify(data)}\n---\n`;
 
 beforeEach(() => vi.mocked(invoke).mockReset());
@@ -15,10 +16,16 @@ describe("generated course boundary", () => {
     expect(result.course?.data.engine === "build-your-own" && result.course.data.steps[0].after).toBe("  run()\n\n");
   });
 
-  it("persists the canvas scope and includes concepts outside a partial recommended path", () => {
-    const result = parseCourse(courseSource("domain-navigation", { learningPath: ["pod"], concepts: [concept("container"), { ...concept("pod"), prerequisites: ["container"] }, concept("service")] }, "canvas-id: canvas-a\n"));
-    expect(result.course?.data).toMatchObject({ canvasId: "canvas-a", learningPath: ["pod"] });
-    expect(courseItems(result.course!.data).map((item) => item.id)).toEqual(["pod", "container", "service"]);
+  it("reads a course as chapters of lessons to read, in the order written, without naming an engine", () => {
+    const data = { chapters: [
+      { title: "Workloads", lessons: [read("pod"), { ...read("probe"), section: "Readiness probe", status: "mastered" }] },
+      { title: "Papers", lessons: [{ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [3, 9] }, { id: "omega", title: "Omega", file: "C:\\books\\omega.pdf" }] },
+    ] };
+    const result = parseCourse(`---\nid: sample\ntitle: Sample course\ncanvas-id: canvas-a\n---\n${JSON.stringify(data)}\n`);
+    expect(result.course).toMatchObject({ engine: "reading", canvasId: "canvas-a" });
+    expect(result.course?.data).toMatchObject({ canvasId: "canvas-a", chapters: [{ lessons: [{ document: "k8s-pod" }, { document: "k8s-probe", section: "Readiness probe" }] }, { lessons: [{ file: "/books/borg.pdf", pages: [3, 9] }, { file: "C:\\books\\omega.pdf" }] }] });
+    expect(JSON.stringify(result.course?.data)).not.toContain("status");
+    expect(courseItems(result.course!.data).map((item) => item.id)).toEqual(["pod", "probe", "borg", "omega"]);
   });
 
   it.each([null, [], { steps: [] }, { steps: [null] }, { steps: [{ ...step, id: "../step" }] }, { steps: [{ ...step, before: null }] }, { steps: [{ ...step, file: "" }] }, { steps: [step, step] }])("rejects malformed build data without throwing from the parser: %j", (data) => {
@@ -26,24 +33,31 @@ describe("generated course boundary", () => {
   });
 
   it.each([
-    { concepts: [concept("pod")], learningPath: ["missing"] },
-    { concepts: [concept("pod"), concept("pod")], learningPath: [] },
-    { concepts: [concept("pod")], learningPath: ["pod", "pod"] },
-    { concepts: [{ ...concept("pod"), prerequisites: ["missing"] }], learningPath: [] },
-    { concepts: [{ ...concept("pod"), leadsTo: ["pod"] }], learningPath: [] },
-    { concepts: [{ ...concept("pod"), prerequisites: null }], learningPath: [] },
-    { concepts: [{ ...concept("pod"), simulationHtml: 123 }], learningPath: [] },
-    { concepts: [], learningPath: [] },
-  ])("rejects malformed concept structure or references: %j", (data) => {
-    expect(parseCourse(courseSource("domain-navigation", data)).error).toBeTruthy();
+    { chapters: [] },
+    { chapters: [{ title: "Empty", lessons: [] }] },
+    { chapters: [{ title: "", lessons: [read("pod")] }] },
+    chapters(read("pod"), read("pod")),
+    chapters({ id: "pod", title: "Pod" }),
+    chapters({ ...read("pod"), file: "/books/pod.pdf" }),
+    chapters({ ...read("pod"), document: "../notes" }),
+    chapters({ ...read("pod"), pages: [1, 2] }),
+    chapters({ ...read("pod"), section: "" }),
+    chapters({ id: "borg", title: "Borg", file: "borg.pdf" }),
+    chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", section: "Intro" }),
+    chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [9, 3] }),
+    chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [0, 3] }),
+    chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: "3-9" }),
+  ])("rejects malformed chapters or lessons: %j", (data) => {
+    expect(parseCourse(courseSource("reading", data)).error).toBeTruthy();
   });
 
   it("rejects duplicate metadata, broken JSON, unknown engines and contradictory scopes", () => {
     expect(parseCourse(courseSource("build-your-own", { steps: [step] }, "id: duplicate\n")).error).toContain("duplicate metadata");
     expect(parseCourse("---\nid: sample\ntitle: Sample\nengine: build-your-own\n---\n{").error).toContain("valid JSON");
     expect(parseCourse(courseSource("other", {})).error).toContain("Unknown");
-    expect(parseCourse(courseSource("domain-navigation", { concepts: [concept("pod")], learningPath: [], canvasId: "canvas-b" }, "canvas-id: canvas-a\n")).error).toContain("does not match");
-    expect(() => parseCourseData("build-your-own", { engine: "domain-navigation", steps: [step] })).toThrow("engine does not match");
+    expect(parseCourse(courseSource("reading", { ...chapters(read("pod")), canvasId: "canvas-b" }, "canvas-id: canvas-a\n")).error).toContain("does not match");
+    expect(() => parseCourseData("build-your-own", { engine: "reading", steps: [step] })).toThrow("engine does not match");
+    expect(parseCourse(courseSource("domain-navigation", { concepts: [], learningPath: [] })).error).toContain("earlier format");
   });
 
   it("handles BOM, CRLF and quoted flat metadata", () => {

@@ -21,7 +21,7 @@ import { ReminderNotices } from "../features/sessions/ui/ReminderNotices";
 import { TranscriptPool, TranscriptPoolOutlet } from "../features/sessions/ui/TranscriptPool";
 import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
-import { requestFilePlace, type OpenFileFn } from "../features/files/model/filePlace";
+import { OPEN_FILE_EVENT, requestFilePlace, type OpenFileFn } from "../features/files/model/filePlace";
 import { openPathWithDefaultApp, pickFolders } from "../platform/tauri/fs";
 import { useAgentWorkspace, separateAgentWorkspaces } from "./hooks/useAgentWorkspace";
 import { useAgents } from "./hooks/useAgents";
@@ -364,6 +364,14 @@ function Workspace(boot: BootWorkspace) {
       window.removeEventListener(OPEN_COURSE_EVENT, course);
     };
   }, [revealLearningConversation]);
+  useEffect(() => {
+    const open = (event: Event) => {
+      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
+      if (path) openLearningFile(path);
+    };
+    window.addEventListener(OPEN_FILE_EVENT, open);
+    return () => window.removeEventListener(OPEN_FILE_EVENT, open);
+  }, [openLearningFile]);
   useEffect(() => {
     const release = listen("open_pdf", openPdf);
     return () => { void release.then((stop) => stop()); };

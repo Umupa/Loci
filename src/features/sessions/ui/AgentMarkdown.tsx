@@ -136,7 +136,35 @@ const FileOpenContext = createContext<{
     event: ReactMouseEvent,
     path: string,
   ) => void;
+  sourceUrl?: string;
 }>({});
+
+type SourceNode = { type: string; url?: string; children?: SourceNode[] };
+
+/**
+ * Make a source's relative addresses absolute against the page it was
+ * published at. This runs before URL sanitizing, which would otherwise
+ * resolve `../` away and lose where the path started.
+ */
+function remarkSourceAddresses({ sourceUrl }: { sourceUrl?: string }) {
+  const visit = (node: SourceNode) => {
+    if ((node.type === "link" || node.type === "image" || node.type === "definition") && node.url)
+      node.url = sourceAddress(node.url, sourceUrl) ?? node.url;
+    for (const child of node.children ?? []) visit(child);
+  };
+  return (root: SourceNode) => { if (sourceUrl) visit(root); };
+}
+
+/** An address in a source, made absolute against where the source was published. Only the web counts. */
+function sourceAddress(address: string, sourceUrl: string | undefined): string | undefined {
+  if (!sourceUrl || !address || address.startsWith("#")) return undefined;
+  try {
+    const url = new URL(address, sourceUrl);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 
 
@@ -251,9 +279,10 @@ function MarkdownLink({
   ...props
 }: MarkdownLinkProps) {
 
-  const { cwd, onOpenFile, onFileContextMenu } = useContext(FileOpenContext);
+  const { cwd, onOpenFile, onFileContextMenu, sourceUrl } = useContext(FileOpenContext);
   const resource = href ? parseAppResourceUrl(href) : undefined;
-  const file = href ? resolveWorkspaceFileReference(href, cwd) : undefined;
+  // A source's own links go where its page's links went, never to a local file.
+  const file = href && !sourceUrl ? resolveWorkspaceFileReference(href, cwd) : undefined;
   if (href?.startsWith("loci:") && !resource) return <span dir={dir ?? "auto"}>{children}</span>;
   const ResourceIcon = resource?.kind === "canvas" ? ExcalidrawIcon : resource?.kind === "session" ? MessageSquare : File;
   return (
@@ -538,10 +567,16 @@ function MarkdownImage({
   node: _node,
   ...props
 }: MarkdownImageProps) {
-
+  const { sourceUrl } = useContext(FileOpenContext);
   const url = typeof src === "string" ? src.trim() : "";
   if (url.startsWith("data:image/")) {
     return <img {...props} src={url} alt={alt ?? ""} />;
+  }
+  // Only a source shows pictures from the web, from where it was published.
+  // A reply never does: an address written into one could carry data out.
+  const remote = sourceAddress(url, sourceUrl);
+  if (remote?.startsWith("https:")) {
+    return <img {...props} src={remote} alt={alt ?? ""} draggable={false} loading="lazy" referrerPolicy="no-referrer" />;
   }
   if (isNoteImagePath(url)) {
     return <NoteAssetImage {...props} asset={url} alt={alt} />;
@@ -588,6 +623,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   onOpenFile,
   hardBreaks,
   wholeDocument = false,
+  sourceUrl,
 }: {
   text: string;
   streaming?: boolean;
@@ -601,6 +637,8 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   hardBreaks?: boolean;
   /** Keep reference definitions available across paragraphs in saved documents. */
   wholeDocument?: boolean;
+  /** Where this text was published, when it is a source: its pictures and relative links resolve there. */
+  sourceUrl?: string;
 }) {
   const code = useCodePlugin();
   const plugins = useMemo(() => ({ code, mermaid }), [code]);
@@ -615,16 +653,17 @@ export const AgentMarkdown = memo(function AgentMarkdown({
     [],
   );
   const fileOpen = useMemo(
-    () => ({ cwd, onOpenFile, onFileContextMenu }),
-    [cwd, onOpenFile, onFileContextMenu],
+    () => ({ cwd, onOpenFile, onFileContextMenu, sourceUrl }),
+    [cwd, onOpenFile, onFileContextMenu, sourceUrl],
   );
   const remarkPlugins = useMemo<PluggableList>(
     () => [
       ...Object.values(defaultRemarkPlugins),
+      [remarkSourceAddresses, { sourceUrl }],
       [remarkLocalImages, { cwd }],
       [remarkWorkspaceFileLinks, { cwd }],
     ],
-    [cwd],
+    [cwd, sourceUrl],
   );
 
   const paced = usePacedText(text, !!streaming, revealOnMount);

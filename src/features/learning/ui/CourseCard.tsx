@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, CircleDashed, Mortarboard } from "../../../shared/ui/icons";
-import { openCourse, parseCourse } from "../model/course";
+import { courseItems, openCourse, parseCourse } from "../model/course";
 import { WidgetHostContext } from "../model/widgets";
 import "./CoursePane.css";
 
@@ -24,8 +24,9 @@ export function CourseCard({ source, incomplete }: { source: string; incomplete:
   }
   if (!result.course) return <div data-card="course" className="course-card"><p role="alert" className="course-error">{result.error}</p><details className="course-source"><summary>View source</summary><pre>{source}</pre></details></div>;
   const { course } = result;
-  const count = course.data.engine === "build-your-own" ? course.data.steps.length : course.data.concepts.length;
-  const kind = course.engine === "build-your-own" ? "step" : "concept";
+  const count = courseItems(course.data).length;
+  const kind = course.engine === "build-your-own" ? "step" : "lesson";
+  const chapters = course.data.engine === "reading" ? course.data.chapters.length : 0;
   const handleOpen = async () => {
     if (!host || busy) return;
     const owner = host.owner.id;
@@ -43,9 +44,9 @@ export function CourseCard({ source, incomplete }: { source: string; incomplete:
     }
   };
   return <div data-card="course" className="course-card">
-    <div className="course-card__heading"><Mortarboard className="size-5" /><span className="course-card__engine-badge">{course.engine === "build-your-own" ? "Build Your Own" : "Domain Navigation"}</span></div>
+    <div className="course-card__heading"><Mortarboard className="size-5" /><span className="course-card__engine-badge">{course.engine === "build-your-own" ? "Build Your Own" : "Course"}</span></div>
     <h3 className="course-card__title">{course.title}</h3>
-    <div className="course-card__footer"><span>{count} {kind}{count === 1 ? "" : "s"}</span><button type="button" disabled={!host || busy} className="course-button" onClick={() => void handleOpen()}>{busy ? "Opening…" : "Open Course"}<ChevronRight className="size-3.5" /></button></div>
+    <div className="course-card__footer"><span>{chapters ? `${chapters} chapter${chapters === 1 ? "" : "s"} · ` : ""}{count} {kind}{count === 1 ? "" : "s"}</span><button type="button" disabled={!host || busy} className="course-button" onClick={() => void handleOpen()}>{busy ? "Opening…" : "Open Course"}<ChevronRight className="size-3.5" /></button></div>
     {!host ? <p className="course-card__hint">Open this course in its original conversation to begin.</p> : null}
     {error ? <p role="alert" className="course-error">{error}</p> : null}
   </div>;

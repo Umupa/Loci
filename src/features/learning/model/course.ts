@@ -2,19 +2,28 @@ import { invoke } from "@tauri-apps/api/core";
 
 export const COURSE_FENCE = "loci-course";
 export const DIFF_FENCE = "loci-diff";
-export type CourseEngine = "build-your-own" | "domain-navigation";
+/**
+ * A reading course is chapters of lessons, each naming what to read: a
+ * document in the agent's library or a file on disk. It holds no text of its
+ * own. A build-your-own course is a sequence of code steps.
+ */
+export type CourseEngine = "build-your-own" | "reading";
 export type LearningStatus = "untouched" | "learning" | "mastered";
 export type CourseStep = {
   id: string; title: string; summary: string; file: string;
   before: string; after: string; explanation: string; runCommand?: string;
 };
-export type CourseConcept = {
-  id: string; title: string; content: string; prerequisites: string[];
-  leadsTo: string[]; simulationHtml?: string;
+export type CourseLesson = {
+  id: string; title: string;
+  /** A document in the agent's library, and optionally the heading to start at. */
+  document?: string; section?: string;
+  /** Or a file on disk, such as a PDF, and optionally its first and last page. */
+  file?: string; pages?: [number, number];
 };
+export type CourseChapter = { title: string; lessons: CourseLesson[] };
 export type CourseData =
   | { engine: "build-your-own"; steps: CourseStep[] }
-  | { engine: "domain-navigation"; learningPath: string[]; canvasId?: string; concepts: CourseConcept[] };
+  | { engine: "reading"; chapters: CourseChapter[]; canvasId?: string };
 export type ParsedCourse = { id: string; title: string; engine: CourseEngine; canvasId?: string; data: CourseData };
 export type CourseWithProgress = { id: string; agentId: string; title: string; updatedAt: number; data: CourseData; progress: Map<string, LearningStatus> };
 export type CourseParseResult = { course: ParsedCourse; error?: never } | { course?: never; error: string };
@@ -36,12 +45,6 @@ function id(value: unknown, label: string): string {
 }
 function optionalString(value: unknown, label: string): string | undefined {
   return value === undefined ? undefined : string(value, label);
-}
-function ids(value: unknown, label: string): string[] {
-  if (!Array.isArray(value)) throw new Error(`${label} must be an array.`);
-  const list = value.map((item) => id(item, label));
-  if (new Set(list).size !== list.length) throw new Error(`${label} contains duplicate ids.`);
-  return list;
 }
 function errorText(cause: unknown): string { return cause instanceof Error ? cause.message : String(cause); }
 
@@ -81,32 +84,41 @@ export function parseCourseData(engine: unknown, value: unknown, canvasId?: stri
     if (new Set(steps.map((step) => step.id)).size !== steps.length) throw new Error("Course steps contain duplicate ids.");
     return { engine, steps };
   }
-  if (engine !== "domain-navigation") throw new Error(`Unknown course engine: ${String(engine)}.`);
-  if (!Array.isArray(raw.concepts) || raw.concepts.length === 0) throw new Error("A domain-navigation course needs a non-empty concepts array.");
-  const concepts = raw.concepts.map((value, index): CourseConcept => {
-    const concept = object(value, `Concept ${index + 1}`);
-    const label = `Concept ${index + 1}`;
-    return {
-      id: id(concept.id, `${label} id`), title: string(concept.title, `${label} title`),
-      content: string(concept.content, `${label} content`, true),
-      prerequisites: ids(concept.prerequisites, `${label} prerequisites`), leadsTo: ids(concept.leadsTo, `${label} leadsTo`),
-      ...(concept.simulationHtml !== undefined ? { simulationHtml: optionalString(concept.simulationHtml, `${label} simulationHtml`) } : {}),
-    };
+  if (engine === "domain-navigation") throw new Error("This course was written in an earlier format. Ask the agent to write it again.");
+  if (engine !== "reading") throw new Error(`Unknown course engine: ${String(engine)}.`);
+  if (!Array.isArray(raw.chapters) || raw.chapters.length === 0) throw new Error("A course needs a non-empty chapters array.");
+  const chapters = raw.chapters.map((value, index): CourseChapter => {
+    const chapter = object(value, `Chapter ${index + 1}`);
+    const label = `Chapter ${index + 1}`;
+    if (!Array.isArray(chapter.lessons) || chapter.lessons.length === 0) throw new Error(`${label} needs a non-empty lessons array.`);
+    return { title: string(chapter.title, `${label} title`), lessons: chapter.lessons.map((value, at) => lesson(value, `${label} lesson ${at + 1}`)) };
   });
-  const knownIds = new Set(concepts.map((concept) => concept.id));
-  if (knownIds.size !== concepts.length) throw new Error("Course concepts contain duplicate ids.");
-  const learningPath = ids(raw.learningPath, "learningPath");
-  for (const target of learningPath) if (!knownIds.has(target)) throw new Error(`learningPath references unknown concept: ${target}.`);
-  for (const concept of concepts) {
-    for (const target of [...concept.prerequisites, ...concept.leadsTo]) {
-      if (!knownIds.has(target)) throw new Error(`${concept.id} references unknown concept: ${target}.`);
-      if (target === concept.id) throw new Error(`${concept.id} cannot reference itself.`);
-    }
-  }
+  const lessonIds = chapters.flatMap((chapter) => chapter.lessons.map((entry) => entry.id));
+  if (new Set(lessonIds).size !== lessonIds.length) throw new Error("Course lessons contain duplicate ids.");
   const storedCanvas = optionalString(raw.canvasId, "canvasId");
   if (canvasId && storedCanvas && canvasId !== storedCanvas) throw new Error("canvas-id does not match the course body's canvasId.");
   const canvas = canvasId ?? storedCanvas;
-  return { engine, concepts, learningPath, ...(canvas ? { canvasId: canvas } : {}) };
+  return { engine, chapters, ...(canvas ? { canvasId: canvas } : {}) };
+}
+
+function lesson(value: unknown, label: string): CourseLesson {
+  const raw = object(value, label);
+  const base = { id: id(raw.id, `${label} id`), title: string(raw.title, `${label} title`) };
+  const document = optionalString(raw.document, `${label} document`);
+  const file = optionalString(raw.file, `${label} file`);
+  if ((document === undefined) === (file === undefined)) throw new Error(`${label} must name exactly one of document or file.`);
+  if (document !== undefined) {
+    if (!/^[\p{L}\p{N}_-]{1,80}$/u.test(document)) throw new Error(`${label} document must be a document id.`);
+    if (raw.pages !== undefined) throw new Error(`${label}: pages belong to a file.`);
+    const section = optionalString(raw.section, `${label} section`);
+    return { ...base, document, ...(section ? { section } : {}) };
+  }
+  if (raw.section !== undefined) throw new Error(`${label}: section belongs to a document.`);
+  if (!/^(?:\/|[A-Za-z]:[\\/])/.test(file!)) throw new Error(`${label} file must be an absolute path.`);
+  if (raw.pages === undefined) return { ...base, file };
+  const pages = raw.pages;
+  if (!Array.isArray(pages) || pages.length !== 2 || !pages.every((page) => Number.isSafeInteger(page) && page > 0) || pages[1] < pages[0]) throw new Error(`${label} pages must be [first, last].`);
+  return { ...base, file, pages: [pages[0], pages[1]] };
 }
 
 export function parseCourse(source: string): CourseParseResult {
@@ -119,8 +131,9 @@ export function parseCourse(source: string): CourseParseResult {
     let json: unknown;
     try { json = JSON.parse(body.replace(/\n---[ \t]*\n?$/, "").trim()); }
     catch { throw new Error("loci-course body must be valid JSON."); }
-    const data = parseCourseData(fields.engine, json, canvasId);
-    return { course: { id: courseId, title, engine: data.engine, data, ...(data.engine === "domain-navigation" && data.canvasId ? { canvasId: data.canvasId } : {}) } };
+    // Chapters of things to read is what a course is; only code steps say otherwise.
+    const data = parseCourseData(fields.engine ?? "reading", json, canvasId);
+    return { course: { id: courseId, title, engine: data.engine, data, ...(data.engine === "reading" && data.canvasId ? { canvasId: data.canvasId } : {}) } };
   } catch (cause) { return { error: errorText(cause) }; }
 }
 
@@ -143,11 +156,9 @@ export function parseDiff(source: string): DiffParseResult {
   } catch (cause) { return { error: errorText(cause) }; }
 }
 
+/** Everything to work through, in the order shown: that order is the order to study in. */
 export function courseItems(data: CourseData): { id: string; title: string }[] {
-  if (data.engine === "build-your-own") return data.steps;
-  const byId = new Map(data.concepts.map((concept) => [concept.id, concept]));
-  const pathIds = new Set(data.learningPath);
-  return [...data.learningPath.map((id) => byId.get(id)!), ...data.concepts.filter((concept) => !pathIds.has(concept.id))];
+  return data.engine === "build-your-own" ? data.steps : data.chapters.flatMap((chapter) => chapter.lessons);
 }
 
 export async function loadCourse(courseId: string, agentId: string): Promise<CourseWithProgress | null> {

@@ -367,7 +367,7 @@ function LibraryPage({ agentId, documents, canvases, widgets, error, onOpenCanva
           <button key={`${entry.kind}:${entry.item.id}`} type="button"
             data-library-kind={entry.kind} data-library-id={entry.item.id}
             aria-label={`${label}: ${entry.item.title}`}
-            title={[entry.item.title, [label, subject].filter(Boolean).join(" · "), libraryDate.format(entry.item.updatedAt)].join("\n")}
+            title={[entry.item.title, [entry.kind === "document" && entry.item.sourceUrl ? "Source" : label, subject].filter(Boolean).join(" · "), libraryDate.format(entry.item.updatedAt)].join("\n")}
             onClick={() => void open(entry)}
             className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-content/6 focus-visible:bg-content/6 focus-visible:outline-2 focus-visible:outline-content/30">
             <Icon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-content/40" strokeWidth={1.75} />

@@ -93,7 +93,7 @@ beforeEach(async () => {
     if (command === "canvas_list") return [canvas];
     if (command === "canvas_get") return input.id === canvas.id ? canvas : null;
     if (command === "course_get") return { id: input.id, agentId: (args as { agentId: string }).agentId, title: "Kubernetes",
-      updatedAt: 2, engine: "domain-navigation", dataJson: JSON.stringify({ learningPath: ["pod"], concepts: [{ id: "pod", title: "Pod", content: "Course content", prerequisites: [], leadsTo: [] }] }) };
+      updatedAt: 2, engine: "reading", dataJson: JSON.stringify({ chapters: [{ title: "Workloads", lessons: [{ id: "pod", title: "Pod", file: "/books/course-content.pdf" }] }] }) };
     if (command === "course_progress_get") return [];
     if (command === "agent_documents_list") return [...library.entries()].filter(([key]) => key.startsWith(`${input.agent}:`)).map(([, entry]) => {
       const { body: _body, ...summary } = entry;
@@ -178,14 +178,14 @@ it("opens a course in its owning agent workspace and a project course in its sou
   const agentCourse = { courseId: "kubernetes", agentId: "agent-a", title: "Kubernetes", sourceSessionId: "chat-a" };
   await act(async () => openCourse(agentCourse));
   await settle(() => {
-    expect(pane(coursePaneId(agentCourse.courseId, agentCourse.agentId))?.textContent).toContain("Course content");
+    expect(pane(coursePaneId(agentCourse.courseId, agentCourse.agentId))?.textContent).toContain("course-content.pdf");
     expect(agentWorkspace()).toBeTruthy();
     expect(pane("chat-a")).toBeTruthy();
   });
   const projectCourse = { ...agentCourse, agentId: project.id, sourceSessionId: project.id };
   await act(async () => openCourse(projectCourse));
   await settle(() => {
-    expect(pane(coursePaneId(projectCourse.courseId, projectCourse.agentId))?.textContent).toContain("Course content");
+    expect(pane(coursePaneId(projectCourse.courseId, projectCourse.agentId))?.textContent).toContain("course-content.pdf");
     expect(pane(project.id)).toBeTruthy();
     expect(pane(coursePaneId(agentCourse.courseId, agentCourse.agentId))).toBeNull();
   });

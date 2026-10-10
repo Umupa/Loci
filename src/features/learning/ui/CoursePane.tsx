@@ -1,18 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { GripVertical, MessageSquarePlus, Mortarboard, X } from "../../../shared/ui/icons";
 import { findAgent } from "../../agents/model/agent";
+import { readAgentDocument, subscribeAgentDocuments } from "../../agents/model/agentDocuments";
+import { DocumentBody, shownDocument } from "../../agents/ui/DocumentBody";
+import { requestOpenFile } from "../../files/model/filePlace";
+import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
-import { courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, type CourseConcept, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
-import { upsertLearningWidget } from "../model/learningStore";
-import { openLearningSource } from "../model/navigation";
-import { askAboutWidget } from "../model/widgetContext";
-import { adoptStoredWidget, useWidget } from "../model/widgetRuntime";
-import { parseWidget, widgetRef } from "../model/widgets";
-import type { StoredWidget } from "../model/types";
+import { courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
 import { DiffCard } from "./DiffCard";
-import { WidgetFrame } from "./WidgetFrame";
 import "./CoursePane.css";
 
 type Props = {
@@ -24,6 +21,8 @@ type SyncFailure = { itemId: string; status: LearningStatus; message: string };
 const PROGRESS_EVENT = "loci:course-progress";
 type ProgressDetail = { courseId: string; agentId: string; itemId: string; status: LearningStatus };
 const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
+/** What a status is called where the work is reading. */
+const READING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Reading", mastered: "Read" };
 
 export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart }: Props) {
   const scope = JSON.stringify([agentId, courseId]);
@@ -64,7 +63,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       }
       setLoaded({ scope, course: found, error: null });
       const pending = pendingConcept.current;
-      const navigable = pending?.courseId === found.id && (!pending.agentId || pending.agentId === found.agentId) && found.data.engine === "domain-navigation" && (!pending.canvasId || pending.canvasId === found.data.canvasId) && items.some((item) => item.id === pending.conceptId);
+      const navigable = pending?.courseId === found.id && (!pending.agentId || pending.agentId === found.agentId) && found.data.engine === "reading" && (!pending.canvasId || pending.canvasId === found.data.canvasId) && items.some((item) => item.id === pending.conceptId);
       pendingConcept.current = null;
       const previousSelection = selected.current.scope === scope && items.some((item) => item.id === selected.current.id) ? selected.current.id : null;
       setActiveId(navigable ? pending!.conceptId : previousSelection ?? items.find((item) => found.progress.get(item.id) !== "mastered")?.id ?? items[0].id);
@@ -80,8 +79,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       if (!detail || detail.courseId !== courseId || (detail.agentId && detail.agentId !== agentId) || typeof detail.conceptId !== "string") return;
       const found = latest.current.course;
       if (!found) { pendingConcept.current = detail; return; }
-      if (found.data.engine !== "domain-navigation" || (detail.canvasId && detail.canvasId !== found.data.canvasId)) return;
-      if (found.data.concepts.some((concept) => concept.id === detail.conceptId)) setActiveId(detail.conceptId);
+      if (found.data.engine !== "reading" || (detail.canvasId && detail.canvasId !== found.data.canvasId)) return;
+      if (courseItems(found.data).some((lesson) => lesson.id === detail.conceptId)) setActiveId(detail.conceptId);
     };
     const opened = (event: Event) => {
       const detail = (event as CustomEvent<OpenCourseDetail>).detail;
@@ -120,7 +119,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
         found = request ? await request.promise : await loadCourse(courseId, agentId);
       } catch { return; }
       if (currentLoad() !== request) continue;
-      if (!found || found.data.engine !== "domain-navigation" || !found.data.canvasId || !found.data.concepts.some((concept) => concept.id === itemId)) return;
+      if (!found || found.data.engine !== "reading" || !found.data.canvasId || !courseItems(found.data).some((lesson) => lesson.id === itemId)) return;
       let failure: SyncFailure | undefined;
       try {
         const { setConceptStatus } = await import("../../canvas/concepts");
@@ -175,72 +174,79 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     if (!targetSessionId) { setActionError("Open the course's original conversation before discussing progress."); return; }
     const currentItem = courseItems(course.data).find((item) => item.id === activeId)!;
     const progress = courseItems(course.data).map((item) => ({ id: item.id, title: item.title, status: course.progress.get(item.id) ?? "untouched" }));
-    const canvasId = course.data.engine === "domain-navigation" ? course.data.canvasId : undefined;
-    const itemKind = course.data.engine === "build-your-own" ? "step" : "concept";
-    requestAddToChat(`I'm studying course "${course.title}" (courseId: ${course.id}). Current ${itemKind}: "${currentItem.title}" (${activeId}), status: ${course.progress.get(activeId) ?? "untouched"}. Please explain the current content in the context of my progress and suggest what to do next.${canvasId ? `\nConcept map canvasId: ${canvasId}; please update node colors to reflect mastered concepts.` : ""}\n\nProgress:\n${JSON.stringify(progress, null, 2)}`, "plain", { targetSessionId });
+    const reading = course.data.engine === "reading";
+    requestAddToChat(`I'm studying course "${course.title}" (courseId: ${course.id}). Current ${reading ? "lesson" : "step"}: "${currentItem.title}" (${activeId}), status: ${course.progress.get(activeId) ?? "untouched"}. ${reading ? "Here is where I am; let's talk about what I have read and what to read next." : "Please explain the current content in the context of my progress and suggest what to do next."}\n\nProgress:\n${JSON.stringify(progress, null, 2)}`, "plain", { targetSessionId });
     setActionError(null);
   };
+  // Opening a lesson is starting to read it.
+  const select = (id: string) => {
+    setActiveId(id);
+    if (course?.data.engine === "reading" && (course.progress.get(id) ?? "untouched") === "untouched") void markStatus(id, "learning");
+  };
+  const reading = course?.data.engine === "reading";
+  const activeStatus = course?.progress.get(activeId ?? "") ?? "untouched";
 
   return <aside aria-label={course?.title ?? title ?? "Course"} className="course-pane" onPointerDown={() => { if (!focused) onFocus(); }}>
     <header className={`course-pane__header${onPaneDragStart ? " course-pane__header--draggable" : ""}`} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("[data-no-drag]")) onPaneDragStart?.(event); }}>
       {onPaneDragStart ? <GripVertical className="size-3.5 shrink-0 text-content/35" /> : null}<Mortarboard className={`size-3.5 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span><button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-3.5" /></button>
     </header>
     {course ? <>
-      <div className="course-pane__body"><CourseNav course={course} activeId={activeId} onSelect={setActiveId} /><div className="course-pane__right"><main className="course-pane__main"><CourseContent course={course} activeId={activeId} sourceSessionId={sourceSessionId} /></main><footer className="course-pane__status-actions"><span className="course-pane__status-label">{course.progress.get(activeId ?? "") ?? "untouched"}</span><button type="button" className="course-button" disabled={!activeId || saving.has(activeId) || course.progress.get(activeId) === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}>{activeId && saving.has(activeId) ? "Saving…" : course.progress.get(activeId ?? "") === "mastered" ? "Mastered ✓" : "Mark as mastered"}</button>{activeId && (course.progress.get(activeId) ?? "untouched") === "untouched" ? <button type="button" className="course-button course-button--quiet" disabled={saving.has(activeId)} onClick={() => void markStatus(activeId, "learning")}>Mark as learning</button> : activeId ? <button type="button" className="course-button course-button--quiet" disabled={saving.has(activeId)} onClick={() => void markStatus(activeId, "untouched")}>Reset progress</button> : null}<button type="button" className="course-button course-button--quiet" onClick={discuss}><MessageSquarePlus className="size-3.5" />Discuss progress</button>{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {courseItems(course.data).find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</footer></div></div>
+      <div className="course-pane__body"><CourseNav course={course} activeId={activeId} onSelect={select} /><div className="course-pane__right"><main className="course-pane__main"><CourseContent course={course} activeId={activeId} /></main><footer className="course-pane__status-actions"><span className="course-pane__status-label">{reading ? READING_STATUS[activeStatus] : activeStatus}</span><button type="button" className="course-button" disabled={!activeId || saving.has(activeId) || course.progress.get(activeId) === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}>{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</button>{activeId && (course.progress.get(activeId) ?? "untouched") === "untouched" ? <button type="button" className="course-button course-button--quiet" disabled={saving.has(activeId)} onClick={() => void markStatus(activeId, "learning")}>{reading ? "Mark as reading" : "Mark as learning"}</button> : activeId ? <button type="button" className="course-button course-button--quiet" disabled={saving.has(activeId)} onClick={() => void markStatus(activeId, "untouched")}>Reset progress</button> : null}<button type="button" className="course-button course-button--quiet" onClick={discuss}><MessageSquarePlus className="size-3.5" />Discuss progress</button>{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {courseItems(course.data).find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</footer></div></div>
     </> : <div className="course-pane__empty" role={loaded.scope === scope && loaded.error ? "alert" : undefined}><p>{loaded.scope === scope ? loaded.error ?? "Opening course…" : "Opening course…"}</p>{loaded.scope === scope && loaded.error ? <button type="button" className="course-button" onClick={() => setReload((value) => value + 1)}>Retry</button> : null}</div>}
   </aside>;
 }
 
-function CourseNav({ course, activeId, onSelect }: { course: CourseWithProgress; activeId: string | null; onSelect: (id: string) => void }) {
-  const items = courseItems(course.data);
-  const mastered = items.filter((item) => course.progress.get(item.id) === "mastered").length;
-  return <nav className="course-pane__nav" aria-label="Course navigation"><div className="course-pane__nav-intro"><span>{course.data.engine === "build-your-own" ? "Build Your Own" : "Domain Navigation"}</span><p>{mastered} / {items.length} mastered</p><progress max={items.length} value={mastered} aria-label="Course completion" /></div><ol>{items.map((item, index) => {
-    const status = course.progress.get(item.id) ?? "untouched";
-    return <li key={item.id}><button type="button" className={`course-pane__nav-item${activeId === item.id ? " course-pane__nav-item--active" : ""}`} aria-current={activeId === item.id ? "step" : undefined} aria-label={`${item.title}, ${status}`} onClick={() => onSelect(item.id)}><span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? "✓" : ""}</span><span className="course-pane__nav-label">{course.data.engine === "build-your-own" ? <span className="course-pane__step-number">{String(index + 1).padStart(2, "0")}</span> : null}{item.title}</span></button></li>;
-  })}</ol></nav>;
+function StatusMark({ status }: { status: LearningStatus }) {
+  return <span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? "✓" : ""}</span>;
 }
 
-function CourseContent({ course, activeId, sourceSessionId }: { course: CourseWithProgress; activeId: string | null; sourceSessionId?: string }) {
+function CourseNav({ course, activeId, onSelect }: { course: CourseWithProgress; activeId: string | null; onSelect: (id: string) => void }) {
+  const items = courseItems(course.data);
+  const reading = course.data.engine === "reading";
+  const mastered = items.filter((item) => course.progress.get(item.id) === "mastered").length;
+  const row = (item: { id: string; title: string }, index: number) => {
+    const status = course.progress.get(item.id) ?? "untouched";
+    return <li key={item.id}><button type="button" className={`course-pane__nav-item${activeId === item.id ? " course-pane__nav-item--active" : ""}`} aria-current={activeId === item.id ? "step" : undefined} aria-label={`${item.title}, ${reading ? READING_STATUS[status] : status}`} onClick={() => onSelect(item.id)}><StatusMark status={status} /><span className="course-pane__nav-label"><span className="course-pane__step-number">{String(index + 1).padStart(2, "0")}</span>{item.title}</span></button></li>;
+  };
+  // Lessons are numbered through the whole course, in the order shown.
+  let number = 0;
+  return <nav className="course-pane__nav" aria-label="Course navigation"><div className="course-pane__nav-intro">{reading ? null : <span>Build Your Own</span>}<p>{mastered} / {items.length} {reading ? "read" : "mastered"}</p><progress max={items.length} value={mastered} aria-label="Course completion" /></div>{course.data.engine === "reading"
+    ? course.data.chapters.map((chapter, at) => <section key={at} className="course-pane__chapter" aria-label={chapter.title}><h3 className="course-pane__chapter-title"><span className="course-pane__chapter-dot" style={{ background: `var(--course-chapter-${at % 6})` }} aria-hidden="true" />{chapter.title}</h3><ol>{chapter.lessons.map((lesson) => row(lesson, number++))}</ol></section>)
+    : <ol>{items.map(row)}</ol>}</nav>;
+}
+
+function CourseContent({ course, activeId }: { course: CourseWithProgress; activeId: string | null }) {
   if (course.data.engine === "build-your-own") {
     const step = course.data.steps.find((item) => item.id === activeId);
     return step ? <article className="course-pane__content" key={step.id}><h2>{step.title}</h2><p className="course-pane__summary">{step.summary}</p><DiffCard {...step} id={`${course.id}-${step.id}`} /><AgentMarkdown text={step.explanation} wholeDocument /></article> : null;
   }
-  const concept = course.data.concepts.find((item) => item.id === activeId);
-  if (!concept) return null;
-  const titles = new Map(course.data.concepts.map((item) => [item.id, item.title]));
-  return <article className="course-pane__content" key={concept.id}><h2>{concept.title}</h2>{concept.prerequisites.length ? <p className="course-pane__relations">Prerequisites: {concept.prerequisites.map((id) => titles.get(id)).join(" · ")}</p> : null}<AgentMarkdown text={concept.content} wholeDocument />{concept.simulationHtml ? <CourseSimulation course={course} concept={concept} sourceSessionId={sourceSessionId} /> : null}{concept.leadsTo.length ? <p className="course-pane__relations">Leads to: {concept.leadsTo.map((id) => titles.get(id)).join(" · ")}</p> : null}</article>;
+  const lesson = course.data.chapters.flatMap((chapter) => chapter.lessons).find((item) => item.id === activeId);
+  if (!lesson) return null;
+  return lesson.file !== undefined ? <LessonFile lesson={lesson} /> : <LessonDocument agentId={course.agentId} lesson={lesson} />;
 }
 
-function CourseSimulation({ course, concept, sourceSessionId }: { course: CourseWithProgress; concept: CourseConcept; sourceSessionId?: string }) {
-  const [stored, setStored] = useState<StoredWidget | null>(null);
-  const [error, setError] = useState<string | null>(null);
+/** A lesson read from a file, such as a PDF: it opens in its own pane, where it can be highlighted. */
+function LessonFile({ lesson }: { lesson: CourseLesson }) {
+  const file = lesson.file!;
+  const name = file.split(/[\\/]/).pop() || file;
+  return <article className="course-pane__content" key={lesson.id}><h2>{lesson.title}</h2><p className="course-pane__summary" title={file}>{name}{lesson.pages ? ` · ${lesson.pages[0] === lesson.pages[1] ? `page ${lesson.pages[0]}` : `pages ${lesson.pages[0]}–${lesson.pages[1]}`}` : ""}</p><button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button></article>;
+}
+
+/** A lesson read from the agent's library: the document itself, from the lesson's heading. */
+function LessonDocument({ agentId, lesson }: { agentId: string; lesson: CourseLesson }) {
+  const id = lesson.document!;
+  const [loaded, setLoaded] = useState<{ id: string; document?: AgentDocument; error?: string }>();
   useEffect(() => {
     let current = true;
-    // The native widget source_at comparison must follow course revisions,
-    // even when an older IPC write arrives after a newer simulation version.
-    const sourceAt = course.updatedAt;
-    setStored(null); setError(null);
-    void (async () => {
-      const agent = findAgent(course.agentId);
-      const sessionId = agent?.sessionId ?? sourceSessionId ?? course.agentId;
-      // Widget ids have an 80-character native limit. Hash the course/concept
-      // tuple so repeated concept ids and long course ids remain independent.
-      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([course.id, concept.id])));
-      if (!current) return;
-      const widgetId = `course-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-      const parsed = parseWidget(`---\nid: ${widgetId}\ntitle: Simulation\n---\n${concept.simulationHtml}`);
-      if (!parsed.spec) throw new Error(parsed.error);
-      const owner = { kind: agent ? "agent" as const : "session" as const, id: course.agentId };
-      const widget = await upsertLearningWidget(owner, { ...parsed.spec, title: concept.title.slice(0, 200) }, sessionId, widgetId, sourceAt);
-      if (current) { adoptStoredWidget(widget); setStored(widget); }
-    })().catch((cause: unknown) => { if (current) setError(`Could not open simulation: ${message(cause)}`); });
-    return () => { current = false; };
-  }, [course.id, course.agentId, course.updatedAt, concept.id, concept.title, concept.simulationHtml, sourceSessionId]);
-  return <section className="course-pane__simulation" aria-label={`${concept.title} simulation`}>{stored ? <ReadySimulation stored={stored} /> : <p className={error ? "course-error" : "course-pane__relations"} role={error ? "alert" : undefined}>{error ?? "Opening simulation…"}</p>}</section>;
-}
-
-function ReadySimulation({ stored }: { stored: StoredWidget }) {
-  const ref = useMemo(() => widgetRef(stored), [stored]);
-  const widget = useWidget(ref, stored, stored.sourceSessionId);
-  return <WidgetFrame widget={widget} onAsk={(text, selection) => askAboutWidget(widget, text, selection)} onOpenSource={openLearningSource} />;
+    const load = () => void readAgentDocument(agentId, id).then((found) => {
+      if (current) setLoaded(found?.body != null ? { id, document: shownDocument({ ...found, body: found.body }) } : { id });
+    }, (cause: unknown) => { if (current) setLoaded({ id, error: message(cause) }); });
+    load();
+    const stop = subscribeAgentDocuments(load);
+    return () => { current = false; stop(); };
+  }, [agentId, id]);
+  const shown = loaded?.id === id ? loaded : undefined;
+  if (!shown) return <p className="course-pane__relations">Opening…</p>;
+  if (!shown.document) return <article className="course-pane__content"><h2>{lesson.title}</h2><p className="course-error" role="alert">{shown.error ? `Could not open this lesson's document: ${shown.error}` : `This lesson's document (${id}) is not in the library. Ask the agent to save it again.`}</p></article>;
+  return <article className="course-pane__content course-pane__reading" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} /></article>;
 }

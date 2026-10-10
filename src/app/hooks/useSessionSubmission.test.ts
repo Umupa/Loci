@@ -129,7 +129,8 @@ describe("source-backed learning submissions", () => {
     expect(sent).toContain("loci-widget\n---\nid:");
     expect(sent).toContain("<loci_courses>");
     expect(sent).toContain("engine: build-your-own");
-    expect(sent).toContain("engine: domain-navigation");
+    expect(sent).toContain('{"chapters":[');
+    expect(sent).toContain("app documents.write");
     expect(sent).toContain("=== BEFORE ===");
     const block = session().blocks.find((entry) => entry.role === "user")!;
     expect(block).toMatchObject({ text: "Why does this wait?", ...context });

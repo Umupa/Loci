@@ -2,7 +2,7 @@ import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "rea
 import { Check, GripVertical, StickyNote, Trash2, X } from "../../../shared/ui/icons";
 import { NOTES_CHANGED_EVENT, upsertNote } from "../../notes";
 import type { AgentDocument } from "../../sessions/model/cards";
-import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
+import { DocumentBody, shownDocument } from "./DocumentBody";
 import {
   deleteAgentDocument,
   readAgentDocument,
@@ -23,8 +23,9 @@ type Props = {
 const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content disabled:opacity-40";
 
 /**
- * A workspace document pane. It shows the library's copy,
- * so a revision the agent writes while it is open appears here.
+ * A workspace document pane. It shows the library's copy, so a revision the
+ * agent writes while it is open appears here, and a source shows as a source
+ * however the pane was opened.
  */
 export function AgentDocumentReader({ agentId, document, focused, onFocus, onClose, onPaneDragStart }: Props) {
   const [latest, setLatest] = useState<AgentDocument>(document);
@@ -39,7 +40,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
     const load = () => void readAgentDocument(agentId, document.id).then((found) => {
       if (!current) return;
       setStored(!!found);
-      if (found?.body != null) setLatest({ id: found.id, title: found.title, ...(found.subject ? { subject: found.subject } : {}), body: found.body });
+      if (found?.body != null) setLatest(shownDocument({ ...found, body: found.body }));
     }, () => undefined);
     load();
     const stop = subscribeAgentDocuments(load);
@@ -81,7 +82,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         </button>
       </header>
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 pb-10 pt-2 text-[14px] leading-relaxed">
-        <AgentMarkdown text={latest.body} wholeDocument />
+        <DocumentBody document={latest} agentId={agentId} />
       </div>
     </aside>
   );

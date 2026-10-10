@@ -3,6 +3,8 @@
 **目标读者**：负责实现的开发者  
 **依赖**：本方案以现有 `canvas.rs` / `loci-widget` / `loci-document` 的模式为模板，保持风格一致  
 
+> **2026-10-10 更新**：下文的 Engine 2（`domain-navigation`，概念节点自带 AI 写的 `content`）已被“阅读课程”取代。现在一门课是若干章节，每节课只指向一份要读的一手材料：Agent 作品库里的文档（可指定小节），或磁盘上的 PDF（可指定页码范围），课程本身不含 Agent 写的正文。一手材料由 Agent 存成文件后用 `app documents.write` 按路径入库，带出处、只读。旧格式的概念课程打开时会提示让 Agent 重写。Engine 1（`build-your-own`）与 Diff 卡片不变。讨论过程见 [agent-design-discussion.md](agent-design-discussion.md)，实际格式以 `src/features/learning/model/course.ts` 为准。
+
 ## 实现与使用补充
 
 实现沿用下文的两种课程引擎和独立 Diff 卡片，并按现有项目接口作了以下调整：

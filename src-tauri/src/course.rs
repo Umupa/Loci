@@ -1,5 +1,9 @@
 //! Course ids are chosen by an agent, just like agent-document ids. Structure
 //! and progress share that agent scope; another agent can reuse the same slug.
+//!
+//! A reading course holds no text of its own: it is chapters of lessons, each
+//! naming a document in the agent's library or a file on disk to read. A
+//! build-your-own course keeps its code steps.
 
 use std::collections::HashSet;
 
@@ -64,33 +68,55 @@ struct BuildCourse {
     steps: Vec<Step>,
 }
 
+/// What to read: a document in the agent's library, optionally from one of
+/// its headings, or a file such as a PDF, optionally a range of its pages.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Concept {
+struct Lesson {
     id: String,
     title: String,
-    content: String,
-    prerequisites: Vec<String>,
-    leads_to: Vec<String>,
     #[serde(
         default,
         deserialize_with = "optional_text",
         skip_serializing_if = "Option::is_none"
     )]
-    simulation_html: Option<String>,
+    document: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    section: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    file: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "page_range",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pages: Option<[u32; 2]>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Chapter {
+    title: String,
+    lessons: Vec<Lesson>,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct DomainCourse {
-    learning_path: Vec<String>,
+struct ReadingCourse {
+    chapters: Vec<Chapter>,
     #[serde(
         default,
         deserialize_with = "optional_text",
         skip_serializing_if = "Option::is_none"
     )]
     canvas_id: Option<String>,
-    concepts: Vec<Concept>,
 }
 
 // A missing optional field is fine; a supplied null or non-string is not a
@@ -101,12 +127,35 @@ fn optional_text<'de, D: serde::Deserializer<'de>>(
     String::deserialize(deserializer).map(Some)
 }
 
+fn page_range<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<[u32; 2]>, D::Error> {
+    <[u32; 2]>::deserialize(deserializer).map(Some)
+}
+
 pub fn ensure_courses_table(conn: &Connection) -> rusqlite::Result<()> {
+    // The first courses table named its two kinds in a CHECK, which SQLite
+    // cannot alter. Move its rows into tables without it. The old tables are
+    // renamed first so that dropping them cascades into nothing kept.
+    let old: Option<String> = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'courses'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let rebuild = old.is_some_and(|sql| sql.contains("CHECK (engine IN"));
+    if rebuild {
+        conn.execute_batch(
+            "ALTER TABLE course_progress RENAME TO course_progress_old;
+             ALTER TABLE courses RENAME TO courses_old;",
+        )?;
+    }
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS courses (
            agent_id TEXT NOT NULL,
            id TEXT NOT NULL,
-           engine TEXT NOT NULL CHECK (engine IN ('build-your-own', 'domain-navigation')),
+           engine TEXT NOT NULL,
            title TEXT NOT NULL,
            data_json TEXT NOT NULL,
            created_at INTEGER NOT NULL,
@@ -120,8 +169,18 @@ pub fn ensure_courses_table(conn: &Connection) -> rusqlite::Result<()> {
            status TEXT NOT NULL CHECK (status IN ('untouched', 'learning', 'mastered')),
            PRIMARY KEY (agent_id, course_id, item_id),
            FOREIGN KEY (agent_id, course_id) REFERENCES courses(agent_id, id) ON DELETE CASCADE
-         );
-         CREATE INDEX IF NOT EXISTS courses_agent_updated_idx
+         );",
+    )?;
+    if rebuild {
+        conn.execute_batch(
+            "INSERT INTO courses SELECT agent_id, id, engine, title, data_json, created_at, updated_at FROM courses_old;
+             INSERT INTO course_progress SELECT agent_id, course_id, item_id, status FROM course_progress_old;
+             DROP TABLE course_progress_old;
+             DROP TABLE courses_old;",
+        )?;
+    }
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS courses_agent_updated_idx
            ON courses (agent_id, updated_at DESC, id);",
     )
 }
@@ -202,16 +261,16 @@ fn item_ids<'a>(ids: impl Iterator<Item = &'a str>) -> Result<HashSet<String>, S
     Ok(unique)
 }
 
-fn validate_references(
-    references: &[String],
-    ids: &HashSet<String>,
-    self_id: Option<&str>,
-) -> Result<(), String> {
-    let mut seen = HashSet::new();
-    for id in references {
-        if !ids.contains(id) || self_id == Some(id.as_str()) || !seen.insert(id) {
-            return Err(format!("Invalid or duplicate course reference: {id}"));
-        }
+/// A document id as the library accepts it: letters of any script, digits,
+/// hyphens and underscores.
+fn validate_id_text(id: &str) -> Result<(), String> {
+    if id.is_empty()
+        || id.chars().count() > 80
+        || !id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(format!("Not a document id: {id}"));
     }
     Ok(())
 }
@@ -259,21 +318,62 @@ fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<String>), S
                 ids,
             ))
         }
-        "domain-navigation" => {
-            require_object_items(&value, "concepts")?;
-            let data: DomainCourse = serde_json::from_value(value)
-                .map_err(|e| format!("Invalid domain-navigation course: {e}"))?;
-            let ids = item_ids(data.concepts.iter().map(|concept| concept.id.as_str()))?;
-            validate_references(&data.learning_path, &ids, None)?;
+        "reading" => {
+            require_object_items(&value, "chapters")?;
+            for chapter in value["chapters"].as_array().into_iter().flatten() {
+                require_object_items(chapter, "lessons")?;
+            }
+            let data: ReadingCourse = serde_json::from_value(value)
+                .map_err(|e| format!("Invalid reading course: {e}"))?;
+            let lessons = || data.chapters.iter().flat_map(|chapter| &chapter.lessons);
+            let ids = item_ids(lessons().map(|lesson| lesson.id.as_str()))?;
             if let Some(canvas) = &data.canvas_id {
                 require_text(canvas, "canvas id")?;
             }
-            for concept in &data.concepts {
-                require_text(&concept.title, "concept title")?;
-                validate_references(&concept.prerequisites, &ids, Some(&concept.id))?;
-                validate_references(&concept.leads_to, &ids, Some(&concept.id))?;
-                if let Some(html) = &concept.simulation_html {
-                    require_text(html, "simulation HTML")?;
+            for chapter in &data.chapters {
+                require_text(&chapter.title, "chapter title")?;
+                if chapter.lessons.is_empty() {
+                    return Err(format!("Chapter {} has no lessons", chapter.title));
+                }
+            }
+            for lesson in lessons() {
+                require_text(&lesson.title, "lesson title")?;
+                match (&lesson.document, &lesson.file) {
+                    (Some(document), None) => {
+                        validate_id_text(document)?;
+                        if lesson.pages.is_some() {
+                            return Err(format!("Lesson {}: pages belong to a file", lesson.id));
+                        }
+                    }
+                    (None, Some(file)) => {
+                        if !std::path::Path::new(file).is_absolute() {
+                            return Err(format!(
+                                "Lesson {}: file must be an absolute path",
+                                lesson.id
+                            ));
+                        }
+                        if lesson.section.is_some() {
+                            return Err(format!(
+                                "Lesson {}: section belongs to a document",
+                                lesson.id
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(format!(
+                            "Lesson {} must name exactly one of document or file",
+                            lesson.id
+                        ))
+                    }
+                }
+                if let Some(section) = &lesson.section {
+                    require_text(section, "lesson section")?;
+                }
+                if lesson
+                    .pages
+                    .is_some_and(|[from, to]| from == 0 || to < from)
+                {
+                    return Err(format!("Lesson {}: pages must be [first, last]", lesson.id));
                 }
             }
             Ok((
@@ -281,6 +381,9 @@ fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<String>), S
                 ids,
             ))
         }
+        "domain-navigation" => Err(
+            "This course was written in an earlier format. Ask the agent to write it again.".into(),
+        ),
         _ => Err(format!("Unknown course engine: {engine}")),
     }
 }
@@ -451,17 +554,21 @@ mod tests {
         }
     }
 
-    fn domain(agent: &str) -> CourseUpsert {
+    fn reading(agent: &str) -> CourseUpsert {
         CourseUpsert {
-            engine: "domain-navigation".into(),
+            engine: "reading".into(),
             data_json: json!({
-                "learningPath": ["s01", "pod"], "canvasId": "map-1",
-                "concepts": [
-                    {"id": "s01", "title": "Container", "content": "",
-                     "prerequisites": [], "leadsTo": ["pod"]},
-                    {"id": "pod", "title": "Pod", "content": "Smallest unit",
-                     "prerequisites": ["s01"], "leadsTo": [],
-                     "simulationHtml": "<p>Pod</p>"}
+                "canvasId": "map-1",
+                "chapters": [
+                    {"title": "Workloads", "lessons": [
+                        {"id": "s01", "title": "Containers", "document": "k8s-containers"},
+                        {"id": "pod", "title": "Pod lifecycle", "document": "k8s-pods",
+                         "section": "Pod lifecycle"}
+                    ]},
+                    {"title": "Papers", "lessons": [
+                        {"id": "borg", "title": "Borg", "file": "/home/u/borg.pdf",
+                         "pages": [1, 12]}
+                    ]}
                 ]
             })
             .to_string(),
@@ -477,7 +584,7 @@ mod tests {
             let store = SessionStore::open(path.clone()).unwrap();
             let conn = store.lock_conn().unwrap();
             let first = save_course(&conn, &build("agent-a", &["s01", "s02"])).unwrap();
-            let second = save_course(&conn, &domain("agent-b")).unwrap();
+            let second = save_course(&conn, &reading("agent-b")).unwrap();
             set_progress(&conn, "agent-a", "agent-loop", "s01", "mastered").unwrap();
             set_progress(&conn, "agent-b", "agent-loop", "pod", "learning").unwrap();
             (first, second)
@@ -542,8 +649,8 @@ mod tests {
         );
         let unchanged = save_course(&conn, &build("agent-a", &["s01", "s03"])).unwrap();
         assert_eq!(unchanged, revised);
-        // A step and a concept sharing an id do not share learning semantics.
-        save_course(&conn, &domain("agent-a")).unwrap();
+        // A step and a lesson sharing an id do not share learning semantics.
+        save_course(&conn, &reading("agent-a")).unwrap();
         assert!(get_progress(&conn, "agent-a", "agent-loop")
             .unwrap()
             .is_empty());
@@ -609,11 +716,13 @@ mod tests {
     fn course_fields_and_references_are_validated_before_writing() {
         let store = SessionStore::open_in_memory().unwrap();
         let conn = store.lock_conn().unwrap();
-        let mut course = domain("agent-a");
+        let mut course = reading("agent-a");
         let base: serde_json::Value = serde_json::from_str(&course.data_json).unwrap();
         for mutation in [
-            json!({"learningPath": ["missing"]}),
-            json!({"learningPath": ["pod", "pod"]}),
+            json!({"chapters": []}),
+            json!({"chapters": [{"title": "Empty", "lessons": []}]}),
+            json!({"chapters": [{"title": " ", "lessons": [
+                {"id": "a", "title": "A", "document": "a"}]}]}),
             json!({"canvasId": null}),
             json!({"canvasId": " "}),
             json!({"engine": "build-your-own"}),
@@ -623,19 +732,39 @@ mod tests {
                 .unwrap()
                 .extend(mutation.as_object().unwrap().clone());
             course.data_json = data.to_string();
-            assert!(save_course(&conn, &course).is_err());
+            assert!(save_course(&conn, &course).is_err(), "{mutation}");
         }
-        for (field, value) in [
-            ("prerequisites", json!(["pod"])),
-            ("leadsTo", json!(["missing"])),
-            ("simulationHtml", json!(null)),
-            ("content", json!(3)),
+        // The first lesson names a document, the last a file.
+        for (chapter, field, value) in [
+            (0, "id", json!("pod")),
+            (0, "document", json!(null)),
+            (0, "document", json!("../notes")),
+            (0, "file", json!("/home/u/also.pdf")),
+            (0, "pages", json!([1, 2])),
+            (0, "section", json!(" ")),
+            (1, "file", json!("borg.pdf")),
+            (1, "section", json!("Intro")),
+            (1, "pages", json!([3, 2])),
+            (1, "pages", json!([0, 2])),
+            (1, "pages", json!("1-12")),
         ] {
             let mut data = base.clone();
-            data["concepts"][1][field] = value;
+            data["chapters"][chapter]["lessons"][0][field] = value;
             course.data_json = data.to_string();
             assert!(save_course(&conn, &course).is_err(), "{field}");
         }
+        let mut neither = base.clone();
+        neither["chapters"][0]["lessons"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("document");
+        course.data_json = neither.to_string();
+        assert!(save_course(&conn, &course).is_err());
+        course.data_json = base.to_string();
+        course.engine = "domain-navigation".into();
+        assert!(save_course(&conn, &course)
+            .unwrap_err()
+            .contains("earlier format"));
         let mut course = build("agent-a", &["s01"]);
         let base: serde_json::Value = serde_json::from_str(&course.data_json).unwrap();
         for (field, value) in [
@@ -650,6 +779,43 @@ mod tests {
             assert!(save_course(&conn, &course).is_err(), "{field}");
         }
         assert!(list_courses(&conn, "agent-a").unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_first_courses_table_is_rebuilt_with_its_courses_and_progress() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             CREATE TABLE courses (
+               agent_id TEXT NOT NULL, id TEXT NOT NULL,
+               engine TEXT NOT NULL CHECK (engine IN ('build-your-own', 'domain-navigation')),
+               title TEXT NOT NULL, data_json TEXT NOT NULL,
+               created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+               PRIMARY KEY (agent_id, id)
+             );
+             CREATE TABLE course_progress (
+               agent_id TEXT NOT NULL, course_id TEXT NOT NULL, item_id TEXT NOT NULL,
+               status TEXT NOT NULL CHECK (status IN ('untouched', 'learning', 'mastered')),
+               PRIMARY KEY (agent_id, course_id, item_id),
+               FOREIGN KEY (agent_id, course_id) REFERENCES courses(agent_id, id) ON DELETE CASCADE
+             );
+             CREATE INDEX courses_agent_updated_idx ON courses (agent_id, updated_at DESC, id);
+             INSERT INTO courses VALUES ('agent-a', 'old', 'build-your-own', 'Old', '{}', 1, 2);
+             INSERT INTO course_progress VALUES ('agent-a', 'old', 's01', 'mastered');",
+        )
+        .unwrap();
+        ensure_courses_table(&conn).unwrap();
+        ensure_courses_table(&conn).unwrap();
+        assert_eq!(
+            get_progress(&conn, "agent-a", "old").unwrap()[0].status,
+            "mastered"
+        );
+        save_course(&conn, &reading("agent-a")).unwrap();
+        set_progress(&conn, "agent-a", "agent-loop", "borg", "learning").unwrap();
+        // Progress still goes with its course.
+        conn.execute("DELETE FROM courses WHERE id = 'old'", [])
+            .unwrap();
+        assert!(get_progress(&conn, "agent-a", "old").unwrap().is_empty());
     }
 
     #[test]
