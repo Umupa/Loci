@@ -5,6 +5,7 @@ import { ADD_TO_CHAT_EVENT, requestAddToChat, type AddToChatRequest } from "../f
 import { queueLearningDraft } from "../features/learning/model/learningDraft";
 import { OPEN_LEARNING_DISCUSSION_EVENT } from "../features/learning/model/navigation";
 import { OPEN_WIDGET_EVENT, type OpenWidgetDetail } from "../features/learning/model/widgets";
+import { OPEN_COURSE_EVENT, type OpenCourseDetail } from "../features/learning/model/course";
 import type { DiscussionRef } from "../features/learning/model/types";
 import { useLearningWidgets } from "./hooks/useLearningWidgets";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -335,13 +336,32 @@ function Workspace(boot: BootWorkspace) {
       };
       void open().catch((error) => workspaceRef.current?.setError(String(error)));
     };
+    const course = (event: Event) => {
+      const detail = (event as CustomEvent<OpenCourseDetail>).detail;
+      if (!detail?.courseId || !detail.agentId) return;
+      const open = async () => {
+        const agent = agentsRef.current?.agents.find((entry) => entry.id === detail.agentId);
+        if (agent) {
+          await agentsRef.current?.open(agent.id);
+          if (agentWorkspaceRef.current.currentRef.current?.agentId !== agent.id) return;
+          agentsRef.current?.setDetailsOpenFor(agent.id, false);
+          agentWorkspaceRef.current.showCourse(detail);
+        } else {
+          await revealLearningConversation(detail.sourceSessionId ?? detail.agentId);
+          workspaceRef.current!.showCourse(detail);
+        }
+      };
+      void open().catch((error) => workspaceRef.current?.setError(String(error)));
+    };
     window.addEventListener(ADD_TO_CHAT_EVENT, add, true);
     window.addEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
     window.addEventListener(OPEN_WIDGET_EVENT, widget);
+    window.addEventListener(OPEN_COURSE_EVENT, course);
     return () => {
       window.removeEventListener(ADD_TO_CHAT_EVENT, add, true);
       window.removeEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
       window.removeEventListener(OPEN_WIDGET_EVENT, widget);
+      window.removeEventListener(OPEN_COURSE_EVENT, course);
     };
   }, [revealLearningConversation]);
   useEffect(() => {

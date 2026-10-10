@@ -12,9 +12,10 @@ import { clearComposerDraft, getComposerDraft, setComposerDraft } from "../featu
 import { newSession, type Block, type Session } from "../features/sessions/model/session";
 import { clearTranscriptJump, peekTranscriptJump, requestTranscriptJump } from "../features/sessions/model/transcriptJump";
 import { openLearningDiscussion } from "../features/learning/model/navigation";
+import { openCourse } from "../features/learning/model/course";
 import type { StoredWidget } from "../features/learning/model/types";
 import { requestOpenAppResource } from "../shared/lib/appResourceLinks";
-import { canvasLeaf, documentLeaf, documentPaneId, leaf, newTab, placeLayout } from "../features/workspace/model/layout";
+import { canvasLeaf, coursePaneId, documentLeaf, documentPaneId, leaf, newTab, placeLayout } from "../features/workspace/model/layout";
 import * as harnessRegistry from "../integrations/harness/core/registry";
 
 // Catalog discovery needs signed-in CLIs; the editor itself is covered by CanvasPane tests.
@@ -91,6 +92,9 @@ beforeEach(async () => {
     if (command === "session_upsert") return saveSessionRecord(input.session!);
     if (command === "canvas_list") return [canvas];
     if (command === "canvas_get") return input.id === canvas.id ? canvas : null;
+    if (command === "course_get") return { id: input.id, agentId: (args as { agentId: string }).agentId, title: "Kubernetes",
+      updatedAt: 2, engine: "domain-navigation", dataJson: JSON.stringify({ learningPath: ["pod"], concepts: [{ id: "pod", title: "Pod", content: "Course content", prerequisites: [], leadsTo: [] }] }) };
+    if (command === "course_progress_get") return [];
     if (command === "agent_documents_list") return [...library.entries()].filter(([key]) => key.startsWith(`${input.agent}:`)).map(([, entry]) => {
       const { body: _body, ...summary } = entry;
       return summary;
@@ -167,6 +171,26 @@ const settle = async (assert: () => void, timeout = 5000) => {
     }
   }
 };
+
+it("opens a course in its owning agent workspace and a project course in its source tab", async () => {
+  const project = { ...newSession("antigravity", "/repo"), id: "project-chat" };
+  await renderApp(project);
+  const agentCourse = { courseId: "kubernetes", agentId: "agent-a", title: "Kubernetes", sourceSessionId: "chat-a" };
+  await act(async () => openCourse(agentCourse));
+  await settle(() => {
+    expect(pane(coursePaneId(agentCourse.courseId, agentCourse.agentId))?.textContent).toContain("Course content");
+    expect(agentWorkspace()).toBeTruthy();
+    expect(pane("chat-a")).toBeTruthy();
+  });
+  const projectCourse = { ...agentCourse, agentId: project.id, sourceSessionId: project.id };
+  await act(async () => openCourse(projectCourse));
+  await settle(() => {
+    expect(pane(coursePaneId(projectCourse.courseId, projectCourse.agentId))?.textContent).toContain("Course content");
+    expect(pane(project.id)).toBeTruthy();
+    expect(pane(coursePaneId(agentCourse.courseId, agentCourse.agentId))).toBeNull();
+  });
+  expect(titleTabs()).toHaveLength(1);
+});
 
 it("keeps an opened agent when its idle save finishes before the view renders", async () => {
   let finishSave!: () => void;

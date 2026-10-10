@@ -202,6 +202,28 @@ describe("the vendored official server", () => {
 });
 
 describe("an agent drawing on Loci canvases through the official MCP", () => {
+  it("preserves concept metadata through create_view, element edits and checkpoint continuation", async () => {
+    const agent = await connect();
+    const customData = { type: "concept", courseId: "kubernetes", conceptId: "pod", agentId: "teacher" };
+    const first = await agent.draw([{ type: "rectangle", id: "pod", x: 20, y: 40, width: 160, height: 80,
+      backgroundColor: "#f4f4f5", customData, label: { text: "Pod" } }]);
+    expect(first.isError).toBe(false);
+    expect(byId(scene(drawing()).elements, "pod").customData).toEqual(customData);
+    const read = await agent.request("tools/call", { name: "get_elements", arguments: { checkpointId: first.checkpointId } });
+    expect(byId(read.structuredContent.elements, "pod").customData).toEqual(customData);
+    const updated = await agent.request("tools/call", { name: "update_elements", arguments: {
+      checkpointId: first.checkpointId, expectedRevision: read.structuredContent.revision,
+      updates: [{ id: "pod", changes: { backgroundColor: "#dcfce7" } }],
+    } });
+    expect(updated.isError).not.toBe(true);
+    const next = await agent.draw([{ type: "restoreCheckpoint", id: first.checkpointId },
+      { type: "rectangle", id: "service", x: 240, y: 40, width: 160, height: 80,
+        customData: { ...customData, conceptId: "service" }, label: { text: "Service" } }]);
+    expect(next.isError).toBe(false);
+    expect(byId(scene(drawing()).elements, "pod")).toMatchObject({ customData, backgroundColor: "#dcfce7" });
+    expect(byId(scene(drawing()).elements, "service").customData).toEqual({ ...customData, conceptId: "service" });
+  });
+
   it("creates a canvas, sees the user's manual edits, continues from them, and resumes after a restart", async () => {
     const agent = await connect();
     const first = await agent.draw(firstCall);

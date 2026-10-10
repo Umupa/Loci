@@ -1,5 +1,5 @@
 import { markTurnInterrupted, type ResumedWorkspace } from "../../sessions/model/inFlight";
-import { documentLeaf, widgetLeaf, fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
+import { courseLeaf, documentLeaf, widgetLeaf, fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
 import { workspaceTabCwd } from "./workspaceTabGroups";
 import { pathKey } from "../../../shared/lib/paths";
 import { reconcileProjectReturn, type ProjectReturnMemory } from "../../projects/model/projectReturn";
@@ -222,12 +222,20 @@ export function sanitizeLayout(raw: unknown): LayoutNode | null {
         return null;
     const value = raw as Record<string, unknown>;
     if (value.type === "leaf") {
-        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file" && value.leafKind !== "document" && value.leafKind !== "widget")
+        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file" && value.leafKind !== "document" && value.leafKind !== "widget" && value.leafKind !== "course")
             return null;
         if (typeof value.id !== "string" || !value.id)
             return null;
         if (value.leafKind === "file")
             return fileLeaf(filePanePath(value.id), value.preview === true);
+        if (value.leafKind === "course") {
+            const course = value.course as Record<string, unknown> | undefined;
+            if (!course || typeof course.courseId !== "string" || !/^[A-Za-z0-9_-]+$/.test(course.courseId)
+                || typeof course.agentId !== "string" || !/^[A-Za-z0-9_-]+$/.test(course.agentId)
+                || typeof course.title !== "string" || !course.title.trim()) return null;
+            return courseLeaf({ courseId: course.courseId, agentId: course.agentId, title: course.title,
+                ...(typeof course.sourceSessionId === "string" ? { sourceSessionId: course.sourceSessionId } : {}) });
+        }
         if (value.leafKind === "widget") {
             const ref = value.widget as { id?: unknown; owner?: { kind?: unknown; id?: unknown } } | undefined;
             if (!ref || typeof ref.id !== "string" || !/^[\p{L}\p{N}_-]{1,80}$/u.test(ref.id)

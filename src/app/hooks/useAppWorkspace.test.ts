@@ -3,7 +3,7 @@ import { act, createElement, useCallback, useRef, useState, type SetStateAction 
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newSession, type Session } from "../../features/sessions/model/session";
-import { canvasLeaf, documentLeaf, documentPaneId, findLeaf, leaf, leafIds, newTab, placeLayout, splitPane, type WorkspaceTab } from "../../features/workspace/model/layout";
+import { canvasLeaf, coursePaneId, documentLeaf, documentPaneId, findLeaf, leaf, leafIds, newTab, placeLayout, splitPane, type WorkspaceTab } from "../../features/workspace/model/layout";
 import type { AgentDocument } from "../../features/sessions/model/cards";
 import { rememberProject } from "../../features/projects/model/recents";
 import type { SessionSummary } from "../../features/sessions/data/sessionStore";
@@ -245,6 +245,22 @@ describe("agent navigation and library workspace panes", () => {
     await act(async () => workspace.showDocument(document, "agent-2"));
     expect(findLeaf(workspace.activeTab!.layout, documentId)?.document).toEqual(updated);
     expect(findLeaf(workspace.activeTab!.layout, documentPaneId(document.id, "agent-2"))?.document).toEqual(document);
+  });
+
+  it("returns to an existing course tab and keeps same-named courses owned by other conversations separate", async () => {
+    await mount([chat("first"), chat("second")]);
+    const tabId = workspace.activeTabId;
+    const course = { courseId: "kubernetes", agentId: "first", title: "Kubernetes", sourceSessionId: "first" };
+    await act(async () => workspace.showCourse(course));
+    await act(async () => workspace.activateTab(workspace.tabs.find((tab) => tab.id !== tabId)!.id));
+    await act(async () => workspace.showCourse({ ...course, title: "Kubernetes Deep Dive" }));
+    expect(workspace.activeTabId).toBe(tabId);
+    const id = coursePaneId(course.courseId, course.agentId);
+    expect(workspace.activeTab?.focusedId).toBe(id);
+    expect(workspace.tabs.flatMap((tab) => leafIds(tab.layout)).filter((entry) => entry === id)).toHaveLength(1);
+    expect(findLeaf(workspace.activeTab!.layout, id)?.course?.title).toBe("Kubernetes Deep Dive");
+    await act(async () => workspace.showCourse({ ...course, agentId: "second" }));
+    expect(findLeaf(workspace.activeTab!.layout, coursePaneId(course.courseId, "second"))?.course).toEqual({ ...course, agentId: "second" });
   });
 
   it("returns to a library document when revisiting its workspace project", async () => {

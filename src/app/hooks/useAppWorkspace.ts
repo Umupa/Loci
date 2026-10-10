@@ -4,6 +4,8 @@ import { archiveProject, forgetProject, lastProjectPath, loadRecents, rememberPr
 import { isBlankSession, reconcileProjectReturn, type ProjectReturnMemory } from "../../features/projects/model/projectReturn";
 import { agentForSession, agentLook, isAgentSession } from "../../features/agents/model/agent";
 import type { WidgetRef } from "../../features/learning/model/types";
+import type { OpenCourseDetail } from "../../features/learning/model/course";
+import { coursePaneId, showCourseInTab } from "../../features/workspace/model/layout";
 import type { AgentDocument } from "../../features/sessions/model/cards";
 import { removeProjectData } from "../../features/projects/model/projectData";
 import { forgetProjectLocation } from "../../features/projects/model/projectLocation";
@@ -749,6 +751,16 @@ export function useAppWorkspace(options: Options) {
     activateTab(home.id);
   }, [activateTab, updateTabs]);
 
+  const showCourse = useCallback((course: OpenCourseDetail) => {
+    const id = coursePaneId(course.courseId, course.agentId);
+    const home = tabsRef.current.find((tab) => leafIds(tab.layout).includes(id))
+      ?? tabsRef.current.find((tab) => tab.id === activeTabIdRef.current);
+    if (!home) return;
+    updateTabs((current) => current.map((tab) => tab.id === home.id
+      ? { ...showCourseInTab(tab, course), cwd: tab.cwd ?? projectCwdRef.current } : tab));
+    activateTab(home.id);
+  }, [activateTab, updateTabs]);
+
   const showWidget = useCallback((widget: WidgetRef, title: string, sourceSessionId?: string) => {
     const id = widgetPaneId(widget);
     const home = tabsRef.current.find((tab) => leafIds(tab.layout).includes(id))
@@ -811,7 +823,7 @@ export function useAppWorkspace(options: Options) {
     });
   }, [activateTab]);
 
-  return { isSessionUnavailable: sessionUnavailable, tabs, tabsRef, activeTabId, activeTabIdRef, projectCwd, projectCwdRef, projectReturnMemory, recents, history, historyPending, historyFailed, error, setError, composerFocusToken, activeTab, activeSession, visibleTabs, sidebarHistory, openProjectSessions, loadedSessionCache, openingSessionIds, skipForgetSessionIds, updateTabs, activateTab, addSession, createSession, focusPane, openProject, pickProject, refreshHistory, acceptSummary, loadSession, openSession, openSessionInCurrentTab, closeTabs, closePane, split, placeSession, movePane, placeTab, detachPane, changeCwd, renameSession, archiveSession, pinSession, removeSession, removeProject, placeInFolder, visits, visit, openCanvas, revealCanvas, isCanvasOpen, showCanvas, showDocument, showWidget, openFile, placeFile, fileMoved, fileDeleted, reopenClosed, pinTab,
+  return { isSessionUnavailable: sessionUnavailable, tabs, tabsRef, activeTabId, activeTabIdRef, projectCwd, projectCwdRef, projectReturnMemory, recents, history, historyPending, historyFailed, error, setError, composerFocusToken, activeTab, activeSession, visibleTabs, sidebarHistory, openProjectSessions, loadedSessionCache, openingSessionIds, skipForgetSessionIds, updateTabs, activateTab, addSession, createSession, focusPane, openProject, pickProject, refreshHistory, acceptSummary, loadSession, openSession, openSessionInCurrentTab, closeTabs, closePane, split, placeSession, movePane, placeTab, detachPane, changeCwd, renameSession, archiveSession, pinSession, removeSession, removeProject, placeInFolder, visits, visit, openCanvas, revealCanvas, isCanvasOpen, showCanvas, showDocument, showWidget, showCourse, openFile, placeFile, fileMoved, fileDeleted, reopenClosed, pinTab,
     ratio: (splitId: string, index: number, ratio: number) => updateTabs((current) => current.map((tab) => ({ ...tab, layout: setSplitRatio(tab.layout, splitId, index, ratio) }))),
     focusDirection: (direction: FocusDir) => { const tab = tabsRef.current.find((entry) => entry.id === activeTabIdRef.current); const id = tab && neighborLeafId(tab.layout, tab.focusedId, direction); if (id) focusPane(id); },
     cycleTab: (delta: number) => { const current = filterTabsForProject(tabsRef.current, latest.current.sessionsRef.current, projectCwdRef.current); const index = current.findIndex((tab) => tab.id === activeTabIdRef.current); const next = current[(index + delta + current.length) % current.length]; if (next) activateTab(next.id); },

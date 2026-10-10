@@ -10,6 +10,7 @@ mod canvas_mcp;
 mod chat_background;
 mod control;
 pub mod control_cli;
+mod course;
 mod fs;
 mod harness;
 mod learning;
@@ -315,6 +316,11 @@ pub fn run() {
             canvas::canvas_delete,
             canvas::canvas_checkpoint_canvas,
             canvas::canvas_checkpoint_latest,
+            course::course_list,
+            course::course_get,
+            course::course_upsert,
+            course::course_progress_get,
+            course::course_progress_set,
             canvas_mcp::canvas_mcp_server,
             agent::agent_load,
             agent::agent_read,

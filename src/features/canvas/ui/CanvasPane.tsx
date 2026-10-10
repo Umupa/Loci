@@ -1,7 +1,7 @@
 import "@excalidraw/excalidraw/index.css";
 import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, getSceneVersion, hashElementsVersion, restore } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { GripVertical, MessageSquarePlus, ExcalidrawIcon, X, Maximize2, Minimize2 } from "../../../shared/ui/icons";
 import type { Canvas, CanvasSceneReplacement } from "../canvas";
 import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasSceneDrafts as sceneDrafts, canvasElementsToText, updateCanvas } from "../canvas";
@@ -40,6 +40,7 @@ type Props = {
 
 function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStart, onAddToChat, chatTarget = "chat", chatIcon, onTitleChange }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
+  const pointerUpRef = useRef<Parameters<NonNullable<ExcalidrawProps["onPointerUp"]>>[1] | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef(canvas);
   canvasRef.current = canvas;
@@ -211,6 +212,34 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
     requestOpenAppResource(resource);
   }, []);
 
+  const rememberPointerUp = useCallback<NonNullable<ExcalidrawProps["onPointerUp"]>>((activeTool, state) => {
+    pointerUpRef.current = activeTool.type === "selection" && !state.drag.hasOccurred &&
+      !state.resize.isResizing && !state.boxSelection.hasOccurred && !state.scrollbars.isOverEither ? state : null;
+  }, []);
+
+  const navigateConcept = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    const pointer = pointerUpRef.current;
+    pointerUpRef.current = null;
+    if (!pointer || !(event.target instanceof HTMLCanvasElement) || event.button !== 0 ||
+      event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+    // Use Excalidraw's actual hit, which accounts for pan, zoom, rotation and
+    // stacking. Searching concept bounding boxes would select obscured nodes.
+    const elements = apiRef.current?.getSceneElements();
+    let element = elements?.find((candidate) => candidate.id === pointer.hit.element?.id);
+    const containerId = element?.type === "text" ? element.containerId : null;
+    if (containerId) element = elements?.find((candidate) => candidate.id === containerId);
+    const data = element?.customData;
+    if (!element || element.isDeleted || data?.type !== "concept" ||
+      typeof data.courseId !== "string" || !data.courseId.trim() ||
+      typeof data.conceptId !== "string" || !data.conceptId.trim()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.dispatchEvent(new CustomEvent("loci:navigate-concept", { detail: {
+      courseId: data.courseId, conceptId: data.conceptId, canvasId: canvasRef.current.id,
+      ...(typeof data.agentId === "string" && data.agentId ? { agentId: data.agentId } : {}),
+    } }));
+  }, []);
+
   const commitTitle = () => {
     setEditingTitle(false);
     const title = titleDraft.trim() || "Untitled drawing";
@@ -244,8 +273,9 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
         {onClose ? <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button> : null}
       </div>
-      <div className="relative min-h-0 min-w-0 flex-1">
+      <div className="relative min-h-0 min-w-0 flex-1" onPointerDownCapture={() => { pointerUpRef.current = null; }} onDoubleClickCapture={navigateConcept}>
         <Excalidraw excalidrawAPI={registerApi} initialData={initialData} onChange={handleChange} onLinkOpen={openLink} theme={isDark ? "dark" : "light"}
+          onPointerUp={rememberPointerUp}
           UIOptions={{ canvasActions: { saveAsImage: false, loadScene: false, export: false, toggleTheme: false } }} />
       </div>
     </div>

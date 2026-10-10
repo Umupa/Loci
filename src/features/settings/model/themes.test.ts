@@ -284,7 +284,12 @@ describe("code themes", () => {
     });
     const { tokens } = highlighter.codeToTokens(
       'const answer = "42"; // note',
-      { lang: "typescript", theme: built.name! },
+      {
+        lang: "typescript",
+        theme: built.name!,
+        // Color assertions need complete tokens regardless of machine load.
+        tokenizeTimeLimit: 0,
+      },
     );
     const allowed = new Set([
       built.fg!.toLowerCase(),

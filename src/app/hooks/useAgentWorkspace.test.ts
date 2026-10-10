@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentDocument } from "../../features/sessions/model/cards";
 import { newSession } from "../../features/sessions/model/session";
 import {
-  canvasLeaf, documentLeaf, documentPaneId, findLeaf, layoutLeaves, leaf, leafIds, newTab,
+  canvasLeaf, coursePaneId, documentLeaf, documentPaneId, findLeaf, layoutLeaves, leaf, leafIds, newTab,
   placeLayout, setSplitRatio, type WorkspaceTab,
 } from "../../features/workspace/model/layout";
 import { separateAgentWorkspaces, useAgentWorkspace, type AgentWorkspaceLayout } from "./useAgentWorkspace";
@@ -42,6 +42,28 @@ afterEach(async () => {
 });
 
 describe("independent agent pane layouts", () => {
+  it("restores a course alongside the agent's fresh conversation", async () => {
+    const course = { courseId: "build-agent", agentId: "agent-a", title: "Build an Agent", sourceSessionId: "old" };
+    await mount();
+    act(() => { workspace.open("agent-a", chat("old")); workspace.showCourse(course); });
+    expect(workspace.focusedId).toBe(coursePaneId(course.courseId, course.agentId));
+    await mount();
+    act(() => workspace.open("agent-a", chat("fresh")));
+    expect(leafIds(workspace.layout!)).toEqual(["fresh", coursePaneId(course.courseId, course.agentId)]);
+    expect(layoutLeaves(workspace.layout!).find((entry) => entry.kind === "course")?.course).toEqual(course);
+  });
+
+  it("ignores a delayed course-open request after switching to a different agent", async () => {
+    await mount();
+    act(() => workspace.open("agent-a", chat("a")));
+    const delayed = { courseId: "course", agentId: "agent-a", title: "Course A" };
+    act(() => workspace.open("agent-b", chat("b")));
+    act(() => workspace.showCourse(delayed));
+    expect(leafIds(workspace.layout!)).toEqual(["b"]);
+    act(() => workspace.open("agent-a", chat("a")));
+    expect(leafIds(workspace.layout!)).toEqual(["a"]);
+  });
+
   it("gives each agent its own conversation and artifact arrangement", async () => {
     await mount();
     act(() => {

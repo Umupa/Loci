@@ -8,7 +8,7 @@ import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { CanvasPane } from "./CanvasPane";
 const scene = vi.hoisted(() => ({ props: null as ExcalidrawProps | null }));
 vi.mock("@excalidraw/excalidraw", () => ({
-  Excalidraw: (props: ExcalidrawProps) => { scene.props = props; return null; },
+  Excalidraw: (props: ExcalidrawProps) => { scene.props = props; return createElement("canvas", { onDoubleClick: () => normalDoubleClick() }); },
   convertToExcalidrawElements: vi.fn(),
   restore: (data: object) => data,
   CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY" },
@@ -20,6 +20,7 @@ let container: HTMLDivElement;
 let root: Root;
 const canvas: Canvas = { id: "pane-test", title: "Sketch", dataJson: '{"elements":[]}', tags: [], createdAt: 1, updatedAt: 1 };
 const noop = vi.fn();
+const normalDoubleClick = vi.fn();
 const props: ComponentProps<typeof CanvasPane> = { canvas, focused: true, onFocus: noop, onClose: noop, onAddToChat: noop, onTitleChange: noop };
 let testId = 0;
 beforeEach(() => {
@@ -229,4 +230,107 @@ it("applies an operator replacement and files without saving the old draft over 
   change([{ ...elements[0], version: 3 }], appState, files);
   act(() => vi.advanceTimersByTime(1500));
   expect(updateCanvas).toHaveBeenCalledTimes(1);
+});
+
+type PointerState = Parameters<NonNullable<ExcalidrawProps["onPointerUp"]>>[1];
+const concept = { id: "pod-node", type: "rectangle", x: -500, y: 700, width: 200, height: 100, angle: Math.PI / 4,
+  customData: { type: "concept", courseId: "kubernetes", conceptId: "pod" } };
+function doubleClickDrawing(elements: unknown[], hit: unknown, options: { tool?: string; state?: object; target?: HTMLElement } = {}) {
+  const surface = container.querySelector("canvas")!;
+  act(() => scene.props!.excalidrawAPI!({ getSceneElements: () => elements } as unknown as ExcalidrawImperativeAPI));
+  act(() => surface.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })));
+  const state = { hit: { element: hit, allHitElements: elements }, drag: { hasOccurred: false }, resize: { isResizing: false },
+    boxSelection: { hasOccurred: false }, scrollbars: { isOverEither: false }, ...options.state };
+  act(() => scene.props!.onPointerUp!({ type: options.tool ?? "selection" } as never, state as PointerState));
+  const doubleClick = new MouseEvent("dblclick", { bubbles: true, cancelable: true, clientX: 110, clientY: 40, detail: 2 });
+  act(() => (options.target ?? surface).dispatchEvent(doubleClick));
+  return doubleClick;
+}
+
+it("retains an explicit concept owner in navigation events", () => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const owned = { ...concept, customData: { ...concept.customData, agentId: "agent-a" } };
+  const navigate = vi.fn();
+  window.addEventListener("loci:navigate-concept", navigate);
+  try {
+    doubleClickDrawing([owned], owned);
+    expect((navigate.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      courseId: "kubernetes", conceptId: "pod", canvasId: canvas.id, agentId: "agent-a",
+    });
+  } finally { window.removeEventListener("loci:navigate-concept", navigate); }
+});
+
+it("navigates the native hit concept on double-click without starting text editing", () => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const navigate = vi.fn();
+  window.addEventListener("loci:navigate-concept", navigate);
+  try {
+    const event = doubleClickDrawing([concept], concept);
+    expect(navigate).toHaveBeenCalledOnce();
+    expect((navigate.mock.calls[0][0] as CustomEvent).detail).toEqual({ courseId: "kubernetes", conceptId: "pod", canvasId: canvas.id });
+    expect(event.defaultPrevented).toBe(true);
+    expect(normalDoubleClick).not.toHaveBeenCalled();
+    // The concept's scene coordinates/rotation are deliberately different from
+    // the viewport click. Only Excalidraw knows which element was actually hit.
+    expect(updateCanvas).not.toHaveBeenCalled();
+  } finally { window.removeEventListener("loci:navigate-concept", navigate); }
+});
+
+it("routes bound text to its concept container", () => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const label = { id: "pod-label", type: "text", containerId: concept.id };
+  const navigate = vi.fn();
+  window.addEventListener("loci:navigate-concept", navigate);
+  try {
+    doubleClickDrawing([concept, label], label);
+    expect((navigate.mock.calls[0][0] as CustomEvent).detail.conceptId).toBe("pod");
+  } finally { window.removeEventListener("loci:navigate-concept", navigate); }
+});
+
+it.each([
+  { label: "a covering shape", hit: { id: "cover", type: "rectangle" } },
+  { label: "empty space", hit: null },
+  { label: "another customData type", hit: { ...concept, customData: { type: "note", courseId: "kubernetes", conceptId: "pod" } } },
+  { label: "an incomplete concept link", hit: { ...concept, customData: { type: "concept", conceptId: "pod" } } },
+])("keeps normal Excalidraw double-click behavior for $label", ({ hit }) => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const navigate = vi.fn();
+  window.addEventListener("loci:navigate-concept", navigate);
+  try {
+    const elements = hit?.id === concept.id ? [hit] : [concept, ...(hit ? [hit] : [])];
+    const event = doubleClickDrawing(elements, hit);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+    expect(normalDoubleClick).toHaveBeenCalledOnce();
+  } finally { window.removeEventListener("loci:navigate-concept", navigate); }
+});
+
+it.each([
+  { tool: "hand" },
+  { state: { drag: { hasOccurred: true } } },
+  { state: { resize: { isResizing: true } } },
+  { state: { boxSelection: { hasOccurred: true } } },
+  { state: { scrollbars: { isOverEither: true } } },
+])("does not navigate after an editor gesture %#", (options) => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const navigate = vi.fn();
+  window.addEventListener("loci:navigate-concept", navigate);
+  try {
+    doubleClickDrawing([concept], concept, options);
+    expect(navigate).not.toHaveBeenCalled();
+  } finally { window.removeEventListener("loci:navigate-concept", navigate); }
+});
+
+it("clears the previous hit before another pointer gesture and ignores editor controls", () => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const navigate = vi.fn();
+  window.addEventListener("loci:navigate-concept", navigate);
+  try {
+    doubleClickDrawing([concept], concept, { target: container.querySelector("button")! });
+    expect(navigate).not.toHaveBeenCalled();
+    const surface = container.querySelector("canvas")!;
+    act(() => surface.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })));
+    act(() => surface.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true })));
+    expect(navigate).not.toHaveBeenCalled();
+  } finally { window.removeEventListener("loci:navigate-concept", navigate); }
 });

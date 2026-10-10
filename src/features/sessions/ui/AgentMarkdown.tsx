@@ -1,6 +1,8 @@
 import { CARD_FENCE } from "../model/cards";
 import { CanvasCard, DocumentCard, MindmapCard, TodoCard } from "./cards/Cards";
 import { WidgetCard } from "../../learning/ui/WidgetCard";
+import { CourseCard } from "../../learning/ui/CourseCard";
+import { DiffCardFromSource } from "../../learning/ui/DiffCard";
 import { convertFileSrc,invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
@@ -363,6 +365,10 @@ function MarkdownCode({
     return <DocumentCard source={textContent(children)} incomplete={!!incomplete} />;
   if (card === CARD_FENCE.widget)
     return <WidgetCard source={textContent(children)} incomplete={!!incomplete} />;
+  if (card === CARD_FENCE.course)
+    return <CourseCard source={textContent(children)} incomplete={!!incomplete} />;
+  if (card === CARD_FENCE.diff)
+    return incomplete ? null : <DiffCardFromSource source={textContent(children)} />;
   // A half-written list or tree would only flicker as code, so it waits.
   if (card === CARD_FENCE.todo)
     return incomplete ? null : <TodoCard source={textContent(children)} />;

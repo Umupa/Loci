@@ -53,8 +53,8 @@ async function mount(initial: Session) {
 }
 
 function session() { return runtime.sessionsRef.current[0]; }
-/** Existing transport checks ignore the newly added widget-authoring instructions. */
-function withoutWidgetRules(text: string) { return text.replace(/\n\n<loci_widgets>[\s\S]*?<\/loci_widgets>/g, ""); }
+/** Transport assertions compare the user text, excluding app authoring rules. */
+function withoutWidgetRules(text: string) { return text.replace(/\n\n<loci_(widgets|courses)>[\s\S]*?<\/loci_\1>/g, ""); }
 async function settle(run: Pending) {
   await act(async () => {
     run.input.onEvent({ type: "message.completed" });
@@ -127,6 +127,10 @@ describe("source-backed learning submissions", () => {
     expect(sent).not.toContain('"capacity": 99');
     expect(sent).toContain("source claims, your inference, and observed experiment results");
     expect(sent).toContain("loci-widget\n---\nid:");
+    expect(sent).toContain("<loci_courses>");
+    expect(sent).toContain("engine: build-your-own");
+    expect(sent).toContain("engine: domain-navigation");
+    expect(sent).toContain("=== BEFORE ===");
     const block = session().blocks.find((entry) => entry.role === "user")!;
     expect(block).toMatchObject({ text: "Why does this wait?", ...context });
     expect(block.widgetContext).not.toHaveProperty("html");

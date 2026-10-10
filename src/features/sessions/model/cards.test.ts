@@ -119,6 +119,12 @@ describe("canvas links", () => {
 });
 
 describe("cards kept when a message folds", () => {
+  it("keeps closed course and diff blocks but excludes incomplete courses", () => {
+    const course = "~~~loci-course\n---\nid: demo\n---\n{}\n~~~";
+    const diff = "~~~loci-diff\n=== BEFORE ===\n=== AFTER ===\nhello\n~~~";
+    expect(cardsOnly(`Intro\n\n${course}\n\n${diff}\n\n~~~loci-course\npartial`)).toBe(`${course}\n\n${diff}`);
+  });
+
   it("keeps the cards, in order, and drops the prose and other code", () => {
     const text = "Here it is.\n\n````loci-document\n---\nid: a\ntitle: A\n---\n```sh\nls\n```\n````\n\n```sh\necho no\n```\n\n```loci-todo\n- [ ] one\n```\n";
     const kept = cardsOnly(text);

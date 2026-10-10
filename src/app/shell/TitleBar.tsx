@@ -1,4 +1,4 @@
-import { CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ExcalidrawIcon, PanelLeft, Settings, SidebarLeft, StickyNote, X, } from "../../shared/ui/icons";
+import { AiIdea, CheckCircle, ChevronDown, ChevronLeft, ChevronRight, ExcalidrawIcon, PanelLeft, Settings, SidebarLeft, StickyNote, X, } from "../../shared/ui/icons";
 import { FileTypeIcon } from "../../shared/ui/FileTypeIcon";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, } from "react";
 import { basename } from "../../platform/tauri/fs";
@@ -226,6 +226,7 @@ function TitleTabItem({ tab, active, closable, canDrag, variant, expanded = fals
             {tab.paneKind === "canvas" ? <ExcalidrawIcon className="size-3.5 shrink-0"/> : null}
             {tab.paneKind === "file" ? <span className="shrink-0"><FileTypeIcon name={tab.title} isDir={false} size={14}/></span> : null}
             {tab.paneKind === "document" ? <StickyNote className="size-3.5 shrink-0" strokeWidth={1.75}/> : null}
+            {tab.paneKind === "course" ? <AiIdea className="size-3.5 shrink-0" strokeWidth={1.75}/> : null}
             {tab.harnesses.length > 0 ? (<TabHarnesses harnesses={tab.harnesses} busyHarnesses={tab.busyHarnesses} doneHarnesses={tab.doneHarnesses ?? []} dimmed={!active} approval={tab.status === "approval"}/>) : null}
           </>)}
           {/* Keep two-line tabs compact while leaving room for descenders. */}

@@ -6,8 +6,8 @@
  *
  * Cards hold no state of their own. What the user does with one goes back to
  * the agent as their next message, and the agent keeps whatever is worth
- * keeping. The one thing that outlives its message is a document, which is
- * saved so it can be opened and found again.
+ * keeping. Documents, retained explanations and opened courses can outlive
+ * their messages; a course keeps its learning progress separately.
  */
 export const CARD_FENCE = {
   /** A form: see `standingQuestion`. */
@@ -22,6 +22,10 @@ export const CARD_FENCE = {
   canvas: "loci-canvas",
   /** A generated HTML/SVG/JS explanation, isolated from the application. */
   widget: "loci-widget",
+  /** A persisted course with steps or connected concepts. */
+  course: "loci-course",
+  /** A code change, displayed as a line diff. */
+  diff: "loci-diff",
 } as const;
 
 export type AgentDocument = {
@@ -111,6 +115,8 @@ const KEPT_FENCES: readonly string[] = [
   CARD_FENCE.mindmap,
   CARD_FENCE.canvas,
   CARD_FENCE.widget,
+  CARD_FENCE.course,
+  CARD_FENCE.diff,
 ];
 
 /**

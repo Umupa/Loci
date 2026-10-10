@@ -20,7 +20,7 @@ export type Tab = {
   /** Other conversation titles in this tab, focused session omitted. */
   more: string[];
   sessionCount: number;
-  paneKind?: "canvas" | "file" | "document" | "widget";
+  paneKind?: "canvas" | "file" | "document" | "widget" | "course";
   harnesses: HarnessId[];
   /** Harnesses with an in-flight turn in this tab. */
   busyHarnesses: HarnessId[];
@@ -134,6 +134,7 @@ export function summarizeTab(tab: WorkspaceTab, context: TabSummaryContext): Tab
     : focusedLeaf?.leafKind === "file" ? basename(filePanePath(focusedLeaf.id))
       : focusedLeaf?.leafKind === "document" ? focusedLeaf.document?.title ?? "Document"
         : focusedLeaf?.leafKind === "widget" ? focusedLeaf.widgetTitle ?? "Explanation"
+          : focusedLeaf?.leafKind === "course" ? focusedLeaf.course?.title ?? "Course"
         : focusedSession ? conversationTitle(focusedSession) : "";
   const activity = entries.map(sessionActivityAt).filter((at): at is number => at !== undefined);
 
