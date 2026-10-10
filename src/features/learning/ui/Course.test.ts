@@ -9,7 +9,8 @@ import { findAgent } from "../../agents/model/agent";
 import { setConceptStatus } from "../../canvas/concepts";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, openCourse, type LearningStatus, type ParsedCourse } from "../model/course";
-import { upsertLearningWidget } from "../model/learningStore";
+import { readAgentDocument } from "../../agents/model/agentDocuments";
+import { requestOpenFile } from "../../files/model/filePlace";
 import { WidgetHostContext } from "../model/widgets";
 import { CourseCard } from "./CourseCard";
 import { CoursePane } from "./CoursePane";
@@ -24,13 +25,19 @@ vi.mock("../../sessions/ui/AgentMarkdown", () => ({ AgentMarkdown: ({ text }: { 
 const highlighter = vi.hoisted(() => ({ highlight: vi.fn(() => null), getThemes: () => ["github-light", "github-dark"], supportsLanguage: () => false }));
 vi.mock("../../../shared/hooks/useCodePlugin", () => ({ useCodePlugin: () => highlighter }));
 vi.mock("../../../shared/hooks/useColorScheme", () => ({ useColorScheme: () => "dark" }));
-vi.mock("../model/learningStore", () => ({ upsertLearningWidget: vi.fn() }));
-vi.mock("../model/widgetRuntime", () => ({ adoptStoredWidget: vi.fn(), useWidget: (_ref: unknown, stored: unknown) => stored }));
-vi.mock("./WidgetFrame", () => ({ WidgetFrame: ({ widget }: { widget: { title: string } }) => createElement("div", { "data-simulation": true }, widget.title) }));
+vi.mock("../../agents/model/agentDocuments", () => ({ readAgentDocument: vi.fn(), subscribeAgentDocuments: () => () => undefined }));
+vi.mock("../../files/model/filePlace", () => ({ requestOpenFile: vi.fn() }));
+vi.mock("../../agents/ui/DocumentBody", () => ({
+  shownDocument: (stored: object) => stored,
+  DocumentBody: ({ document, section }: { document: { body: string; sourceUrl?: string }; section?: string }) => createElement("div", { "data-reading": section ?? "", "data-source": document.sourceUrl ?? "" }, document.body),
+}));
 
 const makeStep = (id: string) => ({ id, title: `Step ${id}`, summary: `Build ${id}`, file: "main.py", before: "", after: "run()\n\n", explanation: `Explanation ${id}`, runCommand: "python main.py" });
 const build: ParsedCourse = { id: "build", title: "Build an Agent", engine: "build-your-own", data: { engine: "build-your-own", steps: [makeStep("s01"), makeStep("s02"), makeStep("s03")] } };
-const domain: ParsedCourse = { id: "domain", title: "Kubernetes", engine: "domain-navigation", canvasId: "canvas-a", data: { engine: "domain-navigation", canvasId: "canvas-a", learningPath: ["pod", "service"], concepts: [{ id: "container", title: "Container", content: "Container content", prerequisites: [], leadsTo: ["pod"] }, { id: "pod", title: "Pod", content: "Pod content", prerequisites: ["container"], leadsTo: ["service"] }, { id: "service", title: "Service", content: "Service content", prerequisites: ["pod"], leadsTo: [] }] } };
+const domain: ParsedCourse = { id: "domain", title: "Kubernetes", engine: "reading", canvasId: "canvas-a", data: { engine: "reading", canvasId: "canvas-a", chapters: [
+  { title: "Workloads", lessons: [{ id: "container", title: "Container", document: "doc-container" }, { id: "pod", title: "Pod", document: "doc-pod", section: "Pod phase" }] },
+  { title: "Papers", lessons: [{ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [3, 9] }] },
+] } };
 const source = (course: ParsedCourse) => `---\nid: ${course.id}\ntitle: ${course.title}\nengine: ${course.engine}\n${course.canvasId ? `canvas-id: ${course.canvasId}\n` : ""}---\n${JSON.stringify(course.data)}\n`;
 const key = (owner: string, id: string) => JSON.stringify([owner, id]);
 const courses = new Map<string, unknown>();
@@ -64,7 +71,7 @@ beforeEach(() => {
   vi.mocked(copyText).mockResolvedValue(undefined);
   vi.mocked(setConceptStatus).mockResolvedValue(undefined);
   vi.mocked(findAgent).mockReturnValue(undefined);
-  vi.mocked(upsertLearningWidget).mockImplementation(async (owner, spec, sourceSessionId, sourceBlockId) => ({ ...spec, owner, sourceSessionId, sourceBlockId, revision: 1, state: {}, saved: false, createdAt: 1, updatedAt: 1 }));
+  vi.mocked(readAgentDocument).mockImplementation(async (_agent, id) => id === "doc-missing" ? undefined : { id, title: id, body: `${id} text`, sourceUrl: `https://kubernetes.io/${id}`, createdAt: 1, updatedAt: 1 });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("crypto", webcrypto);
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
 });
@@ -75,7 +82,7 @@ it("streams into a complete card without changing hook order and persists full s
   const card = (incomplete: boolean) => createElement(WidgetHostContext.Provider, { value: { owner: { kind: "agent", id: "owner" }, sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(domain), incomplete }));
   try {
     await act(async () => root.render(card(true))); expect(container.textContent).toContain("3 items so far"); expect(invoke).not.toHaveBeenCalled();
-    await act(async () => root.render(card(false))); expect(container.textContent).toContain("3 concepts");
+    await act(async () => root.render(card(false))); expect(container.textContent).toContain("2 chapters · 3 lessons");
     await act(async () => button("Open Course").click());
     const payload = vi.mocked(invoke).mock.calls[0][1] as { course: { agentId: string; dataJson: string } };
     expect(payload.course.agentId).toBe("owner"); expect(JSON.parse(payload.course.dataJson)).toEqual(domain.data);
@@ -113,9 +120,9 @@ it("opens the first unmastered step, saves progress, and recovers it after remou
 
 it("keeps stored progress on map failure, exposes recovery, and retries only the map", async () => {
   vi.mocked(setConceptStatus).mockRejectedValueOnce(new Error("drawing conflict"));
-  await act(async () => root.render(pane("domain"))); await act(async () => button("Mark as mastered").click());
-  expect(nav("Pod").getAttribute("aria-label")).toContain("mastered"); expect(container.textContent).toContain("Progress saved for Pod");
-  expect(setConceptStatus).toHaveBeenCalledWith("canvas-a", "domain", "pod", "mastered", "owner");
+  await act(async () => root.render(pane("domain"))); await act(async () => button("Mark as read").click());
+  expect(nav("Container").getAttribute("aria-label")).toBe("Container, Read"); expect(container.textContent).toContain("Progress saved for Container");
+  expect(setConceptStatus).toHaveBeenCalledWith("canvas-a", "domain", "container", "mastered", "owner");
   const writes = vi.mocked(invoke).mock.calls.filter(([name]) => name === "course_progress_set").length;
   await act(async () => button("Retry map update").click()); expect(container.textContent).not.toContain("drawing conflict");
   expect(vi.mocked(invoke).mock.calls.filter(([name]) => name === "course_progress_set")).toHaveLength(writes);
@@ -123,31 +130,67 @@ it("keeps stored progress on map failure, exposes recovery, and retries only the
 
 it("does not claim mastery when native progress saving fails", async () => {
   vi.mocked(invoke).mockImplementation(async (name, args) => { if (name === "course_progress_set") throw new Error("database locked"); return command(name, args); });
-  await act(async () => root.render(pane("domain"))); await act(async () => button("Mark as mastered").click());
-  expect(nav("Pod").getAttribute("aria-label")).toContain("untouched"); expect(container.querySelector('[role="alert"]')?.textContent).toContain("database locked"); expect(setConceptStatus).not.toHaveBeenCalled();
+  await act(async () => root.render(pane("domain"))); await act(async () => button("Mark as read").click());
+  expect(nav("Container").getAttribute("aria-label")).toBe("Container, Not started"); expect(container.querySelector('[role="alert"]')?.textContent).toContain("database locked"); expect(setConceptStatus).not.toHaveBeenCalled();
 });
 
 it("scopes concept navigation and retains a valid target arriving before initial load finishes", async () => {
   const read = deferred<unknown>(); vi.mocked(invoke).mockImplementation(async (name, args) => name === "course_get" ? read.promise : command(name, args));
-  await act(async () => root.render(pane("domain"))); navigate({ courseId: "domain", conceptId: "service", canvasId: "canvas-a", agentId: "owner" });
-  await act(async () => read.resolve(stored(domain))); expect(nav("Service").getAttribute("aria-current")).toBe("step");
+  await act(async () => root.render(pane("domain"))); navigate({ courseId: "domain", conceptId: "borg", canvasId: "canvas-a", agentId: "owner" });
+  await act(async () => read.resolve(stored(domain))); expect(nav("Borg").getAttribute("aria-current")).toBe("step");
   for (const wrong of [{ courseId: "build", conceptId: "pod" }, { courseId: "domain", conceptId: "pod", canvasId: "other" }, { courseId: "domain", conceptId: "pod", agentId: "other" }, { courseId: "domain", conceptId: "missing" }]) navigate(wrong);
-  expect(nav("Service").getAttribute("aria-current")).toBe("step");
-  navigate({ courseId: "domain", conceptId: "pod", canvasId: "canvas-a" }); expect(container.textContent).toContain("Pod content"); expect(nav("Container")).toBeTruthy();
+  expect(nav("Borg").getAttribute("aria-current")).toBe("step");
+  await act(async () => navigate({ courseId: "domain", conceptId: "pod", canvasId: "canvas-a" })); expect(container.textContent).toContain("doc-pod text"); expect(nav("Container")).toBeTruthy();
 });
 
 it("refreshes same-id updated courses without losing a still-valid selection", async () => {
-  await act(async () => root.render(pane("domain"))); act(() => nav("Service").click());
-  const updated = { ...domain, data: { ...domain.data, concepts: domain.data.engine === "domain-navigation" ? domain.data.concepts.map((item) => ({ ...item, content: `Revised ${item.title}` })) : [] } };
-  courses.set(key("owner", "domain"), stored(updated as ParsedCourse));
+  await act(async () => root.render(pane("domain"))); await act(async () => nav("Borg").click());
+  const updated = structuredClone(domain);
+  if (updated.data.engine === "reading") updated.data.chapters[1].title = "Revised chapter";
+  courses.set(key("owner", "domain"), stored(updated));
   await act(async () => openCourse({ courseId: "domain", agentId: "owner", title: "Kubernetes" }));
-  expect(nav("Service").getAttribute("aria-current")).toBe("step"); expect(container.textContent).toContain("Revised Service");
+  expect(nav("Borg").getAttribute("aria-current")).toBe("step"); expect(container.textContent).toContain("Revised chapter");
+});
+
+it("groups lessons under their chapters and numbers them through the course in the order written", async () => {
+  await act(async () => root.render(pane("domain")));
+  const chapters = [...container.querySelectorAll("nav section")];
+  expect(chapters.map((chapter) => chapter.querySelector("h3")?.textContent)).toEqual(["Workloads", "Papers"]);
+  expect(chapters.map((chapter) => [...chapter.querySelectorAll("button")].map((item) => item.textContent))).toEqual([["01Container", "02Pod"], ["03Borg"]]);
+  expect(container.textContent).toContain("0 / 3 read");
+});
+
+it("shows a lesson's source itself, from its section, and starts reading when a lesson is opened", async () => {
+  await act(async () => root.render(pane("domain")));
+  expect(container.querySelector("[data-reading]")?.textContent).toBe("doc-container text");
+  expect(container.querySelector("[data-reading]")?.getAttribute("data-source")).toBe("https://kubernetes.io/doc-container");
+  // The lesson shown on opening the course was not chosen by the reader.
+  expect(invoke).not.toHaveBeenCalledWith("course_progress_set", expect.anything());
+  await act(async () => nav("Pod").click());
+  expect(readAgentDocument).toHaveBeenLastCalledWith("owner", "doc-pod");
+  expect(container.querySelector("[data-reading]")?.getAttribute("data-reading")).toBe("Pod phase");
+  expect(invoke).toHaveBeenCalledWith("course_progress_set", { courseId: "domain", agentId: "owner", itemId: "pod", status: "learning" });
+  expect(nav("Pod").getAttribute("aria-label")).toBe("Pod, Reading");
+  await act(async () => nav("Pod").click());
+  expect(vi.mocked(invoke).mock.calls.filter(([name]) => name === "course_progress_set")).toHaveLength(1);
+});
+
+it("opens a file lesson at its first page, and says when a lesson's document is not in the library", async () => {
+  await act(async () => root.render(pane("domain"))); await act(async () => nav("Borg").click());
+  expect(container.textContent).toContain("borg.pdf · pages 3–9");
+  act(() => button("Open to read").click());
+  expect(requestOpenFile).toHaveBeenCalledWith("/books/borg.pdf", { page: 3 });
+  const missing = structuredClone(domain);
+  if (missing.data.engine === "reading") missing.data.chapters[0].lessons[0].document = "doc-missing";
+  courses.set(key("owner", "domain"), stored(missing));
+  await act(async () => openCourse({ courseId: "domain", agentId: "owner", title: "Kubernetes" })); await act(async () => nav("Container").click());
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain("doc-missing");
 });
 
 it("drops a late course load after the owner and course switch", async () => {
   const old = deferred<unknown>(); vi.mocked(invoke).mockImplementation(async (name, args: any) => name === "course_get" && args.id === "build" ? old.promise : command(name, args));
   await act(async () => root.render(pane())); await act(async () => root.render(pane("domain")));
-  await act(async () => old.resolve(stored(build))); expect(container.textContent).toContain("Pod content"); expect(container.textContent).not.toContain("Step s01");
+  await act(async () => old.resolve(stored(build))); expect(container.textContent).toContain("doc-container text"); expect(container.textContent).not.toContain("Step s01");
 });
 
 it("does not attach a late save error to another course or a reloaded generation", async () => {
@@ -166,41 +209,13 @@ it("merges progress saved by another pane while its early progress snapshot is s
 
 it("prepares scoped course progress in the original conversation without sending it", async () => {
   await act(async () => root.render(pane("domain"))); act(() => button("Discuss progress").click());
-  expect(requestAddToChat).toHaveBeenCalledWith(expect.stringContaining("canvasId: canvas-a"), "plain", { targetSessionId: "original-chat" });
+  expect(requestAddToChat).toHaveBeenCalledWith(expect.stringContaining('Current lesson: "Container" (container)'), "plain", { targetSessionId: "original-chat" });
   expect(vi.mocked(requestAddToChat).mock.calls[0][0]).toContain("courseId: domain");
 });
 
 it("shows load failures with a retry action", async () => {
   vi.mocked(invoke).mockRejectedValueOnce(new Error("read failed")); await act(async () => root.render(pane())); expect(container.textContent).toContain("read failed");
   await act(async () => button("Retry").click()); expect(container.textContent).toContain("Explanation s01");
-});
-
-it("registers validated concept simulations with a bounded stable widget identity and real source provenance", async () => {
-  const simulated = structuredClone(domain);
-  if (simulated.data.engine === "domain-navigation") simulated.data.concepts.find((item) => item.id === "pod")!.simulationHtml = "<div>Simulation</div><script>window.loci.setState({step: 1})</script>";
-  courses.set(key("owner", "domain"), stored(simulated));
-  await act(async () => root.render(pane("domain")));
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
-  expect(upsertLearningWidget).toHaveBeenCalledWith({ kind: "session", id: "owner" }, expect.objectContaining({ id: expect.stringMatching(/^course-[0-9a-f]{64}$/), html: expect.stringContaining("window.loci.setState"), title: "Pod" }), "original-chat", expect.stringMatching(/^course-[0-9a-f]{64}$/), 42);
-  expect(container.querySelector('[data-simulation]')?.textContent).toBe("Pod");
-});
-
-it("does not register canceled simulation HTML after a newer course revision finishes hashing", async () => {
-  const oldHash = deferred<ArrayBuffer>();
-  const digest = vi.fn().mockReturnValueOnce(oldHash.promise).mockResolvedValue(new Uint8Array(32).buffer);
-  vi.stubGlobal("crypto", { subtle: { digest } });
-  const simulated = structuredClone(domain);
-  if (simulated.data.engine === "domain-navigation") simulated.data.concepts.find((item) => item.id === "pod")!.simulationHtml = "<div>Old simulation</div>";
-  courses.set(key("owner", "domain"), stored(simulated));
-  await act(async () => root.render(pane("domain"))); expect(digest).toHaveBeenCalledTimes(1);
-  const revised = structuredClone(simulated);
-  if (revised.data.engine === "domain-navigation") revised.data.concepts.find((item) => item.id === "pod")!.simulationHtml = "<div>New simulation</div>";
-  courses.set(key("owner", "domain"), { ...stored(revised), updatedAt: 43 });
-  await act(async () => openCourse({ courseId: "domain", agentId: "owner", title: revised.title }));
-  expect(upsertLearningWidget).toHaveBeenCalledTimes(1);
-  expect(vi.mocked(upsertLearningWidget).mock.calls[0][1].html).toContain("New simulation");
-  expect(vi.mocked(upsertLearningWidget).mock.calls[0][4]).toBe(43);
-  await act(async () => oldHash.resolve(new Uint8Array(32).buffer)); expect(upsertLearningWidget).toHaveBeenCalledTimes(1);
 });
 
 it("keeps same-id courses from different owners separate during a pane switch", async () => {

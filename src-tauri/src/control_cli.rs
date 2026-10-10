@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 36] = [
+const APP_ACTIONS: [&str; 37] = [
     "models.list",
     "sessions.list",
     "sessions.read",
@@ -41,6 +41,7 @@ const APP_ACTIONS: [&str; 36] = [
     "memory.remove",
     "documents.list",
     "documents.read",
+    "documents.write",
     "habits.list",
     "habits.add",
     "habits.update",
@@ -145,8 +146,19 @@ Only in an agent's own conversation:
   memory.read    {"topic":"<name>"}  One topic file, or MEMORY.md without topic.
   memory.search  {"query":"...","since":"7d"}  Search memory, topic notes and
                   the archive. since is a date or a span like 24h, 7d, 2w.
-  documents.list {}  The documents it has written for the user, newest first.
+  documents.list {}  The documents in its library, newest first. One taken in
+                  from a file is a source and lists its sourceUrl.
   documents.read {"id":"pods"}  One of them, in full, to revise or build on.
+  documents.write {"id":"k8s-pod-lifecycle","title":"Pod Lifecycle",
+                  "subject":"Kubernetes","path":"/abs/path/pod-lifecycle.md",
+                  "sourceUrl":"https://kubernetes.io/docs/...","version":"v1.34"}
+                  Take a source into the library: the text someone else
+                  published, read from the UTF-8 Markdown file at path exactly
+                  as saved, so it never passes through a reply. sourceUrl is
+                  where it was published; subject and version are optional.
+                  Images stay as their absolute https URLs and are shown from
+                  there. A source cannot be revised by a document block; the
+                  same id here takes the file in again. At most 1 MB a file.
   habits.list    {}  What it does on its own, with schedules and last outcomes.
   habits.add     {"name":"Morning CI check","instructions":"...",
                   "schedule":{"kind":"weekdays","time":"09:00"}}

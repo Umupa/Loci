@@ -157,6 +157,8 @@ export type AgentAppHost = {
   documents?: {
     list(agentId: string): Promise<AgentLibraryEntry[]>;
     read(agentId: string, id: string): Promise<AgentLibraryEntry | undefined>;
+    /** Takes the file at `path` in as a source. */
+    importSource(agentId: string, source: AgentSourceImport): Promise<AgentLibraryEntry>;
   };
   /** The clock entries are dated by; tests pin it. */
   now?(): Date;
@@ -167,7 +169,20 @@ export type AgentLibraryEntry = {
   title: string;
   subject?: string | null;
   body?: string;
+  /** Where a source was published; absent on what the agent wrote. */
+  sourceUrl?: string | null;
+  sourceVersion?: string | null;
+  fetchedAt?: number | null;
   updatedAt: number;
+};
+
+export type AgentSourceImport = {
+  id: string;
+  title: string;
+  subject?: string;
+  path: string;
+  sourceUrl: string;
+  version?: string;
 };
 
 export type AgentFileStore = {
@@ -226,6 +241,7 @@ const FIELDS = new Map<string, readonly string[]>([
   ["memory.remove", ["find", "topic"]],
   ["documents.list", []],
   ["documents.read", ["id"]],
+  ["documents.write", ["id", "title", "subject", "path", "sourceUrl", "version"]],
   ["habits.list", []],
   ["habits.add", ["name", "instructions", "schedule"]],
   ["habits.update", ["id", "name", "instructions", "schedule", "enabled"]],
@@ -437,30 +453,40 @@ async function handleDocuments(
 ): Promise<unknown> {
   const agentId = ownConversation(source, host)?.id;
   if (!agentId || !host.documents)
-    throw new Error("Only an agent's own conversation can read its library");
+    throw new Error("Only an agent's own conversation can use its library");
+  const named = (entry: AgentLibraryEntry) => ({
+    id: entry.id,
+    title: entry.title,
+    ...(entry.subject ? { subject: entry.subject } : {}),
+    ...(entry.sourceUrl ? { sourceUrl: entry.sourceUrl } : {}),
+    ...(entry.sourceVersion ? { version: entry.sourceVersion } : {}),
+    updatedAt: new Date(entry.updatedAt).toISOString(),
+  });
   if (action === "documents.list") {
     const documents = await host.documents.list(agentId);
-    return {
-      documents: documents.map((entry) => ({
-        id: entry.id,
-        title: entry.title,
-        ...(entry.subject ? { subject: entry.subject } : {}),
-        updatedAt: new Date(entry.updatedAt).toISOString(),
-      })),
-    };
+    return { documents: documents.map(named) };
+  }
+  if (action === "documents.write") {
+    const saved = await host.documents.importSource(agentId, {
+      id: requiredString(input.id, "id", 80),
+      title: requiredString(input.title, "title", 200),
+      ...(input.subject === undefined
+        ? {}
+        : { subject: requiredString(input.subject, "subject", 80) }),
+      path: requiredString(input.path, "path", 4096),
+      sourceUrl: requiredString(input.sourceUrl, "sourceUrl", 2000),
+      ...(input.version === undefined
+        ? {}
+        : { version: requiredString(input.version, "version", 80) }),
+    });
+    return { ...named(saved), saved: true };
   }
   const found = await host.documents.read(
     agentId,
     requiredString(input.id, "id", 80),
   );
   if (found?.body == null) throw new Error("No such document");
-  return {
-    id: found.id,
-    title: found.title,
-    ...(found.subject ? { subject: found.subject } : {}),
-    updatedAt: new Date(found.updatedAt).toISOString(),
-    text: found.body,
-  };
+  return { ...named(found), text: found.body };
 }
 
 async function handleSoul(

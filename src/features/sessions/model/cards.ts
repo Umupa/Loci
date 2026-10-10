@@ -36,6 +36,10 @@ export type AgentDocument = {
   subject?: string;
   /** Markdown. */
   body: string;
+  /** Where a source was published. With one, the text is someone else's and is shown as saved. */
+  sourceUrl?: string;
+  sourceVersion?: string;
+  fetchedAt?: number;
 };
 
 function slug(text: string): string {

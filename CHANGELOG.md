@@ -8,7 +8,8 @@ Nothing has been tagged yet; the first release will be 0.1.0. Until then this se
 
 ### Added
 
-- Code-step and concept-navigation courses with saved learning progress, inline diffs, concept-map navigation and teaching agent templates.
+- **Courses read from first-hand sources**: a course is chapters of lessons, each pointing at a source to read (a document in the agent's library, optionally from one of its headings, or a PDF and its pages) with saved reading progress. The course holds no text written by the agent. The Navigator template agrees a plan with you before collecting anything, then takes official documentation, specifications and papers into its library with `app documents.write`, which reads the text from a file the agent saved so it is never retyped by a model. A source records where it was published, shows that page's pictures, and cannot be revised by a reply. Selecting text in any library document adds the passage to the agent's chat.
+- Code-step courses with inline diffs, and the Builder and Lens agent templates.
 
 - Simplified Chinese Settings with system language detection and instant switching. The workspace, menus and notifications remain in English.
 - Desktop shell for agent CLIs: projects as local folders, sessions through Claude Code, Codex, Cursor, Grok Build, OpenCode, Pi, omp, fx, Hermes Agent and Antigravity, model and permission selection, agent questions, plan and task display, tabs and drag-to-split panes, session folders, ⌘K search, attachments, reminders and desktop notifications.

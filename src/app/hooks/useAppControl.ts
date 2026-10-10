@@ -1,4 +1,4 @@
-import { listAgentDocuments, readAgentDocument } from "../../features/agents/model/agentDocuments";
+import { importAgentSource, listAgentDocuments, readAgentDocument } from "../../features/agents/model/agentDocuments";
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -153,7 +153,7 @@ export function useAppControl(options: Options) {
           habits: { load: loadHabits, update: updateHabits },
           renameAgent: (agentId, look) => { updateAgent(agentId, (current) => ({ ...current, ...look })); },
           files: { load: loadAgentFiles, read: readAgentFile, write: writeAgentFile },
-          documents: { list: listAgentDocuments, read: readAgentDocument },
+          documents: { list: listAgentDocuments, read: readAgentDocument, importSource: importAgentSource },
           notes: () => loadNotes(true), note: getNote,
           saveNote: async (note) => { const saved = await upsertNote(note); window.dispatchEvent(new Event(NOTES_CHANGED_EVENT)); return saved; },
         });

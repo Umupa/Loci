@@ -21,6 +21,15 @@ export function requestFilePlace(path: string, place: FilePlace): void {
   notify();
 }
 
+/** Fired on `window`: open this file in a pane, wherever the user is working. */
+export const OPEN_FILE_EVENT = "loci:open-file";
+
+/** Open a file from somewhere that owns no panes, such as a lesson, optionally at a place in it. */
+export function requestOpenFile(path: string, place?: FilePlace): void {
+  if (place) requestFilePlace(path, place);
+  window.dispatchEvent(new CustomEvent<{ path: string }>(OPEN_FILE_EVENT, { detail: { path } }));
+}
+
 /** The pane has shown the place. A request is for the click that made it, so it does not outlive it. */
 export function consumeFilePlace(path: string, token: number): void {
   if (requests.get(path)?.token !== token) return;

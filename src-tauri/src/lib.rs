@@ -328,6 +328,7 @@ pub fn run() {
             agent_documents::agent_documents_list,
             agent_documents::agent_documents_get,
             agent_documents::agent_documents_upsert,
+            agent_documents::agent_documents_import,
             agent_documents::agent_documents_delete,
             agent_transcript::agent_transcript_append,
             agent_transcript::agent_transcript_page,

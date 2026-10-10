@@ -19,13 +19,13 @@ const deferred = <T,>() => {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 };
-const data = (canvasId: string, conceptIds = ["pod", "service"]): CourseData => ({
-  engine: "domain-navigation", canvasId, learningPath: conceptIds,
-  concepts: conceptIds.map((id) => ({ id, title: id, content: `Learn ${id}`, prerequisites: [], leadsTo: [] })),
+const data = (canvasId: string, lessonIds = ["pod", "service"]): CourseData => ({
+  engine: "reading", canvasId,
+  chapters: [{ title: "Workloads", lessons: lessonIds.map((id) => ({ id, title: id, document: `doc-${id}` })) }],
 });
 const stored = (canvasId: string, updatedAt: number, conceptIds?: string[]) => ({
   id: "domain", agentId: "owner", title: "Kubernetes", updatedAt,
-  engine: "domain-navigation", dataJson: JSON.stringify(data(canvasId, conceptIds)),
+  engine: "reading", dataJson: JSON.stringify(data(canvasId, conceptIds)),
 });
 let currentCourse: ReturnType<typeof stored>;
 let progress: Map<string, LearningStatus>;
@@ -34,6 +34,7 @@ const command = async (name: string, args: any): Promise<any> => {
   if (name === "course_get") return currentCourse;
   if (name === "course_progress_get") return [...progress].map(([itemId, status]) => ({ itemId, status }));
   if (name === "course_progress_set") { progress.set(args.itemId, args.status); return; }
+  if (name === "agent_documents_get") return { id: args.id, title: args.id, body: `Read ${args.id}`, createdAt: 1, updatedAt: 1 };
   throw new Error(`Unexpected invoke: ${name}`);
 };
 const button = (text: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === text)!;
@@ -59,14 +60,14 @@ afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlo
 it("synchronizes a pending progress save to the revised canvas and keeps map failures retryable", async () => {
   const write = deferred<unknown>();
   vi.mocked(invoke).mockImplementation(async (name, args) => name === "course_progress_set" ? write.promise : command(name, args));
-  await mount(); act(() => button("Mark as mastered").click());
+  await mount(); act(() => button("Mark as read").click());
   currentCourse = stored("canvas-b", 2); await reopen();
   vi.mocked(setConceptStatus).mockRejectedValueOnce(new Error("current drawing failed"));
   await act(async () => { progress.set("pod", "mastered"); write.resolve(undefined); });
 
   expect(setConceptStatus).toHaveBeenCalledWith("canvas-b", "domain", "pod", "mastered", "owner");
   expect(container.querySelector('[role="alert"]')?.textContent).toContain("current drawing failed");
-  expect(button("Mastered ✓").disabled).toBe(true);
+  expect(button("Read ✓").disabled).toBe(true);
   await act(async () => button("Retry map update").click());
   expect(setConceptStatus).toHaveBeenLastCalledWith("canvas-b", "domain", "pod", "mastered", "owner");
   expect(container.querySelector('[role="alert"]')).toBeNull();
@@ -77,7 +78,7 @@ it("waits for a revised course that is still loading when the progress save fini
   const write = deferred<unknown>(), read = deferred<unknown>();
   await mount();
   vi.mocked(invoke).mockImplementation(async (name, args) => name === "course_progress_set" ? write.promise : command(name, args));
-  act(() => button("Mark as mastered").click());
+  act(() => button("Mark as read").click());
   currentCourse = stored("canvas-b", 2);
   vi.mocked(invoke).mockImplementation(async (name, args) => name === "course_get" ? read.promise : name === "course_progress_set" ? write.promise : command(name, args));
   await reopen();
@@ -85,20 +86,20 @@ it("waits for a revised course that is still loading when the progress save fini
   expect(setConceptStatus).not.toHaveBeenCalled();
   await act(async () => read.resolve(currentCourse));
   expect(setConceptStatus).toHaveBeenCalledWith("canvas-b", "domain", "pod", "mastered", "owner");
-  expect(button("Mastered ✓").disabled).toBe(true);
+  expect(button("Read ✓").disabled).toBe(true);
 });
 
 it("reconciles the current canvas when the course changes during a queued map write", async () => {
   const mapWrite = deferred<void>();
   vi.mocked(setConceptStatus).mockReturnValueOnce(mapWrite.promise);
-  await mount(); await act(async () => button("Mark as mastered").click());
+  await mount(); await act(async () => button("Mark as read").click());
   expect(setConceptStatus).toHaveBeenCalledWith("canvas-a", "domain", "pod", "mastered", "owner");
   currentCourse = stored("canvas-b", 2); await reopen();
   await act(async () => mapWrite.reject(new Error("previous drawing failed")));
   expect(setConceptStatus).toHaveBeenLastCalledWith("canvas-b", "domain", "pod", "mastered", "owner");
   expect(setConceptStatus).toHaveBeenCalledTimes(2);
   expect(container.querySelector('[role="alert"]')).toBeNull();
-  expect(button("Mastered ✓").disabled).toBe(true);
+  expect(button("Read ✓").disabled).toBe(true);
 });
 
 it("does not synchronize a concept removed after the native progress commit", async () => {
@@ -107,14 +108,14 @@ it("does not synchronize a concept removed after the native progress commit", as
     const result = await command(name, args);
     return name === "course_progress_set" ? reply.promise : result;
   });
-  await mount(); await act(async () => button("Mark as mastered").click());
+  await mount(); await act(async () => button("Mark as read").click());
   expect(progress.get("pod")).toBe("mastered");
   currentCourse = stored("canvas-b", 2, ["service"]); progress.delete("pod"); await reopen();
   await act(async () => reply.resolve(undefined));
   expect(setConceptStatus).not.toHaveBeenCalled();
   expect(container.querySelector("nav")?.textContent).not.toContain("pod");
   expect(container.querySelector('[role="alert"]')).toBeNull();
-  expect(button("Mark as mastered").disabled).toBe(false);
+  expect(button("Mark as read").disabled).toBe(false);
 });
 
 it("finishes a committed progress save against persisted course data after its pane closes", async () => {
@@ -123,7 +124,7 @@ it("finishes a committed progress save against persisted course data after its p
     const result = await command(name, args);
     return name === "course_progress_set" ? reply.promise : result;
   });
-  await mount(); await act(async () => button("Mark as mastered").click());
+  await mount(); await act(async () => button("Mark as read").click());
   act(() => root.unmount()); root = createRoot(container);
   currentCourse = stored("canvas-b", 2);
   await act(async () => reply.resolve(undefined));
@@ -141,11 +142,11 @@ it("finishes the original owner's map save without attaching its error to anothe
     const result = await command(name, args);
     return name === "course_progress_set" ? reply.promise : result;
   });
-  await mount(); await act(async () => button("Mark as mastered").click());
+  await mount(); await act(async () => button("Mark as read").click());
   await mount("other");
   vi.mocked(setConceptStatus).mockRejectedValueOnce(new Error("original owner's drawing failed"));
   await act(async () => reply.resolve(undefined));
   expect(setConceptStatus).toHaveBeenCalledWith("canvas-a", "domain", "pod", "mastered", "owner");
   expect(container.querySelector('[role="alert"]')).toBeNull();
-  expect(button("Mark as mastered").disabled).toBe(false);
+  expect(button("Mark as read").disabled).toBe(false);
 });

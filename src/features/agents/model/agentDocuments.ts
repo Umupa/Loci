@@ -8,6 +8,10 @@ export type StoredDocument = {
   subject?: string | null;
   /** Present when one document is read; listings only name them. */
   body?: string;
+  /** Where a source was published. A document with one is someone else's text, kept as saved. */
+  sourceUrl?: string | null;
+  sourceVersion?: string | null;
+  fetchedAt?: number | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -58,6 +62,19 @@ export async function saveAgentDocuments(
     });
   }
   changed();
+}
+
+/** Takes a saved file into the library as a source: its text exactly as the file holds it. */
+export async function importAgentSource(
+  agentId: string,
+  source: { id: string; title: string; subject?: string; path: string; sourceUrl: string; version?: string },
+): Promise<StoredDocument> {
+  const saved = await invoke<StoredDocument>("agent_documents_import", {
+    agent: agentId,
+    source: { ...source, subject: source.subject ?? null, version: source.version ?? null },
+  });
+  changed();
+  return saved;
 }
 
 /** Removes one document, or with no id everything an agent wrote. */
