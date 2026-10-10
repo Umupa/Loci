@@ -1,19 +1,8 @@
 import type { Tab } from "../../../app/shell/TitleBar";
 import { projectKey, projectName } from "../../../shared/lib/paths";
 import { knownProjectPaths, notifyProjectPathsChanged } from "../../projects/model/recents";
-
-/** Chrome-like palette — saturated enough to read on dark glass. */
-export const TAB_GROUP_COLORS = [
-  "hsl(210 8% 58%)",
-  "hsl(211 92% 62%)",
-  "hsl(12 80% 58%)",
-  "hsl(45 90% 55%)",
-  "hsl(142 55% 50%)",
-  "hsl(330 70% 62%)",
-  "hsl(280 55% 62%)",
-  "hsl(175 55% 48%)",
-  "hsl(25 85% 58%)",
-] as const;
+import { TAB_GROUP_COLORS } from "./tabGroupColors";
+export { TAB_GROUP_COLORS } from "./tabGroupColors";
 
 export function tabGroupColor(project: string): string {
   let hash = 0;

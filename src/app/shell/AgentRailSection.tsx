@@ -1,11 +1,11 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useAnimatedReorder } from "../../shared/hooks/useAnimatedReorder";
-import { MoreHorizontal, Plus, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
+import { CircleAlert, CircleDashed, MoreHorizontal, Pencil, Plus, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
 import { Popover, type PopoverAnchor } from "../../shared/ui/Popover";
 import { Shimmer } from "../../shared/ui/Shimmer";
 import { agentTemplatesSnapshot, listAgentTemplates, subscribeAgentTemplates } from "../../features/agents/model/agentTemplates";
 import { AgentAvatar } from "../../features/agents/ui/AgentAvatar";
-import { AgentStatusDot } from "../../features/agents/ui/AgentStatus";
+import "./AgentRailSection.css";
 import {
   AGENT_STATUS_LABEL,
   agentLook,
@@ -38,6 +38,49 @@ type Props = {
 };
 
 const IDLE: AgentState = { status: "idle" };
+
+type RailPhase = "thinking" | "working" | "responding" | "needs-you" | "updated" | "idle";
+
+function railPhase(state: AgentState, unseen: boolean): RailPhase {
+  if (state.status === "needs-you") return "needs-you";
+  if (state.status === "working") {
+    if (state.activity === "Thinking") return "thinking";
+    if (state.activity === "Writing a reply") return "responding";
+    return "working";
+  }
+  return unseen ? "updated" : "idle";
+}
+
+const SIGNAL_TITLE: Record<RailPhase, string> = {
+  thinking: "Thinking",
+  working: "Working",
+  responding: "Replying",
+  "needs-you": "Needs you",
+  updated: "New update",
+  idle: "Idle",
+};
+
+/** The face identifies the agent; this small signal says what it is doing. */
+function AgentRailSignal({ phase }: { phase: RailPhase }) {
+  return (
+    <span data-agent-rail-signal aria-hidden title={SIGNAL_TITLE[phase]}
+      className="grid size-4 shrink-0 place-items-center">
+      {phase === "thinking" ? (
+        <span data-agent-rail-dots className="flex items-center gap-[2px]">
+          <span /><span /><span />
+        </span>
+      ) : phase === "working" ? (
+        <CircleDashed data-agent-rail-spinner className="size-3.5" strokeWidth={1.75} />
+      ) : phase === "responding" ? (
+        <Pencil data-agent-rail-pencil className="size-3.5" strokeWidth={1.75} />
+      ) : phase === "needs-you" ? (
+        <CircleAlert className="size-3.5" strokeWidth={1.75} />
+      ) : phase === "updated" ? (
+        <span data-agent-rail-update className="size-1.5 rounded-full bg-current" />
+      ) : null}
+    </span>
+  );
+}
 
 /**
  * The user's agents, above the projects. Each opens like a project does, but
@@ -98,15 +141,18 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
           const projects = agentProjectsPhrase(look.projects);
           const unseen = !selected && !!unseenIds?.has(agent.id);
           const preview = previews[agent.id];
-          const status = state.status === "idle" ? undefined : (state.activity ?? AGENT_STATUS_LABEL[state.status]);
+          const phase = railPhase(state, unseen);
+          const status = [AGENT_STATUS_LABEL[state.status], state.activity].filter(Boolean).join(" · ");
           return (
             <div
               key={agent.id}
               ref={(el) => sortable.setItemRef(agent.id, el)}
               data-selected={selected || undefined}
+              data-agent-id={agent.id}
               data-agent-status={state.status}
-              className={`reorder-item project-reorder-item group relative flex h-8 cursor-default touch-none items-stretch rounded-md px-2 ${
-                selected ? "bg-selection-strong text-content" : "opacity-65"
+              data-agent-rail-phase={phase}
+              className={`agent-rail-row reorder-item project-reorder-item group relative flex h-8 cursor-default touch-none items-stretch rounded-md px-2 ${
+                selected ? "bg-selection-strong text-content" : ""
               }`}
               onPointerDown={(event) => {
                 if (event.button !== 0) return;
@@ -125,24 +171,23 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             >
               <button
                 type="button"
-                title={[look.role ? `${look.name} · ${look.role}` : look.name, projects || "No projects yet", status ?? (preview ? `${preview.text}${preview.at != null ? ` · ${previewTimeLabel(preview.at)}` : ""}` : undefined)].filter(Boolean).join("\n")}
-                aria-label={[look.name, status ?? "idle", projects || "no projects yet"].join(", ")}
+                title={[look.role ? `${look.name} · ${look.role}` : look.name, status, unseen ? "New update" : undefined, projects || "No projects yet", state.status === "idle" && preview ? `${preview.text}${preview.at != null ? ` · ${previewTimeLabel(preview.at)}` : ""}` : undefined].filter(Boolean).join("\n")}
+                aria-label={[look.name, status, unseen ? "New update" : undefined, projects || "no projects yet"].filter(Boolean).join(", ")}
                 aria-current={selected ? "true" : undefined}
-                className="flex min-w-0 flex-1 cursor-default items-center gap-2 text-left group-hover:pr-6 group-has-[:focus-visible]:pr-6"
+                className="flex min-w-0 flex-1 cursor-default items-center gap-2 pr-6 text-left"
               >
                 {/* The same size and place as a project's mascot, so the rail reads as one list. */}
-                <span className="relative grid size-4 shrink-0 place-items-center">
-                  <AgentAvatar name={look.avatar} color={look.color} className="size-4" />
-                  {state.status === "idle" ? null : (
-                    <AgentStatusDot status={state.status} color={look.color} className="-right-1 -top-1 size-1.5" />
-                  )}
+                <span className="grid size-6 shrink-0 place-items-center">
+                  <AgentAvatar name={look.avatar} color={look.color} className="size-6" />
                 </span>
                 {state.status === "working" ? (
-                  <Shimmer as="span" duration={1.4} className="min-w-0 flex-1 truncate text-[13px]">{look.name}</Shimmer>
+                  <Shimmer as="span" duration={1.4} className="min-w-0 flex-1 truncate text-[13px]">
+                    {look.name}
+                  </Shimmer>
                 ) : (
                   <span className="min-w-0 flex-1 truncate text-[13px]">{look.name}</span>
                 )}
-                {unseen ? <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-content/60 group-hover:hidden group-has-[:focus-visible]:hidden" /> : null}
+                <AgentRailSignal phase={phase} />
               </button>
               <button
                 type="button"
@@ -187,7 +232,7 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             <span className="grid size-6 shrink-0 place-items-center rounded-md bg-content/8 text-content/70"><Plus className="size-3.5" strokeWidth={1.75} /></span>
             <span className="flex min-w-0 flex-col">
               <span className="text-[13px] text-content">New agent</span>
-              <span className="text-xs leading-snug text-content/45">Blank. It asks what its job should be.</span>
+              <span className="text-xs leading-snug text-content/45">Say what you need in one sentence.</span>
             </span>
           </button>
           <div className="mx-2.5 mb-1 mt-1.5 border-t border-stroke pt-2 text-[11px] text-content/40">Or start from a template</div>

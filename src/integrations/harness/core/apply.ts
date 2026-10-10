@@ -423,6 +423,9 @@ function lastMatchingBlock(
 }
 
 type UserTurnExtra = {
+  blockId?: string;
+  sources?: Block["sources"];
+  widgetContext?: Block["widgetContext"];
   noteCard?: Block["noteCard"];
   loci?: boolean;
   canvasCli?: boolean;
@@ -433,6 +436,9 @@ type UserTurnExtra = {
 
 function userTurnFields(extra?: UserTurnExtra) {
   return {
+    ...(extra?.blockId ? { id: extra.blockId } : {}),
+    ...(extra?.sources?.length ? { sources: extra.sources } : {}),
+    ...(extra?.widgetContext ? { widgetContext: extra.widgetContext } : {}),
     ...(extra?.noteCard ? { noteCard: extra.noteCard } : {}),
     ...(extra?.loci ? { loci: true } : {}),
     ...(extra?.canvasCli ? { canvasCli: true } : {}),

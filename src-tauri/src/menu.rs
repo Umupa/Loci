@@ -112,6 +112,7 @@ pub fn dispatch(app: &AppHandle, id: &str) {
         | "zoom_reset"
         | "reload"
         | "open_command_palette"
+        | "open_pdf"
         | "close_all_tabs"
         | "switch_tab"
         | "next_attention"
@@ -172,6 +173,7 @@ fn build(
         "App: Open Project",
         overrides,
     )?;
+    let open_pdf = MenuItemBuilder::with_id("open_pdf", "Open PDF…").build(app)?;
     let command_palette = menu_item(
         app,
         "open_command_palette",
@@ -379,6 +381,7 @@ fn build(
     let file = SubmenuBuilder::with_id(app, "file", "File")
         .item(&new_window)
         .item(&open_project)
+        .item(&open_pdf)
         .item(&open_search)
         .item(&command_palette)
         .separator()

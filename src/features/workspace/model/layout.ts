@@ -8,13 +8,22 @@
  * that pane. cmd-d splits right, shift-cmd-d splits down,
  * cmd-opt-arrows move focus to the adjacent pane.
  */
+import type { AgentDocument } from "../../sessions/model/cards";
+import type { WidgetRef } from "../../learning/model/types";
+
 export type SplitDir = "right" | "down";
 export type FocusDir = "left" | "right" | "up" | "down";
 export type LayoutNode = {
     type: "leaf";
     id: string;
     /** When absent, the leaf is a session pane. */
-    leafKind?: "canvas" | "file";
+    leafKind?: "canvas" | "file" | "document" | "widget";
+    widget?: WidgetRef;
+    widgetTitle?: string;
+    widgetSourceSessionId?: string;
+    /** A library document carries its text so it can reopen without a session. */
+    document?: AgentDocument;
+    agentId?: string;
     /** A file opened by a single click: the next file opened takes its pane. */
     preview?: boolean;
 } | {
@@ -53,6 +62,19 @@ export function filePanePath(paneId: string): string {
 }
 export function fileLeaf(path: string, preview = false): LayoutNode {
     return { type: "leaf", id: filePaneId(path), leafKind: "file", ...(preview ? { preview } : {}) };
+}
+/** Documents with the same name in different agents' libraries are distinct panes. */
+export function documentPaneId(documentId: string, agentId?: string): string {
+    return `document:${encodeURIComponent(agentId ?? "")}:${encodeURIComponent(documentId)}`;
+}
+export function documentLeaf(document: AgentDocument, agentId?: string): LayoutNode {
+    return { type: "leaf", id: documentPaneId(document.id, agentId), leafKind: "document", document, ...(agentId ? { agentId } : {}) };
+}
+export function widgetPaneId(widget: WidgetRef): string {
+    return `widget:${encodeURIComponent(widget.owner.kind)}:${encodeURIComponent(widget.owner.id)}:${encodeURIComponent(widget.id)}`;
+}
+export function widgetLeaf(widget: WidgetRef, title: string, sourceSessionId?: string): LayoutNode {
+    return { type: "leaf", id: widgetPaneId(widget), leafKind: "widget", widget, widgetTitle: title, widgetSourceSessionId: sourceSessionId };
 }
 export function findLeaf(node: LayoutNode, id: string): Extract<LayoutNode, { type: "leaf" }> | undefined {
     if (node.type === "leaf") return node.id === id ? node : undefined;
@@ -225,7 +247,12 @@ export type LayoutRect = {
 };
 export type LayoutLeaf = {
     id: string;
-    kind: "session" | "canvas" | "file";
+    kind: "session" | "canvas" | "file" | "document" | "widget";
+    widget?: WidgetRef;
+    widgetTitle?: string;
+    widgetSourceSessionId?: string;
+    document?: AgentDocument;
+    agentId?: string;
     preview?: boolean;
     rect: LayoutRect;
     axis: "x" | "y";
@@ -241,7 +268,7 @@ export function layoutLeaves(node: LayoutNode, rect: LayoutRect = { x: 0, y: 0, 
     const axis = parentDir === "down" ? "y" : "x";
     if (node.type === "leaf") {
         const kind = node.leafKind ?? "session";
-        return [{ id: node.id, kind, ...(node.preview ? { preview: true } : {}), rect, axis }];
+        return [{ id: node.id, kind, ...(node.preview ? { preview: true } : {}), ...(node.document ? { document: node.document } : {}), ...(node.agentId ? { agentId: node.agentId } : {}), ...(node.widget ? { widget: node.widget, widgetTitle: node.widgetTitle, widgetSourceSessionId: node.widgetSourceSessionId } : {}), rect, axis }];
     }
     const row = node.dir === "right";
     let offset = 0;
@@ -588,6 +615,23 @@ export function showCanvasInTab(tab: WorkspaceTab, canvasId: string): WorkspaceT
             : placeLayout(tab.layout, canvasLeaf(canvasId), tab.focusedId, "right"),
         focusedId: canvasId,
     };
+}
+/** Open a document beside the focused pane, keeping other documents available. */
+export function showDocumentInTab(tab: WorkspaceTab, document: AgentDocument, agentId?: string): WorkspaceTab {
+    const incoming = documentLeaf(document, agentId);
+    return {
+        ...tab,
+        layout: findLeaf(tab.layout, incoming.id)
+            ? replacePaneWithLayout(tab.layout, incoming.id, incoming)
+            : placeLayout(tab.layout, incoming, tab.focusedId, "right"),
+        focusedId: incoming.id,
+    };
+}
+export function showWidgetInTab(tab: WorkspaceTab, widget: WidgetRef, title: string, sourceSessionId?: string): WorkspaceTab {
+    const incoming = widgetLeaf(widget, title, sourceSessionId);
+    return { ...tab, layout: findLeaf(tab.layout, incoming.id)
+        ? replacePaneWithLayout(tab.layout, incoming.id, incoming)
+        : placeLayout(tab.layout, incoming, tab.focusedId, "right"), focusedId: incoming.id };
 }
 /**
  * Where a drawing goes when a session draws on it. A drawing has one pane, so

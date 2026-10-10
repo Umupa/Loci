@@ -2,8 +2,11 @@ import { closeLeaf, findLeaf, leaf, leafIds, movePane, placeLayout, placePane, r
 import { projectName } from "../../../shared/lib/paths";
 import { sameProjectPath } from "../../projects/model/recents";
 import { type Session, } from "../../sessions/model/session";
+import { isAgentSession } from "../../agents/model/agent";
 export function workspaceTabCwd(tab: WorkspaceTab, sessions: readonly Pick<Session, "id" | "cwd">[]): string | null {
     for (const id of leafIds(tab.layout)) {
+        // An agent's home folder is its runtime cwd, not the project its pane is in.
+        if (isAgentSession(id)) continue;
         const session = sessions.find((entry) => entry.id === id);
         if (session?.cwd && session.cwd !== "~")
             return session.cwd;
@@ -11,7 +14,7 @@ export function workspaceTabCwd(tab: WorkspaceTab, sessions: readonly Pick<Sessi
     return tab.cwd && tab.cwd !== "~" ? tab.cwd : null;
 }
 export function focusedWorkspaceTabCwd(tab: WorkspaceTab, sessions: readonly Pick<Session, "id" | "cwd">[]): string | null {
-    const session = sessions.find((entry) => entry.id === tab.focusedId);
+    const session = !isAgentSession(tab.focusedId) ? sessions.find((entry) => entry.id === tab.focusedId) : undefined;
     return session?.cwd ?? workspaceTabCwd(tab, sessions);
 }
 export function workspaceTabProject(tab: WorkspaceTab, sessions: Session[]): string | null {
@@ -236,8 +239,9 @@ export function applyPlaceTabOnPane({ tabs, sessions, sourceTabId, targetId, edg
 /**
  * Extract one leaf from a split workspace and turn it into a title tab.
  */
-export function applyDetachPaneToTab({ tabs, paneId, targetTabId, position, createTabId = () => crypto.randomUUID(), }: {
+export function applyDetachPaneToTab({ tabs, sessions = [], paneId, targetTabId, position, createTabId = () => crypto.randomUUID(), }: {
     tabs: WorkspaceTab[];
+    sessions?: readonly Pick<Session, "id" | "cwd">[];
     paneId: string;
     targetTabId: string;
     position: "before" | "after";
@@ -252,11 +256,13 @@ export function applyDetachPaneToTab({ tabs, paneId, targetTabId, position, crea
         return null;
     }
     const source = tabs[sourceIndex]!;
+    const cwd = workspaceTabCwd(source, sessions);
     const remaining = closeLeaf(source, paneId);
     if (!remaining)
         return null;
     const nextSource: WorkspaceTab = {
         ...remaining,
+        ...(cwd ? { cwd } : {}),
     };
     const withoutDetached = tabs.map((tab, index) => index === sourceIndex ? nextSource : tab);
     const targetIndex = withoutDetached.findIndex((tab) => tab.id === targetTabId);
@@ -271,7 +277,7 @@ export function applyDetachPaneToTab({ tabs, paneId, targetTabId, position, crea
         id: createTabId(),
         layout: findLeaf(source.layout, paneId)!,
         focusedId: paneId,
-        ...(source.cwd ? { cwd: source.cwd } : {}),
+        ...(cwd ? { cwd } : {}),
         ...(keepsSourceGroup ? { groupId: source.groupId } : {}),
     };
     const nextTabs = withoutDetached.slice();
@@ -279,7 +285,7 @@ export function applyDetachPaneToTab({ tabs, paneId, targetTabId, position, crea
     return { tabs: nextTabs, activeTabId: detached.id, focusedId: paneId };
 }
 /** Move an existing pane without interpreting its id as a session id. */
-export function applyMoveWorkspacePane(tabs: WorkspaceTab[], paneId: string, targetId: string, edge: PaneEdge): WorkspaceTab[] | null {
+export function applyMoveWorkspacePane(tabs: WorkspaceTab[], paneId: string, targetId: string, edge: PaneEdge, sessions: readonly Pick<Session, "id" | "cwd">[] = []): WorkspaceTab[] | null {
     const source = tabs.find((tab) => findLeaf(tab.layout, paneId));
     const target = tabs.find((tab) => findLeaf(tab.layout, targetId));
     if (!source || !target || paneId === targetId) return null;
@@ -289,9 +295,11 @@ export function applyMoveWorkspacePane(tabs: WorkspaceTab[], paneId: string, tar
     }
     const incoming = findLeaf(source.layout, paneId)!;
     const remaining = closeLeaf(source, paneId);
+    const sourceCwd = workspaceTabCwd(source, sessions);
+    const targetCwd = workspaceTabCwd(target, sessions) ?? sourceCwd;
     return tabs.flatMap((tab) => {
-        if (tab.id === source.id) return remaining ? [remaining] : [];
-        if (tab.id === target.id) return [{ ...tab, cwd: tab.cwd ?? source.cwd,
+        if (tab.id === source.id) return remaining ? [{ ...remaining, ...(sourceCwd ? { cwd: sourceCwd } : {}) }] : [];
+        if (tab.id === target.id) return [{ ...tab, ...(targetCwd ? { cwd: targetCwd } : {}),
             layout: placeLayout(tab.layout, incoming, targetId, edge), focusedId: paneId }];
         return [tab];
     });

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Check, StickyNote, Trash2, X } from "../../../shared/ui/icons";
+import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Check, GripVertical, StickyNote, Trash2, X } from "../../../shared/ui/icons";
 import { NOTES_CHANGED_EVENT, upsertNote } from "../../notes";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
@@ -14,21 +14,25 @@ type Props = {
   agentId?: string;
   /** The document as the chat or the library handed it over. */
   document: AgentDocument;
+  focused: boolean;
+  onFocus: () => void;
   onClose: () => void;
+  onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
 };
 
 const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content disabled:opacity-40";
 
 /**
- * A document beside the chat, at reading width. It shows the library's copy,
+ * A workspace document pane. It shows the library's copy,
  * so a revision the agent writes while it is open appears here.
  */
-export function AgentDocumentReader({ agentId, document, onClose }: Props) {
+export function AgentDocumentReader({ agentId, document, focused, onFocus, onClose, onPaneDragStart }: Props) {
   const [latest, setLatest] = useState<AgentDocument>(document);
   const [stored, setStored] = useState(false);
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     setLatest(document);
+    setStored(false);
     setSaved(false);
     if (!agentId) return;
     let current = true;
@@ -52,26 +56,31 @@ export function AgentDocumentReader({ agentId, document, onClose }: Props) {
   };
 
   return (
-    <aside aria-label={latest.title} className="flex w-[min(46rem,55%)] shrink-0 flex-col border-l border-stroke bg-background-base/70 backdrop-blur-xl">
-      <header className="flex h-11 shrink-0 items-center gap-1.5 px-3">
-        <div className="flex min-w-0 flex-1 items-baseline gap-2 px-1">
-          <h2 className="truncate text-[13px] font-medium">{latest.title}</h2>
-          {latest.subject ? <span className="shrink-0 text-xs text-content/45">{latest.subject}</span> : null}
+    <aside aria-label={latest.title} className="flex h-full min-h-0 min-w-0 w-full flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
+      <header className={`flex h-9 shrink-0 select-none items-center gap-1.5 border-b border-stroke px-2 ${onPaneDragStart ? "cursor-grab active:cursor-grabbing touch-none" : ""}`}
+        onPointerDown={(event) => {
+          if (!(event.target as HTMLElement).closest("[data-no-drag]")) onPaneDragStart?.(event);
+        }}>
+        {onPaneDragStart ? <GripVertical className="size-3.5 shrink-0 text-content/35" /> : null}
+        <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} />
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <h2 className="min-w-0 truncate text-xs">{latest.title}</h2>
+          {latest.subject ? <span className="min-w-0 truncate text-[11px] text-content/45">{latest.subject}</span> : null}
         </div>
-        <button type="button" title={saved ? "Saved to Notes" : "Save as a note"} aria-label="Save as a note" disabled={saved} onClick={() => void saveAsNote()} className={iconButton}>
+        <button type="button" data-no-drag title={saved ? "Saved to Notes" : "Save as a note"} aria-label="Save as a note" disabled={saved} onClick={() => void saveAsNote()} className={iconButton}>
           {saved ? <Check className="size-3.5" strokeWidth={2} /> : <StickyNote className="size-3.5" strokeWidth={1.75} />}
         </button>
         {agentId && stored ? (
-          <button type="button" title="Remove from the library" aria-label="Remove from the library" className={iconButton}
+          <button type="button" data-no-drag title="Remove from the library" aria-label="Remove from the library" className={iconButton}
             onClick={() => void deleteAgentDocument(agentId, latest.id).then(onClose)}>
             <Trash2 className="size-3.5" strokeWidth={1.75} />
           </button>
         ) : null}
-        <button type="button" title="Close" aria-label="Close the document" onClick={onClose} className={iconButton}>
+        <button type="button" data-no-drag title="Close" aria-label="Close the document" onClick={onClose} className={iconButton}>
           <X className="size-3.5" strokeWidth={1.75} />
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-10 pt-2 text-[14px] leading-relaxed">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 pb-10 pt-2 text-[14px] leading-relaxed">
         <AgentMarkdown text={latest.body} wholeDocument />
       </div>
     </aside>

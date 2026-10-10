@@ -33,11 +33,11 @@ it("uses the user's wording for a template and goes back to what ships", () => {
 });
 
 it("keeps the shipped text for a field left empty", () => {
-  const shipped = AGENT_TEMPLATES.find((template) => template.id === "project-lead")!;
-  saveAgentTemplate("project-lead", { ...shipped, soul: "   ", role: "tech lead" });
-  const edited = agentTemplate("project-lead")!;
+  const shipped = AGENT_TEMPLATES.find((template) => template.id === "tutor")!;
+  saveAgentTemplate("tutor", { ...shipped, soul: "   ", role: "learning coach" });
+  const edited = agentTemplate("tutor")!;
   expect(edited.soul).toBe(shipped.soul);
-  expect(edited.role).toBe("tech lead");
+  expect(edited.role).toBe("learning coach");
 });
 
 it("is nothing but a named face and a written soul", () => {

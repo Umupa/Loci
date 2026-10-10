@@ -3,7 +3,8 @@ import { act, createElement, useCallback, useRef, useState, type SetStateAction 
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newSession, type Session } from "../../features/sessions/model/session";
-import { leafIds, newTab, splitPane, type WorkspaceTab } from "../../features/workspace/model/layout";
+import { canvasLeaf, documentLeaf, documentPaneId, findLeaf, leaf, leafIds, newTab, placeLayout, splitPane, type WorkspaceTab } from "../../features/workspace/model/layout";
+import type { AgentDocument } from "../../features/sessions/model/cards";
 import { rememberProject } from "../../features/projects/model/recents";
 import type { SessionSummary } from "../../features/sessions/data/sessionStore";
 import { closedTabs } from "../../features/workspace/model/closedTabs";
@@ -35,6 +36,7 @@ const flushPersistence = vi.fn();
 const bindSession = vi.fn();
 const persistSession = vi.fn();
 const onNavigate = vi.fn();
+const onOpenAgent = vi.fn();
 let root: Root | undefined;
 let container: HTMLDivElement | undefined;
 let workspace: ReturnType<typeof useAppWorkspace>;
@@ -81,7 +83,7 @@ async function mount(initialSessions: Session[], initialTabs = initialSessions.m
     workspace = useAppWorkspace({
       boot: { resumed: null, history: [], historyCwd: initial.projectCwd },
       initial, sessions, sessionsRef, updateSessions, persistSession,
-      bindSession, stopSession, flushPersistence, onNavigate,
+      bindSession, stopSession, flushPersistence, onNavigate, onOpenAgent,
     });
     liveSessions = sessions;
     return null;
@@ -96,7 +98,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   localStorage.clear();
   records.clear();
-  for (const mock of [...Object.values(mocks), stopSession, flushPersistence, bindSession, persistSession, onNavigate]) mock.mockReset();
+  for (const mock of [...Object.values(mocks), stopSession, flushPersistence, bindSession, persistSession, onNavigate, onOpenAgent]) mock.mockReset();
   persistSession.mockResolvedValue(undefined);
   mocks.ask.mockResolvedValue(true);
   mocks.pickFolders.mockResolvedValue([]);
@@ -121,6 +123,141 @@ beforeEach(() => {
   mocks.saveWorkspaceSnapshot.mockResolvedValue(undefined);
   stopSession.mockResolvedValue(undefined);
   flushPersistence.mockResolvedValue(undefined);
+});
+
+describe("agent navigation and library workspace panes", () => {
+  const agentSessionId = "agent-chat";
+  const agentId = "agent-1";
+  const document: AgentDocument = { id: "network", title: "Network policy", body: "# Policy" };
+  const documentId = documentPaneId(document.id, agentId);
+
+  beforeEach(() => {
+    closedTabs.clear();
+    localStorage.setItem("loci:agent-roster", JSON.stringify([
+      { id: agentId, sessionId: agentSessionId, name: "Scout", projects: [] },
+    ]));
+  });
+
+  it.each(["saved", "loaded"])("routes a %s agent conversation to the agent surface without changing project tabs", async (source) => {
+    const original = chat("working", "/alpha");
+    const other = chat("other", "/alpha");
+    const agent = chat(agentSessionId, "/Users/me");
+    records.set(agent.id, agent);
+    const projectTabs = [newTab(original.id), newTab(other.id)];
+    await mount(source === "loaded" ? [original, other, agent] : [original, other], projectTabs);
+    const originalTabId = workspace.activeTabId;
+    const originalSessions = liveSessions;
+
+    await act(async () => workspace.openSession(agent.id));
+
+    expect(onOpenAgent).toHaveBeenCalledExactlyOnceWith(agentId);
+    expect(workspace.tabs).toEqual(projectTabs);
+    expect(workspace.activeTabId).toBe(originalTabId);
+    expect(workspace.activeSession).toBe(original);
+    expect(workspace.projectCwd).toBe("/alpha");
+    expect(liveSessions).toEqual(originalSessions);
+    expect(workspace.tabs.flatMap((tab) => leafIds(tab.layout))).toEqual([original.id, other.id]);
+  });
+
+  it("routes current-tab navigation to the agent surface without replacing the project conversation", async () => {
+    const original = chat("working", "/alpha");
+    const other = chat("other", "/alpha");
+    records.set(agentSessionId, chat(agentSessionId, "/Users/me"));
+    const projectTabs = [newTab(original.id), newTab(other.id)];
+    await mount([original, other], projectTabs);
+    const originalTabId = workspace.activeTabId;
+
+    await act(async () => workspace.openSessionInCurrentTab(agentSessionId));
+
+    expect(onOpenAgent).toHaveBeenCalledExactlyOnceWith(agentId);
+    expect(workspace.tabs).toEqual(projectTabs);
+    expect(workspace.activeTabId).toBe(originalTabId);
+    expect(workspace.activeSession).toBe(original);
+    expect(workspace.projectCwd).toBe("/alpha");
+    expect(liveSessions).toEqual([original, other]);
+    expect(bindSession).not.toHaveBeenCalled();
+  });
+
+  it("reopens a registered agent from legacy closed-tab history without restoring a title tab", async () => {
+    const original = chat("working", "/alpha");
+    records.set(agentSessionId, chat(agentSessionId, "/Users/me"));
+    await mount([original]);
+    const originalTabs = workspace.tabs;
+    const originalTabId = workspace.activeTabId;
+    closedTabs.record([{ layout: leaf(agentSessionId), focusedId: agentSessionId, cwd: "/alpha", title: "Scout", project: "alpha" }]);
+    expect(JSON.parse(localStorage.getItem("loci.closedTabs.v1")!)[0].layout).toEqual(leaf(agentSessionId));
+
+    let restored = false;
+    await act(async () => { restored = await workspace.reopenClosed("latest"); });
+
+    expect(restored).toBe(true);
+    expect(onOpenAgent).toHaveBeenCalledExactlyOnceWith(agentId);
+    expect(workspace.tabs).toEqual(originalTabs);
+    expect(workspace.activeTabId).toBe(originalTabId);
+    expect(workspace.activeSession).toBe(original);
+    expect(workspace.projectCwd).toBe("/alpha");
+    expect(liveSessions).toEqual([original]);
+    expect(workspace.error).toBeNull();
+    expect(closedTabs.history()).toHaveLength(0);
+    expect(bindSession).not.toHaveBeenCalled();
+  });
+
+  it("restores regular sessions and artifacts from a mixed legacy closed tab while routing its agent separately", async () => {
+    const original = chat("working", "/alpha");
+    const restored = chat("restored", "/alpha");
+    records.set(agentSessionId, chat(agentSessionId, "/Users/me"));
+    records.set(restored.id, restored);
+    await mount([original]);
+    const originalTab = workspace.activeTab!;
+    const layout = placeLayout(
+      placeLayout(placeLayout(leaf(agentSessionId), leaf(restored.id), agentSessionId, "right"), documentLeaf(document, agentId), restored.id, "down"),
+      canvasLeaf("canvas-1"), documentId, "right",
+    );
+    closedTabs.record([{ layout, focusedId: agentSessionId, cwd: "/alpha", title: "Scout", project: "alpha", pinned: true }]);
+
+    await act(async () => expect(await workspace.reopenClosed("latest")).toBe(true));
+
+    expect(onOpenAgent).toHaveBeenCalledExactlyOnceWith(agentId);
+    expect(workspace.tabs).toHaveLength(2);
+    expect(workspace.tabs.find((tab) => tab.id === originalTab.id)).toEqual(originalTab);
+    expect(workspace.activeTab?.pinned).toBe(true);
+    expect(leafIds(workspace.activeTab!.layout)).toEqual([restored.id, documentId, "canvas-1"]);
+    expect(workspace.activeSession).toBe(restored);
+    expect(findLeaf(workspace.activeTab!.layout, documentId)?.document).toEqual(document);
+    expect(workspace.tabs.flatMap((tab) => leafIds(tab.layout))).not.toContain(agentSessionId);
+    expect(bindSession).toHaveBeenCalledExactlyOnceWith(restored);
+    expect(workspace.error).toBeNull();
+    expect(closedTabs.history()).toHaveLength(0);
+  });
+
+  it("reopens a document in its existing pane and displays its updated contents", async () => {
+    await mount([chat("first"), chat("second")]);
+    const tabId = workspace.activeTabId;
+    await act(async () => workspace.showDocument(document, agentId));
+    await act(async () => workspace.activateTab(workspace.tabs.find((tab) => tab.id !== tabId)!.id));
+    const updated = { ...document, title: "Revised policy", body: "# Updated policy" };
+    await act(async () => workspace.showDocument(updated, agentId));
+    expect(workspace.activeTabId).toBe(tabId);
+    expect(workspace.activeTab?.focusedId).toBe(documentId);
+    expect(workspace.tabs.flatMap((tab) => leafIds(tab.layout)).filter((id) => id === documentId)).toHaveLength(1);
+    expect(findLeaf(workspace.activeTab!.layout, documentId)?.document).toEqual(updated);
+
+    await act(async () => workspace.showDocument(document, "agent-2"));
+    expect(findLeaf(workspace.activeTab!.layout, documentId)?.document).toEqual(updated);
+    expect(findLeaf(workspace.activeTab!.layout, documentPaneId(document.id, "agent-2"))?.document).toEqual(document);
+  });
+
+  it("returns to a library document when revisiting its workspace project", async () => {
+    await mount([chat("blank", "/alpha", "")]);
+    await act(async () => workspace.showDocument(document, agentId));
+    const tabId = workspace.activeTabId;
+    await act(async () => workspace.openProject("/beta"));
+    await act(async () => workspace.openProject("/alpha"));
+    expect(workspace.tabs).toHaveLength(2);
+    expect(workspace.activeTabId).toBe(tabId);
+    expect(workspace.activeTab?.focusedId).toBe(documentId);
+    expect(workspace.projectCwd).toBe("/alpha");
+  });
 });
 
 afterEach(async () => {

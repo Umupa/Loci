@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { ask } from "@tauri-apps/plugin-dialog";
 import { archiveProject, forgetProject, lastProjectPath, loadRecents, rememberProject, sameProjectPath, normalizeProjectPath } from "../../features/projects/model/recents";
 import { isBlankSession, reconcileProjectReturn, type ProjectReturnMemory } from "../../features/projects/model/projectReturn";
+import { agentForSession, agentLook, isAgentSession } from "../../features/agents/model/agent";
+import type { WidgetRef } from "../../features/learning/model/types";
+import type { AgentDocument } from "../../features/sessions/model/cards";
 import { removeProjectData } from "../../features/projects/model/projectData";
 import { forgetProjectLocation } from "../../features/projects/model/projectLocation";
 import { insertTabBesideActive } from "../../features/workspace/model/tabGroups";
@@ -14,7 +17,7 @@ import { deleteSession, getSession, listSessionsByProject, saveWorkspaceSnapshot
 import { historyWithLiveSessions, mergeHistorySummary, summaryFromSession } from "../../features/sessions/data/sessionHistory";
 import { rememberLoadedSession } from "../../features/sessions/data/sessionCache";
 import { hasLiveSessionWork } from "../../features/sessions/model/inFlight";
-import { canvasLeaf, closeLeaf, firstLeafId, removePane, filePaneId, filePanePath, layoutLeaves, leafIds, placeFileOnPane, rebaseFilePanes, showCanvasInTab, showFileInTab, neighborLeafId, newTab, replacePaneWithLayout, setSplitRatio, showCanvasForSession, splitPane, type FocusDir, type LayoutNode, type PaneEdge, type SplitDir, type WorkspaceTab } from "../../features/workspace/model/layout";
+import { canvasLeaf, closeLeaf, documentPaneId, widgetPaneId, showWidgetInTab, firstLeafId, removePane, filePaneId, filePanePath, layoutLeaves, leafIds, placeFileOnPane, rebaseFilePanes, showCanvasInTab, showDocumentInTab, showFileInTab, neighborLeafId, newTab, replacePaneWithLayout, setSplitRatio, showCanvasForSession, splitPane, type FocusDir, type LayoutNode, type PaneEdge, type SplitDir, type WorkspaceTab } from "../../features/workspace/model/layout";
 import { applyMoveWorkspacePane, applyDetachPaneToTab, applyPlaceSessionOnPane, applyPlaceTabOnPane, filterTabsForProject, findOpenSessionTab, workspaceTabCwd, focusedWorkspaceTabCwd, planWorkspaceTabClose, switchSessionInTab } from "../../features/workspace/model/workspaceTabGroups";
 import { collectWorkspaceSnapshot } from "../../features/workspace/model/workspaceSnapshot";
 import { emptyTabVisitHistory, pruneTabVisitHistory, recordTabVisit, tabVisitBack, tabVisitForward } from "../../features/workspace/model/tabVisitHistory";
@@ -46,6 +49,7 @@ type Options = {
   stopSession: (id: string) => void | Promise<void>;
   flushPersistence: () => Promise<void>;
   onNavigate: () => void;
+  onOpenAgent: (agentId: string) => void;
 };
 
 export function useAppWorkspace(options: Options) {
@@ -253,6 +257,8 @@ export function useAppWorkspace(options: Options) {
   }, [sessionUnavailable]);
 
   const openSession = useCallback(async (id: string): Promise<void> => {
+    const agent = agentForSession(id);
+    if (agent) { latest.current.onOpenAgent(agent.id); return; }
     if (sessionUnavailable(id)) return;
     openingSessionIds.current.add(id);
     try {
@@ -291,6 +297,8 @@ export function useAppWorkspace(options: Options) {
   }, [activateTab, addSession, focusPane, loadSession, sessionUnavailable, updateTabs]);
 
   const openSessionInCurrentTab = useCallback(async (id: string): Promise<void> => {
+    const agent = agentForSession(id);
+    if (agent) { latest.current.onOpenAgent(agent.id); return; }
     const origin = tabsRef.current.find((tab) => tab.id === activeTabIdRef.current);
     if (!origin || origin.focusedId === id || sessionUnavailable(id)) return;
     const tabId = origin.id;
@@ -342,7 +350,7 @@ export function useAppWorkspace(options: Options) {
       } else {
         const seed = nextSessions.find((session) => session.id === tab.focusedId);
         if (leafIds(tab.layout).length === 1 && isBlankSession(seed)) continue;
-        const replacement = newSessionLike(seed, seed?.cwd ?? projectCwdRef.current);
+        const replacement = newSessionLike(seed, seed && !isAgentSession(seed.id) ? seed.cwd : tab.cwd ?? projectCwdRef.current);
         nextSessions = [...nextSessions, replacement];
         nextTabs = nextTabs.map((entry) => entry.id === tab.id
           ? { ...entry, layout: { type: "leaf", id: replacement.id }, focusedId: replacement.id }
@@ -367,10 +375,18 @@ export function useAppWorkspace(options: Options) {
   const reopenClosed = useCallback(async (batch: number | "latest" = "latest"): Promise<boolean> => {
     const records = closedTabs.take(batch);
     let restored: string | undefined;
+    let openedAgent = false;
     for (const record of records) {
       let layout: LayoutNode | null = record.layout;
       for (const pane of layoutLeaves(record.layout)) {
         if (pane.kind !== "session" || !layout) continue;
+        const agent = agentForSession(pane.id);
+        if (agent) {
+          latest.current.onOpenAgent(agent.id);
+          openedAgent = true;
+          layout = removePane(layout, pane.id);
+          continue;
+        }
         if (findOpenSessionTab(tabsRef.current, latest.current.sessionsRef.current, pane.id)) {
           layout = removePane(layout, pane.id);
           continue;
@@ -403,8 +419,8 @@ export function useAppWorkspace(options: Options) {
       restored = tab.id;
     }
     if (restored) activateTab(restored);
-    else if (records.length) setError("Those tabs are no longer available.");
-    return restored !== undefined;
+    else if (records.length && !openedAgent) setError("Those tabs are no longer available.");
+    return restored !== undefined || openedAgent;
   }, [activateTab, loadSession, sessionUnavailable, updateTabs]);
 
   const pinTab = useCallback((id: string, pinned: boolean) => {
@@ -419,7 +435,7 @@ export function useAppWorkspace(options: Options) {
     }
     const next = closeLeaf(tab, id);
     if (!next) { closeTabs([tab.id]); return; }
-    updateTabs((current) => current.map((entry) => entry.id === tab.id ? next : entry));
+    updateTabs((current) => current.map((entry) => entry.id === tab.id ? { ...next, cwd: workspaceTabCwd(tab, latest.current.sessionsRef.current) ?? tab.cwd } : entry));
     activateTab(tab.id);
   }, [activateTab, closeTabs, updateTabs]);
 
@@ -427,7 +443,7 @@ export function useAppWorkspace(options: Options) {
     const tab = tabsRef.current.find((entry) => entry.id === activeTabIdRef.current);
     if (!tab) return;
     const seed = latest.current.sessionsRef.current.find((session) => session.id === tab.focusedId);
-    const session = newSessionLike(seed, seed?.cwd ?? projectCwdRef.current);
+    const session = newSessionLike(seed, seed && !isAgentSession(seed.id) ? seed.cwd : tab.cwd ?? projectCwdRef.current);
     latest.current.updateSessions((current) => [...current, session]);
     updateTabs((current) => current.map((entry) => entry.id === tab.id ? { ...entry, layout: splitPane(entry.layout, entry.focusedId, dir, session.id), focusedId: session.id } : entry));
     activateTab(tab.id);
@@ -445,7 +461,7 @@ export function useAppWorkspace(options: Options) {
 
   const movePane = useCallback((id: string, targetId: string, edge: PaneEdge) => {
     const target = tabsRef.current.find((tab) => leafIds(tab.layout).includes(targetId));
-    const result = applyMoveWorkspacePane(tabsRef.current, id, targetId, edge);
+    const result = applyMoveWorkspacePane(tabsRef.current, id, targetId, edge, latest.current.sessionsRef.current);
     if (result && target) { updateTabs(result); activateTab(target.id); }
   }, [activateTab, updateTabs]);
 
@@ -456,7 +472,7 @@ export function useAppWorkspace(options: Options) {
   }, [activateTab, updateTabs]);
 
   const detachPane = useCallback((paneId: string, targetTabId: string, position: TitleTabDropPosition) => {
-    const result = applyDetachPaneToTab({ tabs: tabsRef.current, paneId, targetTabId, position });
+    const result = applyDetachPaneToTab({ tabs: tabsRef.current, paneId, targetTabId, position, sessions: latest.current.sessionsRef.current });
     if (result) { updateTabs(result.tabs); activateTab(result.activeTabId); }
   }, [activateTab, updateTabs]);
 
@@ -723,6 +739,26 @@ export function useAppWorkspace(options: Options) {
     activateTab(home.id);
   }, [activateTab, updateTabs]);
 
+  const showDocument = useCallback((document: AgentDocument, agentId?: string) => {
+    const id = documentPaneId(document.id, agentId);
+    const home = tabsRef.current.find((tab) => leafIds(tab.layout).includes(id))
+      ?? tabsRef.current.find((tab) => tab.id === activeTabIdRef.current);
+    if (!home) return;
+    updateTabs((current) => current.map((tab) => tab.id === home.id
+      ? { ...showDocumentInTab(tab, document, agentId), cwd: tab.cwd ?? projectCwdRef.current } : tab));
+    activateTab(home.id);
+  }, [activateTab, updateTabs]);
+
+  const showWidget = useCallback((widget: WidgetRef, title: string, sourceSessionId?: string) => {
+    const id = widgetPaneId(widget);
+    const home = tabsRef.current.find((tab) => leafIds(tab.layout).includes(id))
+      ?? tabsRef.current.find((tab) => tab.id === activeTabIdRef.current);
+    if (!home) return;
+    updateTabs((current) => current.map((tab) => tab.id === home.id
+      ? { ...showWidgetInTab(tab, widget, title, sourceSessionId), cwd: tab.cwd ?? projectCwdRef.current } : tab));
+    activateTab(home.id);
+  }, [activateTab, updateTabs]);
+
   /** Show a project file in the active tab; a single click previews, `pin` keeps the pane. */
   const openFile = useCallback((path: string, pin = false) => {
     const id = filePaneId(path);
@@ -775,7 +811,7 @@ export function useAppWorkspace(options: Options) {
     });
   }, [activateTab]);
 
-  return { isSessionUnavailable: sessionUnavailable, tabs, tabsRef, activeTabId, activeTabIdRef, projectCwd, projectCwdRef, projectReturnMemory, recents, history, historyPending, historyFailed, error, setError, composerFocusToken, activeTab, activeSession, visibleTabs, sidebarHistory, openProjectSessions, loadedSessionCache, openingSessionIds, skipForgetSessionIds, updateTabs, activateTab, addSession, createSession, focusPane, openProject, pickProject, refreshHistory, acceptSummary, loadSession, openSession, openSessionInCurrentTab, closeTabs, closePane, split, placeSession, movePane, placeTab, detachPane, changeCwd, renameSession, archiveSession, pinSession, removeSession, removeProject, placeInFolder, visits, visit, openCanvas, revealCanvas, isCanvasOpen, showCanvas, openFile, placeFile, fileMoved, fileDeleted, reopenClosed, pinTab,
+  return { isSessionUnavailable: sessionUnavailable, tabs, tabsRef, activeTabId, activeTabIdRef, projectCwd, projectCwdRef, projectReturnMemory, recents, history, historyPending, historyFailed, error, setError, composerFocusToken, activeTab, activeSession, visibleTabs, sidebarHistory, openProjectSessions, loadedSessionCache, openingSessionIds, skipForgetSessionIds, updateTabs, activateTab, addSession, createSession, focusPane, openProject, pickProject, refreshHistory, acceptSummary, loadSession, openSession, openSessionInCurrentTab, closeTabs, closePane, split, placeSession, movePane, placeTab, detachPane, changeCwd, renameSession, archiveSession, pinSession, removeSession, removeProject, placeInFolder, visits, visit, openCanvas, revealCanvas, isCanvasOpen, showCanvas, showDocument, showWidget, openFile, placeFile, fileMoved, fileDeleted, reopenClosed, pinTab,
     ratio: (splitId: string, index: number, ratio: number) => updateTabs((current) => current.map((tab) => ({ ...tab, layout: setSplitRatio(tab.layout, splitId, index, ratio) }))),
     focusDirection: (direction: FocusDir) => { const tab = tabsRef.current.find((entry) => entry.id === activeTabIdRef.current); const id = tab && neighborLeafId(tab.layout, tab.focusedId, direction); if (id) focusPane(id); },
     cycleTab: (delta: number) => { const current = filterTabsForProject(tabsRef.current, latest.current.sessionsRef.current, projectCwdRef.current); const index = current.findIndex((tab) => tab.id === activeTabIdRef.current); const next = current[(index + delta + current.length) % current.length]; if (next) activateTab(next.id); },
@@ -801,10 +837,12 @@ function describeClosedTab(tab: WorkspaceTab, sessions: readonly Session[], fall
   if (!holdsWork) return null;
   const focused = panes.find((pane) => pane.id === tab.focusedId) ?? panes[0];
   const session = sessions.find((entry) => entry.id === focused?.id) ?? sessions.find((entry) => panes.some((pane) => pane.id === entry.id));
-  const cwd = tab.cwd ?? session?.cwd ?? fallbackCwd;
+  const agent = session && agentForSession(session.id);
+  const cwd = workspaceTabCwd(tab, sessions) ?? fallbackCwd;
   const title = focused?.kind === "file" ? filePanePath(focused.id).split("/").pop() ?? ""
     : focused?.kind === "canvas" ? "Drawing"
-      : session ? sessionDisplayTitle(session.title, session.harness) : "";
+      : focused?.kind === "document" ? focused.document?.title ?? "Document"
+      : agent ? agentLook(agent).name : session ? sessionDisplayTitle(session.title, session.harness) : "";
   return {
     layout: tab.layout,
     focusedId: tab.focusedId,

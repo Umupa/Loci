@@ -3108,10 +3108,10 @@ html.theme-light .btw-burst {
 
 /*
  * An agent's conversation reads like a chat with someone: both sides speak in
- * bubbles, the user's in the inverse of the page, and the input is one rounded
- * field. Sessions keep the document layout; only `[data-agent-view]` gets this.
+ * bubbles, the user's in the inverse of the page. The bubble treatment
+ * follows the transcript layout preference.
  */
-[data-agent-view] [data-agent-prose] {
+[data-agent-view] [data-transcript-layout="chat"] [data-agent-prose] {
   width: fit-content;
   max-width: min(100%, 46rem);
   padding: 0.625rem 0.875rem;
@@ -3119,7 +3119,7 @@ html.theme-light .btw-burst {
   background: color-mix(in srgb, var(--color-content) 6%, transparent);
 }
 
-[data-agent-view] .user-message-bubble:not([data-draft="true"]) {
+[data-agent-view] [data-transcript-layout="chat"] .user-message-bubble:not([data-draft="true"]) {
   max-width: min(100%, 40rem);
   padding: 0.625rem 0.875rem;
   border-radius: 1.25rem;
@@ -3127,64 +3127,16 @@ html.theme-light .btw-burst {
   color: var(--color-background-base);
 }
 
-[data-agent-view] .user-message-bubble:not([data-draft="true"]) :is(pre, p, span, a, code) {
+[data-agent-view] [data-transcript-layout="chat"] .user-message-bubble:not([data-draft="true"]) :is(pre, p, span, a, code) {
   color: inherit;
 }
 
 /*
- * The composer as a messenger's input: attach, type, send, on one line that
- * grows. Its model and permission controls are set in the agent's details.
+ * Agent inputs share the session's field and tool row. Model and permission
+ * controls stay in Details, leaving the same +, mode and send controls here.
  */
-[data-composer-chat] {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.5rem;
-  padding: 0.375rem;
-  border-radius: 1.6rem;
-}
-
-[data-composer-chat] > * {
-  flex: 0 0 100%;
-}
-
-[data-composer-chat] > [data-composer-field] {
-  flex: 1 1 0;
-  order: 2;
-  min-width: 0;
-  align-self: center;
-}
-
-/* An inline field leaves room for descenders under it, which a one-line input shows as a gap. */
-[data-composer-chat] textarea {
-  display: block;
-}
-
-[data-composer-chat] > [data-composer-tools] {
-  display: contents;
-}
-
 [data-composer-chat] .composer-toolbar {
   display: none;
-}
-
-[data-composer-chat] [data-composer-plus-slot] {
-  order: 1;
-}
-
-[data-composer-chat] [data-composer-send] {
-  order: 3;
-}
-
-[data-composer-chat] [data-composer-plus-slot] > button,
-[data-composer-chat] [data-composer-send] button {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 9999px;
-}
-
-[data-composer-chat] [data-composer-plus-slot] > button {
-  background: color-mix(in srgb, var(--color-content) 8%, transparent);
 }
 
 /* A chat keeps a reply's actions out of the way until the pointer is on it. */
@@ -3198,52 +3150,190 @@ html.theme-light .btw-burst {
   opacity: 1;
 }
 
-/* In a chat, a turn's work is a card with its state, not a line of the page. */
+/* A fixed mark and baseline keep the status still as work becomes a receipt. */
+[data-work-fold] {
+  min-height: 2rem;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.25rem;
+  color: color-mix(in srgb, var(--color-content) 65%, transparent);
+}
+
+[data-work-title] {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25rem;
+}
+
+[data-work-label] {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-work-elapsed] {
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--color-content) 48%, transparent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-work-mark] {
+  isolation: isolate;
+}
+
+[data-work-check] {
+  color: hsl(150 55% 47%);
+}
+
+html.theme-light [data-work-check] {
+  color: hsl(150 65% 32%);
+}
+
+[data-work-symbol],
+[data-work-check] {
+  transition: opacity 180ms ease, transform 240ms ease;
+}
+
+[data-work-fold]:not([data-work-state="done"]) [data-work-check],
+[data-work-state="done"] [data-work-symbol],
+[data-work-state="error"] [data-work-symbol],
+[data-work-state="interrupted"] [data-work-symbol] {
+  opacity: 0;
+}
+
+[data-work-chevron] {
+  margin-left: 0.125rem;
+  opacity: 0.5;
+  transition: transform 200ms ease, opacity 150ms ease;
+}
+
+[data-work-fold]:is(:hover, :focus-visible) [data-work-chevron] {
+  opacity: 1;
+}
+
+[data-work-fold]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+/* Running work has a light surface; completed work recedes behind the reply. */
 [data-agent-view] [data-work-fold] {
   width: fit-content;
   max-width: min(100% - 2rem, 46rem);
   margin: 0.25rem 0 0.25rem 1rem;
-  padding: 0.5rem 0.75rem;
-  gap: 0.5rem;
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--color-content) 6%, transparent);
+  min-height: 2.125rem;
+  padding: 0.375rem 0.625rem;
+  gap: 0.625rem;
+  border-radius: 0.875rem;
+  background: color-mix(in srgb, var(--color-background-base) 55%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-content) 5%, transparent);
+  transition: background-color 240ms ease, box-shadow 240ms ease, color 200ms ease;
 }
 
-[data-agent-view] [data-work-status] {
+[data-agent-view] [data-work-fold="done"] {
+  background: color-mix(in srgb, var(--color-background-base) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-content) 3%, transparent);
+  color: color-mix(in srgb, var(--color-content) 52%, transparent);
+}
+
+[data-agent-view] [data-work-fold]:is(:hover, :focus-visible) {
+  background: color-mix(in srgb, var(--color-background-base) 65%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-content) 10%, transparent);
+}
+
+[data-work-state="waiting"] [data-work-label] {
+  color: hsl(38 80% 60%);
+}
+
+html.theme-light [data-work-state="waiting"] [data-work-label] {
+  color: hsl(32 85% 32%);
+}
+
+[data-work-error] {
+  color: hsl(0 72% 60%);
+}
+
+[data-work-dots] {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 0.3rem;
-  margin-left: 0.5rem;
-  padding: 0.05rem 0.5rem;
-  border-radius: 9999px;
-  font-family: var(--font-sans, inherit);
-  font-size: 11px;
-  color: hsl(142 60% 55%);
-  background: hsl(142 60% 45% / 0.16);
+  gap: 3px;
+  color: color-mix(in srgb, var(--color-content) 45%, transparent);
 }
 
-[data-agent-view] [data-work-status]::before {
-  content: "";
-  width: 0.3rem;
-  height: 0.3rem;
-  border-radius: 9999px;
+[data-work-dots] > span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
   background: currentColor;
 }
 
-[data-agent-view] [data-work-fold="live"] [data-work-status] {
-  color: hsl(38 90% 60%);
-  background: hsl(38 90% 50% / 0.16);
+[data-work-animated] [data-work-symbol] {
+  animation: work-mark-breathe 2.8s ease-in-out infinite;
 }
 
-html.theme-light [data-agent-view] [data-work-status] {
-  color: hsl(142 65% 30%);
+[data-work-animated][data-work-state="working"] [data-work-symbol] {
+  animation: work-ring-spin 2s linear infinite;
 }
 
-html.theme-light [data-agent-view] [data-work-fold="live"] [data-work-status] {
-  color: hsl(32 90% 35%);
+[data-work-animated] [data-work-dots] > span {
+  animation: work-dot-breathe 1.6s ease-in-out infinite;
 }
 
-[data-agent-view] [data-chat-time] {
+[data-work-dots] > span:nth-child(2) { animation-delay: 160ms; }
+[data-work-dots] > span:nth-child(3) { animation-delay: 320ms; }
+
+[data-work-completing] [data-work-check] {
+  animation: work-check-settle 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes work-mark-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1px) scale(1.08); }
+}
+
+@keyframes work-ring-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes work-dot-breathe {
+  0%, 65%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+
+@keyframes work-check-settle {
+  0% { opacity: 0; transform: scale(0.6) rotate(-15deg); }
+  55% { opacity: 1; transform: scale(1.18) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-agent-view] [data-work-fold],
+  [data-work-fold],
+  [data-work-symbol],
+  [data-work-check],
+  [data-work-chevron] {
+    transition: none;
+  }
+  [data-work-animated] [data-work-symbol],
+  [data-work-animated][data-work-state="working"] [data-work-symbol],
+  [data-work-animated] [data-work-dots] > span,
+  [data-work-completing] [data-work-check],
+  [data-work-fold] .shimmer-text {
+    animation: none;
+  }
+  [data-work-fold] .shimmer-text {
+    background-image: none;
+    color: inherit;
+  }
+}
+
+[data-agent-view] [data-transcript-layout="chat"] [data-chat-time] {
   display: block;
 }

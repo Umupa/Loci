@@ -1,8 +1,17 @@
-import { canvasScopeAgentId } from "../features/agents/model/agent";
+import { open as pickFile } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
+import { Modal } from "../shared/ui/Modal";
+import { ADD_TO_CHAT_EVENT, requestAddToChat, type AddToChatRequest } from "../features/sessions/model/quoteDraft";
+import { queueLearningDraft } from "../features/learning/model/learningDraft";
+import { OPEN_LEARNING_DISCUSSION_EVENT } from "../features/learning/model/navigation";
+import { OPEN_WIDGET_EVENT, type OpenWidgetDetail } from "../features/learning/model/widgets";
+import type { DiscussionRef } from "../features/learning/model/types";
+import { useLearningWidgets } from "./hooks/useLearningWidgets";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "./shell/Sidebar";
-import { TitleBar } from "./shell/TitleBar";
+import { WindowControls } from "./shell/WindowControls";
+import { TitleBar, OverlayNav } from "./shell/TitleBar";
 import { MenuBar } from "./shell/MenuBar";
 import { UsageFooter } from "./shell/UsageFooter";
 import { PaneTree } from "../features/workspace/ui/PaneTree";
@@ -13,18 +22,16 @@ import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
 import { requestFilePlace, type OpenFileFn } from "../features/files/model/filePlace";
 import { openPathWithDefaultApp, pickFolders } from "../platform/tauri/fs";
+import { useAgentWorkspace, separateAgentWorkspaces } from "./hooks/useAgentWorkspace";
 import { useAgents } from "./hooks/useAgents";
 import { useAgentHabits } from "./hooks/useAgentHabits";
 import { useAgentDelegation } from "./hooks/useAgentDelegation";
 import { AgentRailSection } from "./shell/AgentRailSection";
-import { AgentView } from "../features/agents/ui/AgentView";
-import { AgentDetails } from "../features/agents/ui/AgentDetails";
-import { AgentDocumentReader } from "../features/agents/ui/AgentDocumentReader";
-import { OPEN_DOCUMENT_EVENT, type AgentDocument } from "../features/sessions/model/cards";
-import { AgentIntro } from "../features/agents/ui/AgentIntro";
-import { agentLook } from "../features/agents/model/agent";
-import { SessionPane } from "../features/sessions/ui/SessionPane";
-import { isEqualOrInside, projectName } from "../shared/lib/paths";
+import { AgentSessionPane } from "../features/agents/ui/AgentSessionPane";
+import { AgentAvatar } from "../features/agents/ui/AgentAvatar";
+import { OPEN_DOCUMENT_EVENT, type OpenDocumentDetail } from "../features/sessions/model/cards";
+import { agentForSession } from "../features/agents/model/agent";
+import { isEqualOrInside } from "../shared/lib/paths";
 import { FILE_POINTER_DRAG_EVENT, type FilePointerDragDetail } from "../shared/lib/drag";
 import { paneDropFromPoint, setExternalPaneDrop } from "../features/workspace/model/paneDrop";
 import { lazySurface } from "../shared/ui/lazySurface";
@@ -50,7 +57,7 @@ import { pathKey } from "../shared/lib/paths";
 import type { Tab } from "./shell/TitleBar";
 import { linkFamilies } from "../features/workspace/model/tabFamily";
 import { summarizeTab } from "../features/workspace/model/tabSummary";
-import { filePaneId, findLeaf, leafIds } from "../features/workspace/model/layout";
+import { filePaneId, findLeaf, leafIds, newTab, neighborLeafId } from "../features/workspace/model/layout";
 import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
 import { loadAgentsEnabled, subscribeAgentsEnabled, loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../features/settings/model/uiScale";
@@ -60,7 +67,7 @@ import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
 import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
 import { ADD_NOTE_TO_CHAT_EVENT, type NoteComposerCard } from "../features/notes";
-import { CANVASES_CHANGED_EVENT, createEmptyCanvas, deleteCanvas, loadCanvases, updateCanvas, upsertCanvas, type Canvas } from "../features/canvas/canvas";
+import { CANVASES_CHANGED_EVENT, loadCanvases, updateCanvas, type Canvas } from "../features/canvas/canvas";
 import { SelectCanvasDialog } from "../features/canvas/ui/SelectCanvasDialog";
 import { synchronizeProjectLocation, rememberProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
@@ -82,10 +89,8 @@ const SearchView = lazySurface(async () => ({ default: (await import("../feature
 const SettingsView = lazySurface(async () => ({ default: (await import("../features/settings/ui/SettingsView")).SettingsView }), { suspense: false });
 const NotesView = lazySurface(async () => ({ default: (await import("../features/notes/ui/NotesView")).NotesView }), { suspense: false });
 
-const CanvasesView = lazySurface(async () => ({ default: (await import("../features/canvas/ui/CanvasesView")).CanvasesView }), { suspense: false });
-
 registerBuiltinHarnesses();
-type Surface = "chat" | "search" | "notes" | "canvases" | "settings" | "agent";
+type Surface = "chat" | "search" | "notes" | "settings" | "agent";
 
 export default function App(boot: BootWorkspace) {
   return <Suspense fallback={null}><Workspace {...boot} /></Suspense>;
@@ -97,10 +102,29 @@ function signInRequestKey(session: Session): string {
 }
 
 function Workspace(boot: BootWorkspace) {
-  const [initial] = useState(() => initialWorkspace(boot));
+  const [restored] = useState(() => {
+    const separated = separateAgentWorkspaces(boot.resumed?.tabs ?? []);
+    const activeTab = boot.resumed?.tabs.find((tab) => tab.id === boot.resumed?.activeTabId);
+    const focused = activeTab && findLeaf(activeTab.layout, activeTab.focusedId);
+    const initialAgentId = activeTab && (agentForSession(activeTab.focusedId)?.id ?? focused?.agentId
+      ?? (leafIds(activeTab.layout).every((id) => !boot.resumed?.sessions.some((session) => session.id === id && !agentForSession(id)))
+        ? leafIds(activeTab.layout).map((id) => agentForSession(id)?.id).find(Boolean) : undefined));
+    if (!boot.resumed) return { boot, layouts: separated.layouts, initialAgentId };
+    const sessions = [...boot.resumed.sessions];
+    if (!separated.tabs.length) {
+      const blank = newDefaultSession(boot.resumed.projectCwd);
+      sessions.push(blank);
+      separated.tabs.push(newTab(blank.id));
+    }
+    const activeTabId = separated.tabs.some((tab) => tab.id === boot.resumed!.activeTabId)
+      ? boot.resumed.activeTabId : separated.tabs[0].id;
+    return { boot: { ...boot, resumed: { ...boot.resumed, tabs: separated.tabs, sessions, activeTabId } },
+      layouts: separated.layouts, initialAgentId };
+  });
+  const [initial] = useState(() => initialWorkspace(restored.boot));
   const [sessions, setSessions] = useState<Session[]>(initial.sessions);
   const sessionsRef = useRef(sessions);
-  const [surface, setSurface] = useState<Surface>("chat");
+  const [surface, setSurface] = useState<Surface>(restored.initialAgentId ? "agent" : "chat");
   const surfaceRef = useRef(surface);
   surfaceRef.current = surface;
   const settingsReturn = useRef<Surface>("chat");
@@ -121,16 +145,18 @@ function Workspace(boot: BootWorkspace) {
   const seenSignInRequests = useRef(new Set(initial.sessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
   const workspaceRef = useRef<ReturnType<typeof useAppWorkspace> | null>(null);
   const closeSurface = useCallback(() => setSurface("chat"), []);
+  const agentWorkspace = useAgentWorkspace({ onClose: closeSurface, initialLayouts: restored.layouts, initialAgentId: restored.initialAgentId });
+  const agentWorkspaceRef = useRef(agentWorkspace);
+  agentWorkspaceRef.current = agentWorkspace;
+  const agentsRef = useRef<ReturnType<typeof useAgents> | null>(null);
   const notesEnabled = useSyncExternalStore(subscribeNotesEnabled, loadNotesEnabled);
   const liveAgentsEnabled = useSyncExternalStore(subscribeLiveAgentsEnabled, loadLiveAgentsEnabled);
   const collapsedProjectRailMode = useSyncExternalStore(subscribeCollapsedProjectRailMode, loadCollapsedProjectRailMode);
 
-  // The agent conversation in view, which sits outside the workspace's tabs.
-  const agentSessionIdRef = useRef<string | undefined>(undefined);
   const isForeground = useCallback((id: string) => {
     const workspace = workspaceRef.current;
     const tab = workspace?.tabsRef.current.find((entry) => entry.id === workspace.activeTabIdRef.current);
-    if (surfaceRef.current === "agent") return id === agentSessionIdRef.current;
+    if (surfaceRef.current === "agent") return !!agentWorkspaceRef.current.currentRef.current && leafIds(agentWorkspaceRef.current.currentRef.current.layout).includes(id);
     return surfaceRef.current === "chat" && !!tab && leafIds(tab.layout).includes(id);
   }, []);
   const runtime = useSessionRuntime({ sessions, sessionsRef, setSessions, isForeground,
@@ -152,52 +178,57 @@ function Workspace(boot: BootWorkspace) {
     },
     onDraftDiscarded: () => { void workspaceRef.current?.refreshHistory(); },
   });
-  const workspace = useAppWorkspace({ boot, initial, sessions, sessionsRef,
+  const workspace = useAppWorkspace({ boot: restored.boot, initial, sessions, sessionsRef,
     updateSessions: runtime.updateSessions,
     persistSession: runtime.persistSession,
     bindSession: runtime.bindRestoredSession,
     stopSession: submission.stopSessionWork,
     flushPersistence: runtime.flushPersistence,
     onNavigate: closeSurface,
+    onOpenAgent: (id) => { void agentsRef.current?.open(id); },
   });
   workspaceRef.current = workspace;
-  const { saveToCanvas: _saveToCanvas, selection: canvasSelection } = useSaveToCanvas({ canvases, workspaceRef });
-  const saveToCanvas = async (text: string, anchor?: HTMLElement | null) => {
-    const id = await _saveToCanvas(text, anchor);
+  const { saveToCanvas: _saveToCanvas, selection: canvasSelection } = useSaveToCanvas({ canvases });
+  const saveToCanvas = async (agentId: string, text: string, anchor?: HTMLElement | null) => {
+    const id = await _saveToCanvas(text, agentId, anchor);
     const title = canvases.find((c) => c.id === id)?.title ?? "";
     setSavedToast({ type: "canvas", id, title });
   };
-  const active = workspace.activeSession;
+  const active = surface === "agent" ? sessions.find((session) => session.id === agentWorkspace.current?.focusedId) : workspace.activeSession;
+  const visibleSessionIds = useMemo(() => new Set(surface === "agent" && agentWorkspace.current
+    ? leafIds(agentWorkspace.current.layout) : surface === "chat" && workspace.activeTab ? leafIds(workspace.activeTab.layout) : []),
+    [surface, agentWorkspace.current, workspace.activeTab]);
   const agents = useAgents({ runtime, submission,
     loadSession: (id) => workspaceRef.current!.loadSession(id),
     onError: (error) => workspaceRef.current?.setError(String(error)),
-    onShow: () => setSurface("agent"), onHide: closeSurface,
-    knownProjects: () => (workspaceRef.current?.recents ?? []).map((recent) => ({ name: projectName(recent.path), path: recent.path })),
+    onShow: (agentId, session) => { agentWorkspaceRef.current.open(agentId, session); surfaceRef.current = "agent"; setSurface("agent"); },
+    onReplaceSession: (oldId, session) => agentWorkspaceRef.current.replaceSession(oldId, session),
+    onRemoveSession: (id) => agentWorkspaceRef.current.forgetSession(id),
+    visibleSessionIds,
   });
+  agentsRef.current = agents;
+  const focusedAgent = surface === "agent" ? agents.agents.find((agent) => agent.id === agentWorkspace.activeAgentId) : undefined;
   const agentsEnabled = useSyncExternalStore(subscribeAgentsEnabled, loadAgentsEnabled);
-  // A document card or a library row asks for its document; it opens beside whatever is shown.
-  const [openedDocument, setOpenedDocument] = useState<AgentDocument>();
+  // Document panes retain their owner when another conversation or drawing gains focus.
   useEffect(() => {
-    const open = (event: Event) => setOpenedDocument((event as CustomEvent<AgentDocument>).detail);
+    const open = (event: Event) => {
+      const detail = (event as CustomEvent<OpenDocumentDetail>).detail;
+      const view = workspaceRef.current;
+      if (!view || !detail) return;
+      if (detail.agentId) agents.setDetailsOpenFor(detail.agentId, false);
+      if (surfaceRef.current === "agent") agentWorkspaceRef.current.showDocument(detail, detail.agentId);
+      else view.showDocument(detail, detail.agentId);
+    };
     window.addEventListener(OPEN_DOCUMENT_EVENT, open);
     return () => window.removeEventListener(OPEN_DOCUMENT_EVENT, open);
-  }, []);
-  const viewedAgentId = agents.viewAgent?.id;
-  useEffect(() => setOpenedDocument(undefined), [viewedAgentId, surface]);
+  }, [agents.setDetailsOpenFor]);
   const agentHabits = useAgentHabits({ runtime, submission,
     loadSession: (id) => workspaceRef.current!.loadSession(id),
     onPosted: (chat, name) => { void announceSessionFinished({ ...chat, title: name }, isForeground(chat.id)); },
   }, agentsEnabled);
-  useEffect(() => { if (!agentsEnabled && surface === "agent") closeSurface(); }, [agentsEnabled, surface, closeSurface]);
-  const agentSession = surface === "agent" ? agents.viewSession : undefined;
-  agentSessionIdRef.current = agentSession?.id;
-  // Turns read back from the archive are shown ahead of the live ones, and saved with neither.
-  const shownAgentSession = useMemo(() => agentSession && agents.earlierBlocks?.length
-    ? { ...agentSession, blocks: [...agents.earlierBlocks, ...agentSession.blocks] } : agentSession, [agentSession, agents.earlierBlocks]);
-  const closeAgentView = agents.close;
-  useEffect(() => { if (surface !== "agent") closeAgentView(); }, [surface, closeAgentView]);
-  // The conversation the user is looking at, in a tab or an agent's view.
-  const viewedSessionId = surface === "chat" ? active?.id : agentSession?.id;
+  const selectAgent = agents.select;
+  useEffect(() => selectAgent(focusedAgent?.id), [focusedAgent?.id, selectAgent]);
+  const viewedSessionId = surface === "agent" ? agentWorkspace.current?.sessionId : surface === "chat" ? active?.id : undefined;
   // A hidden run speaks through whoever started it, so nothing here counts or announces it.
   const shownSessions = useMemo(() => sessions.some((session) => session.ephemeral) ? sessions.filter((session) => !session.ephemeral) : sessions, [sessions]);
   const busySessionIds = useMemo(() => new Set(shownSessions.filter((session) => session.busy).map((session) => session.id)), [shownSessions]);
@@ -225,15 +256,105 @@ function Workspace(boot: BootWorkspace) {
   }, [runtime.persistSession]);
   const reminders = useSessionReminders(workspace.openSession, ensureSaved, sessions.map((session) => session.id));
   useIdleSessionDetach({ sessions, sessionsRef, tabs: workspace.tabs, tabsRef: workspace.tabsRef,
+    keepSessionId: surface === "agent" ? agentWorkspace.current?.sessionId : undefined,
+    isForeground,
     liveAgentsEnabled, unseenFinishedIds, openingSessionIds: workspace.openingSessionIds,
     loadedSessionCache: workspace.loadedSessionCache, skipForgetSessionIds: workspace.skipForgetSessionIds,
-    keepSessionId: agents.viewSession?.id,
     persistSession: runtime.persistSession,
     onError: (error) => workspaceRef.current?.setError(String(error)), setSessions: runtime.updateSessions,
   });
   const delegation = useAgentDelegation({ runtime, submission, loadSession: (id) => workspaceRef.current!.loadSession(id) });
-  useAppControl({ workspace, runtime, submission, delegation });
-  useAppResourceNavigation({ workspace, notesEnabled, onOpenNote: (id) => {
+  useAppControl({ workspace: { ...workspace,
+    isCanvasOpen: (id) => agentWorkspace.isCanvasOpen(id) || workspace.isCanvasOpen(id),
+    revealCanvas: (id, sessionId) => {
+      if (agentForSession(sessionId)) agentWorkspace.showCanvasForSession(id, sessionId);
+      else workspace.revealCanvas(id, sessionId);
+    },
+  }, runtime, submission, delegation });
+  useLearningWidgets(sessions, (error) => workspaceRef.current?.setError(String(error)));
+  const [learningTargetRequest, setLearningTargetRequest] = useState<AddToChatRequest | null>(null);
+  const revealLearningConversation = useCallback(async (id: string, blockId?: string, isCurrent: () => boolean = () => true) => {
+    const agent = agentForSession(id);
+    const session = sessionsRef.current.find((entry) => entry.id === id) ?? await workspaceRef.current!.loadSession(id);
+    if (!session) throw new Error("This discussion is no longer available.");
+    if (blockId && !session.blocks.some((block) => block.id === blockId)
+      && !(agent && await agentsRef.current!.ensureBlockLoaded(id, blockId))) {
+      throw new Error("This discussion is no longer available.");
+    }
+    if (!isCurrent()) return;
+    if (agent) { await agentsRef.current?.open(agent.id); return; }
+    setSurface("chat");
+    await workspaceRef.current!.openSession(id);
+  }, []);
+  const openLearningFile = useCallback((path: string, pin = true) => {
+    if (surfaceRef.current === "agent") agentWorkspaceRef.current.showFile(path, pin);
+    else { setSurface("chat"); workspaceRef.current!.openFile(path, pin); }
+  }, []);
+  const openPdf = useCallback(() => {
+    void pickFile({ multiple: false, directory: false, filters: [{ name: "PDF", extensions: ["pdf"] }] })
+      .then((path) => { if (typeof path === "string") openLearningFile(path); })
+      .catch((error) => workspaceRef.current?.setError(String(error)));
+  }, [openLearningFile]);
+  useEffect(() => {
+    const queued = (request: AddToChatRequest, id: string) => {
+      queueLearningDraft(id, { ...request, targetSessionId: id });
+      void revealLearningConversation(id).catch((error) => workspaceRef.current?.setError(String(error)));
+    };
+    const add = (event: Event) => {
+      const request = (event as CustomEvent<AddToChatRequest>).detail;
+      if (!request || (!request.targetSessionId && !request.sources?.length && !request.widgetContext)) return;
+      event.stopImmediatePropagation();
+      let target = request.targetSessionId;
+      if (!target && surfaceRef.current === "agent") target = agentWorkspaceRef.current.currentRef.current?.sessionId;
+      if (!target && surfaceRef.current === "chat") {
+        const tab = workspaceRef.current?.activeTab;
+        const paneIds = tab ? leafIds(tab.layout) : [];
+        target = sessionsRef.current.find((session) => session.id === tab?.focusedId && session.cwd !== "~")?.id
+          ?? sessionsRef.current.find((session) => paneIds.includes(session.id) && session.cwd !== "~")?.id;
+      }
+      if (target) queued(request, target); else setLearningTargetRequest(request);
+    };
+    const discussion = (event: Event) => {
+      const ref = (event as CustomEvent<DiscussionRef>).detail;
+      if (!ref?.sessionId || !ref.blockId) return;
+      void revealLearningConversation(ref.sessionId, ref.blockId).then(() => requestTranscriptJump(ref.sessionId, ref.blockId))
+        .catch((error) => workspaceRef.current?.setError(String(error)));
+    };
+    const widget = (event: Event) => {
+      const detail = (event as CustomEvent<OpenWidgetDetail>).detail;
+      if (!detail?.widget) return;
+      const open = async () => {
+        if (detail.widget.owner.kind === "agent") {
+          await agentsRef.current?.open(detail.widget.owner.id);
+          agentsRef.current?.setDetailsOpenFor(detail.widget.owner.id, false);
+          agentWorkspaceRef.current.showWidget(detail.widget, detail.title, detail.sourceSessionId);
+        } else {
+          await revealLearningConversation(detail.widget.owner.id);
+          workspaceRef.current!.showWidget(detail.widget, detail.title, detail.sourceSessionId);
+        }
+      };
+      void open().catch((error) => workspaceRef.current?.setError(String(error)));
+    };
+    window.addEventListener(ADD_TO_CHAT_EVENT, add, true);
+    window.addEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
+    window.addEventListener(OPEN_WIDGET_EVENT, widget);
+    return () => {
+      window.removeEventListener(ADD_TO_CHAT_EVENT, add, true);
+      window.removeEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
+      window.removeEventListener(OPEN_WIDGET_EVENT, widget);
+    };
+  }, [revealLearningConversation]);
+  useEffect(() => {
+    const release = listen("open_pdf", openPdf);
+    return () => { void release.then((stop) => stop()); };
+  }, [openPdf]);
+  useAppResourceNavigation({ workspace: { ...workspace, openFile: openLearningFile }, notesEnabled,
+    onOpenConversation: revealLearningConversation,
+    onOpenCanvas: (canvas) => {
+      if (surfaceRef.current !== "agent") return false;
+      agentWorkspaceRef.current.showCanvas(canvas.id);
+      return true;
+    }, onOpenNote: (id) => {
     setNoteOpenRequest((previous) => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
     setSurface("notes");
   } });
@@ -248,24 +369,18 @@ function Workspace(boot: BootWorkspace) {
     setSettingsSection(section); saveSettingsSection(section); setSettingsAnchor(null);
   }, []);
   const openSearch = useCallback(() => startTransition(() => { setSurface("search"); setSearchFocusToken((token) => token + 1); }), []);
-  const openCanvases = useCallback(() => startTransition(() => setSurface("canvases")), []);
-  const newCanvas = useCallback(async () => {
-    const view = workspaceRef.current!;
-    try { return await upsertCanvas(createEmptyCanvas(view.projectCwdRef.current)); }
-    catch (error) { view.setError(String(error)); return undefined; }
-  }, []);
   const renameCanvas = (id: string, title: string) => {
     void updateCanvas(id, { title }).catch((error) => workspace.setError(String(error)));
-  };
-  const handleDeleteCanvas = (id: string) => {
-    void deleteCanvas(id).catch((error) => workspace.setError(String(error)));
   };
   const canvasAddToChat = (text: string) => {
     const view = workspaceRef.current!;
     const session = { ...newDefaultSession(view.projectCwdRef.current, view.activeSession?.runtimeMode), title: "Canvas context" };
     view.addSession({ ...session, noteCard: { id: crypto.randomUUID(), slug: "canvas-context", title: "Canvas context", body: text } });
   };
-  const openCanvas = (id: string) => { const cwd = canvases.find((canvas) => canvas.id === id)?.cwd; workspace.openCanvas(id, canvasScopeAgentId(cwd) ? undefined : cwd); };
+  const canvasAddToAgent = (text: string) => {
+    const current = agentWorkspaceRef.current.currentRef.current;
+    if (current) requestAddToChat(text, "plain", { targetSessionId: current.sessionId });
+  };
   const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => { setNoteOpenRequest(undefined); setSurface("notes"); }); }, []);
   const toggleProjectRail = useCallback(() => setProjectRailOpen((open) => { saveProjectRailOpen(!open); return !open; }), []);
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -292,8 +407,13 @@ function Workspace(boot: BootWorkspace) {
   }, []);
   // The shortcut folds whichever second column the page in view has.
   const toggleSessionSidebar = useCallback(() => {
-    if (surfaceRef.current === "notes" || surfaceRef.current === "canvases") {
+    if (surfaceRef.current === "notes") {
       window.dispatchEvent(new Event(TOGGLE_SECONDARY_SIDEBAR_EVENT));
+      return;
+    }
+    if (surfaceRef.current === "agent") {
+      const id = agentWorkspaceRef.current.activeAgentId;
+      if (id) agentsRef.current?.setDetailsOpenFor(id, (open) => !open);
       return;
     }
     setSessionSidebarOpen((open) => { saveSessionSidebarOpen(!open); return !open; });
@@ -306,6 +426,15 @@ function Workspace(boot: BootWorkspace) {
   }, [runtime.flushEvents, runtime.flushPersistence]);
   const reload = useCallback(() => { void persistWindow().then(() => window.location.reload()).catch((error) => workspaceRef.current?.setError(String(error))); }, [persistWindow]);
   useAppCommands({ workspace, submission, sessionsRef, surfaceOpen: surface !== "chat", closeSurface,
+    agentPane: surface === "agent" && agentWorkspace.current ? {
+      focusedId: agentWorkspace.current.focusedId, layout: agentWorkspace.current.layout,
+      onClosePane: agentWorkspace.closePane,
+      onFocusDirection: (direction) => {
+        const current = agentWorkspaceRef.current.currentRef.current;
+        const next = current && neighborLeafId(current.layout, current.focusedId, direction);
+        if (next) agentWorkspaceRef.current.focusPane(next);
+      },
+    } : undefined,
     openSearch, openSettings, openNotes, toggleProjectRail, toggleSessionSidebar, openTabSwitcher, jumpToAttention, openTabOverview, reload, sessionOrder,
   });
 
@@ -426,7 +555,6 @@ function Workspace(boot: BootWorkspace) {
     const byId = new Map(tabSummaries.map((tab) => [tab.id, tab]));
     return workspace.visibleTabs.flatMap((tab) => byId.get(tab.id) ?? []);
   }, [tabSummaries, workspace.visibleTabs]);
-  const focusedLeaf = workspace.activeTab && findLeaf(workspace.activeTab.layout, workspace.activeTab.focusedId);
   summariesRef.current = tabSummaries;
   // Tabs that hold something unfinished are never put away or closed in bulk.
   const heldIds = useMemo(() => heldTabIds(workspace.tabs, sessions), [workspace.tabs, sessions]);
@@ -469,10 +597,23 @@ function Workspace(boot: BootWorkspace) {
     onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
     onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((session) => session.id === id ? { ...session, noteCard: undefined } : session)),
     onNoteSaved: (noteId: string) => setSavedToast({ type: "note", id: noteId }),
-    onSaveToCanvas: saveToCanvas,
     onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
     onOpenFile: openProjectFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
     onBtwStop: submission.btwStop, onBtwModelChange: submission.btwModelChange,
+  };
+
+  const renderAgentSession: NonNullable<import("react").ComponentProps<typeof PaneTree>["renderSession"]> = (paneProps) => {
+    const agent = agents.agents.find((entry) => entry.sessionId === paneProps.session.id);
+    if (!agent) return undefined;
+    const earlier = agents.earlierBlocksFor(paneProps.session.id);
+    const session = earlier?.length ? { ...paneProps.session, blocks: [...earlier, ...paneProps.session.blocks] } : paneProps.session;
+    return <AgentSessionPane agent={agent} state={agents.states.get(agent.id) ?? { status: "idle" }}
+      sessionPaneProps={{ ...paneProps, session, onApproval: agentHabits.approve,
+        onSaveToCanvas: (text, anchor) => saveToCanvas(agent.id, text, anchor) }}
+      detailsOpen={agents.isDetailsOpen(agent.id)} onToggleDetails={() => agents.setDetailsOpenFor(agent.id, (open) => !open)}
+      onReset={() => void agents.reset(agent.id)} onDelete={() => void agents.remove(agent.id)}
+      onPickFolders={() => pickFolders("Choose projects")}
+      onLoadEarlier={agents.hasEarlier(session.id) ? () => void agents.loadEarlier(session.id) : undefined} />;
   };
 
   return <>
@@ -492,16 +633,13 @@ function Workspace(boot: BootWorkspace) {
           onTabChange={closeSurface} canGoBack={surface !== "chat" || workspace.visits.back.length > 0} canGoForward={workspace.visits.forward.length > 0}
           onGoBack={onRailBack} onGoForward={() => workspace.visit("forward")}
           recents={workspace.recents} busyProjectPaths={shownSessions.filter((session) => session.busy).map((session) => session.cwd)}
-          agentActive={surface === "agent"}
-          agentRail={!agentsEnabled ? undefined : <AgentRailSection activeId={surface === "agent" ? agents.viewAgent?.id : undefined} states={agents.states} unseenIds={unseenAgentIds}
-            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpen(true); void agents.open(id); }} onCreate={(templateId) => void agents.create(templateId)} onDelete={(id) => void agents.remove(id)} />}
+          agentActive={!!focusedAgent}
+          agentRail={!agentsEnabled ? undefined : <AgentRailSection activeId={focusedAgent?.id} states={agents.states} unseenIds={unseenAgentIds}
+            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void agents.open(id); }} onCreate={(templateId) => void agents.create(templateId)} onDelete={(id) => void agents.remove(id)} />}
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
-          onOpenCanvases={openCanvases} canvasesActive={surface === "canvases"}
           onOpenFile={workspace.openFile} onToggleSidebar={toggleSessionSidebar} onFileMoved={workspace.fileMoved} onFileDeleted={workspace.fileDeleted}
-          canvases={canvases} activeCanvasId={surface === "chat" && focusedLeaf?.leafKind === "canvas" ? focusedLeaf.id : undefined}
-          onOpenCanvas={workspace.showCanvas} onOpenCanvasInTab={openCanvas} onNewCanvas={newCanvas} onRenameCanvas={renameCanvas} onDeleteCanvas={handleDeleteCanvas}
           projectRailOpen={projectRailOpen} compactProjectRail={compactProjectRail} titleBarAbove={compactTitleBar} onToggleProjectRail={toggleProjectRail}
           unseenFinishedIds={unseenFinishedIds} settingsOpen={surface === "settings"} settingsSection={settingsSection} onOpenSettings={() => openSettings()}
           onOpenNotificationSettings={notificationsSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={() => setSurface(settingsReturn.current)} />
@@ -509,7 +647,7 @@ function Workspace(boot: BootWorkspace) {
           <div className={surface === "chat" ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden"} aria-hidden={surface !== "chat"} inert={surface !== "chat" || undefined}>
             {!IS_MAC ? <MenuBar onNew={() => workspace.createSession()} onSwitchTab={openTabSwitcher} onNextAttention={jumpToAttention} onTabOverview={openTabOverview} onReopenTab={() => { void workspace.reopenClosed("latest"); }} onToggleSidebar={toggleProjectRail} onToggleSessionSidebar={toggleSessionSidebar}
               onCloseCurrentTab={() => workspace.closeTabs([workspace.activeTabId])} onCloseOtherTabs={() => workspace.closeTabs(workspace.visibleTabs.filter((tab) => tab.id !== workspace.activeTabId).map((tab) => tab.id))}
-              onCloseAllTabs={() => workspace.closeTabs(workspace.visibleTabs.map((tab) => tab.id))} onPickProject={workspace.pickProject} onSearch={openSearch} onOpenNotes={notesEnabled ? openNotes : undefined}
+              onCloseAllTabs={() => workspace.closeTabs(workspace.visibleTabs.map((tab) => tab.id))} onPickProject={workspace.pickProject} onOpenPdf={openPdf} onSearch={openSearch} onOpenNotes={notesEnabled ? openNotes : undefined}
               onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
             {compactTitleBar ? null : workspaceTitleBar}
             <main className="relative flex min-h-0 min-w-0 flex-1">
@@ -528,29 +666,28 @@ function Workspace(boot: BootWorkspace) {
               </div>
             </main>
           </div>
-          {surface === "agent" && agents.viewAgent && agentSession ? <AgentView agent={agents.viewAgent} state={agents.states.get(agents.viewAgent.id) ?? { status: "idle" }}
-            detailsOpen={agents.detailsOpen} onToggleDetails={() => agents.setDetailsOpen((open) => !open)} onClose={closeSurface}
-            besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onToggleSidebar={toggleProjectRail}
-            onLoadEarlier={agents.hasEarlier ? () => void agents.loadEarlier() : undefined}
-            reader={openedDocument ? <AgentDocumentReader agentId={agents.viewAgent.id} document={openedDocument} onClose={() => setOpenedDocument(undefined)} /> : undefined}
-            details={<AgentDetails agent={agents.viewAgent} session={agentSession}
-              onModelChange={(harness, model) => submission.changeModel(agentSession.id, harness, model)}
-              onModelSettingsChange={(settings) => submission.changeModelSettings(agentSession.id, settings)}
-              onRuntimeModeChange={(mode) => submission.changeRuntimeMode(agentSession.id, mode)} recents={workspace.recents} refreshKey={agentSession.busy} onPickFolders={() => pickFolders("Choose projects")}
-              onReset={() => void agents.reset(agents.viewAgent!.id)} onDelete={() => void agents.remove(agents.viewAgent!.id)} onClose={() => agents.setDetailsOpen(false)} />}>
-            {/* It belongs to no tab or project, so pane actions that move it have nothing to act on. */}
-            <SessionPane {...sessionPaneProps} key={agentSession.id} session={shownAgentSession ?? agentSession} visible focused inSplit={false} composerFocused emptyIntro={<AgentIntro agent={agents.viewAgent} />}
-              chatPlaceholder={`Message ${agentLook(agents.viewAgent).name}`}
-              onFocus={() => undefined} onClose={closeSurface} onCwdChange={() => undefined} onApproval={agentHabits.approve} />
-          </AgentView> : null}
-          {surface !== "agent" && openedDocument ? <div className="absolute inset-y-0 right-0 z-30 flex w-full justify-end">
-            <AgentDocumentReader document={openedDocument} onClose={() => setOpenedDocument(undefined)} />
-          </div> : null}
+          {surface === "agent" && agentWorkspace.current ? <section data-agent-workspace={agentWorkspace.activeAgentId} className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {IS_MAC && projectRailOpen ? null : <header className="flex h-10 shrink-0 items-center border-b border-stroke" data-tauri-drag-region="deep">
+              {IS_MAC ? <div className={compactRailActive ? "w-7 shrink-0" : "w-[78px] shrink-0"} /> : null}
+              <OverlayNav onBack={closeSurface} onToggleSidebar={toggleProjectRail} />
+              <div className="flex-1" data-tauri-drag-region="deep" />
+              {IS_MAC ? null : <WindowControls />}
+            </header>}
+            <div className="min-h-0 min-w-0 flex-1">
+              <PaneTree {...sessionPaneProps} layout={agentWorkspace.current.layout} sessions={sessions} visible focusedId={agentWorkspace.current.focusedId} composerFocused
+                composerFocusToken={agentWorkspace.composerFocusToken} onFocus={agentWorkspace.focusPane} onClose={agentWorkspace.closePane}
+                onRatio={agentWorkspace.setRatio} onMovePane={agentWorkspace.movePane} transcriptPool={transcriptPool}
+                renderSession={renderAgentSession} canvases={canvases} onCanvasFocus={agentWorkspace.focusPane}
+                onCanvasAddToChat={canvasAddToAgent} canvasChatTarget="agent" onCanvasTitleChange={renameCanvas}
+                canvasChatIcon={focusedAgent ? <AgentAvatar name={focusedAgent.avatar} color={focusedAgent.color} className="size-4 shrink-0" /> : undefined}
+                onFilePaneFocus={agentWorkspace.focusPane}
+                onCwdChange={() => undefined} onOpenFile={openProjectFile} />
+            </div>
+          </section> : null}
           {surface === "search" ? <SearchView open cwd={workspace.projectCwd} recents={workspace.recents} history={workspace.history} sessions={sessions}
             focusToken={searchFocusToken} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
             onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}
           {surface === "notes" ? <NotesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} cwd={workspace.projectCwd} openRequest={noteOpenRequest} recents={workspace.recents} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
-          {surface === "canvases" ? <CanvasesView canvases={canvases} cwd={workspace.projectCwd} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail} onOpenCanvas={openCanvas} onNewCanvas={newCanvas} onTitleChange={renameCanvas} onDeleteCanvas={handleDeleteCanvas} onAddToChat={canvasAddToChat} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest}
             recents={workspace.recents} cwd={workspace.projectCwd} sessions={workspace.sidebarHistory} besideRail onClose={() => setSurface(settingsReturn.current)} onSelectSection={onSelectSettingsSection}
             onOpenSession={(id) => void workspace.openSession(id)} onArchiveSession={(...args) => void workspace.archiveSession(...args)} onDeleteSession={(id) => void workspace.removeSession(id)}
@@ -565,7 +702,8 @@ function Workspace(boot: BootWorkspace) {
             }} /> : null}
         </div>
       </div>
-      <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, workspace.activeTabId, workspace.tabs, surface === "chat")} topOffset={12 + (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0)} onFocusSession={(id) => void workspace.openSession(id)} onApproval={submission.approve} />
+      <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, workspace.activeTabId, workspace.tabs, surface === "chat")
+        .filter((notice) => surface !== "agent" || notice.sessionId !== agentWorkspace.current?.focusedId)} topOffset={12 + (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0)} onFocusSession={(id) => void workspace.openSession(id)} onApproval={submission.approve} />
       <ReminderNotices reminders={reminders.due} error={reminders.error} onOpen={reminders.open} onSnooze={reminders.schedule} onDismiss={reminders.cancel} onRetry={reminders.refresh} onOpenSettings={() => openSettings("general", "notifications")} onHeightChange={setReminderNoticesHeight} />
       {overviewOpen ? <TabOverview tabs={tabSummaries} activeId={workspace.activeTabId} projectPath={workspace.projectCwd} recent={recentTabs.current}
         onDismiss={() => setOverviewOpen(false)} onActivate={workspace.activateTab}
@@ -582,7 +720,8 @@ function Workspace(boot: BootWorkspace) {
           onDismiss={() => setSavedToast(null)}
           onOpen={(t) => {
             if (t.type === "canvas") {
-              workspace.showCanvas(t.id);
+              if (surface === "agent") agentWorkspace.showCanvas(t.id);
+              else workspace.showCanvas(t.id);
             } else {
               setNoteOpenRequest((prev) => ({ id: t.id, sequence: (prev?.sequence ?? 0) + 1 }));
               setSurface("notes");
@@ -593,6 +732,19 @@ function Workspace(boot: BootWorkspace) {
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
       {canvasSelection ? <SelectCanvasDialog anchor={canvasSelection.anchor ?? null} canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new DOMException("Cancelled", "AbortError")); }} /> : null}
       {workspace.error ? <FileActionError message={workspace.error} onDismiss={() => workspace.setError(null)} /> : null}
+      {learningTargetRequest ? <Modal title="Choose a learning conversation" description="Your passage will be added as a draft. Choose an agent or a project conversation." onClose={() => setLearningTargetRequest(null)}>
+        <div className="flex max-h-80 flex-col gap-1 overflow-auto p-3">
+          {([...agents.agents.filter((agent) => agent.sessionId).map((agent) => ({ id: agent.sessionId!, title: agent.name || "Agent" })),
+            ...workspace.sidebarHistory.filter((row) => !row.archived).map((row) => ({ id: row.id, title: row.title }))]
+            .filter((entry, index, all) => all.findIndex((other) => other.id === entry.id) === index)).map((entry) =>
+            <button key={entry.id} type="button" className="rounded-lg px-3 py-2 text-left text-sm hover:bg-content/8" onClick={() => {
+              queueLearningDraft(entry.id, { ...learningTargetRequest, targetSessionId: entry.id });
+              setLearningTargetRequest(null);
+              void revealLearningConversation(entry.id).catch((error) => workspaceRef.current?.setError(String(error)));
+            }}>{entry.title}</button>)}
+          {!agents.agents.some((agent) => agent.sessionId) && !workspace.sidebarHistory.length ? <p className="p-3 text-sm text-content/60">Create an agent or open a project conversation, then ask about this passage.</p> : null}
+        </div>
+      </Modal> : null}
     </div>
     <TranscriptPoolOutlet pool={transcriptPool} />
   </>;

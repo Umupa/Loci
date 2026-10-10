@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { CircleAlert, ExternalLink, Folder, GripVertical, MessageSquarePlus, Pin, X } from "../../../shared/ui/icons";
+import { open as chooseFile } from "@tauri-apps/plugin-dialog";
+import { CircleAlert, ExternalLink, Folder, GripVertical, MessageSquarePlus, Pencil, Pin, X } from "../../../shared/ui/icons";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { basename, openPathWithDefaultApp, readBinaryFile, readDocumentFile, readTextFile, revealPath, writeTextFile } from "../../../platform/tauri/fs";
 import { IS_MAC } from "../../../platform/tauri/platform";
@@ -14,10 +15,15 @@ import { MarkdownDocumentPreview } from "../../sessions/ui/MarkdownDocumentPrevi
 import { fileKind } from "../model/fileKind";
 import { syncWatchedMtime, watchFile } from "../model/fileWatch";
 import { draftConflicts, editDraft, getFileDraft, setFileDraft, type FileDraft } from "../model/fileDrafts";
-import { type OpenFileFn, consumeFilePlace, findHeading, headingAbove, lineOffset, lineRange, textareaOffsetTop, useFilePlace } from "../model/filePlace";
+import { type OpenFileFn, consumeFilePlace, findHeading, headingAbove, lineOffset, lineRange, requestFilePlace, textareaOffsetTop, useFilePlace } from "../model/filePlace";
 import { MarkdownModeToggle, useMarkdownMode } from "../../sessions/ui/MarkdownModeToggle";
 import { FileCard } from "./FileCard";
 import { ImageView } from "./ImageView";
+import type { LoadedPdf } from "./PdfView";
+import type { PdfAnnotation, ReadingDocument } from "../../learning/model/types";
+import { createPdfAnnotation, pdfSelectionAnchors, pdfSelectionSource } from "../../learning/model/pdfAnnotations";
+import { deletePdfAnnotation, getReadingDocumentByPath, listPdfAnnotations, registerLearningSource, registerReadingDocument, relocateReadingDocument, subscribeLearningChanges, upsertPdfAnnotation } from "../../learning/model/learningStore";
+import { PdfAnnotationPopover, PdfAnnotationsList, PdfSelectionMenu } from "../../learning/ui/PdfAnnotations";
 
 // pdf.js is large and only needed once a PDF is actually opened.
 const PdfView = lazySurface(async () => ({ default: (await import("./PdfView")).PdfView }));
@@ -54,6 +60,15 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   const [draft, setDraftState] = useState<FileDraft | null>(() => getFileDraft(path));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [readingDocument, setReadingDocument] = useState<ReadingDocument | null>(null);
+  const [annotations, setAnnotations] = useState<PdfAnnotation[]>([]);
+  const [annotationsLoaded, setAnnotationsLoaded] = useState(false);
+  const [annotationsOpen, setAnnotationsOpen] = useState(false);
+  const [annotationError, setAnnotationError] = useState<string | null>(null);
+  const [openAnnotation, setOpenAnnotation] = useState<{ id: string; rect: DOMRect } | null>(null);
+  const [relocating, setRelocating] = useState(false);
+  const currentPath = useRef(path);
+  currentPath.current = path;
   const setDraft = (next: FileDraft | null) => {
     setFileDraft(path, next);
     setDraftState(next);
@@ -69,6 +84,85 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   const bodyRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLPreElement>(null);
   const { selection, dismiss } = useFileSelection(bodyRef, (content.status === "text" && !editing) || content.status === "pdf");
+
+  useEffect(() => {
+    setReadingDocument(null); setAnnotations([]); setAnnotationsLoaded(false); setOpenAnnotation(null); setAnnotationError(null);
+    if (kind !== "pdf") return;
+    let cancelled = false;
+    void getReadingDocumentByPath(path).then((found) => { if (!cancelled) setReadingDocument(found); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [path, kind]);
+
+  const documentId = readingDocument?.id;
+  useEffect(() => {
+    if (!documentId) return;
+    setAnnotations([]);
+    let cancelled = false;
+    const refresh = () => {
+      setAnnotationsLoaded(false);
+      void listPdfAnnotations(documentId).then((marks) => {
+        if (!cancelled) { setAnnotations(marks); setAnnotationsLoaded(true); setAnnotationError(null); }
+      }).catch((cause) => { if (!cancelled) setAnnotationError(String(cause)); });
+    };
+    refresh();
+    const unsubscribe = subscribeLearningChanges(refresh);
+    return () => { cancelled = true; unsubscribe(); };
+  }, [documentId]);
+
+  const onPdfDocument = useCallback((loaded: LoadedPdf) => {
+    void registerReadingDocument(path, loaded.fingerprint, name).then((registered) => {
+      if (currentPath.current === path) setReadingDocument(registered);
+    }).catch((cause) => { if (currentPath.current === path) setAnnotationError(`Couldn’t load annotations: ${String(cause)}`); });
+  }, [path, name]);
+
+  const selectionDetails = () => {
+    if (!selection || !readingDocument || !bodyRef.current) throw new Error("The PDF is still opening. Try selecting the passage again.");
+    const anchors = pdfSelectionAnchors(bodyRef.current, selection.range);
+    if (!anchors.length) throw new Error("This selection has no readable PDF text. Image-only pages aren’t supported yet.");
+    return { document: readingDocument, quote: selection.text, anchors };
+  };
+  const askPdfSelection = async () => {
+    const details = selectionDetails();
+    const source = pdfSelectionSource(details.document, details.quote, details.anchors);
+    await registerLearningSource(source);
+    requestAddToChat("Explain this passage.", "plain", { sources: [source] });
+  };
+  const highlightPdfSelection = async () => {
+    const details = selectionDetails();
+    const annotation = await upsertPdfAnnotation(createPdfAnnotation(details.document, details.quote, details.anchors));
+    setAnnotations((current) => [...current.filter((entry) => entry.id !== annotation.id), annotation]);
+    setOpenAnnotation({ id: annotation.id, rect: selection!.rect });
+    onPin();
+  };
+  const askAnnotation = (annotation: PdfAnnotation) => {
+    requestAddToChat(annotation.note ? `Explain this passage.\n\nMy note: ${annotation.note}` : "Explain this passage.", "plain", { sources: [annotation.source] });
+    setOpenAnnotation(null);
+  };
+  const saveAnnotation = async (annotation: PdfAnnotation, note: string) => {
+    const updated = await upsertPdfAnnotation({ ...annotation, note, updatedAt: Date.now() });
+    setAnnotations((current) => current.map((entry) => entry.id === updated.id ? updated : entry));
+  };
+  const removeAnnotation = async (annotation: PdfAnnotation) => {
+    await deletePdfAnnotation(annotation.id);
+    setAnnotations((current) => current.filter((entry) => entry.id !== annotation.id));
+  };
+  const selectAnnotation = (annotation: PdfAnnotation) => {
+    requestFilePlace(path, { page: annotation.anchors[0]?.page ?? 1, annotationId: annotation.id });
+  };
+  const relocatePdf = async () => {
+    if (!readingDocument || relocating) return;
+    setRelocating(true); setAnnotationError(null);
+    try {
+      const selected = await chooseFile({ multiple: false, title: `Locate ${name}`, filters: [{ name: "PDF documents", extensions: ["pdf"] }] });
+      if (typeof selected !== "string") return;
+      const bytes = await readDocumentFile(selected);
+      const { readPdfFingerprint } = await import("./PdfView");
+      const fingerprint = await readPdfFingerprint(bytes);
+      await relocateReadingDocument(readingDocument.id, selected, fingerprint);
+      onOpenFile(selected);
+    } catch (cause) { setAnnotationError(`Couldn’t locate this PDF: ${cause instanceof Error ? cause.message : String(cause)}`); }
+    finally { setRelocating(false); }
+  };
 
   /** Page of a PDF selection, or the lines of a plain-text one; markdown has neither. */
   const placeOf = (range: Range): SelectionPlace => {
@@ -175,6 +269,12 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   // preview, which has no lines, so the link shows the section they fall in; only a pane that is
   // already showing the source selects the lines there.
   const placeRequest = useFilePlace(path);
+  const requestedPdfPlace = placeRequest && "page" in placeRequest.place ? { ...placeRequest.place, token: placeRequest.token } : undefined;
+  // A saved source remains navigable after its highlight is deleted. Wait for
+  // the listing before deciding whether to open a mark or just its page.
+  const pdfPlace = requestedPdfPlace?.annotationId
+    ? annotationsLoaded ? { ...requestedPdfPlace, annotationId: annotations.some((entry) => entry.id === requestedPdfPlace.annotationId) ? requestedPdfPlace.annotationId : undefined } : undefined
+    : requestedPdfPlace;
   const shownPlainText = content.status === "text" && kind !== "markdown" ? content.text : null;
   const areaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -226,9 +326,21 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     body = <FileCard path={path} cwd={cwd} title={name} detail={content.detail}
       icon={<div className="mx-auto mb-3 flex justify-center"><FileTypeIcon name={name} isDir={false} size={28} /></div>} />;
   } else if (content.status === "pdf") {
-    body = <PdfView bytes={content.bytes} onError={(message) => setContent({ status: "error", message })}
-      place={placeRequest && "page" in placeRequest.place ? { page: placeRequest.place.page, token: placeRequest.token } : undefined}
-      onPlaced={() => { if (placeRequest) consumeFilePlace(path, placeRequest.token); }} />;
+    body = <div className="flex h-full min-h-0 min-w-0">
+      <div className="min-w-0 flex-1"><PdfView bytes={content.bytes} onError={(message) => setContent({ status: "error", message })}
+        onDocument={onPdfDocument} annotations={annotations} selectedAnnotationId={openAnnotation?.id}
+        onAnnotationClick={(annotation, rect) => setOpenAnnotation({ id: annotation.id, rect })}
+        place={pdfPlace}
+        onPlaced={(placed, pageRect) => {
+          if (currentPath.current !== path || placeRequest?.token !== placed.token) return;
+          const annotation = annotations.find((entry) => entry.id === placed.annotationId);
+          const rect = annotation?.anchors.find((anchor) => anchor.page === placed.page)?.rects[0];
+          if (annotation && rect) setOpenAnnotation({ id: annotation.id, rect: new DOMRect(pageRect.left + rect.x * pageRect.width, pageRect.top + rect.y * pageRect.height, rect.width * pageRect.width, rect.height * pageRect.height) });
+          consumeFilePlace(path, placed.token);
+        }} />
+      </div>
+      {annotationsOpen ? <PdfAnnotationsList annotations={annotations} selectedId={openAnnotation?.id} onSelect={selectAnnotation} onClose={() => setAnnotationsOpen(false)} /> : null}
+    </div>;
   } else if (content.status === "image") {
     body = <ImageView url={content.url} size={content.size} mime={content.mime} />;
   } else if (kind === "markdown") {
@@ -273,6 +385,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         {draft ? <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-content/60" /> : null}
         {folder && folder !== "." ? <span className="min-w-0 flex-1 truncate text-[11px] text-content/40">{folder}</span> : <span className="flex-1" />}
         {editable ? <div data-no-drag className="shrink-0"><MarkdownModeToggle mode={mode} onChange={setMode} /></div> : null}
+        {kind === "pdf" ? <PaneButton label="PDF annotations" onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-3.5" /></PaneButton> : null}
         {draft ? (
           <button type="button" data-no-drag disabled={conflict || saving} onClick={() => void save()} title={conflict ? "Resolve the conflict first" : "Save (Ctrl/Cmd+S)"}
             className="h-6 shrink-0 rounded px-2 text-[11px] text-content hover:bg-content/10 disabled:opacity-40">{saving ? "Saving…" : "Save"}</button>
@@ -291,8 +404,16 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         </Banner>
       ) : null}
       {saveError ? <Banner tone="error" message={`Couldn’t save: ${saveError}`}><BannerButton onClick={() => void save()}>Retry</BannerButton></Banner> : null}
+      {annotationError ? <Banner tone="error" message={annotationError}><BannerButton onClick={() => setAnnotationError(null)}>Dismiss</BannerButton></Banner> : null}
+      {kind === "pdf" && content.status === "error" && readingDocument ? <Banner tone="warn" message="This PDF may have moved. Locate the same document to restore its annotations.">
+        <BannerButton onClick={() => void relocatePdf()}>{relocating ? "Locating…" : "Locate file"}</BannerButton>
+      </Banner> : null}
       <div ref={bodyRef} className="min-h-0 min-w-0 flex-1">{body}</div>
-      <TranscriptSelectionMenu selection={selection} onAddToChat={addSelection} onDismiss={dismiss} />
+      {content.status === "pdf" && selection ? <PdfSelectionMenu selection={selection} onAsk={askPdfSelection} onHighlight={highlightPdfSelection} onDismiss={dismiss} />
+        : <TranscriptSelectionMenu selection={selection} onAddToChat={addSelection} onDismiss={dismiss} />}
+      {content.status === "pdf" && openAnnotation && annotations.find((annotation) => annotation.id === openAnnotation.id) ?
+        <PdfAnnotationPopover key={openAnnotation.id} annotation={annotations.find((annotation) => annotation.id === openAnnotation.id)!} anchor={openAnnotation.rect}
+          onDismiss={() => setOpenAnnotation(null)} onAsk={askAnnotation} onSave={saveAnnotation} onDelete={removeAnnotation} /> : null}
     </div>
   );
 }

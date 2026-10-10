@@ -9,7 +9,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("keeps animating through transcript changes without measuring layout each frame", () => {
+it.each([
+  ["project mascot", undefined],
+  ["agent avatar", createElement("svg", { "data-agent-avatar": "" })],
+])("keeps the %s animating through transcript changes without measuring layout each frame", (_name, avatar) => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("matchMedia", () => ({ matches: false }));
   vi.spyOn(performance, "now").mockReturnValue(1000);
@@ -41,16 +44,24 @@ it("keeps animating through transcript changes without measuring layout each fra
           boxRef: { current: box },
           cwd: "/work/project",
           busy: true,
+          avatar,
           onExited: vi.fn(),
         }),
       ),
     );
+    const layer = document.querySelector<HTMLElement>(".composer-runner")!;
+    const sprite = layer.querySelector<HTMLElement>(".will-change-transform")!;
+    const initialX = sprite.style.getPropertyValue("--runner-x");
+    expect(layer.querySelector("[data-agent-avatar]") != null).toBe(avatar != null);
+    expect(layer.querySelector(".mascot-rest") != null).toBe(avatar == null);
+    expect(layer.querySelector(".mascot-active")).not.toBeNull();
     const startedAt = 1000;
     for (let i = 1; i <= 5; i++) {
       box.append(document.createElement("span"));
       act(() => frame?.(startedAt + i * 16));
     }
     expect(measure).toHaveBeenCalledOnce();
+    expect(sprite.style.getPropertyValue("--runner-x")).not.toBe(initialX);
 
     act(() => frame?.(startedAt + 120));
     expect(measure).toHaveBeenCalledTimes(2);
@@ -61,7 +72,10 @@ it("keeps animating through transcript changes without measuring layout each fra
   }
 });
 
-it("plays its exit once when work finishes, and hides on an inactive pane", () => {
+it.each([
+  ["project mascot", undefined],
+  ["agent avatar", createElement("svg", { "data-agent-avatar": "" })],
+])("plays the %s exit once when work finishes, and hides on an inactive pane", (_name, avatar) => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("matchMedia", () => ({ matches: false }));
   vi.spyOn(performance, "now").mockReturnValue(1000);
@@ -75,7 +89,7 @@ it("plays its exit once when work finishes, and hides on an inactive pane", () =
   document.body.append(host, box);
   const root = createRoot(host);
   const onExited = vi.fn();
-  const props = { boxRef: { current: box }, cwd: "/work/project", busy: true, onExited };
+  const props = { boxRef: { current: box }, cwd: "/work/project", busy: true, avatar, onExited };
   try {
     act(() => root.render(createElement(ComposerRunner, props)));
     const layer = document.querySelector<HTMLElement>(".composer-runner")!;

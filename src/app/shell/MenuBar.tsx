@@ -16,13 +16,14 @@ type Props = {
     onCloseOtherTabs?: () => void;
     onCloseAllTabs?: () => void;
     onPickProject?: () => void;
+    onOpenPdf?: () => void;
     onSearch?: () => void;
     onOpenNotes?: () => void;
     onZoomIn?: () => void;
     onZoomOut?: () => void;
     onZoomReset?: () => void;
 };
-export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, onReopenTab, onToggleSidebar, onToggleSessionSidebar, onCloseCurrentTab, onCloseOtherTabs, onCloseAllTabs, onPickProject, onSearch, onOpenNotes, onZoomIn, onZoomOut, onZoomReset, }: Props) {
+export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, onReopenTab, onToggleSidebar, onToggleSessionSidebar, onCloseCurrentTab, onCloseOtherTabs, onCloseAllTabs, onPickProject, onOpenPdf, onSearch, onOpenNotes, onZoomIn, onZoomOut, onZoomReset, }: Props) {
     const [open, setOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{
@@ -91,6 +92,9 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
             case "open_project":
                 onPickProject?.();
                 break;
+            case "open_pdf":
+                onOpenPdf?.();
+                break;
             case "open_search":
                 onSearch?.();
                 break;
@@ -148,6 +152,7 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
         onCloseAllTabs,
         onNew,
         onPickProject,
+        onOpenPdf,
         onSearch,
         onOpenNotes,
         onToggleSidebar,
@@ -160,6 +165,7 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
         switch (key) {
             case "file":
                 return [
+                    { kind: "item", id: "open_pdf", label: "Open PDF…" },
                     {
                         kind: "item",
                         id: "new_tab",

@@ -1,4 +1,6 @@
-import { leafIds, type WorkspaceTab } from "../../workspace/model/layout";
+import { layoutLeaves, leafIds, type WorkspaceTab } from "../../workspace/model/layout";
+import { workspaceTabCwd } from "../../workspace/model/workspaceTabGroups";
+import { isAgentSession } from "../../agents/model/agent";
 import type { Session } from "../../sessions/model/session";
 import { pathKey } from "../../../shared/lib/paths";
 import { sameProjectPath } from "./recents";
@@ -21,7 +23,7 @@ export type ProjectReturnDecision =
   | { action: "create" };
 
 export function isBlankSession(session: Session | undefined): boolean {
-  if (!session || session.busy) return false;
+  if (!session || session.busy || isAgentSession(session.id)) return false;
   return !session.blocks.some((block) => block.role === "user");
 }
 
@@ -35,8 +37,10 @@ function paneProjects(
   const result = new Map<string, string>();
 
   for (const tab of tabs) {
-    for (const paneId of leafIds(tab.layout)) {
-      const cwd = cwdBySession.get(paneId);
+    const tabCwd = workspaceTabCwd(tab, sessions);
+    for (const { id: paneId, kind } of layoutLeaves(tab.layout)) {
+      const cwd = kind === "session" && !isAgentSession(paneId)
+        ? cwdBySession.get(paneId) : tabCwd;
       if (cwd && cwd !== "~") {
         result.set(paneId, pathKey(cwd));
       }

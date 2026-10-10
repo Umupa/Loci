@@ -2,7 +2,9 @@ import { basename } from "../../../platform/tauri/fs";
 import { projectName } from "../../../shared/lib/paths";
 import { isBlankSession } from "../../projects/model/projectReturn";
 import { sessionDisplayTitle, type HarnessId, type Session } from "../../sessions/model/session";
+import { agentForSession, agentLook } from "../../agents/model/agent";
 import { filePanePath, findLeaf, leafIds, type WorkspaceTab } from "./layout";
+import { focusedWorkspaceTabCwd } from "./workspaceTabGroups";
 
 /** What a tab is waiting on, most urgent first. */
 export type TabStatus = "approval" | "busy" | "done" | "idle";
@@ -18,7 +20,7 @@ export type Tab = {
   /** Other conversation titles in this tab, focused session omitted. */
   more: string[];
   sessionCount: number;
-  paneKind?: "canvas" | "file";
+  paneKind?: "canvas" | "file" | "document" | "widget";
   harnesses: HarnessId[];
   /** Harnesses with an in-flight turn in this tab. */
   busyHarnesses: HarnessId[];
@@ -110,22 +112,29 @@ export function spawnerOf(sessionId: string): string | undefined {
 
 const unique = <T,>(items: T[]): T[] => [...new Set(items)];
 
+function conversationTitle(session: Session): string {
+  const agent = agentForSession(session.id);
+  return agent ? agentLook(agent).name : sessionDisplayTitle(session.title, session.harness);
+}
+
 export function summarizeTab(tab: WorkspaceTab, context: TabSummaryContext): Tab {
   const entries = leafIds(tab.layout).flatMap((id) => context.sessions.find((session) => session.id === id) ?? []);
-  const focusedSession = entries.find((entry) => entry.id === tab.focusedId) ?? entries[0];
+  const focusedSession = entries.find((entry) => entry.id === tab.focusedId);
   const focusedLeaf = findLeaf(tab.layout, tab.focusedId);
-  const path = focusedSession?.cwd ?? tab.cwd ?? context.fallbackCwd;
+  const path = focusedWorkspaceTabCwd(tab, context.sessions) ?? context.fallbackCwd;
 
   const approval = entries.filter((entry) => context.needsInput.has(entry.id));
   const busy = entries.filter((entry) => entry.busy);
   const done = entries.filter((entry) => context.unseenFinished.has(entry.id));
   const status: TabStatus = approval.length ? "approval" : busy.length ? "busy" : done.length ? "done" : "idle";
   // The preview comes from whichever conversation explains the tab's status.
-  const subject = (approval[0] ?? busy[0] ?? done[0] ?? focusedSession) as Session | undefined;
+  const subject = (approval[0] ?? busy[0] ?? done[0] ?? focusedSession ?? entries[0]) as Session | undefined;
 
   const title = focusedLeaf?.leafKind === "canvas" ? context.canvasTitle(focusedLeaf.id) ?? "Excalidraw"
     : focusedLeaf?.leafKind === "file" ? basename(filePanePath(focusedLeaf.id))
-      : focusedSession ? sessionDisplayTitle(focusedSession.title, focusedSession.harness) : "";
+      : focusedLeaf?.leafKind === "document" ? focusedLeaf.document?.title ?? "Document"
+        : focusedLeaf?.leafKind === "widget" ? focusedLeaf.widgetTitle ?? "Explanation"
+        : focusedSession ? conversationTitle(focusedSession) : "";
   const activity = entries.map(sessionActivityAt).filter((at): at is number => at !== undefined);
 
   const spawnedBy = entries.map((entry) => spawnerOf(entry.id)).find((id): id is string => !!id);
@@ -136,14 +145,14 @@ export function summarizeTab(tab: WorkspaceTab, context: TabSummaryContext): Tab
     title,
     more: entries
       .filter((entry) => entry.id !== focusedSession?.id)
-      .map((entry) => sessionDisplayTitle(entry.title, entry.harness)),
+      .map(conversationTitle),
     sessionCount: entries.length,
     ...(focusedLeaf?.leafKind ? { paneKind: focusedLeaf.leafKind } : {}),
     harnesses: unique(entries.map((entry) => entry.harness)),
     busyHarnesses: unique(busy.map((entry) => entry.harness)),
     doneHarnesses: unique(done.map((entry) => entry.harness)),
     multiPane: leafIds(tab.layout).length > 1,
-    blank: entries.length === 1 && leafIds(tab.layout).length === 1 && isBlankSession(focusedSession),
+    blank: entries.length === 1 && leafIds(tab.layout).length === 1 && !agentForSession(entries[0].id) && isBlankSession(entries[0]),
     ...(tab.groupId ? { groupId: tab.groupId } : {}),
     ...(tab.pinned ? { pinned: true } : {}),
     ...(spawnedBy ? { spawnedBy } : {}),

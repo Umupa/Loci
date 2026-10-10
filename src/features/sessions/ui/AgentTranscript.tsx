@@ -1,9 +1,12 @@
 import { stripQuestionBlock } from "../model/standingQuestion";
 import type { OpenFileFn } from "../../files/model/filePlace";
+import { SourceChips } from "../../learning/ui/SourceChips";
+import { WidgetHostContext, type WidgetHost } from "../../learning/model/widgets";
 import {
 memo,
 startTransition,
 useCallback,
+useContext,
 useEffect,
 useLayoutEffect,
 useMemo,
@@ -36,6 +39,7 @@ X,
 import { AttachmentChip } from "./AttachmentChip";
 import { GeneratedImage } from "./GeneratedImage";
 import { LociSparkles } from "./LociSparkles";
+import { MessageSendAccent } from "./MessageSendAccent";
 
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { FilePreview } from "./FilePreview";
@@ -65,7 +69,6 @@ import type { Attachment } from "../model/session";
 import { ActivitySpinner } from "./ActivitySpinner";
 
 import { playCue } from "../../settings/model/sounds";
-import { resolveModel } from "../model/models";
 import { legacyTaskListFromText } from "../model/taskList";
 
 import {
@@ -79,6 +82,7 @@ import { useTranscriptLayout } from "../hooks/useTranscriptLayout";
 import { useTranscriptSelection } from "../hooks/useTranscriptSelection";
 import { lastUserTurnBlock } from "../model/editLastTurn";
 import { parseUserMessageLink } from "../model/linkPreview";
+import { INTERRUPT_MESSAGE } from "../model/inFlight";
 import {
 lociToolCall,
 lociWorkSummary,
@@ -122,7 +126,6 @@ subagentReport,
 toolCallLabel,
 toolCallState,
 turnCopyText,
-workKind,
 workSummaryLine,
 type ActivityPhase,
 type ActivityPhaseKind,
@@ -138,6 +141,7 @@ transcriptWordRanges,
 import { AgentMarkdown } from "./AgentMarkdown";
 import { cardsOnly } from "../model/cards";
 import { HarnessIcon } from "./HarnessIcon";
+import { WorkFoldLine, type WorkFoldState } from "./WorkFoldLine";
 import { TranscriptSelectionMenu } from "./TranscriptSelectionMenu";
 import { UserLinkPreview } from "./UserLinkPreview";
 
@@ -163,6 +167,7 @@ const FIRST_PAINT_TURNS = 3;
 const TURN_PAGE_SIZE = 20;
 
 type Props = {
+  widgetHost?: WidgetHost;
   blocks: Block[];
   busy?: boolean;
   cwd?: string;
@@ -173,7 +178,7 @@ type Props = {
   /** Work the agent left running when it yielded; the turn waits on it. */
   backgroundTasks?: string[];
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
-  onAddToChat?: (text: string) => void;
+  onAddToChat?: (text: string, blockId?: string) => void;
   onSaveNote?: (text: string) => void | Promise<void>;
   onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
   onSendDraft?: (block: Block) => boolean | void;
@@ -208,11 +213,11 @@ type Props = {
 };
 
 function AgentTranscriptComponent({
+  widgetHost,
   blocks: sourceBlocks,
   busy,
   cwd,
   harness,
-  model,
   pendingQuestion = false,
   backgroundTasks,
   onApproval,
@@ -242,6 +247,7 @@ function AgentTranscriptComponent({
   onScrollerChange,
 
 }: Props) {
+  const inheritedWidgetHost = useContext(WidgetHostContext);
   const blocks = useMemo(() => {
     if (!harness || !supportsHarnessLogin(harness)) return sourceBlocks;
     const visibleBlocks = sourceBlocks.filter(
@@ -318,9 +324,6 @@ function AgentTranscriptComponent({
     seenUserId.current = lastUserId;
     if (lastUserId && !anchorTurn) setAnchorTurn(true);
   }
-  const currentModelName = harness
-    ? resolveModel(harness, model).name
-    : undefined;
   const waitingForApproval = hasPendingApproval(blocks) || pendingQuestion;
   const preparingHandoff = blocks.some(
     (block) =>
@@ -685,8 +688,10 @@ function AgentTranscriptComponent({
   }, [visible, searchQuery, searchCurrent, visibleTurnCount, openWork]);
 
   return (
+    <WidgetHostContext.Provider value={widgetHost ?? inheritedWidgetHost}>
     <div
       ref={setScroller}
+      data-transcript-layout={transcriptLayout}
       className="agent-transcript h-full overflow-y-auto overscroll-none [overflow-anchor:none] font-mono text-[13px] leading-5"
     >
       <div
@@ -726,12 +731,6 @@ function AgentTranscriptComponent({
                 (item) => item.type === "block" && isProseBlock(item.block),
               );
           const workStillRunning = activityStillRunning(turn);
-          // New turns carry immutable model provenance. Legacy turns do not,
-          // so omit their model instead of rewriting history from the picker.
-          const turnModel = userBlock?.turnModel;
-          const turnHarness = harness
-            ? (turnModel?.harness ?? harness)
-            : undefined;
           // Work the turn has already answered for folds away behind one line,
           // leaving the prompt and the answer to it.
           const turnId = turn[0].id;
@@ -741,28 +740,69 @@ function AgentTranscriptComponent({
           // The fold line is the turn's status line from the first token to
           // the last: the mark, and the clock beside it. It never moves, so a
           // turn settling does not shuffle the layout around the answer.
-          const live = visible && !settled && !preparingHandoff;
-          const turnModelName =
-            turnModel?.name ?? (live ? currentModelName : undefined);
+          const active = !settled;
+          const live = visible && active && !preparingHandoff;
+          const latestFirst = [...turn].reverse();
+          const lastWorkBlock = latestFirst.find((block) =>
+            isProseBlock(block) ||
+            block.role === "reasoning" ||
+            block.role === "tool" ||
+            block.role === "tasks" ||
+            block.role === "plan",
+          );
+          const lastNotice = latestFirst.find((block) =>
+            block.notice || (block.role === "system" && block.text === INTERRUPT_MESSAGE),
+          );
+          // Visibility controls motion, never whether unfinished work is done.
+          let workState: WorkFoldState;
+          if (settled) {
+            if (lastNotice?.notice === "error") {
+              workState = "error";
+            } else if (lastNotice?.notice === "interrupt" || lastNotice?.text === INTERRUPT_MESSAGE) {
+              workState = "interrupted";
+            } else {
+              workState = "done";
+            }
+          } else if (waitingForApproval || preparingHandoff) {
+            workState = "waiting";
+          } else if (workStillRunning || backgroundTasks?.length) {
+            workState = "working";
+          } else if (!lastWorkBlock || lastWorkBlock.role === "reasoning") {
+            workState = "thinking";
+          } else if (lastWorkBlock.role === "assistant" || lastWorkBlock.role === "plan") {
+            workState = "responding";
+          } else {
+            workState = "working";
+          }
           // The fold line speaks for the main agent only. A delegated run has
           // its own row, which says who is working and how it went, so saying
           // it again here would be two lines telling the same story.
-          const foldTitle: ReactNode = live ? (
+          const foldTitle: ReactNode = active ? (
             <LiveFoldTitle
               startedAt={startedAt}
-              paused={waitingForApproval}
+              state={workState}
+              paused={waitingForApproval || preparingHandoff}
+              visible={visible}
               waitingLabel={
-                "Waiting for approval"
+                preparingHandoff ? "Switching agent"
+                  : pendingQuestion ? "Waiting for your reply" : "Waiting for approval"
               }
               background={backgroundTasks}
-              modelName={turnModelName}
             />
           ) : durationMs != null ? (
-            formatWorkingDuration(durationMs, turnModelName, true)
+            <>
+              <span data-work-label>
+                {workState === "error" ? "Failed" : workState === "interrupted" ? "Stopped" : "Completed"}
+              </span>
+              <span data-work-elapsed>{formatElapsed(durationMs)}</span>
+            </>
           ) : (
-            workSummaryLine(folded)
+            <span data-work-label>
+              {workState === "error" ? "Failed"
+                : workState === "interrupted" ? "Stopped" : workSummaryLine(folded)}
+            </span>
           );
-          const showFoldLine = live || durationMs != null || !!fold;
+          const showFoldLine = active || durationMs != null || !!fold;
           // It sits where the work starts, from before there is any: the row
           // is there from the first token, so nothing shoves the answer down
           // when the turn folds.
@@ -788,7 +828,7 @@ function AgentTranscriptComponent({
               />
             ) : item.type === "activity" ? (
               itemIndex === initialThinkingAt ? (
-                <InitialThinking
+                showFoldLine && !workOpen ? null : <InitialThinking
                   key={item.blocks[0].id}
                   live={visible && !settled}
                 />
@@ -818,7 +858,7 @@ function AgentTranscriptComponent({
                   !seenBlocks.current!.has(item.block.id)
                 }
                 layout={transcriptLayout}
-                visible={item.block.role === "user" ? visible : undefined}
+                visible={item.block.role === "user" || item.block.role === "plan" ? visible : undefined}
                 stickyIndex={firstVisibleTurn + turnIndex + 1}
                 // Prose reads the same wherever it lands: under the fold
                 // line at the top of the turn, or under the work it follows.
@@ -871,9 +911,8 @@ function AgentTranscriptComponent({
             <TurnRow key="work-fold" folded={!showFoldLine}>
               <WorkFoldLine
                 title={foldTitle}
-                kind={workKind(folded)}
-                harness={turnHarness}
-                live={live}
+                state={workState}
+                visible={visible}
                 expandable={!!fold}
                 open={workOpen && !!fold}
                 onToggle={() => toggleWork(turnId, workOpen)}
@@ -987,14 +1026,12 @@ function AgentTranscriptComponent({
                   elapsedMs={durationMs}
                   metrics={userBlock?.turnMetrics}
                   labelHidden={showFoldLine}
-                  modelName={turnModelName}
                   completedAt={
                     startedAt != null ? startedAt + durationMs : undefined
                   }
                   copyText={turnCopyText(turn)}
                   onSaveNote={onSaveNote}
                   onSaveToCanvas={onSaveToCanvas}
-                  harness={turnHarness}
 
 
 
@@ -1014,6 +1051,7 @@ function AgentTranscriptComponent({
         />
       ) : null}
     </div>
+    </WidgetHostContext.Provider>
   );
 }
 
@@ -1041,49 +1079,46 @@ function InitialThinking({
 }
 
 /**
- * The clock on a turn's fold line: how long the agent has been at it, or what
- * it is waiting on. The band that sweeps the text is sized off this element,
- * so it shrinks to the words — stretched across the row, the sweep spends its
- * time on empty space and the line just sits there looking dim.
+ * Action first, then a quiet clock. Waiting
+ * pauses the clock; a hidden transcript keeps its status without animating.
  */
 function LiveFoldTitle({
   startedAt,
+  state,
   paused,
+  visible,
   waitingLabel,
   background,
-  modelName,
 }: {
   startedAt?: number;
+  state: WorkFoldState;
   paused: boolean;
+  visible: boolean;
   waitingLabel?: string;
   background?: string[];
-  modelName?: string;
 }) {
-  const elapsedMs = useElapsedFrom(startedAt, paused);
+  const elapsedMs = useElapsedFrom(startedAt, paused, visible);
   // Yielding with a command still going is not the end of the turn. The clock
   // keeps running and the line says what it is waiting on.
   const text = paused
     ? (waitingLabel ?? "Waiting for approval")
     : background?.length
-      ? `${formatWorkingDuration(elapsedMs, modelName)} · ${backgroundLabel(background)}`
-      : formatWorkingDuration(elapsedMs, modelName);
-  const shimmer = (
-    <Shimmer className="min-w-0 truncate font-sans text-sm" duration={1}>
-      {text}
-    </Shimmer>
-  );
-  return background?.length ? (
-    <span className="flex min-w-0" title={background.join("\n")}>
-      {shimmer}
-    </span>
-  ) : (
-    shimmer
+      ? backgroundLabel(background)
+      : state === "thinking" ? "Thinking it through"
+        : state === "responding" ? "Replying" : "Working";
+  return (
+    <>
+      <span data-work-label title={background?.length ? background.join("\n") : undefined}>
+        {visible && !paused ? <Shimmer duration={2.4}>{text}</Shimmer> : text}
+      </span>
+      {!paused ? <span data-work-elapsed>{formatElapsed(elapsedMs)}</span> : null}
+    </>
   );
 }
 
 function backgroundLabel(tasks: string[]): string {
   return tasks.length === 1
-    ? "running in background"
+    ? "Running in background"
     : `${tasks.length} tasks running in background`;
 }
 
@@ -1096,8 +1131,6 @@ function TurnDuration({
   elapsedMs,
   metrics,
   labelHidden = false,
-  modelName,
-  harness,
   completedAt,
   copyText: output,
   onSaveNote,
@@ -1109,19 +1142,17 @@ function TurnDuration({
   metrics?: TurnMetrics;
   /** True when the fold line above already keeps the time for this turn. */
   labelHidden?: boolean;
-  modelName?: string;
-  harness?: HarnessId;
   completedAt?: number;
   copyText?: string;
   onSaveNote?: (text: string) => void | Promise<void>;
   onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
 
-  /** The turn's own model, so a same-harness second opinion can hide it. */
 
 
 
 }) {
-  const label = formatWorkingDuration(elapsedMs, modelName, true);
+  const elapsed = formatElapsed(elapsedMs);
+  const label = elapsed == null ? "Worked" : `Worked for ${elapsed}`;
   const dot = (
     <span
       aria-hidden
@@ -1156,9 +1187,6 @@ function TurnDuration({
         <span className="flex min-w-0 items-center gap-2.5">
           {dot}
           <span className="flex min-w-0 items-center gap-1.5">
-            {harness ? (
-              <HarnessIcon harness={harness} className="size-3.5 shrink-0" />
-            ) : null}
             <span className="min-w-0 truncate" title={label}>
               {label}
             </span>
@@ -1615,13 +1643,8 @@ const TranscriptBlock = memo(function TranscriptBlock({
         <PlanPreview
           text={block.text}
           streaming={block.streaming}
-
-
-
-
-
-
-
+          revealOnMount={revealOnMount}
+          visible={visible ?? true}
         />
       </div>
     );
@@ -1831,6 +1854,8 @@ function UserMessageBlock({
             </div>
           ) : null}
 
+          {block.sources?.length || block.widgetContext ? <div className="mb-2"><SourceChips sources={block.sources} widgetContext={block.widgetContext} /></div> : null}
+
           {messageLink ? (
             <div
               ref={(element) => {
@@ -1895,8 +1920,9 @@ function UserMessageBlock({
               </span>
             </div>
           ) : null}
-          {loci ? (
-            <LociSparkles blockId={block.id} startedAt={block.startedAt} />
+          {visible && !block.draft ? (
+            loci ? <LociSparkles blockId={block.id} startedAt={block.startedAt} />
+              : <MessageSendAccent blockId={block.id} startedAt={block.startedAt} />
           ) : null}
         </div>
         {text ||
@@ -1996,111 +2022,6 @@ function TurnRow({
 /** A turn item's identity, stable as the group it names grows. */
 function turnItemKey(item: TurnItem): string {
   return item.type === "block" ? item.block.id : item.blocks[0].id;
-}
-
-/**
- * The line a turn's work folds behind: the harness mark, and the clock —
- * ticking while the agent works, how long it took once it is done. Everything
- * the fold holds stays one click away, so the settled transcript reads as
- * prompt, answer, and a receipt for the work in between.
- */
-function WorkFoldLine({
-  title,
-  kind,
-  harness,
-  live = false,
-  expandable,
-  open,
-  onToggle,
-}: {
-  title: ReactNode;
-  kind: ActivityPhaseKind;
-  harness?: HarnessId;
-  live?: boolean;
-  expandable: boolean;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const icon = (
-    <span className="relative flex size-3.5 shrink-0 items-center justify-center">
-      {open ? (
-        // Open, the chevron stays put: it is the way back, and hunting for it
-        // under the cursor is no way to close what you opened.
-        <ChevronRight
-          className="size-3.5 rotate-90 text-content/45"
-          strokeWidth={1.75}
-        />
-      ) : (
-        <>
-          {harness ? (
-            <HarnessIcon
-              harness={harness}
-              className={`size-3.5 shrink-0 ${expandable ? "group-hover:opacity-0" : ""}`}
-            />
-          ) : (
-            <ActivityPhaseIcon
-              kind={kind}
-              className={expandable ? "group-hover:opacity-0" : ""}
-            />
-          )}
-          {expandable ? (
-            <ChevronRight
-              className="absolute size-3.5 text-content/45 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-              strokeWidth={1.75}
-            />
-          ) : null}
-        </>
-      )}
-    </span>
-  );
-  // While the agent runs, the clock shimmers here rather than at the bottom,
-  // which is now bare.
-  const label = live ? (
-    title
-  ) : (
-    <span className="min-w-0 flex-1 truncate font-sans text-sm text-content/50 transition-colors duration-200 group-hover:text-content/80">
-      {title}
-    </span>
-  );
-  const row = `flex w-full min-w-0 items-center gap-1.5 px-4 py-1 text-left${
-    open ? " zen-fold-drop" : ""
-  }`;
-
-  // A chat-styled surface draws the line as a card and shows this as its state.
-  const state = (
-    <span data-work-status className="hidden">
-      {live ? "Working" : "Done"}
-    </span>
-  );
-  if (!expandable) {
-    return (
-      <div
-        data-work-fold={live ? "live" : "done"}
-        className={`group ${row}`}
-        role={live ? "status" : undefined}
-        aria-live={live ? "polite" : undefined}
-      >
-        {icon}
-        {label}
-        {state}
-      </div>
-    );
-  }
-  return (
-    <button
-      type="button"
-      data-work-fold={live ? "live" : "done"}
-      aria-expanded={open}
-      aria-label={open ? "Hide the work" : "Show the work"}
-      aria-live={live ? "polite" : undefined}
-      onClick={onToggle}
-      className={`group ${row}`}
-    >
-      {icon}
-      {label}
-      {state}
-    </button>
-  );
 }
 
 /**
@@ -3419,6 +3340,7 @@ function ToolCallStatusIcon({ state }: { state: ToolCallState }) {
 function useElapsedFrom(
   startedAt: number | undefined,
   paused: boolean,
+  visible = true,
 ): number | null {
   const fallback = useRef<number | null>(null);
   const pausedMs = useRef(0);
@@ -3447,29 +3369,15 @@ function useElapsedFrom(
       pausedMs.current += Date.now() - pauseStarted.current;
       pauseStarted.current = null;
     }
+    if (!visible) return;
     const tick = () =>
       setElapsedMs(Math.max(0, Date.now() - start - pausedMs.current));
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [startedAt, paused]);
+  }, [startedAt, paused, visible]);
 
   return elapsedMs;
-}
-
-function formatWorkingDuration(
-  elapsedMs: number | null,
-  modelName?: string,
-  done = false,
-): string {
-  const who = modelName?.trim();
-  const elapsed = formatElapsed(elapsedMs);
-  const verb = done ? (who ? "worked" : "Worked") : who ? "working" : "Working";
-  if (elapsed == null) {
-    if (done) return who ? `${who} ${verb}` : verb;
-    return who ? `${who} ${verb}…` : `${verb}…`;
-  }
-  return who ? `${who} ${verb} for ${elapsed}` : `${verb} for ${elapsed}`;
 }
 
 function formatElapsed(elapsedMs: number | null): string | null {

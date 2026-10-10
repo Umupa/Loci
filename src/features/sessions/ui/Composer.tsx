@@ -1,4 +1,8 @@
 import type { OpenFileFn } from "../../files/model/filePlace";
+import type { LearningMessageContext } from "../../learning/model/types";
+import { mergeLearningContext } from "../../learning/model/learningContext";
+import { SourceChips } from "../../learning/ui/SourceChips";
+import { AddWebSource } from "../../learning/ui/AddWebSource";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
 useCallback,
@@ -205,12 +209,15 @@ type Props = {
   compactSupported?: boolean;
   quoteRequest?: QuoteRequest;
   initialDraft?: string;
+  initialLearningContext?: LearningMessageContext;
+  onLearningContextChange?: (context: LearningMessageContext) => void;
   draftResetToken?: number;
 
   noteCard?: NoteComposerCard;
 
   question?: UserQuestionPrompt;
   busy?: boolean;
+  runnerAvatar?: ReactNode;
   /** Allow typed text to replace Stop with Send while a turn is running. */
   allowBusySubmit?: boolean;
   editLastTurnSupported?: boolean;
@@ -251,7 +258,7 @@ type Props = {
     options?: { draft?: boolean },
   ) => boolean | void;
   canSaveDraft?: boolean;
-  onSaveDraft?: (text: string, attachments: Attachment[]) => boolean | void;
+  onSaveDraft?: (text: string, attachments: Attachment[], context?: LearningMessageContext) => boolean | void;
   onStop?: () => void;
   onCompactContext?: () => boolean;
   onPlaceInFolder?: (target: SessionFolderTarget) => void;
@@ -343,7 +350,7 @@ function MessageQueue({
     onEditingChange?.();
   };
   const saveEdit = (message: QueuedMessage) => {
-    if (!editDraft.trim() && message.attachments.length === 0) return;
+    if (!editDraft.trim() && message.attachments.length === 0 && !message.sources?.length && !message.widgetContext) return;
     onEdit?.(message.id, editDraft);
     setEditingId(undefined);
     setEditDraft("");
@@ -409,7 +416,7 @@ function MessageQueue({
                     title="Save queued message"
                     aria-label="Save queued message"
                     disabled={
-                      !editDraft.trim() && message.attachments.length === 0
+                      !editDraft.trim() && message.attachments.length === 0 && !message.sources?.length && !message.widgetContext
                     }
                     onClick={() => saveEdit(message)}
                     className="grid size-6 shrink-0 place-items-center rounded-md hover:bg-content/10 hover:text-content disabled:opacity-30"
@@ -428,9 +435,7 @@ function MessageQueue({
                 </>
               ) : (
                 <>
-                  <span className="min-w-0 flex-1 truncate text-content/80">
-                    {label}
-                  </span>
+                  <div className="min-w-0 flex-1 py-1"><span className="block truncate text-content/80">{label}</span><SourceChips sources={message.sources} widgetContext={message.widgetContext} /></div>
                   <button
                     type="button"
                     onClick={() => onSteer?.(message.id)}
@@ -497,12 +502,15 @@ export function Composer({
   compactSupported = false,
   quoteRequest,
   initialDraft,
+  initialLearningContext,
+  onLearningContextChange,
   draftResetToken,
 
   noteCard,
 
   question,
   busy = false,
+  runnerAvatar,
   allowBusySubmit = true,
   editLastTurnSupported = false,
   lastTurnRecall = null,
@@ -557,6 +565,9 @@ export function Composer({
   const plusRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const attachmentsRef = useRef<Attachment[]>([]);
+  const learningRef = useRef<LearningMessageContext>(initialLearningContext ?? {});
+  const [learningContext, setLearningContext] = useState<LearningMessageContext>(initialLearningContext ?? {});
+  const [webSourceOpen, setWebSourceOpen] = useState(false);
   const borrowedAttachmentIdsRef = useRef(new Set<string>());
   const attachmentLifecycleRef = useRef(0);
   const consumedQuoteId = useRef<number | null>(null);
@@ -577,6 +588,7 @@ export function Composer({
   const [hasValue, setHasValue] = useState(
     () =>
       (initialDraft ?? "").trim().length > 0 ||
+      !!initialLearningContext?.sources?.length || !!initialLearningContext?.widgetContext ||
       !!noteCard,
   );
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -646,6 +658,7 @@ export function Composer({
   const navigationEmpty =
     draft.length === 0 &&
     attachments.length === 0 &&
+    !learningContext.sources?.length && !learningContext.widgetContext &&
     !noteCard;
   const skillPickerOpen = creatingSkill || slash !== null;
   const pickerOpen = skillPickerOpen || sessionFolderOpen || mcpPickerOpen;
@@ -698,11 +711,20 @@ export function Composer({
       setHasValue(
         text.trim().length > 0 ||
           files.length > 0 ||
+          !!learningRef.current.sources?.length || !!learningRef.current.widgetContext ||
           !!noteCard,
       );
     },
     [noteCard],
   );
+
+  const replaceLearningContext = useCallback((context: LearningMessageContext) => {
+    const next = { ...(context.sources ? { sources: context.sources } : {}), ...(context.widgetContext ? { widgetContext: context.widgetContext } : {}) };
+    learningRef.current = next;
+    setLearningContext(next);
+    onLearningContextChange?.(next);
+    syncHasValue(ref.current?.value ?? "", attachmentsRef.current);
+  }, [onLearningContextChange, syncHasValue]);
 
   // A leading mode command in the text shows the same pill as picking the mode.
   const operatorActive =
@@ -1004,6 +1026,7 @@ export function Composer({
     setDraft("");
     onDraftChange?.("");
     setDraftSelected(false);
+    replaceLearningContext({});
 
 
     setSessionFolderSelected(false);
@@ -1016,7 +1039,7 @@ export function Composer({
     setCreatingSkill(false);
     setCreateError(null);
     syncHasValue("", attachmentsRef.current);
-  }, [draftResetToken, onDraftChange, syncHasValue]);
+  }, [draftResetToken, onDraftChange, syncHasValue, replaceLearningContext]);
 
   const syncHighlightScroll = useCallback((el: HTMLTextAreaElement) => {
     const highlight = highlightRef.current;
@@ -1054,7 +1077,7 @@ export function Composer({
 
   useEffect(() => {
     const el = ref.current;
-    if (!el || !quoteRequest) return;
+    if (!el || !quoteRequest || quoteRequest.id === consumedQuoteId.current) return;
 
     const result = consumeQuoteRequest(
       el.value,
@@ -1062,6 +1085,7 @@ export function Composer({
       quoteRequest,
     );
     consumedQuoteId.current = result.consumedId;
+    replaceLearningContext(mergeLearningContext(learningRef.current, quoteRequest));
     if (result.changed) {
       el.value = result.draft;
       resizeComposer(el);
@@ -1075,7 +1099,7 @@ export function Composer({
       el.focus();
     }
     onQuoteRequestConsumed?.(quoteRequest.id);
-  }, [onQuoteRequestConsumed, quoteRequest, syncHasValue]);
+  }, [onQuoteRequestConsumed, quoteRequest, syncHasValue, replaceLearningContext]);
 
   // `/btw ` opens the side conversation as soon as it is typed, carrying any
   // text after it over as the unsent side question.
@@ -1083,6 +1107,7 @@ export function Composer({
     (el: HTMLTextAreaElement) => {
       if (!onBtwCommand || noteCard) return false;
       if (attachmentsRef.current.length > 0) return false;
+      if (learningRef.current.sources?.length || learningRef.current.widgetContext) return false;
       const rest = consumeBtwPrefix(el.value);
       if (rest == null || onBtwCommand(rest, { draft: true }) === false) {
         return false;
@@ -1344,7 +1369,9 @@ export function Composer({
       text: string,
       nextAttachments: Attachment[],
       borrowedIds: ReadonlySet<string> = borrowedAttachmentIdsRef.current,
+      context: LearningMessageContext = learningRef.current,
     ) => {
+      replaceLearningContext(context);
       setDraft(text);
       onDraftChange?.(text);
       if (ref.current) {
@@ -1372,7 +1399,7 @@ export function Composer({
       syncHasValue(text, nextAttachments);
       ref.current?.focus();
     },
-    [onDraftChange, syncHasValue],
+    [onDraftChange, syncHasValue, replaceLearningContext],
   );
 
   const exitEditMode = useCallback(() => {
@@ -1392,6 +1419,7 @@ export function Composer({
     }
     attachmentsRef.current = [];
     setAttachments([]);
+    replaceLearningContext({});
     setResendEdited(false);
     onEditingLastTurnChange?.(false);
     setPlusOpen(false);
@@ -1401,7 +1429,7 @@ export function Composer({
     setSelectedMcp([]);
     syncHasValue("", []);
     ref.current?.focus();
-  }, [onDraftChange, onEditingLastTurnChange, syncHasValue]);
+  }, [onDraftChange, onEditingLastTurnChange, syncHasValue, replaceLearningContext]);
 
   const recallLastTurn = useCallback(() => {
     if (!editLastTurnSupported || !lastTurnRecall) return;
@@ -1413,6 +1441,7 @@ export function Composer({
       lastTurnRecall.text,
       lastTurnRecall.attachments,
       new Set(lastTurnRecall.attachments.map((file) => file.id)),
+      lastTurnRecall,
     );
     setResendEdited(true);
     onEditingLastTurnChange?.(true);
@@ -1479,11 +1508,11 @@ export function Composer({
     if ((draftSelected || draftCommand.matched) && onSaveDraft) {
       const files = attachmentsRef.current;
       const text = draftCommand.text;
-      if (!text.trim() && files.length === 0) return;
-      const accepted = onSaveDraft(
-        mcpContextText(taggedMcpServers(text, selectedMcp), text),
-        files,
-      );
+      if (!text.trim() && files.length === 0 && !learningRef.current.sources?.length && !learningRef.current.widgetContext) return;
+      const savedText = mcpContextText(taggedMcpServers(text, selectedMcp), text);
+      const accepted = learningRef.current.sources?.length || learningRef.current.widgetContext
+        ? onSaveDraft(savedText, files, learningRef.current)
+        : onSaveDraft(savedText, files);
       if (accepted === false || !ref.current) return;
       pasteGenerationRef.current += 1;
       ref.current.value = "";
@@ -1491,6 +1520,8 @@ export function Composer({
       setDraft("");
       onDraftChange?.("");
       setAttachments([]);
+      attachmentsRef.current = [];
+      replaceLearningContext({});
       setDraftSelected(false);
       setSelectedMcp([]);
       setPlusOpen(false);
@@ -1507,6 +1538,7 @@ export function Composer({
       btwCommand.matched &&
       onBtwCommand &&
       attachmentsRef.current.length === 0 &&
+      !learningRef.current.sources?.length && !learningRef.current.widgetContext &&
       !noteCard
     ) {
       const accepted = onBtwCommand(btwCommand.text);
@@ -1554,7 +1586,7 @@ export function Composer({
         ? `/operator ${text}`
         : text;
     const files = attachmentsRef.current;
-    if (!text && files.length === 0 && !noteCard) return;
+    if (!text && files.length === 0 && !noteCard && !learningRef.current.sources?.length && !learningRef.current.widgetContext) return;
     // Clear the parent draft before onSubmit. The app can synchronously remount
     // the composer when the first message leaves an empty session (EmptySession →
     // docked layout). If draftRef still holds the sent text, the new instance
@@ -1564,7 +1596,9 @@ export function Composer({
       borrowedAttachmentIdsRef.current,
     );
     const resendSelectedMcp = selectedMcp;
+    const submittedContext = learningRef.current;
     onDraftChange?.("");
+    onLearningContextChange?.({});
     const accepted = onSubmit(
       mcpContextText(
         taggedMcpServers(submittedText, selectedMcp),
@@ -1572,12 +1606,13 @@ export function Composer({
       ),
       files,
       {
+        ...submittedContext,
         ...(resendEdited
           ? {
               resendEdited: true,
               onResendRejected: ({ providerRewound }) => {
                 if (draftRevisionRef.current !== resendDraftRevision) return;
-                restoreDraft(text, files, resendBorrowedAttachmentIds);
+                restoreDraft(text, files, resendBorrowedAttachmentIds, submittedContext);
                 setSelectedMcp(resendSelectedMcp);
                 setResendEdited(!providerRewound);
                 onEditingLastTurnChange?.(!providerRewound);
@@ -1588,7 +1623,7 @@ export function Composer({
     );
     // Preserve the draft when the application rejects a turn before acceptance.
     if (accepted === false) {
-      restoreDraft(text, files);
+      restoreDraft(text, files, undefined, submittedContext);
       return;
     }
     pasteGenerationRef.current += 1;
@@ -1601,6 +1636,7 @@ export function Composer({
     borrowedAttachmentIdsRef.current.clear();
     attachmentsRef.current = [];
     setAttachments([]);
+    replaceLearningContext({});
     setSelectedMcp([]);
     setResendEdited(false);
     onEditingLastTurnChange?.(false);
@@ -1841,6 +1877,7 @@ export function Composer({
       ref.current?.focus();
     });
   };
+  const fieldPadding = shell ? "py-4" : "py-3";
 
   return (
     <div
@@ -2079,6 +2116,18 @@ export function Composer({
             </div>
           ) : null}
 
+          {learningContext.sources?.length || learningContext.widgetContext ? <div className="px-3 pt-2">
+            <SourceChips {...learningContext}
+              onRemoveSource={(id) => { draftRevisionRef.current += 1; replaceLearningContext({ ...learningRef.current, sources: learningRef.current.sources?.filter((source) => source.id !== id) }); }}
+              onRemoveWidget={() => { draftRevisionRef.current += 1; replaceLearningContext({ ...learningRef.current, widgetContext: undefined }); }} />
+          </div> : null}
+          {webSourceOpen ? <AddWebSource onCancel={() => setWebSourceOpen(false)} onAdd={(source) => {
+            replaceLearningContext(mergeLearningContext(learningRef.current, { sources: [source] }));
+            draftRevisionRef.current += 1;
+            setWebSourceOpen(false);
+            ref.current?.focus();
+          }} /> : null}
+
           {pasteError ? (
             <p role="alert" className="px-3 pt-2 text-xs text-red-400">
               {pasteError}
@@ -2098,9 +2147,7 @@ export function Composer({
               ref={highlightRef}
               aria-hidden
               style={{ textIndent: modeIndent }}
-              className={`composer-highlight pointer-events-none absolute inset-0 max-h-40 overflow-hidden whitespace-pre-wrap wrap-break-word px-3 text-sm leading-5.5 text-content font-sans ${
-                chat ? "py-2" : shell ? "py-4" : "py-3"
-              }`}
+              className={`composer-highlight pointer-events-none absolute inset-0 max-h-40 overflow-hidden whitespace-pre-wrap wrap-break-word px-3 text-sm leading-5.5 text-content font-sans ${fieldPadding}`}
             >
               <ComposerHighlight
                 text={draft}
@@ -2120,9 +2167,7 @@ export function Composer({
               placeholder={noteCard ? "Add a message, or send…" : (placeholder ?? "Ask, / for commands, @ for files, notes, drawings…")}
               aria-label={inputAriaLabel}
               disabled={disabled}
-              className={`composer-field scrollbar-none relative max-h-52 w-full resize-none overflow-x-hidden whitespace-pre-wrap wrap-break-word bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${
-                chat ? "py-2" : shell ? "py-4" : "py-3"
-              }`}
+              className={`composer-field scrollbar-none relative max-h-52 w-full resize-none overflow-x-hidden whitespace-pre-wrap wrap-break-word bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${fieldPadding}`}
               onFocus={onFocus}
               onKeyDown={onKeyDown}
               onPaste={onPaste}
@@ -2157,7 +2202,7 @@ export function Composer({
             />
           </div>
 
-          <div className="flex items-center gap-1 px-2 pb-2" data-composer-tools>
+          <div className="flex flex-wrap items-center gap-1 px-2 pb-2" data-composer-tools>
             <div
               ref={plusRef}
               data-composer-plus-slot
@@ -2183,6 +2228,10 @@ export function Composer({
                   <p className="px-2 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-content/40">
                     Add to message
                   </p>
+                  <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setPlusOpen(false); setWebSourceOpen(true); }} className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left text-content hover:bg-content/10">
+                    <FilePlus className="mt-0.5 size-4 shrink-0" />
+                    <span className="min-w-0"><span className="block text-[13px]">Web source</span><span className="block text-[11px] leading-4 text-content/45">Add a link and quoted passage</span></span>
+                  </button>
                   <button
                     type="button"
                     disabled={!attachmentsSupported}
@@ -2363,7 +2412,7 @@ export function Composer({
                 <span>Cancel edit</span>
               </button>
             ) : null}
-            <div className="flex shrink-0 items-center gap-1" data-composer-send>
+            <div className="ms-auto flex shrink-0 items-center gap-1" data-composer-send>
               <ComposerAction
                 busy={busy}
                 disabled={disabled}
@@ -2377,7 +2426,7 @@ export function Composer({
           </div>
         </div>
         {runnerLive && runnerEnabled ? (
-          <ComposerRunner boxRef={boxRef} cwd={cwd} busy={busy} enabled={enabled} onExited={() => setRunnerLive(false)} />
+          <ComposerRunner boxRef={boxRef} cwd={cwd} busy={busy} enabled={enabled} avatar={runnerAvatar} onExited={() => setRunnerLive(false)} />
         ) : null}
       </div>
     </div>

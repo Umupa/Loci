@@ -3,14 +3,20 @@ import { useEffect, useRef } from "react";
 import { APP_RESOURCE_OPEN_EVENT, fileResourcePath, parseAppResourceUrl, resourceUrl, type AppResource } from "../../shared/lib/appResourceLinks";
 import { joinPath } from "../../shared/lib/paths";
 import { requestFilePlace } from "../../features/files/model/filePlace";
-import { CANVAS_OPEN_CHECKPOINT_EVENT, checkpointCanvasId, getCanvas } from "../../features/canvas/canvas";
+import { CANVAS_OPEN_CHECKPOINT_EVENT, checkpointCanvasId, getCanvas, type Canvas } from "../../features/canvas/canvas";
 import { sameProjectPath } from "../../features/projects/model/recents";
+import { getLearningSource, getReadingDocument } from "../../features/learning/model/learningStore";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { requestTranscriptJump } from "../../features/sessions/model/transcriptJump";
 import type { useAppWorkspace } from "./useAppWorkspace";
 
 type Options = {
   workspace: Pick<ReturnType<typeof useAppWorkspace>, "projectCwdRef" | "isCanvasOpen" | "openCanvas" | "showCanvas" | "openSession" | "openFile" | "setError">;
   notesEnabled: boolean;
   onOpenNote(id: string): void;
+  onOpenConversation?: (id: string, blockId?: string, isCurrent?: () => boolean) => Promise<void>;
+  /** An agent shows drawings in its own pane layout. */
+  onOpenCanvas?: (canvas: Canvas) => boolean;
 };
 
 /** Replies and old checkpoint buttons share the current window's navigation. */
@@ -31,6 +37,29 @@ export function useAppResourceNavigation(options: Options) {
           await latest.current.workspace.openSession(resource.id);
           return;
         }
+        if (resource.kind === "source") {
+          const source = await getLearningSource(resource.id);
+          if (current !== request) return;
+          if (!source) throw new Error("This learning source is no longer available.");
+          if (source.kind === "web") { await openUrl(source.url); return; }
+          if (source.kind === "conversation") {
+            if (latest.current.onOpenConversation) await latest.current.onOpenConversation(source.sessionId, source.blockId, () => current === request);
+            else await latest.current.workspace.openSession(source.sessionId);
+            if (current !== request) return;
+            requestTranscriptJump(source.sessionId, source.blockId, source.quote);
+            return;
+          }
+          let path = source.path;
+          if (source.kind === "pdf") {
+            const document = await getReadingDocument(source.documentId);
+            if (current !== request) return;
+            if (!document) throw new Error("This PDF is no longer registered.");
+            path = document.path;
+            requestFilePlace(path, { page: source.anchors[0]?.page ?? 1, ...(source.annotationId ? { annotationId: source.annotationId } : {}) });
+          } else if (source.lines) requestFilePlace(path, { lines: source.lines });
+          latest.current.workspace.openFile(path, true);
+          return;
+        }
         if (resource.kind === "file") {
           // File links are relative to the project they were written in: the one on screen.
           const relative = fileResourcePath(resource);
@@ -46,10 +75,11 @@ export function useAppResourceNavigation(options: Options) {
         const canvas = await getCanvas(id);
         if (current !== request) return;
         if (!canvas) throw new Error("This drawing no longer exists.");
+        if (latest.current.onOpenCanvas?.(canvas)) return;
         const view = latest.current.workspace;
         // An agent's own drawing belongs to no project: it opens wherever the user is.
         const cwd = canvasScopeAgentId(canvas.cwd) ? undefined : canvas.cwd;
-        if (view.isCanvasOpen(canvas.id) || !cwd || !sameProjectPath(cwd, view.projectCwdRef.current)) {
+        if (view.isCanvasOpen(canvas.id) || (cwd && !sameProjectPath(cwd, view.projectCwdRef.current))) {
           view.openCanvas(canvas.id, cwd);
         } else view.showCanvas(canvas.id);
       } catch (error) {

@@ -5,6 +5,8 @@ import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs?worker";
 import { Minus, Plus } from "../../../shared/ui/icons";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { FooterButton } from "./FileCard";
+import type { PdfAnnotation } from "../../learning/model/types";
+import { pdfAnnotationAt } from "../../learning/model/pdfAnnotations";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 5;
@@ -21,13 +23,35 @@ function assetUrl(dir: string): string {
 }
 
 type PageSize = { w: number; h: number };
+export type LoadedPdf = { document: PDFDocumentProxy; fingerprint: string };
+type PdfPlace = { page: number; token: number; annotationId?: string };
+
+function documentFingerprint(document: PDFDocumentProxy): string {
+  const fingerprint = document.fingerprints[0];
+  if (!fingerprint) throw new Error("This PDF has no readable document fingerprint.");
+  return fingerprint;
+}
+
+export async function readPdfFingerprint(bytes: Uint8Array): Promise<string> {
+  const worker = new pdfjs.PDFWorker({ port: new PdfWorker() as never });
+  const task = pdfjs.getDocument({ worker, data: bytes.slice() });
+  try {
+    const loaded = await task.promise;
+    return documentFingerprint(loaded);
+  } finally { await task.destroy(); worker.destroy(); }
+}
 
 /**
  * A PDF as one continuous scroll of pages with selectable text. Pages are only
  * rasterised while they are near the viewport, so a long document costs what
  * is on screen.
  */
-export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array; onError: (message: string) => void; place?: { page: number; token: number }; onPlaced?: () => void }) {
+export function PdfView({ bytes, onError, onDocument, annotations = [], selectedAnnotationId, onAnnotationClick, place, onPlaced }: {
+  bytes: Uint8Array; onError: (message: string) => void; onDocument?: (loaded: LoadedPdf) => void;
+  annotations?: PdfAnnotation[]; selectedAnnotationId?: string;
+  onAnnotationClick?: (annotation: PdfAnnotation, rect: DOMRect) => void;
+  place?: PdfPlace; onPlaced?: (place: PdfPlace, pageRect: DOMRect) => void;
+}) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [baseSize, setBaseSize] = useState<PageSize | null>(null);
   const [sizes, setSizes] = useState<ReadonlyMap<number, PageSize>>(new Map());
@@ -35,10 +59,15 @@ export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array
   const [width, setWidth] = useState(0);
   const [page, setPage] = useState(1);
   const [pageDraft, setPageDraft] = useState<string | null>(null);
+  const [textPages, setTextPages] = useState<ReadonlyMap<number, boolean>>(new Map());
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const onDocumentRef = useRef(onDocument);
+  onDocumentRef.current = onDocument;
+  const onPlacedRef = useRef(onPlaced);
+  onPlacedRef.current = onPlaced;
 
   useEffect(() => {
     let cancelled = false;
@@ -60,8 +89,10 @@ export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array
       if (cancelled) return;
       const viewport = first.getViewport({ scale: 1 });
       setSizes(new Map());
+      setTextPages(new Map());
       setBaseSize({ w: viewport.width, h: viewport.height });
       setDoc(loaded);
+      onDocumentRef.current?.({ document: loaded, fingerprint: documentFingerprint(loaded) });
     }).catch((cause: unknown) => {
       if (cancelled) return;
       onErrorRef.current(cause instanceof Error ? cause.message : String(cause));
@@ -97,6 +128,9 @@ export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array
       return new Map(current).set(number, size);
     });
   }, []);
+  const onTextAvailable = useCallback((number: number, available: boolean) => {
+    setTextPages((current) => current.get(number) === available ? current : new Map(current).set(number, available));
+  }, []);
 
   const pageElement = (number: number) =>
     scrollRef.current?.querySelector<HTMLElement>(`[data-page-number="${number}"]`) ?? null;
@@ -113,22 +147,31 @@ export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array
     setPage(current);
   };
 
-  const goToPage = (number: number) => {
+  const goToPage = (number: number, within = 0) => {
     if (!doc) return;
     const target = Math.max(1, Math.min(doc.numPages, Math.round(number)));
     const node = pageElement(target);
-    if (node && scrollRef.current) scrollRef.current.scrollTop = node.offsetTop - GUTTER;
+    if (node && scrollRef.current) scrollRef.current.scrollTop = node.offsetTop + within * node.offsetHeight - GUTTER;
+    return node;
   };
 
   // A link to a page of this document: go there once the pages are laid out.
   const placePage = place?.page;
   const placeToken = place?.token;
+  const placeAnnotationId = place?.annotationId;
+  const placeAnchor = annotations.find((annotation) => annotation.id === placeAnnotationId)?.anchors.find((anchor) => anchor.page === placePage);
   useEffect(() => {
-    if (!doc || !baseSize || placePage === undefined) return;
-    const frame = requestAnimationFrame(() => { goToPage(placePage); onPlaced?.(); });
+    if (!doc || !baseSize || placePage === undefined || placeToken === undefined) return;
+    // Annotation metadata can arrive before or after the PDF. Both are needed
+    // before consuming the request or measuring its popover anchor.
+    if (placeAnnotationId && !placeAnchor) return;
+    const frame = requestAnimationFrame(() => {
+      const node = goToPage(placePage, placeAnchor?.rects[0]?.y ?? 0);
+      if (node) onPlacedRef.current?.({ page: placePage, token: placeToken, ...(placeAnnotationId ? { annotationId: placeAnnotationId } : {}) }, node.getBoundingClientRect());
+    });
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc, baseSize, placePage, placeToken]);
+  }, [doc, baseSize, placePage, placeToken, placeAnnotationId, placeAnchor]);
 
   // Zooming keeps the page being read in view rather than the scroll offset.
   const zoomTo = (next: number | "fit") => {
@@ -144,16 +187,18 @@ export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {textPages.get(page) === false ? <p role="status" className="shrink-0 border-b border-stroke px-3 py-2 text-[11px] text-content/55">This page has no selectable text. Image-only pages need a text version before you can ask about or highlight a passage.</p> : null}
       <div
         ref={(el) => { scrollRef.current = el; lockOverscroll(el); }}
         onScroll={onScroll}
-        className="loci-pdf min-h-0 flex-1 overflow-auto overscroll-none bg-content/[0.04]"
+        className="loci-pdf relative min-h-0 flex-1 overflow-auto overscroll-none bg-content/[0.04]"
       >
         {doc && baseSize ? (
           <div className="mx-auto flex w-max min-w-full flex-col items-center" style={{ padding: GUTTER, gap: GUTTER }}>
             {Array.from({ length: doc.numPages }, (_, index) => (
               <PdfPage key={index + 1} doc={doc} number={index + 1} size={sizes.get(index + 1) ?? baseSize}
-                scale={scale} renderScale={renderScale} root={scrollRef} onSize={onSize} />
+                scale={scale} renderScale={renderScale} root={scrollRef} onSize={onSize}
+                annotations={annotations} selectedAnnotationId={selectedAnnotationId} onAnnotationClick={onAnnotationClick} onTextAvailable={onTextAvailable} />
             ))}
           </div>
         ) : (
@@ -198,7 +243,7 @@ export function PdfView({ bytes, onError, place, onPlaced }: { bytes: Uint8Array
   );
 }
 
-const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, root, onSize }: {
+const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, root, onSize, annotations, selectedAnnotationId, onAnnotationClick, onTextAvailable }: {
   doc: PDFDocumentProxy;
   number: number;
   size: PageSize;
@@ -206,6 +251,10 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
   renderScale: number;
   root: { current: HTMLDivElement | null };
   onSize: (number: number, size: PageSize) => void;
+  annotations: PdfAnnotation[];
+  selectedAnnotationId?: string;
+  onAnnotationClick?: (annotation: PdfAnnotation, rect: DOMRect) => void;
+  onTextAvailable: (number: number, available: boolean) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const canvasSlot = useRef<HTMLDivElement>(null);
@@ -255,6 +304,7 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
       await textLayer.render();
       if (cancelled) return;
       textHost.replaceChildren(layer);
+      onTextAvailable(number, !!layer.textContent?.trim());
     }).catch(() => {
       /* a cancelled render rejects; a broken page just stays blank */
     });
@@ -264,7 +314,7 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
       renderTask?.cancel();
       textLayer?.cancel();
     };
-  }, [doc, number, near, renderScale, onSize]);
+  }, [doc, number, near, renderScale, onSize, onTextAvailable]);
 
   // Bitmaps of pages scrolled far away are released, keeping only their box.
   useEffect(() => {
@@ -277,6 +327,16 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
     <div
       ref={ref}
       data-page-number={number}
+      onClick={(event) => {
+        // Marks never intercept pointer events: dragging across a highlight
+        // still selects the native PDF text. A collapsed click opens its note.
+        if (window.getSelection()?.toString().trim()) return;
+        const pageRect = event.currentTarget.getBoundingClientRect();
+        if (!pageRect.width || !pageRect.height) return;
+        const annotation = pdfAnnotationAt(annotations, number,
+          (event.clientX - pageRect.left) / pageRect.width, (event.clientY - pageRect.top) / pageRect.height);
+        if (annotation) onAnnotationClick?.(annotation, new DOMRect(event.clientX, event.clientY, 1, 1));
+      }}
       className="loci-pdf-page relative shrink-0 bg-white shadow-[0_1px_3px_rgb(0_0_0/0.25)]"
       style={{
         width: Math.floor(size.w * scale),
@@ -287,6 +347,12 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
       } as React.CSSProperties}
     >
       <div ref={canvasSlot} className="loci-pdf-canvas absolute inset-0" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        {annotations.flatMap((annotation) => annotation.anchors.filter((anchor) => anchor.page === number).flatMap((anchor) =>
+          anchor.rects.map((rect, index) => <div key={`${annotation.id}:${index}`} data-pdf-annotation={annotation.id}
+            className={`absolute rounded-[2px] ${selectedAnnotationId === annotation.id ? "bg-amber-400/45 ring-1 ring-amber-500/70" : "bg-yellow-300/45"}`}
+            style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }} />)))}
+      </div>
       <div ref={textSlot} className="absolute inset-0" />
     </div>
   );

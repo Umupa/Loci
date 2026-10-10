@@ -9,6 +9,7 @@ import { resolveAppShortcut } from "../../features/settings/model/appShortcuts";
 import { keybindingPressed, loadKeybindingOverrides, matchCustomKeybinding } from "../../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../../features/settings/model/uiScale";
 import { resolveZoomKeybinding } from "../../features/settings/model/zoomKeybinding";
+import type { FocusDir, LayoutNode } from "../../features/workspace/model/layout";
 import {
   adjacentItemId, deferUnhandledEscape, focusedBusyAgentSessionId,
   shouldHandleListNavigation, shouldStopFocusedTurnOnEscape,
@@ -22,6 +23,12 @@ type Options = {
   submission: SessionSubmission;
   sessionsRef: RefObject<Session[]>;
   surfaceOpen: boolean;
+  agentPane?: {
+    focusedId: string;
+    layout: LayoutNode;
+    onClosePane: (id: string) => void;
+    onFocusDirection: (direction: FocusDir) => void;
+  };
   closeSurface: () => void;
   openSearch: () => void;
   openSettings: () => void;
@@ -56,9 +63,10 @@ export function useAppCommands(options: Options) {
       void applyUiScale(saveUiScale(scale));
     });
     const dispatch = (command: TabCommand) => {
-      const { workspace: w, surfaceOpen, closeSurface, sessionOrder } = latest.current;
+      const { workspace: w, surfaceOpen, agentPane, closeSurface, sessionOrder } = latest.current;
       if (typeof command === "object") {
-        if ("focus" in command) run(`focus-${command.focus}`, () => w.focusDirection(command.focus));
+        if ("focus" in command) run(`focus-${command.focus}`, () => agentPane
+          ? agentPane.onFocusDirection(command.focus) : w.focusDirection(command.focus));
         else run(`activate-${command.activate}`, () => {
           const tab = command.activate < 0 ? w.visibleTabs[w.visibleTabs.length - 1] : w.visibleTabs[command.activate];
           if (tab) w.activateTab(tab.id);
@@ -87,14 +95,19 @@ export function useAppCommands(options: Options) {
         "next-attention": () => latest.current.jumpToAttention(),
         "tab-overview": () => latest.current.openTabOverview(),
         "reopen-tab": () => { void w.reopenClosed("latest"); },
-        close: () => { if (w.activeSession) w.closePane(w.activeSession.id); },
+        close: () => {
+          if (agentPane) agentPane.onClosePane(agentPane.focusedId);
+          else if (surfaceOpen) closeSurface();
+          else if (w.activeSession) w.closePane(w.activeSession.id);
+        },
         // Pinned tabs are what the user chose to keep: bulk closes leave them.
-        "close-others": () => w.closeTabs(w.visibleTabs.filter((tab) => tab.id !== w.activeTabId && !tab.pinned).map((tab) => tab.id), w.activeTabId),
-        "close-all": () => w.closeTabs(w.visibleTabs.filter((tab) => !tab.pinned).map((tab) => tab.id)),
+        "close-others": () => { if (!agentPane) w.closeTabs(w.visibleTabs.filter((tab) => tab.id !== w.activeTabId && !tab.pinned).map((tab) => tab.id), w.activeTabId); },
+        "close-all": () => { if (!agentPane) w.closeTabs(w.visibleTabs.filter((tab) => !tab.pinned).map((tab) => tab.id)); },
         next: () => w.cycleTab(1), prev: () => w.cycleTab(-1),
         "cycle-next": () => w.cycleTab(1), "cycle-prev": () => w.cycleTab(-1),
         back: () => surfaceOpen ? closeSurface() : w.visit("back"), forward: () => w.visit("forward"),
-        "split-right": () => w.split("right"), "split-down": () => w.split("down"),
+        "split-right": () => { if (!agentPane) w.split("right"); },
+        "split-down": () => { if (!agentPane) w.split("down"); },
       };
       const key = command === "cycle-next" ? "next" : command === "cycle-prev" ? "prev" : command;
       run(key, () => handlers[command]?.());
@@ -152,14 +165,22 @@ export function useAppCommands(options: Options) {
       }
       const a = latest.current;
       const tabId = a.workspace.activeTabIdRef.current;
-      const sessionId = focusedBusyAgentSessionId(tabId, a.workspace.tabsRef.current, a.sessionsRef.current);
-      if (a.surfaceOpen || !sessionId || !shouldStopFocusedTurnOnEscape(event, { focusedSessionBusy: true })) return;
+      const agentPane = a.agentPane;
+      const sessionId = agentPane
+        ? a.sessionsRef.current.find((session) => session.id === agentPane.focusedId && session.busy)?.id
+        : !a.surfaceOpen ? focusedBusyAgentSessionId(tabId, a.workspace.tabsRef.current, a.sessionsRef.current) : null;
+      if (!sessionId || !shouldStopFocusedTurnOnEscape(event, { focusedSessionBusy: true })) return;
       // A later surface listener may consume Escape or move focus during the dispatch.
       deferUnhandledEscape(event, () => {
         const current = latest.current;
         const w = current.workspace;
-        if (disposed || current.surfaceOpen || w.activeTabIdRef.current !== tabId) return;
-        if (focusedBusyAgentSessionId(tabId, w.tabsRef.current, current.sessionsRef.current) !== sessionId) return;
+        if (disposed) return;
+        if (agentPane) {
+          if (current.agentPane?.focusedId !== sessionId || !current.sessionsRef.current.some((session) => session.id === sessionId && session.busy)) return;
+        } else {
+          if (current.agentPane || current.surfaceOpen || w.activeTabIdRef.current !== tabId) return;
+          if (focusedBusyAgentSessionId(tabId, w.tabsRef.current, current.sessionsRef.current) !== sessionId) return;
+        }
         void current.submission.stop(sessionId);
       });
     };

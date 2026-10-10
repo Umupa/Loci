@@ -210,15 +210,32 @@ describe("Composer question focus", () => {
             window.removeEventListener("loci:open-mcp-settings", onOpen);
         }
     });
-    it("mounts the working mascot and responds to its setting live", async () => {
+    it.each([false, true])("mounts the working mascot and responds to its setting live (chat: %s)", async (chat) => {
         const { saveComposerRunner } = await import("../../settings/model/settings");
         await act(async () => saveComposerRunner(true));
-        await renderComposer(undefined, vi.fn(), true);
+        await act(async () => root.render(createElement(Composer, {
+            focused: true,
+            harness: "claude",
+            model: "claude-sonnet",
+            runtimeMode: "supervised",
+            executionCwd: "/repo",
+            hideProjectPicker: true,
+            chat,
+            runnerAvatar: chat ? createElement("svg", { "data-agent-avatar": "" }) : undefined,
+            busy: true,
+            onFocus: () => { },
+            onCwdChange: () => { },
+            onModelChange: () => { },
+            onRuntimeModeChange: () => { },
+            onSubmit: vi.fn(),
+        })));
         expect(document.querySelector(".composer-runner")).not.toBeNull();
+        expect(document.querySelector(".composer-runner [data-agent-avatar]") != null).toBe(chat);
         await act(async () => saveComposerRunner(false));
         expect(document.querySelector(".composer-runner")).toBeNull();
         await act(async () => saveComposerRunner(true));
         expect(document.querySelector(".composer-runner")).not.toBeNull();
+        expect(document.querySelector(".composer-runner [data-agent-avatar]") != null).toBe(chat);
     });
     it("reuses MCP discovery on reopen and applies shared settings refreshes", async () => {
         await renderComposer(undefined, vi.fn(), false, 0, "/mcp");

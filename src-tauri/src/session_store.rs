@@ -563,6 +563,7 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     crate::canvas::ensure_canvases_table(conn)?;
     crate::agent_transcript::ensure_table(conn)?;
     crate::agent_documents::ensure_table(conn)?;
+    crate::learning::ensure_table(conn)?;
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, ?1)",
         [now_millis()],
@@ -1030,6 +1031,7 @@ fn json_eq(raw: &str, incoming: &Value) -> bool {
     }
 }
 fn delete_session(conn: &Connection, session_id: &str) -> rusqlite::Result<()> {
+    crate::learning::delete_widgets(conn, "session", session_id)?;
     conn.execute("DELETE FROM sessions WHERE id = ?1", [session_id])?;
     Ok(())
 }

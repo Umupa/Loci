@@ -1,4 +1,10 @@
 import type { OpenFileFn } from "../../files/model/filePlace";
+import type { LearningMessageContext, WidgetOwner } from "../../learning/model/types";
+import { consumeLearningDraft, getLearningDraftContext, peekLearningDraft, setLearningDraftContext, subscribeLearningDraft } from "../../learning/model/learningDraft";
+import { WidgetHostContext } from "../../learning/ui/WidgetCard";
+import { agentForSession } from "../../agents/model/agent";
+import { WidgetLibrary } from "../../learning/ui/WidgetLibrary";
+import { Modal } from "../../../shared/ui/Modal";
 import {
 memo,
 useCallback,
@@ -70,7 +76,7 @@ import { AstraWelcome } from "./AstraWelcome";
 import { BtwSheet,useBtwConversation } from "./BtwSheet";
 import { EmptySession } from "./EmptySession";
 import { QuestionCard } from "./QuestionCard";
-import { CARD_REPLY_EVENT } from "../model/cards";
+import { CARD_FENCE, CARD_REPLY_EVENT, fencedBlocks } from "../model/cards";
 import { CardRepliesContext } from "./cards/Cards";
 import { OpusWelcome } from "./OpusWelcome";
 import { PromptOutline } from "./PromptOutline";
@@ -89,14 +95,18 @@ export type SessionPaneProps = {
   focused: boolean;
   addToChatTarget?: boolean;
   inSplit: boolean;
+  /** An agent pane supplies its own draggable header. */
+  hidePaneHeader?: boolean;
   composerFocused: boolean;
   composerFocusToken?: number;
   recents: RecentProject[];
   hideProjectPicker?: boolean;
-  /** Shown above the composer of an empty conversation that belongs to no project. */
+  /** Introductory content above the empty conversation's composer. */
   emptyIntro?: ReactNode;
   /** Gives the conversation a messenger's one-line input with this placeholder. */
   chatPlaceholder?: string;
+  /** The conversation owner's avatar for the working animation. */
+  runnerAvatar?: ReactNode;
   onFocus: (sessionId: string) => void;
   onClose: (sessionId: string) => void;
   onCwdChange: (sessionId: string, cwd: string) => void;
@@ -122,6 +132,7 @@ export type SessionPaneProps = {
     sessionId: string,
     text: string,
     attachments: Attachment[],
+    context?: LearningMessageContext,
   ) => boolean | void;
   onRemoveDraft: (sessionId: string, draftBlockId: string) => boolean | void;
   onStop: (sessionId: string) => void;
@@ -217,12 +228,14 @@ export const SessionPane = memo(function SessionPane({
   focused,
   addToChatTarget = focused,
   inSplit,
+  hidePaneHeader,
   composerFocused,
   composerFocusToken,
   recents,
   hideProjectPicker,
   emptyIntro,
   chatPlaceholder,
+  runnerAvatar,
   onFocus,
   onClose,
   onCwdChange,
@@ -373,6 +386,10 @@ export const SessionPane = memo(function SessionPane({
   }, [visible]);
 
   const [quoteRequest, setQuoteRequest] = useState<QuoteRequest>();
+  const [widgetLibraryOpen, setWidgetLibraryOpen] = useState(false);
+  const residentAgent = agentForSession(session.id);
+  const widgetOwner: WidgetOwner = residentAgent ? { kind: "agent", id: residentAgent.id } : { kind: "session", id: session.id };
+  const hasWidgets = useMemo(() => session.blocks.some((block) => fencedBlocks(block.text, CARD_FENCE.widget).length > 0), [session.blocks]);
   const btw = useBtwConversation({
     available:
       !isEmpty &&
@@ -441,17 +458,19 @@ export const SessionPane = memo(function SessionPane({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [visible, navigatorReady, jumpRequest, navigateBlock, session.id]);
+  }, [visible, navigatorReady, jumpRequest, navigateBlock, session.id, session.blocks]);
   const addSelectionToChat = useCallback(
-    (text: string, mode?: QuoteRequest["mode"]) => {
+    (text: string, mode?: QuoteRequest["mode"], context?: LearningMessageContext) => {
       quoteRequestId.current += 1;
-      setQuoteRequest({ id: quoteRequestId.current, text, mode });
+      setQuoteRequest({ id: -quoteRequestId.current, text, mode, ...context });
     },
     [],
   );
+  const targetedDraft = useSyncExternalStore(subscribeLearningDraft, () => peekLearningDraft(session.id), () => undefined);
   const acknowledgeQuote = useCallback((handledId: number) => {
     setQuoteRequest((current) => acknowledgeQuoteRequest(current, handledId));
-  }, []);
+    consumeLearningDraft(session.id, handledId);
+  }, [session.id]);
   const notesEnabled = useSyncExternalStore(
     subscribeNotesEnabled,
     loadNotesEnabled,
@@ -489,8 +508,8 @@ export const SessionPane = memo(function SessionPane({
     if (!addToChatTarget) return;
     const onAdd = (event: Event) => {
       const detail = (event as CustomEvent<AddToChatRequest>).detail;
-      if (!detail?.text) return;
-      addSelectionToChat(detail.text, detail.mode);
+      if (detail?.targetSessionId || !detail) return;
+      addSelectionToChat(detail.text, detail.mode, detail);
     };
     window.addEventListener(ADD_TO_CHAT_EVENT, onAdd);
     return () => window.removeEventListener(ADD_TO_CHAT_EVENT, onAdd);
@@ -505,6 +524,7 @@ export const SessionPane = memo(function SessionPane({
       key={session.id}
       chat={chatPlaceholder != null}
       placeholder={chatPlaceholder}
+      runnerAvatar={runnerAvatar}
 
 
 
@@ -529,7 +549,9 @@ export const SessionPane = memo(function SessionPane({
 
 
       context={session.context}
-      quoteRequest={quoteRequest}
+      quoteRequest={targetedDraft ?? quoteRequest}
+      initialLearningContext={getLearningDraftContext(session.id)}
+      onLearningContextChange={(context) => setLearningDraftContext(session.id, context)}
       initialDraft={
         draftRef.current ??
         (session.noteCard
@@ -579,8 +601,8 @@ export const SessionPane = memo(function SessionPane({
       }
       onRuntimeModeChange={(mode) => onRuntimeModeChange(session.id, mode)}
       canSaveDraft={!session.busy && !draftBlock && !session.noteCard}
-      onSaveDraft={(text, attachments) =>
-        onSaveDraft(session.id, text, attachments)
+      onSaveDraft={(text, attachments, context) =>
+        onSaveDraft(session.id, text, attachments, context)
       }
       onSubmit={(text, attachments, options) => {
         if (!dockComposer) composerDockMotion.captureLaunch();
@@ -623,6 +645,7 @@ export const SessionPane = memo(function SessionPane({
   );
 
   return (
+    <WidgetHostContext.Provider value={{ owner: widgetOwner, sourceSessionId: session.id }}>
     <div
       data-session-drop={session.id}
       data-session-empty={isEmpty}
@@ -646,7 +669,7 @@ export const SessionPane = memo(function SessionPane({
           <OpusWelcome key={modelWelcome.run} onDone={dismissModelWelcome} />
         )
       ) : null}
-      {inSplit ? (
+      {inSplit && !hidePaneHeader ? (
         <div
           className={`flex h-9 shrink-0 touch-none items-center gap-1.5 border-b border-stroke px-2 select-none ${
             onPaneDragStart ? "cursor-grab active:cursor-grabbing" : ""
@@ -693,6 +716,8 @@ export const SessionPane = memo(function SessionPane({
           </button>
         </div>
       ) : null}
+      {!residentAgent && hasWidgets ? <div className="flex shrink-0 justify-end px-3 pt-1"><button type="button" onClick={() => setWidgetLibraryOpen(true)} className="rounded-md px-2 py-1 text-xs text-content/45 hover:bg-content/6 hover:text-content">Saved explanations</button></div> : null}
+      {widgetLibraryOpen ? <Modal title="Saved explanations" onClose={() => setWidgetLibraryOpen(false)}><div className="p-3" onClick={(event) => { if (event.target instanceof Element && event.target.closest("[data-widget-library-item]")) setWidgetLibraryOpen(false); }}><WidgetLibrary owner={widgetOwner} /></div></Modal> : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <div
           ref={transcriptScope}
@@ -728,6 +753,7 @@ export const SessionPane = memo(function SessionPane({
                 onMouseDown={focusPane}
               >
                 <AgentTranscript
+                  widgetHost={{ owner: widgetOwner, sourceSessionId: session.id }}
                   blocks={session.blocks}
                   busy={!!session.busy}
                   visible={visible}
@@ -748,7 +774,9 @@ export const SessionPane = memo(function SessionPane({
                   }
                   backgroundTasks={session.backgroundTasks}
                   onApproval={approve}
-                  onAddToChat={addSelectionToChat}
+                  onAddToChat={(text, blockId) => blockId
+                    ? addSelectionToChat("", "plain", { sources: [{ id: crypto.randomUUID(), kind: "conversation", title: sessionDisplayTitle(session.title, session.harness), quote: text, sessionId: session.id, blockId }] })
+                    : addSelectionToChat(text, "quote")}
                   onSaveNote={notesEnabled ? saveNote : undefined}
                   onSaveToCanvas={onSaveToCanvas}
                   onSendDraft={
@@ -760,6 +788,8 @@ export const SessionPane = memo(function SessionPane({
                             block.attachments ?? [],
                             {
                               draftBlockId: block.id,
+                              sources: block.sources,
+                              widgetContext: block.widgetContext,
                               ...(block.appRequestId
                                 ? { appRequestId: block.appRequestId }
                                 : {}),
@@ -858,5 +888,6 @@ export const SessionPane = memo(function SessionPane({
         />
       </div>
     </div>
+    </WidgetHostContext.Provider>
   );
 });

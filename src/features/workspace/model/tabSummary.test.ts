@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newSession, type Block } from "../../sessions/model/session";
-import { canvasLeaf, newTab, placeLayout } from "./layout";
+import { canvasLeaf, documentLeaf, fileLeaf, newTab, placeLayout } from "./layout";
 import { sessionPreview, shortAge, summarizeTab, tabStatusLabel, type TabSummaryContext } from "./tabSummary";
 
 function block(role: Block["role"], text: string, extra: Partial<Block> = {}): Block {
@@ -53,6 +53,17 @@ describe("summarizeTab", () => {
   it("titles a tab by its focused drawing or file", () => {
     const withCanvas = { ...tab, layout: placeLayout(tab.layout, canvasLeaf("c1"), "s1", "right"), focusedId: "c1" };
     expect(summarizeTab(withCanvas, context({ sessions: [session], canvasTitle: () => "System sketch" }))).toMatchObject({ title: "System sketch", paneKind: "canvas", multiPane: true });
+    const file = fileLeaf("/p/loci/README.md");
+    const withFile = { ...tab, layout: placeLayout(tab.layout, file, "s1", "right"), focusedId: file.type === "leaf" ? file.id : "" };
+    expect(summarizeTab(withFile, context({ sessions: [session] }))).toMatchObject({ title: "README.md", paneKind: "file", multiPane: true });
+  });
+
+  it("titles a restored document tab without needing its conversation", () => {
+    const document = documentLeaf({ id: "network", title: "Network policy", body: "# Policy" }, "agent-1");
+    const documentTab = { ...newTab("unused"), cwd: "/p/loci", layout: document, focusedId: document.type === "leaf" ? document.id : "" };
+    expect(summarizeTab(documentTab, context())).toMatchObject({
+      title: "Network policy", paneKind: "document", projectPath: "/p/loci", sessionCount: 0, blank: false,
+    });
   });
 });
 
@@ -68,5 +79,43 @@ describe("tabStatusLabel", () => {
 
   it("shortens ages", () => {
     expect([shortAge(10_000), shortAge(5 * 60_000), shortAge(3 * 3_600_000), shortAge(50 * 3_600_000)]).toEqual(["now", "5m", "3h", "2d"]);
+  });
+});
+
+describe("agent tab summary", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => key === "loci:agent-roster"
+        ? JSON.stringify([{ id: "agent-1", sessionId: "agent-chat", name: "Scout", projects: [] }]) : null,
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const agentSession = { ...newSession("claude", "/Users/me"), id: "agent-chat", title: "New agent" };
+
+  it("names an agent's tab after the agent while retaining its workspace project", () => {
+    const tab = { ...newTab(agentSession.id), cwd: "/p/loci" };
+    expect(summarizeTab(tab, context({ sessions: [agentSession] }))).toMatchObject({
+      title: "Scout", project: "loci", projectPath: "/p/loci", sessionCount: 1, blank: false,
+    });
+  });
+
+  it("lists the agent's name beside a focused project conversation", () => {
+    const projectSession = { ...newSession("codex", "/p/loci"), id: "project-chat", title: "Fix the tab bar" };
+    const tab = { ...newTab(agentSession.id), focusedId: projectSession.id,
+      layout: placeLayout(newTab(agentSession.id).layout, newTab(projectSession.id).layout, agentSession.id, "right") };
+    expect(summarizeTab(tab, context({ sessions: [agentSession, projectSession] }))).toMatchObject({
+      title: "Fix the tab bar", more: ["Scout"], project: "loci", projectPath: "/p/loci",
+    });
+  });
+
+  it("keeps the agent's name and running state when its document is focused", () => {
+    const document = documentLeaf({ id: "network", title: "Network policy", body: "# Policy" }, "agent-1");
+    const tab = { ...newTab(agentSession.id), cwd: "/p/loci", focusedId: document.type === "leaf" ? document.id : "",
+      layout: placeLayout(newTab(agentSession.id).layout, document, agentSession.id, "right") };
+    expect(summarizeTab(tab, context({ sessions: [{ ...agentSession, busy: true }] }))).toMatchObject({
+      title: "Network policy", paneKind: "document", more: ["Scout"], status: "busy",
+      projectPath: "/p/loci", sessionCount: 1, multiPane: true, blank: false,
+    });
   });
 });

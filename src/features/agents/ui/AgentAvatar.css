@@ -1,0 +1,46 @@
+.agent-avatar-preview[data-blinking] .agent-avatar-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: agent-eyes-blink 160ms ease-in-out;
+}
+
+@keyframes agent-eyes-blink {
+  0%, 100% { transform: scaleY(1); }
+  40%, 60% { transform: scaleY(0.08); }
+}
+
+.agent-face-option {
+  opacity: 0.85;
+  transition:
+    background-color 120ms var(--motion-ease-out),
+    box-shadow 120ms var(--motion-ease-out),
+    opacity 120ms var(--motion-ease-out);
+}
+
+.agent-face-option:is(:hover, :focus-visible, [aria-checked="true"]) {
+  opacity: 1;
+}
+
+.agent-color-option {
+  box-shadow: 0 0 0 2px var(--color-background-base), 0 0 0 3px transparent;
+  transition: box-shadow 120ms var(--motion-ease-out);
+}
+
+.agent-color-option:hover {
+  box-shadow: 0 0 0 2px var(--color-background-base), 0 0 0 3px color-mix(in srgb, var(--color-content) 30%, transparent);
+}
+
+.agent-color-option[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--color-background-base), 0 0 0 3px color-mix(in srgb, var(--color-content) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-avatar-preview[data-blinking] .agent-avatar-eyes {
+    animation: none;
+  }
+
+  .agent-face-option,
+  .agent-color-option {
+    transition: none;
+  }
+}

@@ -44,11 +44,11 @@ export function EmptySession({ cwd, composer, intro }: Props) {
       className="relative flex h-full min-h-0 overflow-y-auto overscroll-none"
     >
 
-      {composer ? (
+      {composer || intro ? (
         // Same box as the docked composer (max-w-4xl, p-1.5), so the input
         // keeps its width when the first message docks it.
         <div className="pointer-events-none relative z-10 mx-auto flex w-full max-w-4xl flex-1 flex-col justify-center px-1.5 py-12">
-          <div className="pointer-events-auto mb-4 px-2.5">
+          <div className={`pointer-events-auto px-2.5${composer ? " mb-4" : ""}`}>
             {intro ?? (
               <h1
                 className="truncate text-lg text-content"
@@ -59,7 +59,7 @@ export function EmptySession({ cwd, composer, intro }: Props) {
             )}
           </div>
 
-          <div className="pointer-events-auto w-full">{composer}</div>
+          {composer ? <div className="pointer-events-auto w-full">{composer}</div> : null}
         </div>
       ) : null}
     </div>

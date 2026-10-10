@@ -1,4 +1,4 @@
-import { Chatting, CheckCircle, ExcalidrawIcon, Pin } from "../../shared/ui/icons";
+import { Chatting, CheckCircle, ExcalidrawIcon, Pin, StickyNote } from "../../shared/ui/icons";
 import { FileTypeIcon } from "../../shared/ui/FileTypeIcon";
 import { Popover } from "../../shared/ui/Popover";
 import { ActivitySpinner } from "../../features/sessions/ui/ActivitySpinner";
@@ -38,6 +38,8 @@ export function TabGlyph({ tab, dimmed = false, size = "sm" }: { tab: Tab; dimme
     glyph = <ExcalidrawIcon className={`${box} shrink-0`} />;
   } else if (tab.paneKind === "file") {
     glyph = <FileTypeIcon name={tab.title} isDir={false} size={size === "md" ? 16 : 14} />;
+  } else if (tab.paneKind === "document") {
+    glyph = <StickyNote className={`${box} shrink-0`} strokeWidth={1.75} />;
   } else if (tab.harnesses[0]) {
     glyph = <HarnessIcon harness={tab.harnesses[0]} className={`${box} shrink-0`} />;
   } else {

@@ -8,6 +8,7 @@ X
 import { BTW_COMMAND } from "../model/btw";
 import { DRAFT_COMMAND } from "../model/draftCommand";
 import { OPERATOR_COMMAND } from "../model/operatorCommand";
+import "./modeCommands.css";
 
 
 
@@ -101,7 +102,7 @@ export function ModeCommandText({
       <span className="relative">
         <span className="text-transparent">{"/"}</span>
         <mode.style.Icon
-          className={`absolute top-1/2 -translate-y-1/2 ${iconClassName}`}
+          className={`composer-mode-icon absolute top-1/2 -translate-y-1/2 ${iconClassName}`}
           style={{ left: `-${indent}` }}
         />
       </span>
@@ -129,9 +130,9 @@ export function ModeCommandPill({
       aria-label={`Turn off ${pill.title}`}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClear}
-      className={`flex h-6.5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] ${pill.className}`}
+      className={`composer-mode-pill flex h-6.5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] ${pill.className}`}
     >
-      <Icon className="size-3.5" />
+      <Icon className="composer-mode-icon size-3.5" />
       <span className="composer-mode-shimmer">{pill.label}</span>
       <X className="size-3" />
     </button>

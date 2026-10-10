@@ -20,6 +20,8 @@ export const CARD_FENCE = {
   mindmap: "loci-mindmap",
   /** A canvas that already exists, named so the user can open it. */
   canvas: "loci-canvas",
+  /** A generated HTML/SVG/JS explanation, isolated from the application. */
+  widget: "loci-widget",
 } as const;
 
 export type AgentDocument = {
@@ -108,6 +110,7 @@ const KEPT_FENCES: readonly string[] = [
   CARD_FENCE.todo,
   CARD_FENCE.mindmap,
   CARD_FENCE.canvas,
+  CARD_FENCE.widget,
 ];
 
 /**
@@ -225,6 +228,9 @@ export function sendCardReply(from: Element, text: string): void {
   from.dispatchEvent(new CustomEvent(CARD_REPLY_EVENT, { bubbles: true, detail: { text } }));
 }
 
-export function openDocument(document: AgentDocument): void {
-  window.dispatchEvent(new CustomEvent(OPEN_DOCUMENT_EVENT, { detail: document }));
+export type OpenDocumentDetail = AgentDocument & { agentId?: string };
+
+export function openDocument(document: AgentDocument, agentId?: string): void {
+  const detail: OpenDocumentDetail = agentId ? { ...document, agentId } : document;
+  window.dispatchEvent(new CustomEvent(OPEN_DOCUMENT_EVENT, { detail }));
 }

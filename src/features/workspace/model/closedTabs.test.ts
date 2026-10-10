@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MAX_CLOSED_TABS, MAX_PARKED_TABS, latestBatch, pushClosed, withoutBatch, type ClosedTab } from "./closedTabs";
+import { documentLeaf } from "./layout";
 
 function tab(id: string, batch: number, parked = false): ClosedTab {
   return { layout: { type: "leaf", id }, focusedId: id, title: id, project: "p", closedAt: batch, batch, ...(parked ? { parked } : {}) };
@@ -31,5 +32,31 @@ describe("closed tab history", () => {
     expect(history.filter((entry) => !entry.parked).map((entry) => entry.title)).toEqual(["closed"]);
     // Parking a lot of tabs does not push the user's own closed tabs out.
     expect(latestBatch(history).map((entry) => entry.title)).toEqual(["closed"]);
+  });
+});
+
+describe("document tab history", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("restores a document's type and contents after the history is persisted", async () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    vi.resetModules();
+    const { closedTabs } = await import("./closedTabs");
+    const document = documentLeaf({ id: "network", title: "Network policy", body: "# Policy" }, "agent-1");
+    if (document.type !== "leaf") throw new Error("Expected a document leaf");
+    closedTabs.record([{ layout: document, focusedId: document.id, cwd: "/projects/loci", title: "Network policy", project: "loci", paneKind: "document" }]);
+    vi.resetModules();
+    const restored = await import("./closedTabs");
+    expect(restored.closedTabs.take("latest")).toMatchObject([{
+      layout: document, focusedId: document.id, cwd: "/projects/loci", title: "Network policy", paneKind: "document",
+    }]);
+    expect(restored.closedTabs.history()).toEqual([]);
   });
 });

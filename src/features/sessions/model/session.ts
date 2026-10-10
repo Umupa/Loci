@@ -1,6 +1,7 @@
 import { dropContextWindow, type ContextUsage } from "./contextUsage";
 import type { UserQuestionPrompt } from "./userQuestion";
 import type { NoteCardMeta, NoteComposerCard } from "../../notes";
+import type { LearningMessageContext } from "../../learning/model/types";
 import {
   defaultSessionChoice,
   firstEnabledHarness,
@@ -81,7 +82,7 @@ export type AgentSessionCompletion = {
   sessionCount?: number;
 };
 
-export type ComposerTurnOptions = {
+export type ComposerTurnOptions = LearningMessageContext & {
   /** Local app request receipt used to deduplicate submitted turns. */
   appRequestId?: string;
   resendEdited?: boolean;
@@ -239,7 +240,7 @@ export type Attachment = {
   previewUrl?: string;
 };
 
-export type QueuedMessage = {
+export type QueuedMessage = LearningMessageContext & {
   id: string;
   text: string;
   attachments: Attachment[];
@@ -273,7 +274,7 @@ export type TurnMetrics = {
   cacheHitPercent?: number;
 };
 
-export type Block = {
+export type Block = LearningMessageContext & {
   id: string;
   role: BlockRole;
   text: string;

@@ -1,5 +1,5 @@
 import { markTurnInterrupted, type ResumedWorkspace } from "../../sessions/model/inFlight";
-import { fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
+import { documentLeaf, widgetLeaf, fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
 import { workspaceTabCwd } from "./workspaceTabGroups";
 import { pathKey } from "../../../shared/lib/paths";
 import { reconcileProjectReturn, type ProjectReturnMemory } from "../../projects/model/projectReturn";
@@ -222,12 +222,36 @@ export function sanitizeLayout(raw: unknown): LayoutNode | null {
         return null;
     const value = raw as Record<string, unknown>;
     if (value.type === "leaf") {
-        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file")
+        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file" && value.leafKind !== "document" && value.leafKind !== "widget")
             return null;
         if (typeof value.id !== "string" || !value.id)
             return null;
         if (value.leafKind === "file")
             return fileLeaf(filePanePath(value.id), value.preview === true);
+        if (value.leafKind === "widget") {
+            const ref = value.widget as { id?: unknown; owner?: { kind?: unknown; id?: unknown } } | undefined;
+            if (!ref || typeof ref.id !== "string" || !/^[\p{L}\p{N}_-]{1,80}$/u.test(ref.id)
+                || !ref.owner || !["agent", "session"].includes(String(ref.owner.kind))
+                || typeof ref.owner.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(ref.owner.id)) return null;
+            return widgetLeaf({ id: ref.id, owner: { kind: ref.owner.kind as "agent" | "session", id: ref.owner.id } },
+                typeof value.widgetTitle === "string" ? value.widgetTitle : "Explanation",
+                typeof value.widgetSourceSessionId === "string" ? value.widgetSourceSessionId : undefined);
+        }
+        if (value.leafKind === "document") {
+            if (!value.document || typeof value.document !== "object" || Array.isArray(value.document))
+                return null;
+            const document = value.document as Record<string, unknown>;
+            if (typeof document.id !== "string" || !document.id || typeof document.title !== "string" || typeof document.body !== "string")
+                return null;
+            if (value.agentId !== undefined && (typeof value.agentId !== "string" || !/^[A-Za-z0-9-]+$/.test(value.agentId)))
+                return null;
+            return documentLeaf({
+                id: document.id,
+                title: document.title,
+                body: document.body,
+                ...(typeof document.subject === "string" ? { subject: document.subject } : {}),
+            }, value.agentId as string | undefined);
+        }
         return { type: "leaf", id: value.id, ...(value.leafKind === "canvas" ? { leafKind: value.leafKind } : {}) };
     }
     if (value.type !== "split" || typeof value.id !== "string" || !value.id) {

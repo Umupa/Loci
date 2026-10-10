@@ -3,7 +3,7 @@ import { act, createElement, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
-import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, updateCanvas, type Canvas } from "../canvas";
+import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasElementsToText, updateCanvas, type Canvas } from "../canvas";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { CanvasPane } from "./CanvasPane";
 const scene = vi.hoisted(() => ({ props: null as ExcalidrawProps | null }));
@@ -33,6 +33,22 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount()); container.remove();
   vi.clearAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals();
+});
+it("adds only the selected drawing elements using the agent action", () => {
+  const onAddToChat = vi.fn();
+  const elements = [{ id: "selected", type: "rectangle" }, { id: "other", type: "ellipse" }];
+  vi.mocked(canvasElementsToText).mockReturnValue("Selected drawing context");
+  act(() => root.render(createElement(CanvasPane, { ...props, chatTarget: "agent", onAddToChat })));
+  act(() => scene.props!.excalidrawAPI!({
+    getSceneElements: () => elements,
+    getAppState: () => ({ selectedElementIds: { selected: true } }),
+  } as unknown as ExcalidrawImperativeAPI));
+  const button = container.querySelector<HTMLButtonElement>('button[aria-label="Add drawing to agent"]')!;
+  expect(button.textContent).toBe("Add to agent");
+  expect(button.title).toBe("Add selected elements or drawing to agent");
+  act(() => button.click());
+  expect(canvasElementsToText).toHaveBeenCalledWith(canvas.title, JSON.stringify([elements[0]], null, 2), canvas.id);
+  expect(onAddToChat).toHaveBeenCalledExactlyOnceWith("Selected drawing context");
 });
 it("retains edits while moving to another pane before the save debounce fires", () => {
   act(() => root.render(createElement(CanvasPane, props)));

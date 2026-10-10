@@ -5,7 +5,7 @@ import { type TranscriptSelection } from "../model/transcriptSelection";
 
 type Props = {
   selection: TranscriptSelection | null;
-  onAddToChat?: (text: string) => void;
+  onAddToChat?: (text: string, blockId?: string) => void;
   onAddToNotes?: (text: string) => void | Promise<void>;
   onDismiss: () => void;
 };
@@ -51,7 +51,7 @@ export function TranscriptSelectionMenu({
         {onAddToChat ? (
           <SelectionAction
             label="Add to chat"
-            onSelect={() => onAddToChat(selection.text)}
+            onSelect={() => onAddToChat(selection.text, selection.blockId)}
             onDismiss={onDismiss}
           >
             <MessageSquarePlus

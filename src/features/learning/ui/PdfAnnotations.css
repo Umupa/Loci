@@ -1,0 +1,405 @@
+.pdf-annotations {
+  display: flex;
+  width: 280px;
+  height: 100%;
+  flex-shrink: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--color-stroke);
+  background: var(--color-background-base);
+  font-family: var(--font-sans);
+}
+
+.pdf-annotations__header {
+  display: flex;
+  min-height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--color-stroke);
+}
+
+.pdf-annotations__header h2,
+.pdf-annotation-popover__heading h2 {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.pdf-annotations__count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--color-selection-subtle);
+  color: color-mix(in srgb, var(--color-content) 55%, transparent);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-annotations__header .pdf-annotations__icon-button {
+  margin-left: auto;
+}
+
+.pdf-annotations__icon-button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--color-content) 50%, transparent);
+}
+
+.pdf-annotations__icon-button:enabled:hover {
+  background: var(--color-selection-subtle);
+  color: var(--color-content);
+}
+
+.pdf-annotations__list {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+}
+
+.pdf-annotations__entry {
+  display: block;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 10px 11px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  text-align: left;
+  transition: background-color var(--motion-feedback-duration) var(--motion-ease-out);
+}
+
+.pdf-annotations__entry:hover {
+  background: var(--color-selection-subtle);
+}
+
+.pdf-annotations__entry[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--color-content) 12%, transparent);
+  background: var(--color-selection-subtle);
+}
+
+.pdf-annotations__entry-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-content) 48%, transparent);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.pdf-annotations__page,
+.pdf-annotations__entry-discussions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pdf-annotations__marker {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--color-skill);
+  opacity: 0.8;
+}
+
+.pdf-annotations__entry-quote {
+  color: color-mix(in srgb, var(--color-content) 88%, transparent);
+  font-size: 12px;
+  line-height: 19px;
+  overflow-wrap: anywhere;
+}
+
+.pdf-annotations__entry-note {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--color-stroke);
+  color: color-mix(in srgb, var(--color-content) 58%, transparent);
+  font-size: 11px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.pdf-annotations__entry-discussions {
+  margin-top: 7px;
+  color: color-mix(in srgb, var(--color-content) 48%, transparent);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.pdf-annotations__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: color-mix(in srgb, var(--color-content) 50%, transparent);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.pdf-annotations__empty-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--color-selection-subtle);
+  color: color-mix(in srgb, var(--color-content) 65%, transparent);
+}
+
+.pdf-annotations__empty-title {
+  color: color-mix(in srgb, var(--color-content) 82%, transparent);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Paper is always white. An opaque theme surface keeps the annotation's ink
+   readable when it floats over a PDF in either application theme. */
+.pdf-annotation-popover,
+.pdf-selection-menu {
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--color-content) 14%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-background-base) 97%, var(--color-content) 3%);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 10%);
+  color: var(--color-content);
+  font-family: var(--font-sans);
+}
+
+.pdf-annotation-popover__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-stroke);
+}
+
+.pdf-annotation-popover__badge {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-skill) 10%, transparent);
+  color: var(--color-skill);
+}
+
+.pdf-annotation-popover__heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.pdf-annotation-popover__heading p {
+  color: color-mix(in srgb, var(--color-content) 50%, transparent);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.pdf-annotation-popover__body {
+  padding: 14px;
+}
+
+.pdf-annotation-popover__quote {
+  max-height: 104px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-left: 2px solid var(--color-skill);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--color-skill) 5%, transparent);
+  color: color-mix(in srgb, var(--color-content) 88%, transparent);
+  font-size: 12px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.pdf-annotation-popover__note-header {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: color-mix(in srgb, var(--color-content) 58%, transparent);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.pdf-annotation-popover__save {
+  padding: 3px 7px;
+  border-radius: 5px;
+  color: var(--color-content);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.pdf-annotation-popover__save:enabled:hover {
+  background: var(--color-selection-subtle);
+}
+
+.pdf-annotation-popover__note {
+  display: block;
+  width: 100%;
+  min-height: 88px;
+  max-height: 240px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
+  border-radius: 8px;
+  outline: none;
+  background: var(--color-selection-subtle);
+  color: var(--color-content);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.pdf-annotation-popover__note::placeholder {
+  color: color-mix(in srgb, var(--color-content) 40%, transparent);
+}
+
+.pdf-annotation-popover__note:focus {
+  border-color: color-mix(in srgb, var(--color-content) 28%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-content) 4%, transparent);
+}
+
+.pdf-annotation-popover__discussions {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-stroke);
+}
+
+.pdf-annotation-popover__section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: color-mix(in srgb, var(--color-content) 55%, transparent);
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.pdf-annotation-popover__section-title span {
+  color: color-mix(in srgb, var(--color-content) 40%, transparent);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-annotation-popover__discussion-list {
+  max-height: 120px;
+  overflow: auto;
+}
+
+.pdf-annotation-popover__discussion {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 6px;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--color-content) 70%, transparent);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: left;
+}
+
+.pdf-annotation-popover__discussion span {
+  flex: 1;
+}
+
+.pdf-annotation-popover__discussion:hover {
+  background: var(--color-selection-subtle);
+  color: var(--color-content);
+}
+
+.pdf-annotation-popover__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-stroke);
+}
+
+.pdf-annotation-popover__ask {
+  display: flex;
+  height: 30px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
+  border-radius: 7px;
+  background: var(--color-selection-subtle);
+  font-size: 12px;
+}
+
+.pdf-annotation-popover__ask:hover {
+  background: var(--color-selection);
+}
+
+.pdf-selection-menu {
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.pdf-selection-menu__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pdf-selection-menu__action {
+  display: flex;
+  height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pdf-selection-menu__action:enabled:hover {
+  background: var(--color-selection-subtle);
+}
+
+.pdf-annotations__highlight-icon {
+  color: var(--color-skill);
+}
+
+.pdf-annotations__delete:enabled:hover {
+  background: color-mix(in srgb, var(--color-diff-del) 10%, transparent);
+  color: var(--color-diff-del-fg);
+}
+
+.pdf-annotations__error {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-diff-del) 8%, transparent);
+  color: var(--color-diff-del-fg);
+  font-size: 11px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.pdf-annotations button:focus-visible,
+.pdf-annotation-popover button:focus-visible,
+.pdf-selection-menu button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.pdf-annotation-popover button:disabled,
+.pdf-selection-menu button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}

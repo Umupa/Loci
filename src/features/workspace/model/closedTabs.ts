@@ -9,7 +9,7 @@ export type ClosedTab = {
   pinned?: boolean;
   title: string;
   project: string;
-  paneKind?: "canvas" | "file";
+  paneKind?: "canvas" | "file" | "document" | "widget";
   closedAt: number;
   /** Tabs closed by one action share a batch, and come back together. */
   batch: number;
@@ -71,7 +71,7 @@ function parse(raw: string | null): ClosedTab[] {
         ...(typeof value.cwd === "string" ? { cwd: value.cwd } : {}),
         ...(value.pinned === true ? { pinned: true } : {}),
         ...(value.parked === true ? { parked: true } : {}),
-        ...(value.paneKind === "canvas" || value.paneKind === "file" ? { paneKind: value.paneKind } : {}),
+        ...(value.paneKind === "canvas" || value.paneKind === "file" || value.paneKind === "document" || value.paneKind === "widget" ? { paneKind: value.paneKind } : {}),
       }];
     });
   } catch {

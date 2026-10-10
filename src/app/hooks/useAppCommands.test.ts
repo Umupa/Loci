@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newSession } from "../../features/sessions/model/session";
 import { saveKeybindingOverride } from "../../features/settings/model/settings";
-import { newTab } from "../../features/workspace/model/layout";
+import { leaf, newTab } from "../../features/workspace/model/layout";
 import { useAppCommands } from "./useAppCommands";
 
 const native = vi.hoisted(() => ({
@@ -53,6 +53,7 @@ function options(id = "s1") {
     submission: { stop: vi.fn(async () => undefined) } as unknown as Options["submission"],
     sessionsRef: { current: [session] }, surfaceOpen: false,
     closeSurface: vi.fn(), openSearch: vi.fn(), openSettings: vi.fn(), openNotes: vi.fn(),
+    openTabSwitcher: vi.fn(), jumpToAttention: vi.fn(), openTabOverview: vi.fn(),
     toggleProjectRail: vi.fn(), toggleSessionSidebar: vi.fn(), reload: vi.fn(),
     sessionOrder: [id, "s2"],
   } satisfies Options;
@@ -181,6 +182,54 @@ describe("application command routing", () => {
     expect(value.workspace.archiveSession).toHaveBeenCalledExactlyOnceWith("s1", true);
   });
 
+  it("routes agent pane close and directional focus without touching the hidden session tab", async () => {
+    const value: Options = {
+      ...options(), surfaceOpen: true,
+      agentPane: {
+        focusedId: "document:doc1", layout: leaf("agent-session"),
+        onClosePane: vi.fn(), onFocusDirection: vi.fn(),
+      },
+    };
+    await mount(value);
+    key({ key: "w", code: "KeyW", metaKey: true });
+    emit("close_tab");
+    expect(value.agentPane?.onClosePane).toHaveBeenCalledExactlyOnceWith("document:doc1");
+    expect(value.workspace.closePane).not.toHaveBeenCalled();
+    expect(value.closeSurface).not.toHaveBeenCalled();
+    emit("focus_right");
+    expect(value.agentPane?.onFocusDirection).toHaveBeenCalledExactlyOnceWith("right");
+    expect(value.workspace.focusDirection).not.toHaveBeenCalled();
+  });
+
+  it("does not split or bulk-close hidden project sessions from an agent workspace", async () => {
+    const value: Options = {
+      ...options(), surfaceOpen: true,
+      agentPane: {
+        focusedId: "agent-session", layout: leaf("agent-session"),
+        onClosePane: vi.fn(), onFocusDirection: vi.fn(),
+      },
+    };
+    await mount(value);
+    emit("split_right");
+    emit("split_down");
+    expect(value.workspace.split).not.toHaveBeenCalled();
+    emit("close_other_tabs");
+    emit("close_all_tabs");
+    expect(value.workspace.closeTabs).not.toHaveBeenCalled();
+    key({ key: "A", code: "KeyA", metaKey: true, shiftKey: true });
+    expect(value.workspace.archiveSession).not.toHaveBeenCalled();
+    emit("new_tab");
+    expect(value.workspace.createSession).toHaveBeenCalledOnce();
+  });
+
+  it("closes an app surface without closing its hidden project session", async () => {
+    const value = { ...options(), surfaceOpen: true };
+    await mount(value);
+    emit("close_tab");
+    expect(value.closeSurface).toHaveBeenCalledOnce();
+    expect(value.workspace.closePane).not.toHaveBeenCalled();
+  });
+
   it("defers Escape until later listeners and verifies the same pane is still focused", async () => {
     const value = options();
     await mount(value);
@@ -195,6 +244,37 @@ describe("application command routing", () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
     expect(value.submission.stop).not.toHaveBeenCalled();
     value.workspace.activeTabIdRef.current = "tab-s1";
+    key({ key: "Escape", code: "Escape" });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
+    expect(value.submission.stop).toHaveBeenCalledExactlyOnceWith("s1");
+  });
+
+  it("stops only the still focused busy agent conversation after unhandled Escape", async () => {
+    const value: Options = {
+      ...options(), surfaceOpen: true,
+      agentPane: {
+        focusedId: "s1", layout: leaf("s1"),
+        onClosePane: vi.fn(), onFocusDirection: vi.fn(),
+      },
+    };
+    await mount(value);
+    const consume = (event: KeyboardEvent) => event.preventDefault();
+    window.addEventListener("keydown", consume);
+    key({ key: "Escape", code: "Escape" });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
+    expect(value.submission.stop).not.toHaveBeenCalled();
+    window.removeEventListener("keydown", consume);
+    key({ key: "Escape", code: "Escape" });
+    value.agentPane!.focusedId = "document:doc1";
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
+    expect(value.submission.stop).not.toHaveBeenCalled();
+    value.agentPane!.focusedId = "s1";
+    key({ key: "Escape", code: "Escape" });
+    const pane = value.agentPane;
+    value.agentPane = undefined;
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
+    expect(value.submission.stop).not.toHaveBeenCalled();
+    value.agentPane = pane;
     key({ key: "Escape", code: "Escape" });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
     expect(value.submission.stop).toHaveBeenCalledExactlyOnceWith("s1");

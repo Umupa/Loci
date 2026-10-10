@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useRef, useState } from "react";
 import { requestOpenAppResource } from "../../../../shared/lib/appResourceLinks";
 import { Check, ChevronRight, File, Palette } from "../../../../shared/ui/icons";
+import { agentForSession } from "../../../agents/model/agent";
 import {
   openDocument,
   parseCanvasLink,
@@ -33,7 +34,11 @@ export function DocumentCard({ source, incomplete }: { source: string; incomplet
   const words = document ? document.body.trim().split(/\s+/).filter(Boolean).length : 0;
   if (!document && !incomplete) return null;
   return (
-    <button type="button" data-card="document" disabled={incomplete || !document} onClick={() => document && openDocument(document)}
+    <button type="button" data-card="document" disabled={incomplete || !document} onClick={(event) => {
+      if (!document) return;
+      const sessionId = event.currentTarget.closest<HTMLElement>("[data-session-drop]")?.dataset.sessionDrop;
+      openDocument(document, sessionId ? agentForSession(sessionId)?.id : undefined);
+    }}
       className={`${shell} flex items-center gap-3 px-3.5 py-3 text-left enabled:hover:bg-content/6 disabled:cursor-default`}>
       <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-content/8 text-content/60">
         <File className="size-4" strokeWidth={1.75} />

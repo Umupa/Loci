@@ -1,8 +1,8 @@
 import "@excalidraw/excalidraw/index.css";
 import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, getSceneVersion, hashElementsVersion, restore } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { GripVertical, ExternalLink, MessageSquarePlus, ExcalidrawIcon, X, Maximize2, Minimize2 } from "../../../shared/ui/icons";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { GripVertical, MessageSquarePlus, ExcalidrawIcon, X, Maximize2, Minimize2 } from "../../../shared/ui/icons";
 import type { Canvas, CanvasSceneReplacement } from "../canvas";
 import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasSceneDrafts as sceneDrafts, canvasElementsToText, updateCanvas } from "../canvas";
 import { registerCanvasRenderer } from "../renderScheduling";
@@ -31,13 +31,14 @@ type Props = {
   focused: boolean;
   onFocus: () => void;
   onClose?: () => void;
-  onOpenInWorkspace?: () => void;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onAddToChat: (text: string) => void;
+  chatTarget?: "chat" | "agent";
+  chatIcon?: ReactNode;
   onTitleChange: (id: string, title: string) => void;
 };
 
-function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorkspace, onPaneDragStart, onAddToChat, onTitleChange }: Props) {
+function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStart, onAddToChat, chatTarget = "chat", chatIcon, onTitleChange }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef(canvas);
@@ -233,14 +234,13 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onOpenInWorksp
             }} />
         ) : <span className="min-w-0 flex-1 truncate text-xs" title="Double-click to rename" onDoubleClick={() => { setTitleDraft(canvas.title); setEditingTitle(true); }}>{canvas.title}</span>}
         {saveError ? <button data-no-drag className="text-xs text-red-400" onClick={save}>Retry save</button> : null}
-        <button type="button" data-no-drag aria-label="Add drawing to chat" title="Add selected elements or drawing to chat" onClick={handleAddToChat}
+        <button type="button" data-no-drag aria-label={`Add drawing to ${chatTarget}`} title={`Add selected elements or drawing to ${chatTarget}`} onClick={handleAddToChat}
           className="flex h-6 shrink-0 items-center gap-1 rounded px-1.5 text-xs text-content/55 hover:bg-content/10 hover:text-content">
-          <MessageSquarePlus className="size-3.5" /><span>Add to chat</span>
+          {chatIcon ?? <MessageSquarePlus className="size-3.5" />}<span>{chatTarget === "agent" ? "Add to agent" : "Add to chat"}</span>
         </button>
         <button type="button" data-no-drag aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={toggleFullscreen} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content">
           {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
         </button>
-        {onOpenInWorkspace ? <button type="button" data-no-drag aria-label="Open drawing in workspace" title="Open in workspace" onClick={onOpenInWorkspace} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><ExternalLink className="size-3.5" /></button> : null}
         {onClose ? <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button> : null}
       </div>

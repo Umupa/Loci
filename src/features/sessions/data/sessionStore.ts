@@ -1,4 +1,5 @@
 import { standingQuestionFromBlocks } from "../model/standingQuestion";
+import { sanitizeLearningContext } from "../../learning/model/learningContext";
 import { isAgentSession } from "../../agents/model/agent";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -549,6 +550,7 @@ function sanitizeBlock(
   if (handoff) next.handoff = handoff;
   else if (block.role === "handoff") return null;
   if (block.role === "user") {
+    Object.assign(next, sanitizeLearningContext(block));
     const btwThreads = sanitizeBtwThreads(
       block.btwThreads,
       options?.hydrate === true,

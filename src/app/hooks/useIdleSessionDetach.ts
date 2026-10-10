@@ -31,6 +31,7 @@ export function useIdleSessionDetach({
   loadedSessionCache,
   skipForgetSessionIds,
   keepSessionId,
+  isForeground,
   persistSession,
   onError,
   setSessions,
@@ -46,14 +47,16 @@ export function useIdleSessionDetach({
   skipForgetSessionIds: RefObject<Set<string>>;
   /** A conversation in view outside any tab, such as an agent's. */
   keepSessionId?: string;
+  /** Recheck the synchronous view before releasing a session, even before React commits it. */
+  isForeground?: (sessionId: string) => boolean;
   persistSession: (session: Session | undefined) => Promise<void>;
   onError: (error: unknown) => void;
   setSessions: Dispatch<SetStateAction<Session[]>>;
 }) {
   // Dropping a session re-renders the whole app, so it waits until a switch
   // has painted, and a burst of switches pays for it once.
-  const detachInputs = useRef({ liveAgentsEnabled, keepSessionId, persistSession, onError });
-  detachInputs.current = { liveAgentsEnabled, keepSessionId, persistSession, onError };
+  const detachInputs = useRef({ liveAgentsEnabled, keepSessionId, isForeground, persistSession, onError });
+  detachInputs.current = { liveAgentsEnabled, keepSessionId, isForeground, persistSession, onError };
   const unseenFinishedRef = useRef(unseenFinishedIds);
   unseenFinishedRef.current = unseenFinishedIds;
   const detachTimer = useRef<number | null>(null);
@@ -63,7 +66,7 @@ export function useIdleSessionDetach({
   // background update. Observe navigation even when it is faster than the timer.
   const navigationEpoch = useRef(0);
   const failed = useRef(new WeakMap<Session, number>());
-  useEffect(() => { navigationEpoch.current += 1; }, [tabs]);
+  useEffect(() => { navigationEpoch.current += 1; }, [tabs, keepSessionId]);
   const detachIdleSessions = useCallback(function detachIdleSessions() {
     detachTimer.current = null;
     const sessions = sessionsRef.current;
@@ -80,6 +83,7 @@ export function useIdleSessionDetach({
       // A hidden run is removed by whoever started it, once its answer is read.
       !session.ephemeral &&
       session.id !== detachInputs.current.keepSessionId &&
+      !detachInputs.current.isForeground?.(session.id) &&
       !tabsRef.current.some((tab) => leafIds(tab.layout).includes(session.id)) &&
       !hasLiveSessionWork(session) &&
       !openingSessionIds.current.has(session.id) &&
@@ -140,6 +144,7 @@ export function useIdleSessionDetach({
     sessions,
     tabs,
     liveAgentsEnabled,
+    keepSessionId,
     detachIdleSessions,
   ]);
 

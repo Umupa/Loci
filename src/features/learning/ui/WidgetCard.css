@@ -1,0 +1,41 @@
+.learning-widget-card { container-type: inline-size; }
+.learning-widget-toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--color-stroke); }
+.learning-widget-emblem { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px; background: var(--color-selection-subtle); color: color-mix(in srgb, var(--color-content) 55%, transparent); }
+.learning-widget-heading { flex: 1; min-width: 0; }
+.learning-widget-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; line-height: 1.5; color: var(--color-content); }
+.learning-widget-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; font-size: 11px; line-height: 1.5; color: color-mix(in srgb, var(--color-content) 48%, transparent); }
+.learning-widget-meta > span:first-child { min-width: 0; }
+.learning-widget-meta button { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; border-radius: 4px; cursor: pointer; }
+.learning-widget-meta button:hover { color: var(--color-content); }
+.learning-widget-tools { display: flex; flex-shrink: 0; align-items: center; gap: 3px; }
+.learning-widget-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 28px; padding: 4px 8px; border-radius: 7px; font-size: 12px; line-height: 1.4; color: color-mix(in srgb, var(--color-content) 60%, transparent); cursor: pointer; transition: background-color 120ms, color 120ms; }
+.learning-widget-action:hover:not(:disabled) { background: var(--color-selection-subtle); color: var(--color-content); }
+.learning-widget-action:focus-visible, .learning-widget-meta button:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent); outline-offset: 2px; }
+.learning-widget-action:disabled { opacity: .4; cursor: default; }
+.learning-widget-action[aria-pressed="true"] { background: var(--color-selection); color: var(--color-content); }
+.learning-widget-icon { width: 28px; padding: 4px; }
+.learning-widget-ask { background: var(--color-selection-subtle); color: color-mix(in srgb, var(--color-content) 85%, transparent); }
+.learning-widget-toolbar-expanded { padding: 10px 14px; }
+.learning-widget-toolbar-expanded .learning-widget-heading { display: flex; align-items: center; gap: 10px; }
+.learning-widget-toolbar-expanded .learning-widget-meta { margin-top: 0; }
+.learning-widget-toolbar-expanded .learning-widget-emblem { width: 28px; height: 28px; border-radius: 8px; background: transparent; }
+/* Generated diagrams can have light regions even in the dark application. */
+[data-menu-owner="learning-widget"] { background: var(--color-background-base); }
+.learning-widget-sources { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-bottom: 1px solid var(--color-stroke); background: color-mix(in srgb, var(--color-content) 2%, transparent); }
+.learning-widget-sources .learning-widget-action { justify-content: flex-start; min-width: 0; }
+.learning-widget-source { border-bottom: 1px solid var(--color-stroke); background: color-mix(in srgb, var(--color-content) 3%, transparent); }
+.learning-widget-source pre, .learning-widget-code pre { max-height: 280px; overflow: auto; padding: 0 16px 14px; font: 11px/1.6 var(--font-mono); color: color-mix(in srgb, var(--color-content) 68%, transparent); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.learning-widget-code { font-size: 12px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.learning-widget-code summary { cursor: pointer; }
+.learning-widget-code pre { padding: 12px 0 0; }
+.learning-widget-pending { display: flex; align-items: center; gap: 10px; padding: 14px; }
+.learning-widget-error { padding: 10px 14px; font-size: 12px; line-height: 1.5; color: var(--color-diff-del-fg); border-top: 1px solid var(--color-stroke); overflow-wrap: anywhere; }
+@container (max-width: 380px) {
+  .learning-widget-toolbar { padding: 10px; gap: 8px; }
+  .learning-widget-toolbar > .learning-widget-emblem { display: none; }
+  .learning-widget-ask { width: 28px; padding: 4px; }
+  .learning-widget-ask span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learning-widget-action { transition: none; }
+}

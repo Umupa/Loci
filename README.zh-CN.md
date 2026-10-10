@@ -31,6 +31,7 @@ Loci 是一个本地优先的 agent CLI 桌面外壳，使用 Tauri 2、Rust、R
 - **会画图的 agent。** Claude Code 和 Codex 会话自带内置的 `loci_excalidraw` MCP：未经修改的官方 Excalidraw MCP 服务，写入 Loci 自己的画布存储。Antigravity 和 Pi 会话通过 Loci 自带的 CLI 使用同一组工具，不需要安装或配置。你的手动修改会被保留，面板实时更新。见 [docs/canvas-mcp.md](docs/canvas-mcp.md)。
 - **`/operator`。** 让 agent 操作 Loci 本身：读取模型、启动和发送会话、调整分栏、整理文件夹、读写笔记和画布。它走一条带认证的本机回环通道，只在你启用它的那一个 turn 内有效。
 - **常驻 agent。** 不属于任何项目、长期存在的 agent：一段你会反复回来的对话、常驻指令、记忆、按计划自己运行的习惯，以及它在你的项目里启动并跟进的会话。它用可点选的选项提问，用卡片回复。见 [Agents](#agents)。
+- **交互讲解与 PDF 批注。** 所有会话都能生成带本地交互的 HTML/SVG 讲解，展开到对话旁边，并带着当前条件和来源准备追问。想留用的讲解由你手动保留到 Library。PDF 可选中片段提问、保存高亮与笔记、回到关联讨论；网页来源通过 URL 和粘贴的原文片段添加。见 [docs/learning.md](docs/learning.md)。
 - **主题、壁纸与字体。** Settings → Appearance 提供 22 个 Omarchy 主题、配套代码高亮和 72 张壁纸，也支持自选背景与系统已安装的字体。沿用背景效果、显示范围和透明度，自定义强调色优先。见 [docs/themes.md](docs/themes.md)。
 - **中文设置页。** 设置页默认跟随系统语言，也可在“Settings → 通用 → 设置页语言”切换简体中文或英文，立即生效。工作区保持英文。
 - **本地优先。** 本地 SQLite 数据库，不需要账号，没有统计，没有自动更新。见[数据与隐私](#数据与隐私)。
@@ -98,20 +99,20 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 
 
 ## Agents
 
-点击侧栏 *Agents* 旁边的 **+**。**New agent** 创建一个空白 agent，它会先问你它的主要工作是什么，然后给自己起名，并根据你的回答写下自己的常驻指令。也可以从内置模板开始（Tutor、Lead、Watch、Reviewer、Scout、Chief）。模板就是一个已经写好 soul 的 agent，仅此而已：这份 soul 在 Details → Soul 里查看和编辑，模板本身在 **Settings → Your agents → Agent templates** 里改写。这些之后都可以在 **Details** 里修改。
+点击侧栏 *Agents* 旁边的 **+**，选 **New agent**，直接用默认模型聊天。用自己的话说想做什么，例如“我想练英语口语”，一句话就够了。新空白 agent 会开始一项有用的练习，并根据这个用途生成短名、角色和初版 Soul，不需要填写档案或逐项确认。一次性任务不会变成长期角色，你亲自选过的名字和编辑过的 Soul 会保留。之后可以在聊天里调整它的工作方式，需要改设置时再打开 **Details**。也可以从 Tutor 模板开始，它已有写好的 Soul：在 Details → Soul 查看和编辑，在 **Settings → Your agents → Agent templates** 改写模板。
 
 - **它一直在。** 一个 agent 有一段不会结束的对话、一份 soul（常驻指令）和一份边学边记的记忆。两者都是 Loci 数据目录里的文件，不在你的仓库里，换模型也不会丢。
 - **它在你的项目里干活。** 在 Details 里把项目交给它。它可以在其中启动会话、跟进，并在完成后回来汇报。
 - **习惯。** Loci 开着的时候按计划自己做的事，只有值得说时才给你发消息。
-- **卡片。** 回复不只是文字：可点选的提问、在对话旁打开的文档、可以勾选的清单、可折叠的思维导图、Mermaid 图、指向画布的链接。卡片自己不保存任何状态；你对它做的操作会作为下一条消息发给 agent。
-- **文档库。** agent 写的文档保存在 Details → Library，按主题分组；它画的画布也在这里，不需要先有项目。同一篇再写一次就是修订，任何一篇都可以存为笔记。
-- **比如做导师。** 选 Tutor 模板。它会访谈你，把你的水平和进度记在记忆里，把路线图和讲解写成文档，你说换主题就换。
+- **卡片。** 回复不只是文字：可点选的提问、在对话旁打开的文档、可以勾选的清单、可折叠的思维导图、Mermaid 图、指向画布的链接，以及交互式 HTML 讲解。清单操作会发送消息；讲解的本地控件直接改变视图，Ask 只准备草稿，等你点击 Send。
+- **文档库。** agent 写的文档保存在 Details → Library，按主题分组；它画的画布也在这里，不需要先有项目。同一篇再写一次就是修订，任何一篇都可以存为笔记。交互讲解在你点击 Keep in Library 后出现在这里。
+- **比如做导师。** 选 Tutor 模板，告诉它想学的主题，直接开始一课或一道练习。它会在使用中了解偏好，把进度记在记忆里，等你想继续学习时再整理路线图。
 
 agent 做什么由提示词决定，所以效果取决于它背后的模型。
 
 ## 数据与隐私
 
-- **数据在哪。** 会话、笔记、画布、布局和提醒都在应用数据目录 `com.loci.desktop` 下的 `loci.db`（SQLite）里：macOS 是 `~/Library/Application Support/com.loci.desktop`，Linux 是 `~/.local/share/com.loci.desktop`，Windows 是 `%APPDATA%\com.loci.desktop`。粘贴的图片和隔离的 provider 账号放在它旁边。你的项目文件仍在你自己的文件夹里。
+- **数据在哪。** 会话、笔记、画布、来源引用、PDF 批注、交互讲解、布局和提醒都在应用数据目录 `com.loci.desktop` 下的 `loci.db`（SQLite）里：macOS 是 `~/Library/Application Support/com.loci.desktop`，Linux 是 `~/.local/share/com.loci.desktop`，Windows 是 `%APPDATA%\com.loci.desktop`。粘贴的图片和隔离的 provider 账号放在它旁边。你的项目文件仍在你自己的文件夹里，批注不会改写原 PDF。
 - **Loci 会联网做什么。** Loci 没有统计、崩溃上报和更新检查。除了 agent CLI 自己和各自的 provider 通信之外，Loci 会读取对话中公开链接的标题和图标（回环和内网地址会被拒绝）；对 Claude Code，它会用 Claude Code 已保存在本机的登录令牌，向 Anthropic 的用量接口查询你的用量。该令牌不会保存到别处。
 - **agent 能做什么。** agent 以你的用户权限运行。权限模式只决定 Loci 在 CLI 行动之前是否询问你，所以选它要像在 CLI 里一样谨慎。**Full access** 会让命令、编辑和受支持的 MCP 确认都不再询问。
 

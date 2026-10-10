@@ -5,10 +5,12 @@ import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 import { newSession,type Session } from "../../features/sessions/model/session";
 import { createAgent, saveAgentSessionId } from "../../features/agents/model/agent";
 import { saveCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
+import { saveFollowUpBehavior } from "../../features/settings/model/settings";
 import { registerHarness,resetHarnessIdlePark,type HarnessAdapter } from "../../integrations/harness/core/registry";
 import { TurnNotReadyError, type SendTurnInput } from "../../integrations/harness/core/types";
 import { useSessionRuntime,type SessionRuntime } from "./useSessionRuntime";
 import { useSessionSubmission,type SessionSubmission } from "./useSessionSubmission";
+import type { LearningMessageContext, WidgetRef } from "../../features/learning/model/types";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), prepare: vi.fn(async (text: string) => text) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, isTauri: () => true }));
@@ -31,6 +33,8 @@ let actions: SessionSubmission;
 let pending: Pending[];
 let acceptImmediately: boolean;
 let adapter: HarnessAdapter;
+let storedWidgetHtml: string;
+let storedWidgetRevision: number;
 const canStartSessionWork = vi.fn(() => true);
 
 async function mount(initial: Session) {
@@ -49,6 +53,8 @@ async function mount(initial: Session) {
 }
 
 function session() { return runtime.sessionsRef.current[0]; }
+/** Existing transport checks ignore the newly added widget-authoring instructions. */
+function withoutWidgetRules(text: string) { return text.replace(/\n\n<loci_widgets>[\s\S]*?<\/loci_widgets>/g, ""); }
 async function settle(run: Pending) {
   await act(async () => {
     run.input.onEvent({ type: "message.completed" });
@@ -67,9 +73,12 @@ beforeEach(() => {
   mocks.prepare.mockReset();
   mocks.prepare.mockImplementation(async (text: string) => text);
   mocks.invoke.mockReset();
-  mocks.invoke.mockImplementation(async (command: string, args?: { session?: Session }) => {
+  storedWidgetHtml = '<section data-canonical="latest">Current saved channel implementation</section>';
+  storedWidgetRevision = 8;
+  mocks.invoke.mockImplementation(async (command: string, args?: { session?: Session; widget?: WidgetRef }) => {
     if (command === "app_cli_path") return "/Applications/Loci.app/Contents/MacOS/loci";
     if (command === "session_upsert") return { ...args?.session, createdAt: 1, updatedAt: Date.now() };
+    if (command === "learning_widget_get") return { ...args?.widget, title: "Current channel trace", html: storedWidgetHtml, sourceIds: ["pdf-source"], sourceSessionId: "original", sourceBlockId: "answer", revision: storedWidgetRevision, saved: true, state: { capacity: 99, step: 1 }, createdAt: 1, updatedAt: 8 };
     return undefined;
   });
   adapter = {
@@ -97,6 +106,90 @@ afterEach(async () => {
   await act(async () => root?.unmount());
   host?.remove();
   resetHarnessIdlePark();
+});
+
+describe("source-backed learning submissions", () => {
+  const context: LearningMessageContext = {
+    sources: [{ id: "pdf-source", kind: "pdf", title: "Channel notes", quote: "Send blocks until a receive is available.", documentId: "document", path: "/project/notes.pdf", annotationId: "highlight", anchors: [{ page: 3, rects: [{ x: .1, y: .2, width: .6, height: .03 }] }] }],
+    widgetContext: { owner: { kind: "session", id: "original" }, id: "channel", title: "Channel trace", revision: 2, state: { capacity: 0, step: 4 } },
+  };
+  it.each(["codex", "pi"] as const)("sends the same evidence and widget contract through %s", async (harness) => {
+    registerHarness({ ...adapter, id: harness });
+    await mount(newSession(harness, "/project", "test"));
+    await act(async () => { expect(actions.onSubmit(session().id, "Why does this wait?", [], context)).toBe(true); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    const sent = pending[0].input.text;
+    expect(sent).toContain("<loci_learning_context>");
+    expect(sent).toContain('"page": 3');
+    expect(sent).toContain('"capacity": 0');
+    expect(sent).toContain('"html": "<section data-canonical=\\"latest\\">Current saved channel implementation</section>"');
+    expect(sent).toContain('"revision": 8');
+    expect(sent).not.toContain('"capacity": 99');
+    expect(sent).toContain("source claims, your inference, and observed experiment results");
+    expect(sent).toContain("loci-widget\n---\nid:");
+    const block = session().blocks.find((entry) => entry.role === "user")!;
+    expect(block).toMatchObject({ text: "Why does this wait?", ...context });
+    expect(block.widgetContext).not.toHaveProperty("html");
+    expect(mocks.invoke).toHaveBeenCalledWith("learning_source_register", { source: context.sources![0] });
+    expect(mocks.invoke).toHaveBeenCalledWith("learning_annotation_link", { id: "highlight", sessionId: session().id, blockId: block.id });
+    await settle(pending[0]);
+  });
+  it("preserves context while a queued question is edited and later dispatched", async () => {
+    await mount(newSession("codex", "/project", "test"));
+    await act(async () => { actions.onSubmit(session().id, "First"); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await act(async () => { actions.onSubmit(session().id, "Why this step?", [], { ...context, followUpBehavior: "queue" }); });
+    const queued = session().queuedMessages![0];
+    expect(queued).toMatchObject(context);
+    expect(mocks.invoke.mock.calls.some(([command]) => command === "learning_widget_get")).toBe(false);
+    storedWidgetHtml = "<section>Revised while this question was queued</section>";
+    storedWidgetRevision = 12;
+    await act(async () => actions.editQueuedMessage(session().id, queued.id, "Explain the blocked sender"));
+    await settle(pending[0]);
+    await act(async () => vi.waitFor(() => expect(pending).toHaveLength(2)));
+    expect(pending[1].input.text).toMatch(/^Explain the blocked sender/);
+    expect(pending[1].input.text).toContain('"step": 4');
+    expect(pending[1].input.text).toContain("Revised while this question was queued");
+    expect(pending[1].input.text).toContain('"revision": 12');
+    expect(session().blocks.find((entry) => entry.text === "Explain the blocked sender")).toMatchObject(context);
+    await settle(pending[1]);
+  });
+  it("promotes a saved unsent source question without losing its anchors", async () => {
+    await mount(newSession("codex", "/project", "test"));
+    await act(async () => expect(actions.saveDraft(session().id, "Explain this paragraph", [], context)).toBe(true));
+    const draft = session().blocks[0];
+    expect(draft).toMatchObject({ draft: true, ...context });
+    expect(draft.widgetContext).not.toHaveProperty("html");
+    expect(mocks.invoke.mock.calls.some(([command]) => command === "learning_widget_get")).toBe(false);
+    expect(pending).toHaveLength(0);
+    await act(async () => { actions.onSubmit(session().id, draft.text, [], { draftBlockId: draft.id }); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    expect(session().blocks[0]).toMatchObject(context);
+    expect(session().blocks[0].draft).toBeUndefined();
+    expect(pending[0].input.text).toContain('"annotationId": "highlight"');
+    expect(pending[0].input.text).toContain("Current saved channel implementation");
+    await settle(pending[0]);
+  });
+  it("reports a removed saved explanation instead of sending a question without its context", async () => {
+    const invoke = mocks.invoke.getMockImplementation()!;
+    mocks.invoke.mockImplementation((command: string, args?: unknown) => command === "learning_widget_get" ? Promise.resolve(null) : invoke(command, args));
+    await mount(newSession("codex", "/project", "test"));
+    await act(async () => { actions.onSubmit(session().id, "Revise this explanation", [], context); });
+    await vi.waitFor(() => expect(session().blocks.some((block) => block.role === "system" && block.text.includes("This explanation no longer exists"))).toBe(true));
+    expect(adapter.sendTurn).not.toHaveBeenCalled();
+    expect(session().blocks.find((block) => block.role === "user")).toMatchObject(context);
+  });
+  it("hydrates saved HTML for steering and preserves the user's original conditions", async () => {
+    await mount(newSession("codex", "/project", "test"));
+    await act(async () => { actions.onSubmit(session().id, "First"); });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    await act(async () => { actions.onSubmit(session().id, "Show the blocked step", [], { ...context, followUpBehavior: "steer" }); });
+    const sent = vi.mocked(adapter.steerTurn!).mock.calls[0][0].text;
+    expect(sent).toContain("Current saved channel implementation");
+    expect(sent).toContain('"step": 4');
+    expect(session().blocks.find((block) => block.text === "Show the blocked step")?.widgetContext).toEqual(context.widgetContext);
+    await settle(pending[0]);
+  });
 });
 
 describe("session submission", () => {
@@ -212,7 +305,7 @@ describe("session submission", () => {
     await settle(pending[0]);
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
     await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input.text).toBe("Follow up");
+    expect(withoutWidgetRules(pending[1].input.text)).toBe("Follow up");
     expect(session().queuedMessages).toBeUndefined();
     await settle(pending[1]);
   });
@@ -230,7 +323,7 @@ describe("session submission", () => {
     await settle(pending[0]);
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
     await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input.text).toBe("Follow up");
+    expect(withoutWidgetRules(pending[1].input.text)).toBe("Follow up");
     await settle(pending[1]);
   });
 
@@ -375,17 +468,17 @@ describe("session submission", () => {
     await act(async () => { actions.onSubmit(id, "/operator List notes", [], { appRequestId: "app-request-1" }); });
     await vi.waitFor(() => expect(pending).toHaveLength(1));
     expect(pending[0].input.appAccess).toBe(true);
-    expect(pending[0].input.text).toContain("<loci_app>");
-    expect(pending[0].input.text).toContain("list, create, rename, and delete Excalidraw canvases");
-    expect(pending[0].input.text).toContain("canvas.read-data and canvas.write-data");
-    expect(pending[0].input.text).toContain("write-data replaces the whole scene and updates open panes");
-    expect(pending[0].input.text).toContain("loci' app --help");
+    expect(withoutWidgetRules(pending[0].input.text)).toContain("<loci_app>");
+    expect(withoutWidgetRules(pending[0].input.text)).toContain("list, create, rename, and delete Excalidraw canvases");
+    expect(withoutWidgetRules(pending[0].input.text)).toContain("canvas.read-data and canvas.write-data");
+    expect(withoutWidgetRules(pending[0].input.text)).toContain("write-data replaces the whole scene and updates open panes");
+    expect(withoutWidgetRules(pending[0].input.text)).toContain("loci' app --help");
     expect(session().blocks[0]).toMatchObject({ text: "List notes", loci: true, appRequestId: "app-request-1" });
     await settle(pending[0]);
     await act(async () => { actions.onSubmit(id, "Read the first note"); });
     await vi.waitFor(() => expect(pending).toHaveLength(2));
     expect(pending[1].input.appAccess).toBe(true);
-    expect(pending[1].input.text).not.toContain("<loci_app>");
+    expect(withoutWidgetRules(pending[1].input.text)).not.toContain("<loci_app>");
     await settle(pending[1]);
   });
 
@@ -429,8 +522,8 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await mount(newSession("pi", "/project"));
     await act(async () => { expect(actions.onSubmit(session().id, "Draw the architecture")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text.startsWith("Draw the architecture\n\n<loci_canvas>\n")).toBe(true);
-    expect(pending[0].input.text).toContain(`\`${CLI} canvas TOOL --json '<arguments>'\``);
+    expect(withoutWidgetRules(pending[0].input.text).startsWith("Draw the architecture\n\n<loci_canvas>\n")).toBe(true);
+    expect(withoutWidgetRules(pending[0].input.text)).toContain(`\`${CLI} canvas TOOL --json '<arguments>'\``);
     // The note is Loci's: the transcript keeps what the user typed, and remembers that it was sent.
     expect(users()[0]).toMatchObject({ text: "Draw the architecture", canvasCli: true });
     expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: true });
@@ -438,7 +531,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await settle(pending[0]);
     await act(async () => { expect(actions.onSubmit(session().id, "Add a cache")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input.text).toBe("Add a cache");
+    expect(withoutWidgetRules(pending[1].input.text)).toBe("Add a cache");
     expect(users().map((block) => block.canvasCli)).toEqual([true, undefined]);
   });
 
@@ -448,8 +541,8 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await mount({ ...initial, blocks: [{ id: "earlier", role: "user", text: "Earlier", canvasCli: true }, { id: "answer", role: "assistant", text: "Done" }] });
     await act(async () => { expect(actions.onSubmit(session().id, "Continue")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text).toContain("<loci_canvas>");
-    expect(pending[0].input.text).toContain(`${CLI} canvas --help`);
+    expect(withoutWidgetRules(pending[0].input.text)).toContain("<loci_canvas>");
+    expect(withoutWidgetRules(pending[0].input.text)).toContain(`${CLI} canvas --help`);
   });
 
   it("follows the Excalidraw switch: no note and no access while it is off, the note on the first turn after it is turned on", async () => {
@@ -457,7 +550,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await mount(newSession("pi", "/project"));
     await act(async () => { expect(actions.onSubmit(session().id, "Draw the architecture")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text).toBe("Draw the architecture");
+    expect(withoutWidgetRules(pending[0].input.text)).toBe("Draw the architecture");
     expect(users()[0].canvasCli).toBeUndefined();
     expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: false });
     await bind(pending[0], "pi-conversation-1");
@@ -465,7 +558,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     saveCanvasMcpEnabled(true);
     await act(async () => { expect(actions.onSubmit(session().id, "Now draw it")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input.text.startsWith("Now draw it\n\n<loci_canvas>")).toBe(true);
+    expect(withoutWidgetRules(pending[1].input.text).startsWith("Now draw it\n\n<loci_canvas>")).toBe(true);
     expect(mocks.invoke).toHaveBeenLastCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: true });
     expect(users().map((block) => block.canvasCli)).toEqual([undefined, true]);
   });
@@ -474,14 +567,14 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await mount(newSession("pi", "~"));
     await act(async () => { expect(actions.onSubmit(session().id, "Hello")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text).toBe("Hello");
+    expect(withoutWidgetRules(pending[0].input.text)).toBe("Hello");
   });
 
   it("leaves the agents that are given the MCP server alone", async () => {
     await mount(newSession("codex", "/project", "codex:test"));
     await act(async () => { expect(actions.onSubmit(session().id, "Draw the architecture")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text).toBe("Draw the architecture");
+    expect(withoutWidgetRules(pending[0].input.text)).toBe("Draw the architecture");
     expect(users()[0].canvasCli).toBeUndefined();
     expect(mocks.invoke).not.toHaveBeenCalledWith("app_cli_path");
   });
@@ -553,6 +646,73 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       await mount(chat);
     }
 
+    it("queues follow-ups using the saved preference and dispatches them in order", async () => {
+      saveFollowUpBehavior("queue");
+      await mountAgent();
+      await act(async () => { expect(actions.onSubmit(session().id, "First")).toBe(true); });
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      await bound(pending[0], "thread-1");
+      await act(async () => {
+        expect(actions.onSubmit(session().id, "Second")).toBe(true);
+        expect(actions.onSubmit(session().id, "Third")).toBe(true);
+      });
+      expect(adapter.sendTurn).toHaveBeenCalledOnce();
+      expect(adapter.steerTurn).not.toHaveBeenCalled();
+      expect(session().queuedMessages?.map((message) => message.text)).toEqual(["Second", "Third"]);
+      expect(session().blocks.map((block) => block.text)).toEqual(["First"]);
+
+      await settle(pending[0]);
+      await act(async () => vi.waitFor(() => expect(pending).toHaveLength(2)));
+      expect(withoutWidgetRules(pending[1].input.text)).toBe("Second");
+      expect(session().queuedMessages?.map((message) => message.text)).toEqual(["Third"]);
+
+      await settle(pending[1]);
+      await act(async () => vi.waitFor(() => expect(pending).toHaveLength(3)));
+      expect(withoutWidgetRules(pending[2].input.text)).toBe("Third");
+      expect(session().queuedMessages).toBeUndefined();
+      expect(adapter.steerTurn).not.toHaveBeenCalled();
+      await settle(pending[2]);
+    });
+
+    it("steers the active turn immediately using the saved preference", async () => {
+      saveFollowUpBehavior("steer");
+      await mountAgent();
+      await act(async () => { expect(actions.onSubmit(session().id, "First")).toBe(true); });
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      await act(async () => { expect(actions.onSubmit(session().id, "Follow up")).toBe(true); });
+      expect(adapter.steerTurn).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: session().id, text: expect.stringMatching(/^Follow up\n\n<loci_widgets>/),
+      }));
+      expect(adapter.sendTurn).toHaveBeenCalledOnce();
+      expect(session().busy).toBe(true);
+      expect(session().queuedMessages).toBeUndefined();
+      expect(session().blocks.map((block) => block.text)).toEqual(["First", "Follow up"]);
+      await settle(pending[0]);
+    });
+
+    it("uses a changed follow-up preference for the next send", async () => {
+      saveFollowUpBehavior("queue");
+      await mountAgent();
+      await act(async () => { expect(actions.onSubmit(session().id, "First")).toBe(true); });
+      await vi.waitFor(() => expect(pending).toHaveLength(1));
+      await bound(pending[0], "thread-1");
+      await act(async () => { expect(actions.onSubmit(session().id, "Queued")).toBe(true); });
+      expect(session().queuedMessages?.map((message) => message.text)).toEqual(["Queued"]);
+      expect(adapter.steerTurn).not.toHaveBeenCalled();
+
+      saveFollowUpBehavior("steer");
+      await act(async () => { expect(actions.onSubmit(session().id, "Steered")).toBe(true); });
+      expect(adapter.steerTurn).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringMatching(/^Steered\n\n<loci_widgets>/) }));
+      expect(session().queuedMessages?.map((message) => message.text)).toEqual(["Queued"]);
+      expect(adapter.sendTurn).toHaveBeenCalledOnce();
+
+      await settle(pending[0]);
+      await act(async () => vi.waitFor(() => expect(pending).toHaveLength(2)));
+      expect(withoutWidgetRules(pending[1].input.text)).toBe("Queued");
+      expect(session().queuedMessages).toBeUndefined();
+      await settle(pending[1]);
+    });
+
     it("tells a fresh provider session who it is, then only what changed", async () => {
       await mountAgent();
       await act(async () => { actions.onSubmit(session().id, "What broke?"); });
@@ -560,7 +720,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       const first = pending[0].input;
       expect(first.appAccess).toBe(true);
       expect(first.text.startsWith("<loci_context>")).toBe(true);
-      expect(first.text.endsWith("</loci_context>\n\nWhat broke?")).toBe(true);
+      expect(withoutWidgetRules(first.text).endsWith("</loci_context>\n\nWhat broke?")).toBe(true);
       expect(first.text).toContain("You are Ember: a resident agent in Loci");
       expect(first.text).toContain("- app: /code/app");
       expect(first.text).toContain("- Be brief.");
@@ -573,16 +733,16 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
 
       await act(async () => { actions.onSubmit(session().id, "And now?"); });
       await vi.waitFor(() => expect(pending).toHaveLength(2));
-      expect(pending[1].input).toMatchObject({ appAccess: true, text: "And now?" });
+      expect(pending[1].input).toMatchObject({ appAccess: true, text: expect.stringMatching(/^And now\?\n\n<loci_widgets>/) });
       await settle(pending[1]);
 
       files.memory += "\n- 2026-10-02 · Deploys go through Fly";
       files.memoryHash = "memory-2";
       await act(async () => { actions.onSubmit(session().id, "Third"); });
       await vi.waitFor(() => expect(pending).toHaveLength(3));
-      expect(pending[2].input.text).toContain("Deploys go through Fly");
-      expect(pending[2].input.text).not.toContain("<soul>");
-      expect(pending[2].input.text).not.toContain("<loci_app>");
+      expect(withoutWidgetRules(pending[2].input.text)).toContain("Deploys go through Fly");
+      expect(withoutWidgetRules(pending[2].input.text)).not.toContain("<soul>");
+      expect(withoutWidgetRules(pending[2].input.text)).not.toContain("<loci_app>");
       await settle(pending[2]);
     });
 
@@ -602,7 +762,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       expect(text).toContain("Rename the flag to --dry-run");
       expect(text).toContain("Renamed in cli.ts and the docs.");
       expect(text).toContain("<soul>");
-      expect(text.endsWith("Ship it")).toBe(true);
+      expect(withoutWidgetRules(text).endsWith("Ship it")).toBe(true);
       expect(session().providerSessionId).toBeUndefined();
       expect(session().context).toBeUndefined();
       await settle(pending[0]);
@@ -615,7 +775,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       const text = pending[0].input.text;
       // It learns who it is first, then what the app asks of it; the user's chat shows neither.
       expect(text.startsWith("<loci_context>")).toBe(true);
-      expect(text.endsWith("<agent_setup>Ask what you are for.</agent_setup>")).toBe(true);
+      expect(withoutWidgetRules(text).endsWith("<agent_setup>Ask what you are for.</agent_setup>")).toBe(true);
       expect(text).not.toContain("Ember joined");
       expect(session().blocks[0]).toMatchObject({ role: "user", text: "Ember joined", agentSetup: true });
       await settle(pending[0]);
@@ -626,7 +786,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       mocks.invoke.mockImplementation(async (command: string) => { if (command === "agent_load") throw new Error("disk"); return undefined; });
       await act(async () => { actions.onSubmit(session().id, "Hello"); });
       await vi.waitFor(() => expect(pending).toHaveLength(1));
-      expect(pending[0].input.text).toBe("Hello");
+      expect(withoutWidgetRules(pending[0].input.text)).toBe("Hello");
       await settle(pending[0]);
     });
   });
@@ -653,7 +813,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       const question = session().pendingQuestion!;
       await act(async () => actions.answer(session().id, question.requestId, { kind: "answered", answers: { [question.questions[0].id]: [question.questions[0].options[1].id] } }));
       await vi.waitFor(() => expect(pending).toHaveLength(2));
-      expect(pending[1].input.text).toBe("Second");
+      expect(withoutWidgetRules(pending[1].input.text)).toBe("Second");
       expect(session().pendingQuestion).toBeUndefined();
       expect(adapter.respondQuestion).not.toHaveBeenCalled();
       await settle(pending[1]);

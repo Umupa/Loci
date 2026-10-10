@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { hydrateLearningContext, linkLearningDiscussion, registerSubmittedLearningContext, sanitizeLearningContext, withLearningContext } from "../../features/learning/model/learningContext";
+import type { LearningMessageContext } from "../../features/learning/model/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   appendSteerUser, appendUser, stopStreaming,
@@ -172,18 +174,24 @@ export function useSessionSubmission(options: SubmissionOptions) {
     if (options?.queuedMessageId && !queuedMessageForSubmit(current, options.queuedMessageId,
       options.followUpBehavior === "steer" ? "steer" : "dispatch")) return false;
     const noteCard = options && "noteCard" in options ? options.noteCard : current.noteCard;
-    if (!text.trim() && !attachments.length && !noteCard) return false;
+    const learningContext = sanitizeLearningContext({ sources: options?.sources ?? draft?.sources, widgetContext: options?.widgetContext ?? draft?.widgetContext });
+    if (!text.trim() && !attachments.length && !noteCard && !learningContext.sources?.length && !learningContext.widgetContext) return false;
     const activation = consumeOperatorCommand(text);
     const visibleText = activation.matched ? activation.text.trim() || "Explain what you can do in Loci with the app CLI." : text;
     // An agent has app access in every turn, without the command.
     const agent = agentForSession(sessionId);
     const appAccess = !!agent || activation.matched || operatorEnabledInThread(current.blocks);
-    const rawCommand = !activation.matched && isNativeCommandPrompt(text, current.harness);
-    const promptText = options?.agentSetup ?? (options?.agentCompletion ? options.agentCompletion.report
+    const rawCommand = !activation.matched && !learningContext.sources?.length && !learningContext.widgetContext && isNativeCommandPrompt(text, current.harness);
+    const basePromptText = options?.agentSetup ?? (options?.agentCompletion ? options.agentCompletion.report
       : rawCommand ? text : composeNoteMessage(noteCard, visibleText));
+    const promptText = basePromptText;
+    const prepareTurnPrompt = async () => rawCommand ? promptText : withLearningContext(promptText, await hydrateLearningContext(learningContext));
+    const submittedBlockId = crypto.randomUUID();
     const pendingSwitch = current.pendingSwitch?.from !== current.harness ? current.pendingSwitch : undefined;
     const visible = displayAttachments(attachments);
     const cards = {
+      blockId: submittedBlockId,
+      ...learningContext,
       ...(!rawCommand && noteCard ? { noteCard: noteCardMeta(noteCard) } : {}),
       ...(activation.matched ? { loci: true } : {}),
       ...(options?.agentCompletion ? { agentSessionCompletion: options.agentCompletion.completion } : {}),
@@ -203,7 +211,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       if (followUp === "queue") {
         setSessions((previous) => previous.map((session) => session.id === sessionId ? {
           ...session, noteCard: rawCommand ? session.noteCard : undefined,
-          queuedMessages: [...(session.queuedMessages ?? []), { id: crypto.randomUUID(), text, attachments, noteCard }],
+          queuedMessages: [...(session.queuedMessages ?? []), { id: crypto.randomUUID(), text, attachments, noteCard, ...learningContext }],
           queueStatus: session.queueStatus === "paused" ? "paused" : "active",
         } : session));
         rt.continued(sessionId);
@@ -213,7 +221,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       const queued = options?.queuedMessageId
         ? current.queuedMessages?.find((message) => message.id === options.queuedMessageId)
         : undefined;
-      const message = queued ?? { id: crypto.randomUUID(), text, attachments, noteCard };
+      const message = queued ?? { id: crypto.randomUUID(), text, attachments, noteCard, ...learningContext };
       if (pendingSteers.current.has(message.id) || current.editingQueuedMessageId === message.id) return false;
       pendingSteers.current.add(message.id);
       const epoch = followUpEpochs.current.get(sessionId);
@@ -232,7 +240,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
       void (async () => {
         try {
           const prepared = await prepareAttachments(attachments);
-          const prompt = await preparePrompt(promptText, { harness: current.harness, sessionId, cwd: current.cwd });
+          const prompt = await preparePrompt(await prepareTurnPrompt(), { harness: current.harness, sessionId, cwd: current.cwd });
+          await registerSubmittedLearningContext(learningContext, sessionId, submittedBlockId, false);
           const latest = sessionsRef.current.find((session) => session.id === sessionId);
           if (!latest || !sameSession(latest) || latest.editingQueuedMessageId === message.id ||
             !latest.queuedMessages?.includes(message)) return;
@@ -245,6 +254,9 @@ export function useSessionSubmission(options: SubmissionOptions) {
           }));
           await steerHarnessTurn({ harness: current.harness, sessionId, cwd: current.cwd,
             model: current.model, modelSettings: current.modelSettings, text: prompt, attachments: prepared });
+          void linkLearningDiscussion(learningContext, sessionId, submittedBlockId).catch((error: unknown) => {
+            enqueueHarnessEvent(sessionId, { type: "session.error", message: `Could not link the highlighted passage to this discussion: ${String(error)}` });
+          });
           setSessions((previous) => previous.map((session) => {
             if (!sameSession(session)) return session;
             return session.queuedMessages?.includes(message)
@@ -365,7 +377,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
           wrap = { from: pendingSwitch.from, to: current.harness, text: brief };
         }
         const prepared = await prepareAttachments(attachments);
-        const prompt = await preparePrompt(promptText, { harness: current.harness, sessionId, cwd: current.cwd });
+        const prompt = await preparePrompt(await prepareTurnPrompt(), { harness: current.harness, sessionId, cwd: current.cwd });
+        await registerSubmittedLearningContext(learningContext, sessionId, submittedBlockId, !edited);
         if (!isCurrent()) return;
         if (edited && canRewindHarnessLastTurn(current.harness)) {
           await rewindHarnessLastTurn({ harness: current.harness, sessionId, cwd: current.cwd,
@@ -420,6 +433,9 @@ export function useSessionSubmission(options: SubmissionOptions) {
             else applyEvent(event);
           } });
         accepted();
+        if (edited) void linkLearningDiscussion(learningContext, sessionId, submittedBlockId).catch((error: unknown) => {
+          enqueueHarnessEvent(sessionId, { type: "session.error", message: `Could not link the highlighted passage to this discussion: ${String(error)}` });
+        });
         if (isCurrent() && !providerFailed) agentTurnContext?.record(sessionsRef.current.find((session) => session.id === sessionId)?.providerSessionId);
         if (isCurrent() && wrap) setSessions((previous) => previous.map((session) => {
           if (session.id !== sessionId) return session;
@@ -1100,14 +1116,17 @@ export function useSessionSubmission(options: SubmissionOptions) {
     setSessions((previous) => previous.map((session) => session.id === sessionId ? { ...session, runtimeMode } : session));
   }, [setSessions]);
 
-  const saveDraft = useCallback((sessionId: string, text: string, attachments: Attachment[] = [], appRequestId?: string) => {
+  const saveDraft = useCallback((sessionId: string, text: string, attachments: Attachment[] = [], appRequestIdOrContext?: string | LearningMessageContext) => {
+    const appRequestId = typeof appRequestIdOrContext === "string" ? appRequestIdOrContext : undefined;
+    const learningContext = sanitizeLearningContext(appRequestIdOrContext);
     const current = sessionsRef.current.find((session) => session.id === sessionId);
-    if (!current || current.busy || sessionDraftBlock(current) || (!text.trim() && !attachments.length)) return false;
+    if (!current || current.busy || sessionDraftBlock(current) || (!text.trim() && !attachments.length && !learningContext.sources?.length && !learningContext.widgetContext)) return false;
     const title = canReplaceSessionTitle(current.title, current.harness, HARNESS_LABEL[current.harness])
       ? titleFromPrompt(text, current.harness, attachments) : current.title;
     setSessions((previous) => previous.map((session) => session.id === sessionId ? {
       ...session, title, blocks: [...session.blocks, {
         id: crypto.randomUUID(), role: "user", text, draft: true,
+        ...learningContext,
         ...(attachments.length ? { attachments } : {}), ...(appRequestId ? { appRequestId } : {}),
       }],
     } : session));
@@ -1229,6 +1248,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const message = session ? queuedMessageForSubmit(session, messageId, "steer") : undefined;
     if (message) onSubmit(sessionId, message.text, message.attachments, {
       followUpBehavior: "steer", queuedMessageId: message.id, noteCard: message.noteCard,
+      sources: message.sources, widgetContext: message.widgetContext,
     });
   }, [onSubmit, sessionsRef]);
   const resumeQueue = useCallback((sessionId: string) => {
@@ -1251,7 +1271,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
         queueDispatchingRef.current.delete(session.id);
         const current = sessionsRef.current.find((entry) => entry.id === session.id);
         if (!current || current.queuedMessages?.[0]?.id !== head.id || !canDispatchQueuedHead(current)) return;
-        onSubmit(session.id, head.text, head.attachments, { queuedMessageId: head.id, noteCard: head.noteCard });
+        onSubmit(session.id, head.text, head.attachments, { queuedMessageId: head.id, noteCard: head.noteCard, sources: head.sources, widgetContext: head.widgetContext });
       }, 0));
     }
     return () => {

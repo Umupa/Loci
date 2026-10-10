@@ -1,5 +1,60 @@
 import { describe, expect, it } from "vitest";
-import { closeLeaf, layoutLeaves, layoutSashes, leaf, newTab, resetTabToSession, movePane, paneEdgeFromPoint, placePane, splitPane, splitSizesAtBoundary, type WorkspaceTab, } from "./layout";
+import { canvasLeaf, closeLeaf, documentLeaf, documentPaneId, findLeaf, layoutLeaves, layoutSashes, leaf, newTab, resetTabToSession, movePane, paneEdgeFromPoint, placeLayout, placePane, showDocumentInTab, splitPane, splitSizesAtBoundary, type WorkspaceTab, } from "./layout";
+import type { AgentDocument } from "../../sessions/model/cards";
+
+describe("document panes", () => {
+    const document: AgentDocument = { id: "network", title: "Network strategy", body: "# Network" };
+
+    it("opens beside the focused conversation while retaining its canvas", () => {
+        const tab = { ...newTab("chat"), layout: placeLayout(leaf("chat"), canvasLeaf("canvas"), "chat", "right") };
+        const opened = showDocumentInTab(tab, document, "agent-a");
+        expect(layoutLeaves(opened.layout).map(({ id, kind }) => ({ id, kind }))).toEqual([
+            { id: "chat", kind: "session" },
+            { id: documentPaneId(document.id, "agent-a"), kind: "document" },
+            { id: "canvas", kind: "canvas" },
+        ]);
+        expect(opened.focusedId).toBe(documentPaneId(document.id, "agent-a"));
+        expect(opened.id).toBe(tab.id);
+    });
+
+    it("keeps several documents and scopes the same document name to its owner", () => {
+        const first = showDocumentInTab(newTab("chat"), document, "agent-a");
+        const second = showDocumentInTab(first, { ...document, id: "ingress" }, "agent-a");
+        const third = showDocumentInTab(second, document, "agent-b");
+        const panes = layoutLeaves(third.layout);
+        expect(panes).toHaveLength(4);
+        expect(new Set(panes.map(({ id }) => id)).size).toBe(4);
+        expect(panes.filter(({ kind }) => kind === "document").map(({ document, agentId }) => [document?.id, agentId])).toEqual([
+            ["network", "agent-a"], ["ingress", "agent-a"], ["network", "agent-b"],
+        ]);
+        expect(documentPaneId("a:b", "agent-a")).not.toBe(documentPaneId("b", "agent-a:a"));
+    });
+
+    it("refreshes and focuses an open document without creating another pane", () => {
+        const opened = showDocumentInTab(newTab("chat"), document, "agent-a");
+        const revised = { ...document, body: "Revised strategy" };
+        const reopened = showDocumentInTab({ ...opened, focusedId: "chat" }, revised, "agent-a");
+        expect(layoutLeaves(reopened.layout)).toHaveLength(2);
+        expect(findLeaf(reopened.layout, reopened.focusedId)?.document).toEqual(revised);
+    });
+
+    it("retains document text and ownership when dragged below a conversation", () => {
+        const opened = showDocumentInTab(newTab("chat"), document, "agent-a");
+        const moved = movePane(opened.layout, opened.focusedId, "chat", "bottom");
+        expect(layoutLeaves(moved)).toEqual([
+            { id: "chat", kind: "session", rect: { x: 0, y: 0, w: 1, h: 0.5 }, axis: "y" },
+            { id: opened.focusedId, kind: "document", document, agentId: "agent-a", rect: { x: 0, y: 0.5, w: 1, h: 0.5 }, axis: "y" },
+        ]);
+        expect(closeLeaf({ ...opened, layout: moved }, opened.focusedId)).toMatchObject({ layout: leaf("chat"), focusedId: "chat" });
+    });
+
+    it("supports a document as the only pane", () => {
+        const pane = documentLeaf(document);
+        const tab = { ...newTab(pane.id), layout: pane };
+        expect(layoutLeaves(tab.layout)[0]).toMatchObject({ kind: "document", document, rect: { x: 0, y: 0, w: 1, h: 1 } });
+        expect(closeLeaf(tab, pane.id)).toBeNull();
+    });
+});
 describe("splitSizesAtBoundary", () => {
     it("moves only the adjacent panes and preserves their total", () => {
         const result = splitSizesAtBoundary([0.2, 0.3, 0.5], 1, 0.7);

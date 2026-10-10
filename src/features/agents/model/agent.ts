@@ -2,8 +2,8 @@ import { projectKey, projectName } from "../../../shared/lib/paths";
 import {
   loadTabGroupLabels,
   resolveTabGroupLabel,
-  TAB_GROUP_COLORS,
 } from "../../workspace/model/tabGroups";
+import { TAB_GROUP_COLORS } from "../../workspace/model/tabGroupColors";
 import {
   hasPendingApproval,
   type Block,

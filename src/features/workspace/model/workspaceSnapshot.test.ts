@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appendUser } from "../../../integrations/harness/core/apply";
 import { CONTINUE_PROMPT, INTERRUPT_MESSAGE, canAutoContinue, } from "../../sessions/model/inFlight";
-import { canvasLeaf, leaf, leafIds, newTab, splitPane, } from "./layout";
+import { canvasLeaf, documentLeaf, documentPaneId, layoutLeaves, leaf, leafIds, newTab, placeLayout, showDocumentInTab, splitPane, } from "./layout";
 import { newSession, type Session } from "../../sessions/model/session";
 import { collectWorkspaceSnapshot, hydrateWorkspaceSnapshot, parseWorkspaceSnapshot, } from "./workspaceSnapshot";
 import { filterTabsForProject } from "./workspaceTabGroups";
@@ -122,6 +122,53 @@ describe("collectWorkspaceSnapshot", () => {
             }),
         ]);
         expect("blocks" in snapshot.sessions[0]!).toBe(false);
+    });
+});
+describe("document workspace snapshots", () => {
+    const document = { id: "network", title: "Network strategy", subject: "Sandbox", body: "# Network\n\nEgress and ingress." };
+
+    it("reopens documents alongside their conversation and canvas without fake sessions", () => {
+        const session = chat("chat", "/project");
+        const tab = showDocumentInTab({ ...newTab("chat"), layout: placeLayout(leaf("chat"), canvasLeaf("drawing"), "chat", "right") }, document, "agent-a");
+        const snapshot = collectWorkspaceSnapshot([tab], [session], tab.id, session.cwd, new Map());
+        const restored = hydrateWorkspaceSnapshot(JSON.parse(JSON.stringify(snapshot)), new Map());
+        expect(restored?.tabs[0]).toEqual(tab);
+        expect(restored?.sessions.map(({ id }) => id)).toEqual(["chat"]);
+        expect(layoutLeaves(restored!.tabs[0].layout).find(({ kind }) => kind === "document")).toMatchObject({ document, agentId: "agent-a" });
+    });
+
+    it("restores a document-only workspace with its project context", () => {
+        const pane = documentLeaf(document, "agent-a");
+        const tab = { ...newTab(pane.id), layout: pane, cwd: "/project" };
+        const snapshot = collectWorkspaceSnapshot([tab], [], tab.id, "/project", new Map());
+        const restored = hydrateWorkspaceSnapshot(snapshot, new Map());
+        expect(restored?.tabs).toEqual([tab]);
+        expect(restored?.sessions).toEqual([]);
+        expect(restored?.projectCwd).toBe("/project");
+    });
+
+    it("canonicalizes document identity and drops untrusted metadata", () => {
+        const pane = { ...documentLeaf(document, "agent-a"), id: "incorrect", extra: true, document: { ...document, extra: true } };
+        const raw = { tabs: [{ ...newTab("incorrect"), layout: pane }], sessions: [], activeTabId: "missing", projectCwd: "/project" };
+        const parsed = parseWorkspaceSnapshot(raw)!;
+        expect(parsed.tabs[0].layout).toEqual(documentLeaf(document, "agent-a"));
+        expect(parsed.tabs[0].focusedId).toBe(documentPaneId(document.id, "agent-a"));
+    });
+
+    it.each([
+        { document: undefined },
+        { document: [] },
+        { document: { ...document, body: null } },
+        { document: { ...document, id: "" } },
+        { agentId: "../agent-a" },
+        { agentId: 12 },
+    ])("drops a malformed document pane while retaining the conversation: %j", (invalid) => {
+        const tab = showDocumentInTab(newTab("chat"), document, "agent-a");
+        const layout = tab.layout;
+        if (layout.type !== "split") throw new Error("Expected split");
+        const parsed = parseWorkspaceSnapshot({ tabs: [{ ...tab, layout: { ...layout, children: [leaf("chat"), { ...documentLeaf(document, "agent-a"), ...invalid }] } }], activeTabId: tab.id });
+        expect(parsed?.tabs[0].layout).toEqual(leaf("chat"));
+        expect(parsed?.tabs[0].focusedId).toBe("chat");
     });
 });
 describe("parseWorkspaceSnapshot", () => {

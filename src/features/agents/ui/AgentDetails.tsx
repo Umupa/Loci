@@ -1,12 +1,13 @@
 import { CANVASES_CHANGED_EVENT, loadCanvases, type Canvas } from "../../canvas/canvas";
 import { requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
-import { ChevronLeft, ChevronRight, Plus, RotateCcw, Trash2, X } from "../../../shared/ui/icons";
+import { AiIdea, ChevronLeft, ChevronRight, File, Palette, Plus, RotateCcw, Trash2, X } from "../../../shared/ui/icons";
 import type { RecentProject } from "../../projects/model/recents";
 import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/session";
 import { AccessPicker } from "../../sessions/ui/AccessPicker";
-import { ModelPicker } from "../../sessions/ui/ModelPicker";
+import { ModelControlPills, ModelPicker } from "../../sessions/ui/ModelPicker";
+import { loadModelControls, subscribeModelControls } from "../../settings/model/settings";
 import { addAgentProject, agentCanvasScope, agentLook, removeAgentProject, updateAgent, type Agent } from "../model/agent";
 import { defaultAgentName } from "../model/agentAvatars";
 import {
@@ -22,9 +23,12 @@ import { listAgentDocuments, readAgentDocument, subscribeAgentDocuments, type St
 import { openDocument } from "../../sessions/model/cards";
 import { loadHabits, subscribeHabitsRunning } from "../model/agentHabits";
 import { addMemoryEntry, memoryDate, memoryEntry, memoryLines, withoutLine } from "../model/agentMemory";
-import { AgentAvatar } from "./AgentAvatar";
+import { AgentAvatarPreview } from "./AgentAvatar";
 import { AgentHabits } from "./AgentHabits";
 import { ColorPicker, FacePicker, ProjectsField } from "./agentPanelParts";
+import { useSavedWidgets } from "../../learning/hooks/useSavedWidgets";
+import { openWidget, widgetRef } from "../../learning/model/widgets";
+import type { StoredWidget } from "../../learning/model/types";
 
 type Props = {
   agent: Agent;
@@ -94,38 +98,68 @@ function useHabitCount(agentId: string): number | undefined {
 }
 
 /** What the agent has written for the user, newest first, kept current as it writes. */
-function useLibrary(agentId: string): StoredDocument[] | undefined {
+function useLibrary(agentId: string) {
   const [documents, setDocuments] = useState<StoredDocument[]>();
+  const [error, setError] = useState<string>();
+  const [version, setVersion] = useState(0);
+  const owner = useRef(agentId);
   useEffect(() => {
     let current = true;
-    const load = () => void listAgentDocuments(agentId).then((found) => { if (current) setDocuments(found); }, () => undefined);
+    let request = 0;
+    if (owner.current !== agentId) {
+      owner.current = agentId;
+      setDocuments(undefined);
+    }
+    const load = () => {
+      const turn = ++request;
+      setError(undefined);
+      void listAgentDocuments(agentId).then((found) => {
+        if (current && turn === request) setDocuments(found);
+      }, (reason: unknown) => {
+        if (current && turn === request) setError(String(reason));
+      });
+    };
     load();
     const stop = subscribeAgentDocuments(load);
-    return () => {
-      current = false;
-      stop();
-    };
-  }, [agentId]);
-  return documents;
+    return () => { current = false; stop(); };
+  }, [agentId, version]);
+  return { documents, error, reload: () => setVersion((value) => value + 1) };
 }
 
-/** The canvases in the agent's library: the ones it drew for itself, in no project. */
-function useLibraryCanvases(agentId: string): Canvas[] {
-  const [canvases, setCanvases] = useState<Canvas[]>([]);
+/** The canvases in the agent's library: the ones it drew in no project. */
+function useLibraryCanvases(agentId: string) {
+  const [canvases, setCanvases] = useState<Canvas[]>();
+  const [error, setError] = useState<string>();
+  const [version, setVersion] = useState(0);
+  const owner = useRef(agentId);
   useEffect(() => {
     let current = true;
+    let request = 0;
+    if (owner.current !== agentId) {
+      owner.current = agentId;
+      setCanvases(undefined);
+    }
     const scope = agentCanvasScope(agentId);
-    const load = () => void loadCanvases().then((all) => {
-      if (current) setCanvases(all.filter((canvas) => canvas.cwd === scope).sort((a, b) => b.updatedAt - a.updatedAt));
-    }, () => undefined);
-    load();
-    window.addEventListener(CANVASES_CHANGED_EVENT, load);
+    const load = (refresh = false) => {
+      const turn = ++request;
+      setError(undefined);
+      void loadCanvases(refresh).then((all) => {
+        if (current && turn === request) {
+          setCanvases(all.filter((canvas) => canvas.cwd === scope));
+        }
+      }, (reason: unknown) => {
+        if (current && turn === request) setError(String(reason));
+      });
+    };
+    load(version > 0);
+    const onChange = () => load(true);
+    window.addEventListener(CANVASES_CHANGED_EVENT, onChange);
     return () => {
       current = false;
-      window.removeEventListener(CANVASES_CHANGED_EVENT, load);
+      window.removeEventListener(CANVASES_CHANGED_EVENT, onChange);
     };
-  }, [agentId]);
-  return canvases;
+  }, [agentId, version]);
+  return { canvases, error, reload: () => setVersion((value) => value + 1) };
 }
 
 const fieldClass =
@@ -138,17 +172,24 @@ const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-cont
  */
 export function AgentDetails({ agent, session, onModelChange, onModelSettingsChange, onRuntimeModeChange, recents, refreshKey, onPickFolders, onReset, onDelete, onClose }: Props) {
   const look = agentLook(agent);
+  const modelControls = useSyncExternalStore(subscribeModelControls, loadModelControls, () => "menu" as const);
+  const controlsBeside = modelControls === "beside";
   const { files, error } = useAgentFiles(agent.id, refreshKey);
   const habits = useHabitCount(agent.id);
   const library = useLibrary(agent.id);
   const libraryCanvases = useLibraryCanvases(agent.id);
+  const savedWidgets = useSavedWidgets({ kind: "agent", id: agent.id });
+  const libraryCount = library.documents && libraryCanvases.canvases && savedWidgets.widgets
+    ? library.documents.length + libraryCanvases.canvases.length + savedWidgets.widgets.length
+    : undefined;
+  const libraryError = library.error ?? libraryCanvases.error ?? savedWidgets.error;
   const [page, setPage] = useState<Page>();
   // Another agent's details start from the top.
   useEffect(() => setPage(undefined), [agent.id]);
   const facts = files ? memoryLines(files.memory).filter((fact) => !fact.struck).length : undefined;
 
   return (
-    <aside aria-label={`${look.name} details`} className="flex w-[340px] shrink-0 flex-col border-l border-stroke bg-background-base/70 backdrop-blur-xl">
+    <aside aria-label={`${look.name} details`} className="flex w-[340px] max-w-full shrink-0 flex-col border-l border-stroke bg-background-base/70 backdrop-blur-xl">
       <header className="flex h-11 shrink-0 items-center gap-1.5 px-3">
         {page ? (
           <button type="button" title="Back" aria-label="Back to details" onClick={() => setPage(undefined)} className={iconButton}>
@@ -166,7 +207,9 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
       ) : page === "memory" ? (
         files ? <MemoryPage agentId={agent.id} files={files} /> : <PageNote>{error ?? "Loading…"}</PageNote>
       ) : page === "library" ? (
-        <LibraryPage agentId={agent.id} documents={library ?? []} canvases={libraryCanvases} />
+        <LibraryPage agentId={agent.id} documents={library.documents} canvases={libraryCanvases.canvases}
+          widgets={savedWidgets.widgets} error={libraryError} onOpenCanvas={onClose}
+          onRetry={() => { library.reload(); libraryCanvases.reload(); savedWidgets.reload(); }} />
       ) : page === "habits" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4">
           <p className="text-xs leading-snug text-content/45">What it does on its own, on a schedule, while Loci is open. It writes to this chat only when there is something to say.</p>
@@ -175,7 +218,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="flex flex-col items-center gap-3 px-4 pb-5 pt-3">
-            <AgentAvatar name={look.avatar} color={look.color} className="size-10" />
+            <AgentAvatarPreview key={agent.id} name={look.avatar} color={look.color} />
             <div className="flex w-full flex-col items-center">
               <NameField key={`name:${agent.id}:${agent.name ?? ""}`} agent={agent} />
               <RoleField key={`role:${agent.id}:${agent.role ?? ""}`} agent={agent} />
@@ -186,8 +229,14 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
 
           <div className="flex flex-col gap-1 border-t border-stroke px-4 py-3">
             <Property label="Model">
-              <ModelPicker harness={session.harness} model={session.model} values={session.modelSettings}
-                onChange={onModelChange} onSettingsChange={onModelSettingsChange} />
+              <div className="flex flex-wrap items-center gap-1">
+                <ModelPicker harness={session.harness} model={session.model} values={session.modelSettings}
+                  hideSettings={controlsBeside} onChange={onModelChange} onSettingsChange={onModelSettingsChange} />
+                {controlsBeside ? (
+                  <ModelControlPills harness={session.harness} model={session.model} values={session.modelSettings}
+                    onSettingsChange={onModelSettingsChange} />
+                ) : null}
+              </div>
             </Property>
             <Property label="Permissions">
               <AccessPicker value={session.runtimeMode} busy={!!session.busy} onChange={onRuntimeModeChange} />
@@ -202,7 +251,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
             <PageRow title="Soul" description="Who it is and the rules it always follows." onOpen={() => setPage("soul")} />
             <PageRow title="Habits" description="Recurring tasks it runs on its own." count={habits} onOpen={() => setPage("habits")} />
             <PageRow title="Memory" description="Facts and preferences it remembers." count={facts} onOpen={() => setPage("memory")} />
-            <PageRow title="Library" description="Documents and canvases it made for you." count={library ? library.length + libraryCanvases.length : undefined} onOpen={() => setPage("library")} />
+            <PageRow title="Library" description="Documents, drawings and explanations." count={libraryCount} onOpen={() => setPage("library")} />
           </div>
 
           <div className="flex flex-col border-t border-stroke p-2">
@@ -259,43 +308,81 @@ function ActionRow({ title, description, icon, danger = false, onClick }: { titl
   );
 }
 
-const libraryDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const libraryDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+type LibraryEntry =
+  | { kind: "document"; item: StoredDocument }
+  | { kind: "canvas"; item: Canvas }
+  | { kind: "widget"; item: StoredWidget };
+const LIBRARY_KINDS = {
+  document: { Icon: File, label: "Document" },
+  canvas: { Icon: Palette, label: "Canvas" },
+  widget: { Icon: AiIdea, label: "Interactive explanation" },
+};
 
-/** What the agent made to keep: documents grouped by what they are about, then its canvases. */
-function LibraryPage({ agentId, documents, canvases }: { agentId: string; documents: StoredDocument[]; canvases: Canvas[] }) {
-  const open = (entry: StoredDocument) => void readAgentDocument(agentId, entry.id).then((found) => {
-    if (found?.body != null) openDocument({ id: found.id, title: found.title, ...(found.subject ? { subject: found.subject } : {}), body: found.body });
-  }, () => undefined);
-  const groups = new Map<string, StoredDocument[]>();
-  for (const entry of documents) {
-    const subject = entry.subject?.trim() || "";
-    groups.set(subject, [...(groups.get(subject) ?? []), entry]);
-  }
+/** One recent-first list; metadata stays available without crowding titles. */
+function LibraryPage({ agentId, documents, canvases, widgets, error, onOpenCanvas, onRetry }: {
+  agentId: string;
+  documents?: StoredDocument[];
+  canvases?: Canvas[];
+  widgets?: StoredWidget[];
+  error?: string;
+  onOpenCanvas: () => void;
+  onRetry: () => void;
+}) {
+  const [openError, setOpenError] = useState<string>();
+  const opening = useRef(0);
+  useEffect(() => () => { opening.current += 1; }, [agentId]);
+  const entries: LibraryEntry[] = [
+    ...(documents ?? []).map((item): LibraryEntry => ({ kind: "document", item })),
+    ...(canvases ?? []).map((item): LibraryEntry => ({ kind: "canvas", item })),
+    ...(widgets ?? []).map((item): LibraryEntry => ({ kind: "widget", item })),
+  ];
+  entries.sort((a, b) => b.item.updatedAt - a.item.updatedAt || a.item.id.localeCompare(b.item.id));
+  const loaded = documents !== undefined && canvases !== undefined && widgets !== undefined;
+  const open = async (entry: LibraryEntry) => {
+    const turn = ++opening.current;
+    setOpenError(undefined);
+    if (entry.kind === "canvas") {
+      onOpenCanvas();
+      requestOpenAppResource({ kind: "canvas", id: entry.item.id });
+    } else if (entry.kind === "widget") {
+      openWidget(widgetRef(entry.item), entry.item.sourceSessionId, entry.item.title);
+    } else {
+      try {
+        const found = await readAgentDocument(agentId, entry.item.id);
+        if (turn !== opening.current) return;
+        if (found?.body == null) throw new Error("Document is no longer available.");
+        openDocument({ id: found.id, title: found.title, ...(found.subject ? { subject: found.subject } : {}), body: found.body }, agentId);
+      } catch (reason) {
+        if (turn === opening.current) setOpenError(String(reason));
+      }
+    }
+  };
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 pb-4">
-      <p className="px-2 text-xs leading-snug text-content/45">What it has made for you to keep. A document opens beside the chat and can be saved to your notes; a canvas opens to draw on.</p>
-      {documents.length + canvases.length === 0 ? <p className="py-6 text-center text-xs text-content/40">Nothing here yet.</p> : null}
-      {[...groups].map(([subject, entries]) => (
-        <section key={subject} className="flex flex-col">
-          {subject ? <h3 className="px-2 pb-1 text-xs text-content/50">{subject}</h3> : null}
-          {entries.map((entry) => (
-            <button key={entry.id} type="button" onClick={() => open(entry)} className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-content/6">
-              <span className="min-w-0 flex-1 truncate text-[13px] text-content">{entry.title}</span>
-              <span className="shrink-0 text-[11px] text-content/40">{libraryDate.format(entry.updatedAt)}</span>
-            </button>
-          ))}
-        </section>
-      ))}
-      {canvases.length ? (
-        <section className="flex flex-col">
-          <h3 className="px-2 pb-1 text-xs text-content/50">Canvases</h3>
-          {canvases.map((canvas) => (
-            <button key={canvas.id} type="button" onClick={() => requestOpenAppResource({ kind: "canvas", id: canvas.id })} className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-content/6">
-              <span className="min-w-0 flex-1 truncate text-[13px] text-content">{canvas.title}</span>
-              <span className="shrink-0 text-[11px] text-content/40">{libraryDate.format(canvas.updatedAt)}</span>
-            </button>
-          ))}
-        </section>
+    <div data-agent-library className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4">
+      {entries.map((entry) => {
+        const { Icon, label } = LIBRARY_KINDS[entry.kind];
+        const subject = entry.kind === "canvas" ? undefined : entry.item.subject;
+        return (
+          <button key={`${entry.kind}:${entry.item.id}`} type="button"
+            data-library-kind={entry.kind} data-library-id={entry.item.id}
+            aria-label={`${label}: ${entry.item.title}`}
+            title={[entry.item.title, [label, subject].filter(Boolean).join(" · "), libraryDate.format(entry.item.updatedAt)].join("\n")}
+            onClick={() => void open(entry)}
+            className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-content/6 focus-visible:bg-content/6 focus-visible:outline-2 focus-visible:outline-content/30">
+            <Icon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-content/40" strokeWidth={1.75} />
+            <span className="min-w-0 flex-1 line-clamp-2 break-words text-[13px] leading-5 text-content">{entry.item.title}</span>
+          </button>
+        );
+      })}
+      {openError ? <p role="alert" className="px-2 py-2 text-xs text-red-400" title={openError}>Could not open this document.</p> : null}
+      {error ? (
+        <div role="alert" className="flex items-center gap-2 px-2 py-2 text-xs text-content/50" title={error}>
+          <span className="min-w-0 flex-1">Some items could not be loaded.</span>
+          <button type="button" onClick={onRetry} className="shrink-0 rounded px-1 py-0.5 text-content/80 hover:bg-content/8">Retry</button>
+        </div>
+      ) : entries.length === 0 ? (
+        <p role="status" className="px-2 py-6 text-center text-xs text-content/45">{loaded ? "Nothing saved yet." : "Loading library…"}</p>
       ) : null}
     </div>
   );
@@ -313,7 +400,7 @@ function NameField({ agent }: { agent: Agent }) {
   );
 }
 
-/** Its one main job in a few words, under its name; the agent proposes it during setup. */
+/** Its short job label; a new agent can infer it from the user's first message. */
 function RoleField({ agent }: { agent: Agent }) {
   const [role, setRole] = useState(agent.role ?? "");
   const save = () => updateAgent(agent.id, (current) => ({ ...current, role: role.trim() }));
@@ -356,7 +443,7 @@ function SoulPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
   useEffect(() => () => void latest.current().catch(() => undefined), []);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pb-4">
-      <p className="text-xs leading-snug text-content/45">Its standing instructions, in Markdown. It reads them at the start of each provider conversation; it changes them only when you ask.</p>
+      <p className="text-xs leading-snug text-content/45">The rules it keeps while helping you. Refine them here or in chat.</p>
       <textarea aria-label="Soul" value={text} spellCheck={false} className={`${fieldClass} min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed`}
         onChange={(event) => setText(event.target.value)} onBlur={() => void save()} />
       {conflict ? (

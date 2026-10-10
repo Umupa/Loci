@@ -964,7 +964,7 @@ export function saveSessionSidebarOpen(value: boolean) {
 }
 
 /** Which list-and-content pages keep their list column open. */
-export type SecondarySidebarId = "notes" | "canvases";
+export type SecondarySidebarId = "notes";
 
 export function loadSecondarySidebarOpen(id: SecondarySidebarId): boolean {
   return readFlag(`loci.${id}ListOpen`) ?? true;

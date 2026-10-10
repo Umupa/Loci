@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, type RefObject } from "react";
+import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import {
   COIN_EDGE_PATH,
@@ -50,6 +50,7 @@ type Props = {
   cwd: string;
   busy: boolean;
   enabled?: boolean;
+  avatar?: ReactNode;
   onExited: () => void;
 };
 
@@ -62,12 +63,13 @@ const COIN_SVG = `<svg viewBox="0 0 8 8" width="${COIN_SIZE}" height="${COIN_SIZ
 const STAR_SVG = `<svg viewBox="0 0 8 8" width="${STAR_SIZE}" height="${STAR_SIZE}" shape-rendering="crispEdges" fill="#f4e27a" aria-hidden="true"><path class="composer-coin-face" d="${STAR_FACE_PATH}"/><path class="composer-coin-edge" d="${STAR_EDGE_PATH}"/></svg>`;
 const GEOMETRY_SAMPLE_MS = 100;
 
-/** Project pixel mascot running the composer's top ledge while a turn is live. */
+/** Pixel mascot or agent avatar running the composer's top ledge while a turn is live. */
 export function ComposerRunner({
   boxRef,
   cwd,
   busy,
   enabled = true,
+  avatar,
   onExited,
 }: Props) {
   const layerRef = useRef<HTMLDivElement>(null);
@@ -476,13 +478,17 @@ export function ComposerRunner({
           clipPath: "inset(0 0 var(--runner-clip, 0px) 0)",
         }}
       >
-        <ProjectMascot
-          project={project}
-          name={appearance.name}
-          color={appearance.color}
-          className="size-4"
-          active
-        />
+        {avatar == null ? (
+          <ProjectMascot
+            project={project}
+            name={appearance.name}
+            color={appearance.color}
+            className="size-4"
+            active
+          />
+        ) : (
+          <div className="mascot-active size-4">{avatar}</div>
+        )}
       </div>
       <div ref={starsRef} className="absolute inset-0" />
     </div>,

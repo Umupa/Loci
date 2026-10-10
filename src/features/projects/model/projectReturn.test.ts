@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { newTab, placePane, type WorkspaceTab } from "../../workspace/model/layout";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { canvasLeaf, documentLeaf, documentPaneId, newTab, placeLayout, placePane, type WorkspaceTab } from "../../workspace/model/layout";
 import { newSession, type Session } from "../../sessions/model/session";
-import { planProjectReturn, reconcileProjectReturn } from "./projectReturn";
+import { isBlankSession, planProjectReturn, reconcileProjectReturn } from "./projectReturn";
 import { emptyTabVisitHistory, recordTabVisit, tabVisitBack, } from "../../workspace/model/tabVisitHistory";
 import { removeSessionFromWorkspace } from "../../sessions/model/sessionWorkspaceLifecycle";
 import { applyPlaceSessionOnPane } from "../../workspace/model/workspaceTabGroups";
@@ -244,5 +244,62 @@ describe("project selection", () => {
             activeTabId: first.id,
             projectPath: "/beta",
         })).toEqual({ action: "keep" });
+    });
+});
+
+describe("agent and library project context", () => {
+    beforeEach(() => {
+        vi.stubGlobal("localStorage", {
+            getItem: (key: string) => key === "loci:agent-roster"
+                ? JSON.stringify([{ id: "agent-1", sessionId: "agent-chat", projects: [] }]) : null,
+        });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("does not reuse an agent's empty conversation as a blank project session", () => {
+        const agent = { ...chat("agent-chat", "/Users/me"), blocks: [] };
+        const tab = { ...newTab(agent.id), cwd: "/alpha" };
+        expect(isBlankSession(agent)).toBe(false);
+        expect(isBlankSession({ ...agent, id: "ordinary-chat" })).toBe(true);
+        expect(planProjectReturn({ tabs: [tab], sessions: [agent], activeTabId: tab.id, memory: new Map(), projectPath: "/beta" })).toEqual({ action: "create" });
+    });
+
+    it("remembers an agent in the workspace project instead of its runtime home", () => {
+        const agent = chat("agent-chat", "/Users/me");
+        const tab = { ...newTab(agent.id), cwd: "/alpha" };
+        const state = { tabs: [tab], sessions: [agent], activeTabId: tab.id, memory: new Map<string, string>() };
+        const memory = reconcileProjectReturn(state);
+        expect([...memory]).toEqual([["/alpha", agent.id]]);
+        expect(planProjectReturn({ ...state, memory, projectPath: "/alpha" })).toEqual({ action: "keep" });
+        expect(planProjectReturn({ ...state, memory, projectPath: "/Users/me" })).toEqual({ action: "create" });
+    });
+
+    it.each(["document", "canvas"] as const)("returns to a focused %s beside an agent", (kind) => {
+        const agent = chat("agent-chat", "/Users/me");
+        const other = chat("other", "/beta");
+        const pane = kind === "document"
+            ? documentLeaf({ id: "network", title: "Network policy", body: "# Policy" }, "agent-1")
+            : canvasLeaf("drawing");
+        const paneId = kind === "document" ? documentPaneId("network", "agent-1") : "drawing";
+        const tab = { ...newTab(agent.id), cwd: "/alpha", layout: placeLayout(newTab(agent.id).layout, pane, agent.id, "right"), focusedId: paneId };
+        const otherTab = newTab(other.id);
+        const state = { tabs: [tab, otherTab], sessions: [agent, other], activeTabId: tab.id, memory: new Map<string, string>() };
+        const memory = reconcileProjectReturn(state);
+        expect(memory.get("/alpha")).toBe(paneId);
+        expect(planProjectReturn({ ...state, activeTabId: otherTab.id, memory, projectPath: "/alpha" })).toEqual({ action: "activate", tabId: tab.id, paneId });
+    });
+
+    it("finds a document-only project tab even without a remembered choice", () => {
+        const paneId = documentPaneId("network", "agent-1");
+        const tab = { ...newTab(paneId), cwd: "/alpha", layout: documentLeaf({ id: "network", title: "Network policy", body: "# Policy" }, "agent-1") };
+        const other = chat("other", "/beta");
+        const otherTab = newTab(other.id);
+        expect(planProjectReturn({ tabs: [tab, otherTab], sessions: [other], activeTabId: otherTab.id, memory: new Map(), projectPath: "/alpha" })).toEqual({ action: "activate", tabId: tab.id, paneId });
+    });
+
+    it("keeps projectless agents out of project return memory", () => {
+        const agent = chat("agent-chat", "/Users/me");
+        const tab = newTab(agent.id);
+        expect(reconcileProjectReturn({ tabs: [tab], sessions: [agent], activeTabId: tab.id, memory: new Map() }).size).toBe(0);
     });
 });

@@ -2,24 +2,25 @@ export const ADD_TO_CHAT_EVENT = "loci:add-to-chat";
 
 export type AddToChatMode = "quote" | "plain";
 
-export type AddToChatRequest = {
+export type AddToChatRequest = LearningMessageContext & {
   text: string;
   mode: AddToChatMode;
+  targetSessionId?: string;
 };
 
-export type QuoteRequest = {
+export type QuoteRequest = LearningMessageContext & {
   id: number;
   text: string;
   mode?: AddToChatMode;
 };
 
-export function requestAddToChat(text: string, mode: AddToChatMode = "quote") {
+export function requestAddToChat(text: string, mode: AddToChatMode = "quote", context?: LearningMessageContext & { targetSessionId?: string }) {
   if (typeof window === "undefined") return;
   const value = text.replace(/\r\n?/g, "\n").trim();
-  if (!value) return;
+  if (!value && !context?.sources?.length && !context?.widgetContext) return;
   window.dispatchEvent(
     new CustomEvent<AddToChatRequest>(ADD_TO_CHAT_EVENT, {
-      detail: { text: value, mode },
+      detail: { text: value, mode, ...context },
     }),
   );
 }
@@ -104,3 +105,4 @@ function joinComposerInsert(draft: string, block: string): string {
           : "\n\n";
   return `${draft}${separator}${block}\n\n`;
 }
+import type { LearningMessageContext } from "../../learning/model/types";

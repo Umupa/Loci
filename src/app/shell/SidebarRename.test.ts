@@ -504,7 +504,7 @@ describe("sidebar reorder affordances", () => {
         }));
         act(() => render());
         const tabs = container.querySelectorAll<HTMLElement>('.workspace-tab');
-        expect(Array.from(tabs, (tab) => tab.textContent)).toEqual(["Sessions", "Files", "Canvas"]);
+        expect(Array.from(tabs, (tab) => tab.textContent)).toEqual(["Sessions", "Files"]);
         for (const tab of tabs) {
             expect(tab.className).not.toContain("cursor-grab");
             expect(tab.parentElement?.className).not.toContain("cursor-grab");
@@ -644,29 +644,16 @@ describe("sidebar session reminders", () => {
     });
 });
 describe("collapsed rail actions", () => {
-    it.each([false, true])("opens the drawings page from Canvas without a project, with project rail %s", async (projectRailOpen) => {
+    it.each([false, true])("has no Canvas entry without a project, with project rail %s", async (projectRailOpen) => {
         props.cwd = "~";
         props.projectRailOpen = projectRailOpen;
         props.onSelectProject = vi.fn();
         props.onOpenProject = vi.fn();
-        const openAll = vi.fn();
-        props.onOpenCanvases = openAll;
-        props.onOpenCanvas = vi.fn();
-        props.onOpenCanvasInTab = vi.fn();
-        props.onNewCanvas = vi.fn();
-        props.onRenameCanvas = vi.fn();
-        props.onDeleteCanvas = vi.fn();
         await act(async () => render());
-        const pick = (label: string) => [...container.querySelectorAll<HTMLElement>('button')]
-            .find((button) => button.getAttribute("aria-label") === label || button.textContent === label)!;
-        try {
-            const entry = pick("Canvas");
-            expect(entry).toBeDefined();
-            await act(async () => entry.click());
-            expect(openAll).toHaveBeenCalledOnce();
-        } finally {
-            await act(async () => pick("Sessions")?.click());
-        }
+        expect(container.querySelector("aside")).toBeNull();
+        expect(container.querySelector('button[aria-label="Canvas"], button[aria-label="Excalidraw"], button[aria-label="All Drawings"]')).toBeNull();
+        const workspaceTabs = container.querySelectorAll('[role="tablist"][aria-label="Workspace"] [role="tab"]');
+        expect(Array.from(workspaceTabs, (button) => button.getAttribute("aria-label"))).toEqual(projectRailOpen ? [] : ["Sessions", "Files"]);
     });
 
     it("restores the hidden rail layout when compact mode is disabled", async () => {
@@ -700,35 +687,26 @@ describe("collapsed rail actions", () => {
         expect(container.textContent).not.toContain("Development");
         expect(container.querySelector('button[aria-label^="Back"]')).toBeNull();
     });
-    it("has one way into drawings: the Canvas tab, which also reaches the page of all of them", async () => {
-        props.projectRailOpen = false;
+    it.each([
+        ["full rail", true, true],
+        ["compact rail", false, true],
+        ["sidebar header", false, false],
+    ] as const)("offers only Sessions and Files in the %s workspace", async (_, projectRailOpen, compactProjectRail) => {
+        props.projectRailOpen = projectRailOpen;
+        props.compactProjectRail = compactProjectRail;
         props.onSelectProject = vi.fn();
         props.onOpenProject = vi.fn();
         props.onOpenNotes = vi.fn();
         props.onOpenSettings = vi.fn();
         props.onToggleProjectRail = vi.fn();
-        const openAll = vi.fn();
-        props.onOpenCanvases = openAll;
-        props.onOpenCanvas = vi.fn();
-        props.onOpenCanvasInTab = vi.fn();
-        props.onNewCanvas = vi.fn();
-        props.onRenameCanvas = vi.fn();
-        props.onDeleteCanvas = vi.fn();
         await act(async () => render());
-        const rail = container.querySelector<HTMLElement>("[data-compact-project-rail]")!;
-        const labels = Array.from(rail.querySelectorAll("button"), (button) => button.getAttribute("aria-label")?.replace(/ \(.+\)$/, ""));
-        // The page of drawings is no longer a second icon beside the tab.
-        expect(labels.filter((label) => label === "Excalidraw" || label === "Canvas")).toEqual(["Canvas"]);
-        // The tab carries the Excalidraw mark rather than a generic pen.
-        const canvasTab = rail.querySelector<HTMLElement>('button[aria-label="Canvas"]')!;
-        expect(canvasTab.querySelector("svg")).not.toBeNull();
-        await act(async () => canvasTab.click());
-        const all = container.querySelector<HTMLElement>('button[aria-label="All Drawings"]');
-        expect(all).not.toBeNull();
-        await act(async () => all!.click());
-        expect(openAll).toHaveBeenCalledOnce();
-        // The chosen tab is remembered across mounts; leave it as other tests expect.
-        await act(async () => rail.querySelector<HTMLElement>('button[aria-label="Sessions"]')!.click());
+        const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tablist"][aria-label="Workspace"] [role="tab"]'));
+        expect(tabs.map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual(["Sessions", "Files"]);
+        expect(container.querySelector('button[aria-label="Canvas"], button[aria-label="Excalidraw"], button[aria-label="All Drawings"]')).toBeNull();
+        act(() => tabs[1].click());
+        expect(tabs[1].getAttribute("aria-selected")).toBe("true");
+        act(() => tabs[0].click());
+        expect(tabs[0].getAttribute("aria-selected")).toBe("true");
     });
     it("keeps project shortcuts in a compact vertical rail", async () => {
         props.projectRailOpen = false;
@@ -754,14 +732,13 @@ describe("collapsed rail actions", () => {
             "Switch project, current project project",
             "Sessions",
             "Files",
-            "Canvas",
             "Search",
             "Notes",
             "Settings",
         ]);
         const workspaceTabs = rail.querySelector<HTMLElement>('[role="tablist"][aria-label="Workspace"]')!;
         expect(workspaceTabs).not.toBeNull();
-        expect(Array.from(workspaceTabs.querySelectorAll('[role="tab"]'), (button) => button.getAttribute("aria-label"))).toEqual(["Sessions", "Files", "Canvas"]);
+        expect(Array.from(workspaceTabs.querySelectorAll('[role="tab"]'), (button) => button.getAttribute("aria-label"))).toEqual(["Sessions", "Files"]);
         const sessionsTab = workspaceTabs.querySelector<HTMLButtonElement>('[aria-label="Sessions"]')!;
         expect(sessionsTab.getAttribute("aria-selected")).toBe("true");
         expect(sessionsTab.querySelector("span")).toBeNull();

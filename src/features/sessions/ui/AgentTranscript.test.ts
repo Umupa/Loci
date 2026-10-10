@@ -15,6 +15,83 @@ function tool(id: string, approval?: Block["approval"]): Block {
 function render(blocks: Block[], busy = false, latestTurnAccessory?: ReactNode) {
     return renderToStaticMarkup(createElement(AgentTranscript, { blocks, busy, latestTurnAccessory }));
 }
+describe("AgentTranscript turn status", () => {
+    const prompt: Block = { id: "status-prompt", role: "user", text: "Check this", startedAt: 1000 };
+
+    it("tracks progress from initial thinking through tool work to the streamed reply", () => {
+        const thinking = render([prompt], true);
+        expect(thinking).toContain('data-work-state="thinking"');
+        expect(thinking).toContain("Thinking it through");
+        expect(thinking).toContain('data-work-animated="true"');
+
+        const working = render([prompt, {
+            id: "status-tool", role: "tool", text: "Inspect the project",
+            tool: { kind: "shell", status: "in_progress" },
+        }], true);
+        expect(working).toContain('data-work-state="working"');
+
+        const replying = render([prompt, {
+            id: "status-answer", role: "assistant", text: "Here is what I found.", streaming: true,
+        }], true);
+        expect(replying).toContain('data-work-state="responding"');
+        expect(replying).toContain("Replying");
+    });
+
+    it("pauses motion while waiting for a reply or preparing an agent handoff", () => {
+        const waiting = renderToStaticMarkup(createElement(AgentTranscript, {
+            blocks: [prompt], busy: true, pendingQuestion: true,
+        }));
+        expect(waiting).toContain('data-work-state="waiting"');
+        expect(waiting).toContain("Waiting for your reply");
+        expect(waiting).not.toContain("data-work-animated");
+
+        const switching = render([prompt, {
+            id: "status-handoff", role: "handoff", text: "",
+            handoff: { from: "codex", to: "claude", status: "preparing" },
+        }], true);
+        expect(switching).toContain('data-work-state="waiting"');
+        expect(switching).toContain("Switching agent");
+        expect(switching).not.toContain("data-work-animated");
+    });
+
+    it("keeps hidden unfinished work live without declaring completion or playing motion", () => {
+        const markup = renderToStaticMarkup(createElement(AgentTranscript, {
+            blocks: [prompt], busy: true, visible: false,
+        }));
+        expect(markup).toContain('data-work-fold="live"');
+        expect(markup).toContain('data-work-state="thinking"');
+        expect(markup).toContain("Thinking it through");
+        expect(markup).not.toContain("data-work-animated");
+        expect(markup).not.toContain("Work complete");
+        expect(markup).not.toContain(">Done<");
+    });
+
+    it("retains error and interruption outcomes instead of announcing a successful turn", () => {
+        for (const [notice, state, label] of [
+            ["error", "error", "Turn failed"],
+            ["interrupt", "interrupted", "Turn interrupted"],
+        ] as const) {
+            const markup = render([
+                { ...prompt, durationMs: 2000 },
+                { id: "status-notice", role: "system", text: "The turn ended early.", notice },
+            ]);
+            expect(markup).toContain(`data-work-state="${state}"`);
+            expect(markup).toContain(label);
+            expect(markup).not.toContain("Work complete");
+            expect(markup).not.toContain("data-work-animated");
+        }
+    });
+    it("recognizes an interrupted turn saved before notices were tagged", () => {
+        const markup = render([
+            { ...prompt, durationMs: 2000 },
+            { id: "legacy-interrupt", role: "system", text: "Turn interrupted when Loci quit." },
+        ]);
+        expect(markup).toContain('data-work-state="interrupted"');
+        expect(markup).toContain("Stopped");
+        expect(markup).not.toContain("Work complete");
+        expect(markup).not.toContain("Completed");
+    });
+});
 describe("AgentTranscript collapsed work", () => {
     it("keeps the completed time beside actions when a turn has no BTW control", () => {
         const markup = render([
@@ -170,28 +247,36 @@ describe("AgentTranscript collapsed work", () => {
         expect(markup).toContain("Open example.com");
         expect(markup).not.toContain("Please check https://example.com/docs");
     });
-    it("keeps each completed turn's recorded model label", () => {
-        const blocks: Block[] = [
-            {
-                id: "user",
-                role: "user",
-                text: "Remember this",
-                durationMs: 9000,
-                turnModel: {
-                    harness: "claude",
-                    id: "claude:sonnet-5",
-                    name: "Claude Sonnet 5",
-                },
+    it("omits recorded and selected models from running and completed turn chrome after a model switch", () => {
+        const user: Block = {
+            id: "user",
+            role: "user",
+            text: "Remember this",
+            turnModel: {
+                harness: "claude",
+                id: "claude:sonnet-5",
+                name: "Claude Sonnet 5",
             },
-            { id: "answer", role: "assistant", text: "Remembered." },
-        ];
-        const markup = renderToStaticMarkup(createElement(AgentTranscript, {
-            blocks,
-            harness: "claude",
-            model: "claude:opus-5",
-        }));
-        expect(markup).toContain("Claude Sonnet 5 worked for 9s");
-        expect(markup).not.toContain("Claude Opus 5 worked for 9s");
+        };
+        for (const model of ["claude:sonnet-5", "claude:opus-5"]) {
+            const running = renderToStaticMarkup(createElement(AgentTranscript, {
+                blocks: [user], busy: true, harness: "claude", model,
+            }));
+            const completed = renderToStaticMarkup(createElement(AgentTranscript, {
+                blocks: [
+                    { ...user, durationMs: 9000 },
+                    { id: "answer", role: "assistant", text: "Remembered." },
+                ],
+                harness: "claude", model,
+            }));
+            for (const markup of [running, completed]) {
+                expect(markup).not.toContain("Claude Sonnet 5");
+                expect(markup).not.toContain("Claude Opus 5");
+                expect(markup).not.toContain("data-work-model");
+                expect(markup).not.toContain("data-work-provider");
+            }
+            expect(completed).toContain('aria-label="Worked for 9s"');
+        }
     });
     it("does not assign the current model to a legacy completed turn", () => {
         const blocks: Block[] = [

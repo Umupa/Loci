@@ -15,6 +15,19 @@ isPersistableId,
 persistFingerprint,
 sanitizeSessionForPersist
 } from "./sessionStore";
+import { hydrateStoredBlocks } from "./sessionStore";
+
+it("persists and hydrates source quotes and widget conditions on user turns", () => {
+  const context = {
+    sources: [{ id: "source", kind: "conversation" as const, title: "Experiment", quote: "The sender remained blocked.", sessionId: "session", blockId: "tool:42" }],
+    widgetContext: { owner: { kind: "session" as const, id: "session" }, id: "trace", title: "Trace", revision: 2, state: { step: 4 } },
+  };
+  const initial = newSession("codex", "/project");
+  initial.blocks = [{ id: "question", role: "user", text: "Why?", ...context }];
+  const stored = sanitizeSessionForPersist(initial);
+  expect(stored.blocks[0]).toMatchObject(context);
+  expect(hydrateStoredBlocks(JSON.parse(JSON.stringify(stored.blocks)))[0]).toMatchObject(context);
+});
 
 describe("Claude Shell row recovery", () => {
   it("restores only matching placeholder rows and preserves tool output", () => {

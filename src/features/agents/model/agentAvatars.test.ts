@@ -1,28 +1,64 @@
+// @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { PROJECT_MASCOTS } from "../../projects/model/projectMascots";
 import {
   AGENT_AVATARS,
-  AVATAR_GRID,
   agentAvatar,
-  avatarPath,
   defaultAgentName,
 } from "./agentAvatars";
 
 describe("agentAvatars", () => {
-  it("keeps every face on the mascots' grid, each with its own head and two eyes", () => {
-    expect(AGENT_AVATARS).toHaveLength(10);
-    expect(new Set(AGENT_AVATARS.map((avatar) => avatar.headPath)).size).toBe(10);
+  it("keeps the persisted Bottts names and adds a matching Neutral series on its own canvas", () => {
+    const bottts = AGENT_AVATARS.filter((avatar) => avatar.style === "bottts");
+    const neutral = AGENT_AVATARS.filter((avatar) => avatar.style === "bottts-neutral");
+    expect(bottts.map((avatar) => avatar.name)).toEqual([
+      "ember",
+      "wisp",
+      "dew",
+      "moss",
+      "nimbus",
+      "pebble",
+      "luna",
+      "nova",
+      "flint",
+      "tide",
+    ]);
+    expect(neutral.map((avatar) => avatar.name)).toEqual(bottts.map((avatar) => `neutral-${avatar.name}`));
+    expect(AGENT_AVATARS).toHaveLength(20);
+    for (const avatar of bottts) expect(avatar.viewBox).toBe("0 0 180 180");
+    for (const avatar of neutral) expect(avatar.viewBox).toBe("0 0 120 120");
+    expect(new Set(AGENT_AVATARS.map((avatar) => avatar.markup)).size).toBe(20);
+  });
+
+  it("embeds local artwork whose base color can follow the agent's color", () => {
     for (const avatar of AGENT_AVATARS) {
-      expect(avatar.rows).toHaveLength(AVATAR_GRID);
-      for (const row of avatar.rows) {
-        expect(row).toMatch(new RegExp(`^[#o.]{${AVATAR_GRID}}$`));
+      expect(avatar.markup).toContain('fill="currentColor"');
+      expect(avatar.markup).not.toMatch(/<(?:script|foreignObject|image|filter)\b/i);
+      expect(avatar.markup).not.toMatch(/\bon\w+\s*=|(?:https?:|data:|javascript:)/i);
+      for (const [, href] of avatar.markup.matchAll(/\bhref="([^"]+)"/g)) {
+        expect(href).toMatch(/^#__LOCI_AVATAR_ID__-/);
       }
-      // Two eyes, two cells tall, side by side.
-      const eyes = avatar.rows.filter((row) => row.includes("o"));
-      expect(eyes).toHaveLength(2);
-      expect(eyes[0]).toBe(eyes[1]);
-      expect(eyes[0].split("o")).toHaveLength(3);
     }
+  });
+
+  it("only marks faces with animated eye artwork as able to blink", () => {
+    for (const avatar of AGENT_AVATARS) {
+      expect(avatar.canBlink).toBe(avatar.markup.includes('class="agent-avatar-eyes"'));
+    }
+    for (const name of ["ember", "wisp", "pebble", "neutral-ember", "neutral-wisp", "neutral-pebble"]) {
+      expect(agentAvatar(name).canBlink).toBe(false);
+    }
+    expect(agentAvatar("dew").canBlink).toBe(true);
+    expect(agentAvatar("neutral-dew").canBlink).toBe(true);
+  });
+
+  it.each(AGENT_AVATARS.filter((avatar) => avatar.canBlink))("keeps $name's animated eyes in the rendered SVG tree", ({ markup }) => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.innerHTML = markup;
+    const eyes = svg.querySelectorAll("g.agent-avatar-eyes");
+    expect(eyes.length).toBeGreaterThan(0);
+    // Animating an eye definition used by a clone does not repaint the visible eyes.
+    for (const eye of eyes) expect(eye.closest("defs")).toBeNull();
   });
 
   it("shares no name with a project mascot", () => {
@@ -32,14 +68,9 @@ describe("agentAvatars", () => {
     }
   });
 
-  it("merges the chosen cells' runs into one rect each", () => {
-    expect(avatarPath(["##o##o.#"], "#o")).toBe("M0 0h6v1h-6zM7 0h1v1h-1z");
-    expect(avatarPath(["##o##o.#"], "o")).toBe("M2 0h1v1h-1zM5 0h1v1h-1z");
-    expect(avatarPath(["........"], "#o")).toBe("");
-  });
-
   it("falls back to the first avatar for an unknown name", () => {
     expect(agentAvatar("dew").name).toBe("dew");
+    expect(agentAvatar("neutral-dew").name).toBe("neutral-dew");
     expect(agentAvatar("nope")).toBe(AGENT_AVATARS[0]);
     expect(agentAvatar(null)).toBe(AGENT_AVATARS[0]);
   });
@@ -47,5 +78,8 @@ describe("agentAvatars", () => {
   it("names an agent after its avatar until the user names it", () => {
     expect(defaultAgentName("ember")).toBe("Ember");
     expect(defaultAgentName("nope")).toBe("Ember");
+    for (const avatar of AGENT_AVATARS.filter((avatar) => avatar.style === "bottts")) {
+      expect(defaultAgentName(`neutral-${avatar.name}`)).toBe(defaultAgentName(avatar.name));
+    }
   });
 });

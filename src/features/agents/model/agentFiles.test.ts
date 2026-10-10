@@ -14,7 +14,6 @@ import {
   memoryWithinBudget,
   planAgentContext,
   agentContext,
-  agentSetupPrompt,
   agentTurn,
   recordAgentContext,
   resetAgentDefaults,
@@ -124,7 +123,10 @@ it("says how to keep memory and update the soul only at the user's request", () 
   expect(full).toContain("- site: /code/site");
   expect(full).toContain("Be brief.");
   expect(full).toContain(
-    "Only when the user asks you to change your soul or standing instructions",
+    "Otherwise, only when the user asks you to change your soul or standing instructions",
+  );
+  expect(full).toContain(
+    "A request defining your continuing role or standing preferences is also a request to save those instructions; a one-off task is not",
   );
   expect(full).toContain("app soul.read {}");
   expect(full).toContain(
@@ -132,7 +134,7 @@ it("says how to keep memory and update the soul only at the user's request", () 
   );
   expect(full).toContain("preserving the other instructions");
   expect(full).toContain(
-    "Never change your soul on your own or edit its files directly",
+    "Never rewrite a customized Soul on your own or edit its files directly",
   );
   expect(full).not.toContain("never edit that file yourself");
   expect(full).toContain("app memory.add");
@@ -179,13 +181,78 @@ it("seeds SOUL.md once, over the missing file only", async () => {
   });
 });
 
-it("asks a new agent to introduce itself as a resident and settle one main job", () => {
-  const prompt = agentSetupPrompt([{ name: "app", path: "/code/app" }]);
-  expect(prompt.startsWith("<agent_setup>")).toBe(true);
-  expect(prompt).toContain("a resident agent in Loci, not a general assistant");
-  expect(prompt).toContain("your one main job");
-  expect(prompt).toContain("The projects the user has open in Loci: app (/code/app).");
-  expect(prompt).toContain('app agent.rename {"name":"...","role":"..."}');
-  expect(prompt).toContain("You cannot give yourself projects");
-  expect(agentSetupPrompt()).toContain("The user has no projects open in Loci yet.");
+it("initializes a blank agent from a natural purpose and starts helping without a profile interview", () => {
+  const context = agentContext(
+    { name: "Wisp", avatar: "wisp", color: "#fff", projects: [] },
+    { ...files(), soul: defaultSoul() },
+    { soul: true, memory: true },
+    { canChooseName: true },
+  );
+  const message = "我想练英语口语";
+  const prompt = agentTurn(message, [context]);
+  expect(prompt).toContain("<agent_creation>");
+  expect(prompt).toContain("begin a useful first step in this turn");
+  expect(prompt).toContain("A natural statement of purpose");
+  expect(prompt).toContain('They do not need to say "long-term" or "standing instructions"');
+  expect(prompt).toContain("first draft Soul with 3–5 short instructions");
+  expect(prompt).toContain("not invented facts about the user");
+  expect(prompt).toContain("Do not invent their level, preferences, schedule, commitments or permission");
+  expect(prompt).toContain('app agent.rename {"name":"<short name>","role":"<concise role>"}');
+  expect(prompt).toContain("Do not ask them to confirm this first draft");
+  expect(prompt).toContain("Only for an untouched default Soul with no assigned role");
+  expect(prompt).toContain("That identity does not authorize connecting accounts, sending messages, payments, publishing or habits");
+  expect(prompt).toContain("Initialize only over the default empty standing instructions");
+  expect(prompt).toContain("A clearly one-off task");
+  expect(prompt).toContain("do it without renaming yourself or writing a Soul");
+  expect(prompt).toContain("If the message is ambiguous, help with the task now");
+  expect(prompt).toContain("After completing a real task, suggest a habit only when the user has described a recurring need");
+  expect(prompt).toContain("habits run only while Loci is open");
+  expect(prompt.endsWith(message)).toBe(true);
+  expect(prompt).not.toContain("<agent_setup>");
+});
+
+it.each([undefined, { canChooseName: false }])("keeps an existing name while initializing the role (%#)", (options) => {
+  const prompt = agentContext(
+    { name: "小序", avatar: "wisp", color: "#fff", projects: [] },
+    { ...files(), soul: defaultSoul() },
+    { soul: true, memory: false },
+    options,
+  );
+  expect(prompt).toContain("<agent_creation>");
+  expect(prompt).toContain('The user has already named you. Keep "小序" unless they ask to change it');
+  expect(prompt).toContain('app agent.rename {"name":"小序","role":"<concise role>"}');
+  expect(prompt).not.toContain("The current name is a placeholder");
+});
+
+it("leaves a defined role or edited soul out of blank-agent creation guidance", () => {
+  const look = { name: "Wisp", avatar: "wisp", color: "#fff", projects: [] };
+  for (const [identity, soul] of [
+    [{ ...look, role: "tutor" }, defaultSoul()],
+    [look, defaultSoul("Explain things briefly.")],
+    [look, ""],
+  ] as const) {
+    const prompt = agentContext(identity, { ...files(), soul }, { soul: true, memory: false }, { canChooseName: true });
+    expect(prompt).not.toContain("<agent_creation>");
+    expect(prompt).toContain("Never rewrite a customized Soul on your own");
+    expect(prompt).toContain(soul.trim());
+  }
+  expect(agentContext(look, { ...files(), soul: defaultSoul() }, { soul: false, memory: true }))
+    .not.toContain("<agent_creation>");
+});
+
+it("asks only for an indispensable input and uses natural questions while allowing lesson choices", () => {
+  const prompt = agentContext(
+    { name: "Tutor", role: "tutor", avatar: "luna", color: "#fff", projects: [] },
+    files(),
+    { soul: true, memory: false },
+  );
+  const rules = prompt.match(/<asking_rules>([\s\S]*?)<\/asking_rules>/)?.[1];
+  expect(rules).toBeDefined();
+  expect(rules).toContain("Missing optional preferences are not blockers");
+  expect(rules).toContain("Ask at most one critical question only when a missing input cannot reasonably be inferred or defaulted and prevents the current task");
+  expect(rules).toContain("A short natural question is the default");
+  expect(rules).toContain("concrete choices genuinely help a required user decision or an interactive lesson");
+  expect(rules).toContain("Teaching exercises and follow-up questions are part of the lesson");
+  expect(rules).toContain("```loci-question");
+  expect(rules).not.toContain("When the user has to decide something, ask them");
 });

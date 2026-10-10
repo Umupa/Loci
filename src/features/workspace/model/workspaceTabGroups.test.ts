@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { leafIds, newTab, splitPane, type WorkspaceTab, } from "./layout";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { documentLeaf, findLeaf, leafIds, newTab, placeLayout, splitPane, type WorkspaceTab, } from "./layout";
 import {} from "../../projects/model/projectReturn";
 import type { Session } from "../../sessions/model/session";
-import { applyDetachPaneToTab, applyPlaceTabOnPane, applyPlaceSessionOnPane, filterTabsForProject, findOpenSessionTab, findTabForProject, planWorkspaceTabClose, replaceGroupInTabOrder, switchSessionInTab, workspaceTabProject, focusedWorkspaceTabCwd, workspaceTabCwd, } from "./workspaceTabGroups";
+import { applyDetachPaneToTab, applyMoveWorkspacePane, applyPlaceTabOnPane, applyPlaceSessionOnPane, filterTabsForProject, findOpenSessionTab, findTabForProject, planWorkspaceTabClose, replaceGroupInTabOrder, switchSessionInTab, workspaceTabProject, focusedWorkspaceTabCwd, workspaceTabCwd, } from "./workspaceTabGroups";
 function session(id: string, cwd: string): Session {
     return {
         id,
@@ -33,6 +33,64 @@ describe("focusedWorkspaceTabCwd", () => {
         const mixed = { ...tab("mixed", "chat"), focusedId: "missing" };
         expect(focusedWorkspaceTabCwd(mixed, [session("chat", "/alpha")])).toBe("/alpha");
         expect(focusedWorkspaceTabCwd(mixed, [])).toBeNull();
+    });
+});
+describe("agent workspace project context", () => {
+    beforeEach(() => {
+        vi.stubGlobal("localStorage", {
+            getItem: (key: string) => key === "loci:agent-roster"
+                ? JSON.stringify([{ id: "agent-1", sessionId: "agent-chat", projects: [] }]) : null,
+        });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+    it("keeps an agent-only tab in the project where it was opened", () => {
+        const workspace = { ...tab("agent-tab", "agent-chat"), cwd: "/projects/loci" };
+        const sessions = [session("agent-chat", "/Users/me")];
+        expect(workspaceTabCwd(workspace, sessions)).toBe("/projects/loci");
+        expect(focusedWorkspaceTabCwd(workspace, sessions)).toBe("/projects/loci");
+        expect(filterTabsForProject([workspace], sessions, "/projects/loci")).toEqual([workspace]);
+        expect(filterTabsForProject([workspace], sessions, "/Users/me")).toEqual([]);
+    });
+    it("ignores the focused agent's home cwd beside a project session", () => {
+        const workspace = {
+            ...tab("mixed", "agent-chat"),
+            layout: splitPane(newTab("agent-chat").layout, "agent-chat", "right", "project-chat"),
+            cwd: "/projects/previous",
+        };
+        const sessions = [session("agent-chat", "/Users/me"), session("project-chat", "/projects/loci")];
+        expect(workspaceTabCwd(workspace, sessions)).toBe("/projects/loci");
+        expect(focusedWorkspaceTabCwd(workspace, sessions)).toBe("/projects/loci");
+        expect(focusedWorkspaceTabCwd({ ...workspace, focusedId: "project-chat" }, sessions)).toBe("/projects/loci");
+    });
+    it("keeps the resolved project when an agent is detached from a project session", () => {
+        const workspace = {
+            ...tab("mixed", "project-chat"),
+            layout: splitPane(newTab("project-chat").layout, "project-chat", "right", "agent-chat"),
+        };
+        const sessions = [session("agent-chat", "/Users/me"), session("project-chat", "/projects/loci")];
+        const next = applyDetachPaneToTab({ tabs: [workspace], sessions, paneId: "agent-chat", targetTabId: workspace.id, position: "after" })!;
+        expect(focusedWorkspaceTabCwd(next.tabs[1], sessions)).toBe("/projects/loci");
+        expect(next.tabs[1].cwd).toBe("/projects/loci");
+    });
+    it("keeps the destination project when moving an agent across tabs", () => {
+        const sessions = [session("agent-chat", "/Users/me"), session("project-chat", "/projects/loci")];
+        const source = { ...tab("agent-tab", "agent-chat"), cwd: "/projects/previous" };
+        const destination = tab("project-tab", "project-chat");
+        const next = applyMoveWorkspacePane([source, destination], "agent-chat", "project-chat", "right", sessions)!;
+        expect(next).toHaveLength(1);
+        expect(next[0].cwd).toBe("/projects/loci");
+        expect(focusedWorkspaceTabCwd(next[0], sessions)).toBe("/projects/loci");
+    });
+    it("keeps the source project when its project session moves away from an agent", () => {
+        const sessions = [session("agent-chat", "/Users/me"), session("project-chat", "/projects/loci"), session("target-chat", "/projects/other")];
+        const source = {
+            ...tab("mixed", "project-chat"),
+            layout: splitPane(newTab("project-chat").layout, "project-chat", "right", "agent-chat"),
+        };
+        const destination = tab("target-tab", "target-chat");
+        const next = applyMoveWorkspacePane([source, destination], "project-chat", "target-chat", "right", sessions)!;
+        expect(next[0].cwd).toBe("/projects/loci");
+        expect(focusedWorkspaceTabCwd(next[0], sessions)).toBe("/projects/loci");
     });
 });
 describe("findOpenSessionTab", () => {
@@ -331,6 +389,14 @@ describe("applyDetachPaneToTab", () => {
             targetTabId: "source-tab",
             position: "after",
         })).toBeNull();
+    });
+    it("keeps a document's contents and project when it becomes a separate tab", () => {
+        const document = documentLeaf({ id: "network", title: "Network policy", body: "# Policy" }, "agent-1");
+        if (document.type !== "leaf") throw new Error("Expected a document leaf");
+        const source = { ...tab("source-tab", "first"), layout: placeLayout(newTab("first").layout, document, "first", "right") };
+        const next = applyDetachPaneToTab({ tabs: [source], sessions: [session("first", "/projects/loci")], paneId: document.id, targetTabId: source.id, position: "after" })!;
+        expect(findLeaf(next.tabs[1].layout, document.id)).toEqual(document);
+        expect(next.tabs[1].cwd).toBe("/projects/loci");
     });
 });
 describe("replaceGroupInTabOrder", () => {

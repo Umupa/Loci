@@ -48,13 +48,15 @@ export async function prepareAgentTurn(
       )
     : undefined;
   const look = agentLook(agent);
+  const canChooseName = !agent.name?.trim();
   // A turn must not fail over its memory; it goes without, and tries again next time.
   const files = await loadAgentFiles(agent.id).catch(() => undefined);
   // Who it is counts as part of its soul: a rename or a change to its
   // projects is handed over too, and so is a change to the fixed rules.
+  // Choosing the placeholder name explicitly also withdraws automatic naming.
   const handed = files && {
     ...files,
-    soulHash: `${files.soulHash}:${look.name}:${look.role ?? ""}:${look.projects
+    soulHash: `${files.soulHash}:${look.name}:${canChooseName ? "placeholder" : "named"}:${look.role ?? ""}:${look.projects
       .map((project) => project.path)
       .join("|")}:${AGENT_PROMPT_VERSION}`,
   };
@@ -68,7 +70,7 @@ export async function prepareAgentTurn(
   const context: string[] = [];
   if (rotation) context.push(rotation.brief(session.id));
   if (files && plan && (plan.soul || plan.memory))
-    context.push(agentContext(look, files, plan));
+    context.push(agentContext(look, files, plan, { canChooseName }));
   return {
     context,
     introduces: !!plan?.soul,
