@@ -214,7 +214,9 @@ fn create_overlay(
         .on_new_window(|url, _features| {
             // Links in posts open in new tabs on x.com; send them to the
             // system browser instead of spawning stray windows.
-            let _ = open::that_detached(url.as_str());
+            if is_browser_link(&url) {
+                let _ = open::that_detached(url.as_str());
+            }
             NewWindowResponse::Deny
         });
     #[cfg(target_os = "macos")]
@@ -238,6 +240,10 @@ fn create_overlay(
         _ => {}
     });
     Ok(overlay)
+}
+
+fn is_browser_link(url: &Url) -> bool {
+    matches!(url.scheme(), "http" | "https")
 }
 
 fn follow_owner(app: &AppHandle, label: &str) {
@@ -398,6 +404,43 @@ fn truncate_chars(text: &mut String, limit: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn asset_protocol_exposes_only_media_directories() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(
+            config["app"]["security"]["assetProtocol"]["scope"],
+            serde_json::json!([
+                "$APPDATA/backgrounds/**",
+                "$APPDATA/wallpaper-cache/**",
+                "$APPDATA/project-logos/**",
+                "$APPDATA/note-assets/**",
+                "$APPDATA/generated-images/**"
+            ])
+        );
+    }
+
+    #[test]
+    fn new_window_links_cannot_open_local_protocol_handlers() {
+        for link in [
+            "https://x.com/home",
+            "https://example.com/",
+            "http://example.com/",
+        ] {
+            assert!(is_browser_link(&Url::parse(link).unwrap()));
+        }
+        for link in [
+            "file:///private/data",
+            "asset://localhost/private/data",
+            "tauri://localhost/",
+            "vscode://file/private/data",
+            "javascript:alert(1)",
+            "data:text/html,hello",
+        ] {
+            assert!(!is_browser_link(&Url::parse(link).unwrap()));
+        }
+    }
 
     #[test]
     fn paths_stay_on_x() {

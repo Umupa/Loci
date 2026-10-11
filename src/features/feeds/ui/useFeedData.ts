@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { FEED_STATE_CHANGED_EVENT, loadFeedState, type FeedItemState, type FeedProvider } from "../model/feedState";
 import { v2exNotifications, v2exTopics, type V2exListSource, type V2exNotification, type V2exTopic } from "../model/v2ex";
 
@@ -9,6 +9,13 @@ export const POLL_MS = 5 * 60_000;
 
 type Page<T> = { items: T[]; page: number; done: boolean; at: number };
 const lists = new Map<string, Page<unknown>>();
+let listGeneration = 0;
+const listListeners = new Set<() => void>();
+const subscribeLists = (listener: () => void) => {
+  listListeners.add(listener);
+  return () => { listListeners.delete(listener); };
+};
+const getListGeneration = () => listGeneration;
 
 type ListState<T> = {
   items: T[];
@@ -28,6 +35,7 @@ function errorText(error: unknown): string {
  * and only stale lists hit the network. `key` null means no list.
  */
 function usePagedList<T extends { id: number }>(key: string | null, fetchPage: (page: number) => Promise<T[]>, pageSize: number): ListState<T> {
+  const generation = useSyncExternalStore(subscribeLists, getListGeneration, getListGeneration);
   const cached = key ? (lists.get(key) as Page<T> | undefined) : undefined;
   const [items, setItems] = useState<T[]>(cached?.items ?? []);
   const [loading, setLoading] = useState(false);
@@ -43,7 +51,7 @@ function usePagedList<T extends { id: number }>(key: string | null, fetchPage: (
     setLoading(true);
     setError(null);
     void fetchRef.current(page).then((batch) => {
-      if (id !== request.current) return;
+      if (id !== request.current || generation !== listGeneration) return;
       const previous = page > 1 ? (lists.get(key) as Page<T> | undefined)?.items ?? [] : [];
       const seen = new Set(previous.map((item) => item.id));
       const merged = [...previous, ...batch.filter((item) => !seen.has(item.id))];
@@ -52,17 +60,18 @@ function usePagedList<T extends { id: number }>(key: string | null, fetchPage: (
       setItems(merged);
       setDone(entry.done);
     }, (cause) => {
-      if (id === request.current) setError(errorText(cause));
+      if (id === request.current && generation === listGeneration) setError(errorText(cause));
     }).finally(() => {
-      if (id === request.current) setLoading(false);
+      if (id === request.current && generation === listGeneration) setLoading(false);
     });
-  }, [key, pageSize]);
+  }, [key, pageSize, generation]);
 
   useEffect(() => {
+    request.current += 1;
+    setLoading(false);
     if (!key) {
-      request.current += 1;
       setItems([]);
-      setLoading(false);
+      setDone(true);
       setError(null);
       return;
     }
@@ -72,7 +81,10 @@ function usePagedList<T extends { id: number }>(key: string | null, fetchPage: (
     setError(null);
     if (!entry || Date.now() - entry.at > FRESH_MS) load(1);
     const timer = window.setInterval(() => load(1), POLL_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      request.current += 1;
+      window.clearInterval(timer);
+    };
   }, [key, load]);
 
   const refresh = useCallback(() => load(1), [load]);
@@ -97,6 +109,8 @@ export function useV2exNotifications(enabled: boolean): ListState<V2exNotificati
 /** Drop cached lists, e.g. after the account changes. */
 export function clearFeedLists() {
   lists.clear();
+  listGeneration += 1;
+  listListeners.forEach((listener) => listener());
 }
 
 export function useFeedState(provider: FeedProvider) {

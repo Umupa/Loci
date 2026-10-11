@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { OverlayNav } from "../../../app/shell/TitleBar";
 import { WindowControls } from "../../../app/shell/WindowControls";
 import { IS_MAC } from "../../../platform/tauri/platform";
@@ -83,6 +83,7 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
   const [xPage, setXPage] = useState("home");
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const notificationRequest = useRef(0);
   const [state, setState] = useFeedState("v2ex");
   const resize = useDragResize({
     min: LIST_MIN,
@@ -98,10 +99,11 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
       // A stored token V2EX now rejects: say so, but keep it until the user acts.
       void v2exStatus(false).then((next) => { if (live) setStatus(next); }, () => undefined);
     });
-    return () => { live = false; };
+    return () => { live = false; notificationRequest.current += 1; };
   }, []);
 
   const setTab = (next: FeedTab) => {
+    notificationRequest.current += 1;
     setTabState(next);
     saveFeedTab(next);
     setQuery("");
@@ -109,12 +111,25 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
   };
 
   const setSource = useCallback((next: FeedSource) => {
+    notificationRequest.current += 1;
     setSourceState(next);
     saveFeedSource(next);
     setSelected(null);
     setAccountOpen(false);
     setQuery("");
   }, []);
+
+  const selectTopic = useCallback((topic: V2exTopic) => {
+    notificationRequest.current += 1;
+    setSelected(topic);
+    setAccountOpen(false);
+  }, []);
+
+  const openAccount = () => {
+    notificationRequest.current += 1;
+    setAccountOpen(true);
+    setSelected(null);
+  };
 
   const v2exTab = tab === "v2ex";
   const listSource = v2exTab ? v2exListOf(source) : null;
@@ -164,9 +179,14 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
 
   const openNotification = useCallback((item: V2exNotification) => {
     if (!item.topicId) return;
+    const request = ++notificationRequest.current;
     setNotice(null);
     setAccountOpen(false);
-    void v2exTopic(item.topicId).then(setSelected, (cause) => setNotice(String(cause)));
+    void v2exTopic(item.topicId).then((topic) => {
+      if (request === notificationRequest.current) setSelected(topic);
+    }, (cause) => {
+      if (request === notificationRequest.current) setNotice(String(cause));
+    });
   }, []);
 
   const goX = (id: string, path: string) => {
@@ -183,13 +203,12 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
       event.preventDefault();
       const index = selected ? listed.findIndex((topic) => topic.id === selected.id) : -1;
       const next = event.key === "j" ? Math.min(listed.length - 1, index + 1) : Math.max(0, index - 1);
-      setSelected(listed[next]);
-      setAccountOpen(false);
+      selectTopic(listed[next]);
       document.querySelector(`[data-feed-topic="${listed[next].id}"]`)?.scrollIntoView({ block: "nearest" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [v2exTab, source.kind, listed, selected]);
+  }, [v2exTab, source.kind, listed, selected, selectTopic]);
 
   const loading = source.kind === "v2ex-notifications" ? notifications.loading : topics.loading;
   const refresh = source.kind === "v2ex-notifications" ? notifications.refresh : topics.refresh;
@@ -214,7 +233,7 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
   const pickMenu = (id: string) => {
     setMenuAnchor(null);
     if (id === "add-node") { setAddingNode(true); return; }
-    if (id === "account") { setAccountOpen(true); setSelected(null); return; }
+    if (id === "account") { openAccount(); return; }
     if (id === "remove-node" && source.kind === "v2ex-node") {
       const next = removeSavedNode(nodes, source.name);
       setNodes(next);
@@ -318,13 +337,13 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
               <TopicList topics={listed} state={state} selectedId={accountOpen ? undefined : selected?.id} loading={!!listSource && topics.loading}
                 empty={query.trim() ? "No matching topics" : source.kind === "v2ex-starred" ? "Star a topic to keep it here." : "Nothing here yet."}
                 more={!!listSource && !topics.done && !query.trim()} onMore={topics.loadMore}
-                onSelect={(topic) => { setSelected(topic); setAccountOpen(false); }} />
+                onSelect={selectTopic} />
             )}
           </>
         )}
       </div>
       {v2exTab ? (
-        <button type="button" onClick={() => { setAccountOpen(true); setSelected(null); }}
+        <button type="button" onClick={openAccount}
           className={`flex h-9 shrink-0 items-center gap-2 border-t border-stroke px-3 text-left text-[12px] ${accountOpen ? "text-content" : "text-content/50 hover:text-content"}`}>
           {status.member ? <Avatar src={status.member.avatar} name={status.member.username} size={16} /> : <FeedProviderMark provider="v2ex" />}
           <span className="min-w-0 truncate">{status.member ? `@${status.member.username}` : status.connected ? "V2EX account" : "Connect V2EX account"}</span>
