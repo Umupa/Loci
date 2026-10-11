@@ -19,14 +19,16 @@ const pageTitle = (capture: XCapture) => capture.title.replace(/\s*\/\s*X\s*$/, 
  */
 export function XFeedPane({ onSendToAgent, onSaveNote }: Props) {
   const slot = useRef<HTMLDivElement>(null);
+  const live = useRef(false);
   const [busy, setBusy] = useState<"agent" | "note" | "open" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     const element = slot.current;
     if (!element) return;
+    live.current = true;
     const bounds = () => boundsFromRect(element.getBoundingClientRect(), loadUiScale());
-    void showXFeed(bounds()).catch((cause) => setError(String(cause)));
+    void showXFeed(bounds()).catch((cause) => { if (live.current) setError(String(cause)); });
     let frame = 0;
     const sync = () => {
       cancelAnimationFrame(frame);
@@ -37,6 +39,7 @@ export function XFeedPane({ onSendToAgent, onSaveNote }: Props) {
     window.addEventListener("resize", sync);
     window.addEventListener(UI_SCALE_CHANGE_EVENT, sync);
     return () => {
+      live.current = false;
       cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener("resize", sync);
@@ -50,6 +53,7 @@ export function XFeedPane({ onSendToAgent, onSaveNote }: Props) {
     setError(null);
     try {
       const page = await captureXFeed();
+      if (!live.current) return;
       if (kind === "open") {
         await openUrl(page.url);
         return;
@@ -61,9 +65,9 @@ export function XFeedPane({ onSendToAgent, onSaveNote }: Props) {
       if (kind === "agent") onSendToAgent(page);
       else await onSaveNote(pageTitle(page), xCaptureMarkdown(page));
     } catch (cause) {
-      setError(String(cause));
+      if (live.current) setError(String(cause));
     } finally {
-      setBusy(null);
+      if (live.current) setBusy(null);
     }
   };
 
