@@ -6,12 +6,15 @@ import { newSession } from "../../features/sessions/model/session";
 import { saveKeybindingOverride } from "../../features/settings/model/settings";
 import { leaf, newTab } from "../../features/workspace/model/layout";
 import { useAppCommands } from "./useAppCommands";
+import { IMAGE_ZOOM_EVENT } from "../../shared/lib/imageZoomCommands";
+import { loadUiScale } from "../../features/settings/model/uiScale";
 
 const native = vi.hoisted(() => ({
   handlers: new Map<string, Set<(event: { payload: unknown }) => void>>(),
   invoke: vi.fn(async () => undefined),
   unminimize: vi.fn(async () => undefined),
   focus: vi.fn(async () => undefined),
+  zoom: vi.fn(async () => undefined),
 }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: native.invoke }));
 vi.mock("@tauri-apps/api/event", () => ({
@@ -28,6 +31,7 @@ vi.mock("@tauri-apps/api/window", () => ({
     isFocused: async () => true, onFocusChanged: async () => () => undefined,
   }),
 }));
+vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: () => ({ setZoom: native.zoom }) }));
 vi.mock("../../features/notifications/model/notifications", () => ({
   NOTIFICATION_CLICK_EVENT: "loci:notification-click", setWindowFocused: vi.fn(),
 }));
@@ -85,6 +89,7 @@ beforeEach(() => {
   vi.spyOn(performance, "now").mockImplementation(() => now);
   native.handlers.clear();
   native.invoke.mockClear(); native.unminimize.mockClear(); native.focus.mockClear();
+  native.zoom.mockClear();
 });
 afterEach(async () => {
   await act(async () => roots.forEach((root) => root.unmount()));
@@ -93,6 +98,51 @@ afterEach(async () => {
 });
 
 describe("application command routing", () => {
+  it("routes zoom keys and native menus to the active image once, then restores interface zoom", async () => {
+    await mount(options());
+    const image = document.createElement("div");
+    image.dataset.imageZoom = "modal";
+    const zoom = vi.fn((event: Event) => event.preventDefault());
+    image.addEventListener(IMAGE_ZOOM_EVENT, zoom);
+    document.body.append(image);
+    const event = key({ key: "=", code: "Equal", metaKey: true });
+    emit("zoom_in");
+    expect(event.defaultPrevented).toBe(true);
+    expect(zoom).toHaveBeenCalledOnce();
+    expect((zoom.mock.calls[0][0] as CustomEvent).detail).toBe("zoom-in");
+    now += 81;
+    emit("zoom_out");
+    expect((zoom.mock.calls[1][0] as CustomEvent).detail).toBe("zoom-out");
+    expect(native.zoom).not.toHaveBeenCalled();
+    expect(loadUiScale()).toBe(1);
+
+    image.remove();
+    now += 81;
+    emit("zoom_in");
+    expect(native.zoom).toHaveBeenCalledExactlyOnceWith(1.1);
+    expect(loadUiScale()).toBe(1.1);
+  });
+
+  it("preserves custom and disabled zoom bindings while an image owns zoom", async () => {
+    await mount(options());
+    const image = document.createElement("div");
+    image.dataset.imageZoom = "focused";
+    const zoom = vi.fn((event: Event) => event.preventDefault());
+    image.addEventListener(IMAGE_ZOOM_EVENT, zoom);
+    document.body.append(image);
+    saveKeybindingOverride("View: Zoom In", { shortcut: "Option+Equal" });
+    key({ key: "=", code: "Equal", metaKey: true });
+    expect(zoom).not.toHaveBeenCalled();
+    key({ key: "=", code: "Equal", altKey: true });
+    expect(zoom).toHaveBeenCalledOnce();
+    now += 81;
+    saveKeybindingOverride("View: Zoom In", { disabled: true });
+    key({ key: "=", code: "Equal", altKey: true });
+    key({ key: "=", code: "Equal", metaKey: true });
+    expect(zoom).toHaveBeenCalledOnce();
+    expect(native.zoom).not.toHaveBeenCalled();
+  });
+
   it("deduplicates keyboard and native tab commands under the same name", async () => {
     const value = options();
     await mount(value);

@@ -28,7 +28,7 @@ const HOST_TOOL = {
   description:
     "Reads the Loci canvas behind a checkpoint as it is now, including edits the user made by hand after it was drawn. " +
     "Returns the drawing's Excalidraw elements with their ids and a summary of what the user changed. " +
-    "Call it before changing an existing drawing. Omit checkpointId to list this project's drawings and their checkpoint ids.",
+    "Without checkpointId, lists this project's drawings and their checkpoint ids.",
   inputSchema: {
     type: "object",
     properties: {
@@ -43,7 +43,7 @@ const HOST_TOOL = {
 };
 const GET_ELEMENTS = {
   name: "get_elements", title: "Inspect Loci Canvas Elements",
-  description: "Read exact native element properties and the current revision of a Loci canvas. Includes image scale/crop and text metrics, never image file data. Omit elementIds to read all existing elements. Use this before update_elements.",
+  description: "Read exact native element properties and the current revision of a Loci canvas. Includes image scale/crop and text metrics, never image file data. Without elementIds, returns all existing elements. Its revision is the expectedRevision used by update_elements.",
   inputSchema: { type: "object", required: ["checkpointId"], additionalProperties: false, properties: {
     checkpointId: { type: "string", minLength: 1 },
     elementIds: { type: "array", minItems: 1, maxItems: 500, items: { type: "string" } },
@@ -52,7 +52,7 @@ const GET_ELEMENTS = {
 };
 const UPDATE_ELEMENTS = {
   name: "update_elements", title: "Edit and Save Loci Canvas Elements",
-  description: "Edits and persistently saves the existing Loci canvas. On success, include the returned canvas link in your reply. Batch-update properties of existing elements by ID: position, size, rotation, typography, line spacing, colors and border styles. Unspecified properties, IDs, image resources, groups and binding targets are preserved; derived text metrics and arrow focus/gap follow geometry changes. Bound labels and straight-arrow endpoints follow their shapes; frame members follow translations. No elements are added or deleted. Use expectedRevision from get_elements; a stale read or any invalid change rejects the whole batch. Text height is measured; change fontSize/lineHeight. For fixed-width paragraphs, set autoResize:false with width. Bound labels use container width and require autoResize:true for reflow. Bound arrows cannot be moved independently; elbowed/rotated bound-arrow routing requires the editor.",
+  description: "Edits and persistently saves the existing Loci canvas. Batch-updates properties of existing elements by ID: position, size, rotation, typography, line spacing, colors and border styles. Unspecified properties, IDs, image resources, groups and binding targets are preserved; derived text metrics and arrow focus/gap follow geometry changes. Bound labels and straight-arrow endpoints follow their shapes; frame members follow translations. No elements are added or deleted. expectedRevision comes from get_elements; a stale read or any invalid change rejects the whole batch. Text height is measured from fontSize/lineHeight. Fixed-width paragraphs use autoResize:false with width. Bound labels use container width and require autoResize:true for reflow. Bound arrows cannot be moved independently; elbowed/rotated bound-arrow routing requires the editor.",
   inputSchema: { type: "object", required: ["checkpointId", "expectedRevision", "updates"], additionalProperties: false, properties: {
     checkpointId: { type: "string", minLength: 1 },
     expectedRevision: { type: "integer", minimum: 0 },
@@ -61,14 +61,12 @@ const UPDATE_ELEMENTS = {
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
 };
 const HOST_TOOLS = [GET_ELEMENTS, UPDATE_ELEMENTS, HOST_TOOL];
-const DRAWING_GUIDANCE =
+const LOCI_CANVAS_REFERENCE =
   "These Excalidraw tools draw on Loci canvases. Every create_view call saves a drawing that the user sees and can edit in Loci, " +
   "and each checkpoint id refers to that drawing's latest content, including the user's own edits. " +
-  "To edit existing elements, first call get_elements for exact properties and its revision, then update_elements with IDs and only the changed fields. " +
-  "This is the preferred way to move images, change font size/color, adjust paragraph lineHeight or arrange existing shapes without adding elements. " +
-  "Do not rebuild elements from read_widget_context's compact overview. " +
+  "get_elements returns exact native properties and the revision required by update_elements, which updates the specified fields of existing element IDs. " +
+  "read_widget_context returns a compact overview rather than a complete native scene. " +
   "create_view with restoreCheckpoint is for additions/removals, and without restoreCheckpoint it starts a new drawing. " +
-  "Use this tool by default for drawings in Loci. On success, include the returned canvas link in your reply. " +
   "A remote Excalidraw server is a separate service and does not save a Loci canvas.";
 
 // The official widget's "Open in Excalidraw" uploads a scene to excalidraw.com.
@@ -186,12 +184,12 @@ async function hostTool(name, args = {}) {
 
 function savedLink(receipt) {
   const title = receipt.title.replace(/\r?\n/g, " ").replace(/[\\[\]]/g, "\\$&");
-  return `Saved to Loci: [${title}](${receipt.url}). Include this link in your reply so the user can open the canvas.`;
+  return `Saved to Loci: [${title}](${receipt.url}).`;
 }
 
 const write = (message) => process.stdout.write(`${JSON.stringify(message)}\n`);
 const awaitingToolList = new Set();
-const awaitingEditGuidance = new Set();
+const awaitingCanvasReference = new Set();
 
 const transport = {
   onmessage: undefined,
@@ -213,7 +211,7 @@ const transport = {
     if (message?.method === "tools/list" && hasId) awaitingToolList.add(message.id);
     if (message?.method !== "tools/call") return this.onmessage?.(message);
     const name = message.params?.name;
-    if (hasId && (name === "read_me" || name === "create_view")) awaitingEditGuidance.add(message.id);
+    if (hasId && (name === "read_me" || name === "create_view")) awaitingCanvasReference.add(message.id);
     if (name === UPLOAD_TOOL) {
       if (hasId) write({ jsonrpc: "2.0", id: message.id, result: { content: [{ type: "text", text: "Loci does not upload drawings to excalidraw.com." }], isError: true } });
       return;
@@ -232,8 +230,8 @@ const transport = {
   async send(message) {
     if (awaitingToolList.delete(message?.id) && Array.isArray(message.result?.tools)) {
       const tools = message.result.tools.filter((tool) => tool?.name !== UPLOAD_TOOL).map((tool) => {
-        if (tool.name === "create_view") return { ...tool, title: "Draw and Save Loci Canvas", description: `${tool.description}\n\n${DRAWING_GUIDANCE}`, annotations: { ...tool.annotations, readOnlyHint: false } };
-        if (tool.name === "read_me") return { ...tool, title: "Read the Loci Canvas Reference", description: `${tool.description}\n\n${DRAWING_GUIDANCE}` };
+        if (tool.name === "create_view") return { ...tool, title: "Draw and Save Loci Canvas", description: `${tool.description}\n\n${LOCI_CANVAS_REFERENCE}`, annotations: { ...tool.annotations, readOnlyHint: false } };
+        if (tool.name === "read_me") return { ...tool, title: "Read the Loci Canvas Reference", description: `${tool.description}\n\n${LOCI_CANVAS_REFERENCE}` };
         return tool;
       });
       message = { ...message, result: { ...message.result, tools: [...tools, ...HOST_TOOLS] } };
@@ -249,8 +247,8 @@ const transport = {
         message = { ...message, result: { ...message.result, content: [{ type: "text", text: savedLink(call.receipt) }, ...content], structuredContent: { ...message.result.structuredContent, ...call.receipt } } };
       }
     }
-    if (awaitingEditGuidance.delete(message?.id) && message.result && !message.result.isError) {
-      const note = `Loci editing: ${DRAWING_GUIDANCE}`;
+    if (awaitingCanvasReference.delete(message?.id) && message.result && !message.result.isError) {
+      const note = `Loci canvas capabilities: ${LOCI_CANVAS_REFERENCE}`;
       message = { ...message, result: { ...message.result, content: [...(message.result.content ?? []), { type: "text", text: note }] } };
     }
     write(message);

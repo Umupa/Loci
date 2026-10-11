@@ -334,23 +334,17 @@ export function habitRunPrompt(
   now: number,
 ): string {
   const lastRun = habit.lastRunAt
-    ? ` It last ran ${new Date(habit.lastRunAt).toLocaleString()}${
-        habit.lastOutcome === "quiet"
-          ? " and found nothing worth telling the user"
-          : habit.lastOutcome === "failed"
-            ? " and could not finish"
-            : ""
-      }.`
+    ? ` Its previous run was ${new Date(habit.lastRunAt).toLocaleString()}${habit.lastOutcome ? ` (${habit.lastOutcome})` : ""}.`
     : " This is its first run.";
   return `${agentContext(look, files, { soul: true, memory: true })}
 
 <habit_run>
-You are running one of your habits on your own; the user did not just message you, and they will not see this run. It is ${new Date(now).toLocaleString()}.${lastRun}
+Loci scheduled this habit run at ${new Date(now).toLocaleString()}. It runs in a separate background session.${lastRun}
 
 Habit: ${habit.name}
 ${habit.instructions.trim()}
 
-Do the work now with your tools and the app CLI. Then reply with exactly the message you would send the user in your chat: short, in your own voice, only what they would want to know, with no preamble about running a habit. If there is nothing worth telling them, reply with exactly ${QUIET_MARKER} and nothing else; silence is the right answer more often than not. Save anything worth remembering with the memory actions before you reply.
+Result delivery: final reports are posted to the user in the agent's chat. ${QUIET_MARKER} is an optional no-message result marker.
 </habit_run>`;
 }
 
@@ -384,7 +378,7 @@ export function habitPostsContext(posts: readonly Block[]): string {
       text.length > 600 ? `${text.slice(0, 599)}…` : text
     }`;
   });
-  return `<while_you_were_away>\nYour habits posted these to this chat on their own since the user's last message. The user has seen them; build on them rather than repeating them.\n${lines.join("\n")}\n</while_you_were_away>`;
+  return `<while_you_were_away>\nThese habit results were posted to this chat since the user's last message. The user has seen them.\n${lines.join("\n")}\n</while_you_were_away>`;
 }
 
 /** The agent's habits from its folder. */

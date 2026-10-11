@@ -44,6 +44,7 @@ resolveWorkspaceFileReference,
 import { ContextMenu,type ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import { FileActionError } from "../../../shared/ui/FileActionError";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
+import { ImageLightbox } from "../../../shared/ui/ImageLightbox";
 import { ExcalidrawIcon } from "../../../shared/ui/ExcalidrawIcon";
 import { File, MessageSquare } from "../../../shared/ui/icons";
 import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
@@ -493,6 +494,48 @@ function CodeCopyButton({ code }: { code: string }) {
 
 type MarkdownImageProps = ComponentProps<"img"> & { node?: unknown };
 
+/** The source is already approved and resolved; preview only after the browser decodes it. */
+function PreviewableImage({ src, alt = "", onLoad, onError, onClick, onKeyDown, ...props }: Omit<MarkdownImageProps, "node">) {
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [loadedSrc, setLoadedSrc] = useState<string>();
+  const [linked, setLinked] = useState(false);
+  const [preview, setPreview] = useState<string>();
+  useEffect(() => {
+    const image = imageRef.current;
+    setLinked(!!image?.closest("a"));
+    setLoadedSrc(typeof src === "string" && image?.complete && image.naturalWidth > 0 ? src : undefined);
+    setPreview(undefined);
+  }, [src]);
+  const enabled = typeof src === "string" && loadedSrc === src && !linked;
+  const open = (image: HTMLImageElement) => {
+    if (!enabled || image.closest("a") || !image.complete || image.naturalWidth === 0) return;
+    setPreview(image.currentSrc || src);
+  };
+  return <>
+    <img
+      {...props}
+      ref={imageRef}
+      src={src}
+      alt={alt}
+      role={enabled ? "button" : props.role}
+      tabIndex={enabled ? 0 : props.tabIndex}
+      aria-label={enabled ? `Preview image${alt ? `: ${alt}` : ""}` : props["aria-label"]}
+      aria-haspopup={enabled ? "dialog" : undefined}
+      className={`${props.className ?? ""}${enabled ? " cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" : ""}`}
+      onLoad={(event) => { setLoadedSrc(event.currentTarget.naturalWidth > 0 && typeof src === "string" ? src : undefined); onLoad?.(event); }}
+      onError={(event) => { setLoadedSrc(undefined); setPreview(undefined); onError?.(event); }}
+      onClick={(event) => { onClick?.(event); if (!event.defaultPrevented) open(event.currentTarget); }}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        if (event.defaultPrevented || !enabled || event.currentTarget.closest("a") || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        open(event.currentTarget);
+      }}
+    />
+    {preview ? <ImageLightbox src={preview} alt={alt} onClose={() => setPreview(undefined)} /> : null}
+  </>;
+}
+
 const noteImageSrcCache = new Map<string, string>();
 
 function NoteAssetImage({
@@ -518,7 +561,7 @@ function NoteAssetImage({
   }, [asset, src]);
 
   return (
-    <img
+    <PreviewableImage
       {...props}
       src={src}
       alt={alt ?? ""}
@@ -552,7 +595,7 @@ function LocalImage({
   }, [path]);
 
   return (
-    <img
+    <PreviewableImage
       {...props}
       src={src}
       alt={alt ?? ""}
@@ -572,20 +615,20 @@ function MarkdownImage({
   const { sourceUrl } = useContext(FileOpenContext);
   const url = typeof src === "string" ? src.trim() : "";
   if (url.startsWith("data:image/")) {
-    return <img {...props} src={url} alt={alt ?? ""} />;
+    return <PreviewableImage {...props} src={url} alt={alt ?? ""} />;
   }
   // Only a source shows pictures from the web, from where it was published.
   // A reply never does: an address written into one could carry data out.
   const remote = sourceAddress(url, sourceUrl);
   if (remote?.startsWith("https:")) {
-    return <img {...props} src={remote} alt={alt ?? ""} draggable={false} loading="lazy" referrerPolicy="no-referrer" />;
+    return <PreviewableImage {...props} src={remote} alt={alt ?? ""} draggable={false} loading="lazy" referrerPolicy="no-referrer" />;
   }
   if (isNoteImagePath(url)) {
-    return <NoteAssetImage {...props} asset={url} alt={alt} />;
+    return <NoteAssetImage key={url} {...props} asset={url} alt={alt} />;
   }
   const local = localImagePath(url);
   if (local) {
-    return <LocalImage {...props} path={local} alt={alt} />;
+    return <LocalImage key={local} {...props} path={local} alt={alt} />;
   }
 
   return null;
@@ -850,9 +893,12 @@ function MermaidBlock({
 }) {
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const diagramRef = useRef<HTMLDivElement>(null);
   const colorScheme = useColorScheme();
 
   useEffect(() => {
+    setPreview(null);
     if (incomplete) {
       setSvg(null);
       setFailed(false);
@@ -903,14 +949,49 @@ function MermaidBlock({
     );
   }
 
-  return (
+  const openPreview = () => {
+    const rendered = diagramRef.current?.querySelector("svg");
+    if (!rendered) return;
+    const image = rendered.cloneNode(true) as SVGSVGElement;
+    const { width, height } = rendered.viewBox.baseVal;
+    // Mermaid's responsive width has no intrinsic image size. Preserve the
+    // viewBox dimensions so the shared image viewer can fit the full diagram.
+    if (width > 0 && height > 0) {
+      image.setAttribute("width", String(width));
+      image.setAttribute("height", String(height));
+      image.style.removeProperty("width");
+      image.style.removeProperty("height");
+      image.style.removeProperty("max-width");
+    }
+    image.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue("--color-background-base").trim();
+    setPreview(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(image))}`);
+  };
+
+  return <>
     <div
-      className="mermaid-block overflow-x-auto rounded-[10px] border border-content/10 bg-content/6 p-3"
+      ref={diagramRef}
+      role="button"
+      tabIndex={0}
+      aria-label="Open Mermaid diagram full screen"
+      title="Open Mermaid diagram full screen"
+      className="mermaid-block cursor-zoom-in overflow-x-auto rounded-[10px] border border-content/10 bg-content/6 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       data-streamdown="mermaid-block"
       dir="ltr"
+      onClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("a")) return;
+        event.stopPropagation();
+        openPreview();
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openPreview();
+      }}
       dangerouslySetInnerHTML={{ __html: svg }}
     />
-  );
+    {preview ? <ImageLightbox src={preview} alt="Mermaid diagram" onClose={() => setPreview(null)} /> : null}
+  </>;
 }
 
 function hashCode(value: string): number {

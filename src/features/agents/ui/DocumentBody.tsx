@@ -1,13 +1,10 @@
 import { useEffect, useRef } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
-import { registerLearningSource } from "../../learning/model/learningStore";
 import type { AgentDocument } from "../../sessions/model/cards";
-import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
-import { TranscriptSelectionMenu } from "../../sessions/ui/TranscriptSelectionMenu";
-import { findAgent } from "../model/agent";
 import type { StoredDocument } from "../model/agentDocuments";
+import { DocumentSelectionMenu } from "./DocumentSelectionMenu";
 
 /** A library document as a reader shows it, with where it came from when it is a source. */
 export function shownDocument(stored: StoredDocument & { body: string }): AgentDocument {
@@ -47,8 +44,8 @@ type Props = {
 
 /**
  * A document's text, for reading. A source says where it was published and
- * shows that page's pictures. Selecting text offers to add it to the chat, so
- * a question about a passage carries the passage.
+ * shows that page's pictures. Selecting text offers to ask about, comment on,
+ * or quote the passage in the chat.
  */
 export function DocumentBody({ document, agentId, section }: Props) {
   const topRef = useRef<HTMLDivElement>(null);
@@ -71,17 +68,6 @@ export function DocumentBody({ document, agentId, section }: Props) {
     return () => cancelAnimationFrame(frame);
   }, [document.id, document.body, section]);
 
-  const ask = async (text: string) => {
-    const targetSessionId = agentId ? findAgent(agentId)?.sessionId : undefined;
-    if (!document.sourceUrl) {
-      requestAddToChat(text, "quote", targetSessionId ? { targetSessionId } : undefined);
-      return;
-    }
-    const source = { id: crypto.randomUUID(), kind: "web" as const, url: document.sourceUrl, title: document.title, quote: text };
-    await registerLearningSource(source);
-    requestAddToChat("", "plain", { sources: [source], ...(targetSessionId ? { targetSessionId } : {}) });
-  };
-
   const { sourceUrl } = document;
   return (
     <div ref={topRef}>
@@ -94,10 +80,10 @@ export function DocumentBody({ document, agentId, section }: Props) {
           {document.fetchedAt ? <span>saved {new Date(document.fetchedAt).toLocaleDateString()}</span> : null}
         </p>
       ) : null}
-      <div ref={bodyRef}>
+      <div ref={bodyRef} className="select-text">
         <AgentMarkdown text={document.body} wholeDocument sourceUrl={sourceUrl} />
       </div>
-      <TranscriptSelectionMenu selection={selection} onAddToChat={(text) => void ask(text)} onDismiss={dismiss} />
+      <DocumentSelectionMenu document={document} agentId={agentId} selection={selection} onDismiss={dismiss} />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   dueHabits,
   habitPostsContext,
   habitReport,
+  habitRunPrompt,
   habitSchedule,
   MISSED_RUN_GRACE_MS,
   newHabit,
@@ -111,6 +112,26 @@ it("stays silent when the run has nothing to say", () => {
   );
 });
 
+it("runs the saved habit instructions with result delivery context and no added style policy", () => {
+  const saved = habit({ instructions: "Check CI and post the full failing job logs." });
+  const prompt = habitRunPrompt(
+    { name: "Scout", avatar: "scout", color: "blue", projects: [] },
+    {
+      id: "scout", dir: "/agents/scout", soul: "# Soul\n\nHelp inspect CI.",
+      soulHash: "soul", memory: "", memoryHash: "memory",
+      memoryPath: "/agents/scout/MEMORY.md", topics: [],
+    },
+    saved,
+    at(5, 9),
+  );
+  expect(prompt).toContain(saved.instructions);
+  expect(prompt).toContain("Help inspect CI.");
+  expect(prompt).toContain(`${QUIET_MARKER} is an optional no-message result marker`);
+  expect(prompt).not.toContain("short, in your own voice");
+  expect(prompt).not.toContain("silence is the right answer");
+  expect(prompt).not.toContain("Save anything worth remembering");
+});
+
 it("hands the agent what its habits posted since the user last wrote", () => {
   const post = (id: string, text: string): Block => ({
     id,
@@ -130,6 +151,7 @@ it("hands the agent what its habits posted since the user last wrote", () => {
   const context = habitPostsContext(posts);
   expect(context).toContain("<while_you_were_away>");
   expect(context).toContain("Morning CI check: CI is red on main");
+  expect(context).not.toContain("rather than repeating");
   expect(habitPostsContext([])).toBe("");
 });
 

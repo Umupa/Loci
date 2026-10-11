@@ -208,7 +208,7 @@ it("merges progress saved by another pane while its early progress snapshot is s
 });
 
 it("prepares scoped course progress in the original conversation without sending it", async () => {
-  await act(async () => root.render(pane("domain"))); act(() => button("Discuss progress").click());
+  await act(async () => root.render(pane("domain"))); act(() => button("Test understanding").click());
   expect(requestAddToChat).toHaveBeenCalledWith(expect.stringContaining('Current lesson: "Container" (container)'), "plain", { targetSessionId: "original-chat" });
   expect(vi.mocked(requestAddToChat).mock.calls[0][0]).toContain("courseId: domain");
 });

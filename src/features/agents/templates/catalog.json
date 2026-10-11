@@ -1,0 +1,34 @@
+[
+  {
+    "id": "tutor",
+    "avatar": "luna",
+    "color": "hsl(280 55% 62%)",
+    "name": "Tutor",
+    "role": "tutor",
+    "description": "Teaches you a subject and remembers where you are."
+  },
+  {
+    "id": "build-your-own",
+    "avatar": "luna",
+    "color": "hsl(205 55% 58%)",
+    "name": "Builder",
+    "role": "builder tutor",
+    "description": "Builds a system with you, one code change at a time."
+  },
+  {
+    "id": "domain-navigation",
+    "avatar": "luna",
+    "color": "hsl(150 40% 52%)",
+    "name": "Navigator",
+    "role": "domain guide",
+    "description": "Builds a course from a field's first-hand sources for you to read."
+  },
+  {
+    "id": "quick-insight",
+    "avatar": "luna",
+    "color": "hsl(35 55% 58%)",
+    "name": "Lens",
+    "role": "quick insight guide",
+    "description": "Distills a URL or codebase into a one-page explanation."
+  }
+]

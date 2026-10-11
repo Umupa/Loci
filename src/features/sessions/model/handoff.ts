@@ -333,13 +333,13 @@ export function wrapHandoffPrompt(
     earlier.length > 0
       ? `\n\nAfter the switch, before this message, the user also sent:\n\n${earlier.join("\n\n")}`
       : "";
-  const lead = `You are continuing an existing conversation handed off from ${fromTitle}. This is not a new session. Do not say you have no prior context.\n\n${request}${earlierBlock}`;
+  const lead = `This conversation was handed off from ${fromTitle} within the same session.\n\n${request}${earlierBlock}`;
   if (!body) {
-    return `${lead}\n\nContinue from a ${fromTitle} session. Do not invent prior work.`;
+    return `${lead}\n\nNo prior conversation brief is available.`;
   }
   return `${lead}
 
-Prior conversation from ${fromTitle} — this is the thread you are joining, not optional background:
+Prior conversation brief from ${fromTitle}:
 
 <handoff>
 ${body}

@@ -1,4 +1,4 @@
-import { afterEach,describe,expect,it,vi } from "vitest";
+import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 
@@ -36,8 +36,17 @@ function session(id: string) {
   };
 }
 
+beforeEach(() => {
+  const stored = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => stored.get(key) ?? null,
+    setItem: (key: string, value: string) => stored.set(key, value),
+  });
+});
+
 afterEach(() => {
   mocks.invoke.mockReset();
+  vi.unstubAllGlobals();
 });
 
 describe("session persistence concurrency", () => {
@@ -51,6 +60,10 @@ describe("session persistence concurrency", () => {
       return Promise.resolve();
     });
     const { deleteSession, upsertSession } = await loadStore();
+    const { needsAppContextReset, recordAppContext } = await import("../../agents/model/agentFiles");
+    const { loadAgentRotation, saveAgentRotation } = await import("../../agents/model/agentRotation");
+    recordAppContext("s1", "native-1");
+    saveAgentRotation("s1", { at: 1, reason: "policy", earlier: ["Previous answer"] });
 
     const writing = upsertSession(session("s1"));
     await vi.waitFor(() => expect(commands).toEqual(["session_upsert"]));
@@ -58,6 +71,8 @@ describe("session persistence concurrency", () => {
     const deleting = deleteSession("s1");
 
     expect(commands).toEqual(["session_upsert"]);
+    expect(needsAppContextReset("s1", "native-1")).toBe(false);
+    expect(loadAgentRotation("s1")).toBeDefined();
     firstWrite.resolve({
       id: "s1",
       cwd: "/tmp/project",
@@ -71,6 +86,23 @@ describe("session persistence concurrency", () => {
     await Promise.all([writing, lateWrite, deleting]);
 
     expect(commands).toEqual(["session_upsert", "session_delete"]);
+    expect(needsAppContextReset("s1", "native-1")).toBe(true);
+    expect(loadAgentRotation("s1")).toBeUndefined();
+  });
+
+  it("retains the context receipt and history brief when deletion fails", async () => {
+    mocks.invoke.mockRejectedValue(new Error("disk"));
+    const { deleteSession } = await loadStore();
+    const { needsAppContextReset, recordAppContext } = await import("../../agents/model/agentFiles");
+    const { loadAgentRotation, saveAgentRotation } = await import("../../agents/model/agentRotation");
+    recordAppContext("s1", "native-1");
+    const rotation = { at: 1, reason: "policy" as const, earlier: ["Previous answer"] };
+    saveAgentRotation("s1", rotation);
+
+    await expect(deleteSession("s1")).rejects.toThrow("disk");
+
+    expect(needsAppContextReset("s1", "native-1")).toBe(false);
+    expect(loadAgentRotation("s1")).toEqual(rotation);
   });
 
   it("discards a draft-only record before reusing its open session id", async () => {

@@ -59,7 +59,7 @@ import { loadFollowUpBehavior, type FollowUpBehavior } from "../../features/sett
 import { loadCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { agentForSession } from "../../features/agents/model/agent";
 import { agentTurn } from "../../features/agents/model/agentFiles";
-import { prepareAgentTurn } from "../../features/agents/model/agentTurnContext";
+import { prepareAppTurn } from "../../features/agents/model/agentTurnContext";
 import { questionReplyText } from "../../features/sessions/model/standingQuestion";
 import { documentsInText } from "../../features/sessions/model/cards";
 import { saveAgentDocuments } from "../../features/agents/model/agentDocuments";
@@ -78,11 +78,6 @@ export type SubmitOptions = ComposerTurnOptions & {
    * The chat shows the message's text; the agent reads the report instead.
    */
   agentCompletion?: { completion: AgentSessionCompletion; report: string };
-  /**
-   * The app's first message to a new agent. The chat shows the message's text
-   * as a marker; the agent reads these instructions instead.
-   */
-  agentSetup?: string;
   /**
    * Called once when the turn this submission starts has ended. Never called
    * for a message that is refused, queued or steered into a running turn.
@@ -117,10 +112,10 @@ function turnProse(blocks: readonly Block[]): string {
   return said.join("\n\n");
 }
 
-/** How to use the app CLI. An agent always has it; a session has it once /operator is used. */
+/** App CLI availability and its explicit help entry point. */
 async function operatorPrompt(always = false): Promise<string> {
   const cli = `${await appCli()} app`;
-  return `<loci_app>\n${always ? "App access is always enabled in this thread." : "The user's Operator command enables app access in this thread, including later turns without the command."} You can start session tabs or split session panes right or down, read and continue other project sessions, save unsent drafts, organize session folders, and read or write saved notes through its local CLI. You can also list, create, rename, and delete Excalidraw canvases, and read or write their scene data (Excalidraw JSON) via canvas.read-data and canvas.write-data in the current project. Read the existing scene before extending it: write-data replaces the whole scene and updates open panes. Basic programmatic shapes support labels and are normalized by Excalidraw; full scenes retain images and bindings. Each write must use either all native elements or all shorthand elements; normalize new elements before appending to a native scene. When the built-in loci_excalidraw MCP tools (read_me, create_view, read_widget_context, get_elements, update_elements) are available, use create_view for new elements, and get_elements plus update_elements for precise edits to existing IDs: they draw on these same canvases, keep the user's edits, and a canvas id from canvas.list works as their checkpoint id. Use this CLI for listing, renaming, deleting, or replacing a whole scene; canvas.write-data does not accept MCP cameraUpdate/delete/restoreCheckpoint commands. Run \`${cli} --help\` for exact commands and JSON fields, then use it as needed for the user's request. When reading another session, start with its latest two or three user/assistant exchanges. Request older exchanges with nextBefore or a larger excerpt only if needed. The CLI uses a session credential already in your environment; never print it. New sessions inherit this session's permission mode unless runtimeMode is set explicitly. For a new session with a draft, call sessions.start with its prompt and draft:true; do not submit a seed prompt. The returned ID can be used as besideSessionId to split its pane again or moved into a folder immediately. A normal sessions.start submits its prompt but returns after acceptance, so do not wait for that agent to finish before organizing it.\n</loci_app>`;
+  return `<loci_app>\n${JSON.stringify({ access: always ? "agent" : "operator", command: cli, help: `${cli} --help` }, null, 2)}\n</loci_app>`;
 }
 
 function withHarnessChoice(session: Session, harness: HarnessId, model: string, modelSettings: Record<string, string>): Session {
@@ -182,8 +177,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const agent = agentForSession(sessionId);
     const appAccess = !!agent || activation.matched || operatorEnabledInThread(current.blocks);
     const rawCommand = !activation.matched && !learningContext.sources?.length && !learningContext.widgetContext && isNativeCommandPrompt(text, current.harness);
-    const basePromptText = options?.agentSetup ?? (options?.agentCompletion ? options.agentCompletion.report
-      : rawCommand ? text : composeNoteMessage(noteCard, visibleText));
+    const basePromptText = options?.agentCompletion ? options.agentCompletion.report
+      : rawCommand ? text : composeNoteMessage(noteCard, visibleText);
     const promptText = basePromptText;
     const prepareTurnPrompt = async () => rawCommand ? promptText : withLearningContext(promptText, await hydrateLearningContext(learningContext));
     const submittedBlockId = crypto.randomUUID();
@@ -195,15 +190,16 @@ export function useSessionSubmission(options: SubmissionOptions) {
       ...(!rawCommand && noteCard ? { noteCard: noteCardMeta(noteCard) } : {}),
       ...(activation.matched ? { loci: true } : {}),
       ...(options?.agentCompletion ? { agentSessionCompletion: options.agentCompletion.completion } : {}),
-      ...(options?.agentSetup ? { agentSetup: true } : {}),
       ...((options?.appRequestId ?? draft?.appRequestId)
         ? { appRequestId: options?.appRequestId ?? draft?.appRequestId } : {}),
     };
     // An agent without the MCP server learns of the project's canvases from a note on a turn,
     // once per provider conversation. Turning the switch on later sends it with the next turn.
     const cliTools = usesBuiltinCli(current.harness);
-    const canvasNote = cliTools && !rawCommand && (looksLikeProject(current.cwd) || !!agent) && loadCanvasMcpEnabled() &&
+    const canvasAvailable = cliTools && !rawCommand && (looksLikeProject(current.cwd) || !!agent) && loadCanvasMcpEnabled();
+    const canvasNote = canvasAvailable &&
       (!current.providerSessionId || !current.blocks.some((block) => block.role === "user" && !block.draft && block.canvasCli));
+    let canvasNoteSent = false;
     if (current.busy && !pendingSwitch) {
       if (activation.matched && options?.queuedMessageId && options.followUpBehavior === "steer") return false;
       const followUp = activation.matched ? "queue"
@@ -326,7 +322,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       if (edited) next = edited.replace(next);
       if (options?.queuedMessageId) next = dequeueQueuedMessage(next, options.queuedMessageId);
       if (pendingSwitch) next = appendPreparingHandoff(stopStreaming({ ...next, pendingSwitch: undefined }), pendingSwitch.from, next.harness);
-      return appendUser(next, visibleText, visible, canvasNote ? { ...cards, canvasCli: true } : cards);
+      return appendUser(next, visibleText, visible, canvasNoteSent ? { ...cards, canvasCli: true } : cards);
     }));
     if (edited) editedResends.start(sessionId);
     else commitSubmittedTurn();
@@ -400,25 +396,31 @@ export function useSessionSubmission(options: SubmissionOptions) {
         }
         let sendText = wrap && !rawCommand ? wrapHandoffPrompt(wrap.text, wrap.from, prompt.trim() || CONTINUE_PROMPT,
           queuedHandoff ? userMessagesAfterHandoff(current) : []) : prompt;
-        if (activation.matched && !agent) sendText += `\n\n${await operatorPrompt()}`;
-        // A turn must not fail over a note.
-        if (canvasNote) sendText += await appCli().then(canvasCliPrompt, () => "");
-        // An agent reads who it is ahead of the message, so it never takes it for
-        // something the user pasted. A native command must stay first.
-        const agentTurnContext = agent && !rawCommand
-          ? await prepareAgentTurn(agent, current, { canRotate: !pendingSwitch && !edited }) : undefined;
+        // Native commands stay untouched; app context is separate from user text.
+        const appTurnContext = !rawCommand
+          ? await prepareAppTurn(agent, current, { canRotate: !pendingSwitch && !edited && !current.ephemeral }) : undefined;
         if (!isCurrent()) return;
-        if (agentTurnContext) {
-          if (agentTurnContext.rotates) {
-            // Its chat never ends, but the provider session behind it does.
+        if (canvasAvailable && (canvasNote || appTurnContext?.rotates || appTurnContext?.recovering)) {
+          // A fresh provider also needs the tool entry point previously sent to its predecessor.
+          const note = await appCli().then(canvasCliPrompt, () => "");
+          if (!isCurrent()) return;
+          sendText += note;
+          canvasNoteSent = !!note;
+          if (canvasNoteSent && !edited) setSessions((previous) => previous.map((session) => session.id === sessionId
+            ? { ...session, blocks: session.blocks.map((block) => block.id === submittedBlockId ? { ...block, canvasCli: true } : block) }
+            : session));
+        }
+        if (appTurnContext) {
+          if (appTurnContext.rotates) {
             await forgetHarnessSession(current.harness, sessionId);
             if (!isCurrent()) return;
             setSessions((previous) => previous.map((session) => session.id === sessionId
               ? { ...session, providerSessionId: undefined, context: undefined } : session));
-            agentTurnContext.commitRotation();
+            appTurnContext.commitRotation();
           }
-          const context = [...agentTurnContext.context];
-          if (agentTurnContext.introduces || activation.matched) context.push(await operatorPrompt(true));
+          const context = [...appTurnContext.context];
+          if (appAccess && (appTurnContext.rotates || appTurnContext.recovering || appTurnContext.introduces || !current.providerSessionId || activation.matched))
+            context.push(await operatorPrompt(!!agent));
           sendText = agentTurn(sendText, context);
         }
         if (!isCurrent()) return;
@@ -436,7 +438,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
         if (edited) void linkLearningDiscussion(learningContext, sessionId, submittedBlockId).catch((error: unknown) => {
           enqueueHarnessEvent(sessionId, { type: "session.error", message: `Could not link the highlighted passage to this discussion: ${String(error)}` });
         });
-        if (isCurrent() && !providerFailed) agentTurnContext?.record(sessionsRef.current.find((session) => session.id === sessionId)?.providerSessionId);
+        if (isCurrent() && !providerFailed && !current.ephemeral) appTurnContext?.record(sessionsRef.current.find((session) => session.id === sessionId)?.providerSessionId);
         if (isCurrent() && wrap) setSessions((previous) => previous.map((session) => {
           if (session.id !== sessionId) return session;
           const ready = isPreparingHandoff(session) ? completeHandoff(session, wrap!.text) : session;

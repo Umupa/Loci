@@ -23,7 +23,7 @@ const VERBATIM_REPLY_CHARS = 3_000;
 const LINE_CHARS = 280;
 const EARLIER_CHARS = 3_000;
 
-export type RotationReason = "context";
+export type RotationReason = "context" | "policy";
 
 /** What the latest rotation started the provider session with. */
 export type AgentRotation = {
@@ -34,6 +34,12 @@ export type AgentRotation = {
   afterBlockId?: string;
   /** One line per exchange before the verbatim ones, oldest first. */
   earlier: string[];
+  /** The old provider was dropped, but its replacement has not accepted a turn. */
+  pending?: {
+    brief: string;
+    /** An old provider restored after a crash must still be replaced. */
+    replacedProvider?: string;
+  };
 };
 
 type Exchange = {
@@ -185,7 +191,7 @@ export function planRotation(
   };
   const brief = (sessionId: string) => {
     const parts = [
-      `This is the same long-lived conversation with the user. It continues in a fresh session so your context stays small; nothing was lost. Pick up where it left off and do not mention the switch unless asked. For anything older or more detailed than this, read the chat itself with \`app sessions.read {"sessionId":"${sessionId}"}\` (pass nextBefore for older pages), and check memory with \`app memory.search\`.`,
+      `Session: ${sessionId}\nConversation excerpts retained from the previous provider session. The full transcript remains in Loci.`,
     ];
     if (earlier.length)
       parts.push(`Earlier, oldest first:\n${earlier.join("\n")}`);
