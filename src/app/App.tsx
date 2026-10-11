@@ -89,9 +89,10 @@ import type { NoteOpenRequest } from "../features/notes/ui/NotesView";
 const SearchView = lazySurface(async () => ({ default: (await import("../features/search/ui/SearchView")).SearchView }), { suspense: false });
 const SettingsView = lazySurface(async () => ({ default: (await import("../features/settings/ui/SettingsView")).SettingsView }), { suspense: false });
 const NotesView = lazySurface(async () => ({ default: (await import("../features/notes/ui/NotesView")).NotesView }), { suspense: false });
+const FeedsView = lazySurface(async () => ({ default: (await import("../features/feeds/ui/FeedsView")).FeedsView }), { suspense: false });
 
 registerBuiltinHarnesses();
-type Surface = "chat" | "search" | "notes" | "settings" | "agent";
+type Surface = "chat" | "search" | "notes" | "feeds" | "settings" | "agent";
 
 export default function App(boot: BootWorkspace) {
   return <Suspense fallback={null}><Workspace {...boot} /></Suspense>;
@@ -410,6 +411,7 @@ function Workspace(boot: BootWorkspace) {
     if (current) requestAddToChat(text, "plain", { targetSessionId: current.sessionId });
   };
   const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => { setNoteOpenRequest(undefined); setSurface("notes"); }); }, []);
+  const openFeeds = useCallback(() => startTransition(() => setSurface("feeds")), []);
   const toggleProjectRail = useCallback(() => setProjectRailOpen((open) => { saveProjectRailOpen(!open); return !open; }), []);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const openTabSwitcher = useCallback(() => {
@@ -472,7 +474,7 @@ function Workspace(boot: BootWorkspace) {
     return watchSystemColorScheme();
   }, []);
   useEffect(() => { if (active) void refreshHarnessCatalogs([active.harness]); }, [active?.harness]);
-  useEffect(() => preloadNavigationWhenIdle([SearchView.preload, SettingsView.preload, NotesView.preload]), []);
+  useEffect(() => preloadNavigationWhenIdle([SearchView.preload, SettingsView.preload, NotesView.preload, FeedsView.preload]), []);
   useLayoutEffect(() => runtime.flushEvents(), [workspace.activeTabId, surface, runtime.flushEvents]);
   useEffect(() => {
     const flush = () => runtime.flushEvents();
@@ -667,6 +669,7 @@ function Workspace(boot: BootWorkspace) {
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
+          onOpenFeeds={openFeeds} feedsActive={surface === "feeds"}
           onOpenFile={workspace.openFile} onToggleSidebar={toggleSessionSidebar} onFileMoved={workspace.fileMoved} onFileDeleted={workspace.fileDeleted}
           projectRailOpen={projectRailOpen} compactProjectRail={compactProjectRail} titleBarAbove={compactTitleBar} onToggleProjectRail={toggleProjectRail}
           unseenFinishedIds={unseenFinishedIds} settingsOpen={surface === "settings"} settingsSection={settingsSection} onOpenSettings={() => openSettings()}
@@ -716,6 +719,8 @@ function Workspace(boot: BootWorkspace) {
             focusToken={searchFocusToken} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
             onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}
           {surface === "notes" ? <NotesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} cwd={workspace.projectCwd} openRequest={noteOpenRequest} recents={workspace.recents} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
+          {surface === "feeds" ? <FeedsView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
+            onNoteSaved={(id) => setSavedToast({ type: "note", id })} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest}
             recents={workspace.recents} cwd={workspace.projectCwd} sessions={workspace.sidebarHistory} besideRail onClose={() => setSurface(settingsReturn.current)} onSelectSection={onSelectSettingsSection}
             onOpenSession={(id) => void workspace.openSession(id)} onArchiveSession={(...args) => void workspace.archiveSession(...args)} onDeleteSession={(id) => void workspace.removeSession(id)}

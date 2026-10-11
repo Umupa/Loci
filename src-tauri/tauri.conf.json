@@ -36,7 +36,11 @@
       "assetProtocol": {
         "enable": true,
         "scope": [
-          "$APPDATA/**"
+          "$APPDATA/backgrounds/**",
+          "$APPDATA/wallpaper-cache/**",
+          "$APPDATA/project-logos/**",
+          "$APPDATA/note-assets/**",
+          "$APPDATA/generated-images/**"
         ]
       }
     }

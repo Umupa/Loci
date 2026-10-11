@@ -11,6 +11,7 @@ mod chat_background;
 mod control;
 pub mod control_cli;
 mod course;
+mod feeds;
 mod fs;
 mod harness;
 mod learning;
@@ -29,9 +30,11 @@ mod session_store;
 mod skills;
 #[cfg(target_os = "windows")]
 mod tray;
+mod v2ex;
 mod window;
 #[cfg(windows)]
 mod windows;
+mod x_feed;
 
 /// Project directory for new sessions — prefer cwd, else home.
 #[tauri::command]
@@ -201,6 +204,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(harness::HarnessHost::new())
+        .manage(x_feed::XFeedState::default())
         .setup(|app| {
             harness::reap_orphaned_harness_processes();
             session_store::init(app.handle())?;
@@ -306,6 +310,24 @@ pub fn run() {
             harness::harness_kill_all,
             harness::harness_exec,
             link_preview::fetch_link_preview,
+            feeds::feeds_state_list,
+            feeds::feeds_mark_seen,
+            feeds::feeds_mark_seen_many,
+            feeds::feeds_set_starred,
+            v2ex::v2ex_status,
+            v2ex::v2ex_set_token,
+            v2ex::v2ex_clear_token,
+            v2ex::v2ex_topics,
+            v2ex::v2ex_topic,
+            v2ex::v2ex_replies,
+            v2ex::v2ex_node,
+            v2ex::v2ex_notifications,
+            x_feed::x_feed_show,
+            x_feed::x_feed_set_bounds,
+            x_feed::x_feed_hide,
+            x_feed::x_feed_navigate,
+            x_feed::x_feed_action,
+            x_feed::x_feed_capture,
             mcp::mcp_add,
             mcp::mcp_discover,
             #[cfg(target_os = "macos")]
