@@ -49,7 +49,8 @@ describe("agent completion batches", () => {
     expect(
       payload.sessions.map((entry: { sessionId: string }) => entry.sessionId),
     ).toEqual(["a", "b", "c"]);
-    expect(message.text).toContain("one consolidated update");
+    expect(message.text).toContain("have now stopped");
+    expect(message.text).not.toContain("one consolidated update");
     // A late duplicate settles nothing twice.
     a(result("a"));
     expect(ready).toHaveBeenCalledOnce();

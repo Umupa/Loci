@@ -48,7 +48,7 @@ const APP_ACTIONS: [&str; 37] = [
     "habits.run",
     "habits.remove",
 ];
-const APP_USAGE: &str = r#"Loci app access — use in a thread enabled by /operator.
+const APP_USAGE: &str = r#"Loci app access — available in agent chats and threads enabled by /operator.
 
 Usage: {exe} app ACTION [--json JSON | --input FILE|-] [--request-id ID]
 
@@ -132,12 +132,10 @@ canvases in the agent's library. Ordinary sessions cannot pass it.
   on sessions.send to hear back about a follow-up.
 
 Only in an agent's own conversation:
-  agent.rename   {"name":"Scout","role":"CI watcher"}  Take the name, and the
-                  few words for its one main job, it and the user settled on.
+  agent.rename   {"name":"Scout","role":"CI watcher"}  Change its name and role.
   soul.read      {}  Its standing instructions (SOUL.md) and their hash.
   soul.update    {"text":"<complete Markdown>","expectedHash":"<from soul.read>"}
-                  Replace them, only at the user's request. A stale hash is
-                  rejected: read again and reapply the change.
+                  Replace them. A stale expectedHash is rejected.
   memory.add     {"fact":"...","until":"YYYY-MM-DD","topic":"<name>"}
                   Remember one dated fact; until and topic are optional.
   memory.replace {"find":"<text of the old entry>","fact":"..."}
@@ -156,26 +154,25 @@ Only in an agent's own conversation:
                   published, read from the UTF-8 Markdown file at path exactly
                   as saved, so it never passes through a reply. sourceUrl is
                   where it was published; subject and version are optional.
-                  Images stay as their absolute https URLs and are shown from
-                  there. A source cannot be revised by a document block; the
+                  Absolute https image URLs are rendered directly.
+                  A source cannot be revised by a document block; the
                   same id here takes the file in again. At most 1 MB a file.
   habits.list    {}  What it does on its own, with schedules and last outcomes.
   habits.add     {"name":"Morning CI check","instructions":"...",
                   "schedule":{"kind":"weekdays","time":"09:00"}}
                   kind is hourly (with "minute":0-59), daily, weekdays or
                   weekly (with "dayOfWeek":0-6, 0 is Sunday). Times are local.
-                  Add one only once the user agrees.
   habits.update  {"id":"...","enabled":false}  Also name, instructions, schedule.
   habits.run     {"id":"..."}  Run it now; the schedule is left alone.
   habits.remove  {"id":"..."}
 
 The output is one JSON line: {"ok":true,"result":...} or {"ok":false,"error":"..."}.
 Note and canvas results include a stable loci://note/ID or loci://canvas/ID url.
-Successful writes include saved:true. In your reply, include [title](url) so
-the user can open the saved resource directly inside Loci. These links do not
-open a browser or launch Loci from another application.
-Use --input - to pass JSON on stdin. Never print Loci credentials.
-Keep the same --request-id when retrying a call after an uncertain result.
+Successful writes include saved:true. Markdown [title](url) links open the
+saved resource inside Loci; they do not open a browser or launch Loci from
+another application.
+--input - reads JSON from stdin. Access uses credentials supplied by Loci.
+The same --request-id identifies retries after an uncertain result.
 "#;
 
 /// Quote for the shell the lead agent actually runs commands in, and only when
@@ -204,7 +201,11 @@ pub fn app_help() -> String {
     let exe = std::env::current_exe()
         .map(|path| quoted(&path.to_string_lossy()))
         .unwrap_or_else(|_| "loci".into());
-    APP_USAGE.replace("{exe}", &exe)
+    format!(
+        "{}\n{}",
+        APP_USAGE.replace("{exe}", &exe),
+        include_str!("../resources/app-formats.md")
+    )
 }
 
 enum Parsed {
@@ -897,6 +898,18 @@ mod tests {
         }
         assert!(!text.contains("{exe}"));
         assert!(text.contains("--request-id"));
+        for fence in [
+            "loci-question",
+            "loci-document",
+            "loci-todo",
+            "loci-mindmap",
+            "loci-course",
+            "loci-diff",
+            "loci-widget",
+            "loci-canvas",
+        ] {
+            assert!(text.contains(fence), "help omits format {fence}");
+        }
     }
     #[test]
     fn quotes_the_control_path_only_when_the_shell_needs_it() {

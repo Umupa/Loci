@@ -28,6 +28,8 @@ mod rate_limits;
 mod reminders;
 mod session_store;
 mod skills;
+#[cfg(target_os = "macos")]
+mod trackpad_zoom;
 #[cfg(target_os = "windows")]
 mod tray;
 mod v2ex;
@@ -181,6 +183,15 @@ fn set_dock_badge(
 ) {
     #[cfg(target_os = "macos")]
     macos::set_window_badge(&window, count);
+}
+
+#[tauri::command]
+fn set_trackpad_zoom_enabled(
+    #[allow(unused_variables)] window: tauri::WebviewWindow,
+    #[allow(unused_variables)] enabled: bool,
+) {
+    #[cfg(target_os = "macos")]
+    trackpad_zoom::set_enabled(&window, enabled);
 }
 
 #[tauri::command]
@@ -406,6 +417,7 @@ pub fn run() {
             set_traffic_lights_visible,
             set_window_background_blur,
             set_dock_badge,
+            set_trackpad_zoom_enabled,
             open_new_window,
         ])
         .build(tauri::generate_context!())
@@ -434,6 +446,8 @@ pub fn run() {
             event: tauri::WindowEvent::Destroyed,
             ..
         } => {
+            #[cfg(target_os = "macos")]
+            trackpad_zoom::forget_window(&label);
             window::forget_quit_window(handle, &label);
             let other_window = window::workspace_windows(handle)
                 .iter()

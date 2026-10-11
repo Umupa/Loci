@@ -1,0 +1,103 @@
+.document-selection-menu {
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--color-content) 14%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-background-base) 97%, var(--color-content) 3%);
+  box-shadow: 0 2px 7px rgb(0 0 0 / 16%);
+  color: var(--color-content);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.document-selection-menu__actions {
+  display: flex;
+  white-space: nowrap;
+}
+
+.document-selection-menu__actions button {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 11px;
+}
+
+.document-selection-menu__actions button + button {
+  border-left: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
+}
+
+.document-selection-menu kbd {
+  color: color-mix(in srgb, var(--color-content) 45%, transparent);
+  font: inherit;
+}
+
+.document-selection-menu button:enabled:hover {
+  background: var(--color-selection-subtle);
+}
+
+.document-selection-menu button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.document-selection-menu button:disabled {
+  opacity: 0.4;
+}
+
+.document-selection-menu__comment {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.document-selection-menu__comment blockquote {
+  user-select: text;
+  max-height: 80px;
+  overflow: auto;
+  border-left: 2px solid var(--color-accent);
+  padding-left: 9px;
+  color: color-mix(in srgb, var(--color-content) 65%, transparent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.document-selection-menu__comment textarea {
+  user-select: text;
+  min-height: 80px;
+  resize: vertical;
+  border: 1px solid var(--color-stroke);
+  border-radius: 6px;
+  padding: 8px;
+  outline: none;
+  background: var(--color-selection-subtle);
+}
+
+.document-selection-menu__comment textarea:focus {
+  border-color: var(--color-accent);
+}
+
+.document-selection-menu__comment footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.document-selection-menu__comment footer button {
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+
+.document-selection-menu__comment button[type="submit"] {
+  background: var(--color-selection);
+}
+
+.document-selection-menu__error {
+  max-width: 320px;
+  padding: 0 11px 8px;
+  color: var(--color-diff-del-fg);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

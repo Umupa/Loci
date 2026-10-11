@@ -101,7 +101,8 @@ describe("built-in tools through the app's CLI", () => {
     expect(note).toContain(`\`'${CLI}' canvas TOOL --json '<arguments>'\``);
     expect(note).toContain(`\`'${CLI}' canvas --help\``);
     for (const tool of ["read_me", "create_view", "read_widget_context", "get_elements", "update_elements"]) expect(note).toContain(tool);
-    expect(note).toContain("never print it");
+    expect(note).not.toContain("Call it once");
+    expect(note).not.toContain("in your reply");
     expect(note).not.toMatch(/LOCI_APP_TOKEN|LOCI_APP_ENDPOINT/);
   });
 

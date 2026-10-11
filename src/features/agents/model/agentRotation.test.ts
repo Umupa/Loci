@@ -102,7 +102,9 @@ it("briefs the fresh session with recent turns word for word and earlier ones as
   );
   const text = brief("agent-1");
   expect(text).toContain("<previous_conversation>");
-  expect(text).toContain('sessions.read {"sessionId":"agent-1"}');
+  expect(text).toContain("Session: agent-1");
+  expect(text).not.toContain("do not mention");
+  expect(text).not.toContain("app memory.search");
   expect(text).toMatch(
     /Earlier, oldest first:\n- .*User: set up the release checklist → You: Done, it is in docs\/release\.md/,
   );

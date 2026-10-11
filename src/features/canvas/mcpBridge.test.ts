@@ -177,8 +177,13 @@ describe("the vendored official server", () => {
     expect(tools.map((tool: El) => tool.name)).toEqual(["read_me", "create_view", "save_checkpoint", "read_checkpoint", "get_elements", "update_elements", "read_widget_context"]);
     const createView = byId(tools.map((tool: El) => ({ ...tool, id: tool.name })), "create_view");
     expect(createView).toMatchObject({ title: "Draw and Save Loci Canvas", annotations: { readOnlyHint: false }, _meta: { ui: { resourceUri: "ui://excalidraw/mcp-app.html" } } });
-    expect(createView.description).toContain("default");
-    expect(createView.description).toContain("link");
+    expect(createView.description).toContain("Every create_view call saves a drawing");
+    expect(createView.description).toContain("get_elements returns exact native properties");
+    for (const tool of tools) {
+      expect(tool.description).not.toContain("Use this tool by default");
+      expect(tool.description).not.toContain("preferred way");
+      expect(tool.description).not.toContain("include the returned canvas link in your reply");
+    }
     expect(Object.keys(createView.inputSchema.properties)).toEqual(["elements"]);
     // Tools the official widget calls stay hidden from models, as upstream marks them.
     for (const name of ["save_checkpoint", "read_checkpoint"])
@@ -194,6 +199,8 @@ describe("the vendored official server", () => {
     expect(reference.text).toContain("restoreCheckpoint");
     expect(reference.text).toContain("get_elements");
     expect(reference.text).toContain("update_elements");
+    expect(reference.text).not.toContain("Use this tool by default");
+    expect(reference.text).not.toContain("include the returned canvas link in your reply");
     // The reference needs no Loci connection.
     expect(requests).toEqual([]);
     const widget = await agent.request("resources/read", { uri: "ui://excalidraw/mcp-app.html" });
@@ -233,6 +240,7 @@ describe("an agent drawing on Loci canvases through the official MCP", () => {
     expect(created).toMatchObject({ title: "Checkout flow", cwd: "/work/app" });
     expect(first.receipt).toMatchObject({ canvasId: created.id, title: created.title, url: `loci://canvas/${created.id}`, saved: true });
     expect(first.text.startsWith(`Saved to Loci: [Checkout flow](loci://canvas/${created.id})`)).toBe(true);
+    expect(first.text).not.toContain("Include this link in your reply");
     expect(host.reveal).toHaveBeenCalledWith(created.id, "session-1");
     expect(requests).toEqual([{ namespace: "canvas", action: "checkpoint.save", input: { id: first.checkpointId, elements: firstCall } }]);
     expect(byId(scene(created).elements, "a1")).toMatchObject({ startBinding: { elementId: "b1" }, endBinding: { elementId: "b2" } });

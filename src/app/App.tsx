@@ -55,6 +55,7 @@ import { SavedToast, type SavedToastData } from "./shell/SavedToast";
 import { attentionOrder, heldTabIds, idleTabIds, parkingCandidates, trackTabGrowth, type TabCountMark } from "../features/workspace/model/tabParking";
 import { loadTabLimit } from "../features/settings/model/settings";
 import { pathKey } from "../shared/lib/paths";
+import { requestImageZoom } from "../shared/lib/imageZoomCommands";
 import type { Tab } from "./shell/TitleBar";
 import { linkFamilies } from "../features/workspace/model/tabFamily";
 import { summarizeTab } from "../features/workspace/model/tabSummary";
@@ -571,6 +572,7 @@ function Workspace(boot: BootWorkspace) {
     openSettings("general", "project-notifications");
   };
   const applyZoom = (direction: -1 | 0 | 1) => {
+    if (requestImageZoom(direction === 0 ? "zoom-reset" : direction === 1 ? "zoom-in" : "zoom-out")) return;
     void applyUiScale(saveUiScale(direction === 0 ? UI_SCALE_DEFAULT : direction === 1 ? zoomInUiScale(loadUiScale()) : zoomOutUiScale(loadUiScale())));
   };
   const tabSummaries = useMemo(() => linkFamilies(workspace.tabs.map((tab) => summarizeTab(tab, {
