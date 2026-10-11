@@ -62,6 +62,7 @@ import { IS_MAC,IS_WIN } from "../../../platform/tauri/platform";
 import { isNoteImagePath } from "../../notes";
 
 import { rehypeHardBreaks } from "./hardBreaks";
+import { MarkdownBlockquote, rehypeGithubAlerts } from "./MarkdownAlert";
 import { rehypeWordFade,usePacedText,useWordFading } from "./wordFade";
 
 const MERMAID_BASE_CONFIG = {
@@ -110,6 +111,7 @@ const MARKDOWN_REHYPE_PLUGINS: PluggableList = [
       imageBlockPolicy: "remove" as const,
     },
   ],
+  rehypeGithubAlerts,
 ];
 
 
@@ -591,6 +593,7 @@ function MarkdownImage({
 
 const MARKDOWN_COMPONENTS = {
   a: MarkdownLink,
+  blockquote: MarkdownBlockquote,
   code: MarkdownCode,
   img: MarkdownImage,
 } satisfies Components;
