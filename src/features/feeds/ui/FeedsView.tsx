@@ -20,7 +20,8 @@ import {
   type V2exNotification, type V2exReply, type V2exStatus, type V2exTopic,
 } from "../model/v2ex";
 import { navigateXFeed, X_SHORTCUTS, xPathForQuery } from "../model/xFeed";
-import { ACTION_FILLED, ACTION_GHOST, Avatar, Chip, EmptyDetail, FeedProviderMark, IconButton, Person, PROVIDER_LABELS } from "./feedUi";
+import { ACTION_FILLED, ACTION_GHOST, Avatar, Chip, EmptyDetail, IconButton, Person } from "../../../shared/ui/inboxParts";
+import { FeedProviderMark, PROVIDER_LABELS } from "./feedUi";
 import { clearFeedLists, useFeedState, useV2exNotifications, useV2exTopics } from "./useFeedData";
 import { relativeSeconds, V2exTopicDetail } from "./V2exTopicDetail";
 import { XFeedPane } from "./XFeedPane";

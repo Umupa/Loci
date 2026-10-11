@@ -6,12 +6,14 @@ import {
   type AgentFilePath,
 } from "../../agents/model/agentFiles";
 import { handleAgentApp, type AgentAppHost } from "./agentApp";
+import type { ParsedCourse } from "../../learning/model/course";
 
 /** The agent's folder as a map, with a hash that changes on every write. */
 function fixture(agent = true) {
   const source = newSession("codex", "/tmp/project", "codex:test");
   source.id = "agent";
   const files = new Map<string, string>([["MEMORY.md", ""]]);
+  const courses = new Map<string, ParsedCourse & { agentId: string }>();
   const versions = new Map<string, number>();
   const hash = (path: string) => `${path}@${versions.get(path) ?? 0}`;
   const write = vi.fn(
@@ -50,6 +52,18 @@ function fixture(agent = true) {
         id === "pods" ? { id, title: "Pods, explained", subject: "Kubernetes", body: "# Pods", updatedAt: Date.UTC(2026, 9, 9) } : undefined,
       importSource: async (_agentId: string, input: { id: string; title: string; subject?: string; sourceUrl: string; version?: string }) =>
         ({ id: input.id, title: input.title, subject: input.subject, sourceUrl: input.sourceUrl, sourceVersion: input.version, fetchedAt: Date.UTC(2026, 9, 10), updatedAt: Date.UTC(2026, 9, 10) }),
+    },
+    courses: {
+      list: async (agentId: string) => [...courses.values()].filter((course) => course.agentId === agentId)
+        .map((course) => ({ id: course.id, agentId, engine: course.engine, title: course.title, updatedAt: Date.UTC(2026, 9, 11), itemCount: 1, masteredCount: 0 })),
+      read: async (agentId: string, id: string) => {
+        const course = courses.get(id);
+        return course && course.agentId === agentId
+          ? { id, agentId, title: course.title, updatedAt: Date.UTC(2026, 9, 11), data: course.data, progress: new Map([["pod", "learning"]]) }
+          : null;
+      },
+      write: async (agentId: string, course: ParsedCourse) => { courses.set(course.id, { ...course, agentId }); },
+      remove: async (_agentId: string, id: string) => { courses.delete(id); },
     },
     now: () => new Date(2026, 9, 4, 12),
   } as unknown as AgentAppHost;
@@ -144,4 +158,21 @@ it("takes a source into the library from the file the agent saved, with where it
   await expect(run("documents.write", { ...source, path: undefined })).rejects.toThrow("path");
   await expect(run("documents.write", { ...source, sourceUrl: "" })).rejects.toThrow("sourceUrl");
   await expect(fixture(false).run("documents.write", source)).rejects.toThrow("Only an agent's own conversation");
+});
+
+it("keeps courses in the agent's own library through courses.*", async () => {
+  const { run } = fixture();
+  const course = { id: "k8s", title: "Kubernetes reading", chapters: [{ title: "Workloads", lessons: [{ id: "pod", title: "Pods", document: "pods" }] }] };
+  expect(await run("courses.write", course)).toEqual({ id: "k8s", title: "Kubernetes reading", engine: "reading", items: 1, saved: true });
+  expect(await run("courses.list")).toEqual({
+    courses: [{ id: "k8s", title: "Kubernetes reading", engine: "reading", items: 1, read: 0, updatedAt: "2026-10-11T00:00:00.000Z" }],
+  });
+  expect(await run("courses.read", { id: "k8s" })).toMatchObject({
+    engine: "reading", chapters: course.chapters, progress: { pod: "learning" },
+  });
+  await expect(run("courses.write", { ...course, chapters: [] })).rejects.toThrow("Invalid course");
+  await expect(run("courses.write", { ...course, body: "{}" })).rejects.toThrow("Unknown courses.write fields");
+  expect(await run("courses.delete", { id: "k8s" })).toEqual({ id: "k8s", deleted: true });
+  await expect(run("courses.read", { id: "k8s" })).rejects.toThrow("No such course");
+  await expect(fixture(false).run("courses.list")).rejects.toThrow("Only an agent's own conversation");
 });

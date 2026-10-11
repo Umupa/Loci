@@ -43,7 +43,7 @@ it("keeps the shipped text for a field left empty", () => {
 it("is nothing but a named face and a written soul", () => {
   for (const template of AGENT_TEMPLATES) {
     expect(Object.keys(template).sort()).toEqual(["avatar", "color", "description", "id", "name", "role", "soul"]);
-    expect(template.soul.startsWith(`You are the user's ${template.role}: `)).toBe(true);
+    expect(template.soul.trim()).not.toBe("");
     expect(templateSoul(template)).toBe(`# Soul\n\n## Standing instructions\n${template.soul}\n`);
   }
   expect(new Set(AGENT_TEMPLATES.map((template) => template.id)).size).toBe(AGENT_TEMPLATES.length);

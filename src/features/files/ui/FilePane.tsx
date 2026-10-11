@@ -342,7 +342,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       {annotationsOpen ? <PdfAnnotationsList annotations={annotations} selectedId={openAnnotation?.id} onSelect={selectAnnotation} onClose={() => setAnnotationsOpen(false)} /> : null}
     </div>;
   } else if (content.status === "image") {
-    body = <ImageView url={content.url} size={content.size} mime={content.mime} />;
+    body = <ImageView url={content.url} size={content.size} mime={content.mime} focused={focused} />;
   } else if (kind === "markdown") {
     body = editing ? (
       <textarea

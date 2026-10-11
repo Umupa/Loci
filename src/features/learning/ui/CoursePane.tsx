@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { GripVertical, MessageSquarePlus, Mortarboard, X } from "../../../shared/ui/icons";
 import { findAgent } from "../../agents/model/agent";
 import { readAgentDocument, subscribeAgentDocuments } from "../../agents/model/agentDocuments";
@@ -8,23 +8,29 @@ import { requestOpenFile } from "../../files/model/filePlace";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
-import { courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
+import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
 import { DiffCard } from "./DiffCard";
+import { CourseToc } from "./CourseToc";
 import "./CoursePane.css";
 
 type Props = {
   courseId: string; agentId: string; title?: string; sourceSessionId?: string;
   focused: boolean; onFocus: () => void; onClose: () => void;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
+  /** Extra header buttons, before Close; the Courses page puts its own here. */
+  actions?: ReactNode;
+  /** After a discussion draft is queued, show the conversation it went to. */
+  onDiscussed?: () => void;
 };
 type SyncFailure = { itemId: string; status: LearningStatus; message: string };
-const PROGRESS_EVENT = "loci:course-progress";
+/** Fired on `window` when a lesson's status changes in any pane. */
+export const PROGRESS_EVENT = "loci:course-progress";
 type ProgressDetail = { courseId: string; agentId: string; itemId: string; status: LearningStatus };
 const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
 /** What a status is called where the work is reading. */
 const READING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Reading", mastered: "Read" };
 
-export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart }: Props) {
+export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart, actions, onDiscussed }: Props) {
   const scope = JSON.stringify([agentId, courseId]);
   const [loaded, setLoaded] = useState<{ scope: string; course: CourseWithProgress | null; error: string | null }>({ scope, course: null, error: null });
   const [reload, setReload] = useState(0);
@@ -33,6 +39,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   const [actionError, setActionError] = useState<string | null>(null);
   const [syncFailures, setSyncFailures] = useState<Map<string, SyncFailure>>(new Map());
   const pendingWrites = useRef(new Map<string, { scope: string; itemId: string }>());
+  const scrollRef = useRef<HTMLElement>(null);
   const pendingConcept = useRef<NavigateConceptDetail | null>(null);
   const pendingProgress = useRef<{ scope: string; items: Map<string, LearningStatus> }>({ scope, items: new Map() });
   const courseLoad = useRef<{ scope: string; promise: Promise<CourseWithProgress | null> } | null>(null);
@@ -86,6 +93,10 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       const detail = (event as CustomEvent<OpenCourseDetail>).detail;
       if (detail?.courseId === courseId && detail.agentId === agentId) setReload((value) => value + 1);
     };
+    const changed = (event: Event) => {
+      const detail = (event as CustomEvent<CourseChangedDetail>).detail;
+      if (detail?.agentId === agentId && (detail.courseId === undefined || detail.courseId === courseId)) setReload((value) => value + 1);
+    };
     const progressed = (event: Event) => {
       const detail = (event as CustomEvent<ProgressDetail>).detail;
       if (detail?.courseId !== courseId || detail.agentId !== agentId) return;
@@ -100,8 +111,9 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     };
     window.addEventListener(NAVIGATE_CONCEPT_EVENT, navigate);
     window.addEventListener(OPEN_COURSE_EVENT, opened);
+    window.addEventListener(COURSES_CHANGED_EVENT, changed);
     window.addEventListener(PROGRESS_EVENT, progressed);
-    return () => { window.removeEventListener(NAVIGATE_CONCEPT_EVENT, navigate); window.removeEventListener(OPEN_COURSE_EVENT, opened); window.removeEventListener(PROGRESS_EVENT, progressed); };
+    return () => { window.removeEventListener(NAVIGATE_CONCEPT_EVENT, navigate); window.removeEventListener(OPEN_COURSE_EVENT, opened); window.removeEventListener(COURSES_CHANGED_EVENT, changed); window.removeEventListener(PROGRESS_EVENT, progressed); };
   }, [scope]);
 
   const isScopeCurrent = () => latest.current.mounted && latest.current.scope === scope;
@@ -173,10 +185,13 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     const targetSessionId = findAgent(agentId)?.sessionId ?? sourceSessionId;
     if (!targetSessionId) { setActionError("Open the course's original conversation before discussing progress."); return; }
     const currentItem = courseItems(course.data).find((item) => item.id === activeId)!;
-    const progress = courseItems(course.data).map((item) => ({ id: item.id, title: item.title, status: course.progress.get(item.id) ?? "untouched" }));
     const reading = course.data.engine === "reading";
-    requestAddToChat(`I'm studying course "${course.title}" (courseId: ${course.id}). Current ${reading ? "lesson" : "step"}: "${currentItem.title}" (${activeId}), status: ${course.progress.get(activeId) ?? "untouched"}. ${reading ? "Here is where I am; let's talk about what I have read and what to read next." : "Please explain the current content in the context of my progress and suggest what to do next."}\n\nProgress:\n${JSON.stringify(progress, null, 2)}`, "plain", { targetSessionId });
+    const prompt = reading
+      ? `I'm studying course "${course.title}" (courseId: ${course.id}). Current lesson: "${currentItem.title}" (${activeId}), status: ${course.progress.get(activeId) ?? "untouched"}. Test my understanding with 1–2 practical questions or edge-case scenarios about this material, and highlight what to watch out for.`
+      : `I'm working on step "${currentItem.title}" in course "${course.title}" (courseId: ${course.id}). Current step: "${currentItem.title}" (${activeId}), status: ${course.progress.get(activeId) ?? "untouched"}. Let's discuss the key design decisions, trade-offs and next steps.`;
+    requestAddToChat(prompt, "plain", { targetSessionId });
     setActionError(null);
+    onDiscussed?.();
   };
   // Opening a lesson is starting to read it.
   const select = (id: string) => {
@@ -185,13 +200,16 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   };
   const reading = course?.data.engine === "reading";
   const activeStatus = course?.progress.get(activeId ?? "") ?? "untouched";
+  const items = course ? courseItems(course.data) : [];
+  const currentIndex = items.findIndex((item) => item.id === activeId);
+  const nextItem = currentIndex >= 0 && currentIndex < items.length - 1 ? items[currentIndex + 1] : null;
 
   return <aside aria-label={course?.title ?? title ?? "Course"} className="course-pane" onPointerDown={() => { if (!focused) onFocus(); }}>
     <header className={`course-pane__header${onPaneDragStart ? " course-pane__header--draggable" : ""}`} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("[data-no-drag]")) onPaneDragStart?.(event); }}>
-      {onPaneDragStart ? <GripVertical className="size-3.5 shrink-0 text-content/35" /> : null}<Mortarboard className={`size-3.5 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span><button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-3.5" /></button>
+      {onPaneDragStart ? <GripVertical className="size-3.5 shrink-0 text-content/35" /> : null}<Mortarboard className={`size-3.5 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-3.5" /></button>
     </header>
     {course ? <>
-      <div className="course-pane__body"><CourseNav course={course} activeId={activeId} onSelect={select} /><div className="course-pane__right"><main className="course-pane__main"><CourseContent course={course} activeId={activeId} /></main><footer className="course-pane__status-actions"><span className="course-pane__status-label">{reading ? READING_STATUS[activeStatus] : activeStatus}</span><button type="button" className="course-button" disabled={!activeId || saving.has(activeId) || course.progress.get(activeId) === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}>{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</button>{activeId && (course.progress.get(activeId) ?? "untouched") === "untouched" ? <button type="button" className="course-button course-button--quiet" disabled={saving.has(activeId)} onClick={() => void markStatus(activeId, "learning")}>{reading ? "Mark as reading" : "Mark as learning"}</button> : activeId ? <button type="button" className="course-button course-button--quiet" disabled={saving.has(activeId)} onClick={() => void markStatus(activeId, "untouched")}>Reset progress</button> : null}<button type="button" className="course-button course-button--quiet" onClick={discuss}><MessageSquarePlus className="size-3.5" />Discuss progress</button>{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {courseItems(course.data).find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</footer></div></div>
+      <div className="course-pane__body"><CourseNav course={course} activeId={activeId} onSelect={select} /><div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main"><CourseContent course={course} activeId={activeId} />{nextItem ? <div className="course-pane__content"><div className="course-pane__next-card"><div className="course-pane__next-card-info"><span className="course-pane__next-card-label">Next {reading ? "lesson" : "step"}</span><h4 className="course-pane__next-card-title">{nextItem.title}</h4></div><button type="button" className="course-button course-button--primary" onClick={() => { if (activeId && activeStatus !== "mastered") void markStatus(activeId, "mastered"); select(nextItem.id); }}>{activeStatus === "mastered" ? (reading ? "Next lesson →" : "Next step →") : (reading ? "Mark read & Next →" : "Complete & Next →")}</button></div></div> : null}</main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div><footer className="course-pane__status-actions"><span className="course-pane__status-label">{items.length > 0 && currentIndex >= 0 ? <span className="course-pane__position">{String(currentIndex + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")} · </span> : null}{reading ? READING_STATUS[activeStatus] : activeStatus}</span><button type="button" className="course-button course-button--quiet" title={reading ? "Test understanding with agent" : "Discuss step with agent"} onClick={discuss}><MessageSquarePlus className="size-3.5" />{reading ? "Test understanding" : "Discuss step"}</button>{activeStatus === "mastered" && activeId ? <button type="button" className="course-button course-button--quiet course-pane__reset-button" disabled={saving.has(activeId)} onClick={() => void markStatus(activeId, "untouched")} title="Reset progress for this item">Reset</button> : null}<button type="button" className={`course-button${activeStatus !== "mastered" ? " course-button--primary" : ""}`} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}>{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</button>{nextItem ? <button type="button" className="course-button" title={`Continue to: ${nextItem.title}`} onClick={() => { if (activeId && activeStatus !== "mastered") void markStatus(activeId, "mastered"); select(nextItem.id); }}><span>Next →</span></button> : null}{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {items.find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</footer></div></div>
     </> : <div className="course-pane__empty" role={loaded.scope === scope && loaded.error ? "alert" : undefined}><p>{loaded.scope === scope ? loaded.error ?? "Opening course…" : "Opening course…"}</p>{loaded.scope === scope && loaded.error ? <button type="button" className="course-button" onClick={() => setReload((value) => value + 1)}>Retry</button> : null}</div>}
   </aside>;
 }

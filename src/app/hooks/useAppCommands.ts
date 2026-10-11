@@ -9,6 +9,7 @@ import { resolveAppShortcut } from "../../features/settings/model/appShortcuts";
 import { keybindingPressed, loadKeybindingOverrides, matchCustomKeybinding } from "../../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../../features/settings/model/uiScale";
 import { resolveZoomKeybinding } from "../../features/settings/model/zoomKeybinding";
+import { requestImageZoom } from "../../shared/lib/imageZoomCommands";
 import type { FocusDir, LayoutNode } from "../../features/workspace/model/layout";
 import {
   adjacentItemId, deferUnhandledEscape, focusedBusyAgentSessionId,
@@ -58,6 +59,7 @@ export function useAppCommands(options: Options) {
       work();
     };
     const zoom = (direction: "zoom-in" | "zoom-out" | "zoom-reset") => run(direction, () => {
+      if (requestImageZoom(direction)) return;
       const scale = direction === "zoom-reset" ? UI_SCALE_DEFAULT
         : direction === "zoom-in" ? zoomInUiScale(loadUiScale()) : zoomOutUiScale(loadUiScale());
       void applyUiScale(saveUiScale(scale));

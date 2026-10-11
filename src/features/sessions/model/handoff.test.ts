@@ -256,13 +256,14 @@ describe("handoff block lifecycle", () => {
 });
 
 describe("wrapHandoffPrompt", () => {
-  it("leads with the user request and says this is not a new session", () => {
+  it("preserves the session and leads with the user request before the recap", () => {
     const prompt = wrapHandoffPrompt(
       "Session so far: hello",
       "codex",
       "do the sidebar",
     );
-    expect(prompt).toContain("not a new session");
+    expect(prompt).toContain("within the same session");
+    expect(prompt).not.toContain("Do not say");
     expect(prompt).toContain("do the sidebar");
     expect(prompt).toContain("Codex");
     expect(prompt.indexOf("do the sidebar")).toBeLessThan(

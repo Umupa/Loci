@@ -88,11 +88,9 @@ export function canvasCliPrompt(cli: string): string {
   return `
 
 <loci_canvas>
-Loci added this note; the user did not write it. This project has Loci canvases: Excalidraw drawings the user sees and edits inside Loci. You can create, read and edit them with Loci's local CLI, \`${cli} canvas TOOL --json '<arguments>'\`:
-- read_me: the element format. Call it once before your first drawing.
-- create_view: draw and save. Without restoreCheckpoint it starts a new drawing; with it, it adds to or removes from an existing one and keeps the user's own edits.
-- read_widget_context: list this project's drawings, or read one as it is now.
-- get_elements and update_elements: change properties of existing elements by id.
-Run \`${cli} canvas --help\` for each tool's arguments. Pass large arguments as a file with --input FILE. Use these tools when the user asks for a diagram or a drawing in Loci, and put the canvas link a successful call returns in your reply. They work only during your turn in this session, through a credential already in your environment; never print it.
+Loci canvas access: \`${cli} canvas TOOL --json '<arguments>'\`, or --input FILE for file input.
+Tools: read_me (element format), create_view (create or extend a drawing), read_widget_context (drawing context), get_elements and update_elements (elements by id).
+Argument reference: \`${cli} canvas --help\`.
+Access is available during this session's turn through a credential supplied in its environment.
 </loci_canvas>`;
 }

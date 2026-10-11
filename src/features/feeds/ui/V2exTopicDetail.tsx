@@ -5,7 +5,8 @@ import { ExternalLink, Hashtag, LoaderCircle, MessageMultiple, MessageSquare, Re
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import { v2exReplies, v2exTopic, type V2exReply, type V2exTopic } from "../model/v2ex";
 import { v2exTopicMarkdown } from "../model/feedContext";
-import { ACTION_FILLED, ACTION_GHOST, ACTION_OUTLINE, Avatar, Chip, FeedProviderMark, IconButton, Person } from "./feedUi";
+import { ACTION_FILLED, ACTION_GHOST, ACTION_OUTLINE, Avatar, Chip, IconButton, Person } from "../../../shared/ui/inboxParts";
+import { FeedProviderMark } from "./feedUi";
 
 type Props = {
   /** What the list knows; the detail refetches the full topic and replies. */

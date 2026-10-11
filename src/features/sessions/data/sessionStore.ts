@@ -1,6 +1,8 @@
 import { standingQuestionFromBlocks } from "../model/standingQuestion";
 import { sanitizeLearningContext } from "../../learning/model/learningContext";
 import { isAgentSession } from "../../agents/model/agent";
+import { forgetAgentContext } from "../../agents/model/agentFiles";
+import { forgetAgentRotation } from "../../agents/model/agentRotation";
 import { invoke } from "@tauri-apps/api/core";
 import {
   isWeakToolTitle,
@@ -365,6 +367,8 @@ export async function deleteSession(
     await enqueueSessionWrite(sessionId, () =>
       invoke<void>("session_delete", { sessionId, imagePaths }),
     );
+    forgetAgentContext(sessionId);
+    forgetAgentRotation(sessionId);
     const tombstone = setTimeout(() => deletedSessionIds.delete(sessionId), 60_000);
     if (typeof tombstone === "object") tombstone.unref();
   } catch (error) {

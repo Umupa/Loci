@@ -367,10 +367,16 @@ describe("Hermes live ACP sequence", () => {
     const continuation = parse().filter(
       (message) => message.method === "session/prompt",
     )[1]!;
-    expect(continuation.params.prompt[0].text).toContain(
-      "Found the lifecycle race",
-    );
-    expect(continuation.params.prompt[0].text).toContain(transcript);
+    expect(JSON.parse(continuation.params.prompt[0].text)).toEqual({
+      event: "hermes.background.finished",
+      reports: [{
+        callId: "delegate-call",
+        delegationId: "deleg_abcd",
+        status: "finished",
+        path: transcript,
+        tail: textFiles.get(transcript),
+      }],
+    });
     expect(
       events
         .filter(
