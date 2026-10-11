@@ -350,6 +350,8 @@ pub fn run() {
             canvas::canvas_checkpoint_canvas,
             canvas::canvas_checkpoint_latest,
             course::course_list,
+            course::course_list_all,
+            course::course_delete,
             course::course_get,
             course::course_upsert,
             course::course_progress_get,

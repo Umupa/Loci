@@ -137,6 +137,28 @@ export function parseCourse(source: string): CourseParseResult {
   } catch (cause) { return { error: errorText(cause) }; }
 }
 
+/**
+ * A fence with front matter and no body points at a course the agent already
+ * saved with `courses.write`, instead of carrying the course itself.
+ */
+export function parseCourseLink(source: string): { id: string; title: string } | null {
+  try {
+    const { fields, body } = frontMatter(source, COURSE_FENCE);
+    if (body.trim()) return null;
+    return { id: id(fields.id, "Course id"), title: string(fields.title, "Course title") };
+  } catch { return null; }
+}
+
+/** The `courses.write` input: the fence's front matter fields plus its JSON body, as one object. */
+export function parseCourseInput(input: Record<string, unknown>): ParsedCourse {
+  const courseId = id(input.id, "id");
+  const title = string(input.title, "title");
+  if ([...title].length > 200) throw new Error("title must be at most 200 characters.");
+  const { id: _id, title: _title, engine, ...body } = input;
+  const data = parseCourseData(engine ?? "reading", body);
+  return { id: courseId, title, engine: data.engine, data, ...(data.engine === "reading" && data.canvasId ? { canvasId: data.canvasId } : {}) };
+}
+
 /** Delimiter lines are structural; every byte inside the code sections is kept. */
 export function parseDiff(source: string): DiffParseResult {
   try {
@@ -186,6 +208,34 @@ export async function loadCourse(courseId: string, agentId: string): Promise<Cou
     progress.set(itemId, item.status);
   }
   return { id: courseId, agentId, title, updatedAt: raw.updatedAt, data, progress };
+}
+
+/** Fired on `window` after a course is saved or deleted. */
+export const COURSES_CHANGED_EVENT = "loci:courses-changed";
+
+export type CourseSummary = {
+  id: string; agentId: string; engine: CourseEngine; title: string; updatedAt: number;
+  itemCount: number; masteredCount: number;
+};
+
+function coursesChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(COURSES_CHANGED_EVENT));
+}
+
+export async function saveCourse(agentId: string, course: ParsedCourse): Promise<void> {
+  await invoke("course_upsert", { course: { id: course.id, agentId, engine: course.engine, title: course.title, dataJson: JSON.stringify(course.data) } });
+  coursesChanged();
+}
+
+/** Every stored course; callers keep the ones owned by a current agent. */
+export function loadCourseSummaries(): Promise<CourseSummary[]> {
+  return invoke<CourseSummary[]>("course_list_all");
+}
+
+/** One course, or with no id every course the agent owns. */
+export async function deleteCourse(agentId: string, id?: string): Promise<void> {
+  await invoke("course_delete", { agentId, id: id ?? null });
+  coursesChanged();
 }
 
 export const OPEN_COURSE_EVENT = "loci:open-course";

@@ -94,8 +94,28 @@ it("shows an upsert error and keeps a failed course closed", async () => {
   vi.mocked(invoke).mockRejectedValueOnce(new Error("disk full"));
   const opened = vi.fn(); window.addEventListener(OPEN_COURSE_EVENT, opened);
   try {
-    await act(async () => root.render(createElement(WidgetHostContext.Provider, { value: { owner: { kind: "session", id: "owner" }, sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(build), incomplete: false }))));
+    await act(async () => root.render(createElement(WidgetHostContext.Provider, { value: { owner: { kind: "agent", id: "owner" }, sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(build), incomplete: false }))));
     await act(async () => button("Open Course").click()); expect(container.querySelector('[role="alert"]')?.textContent).toContain("disk full"); expect(opened).not.toHaveBeenCalled(); expect(button("Open Course").disabled).toBe(false);
+  } finally { window.removeEventListener(OPEN_COURSE_EVENT, opened); }
+});
+
+it("previews a course in an ordinary conversation without saving it", async () => {
+  await act(async () => root.render(createElement(WidgetHostContext.Provider, { value: { owner: { kind: "session", id: "chat" }, sourceSessionId: "chat" } }, createElement(CourseCard, { source: source(build), incomplete: false }))));
+  expect(button("Open Course").disabled).toBe(true);
+  expect(container.textContent).toContain("Courses belong to an agent");
+  expect(invoke).not.toHaveBeenCalledWith("course_upsert", expect.anything());
+});
+
+it("opens a course the agent saved from a fence without a body", async () => {
+  courses.set(key("owner", "build"), { id: "build", agentId: "owner", engine: "build-your-own", title: build.title, dataJson: JSON.stringify(build.data), createdAt: 1, updatedAt: 1 });
+  const opened = vi.fn(); window.addEventListener(OPEN_COURSE_EVENT, opened);
+  try {
+    await act(async () => root.render(createElement(WidgetHostContext.Provider, { value: { owner: { kind: "agent", id: "owner" }, sourceSessionId: "agent-chat" } }, createElement(CourseCard, { source: "---\nid: build\ntitle: Linked\n---\n", incomplete: false }))));
+    expect(container.textContent).toContain(`${build.title}`);
+    expect(container.textContent).toMatch(/3 steps/);
+    await act(async () => button("Open Course").click());
+    expect(invoke).not.toHaveBeenCalledWith("course_upsert", expect.anything());
+    expect(opened.mock.calls[0][0].detail).toMatchObject({ courseId: "build", agentId: "owner", sourceSessionId: "agent-chat" });
   } finally { window.removeEventListener(OPEN_COURSE_EVENT, opened); }
 });
 

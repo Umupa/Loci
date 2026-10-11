@@ -4,7 +4,8 @@ import { ChevronLeft, ChevronRight, ExternalLink, LoaderCircle, RefreshCw, Stick
 import { loadUiScale, UI_SCALE_CHANGE_EVENT } from "../../settings/model/uiScale";
 import { hasXContent, xCaptureMarkdown, type XCapture } from "../model/feedContext";
 import { boundsFromRect, captureXFeed, hideXFeed, setXFeedBounds, showXFeed, xFeedAction } from "../model/xFeed";
-import { ACTION_FILLED, ACTION_GHOST, ACTION_OUTLINE, FeedProviderMark, IconButton } from "./feedUi";
+import { ACTION_FILLED, ACTION_GHOST, ACTION_OUTLINE, IconButton } from "../../../shared/ui/inboxParts";
+import { FeedProviderMark } from "./feedUi";
 
 type Props = {
   onSendToAgent: (capture: XCapture) => void;

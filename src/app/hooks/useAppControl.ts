@@ -8,6 +8,7 @@ import { habitRunAgent, loadHabits, updateHabits } from "../../features/agents/m
 import { loadAgentFiles, readAgentFile, writeAgentFile } from "../../features/agents/model/agentFiles";
 import { readAgentConversation } from "../../features/agents/model/agentTranscript";
 import { handleCanvasBridge } from "../../features/canvas/checkpoints";
+import { deleteCourse, loadCourse, loadCourseSummaries, saveCourse } from "../../features/learning/model/course";
 import { listSessionsByProject } from "../../features/sessions/data/sessionStore";
 import { newSession, sessionDraftBlock, type Session } from "../../features/sessions/model/session";
 import { sameProjectPath } from "../../features/projects/model/recents";
@@ -154,6 +155,12 @@ export function useAppControl(options: Options) {
           renameAgent: (agentId, look) => { updateAgent(agentId, (current) => ({ ...current, ...look })); },
           files: { load: loadAgentFiles, read: readAgentFile, write: writeAgentFile },
           documents: { list: listAgentDocuments, read: readAgentDocument, importSource: importAgentSource },
+          courses: {
+            list: async (agentId) => (await loadCourseSummaries()).filter((course) => course.agentId === agentId),
+            read: (agentId, id) => loadCourse(id, agentId),
+            write: saveCourse,
+            remove: deleteCourse,
+          },
           notes: () => loadNotes(true), note: getNote,
           saveNote: async (note) => { const saved = await upsertNote(note); window.dispatchEvent(new Event(NOTES_CHANGED_EVENT)); return saved; },
         });
