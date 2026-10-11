@@ -1,5 +1,5 @@
 import { ask } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { OverlayNav } from "../../../app/shell/TitleBar";
 import { WindowControls } from "../../../app/shell/WindowControls";
 import { IS_MAC } from "../../../platform/tauri/platform";
@@ -41,6 +41,7 @@ export function CoursesView({ besideRail = false, compactRail = false, onClose, 
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [selected, setSelectedState] = useState(rememberedSelection);
+  const refreshGeneration = useRef(0);
   const resize = useDragResize({
     min: LIST_MIN,
     max: () => Math.min(LIST_MAX, Math.round(window.innerWidth * 0.5)),
@@ -55,9 +56,12 @@ export function CoursesView({ besideRail = false, compactRail = false, onClose, 
   };
 
   const refresh = useCallback(() => {
+    const generation = ++refreshGeneration.current;
     setLoading(true);
-    void loadCourseSummaries().then((list) => { setCourses(list); setError(null); }, (cause) => setError(String(cause)))
-      .finally(() => setLoading(false));
+    void loadCourseSummaries().then(
+      (list) => { if (generation === refreshGeneration.current) { setCourses(list); setError(null); } },
+      (cause) => { if (generation === refreshGeneration.current) setError(String(cause)); },
+    ).finally(() => { if (generation === refreshGeneration.current) setLoading(false); });
   }, []);
 
   useEffect(() => {
@@ -66,6 +70,7 @@ export function CoursesView({ besideRail = false, compactRail = false, onClose, 
     window.addEventListener(COURSES_CHANGED_EVENT, refresh);
     window.addEventListener(PROGRESS_EVENT, refresh);
     return () => {
+      refreshGeneration.current += 1;
       window.removeEventListener(COURSES_CHANGED_EVENT, refresh);
       window.removeEventListener(PROGRESS_EVENT, refresh);
     };

@@ -210,21 +210,22 @@ export async function loadCourse(courseId: string, agentId: string): Promise<Cou
   return { id: courseId, agentId, title, updatedAt: raw.updatedAt, data, progress };
 }
 
-/** Fired on `window` after a course is saved or deleted. */
+/** Fired on `window` after a course is saved or deleted; no courseId means all of the owner's courses. */
 export const COURSES_CHANGED_EVENT = "loci:courses-changed";
+export type CourseChangedDetail = { agentId: string; courseId?: string };
 
 export type CourseSummary = {
   id: string; agentId: string; engine: CourseEngine; title: string; updatedAt: number;
   itemCount: number; masteredCount: number;
 };
 
-function coursesChanged() {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(COURSES_CHANGED_EVENT));
+function coursesChanged(detail: CourseChangedDetail) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<CourseChangedDetail>(COURSES_CHANGED_EVENT, { detail }));
 }
 
 export async function saveCourse(agentId: string, course: ParsedCourse): Promise<void> {
   await invoke("course_upsert", { course: { id: course.id, agentId, engine: course.engine, title: course.title, dataJson: JSON.stringify(course.data) } });
-  coursesChanged();
+  coursesChanged({ agentId, courseId: course.id });
 }
 
 /** Every stored course; callers keep the ones owned by a current agent. */
@@ -235,7 +236,7 @@ export function loadCourseSummaries(): Promise<CourseSummary[]> {
 /** One course, or with no id every course the agent owns. */
 export async function deleteCourse(agentId: string, id?: string): Promise<void> {
   await invoke("course_delete", { agentId, id: id ?? null });
-  coursesChanged();
+  coursesChanged({ agentId, ...(id === undefined ? {} : { courseId: id }) });
 }
 
 export const OPEN_COURSE_EVENT = "loci:open-course";

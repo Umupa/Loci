@@ -8,7 +8,7 @@ import { requestOpenFile } from "../../files/model/filePlace";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
-import { courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
+import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
 import { DiffCard } from "./DiffCard";
 import { CourseToc } from "./CourseToc";
 import "./CoursePane.css";
@@ -93,6 +93,10 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       const detail = (event as CustomEvent<OpenCourseDetail>).detail;
       if (detail?.courseId === courseId && detail.agentId === agentId) setReload((value) => value + 1);
     };
+    const changed = (event: Event) => {
+      const detail = (event as CustomEvent<CourseChangedDetail>).detail;
+      if (detail?.agentId === agentId && (detail.courseId === undefined || detail.courseId === courseId)) setReload((value) => value + 1);
+    };
     const progressed = (event: Event) => {
       const detail = (event as CustomEvent<ProgressDetail>).detail;
       if (detail?.courseId !== courseId || detail.agentId !== agentId) return;
@@ -107,8 +111,9 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     };
     window.addEventListener(NAVIGATE_CONCEPT_EVENT, navigate);
     window.addEventListener(OPEN_COURSE_EVENT, opened);
+    window.addEventListener(COURSES_CHANGED_EVENT, changed);
     window.addEventListener(PROGRESS_EVENT, progressed);
-    return () => { window.removeEventListener(NAVIGATE_CONCEPT_EVENT, navigate); window.removeEventListener(OPEN_COURSE_EVENT, opened); window.removeEventListener(PROGRESS_EVENT, progressed); };
+    return () => { window.removeEventListener(NAVIGATE_CONCEPT_EVENT, navigate); window.removeEventListener(OPEN_COURSE_EVENT, opened); window.removeEventListener(COURSES_CHANGED_EVENT, changed); window.removeEventListener(PROGRESS_EVENT, progressed); };
   }, [scope]);
 
   const isScopeCurrent = () => latest.current.mounted && latest.current.scope === scope;
