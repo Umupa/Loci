@@ -16,4 +16,3 @@ function V2exMark({ className }: { className?: string }) {
 export function FeedProviderMark({ provider, className = "size-3.5 shrink-0" }: { provider: FeedTab; className?: string }) {
   return provider === "x" ? <XLogo className={className} /> : <V2exMark className={className} />;
 }
-
