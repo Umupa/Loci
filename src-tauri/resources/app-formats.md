@@ -63,23 +63,31 @@ bullets become child nodes in a collapsible tree.
 
 ## Reading course
 
+Courses belong to an agent's library. Save one with the `courses.write`
+action, then point at it from a reply with a fence that has front matter and
+no body:
+
 ```loci-course
 ---
 id: kubernetes-reading
 title: Kubernetes reading
-engine: reading
 ---
-{"chapters":[{"title":"Workloads","lessons":[{"id":"pod-lifecycle","title":"Pod Lifecycle","document":"k8s-pod-lifecycle","section":"Pod phase"},{"id":"borg","title":"Borg","file":"/absolute/path/borg.pdf","pages":[1,12]}]}]}
 ```
 
-The body is JSON. `id` and `title` are required; `engine` defaults to `reading`.
+The `courses.write` input is one object:
+
+```json
+{"id":"kubernetes-reading","title":"Kubernetes reading","engine":"reading","chapters":[{"title":"Workloads","lessons":[{"id":"pod-lifecycle","title":"Pod Lifecycle","document":"k8s-pod-lifecycle","section":"Pod phase"},{"id":"borg","title":"Borg","file":"/absolute/path/borg.pdf","pages":[1,12]}]}]}
+```
+
+`id` and `title` are required; `engine` defaults to `reading`.
 Chapters and lessons are non-empty arrays. Each lesson has a unique `id`,
 `title`, and exactly one of `document` (an imported document ID) or `file`
 (an absolute path). `section` belongs to a document; `pages: [first, last]`
 belongs to a file and uses positive, inclusive page numbers. A course can
-link a canvas through optional `canvas-id` front matter or `canvasId` in its
-JSON body. Updating the same course ID retains progress for lesson IDs that
-remain in the course.
+link a canvas through optional `canvasId`. Updating the same course ID retains
+progress for lesson IDs that remain in the course. A fence that still carries
+the JSON body after its front matter is shown as a preview; Open saves it.
 
 The `build-your-own` engine uses `{"steps":[...]}`. Each step has a unique
 `id`, `title`, `summary`, `file`, `before`, `after`, `explanation`, and optional

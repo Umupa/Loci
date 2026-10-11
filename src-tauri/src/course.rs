@@ -38,6 +38,19 @@ pub struct CourseUpsert {
     pub data_json: String,
 }
 
+/// One row of the Courses list: enough to show it without its structure.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CourseSummary {
+    pub id: String,
+    pub agent_id: String,
+    pub engine: String,
+    pub title: String,
+    pub updated_at: i64,
+    pub item_count: usize,
+    pub mastered_count: usize,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CourseProgressItem {
@@ -193,6 +206,30 @@ pub fn course_list(
     validate_id(&agent_id, "agent")?;
     let conn = store.lock_conn()?;
     list_courses(&conn, &agent_id).map_err(|e| e.to_string())
+}
+
+/// Every course, newest first. Owners are not checked here: the caller keeps
+/// the ones whose owner is still an agent.
+#[tauri::command(async)]
+pub fn course_list_all(store: State<'_, SessionStore>) -> Result<Vec<CourseSummary>, String> {
+    let conn = store.lock_conn()?;
+    list_summaries(&conn).map_err(|e| e.to_string())
+}
+
+/// Removes one course, or with no id every course the agent owns. Progress
+/// goes with it.
+#[tauri::command(async)]
+pub fn course_delete(
+    store: State<'_, SessionStore>,
+    agent_id: String,
+    id: Option<String>,
+) -> Result<(), String> {
+    validate_id(&agent_id, "agent")?;
+    if let Some(id) = &id {
+        validate_id(id, "course")?;
+    }
+    let conn = store.lock_conn()?;
+    delete_courses(&conn, &agent_id, id.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command(async)]
@@ -397,6 +434,57 @@ fn list_courses(conn: &Connection, agent_id: &str) -> rusqlite::Result<Vec<Cours
     rows.collect()
 }
 
+fn list_summaries(conn: &Connection) -> rusqlite::Result<Vec<CourseSummary>> {
+    let mut statement = conn.prepare(
+        "SELECT c.id, c.agent_id, c.engine, c.title, c.data_json, c.updated_at,
+                (SELECT COUNT(*) FROM course_progress p
+                  WHERE p.agent_id = c.agent_id AND p.course_id = c.id AND p.status = 'mastered')
+         FROM courses c ORDER BY c.updated_at DESC, c.id",
+    )?;
+    let rows = statement.query_map([], |row| {
+        let engine: String = row.get(2)?;
+        let data: String = row.get(4)?;
+        Ok(CourseSummary {
+            id: row.get(0)?,
+            agent_id: row.get(1)?,
+            item_count: item_count(&engine, &data),
+            engine,
+            title: row.get(3)?,
+            updated_at: row.get(5)?,
+            mastered_count: row.get::<_, i64>(6)?.max(0) as usize,
+        })
+    })?;
+    rows.collect()
+}
+
+/// Lessons or steps in stored data; stored data was validated on save.
+fn item_count(engine: &str, data_json: &str) -> usize {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(data_json) else {
+        return 0;
+    };
+    match engine {
+        "build-your-own" => value["steps"].as_array().map_or(0, Vec::len),
+        _ => value["chapters"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|chapter| chapter["lessons"].as_array().map_or(0, Vec::len))
+            .sum(),
+    }
+}
+
+fn delete_courses(conn: &Connection, agent_id: &str, id: Option<&str>) -> rusqlite::Result<()> {
+    // Progress rows cascade from their course.
+    match id {
+        Some(id) => conn.execute(
+            "DELETE FROM courses WHERE agent_id = ?1 AND id = ?2",
+            params![agent_id, id],
+        )?,
+        None => conn.execute("DELETE FROM courses WHERE agent_id = ?1", [agent_id])?,
+    };
+    Ok(())
+}
+
 fn get_course(conn: &Connection, agent_id: &str, id: &str) -> rusqlite::Result<Option<Course>> {
     conn.query_row(
         "SELECT id, agent_id, engine, title, data_json, created_at, updated_at
@@ -538,6 +626,39 @@ fn set_progress(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn summaries_count_items_and_mastered_and_delete_cascades() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        ensure_courses_table(&conn).unwrap();
+        save_course(&conn, &reading("agent-a")).unwrap();
+        save_course(&conn, &build("agent-b", &["one", "two", "three"])).unwrap();
+        set_progress(&conn, "agent-a", "agent-loop", "pod", "mastered").unwrap();
+        set_progress(&conn, "agent-a", "agent-loop", "s01", "learning").unwrap();
+
+        let all = list_summaries(&conn).unwrap();
+        let a = all
+            .iter()
+            .find(|course| course.agent_id == "agent-a")
+            .unwrap();
+        assert_eq!((a.item_count, a.mastered_count), (3, 1));
+        let b = all
+            .iter()
+            .find(|course| course.agent_id == "agent-b")
+            .unwrap();
+        assert_eq!(
+            (b.item_count, b.mastered_count, b.engine.as_str()),
+            (3, 0, "build-your-own")
+        );
+
+        delete_courses(&conn, "agent-a", Some("agent-loop")).unwrap();
+        assert!(get_progress(&conn, "agent-a", "agent-loop")
+            .unwrap()
+            .is_empty());
+        delete_courses(&conn, "agent-b", None).unwrap();
+        assert!(list_summaries(&conn).unwrap().is_empty());
+    }
 
     fn build(agent: &str, ids: &[&str]) -> CourseUpsert {
         CourseUpsert {

@@ -80,6 +80,7 @@ export type SessionLaunch = {
 };
 import type { SplitDir } from "../../workspace/model/layout";
 import { consumeOperatorCommand } from "../../sessions/model/operatorCommand";
+import { courseItems, parseCourseInput, type CourseSummary, type CourseWithProgress, type ParsedCourse } from "../../learning/model/course";
 import { sessionConversationPage, type SessionReadOptions } from "./sessionConversation";
 
 export type AppSessionListing = {
@@ -159,6 +160,13 @@ export type AgentAppHost = {
     read(agentId: string, id: string): Promise<AgentLibraryEntry | undefined>;
     /** Takes the file at `path` in as a source. */
     importSource(agentId: string, source: AgentSourceImport): Promise<AgentLibraryEntry>;
+  };
+  /** Courses in an agent's library: chapters of lessons that point at its documents. */
+  courses?: {
+    list(agentId: string): Promise<CourseSummary[]>;
+    read(agentId: string, id: string): Promise<CourseWithProgress | null>;
+    write(agentId: string, course: ParsedCourse): Promise<void>;
+    remove(agentId: string, id: string): Promise<void>;
   };
   /** The clock entries are dated by; tests pin it. */
   now?(): Date;
@@ -242,6 +250,10 @@ const FIELDS = new Map<string, readonly string[]>([
   ["documents.list", []],
   ["documents.read", ["id"]],
   ["documents.write", ["id", "title", "subject", "path", "sourceUrl", "version"]],
+  ["courses.list", []],
+  ["courses.read", ["id"]],
+  ["courses.write", ["id", "title", "engine", "chapters", "canvasId", "steps"]],
+  ["courses.delete", ["id"]],
   ["habits.list", []],
   ["habits.add", ["name", "instructions", "schedule"]],
   ["habits.update", ["id", "name", "instructions", "schedule", "enabled"]],
@@ -487,6 +499,57 @@ async function handleDocuments(
   );
   if (found?.body == null) throw new Error("No such document");
   return { ...named(found), text: found.body };
+}
+
+async function handleCourses(
+  source: Session,
+  action: string,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): Promise<unknown> {
+  const agentId = ownConversation(source, host)?.id;
+  if (!agentId || !host.courses)
+    throw new Error("Only an agent's own conversation can use its courses");
+  if (action === "courses.list") {
+    const courses = await host.courses.list(agentId);
+    return {
+      courses: courses.map((course) => ({
+        id: course.id,
+        title: course.title,
+        engine: course.engine,
+        items: course.itemCount,
+        read: course.masteredCount,
+        updatedAt: new Date(course.updatedAt).toISOString(),
+      })),
+    };
+  }
+  if (action === "courses.write") {
+    let course: ParsedCourse;
+    try {
+      course = parseCourseInput(input);
+    } catch (error) {
+      throw new Error(`Invalid course: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    await host.courses.write(agentId, course);
+    return { id: course.id, title: course.title, engine: course.engine, items: courseItems(course.data).length, saved: true };
+  }
+  const id = requiredString(input.id, "id", 80);
+  if (action === "courses.delete") {
+    await host.courses.remove(agentId, id);
+    return { id, deleted: true };
+  }
+  const found = await host.courses.read(agentId, id);
+  if (!found) throw new Error("No such course");
+  const { engine, ...body } = found.data;
+  return {
+    id: found.id,
+    title: found.title,
+    engine,
+    ...body,
+    // What the user has read so far, per lesson or step id.
+    progress: Object.fromEntries(found.progress),
+    updatedAt: new Date(found.updatedAt).toISOString(),
+  };
 }
 
 async function handleSoul(
@@ -932,6 +995,8 @@ export async function handleAgentApp(
     return handleDocuments(source, action, input, host);
   if (action.startsWith("habits."))
     return handleHabits(source, action, input, host);
+  if (action.startsWith("courses."))
+    return handleCourses(source, action, input, host);
   switch (action) {
     case "models.list":
       return {

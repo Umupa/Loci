@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 37] = [
+const APP_ACTIONS: [&str; 41] = [
     "models.list",
     "sessions.list",
     "sessions.read",
@@ -42,6 +42,10 @@ const APP_ACTIONS: [&str; 37] = [
     "documents.list",
     "documents.read",
     "documents.write",
+    "courses.list",
+    "courses.read",
+    "courses.write",
+    "courses.delete",
     "habits.list",
     "habits.add",
     "habits.update",
@@ -157,6 +161,18 @@ Only in an agent's own conversation:
                   Absolute https image URLs are rendered directly.
                   A source cannot be revised by a document block; the
                   same id here takes the file in again. At most 1 MB a file.
+  courses.list   {}  Its courses, newest first, with how many lessons the user
+                  has read of each.
+  courses.read   {"id":"k8s-reading"}  One course in full, with progress per
+                  lesson id: untouched, learning (opened) or mastered (read).
+  courses.write  {"id":"k8s-reading","title":"Kubernetes reading",
+                  "chapters":[{"title":"Workloads","lessons":[...]}]}
+                  Save a course to its library; it appears in Loci's Courses
+                  at once. The fields are a loci-course block's front matter
+                  and JSON body in one object (see Reading course below).
+                  The same id replaces the course and keeps progress for
+                  lesson ids that remain.
+  courses.delete {"id":"k8s-reading"}  Remove a course and its progress.
   habits.list    {}  What it does on its own, with schedules and last outcomes.
   habits.add     {"name":"Morning CI check","instructions":"...",
                   "schedule":{"kind":"weekdays","time":"09:00"}}
