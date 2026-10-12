@@ -42,8 +42,8 @@ export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
   const last = index >= questions.length - 1;
   const selected = answers[question.id] ?? [];
   const typed = custom[question.id] ?? "";
-  // "Other" is the line below, not a choice of its own.
-  const options = question.options.filter((option) => !isOtherOption(option));
+  // When custom answers are allowed, "Other" uses the input below.
+  const options = question.options.filter((option) => !question.allowCustom || !isOtherOption(option));
   const interact = () => {
     if (prompt.autoResolveAt != null) onInteraction?.(prompt.requestId);
   };

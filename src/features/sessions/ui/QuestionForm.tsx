@@ -288,8 +288,7 @@ function QuestionFields({
           role="group"
         >
           {options.map((option, optionIndex) => {
-            const isCustom =
-              isOtherOption(option) || option.id === CUSTOM_OPTION_ID;
+            const isCustom = isCustomId(question, option.id);
             const active = selected.includes(option.id);
             return (
               <div key={option.id}>
@@ -377,7 +376,7 @@ function customOptionId(question: UserQuestion): string {
 }
 
 function isCustomId(question: UserQuestion, optionId: string): boolean {
-  return optionId === CUSTOM_OPTION_ID || optionId === customOptionId(question);
+  return question.allowCustom && (optionId === CUSTOM_OPTION_ID || optionId === customOptionId(question));
 }
 
 function nextSelection(

@@ -16,6 +16,7 @@ import {
 } from "../../core/child";
 import {
   autoPermissionOption,
+  antigravityQuestionFromAcp,
   asRecord,
   eventsFromAcpUpdate,
   extractModelConfigId,
@@ -35,6 +36,12 @@ import type {
   SendTurnInput,
   SteerTurnInput,
 } from "../../core/types";
+import type { UserQuestionReply } from "../../../../features/sessions/model/userQuestion";
+
+type PendingQuestion = {
+  event: Extract<HarnessEvent, { type: "question.asked" }>;
+  resolve: (reply: UserQuestionReply | "cancelled") => void;
+};
 
 type SessionSetupResult = {
   sessionId?: string;
@@ -63,6 +70,8 @@ type Live = {
   cliPath?: string;
   onEvent: (event: HarnessEvent) => void;
   approvals: Map<number, (decision: ApprovalDecision) => void>;
+  questions: Map<number, PendingQuestion>;
+  visibleQuestionId: number | null;
   promptInFlight: boolean;
   /** True while the owning turn may have state-changing requests in flight —
    *  a cancel here makes the transport indeterminate even mid-config. */
@@ -223,6 +232,36 @@ export function respondAntigravityApproval(
   liveByThread.get(sessionId)?.approvals.get(requestId)?.(decision);
 }
 
+export function respondAntigravityQuestion(sessionId: string, requestId: number, reply: UserQuestionReply) {
+  const pending = liveByThread.get(sessionId)?.questions.get(requestId);
+  if (!pending) return;
+  if (reply.kind === "answered") {
+    const question = pending.event.questions[0];
+    const selected = reply.answers[question.id];
+    if (selected?.length !== 1 || !question.options.some((option) => option.id === selected[0])) return;
+    if (Object.entries(reply.answers).some(([id, answers]) => id !== question.id && answers.length > 0)) return;
+    if (Object.values(reply.custom ?? {}).some((text) => text.trim())) return;
+  }
+  pending.resolve(reply);
+}
+
+function showNextQuestion(live: Live) {
+  if (live.cancelled || live.muteUpdates || !live.promptInFlight || live.visibleQuestionId !== null) return;
+  const next = live.questions.entries().next().value;
+  if (next) {
+    live.visibleQuestionId = next[0];
+    live.onEvent(next[1].event);
+  }
+}
+
+function cancelQuestions(live: Live) {
+  live.visibleQuestionId = null;
+  const pending = [...live.questions.entries()];
+  live.questions.clear();
+  for (const [, question] of pending) question.resolve("cancelled");
+  for (const [requestId] of pending) live.onEvent({ type: "question.resolved", requestId, decision: "cancelled" });
+}
+
 export async function cancelAntigravityTurn(sessionId: string): Promise<void> {
   cancelEpoch.set(sessionId, (cancelEpoch.get(sessionId) ?? 0) + 1);
   // Also retire queued/in-flight lifecycle work: a cancel before the child
@@ -239,6 +278,7 @@ export async function cancelAntigravityTurn(sessionId: string): Promise<void> {
   if (live.turnActive) live.stale = true;
   for (const resolve of live.approvals.values()) resolve("deny");
   live.approvals.clear();
+  cancelQuestions(live);
   // Unwind the local turn first: a blocked stdin must not keep the UI's send
   // promise (or this cancel) wedged. The wire notify is best-effort.
   live.acp.rejectPending(new Error("cancelled"));
@@ -313,6 +353,7 @@ function settleLive(live: Live): void {
   }
   for (const resolve of live.approvals.values()) resolve("deny");
   live.approvals.clear();
+  cancelQuestions(live);
 }
 
 /**
@@ -328,7 +369,7 @@ function noteActivity(live: Live): void {
   live.watchdog = setTimeout(() => {
     live.watchdog = undefined;
     if (liveByThread.get(live.threadId) !== live) return;
-    if (!live.promptInFlight || live.approvals.size > 0) return;
+    if (!live.promptInFlight || live.approvals.size > 0 || live.questions.size > 0) return;
     if (live.stallNotified) return;
     live.stallNotified = true;
     live.onEvent({
@@ -575,6 +616,8 @@ async function startLive(input: SendTurnInput, life: number): Promise<Live> {
       cliPath,
       onEvent: input.onEvent,
       approvals: new Map(),
+      questions: new Map(),
+      visibleQuestionId: null,
       promptInFlight: false,
       turnActive: false,
       stallNotified: false,
@@ -733,6 +776,7 @@ async function prompt(live: Live, input: SendTurnInput): Promise<void> {
     throw failure;
   } finally {
     live.promptInFlight = false;
+    cancelQuestions(live);
     if (live.watchdog) {
       clearTimeout(live.watchdog);
       live.watchdog = undefined;
@@ -780,6 +824,11 @@ async function handleRequest(
 
 async function handlePermission(live: Live, id: number, params: unknown) {
   const request = permissionRequestFromAcp(params);
+  // ask_user is a human choice, even though AGY encodes its options as allow_once.
+  if (request.callId?.startsWith("interaction_")) {
+    await handleQuestion(live, id, params, request.callId);
+    return;
+  }
   // Protocol replies always flow; UI events are gated on the turn still being
   // live so a cancelled run cannot leave approval cards behind.
   if (
@@ -858,4 +907,34 @@ async function handlePermission(live: Live, id: number, params: unknown) {
       ? { outcome: "selected", optionId }
       : { outcome: "cancelled" },
   });
+}
+
+async function handleQuestion(live: Live, id: number, params: unknown, callId: string) {
+  const question = antigravityQuestionFromAcp(params);
+  if (!live.promptInFlight || live.cancelled || live.muteUpdates || !question) {
+    if (!question && live.promptInFlight && !live.cancelled && !live.muteUpdates) {
+      live.onEvent({ type: "status", text: "Antigravity sent an invalid question; it was cancelled without choosing an answer." });
+    }
+    await live.acp.respond(id, { outcome: { outcome: "cancelled" } });
+    return;
+  }
+  let pending!: PendingQuestion;
+  const reply = new Promise<UserQuestionReply | "cancelled">((resolve) => {
+    pending = { event: { type: "question.asked", requestId: id, title: question.prompt, questions: [question], callId }, resolve };
+    live.questions.set(id, pending);
+  });
+  showNextQuestion(live);
+  const answer = await reply;
+  if (live.questions.get(id) === pending) {
+    live.questions.delete(id);
+    if (live.visibleQuestionId === id) {
+      live.visibleQuestionId = null;
+      live.onEvent({ type: "question.resolved", requestId: id, decision: answer === "cancelled" ? "cancelled" : answer.kind });
+    }
+    showNextQuestion(live);
+  }
+  noteActivity(live);
+  const optionId = !live.cancelled && live.promptInFlight && answer !== "cancelled" && answer.kind === "answered"
+    ? answer.answers[question.id][0] : undefined;
+  await live.acp.respond(id, { outcome: optionId ? { outcome: "selected", optionId } : { outcome: "cancelled" } });
 }

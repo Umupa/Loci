@@ -3,6 +3,7 @@ import type { AgentModel, ModelSetting, ModelSettingChoice } from "../../../../f
 import type { Attachment, RuntimeMode, ToolPreview } from "../../../../features/sessions/model/session";
 import { normalizeTaskListStatus } from "../../../../features/sessions/model/taskList";
 import type { ApprovalDecision, HarnessEvent } from "../../core/types";
+import type { UserQuestion } from "../../../../features/sessions/model/userQuestion";
 import {
   composeToolTitle,
   extractSearchQuery,
@@ -141,6 +142,34 @@ export function permissionRequestFromAcp(
     preview,
     optionIds,
     optionKinds,
+  };
+}
+
+/** AGY 1.3 sends ask-user choices as permission options, with a reserved call ID. */
+export function antigravityQuestionFromAcp(params: unknown): (UserQuestion & { allowMultiSelect: false }) | undefined {
+  const request = permissionRequestFromAcp(params);
+  if (!request.callId?.startsWith("interaction_")) return;
+  const rec = asRecord(params);
+  const tool = asRecord(rec?.toolCall) ?? asRecord(rec?.tool_call);
+  const title = stringField(tool ?? {}, "title");
+  if (!title || !Array.isArray(rec?.options) || rec.options.length === 0) return;
+  const options: UserQuestion["options"] = [];
+  const ids = new Set<string>();
+  for (const value of rec.options) {
+    const option = asRecord(value);
+    const id = option?.optionId ?? option?.option_id;
+    const label = stringField(option ?? {}, "name");
+    if (typeof id !== "string" || !id.trim() || !label || ids.has(id)) return;
+    ids.add(id);
+    options.push({ id, label });
+  }
+  return {
+    id: request.callId,
+    prompt: title,
+    options,
+    multiSelect: false,
+    allowMultiSelect: false,
+    allowCustom: false,
   };
 }
 

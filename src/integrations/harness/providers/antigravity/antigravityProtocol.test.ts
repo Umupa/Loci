@@ -104,6 +104,51 @@ describe.each(providers)("$id ACP protocol", ({ id, protocol, mode, blocks, mode
     expect(protocol.autoPermissionOption("full-access", "execute", request.optionIds, request.optionKinds)).toBe("yes-7");
   });
 
+  it("preserves clarification question names and choice ids independently of permission kinds", () => {
+    expect(protocol.antigravityQuestionFromAcp({
+      toolCall: {
+        toolCallId: "interaction_learning_goal", title: "Which learning goal?", kind: "other",
+      },
+      options: [
+        { optionId: "choice-a", name: "Develop a filesystem (Recommended)", kind: "allow_once" },
+        { optionId: "choice-b", name: "Explore kernel internals", kind: "allow_once" },
+        { optionId: "deny", name: "None of these", kind: "reject_once" },
+      ],
+    })).toMatchObject({
+      prompt: "Which learning goal?",
+      multiSelect: false,
+      allowMultiSelect: false,
+      allowCustom: false,
+      options: [
+        { id: "choice-a", label: "Develop a filesystem (Recommended)" },
+        { id: "choice-b", label: "Explore kernel internals" },
+        { id: "deny", label: "None of these" },
+      ],
+    });
+  });
+
+  it("does not classify an ordinary permission as a clarification", () => {
+    expect(protocol.antigravityQuestionFromAcp({
+      toolCall: { toolCallId: "tool_run", title: "Run command", kind: "execute" },
+      options: [{ optionId: "allow", name: "Allow", kind: "allow_once" }],
+    })).toBeUndefined();
+  });
+
+  it.each([
+    { options: null },
+    { options: [] },
+    { options: [{ optionId: "choice-a", kind: "allow_once" }] },
+    { options: [{ optionId: "choice-a", name: " ", kind: "allow_once" }] },
+    { options: [{ name: "Choice A", kind: "allow_once" }] },
+    { options: [{ optionId: " ", name: "Choice A", kind: "allow_once" }] },
+    { options: [{ optionId: "choice-a", name: "Choice A" }, { optionId: "choice-a", name: "Choice B" }] },
+  ])("rejects malformed clarification choices $options without generating fallback answers", ({ options }) => {
+    expect(protocol.antigravityQuestionFromAcp({
+      toolCall: { toolCallId: "interaction_learning_goal", title: "Which learning goal?", kind: "other" },
+      options,
+    })).toBeUndefined();
+  });
+
   it("maps text, reasoning, tools and plans without fx-specific result decoding", () => {
     const parse = (update: unknown) => protocol.eventsFromAcpUpdate({ update });
     expect(parse({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "hi" } }))

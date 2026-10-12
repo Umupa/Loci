@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HarnessEvent, SendTurnInput } from "../../core/types";
+import type { UserQuestionReply } from "../../../../features/sessions/model/userQuestion";
 import { modelsFor, resetHarnessModelOverlays } from "../../../../features/sessions/model/models";
 
 const mock = vi.hoisted(() => {
@@ -112,6 +113,24 @@ function permission(kind = "execute", id = 100) {
     },
   }));
 }
+const clarificationOptions = [
+  { optionId: "goal_fs", name: "开发用户态文件系统（推荐）", kind: "allow_once" },
+  { optionId: "goal_kernel", name: "深入内核机制", kind: "allow_once" },
+  { optionId: "deny", name: "以上都不是", kind: "reject_once" },
+];
+function clarification(id = 201, overrides: Record<string, unknown> = {}) {
+  childListener()(JSON.stringify({ jsonrpc: "2.0", id,
+    method: "session/request_permission", params: {
+      toolCall: {
+        toolCallId: `interaction_learning_goal_${id}`,
+        title: "你学习 Linux FUSE 最核心要解决的工程目标是什么？",
+        kind: "other",
+      },
+      options: clarificationOptions,
+      ...overrides,
+    },
+  }));
+}
 function finishPrompt() {
   const prompt = mock.sent.findLast((message) => message.method === "session/prompt")!;
   childListener()(JSON.stringify({ jsonrpc: "2.0", id: prompt.id, result: { stopReason: mock.promptStop } }));
@@ -144,6 +163,240 @@ describe.each(providers)("$id offline ACP transport", (provider) => {
   afterEach(async () => {
     await provider.forget("thread");
     resetHarnessModelOverlays();
+  });
+
+  it("keeps clarification choices unanswered even in full access", async () => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    clarification();
+    await flush();
+    expect(response(201)).toBeUndefined();
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "question.asked",
+      requestId: 201,
+      questions: [expect.objectContaining({
+        prompt: "你学习 Linux FUSE 最核心要解决的工程目标是什么？",
+        multiSelect: false,
+        allowMultiSelect: false,
+        allowCustom: false,
+        options: clarificationOptions.map(({ optionId, name }) => ({ id: optionId, label: name })),
+      })],
+    }));
+    expect(events.some((event) => event.type === "approval.requested")).toBe(false);
+    await provider.cancel("thread");
+    await turn;
+  });
+
+  it.each([
+    { runtimeMode: "supervised", kind: "other" },
+    { runtimeMode: "full-access", intent: "plan", kind: "read" },
+    { runtimeMode: "full-access", intent: "plan", kind: "edit" },
+    { runtimeMode: "auto-accept-edits", kind: "edit" },
+  ] as const)("keeps clarification choices explicit for $runtimeMode / $kind / $intent", async (policy) => {
+    const { kind, ...turnPolicy } = policy;
+    const turn = provider.send({ ...input, ...turnPolicy });
+    await waitPrompt();
+    clarification(201, { toolCall: {
+      toolCallId: "interaction_learning_goal", title: "Which learning goal?", kind,
+    } });
+    await flush();
+    expect(response(201)).toBeUndefined();
+    expect(events.some((event) => event.type === "question.asked")).toBe(true);
+    expect(events.some((event) => event.type === "approval.requested")).toBe(false);
+    // Approval and question answers must stay separate even if their ids match.
+    provider.respond("thread", 201, "allow");
+    await flush();
+    expect(response(201)).toBeUndefined();
+    await provider.cancel("thread");
+    await turn;
+  });
+
+  it.each(["goal_kernel", "deny"])("returns the exact clarification choice %s after the user answers", async (optionId) => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    clarification();
+    await flush();
+    const asked = events.find((event) => event.type === "question.asked");
+    expect(asked?.type).toBe("question.asked");
+    if (asked?.type !== "question.asked") throw new Error("Missing clarification question");
+    agy.respondAntigravityQuestion("thread", asked.requestId, {
+      kind: "answered", answers: { [asked.questions[0].id]: [optionId] },
+    });
+    await flush();
+    expect(response(201)).toEqual({ outcome: { outcome: "selected", optionId } });
+    expect(events).toContainEqual({ type: "question.resolved", requestId: asked.requestId, decision: "answered" });
+    finishPrompt();
+    await turn;
+  });
+
+  it.each(["unknown", "multiple", "custom"])("keeps an invalid %s clarification answer available for retry", async (invalid) => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    clarification();
+    await flush();
+    const asked = events.find((event) => event.type === "question.asked");
+    expect(asked?.type).toBe("question.asked");
+    if (asked?.type !== "question.asked") throw new Error("Missing clarification question");
+    const questionId = asked.questions[0].id;
+    const reply: UserQuestionReply = invalid === "custom"
+      ? { kind: "answered", answers: {}, custom: { [questionId]: "A goal of my own" } }
+      : { kind: "answered", answers: { [questionId]: invalid === "multiple" ? ["goal_fs", "goal_kernel"] : ["unknown"] } };
+    agy.respondAntigravityQuestion("thread", asked.requestId, reply);
+    await flush();
+    expect(response(201)).toBeUndefined();
+    expect(events.some((event) => event.type === "question.resolved")).toBe(false);
+    agy.respondAntigravityQuestion("thread", asked.requestId, {
+      kind: "answered", answers: { [questionId]: ["goal_kernel"] },
+    });
+    await flush();
+    expect(response(201)).toEqual({ outcome: { outcome: "selected", optionId: "goal_kernel" } });
+    finishPrompt();
+    await turn;
+  });
+
+  it("returns cancelled when the user skips a clarification", async () => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    clarification();
+    await flush();
+    agy.respondAntigravityQuestion("thread", 201, { kind: "skipped" });
+    await flush();
+    expect(response(201)).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(events).toContainEqual({ type: "question.resolved", requestId: 201, decision: "skipped" });
+    finishPrompt();
+    await turn;
+  });
+
+  it.each(["cancel", "stop", "forget", "exit", "turn-end"])("cancels pending clarification on %s without accepting a stale answer", async (ending) => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    clarification();
+    await flush();
+    const asked = events.find((event) => event.type === "question.asked");
+    expect(asked?.type).toBe("question.asked");
+    if (asked?.type !== "question.asked") throw new Error("Missing clarification question");
+    if (ending === "cancel") await provider.cancel("thread");
+    else if (ending === "stop") await provider.stop("thread");
+    else if (ending === "forget") await provider.forget("thread");
+    else if (ending === "exit") mock.exits.get(liveKey())!(1);
+    else finishPrompt();
+    await turn;
+    await flush();
+    expect(response(201)).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(events).toContainEqual({ type: "question.resolved", requestId: asked.requestId, decision: "cancelled" });
+    agy.respondAntigravityQuestion("thread", asked.requestId, {
+      kind: "answered", answers: { [asked.questions[0].id]: ["goal_kernel"] },
+    });
+    await flush();
+    expect(mock.sent.filter((message) => message.id === 201 && message.result)).toHaveLength(1);
+  });
+
+  it("leaves clarification open without a timeout or a provider-stall warning", async () => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    vi.useFakeTimers();
+    try {
+      clarification();
+      await flush();
+      const asked = events.find((event) => event.type === "question.asked");
+      expect(asked?.type).toBe("question.asked");
+      if (asked?.type !== "question.asked") throw new Error("Missing clarification question");
+      expect(asked.autoResolveAt).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(300_000);
+      expect(response(201)).toBeUndefined();
+      expect(events.some((event) => event.type === "status")).toBe(false);
+      agy.respondAntigravityQuestion("thread", asked.requestId, {
+        kind: "answered", answers: { [asked.questions[0].id]: ["goal_kernel"] },
+      });
+      await flush();
+      expect(response(201)).toEqual({ outcome: { outcome: "selected", optionId: "goal_kernel" } });
+      finishPrompt();
+      await turn;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows concurrent clarification questions one at a time", async () => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    clarification(201);
+    clarification(202);
+    await flush();
+    const asked = () => events.filter((event) => event.type === "question.asked");
+    expect(asked()).toHaveLength(1);
+    expect(asked()[0].requestId).toBe(201);
+    expect(response(201)).toBeUndefined();
+    expect(response(202)).toBeUndefined();
+    agy.respondAntigravityQuestion("thread", 201, { kind: "skipped" });
+    await flush();
+    expect(asked()).toHaveLength(2);
+    expect(asked()[1].requestId).toBe(202);
+    const questionId = asked()[1].questions[0].id;
+    agy.respondAntigravityQuestion("thread", 202, {
+      kind: "answered", answers: { [questionId]: ["deny"] },
+    });
+    await flush();
+    expect(response(201)).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(response(202)).toEqual({ outcome: { outcome: "selected", optionId: "deny" } });
+    finishPrompt();
+    await turn;
+  });
+
+  it("cancels queued clarification questions at turn end without showing stale cards", async () => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    clarification(201);
+    clarification(202);
+    await flush();
+    expect(events.filter((event) => event.type === "question.asked")).toHaveLength(1);
+    finishPrompt();
+    await turn;
+    await flush();
+    expect(response(201)).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(response(202)).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(events.filter((event) => event.type === "question.asked")).toHaveLength(1);
+    expect(events.filter((event) => event.type === "question.resolved")).toEqual([
+      { type: "question.resolved", requestId: 201, decision: "cancelled" },
+      { type: "question.resolved", requestId: 202, decision: "cancelled" },
+    ]);
+  });
+
+  it.each([
+    { options: [] },
+    { options: [{ optionId: "goal_fs", kind: "allow_once" }] },
+    { options: [{ optionId: "goal_fs", name: " ", kind: "allow_once" }] },
+    { options: [{ name: "Develop a filesystem", kind: "allow_once" }] },
+    { options: [{ optionId: "goal_fs", name: "One", kind: "allow_once" }, { optionId: "goal_fs", name: "Two", kind: "reject_once" }] },
+  ])("cancels malformed clarification choices $options instead of guessing", async ({ options }) => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    clarification(201, { options });
+    await flush();
+    expect(response(201)).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(events.some((event) => event.type === "question.asked" || event.type === "approval.requested")).toBe(false);
+    finishPrompt();
+    await turn;
+  });
+
+  it("still auto-allows ordinary full-access permissions", async () => {
+    const turn = provider.send({ ...input, runtimeMode: "full-access" });
+    await waitPrompt();
+    permission();
+    await flush();
+    expect(response()).toEqual({ outcome: { outcome: "selected", optionId: "yes" } });
+    expect(events.some((event) => event.type === "question.asked" || event.type === "approval.requested")).toBe(false);
+    finishPrompt();
+    await turn;
+  });
+
+  it("cancels a late clarification outside an active prompt", async () => {
+    mock.autoPrompt = true;
+    await provider.send({ ...input, runtimeMode: "full-access" });
+    clarification();
+    await flush();
+    expect(response(201)).toEqual({ outcome: { outcome: "cancelled" } });
+    expect(events.some((event) => event.type === "question.asked")).toBe(false);
   });
 
   it("spawns the exact endpoint, sends settings/images and routes real approvals", async () => {
