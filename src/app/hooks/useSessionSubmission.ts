@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { hydrateLearningContext, linkLearningDiscussion, registerSubmittedLearningContext, sanitizeLearningContext, withLearningContext } from "../../features/learning/model/learningContext";
+import { linkLearningDiscussion, registerSubmittedLearningContext, sanitizeLearningContext, withLearningContext } from "../../features/learning/model/learningContext";
 import type { LearningMessageContext } from "../../features/learning/model/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -169,18 +169,18 @@ export function useSessionSubmission(options: SubmissionOptions) {
     if (options?.queuedMessageId && !queuedMessageForSubmit(current, options.queuedMessageId,
       options.followUpBehavior === "steer" ? "steer" : "dispatch")) return false;
     const noteCard = options && "noteCard" in options ? options.noteCard : current.noteCard;
-    const learningContext = sanitizeLearningContext({ sources: options?.sources ?? draft?.sources, widgetContext: options?.widgetContext ?? draft?.widgetContext });
-    if (!text.trim() && !attachments.length && !noteCard && !learningContext.sources?.length && !learningContext.widgetContext) return false;
+    const learningContext = sanitizeLearningContext({ sources: options?.sources ?? draft?.sources });
+    if (!text.trim() && !attachments.length && !noteCard && !learningContext.sources?.length) return false;
     const activation = consumeOperatorCommand(text);
     const visibleText = activation.matched ? activation.text.trim() || "Explain what you can do in Loci with the app CLI." : text;
     // An agent has app access in every turn, without the command.
     const agent = agentForSession(sessionId);
     const appAccess = !!agent || activation.matched || operatorEnabledInThread(current.blocks);
-    const rawCommand = !activation.matched && !learningContext.sources?.length && !learningContext.widgetContext && isNativeCommandPrompt(text, current.harness);
+    const rawCommand = !activation.matched && !learningContext.sources?.length && isNativeCommandPrompt(text, current.harness);
     const basePromptText = options?.agentCompletion ? options.agentCompletion.report
       : rawCommand ? text : composeNoteMessage(noteCard, visibleText);
     const promptText = basePromptText;
-    const prepareTurnPrompt = async () => rawCommand ? promptText : withLearningContext(promptText, await hydrateLearningContext(learningContext));
+    const prepareTurnPrompt = async () => rawCommand ? promptText : withLearningContext(promptText, learningContext);
     const submittedBlockId = crypto.randomUUID();
     const pendingSwitch = current.pendingSwitch?.from !== current.harness ? current.pendingSwitch : undefined;
     const visible = displayAttachments(attachments);
@@ -1122,7 +1122,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const appRequestId = typeof appRequestIdOrContext === "string" ? appRequestIdOrContext : undefined;
     const learningContext = sanitizeLearningContext(appRequestIdOrContext);
     const current = sessionsRef.current.find((session) => session.id === sessionId);
-    if (!current || current.busy || sessionDraftBlock(current) || (!text.trim() && !attachments.length && !learningContext.sources?.length && !learningContext.widgetContext)) return false;
+    if (!current || current.busy || sessionDraftBlock(current) || (!text.trim() && !attachments.length && !learningContext.sources?.length)) return false;
     const title = canReplaceSessionTitle(current.title, current.harness, HARNESS_LABEL[current.harness])
       ? titleFromPrompt(text, current.harness, attachments) : current.title;
     setSessions((previous) => previous.map((session) => session.id === sessionId ? {
@@ -1250,7 +1250,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const message = session ? queuedMessageForSubmit(session, messageId, "steer") : undefined;
     if (message) onSubmit(sessionId, message.text, message.attachments, {
       followUpBehavior: "steer", queuedMessageId: message.id, noteCard: message.noteCard,
-      sources: message.sources, widgetContext: message.widgetContext,
+      sources: message.sources,
     });
   }, [onSubmit, sessionsRef]);
   const resumeQueue = useCallback((sessionId: string) => {
@@ -1273,7 +1273,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
         queueDispatchingRef.current.delete(session.id);
         const current = sessionsRef.current.find((entry) => entry.id === session.id);
         if (!current || current.queuedMessages?.[0]?.id !== head.id || !canDispatchQueuedHead(current)) return;
-        onSubmit(session.id, head.text, head.attachments, { queuedMessageId: head.id, noteCard: head.noteCard, sources: head.sources, widgetContext: head.widgetContext });
+        onSubmit(session.id, head.text, head.attachments, { queuedMessageId: head.id, noteCard: head.noteCard, sources: head.sources });
       }, 0));
     }
     return () => {

@@ -4,10 +4,8 @@ import { Modal } from "../shared/ui/Modal";
 import { ADD_TO_CHAT_EVENT, requestAddToChat, type AddToChatRequest } from "../features/sessions/model/quoteDraft";
 import { queueLearningDraft } from "../features/learning/model/learningDraft";
 import { OPEN_LEARNING_DISCUSSION_EVENT } from "../features/learning/model/navigation";
-import { OPEN_WIDGET_EVENT, type OpenWidgetDetail } from "../features/learning/model/widgets";
 import { OPEN_COURSE_EVENT, type OpenCourseDetail } from "../features/learning/model/course";
 import type { DiscussionRef } from "../features/learning/model/types";
-import { useLearningWidgets } from "./hooks/useLearningWidgets";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "./shell/Sidebar";
@@ -275,7 +273,6 @@ function Workspace(boot: BootWorkspace) {
       else workspace.revealCanvas(id, sessionId);
     },
   }, runtime, submission, delegation });
-  useLearningWidgets(sessions, (error) => workspaceRef.current?.setError(String(error)));
   const [learningTargetRequest, setLearningTargetRequest] = useState<AddToChatRequest | null>(null);
   const revealLearningConversation = useCallback(async (id: string, blockId?: string, isCurrent: () => boolean = () => true) => {
     const agent = agentForSession(id);
@@ -306,7 +303,7 @@ function Workspace(boot: BootWorkspace) {
     };
     const add = (event: Event) => {
       const request = (event as CustomEvent<AddToChatRequest>).detail;
-      if (!request || (!request.targetSessionId && !request.sources?.length && !request.widgetContext)) return;
+      if (!request || (!request.targetSessionId && !request.sources?.length)) return;
       event.stopImmediatePropagation();
       let target = request.targetSessionId;
       if (!target && surfaceRef.current === "agent") target = agentWorkspaceRef.current.currentRef.current?.sessionId;
@@ -323,21 +320,6 @@ function Workspace(boot: BootWorkspace) {
       if (!ref?.sessionId || !ref.blockId) return;
       void revealLearningConversation(ref.sessionId, ref.blockId).then(() => requestTranscriptJump(ref.sessionId, ref.blockId))
         .catch((error) => workspaceRef.current?.setError(String(error)));
-    };
-    const widget = (event: Event) => {
-      const detail = (event as CustomEvent<OpenWidgetDetail>).detail;
-      if (!detail?.widget) return;
-      const open = async () => {
-        if (detail.widget.owner.kind === "agent") {
-          await agentsRef.current?.open(detail.widget.owner.id);
-          agentsRef.current?.setDetailsOpenFor(detail.widget.owner.id, false);
-          agentWorkspaceRef.current.showWidget(detail.widget, detail.title, detail.sourceSessionId);
-        } else {
-          await revealLearningConversation(detail.widget.owner.id);
-          workspaceRef.current!.showWidget(detail.widget, detail.title, detail.sourceSessionId);
-        }
-      };
-      void open().catch((error) => workspaceRef.current?.setError(String(error)));
     };
     const course = (event: Event) => {
       const detail = (event as CustomEvent<OpenCourseDetail>).detail;
@@ -358,12 +340,10 @@ function Workspace(boot: BootWorkspace) {
     };
     window.addEventListener(ADD_TO_CHAT_EVENT, add, true);
     window.addEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
-    window.addEventListener(OPEN_WIDGET_EVENT, widget);
     window.addEventListener(OPEN_COURSE_EVENT, course);
     return () => {
       window.removeEventListener(ADD_TO_CHAT_EVENT, add, true);
       window.removeEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
-      window.removeEventListener(OPEN_WIDGET_EVENT, widget);
       window.removeEventListener(OPEN_COURSE_EVENT, course);
     };
   }, [revealLearningConversation]);

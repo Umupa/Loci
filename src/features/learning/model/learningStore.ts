@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { JsonValue, LearningSource, PdfAnnotation, ReadingDocument, StoredWidget, WidgetOwner, WidgetRef, WidgetSpec } from "./types";
+import type { LearningSource, PdfAnnotation, ReadingDocument } from "./types";
 
 export const LEARNING_CHANGED_EVENT = "loci:learning-changed";
 function changed() { window.dispatchEvent(new Event(LEARNING_CHANGED_EVENT)); }
@@ -23,9 +23,3 @@ export const listPdfAnnotations = (documentId: string) => invoke<PdfAnnotation[]
 export const upsertPdfAnnotation = (annotation: PdfAnnotation) => write<PdfAnnotation>("learning_annotation_upsert", { annotation });
 export const deletePdfAnnotation = (id: string) => write<void>("learning_annotation_delete", { id });
 export const linkAnnotationDiscussion = (id: string, sessionId: string, blockId: string) => write<void>("learning_annotation_link", { id, sessionId, blockId });
-export const upsertLearningWidget = (owner: WidgetOwner, spec: WidgetSpec, sourceSessionId: string, sourceBlockId: string, sourceAt = Date.now()) => write<StoredWidget>("learning_widget_upsert", { owner, spec, sourceSessionId, sourceBlockId, sourceAt });
-export const getLearningWidget = (ref: WidgetRef) => invoke<StoredWidget | null>("learning_widget_get", { widget: ref });
-export const listLearningWidgets = (owner: WidgetOwner, savedOnly = true) => invoke<StoredWidget[]>("learning_widgets_list", { owner, savedOnly });
-export const setLearningWidgetSaved = (ref: WidgetRef, saved: boolean) => write<StoredWidget>("learning_widget_save", { widget: ref, saved });
-export const setLearningWidgetState = (ref: WidgetRef, state: JsonValue) => write<void>("learning_widget_state", { widget: ref, state });
-export const deleteOwnerWidgets = (owner: WidgetOwner) => write<void>("learning_widgets_delete_owner", { owner });

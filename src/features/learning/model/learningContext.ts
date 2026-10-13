@@ -1,5 +1,5 @@
-import type { JsonValue, LearningMessageContext, LearningSource, WidgetContext } from "./types";
-import { getLearningWidget, registerLearningSource, linkAnnotationDiscussion } from "./learningStore";
+import type { LearningMessageContext, LearningSource } from "./types";
+import { registerLearningSource, linkAnnotationDiscussion } from "./learningStore";
 
 export function mergeLearningContext(current: LearningMessageContext, incoming: LearningMessageContext): LearningMessageContext {
   const sources = [...(current.sources ?? [])];
@@ -8,7 +8,7 @@ export function mergeLearningContext(current: LearningMessageContext, incoming: 
     if (index < 0) sources.push(source);
     else sources[index] = source;
   }
-  return { ...(sources.length ? { sources } : {}), ...(incoming.widgetContext ?? current.widgetContext ? { widgetContext: incoming.widgetContext ?? current.widgetContext } : {}) };
+  return sources.length ? { sources } : {};
 }
 
 export function learningSourceLabel(source: LearningSource): string {
@@ -17,24 +17,15 @@ export function learningSourceLabel(source: LearningSource): string {
   return source.title;
 }
 
-/** Serialize source and widget metadata in one format for every CLI. */
+/** Serialize source metadata in one format for every CLI. */
 export function learningContextText(context: LearningMessageContext): string {
-  if (!context.sources?.length && !context.widgetContext) return "";
+  if (!context.sources?.length) return "";
   return `<loci_learning_context>\n${JSON.stringify(context, null, 2)}\n</loci_learning_context>`;
 }
 
 export function withLearningContext(text: string, context: LearningMessageContext): string {
   const contextText = learningContextText(context);
   return contextText ? `${text}\n\n${contextText}` : text;
-}
-
-/** Saved explanations can outlive their provider conversation. Load their current code only when sending. */
-export async function hydrateLearningContext(context: LearningMessageContext): Promise<LearningMessageContext> {
-  const snapshot = context.widgetContext;
-  if (!snapshot) return context;
-  const canonical = await getLearningWidget({ owner: snapshot.owner, id: snapshot.id });
-  if (!canonical) throw new Error("This explanation no longer exists. Remove its context or reopen an existing explanation before sending.");
-  return { ...context, widgetContext: { ...snapshot, id: canonical.id, title: canonical.title, revision: canonical.revision, html: canonical.html } };
 }
 
 export async function registerSubmittedLearningContext(context: LearningMessageContext, sessionId: string, blockId: string, linkDiscussion = true) {
@@ -52,15 +43,6 @@ export async function linkLearningDiscussion(context: LearningMessageContext, se
 function record(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }
-function json(value: unknown, depth = 0): value is JsonValue {
-  if (depth > 30) return false;
-  if (value === null || typeof value === "string" || typeof value === "boolean") return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every((entry) => json(entry, depth + 1));
-  const object = record(value);
-  return !!object && Object.values(object).every((entry) => json(entry, depth + 1));
-}
-
 /** Validate persisted transcript metadata at the same boundary as other Block fields. */
 export function sanitizeLearningContext(value: unknown): LearningMessageContext {
   const input = record(value);
@@ -94,9 +76,5 @@ export function sanitizeLearningContext(value: unknown): LearningMessageContext 
     }
     return [];
   }) : [];
-  const widget = record(input.widgetContext);
-  const owner = record(widget?.owner);
-  const widgetContext: WidgetContext | undefined = widget && owner && (owner.kind === "agent" || owner.kind === "session") && typeof owner.id === "string" && typeof widget.id === "string" && typeof widget.title === "string" && Number.isInteger(widget.revision) && json(widget.state)
-    ? { owner: { kind: owner.kind, id: owner.id }, id: widget.id, title: widget.title, revision: Number(widget.revision), state: widget.state, ...(typeof widget.selection === "string" ? { selection: widget.selection } : {}), ...(typeof widget.html === "string" ? { html: widget.html } : {}) } : undefined;
-  return { ...(sources.length ? { sources } : {}), ...(widgetContext ? { widgetContext } : {}) };
+  return sources.length ? { sources } : {};
 }

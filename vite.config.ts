@@ -43,6 +43,7 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss(), pdfjsAssets()],
+    resolve: { alias: [{ find: /^@tauri-apps\/api\/core$/, replacement: fileURLToPath(new URL("./src/platform/tauri/core.ts", import.meta.url)) }] },
     clearScreen: false,
     server: {
       port: 1420,

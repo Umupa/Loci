@@ -11,7 +11,7 @@ import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, openCourse, type LearningStatus, type ParsedCourse } from "../model/course";
 import { readAgentDocument } from "../../agents/model/agentDocuments";
 import { requestOpenFile } from "../../files/model/filePlace";
-import { WidgetHostContext } from "../model/widgets";
+import { CourseHostContext } from "../model/courseContext";
 import { CourseCard } from "./CourseCard";
 import { CoursePane } from "./CoursePane";
 import { computeLineDiff, DiffCard } from "./DiffCard";
@@ -79,7 +79,7 @@ afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlo
 
 it("streams into a complete card without changing hook order and persists full scoped course before opening", async () => {
   const opened = vi.fn(); window.addEventListener(OPEN_COURSE_EVENT, opened);
-  const card = (incomplete: boolean) => createElement(WidgetHostContext.Provider, { value: { owner: { kind: "agent", id: "owner" }, sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(domain), incomplete }));
+  const card = (incomplete: boolean) => createElement(CourseHostContext.Provider, { value: { agentId: "owner", sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(domain), incomplete }));
   try {
     await act(async () => root.render(card(true))); expect(container.textContent).toContain("3 items so far"); expect(invoke).not.toHaveBeenCalled();
     await act(async () => root.render(card(false))); expect(container.textContent).toContain("2 chapters · 3 lessons");
@@ -94,13 +94,13 @@ it("shows an upsert error and keeps a failed course closed", async () => {
   vi.mocked(invoke).mockRejectedValueOnce(new Error("disk full"));
   const opened = vi.fn(); window.addEventListener(OPEN_COURSE_EVENT, opened);
   try {
-    await act(async () => root.render(createElement(WidgetHostContext.Provider, { value: { owner: { kind: "agent", id: "owner" }, sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(build), incomplete: false }))));
+    await act(async () => root.render(createElement(CourseHostContext.Provider, { value: { agentId: "owner", sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(build), incomplete: false }))));
     await act(async () => button("Open Course").click()); expect(container.querySelector('[role="alert"]')?.textContent).toContain("disk full"); expect(opened).not.toHaveBeenCalled(); expect(button("Open Course").disabled).toBe(false);
   } finally { window.removeEventListener(OPEN_COURSE_EVENT, opened); }
 });
 
 it("previews a course in an ordinary conversation without saving it", async () => {
-  await act(async () => root.render(createElement(WidgetHostContext.Provider, { value: { owner: { kind: "session", id: "chat" }, sourceSessionId: "chat" } }, createElement(CourseCard, { source: source(build), incomplete: false }))));
+  await act(async () => root.render(createElement(CourseHostContext.Provider, { value: { sourceSessionId: "chat" } }, createElement(CourseCard, { source: source(build), incomplete: false }))));
   expect(button("Open Course").disabled).toBe(true);
   expect(container.textContent).toContain("Courses belong to an agent");
   expect(invoke).not.toHaveBeenCalledWith("course_upsert", expect.anything());
@@ -110,7 +110,7 @@ it("opens a course the agent saved from a fence without a body", async () => {
   courses.set(key("owner", "build"), { id: "build", agentId: "owner", engine: "build-your-own", title: build.title, dataJson: JSON.stringify(build.data), createdAt: 1, updatedAt: 1 });
   const opened = vi.fn(); window.addEventListener(OPEN_COURSE_EVENT, opened);
   try {
-    await act(async () => root.render(createElement(WidgetHostContext.Provider, { value: { owner: { kind: "agent", id: "owner" }, sourceSessionId: "agent-chat" } }, createElement(CourseCard, { source: "---\nid: build\ntitle: Linked\n---\n", incomplete: false }))));
+    await act(async () => root.render(createElement(CourseHostContext.Provider, { value: { agentId: "owner", sourceSessionId: "agent-chat" } }, createElement(CourseCard, { source: "---\nid: build\ntitle: Linked\n---\n", incomplete: false }))));
     expect(container.textContent).toContain(`${build.title}`);
     expect(container.textContent).toMatch(/3 steps/);
     await act(async () => button("Open Course").click());
@@ -122,7 +122,7 @@ it("opens a course the agent saved from a fence without a body", async () => {
 it("does not open a previous card's course after its source changes during persistence", async () => {
   const write = deferred<unknown>(); vi.mocked(invoke).mockReturnValueOnce(write.promise);
   const opened = vi.fn(); window.addEventListener(OPEN_COURSE_EVENT, opened);
-  const card = (course: ParsedCourse) => createElement(WidgetHostContext.Provider, { value: { owner: { kind: "agent", id: "owner" }, sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(course), incomplete: false }));
+  const card = (course: ParsedCourse) => createElement(CourseHostContext.Provider, { value: { agentId: "owner", sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(course), incomplete: false }));
   try {
     await act(async () => root.render(card(build))); act(() => button("Open Course").click()); await act(async () => root.render(card(domain)));
     await act(async () => write.resolve({})); expect(opened).not.toHaveBeenCalled(); expect(container.textContent).toContain("Kubernetes");

@@ -33,8 +33,7 @@
   padding-right: 3px;
 }
 
-.learning-source-chip__open,
-.learning-source-chip__widget {
+.learning-source-chip__open {
   display: flex;
   min-width: 0;
   align-items: center;

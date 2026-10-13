@@ -1,5 +1,3 @@
-export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
-
 /** Rectangles are fractions of the displayed PDF page, independent of zoom. */
 export type PdfRect = { x: number; y: number; width: number; height: number };
 export type PdfAnchor = { page: number; rects: PdfRect[] };
@@ -25,24 +23,4 @@ export type PdfAnnotation = {
   updatedAt: number;
 };
 
-export type WidgetOwner = { kind: "agent" | "session"; id: string };
-export type WidgetRef = { owner: WidgetOwner; id: string };
-export type WidgetSpec = { id: string; title: string; subject?: string; html: string; sourceIds: string[] };
-export type StoredWidget = WidgetSpec & {
-  owner: WidgetOwner;
-  sourceSessionId: string;
-  sourceBlockId: string;
-  revision: number;
-  saved: boolean;
-  state: JsonValue;
-  createdAt: number;
-  updatedAt: number;
-};
-export type WidgetContext = WidgetRef & {
-  title: string;
-  revision: number;
-  state: JsonValue;
-  selection?: string;
-  html?: string;
-};
-export type LearningMessageContext = { sources?: LearningSource[]; widgetContext?: WidgetContext };
+export type LearningMessageContext = { sources?: LearningSource[] };

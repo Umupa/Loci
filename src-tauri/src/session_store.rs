@@ -1033,7 +1033,6 @@ fn json_eq(raw: &str, incoming: &Value) -> bool {
     }
 }
 fn delete_session(conn: &Connection, session_id: &str) -> rusqlite::Result<()> {
-    crate::learning::delete_widgets(conn, "session", session_id)?;
     conn.execute("DELETE FROM sessions WHERE id = ?1", [session_id])?;
     Ok(())
 }

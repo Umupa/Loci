@@ -1,10 +1,8 @@
 import type { OpenFileFn } from "../../files/model/filePlace";
-import type { LearningMessageContext, WidgetOwner } from "../../learning/model/types";
+import type { LearningMessageContext } from "../../learning/model/types";
 import { consumeLearningDraft, getLearningDraftContext, peekLearningDraft, setLearningDraftContext, subscribeLearningDraft } from "../../learning/model/learningDraft";
-import { WidgetHostContext } from "../../learning/ui/WidgetCard";
+import { CourseHostContext } from "../../learning/model/courseContext";
 import { agentForSession } from "../../agents/model/agent";
-import { WidgetLibrary } from "../../learning/ui/WidgetLibrary";
-import { Modal } from "../../../shared/ui/Modal";
 import {
 memo,
 useCallback,
@@ -76,7 +74,7 @@ import { AstraWelcome } from "./AstraWelcome";
 import { BtwSheet,useBtwConversation } from "./BtwSheet";
 import { EmptySession } from "./EmptySession";
 import { QuestionCard } from "./QuestionCard";
-import { CARD_FENCE, CARD_REPLY_EVENT, fencedBlocks } from "../model/cards";
+import { CARD_REPLY_EVENT } from "../model/cards";
 import { CardRepliesContext } from "./cards/Cards";
 import { OpusWelcome } from "./OpusWelcome";
 import { PromptOutline } from "./PromptOutline";
@@ -386,10 +384,7 @@ export const SessionPane = memo(function SessionPane({
   }, [visible]);
 
   const [quoteRequest, setQuoteRequest] = useState<QuoteRequest>();
-  const [widgetLibraryOpen, setWidgetLibraryOpen] = useState(false);
   const residentAgent = agentForSession(session.id);
-  const widgetOwner: WidgetOwner = residentAgent ? { kind: "agent", id: residentAgent.id } : { kind: "session", id: session.id };
-  const hasWidgets = useMemo(() => session.blocks.some((block) => fencedBlocks(block.text, CARD_FENCE.widget).length > 0), [session.blocks]);
   const btw = useBtwConversation({
     available:
       !isEmpty &&
@@ -645,7 +640,7 @@ export const SessionPane = memo(function SessionPane({
   );
 
   return (
-    <WidgetHostContext.Provider value={{ owner: widgetOwner, sourceSessionId: session.id }}>
+    <CourseHostContext.Provider value={{ agentId: residentAgent?.id, sourceSessionId: session.id }}>
     <div
       data-session-drop={session.id}
       data-session-empty={isEmpty}
@@ -716,8 +711,6 @@ export const SessionPane = memo(function SessionPane({
           </button>
         </div>
       ) : null}
-      {!residentAgent && hasWidgets ? <div className="flex shrink-0 justify-end px-3 pt-1"><button type="button" onClick={() => setWidgetLibraryOpen(true)} className="rounded-md px-2 py-1 text-xs text-content/45 hover:bg-content/6 hover:text-content">Saved explanations</button></div> : null}
-      {widgetLibraryOpen ? <Modal title="Saved explanations" onClose={() => setWidgetLibraryOpen(false)}><div className="p-3" onClick={(event) => { if (event.target instanceof Element && event.target.closest("[data-widget-library-item]")) setWidgetLibraryOpen(false); }}><WidgetLibrary owner={widgetOwner} /></div></Modal> : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <div
           ref={transcriptScope}
@@ -753,7 +746,7 @@ export const SessionPane = memo(function SessionPane({
                 onMouseDown={focusPane}
               >
                 <AgentTranscript
-                  widgetHost={{ owner: widgetOwner, sourceSessionId: session.id }}
+                  courseHost={{ agentId: residentAgent?.id, sourceSessionId: session.id }}
                   blocks={session.blocks}
                   busy={!!session.busy}
                   visible={visible}
@@ -789,7 +782,6 @@ export const SessionPane = memo(function SessionPane({
                             {
                               draftBlockId: block.id,
                               sources: block.sources,
-                              widgetContext: block.widgetContext,
                               ...(block.appRequestId
                                 ? { appRequestId: block.appRequestId }
                                 : {}),
@@ -888,6 +880,6 @@ export const SessionPane = memo(function SessionPane({
         />
       </div>
     </div>
-    </WidgetHostContext.Provider>
+    </CourseHostContext.Provider>
   );
 });

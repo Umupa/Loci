@@ -339,7 +339,8 @@ fn drop_window(slot: &mut Option<QuitRun>, label: &str) -> Next {
 /// Ask every window what it has running, then decide once for all of them.
 pub fn request_quit(app: &AppHandle) {
     let labels = workspace_labels(app);
-    if labels.is_empty() {
+    // Maintenance pages deliberately have no workspace/quit listeners.
+    if labels.is_empty() || crate::reset::is_resetting(app) {
         confirm_quit(app.clone());
         return;
     }

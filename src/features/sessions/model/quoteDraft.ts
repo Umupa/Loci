@@ -17,7 +17,7 @@ export type QuoteRequest = LearningMessageContext & {
 export function requestAddToChat(text: string, mode: AddToChatMode = "quote", context?: LearningMessageContext & { targetSessionId?: string }) {
   if (typeof window === "undefined") return;
   const value = text.replace(/\r\n?/g, "\n").trim();
-  if (!value && !context?.sources?.length && !context?.widgetContext) return;
+  if (!value && !context?.sources?.length) return;
   window.dispatchEvent(
     new CustomEvent<AddToChatRequest>(ADD_TO_CHAT_EVENT, {
       detail: { text: value, mode, ...context },

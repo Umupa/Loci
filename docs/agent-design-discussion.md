@@ -41,7 +41,7 @@ flowchart TB
         Sessions["会话与卡片渲染<br/>(features/sessions)"]
         Agents["常驻智能体核心<br/>(features/agents)"]
         CanvasUI["Excalidraw 画布<br/>(features/canvas)"]
-        Learning["交互讲解与 PDF<br/>(features/learning)"]
+        Learning["来源与 PDF<br/>(features/learning)"]
         HarnessCore["Harness 适配层<br/>(integrations/harness)"]
     end
 
@@ -70,7 +70,7 @@ flowchart TB
 2. **TypeScript / React 前端层 (`src/`)**：
    - 承担几乎全部业务逻辑，包含 10 个 Harness Provider 的协议解析与流式事件转换；
    - 弹性多分栏工作区（Split-Pane Layout & Tabs）；
-   - 会话模型（Block / Turn / Card）、Excalidraw 画布渲染、PDF.js 阅读与高亮、交互讲解组件沙箱隔离。
+   - 会话模型（Block / Turn / Card）、Excalidraw 画布渲染、PDF.js 阅读与高亮。
 
 ---
 
@@ -101,8 +101,7 @@ flowchart TB
 - 支持 Habits（后台静默定时运行）与多会话委派追踪。
 
 ##### 5. 双沙箱安全学习系统与富卡片渲染
-- 代码块即时渲染：`loci-question`（选项表单）、`loci-todo`（可勾选任务清单）、`loci-document`（长文讲义）、`loci-widget`（交互组件）；
-- `loci-widget` 运行在 `about:srcdoc` + `loci-widget:` 协议的双层沙箱 iframe 中，严格 CSP，禁用外部网络，仅通过受控 MessageChannel 传递状态；
+- 代码块即时渲染：`loci-question`（选项表单）、`loci-todo`（可勾选任务清单）、`loci-document`（长文讲义）；
 - 基于 PDF.js 实现原生批注高亮与讨论链接绑定，不修改原 PDF 文件。
 
 ##### 6. 本地存储架构

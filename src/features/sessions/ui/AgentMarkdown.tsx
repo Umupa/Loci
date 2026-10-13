@@ -1,6 +1,5 @@
 import { CARD_FENCE } from "../model/cards";
 import { CanvasCard, DocumentCard, MindmapCard, TodoCard } from "./cards/Cards";
-import { WidgetCard } from "../../learning/ui/WidgetCard";
 import { CourseCard } from "../../learning/ui/CourseCard";
 import { DiffCardFromSource } from "../../learning/ui/DiffCard";
 import { convertFileSrc,invoke } from "@tauri-apps/api/core";
@@ -395,8 +394,6 @@ function MarkdownCode({
   const card = fence.language.toLowerCase();
   if (card === CARD_FENCE.document)
     return <DocumentCard source={textContent(children)} incomplete={!!incomplete} />;
-  if (card === CARD_FENCE.widget)
-    return <WidgetCard source={textContent(children)} incomplete={!!incomplete} />;
   if (card === CARD_FENCE.course)
     return <CourseCard source={textContent(children)} incomplete={!!incomplete} />;
   if (card === CARD_FENCE.diff)

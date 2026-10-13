@@ -26,6 +26,7 @@ mod pasteboard;
 mod project_logo;
 mod rate_limits;
 mod reminders;
+mod reset;
 mod session_store;
 mod skills;
 #[cfg(target_os = "macos")]
@@ -208,13 +209,11 @@ pub fn run() {
     #[cfg(windows)]
     windows::initialize().expect("Failed to initialize Windows process safety");
     let app = tauri::Builder::default()
-        .register_uri_scheme_protocol("loci-widget", |_context, request| {
-            learning::widget_proxy_response(request.uri().path())
-        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(harness::HarnessHost::new())
+        .manage(reset::WorkspaceReset::default())
         .manage(x_feed::XFeedState::default())
         .setup(|app| {
             harness::reap_orphaned_harness_processes();
@@ -238,12 +237,18 @@ pub fn run() {
                     let _ = window.set_shadow(true);
                 }
             }
+            reset::resume(app.handle())?;
             Ok(())
         })
         .on_menu_event(|app, event| {
             menu::dispatch(app, event.id().as_ref());
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(reset::guard(tauri::generate_handler![
+            reset::workspace_reset,
+            reset::workspace_reset_status,
+            reset::workspace_reset_ready,
+            reset::workspace_reset_cleaned,
+            reset::workspace_reset_request_finished,
             learning::learning_source_register,
             learning::learning_source_get,
             learning::learning_document_register,
@@ -254,12 +259,6 @@ pub fn run() {
             learning::learning_annotation_upsert,
             learning::learning_annotation_delete,
             learning::learning_annotation_link,
-            learning::learning_widget_upsert,
-            learning::learning_widget_get,
-            learning::learning_widgets_list,
-            learning::learning_widget_save,
-            learning::learning_widget_state,
-            learning::learning_widgets_delete_owner,
             account_identity::provider_account_identity,
             chat_background::save_chat_background,
             chat_background::remove_chat_background,
@@ -421,7 +420,7 @@ pub fn run() {
             set_dock_badge,
             set_trackpad_zoom_enabled,
             open_new_window,
-        ])
+        ]))
         .build(tauri::generate_context!())
         .expect("error while building Loci");
 

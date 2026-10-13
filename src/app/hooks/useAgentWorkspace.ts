@@ -2,11 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { agentForSession, findAgent } from "../../features/agents/model/agent";
 import type { AgentDocument } from "../../features/sessions/model/cards";
 import type { Session } from "../../features/sessions/model/session";
-import type { WidgetRef } from "../../features/learning/model/types";
 import type { OpenCourseDetail } from "../../features/learning/model/course";
 import {
   closeLeaf, firstLeafId, layoutLeaves, leaf, leafIds, movePane as moveLayoutPane,
-  placeLayout, replaceLeafId, setSplitRatio, showCanvasBeside, showCanvasInTab, showCourseInTab, showDocumentInTab, showWidgetInTab, showFileInTab,
+  placeLayout, replaceLeafId, setSplitRatio, showCanvasBeside, showCanvasInTab, showCourseInTab, showDocumentInTab, showFileInTab,
   type LayoutNode, type PaneEdge, type WorkspaceTab,
 } from "../../features/workspace/model/layout";
 import { sanitizeLayout } from "../../features/workspace/model/workspaceSnapshot";
@@ -216,9 +215,6 @@ export function useAgentWorkspace(options: Options) {
   const showCanvas = useCallback((id: string) => {
     updateCurrent((current) => paneResult(current, showCanvasInTab(paneContainer(current), id)));
   }, [updateCurrent]);
-  const showWidget = useCallback((widget: WidgetRef, title: string, sourceSessionId?: string) => {
-    updateCurrent((current) => paneResult(current, showWidgetInTab(paneContainer(current), widget, title, sourceSessionId)));
-  }, [updateCurrent]);
   const showFile = useCallback((path: string, pin = true) => {
     updateCurrent((current) => paneResult(current, showFileInTab(paneContainer(current), path, pin)));
   }, [updateCurrent]);
@@ -256,7 +252,7 @@ export function useAgentWorkspace(options: Options) {
   currentRef.current = current;
   return {
     activeAgentId, current, currentRef, layout: current?.layout, focusedId: current?.focusedId,
-    composerFocusToken, open, hide, focusPane, closePane, setRatio, movePane, showDocument, showCanvas, showWidget, showCourse, showFile,
+    composerFocusToken, open, hide, focusPane, closePane, setRatio, movePane, showDocument, showCanvas, showCourse, showFile,
     isCanvasOpen, showCanvasForSession, replaceSession, forgetSession,
   };
 }
