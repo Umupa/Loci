@@ -1,5 +1,5 @@
 import { markTurnInterrupted, type ResumedWorkspace } from "../../sessions/model/inFlight";
-import { courseLeaf, documentLeaf, widgetLeaf, fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
+import { courseLeaf, documentLeaf, fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
 import { workspaceTabCwd } from "./workspaceTabGroups";
 import { pathKey } from "../../../shared/lib/paths";
 import { reconcileProjectReturn, type ProjectReturnMemory } from "../../projects/model/projectReturn";
@@ -222,7 +222,7 @@ export function sanitizeLayout(raw: unknown): LayoutNode | null {
         return null;
     const value = raw as Record<string, unknown>;
     if (value.type === "leaf") {
-        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file" && value.leafKind !== "document" && value.leafKind !== "widget" && value.leafKind !== "course")
+        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file" && value.leafKind !== "document" && value.leafKind !== "course")
             return null;
         if (typeof value.id !== "string" || !value.id)
             return null;
@@ -235,15 +235,6 @@ export function sanitizeLayout(raw: unknown): LayoutNode | null {
                 || typeof course.title !== "string" || !course.title.trim()) return null;
             return courseLeaf({ courseId: course.courseId, agentId: course.agentId, title: course.title,
                 ...(typeof course.sourceSessionId === "string" ? { sourceSessionId: course.sourceSessionId } : {}) });
-        }
-        if (value.leafKind === "widget") {
-            const ref = value.widget as { id?: unknown; owner?: { kind?: unknown; id?: unknown } } | undefined;
-            if (!ref || typeof ref.id !== "string" || !/^[\p{L}\p{N}_-]{1,80}$/u.test(ref.id)
-                || !ref.owner || !["agent", "session"].includes(String(ref.owner.kind))
-                || typeof ref.owner.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(ref.owner.id)) return null;
-            return widgetLeaf({ id: ref.id, owner: { kind: ref.owner.kind as "agent" | "session", id: ref.owner.id } },
-                typeof value.widgetTitle === "string" ? value.widgetTitle : "Explanation",
-                typeof value.widgetSourceSessionId === "string" ? value.widgetSourceSessionId : undefined);
         }
         if (value.leafKind === "document") {
             if (!value.document || typeof value.document !== "object" || Array.isArray(value.document))

@@ -2,7 +2,7 @@ import { CANVASES_CHANGED_EVENT, loadCanvases, type Canvas } from "../../canvas/
 import { requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
-import { AiIdea, ChevronLeft, ChevronRight, File, Palette, Plus, RotateCcw, Trash2, X } from "../../../shared/ui/icons";
+import { ChevronLeft, ChevronRight, File, Palette, Plus, RotateCcw, Trash2, X } from "../../../shared/ui/icons";
 import type { RecentProject } from "../../projects/model/recents";
 import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/session";
 import { AccessPicker } from "../../sessions/ui/AccessPicker";
@@ -26,9 +26,6 @@ import { addMemoryEntry, memoryDate, memoryEntry, memoryLines, withoutLine } fro
 import { AgentAvatarPreview } from "./AgentAvatar";
 import { AgentHabits } from "./AgentHabits";
 import { ColorPicker, FacePicker, ProjectsField } from "./agentPanelParts";
-import { useSavedWidgets } from "../../learning/hooks/useSavedWidgets";
-import { openWidget, widgetRef } from "../../learning/model/widgets";
-import type { StoredWidget } from "../../learning/model/types";
 
 type Props = {
   agent: Agent;
@@ -178,11 +175,10 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
   const habits = useHabitCount(agent.id);
   const library = useLibrary(agent.id);
   const libraryCanvases = useLibraryCanvases(agent.id);
-  const savedWidgets = useSavedWidgets({ kind: "agent", id: agent.id });
-  const libraryCount = library.documents && libraryCanvases.canvases && savedWidgets.widgets
-    ? library.documents.length + libraryCanvases.canvases.length + savedWidgets.widgets.length
+  const libraryCount = library.documents && libraryCanvases.canvases
+    ? library.documents.length + libraryCanvases.canvases.length
     : undefined;
-  const libraryError = library.error ?? libraryCanvases.error ?? savedWidgets.error;
+  const libraryError = library.error ?? libraryCanvases.error;
   const [page, setPage] = useState<Page>();
   // Another agent's details start from the top.
   useEffect(() => setPage(undefined), [agent.id]);
@@ -208,8 +204,8 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         files ? <MemoryPage agentId={agent.id} files={files} /> : <PageNote>{error ?? "Loading…"}</PageNote>
       ) : page === "library" ? (
         <LibraryPage agentId={agent.id} documents={library.documents} canvases={libraryCanvases.canvases}
-          widgets={savedWidgets.widgets} error={libraryError} onOpenCanvas={onClose}
-          onRetry={() => { library.reload(); libraryCanvases.reload(); savedWidgets.reload(); }} />
+          error={libraryError} onOpenCanvas={onClose}
+          onRetry={() => { library.reload(); libraryCanvases.reload(); }} />
       ) : page === "habits" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4">
           <p className="text-xs leading-snug text-content/45">What it does on its own, on a schedule, while Loci is open. It writes to this chat only when there is something to say.</p>
@@ -311,20 +307,17 @@ function ActionRow({ title, description, icon, danger = false, onClick }: { titl
 const libraryDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
 type LibraryEntry =
   | { kind: "document"; item: StoredDocument }
-  | { kind: "canvas"; item: Canvas }
-  | { kind: "widget"; item: StoredWidget };
+  | { kind: "canvas"; item: Canvas };
 const LIBRARY_KINDS = {
   document: { Icon: File, label: "Document" },
   canvas: { Icon: Palette, label: "Canvas" },
-  widget: { Icon: AiIdea, label: "Interactive explanation" },
 };
 
 /** One recent-first list; metadata stays available without crowding titles. */
-function LibraryPage({ agentId, documents, canvases, widgets, error, onOpenCanvas, onRetry }: {
+function LibraryPage({ agentId, documents, canvases, error, onOpenCanvas, onRetry }: {
   agentId: string;
   documents?: StoredDocument[];
   canvases?: Canvas[];
-  widgets?: StoredWidget[];
   error?: string;
   onOpenCanvas: () => void;
   onRetry: () => void;
@@ -335,18 +328,15 @@ function LibraryPage({ agentId, documents, canvases, widgets, error, onOpenCanva
   const entries: LibraryEntry[] = [
     ...(documents ?? []).map((item): LibraryEntry => ({ kind: "document", item })),
     ...(canvases ?? []).map((item): LibraryEntry => ({ kind: "canvas", item })),
-    ...(widgets ?? []).map((item): LibraryEntry => ({ kind: "widget", item })),
   ];
   entries.sort((a, b) => b.item.updatedAt - a.item.updatedAt || a.item.id.localeCompare(b.item.id));
-  const loaded = documents !== undefined && canvases !== undefined && widgets !== undefined;
+  const loaded = documents !== undefined && canvases !== undefined;
   const open = async (entry: LibraryEntry) => {
     const turn = ++opening.current;
     setOpenError(undefined);
     if (entry.kind === "canvas") {
       onOpenCanvas();
       requestOpenAppResource({ kind: "canvas", id: entry.item.id });
-    } else if (entry.kind === "widget") {
-      openWidget(widgetRef(entry.item), entry.item.sourceSessionId, entry.item.title);
     } else {
       try {
         const found = await readAgentDocument(agentId, entry.item.id);

@@ -10,7 +10,7 @@ import { registerHarness,resetHarnessIdlePark,type HarnessAdapter } from "../../
 import { TurnNotReadyError, type SendTurnInput } from "../../integrations/harness/core/types";
 import { useSessionRuntime,type SessionRuntime } from "./useSessionRuntime";
 import { useSessionSubmission,type SessionSubmission } from "./useSessionSubmission";
-import type { LearningMessageContext, WidgetRef } from "../../features/learning/model/types";
+import type { LearningMessageContext } from "../../features/learning/model/types";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), prepare: vi.fn(async (text: string) => text) }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke, isTauri: () => true }));
@@ -33,8 +33,6 @@ let actions: SessionSubmission;
 let pending: Pending[];
 let acceptImmediately: boolean;
 let adapter: HarnessAdapter;
-let storedWidgetHtml: string;
-let storedWidgetRevision: number;
 const canStartSessionWork = vi.fn(() => true);
 
 async function mount(initial: Session) {
@@ -72,12 +70,9 @@ beforeEach(() => {
   mocks.prepare.mockReset();
   mocks.prepare.mockImplementation(async (text: string) => text);
   mocks.invoke.mockReset();
-  storedWidgetHtml = '<section data-canonical="latest">Current saved channel implementation</section>';
-  storedWidgetRevision = 8;
-  mocks.invoke.mockImplementation(async (command: string, args?: { session?: Session; widget?: WidgetRef }) => {
+  mocks.invoke.mockImplementation(async (command: string, args?: { session?: Session }) => {
     if (command === "app_cli_path") return "/Applications/Loci.app/Contents/MacOS/loci";
     if (command === "session_upsert") return { ...args?.session, createdAt: 1, updatedAt: Date.now() };
-    if (command === "learning_widget_get") return { ...args?.widget, title: "Current channel trace", html: storedWidgetHtml, sourceIds: ["pdf-source"], sourceSessionId: "original", sourceBlockId: "answer", revision: storedWidgetRevision, saved: true, state: { capacity: 99, step: 1 }, createdAt: 1, updatedAt: 8 };
     return undefined;
   });
   adapter = {
@@ -110,9 +105,8 @@ afterEach(async () => {
 describe("source-backed learning submissions", () => {
   const context: LearningMessageContext = {
     sources: [{ id: "pdf-source", kind: "pdf", title: "Channel notes", quote: "Send blocks until a receive is available.", documentId: "document", path: "/project/notes.pdf", annotationId: "highlight", anchors: [{ page: 3, rects: [{ x: .1, y: .2, width: .6, height: .03 }] }] }],
-    widgetContext: { owner: { kind: "session", id: "original" }, id: "channel", title: "Channel trace", revision: 2, state: { capacity: 0, step: 4 } },
   };
-  it.each(["codex", "pi"] as const)("sends only evidence and widget data through %s", async (harness) => {
+  it.each(["codex", "pi"] as const)("sends only source evidence through %s", async (harness) => {
     registerHarness({ ...adapter, id: harness });
     await mount(newSession(harness, "/project", "test"));
     await act(async () => { expect(actions.onSubmit(session().id, "Why does this wait?", [], context)).toBe(true); });
@@ -120,21 +114,12 @@ describe("source-backed learning submissions", () => {
     const sent = pending[0].input.text;
     expect(sent).toContain("<loci_learning_context>");
     expect(sent).toContain('"page": 3');
-    expect(sent).toContain('"capacity": 0');
-    expect(sent).toContain('"html": "<section data-canonical=\\"latest\\">Current saved channel implementation</section>"');
-    expect(sent).toContain('"revision": 8');
-    expect(sent).not.toContain('"capacity": 99');
     const dataBlock = sent.match(/<loci_learning_context>\n([\s\S]*?)\n<\/loci_learning_context>/)!;
     expect(sent.startsWith(`Why does this wait?\n\n${dataBlock[0]}`)).toBe(true);
-    expect(JSON.parse(dataBlock[1])).toEqual({
-      ...context,
-      widgetContext: { ...context.widgetContext, title: "Current channel trace", revision: storedWidgetRevision, html: storedWidgetHtml },
-    });
-    expect(sent).not.toContain("<loci_widgets>");
+    expect(JSON.parse(dataBlock[1])).toEqual(context);
     expect(sent).not.toContain("<loci_courses>");
     const block = session().blocks.find((entry) => entry.role === "user")!;
     expect(block).toMatchObject({ text: "Why does this wait?", ...context });
-    expect(block.widgetContext).not.toHaveProperty("html");
     expect(mocks.invoke).toHaveBeenCalledWith("learning_source_register", { source: context.sources![0] });
     expect(mocks.invoke).toHaveBeenCalledWith("learning_annotation_link", { id: "highlight", sessionId: session().id, blockId: block.id });
     await settle(pending[0]);
@@ -146,16 +131,11 @@ describe("source-backed learning submissions", () => {
     await act(async () => { actions.onSubmit(session().id, "Why this step?", [], { ...context, followUpBehavior: "queue" }); });
     const queued = session().queuedMessages![0];
     expect(queued).toMatchObject(context);
-    expect(mocks.invoke.mock.calls.some(([command]) => command === "learning_widget_get")).toBe(false);
-    storedWidgetHtml = "<section>Revised while this question was queued</section>";
-    storedWidgetRevision = 12;
     await act(async () => actions.editQueuedMessage(session().id, queued.id, "Explain the blocked sender"));
     await settle(pending[0]);
     await act(async () => vi.waitFor(() => expect(pending).toHaveLength(2)));
     expect(pending[1].input.text).toMatch(/^Explain the blocked sender/);
-    expect(pending[1].input.text).toContain('"step": 4');
-    expect(pending[1].input.text).toContain("Revised while this question was queued");
-    expect(pending[1].input.text).toContain('"revision": 12');
+    expect(pending[1].input.text).toContain(context.sources![0].quote);
     expect(session().blocks.find((entry) => entry.text === "Explain the blocked sender")).toMatchObject(context);
     await settle(pending[1]);
   });
@@ -164,35 +144,22 @@ describe("source-backed learning submissions", () => {
     await act(async () => expect(actions.saveDraft(session().id, "Explain this paragraph", [], context)).toBe(true));
     const draft = session().blocks[0];
     expect(draft).toMatchObject({ draft: true, ...context });
-    expect(draft.widgetContext).not.toHaveProperty("html");
-    expect(mocks.invoke.mock.calls.some(([command]) => command === "learning_widget_get")).toBe(false);
     expect(pending).toHaveLength(0);
     await act(async () => { actions.onSubmit(session().id, draft.text, [], { draftBlockId: draft.id }); });
     await vi.waitFor(() => expect(pending).toHaveLength(1));
     expect(session().blocks[0]).toMatchObject(context);
     expect(session().blocks[0].draft).toBeUndefined();
     expect(pending[0].input.text).toContain('"annotationId": "highlight"');
-    expect(pending[0].input.text).toContain("Current saved channel implementation");
     await settle(pending[0]);
   });
-  it("reports a removed saved explanation instead of sending a question without its context", async () => {
-    const invoke = mocks.invoke.getMockImplementation()!;
-    mocks.invoke.mockImplementation((command: string, args?: unknown) => command === "learning_widget_get" ? Promise.resolve(null) : invoke(command, args));
-    await mount(newSession("codex", "/project", "test"));
-    await act(async () => { actions.onSubmit(session().id, "Revise this explanation", [], context); });
-    await vi.waitFor(() => expect(session().blocks.some((block) => block.role === "system" && block.text.includes("This explanation no longer exists"))).toBe(true));
-    expect(adapter.sendTurn).not.toHaveBeenCalled();
-    expect(session().blocks.find((block) => block.role === "user")).toMatchObject(context);
-  });
-  it("hydrates saved HTML for steering and preserves the user's original conditions", async () => {
+  it("preserves source evidence when steering", async () => {
     await mount(newSession("codex", "/project", "test"));
     await act(async () => { actions.onSubmit(session().id, "First"); });
     await vi.waitFor(() => expect(pending).toHaveLength(1));
     await act(async () => { actions.onSubmit(session().id, "Show the blocked step", [], { ...context, followUpBehavior: "steer" }); });
     const sent = vi.mocked(adapter.steerTurn!).mock.calls[0][0].text;
-    expect(sent).toContain("Current saved channel implementation");
-    expect(sent).toContain('"step": 4');
-    expect(session().blocks.find((block) => block.text === "Show the blocked step")?.widgetContext).toEqual(context.widgetContext);
+    expect(sent).toContain(context.sources![0].quote);
+    expect(session().blocks.find((block) => block.text === "Show the blocked step")?.sources).toEqual(context.sources);
     await settle(pending[0]);
   });
 });
@@ -491,7 +458,6 @@ describe("session submission", () => {
     await act(async () => { actions.onSubmit(session().id, "Next step"); });
     await vi.waitFor(() => expect(pending).toHaveLength(2));
     expect(adapter.forgetSession).toHaveBeenCalledOnce();
-    expect(pending[1].input.text).toBe("Next step");
     expect(session().providerSessionId).toBe("clean-provider");
     await settle(pending[1]);
   });

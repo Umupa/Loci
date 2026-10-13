@@ -10,7 +10,6 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => []), isTauri:
 vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: () => ({ onDragDropEvent: async () => () => {} }) }));
 const context: LearningMessageContext = {
   sources: [{ id: "reference", kind: "web", title: "Blocking guide", url: "https://example.org/guide", quote: "Calls wait until a value arrives." }],
-  widgetContext: { owner: { kind: "session", id: "original" }, id: "demo", title: "Channel demo", revision: 1, state: { capacity: 0, step: 2 } },
 };
 let host: HTMLDivElement;
 let root: Root;
@@ -30,26 +29,24 @@ async function send() {
   await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click());
 }
 describe("learning context in the composer", () => {
-  it("prefills an editable question without sending and includes state and sources on explicit Send", async () => {
+  it("prefills an editable question without sending and includes sources on explicit Send", async () => {
     const onSubmit = vi.fn(() => true);
     const changed = vi.fn();
     await mount(onSubmit, { id: 1, text: "Why is the sender blocked?", mode: "plain", ...context }, changed);
     expect(onSubmit).not.toHaveBeenCalled();
     expect(host.textContent).toContain("Blocking guide");
-    expect(host.textContent).toContain("Channel demo");
     expect(host.querySelector<HTMLTextAreaElement>("textarea")!.value).toContain("Why is the sender blocked?");
     await send();
     expect(onSubmit).toHaveBeenCalledWith(expect.stringContaining("Why is the sender blocked?"), [], expect.objectContaining(context));
     expect(host.querySelector('[aria-label="Learning context"]')).toBeNull();
     expect(changed).toHaveBeenLastCalledWith({});
   });
-  it("lets the user remove a source while retaining the widget state", async () => {
+  it("lets the user remove a source", async () => {
     const onSubmit = vi.fn(() => true);
     await mount(onSubmit, { id: 2, text: "Explain", mode: "plain", ...context });
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Remove source Blocking guide"]')!.click());
     await send();
     expect(onSubmit.mock.calls[0][2].sources).toEqual([]);
-    expect(onSubmit.mock.calls[0][2].widgetContext).toEqual(context.widgetContext);
   });
   it("retains the question and source context when the application refuses submission", async () => {
     const onSubmit = vi.fn(() => false);
@@ -57,6 +54,5 @@ describe("learning context in the composer", () => {
     await send();
     expect(host.querySelector<HTMLTextAreaElement>("textarea")!.value).toContain("Explain");
     expect(host.textContent).toContain("Blocking guide");
-    expect(host.textContent).toContain("Channel demo");
   });
 });

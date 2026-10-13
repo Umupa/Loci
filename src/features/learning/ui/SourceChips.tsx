@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { AiIdea, Chatting, ChevronDown, File, Globe, X } from "../../../shared/ui/icons";
+import { Chatting, ChevronDown, File, Globe, X } from "../../../shared/ui/icons";
 import type { LearningMessageContext, LearningSource } from "../model/types";
 import { learningSourceLabel } from "../model/learningContext";
 import { openLearningSource } from "../model/navigation";
@@ -55,31 +55,14 @@ function SourceChip({ source, onRemove, onError }: {
   );
 }
 
-export function SourceChips({ sources, widgetContext, onRemoveSource, onRemoveWidget }: LearningMessageContext & {
+export function SourceChips({ sources, onRemoveSource }: LearningMessageContext & {
   onRemoveSource?: (id: string) => void;
-  onRemoveWidget?: () => void;
 }) {
   const [error, setError] = useState("");
-  if (!sources?.length && !widgetContext) return null;
+  if (!sources?.length) return null;
   return (
     <div className="learning-context-chips" aria-label="Learning context">
       {sources?.map((source) => <SourceChip key={source.id} source={source} onRemove={onRemoveSource} onError={setError} />)}
-      {widgetContext ? (
-        <div className="learning-source-chip learning-source-chip--widget">
-          <div className="learning-source-chip__row">
-            <span className="learning-source-chip__widget" title={widgetContext.selection || widgetContext.title}>
-              <AiIdea aria-hidden className="size-3.5 shrink-0" strokeWidth={1.75} />
-              <span className="learning-source-chip__title">{widgetContext.title}</span>
-              <span className="learning-source-chip__location">State</span>
-            </span>
-            {onRemoveWidget ? (
-              <button type="button" aria-label="Remove widget context" title="Remove explanation context" onClick={onRemoveWidget} className="learning-source-chip__action learning-source-chip__remove">
-                <X aria-hidden className="size-3" strokeWidth={1.75} />
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
       {error ? <span role="alert" className="learning-context-chips__error text-red-400">{error}</span> : null}
     </div>
   );

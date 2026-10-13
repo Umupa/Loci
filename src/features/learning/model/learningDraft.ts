@@ -11,7 +11,7 @@ export function getLearningDraftContext(sessionId: string): LearningMessageConte
   return contexts.get(sessionId) ?? {};
 }
 export function setLearningDraftContext(sessionId: string, context: LearningMessageContext) {
-  if (context.sources?.length || context.widgetContext) contexts.set(sessionId, context);
+  if (context.sources?.length) contexts.set(sessionId, context);
   else contexts.delete(sessionId);
 }
 

@@ -21,7 +21,6 @@ export const CARD_FENCE = {
   /** A canvas that already exists, named so the user can open it. */
   canvas: "loci-canvas",
   /** A generated HTML/SVG/JS explanation, isolated from the application. */
-  widget: "loci-widget",
   /** A persisted course with steps or connected concepts. */
   course: "loci-course",
   /** A code change, displayed as a line diff. */
@@ -118,7 +117,6 @@ const KEPT_FENCES: readonly string[] = [
   CARD_FENCE.todo,
   CARD_FENCE.mindmap,
   CARD_FENCE.canvas,
-  CARD_FENCE.widget,
   CARD_FENCE.course,
   CARD_FENCE.diff,
 ];

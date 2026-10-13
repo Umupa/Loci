@@ -113,40 +113,6 @@ Section content is preserved verbatim. `(empty file)` as the entire BEFORE
 section represents an empty file. This block displays a change; it does not
 apply it to disk.
 
-## Widget
-
-````loci-widget
----
-id: counter
-title: Counter
-subject: Examples
----
-<button id="increment">Increment</button>
-<output id="value"></output>
-<script>
-const output = document.getElementById("value");
-const render = () => { output.textContent = window.loci.getState().count ?? 0; };
-document.getElementById("increment").onclick = () => {
-  window.loci.setState({ count: (window.loci.getState().count ?? 0) + 1 });
-};
-window.loci.onState(render);
-render();
-</script>
-````
-
-`id` and `title` are required. `subject` is optional. Optional `sources` is a
-JSON array or comma-separated list of existing learning source IDs. The body
-is HTML with optional inline CSS, SVG, and JavaScript, limited to 1 MiB. It
-runs in an isolated iframe; network access, external scripts, and external
-stylesheets are unavailable. Images can use data URLs.
-
-The runtime provides `window.loci.getState()`, `setState(value)`,
-`onState(listener)`, `theme`, `onTheme(listener)`, `ask(text)`,
-`openSource(id)`, and `resize(height)`. State is JSON, limited to 64 KiB;
-`openSource` accepts the widget's declared source IDs. `ask` prefills a chat
-message with current widget context; it does not submit a message. Widgets
-remain in their conversation; Keep saves the widget and its interaction state.
-
 ## Canvas
 
 ```loci-canvas

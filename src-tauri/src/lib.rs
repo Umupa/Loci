@@ -208,9 +208,6 @@ pub fn run() {
     #[cfg(windows)]
     windows::initialize().expect("Failed to initialize Windows process safety");
     let app = tauri::Builder::default()
-        .register_uri_scheme_protocol("loci-widget", |_context, request| {
-            learning::widget_proxy_response(request.uri().path())
-        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
@@ -254,12 +251,6 @@ pub fn run() {
             learning::learning_annotation_upsert,
             learning::learning_annotation_delete,
             learning::learning_annotation_link,
-            learning::learning_widget_upsert,
-            learning::learning_widget_get,
-            learning::learning_widgets_list,
-            learning::learning_widget_save,
-            learning::learning_widget_state,
-            learning::learning_widgets_delete_owner,
             account_identity::provider_account_identity,
             chat_background::save_chat_background,
             chat_background::remove_chat_background,

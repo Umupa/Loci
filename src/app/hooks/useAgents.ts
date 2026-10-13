@@ -325,7 +325,6 @@ export function useAgents(options: Options) {
       });
       void deleteAgentDocument(agentId).catch(() => undefined);
       void import("../../features/learning/model/course").then(({ deleteCourse }) => deleteCourse(agentId)).catch(() => undefined);
-      void import("../../features/learning/model/learningStore").then(({ deleteOwnerWidgets }) => deleteOwnerWidgets({ kind: "agent", id: agentId })).catch(latest.current.onError);
       // Its library goes with it, canvases included.
       void loadCanvases(true).then((all) => Promise.all(all.filter((canvas) => canvas.cwd === agentCanvasScope(agentId)).map((canvas) => deleteCanvas(canvas.id)))).catch(() => undefined);
       saveAgentPreview(agentId, undefined);

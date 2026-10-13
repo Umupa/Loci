@@ -146,21 +146,20 @@ export function createEditedResendCoordinator(): EditedResendCoordinator {
   };
 }
 
-export type LastTurnRecall = Pick<Block, "sources" | "widgetContext"> & {
+export type LastTurnRecall = Pick<Block, "sources"> & {
   text: string;
   attachments: Attachment[];
 };
 
 export function lastTurnRecall(session: Session): LastTurnRecall | null {
   const block = lastUserTurnBlock(session.blocks);
-  if (!block?.text.trim() && !block?.attachments?.length && !block?.sources?.length && !block?.widgetContext) return null;
+  if (!block?.text.trim() && !block?.attachments?.length && !block?.sources?.length) return null;
   return {
     text: isOperatorUserTurn(block)
       ? `/operator ${operatorUserPrompt(block)}`
       : block.text,
     attachments: block.attachments ?? [],
     ...(block.sources?.length ? { sources: block.sources } : {}),
-    ...(block.widgetContext ? { widgetContext: block.widgetContext } : {}),
   };
 }
 

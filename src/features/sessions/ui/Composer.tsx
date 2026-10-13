@@ -350,7 +350,7 @@ function MessageQueue({
     onEditingChange?.();
   };
   const saveEdit = (message: QueuedMessage) => {
-    if (!editDraft.trim() && message.attachments.length === 0 && !message.sources?.length && !message.widgetContext) return;
+    if (!editDraft.trim() && message.attachments.length === 0 && !message.sources?.length) return;
     onEdit?.(message.id, editDraft);
     setEditingId(undefined);
     setEditDraft("");
@@ -416,7 +416,7 @@ function MessageQueue({
                     title="Save queued message"
                     aria-label="Save queued message"
                     disabled={
-                      !editDraft.trim() && message.attachments.length === 0 && !message.sources?.length && !message.widgetContext
+                      !editDraft.trim() && message.attachments.length === 0 && !message.sources?.length
                     }
                     onClick={() => saveEdit(message)}
                     className="grid size-6 shrink-0 place-items-center rounded-md hover:bg-content/10 hover:text-content disabled:opacity-30"
@@ -435,7 +435,7 @@ function MessageQueue({
                 </>
               ) : (
                 <>
-                  <div className="min-w-0 flex-1 py-1"><span className="block truncate text-content/80">{label}</span><SourceChips sources={message.sources} widgetContext={message.widgetContext} /></div>
+                  <div className="min-w-0 flex-1 py-1"><span className="block truncate text-content/80">{label}</span><SourceChips sources={message.sources} /></div>
                   <button
                     type="button"
                     onClick={() => onSteer?.(message.id)}
@@ -588,7 +588,7 @@ export function Composer({
   const [hasValue, setHasValue] = useState(
     () =>
       (initialDraft ?? "").trim().length > 0 ||
-      !!initialLearningContext?.sources?.length || !!initialLearningContext?.widgetContext ||
+      !!initialLearningContext?.sources?.length ||
       !!noteCard,
   );
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -658,7 +658,7 @@ export function Composer({
   const navigationEmpty =
     draft.length === 0 &&
     attachments.length === 0 &&
-    !learningContext.sources?.length && !learningContext.widgetContext &&
+    !learningContext.sources?.length &&
     !noteCard;
   const skillPickerOpen = creatingSkill || slash !== null;
   const pickerOpen = skillPickerOpen || sessionFolderOpen || mcpPickerOpen;
@@ -711,7 +711,7 @@ export function Composer({
       setHasValue(
         text.trim().length > 0 ||
           files.length > 0 ||
-          !!learningRef.current.sources?.length || !!learningRef.current.widgetContext ||
+          !!learningRef.current.sources?.length ||
           !!noteCard,
       );
     },
@@ -719,7 +719,7 @@ export function Composer({
   );
 
   const replaceLearningContext = useCallback((context: LearningMessageContext) => {
-    const next = { ...(context.sources ? { sources: context.sources } : {}), ...(context.widgetContext ? { widgetContext: context.widgetContext } : {}) };
+    const next = { ...(context.sources ? { sources: context.sources } : {}) };
     learningRef.current = next;
     setLearningContext(next);
     onLearningContextChange?.(next);
@@ -1107,7 +1107,7 @@ export function Composer({
     (el: HTMLTextAreaElement) => {
       if (!onBtwCommand || noteCard) return false;
       if (attachmentsRef.current.length > 0) return false;
-      if (learningRef.current.sources?.length || learningRef.current.widgetContext) return false;
+      if (learningRef.current.sources?.length) return false;
       const rest = consumeBtwPrefix(el.value);
       if (rest == null || onBtwCommand(rest, { draft: true }) === false) {
         return false;
@@ -1508,9 +1508,9 @@ export function Composer({
     if ((draftSelected || draftCommand.matched) && onSaveDraft) {
       const files = attachmentsRef.current;
       const text = draftCommand.text;
-      if (!text.trim() && files.length === 0 && !learningRef.current.sources?.length && !learningRef.current.widgetContext) return;
+      if (!text.trim() && files.length === 0 && !learningRef.current.sources?.length) return;
       const savedText = mcpContextText(taggedMcpServers(text, selectedMcp), text);
-      const accepted = learningRef.current.sources?.length || learningRef.current.widgetContext
+      const accepted = learningRef.current.sources?.length
         ? onSaveDraft(savedText, files, learningRef.current)
         : onSaveDraft(savedText, files);
       if (accepted === false || !ref.current) return;
@@ -1538,7 +1538,7 @@ export function Composer({
       btwCommand.matched &&
       onBtwCommand &&
       attachmentsRef.current.length === 0 &&
-      !learningRef.current.sources?.length && !learningRef.current.widgetContext &&
+      !learningRef.current.sources?.length &&
       !noteCard
     ) {
       const accepted = onBtwCommand(btwCommand.text);
@@ -1586,7 +1586,7 @@ export function Composer({
         ? `/operator ${text}`
         : text;
     const files = attachmentsRef.current;
-    if (!text && files.length === 0 && !noteCard && !learningRef.current.sources?.length && !learningRef.current.widgetContext) return;
+    if (!text && files.length === 0 && !noteCard && !learningRef.current.sources?.length) return;
     // Clear the parent draft before onSubmit. The app can synchronously remount
     // the composer when the first message leaves an empty session (EmptySession →
     // docked layout). If draftRef still holds the sent text, the new instance
@@ -2116,10 +2116,10 @@ export function Composer({
             </div>
           ) : null}
 
-          {learningContext.sources?.length || learningContext.widgetContext ? <div className="px-3 pt-2">
+          {learningContext.sources?.length ? <div className="px-3 pt-2">
             <SourceChips {...learningContext}
               onRemoveSource={(id) => { draftRevisionRef.current += 1; replaceLearningContext({ ...learningRef.current, sources: learningRef.current.sources?.filter((source) => source.id !== id) }); }}
-              onRemoveWidget={() => { draftRevisionRef.current += 1; replaceLearningContext({ ...learningRef.current, widgetContext: undefined }); }} />
+            />
           </div> : null}
           {webSourceOpen ? <AddWebSource onCancel={() => setWebSourceOpen(false)} onAdd={(source) => {
             replaceLearningContext(mergeLearningContext(learningRef.current, { sources: [source] }));

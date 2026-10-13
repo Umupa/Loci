@@ -921,7 +921,6 @@ mod tests {
             "loci-mindmap",
             "loci-course",
             "loci-diff",
-            "loci-widget",
             "loci-canvas",
         ] {
             assert!(text.contains(fence), "help omits format {fence}");

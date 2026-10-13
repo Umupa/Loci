@@ -5,8 +5,7 @@ Start with the [project README](../README.md) for what Loci is and how to run it
 | Document | Language | What it covers |
 | --- | --- | --- |
 | [architecture.md](architecture.md) | English | How the app is put together: processes, agent CLI adapters, storage, the control channel, the built-in MCP servers, trust boundaries |
-| [learning.md](learning.md) | 简体中文 | 交互讲解、来源提问、PDF 高亮批注、作品保留、真实验收效果与截图，以及生成接口 |
-| [learning-workbench-v2-tech-spec.md](learning-workbench-v2-tech-spec.md) | 简体中文 | 代码步骤课程、领域概念导航、Diff 卡片、学习进度和教学 Soul 模板的方案与实现合同 |
+| [learning.md](learning.md) | 简体中文 | 来源提问、PDF 高亮批注、关联讨论与本地存储 |
 | [canvas-mcp.md](canvas-mcp.md) | 中文 | Excalidraw canvases and the built-in `loci_excalidraw` MCP server: design, semantics, limits and verification records |
 | [stability-validation.md](stability-validation.md) | 中文 | Session persistence, background work and rendering: regression checks, measurements and remaining verification limits |
 | [localization.md](localization.md) | 中文 | Settings language preferences, translation boundaries and UI verification |

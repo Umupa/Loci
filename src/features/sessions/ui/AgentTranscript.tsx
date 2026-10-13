@@ -1,7 +1,7 @@
 import { stripQuestionBlock } from "../model/standingQuestion";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import { SourceChips } from "../../learning/ui/SourceChips";
-import { WidgetHostContext, type WidgetHost } from "../../learning/model/widgets";
+import { CourseHostContext, type CourseHost } from "../../learning/model/courseContext";
 import {
 memo,
 startTransition,
@@ -167,7 +167,7 @@ const FIRST_PAINT_TURNS = 3;
 const TURN_PAGE_SIZE = 20;
 
 type Props = {
-  widgetHost?: WidgetHost;
+  courseHost?: CourseHost;
   blocks: Block[];
   busy?: boolean;
   cwd?: string;
@@ -213,7 +213,7 @@ type Props = {
 };
 
 function AgentTranscriptComponent({
-  widgetHost,
+  courseHost,
   blocks: sourceBlocks,
   busy,
   cwd,
@@ -247,7 +247,7 @@ function AgentTranscriptComponent({
   onScrollerChange,
 
 }: Props) {
-  const inheritedWidgetHost = useContext(WidgetHostContext);
+  const inheritedCourseHost = useContext(CourseHostContext);
   const blocks = useMemo(() => {
     if (!harness || !supportsHarnessLogin(harness)) return sourceBlocks;
     const visibleBlocks = sourceBlocks.filter(
@@ -688,7 +688,7 @@ function AgentTranscriptComponent({
   }, [visible, searchQuery, searchCurrent, visibleTurnCount, openWork]);
 
   return (
-    <WidgetHostContext.Provider value={widgetHost ?? inheritedWidgetHost}>
+    <CourseHostContext.Provider value={courseHost ?? inheritedCourseHost}>
     <div
       ref={setScroller}
       data-transcript-layout={transcriptLayout}
@@ -1051,7 +1051,7 @@ function AgentTranscriptComponent({
         />
       ) : null}
     </div>
-    </WidgetHostContext.Provider>
+    </CourseHostContext.Provider>
   );
 }
 
@@ -1854,7 +1854,7 @@ function UserMessageBlock({
             </div>
           ) : null}
 
-          {block.sources?.length || block.widgetContext ? <div className="mb-2"><SourceChips sources={block.sources} widgetContext={block.widgetContext} /></div> : null}
+          {block.sources?.length ? <div className="mb-2"><SourceChips sources={block.sources} /></div> : null}
 
           {messageLink ? (
             <div

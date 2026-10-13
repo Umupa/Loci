@@ -1,7 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, CircleDashed, Mortarboard } from "../../../shared/ui/icons";
 import { courseItems, loadCourse, openCourse, parseCourse, parseCourseLink, saveCourse, type CourseData } from "../model/course";
-import { WidgetHostContext } from "../model/widgets";
+import { CourseHostContext } from "../model/courseContext";
 import "./CoursePane.css";
 
 export { OPEN_COURSE_EVENT, openCourse, type OpenCourseDetail } from "../model/course";
@@ -11,9 +11,9 @@ type Shown = { id: string; title: string; engine: CourseData["engine"]; data: Co
 export function CourseCard({ source, incomplete }: { source: string; incomplete: boolean }) {
   const link = useMemo(() => parseCourseLink(source), [source]);
   const result = useMemo(() => (link ? null : parseCourse(source)), [link, source]);
-  const host = useContext(WidgetHostContext);
+  const host = useContext(CourseHostContext);
   // Courses live in an agent's library; an ordinary conversation can only preview one.
-  const agentId = host?.owner.kind === "agent" ? host.owner.id : undefined;
+  const agentId = host?.agentId;
   const [stored, setStored] = useState<{ key: string; course: Shown | null; error?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

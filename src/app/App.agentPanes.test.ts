@@ -13,7 +13,6 @@ import { newSession, type Block, type Session } from "../features/sessions/model
 import { clearTranscriptJump, peekTranscriptJump, requestTranscriptJump } from "../features/sessions/model/transcriptJump";
 import { openLearningDiscussion } from "../features/learning/model/navigation";
 import { openCourse } from "../features/learning/model/course";
-import type { StoredWidget } from "../features/learning/model/types";
 import { requestOpenAppResource } from "../shared/lib/appResourceLinks";
 import { canvasLeaf, coursePaneId, documentLeaf, documentPaneId, leaf, newTab, placeLayout } from "../features/workspace/model/layout";
 import * as harnessRegistry from "../integrations/harness/core/registry";
@@ -24,7 +23,6 @@ vi.mock("../integrations/harness/core/registry", async (original) => ({
   refreshHarnessCatalogs: vi.fn(),
 }));
 vi.mock("./model/preloadNavigation", () => ({ preloadNavigationWhenIdle: () => () => undefined }));
-vi.mock("../features/learning/ui/WidgetFrame", () => ({ WidgetFrame: () => createElement("div", null, "Interactive model") }));
 vi.mock("../features/notes/ui/NotesView", () => ({ NotesView: () => createElement("div", { "data-test-note": true }, "Latest note") }));
 vi.mock("../features/canvas/ui/CanvasPane", () => ({
   CanvasPane: ({ canvas, focused, onFocus, onPaneDragStart, onAddToChat, chatTarget = "chat" }: ComponentProps<typeof CanvasPane>) => createElement("section", {
@@ -50,7 +48,6 @@ let container: HTMLDivElement;
 let sessions: Session[];
 type ArchivePage = { seq: number; hasOlder: boolean; blocksJson: string };
 let readArchive: ReturnType<typeof vi.fn<(id: string, before: number | null) => Promise<ArchivePage | null>>>;
-let savedWidgets: StoredWidget[];
 let saveSessionRecord: ReturnType<typeof vi.fn<(session: Session) => Promise<Session & { createdAt: number; updatedAt: number }>>>;
 let onHistoryRead: (() => void) | undefined;
 
@@ -70,7 +67,6 @@ beforeEach(async () => {
   localStorage.setItem("loci.tabAnimationsEnabled", "false");
   library.clear();
   readArchive = vi.fn(async () => null);
-  savedWidgets = [];
   saveSessionRecord = vi.fn(async (session) => ({ ...session, createdAt: 1, updatedAt: 2 }));
   onHistoryRead = undefined;
   for (const agent of agents) library.set(`${agent.id}:network`, { ...reading, body: `${reading.body}\n\nOwned by ${agent.name}.`, createdAt: 1, updatedAt: 1 });
@@ -108,8 +104,6 @@ beforeEach(async () => {
     if (command === "agent_read") return "[]";
     if (command === "agent_transcript_page") return readArchive(input.sessionId!, input.before ?? null);
     if (command === "learning_source_get") return { id: input.id, kind: "conversation", sessionId: "chat-a", blockId: "archived-question", title: "Earlier discussion", quote: "Archived question" };
-    if (command === "learning_widgets_list") return savedWidgets;
-    if (command === "learning_widget_get" || command === "learning_widget_upsert") return savedWidgets[0] ?? null;
     if (command === "session_list_by_project") { onHistoryRead?.(); return []; }
     if (["stat_files", "session_list", "list_directory", "skills_list", "list_fonts"].includes(command)) return [];
     if (command === "resolve_project_location") return { path: "/repo", identity: "fixture" };
@@ -295,22 +289,6 @@ it("retries a pending transcript jump when manual archive loading adds its targe
     expect(pane("chat-a").querySelector('[data-transcript-search-current="true"]')?.textContent).toContain("Archived question");
     expect(peekTranscriptJump("chat-a")).toBeNull();
   }, 2000);
-});
-
-it.each(["```", "~~~"])("opens the Saved explanations entry for a %s widget fence", async (fence) => {
-  const widget: StoredWidget = {
-    owner: { kind: "session", id: "project-chat" }, id: "saved-model", title: "Saved model", html: "<p>Model</p>", sourceIds: [],
-    sourceSessionId: "project-chat", sourceBlockId: "widget-answer", saved: true, revision: 1, state: {}, createdAt: 1, updatedAt: 1,
-  };
-  savedWidgets = [widget];
-  await renderApp({ ...newSession("antigravity", "/repo"), id: "project-chat", blocks: [
-    { id: "widget-question", role: "user", text: "Explain the model", durationMs: 1000 },
-    { id: "widget-answer", role: "assistant", text: `${fence}loci-widget\n---\nid: saved-model\ntitle: Saved model\n---\n<p>Model</p>\n${fence}` },
-  ] });
-  const entry = [...pane("project-chat").querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Saved explanations");
-  expect(entry).toBeDefined();
-  await click(entry!);
-  await settle(() => expect(document.querySelector('[data-widget-library-item]')?.textContent).toContain("Saved model"), 2000);
 });
 
 it("offers Save to canvas for completed agent responses only", async () => {
