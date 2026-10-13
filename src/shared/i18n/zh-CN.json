@@ -508,5 +508,15 @@
   "Line in the menu": "菜单里的说明",
   "Soul": "灵魂",
   "A template is an agent with its soul already written. Picking one writes this soul into the new agent's SOUL.md, and nothing else is sent to it. Changes apply to agents made afterwards.": "模板就是一个已经写好灵魂的智能体。选择它时，这份灵魂会写入新智能体的 SOUL.md，除此之外不会向它发送任何内容。修改只影响之后创建的智能体。",
-  "Written into the new agent's SOUL.md. It is everything that makes it this kind of agent.": "写入新智能体的 SOUL.md。它就是让这个智能体成为这类智能体的全部内容。"
+  "Written into the new agent's SOUL.md. It is everything that makes it this kind of agent.": "写入新智能体的 SOUL.md。它就是让这个智能体成为这类智能体的全部内容。",
+  "Workspace reset in progress": "正在重置工作区",
+  "Reset workspace": "重置工作区",
+  "Reset workspace?": "重置工作区？",
+  "Resetting workspace…": "正在重置工作区…",
+  "Delete all workspace data and start fresh. All settings are kept. This cannot be undone.": "清空所有工作区数据，重新开始。完整保留所有设置。此操作不可恢复。",
+  "Stop all running agents and permanently delete all projects, conversations, agents, notes, canvases, documents and workspace history from Loci? All settings, provider accounts and global backgrounds are kept. Files in your project folders are kept. All windows will reload. This cannot be undone.": "停止所有正在运行的 agent，并永久删除 Loci 中的所有项目、会话、agent、笔记、画布、文档和工作区历史？所有设置、provider 账号和全局背景都会保留，项目文件夹中的文件也会保留。所有窗口将重新加载。此操作不可恢复。",
+  "Could not reset workspace: {0}": "无法重置工作区：{0}",
+  "Could not reset workspace": "无法重置工作区",
+  "Restart Loci to finish the reset. Some workspace files may already have been removed. Settings have been kept.": "请重启 Loci 以完成重置。部分工作区文件可能已被删除，设置已保留。",
+  "A window is still finishing an operation.": "某个窗口仍有操作尚未完成。"
 }

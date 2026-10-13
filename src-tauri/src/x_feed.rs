@@ -329,6 +329,23 @@ pub async fn x_feed_hide(app: AppHandle, window: Window) -> Result<(), String> {
     }
 }
 
+/// A workspace reload does not destroy native overlays or their saved bounds.
+pub(crate) fn reset_workspace(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<XFeedState>();
+    let _lifecycle = state.lifecycle.lock().map_err(|_| "X overlay is locked")?;
+    for (label, window) in app.webview_windows() {
+        if label.starts_with(LABEL_PREFIX) {
+            window.destroy().map_err(|e| e.to_string())?;
+        }
+    }
+    state
+        .bounds
+        .lock()
+        .map_err(|_| "X overlay is locked")?
+        .clear();
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn x_feed_navigate(app: AppHandle, window: Window, path: String) -> Result<(), String> {
     let url = x_url(&path)?;

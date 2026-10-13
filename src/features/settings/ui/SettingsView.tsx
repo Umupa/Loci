@@ -1,3 +1,4 @@
+import { ResetWorkspace } from "./ResetWorkspace";
 import { SettingsLanguage } from "../../../shared/i18n/SettingsLanguage";
 import { t, useLocale, getLocale, useLanguagePreference, setLanguagePreference, type LanguagePreference } from "../../../shared/i18n/locale";
 import { getVersion } from "@tauri-apps/api/app";
@@ -337,6 +338,9 @@ function GeneralPage({}: {}) {
 
       <Group title={t("About")}>
         <VersionRow />
+      </Group>
+      <Group title={t("Reset workspace")}>
+        <ResetWorkspace />
       </Group>
     </>);
 }

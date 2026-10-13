@@ -395,6 +395,22 @@ pub(crate) fn init(app: &AppHandle) {
     });
 }
 
+/// Forget workspace-bound routing while preserving notification preferences.
+pub(crate) fn reset_workspace(app: &AppHandle) {
+    let service = app.state::<ReminderService>();
+    if let Ok(mut pending) = service.pending_open.lock() {
+        *pending = None;
+    };
+    if let Ok(mut windows) = service.window_sessions.lock() {
+        windows.clear();
+    };
+    if let Ok(mut preferences) = service.preferences.lock() {
+        if let Some(preferences) = preferences.as_mut() {
+            preferences.project_rules.clear();
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,0 +1,85 @@
+// @vitest-environment happy-dom
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+const { invoke, suspend, listen } = vi.hoisted(() => ({ invoke: vi.fn(), suspend: vi.fn(), listen: vi.fn() }));
+vi.mock("./core", () => ({ invoke, suspendWorkspaceInvokes: suspend }));
+vi.mock("@tauri-apps/api/event", () => ({ listen }));
+const status = (phase: string) => ({ id: "reset-1", phase, error: phase === "failed" ? "disk denied" : null });
+let reload: ReturnType<typeof vi.spyOn>;
+beforeEach(() => {
+  vi.resetModules();
+  vi.useFakeTimers();
+  invoke.mockReset().mockResolvedValue(null);
+  suspend.mockReset().mockResolvedValue(undefined);
+  listen.mockReset().mockResolvedValue(() => {});
+  localStorage.clear();
+  localStorage.setItem("loci.language", "en");
+  history.replaceState(null, "", "/");
+  document.body.innerHTML = '<div id="root"></div>';
+  reload = vi.spyOn(window.location, "reload").mockImplementation(() => {});
+});
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+it("registers the reset listener before allowing normal workspace boot", async () => {
+  const { bootWorkspaceReset } = await import("./workspaceReset");
+  expect(await bootWorkspaceReset()).toBe(false);
+  expect(listen).toHaveBeenCalledWith("workspace-reset-prepare", expect.any(Function));
+  expect(listen.mock.invocationCallOrder[0]).toBeLessThan(invoke.mock.invocationCallOrder[0]);
+  expect(reload).not.toHaveBeenCalled();
+});
+it("waits for outstanding writes before unloading each old workspace page", async () => {
+  let drained!: () => void;
+  suspend.mockReturnValue(new Promise<void>((resolve) => { drained = resolve; }));
+  const { bootWorkspaceReset } = await import("./workspaceReset");
+  await bootWorkspaceReset();
+  listen.mock.calls[0][1]();
+  expect(suspend).toHaveBeenCalledTimes(1);
+  expect(reload).not.toHaveBeenCalled();
+  drained();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(location.hash).toBe("#workspace-reset");
+  expect(reload).toHaveBeenCalledTimes(1);
+  expect(invoke).not.toHaveBeenCalledWith("workspace_reset_ready", expect.anything());
+});
+it("cold maintenance pages clear only after backend success and wait for every window before reloading", async () => {
+  history.replaceState(null, "", "#workspace-reset");
+  localStorage.setItem("loci.recentProjects", "old projects");
+  localStorage.setItem("loci.themeId", "unchanged");
+  const statuses = [status("preparing"), status("clearing"), status("cleared"), status("cleared"), null];
+  invoke.mockImplementation(async (command: string) => command === "workspace_reset_status" ? statuses.shift() : undefined);
+  const { bootWorkspaceReset } = await import("./workspaceReset");
+  expect(await bootWorkspaceReset()).toBe(true);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(invoke).toHaveBeenCalledWith("workspace_reset_ready", { id: "reset-1" });
+  expect(localStorage.getItem("loci.recentProjects")).toBe("old projects");
+  await vi.advanceTimersByTimeAsync(100);
+  expect(localStorage.getItem("loci.recentProjects")).toBeNull();
+  expect(localStorage.getItem("loci.themeId")).toBe("unchanged");
+  expect(invoke).toHaveBeenCalledWith("workspace_reset_cleaned", { id: "reset-1" });
+  expect(reload).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(100);
+  expect(reload).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(100);
+  expect(reload).toHaveBeenCalledTimes(1);
+  expect(location.hash).toBe("");
+});
+it("keeps localStorage and reports a failed backend reset without booting stale data", async () => {
+  history.replaceState(null, "", "#workspace-reset");
+  localStorage.setItem("loci.recentProjects", "original");
+  invoke.mockResolvedValue(status("failed"));
+  const { bootWorkspaceReset } = await import("./workspaceReset");
+  expect(await bootWorkspaceReset()).toBe(true);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain("disk denied");
+  expect(localStorage.getItem("loci.recentProjects")).toBe("original");
+  expect(invoke).not.toHaveBeenCalledWith("workspace_reset_cleaned", expect.anything());
+  expect(reload).not.toHaveBeenCalled();
+});
+it("does not acknowledge a page whose writes fail to drain", async () => {
+  suspend.mockReturnValue(new Promise(() => {}));
+  const { bootWorkspaceReset } = await import("./workspaceReset");
+  await bootWorkspaceReset();
+  listen.mock.calls[0][1]();
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(document.querySelector('[role="alert"]')?.textContent).toContain("still finishing");
+  expect(reload).not.toHaveBeenCalled();
+  expect(invoke).not.toHaveBeenCalledWith("workspace_reset_ready", expect.anything());
+});
