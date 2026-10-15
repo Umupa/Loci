@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type FeedProvider = "v2ex" | "x";
+export type FeedProvider = "v2ex";
 
 export type FeedItemState = {
   itemId: string;

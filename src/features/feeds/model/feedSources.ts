@@ -6,14 +6,10 @@ export type FeedSource =
   | { kind: "v2ex-latest" }
   | { kind: "v2ex-node"; name: string }
   | { kind: "v2ex-notifications" }
-  | { kind: "v2ex-starred" }
-  | { kind: "x" };
+  | { kind: "v2ex-starred" };
 
 export type SavedNode = Pick<V2exNode, "name" | "title">;
 
-export type FeedTab = "v2ex" | "x";
-
-const TAB_KEY = "loci.feeds.tab";
 const SOURCE_KEY = "loci.feeds.source";
 const NODES_KEY = "loci.feeds.v2exNodes";
 const MAX_NODES = 50;
@@ -42,32 +38,16 @@ export function parseSource(raw: unknown): FeedSource | null {
     const name = raw.slice("v2ex-node:".length);
     return /^[A-Za-z0-9_-]{1,64}$/.test(name) ? { kind: "v2ex-node", name } : null;
   }
-  const simple = ["v2ex-hot", "v2ex-latest", "v2ex-notifications", "v2ex-starred", "x"] as const;
+  const simple = ["v2ex-hot", "v2ex-latest", "v2ex-notifications", "v2ex-starred"] as const;
   const kind = simple.find((item) => item === raw);
   return kind ? ({ kind } as FeedSource) : null;
 }
 
-export function loadFeedTab(): FeedTab {
-  try {
-    return localStorage.getItem(TAB_KEY) === "x" ? "x" : "v2ex";
-  } catch {
-    return "v2ex";
-  }
-}
-
-export function saveFeedTab(tab: FeedTab) {
-  try {
-    localStorage.setItem(TAB_KEY, tab);
-  } catch {
-    // Storage can be unavailable; the choice just won't persist.
-  }
-}
-
-/** The V2EX list last shown; X is a tab of its own, not a V2EX source. */
+/** The V2EX list last shown. */
 export function loadFeedSource(): FeedSource {
   try {
     const source = parseSource(localStorage.getItem(SOURCE_KEY));
-    return source && source.kind !== "x" ? source : DEFAULT_SOURCE;
+    return source ?? DEFAULT_SOURCE;
   } catch {
     return DEFAULT_SOURCE;
   }

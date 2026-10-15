@@ -120,7 +120,6 @@ pub fn workspace_reset(app: AppHandle, state: State<'_, WorkspaceReset>) -> Resu
                 crate::control::window_closed(&app, window.label());
             }
             crate::reminders::reset_workspace(&app);
-            crate::x_feed::reset_workspace(&app)?;
             Ok(())
         });
         if let Some(run) = app.state::<WorkspaceReset>().0.lock().unwrap().run.as_mut() {

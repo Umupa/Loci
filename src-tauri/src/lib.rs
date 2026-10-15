@@ -37,7 +37,6 @@ mod v2ex;
 mod window;
 #[cfg(windows)]
 mod windows;
-mod x_feed;
 
 /// Project directory for new sessions — prefer cwd, else home.
 #[tauri::command]
@@ -214,7 +213,6 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(harness::HarnessHost::new())
         .manage(reset::WorkspaceReset::default())
-        .manage(x_feed::XFeedState::default())
         .setup(|app| {
             harness::reap_orphaned_harness_processes();
             session_store::init(app.handle())?;
@@ -332,12 +330,6 @@ pub fn run() {
             v2ex::v2ex_replies,
             v2ex::v2ex_node,
             v2ex::v2ex_notifications,
-            x_feed::x_feed_show,
-            x_feed::x_feed_set_bounds,
-            x_feed::x_feed_hide,
-            x_feed::x_feed_navigate,
-            x_feed::x_feed_action,
-            x_feed::x_feed_capture,
             mcp::mcp_add,
             mcp::mcp_discover,
             #[cfg(target_os = "macos")]
@@ -492,6 +484,22 @@ pub fn ensure_macos_dev_bundle() {
 #[cfg(test)]
 mod tests {
     use super::should_request_quit;
+
+    #[test]
+    fn asset_protocol_exposes_only_media_directories() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(
+            config["app"]["security"]["assetProtocol"]["scope"],
+            serde_json::json!([
+                "$APPDATA/backgrounds/**",
+                "$APPDATA/wallpaper-cache/**",
+                "$APPDATA/project-logos/**",
+                "$APPDATA/note-assets/**",
+                "$APPDATA/generated-images/**"
+            ])
+        );
+    }
 
     #[test]
     fn explicit_exit_requests_quit() {

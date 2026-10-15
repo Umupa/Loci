@@ -9,7 +9,7 @@ use tauri::State;
 
 use crate::session_store::{now_millis, SessionStore};
 
-const PROVIDERS: [&str; 2] = ["v2ex", "x"];
+const PROVIDERS: [&str; 1] = ["v2ex"];
 const ITEM_ID_MAX: usize = 128;
 const SNAPSHOT_MAX: usize = 256 * 1024;
 const MARK_MANY_MAX: usize = 500;
@@ -238,7 +238,8 @@ mod tests {
     fn providers_are_isolated() {
         let conn = conn();
         mark_seen(&conn, "v2ex", "1", 1).unwrap();
-        assert!(list_state(&conn, "x").unwrap().is_empty());
+        assert!(list_state(&conn, "legacy").unwrap().is_empty());
+        assert!(validate("x", "1").is_err());
         assert!(validate("hn", "1").is_err());
         assert!(validate("v2ex", "").is_err());
     }

@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { hasXContent, MAX_CONTEXT_CHARS, v2exTopicMarkdown, xCaptureMarkdown, type XCapture } from "./feedContext";
+import { MAX_CONTEXT_CHARS, v2exTopicMarkdown } from "./feedContext";
 import { addSavedNode, parseSavedNodes, parseSource, removeSavedNode, sourceKey, v2exListOf } from "./feedSources";
 import { unreadOf, withSeen, withStarred, type FeedItemState } from "./feedState";
 import { parseNodeName, type V2exReply, type V2exTopic } from "./v2ex";
-import { boundsFromRect, xPathForQuery } from "./xFeed";
 
 const topic: V2exTopic = {
   id: 1247772,
@@ -44,38 +43,9 @@ describe("V2EX context", () => {
   });
 });
 
-describe("X context", () => {
-  const capture: XCapture = {
-    url: "https://x.com/a/status/1",
-    title: "Someone on X: \"hello\" / X",
-    selection: "",
-    posts: [{ author: "Someone @someone", text: "hello\nworld", time: "2026-10-11T08:00:00.000Z", link: "https://x.com/a/status/1" }],
-  };
-
-  it("uses posts when nothing is selected", () => {
-    const text = xCaptureMarkdown(capture);
-    expect(text).toContain("# Someone on X: \"hello\"");
-    expect(text).not.toContain("/ X\n");
-    expect(text).toContain("**Someone @someone** · 2026-10-11 08:00");
-    expect(text).toContain("> hello\n> world");
-  });
-
-  it("prefers the selection", () => {
-    const text = xCaptureMarkdown({ ...capture, selection: "just this" });
-    expect(text).toContain("## Selected text\n> just this");
-    expect(text).not.toContain("> hello");
-  });
-
-  it("knows when a page has nothing to send", () => {
-    expect(hasXContent(capture)).toBe(true);
-    expect(hasXContent({ ...capture, posts: [{ ...capture.posts[0], text: " " }] })).toBe(false);
-    expect(hasXContent({ ...capture, posts: [], selection: "x" })).toBe(true);
-  });
-});
-
 describe("feed sources", () => {
   it("round-trips source keys and rejects junk", () => {
-    for (const source of [{ kind: "v2ex-hot" }, { kind: "v2ex-node", name: "python" }, { kind: "x" }] as const) {
+    for (const source of [{ kind: "v2ex-hot" }, { kind: "v2ex-node", name: "python" }] as const) {
       expect(parseSource(sourceKey(source))).toEqual(source);
     }
     expect(parseSource("v2ex-node:../etc")).toBeNull();
@@ -125,20 +95,5 @@ describe("feed state", () => {
     expect(next.get("1")).toMatchObject({ starred: true, seenCount: 3, snapshot: { id: 1 } });
     expect(withSeen(next, "1", 1).get("1")?.seenCount).toBe(3);
     expect(withStarred(next, "1", false).get("1")).toMatchObject({ starred: false, seenCount: 3, snapshot: undefined });
-  });
-});
-
-describe("X overlay helpers", () => {
-  it("scales CSS px by the UI zoom", () => {
-    expect(boundsFromRect({ left: 100, top: 40.4, width: 600, height: 400 }, 1.25)).toEqual({ x: 125, y: 51, width: 750, height: 500 });
-    expect(boundsFromRect({ left: 0, top: 0, width: 0, height: 0 }, Number.NaN)).toEqual({ x: 0, y: 0, width: 1, height: 1 });
-  });
-
-  it("turns input into x.com paths", () => {
-    expect(xPathForQuery("@jack")).toBe("/jack");
-    expect(xPathForQuery("https://twitter.com/jack/status/20?s=1")).toBe("/jack/status/20?s=1");
-    expect(xPathForQuery("rust tauri")).toBe("/search?q=rust%20tauri&src=typed_query");
-    expect(xPathForQuery("https://example.com/x")).toBe("/search?q=https%3A%2F%2Fexample.com%2Fx&src=typed_query");
-    expect(xPathForQuery("  ")).toBeNull();
   });
 });

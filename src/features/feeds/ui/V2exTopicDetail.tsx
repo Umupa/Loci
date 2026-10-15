@@ -6,7 +6,7 @@ import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import { v2exReplies, v2exTopic, type V2exReply, type V2exTopic } from "../model/v2ex";
 import { v2exTopicMarkdown } from "../model/feedContext";
 import { ACTION_FILLED, ACTION_GHOST, ACTION_OUTLINE, Avatar, Chip, IconButton, Person } from "../../../shared/ui/inboxParts";
-import { FeedProviderMark } from "./feedUi";
+import { V2exMark } from "./feedUi";
 
 type Props = {
   /** What the list knows; the detail refetches the full topic and replies. */
@@ -65,7 +65,7 @@ export function V2exTopicDetail({ topic: summary, seenCount, starred, onSeen, on
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-2.5 px-8 pb-5 pt-5">
           <header className="flex flex-col gap-2.5">
             <div className="flex min-w-0 items-center gap-2 text-[12px] text-content/50">
-              <FeedProviderMark provider="v2ex" />
+              <V2exMark />
               <span className="shrink-0">Topic</span>
               <span className="shrink-0 tabular-nums">#{topic.id}</span>
               {topic.node ? (

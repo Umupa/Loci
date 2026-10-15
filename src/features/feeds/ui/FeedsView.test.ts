@@ -21,7 +21,6 @@ vi.mock("./V2exTopicDetail", () => ({
   relativeSeconds: () => "just now",
   V2exTopicDetail: ({ topic }: { topic: V2exTopic }) => createElement("div", { "data-topic-detail": true }, topic.title),
 }));
-vi.mock("./XFeedPane", () => ({ XFeedPane: () => createElement("div", null, "X panel") }));
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -130,13 +129,14 @@ describe("notification topic navigation", () => {
     expect(detail()).toBe("Topic 33");
   });
 
-  it("does not carry a pending notification back after switching providers", async () => {
+  it("opens V2EX when a removed provider was previously selected", async () => {
+    localStorage.setItem("loci.feeds.tab", "x");
+    localStorage.setItem("loci.feeds.source", "x");
     await mount();
-    await click(button("Notification A"));
-    await click(container.querySelector<HTMLButtonElement>('[role="tab"]:last-child')!);
-    expect(container.textContent).toContain("X panel");
-    await act(async () => requests.get(11)!.resolve(topic(11)));
-    await click(container.querySelector<HTMLButtonElement>('[role="tab"]:first-child')!);
-    expect(detail()).toBeUndefined();
+    expect(container.textContent).toContain("V2EX");
+    await click(button("Topic 33"));
+    expect(detail()).toBe("Topic 33");
+    expect(container.querySelector('[aria-label="Search X"]')).toBeNull();
+    expect(invoke.mock.calls.some(([command]) => command.startsWith("x_feed_"))).toBe(false);
   });
 });

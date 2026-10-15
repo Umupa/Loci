@@ -6,25 +6,23 @@ import { IS_MAC } from "../../../platform/tauri/platform";
 import { useDragResize } from "../../../shared/hooks/useDragResize";
 import { ContextMenu, type ContextMenuItem } from "../../../shared/ui/ContextMenu";
 import {
-  Bell, Bookmark, CheckCheck, Compass, Hashtag, Home, ListBullet, ListFilter, LoaderCircle, MessageMultiple, Plus, RefreshCw, Rss, Search, Star,
+  Bell, CheckCheck, Hashtag, ListFilter, LoaderCircle, MessageMultiple, Plus, RefreshCw, Rss, Search, Star,
 } from "../../../shared/ui/icons";
 import { ADD_NOTE_TO_CHAT_EVENT, NOTES_CHANGED_EVENT, upsertNote, type NoteComposerCard } from "../../notes";
-import { v2exTopicCard, xCaptureCard, type XCapture } from "../model/feedContext";
+import { v2exTopicCard } from "../model/feedContext";
 import {
-  addSavedNode, loadFeedSource, loadFeedTab, loadSavedNodes, removeSavedNode, sameSource, saveFeedSource, saveFeedTab, saveSavedNodes,
-  sourceKey, v2exListOf, type FeedSource, type FeedTab, type SavedNode,
+  addSavedNode, loadFeedSource, loadSavedNodes, removeSavedNode, sameSource, saveFeedSource, saveSavedNodes,
+  sourceKey, v2exListOf, type FeedSource, type SavedNode,
 } from "../model/feedSources";
 import { markFeedItemSeen, markFeedItemsSeen, setFeedItemStarred, unreadOf, withSeen, withStarred, type FeedStateMap } from "../model/feedState";
 import {
   clearV2exToken, parseNodeName, setV2exToken, v2exNode, v2exStatus, v2exTopic,
   type V2exNotification, type V2exReply, type V2exStatus, type V2exTopic,
 } from "../model/v2ex";
-import { navigateXFeed, X_SHORTCUTS, xPathForQuery } from "../model/xFeed";
 import { ACTION_FILLED, ACTION_GHOST, Avatar, Chip, EmptyDetail, IconButton, Person } from "../../../shared/ui/inboxParts";
-import { FeedProviderMark, PROVIDER_LABELS } from "./feedUi";
+import { V2exMark } from "./feedUi";
 import { clearFeedLists, useFeedState, useV2exNotifications, useV2exTopics } from "./useFeedData";
 import { relativeSeconds, V2exTopicDetail } from "./V2exTopicDetail";
-import { XFeedPane } from "./XFeedPane";
 
 type Props = {
   besideRail?: boolean;
@@ -38,14 +36,6 @@ const LIST_MIN = 240;
 const LIST_MAX = 420;
 const LIST_DEFAULT = 300;
 let rememberedListWidth = LIST_DEFAULT;
-
-const X_ICONS: Record<string, ReactNode> = {
-  home: <Home className="size-3.5" />,
-  explore: <Compass className="size-3.5" />,
-  notifications: <Bell className="size-3.5" />,
-  bookmarks: <Bookmark className="size-3.5" />,
-  lists: <ListBullet className="size-3.5" />,
-};
 
 function isTopic(value: unknown): value is V2exTopic {
   return !!value && typeof value === "object" && typeof (value as V2exTopic).id === "number" && typeof (value as V2exTopic).title === "string";
@@ -67,12 +57,10 @@ function sourceTitle(source: FeedSource, nodes: readonly SavedNode[]): string {
     case "v2ex-notifications": return "Notifications";
     case "v2ex-starred": return "Starred";
     case "v2ex-node": return nodes.find((node) => node.name === source.name)?.title ?? source.name;
-    case "x": return "X";
   }
 }
 
 export function FeedsView({ besideRail = false, compactRail = false, onClose, onToggleSidebar, onNoteSaved }: Props) {
-  const [tab, setTabState] = useState<FeedTab>(loadFeedTab);
   const [source, setSourceState] = useState<FeedSource>(loadFeedSource);
   const [nodes, setNodes] = useState<SavedNode[]>(loadSavedNodes);
   const [status, setStatus] = useState<V2exStatus>({ connected: false });
@@ -80,7 +68,6 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
   const [addingNode, setAddingNode] = useState(false);
   const [selected, setSelected] = useState<V2exTopic | null>(null);
   const [query, setQuery] = useState("");
-  const [xPage, setXPage] = useState("home");
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const notificationRequest = useRef(0);
@@ -101,14 +88,6 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
     });
     return () => { live = false; notificationRequest.current += 1; };
   }, []);
-
-  const setTab = (next: FeedTab) => {
-    notificationRequest.current += 1;
-    setTabState(next);
-    saveFeedTab(next);
-    setQuery("");
-    setMenuAnchor(null);
-  };
 
   const setSource = useCallback((next: FeedSource) => {
     notificationRequest.current += 1;
@@ -131,10 +110,9 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
     setSelected(null);
   };
 
-  const v2exTab = tab === "v2ex";
-  const listSource = v2exTab ? v2exListOf(source) : null;
+  const listSource = v2exListOf(source);
   const topics = useV2exTopics(listSource, listSource ? sourceKey(source) : null, status.connected);
-  const notifications = useV2exNotifications(v2exTab && source.kind === "v2ex-notifications" && status.connected);
+  const notifications = useV2exNotifications(source.kind === "v2ex-notifications" && status.connected);
   const starred = useMemo(() => [...state.values()]
     .filter((row) => row.starred && isTopic(row.snapshot))
     .sort((a, b) => (b.starredAt ?? 0) - (a.starredAt ?? 0))
@@ -189,14 +167,9 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
     });
   }, []);
 
-  const goX = (id: string, path: string) => {
-    setXPage(id);
-    void navigateXFeed(path).catch((cause) => setNotice(String(cause)));
-  };
-
   // j / k walk the topic list, like most feed readers.
   useEffect(() => {
-    if (!v2exTab || source.kind === "v2ex-notifications") return;
+    if (source.kind === "v2ex-notifications") return;
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || typingTarget(event.target)) return;
       if ((event.key !== "j" && event.key !== "k") || !listed.length) return;
@@ -208,7 +181,7 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [v2exTab, source.kind, listed, selected, selectTopic]);
+  }, [source.kind, listed, selected, selectTopic]);
 
   const loading = source.kind === "v2ex-notifications" ? notifications.loading : topics.loading;
   const refresh = source.kind === "v2ex-notifications" ? notifications.refresh : topics.refresh;
@@ -245,37 +218,21 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
     setSource({ kind: id } as FeedSource);
   };
 
-  const submitX = (event: FormEvent) => {
-    event.preventDefault();
-    const path = xPathForQuery(query);
-    if (path) goX("search", path);
-  };
-
   const list = (
     <div ref={resize.setPaneRef} className="relative flex h-full min-h-0 shrink-0 flex-col border-r border-stroke">
       <div className="flex h-9 shrink-0 items-center gap-px border-b border-stroke px-2">
-        <div role="tablist" aria-label="Feed providers" className="flex min-w-0 basis-0 items-center gap-px" style={{ flexGrow: 2 }}>
-          {(["v2ex", "x"] as const).map((provider) => (
-            <button key={provider} type="button" role="tab" aria-selected={tab === provider} onClick={() => setTab(provider)}
-              className={`flex h-6 min-w-0 flex-1 items-center justify-center rounded-md px-2 text-[12px] leading-none ${
-                tab === provider ? "bg-selection text-content" : "text-content/50 hover:bg-content/5 hover:text-content"}`}>
-              <span className="flex items-center gap-1.5">
-                <FeedProviderMark provider={provider} className="block size-3.5 shrink-0" />
-                <span className="leading-none">{PROVIDER_LABELS[provider]}</span>
-              </span>
-            </button>
-          ))}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 px-2 text-[12px] text-content">
+          <V2exMark />
+          <span>V2EX</span>
         </div>
-        {v2exTab ? (
-          <button type="button" onClick={() => setAddingNode((open) => !open)}
-            className={`flex h-6 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-[12px] leading-none ${
-              addingNode ? "bg-selection text-content" : "text-content/40 hover:bg-content/5 hover:text-content"}`}>
-            <Plus className="size-3.5 shrink-0" />
-            <span className="min-w-0 truncate">Add node</span>
-          </button>
-        ) : <span className="flex-1" />}
+        <button type="button" onClick={() => setAddingNode((open) => !open)}
+          className={`flex h-6 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-2 text-[12px] leading-none ${
+            addingNode ? "bg-selection text-content" : "text-content/40 hover:bg-content/5 hover:text-content"}`}>
+          <Plus className="size-3.5 shrink-0" />
+          <span className="min-w-0 truncate">Add node</span>
+        </button>
       </div>
-      {v2exTab && addingNode ? (
+      {addingNode ? (
         <AddNodeForm onCancel={() => setAddingNode(false)} onAdd={(node) => {
           const next = addSavedNode(nodes, node);
           setNodes(next);
@@ -284,81 +241,51 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
           setSource({ kind: "v2ex-node", name: node.name });
         }} />
       ) : null}
-      <form onSubmit={v2exTab ? (event) => event.preventDefault() : submitX} className="flex h-9 shrink-0 items-center gap-1 border-b border-stroke px-2">
+      <form onSubmit={(event) => event.preventDefault()} className="flex h-9 shrink-0 items-center gap-1 border-b border-stroke px-2">
         <div className="relative flex h-7 min-w-0 flex-1 items-center">
           <Search className="pointer-events-none absolute left-2 size-3 shrink-0 opacity-50" />
           <input value={query} onChange={(event) => setQuery(event.target.value)} spellCheck={false} autoComplete="off"
-            placeholder={v2exTab ? `Filter ${sourceTitle(source, nodes)}` : "Search X, @handle or a link"}
-            aria-label={v2exTab ? "Filter feed" : "Search X"}
+            placeholder={`Filter ${sourceTitle(source, nodes)}`}
+            aria-label="Filter feed"
             className="h-7 w-full rounded-md bg-transparent pl-7 pr-2 text-[12px] text-content outline-none placeholder:text-content/40" />
         </div>
-        {v2exTab ? (
-          <>
-            <IconButton label="Choose list" active={!!menuAnchor || source.kind !== "v2ex-hot"} onClick={(event) => setMenuAnchor(event.currentTarget)}>
-              <ListFilter className="size-3" />
-            </IconButton>
-            <IconButton label="Mark all as read" disabled={!unreadTopics.length} onClick={markAllRead}>
-              <CheckCheck className="size-3.5" />
-            </IconButton>
-            <IconButton label="Refresh" disabled={source.kind === "v2ex-starred"} onClick={refresh}>
-              {loading ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-            </IconButton>
-          </>
-        ) : null}
+        <IconButton label="Choose list" active={!!menuAnchor || source.kind !== "v2ex-hot"} onClick={(event) => setMenuAnchor(event.currentTarget)}>
+          <ListFilter className="size-3" />
+        </IconButton>
+        <IconButton label="Mark all as read" disabled={!unreadTopics.length} onClick={markAllRead}>
+          <CheckCheck className="size-3.5" />
+        </IconButton>
+        <IconButton label="Refresh" disabled={source.kind === "v2ex-starred"} onClick={refresh}>
+          {loading ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+        </IconButton>
       </form>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
         {notice ? (
           <button type="button" onClick={() => setNotice(null)} className="w-full px-3 py-2 text-left text-[12px] text-red-400/90 hover:text-red-300">{notice}</button>
         ) : null}
-        {!v2exTab ? (
-          <ul className="flex flex-col gap-0.5 p-1.5">
-            {X_SHORTCUTS.map((shortcut) => (
-              <li key={shortcut.id}>
-                <Card active={xPage === shortcut.id} onClick={() => goX(shortcut.id, shortcut.path)}>
-                  <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-content/50">
-                    <FeedProviderMark provider="x" className="size-3 shrink-0" />
-                    <span className="truncate">x.com{shortcut.path}</span>
-                  </span>
-                  <span className="mt-1 flex items-center gap-1.5 text-[13px] font-semibold leading-snug text-content">
-                    <span className="text-content/60">{X_ICONS[shortcut.id]}</span>{shortcut.label}
-                  </span>
-                  <span className="mt-1 truncate text-[11px] text-content/45">{shortcut.description}</span>
-                </Card>
-              </li>
-            ))}
-          </ul>
+        {listError ? <p role="alert" className="px-3 py-2 text-[12px] text-red-400/90">{listError}</p> : null}
+        {source.kind === "v2ex-notifications" ? (
+          <NotificationList items={shownNotifications} loading={notifications.loading} more={!notifications.done} onMore={notifications.loadMore}
+            onOpen={openNotification} />
         ) : (
-          <>
-            {listError ? <p role="alert" className="px-3 py-2 text-[12px] text-red-400/90">{listError}</p> : null}
-            {source.kind === "v2ex-notifications" ? (
-              <NotificationList items={shownNotifications} loading={notifications.loading} more={!notifications.done} onMore={notifications.loadMore}
-                onOpen={openNotification} />
-            ) : (
-              <TopicList topics={listed} state={state} selectedId={accountOpen ? undefined : selected?.id} loading={!!listSource && topics.loading}
-                empty={query.trim() ? "No matching topics" : source.kind === "v2ex-starred" ? "Star a topic to keep it here." : "Nothing here yet."}
-                more={!!listSource && !topics.done && !query.trim()} onMore={topics.loadMore}
-                onSelect={selectTopic} />
-            )}
-          </>
+          <TopicList topics={listed} state={state} selectedId={accountOpen ? undefined : selected?.id} loading={!!listSource && topics.loading}
+            empty={query.trim() ? "No matching topics" : source.kind === "v2ex-starred" ? "Star a topic to keep it here." : "Nothing here yet."}
+            more={!!listSource && !topics.done && !query.trim()} onMore={topics.loadMore}
+            onSelect={selectTopic} />
         )}
       </div>
-      {v2exTab ? (
-        <button type="button" onClick={openAccount}
-          className={`flex h-9 shrink-0 items-center gap-2 border-t border-stroke px-3 text-left text-[12px] ${accountOpen ? "text-content" : "text-content/50 hover:text-content"}`}>
-          {status.member ? <Avatar src={status.member.avatar} name={status.member.username} size={16} /> : <FeedProviderMark provider="v2ex" />}
-          <span className="min-w-0 truncate">{status.member ? `@${status.member.username}` : status.connected ? "V2EX account" : "Connect V2EX account"}</span>
-        </button>
-      ) : null}
+      <button type="button" onClick={openAccount}
+        className={`flex h-9 shrink-0 items-center gap-2 border-t border-stroke px-3 text-left text-[12px] ${accountOpen ? "text-content" : "text-content/50 hover:text-content"}`}>
+        {status.member ? <Avatar src={status.member.avatar} name={status.member.username} size={16} /> : <V2exMark />}
+        <span className="min-w-0 truncate">{status.member ? `@${status.member.username}` : status.connected ? "V2EX account" : "Connect V2EX account"}</span>
+      </button>
       <div role="separator" aria-orientation="vertical" aria-label="Resize feed list"
         className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`}
         onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick} />
     </div>
   );
 
-  const detail = !v2exTab ? (
-    <XFeedPane onSendToAgent={(capture: XCapture) => sendToAgent(xCaptureCard(capture))}
-      onSaveNote={(title, body) => saveNote(title, body, "x")} />
-  ) : accountOpen ? (
+  const detail = accountOpen ? (
     <AccountPanel status={status} onChange={(next) => { setStatus(next); clearFeedLists(); }} />
   ) : selected ? (
     <V2exTopicDetail key={selected.id} topic={selected} seenCount={state.get(String(selected.id))?.seenCount ?? null}
@@ -436,7 +363,7 @@ function TopicList({ topics, state, selectedId, loading, empty, more, onMore, on
             <Card active={topic.id === selectedId} onClick={() => onSelect(topic)} data-feed-topic={topic.id}>
               <span className="flex items-center gap-2">
                 <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <FeedProviderMark provider="v2ex" />
+                  <V2exMark />
                   <Hashtag className="size-3 shrink-0 text-emerald-400/90" />
                   <span className="min-w-0 truncate text-[11px] text-content/50">{topic.node?.title ?? "Topic"} · #{topic.id}</span>
                 </span>
@@ -484,7 +411,7 @@ function NotificationList({ items, loading, more, onMore, onOpen }: {
           <Card active={false} onClick={() => onOpen(item)}>
             <span className="flex items-center gap-2">
               <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                <FeedProviderMark provider="v2ex" />
+                <V2exMark />
                 <Bell className="size-3 shrink-0 text-sky-400/90" />
                 <span className="min-w-0 truncate text-[11px] text-content/50">Notification{item.member ? ` · ${item.member}` : ""}</span>
               </span>
@@ -553,7 +480,7 @@ function AccountPanel({ status, onChange }: { status: V2exStatus; onChange: (sta
       <div className="shrink-0 border-b border-stroke">
         <header className="mx-auto flex w-full max-w-5xl flex-col gap-2.5 px-8 pb-5 pt-5">
           <div className="flex items-center gap-2 text-[12px] text-content/50">
-            <FeedProviderMark provider="v2ex" />
+            <V2exMark />
             <span>Account</span>
             <span className={status.member ? "text-emerald-400/90" : ""}>{status.member ? "Connected" : status.connected ? "Token not confirmed" : "Not connected"}</span>
           </div>

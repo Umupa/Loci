@@ -1,9 +1,6 @@
 import type { NoteComposerCard } from "../../notes";
 import type { V2exReply, V2exTopic } from "./v2ex";
 
-export type XPost = { author: string; text: string; time: string; link: string };
-export type XCapture = { url: string; title: string; selection: string; posts: XPost[] };
-
 /** Keep injected threads well inside a model's context. */
 export const MAX_CONTEXT_CHARS = 60_000;
 
@@ -66,27 +63,4 @@ export function v2exTopicCard(topic: V2exTopic, replies: readonly V2exReply[]): 
     title: topic.title,
     body: v2exTopicMarkdown(topic, replies),
   };
-}
-
-export function xCaptureMarkdown(capture: XCapture, budget = MAX_CONTEXT_CHARS): string {
-  const title = capture.title.replace(/\s*\/\s*X\s*$/, "").trim() || "X";
-  const head = [`# ${title}`, "", UNTRUSTED_NOTE("X (Twitter)"), "", capture.url].join("\n");
-  if (capture.selection.trim()) {
-    return within(head, [`## Selected text\n${quote(capture.selection)}`], "sections", budget);
-  }
-  const blocks = capture.posts.map((post) => {
-    const header = [`**${post.author || "Unknown"}**`, post.time ? post.time.slice(0, 16).replace("T", " ") : "", post.link]
-      .filter(Boolean).join(" · ");
-    return `${header}\n${quote(post.text || "_(no text)_")}`;
-  });
-  return within(head, blocks.length ? blocks : ["_No posts were visible on this page._"], "posts", budget);
-}
-
-export function xCaptureCard(capture: XCapture): NoteComposerCard {
-  const title = capture.title.replace(/\s*\/\s*X\s*$/, "").trim() || "X";
-  return { id: crypto.randomUUID(), slug: "x-context", title, body: xCaptureMarkdown(capture) };
-}
-
-export function hasXContent(capture: XCapture): boolean {
-  return Boolean(capture.selection.trim()) || capture.posts.some((post) => post.text.trim());
 }
