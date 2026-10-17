@@ -23,6 +23,7 @@ const requestPlace = vi.spyOn(filePlace, "requestFilePlace");
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   localStorage.clear();
+  localStorage.setItem("loci.projectsEnabled", "true");
   externalOpen.mockClear();
   requestPlace.mockClear();
   mockWindows("main");

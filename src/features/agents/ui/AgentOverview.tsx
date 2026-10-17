@@ -16,16 +16,18 @@ import { HABITS_MAX } from "../model/agentHabits";
 import { useAgentResources } from "./useAgentResources";
 import "./AgentOverview.css";
 
+// Courses are what you read; the library holds the material they point at,
+// so it comes last rather than beside them.
 const TABS = [
   { id: "courses", label: "Courses", Icon: Mortarboard },
-  { id: "documents", label: "Documents", Icon: File },
   { id: "notes", label: "Notes", Icon: StickyNote },
-  { id: "habits", label: "Habits", Icon: Clock },
   { id: "canvases", label: "Canvases", Icon: Palette },
+  { id: "habits", label: "Habits", Icon: Clock },
+  { id: "documents", label: "Library", Icon: File },
 ] as const;
 const EMPTY: Record<AgentOverviewTab, string> = {
   courses: "Ask your agent to arrange a course. Saved courses appear here.",
-  documents: "Sources and documents saved by this agent appear here.",
+  documents: "The material behind this agent's courses and reports: sources it saved and documents it wrote.",
   notes: "Keep your own notes here, or save a document as a note.",
   habits: "Ask your agent to schedule recurring work, or add a habit.",
   canvases: "Drawings saved in this agent’s library appear here.",

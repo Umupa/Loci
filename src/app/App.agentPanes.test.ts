@@ -72,6 +72,8 @@ beforeEach(async () => {
   }
   localStorage.setItem("loci:agent-roster", JSON.stringify(agents));
   localStorage.setItem("loci.tabAnimationsEnabled", "false");
+  // These cover project tabs alongside agents; projects are off by default.
+  localStorage.setItem("loci.projectsEnabled", "true");
   library.clear();
   readArchive = vi.fn(async () => null);
   saveSessionRecord = vi.fn(async (session) => ({ ...session, createdAt: 1, updatedAt: 2 }));

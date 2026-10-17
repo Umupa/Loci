@@ -54,7 +54,7 @@ import { loadTabGroupColors, loadTabGroupCustomColors, loadTabGroupLabels, loadT
 import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { ProjectLogoIcon } from "../../projects/ui/ProjectLogoIcon";
 import { ProjectMascot } from "../../projects/ui/ProjectMascot";
-import { loadAgentsEnabled, saveAgentsEnabled, subscribeAgentsEnabled, filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, loadTabLimit, saveTabLimit, TAB_LIMIT_CHOICES, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
+import { loadAgentsEnabled, saveAgentsEnabled, subscribeAgentsEnabled, filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadProjectsEnabled, saveProjectsEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, loadTabLimit, saveTabLimit, TAB_LIMIT_CHOICES, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
 import { cachedNotificationPermission, loadNotificationsEnabled, openNotificationSettings, probeNotificationPermission, requestNotificationPermission, saveNotificationsEnabled, type NotificationPermission, } from "../../notifications/model/notifications";
 import { SkillsPage } from "../../skills/ui/SkillsPage";
@@ -245,6 +245,7 @@ function GeneralPage({}: {}) {
     const [notificationsEnabled, setNotificationsEnabled] = useState(loadNotificationsEnabled);
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(cachedNotificationPermission);
     const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
+    const [projectsEnabled, setProjectsEnabled] = useState(loadProjectsEnabled);
     const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(loadLiveAgentsEnabled);
     const [tabAnimationsEnabled, setTabAnimationsEnabled] = useState(loadTabAnimationsEnabled);
     const [tabLimit, setTabLimit] = useState(loadTabLimit);
@@ -271,6 +272,10 @@ function GeneralPage({}: {}) {
         if (!next)
             return;
         void requestNotificationPermission().then(setNotificationPermission);
+    };
+    const onProjectsEnabled = (next: boolean) => {
+        saveProjectsEnabled(next);
+        setProjectsEnabled(next);
     };
     const onNotesEnabled = (next: boolean) => {
         saveNotesEnabled(next);
@@ -317,6 +322,9 @@ function GeneralPage({}: {}) {
 
       <Group title={t("Workspace")} description={t("How project navigation and workspace tabs behave.")}>
 
+        <Row id="projects" label={t("Projects")} description={t("Project folders on the rail, each with its own tabs, sessions and files. Agents and their courses work without them. Turning this off only hides them; nothing is deleted.")}>
+          <Toggle label={t("Projects")} on={projectsEnabled} onChange={onProjectsEnabled}/>
+        </Row>
         <Row id="tab-animations" label={t("Tab animations")} description={t("Animate tabs as they open and close. Turn this off for instant tab changes.")}>
           <Toggle label={t("Tab animations")} on={tabAnimationsEnabled} onChange={onTabAnimationsEnabled}/>
         </Row>

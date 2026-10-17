@@ -55,6 +55,7 @@ type Props = {
     agentRail?: ReactNode;
     /** An agent's conversation covers the workspace, so no project reads as selected. */
     agentActive?: boolean;
+    projectsEnabled?: boolean;
     activeSessionId?: string;
     onSelectAgent?: (sessionId: string) => void;
     settingsOpen?: boolean;
@@ -64,7 +65,7 @@ type Props = {
     onSelectSettingsSection?: (section: SettingsSectionId) => void;
     onCloseSettings?: () => void;
 };
-export function ProjectRail({ visible = true, agentRail, agentActive = false, cwd, recents, busyPaths, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onSearch, searchActive = false, notesEnabled = true, onOpenNotes, notesActive = false, onOpenFeeds, feedsActive = false, onOpenCourses, coursesActive = false, onTogglePanel, onSelectProject, onOpenProject, onRemoveProject, liveAgents = [], activeSessionId, onSelectAgent, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, }: Props) {
+export function ProjectRail({ visible = true, agentRail, agentActive = false, projectsEnabled = true, cwd, recents, busyPaths, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onSearch, searchActive = false, notesEnabled = true, onOpenNotes, notesActive = false, onOpenFeeds, feedsActive = false, onOpenCourses, coursesActive = false, onTogglePanel, onSelectProject, onOpenProject, onRemoveProject, liveAgents = [], activeSessionId, onSelectAgent, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, }: Props) {
     const resize = useDragResize({
         min: PROJECT_RAIL_WIDTH_MIN,
         max: () => Math.min(PROJECT_RAIL_WIDTH_MAX, Math.floor(window.innerWidth * 0.35)),
@@ -209,9 +210,9 @@ export function ProjectRail({ visible = true, agentRail, agentActive = false, cw
             <RailSearch label="Search" icon={Search} onClick={onSearch} active={searchActive} shortcut={`${MOD}K`} ariaLabel={`Search (${MOD}K)`}/>
             <div className="mt-0.5"/>
 
-            {notesEnabled ? (<RailAction label="Notes" icon={File} onClick={onOpenNotes} active={notesActive} ariaLabel="Notes"/>) : null}
-            {onOpenFeeds ? (<RailAction label="Feeds" icon={Rss} onClick={onOpenFeeds} active={feedsActive} ariaLabel="Feeds"/>) : null}
             {onOpenCourses ? (<RailAction label="Courses" icon={Mortarboard} onClick={onOpenCourses} active={coursesActive} ariaLabel="Courses"/>) : null}
+            {onOpenFeeds ? (<RailAction label="Feeds" icon={Rss} onClick={onOpenFeeds} active={feedsActive} ariaLabel="Feeds"/>) : null}
+            {notesEnabled ? (<RailAction label="Notes" icon={File} onClick={onOpenNotes} active={notesActive} ariaLabel="Notes"/>) : null}
 
           </div>
 
@@ -220,6 +221,7 @@ export function ProjectRail({ visible = true, agentRail, agentActive = false, cw
                 scrollRef.current = el;
             }} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none pb-2">
             {agentRail}
+            {projectsEnabled ? <>
             {sections.pinned.length > 0 ? (<ProjectSection label="Pinned" items={sections.pinned} muteStatuses={muteStatuses} cwd={cwd} busy={busy} sortable={pinnedSortable} pinned searchActive={searchActive || notesActive || feedsActive || coursesActive || agentActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>) : null}
 
             {projectGroups.length > 0 ? (<div className="mb-2 shrink-0">
@@ -235,8 +237,9 @@ export function ProjectRail({ visible = true, agentRail, agentActive = false, cw
             <ProjectSection label="Projects" items={groupedProjectSections.ungrouped} muteStatuses={muteStatuses} emptyLabel={sections.projects.length === 0 && projectGroups.length === 0
                 ? "No projects yet"
                 : undefined} onAdd={onOpenProject} cwd={cwd} busy={busy} sortable={projectSortable} pinned={false} searchActive={searchActive || notesActive || feedsActive || coursesActive || agentActive} onSelect={onSelectProject} onTogglePin={toggleProjectPin} onContextMenu={onProjectContextMenu} onOpenMenu={projectMenu.open} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupLogos={groupLogos} groupMascots={groupMascots}/>
+            </> : null}
           </div>
-          <LiveAgentsPreview agents={liveAgents} activeSessionId={activeSessionId} onSelect={onSelectAgent} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupMascots={groupMascots}/>
+          {projectsEnabled ? <LiveAgentsPreview agents={liveAgents} activeSessionId={activeSessionId} onSelect={onSelectAgent} groupLabels={groupLabels} groupColors={groupColors} groupCustomColors={groupCustomColors} groupMascots={groupMascots}/> : null}
 
           <div className="flex shrink-0 flex-col gap-px p-2">
 

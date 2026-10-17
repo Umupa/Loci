@@ -62,7 +62,7 @@ import { linkFamilies } from "../features/workspace/model/tabFamily";
 import { summarizeTab } from "../features/workspace/model/tabSummary";
 import { filePaneId, findLeaf, leafIds, newTab, neighborLeafId } from "../features/workspace/model/layout";
 import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
-import { loadAgentsEnabled, subscribeAgentsEnabled, loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
+import { loadAgentsEnabled, subscribeAgentsEnabled, loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadProjectsEnabled, subscribeProjectsEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../features/settings/model/uiScale";
 import { announceSessionFinished } from "../features/notifications/model/notifications";
 import { hiddenApprovalNotices } from "../features/notifications/model/approvalToast";
@@ -101,6 +101,13 @@ export default function App(boot: BootWorkspace) {
   return <Suspense fallback={null}><Workspace {...boot} /></Suspense>;
 }
 
+const SURFACE_HISTORY_MAX = 10;
+
+/** Where the app opens and Back ends: project tabs, or Courses when projects are off. */
+function homeSurface(): Surface {
+  return loadProjectsEnabled() ? "chat" : "courses";
+}
+
 function signInRequestKey(session: Session): string {
   const lastUser = [...session.blocks].reverse().find((block) => block.role === "user");
   return `${session.id}:${lastUser?.id ?? session.blocks[session.blocks.length - 1]?.id ?? "auth"}`;
@@ -129,9 +136,21 @@ function Workspace(boot: BootWorkspace) {
   const [initial] = useState(() => initialWorkspace(restored.boot));
   const [sessions, setSessions] = useState<Session[]>(initial.sessions);
   const sessionsRef = useRef(sessions);
-  const [surface, setSurface] = useState<Surface>(restored.initialAgentId ? "agent" : "chat");
+  const [surface, setSurface] = useState<Surface>(restored.initialAgentId ? "agent" : homeSurface());
   const surfaceRef = useRef(surface);
   surfaceRef.current = surface;
+  // Where Back goes: the surfaces left to reach this one, newest last.
+  const surfaceHistory = useRef<Surface[]>([]);
+  const goingBack = useRef(false);
+  const previousSurface = useRef(surface);
+  useEffect(() => {
+    const left = previousSurface.current;
+    previousSurface.current = surface;
+    if (left === surface) return;
+    if (goingBack.current) { goingBack.current = false; return; }
+    if (left === "settings" || left === "search") return;
+    surfaceHistory.current = [...surfaceHistory.current.filter((entry) => entry !== left && entry !== surface), left].slice(-SURFACE_HISTORY_MAX);
+  }, [surface]);
   const settingsReturn = useRef<Surface>("chat");
   const [settingsSection, setSettingsSection] = useState(loadSettingsSection);
   const [settingsAnchor, setSettingsAnchor] = useState<string | null>(null);
@@ -149,7 +168,16 @@ function Workspace(boot: BootWorkspace) {
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
   const seenSignInRequests = useRef(new Set(initial.sessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
   const workspaceRef = useRef<ReturnType<typeof useAppWorkspace> | null>(null);
-  const closeSurface = useCallback(() => setSurface("chat"), []);
+  /** Into the project tabs, to show a session there. */
+  const showChat = useCallback(() => setSurface("chat"), []);
+  /** Back to the surface this one was reached from. */
+  const closeSurface = useCallback(() => {
+    const history = surfaceHistory.current;
+    let next = history.pop();
+    while (next && (next === surfaceRef.current || (next === "chat" && !loadProjectsEnabled()))) next = history.pop();
+    goingBack.current = true;
+    setSurface(next ?? homeSurface());
+  }, []);
   const agentWorkspace = useAgentWorkspace({ onClose: closeSurface, initialLayouts: restored.layouts, initialAgentId: restored.initialAgentId });
   const agentOverview = useAgentOverview();
   const agentOverviewRef = useRef(agentOverview);
@@ -163,6 +191,7 @@ function Workspace(boot: BootWorkspace) {
   agentWorkspaceRef.current = agentWorkspace;
   const agentsRef = useRef<ReturnType<typeof useAgents> | null>(null);
   const notesEnabled = useSyncExternalStore(subscribeNotesEnabled, loadNotesEnabled);
+  const projectsEnabled = useSyncExternalStore(subscribeProjectsEnabled, loadProjectsEnabled);
   const liveAgentsEnabled = useSyncExternalStore(subscribeLiveAgentsEnabled, loadLiveAgentsEnabled);
   const collapsedProjectRailMode = useSyncExternalStore(subscribeCollapsedProjectRailMode, loadCollapsedProjectRailMode);
 
@@ -197,7 +226,7 @@ function Workspace(boot: BootWorkspace) {
     bindSession: runtime.bindRestoredSession,
     stopSession: submission.stopSessionWork,
     flushPersistence: runtime.flushPersistence,
-    onNavigate: closeSurface,
+    onNavigate: showChat,
     onOpenAgent: (id) => { void agentsRef.current?.open(id); },
   });
   workspaceRef.current = workspace;
@@ -683,10 +712,10 @@ function Workspace(boot: BootWorkspace) {
           onPinSession={(...args) => void workspace.pinSession(...args)} onPinSessions={(ids, pinned) => { for (const id of ids) void workspace.pinSession(id, pinned); }}
           onDeleteSession={(id) => void workspace.removeSession(id)} onDeleteSessions={(ids) => { for (const id of ids) void workspace.removeSession(id); }}
           reminders={reminders.reminders} onSetReminders={reminders.schedule} onCancelReminders={reminders.cancel}
-          onTabChange={closeSurface} canGoBack={surface !== "chat" || workspace.visits.back.length > 0} canGoForward={workspace.visits.forward.length > 0}
+          onTabChange={showChat} canGoBack={surface !== "chat" || workspace.visits.back.length > 0} canGoForward={workspace.visits.forward.length > 0}
           onGoBack={onRailBack} onGoForward={() => workspace.visit("forward")}
           recents={workspace.recents} busyProjectPaths={shownSessions.filter((session) => session.busy).map((session) => session.cwd)}
-          agentActive={!!focusedAgent}
+          agentActive={!!focusedAgent} projectsEnabled={projectsEnabled}
           agentRail={!agentsEnabled ? undefined : <AgentRailSection activeId={focusedAgent?.id} states={agents.states} unseenIds={unseenAgentIds}
             onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void agents.open(id); }} onCreate={() => void agents.create()} onDelete={(id) => void agents.remove(id)} />}
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}

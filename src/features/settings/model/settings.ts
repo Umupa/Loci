@@ -140,6 +140,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "notify alert toast permission reminder background",
     },
     {
+        id: "projects",
+        section: "general",
+        get label() { return t("Projects"); },
+        keywords: "folders repositories rail tabs sessions files hide",
+    },
+    {
         id: "notes",
         section: "general",
         get label() { return t("Notes"); },
@@ -591,6 +597,28 @@ export function subscribeNotesEnabled(onStoreChange: () => void) {
         return () => { };
     window.addEventListener(NOTES_ENABLED_CHANGE_EVENT, onStoreChange);
     return () => window.removeEventListener(NOTES_ENABLED_CHANGE_EVENT, onStoreChange);
+}
+const PROJECTS_ENABLED_KEY = "loci.projectsEnabled";
+/** Fired on `window` when the projects setting flips. */
+export const PROJECTS_ENABLED_CHANGE_EVENT = "loci:projects-enabled-change";
+/**
+ * Project folders on the rail, with their tabs and session sidebar. Off by
+ * default: Loci is organised around agents, and their chats need no project.
+ */
+export function loadProjectsEnabled(): boolean {
+    return readFlag(PROJECTS_ENABLED_KEY) ?? false;
+}
+export function saveProjectsEnabled(value: boolean) {
+    writeFlag(PROJECTS_ENABLED_KEY, value);
+    if (typeof window === "undefined")
+        return;
+    window.dispatchEvent(new CustomEvent<boolean>(PROJECTS_ENABLED_CHANGE_EVENT, { detail: value }));
+}
+export function subscribeProjectsEnabled(onStoreChange: () => void) {
+    if (typeof window === "undefined")
+        return () => { };
+    window.addEventListener(PROJECTS_ENABLED_CHANGE_EVENT, onStoreChange);
+    return () => window.removeEventListener(PROJECTS_ENABLED_CHANGE_EVENT, onStoreChange);
 }
 const AGENTS_ENABLED_KEY = "loci.agentsEnabled";
 /** Fired on `window` when the agents setting flips. */
