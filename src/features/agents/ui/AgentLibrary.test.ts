@@ -139,18 +139,18 @@ it("retains loaded documents on a failed refresh, with an explicit retry", async
   documentRead = async () => [];
   await click('[role="alert"] button');
   expect(container.querySelector('[role="alert"]')).toBeNull();
-  expect(container.textContent).toContain("Sources and documents saved by this agent appear here.");
+  expect(container.textContent).toContain("The material behind this agent's courses and reports");
 });
 
 it("ignores an old agent's delayed listing after switching owners", async () => {
   let finish!: (value: typeof documents) => void;
   documentRead = async (id) => id === agent.id ? new Promise((resolve) => { finish = resolve; }) : [];
   await render(); await tab("documents");
-  expect(container.textContent).toContain("Loading documents");
+  expect(container.textContent).toContain("Loading library");
   await render(other); await tab("documents");
   await act(async () => finish(documents));
   expect(container.textContent).not.toContain("HTTP reference");
-  expect(container.querySelector('[data-tab="documents"]')?.getAttribute("aria-label")).toBe("Documents, 0");
+  expect(container.querySelector('[data-tab="documents"]')?.getAttribute("aria-label")).toBe("Library, 0");
 });
 
 it("persists each agent's tab and width without persisting reader contents", async () => {
