@@ -178,7 +178,11 @@ Only in an agent's own conversation:
                   "schedule":{"kind":"weekdays","time":"09:00"}}
                   kind is hourly (with "minute":0-59), daily, weekdays or
                   weekly (with "dayOfWeek":0-6, 0 is Sunday). Times are local.
-  habits.update  {"id":"...","enabled":false}  Also name, instructions, schedule.
+                  "access":"auto" runs it in Auto mode: steps the harness judges
+                  risky are put to the user in this chat. The default, "full",
+                  runs unattended with full access; prefer "auto" for a habit
+                  that reads untrusted pages.
+  habits.update  {"id":"...","enabled":false}  Also name, instructions, schedule, access.
   habits.run     {"id":"..."}  Run it now; the schedule is left alone.
   habits.remove  {"id":"..."}
 

@@ -41,6 +41,11 @@ export type Habit = {
   runRequested?: boolean;
   /** The suggestion card in the chat it was started from. */
   fromCard?: string;
+  /**
+   * "auto" runs it in Auto mode, so a step the harness judges risky is put to
+   * the user in the chat; absent, it runs with full access, unattended.
+   */
+  access?: "auto";
 };
 
 export type HabitOutcome = "posted" | "quiet" | "failed";
@@ -131,6 +136,7 @@ export function parseHabits(text: string | null | undefined): Habit[] {
       ...(Array.isArray(value.runs) ? { runs: parseRuns(value.runs) } : {}),
       ...(value.runRequested === true ? { runRequested: true } : {}),
       ...(isString(value.fromCard) ? { fromCard: value.fromCard } : {}),
+      ...(value.access === "auto" ? { access: "auto" as const } : {}),
     });
   }
   return habits;
@@ -203,13 +209,15 @@ export function habitSchedule(value: unknown): HabitSchedule {
 }
 
 /** What it takes to start a habit, from the CLI or the panel. */
-export type HabitDraft = Pick<Habit, "name" | "instructions" | "schedule">;
+export type HabitDraft = Pick<Habit, "name" | "instructions" | "schedule" | "access">;
 
 /** A new, enabled habit first due at its next time after `now`. */
 export function newHabit(draft: HabitDraft, now: number): Habit {
+  const { access, ...rest } = draft;
   return {
     id: crypto.randomUUID(),
-    ...draft,
+    ...rest,
+    ...(access ? { access } : {}),
     enabled: true,
     createdAt: now,
     nextRunAt: nextHabitRunAt(draft.schedule, now),

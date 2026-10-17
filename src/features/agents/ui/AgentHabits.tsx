@@ -218,6 +218,11 @@ export function AgentHabitDetail({ agentId, habit, loading, onBack, onClose }: {
       <p className="text-xs text-content/50">{habit.enabled ? habitScheduleLabel(habit.schedule) : "Paused"}{habit.enabled ? ` · next ${date(habit.nextRunAt)}` : ""}</p>
       <p className="mt-3 whitespace-pre-wrap text-[13px] leading-relaxed">{habit.instructions}</p>
       <p className="mt-3 text-xs text-content/45">Runs while Loci is open.</p>
+      <label className="mt-3 flex items-start gap-2 text-xs text-content/70">
+        <input type="checkbox" className="mt-0.5" checked={habit.access === "auto"} aria-label="Ask before risky steps"
+          onChange={(event) => { const ask = event.target.checked; void change((item) => { const { access: _access, ...rest } = item; return ask ? { ...rest, access: "auto" } : rest; }); }} />
+        <span>Ask before risky steps<span className="block text-content/45">Runs in Auto mode: anything the agent's CLI judges risky waits for you in the chat. Off, it runs unattended with full access. Turn this on for habits that read web pages.</span></span>
+      </label>
       {error ? <p role="alert" className="mb-3 text-xs text-red-400">{error}</p> : null}
       <h3 className="mt-5 border-t border-stroke pb-2 pt-4 text-[11px] font-medium text-content/45">Recent runs</h3>
       {!habit.runs?.length ? <p className="mt-3 text-xs text-content/45">No runs yet.</p> : <ul className="-mx-2 flex flex-col gap-px">{habit.runs.map((run, index) => <HabitRunRow key={`${run.at}:${index}`} run={run} />)}</ul>}

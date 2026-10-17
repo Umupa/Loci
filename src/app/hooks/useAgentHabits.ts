@@ -170,8 +170,9 @@ export function useAgentHabits(options: Options, enabled = true) {
       const look = agentLook(record);
       const run: Session = {
         // Nobody is watching a habit's run, so it cannot stop to ask before
-        // each step. Anything the harness still asks goes to the user in the chat.
-        ...newSession(chat.harness, chat.cwd, chat.model, "full-access", chat.modelSettings),
+        // each step unless it was set to. Anything the harness asks goes to
+        // the user in the chat.
+        ...newSession(chat.harness, chat.cwd, chat.model, habit.access === "auto" ? "auto" : "full-access", chat.modelSettings),
         title: `${look.name} · ${habit.name}`,
         ephemeral: true,
       };

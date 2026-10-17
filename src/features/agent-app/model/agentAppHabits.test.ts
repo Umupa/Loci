@@ -79,3 +79,19 @@ it("refuses to start a habit that is already running", async () => {
   setHabitRunning(added.habit.id);
 });
 
+
+it("runs a habit in Auto mode when asked, and back to full access on request", async () => {
+  const { run, habits } = habitsFixture();
+  const added = (await run("habits.add", {
+    name: "Market brief",
+    instructions: "Summarise the morning's market news.",
+    schedule: { kind: "weekdays", time: "08:30" },
+    access: "auto",
+  })) as { habit: { id: string; access: string } };
+  expect(added.habit.access).toBe("auto");
+  expect(habits()[0].access).toBe("auto");
+  await run("habits.update", { id: added.habit.id, access: "full" });
+  expect(habits()[0].access).toBeUndefined();
+  await expect(run("habits.add", { name: "x", instructions: "y", schedule: { kind: "daily", time: "09:00" }, access: "root" }))
+    .rejects.toThrow('access must be "full" or "auto"');
+});

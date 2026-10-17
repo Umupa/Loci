@@ -255,8 +255,8 @@ const FIELDS = new Map<string, readonly string[]>([
   ["courses.write", ["id", "title", "engine", "chapters", "canvasId", "steps"]],
   ["courses.delete", ["id"]],
   ["habits.list", []],
-  ["habits.add", ["name", "instructions", "schedule"]],
-  ["habits.update", ["id", "name", "instructions", "schedule", "enabled"]],
+  ["habits.add", ["name", "instructions", "schedule", "access"]],
+  ["habits.update", ["id", "name", "instructions", "schedule", "enabled", "access"]],
   ["habits.run", ["id"]],
   ["habits.remove", ["id"]],
   ["canvas.list", ["project"]],
@@ -747,12 +747,20 @@ async function handleMemory(
   throw new Error(`Unknown app action: ${action}`);
 }
 
+/** "auto" asks before risky steps; "full", the default, runs unattended. */
+function habitAccess(value: unknown): "auto" | undefined {
+  if (value === undefined || value === "full") return undefined;
+  if (value === "auto") return "auto";
+  throw new Error('access must be "full" or "auto"');
+}
+
 function habitView(habit: Habit) {
   return {
     id: habit.id,
     name: habit.name,
     instructions: habit.instructions,
     schedule: habitScheduleLabel(habit.schedule),
+    access: habit.access ?? "full",
     enabled: habit.enabled,
     nextRun: habit.enabled ? new Date(habit.nextRunAt).toLocaleString() : null,
     ...(habitRunningSince(habit.id) != null ? { running: true } : {}),
@@ -791,11 +799,12 @@ async function handleHabits(
       const name = requiredString(input.name, "name", 80);
       const instructions = requiredString(input.instructions, "instructions", 4_000);
       const schedule = habitSchedule(input.schedule);
+      const access = habitAccess(input.access);
       const habit = await habits.update(agentId, (list) => {
         if (list.length >= HABITS_MAX)
           throw new Error(`An agent can have at most ${HABITS_MAX} habits`);
         const created = newHabit(
-          { name, instructions, schedule },
+          { name, instructions, schedule, ...(access ? { access } : {}) },
           now.getTime(),
         );
         return { habits: [...list, created], result: created };
@@ -822,6 +831,7 @@ async function handleHabits(
       };
       if (input.enabled !== undefined && typeof input.enabled !== "boolean")
         throw new Error("enabled must be true or false");
+      const access = input.access === undefined ? undefined : habitAccess(input.access) ?? "full";
       const habit = await habits.update(agentId, (list) => {
         const current = find(list);
         const next: Habit = {
@@ -831,6 +841,8 @@ async function handleHabits(
             ? {}
             : { enabled: input.enabled as boolean }),
         };
+        if (access === "auto") next.access = "auto";
+        else if (access === "full") delete next.access;
         // A new schedule, or turning it back on, counts from now.
         if (patch.schedule || (next.enabled && !current.enabled))
           next.nextRunAt = nextHabitRunAt(next.schedule, now.getTime());

@@ -84,6 +84,7 @@ import ShieldAlertIcon from "@hugeicons/core-free-icons/ShieldAlertIcon";
 import SparklesIcon from "@hugeicons/core-free-icons/SparklesIcon";
 import SquareIcon from "@hugeicons/core-free-icons/SquareIcon";
 import SquareLock02Icon from "@hugeicons/core-free-icons/SquareLock02Icon";
+import NewspaperIcon from "@hugeicons/core-free-icons/NewspaperIcon";
 import RssIcon from "@hugeicons/core-free-icons/RssIcon";
 import StarIcon from "@hugeicons/core-free-icons/StarIcon";
 import Tick02Icon from "@hugeicons/core-free-icons/Tick02Icon";
@@ -202,6 +203,7 @@ export const SlidersHorizontal = wrap(PreferenceHorizontalIcon, "SlidersHorizont
 export const Sparkles = wrap(SparklesIcon, "Sparkles");
 export const Square = wrap(SquareIcon, "Square");
 export const SquarePlus = wrap(AddSquareIcon, "SquarePlus");
+export const Newspaper = wrap(NewspaperIcon, "Newspaper");
 export const Rss = wrap(RssIcon, "Rss");
 export const Star = wrap(StarIcon, "Star");
 export const At = wrap(AtIcon, "At");

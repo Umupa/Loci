@@ -23,6 +23,7 @@ import { ACTION_FILLED, ACTION_GHOST, Avatar, Chip, EmptyDetail, IconButton, Per
 import { V2exMark } from "./feedUi";
 import { clearFeedLists, useFeedState, useV2exNotifications, useV2exTopics } from "./useFeedData";
 import { relativeSeconds, V2exTopicDetail } from "./V2exTopicDetail";
+import { BriefingsView } from "./BriefingsView";
 
 type Props = {
   besideRail?: boolean;
@@ -30,7 +31,16 @@ type Props = {
   onClose: () => void;
   onToggleSidebar?: () => void;
   onNoteSaved?: (id: string) => void;
+  /** Show an agent's conversation, for a question about its briefing. */
+  onOpenAgent?: (agentId: string) => void;
 };
+
+/** Feeds reads two kinds of stream: a community, and what agents file on a schedule. */
+type Channel = "v2ex" | "briefings";
+const CHANNEL_KEY = "loci.feeds.channel";
+function loadChannel(): Channel {
+  try { return localStorage.getItem(CHANNEL_KEY) === "briefings" ? "briefings" : "v2ex"; } catch { return "v2ex"; }
+}
 
 const LIST_MIN = 240;
 const LIST_MAX = 420;
@@ -60,7 +70,12 @@ function sourceTitle(source: FeedSource, nodes: readonly SavedNode[]): string {
   }
 }
 
-export function FeedsView({ besideRail = false, compactRail = false, onClose, onToggleSidebar, onNoteSaved }: Props) {
+export function FeedsView({ besideRail = false, compactRail = false, onClose, onToggleSidebar, onNoteSaved, onOpenAgent }: Props) {
+  const [channel, setChannelState] = useState<Channel>(loadChannel);
+  const setChannel = (next: Channel) => {
+    setChannelState(next);
+    try { localStorage.setItem(CHANNEL_KEY, next); } catch { /* The choice just won't persist. */ }
+  };
   const [source, setSourceState] = useState<FeedSource>(loadFeedSource);
   const [nodes, setNodes] = useState<SavedNode[]>(loadSavedNodes);
   const [status, setStatus] = useState<V2exStatus>({ connected: false });
@@ -169,7 +184,7 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
 
   // j / k walk the topic list, like most feed readers.
   useEffect(() => {
-    if (source.kind === "v2ex-notifications") return;
+    if (channel !== "v2ex" || source.kind === "v2ex-notifications") return;
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || typingTarget(event.target)) return;
       if ((event.key !== "j" && event.key !== "k") || !listed.length) return;
@@ -181,7 +196,7 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [source.kind, listed, selected, selectTopic]);
+  }, [channel, source.kind, listed, selected, selectTopic]);
 
   const loading = source.kind === "v2ex-notifications" ? notifications.loading : topics.loading;
   const refresh = source.kind === "v2ex-notifications" ? notifications.refresh : topics.refresh;
@@ -305,13 +320,18 @@ export function FeedsView({ besideRail = false, compactRail = false, onClose, on
         <div className="flex min-w-0 flex-1 items-center gap-2 px-3 text-[13px]">
           <Rss className="size-3.5 shrink-0 text-content/45" />
           <span className="min-w-0 truncate text-content">Feeds</span>
+          <div role="tablist" aria-label="Feed channel" className="ml-2 flex items-center gap-0.5" data-tauri-drag-region="false">
+            {([["v2ex", "V2EX"], ["briefings", "Briefings"]] as const).map(([id, label]) =>
+              <button key={id} type="button" role="tab" aria-selected={channel === id} onClick={() => setChannel(id)}
+                className={`h-6 rounded-md px-2 text-[12px] ${channel === id ? "bg-content/9 text-content" : "text-content/50 hover:bg-content/5 hover:text-content"}`}>{label}</button>)}
+          </div>
         </div>
         {IS_MAC ? null : <WindowControls />}
       </div>
-      <div className="flex min-h-0 min-w-0 flex-1">
+      {channel === "briefings" ? <BriefingsView onOpenAgent={(id) => onOpenAgent?.(id)} /> : <div className="flex min-h-0 min-w-0 flex-1">
         {list}
         <div className="relative flex min-h-0 min-w-0 flex-1">{detail}</div>
-      </div>
+      </div>}
       {menuAnchor ? <ContextMenu anchor={menuAnchor} items={menuItems} onPick={pickMenu} onClose={() => setMenuAnchor(null)} /> : null}
     </div>
   );
