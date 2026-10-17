@@ -231,13 +231,21 @@ export async function notifySession(
 ): Promise<boolean> {
 
   const occurredAt = Date.now();
-  const project = knownNotificationProject(session.cwd);
-  if (!project) return false;
   return notifyProjectSession(session, event, sessionVisible, {
-    projectId: project.id,
+    projectId: notificationProjectId(session),
     category: event === "finished" ? "agentFinished" : "agentInput",
     occurredAt,
   });
+}
+
+/**
+ * Agent chats run in the home folder, which is never a project; they share
+ * one rule of their own instead of going unannounced.
+ */
+export const OUTSIDE_PROJECT_NOTIFICATIONS = "loci:outside-projects";
+
+function notificationProjectId(session: Session): string {
+  return knownNotificationProject(session.cwd)?.id ?? OUTSIDE_PROJECT_NOTIFICATIONS;
 }
 
 /** One policy decision covers both the OS banner and its in-app sound fallback. */
@@ -247,10 +255,8 @@ export async function announceSessionFinished(
 ): Promise<void> {
 
   const occurredAt = Date.now();
-  const project = knownNotificationProject(session.cwd);
-  if (!project) return;
   const subject: NotificationSubject = {
-    projectId: project.id,
+    projectId: notificationProjectId(session),
     category: "agentFinished",
     occurredAt,
   };

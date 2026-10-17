@@ -56,6 +56,16 @@ pub struct AgentFiles {
     pub memory_path: String,
     /// Topic notes under memory/, by name without `.md`; not the archive.
     pub topics: Vec<String>,
+    /// The same topic notes with their text, so they load like MEMORY.md.
+    pub topic_notes: Vec<TopicNote>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TopicNote {
+    pub name: String,
+    pub text: String,
+    pub hash: String,
 }
 
 /// The files the app reads and writes for an agent, relative to its folder:
@@ -175,6 +185,17 @@ fn load(root: &Path, agent: &str) -> Result<AgentFiles, String> {
     let soul = read_optional(&dir.join(SOUL_FILE))?;
     let memory_path = dir.join(MEMORY_FILE);
     let memory = read_optional(&memory_path)?.unwrap_or_default();
+    let names = topics(&dir);
+    let mut topic_notes = Vec::with_capacity(names.len());
+    for name in &names {
+        let text = read_optional(&dir.join(MEMORY_DIR).join(format!("{name}.md")))?
+            .unwrap_or_default();
+        topic_notes.push(TopicNote {
+            name: name.clone(),
+            hash: content_hash(&text),
+            text,
+        });
+    }
     Ok(AgentFiles {
         id: agent.to_string(),
         soul_hash: content_hash(soul.as_deref().unwrap_or("")),
@@ -182,7 +203,8 @@ fn load(root: &Path, agent: &str) -> Result<AgentFiles, String> {
         memory_hash: content_hash(&memory),
         memory,
         memory_path: memory_path.to_string_lossy().into_owned(),
-        topics: topics(&dir),
+        topics: names,
+        topic_notes,
         dir: dir.to_string_lossy().into_owned(),
     })
 }
@@ -371,6 +393,8 @@ mod tests {
         save(&root, "m", "memory/archive.md", "- old", None).unwrap();
         let loaded = load(&root, "m").unwrap();
         assert_eq!(loaded.topics, vec!["releases".to_string()]);
+        assert_eq!(loaded.topic_notes.len(), 1);
+        assert_eq!(loaded.topic_notes[0].text, "# Releases");
         let topic = read(&root, "m", "memory/releases.md").unwrap();
         assert_eq!(topic.text.as_deref(), Some("# Releases"));
         assert_eq!(read(&root, "m", "memory/none.md").unwrap().text, None);

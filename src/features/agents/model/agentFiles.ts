@@ -15,7 +15,11 @@ export type AgentFiles = {
   memoryPath: string;
   /** Topic notes under memory/, by name; listed in the memory block. */
   topics: string[];
+  /** The same topic notes with their text; they load with MEMORY.md. */
+  topicNotes?: TopicNote[];
 };
+
+export type TopicNote = { name: string; text: string; hash: string };
 
 type LoadedFiles = Omit<AgentFiles, "soul"> & { soul: string | null };
 
@@ -109,15 +113,16 @@ export function saveAgentFile(
 /** Reapply a small edit to the latest file, including after a concurrent save. */
 export async function editAgentFile(
   agentId: string,
-  file: AgentFile,
+  file: AgentFile | AgentFilePath,
   edit: (text: string) => string,
 ): Promise<string> {
+  const path = file === "soul" || file === "memory" ? FILE_PATH[file] : file;
   for (let attempt = 0; ; attempt++) {
-    const current = await readAgentFile(agentId, FILE_PATH[file]);
+    const current = await readAgentFile(agentId, path);
     const text = edit(current.text ?? "");
     if (text === (current.text ?? "")) return current.hash;
     try {
-      return await saveAgentFile(agentId, file, text, current.hash);
+      return await writeAgentFile(agentId, path, text, current.hash);
     } catch (error) {
       if (!(error instanceof AgentFileConflict) || attempt >= 2) throw error;
     }
@@ -167,6 +172,26 @@ export type MemoryBudget = {
   /** Lines past the budget, which do not load. */
   droppedLines: number;
 };
+
+/**
+ * MEMORY.md followed by each topic note under its own heading, which is what
+ * loads into a turn. Topics are for keeping facts apart, not for hiding them:
+ * an agent that files everything under topics still remembers it.
+ */
+export function memoryForContext(files: Pick<AgentFiles, "memory" | "topicNotes">): string {
+  const parts = [files.memory.replace(/\s+$/, "")];
+  for (const note of files.topicNotes ?? []) {
+    const body = note.text.trim().replace(/^# .*\n?/, "").trim();
+    if (body) parts.push(`## ${note.name}\n${body}`);
+  }
+  return parts.filter(Boolean).join("\n\n");
+}
+
+/** What decides whether a session has seen this memory: MEMORY.md and every topic note. */
+export function memoryKey(files: Pick<AgentFiles, "memoryHash" | "topicNotes">): string {
+  const topics = (files.topicNotes ?? []).map((note) => `${note.name}:${note.hash}`);
+  return topics.length ? `${files.memoryHash}|${topics.join(",")}` : files.memoryHash;
+}
 
 /** The part of MEMORY.md that fits the budget: whole lines only. */
 export function memoryWithinBudget(memory: string): MemoryBudget {
@@ -234,7 +259,7 @@ export type AgentContextPlan = {
 export function planAgentContext(
   sessionId: string,
   providerSessionId: string | undefined,
-  files: Pick<AgentFiles, "soulHash" | "memoryHash">,
+  files: Pick<AgentFiles, "soulHash" | "memoryHash" | "topicNotes">,
 ): AgentContextPlan {
   const handed = readHanded()[sessionId];
   // The provider id arrives with the first reply, so a record made before it
@@ -245,7 +270,7 @@ export function planAgentContext(
     (handed.provider == null || handed.provider === providerSessionId);
   if (!sameSession) return { soul: true, memory: true };
   const soul = handed.soulHash !== handedSoul(files.soulHash);
-  return { soul, memory: soul || handed.memoryHash !== files.memoryHash };
+  return { soul, memory: soul || handed.memoryHash !== memoryKey(files) };
 }
 
 /** A native conversation carrying old or unknown app policies needs a fresh context. */
@@ -261,14 +286,14 @@ export function needsAppContextReset(sessionId: string, providerSessionId: strin
 export function recordAgentContext(
   sessionId: string,
   providerSessionId: string | undefined,
-  files: Pick<AgentFiles, "soulHash" | "memoryHash">,
+  files: Pick<AgentFiles, "soulHash" | "memoryHash" | "topicNotes">,
 ): void {
   const next = {
     ...readHanded(),
     [sessionId]: {
       ...(providerSessionId ? { provider: providerSessionId } : {}),
       soulHash: handedSoul(files.soulHash),
-      memoryHash: files.memoryHash,
+      memoryHash: memoryKey(files),
     },
   };
   try {
@@ -333,7 +358,7 @@ export function agentContext(
     );
   }
   if (plan.memory) {
-    const budget = memoryWithinBudget(files.memory);
+    const budget = memoryWithinBudget(memoryForContext(files));
     parts.push(
       `<memory>\n${budget.text}\n</memory>`,
       `<memory_files>\n${JSON.stringify({ path: files.memoryPath, topics: files.topics, omittedLines: budget.droppedLines }, null, 2)}\n</memory_files>`,

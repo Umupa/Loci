@@ -179,3 +179,17 @@ it.each([
     id: "agent", name: "小序", role: role ?? null, projects: [],
   });
 });
+
+it("loads topic notes into the memory block and resends it when one changes", () => {
+  const look = { name: "Mentor", projects: [] };
+  const withTopic = (hash: string) => ({
+    ...files(),
+    topicNotes: [{ name: "learning-mission", text: "# learning-mission\n- 2026-10-13 · 使命：K8s", hash }],
+  });
+  const block = agentContext(look, withTopic("t1"), { soul: false, memory: true });
+  expect(block).toContain("releases are tag-triggered");
+  expect(block).toContain("## learning-mission\n- 2026-10-13 · 使命：K8s");
+  recordAgentContext("chat", "native-1", withTopic("t1"));
+  expect(planAgentContext("chat", "native-1", withTopic("t1")).memory).toBe(false);
+  expect(planAgentContext("chat", "native-1", withTopic("t2")).memory).toBe(true);
+});

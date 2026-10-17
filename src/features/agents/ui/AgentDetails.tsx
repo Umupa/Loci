@@ -11,9 +11,11 @@ import {
   AgentFileConflict,
   editAgentFile,
   loadAgentFiles,
+  memoryForContext,
   memoryWithinBudget,
   saveAgentFile,
   subscribeAgentFiles,
+  type AgentFilePath,
   type AgentFiles,
 } from "../model/agentFiles";
 import { addMemoryEntry, memoryDate, memoryEntry, memoryLines, withLineEdited, withoutLine } from "../model/agentMemory";
@@ -211,53 +213,75 @@ function SoulPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
 /** Facts stay editable even if another writer inserts or removes rows. */
 function MemoryPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
   const [draft, setDraft] = useState("");
-  const [editing, setEditing] = useState<{ original: string; text: string }>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
-  const facts = memoryLines(files.memory);
-  const budget = memoryWithinBudget(files.memory);
-  const run = async (edit: (text: string) => string) => {
+  const topics = (files.topicNotes ?? []).filter((note) => memoryLines(note.text).length);
+  const budget = memoryWithinBudget(memoryForContext(files));
+  const run = async (path: AgentFilePath, edit: (text: string) => string) => {
     setSaving(true);
-    try { await editAgentFile(agentId, "memory", edit); setError(undefined); return true; }
+    try { await editAgentFile(agentId, path, edit); setError(undefined); return true; }
     catch (reason) { setError(String(reason)); return false; }
     finally { setSaving(false); }
   };
-  const locate = (text: string, original: string) => {
-    const indices = text.split("\n").flatMap((line, index) => line === original ? [index] : []);
-    if (indices.length !== 1) throw new Error("This memory changed while you were editing. Your draft is kept; cancel and choose the updated fact to try again.");
-    return indices[0];
-  };
   const add = async () => {
     const fact = draft.trim();
-    if (fact && await run((text) => addMemoryEntry(text, memoryEntry(fact, memoryDate(new Date()))).text)) setDraft("");
+    if (fact && await run("MEMORY.md", (text) => addMemoryEntry(text, memoryEntry(fact, memoryDate(new Date()))).text)) setDraft("");
   };
-  const save = async () => {
-    const edit = editing;
-    if (edit && edit.text.trim() && await run((text) => withLineEdited(text, locate(text, edit.original), edit.text, memoryDate(new Date())))) setEditing(undefined);
-  };
-  const editor = editing ? <div className="flex w-full flex-col gap-2 rounded-md border border-stroke p-2">
-    <textarea aria-label="Edit memory" value={editing.text} rows={3} className={fieldClass} onChange={(event) => setEditing({ ...editing, text: event.target.value })} />
-    <div className="flex justify-end gap-2 text-xs"><button type="button" disabled={saving} onClick={() => { setEditing(undefined); setError(undefined); }}>Cancel</button><button type="button" disabled={saving || !editing.text.trim()} onClick={() => void save()} className="rounded bg-content/10 px-2 py-1">{saving ? "Saving…" : "Save"}</button></div>
-  </div> : null;
-  const originalPresent = editing && files.memory.split("\n").includes(editing.original);
+  const empty = !memoryLines(files.memory).length && !topics.length;
   return <div className="agent-settings-file-page flex min-h-0 flex-1 flex-col gap-3">
-    <p className="text-xs leading-snug text-content/45">Facts and preferences carried across conversations.{budget.droppedLines ? ` ${budget.droppedLines} lines are past what loads.` : ""}</p>
+    <p className="text-xs leading-snug text-content/45">Facts and preferences carried across conversations, topics included.{budget.droppedLines ? ` ${budget.droppedLines} lines are past what loads.` : ""}</p>
     <div className="flex gap-1.5"><input aria-label="Add a fact" value={draft} placeholder="Add a fact…" className={`${fieldClass} min-w-0 flex-1`} onChange={(event) => setDraft(event.target.value)}
       onKeyDown={(event) => { if (event.key === "Enter" && !isImeComposition(event.nativeEvent) && !saving) void add(); }} /><button type="button" title="Add" aria-label="Add fact" onClick={() => void add()} disabled={saving || !draft.trim()} className="grid size-8 place-items-center rounded-md border border-stroke disabled:opacity-40"><Plus className="size-3.5" /></button></div>
     {error ? <p role="alert" className="text-xs text-red-400">{error}</p> : null}
+    {empty ? <p className="py-6 text-center text-xs text-content/40">Nothing remembered yet.</p> : null}
+    <div className="-mx-1.5 flex min-h-0 flex-col gap-3 overflow-y-auto">
+      <MemoryFacts path="MEMORY.md" text={files.memory} saving={saving} run={run} onError={setError} />
+      {topics.map((note) => <section key={note.name} className="flex flex-col gap-px">
+        <h3 className="px-1.5 text-[11px] font-medium uppercase tracking-wide text-content/40">{note.name}</h3>
+        <MemoryFacts path={`memory/${note.name}.md`} text={note.text} saving={saving} run={run} onError={setError} />
+      </section>)}
+    </div>
+  </div>;
+}
+
+function MemoryFacts({ path, text, saving, run, onError }: {
+  path: AgentFilePath;
+  text: string;
+  saving: boolean;
+  run: (path: AgentFilePath, edit: (text: string) => string) => Promise<boolean>;
+  onError: (error: string | undefined) => void;
+}) {
+  const [editing, setEditing] = useState<{ original: string; text: string }>();
+  const facts = memoryLines(text);
+  if (!facts.length) return null;
+  const locate = (current: string, original: string) => {
+    const indices = current.split("\n").flatMap((line, index) => line === original ? [index] : []);
+    if (indices.length !== 1) throw new Error("This memory changed while you were editing. Your draft is kept; cancel and choose the updated fact to try again.");
+    return indices[0];
+  };
+  const save = async () => {
+    const edit = editing;
+    if (edit && edit.text.trim() && await run(path, (current) => withLineEdited(current, locate(current, edit.original), edit.text, memoryDate(new Date())))) setEditing(undefined);
+  };
+  const editor = editing ? <div className="flex w-full flex-col gap-2 rounded-md border border-stroke p-2">
+    <textarea aria-label="Edit memory" value={editing.text} rows={3} className={fieldClass} onChange={(event) => setEditing({ ...editing, text: event.target.value })} />
+    <div className="flex justify-end gap-2 text-xs"><button type="button" disabled={saving} onClick={() => { setEditing(undefined); onError(undefined); }}>Cancel</button><button type="button" disabled={saving || !editing.text.trim()} onClick={() => void save()} className="rounded bg-content/10 px-2 py-1">{saving ? "Saving…" : "Save"}</button></div>
+  </div> : null;
+  const lines = text.split("\n");
+  const originalPresent = editing && lines.includes(editing.original);
+  return <>
     {!originalPresent ? editor : null}
-    {!facts.length ? <p className="py-6 text-center text-xs text-content/40">Nothing remembered yet.</p> : null}
-    <ul className="-mx-1.5 flex min-h-0 flex-col gap-px overflow-y-auto">
+    <ul className="flex flex-col gap-px">
       {facts.map((fact) => {
-        const original = files.memory.split("\n")[fact.index];
+        const original = lines[fact.index];
         return <li key={`${fact.index}:${fact.text}`} className="group flex items-start gap-2 rounded-md px-1.5 py-2 hover:bg-content/5">
           {editing?.original === original ? editor : <>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className={`text-[13px] leading-snug ${fact.struck ? "text-content/35 line-through" : "text-content/85"}`}>{fact.text}</span>{fact.date ? <span className="text-[11px] text-content/35">{fact.date}{fact.until ? ` · until ${fact.until}` : ""}</span> : null}</span>
-            <button type="button" title="Edit" aria-label={`Edit: ${fact.text}`} disabled={saving} onClick={() => { setEditing({ original, text: fact.text }); setError(undefined); }} className={`${iconButton} opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}><Pencil className="size-3" /></button>
-            <button type="button" title="Forget" aria-label={`Forget: ${fact.text}`} disabled={saving} onClick={() => void run((text) => withoutLine(text, locate(text, original)))} className={`${iconButton} opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}><X className="size-3" /></button>
+            <button type="button" title="Edit" aria-label={`Edit: ${fact.text}`} disabled={saving} onClick={() => { setEditing({ original, text: fact.text }); onError(undefined); }} className={`${iconButton} opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}><Pencil className="size-3" /></button>
+            <button type="button" title="Forget" aria-label={`Forget: ${fact.text}`} disabled={saving} onClick={() => void run(path, (current) => withoutLine(current, locate(current, original)))} className={`${iconButton} opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}><X className="size-3" /></button>
           </>}
         </li>;
       })}
     </ul>
-  </div>;
+  </>;
 }
