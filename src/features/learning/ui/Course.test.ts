@@ -256,3 +256,13 @@ it("preserves blank lines and indentation in a real diff card, and reports clipb
   vi.mocked(copyText).mockRejectedValueOnce(new Error("clipboard denied")); await act(async () => button("Copy command").click()); expect(container.querySelector('[role="alert"]')?.textContent).toContain("clipboard denied");
   await act(async () => button("Copy command").click()); expect(copyText).toHaveBeenCalledWith("run --arg"); expect(button("Copied")).toBeTruthy();
 });
+
+it("accepts a source lesson's line range and rejects it on a document or beside pages", async () => {
+  const { parseCourseData } = await import("../model/course");
+  const course = (lesson: Record<string, unknown>) => ({ chapters: [{ title: "Tour", lessons: [{ id: "a", title: "A", ...lesson }] }] });
+  const parsed = parseCourseData("reading", course({ file: "/repo/src/main.rs", lines: [10, 40] }));
+  expect(parsed.engine === "reading" && parsed.chapters[0].lessons[0].lines).toEqual([10, 40]);
+  expect(() => parseCourseData("reading", course({ document: "doc", lines: [1, 2] }))).toThrow("belong to a file");
+  expect(() => parseCourseData("reading", course({ file: "/repo/a.rs", lines: [1, 2], pages: [1, 1] }))).toThrow("not both");
+  expect(() => parseCourseData("reading", course({ file: "/repo/a.rs", lines: [5, 2] }))).toThrow("lines must be");
+});

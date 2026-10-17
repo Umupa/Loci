@@ -112,6 +112,13 @@ struct Lesson {
         skip_serializing_if = "Option::is_none"
     )]
     pages: Option<[u32; 2]>,
+    /// For a source file read in place: its first and last line.
+    #[serde(
+        default,
+        deserialize_with = "page_range",
+        skip_serializing_if = "Option::is_none"
+    )]
+    lines: Option<[u32; 2]>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -378,8 +385,11 @@ fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<String>), S
                 match (&lesson.document, &lesson.file) {
                     (Some(document), None) => {
                         validate_id_text(document)?;
-                        if lesson.pages.is_some() {
-                            return Err(format!("Lesson {}: pages belong to a file", lesson.id));
+                        if lesson.pages.is_some() || lesson.lines.is_some() {
+                            return Err(format!(
+                                "Lesson {}: pages and lines belong to a file",
+                                lesson.id
+                            ));
                         }
                     }
                     (None, Some(file)) => {
@@ -408,6 +418,18 @@ fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<String>), S
                     .is_some_and(|[from, to]| from == 0 || to < from)
                 {
                     return Err(format!("Lesson {}: pages must be [first, last]", lesson.id));
+                }
+                if lesson
+                    .lines
+                    .is_some_and(|[from, to]| from == 0 || to < from)
+                {
+                    return Err(format!("Lesson {}: lines must be [first, last]", lesson.id));
+                }
+                if lesson.pages.is_some() && lesson.lines.is_some() {
+                    return Err(format!(
+                        "Lesson {}: name pages or lines, not both",
+                        lesson.id
+                    ));
                 }
             }
             Ok((
@@ -872,12 +894,14 @@ mod tests {
             (0, "document", json!("../notes")),
             (0, "file", json!("/home/u/also.pdf")),
             (0, "pages", json!([1, 2])),
+            (0, "lines", json!([1, 2])),
             (0, "section", json!(42)),
             (1, "file", json!("borg.pdf")),
             (1, "section", json!("Intro")),
             (1, "pages", json!([3, 2])),
             (1, "pages", json!([0, 2])),
             (1, "pages", json!("1-12")),
+            (1, "lines", json!([1, 2])),
         ] {
             let mut data = base.clone();
             data["chapters"][chapter]["lessons"][0][field] = value;

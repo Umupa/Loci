@@ -19,6 +19,8 @@ export type CourseLesson = {
   document?: string; section?: string;
   /** Or a file on disk, such as a PDF, and optionally its first and last page. */
   file?: string; pages?: [number, number];
+  /** For a source file, which is shown in place: its first and last line. */
+  lines?: [number, number];
 };
 export type CourseChapter = { title: string; lessons: CourseLesson[] };
 export type CourseData =
@@ -109,16 +111,20 @@ function lesson(value: unknown, label: string): CourseLesson {
   if ((document === undefined) === (file === undefined)) throw new Error(`${label} must name exactly one of document or file.`);
   if (document !== undefined) {
     if (!/^[\p{L}\p{N}_-]{1,80}$/u.test(document)) throw new Error(`${label} document must be a document id.`);
-    if (raw.pages !== undefined) throw new Error(`${label}: pages belong to a file.`);
+    if (raw.pages !== undefined || raw.lines !== undefined) throw new Error(`${label}: pages and lines belong to a file.`);
     const section = typeof raw.section === "string" ? raw.section.trim() || undefined : optionalString(raw.section, `${label} section`);
     return { ...base, document, ...(section ? { section } : {}) };
   }
   if (raw.section !== undefined) throw new Error(`${label}: section belongs to a document.`);
   if (!/^(?:\/|[A-Za-z]:[\\/])/.test(file!)) throw new Error(`${label} file must be an absolute path.`);
+  if (raw.pages !== undefined && raw.lines !== undefined) throw new Error(`${label}: name pages or lines, not both.`);
+  const range = (value: unknown, name: string): [number, number] => {
+    if (!Array.isArray(value) || value.length !== 2 || !value.every((n) => Number.isSafeInteger(n) && n > 0) || value[1] < value[0]) throw new Error(`${label} ${name} must be [first, last].`);
+    return [value[0], value[1]];
+  };
+  if (raw.lines !== undefined) return { ...base, file, lines: range(raw.lines, "lines") };
   if (raw.pages === undefined) return { ...base, file };
-  const pages = raw.pages;
-  if (!Array.isArray(pages) || pages.length !== 2 || !pages.every((page) => Number.isSafeInteger(page) && page > 0) || pages[1] < pages[0]) throw new Error(`${label} pages must be [first, last].`);
-  return { ...base, file, pages: [pages[0], pages[1]] };
+  return { ...base, file, pages: range(raw.pages, "pages") };
 }
 
 export function parseCourse(source: string): CourseParseResult {

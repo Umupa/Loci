@@ -8,6 +8,7 @@ import { findAgent } from "../../agents/model/agent";
 import { readAgentDocument, subscribeAgentDocuments } from "../../agents/model/agentDocuments";
 import { DocumentBody, shownDocument } from "../../agents/ui/DocumentBody";
 import { requestOpenFile } from "../../files/model/filePlace";
+import { readTextFile } from "../../../platform/tauri/fs";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
@@ -336,11 +337,51 @@ function CourseContent({ course, activeId }: { course: CourseWithProgress; activ
   return lesson.file !== undefined ? <LessonFile lesson={lesson} /> : <LessonDocument agentId={course.agentId} lesson={lesson} />;
 }
 
-/** A lesson read from a file, such as a PDF: it opens in its own pane, where it can be highlighted. */
+/** A lesson read from a file. Source and text files are shown in place; a PDF or other document opens in its own pane, where it can be highlighted. */
 function LessonFile({ lesson }: { lesson: CourseLesson }) {
   const file = lesson.file!;
   const name = file.split(/[\\/]/).pop() || file;
-  return <article className="course-pane__content" key={lesson.id}><h2>{lesson.title}</h2><p className="course-pane__summary" title={file}>{name}{lesson.pages ? ` · ${lesson.pages[0] === lesson.pages[1] ? `page ${lesson.pages[0]}` : `pages ${lesson.pages[0]}–${lesson.pages[1]}`}` : ""}</p><button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button></article>;
+  const inline = !lesson.pages && isReadableSource(name);
+  const [loaded, setLoaded] = useState<{ file: string; text?: string; error?: string }>();
+  useEffect(() => {
+    if (!inline) return;
+    let current = true;
+    void readTextFile(file).then((text) => { if (current) setLoaded({ file, text }); }, (cause: unknown) => { if (current) setLoaded({ file, error: message(cause) }); });
+    return () => { current = false; };
+  }, [file, inline]);
+  const where = lesson.pages ? ` · ${lesson.pages[0] === lesson.pages[1] ? `page ${lesson.pages[0]}` : `pages ${lesson.pages[0]}–${lesson.pages[1]}`}`
+    : lesson.lines ? ` · lines ${lesson.lines[0]}–${lesson.lines[1]}` : "";
+  const open = <button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>{inline ? "Open in a pane" : "Open to read"}</button>;
+  if (!inline) return <article className="course-pane__content" key={lesson.id}><h2>{lesson.title}</h2><p className="course-pane__summary" title={file}>{name}{where}</p>{open}</article>;
+  const shown = loaded?.file === file ? loaded : undefined;
+  return <article className="course-pane__content course-pane__reading" key={lesson.id}>
+    <h2>{lesson.title}</h2>
+    <p className="course-pane__summary" title={file}>{name}{where}</p>
+    {!shown ? <p className="course-pane__relations">Opening…</p>
+      : shown.error ? <><p className="course-error" role="alert">Could not read {name}: {shown.error}</p>{open}</>
+      : <AgentMarkdown text={sourceExcerpt(shown.text!, name, lesson.lines)} wholeDocument />}
+  </article>;
+}
+
+/** Lines shown in place when a lesson names no range, so a huge file stays readable. */
+const SOURCE_LINES_MAX = 1500;
+const DOCUMENT_EXTENSIONS = new Set(["pdf", "png", "jpg", "jpeg", "gif", "webp", "svg", "epub", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "zip", "gz"]);
+
+function isReadableSource(name: string): boolean {
+  const extension = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+  return !DOCUMENT_EXTENSIONS.has(extension);
+}
+
+/** A file's lines as a fenced block, highlighted by its extension; Markdown is shown as itself. */
+export function sourceExcerpt(text: string, name: string, lines?: [number, number]): string {
+  const all = text.replace(/\r\n/g, "\n").split("\n");
+  const [from, to] = lines ?? [1, Math.min(all.length, SOURCE_LINES_MAX)];
+  const body = all.slice(from - 1, to).join("\n");
+  const extension = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
+  if (!lines && (extension === "md" || extension === "markdown")) return body;
+  const fence = body.includes("```") ? "````" : "```";
+  const more = !lines && all.length > to ? `\n\n*Showing the first ${to} of ${all.length} lines.*` : "";
+  return `${fence}${extension}\n${body}\n${fence}${more}`;
 }
 
 /** A lesson read from the agent's library: the document itself, from the lesson's heading. */

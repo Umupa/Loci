@@ -98,3 +98,11 @@ it("uses parsed headings, preferring exact formatted/Setext titles and ending at
   expect(host.textContent).toContain("Outside");
   expect(host.textContent).not.toContain("Nested");
 });
+
+it("shows a source lesson's line range as highlighted code, and a Markdown file as itself", async () => {
+  const { sourceExcerpt } = await import("./CoursePane");
+  const text = ["a", "b", "c", "d"].join("\n");
+  expect(sourceExcerpt(text, "main.rs", [2, 3])).toBe("```rs\nb\nc\n```");
+  expect(sourceExcerpt("# Title\n\nBody", "README.md")).toBe("# Title\n\nBody");
+  expect(sourceExcerpt("x = '```'", "a.py", [1, 1])).toBe("````py\nx = '```'\n````");
+});

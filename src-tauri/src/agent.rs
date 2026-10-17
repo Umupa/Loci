@@ -188,8 +188,8 @@ fn load(root: &Path, agent: &str) -> Result<AgentFiles, String> {
     let names = topics(&dir);
     let mut topic_notes = Vec::with_capacity(names.len());
     for name in &names {
-        let text = read_optional(&dir.join(MEMORY_DIR).join(format!("{name}.md")))?
-            .unwrap_or_default();
+        let text =
+            read_optional(&dir.join(MEMORY_DIR).join(format!("{name}.md")))?.unwrap_or_default();
         topic_notes.push(TopicNote {
             name: name.clone(),
             hash: content_hash(&text),

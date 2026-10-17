@@ -92,11 +92,14 @@ The `courses.write` input is one object:
 Chapters and lessons are non-empty arrays. Each lesson has a unique `id`,
 `title`, and exactly one of `document` (an imported document ID) or `file`
 (an absolute path). `section` belongs to a document; `pages: [first, last]`
-belongs to a file and uses positive, inclusive page numbers. Use a Markdown
+belongs to a file and uses positive, inclusive page numbers. A source or text
+file is shown in place, highlighted; `lines: [first, last]` (inclusive) shows
+only that range, which suits a code tour through a cloned repository. Name
+`pages` or `lines`, not both. Use a Markdown
 heading's visible title for `section`: the reader focuses on that heading and
 its descendants, stopping before the next heading of the same or higher level.
-Readers can switch to the full document. Omit `section` or leave it blank to
-read the whole document; an unmatched title shows the full document with a notice.
+Omit `section` or leave it blank to
+read the whole document; an unmatched title shows the full document.
 A course can
 link a canvas through optional `canvasId`. Updating the same course ID retains
 progress for lesson IDs that remain in the course. A fence that still carries
