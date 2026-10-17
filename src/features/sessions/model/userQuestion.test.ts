@@ -140,6 +140,40 @@ describe("question answers", () => {
       }),
     ).toEqual(["c.ts"]);
   });
+
+  it("preserves supplemental custom text when the UI enabled multiple answers", () => {
+    expect(
+      selectedAnswerLabels(question, {
+        kind: "answered",
+        answers: { [question.id]: ["a.ts", "b.ts"] },
+        custom: { [question.id]: "  c.ts  " },
+      }),
+    ).toEqual(["a.ts", "b.ts", "c.ts"]);
+  });
+
+  it("includes explicit Other text once among multiple answers", () => {
+    const explicitOther = {
+      ...question,
+      options: [...question.options, { id: "other", label: "Other" }],
+    };
+    expect(
+      selectedAnswerLabels(explicitOther, {
+        kind: "answered",
+        answers: { [question.id]: ["a.ts", "other", "b.ts"] },
+        custom: { [question.id]: "c.ts" },
+      }),
+    ).toEqual(["a.ts", "c.ts", "b.ts"]);
+  });
+
+  it("ignores supplemental custom text when custom answers are disabled", () => {
+    expect(
+      selectedAnswerLabels({ ...question, allowCustom: false }, {
+        kind: "answered",
+        answers: { [question.id]: ["a.ts"] },
+        custom: { [question.id]: "c.ts" },
+      }),
+    ).toEqual(["a.ts"]);
+  });
 });
 
 describe("buildQuestionReply", () => {
@@ -196,6 +230,34 @@ describe("buildQuestionReply", () => {
         [files.id]: ["a.ts"],
       },
       custom: { [language.id]: "Python" },
+    });
+  });
+
+  it("accepts a local multi-select override without changing the original question", () => {
+    const answers = { [language.id]: ["TypeScript", "JavaScript"] };
+    const custom = { [language.id]: "  Python  " };
+    expect(buildQuestionReply([language], answers, custom)).toEqual({
+      kind: "skipped",
+    });
+    expect(
+      buildQuestionReply([{ ...language, multiSelect: true }], answers, custom),
+    ).toEqual({
+      kind: "answered",
+      answers,
+      custom: { [language.id]: "Python" },
+    });
+    expect(language.multiSelect).toBe(false);
+  });
+
+  it("drops a draft custom answer when a single option replaces it", () => {
+    const reply = buildQuestionReply(
+      [language],
+      { [language.id]: ["TypeScript"] },
+      { [language.id]: "Python" },
+    );
+    expect(reply).toEqual({
+      kind: "answered",
+      answers: { [language.id]: ["TypeScript"] },
     });
   });
 });

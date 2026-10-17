@@ -403,9 +403,6 @@ fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<String>), S
                         ))
                     }
                 }
-                if let Some(section) = &lesson.section {
-                    require_text(section, "lesson section")?;
-                }
                 if lesson
                     .pages
                     .is_some_and(|[from, to]| from == 0 || to < from)
@@ -834,6 +831,19 @@ mod tests {
     }
 
     #[test]
+    fn empty_document_sections_allow_whole_document_reading() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        for section in ["", "  "] {
+            let mut course = reading("agent-a");
+            let mut data: serde_json::Value = serde_json::from_str(&course.data_json).unwrap();
+            data["chapters"][0]["lessons"][0]["section"] = json!(section);
+            course.data_json = data.to_string();
+            assert!(save_course(&conn, &course).is_ok());
+        }
+    }
+
+    #[test]
     fn course_fields_and_references_are_validated_before_writing() {
         let store = SessionStore::open_in_memory().unwrap();
         let conn = store.lock_conn().unwrap();
@@ -862,7 +872,7 @@ mod tests {
             (0, "document", json!("../notes")),
             (0, "file", json!("/home/u/also.pdf")),
             (0, "pages", json!([1, 2])),
-            (0, "section", json!(" ")),
+            (0, "section", json!(42)),
             (1, "file", json!("borg.pdf")),
             (1, "section", json!("Intro")),
             (1, "pages", json!([3, 2])),

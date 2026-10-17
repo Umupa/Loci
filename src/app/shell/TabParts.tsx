@@ -38,7 +38,7 @@ export function TabGlyph({ tab, dimmed = false, size = "sm" }: { tab: Tab; dimme
     glyph = <ExcalidrawIcon className={`${box} shrink-0`} />;
   } else if (tab.paneKind === "file") {
     glyph = <FileTypeIcon name={tab.title} isDir={false} size={size === "md" ? 16 : 14} />;
-  } else if (tab.paneKind === "document") {
+  } else if ((tab.paneKind === "document" || tab.paneKind === "note")) {
     glyph = <StickyNote className={`${box} shrink-0`} strokeWidth={1.75} />;
   } else if (tab.paneKind === "course") {
     glyph = <AiIdea className={`${box} shrink-0`} strokeWidth={1.75} />;

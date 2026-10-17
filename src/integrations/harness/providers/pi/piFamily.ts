@@ -1064,6 +1064,7 @@ async function handleExtensionUi(
           id: request.id,
           prompt: extensionUiTitle(request),
           multiSelect: false,
+          ...(request.method === "select" ? { allowMultiSelect: false } : {}),
           allowCustom: request.method !== "select",
           options:
             request.method === "select"

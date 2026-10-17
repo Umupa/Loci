@@ -52,3 +52,11 @@ describe("ContextMeter", () => {
     expect(container.querySelector("span.text-red-400")?.textContent).toContain("94%");
   });
 });
+
+
+it("shows an unknown empty ring in the agent toolbar without a false percentage or progress dot", () => {
+  render({ empty: true });
+  expect(container.querySelector('svg[role="img"]')?.getAttribute("aria-label")).toBe("Context usage not reported yet");
+  expect(container.querySelectorAll("circle")).toHaveLength(1);
+  expect(container.textContent).not.toContain("0%");
+});

@@ -70,9 +70,9 @@ it("moves and focuses the agent with details available and no header close contr
   expect(onDrag).toHaveBeenCalledOnce();
   expect(onFocus).toHaveBeenCalledWith("chat");
 
-  act(() => container.querySelector<HTMLButtonElement>("[aria-label='Details']")!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 })));
+  act(() => container.querySelector<HTMLButtonElement>("[aria-label='Agent settings']")!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 })));
   expect(onDrag).toHaveBeenCalledOnce();
-  act(() => container.querySelector<HTMLButtonElement>("[aria-label='Details']")!.click());
+  act(() => container.querySelector<HTMLButtonElement>("[aria-label='Agent settings']")!.click());
   expect(onToggleDetails).toHaveBeenCalledOnce();
   expect(header.querySelector("[aria-label='Close pane']")).toBeNull();
   expect(onClose).not.toHaveBeenCalled();
@@ -84,7 +84,7 @@ it("moves and focuses the agent with details available and no header close contr
 
 it("keeps the agent's settings and actions associated with its conversation", () => {
   act(() => render(true, true));
-  expect(container.querySelector("[data-test-details]")).not.toBeNull();
+  expect(document.querySelector("[data-test-details]")).not.toBeNull();
   details.onModelChange("codex", "codex:next");
   details.onModelSettingsChange({ effort: "high" });
   details.onRuntimeModeChange("full-access");
@@ -105,5 +105,5 @@ it("keeps the empty introduction free of profile and model controls", () => {
   const intro = container.querySelector("[data-agent-intro]")!;
   expect(intro.textContent).toContain("A sentence is enough.");
   expect(intro.querySelector("button, input, select, textarea")).toBeNull();
-  expect(container.querySelector("[aria-label='Details']")).not.toBeNull();
+  expect(container.querySelector("[aria-label='Agent settings']")).not.toBeNull();
 });

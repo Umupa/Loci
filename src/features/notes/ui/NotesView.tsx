@@ -101,7 +101,7 @@ type Props = {
 
 export type NoteOpenRequest = { id: string; sequence: number };
 
-type NoteEditorActions = { id: string; rename: (title: string) => void; remove: () => Promise<void> };
+export type NoteEditorActions = { id: string; rename: (title: string) => void; remove: () => Promise<void>; save: () => Promise<boolean> };
 
 export function NotesView({
   besideRail = false,
@@ -712,7 +712,7 @@ function NoteDetail({
   );
 }
 
-function NoteEditor({
+export function NoteEditor({
   note,
   recents,
   activeCwd,
@@ -720,7 +720,9 @@ function NoteEditor({
   onDelete,
   onActions,
   onAddToChat,
+  compact = false,
 }: {
+  compact?: boolean;
   note: Note;
   recents: RecentProject[];
   activeCwd?: string;
@@ -860,7 +862,10 @@ function NoteEditor({
       editNote({ title });
       if (noteRef.current.slugPending) finalizeRef.current = { title };
       void saveNow();
-    }, remove });
+    }, remove, save: async () => {
+      await saveNow();
+      return Object.keys(editsRef.current).length === 0 && !projectChangeRef.current;
+    } });
     return () => onActions(null);
   }, [note.id, onActions, editNote, saveNow, remove]);
 
@@ -1005,11 +1010,12 @@ function NoteEditor({
   return (
     <div
       ref={lockOverscroll}
+      data-note-editor-compact={compact || undefined}
       className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-none"
     >
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-8 py-8">
+      <div className={`mx-auto flex w-full max-w-5xl flex-col ${compact ? "gap-4 px-4 py-4" : "gap-5 px-8 py-8"}`}>
         <header className="flex flex-col gap-3">
-          <div className="flex min-w-0 items-center gap-2 text-[12px] text-content/50">
+          <div data-note-meta className="flex min-w-0 items-center gap-2 text-[12px] text-content/50">
             <File className="size-3.5 shrink-0" strokeWidth={1.75} />
             <span>Note</span>
             {note.slug ? (

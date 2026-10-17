@@ -105,7 +105,7 @@ it("loads only whole lines within the memory budget", () => {
   expect(memoryWithinBudget("").lines).toBe(0);
 });
 
-it("carries the user's soul and factual data without additional standing instructions", () => {
+it("introduces app tools alongside the user's soul without introducing session delegation", () => {
   const look = {
     name: "Navigator",
     role: "domain guide",
@@ -117,18 +117,22 @@ it("carries the user's soul and factual data without additional standing instruc
   const current = { ...files(), soul };
   const prompt = agentContext(look, current, { soul: true, memory: true });
   const blocks = [...prompt.matchAll(/<([a-z_]+)>\n([\s\S]*?)\n<\/\1>/g)];
-  expect(blocks.map((block) => block[1])).toEqual(["agent", "soul", "memory", "memory_files"]);
+  expect(blocks.map((block) => block[1])).toEqual(["agent", "soul", "tools", "memory", "memory_files"]);
   expect(blocks.map((block) => block[0]).join("\n\n")).toBe(prompt);
   expect(JSON.parse(blocks[0][2])).toEqual({
     id: current.id, name: look.name, role: look.role, projects: look.projects,
   });
   expect(blocks[1][2]).toBe(soul);
-  expect(blocks[2][2]).toBe(current.memory);
-  expect(JSON.parse(blocks[3][2])).toEqual({
+  expect(blocks[2][2]).toContain("courses.write");
+  expect(blocks[2][2]).toContain("notes.list/read/write");
+  expect(blocks[2][2]).not.toContain("sessions.start");
+  expect(blocks[3][2]).toBe(current.memory);
+  expect(JSON.parse(blocks[4][2])).toEqual({
     path: current.memoryPath, topics: current.topics, omittedLines: 0,
   });
 
   const memoryOnly = agentContext(look, current, { soul: false, memory: true });
+  expect(memoryOnly).not.toContain("<tools>");
   expect(memoryOnly).not.toContain("<soul>");
   expect(memoryOnly).not.toContain("<agent>");
   expect(memoryOnly).toContain(current.memory);

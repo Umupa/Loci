@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useRef, useState } from "react";
 import { requestOpenAppResource } from "../../../../shared/lib/appResourceLinks";
 import { Check, ChevronRight, File, Palette } from "../../../../shared/ui/icons";
+import { CourseHostContext } from "../../../learning/model/courseContext";
 import { agentForSession } from "../../../agents/model/agent";
 import {
   openDocument,
@@ -30,9 +31,14 @@ function inline(text: string) {
 
 /** A document the agent wrote: its name in the chat, its text beside it on a click. */
 export function DocumentCard({ source, incomplete }: { source: string; incomplete: boolean }) {
+  const host = useContext(CourseHostContext);
   const document = useMemo(() => parseDocument(source), [source]);
   const words = document ? document.body.trim().split(/\s+/).filter(Boolean).length : 0;
   if (!document && !incomplete) return null;
+  if (host?.agentId) return <button type="button" data-card="document" className="agent-resource-chip" disabled={incomplete || !document}
+    aria-label={`Open document ${document?.title ?? "Document"}`} title={incomplete ? "Writing document…" : document?.subject ?? "Open document"}
+    onClick={() => document && openDocument(document, host.agentId)}><File /><span>{incomplete ? "Writing document…" : document?.title}</span></button>;
+
   return (
     <button type="button" data-card="document" disabled={incomplete || !document} onClick={(event) => {
       if (!document) return;
@@ -56,8 +62,10 @@ export function DocumentCard({ source, incomplete }: { source: string; incomplet
 
 /** A canvas the agent made or changed: its name in the chat, the canvas itself on a click. */
 export function CanvasCard({ source }: { source: string }) {
+  const host = useContext(CourseHostContext);
   const link = useMemo(() => parseCanvasLink(source), [source]);
   if (!link) return null;
+  if (host?.agentId) return <button type="button" data-card="canvas" className="agent-resource-chip" aria-label={`Open canvas ${link.title ?? "Canvas"}`} onClick={() => requestOpenAppResource({ kind: "canvas", id: link.id })}><Palette /><span>{link.title ?? "Canvas"}</span></button>;
   return (
     <button type="button" data-card="canvas" onClick={() => requestOpenAppResource({ kind: "canvas", id: link.id })}
       className={`${shell} flex items-center gap-3 px-3.5 py-3 text-left hover:bg-content/6`}>

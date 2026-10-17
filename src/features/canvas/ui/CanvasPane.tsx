@@ -2,7 +2,8 @@ import "@excalidraw/excalidraw/index.css";
 import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, getSceneVersion, hashElementsVersion, restore } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excalidraw/types";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { GripVertical, MessageSquarePlus, ExcalidrawIcon, X, Maximize2, Minimize2 } from "../../../shared/ui/icons";
+import { MessageSquarePlus, ExcalidrawIcon, X, Maximize2, Minimize2 } from "../../../shared/ui/icons";
+import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import type { Canvas, CanvasSceneReplacement } from "../canvas";
 import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasSceneDrafts as sceneDrafts, canvasElementsToText, updateCanvas } from "../canvas";
 import { registerCanvasRenderer } from "../renderScheduling";
@@ -248,11 +249,8 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
 
   return (
     <div ref={containerRef} className="loci-canvas flex h-full min-h-0 min-w-0 flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
-      <div className={`flex h-9 shrink-0 select-none items-center gap-1.5 border-b border-stroke px-2 ${onPaneDragStart ? "cursor-grab active:cursor-grabbing touch-none" : ""}`}
-        onPointerDown={(event) => {
-          if (!(event.target as HTMLElement).closest("[data-no-drag]")) onPaneDragStart?.(event);
-        }}>
-        {onPaneDragStart ? <GripVertical className="size-3.5 shrink-0 text-content/35" /> : <ExcalidrawIcon className="size-3.5 shrink-0 text-content/45" />}
+      <PaneHeader onPaneDragStart={onPaneDragStart}>
+        {!onPaneDragStart ? <ExcalidrawIcon className="size-3.5 shrink-0 text-content/45" /> : null}
         <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} />
         {editingTitle ? (
           <input data-no-drag autoFocus aria-label="Drawing title" className="min-w-0 flex-1 bg-transparent text-xs text-content outline-none" value={titleDraft}
@@ -272,7 +270,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
         </button>
         {onClose ? <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button> : null}
-      </div>
+      </PaneHeader>
       <div className="relative min-h-0 min-w-0 flex-1" onPointerDownCapture={() => { pointerUpRef.current = null; }} onDoubleClickCapture={navigateConcept}>
         <Excalidraw excalidrawAPI={registerApi} initialData={initialData} onChange={handleChange} onLinkOpen={openLink} theme={isDark ? "dark" : "light"}
           onPointerUp={rememberPointerUp}

@@ -636,7 +636,7 @@ export function Composer({
     loadModelControls,
     () => "menu" as const,
   );
-  const controlsBeside = modelControls === "beside";
+  const controlsBeside = chat || modelControls === "beside";
   const [notes, setNotes] = useState<Note[]>(() => peekNotes() ?? []);
   const [canvases, setCanvases] = useState<Canvas[]>(() => peekCanvases() ?? []);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
@@ -1877,7 +1877,12 @@ export function Composer({
       ref.current?.focus();
     });
   };
-  const fieldPadding = shell ? "py-4" : "py-3";
+  const fieldPadding = chat ? "py-2" : shell ? "py-4" : "py-3";
+
+  const sendAction = <div className="ms-auto flex shrink-0 items-center gap-1" data-composer-send>
+    <ComposerAction busy={busy} disabled={disabled} hasValue={hasValue} allowBusySubmit={allowBusySubmit}
+      label={draftActive ? "Save draft" : "Send"} onSend={() => submit(ref.current?.value ?? "")} onStop={() => onStop?.()} />
+  </div>;
 
   return (
     <div
@@ -2142,7 +2147,7 @@ export function Composer({
 
 
 
-          <div className="relative" data-composer-field>
+          <div className={`relative${chat ? " agent-composer-input" : ""}`} data-composer-field>
             <div
               ref={highlightRef}
               aria-hidden
@@ -2200,9 +2205,10 @@ export function Composer({
                 syncTokensFromTextarea(el);
               }}
             />
+            {chat ? sendAction : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 px-2 pb-2" data-composer-tools>
+          <div className={`flex items-center gap-1 ${chat ? "agent-composer-controls" : "flex-wrap px-2 pb-2"}`} data-composer-tools>
             <div
               ref={plusRef}
               data-composer-plus-slot
@@ -2379,7 +2385,7 @@ export function Composer({
                     onClose={() => ref.current?.focus()}
                   />
                 ) : null}
-                {!compact ? (
+                {!compact && !chat ? (
                   <AccessPicker
                     value={runtimeMode}
                     busy={busy}
@@ -2391,9 +2397,10 @@ export function Composer({
                 <div className="ml-1 flex shrink-0 items-center" data-context-meter-slot>
                   <ContextMeter
                     usage={context}
+                    empty={chat}
                     onCompact={compactSupported ? onCompactContext : undefined}
                     compactDisabled={busy}
-                    detailed={!compact}
+                    detailed={!compact && !chat}
                   />
                 </div>
               </div>
@@ -2412,17 +2419,7 @@ export function Composer({
                 <span>Cancel edit</span>
               </button>
             ) : null}
-            <div className="ms-auto flex shrink-0 items-center gap-1" data-composer-send>
-              <ComposerAction
-                busy={busy}
-                disabled={disabled}
-                hasValue={hasValue}
-                allowBusySubmit={allowBusySubmit}
-                label={draftActive ? "Save draft" : "Send"}
-                onSend={() => submit(ref.current?.value ?? "")}
-                onStop={() => onStop?.()}
-              />
-            </div>
+            {chat ? null : sendAction}
           </div>
         </div>
         {runnerLive && runnerEnabled ? (

@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { sectionHeadingIndex } from "../../../shared/lib/markdown/markdownSection";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import type { StoredDocument } from "../model/agentDocuments";
 import { DocumentSelectionMenu } from "./DocumentSelectionMenu";
+import "./DocumentBody.css";
 
 /** A library document as a reader shows it, with where it came from when it is a source. */
 export function shownDocument(stored: StoredDocument & { body: string }): AgentDocument {
@@ -23,22 +25,18 @@ function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
 }
 
-const headingText = (text: string) => text.replace(/\s+/g, " ").trim().toLowerCase();
-
 /** The heading a lesson starts at: the one named, or failing that the first that contains the name. */
 export function findSection(root: HTMLElement, section: string): HTMLElement | undefined {
-  const wanted = headingText(section.replace(/^#+\s*/, ""));
-  if (!wanted) return undefined;
-  const headings = [...root.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6")];
-  return headings.find((heading) => headingText(heading.textContent ?? "") === wanted)
-    ?? headings.find((heading) => headingText(heading.textContent ?? "").includes(wanted));
+  const headings = [...root.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6")]
+    .filter((heading) => !heading.closest("blockquote, li, [data-footnotes]"));
+  return headings[sectionHeadingIndex(headings.map((heading) => heading.textContent ?? ""), section)];
 }
 
 type Props = {
   document: AgentDocument;
   /** The agent whose library it is in: selected text is put to that agent. */
   agentId?: string;
-  /** A heading to start at. */
+  /** A heading to focus on, with an option to read the full document. */
   section?: string;
 };
 
@@ -48,29 +46,39 @@ type Props = {
  * or quote the passage in the chat.
  */
 export function DocumentBody({ document, agentId, section }: Props) {
+  const requestedSection = section?.trim() || undefined;
+  const scope = JSON.stringify([document.id, requestedSection]);
+  const [view, setView] = useState({ scope, full: false });
+  if (view.scope !== scope) setView({ scope, full: false });
+  const fullDocument = view.scope === scope && view.full;
+  const [matchedTitle, setMatchedTitle] = useState<string>();
   const topRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { selection, dismiss } = useFileSelection(bodyRef, true);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = bodyRef.current;
     if (!root) return;
-    if (!section) { topRef.current?.scrollIntoView?.({ block: "start" }); return; }
-    // The text is laid out over a few frames; look again until the heading is there.
-    let tries = 0;
-    let frame = 0;
-    const seek = () => {
-      const heading = findSection(root, section);
-      if (heading) heading.scrollIntoView?.({ block: "start" });
-      else if (tries++ < 30) frame = requestAnimationFrame(seek);
-    };
-    seek();
-    return () => cancelAnimationFrame(frame);
-  }, [document.id, document.body, section]);
+    // Saved documents render synchronously in Streamdown's static mode.
+    const heading = requestedSection ? findSection(root, requestedSection) : undefined;
+    setMatchedTitle(heading?.textContent ?? undefined);
+    if (heading) heading.setAttribute("data-section-target", "");
+    const frame = requestAnimationFrame(() => {
+      if (fullDocument && heading) {
+        heading.scrollIntoView?.({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+      } else topRef.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
+    });
+    return () => { cancelAnimationFrame(frame); heading?.removeAttribute("data-section-target"); };
+  }, [document.id, document.body, requestedSection, fullDocument]);
 
   const { sourceUrl } = document;
   return (
     <div ref={topRef}>
+      {requestedSection ? <div className="document-section-bar">
+        <nav aria-label="Document section" className="document-section-path"><span>{document.title}</span><span aria-hidden="true">/</span><span aria-current="location">{matchedTitle ?? requestedSection}</span></nav>
+        {matchedTitle ? <button type="button" className="document-section-toggle" onClick={() => { dismiss(); setView({ scope, full: !fullDocument }); }}>{fullDocument ? "Only this section" : "View full document"}</button> : null}
+      </div> : null}
+      {requestedSection && !matchedTitle ? <p role="status" className="document-section-notice">Section “{requestedSection}” was not found. Showing the full document.</p> : null}
       {sourceUrl ? (
         <p data-document-source className="mb-3 flex flex-wrap items-baseline gap-x-2 border-b border-stroke pb-2 text-[11px] text-content/50">
           <span>Source</span>
@@ -81,7 +89,7 @@ export function DocumentBody({ document, agentId, section }: Props) {
         </p>
       ) : null}
       <div ref={bodyRef} className="select-text">
-        <AgentMarkdown text={document.body} wholeDocument sourceUrl={sourceUrl} />
+        <AgentMarkdown text={document.body} wholeDocument sourceUrl={sourceUrl} section={fullDocument ? undefined : requestedSection} />
       </div>
       <DocumentSelectionMenu document={document} agentId={agentId} selection={selection} onDismiss={dismiss} />
     </div>

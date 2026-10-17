@@ -1,5 +1,6 @@
 import type { OpenFileFn } from "../../files/model/filePlace";
-import { lazy, memo, Suspense, useCallback, useEffect, useReducer, useRef, useState, type ComponentProps, type ReactNode, type CSSProperties, type PointerEvent as ReactPointerEvent, } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type ComponentProps, type ReactNode, type CSSProperties, type PointerEvent as ReactPointerEvent, } from "react";
+import { PaneHeaderChrome } from "../../../shared/ui/PaneHeader";
 import { setGrabbing, suppressTextSelection } from "../../../shared/lib/drag";
 import { paneDropFromPoint, setExternalTitleTabDrop, titleTabDropFromPoint, useExternalPaneDrop, type TitleTabDropPosition, } from "../model/paneDrop";
 import type { ApprovalDecision, UserQuestionReply, } from "../../../integrations/harness";
@@ -11,6 +12,7 @@ import { SessionPane } from "../../sessions/ui/SessionPane";
 import type { TranscriptPool } from "../../sessions/ui/TranscriptPool";
 import type { SessionFolderTarget } from "../../sessions/model/sessionFolders";
 import type { Canvas } from "../../canvas/canvas";
+const NotePane = lazy(() => import("../../notes/ui/NotePane").then((m) => ({ default: m.NotePane })));
 const FilePane = lazy(() => import("../../files/ui/FilePane").then((m) => ({ default: m.FilePane })));
 const CoursePane = lazy(() => import("../../learning/ui/CoursePane").then((m) => ({ default: m.CoursePane })));
 const AgentDocumentReader = lazy(() => import("../../agents/ui/AgentDocumentReader").then((m) => ({ default: m.AgentDocumentReader })));
@@ -74,6 +76,8 @@ type Shared = {
 };
 type Props = Shared & {
     layout: LayoutNode;
+    /** Window navigation overlays the top pane headers, independently of their order. */
+    windowHeader?: { leading?: ReactNode };
 };
 type PaneDrag = {
     fromId: string;
@@ -81,8 +85,27 @@ type PaneDrag = {
     edge: PaneEdge;
 };
 const DRAG_THRESHOLD = 5;
-function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocused, composerFocusToken, recents, hideProjectPicker, onOpenFile, onFocus, onClose, onRatio, onCwdChange, onModelChange, onModelSettingsChange, onRuntimeModeChange, onSaveDraft, onRemoveDraft, onSubmit, onStop, onCompactContext, onPlaceSessionInFolder, onDeleteQueuedMessage, onEditQueuedMessage, onQueuedMessageEditingChange, onSteerQueuedMessage, onResumeQueue, onUsageLimitResume, onUsageLimitResumeAtReset, onUsageLimitDismiss, onNoteCardDismiss, onApproval, onQuestionReply, onQuestionInteraction, onBtwSubmit, onBtwRetry, onBtwDelete, onBtwStop, onBtwModelChange, onMovePane, onDetachPane, transcriptPool, canvases, renderSession, onCanvasFocus, onCanvasAddToChat, canvasChatTarget, canvasChatIcon, onCanvasTitleChange, onSaveToCanvas, projectCwd, onFilePaneFocus, onFilePanePin, onOpenProjectFile, }: Props) {
+function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocused, composerFocusToken, recents, hideProjectPicker, onOpenFile, onFocus, onClose, onRatio, onCwdChange, onModelChange, onModelSettingsChange, onRuntimeModeChange, onSaveDraft, onRemoveDraft, onSubmit, onStop, onCompactContext, onPlaceSessionInFolder, onDeleteQueuedMessage, onEditQueuedMessage, onQueuedMessageEditingChange, onSteerQueuedMessage, onResumeQueue, onUsageLimitResume, onUsageLimitResumeAtReset, onUsageLimitDismiss, onNoteCardDismiss, onApproval, onQuestionReply, onQuestionInteraction, onBtwSubmit, onBtwRetry, onBtwDelete, onBtwStop, onBtwModelChange, onMovePane, onDetachPane, transcriptPool, canvases, renderSession, onCanvasFocus, onCanvasAddToChat, canvasChatTarget, canvasChatIcon, onCanvasTitleChange, onSaveToCanvas, projectCwd, onFilePaneFocus, onFilePanePin, onOpenProjectFile, windowHeader, }: Props) {
     const treeRef = useRef<HTMLDivElement>(null);
+    const windowNavRef = useRef<HTMLDivElement>(null);
+    const [width, setWidth] = useState(0);
+    const [leadingWidth, setLeadingWidth] = useState(0);
+    const hasWindowHeader = windowHeader !== undefined;
+    const hasWindowNav = !!windowHeader?.leading;
+    useLayoutEffect(() => {
+        if (!hasWindowHeader || !treeRef.current) return;
+        const tree = treeRef.current;
+        // clientWidth stays in CSS pixels when the user changes interface scale.
+        const measure = () => {
+            setWidth(tree.clientWidth);
+            setLeadingWidth(windowNavRef.current?.offsetWidth ?? 0);
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(tree);
+        if (windowNavRef.current) observer.observe(windowNavRef.current);
+        return () => observer.disconnect();
+    }, [hasWindowHeader, hasWindowNav]);
     const layoutRef = useRef(layout);
     layoutRef.current = layout;
     const [draft, setDraft] = useState<LayoutNode | null>(null);
@@ -216,6 +239,9 @@ function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocus
         window.addEventListener("keydown", onKey);
     }, []);
     return (<div ref={treeRef} className="relative h-full min-h-0 min-w-0">
+      {windowHeader?.leading ? <div ref={windowNavRef} data-window-pane-nav className="absolute left-0 top-0 z-20 flex h-10 items-center" data-tauri-drag-region="deep">
+        {windowHeader.leading}
+      </div> : null}
       {leaves.map((leaf) => {
             const isCanvas = leaf.kind === "canvas";
             const filePath = leaf.kind === "file" ? filePanePath(leaf.id) : undefined;
@@ -297,7 +323,12 @@ function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocus
                     enteringPanes.current.delete(leaf.id);
                     rerender();
                 }} className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {leaf.kind === "course" && leaf.course ? (visible ? <Suspense fallback={null}><CoursePane {...leaf.course} focused={focusedId === leaf.id} onFocus={() => onFocus(leaf.id)} onClose={() => onClose(leaf.id)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : leaf.kind === "document" && leaf.document ? (visible ? <Suspense fallback={null}><AgentDocumentReader document={leaf.document} agentId={leaf.agentId} focused={focusedId === leaf.id} onFocus={() => onFocus(leaf.id)} onClose={() => onClose(leaf.id)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : filePath !== undefined ? (visible ? <Suspense fallback={null}><FilePane path={filePath} cwd={projectCwd ?? ""} preview={!!leaf.preview} focused={focusedId === leaf.id} onFocus={() => onFilePaneFocus?.(leaf.id)} onPin={() => onFilePanePin?.(filePath)} onClose={() => onClose(leaf.id)} onOpenFile={onOpenProjectFile ?? onOpenFile} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : canvas ? (visible ? <Suspense fallback={null}><CanvasPane canvas={canvas} focused={focusedId === canvas.id} onFocus={() => onCanvasFocus?.(canvas.id)} onAddToChat={(text) => onCanvasAddToChat?.(text)} chatTarget={canvasChatTarget} chatIcon={canvasChatIcon} onTitleChange={(id, title) => onCanvasTitleChange?.(id, title)} onClose={() => onClose(canvas.id)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : sessionPaneProps ? (renderSession?.(sessionPaneProps) ?? <SessionPane {...sessionPaneProps}/>) : isCanvas ? (<div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-content/60"><p>Drawing is no longer available.</p><button type="button" className="rounded px-3 py-1 hover:bg-content/10" onClick={() => onClose(leaf.id)}>Close pane</button></div>) : null}
+              <PaneHeaderChrome.Provider value={windowHeader ? {
+                windowTop: leaf.rect.y === 0,
+                leadingInset: Math.max(0, leadingWidth - leaf.rect.x * width),
+              } : null}>
+              {leaf.kind === "note" && leaf.noteId ? (visible ? <Suspense fallback={null}><NotePane noteId={leaf.noteId} agentId={leaf.agentId} recents={recents} focused={focusedId === leaf.id} onFocus={() => onFocus(leaf.id)} onClose={() => onClose(leaf.id)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : leaf.kind === "course" && leaf.course ? (visible ? <Suspense fallback={null}><CoursePane {...leaf.course} focused={focusedId === leaf.id} onFocus={() => onFocus(leaf.id)} onClose={() => onClose(leaf.id)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : leaf.kind === "document" && leaf.document ? (visible ? <Suspense fallback={null}><AgentDocumentReader document={leaf.document} agentId={leaf.agentId} focused={focusedId === leaf.id} onFocus={() => onFocus(leaf.id)} onClose={() => onClose(leaf.id)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : filePath !== undefined ? (visible ? <Suspense fallback={null}><FilePane path={filePath} cwd={projectCwd ?? ""} preview={!!leaf.preview} focused={focusedId === leaf.id} onFocus={() => onFilePaneFocus?.(leaf.id)} onPin={() => onFilePanePin?.(filePath)} onClose={() => onClose(leaf.id)} onOpenFile={onOpenProjectFile ?? onOpenFile} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : canvas ? (visible ? <Suspense fallback={null}><CanvasPane canvas={canvas} focused={focusedId === canvas.id} onFocus={() => onCanvasFocus?.(canvas.id)} onAddToChat={(text) => onCanvasAddToChat?.(text)} chatTarget={canvasChatTarget} chatIcon={canvasChatIcon} onTitleChange={(id, title) => onCanvasTitleChange?.(id, title)} onClose={() => onClose(canvas.id)} onPaneDragStart={onPaneDragStart}/></Suspense> : null) : sessionPaneProps ? (renderSession?.(sessionPaneProps) ?? <SessionPane {...sessionPaneProps}/>) : isCanvas ? (<div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-content/60"><p>Drawing is no longer available.</p><button type="button" className="rounded px-3 py-1 hover:bg-content/10" onClick={() => onClose(leaf.id)}>Close pane</button></div>) : null}
+              </PaneHeaderChrome.Provider>
             </div>
           </div>);
         })}

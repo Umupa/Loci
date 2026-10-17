@@ -224,7 +224,7 @@ describe("Codex requests reach the chat and notifications", () => {
       );
       if (action === "custom") {
         await act(async () => {
-          const input = form()!.querySelector("input")!;
+          const input = form()!.querySelector('input[placeholder="Type your answer"]')!;
           Object.getOwnPropertyDescriptor(
             HTMLInputElement.prototype,
             "value",

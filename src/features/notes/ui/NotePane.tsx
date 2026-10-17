@@ -1,0 +1,79 @@
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Maximize2, StickyNote, X } from "../../../shared/ui/icons";
+import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
+import { PaneHeader } from "../../../shared/ui/PaneHeader";
+import { findAgent } from "../../agents/model/agent";
+import type { RecentProject } from "../../projects/model/recents";
+import { requestAddToChat } from "../../sessions/model/quoteDraft";
+import { deleteNote, getNote, NOTES_CHANGED_EVENT, type Note } from "../notes";
+import { NoteEditor, type NoteEditorActions } from "./NotesView";
+
+type Props = {
+  noteId: string;
+  agentId?: string;
+  recents: readonly RecentProject[];
+  focused: boolean;
+  onFocus: () => void;
+  onClose: () => void;
+  onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
+  onBack?: () => void;
+  onExpand?: () => void;
+  /** The overview waits for pending edits before leaving this page. */
+  onBeforeLeave?: (save: (() => Promise<boolean>) | null) => void;
+};
+
+const buttonClass = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content";
+
+/** The same note editor in the overview and in a movable workspace pane. */
+export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, onPaneDragStart, onBack, onExpand, onBeforeLeave }: Props) {
+  const scope = `${agentId ?? ""}/${noteId}`;
+  const [loaded, setLoaded] = useState<{ scope: string; note: Note | null }>();
+  const note = loaded?.scope === scope ? loaded.note : undefined;
+  const [error, setError] = useState<string>();
+  const [reload, setReload] = useState(0);
+  const actions = useRef<NoteEditorActions | null>(null);
+  const register = useCallback((value: NoteEditorActions | null) => { actions.current = value; }, []);
+  const save = useCallback(async () => !actions.current || actions.current.save(), []);
+  useEffect(() => {
+    onBeforeLeave?.(save);
+    return () => onBeforeLeave?.(null);
+  }, [save, onBeforeLeave]);
+  useEffect(() => {
+    let live = true;
+    let request = 0;
+    setError(undefined);
+    const load = () => {
+      const turn = ++request;
+      void getNote(noteId).then((found) => {
+        if (!live || turn !== request) return;
+        setLoaded({ scope, note: found && (!agentId || found.agentId === agentId) ? found : null });
+        setError(undefined);
+      }, (cause) => { if (live && turn === request) setError(String(cause)); });
+    };
+    load();
+    window.addEventListener(NOTES_CHANGED_EVENT, load);
+    return () => { live = false; window.removeEventListener(NOTES_CHANGED_EVENT, load); };
+  }, [noteId, agentId, scope, reload]);
+  const leave = async (next: () => void) => { if (await save()) next(); };
+  return (
+    <section aria-label={note?.title ?? "Note"} className="flex h-full min-h-0 min-w-0 flex-1 flex-col" onPointerDown={() => { if (!focused) onFocus(); }}>
+      {onBack ? <ResourceHeader title={note?.title ?? "Note"} backLabel="Back to notes" onBack={() => void leave(onBack)} onClose={() => void leave(onClose)}>
+        {onExpand ? <button type="button" className={RESOURCE_ACTION} title="Expand to pane" aria-label="Expand note to pane" onClick={() => void leave(onExpand)}><Maximize2 className="size-3.5" /></button> : null}
+      </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}>
+        <StickyNote className="size-3.5 shrink-0 text-content/50" />
+        <span className="min-w-0 flex-1 truncate text-xs" title={note?.title}>{note?.title ?? "Note"}</span>
+        {onExpand ? <button type="button" className={buttonClass} title="Expand to pane" aria-label="Expand note to pane" onClick={() => void leave(onExpand)}><Maximize2 className="size-3.5" /></button> : null}
+        <button type="button" className={buttonClass} title="Close" aria-label="Close note" onClick={() => void leave(onClose)}><X className="size-3.5" /></button>
+      </PaneHeader>}
+      {error ? <div role="alert" className="p-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : null}
+      {note === undefined ? !error && <p role="status" className="p-4 text-xs text-content/50">Opening note…</p>
+        : note === null ? <p role="status" className="p-4 text-xs text-content/50">This note is no longer available.</p>
+        : <NoteEditor key={note.id} note={note} recents={[...recents]} compact={!!onBack} onActions={register} onSaved={(saved) => setLoaded((current) => current?.scope === scope ? { scope, note: saved } : current)}
+            onDelete={async (id) => { await deleteNote(id); (onBack ?? onClose)(); }}
+            onAddToChat={(draft) => {
+              const targetSessionId = agentId ? findAgent(agentId)?.sessionId : undefined;
+              requestAddToChat(`${draft.title}\n\n${draft.body}`, "quote", { targetSessionId });
+            }} />}
+    </section>
+  );
+}

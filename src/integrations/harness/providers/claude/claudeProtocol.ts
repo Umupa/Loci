@@ -914,9 +914,8 @@ export function askUserQuestionAllowInput(
     for (const question of questions) {
       const labels = selectedAnswerLabels(question, reply);
       if (labels.length === 0) continue;
-      answers[question.prompt] = question.multiSelect
-        ? labels.join(", ")
-        : (labels[0] ?? "");
+      // The UI can enable multiple answers even when the original question did not.
+      answers[question.prompt] = labels.join(", ");
     }
   }
   return { questions: input.questions, answers };

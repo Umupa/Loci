@@ -2,9 +2,11 @@
 
 记录日期：2026-10-10。以下为改进前的体验记录，后续已实施的功能变化见末尾“功能改进落实”。对象：Loci 当前工作区构建出的原生 release 应用，隔离测试标识为 `com.loci.agent-qa-20261010`。初次体验经过了创建、切换模型、聊天设定角色、保存 Soul 和 Memory、完成首任务、打开 Library 文档、保存为笔记。
 
+当前版本已删除全部内置 agent 模板，新建统一打开空白 agent。下文保留当时的模板体验记录；已有 agent 的 Soul、Memory 和对话仍然保留。
+
 长期对话、记忆和文档库已经能组成一条有用的学习助手工作流，重启后也能继续。首次创建的恢复能力和聊天结果的可见性仍有问题：停止初始化后会显示完成，用户需要自己补发设置；已经完成的 GPT 回复在聊天区不可见的情况重复出现。创建流程应先解决这些可靠性问题，再缩短从确定用途到完成首任务的路径。
 
-代码模板只保留 Tutor，删除 Lead、Watch、Reviewer、Scout、Chief 五个内置模板。重建并重开原生应用后，新建菜单实际只剩 Blank 和 Tutor。现有 agent 全部保留。模板清理只涉及新建时的起点，不代表删除已有角色、对话、Soul 或 Memory。来源：[agentTemplates.ts](../src/features/agents/model/agentTemplates.ts)。初次体验阶段只分析创建流程；随后按用户要求直接实施功能改进。
+代码模板只保留 Tutor，删除 Lead、Watch、Reviewer、Scout、Chief 五个内置模板。重建并重开原生应用后，新建菜单实际只剩 Blank 和 Tutor。现有 agent 全部保留。模板清理只涉及新建时的起点，不代表删除已有角色、对话、Soul 或 Memory。来源：当时的 `agentTemplates.ts`（现已删除）。初次体验阶段只分析创建流程；随后按用户要求直接实施功能改进。
 
 ## 证据范围
 
@@ -52,7 +54,7 @@
 | A08 / P2 | 新建自动分栏并展开 Details，使新聊天过窄 | **原生实测**：新图钉聊天在小序旁分栏，同时自动打开 Details，名称和提示在截图中截断。**静态事实**：创建时调用 `setDetailsOpenFor(agent.id, true)`。来源：[useAgents.ts](../src/app/hooks/useAgents.ts)、[AgentDetails.tsx](../src/features/agents/ui/AgentDetails.tsx)。多处设置导致重心分散是进一步推断 | 创建后聚焦新 agent，Details 可后置或保障聊天最小可读宽度；保留产品支持多窗格的能力，避免布局妨碍首轮回答 |
 | A09 / P2 | 首次开场对定时工作的运行条件不够明确 | **静态事实**：setup 开场要求介绍自主定时能力，没有要求同时说明“仅 Loci 打开时”；实际 agent context 和 Habits 页面有此限制。**推断**：新用户可能以为关闭应用后仍运行，本轮没有创建或执行 habit。来源：[agentFiles.ts](../src/features/agents/model/agentFiles.ts)、[AgentDetails.tsx](../src/features/agents/ui/AgentDetails.tsx)、[useAgentHabits.ts](../src/app/hooks/useAgentHabits.ts) | 首次提到 habit 时就补充运行条件；等一次任务成功并明确需要重复时，再建议创建 habit |
 | A10 / P3 | 侧栏预览混入文档卡中的 HTTP 代码 | **原生实测**：文档和笔记保存正确，但 agent preview 带入文档内容，摘要较嘈杂。预览目前独立清理 Markdown 和代码 fence。来源：[agentPreview.ts](../src/features/agents/model/agentPreview.ts) | 对文档卡使用标题或完成摘要，不把正文内嵌代码当成最后一句回复。先保留能够判断任务结果的短句 |
-| A11 / P3 | 同一模板可生成多个同名 agent，后续不易区分 | **静态事实**：模板固定名为 Tutor，`createAgent` 接受该名字，没有按同名 roster 生成区别名；初始截图也有多个 Tutor，但不能仅凭截图断言它们都由同一入口创建。来源：[agentTemplates.ts](../src/features/agents/model/agentTemplates.ts)、[agent.ts](../src/features/agents/model/agent.ts) | 创建同类 agent 时默认给出可区别的名字或用途，并允许保留原名。模板减少到一个后仍需处理这个问题 |
+| A11 / P3 | 同一模板可生成多个同名 agent，后续不易区分 | **静态事实**：模板固定名为 Tutor，`createAgent` 接受该名字，没有按同名 roster 生成区别名；初始截图也有多个 Tutor，但不能仅凭截图断言它们都由同一入口创建。来源：当时的 `agentTemplates.ts`（现已删除）、[agent.ts](../src/features/agents/model/agent.ts) | 创建同类 agent 时默认给出可区别的名字或用途，并允许保留原名。模板减少到一个后仍需处理这个问题 |
 | A12 / P2 | Working agents 没有用常驻身份区分工作，活动详情混入历史和执行文本 | **原生实测**：两个 agent 的卡片都叫 `New agent`，当前询问记忆时仍见历史 `memory.add`，详情有完整 shell 路径与 JSON。尚未确认是标题同步、活动筛选还是状态映射的问题，也未证实存在额外操作。来源：[liveAgents.ts](../src/features/sessions/model/liveAgents.ts)、[LiveAgentsPreview.tsx](../src/features/sessions/ui/LiveAgentsPreview.tsx) | 状态卡优先显示小序、图钉等常驻身份和当前请求摘要，历史活动与原始执行详情按需展开 |
 | A13 / P2 | 登录完成的 Continue 没有恢复失败的初始化 | **静态事实**：登录对话框把 `onComplete` 绑定为 `onClose`，关闭后没有重发 setup；`open` 也只加载聊天。未执行真实重新登录，本轮不修改凭据。来源：[ProviderSignInDialog.tsx](../src/features/sessions/ui/ProviderSignInDialog.tsx)（53 行）、[useAgents.ts](../src/app/hooks/useAgents.ts)（196 行） | 登录完成后回到明确的继续设置动作，复用同一个 agent，避免要求用户自己重写隐藏的 setup |
 | A14 / P2 | 文件读取失败时，Soul 和整个 agent 上下文一并静默缺失 | **静态事实及已有测试**：`loadAgentFiles` 失败被捕获为 `undefined`，随后不注入身份、Soul、记忆或应用/卡片规则；已有测试明确要求 provider 只收到原始 `Hello`。本轮未模拟真实磁盘故障。来源：[agentTurnContext.ts](../src/features/agents/model/agentTurnContext.ts)（52 行）、[useSessionSubmission.test.ts](../src/app/hooks/useSessionSubmission.test.ts)（693 行） | 区分可降级的记忆读取和必要的身份/Soul 读取；必要规则不可用时给出可恢复提示，避免把普通助手回应当成 personal agent 已就绪 |

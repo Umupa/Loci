@@ -225,7 +225,7 @@ function TitleTabItem({ tab, active, closable, canDrag, variant, expanded = fals
           {variant === "icon" ? (<TabGlyph tab={tab} dimmed={!active}/>) : (<>
             {tab.paneKind === "canvas" ? <ExcalidrawIcon className="size-3.5 shrink-0"/> : null}
             {tab.paneKind === "file" ? <span className="shrink-0"><FileTypeIcon name={tab.title} isDir={false} size={14}/></span> : null}
-            {tab.paneKind === "document" ? <StickyNote className="size-3.5 shrink-0" strokeWidth={1.75}/> : null}
+            {(tab.paneKind === "document" || tab.paneKind === "note") ? <StickyNote className="size-3.5 shrink-0" strokeWidth={1.75}/> : null}
             {tab.paneKind === "course" ? <AiIdea className="size-3.5 shrink-0" strokeWidth={1.75}/> : null}
             {tab.harnesses.length > 0 ? (<TabHarnesses harnesses={tab.harnesses} busyHarnesses={tab.busyHarnesses} doneHarnesses={tab.doneHarnesses ?? []} dimmed={!active} approval={tab.status === "approval"}/>) : null}
           </>)}

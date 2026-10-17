@@ -1,5 +1,6 @@
 import { useUiText } from "../i18n/SettingsLanguage";
 import { NativePopupHost } from "./NativePopupHost";
+import { InDialog } from "./DialogContext";
 import {
   useCallback,
   useContext,
@@ -223,7 +224,7 @@ function WebPopover({
   minHeight,
   maxHeight,
   constrainHeight = true,
-  layer = LAYER.popover,
+  layer: requestedLayer = LAYER.popover,
   bare = false,
   className,
   style,
@@ -235,6 +236,10 @@ function WebPopover({
   children,
   ...rest
 }: Props) {
+  const inDialog = useContext(InDialog);
+  const layer = inDialog && requestedLayer < LAYER.dialog
+    ? LAYER.dialogPopover + Math.max(0, requestedLayer - LAYER.popover)
+    : requestedLayer;
   const frame = useRef<HTMLDivElement | null>(null);
   const surface = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<PopoverPosition | null>(null);
@@ -343,6 +348,7 @@ function WebPopover({
     <div
       ref={frame}
       data-popover-side={position?.side ?? side}
+      data-dialog-popover={inDialog || undefined}
       style={{ ...placed, zIndex: layer }}
       className={bare ? undefined : FRAME}
     >

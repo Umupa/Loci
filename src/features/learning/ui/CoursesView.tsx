@@ -124,7 +124,7 @@ export function CoursesView({ besideRail = false, compactRail = false, onClose, 
           <div className="flex justify-center py-10 text-content/40"><LoaderCircle className="size-4 animate-spin" /></div>
         ) : !shown.length ? (
           <p className="px-3 py-2 text-[12px] text-content/50">
-            {query.trim() || agentFilter ? "No matching courses" : "No courses yet. Ask an agent such as Navigator to build one."}
+            {query.trim() || agentFilter ? "No matching courses" : "No courses yet. Ask an agent to build one."}
           </p>
         ) : (
           <ul className="flex flex-col gap-0.5 p-1.5">

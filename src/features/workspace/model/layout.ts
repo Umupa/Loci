@@ -17,8 +17,9 @@ export type LayoutNode = {
     type: "leaf";
     id: string;
     /** When absent, the leaf is a session pane. */
-    leafKind?: "canvas" | "file" | "document" | "course";
+    leafKind?: "canvas" | "file" | "document" | "course" | "note";
     course?: OpenCourseDetail;
+    noteId?: string;
     /** A library document carries its text so it can reopen without a session. */
     document?: AgentDocument;
     agentId?: string;
@@ -73,6 +74,15 @@ export function coursePaneId(courseId: string, agentId: string): string {
 }
 export function courseLeaf(course: OpenCourseDetail): LayoutNode {
     return { type: "leaf", id: coursePaneId(course.courseId, course.agentId), leafKind: "course", course, agentId: course.agentId };
+}
+export function noteLeaf(noteId: string, agentId?: string): LayoutNode {
+    return { type: "leaf", id: `note:${noteId}`, leafKind: "note", noteId, ...(agentId ? { agentId } : {}) };
+}
+export function showNoteInTab(tab: WorkspaceTab, noteId: string, agentId?: string): WorkspaceTab {
+    const incoming = noteLeaf(noteId, agentId);
+    return { ...tab, layout: findLeaf(tab.layout, incoming.id)
+        ? replacePaneWithLayout(tab.layout, incoming.id, incoming)
+        : placeLayout(tab.layout, incoming, tab.focusedId, "right"), focusedId: incoming.id };
 }
 export function findLeaf(node: LayoutNode, id: string): Extract<LayoutNode, { type: "leaf" }> | undefined {
     if (node.type === "leaf") return node.id === id ? node : undefined;
@@ -245,8 +255,9 @@ export type LayoutRect = {
 };
 export type LayoutLeaf = {
     id: string;
-    kind: "session" | "canvas" | "file" | "document" | "course";
+    kind: "session" | "canvas" | "file" | "document" | "course" | "note";
     course?: OpenCourseDetail;
+    noteId?: string;
     document?: AgentDocument;
     agentId?: string;
     preview?: boolean;
@@ -264,7 +275,7 @@ export function layoutLeaves(node: LayoutNode, rect: LayoutRect = { x: 0, y: 0, 
     const axis = parentDir === "down" ? "y" : "x";
     if (node.type === "leaf") {
         const kind = node.leafKind ?? "session";
-        return [{ id: node.id, kind, ...(node.preview ? { preview: true } : {}), ...(node.document ? { document: node.document } : {}), ...(node.agentId ? { agentId: node.agentId } : {}), ...(node.course ? { course: node.course } : {}), rect, axis }];
+        return [{ id: node.id, kind, ...(node.preview ? { preview: true } : {}), ...(node.document ? { document: node.document } : {}), ...(node.agentId ? { agentId: node.agentId } : {}), ...(node.course ? { course: node.course } : {}), ...(node.noteId ? { noteId: node.noteId } : {}), rect, axis }];
     }
     const row = node.dir === "right";
     let offset = 0;
@@ -624,7 +635,8 @@ export function showDocumentInTab(tab: WorkspaceTab, document: AgentDocument, ag
     };
 }
 export function showCourseInTab(tab: WorkspaceTab, course: OpenCourseDetail): WorkspaceTab {
-    const incoming = courseLeaf(course);
+    const previous = findLeaf(tab.layout, coursePaneId(course.courseId, course.agentId));
+    const incoming = courseLeaf(course.itemId ? { ...course, openRequest: (previous?.course?.openRequest ?? 0) + 1 } : course);
     return { ...tab, layout: findLeaf(tab.layout, incoming.id)
         ? replacePaneWithLayout(tab.layout, incoming.id, incoming)
         : placeLayout(tab.layout, incoming, tab.focusedId, "right"), focusedId: incoming.id };

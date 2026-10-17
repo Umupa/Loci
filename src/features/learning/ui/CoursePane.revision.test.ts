@@ -226,3 +226,69 @@ it("finishes the original owner's map save without attaching its error to anothe
   expect(container.querySelector('[role="alert"]')).toBeNull();
   expect(button("Mark as read").disabled).toBe(false);
 });
+
+
+it("opens the overview's course contents from its title and closes after selecting a lesson", async () => {
+  const expand = vi.fn();
+  const back = vi.fn();
+  await act(async () => root.render(createElement(CoursePane, {
+    courseId: "domain", agentId: "owner", itemId: "service", focused: true, onFocus: vi.fn(), onClose: vi.fn(), onBack: back, onExpand: expand,
+  })));
+  expect(document.querySelector('nav[aria-label="Course navigation"]')).toBeNull();
+  expect(container.querySelector("main")?.textContent).toContain("Read doc-service");
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Expand course to pane"]')!.click());
+  expect(expand).toHaveBeenCalledWith("service");
+  const contents = container.querySelector<HTMLButtonElement>('[aria-label="Course contents"]')!;
+  expect(contents.closest("h3")).not.toBeNull();
+  expect(contents.textContent).toContain("Kubernetes");
+  await act(async () => contents.click());
+  const popup = document.querySelector('[role="dialog"][aria-label="Course contents"]')!;
+  expect(popup.textContent).toContain("Workloads");
+  expect(popup.querySelector('[aria-current="step"]')?.getAttribute("aria-label")).toBe("service, Not started");
+  expect(document.activeElement).toBe(popup.querySelector('[aria-current="step"]'));
+  await act(async () => popup.querySelector<HTMLButtonElement>('[aria-label="pod, Not started"]')!.click());
+  expect(document.querySelector('[role="dialog"][aria-label="Course contents"]')).toBeNull();
+  expect(contents.getAttribute("aria-expanded")).toBe("false");
+  expect(document.activeElement).toBe(contents);
+  expect(container.querySelector("main")?.textContent).toContain("Read doc-pod");
+  await act(async () => contents.click());
+  expect(document.querySelector('[aria-current="step"]')?.getAttribute("aria-label")).toBe("pod, Reading");
+  await act(async () => contents.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Back to courses"]')!.click());
+  expect(back).toHaveBeenCalledOnce();
+});
+
+it("supports keyboard lesson navigation and dismisses course contents without changing the selection", async () => {
+  progress.set("pod", "mastered");
+  await act(async () => root.render(createElement(CoursePane, {
+    courseId: "domain", agentId: "owner", itemId: "service", focused: true, onFocus: vi.fn(), onClose: vi.fn(), onBack: vi.fn(),
+  })));
+  const contents = container.querySelector<HTMLButtonElement>('[aria-label="Course contents"]')!;
+  await act(async () => contents.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+  const popup = () => document.querySelector('[role="dialog"][aria-label="Course contents"]');
+  expect(document.activeElement?.getAttribute("aria-label")).toBe("service, Not started");
+  expect(popup()?.textContent).toContain("1 / 2 read");
+  await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })));
+  expect(document.activeElement?.getAttribute("aria-label")).toBe("pod, Read");
+  await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+  expect(document.activeElement?.getAttribute("aria-label")).toBe("service, Not started");
+  await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(popup()).toBeNull();
+  expect(document.activeElement).toBe(contents);
+  expect(container.querySelector("main")?.textContent).toContain("Read doc-service");
+  await act(async () => contents.click());
+  await act(async () => container.querySelector("main")!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })));
+  expect(popup()).toBeNull();
+  expect(container.querySelector("main")?.textContent).toContain("Read doc-service");
+});
+
+
+it("keeps a later selection across revisions and honors an explicit reopen at the original lesson", async () => {
+  const props = { courseId: "domain", agentId: "owner", itemId: "pod", openRequest: 1, focused: true, onFocus: vi.fn(), onClose: vi.fn() };
+  await act(async () => root.render(createElement(CoursePane, props)));
+  await act(async () => [...container.querySelectorAll<HTMLButtonElement>('nav[aria-label="Course navigation"] button')].find((item) => item.textContent?.endsWith("service"))!.click());
+  await act(async () => { await revise("canvas-b"); });
+  expect(container.querySelector('[aria-current="step"]')?.textContent).toContain("service");
+  await act(async () => root.render(createElement(CoursePane, { ...props, openRequest: 2 })));
+  expect(container.querySelector('[aria-current="step"]')?.textContent).toContain("pod");
+});

@@ -67,6 +67,11 @@ export function CourseCard({ source, incomplete }: { source: string; incomplete:
   const hint = !agentId
     ? "Courses belong to an agent. Ask an agent to write this one to keep it."
     : missing ? linked?.error ?? "This course is not in the agent's library." : null;
+  if (agentId) return <div data-card="course" className="agent-course-attachment">
+    <button type="button" className="agent-resource-chip" aria-label={`Open course ${title}`} title={`${chapters ? `${chapters} chapters · ` : ""}${count} ${kind}${count === 1 ? "" : "s"}`}
+      disabled={busy || !!missing} onClick={() => void handleOpen()}><Mortarboard /><span>{busy ? "Opening…" : title}</span></button>
+    {hint ? <p className="course-error">{hint}</p> : null}{error ? <p role="alert" className="course-error">{error}</p> : null}
+  </div>;
   return <div data-card="course" className="course-card">
     <div className="course-card__heading"><Mortarboard className="size-5" /><span className="course-card__engine-badge">{shown?.engine === "build-your-own" ? "Build Your Own" : "Course"}</span></div>
     <h3 className="course-card__title">{title}</h3>

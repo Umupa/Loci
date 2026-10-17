@@ -985,6 +985,19 @@ export function ModelPicker({
   );
 }
 
+/** The same model controls in labelled settings rows instead of a toolbar. */
+export function ModelSettingRows({ harness, model, values, onSettingsChange, row }: Pick<Props, "harness" | "model" | "values" | "onSettingsChange"> & {
+  row: (label: string, control: ReactNode) => ReactNode;
+}) {
+  useSyncExternalStore(subscribeModels, getModelSnapshot, getModelSnapshot);
+  const current = useModelSource().resolve(harness, model);
+  return <>{pillSettings(current).map((setting) => <Fragment key={setting.id}>{row(setting.label,
+    setting.kind === "toggle"
+      ? <TogglePill setting={setting} values={values} onSettingsChange={onSettingsChange} />
+      : <SelectPill setting={setting} values={values} onSettingsChange={onSettingsChange} />,
+  )}</Fragment>)}</>;
+}
+
 export function ModelControlPills({
   harness,
   model,

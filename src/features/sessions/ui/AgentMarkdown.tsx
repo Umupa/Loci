@@ -19,6 +19,8 @@ type MouseEvent as ReactMouseEvent,
 type ReactNode,
 } from "react";
 import { harden } from "rehype-harden";
+import { createMathPlugin } from "@streamdown/math";
+import "katex/dist/katex.min.css";
 import {
 Block,
 CodeBlock,
@@ -57,6 +59,7 @@ import { imageDataUrl } from "../../../shared/lib/filePreview";
 import { remarkWorkspaceFileLinks } from "../../../shared/lib/markdown/markdownFileLinks";
 import { localImagePath,remarkLocalImages } from "../../../shared/lib/markdown/markdownLocalImages";
 import { isAtxHeadingLine } from "../../../shared/lib/markdown/markdownSource";
+import { remarkDocumentSection } from "../../../shared/lib/markdown/markdownSection";
 
 import { IS_MAC,IS_WIN } from "../../../platform/tauri/platform";
 import { isNoteImagePath } from "../../notes";
@@ -77,6 +80,8 @@ const mermaid = createLazyMermaidPlugin({
     theme: "dark",
   },
 });
+
+const math = createMathPlugin({ singleDollarTextMath: true });
 
 const [sanitizeMarkdown, sanitizeSchema] = defaultRehypePlugins.sanitize as [Plugin, Schema];
 
@@ -667,6 +672,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   hardBreaks,
   wholeDocument = false,
   sourceUrl,
+  section,
 }: {
   text: string;
   streaming?: boolean;
@@ -682,9 +688,11 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   wholeDocument?: boolean;
   /** Where this text was published, when it is a source: its pictures and relative links resolve there. */
   sourceUrl?: string;
+  /** Render this heading and its descendants from a saved document. */
+  section?: string;
 }) {
   const code = useCodePlugin();
-  const plugins = useMemo(() => ({ code, mermaid }), [code]);
+  const plugins = useMemo(() => ({ code, mermaid, math }), [code]);
   const [fileMenu, setFileMenu] = useState<FileLinkMenu | null>(null);
   const [fileActionError, setFileActionError] = useState<string | null>(null);
   const onFileContextMenu = useCallback(
@@ -705,8 +713,9 @@ export const AgentMarkdown = memo(function AgentMarkdown({
       [remarkSourceAddresses, { sourceUrl }],
       [remarkLocalImages, { cwd }],
       [remarkWorkspaceFileLinks, { cwd }],
+      [remarkDocumentSection, { section }],
     ],
-    [cwd, sourceUrl],
+    [cwd, sourceUrl, section],
   );
 
   const paced = usePacedText(text, !!streaming, revealOnMount);
@@ -765,7 +774,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
             mode={wholeDocument ? "static" : "streaming"}
             // Streamdown keeps a parsed tree while the text is unchanged, so
             // the plugin swap has to remount it once the fade is over.
-            key={fading ? "fade" : "plain"}
+            key={JSON.stringify([fading, section])}
             BlockComponent={DirectionalBlock}
             className={`agent-markdown min-w-0 font-sans text-sm leading-6 ${fading ? "word-fading" : ""} ${className ?? ""}`}
             components={MARKDOWN_COMPONENTS}

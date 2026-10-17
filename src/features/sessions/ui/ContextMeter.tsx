@@ -32,8 +32,11 @@ export function ContextMeter({
   onCompact,
   compactDisabled = false,
   detailed = false,
+  empty = false,
 }: {
   usage?: ContextUsage;
+  /** Keep the agent toolbar stable before usage arrives, without claiming a percentage. */
+  empty?: boolean;
   onCompact?: () => void;
   compactDisabled?: boolean;
   /** Say the numbers beside the ring: the percentage, and the tokens used. */
@@ -45,7 +48,11 @@ export function ContextMeter({
   const ratio = contextRatio(usage);
   // A window nobody reported would make the ring a guess; the tokens used are
   // still a fact, so the detailed form can say those alone.
-  if (!usage || (ratio === null && !detailed)) return null;
+  if (!usage || (ratio === null && !detailed)) {
+    if (!empty) return null;
+    const label = usage ? `Context capacity not reported; ${formatTokens(usage.used)} tokens used` : "Context usage not reported yet";
+    return <span title={label} className="flex shrink-0 items-center px-1"><MeterRing ratio={0} label={label} /></span>;
+  }
 
   const { headline, detail } = contextTooltip(usage);
   const actionsOpen = open && onCompact != null;
@@ -140,7 +147,7 @@ function MeterRing({ ratio, label }: { ratio: number; label?: string }) {
         strokeWidth={STROKE}
         className="opacity-25"
       />
-      <circle
+      {ratio > 0 ? <circle
         cx={SIZE / 2}
         cy={SIZE / 2}
         r={RADIUS}
@@ -151,7 +158,7 @@ function MeterRing({ ratio, label }: { ratio: number; label?: string }) {
         strokeDasharray={CIRCUMFERENCE}
         strokeDashoffset={CIRCUMFERENCE * (1 - ratio)}
         transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
-      />
+      /> : null}
     </svg>
   );
 }

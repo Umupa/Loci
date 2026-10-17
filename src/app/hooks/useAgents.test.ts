@@ -97,17 +97,16 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it.each([undefined, "tutor"])("opens %s ready for an editable first task without starting a model or opening details", async (template) => {
+it("opens an agent ready for an editable first task without starting a model or opening details", async () => {
   await mount();
-  await act(async () => agents.create(template));
+  await act(async () => agents.create());
   const agent = listAgents()[0];
   expect(agent.sessionId).toBe(liveSessions[0].id);
   expect(liveSessions[0].blocks).toEqual([]);
   expect(mocks.show).toHaveBeenCalledWith(agent.id, liveSessions[0]);
   expect(agents.isDetailsOpen(agent.id)).toBe(false);
   expect(mocks.submit).not.toHaveBeenCalled();
-  if (template) expect(mocks.saveFile).toHaveBeenCalledWith(agent.id, "soul", expect.stringContaining("You are the user's tutor"), "initial");
-  else expect(mocks.saveFile).not.toHaveBeenCalled();
+  expect(mocks.saveFile).not.toHaveBeenCalled();
 });
 
 it("protects every visible agent conversation from archiving, including unfocused panes", async () => {

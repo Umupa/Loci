@@ -1315,6 +1315,7 @@ export async function handleAgentApp(
         body,
         tags: tags ?? [],
         sourceSessionId: source.id,
+        ...(host.agentOf?.(source.id) ? { agentId: host.agentOf(source.id)!.id } : {}),
         ...(looksLikeProject(source.cwd) ? { sourceCwd: source.cwd } : {}),
       }));
     }

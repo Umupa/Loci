@@ -17,6 +17,12 @@ import { requestOpenAppResource } from "../shared/lib/appResourceLinks";
 import { canvasLeaf, coursePaneId, documentLeaf, documentPaneId, leaf, newTab, placeLayout } from "../features/workspace/model/layout";
 import * as harnessRegistry from "../integrations/harness/core/registry";
 
+const platform = vi.hoisted(() => ({ mac: false }));
+vi.mock("../platform/tauri/platform", async (original) => ({
+  ...(await original<typeof import("../platform/tauri/platform")>()),
+  get IS_MAC() { return platform.mac; },
+}));
+
 // Catalog discovery needs signed-in CLIs; the editor itself is covered by CanvasPane tests.
 vi.mock("../integrations/harness/core/registry", async (original) => ({
   ...(await original<typeof import("../integrations/harness/core/registry")>()),
@@ -56,6 +62,7 @@ function archivedPage(seq: number, blocks: Block[], hasOlder = false): ArchivePa
 }
 
 beforeEach(async () => {
+  platform.mac = false;
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   localStorage.clear();
   for (const id of ["blank", "project-chat", ...agents.map((agent) => agent.sessionId!)]) {
@@ -86,6 +93,8 @@ beforeEach(async () => {
       return session ? { ...session, createdAt: 1, updatedAt: 1 } : null;
     }
     if (command === "session_upsert") return saveSessionRecord(input.session!);
+    if (command === "course_list_all" || command === "notes_list") return [];
+    if (command === "notes_get") return null;
     if (command === "canvas_list") return [canvas];
     if (command === "canvas_get") return input.id === canvas.id ? canvas : null;
     if (command === "course_get") return { id: input.id, agentId: (args as { agentId: string }).agentId, title: "Kubernetes",
@@ -101,7 +110,7 @@ beforeEach(async () => {
       return;
     }
     if (command === "agent_load") return { id: input.agent, dir: `/agents/${input.agent}`, soul: "# Soul", soulHash: "soul", memory: "", memoryHash: "memory", memoryPath: `/agents/${input.agent}/MEMORY.md`, topics: [] };
-    if (command === "agent_read") return "[]";
+    if (command === "agent_read") return { text: "[]", hash: "habits" };
     if (command === "agent_transcript_page") return readArchive(input.sessionId!, input.before ?? null);
     if (command === "learning_source_get") return { id: input.id, kind: "conversation", sessionId: "chat-a", blockId: "archived-question", title: "Earlier discussion", quote: "Archived question" };
     if (command === "session_list_by_project") { onHistoryRead?.(); return []; }
@@ -126,6 +135,43 @@ afterEach(async () => {
   clearMocks();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+it("shares the macOS titlebar with movable pane headers and restores navigation when the rail closes", async () => {
+  platform.mac = true;
+  await renderApp();
+  await click(railButton("Ada"));
+  await settle(() => expect(agentWorkspace()).not.toBeNull());
+  expect(agentWorkspace().querySelector(":scope > header")).toBeNull();
+  expect(pane("chat-a").querySelector("[data-window-titlebar]")).not.toBeNull();
+  await click(pane("chat-a").querySelector<HTMLButtonElement>('[data-card="document"]')!);
+  await settle(() => expect(container.querySelector('[aria-label="Expand document to pane"]')).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>('[aria-label="Expand document to pane"]')!);
+  const documentId = documentPaneId("network", "agent-a");
+  await settle(() => expect(pane(documentId)?.querySelector("[data-window-titlebar]")).not.toBeNull());
+
+  await click(container.querySelector<HTMLButtonElement>('nav[aria-label="Projects"] button[aria-label^="Toggle Projects"]')!);
+  const nav = agentWorkspace().querySelector("[data-window-pane-nav]")!;
+  expect(nav).not.toBeNull();
+  expect(container.querySelector("[data-compact-project-rail]")).not.toBeNull();
+  const agentPane = pane("chat-a");
+  agentPane.getBoundingClientRect = () => new DOMRect(0, 0, 500, 400);
+  vi.spyOn(document, "elementFromPoint").mockReturnValue(agentPane);
+  const title = pane(documentId).querySelector<HTMLElement>("[data-pane-header]")!;
+  title.setPointerCapture = vi.fn();
+  title.releasePointerCapture = vi.fn();
+  await pointer(title, "pointerdown", 550, 20);
+  await pointer(window, "pointermove", 20, 180);
+  await pointer(window, "pointerup", 20, 180);
+  expect(pane(documentId).style.left).not.toBe("0%");
+  await pointer(title.querySelector("[data-pane-drag-handle]")!, "pointerdown", 550, 20);
+  await pointer(window, "pointermove", 20, 180);
+  await pointer(window, "pointerup", 20, 180);
+  expect(pane(documentId).style.left).toBe("0%");
+  expect(agentWorkspace().querySelector("[data-window-pane-nav]")).toBe(nav);
+  await click(nav.querySelector<HTMLButtonElement>('button[aria-label^="Toggle Sidebar"]')!);
+  expect(agentWorkspace().querySelector("[data-window-pane-nav]")).toBeNull();
+  expect(agentWorkspace().querySelector(":scope > header")).toBeNull();
 });
 
 async function renderApp(projectSession?: Session) {
@@ -171,6 +217,8 @@ it("opens a course in its owning agent workspace and a project course in its sou
   await renderApp(project);
   const agentCourse = { courseId: "kubernetes", agentId: "agent-a", title: "Kubernetes", sourceSessionId: "chat-a" };
   await act(async () => openCourse(agentCourse));
+  await settle(() => expect(container.querySelector('[data-agent-overview="agent-a"]')?.textContent).toContain("course-content.pdf"));
+  await click(container.querySelector<HTMLButtonElement>('[aria-label="Expand course to pane"]')!);
   await settle(() => {
     expect(pane(coursePaneId(agentCourse.courseId, agentCourse.agentId))?.textContent).toContain("course-content.pdf");
     expect(agentWorkspace()).toBeTruthy();
@@ -326,10 +374,8 @@ it("adds a Library canvas to the current agent draft without creating or submitt
 
   await click(railButton("Ada"));
   await settle(() => expect(pane("chat-a")?.querySelector("textarea")).toBeTruthy());
-  await click(pane("chat-a").querySelector<HTMLButtonElement>('button[aria-label="Details"]')!);
-  const details = pane("chat-a").querySelector('aside[aria-label="Ada details"]')!;
-  await click([...details.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.startsWith("Library"))!);
-  await click([...details.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Network map"))!);
+  await click(container.querySelector<HTMLButtonElement>('[data-agent-overview="agent-a"] [data-tab="canvases"]')!);
+  await click(container.querySelector<HTMLButtonElement>('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')!);
   await settle(() => expect(pane(canvas.id)?.querySelector("[data-focused]")?.getAttribute("data-focused")).toBe("true"));
   const addToAgent = pane(canvas.id).querySelector<HTMLButtonElement>('button[aria-label="Add drawing to agent"]')!;
   expect(addToAgent.textContent).toBe("Add to agent");
@@ -343,7 +389,7 @@ it("adds a Library canvas to the current agent draft without creating or submitt
     expect(input.value).toBe(`${agentDraft}\n\n${canvasText}\n\n`);
     expect(getComposerDraft("chat-a")).toBe(input.value);
     expect(document.activeElement).toBe(input);
-    expect(pane("chat-a").querySelector("header > span.bg-accent")).not.toBeNull();
+    expect(pane("chat-a").querySelector('[data-agent-view="agent-a"]')?.getAttribute("data-focused")).toBe("true");
   });
   expect(panes()).toHaveLength(2);
   expect(pane(canvas.id)).not.toBeNull();
@@ -381,16 +427,16 @@ it("opens an agent, document and library canvas together, then drags the documen
   expect(pane("blank")).toBeNull();
 
   await click(pane("chat-a").querySelector<HTMLButtonElement>('[data-card="document"]')!);
+  await settle(() => expect(container.querySelector('[aria-label="Expand document to pane"]')).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>('[aria-label="Expand document to pane"]')!);
   const documentId = documentPaneId("network", "agent-a");
   await settle(() => expect(pane(documentId).textContent).toContain("Owned by Ada."));
   expect(panes()).toHaveLength(2);
   expect(pane(documentId).querySelector('button[aria-label="Remove from the library"]')).not.toBeNull();
 
-  await settle(() => expect(pane("chat-a").querySelector('button[aria-label="Details"]')).not.toBeNull());
-  await click(pane("chat-a").querySelector<HTMLButtonElement>('button[aria-label="Details"]')!);
-  const details = pane("chat-a").querySelector('aside[aria-label="Ada details"]')!;
-  await click([...details.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.startsWith("Library"))!);
-  await click([...details.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Network map"))!);
+  await settle(() => expect(pane("chat-a").querySelector('button[aria-label="Agent settings"]')).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>('[data-agent-overview="agent-a"] [data-tab="canvases"]')!);
+  await click(container.querySelector<HTMLButtonElement>('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')!);
   await settle(() => expect(pane(canvas.id).querySelector("[data-test-canvas]")).not.toBeNull());
   expect(panes()).toHaveLength(3);
   expect(pane("chat-a").querySelector('aside[aria-label="Ada details"]')).toBeNull();
@@ -400,6 +446,8 @@ it("opens an agent, document and library canvas together, then drags the documen
 
   // A keyboard activation of the card must retain its own agent while another pane is focused.
   await click(pane("chat-a").querySelector<HTMLButtonElement>('[data-card="document"]')!);
+  await settle(() => expect(container.querySelector('[aria-label="Expand document to pane"]')).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>('[aria-label="Expand document to pane"]')!);
   expect(panes()).toHaveLength(3);
   expect(pane(documentId).querySelector("header > span.bg-accent")).not.toBeNull();
   await act(async () => saveAgentDocuments("agent-a", [{ ...reading, body: "# Revised network\n\nLive revision from Ada." }]));
@@ -451,13 +499,13 @@ it("keeps each agent's documents and drawings outside project tabs and restores 
   await click(railButton("Ada"));
   await settle(() => expect(agentWorkspace()?.querySelector('[data-agent-view="agent-a"]')).toBeTruthy());
   await click(pane("chat-a").querySelector<HTMLButtonElement>('[data-card="document"]')!);
+  await settle(() => expect(container.querySelector('[aria-label="Expand document to pane"]')).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>('[aria-label="Expand document to pane"]')!);
   const adaDocumentId = documentPaneId("network", "agent-a");
   await settle(() => expect(pane(adaDocumentId).textContent).toContain("Owned by Ada."));
-  await settle(() => expect(pane("chat-a").querySelector('button[aria-label="Details"]')).not.toBeNull());
-  await click(pane("chat-a").querySelector<HTMLButtonElement>('button[aria-label="Details"]')!);
-  const details = pane("chat-a").querySelector('aside[aria-label="Ada details"]')!;
-  await click([...details.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.startsWith("Library"))!);
-  await click([...details.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.includes("Network map"))!);
+  await settle(() => expect(pane("chat-a").querySelector('button[aria-label="Agent settings"]')).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>('[data-agent-overview="agent-a"] [data-tab="canvases"]')!);
+  await click(container.querySelector<HTMLButtonElement>('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')!);
   await settle(() => expect(pane(canvas.id).querySelector("[data-test-canvas]")).not.toBeNull());
   expect(panes()).toHaveLength(3);
   const adaPositions = panes().map((element) => ({ id: element.dataset.paneId, style: element.getAttribute("style") }));
@@ -473,6 +521,8 @@ it("keeps each agent's documents and drawings outside project tabs and restores 
   expect(pane(canvas.id)).toBeNull();
   expect(titleTabs()).toEqual(originalTabs);
   await click(pane("chat-b").querySelector<HTMLButtonElement>('[data-card="document"]')!);
+  await settle(() => expect(container.querySelector('[aria-label="Expand document to pane"]')).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>('[aria-label="Expand document to pane"]')!);
   const beaDocumentId = documentPaneId("network", "agent-b");
   await settle(() => expect(pane(beaDocumentId).textContent).toContain("Owned by Bea."));
   expect(panes()).toHaveLength(2);

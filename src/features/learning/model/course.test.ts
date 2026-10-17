@@ -41,7 +41,7 @@ describe("generated course boundary", () => {
     chapters({ ...read("pod"), file: "/books/pod.pdf" }),
     chapters({ ...read("pod"), document: "../notes" }),
     chapters({ ...read("pod"), pages: [1, 2] }),
-    chapters({ ...read("pod"), section: "" }),
+    chapters({ ...read("pod"), section: 42 }),
     chapters({ id: "borg", title: "Borg", file: "borg.pdf" }),
     chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", section: "Intro" }),
     chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [9, 3] }),
@@ -49,6 +49,12 @@ describe("generated course boundary", () => {
     chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: "3-9" }),
   ])("rejects malformed chapters or lessons: %j", (data) => {
     expect(parseCourse(courseSource("reading", data)).error).toBeTruthy();
+  });
+
+  it.each(["", "  ", undefined])("treats an empty section as a whole-document lesson: %j", (section) => {
+    const result = parseCourse(courseSource("reading", chapters({ ...read("pod"), section })));
+    expect(result.error).toBeUndefined();
+    expect(courseItems(result.course!.data)[0]).not.toHaveProperty("section");
   });
 
   it("rejects duplicate metadata, broken JSON, unknown engines and contradictory scopes", () => {

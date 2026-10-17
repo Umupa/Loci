@@ -1,5 +1,5 @@
 import { markTurnInterrupted, type ResumedWorkspace } from "../../sessions/model/inFlight";
-import { courseLeaf, documentLeaf, fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
+import { noteLeaf, courseLeaf, documentLeaf, fileLeaf, filePanePath, layoutLeaves, leafIds, newTab, type LayoutNode, type WorkspaceTab } from "./layout";
 import { workspaceTabCwd } from "./workspaceTabGroups";
 import { pathKey } from "../../../shared/lib/paths";
 import { reconcileProjectReturn, type ProjectReturnMemory } from "../../projects/model/projectReturn";
@@ -222,19 +222,25 @@ export function sanitizeLayout(raw: unknown): LayoutNode | null {
         return null;
     const value = raw as Record<string, unknown>;
     if (value.type === "leaf") {
-        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file" && value.leafKind !== "document" && value.leafKind !== "course")
+        if (value.leafKind !== undefined && value.leafKind !== "canvas" && value.leafKind !== "file" && value.leafKind !== "document" && value.leafKind !== "course" && value.leafKind !== "note")
             return null;
         if (typeof value.id !== "string" || !value.id)
             return null;
         if (value.leafKind === "file")
             return fileLeaf(filePanePath(value.id), value.preview === true);
+        if (value.leafKind === "note") {
+            if (typeof value.noteId !== "string" || !/^[A-Za-z0-9_-]+$/.test(value.noteId)) return null;
+            if (value.agentId !== undefined && (typeof value.agentId !== "string" || !/^[A-Za-z0-9_-]+$/.test(value.agentId))) return null;
+            return noteLeaf(value.noteId, value.agentId as string | undefined);
+        }
         if (value.leafKind === "course") {
             const course = value.course as Record<string, unknown> | undefined;
             if (!course || typeof course.courseId !== "string" || !/^[A-Za-z0-9_-]+$/.test(course.courseId)
                 || typeof course.agentId !== "string" || !/^[A-Za-z0-9_-]+$/.test(course.agentId)
                 || typeof course.title !== "string" || !course.title.trim()) return null;
             return courseLeaf({ courseId: course.courseId, agentId: course.agentId, title: course.title,
-                ...(typeof course.sourceSessionId === "string" ? { sourceSessionId: course.sourceSessionId } : {}) });
+                ...(typeof course.sourceSessionId === "string" ? { sourceSessionId: course.sourceSessionId } : {}),
+                ...(typeof course.itemId === "string" && /^[A-Za-z0-9_-]+$/.test(course.itemId) ? { itemId: course.itemId } : {}) });
         }
         if (value.leafKind === "document") {
             if (!value.document || typeof value.document !== "object" || Array.isArray(value.document))

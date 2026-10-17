@@ -1,5 +1,4 @@
 import { deleteCanvas, loadCanvases } from "../../features/canvas/canvas";
-import { agentTemplate, templateSoul } from "../../features/agents/model/agentTemplates";
 import { deleteAgentDocument, saveAgentDocuments } from "../../features/agents/model/agentDocuments";
 import { documentsInText } from "../../features/sessions/model/cards";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type SetStateAction } from "react";
@@ -13,7 +12,7 @@ import {
   agentCanvasScope, agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
 } from "../../features/agents/model/agent";
-import { forgetAgentContext, loadAgentFiles, saveAgentFile } from "../../features/agents/model/agentFiles";
+import { forgetAgentContext } from "../../features/agents/model/agentFiles";
 import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession } from "../../features/agents/model/agentWorkspace";
@@ -230,11 +229,10 @@ export function useAgents(options: Options) {
 
   /**
    * Opens a new agent ready for the user's purpose or first task. Creating it
-   * does not run a model; a template supplies its standing instructions.
+   * does not run a model.
    */
-  const create = useCallback(async (templateId?: string) => {
-    const template = agentTemplate(templateId);
-    const agent = createAgent([], template ? { name: template.name, role: template.role, avatar: template.avatar, color: template.color } : {});
+  const create = useCallback(async () => {
+    const agent = createAgent([]);
     const turn = ++request.current;
     try {
       const session = await ensureAgentSession(agent.id, {
@@ -246,8 +244,6 @@ export function useAgents(options: Options) {
       if (!session || turn !== request.current) return;
       setViewId(agent.id);
       latest.current.onShow(agent.id, session);
-      // A template is an agent whose soul is already written: nothing else is sent to it.
-      if (template) await saveAgentFile(agent.id, "soul", templateSoul(template), (await loadAgentFiles(agent.id)).soulHash);
     } catch (error) {
       latest.current.onError(error);
     }

@@ -2,7 +2,7 @@ import type { OpenFileFn } from "../../files/model/filePlace";
 import type { LearningMessageContext } from "../../learning/model/types";
 import { consumeLearningDraft, getLearningDraftContext, peekLearningDraft, setLearningDraftContext, subscribeLearningDraft } from "../../learning/model/learningDraft";
 import { CourseHostContext } from "../../learning/model/courseContext";
-import { agentForSession } from "../../agents/model/agent";
+import { agentForSession, agentLook } from "../../agents/model/agent";
 import {
 memo,
 useCallback,
@@ -15,7 +15,8 @@ type CSSProperties,
 type PointerEvent as ReactPointerEvent,
 type ReactNode,
 } from "react";
-import { ChevronDown,GripVertical,X } from "../../../shared/ui/icons";
+import { ChevronDown,X } from "../../../shared/ui/icons";
+import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Composer } from "./Composer";
 
 
@@ -481,11 +482,12 @@ export const SessionPane = memo(function SessionPane({
             : noteTitle(text),
         body: text,
         sourceSessionId: session.id,
+        ...(residentAgent ? { agentId: residentAgent.id } : {}),
         sourceCwd: session.cwd,
       });
       onNoteSaved?.(note.id);
     },
-    [session.cwd, session.harness, session.id, session.title, onNoteSaved],
+    [session.cwd, session.harness, session.id, session.title, onNoteSaved, residentAgent?.id],
   );
   const saveSelectionNote = useCallback(
     async (text: string) => {
@@ -493,10 +495,11 @@ export const SessionPane = memo(function SessionPane({
         title: noteTitle(text),
         body: text,
         sourceSessionId: session.id,
+        ...(residentAgent ? { agentId: residentAgent.id } : {}),
         sourceCwd: session.cwd,
       });
     },
-    [session.cwd, session.id],
+    [session.cwd, session.id, residentAgent?.id],
   );
 
   useEffect(() => {
@@ -511,7 +514,7 @@ export const SessionPane = memo(function SessionPane({
   }, [addSelectionToChat, addToChatTarget]);
   const workCwd = sessionWorkCwd(session);
   const showDeckProjectPicker = isEmpty && !looksLikeProject(session.cwd);
-  const dockComposer = !draftBlock && (!isEmpty || inSplit);
+  const dockComposer = !draftBlock && (chatPlaceholder != null || !isEmpty || inSplit);
   const composerDockMotion = useComposerDockMotion(dockComposer);
   const draftRef = useRef<string | undefined>(getComposerDraft(session.id));
   const composer = (
@@ -665,26 +668,7 @@ export const SessionPane = memo(function SessionPane({
         )
       ) : null}
       {inSplit && !hidePaneHeader ? (
-        <div
-          className={`flex h-9 shrink-0 touch-none items-center gap-1.5 border-b border-stroke px-2 select-none ${
-            onPaneDragStart ? "cursor-grab active:cursor-grabbing" : ""
-          }`}
-          onPointerDown={(event) => {
-            if (event.button !== 0 || !onPaneDragStart) return;
-            if (
-              (event.target as HTMLElement | null)?.closest("[data-no-drag]")
-            ) {
-              return;
-            }
-            onPaneDragStart(event);
-          }}
-        >
-          {onPaneDragStart ? (
-            <GripVertical
-              className="size-3.5 shrink-0 text-content/35"
-              strokeWidth={1.75}
-            />
-          ) : null}
+        <PaneHeader onPaneDragStart={onPaneDragStart}>
           <span
             className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`}
           />
@@ -709,7 +693,7 @@ export const SessionPane = memo(function SessionPane({
           >
             <X className="size-3" strokeWidth={1.75} />
           </button>
-        </div>
+        </PaneHeader>
       ) : null}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <div
@@ -746,6 +730,7 @@ export const SessionPane = memo(function SessionPane({
                 onMouseDown={focusPane}
               >
                 <AgentTranscript
+                  speaker={residentAgent ? { name: agentLook(residentAgent).name, avatar: runnerAvatar } : undefined}
                   courseHost={{ agentId: residentAgent?.id, sourceSessionId: session.id }}
                   blocks={session.blocks}
                   busy={!!session.busy}

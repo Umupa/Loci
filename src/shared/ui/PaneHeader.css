@@ -1,0 +1,20 @@
+.pane-header {
+  container: pane-header / inline-size;
+}
+
+.pane-header[data-window-titlebar] [data-pane-drag-handle],
+.pane-header[data-window-titlebar] [data-pane-drag-handle] * {
+  cursor: grab !important;
+}
+
+.pane-header[data-window-titlebar] [data-pane-drag-handle]:active,
+.pane-header[data-window-titlebar] [data-pane-drag-handle]:active * {
+  cursor: grabbing !important;
+}
+
+/* Names and actions keep their space before optional role, subject and paths. */
+@container pane-header (max-width: 420px) {
+  .pane-header-secondary {
+    display: none;
+  }
+}

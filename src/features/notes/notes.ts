@@ -15,6 +15,8 @@ export type Note = {
   body: string;
   tags: string[];
   sourceSessionId?: string;
+  /** The agent that owns this note, even after its conversation is reset. */
+  agentId?: string;
   sourceCwd?: string;
   /** Generated for a blank title; replaced once when the first real title is finished. */
   slugPending: boolean;
@@ -28,6 +30,8 @@ export type NoteUpsert = {
   body: string;
   tags: string[];
   sourceSessionId?: string;
+  /** The agent that owns this note, even after its conversation is reset. */
+  agentId?: string;
   /** Omit on update to keep the saved project directory. */
   sourceCwd?: string;
   /** Finalize a pending slug on title blur or editor close. */
@@ -96,6 +100,10 @@ export async function loadNotes(refresh = false): Promise<Note[]> {
   return promise;
 }
 
+export function listAgentNotes(agentId: string): Promise<Note[]> {
+  return invoke<Note[]>("notes_list", { agentId });
+}
+
 export async function getNote(id: string): Promise<Note | null> {
   const note = await invoke<Note | null>("notes_get", { id });
   return note;
@@ -104,6 +112,7 @@ export async function getNote(id: string): Promise<Note | null> {
 export async function upsertNote(note: NoteUpsert): Promise<Note> {
   const saved = await invoke<Note>("notes_upsert", { note });
   cache = null;
+  window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
   return saved;
 }
 
@@ -111,12 +120,14 @@ export async function upsertNote(note: NoteUpsert): Promise<Note> {
 export async function finalizeNoteSlug(id: string, title: string): Promise<Note | null> {
   const saved = await invoke<Note | null>("notes_finalize_slug", { id, title });
   cache = null;
+  window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
   return saved;
 }
 
 export async function deleteNote(id: string): Promise<void> {
   await invoke("notes_delete", { id });
   cache = null;
+  window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
 }
 
 export async function createNote(input: {
@@ -124,6 +135,8 @@ export async function createNote(input: {
   body?: string;
   tags?: string[];
   sourceSessionId?: string;
+  /** The agent that owns this note, even after its conversation is reset. */
+  agentId?: string;
   sourceCwd?: string;
 }): Promise<Note> {
   const body = (input.body ?? "").replace(/\r\n?/g, "\n");
@@ -136,6 +149,7 @@ export async function createNote(input: {
       ? { sourceSessionId: input.sourceSessionId }
       : {}),
     ...(input.sourceCwd ? { sourceCwd: input.sourceCwd } : {}),
+    ...(input.agentId ? { agentId: input.agentId } : {}),
   });
 }
 

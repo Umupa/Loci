@@ -26,6 +26,7 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [custom, setCustom] = useState<Record<string, string>>({});
+  const [multiSelectOverrides, setMultiSelectOverrides] = useState<Record<string, boolean>>({});
   const [now, setNow] = useState(Date.now);
 
   useEffect(() => {
@@ -43,9 +44,16 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
     setStep(0);
     setAnswers({});
     setCustom({});
+    setMultiSelectOverrides({});
   }, [prompt.requestId]);
 
-  const questions = prompt.questions;
+  const questions = useMemo(
+    () =>
+      prompt.questions.map((question) =>
+        multiSelectOverrides[question.id] ? { ...question, multiSelect: true } : question,
+      ),
+    [prompt.questions, multiSelectOverrides],
+  );
   const total = questions.length;
   const index = Math.min(step, Math.max(total - 1, 0));
   const question = questions[index];
@@ -56,7 +64,17 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
   );
 
   const finish = (nextAnswers = answers, nextCustom = custom) => {
-    onReply(prompt.requestId, buildQuestionReply(questions, nextAnswers, nextCustom));
+    const selectedCustom: Record<string, string> = {};
+    for (const question of questions) {
+      const text = nextCustom[question.id];
+      if (
+        text &&
+        (nextAnswers[question.id] ?? []).some((id) => isCustomId(question, id))
+      ) {
+        selectedCustom[question.id] = text;
+      }
+    }
+    onReply(prompt.requestId, buildQuestionReply(questions, nextAnswers, selectedCustom));
   };
 
   const skipCurrent = () => {
@@ -138,6 +156,24 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
             question={question}
             selected={answers[question.id] ?? []}
             custom={custom[question.id] ?? ""}
+            onMultiSelectChange={
+              !prompt.questions[index].multiSelect &&
+              question.allowMultiSelect !== false &&
+              question.options.filter((option) => !isOtherOption(option)).length >= 2
+                ? (enabled) => {
+                    setMultiSelectOverrides((current) => ({
+                      ...current,
+                      [question.id]: enabled,
+                    }));
+                    if (!enabled) {
+                      setAnswers((current) => ({
+                        ...current,
+                        [question.id]: (current[question.id] ?? []).slice(0, 1),
+                      }));
+                    }
+                  }
+                : undefined
+            }
             onSelect={(optionId) =>
               setAnswers((current) => ({
                 ...current,
@@ -206,12 +242,14 @@ function QuestionFields({
   question,
   selected,
   custom,
+  onMultiSelectChange,
   onSelect,
   onCustom,
 }: {
   question: UserQuestion;
   selected: string[];
   custom: string;
+  onMultiSelectChange?: (enabled: boolean) => void;
   onSelect: (optionId: string) => void;
   onCustom: (value: string) => void;
 }) {
@@ -269,9 +307,22 @@ function QuestionFields({
 
   return (
     <fieldset className="min-w-0" aria-label={question.header || question.prompt}>
-      <p className="text-[13px] font-medium leading-snug text-content">
-        {question.prompt}
-      </p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 flex-1 text-[13px] font-medium leading-snug text-content">
+          {question.prompt}
+        </p>
+        {onMultiSelectChange ? (
+          <label className="flex shrink-0 cursor-pointer items-center gap-1 text-[11px] text-content/50">
+            <input
+              type="checkbox"
+              checked={question.multiSelect}
+              onChange={(event) => onMultiSelectChange(event.target.checked)}
+              className="size-3 accent-content"
+            />
+            Multi-select
+          </label>
+        ) : null}
+      </div>
       {question.multiSelect ? (
         <p className="mt-0.5 text-[11px] text-content/40">Select all that apply</p>
       ) : null}

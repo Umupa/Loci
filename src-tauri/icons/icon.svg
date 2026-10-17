@@ -1,0 +1,56 @@
+<!-- Bottts Neutral / Flint by Pablo Stanley, via DiceBear 10.6.0. See NOTICE. -->
+<!-- 5% transparent inset keeps the desktop icon aligned with other app icons. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 120 120">
+<g transform="translate(6 6) scale(.9)">
+<g fill="none">
+<defs>
+<clipPath id="loci-clip-f2e70152">
+<rect width="120" height="120" rx="14.4" ry="14.4">
+</rect>
+</clipPath>
+</defs>
+<g clip-path="url(#loci-clip-f2e70152)">
+<rect width="120" height="120" fill="#37beb3">
+</rect>
+<mask id="loci-botttsNeutral-a" style="mask-type:alpha">
+<path fill="#D9D9D9" d="M0 0h120v120H0z">
+</path>
+</mask>
+<g mask="url(#loci-botttsNeutral-a)">
+</g>
+<g transform="translate(26 72)">
+<g>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M14 6.22C14 17.78 20.47 24 34 24c13.52 0 20-6.34 20-17.78C54 5.5 53.17 4 51 4H17c-2.05 0-3 1.38-3 2.22" fill="black" fill-opacity=".8">
+</path>
+<mask id="loci-mouthSmile02-a" style="mask-type:luminance">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M14 6.22C14 17.78 20.47 24 34 24c13.52 0 20-6.34 20-17.78C54 5.5 53.17 4 51 4H17c-2.05 0-3 1.38-3 2.22" fill="white">
+</path>
+</mask>
+<g mask="url(#loci-mouthSmile02-a)">
+<rect x="26" y="-2" width="16" height="14" rx="2" fill="white">
+</rect>
+</g>
+</g>
+</g>
+<g transform="translate(8 20)">
+<g>
+<circle cx="28" cy="24" r="18" fill="black" fill-opacity=".2">
+</circle>
+<circle cx="74" cy="24" r="18" fill="black" fill-opacity=".2">
+</circle>
+<g>
+<circle cx="28" cy="24" r="15" fill="#F1EEDA">
+</circle>
+<circle cx="74" cy="24" r="15" fill="#F1EEDA">
+</circle>
+<rect x="26" y="15" width="10" height="10" rx="2" fill="black" fill-opacity=".8">
+</rect>
+<rect x="74" y="15" width="10" height="10" rx="2" fill="black" fill-opacity=".8">
+</rect>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</svg>

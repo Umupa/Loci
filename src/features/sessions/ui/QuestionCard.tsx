@@ -22,20 +22,23 @@ const LETTERS = "ABCDEFGHIJ";
 /**
  * A question as a card in the chat, where the agent's next message would be:
  * choices to pick with one click, and a line for an answer of the user's own.
- * One question with one answer sends on the pick; anything more asks once at
- * the end, so nothing goes out half-answered.
+ * Single choices advance on the pick; multi-select choices wait for confirmation.
  */
 export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [custom, setCustom] = useState<Record<string, string>>({});
+  const [multiSelect, setMultiSelect] = useState<Record<string, boolean>>({});
   useEffect(() => {
     setStep(0);
     setAnswers({});
     setCustom({});
+    setMultiSelect({});
   }, [prompt.requestId]);
 
-  const questions = prompt.questions;
+  const questions = prompt.questions.map((question) =>
+    multiSelect[question.id] ? { ...question, multiSelect: true } : question,
+  );
   const index = Math.min(step, Math.max(questions.length - 1, 0));
   const question: UserQuestion | undefined = questions[index];
   if (!question) return null;
@@ -44,6 +47,7 @@ export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
   const typed = custom[question.id] ?? "";
   // When custom answers are allowed, "Other" uses the input below.
   const options = question.options.filter((option) => !question.allowCustom || !isOtherOption(option));
+  const canToggleMultiSelect = !prompt.questions[index].multiSelect && question.allowMultiSelect !== false && options.length > 1;
   const interact = () => {
     if (prompt.autoResolveAt != null) onInteraction?.(prompt.requestId);
   };
@@ -69,6 +73,13 @@ export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
     setCustom(nextCustom);
     advance(nextAnswers, nextCustom);
   };
+  const toggleMultiSelect = (enabled: boolean) => {
+    interact();
+    setMultiSelect((current) => ({ ...current, [question.id]: enabled }));
+    if (!enabled) {
+      setAnswers((current) => ({ ...current, [question.id]: (current[question.id] ?? []).slice(0, 1) }));
+    }
+  };
   const submitTyped = () => {
     if (!typed.trim()) return;
     // An answer of their own stands in for the choices of a single-answer question.
@@ -83,11 +94,20 @@ export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[14px] leading-snug text-content">{question.prompt}</p>
-          <p className="mt-0.5 text-xs text-content/45">
-            {questions.length > 1 ? `${index + 1} of ${questions.length} · ` : ""}
-            {question.multiSelect ? "Pick any that apply" : "Pick one"}
-            {question.allowCustom ? ", or type your own." : "."}
-          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-content/45">
+            <p>
+              {questions.length > 1 ? `${index + 1} of ${questions.length} · ` : ""}
+              {question.multiSelect ? "Pick any that apply" : "Pick one"}
+              {question.allowCustom ? ", or type your own." : "."}
+            </p>
+            {canToggleMultiSelect ? (
+              <label className="flex cursor-pointer items-center gap-1.5 hover:text-content">
+                <input type="checkbox" aria-label="Multi-select" checked={question.multiSelect}
+                  onChange={(event) => toggleMultiSelect(event.target.checked)} className="size-3 accent-content" />
+                Multi-select
+              </label>
+            ) : null}
+          </div>
         </div>
         <button type="button" title="Skip" aria-label="Skip this question" onClick={() => onReply(prompt.requestId, { kind: "skipped" })}
           className="grid size-6 shrink-0 place-items-center rounded-md text-content/40 hover:bg-content/8 hover:text-content">
@@ -126,7 +146,7 @@ export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
           }} />
       ) : null}
 
-      {question.multiSelect || (!last && questions.length > 1 && ready) ? (
+      {question.multiSelect || ready ? (
         <div className="flex justify-end">
           <button type="button" disabled={!ready} onClick={() => advance()}
             className="primary-action rounded-lg px-3 py-1 text-xs font-medium disabled:opacity-40">

@@ -85,21 +85,20 @@ it("applies transcript layout and anchor settings live in the resident conversat
   const bubble = row.querySelector<HTMLElement>(".user-message-bubble")!;
   expect(transcript.dataset.transcriptLayout).toBe("chat");
   expect(row.classList.contains("items-end")).toBe(true);
-  const chatMaxWidth = getComputedStyle(bubble).maxWidth;
-  expect(chatMaxWidth).not.toBe("");
+  expect(bubble.className).toContain("max-w-[min(100%,36rem)]");
   expect(host.querySelector(".transcript-turn-anchor")).not.toBeNull();
 
   await act(async () => saveTranscriptLayout("full"));
   expect(transcript.dataset.transcriptLayout).toBe("full");
   expect(row.classList.contains("items-end")).toBe(false);
-  expect(getComputedStyle(bubble).maxWidth).toBe("");
+  expect(bubble.className).not.toContain("max-w-[min(100%,36rem)]");
   expect(host.querySelector(".transcript-turn-anchor")).not.toBeNull();
 
   await act(async () => saveTranscriptAnchor(false));
   expect(host.querySelector(".transcript-turn-anchor")).toBeNull();
 
   await act(async () => saveTranscriptLayout("chat"));
-  expect(getComputedStyle(bubble).maxWidth).toBe(chatMaxWidth);
+  expect(bubble.className).toContain("max-w-[min(100%,36rem)]");
   expect(host.querySelector(".transcript-turn-anchor")).toBeNull();
 
   await act(async () => saveTranscriptAnchor(true));

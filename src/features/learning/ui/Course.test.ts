@@ -60,7 +60,7 @@ const command = async (name: string, args: any): Promise<any> => {
   throw new Error(`Unexpected invoke: ${name}`);
 };
 const pane = (courseId = "build", agentId = "owner") => createElement(CoursePane, { courseId, agentId, sourceSessionId: "original-chat", focused: true, onFocus: vi.fn(), onClose: vi.fn() });
-const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label)!;
+const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label || (label === "Open Course" && item.getAttribute("aria-label")?.startsWith("Open course ")))!;
 const nav = (title: string) => [...container.querySelectorAll<HTMLButtonElement>("nav button")].find((item) => item.textContent?.endsWith(title))!;
 const navigate = (detail: object) => act(() => window.dispatchEvent(new CustomEvent(NAVIGATE_CONCEPT_EVENT, { detail })));
 
@@ -82,7 +82,7 @@ it("streams into a complete card without changing hook order and persists full s
   const card = (incomplete: boolean) => createElement(CourseHostContext.Provider, { value: { agentId: "owner", sourceSessionId: "original-chat" } }, createElement(CourseCard, { source: source(domain), incomplete }));
   try {
     await act(async () => root.render(card(true))); expect(container.textContent).toContain("3 items so far"); expect(invoke).not.toHaveBeenCalled();
-    await act(async () => root.render(card(false))); expect(container.textContent).toContain("2 chapters · 3 lessons");
+    await act(async () => root.render(card(false))); expect(button("Open Course").title).toBe("2 chapters · 3 lessons");
     await act(async () => button("Open Course").click());
     const payload = vi.mocked(invoke).mock.calls[0][1] as { course: { agentId: string; dataJson: string } };
     expect(payload.course.agentId).toBe("owner"); expect(JSON.parse(payload.course.dataJson)).toEqual(domain.data);
@@ -112,7 +112,7 @@ it("opens a course the agent saved from a fence without a body", async () => {
   try {
     await act(async () => root.render(createElement(CourseHostContext.Provider, { value: { agentId: "owner", sourceSessionId: "agent-chat" } }, createElement(CourseCard, { source: "---\nid: build\ntitle: Linked\n---\n", incomplete: false }))));
     expect(container.textContent).toContain(`${build.title}`);
-    expect(container.textContent).toMatch(/3 steps/);
+    expect(button("Open Course").title).toBe("3 steps");
     await act(async () => button("Open Course").click());
     expect(invoke).not.toHaveBeenCalledWith("course_upsert", expect.anything());
     expect(opened.mock.calls[0][0].detail).toMatchObject({ courseId: "build", agentId: "owner", sourceSessionId: "agent-chat" });

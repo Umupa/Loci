@@ -37,6 +37,13 @@ In an agent chat, the document is saved in that agent's library. A complete
 document with the same ID replaces the earlier document. Imported source
 documents are updated through `documents.write`, not reply blocks.
 
+## Notes
+
+Use `notes.write` for editable personal notes. A note created in an agent
+conversation belongs to that agent and appears in both Overview → Notes and
+global Notes. Its returned `loci://note/<id>` link opens the note. Documents
+can also be saved as notes from their reader.
+
 ## Checklist
 
 ```loci-todo
@@ -63,7 +70,8 @@ bullets become child nodes in a collapsible tree.
 
 ## Reading course
 
-Courses belong to an agent's library. Save one with the `courses.write`
+Courses appear in the owning agent's Overview → Courses. They open inside the
+overview and can expand into a workspace pane at the selected lesson. Save one with the `courses.write`
 action, then point at it from a reply with a fence that has front matter and
 no body:
 
@@ -84,7 +92,12 @@ The `courses.write` input is one object:
 Chapters and lessons are non-empty arrays. Each lesson has a unique `id`,
 `title`, and exactly one of `document` (an imported document ID) or `file`
 (an absolute path). `section` belongs to a document; `pages: [first, last]`
-belongs to a file and uses positive, inclusive page numbers. A course can
+belongs to a file and uses positive, inclusive page numbers. Use a Markdown
+heading's visible title for `section`: the reader focuses on that heading and
+its descendants, stopping before the next heading of the same or higher level.
+Readers can switch to the full document. Omit `section` or leave it blank to
+read the whole document; an unmatched title shows the full document with a notice.
+A course can
 link a canvas through optional `canvasId`. Updating the same course ID retains
 progress for lesson IDs that remain in the course. A fence that still carries
 the JSON body after its front matter is shown as a preview; Open saves it.

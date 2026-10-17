@@ -167,6 +167,7 @@ const FIRST_PAINT_TURNS = 3;
 const TURN_PAGE_SIZE = 20;
 
 type Props = {
+  speaker?: { name: string; avatar?: ReactNode };
   courseHost?: CourseHost;
   blocks: Block[];
   busy?: boolean;
@@ -213,6 +214,7 @@ type Props = {
 };
 
 function AgentTranscriptComponent({
+  speaker,
   courseHost,
   blocks: sourceBlocks,
   busy,
@@ -802,7 +804,7 @@ function AgentTranscriptComponent({
                 : workState === "interrupted" ? "Stopped" : workSummaryLine(folded)}
             </span>
           );
-          const showFoldLine = active || durationMs != null || !!fold;
+          const showFoldLine = active || durationMs != null || !!fold || (!!speaker && items.some((item) => item.type === "block" && isProseBlock(item.block)));
           // It sits where the work starts, from before there is any: the row
           // is there from the first token, so nothing shoves the answer down
           // when the turn folds.
@@ -909,14 +911,18 @@ function AgentTranscriptComponent({
           );
           const foldLineRow = (
             <TurnRow key="work-fold" folded={!showFoldLine}>
-              <WorkFoldLine
+              {speaker && settled && workState === "done" ? <div className="agent-reply-heading">
+                {fold ? <button type="button" className="agent-speaker-pill" aria-label={workOpen ? "Hide activity" : "Show activity"} aria-expanded={workOpen} onClick={() => toggleWork(turnId, workOpen)}>
+                  {speaker.avatar}<span>{speaker.name}</span><ChevronRight className={`size-3 text-content/40 ${workOpen ? "rotate-90" : ""}`} />
+                </button> : <span className="agent-speaker-pill">{speaker.avatar}<span>{speaker.name}</span></span>}
+              </div> : <WorkFoldLine
                 title={foldTitle}
                 state={workState}
                 visible={visible}
                 expandable={!!fold}
                 open={workOpen && !!fold}
                 onToggle={() => toggleWork(turnId, workOpen)}
-              />
+              />}
             </TurnRow>
           );
           return (

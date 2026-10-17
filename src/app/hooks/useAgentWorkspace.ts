@@ -5,7 +5,7 @@ import type { Session } from "../../features/sessions/model/session";
 import type { OpenCourseDetail } from "../../features/learning/model/course";
 import {
   closeLeaf, firstLeafId, layoutLeaves, leaf, leafIds, movePane as moveLayoutPane,
-  placeLayout, replaceLeafId, setSplitRatio, showCanvasBeside, showCanvasInTab, showCourseInTab, showDocumentInTab, showFileInTab,
+  placeLayout, replaceLeafId, setSplitRatio, showCanvasBeside, showCanvasInTab, showCourseInTab, showDocumentInTab, showFileInTab, showNoteInTab,
   type LayoutNode, type PaneEdge, type WorkspaceTab,
 } from "../../features/workspace/model/layout";
 import { sanitizeLayout } from "../../features/workspace/model/workspaceSnapshot";
@@ -51,7 +51,7 @@ export function separateAgentWorkspaces(tabs: readonly WorkspaceTab[]): { tabs: 
     const leaves = layoutLeaves(tab.layout);
     const agentOwners = new Map(leaves.flatMap((pane) => {
       const agent = pane.kind === "session" ? agentForSession(pane.id)
-        : (pane.kind === "document" || pane.kind === "course") && pane.agentId ? findAgent(pane.agentId) : undefined;
+        : (pane.kind === "document" || pane.kind === "course" || pane.kind === "note") && pane.agentId ? findAgent(pane.agentId) : undefined;
       return agent?.sessionId ? [[agent.id, agent.sessionId] as const] : [];
     }));
     const firstAgentId = agentOwners.keys().next().value as string | undefined;
@@ -59,7 +59,7 @@ export function separateAgentWorkspaces(tabs: readonly WorkspaceTab[]): { tabs: 
     const hasProjectSession = leaves.some((pane) => pane.kind === "session" && !agentForSession(pane.id));
     const ownerOf = (pane: Extract<LayoutNode, { type: "leaf" }>) => {
       if (!pane.leafKind) return agentForSession(pane.id)?.id;
-      if ((pane.leafKind === "document" || pane.leafKind === "course") && pane.agentId && agentOwners.has(pane.agentId)) return pane.agentId;
+      if ((pane.leafKind === "document" || pane.leafKind === "course" || pane.leafKind === "note") && pane.agentId && agentOwners.has(pane.agentId)) return pane.agentId;
       return hasProjectSession ? undefined : firstAgentId;
     };
     for (const [agentId, sessionId] of agentOwners) {
@@ -207,6 +207,9 @@ export function useAgentWorkspace(options: Options) {
   const showDocument = useCallback((document: AgentDocument, agentId?: string) => {
     updateCurrent((current) => paneResult(current, showDocumentInTab(paneContainer(current), document, agentId ?? current.agentId)));
   }, [updateCurrent]);
+  const showNote = useCallback((noteId: string) => {
+    updateCurrent((current) => paneResult(current, showNoteInTab(paneContainer(current), noteId, current.agentId)));
+  }, [updateCurrent]);
   const showCourse = useCallback((course: OpenCourseDetail) => {
     updateCurrent((current) => current.agentId === course.agentId
       ? paneResult(current, showCourseInTab(paneContainer(current), course)) : current);
@@ -252,7 +255,7 @@ export function useAgentWorkspace(options: Options) {
   currentRef.current = current;
   return {
     activeAgentId, current, currentRef, layout: current?.layout, focusedId: current?.focusedId,
-    composerFocusToken, open, hide, focusPane, closePane, setRatio, movePane, showDocument, showCanvas, showCourse, showFile,
+    composerFocusToken, open, hide, focusPane, closePane, setRatio, movePane, showDocument, showCanvas, showCourse, showFile, showNote,
     isCanvasOpen, showCanvasForSession, replaceSession, forgetSession,
   };
 }

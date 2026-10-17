@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { open as chooseFile } from "@tauri-apps/plugin-dialog";
-import { CircleAlert, ExternalLink, Folder, GripVertical, MessageSquarePlus, Pencil, Pin, X } from "../../../shared/ui/icons";
+import { CircleAlert, ExternalLink, Folder, MessageSquarePlus, Pencil, Pin, X } from "../../../shared/ui/icons";
+import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { basename, openPathWithDefaultApp, readBinaryFile, readDocumentFile, readTextFile, revealPath, writeTextFile } from "../../../platform/tauri/fs";
 import { IS_MAC } from "../../../platform/tauri/platform";
@@ -371,19 +372,16 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         event.preventDefault();
         void save();
       }}>
-      <div className={`flex h-9 shrink-0 select-none items-center gap-1.5 border-b border-stroke px-2 ${onPaneDragStart ? "cursor-grab active:cursor-grabbing touch-none" : ""}`}
-        onPointerDown={(event) => {
-          if (!(event.target as HTMLElement).closest("[data-no-drag]")) onPaneDragStart?.(event);
-        }}
+      <PaneHeader onPaneDragStart={onPaneDragStart}
         onDoubleClick={(event) => {
+          if (event.currentTarget.hasAttribute("data-window-titlebar") && !(event.target as HTMLElement).closest("[data-pane-title]")) return;
           if (preview && !(event.target as HTMLElement).closest("[data-no-drag]")) onPin();
         }}>
-        {onPaneDragStart ? <GripVertical className="size-3.5 shrink-0 text-content/35" /> : null}
         <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} />
         <span className="shrink-0"><FileTypeIcon name={name} isDir={false} /></span>
-        <span className={`min-w-0 shrink truncate text-xs ${preview ? "italic" : ""}`} title={preview ? `${path}\nPreview — double-click to keep this pane` : path}>{name}</span>
+        <span data-pane-title data-tauri-drag-region="false" className={`min-w-0 shrink truncate text-xs ${preview ? "italic" : ""}`} title={preview ? `${path}\nPreview — double-click to keep this pane` : path}>{name}</span>
         {draft ? <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-content/60" /> : null}
-        {folder && folder !== "." ? <span className="min-w-0 flex-1 truncate text-[11px] text-content/40">{folder}</span> : <span className="flex-1" />}
+        {folder && folder !== "." ? <span className="pane-header-secondary min-w-0 flex-1 truncate text-[11px] text-content/40">{folder}</span> : <span className="flex-1" />}
         {editable ? <div data-no-drag className="shrink-0"><MarkdownModeToggle mode={mode} onChange={setMode} /></div> : null}
         {kind === "pdf" ? <PaneButton label="PDF annotations" onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-3.5" /></PaneButton> : null}
         {draft ? (
@@ -396,7 +394,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         <PaneButton label={REVEAL_LABEL} onClick={() => void revealPath(path).catch(() => {})}><Folder className="size-3.5" /></PaneButton>
         <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={close}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button>
-      </div>
+      </PaneHeader>
       {conflict && draft ? (
         <Banner tone="warn" message="This file changed on disk while you were editing.">
           <BannerButton onClick={() => setDraft({ ...draft, base: diskText ?? draft.base })}>Keep my version</BannerButton>

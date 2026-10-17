@@ -29,7 +29,7 @@ export function AgentStatusDot({
   );
 }
 
-/** The agent's status line: the state, and what it is on. */
+/** Keep the title short; the activity is available on hover. */
 export function AgentStatus({
   state,
   className = "",
@@ -38,9 +38,9 @@ export function AgentStatus({
   className?: string;
 }) {
   return (
-    <span className={`min-w-0 truncate text-xs text-content/50 ${className}`}>
+    <span title={[AGENT_STATUS_LABEL[state.status], state.activity].filter(Boolean).join(" · ")}
+      className={`shrink-0 text-xs text-content/50 ${className}`}>
       {AGENT_STATUS_LABEL[state.status]}
-      {state.activity ? ` · ${state.activity}` : ""}
     </span>
   );
 }

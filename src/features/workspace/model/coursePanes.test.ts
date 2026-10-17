@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { coursePaneId, findLeaf, layoutLeaves, leafIds, newTab, showCourseInTab } from "./layout";
+import { courseLeaf, coursePaneId, findLeaf, layoutLeaves, leafIds, newTab, showCourseInTab } from "./layout";
 import { collectWorkspaceSnapshot, hydrateWorkspaceSnapshot, sanitizeLayout } from "./workspaceSnapshot";
 import { newSession } from "../../sessions/model/session";
 import { summarizeTab } from "./tabSummary";
@@ -36,4 +36,10 @@ it("uses the focused course title in the tab summary", () => {
   expect(summarizeTab(tab, {
     sessions: [], needsInput: new Set(), unseenFinished: new Set(), fallbackCwd: "/project", canvasTitle: () => undefined,
   })).toMatchObject({ title: "Kubernetes", paneKind: "course", sessionCount: 0, blank: false });
+});
+
+
+it("preserves the chosen lesson through workspace persistence", () => {
+  const detail = { courseId: "reading", agentId: "agent-a", title: "Reading", itemId: "lesson-two" };
+  expect(sanitizeLayout(courseLeaf(detail))).toMatchObject({ course: detail });
 });

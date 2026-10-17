@@ -13,6 +13,8 @@ export type UserQuestion = {
   header?: string;
   prompt: string;
   multiSelect: boolean;
+  /** False when the provider protocol requires a single original choice. */
+  allowMultiSelect?: boolean;
   allowCustom: boolean;
   options: UserQuestionOption[];
 };
@@ -102,7 +104,15 @@ export function buildQuestionReply(
     const selected = answers[question.id];
     if (selected?.length) nextAnswers[question.id] = selected;
     const text = custom[question.id]?.trim();
-    if (text) nextCustom[question.id] = text;
+    // A single choice replaces draft custom text; multiple choices can include it.
+    if (
+      text &&
+      (question.multiSelect ||
+        !selected?.length ||
+        selected.some((id) => isCustomSelection(question, id)))
+    ) {
+      nextCustom[question.id] = text;
+    }
   }
   return {
     kind: "answered",
@@ -117,13 +127,20 @@ export function selectedAnswerLabels(
 ): string[] {
   const custom = reply.custom?.[question.id]?.trim();
   const selected = reply.answers[question.id] ?? [];
-  if (selected.length === 0 && custom && question.allowCustom) return [custom];
-  return selected.flatMap((id) => {
+  const labels = selected.flatMap((id) => {
     if (isCustomSelection(question, id)) return custom ? [custom] : [];
     const option = question.options.find((item) => item.id === id);
     const label = option?.label.trim() || id.trim();
     return label ? [label] : [];
   });
+  if (
+    custom &&
+    question.allowCustom &&
+    !selected.some((id) => isCustomSelection(question, id))
+  ) {
+    labels.push(custom);
+  }
+  return labels;
 }
 
 export function isCustomSelection(

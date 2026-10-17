@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @source "../../node_modules/streamdown/dist/*.js";
 @source "../../node_modules/@streamdown/code/dist/*.js";
+@source "../../node_modules/@streamdown/math/dist/*.js";
 @source "../../node_modules/@streamdown/mermaid/dist/*.js";
 
 @custom-variant dark (&:where(html:not(.theme-light), html:not(.theme-light) *));
@@ -1327,7 +1328,7 @@ html.is-resizing * {
   }
 }
 
-html.theme-light [data-composer-box] {
+html.theme-light [data-composer-box]:not([data-composer-chat]) {
   background: var(--color-background-base);
   box-shadow:
     0 6px 24px color-mix(in srgb, var(--color-content) 9%, transparent),
@@ -3173,39 +3174,6 @@ html.theme-light .btw-burst {
 
 .overview-card {
   transition-property: transform, box-shadow, background-color, border-color, opacity;
-}
-
-/*
- * An agent's conversation reads like a chat with someone: both sides speak in
- * bubbles, the user's in the inverse of the page. The bubble treatment
- * follows the transcript layout preference.
- */
-[data-agent-view] [data-transcript-layout="chat"] [data-agent-prose] {
-  width: fit-content;
-  max-width: min(100%, 46rem);
-  padding: 0.625rem 0.875rem;
-  border-radius: 1.25rem;
-  background: color-mix(in srgb, var(--color-content) 6%, transparent);
-}
-
-[data-agent-view] [data-transcript-layout="chat"] .user-message-bubble:not([data-draft="true"]) {
-  max-width: min(100%, 40rem);
-  padding: 0.625rem 0.875rem;
-  border-radius: 1.25rem;
-  background: var(--color-content);
-  color: var(--color-background-base);
-}
-
-[data-agent-view] [data-transcript-layout="chat"] .user-message-bubble:not([data-draft="true"]) :is(pre, p, span, a, code) {
-  color: inherit;
-}
-
-/*
- * Agent inputs share the session's field and tool row. Model and permission
- * controls stay in Details, leaving the same +, mode and send controls here.
- */
-[data-composer-chat] .composer-toolbar {
-  display: none;
 }
 
 /* A chat keeps a reply's actions out of the way until the pointer is on it. */

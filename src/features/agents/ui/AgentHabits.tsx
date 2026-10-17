@@ -1,6 +1,8 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
-import { Pause, Play, Plus, Trash2, Zap } from "../../../shared/ui/icons";
+import { Clock, Pause, Play, Plus, Trash2, Zap } from "../../../shared/ui/icons";
+import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
+import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { subscribeAgentFiles } from "../model/agentFiles";
 import {
   addHabit,
@@ -8,19 +10,22 @@ import {
   habitRunningSince,
   habitScheduleLabel,
   habitStarting,
+  habitsToday,
   loadHabits,
   nextHabitRunAt,
   subscribeHabitsRunning,
   updateHabits,
   type Habit,
+  type HabitRun,
   type HabitSchedule,
 } from "../model/agentHabits";
 import type { ScheduleKind } from "../model/agentSchedule";
 
 /** The agent's habits, reloaded whenever its folder changes or a run ends. */
-function useHabits(agentId: string): Habit[] | undefined {
+function useHabits(agentId: string, enabled = true): Habit[] | undefined {
   const [habits, setHabits] = useState<Habit[]>();
   useEffect(() => {
+    if (!enabled) return;
     let live = true;
     const refresh = () => {
       void loadHabits(agentId).then((next) => { if (live) setHabits(next); }).catch(() => {});
@@ -38,7 +43,7 @@ function useHabits(agentId: string): Habit[] | undefined {
       window.removeEventListener("focus", refresh);
       window.clearInterval(timer);
     };
-  }, [agentId]);
+  }, [agentId, enabled]);
   return habits;
 }
 
@@ -66,8 +71,9 @@ const iconButton =
   "grid size-5 shrink-0 place-items-center rounded text-content/40 hover:text-content disabled:opacity-40";
 
 /** What the agent does on its own, on a schedule: run now, pause, remove, or add one. */
-export function AgentHabits({ agentId }: { agentId: string }) {
-  const habits = useHabits(agentId);
+export function AgentHabits({ agentId, habits: provided, onOpen, onCreate }: { agentId: string; habits?: Habit[]; onOpen?: (id: string) => void; onCreate?: () => void }) {
+  const loaded = useHabits(agentId, provided === undefined);
+  const habits = provided ?? loaded;
   useSyncExternalStore(subscribeRunning, () => runningVersion);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string>();
@@ -76,22 +82,33 @@ export function AgentHabits({ agentId }: { agentId: string }) {
       habits: list.flatMap((habit) => habit.id === id ? (edit(habit) ?? []) : habit),
       result: undefined,
     })).then(() => setError(undefined), (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
+  const today = habitsToday((habits ?? []).filter((habit) => habit.enabled), Date.now());
+  const shown = new Set(today.map((item) => item.habit.id));
+  const later = (habits ?? []).filter((habit) => !shown.has(habit.id)).sort((a, b) => Number(b.enabled) - Number(a.enabled) || a.nextRunAt - b.nextRunAt);
+  const groups = [
+    { title: "Up next today", habits: today.filter((item) => item.state !== "done").map((item) => item.habit) },
+    { title: "Done today", habits: today.filter((item) => item.state === "done").map((item) => item.habit) },
+    { title: today.length ? "Later" : "Scheduled", habits: later },
+  ].filter((group) => group.habits.length);
   return (
     <>
       {habits?.length === 0 && !adding ? <p className="text-xs text-content/45">None yet. Ask it to do something regularly, or add one here.</p> : null}
+      {groups.map((group) => <section key={group.title} className="mb-4" aria-label={group.title}>
+      <h3 className="flex items-center gap-2 px-2 pb-2 pt-1 text-[11px] font-medium text-content/40">{group.title}<span className="tabular-nums">{group.habits.length}</span></h3>
       <ul className="flex flex-col gap-px">
-        {habits?.map((habit) => {
+        {group.habits.map((habit) => {
           const running = habitRunningSince(habit.id) != null;
           return (
-            <li key={habit.id} className="group flex items-start gap-2 rounded-md px-1.5 py-1 hover:bg-content/5" title={habit.lastError ?? habit.instructions}>
-              <div className="min-w-0 flex-1">
-                <p className={`truncate text-[13px] ${habit.enabled ? "" : "text-content/50"}`}>{habit.name}</p>
-                <p className={`truncate text-[11px] ${habit.lastOutcome === "failed" ? "text-red-400/80" : "text-content/40"}`}>
+            <li key={habit.id} className="group flex items-center rounded-md hover:bg-content/5" title={habit.lastError ?? habit.instructions}>
+              <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 py-2 text-left" aria-label={`Habit: ${habit.name}`} onClick={() => onOpen?.(habit.id)}>
+                <span aria-hidden className="grid size-7 shrink-0 place-items-center rounded-md bg-content/6 text-content/60"><Clock className="size-3.5" /></span>
+                <span className="flex min-w-0 flex-1 flex-col"><span className={`truncate text-[12px] leading-5 ${habit.enabled ? "text-content/85" : "text-content/45"}`}>{habit.name}</span>
+                <span className={`truncate text-[11px] leading-4 ${habit.lastOutcome === "failed" ? "text-red-400/80" : "text-content/40"}`}>
                   {habitLine(habit)}
                   {habit.enabled && !running ? ` · next ${when.format(habit.nextRunAt)}` : ""}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-0.5 pt-0.5 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+                </span></span>
+              </button>
+              <div className="flex shrink-0 items-center gap-0.5 pr-2 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
                 <button type="button" title="Run now" aria-label={`Run ${habit.name} now`} disabled={running || !!habit.runRequested} className={iconButton}
                   onClick={() => void change(habit.id, (current) => ({ ...current, runRequested: true })).then(checkHabitsNow)}>
                   <Zap className="size-3" strokeWidth={1.75} />
@@ -111,13 +128,13 @@ export function AgentHabits({ agentId }: { agentId: string }) {
             </li>
           );
         })}
-      </ul>
+      </ul></section>)}
       {adding ? (
         <NewHabit onCancel={() => setAdding(false)}
           onAdd={(draft) => addHabit(agentId, draft).then(() => { setAdding(false); setError(undefined); },
             (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)))} />
       ) : (
-        <button type="button" onClick={() => setAdding(true)}
+        <button type="button" onClick={onCreate ?? (() => setAdding(true))}
           className="inline-flex w-fit items-center gap-1.5 rounded-md border border-stroke px-2 py-1.5 text-xs text-content/70 hover:bg-content/8 hover:text-content">
           <Plus className="size-3" strokeWidth={1.75} /> Add habit
         </button>
@@ -135,7 +152,7 @@ const KINDS: { id: ScheduleKind; label: string }[] = [
 ];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-function NewHabit({ onAdd, onCancel }: { onAdd: (draft: { name: string; instructions: string; schedule: HabitSchedule }) => void; onCancel: () => void }) {
+function NewHabit({ onAdd, onCancel, busy = false }: { busy?: boolean; onAdd: (draft: { name: string; instructions: string; schedule: HabitSchedule }) => void; onCancel: () => void }) {
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
   const [schedule, setSchedule] = useState<HabitSchedule>({ scheduleKind: "weekdays", time: "09:00", minute: 0, dayOfWeek: 1 });
@@ -169,9 +186,74 @@ function NewHabit({ onAdd, onCancel }: { onAdd: (draft: { name: string; instruct
       </div>
       <div className="flex justify-end gap-1.5">
         <button type="button" onClick={onCancel} className="rounded-md px-2 py-1 text-xs text-content/60 hover:bg-content/8 hover:text-content">Cancel</button>
-        <button type="button" disabled={!ready} onClick={() => onAdd({ name: name.trim(), instructions: instructions.trim(), schedule })}
-          className="rounded-md border border-stroke px-2 py-1 text-xs text-content/80 hover:bg-content/8 hover:text-content disabled:opacity-40">Add</button>
+        <button type="button" disabled={!ready || busy} onClick={() => onAdd({ name: name.trim(), instructions: instructions.trim(), schedule })}
+          className="rounded-md border border-stroke px-2 py-1 text-xs text-content/80 hover:bg-content/8 hover:text-content disabled:opacity-40">{busy ? "Adding…" : "Add"}</button>
       </div>
     </div>
   );
+}
+
+/** A habit's persisted reports are useful even when its background run is gone. */
+export function AgentHabitDetail({ agentId, habit, loading, onBack, onClose }: {
+  agentId: string; habit?: Habit; loading: boolean; onBack: () => void; onClose: () => void;
+}) {
+  const [error, setError] = useState<string>();
+  useSyncExternalStore(subscribeRunning, () => runningVersion);
+  const change = async (edit: (value: Habit) => Habit | undefined) => {
+    if (!habit) return;
+    try {
+      await updateHabits(agentId, (items) => ({ habits: items.flatMap((item) => item.id === habit.id ? edit(item) ?? [] : item), result: undefined }));
+      setError(undefined);
+    } catch (cause) { setError(String(cause)); }
+  };
+  const running = habit && (habitRunningSince(habit.id) != null || habitStarting(habit));
+  const date = (at: number) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(at);
+  return <section className="flex min-h-0 flex-1 flex-col">
+    <ResourceHeader title={habit?.name ?? "Habit"} backLabel="Back to habits" onBack={onBack} onClose={onClose}>
+      {habit ? <><button type="button" className={RESOURCE_ACTION} title="Run now" aria-label="Run habit now" disabled={!!running} onClick={() => void change((item) => ({ ...item, runRequested: true })).then(checkHabitsNow)}><Zap className="size-3.5" /></button>
+        <button type="button" className={RESOURCE_ACTION} title={habit.enabled ? "Pause" : "Resume"} aria-label={habit.enabled ? "Pause habit" : "Resume habit"} onClick={() => void change((item) => ({ ...item, enabled: !item.enabled, ...(item.enabled ? {} : { nextRunAt: nextHabitRunAt(item.schedule, Date.now()) }) }))}>{habit.enabled ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}</button>
+        <button type="button" className={RESOURCE_ACTION} title="Remove habit" aria-label="Remove habit" onClick={() => void change(() => undefined)}><Trash2 className="size-3.5" /></button></> : null}
+    </ResourceHeader>
+    {!habit ? <p className="p-4 text-xs text-content/50">{loading ? "Loading habit…" : "This habit is no longer available."}</p> : <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+      <p className="text-xs text-content/50">{habit.enabled ? habitScheduleLabel(habit.schedule) : "Paused"}{habit.enabled ? ` · next ${date(habit.nextRunAt)}` : ""}</p>
+      <p className="mt-3 whitespace-pre-wrap text-[13px] leading-relaxed">{habit.instructions}</p>
+      <p className="mt-3 text-xs text-content/45">Runs while Loci is open.</p>
+      {error ? <p role="alert" className="mb-3 text-xs text-red-400">{error}</p> : null}
+      <h3 className="mt-5 border-t border-stroke pb-2 pt-4 text-[11px] font-medium text-content/45">Recent runs</h3>
+      {!habit.runs?.length ? <p className="mt-3 text-xs text-content/45">No runs yet.</p> : <ul className="-mx-2 flex flex-col gap-px">{habit.runs.map((run, index) => <HabitRunRow key={`${run.at}:${index}`} run={run} />)}</ul>}
+    </div>}
+  </section>;
+}
+
+
+function HabitRunRow({ run }: { run: HabitRun }) {
+  const [open, setOpen] = useState(false);
+  const detail = run.report ?? run.error;
+  const label = run.outcome === "posted" ? "Messaged you" : run.outcome === "quiet" ? "Nothing to report" : "Couldn't finish";
+  const at = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(run.at);
+  return <li data-habit-run className={`rounded-md ${open ? "bg-content/5" : ""}`}>
+    <button type="button" disabled={!detail} aria-expanded={detail ? open : undefined} onClick={() => setOpen((value) => !value)} className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-[12px] enabled:hover:bg-content/5">
+      <span aria-hidden className={`size-2 shrink-0 rounded-full ${run.outcome === "failed" ? "bg-red-400" : run.outcome === "posted" ? "bg-accent" : "bg-content/25"}`} />
+      <span className="min-w-0 flex-1 truncate text-content/85">{label}</span><span className="shrink-0 text-[11px] tabular-nums text-content/40">{at} · {Math.max(1, Math.round(run.durationMs / 1000))}s</span>
+    </button>
+    {open ? <div className="pb-3 pl-[26px] pr-3 text-xs leading-5 text-content/75">{run.report ? <AgentMarkdown text={run.report} /> : <p className="whitespace-pre-wrap text-red-400">{run.error}</p>}</div> : null}
+  </li>;
+}
+
+export function AgentNewHabit({ agentId, onBack, onClose }: { agentId: string; onBack: () => void; onClose: () => void }) {
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  return <section className="flex min-h-0 flex-1 flex-col">
+    <ResourceHeader title="New habit" backLabel="Back to habits" onBack={onBack} onClose={onClose} />
+    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+      <p className="mb-4 text-xs leading-5 text-content/45">A recurring task for this agent. It runs while Loci is open.</p>
+      <NewHabit busy={busy} onCancel={onBack} onAdd={(draft) => {
+        setBusy(true); setError(undefined);
+        void addHabit(agentId, draft).then(() => { if (mounted.current) onBack(); }, (cause) => { if (mounted.current) setError(String(cause)); }).finally(() => { if (mounted.current) setBusy(false); });
+      }} />
+      {error ? <p role="alert" className="mt-3 text-xs text-red-400">{error}</p> : null}
+    </div>
+  </section>;
 }

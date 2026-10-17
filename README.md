@@ -30,7 +30,7 @@ Loci is a local-first desktop shell for agent CLIs, built with Tauri 2, Rust, Re
 - **Notes and canvases as first-class objects.** Markdown notes you can `@`-mention in a prompt, and Excalidraw canvases. Replies can link to them with `loci://note/<id>` and `loci://canvas/<id>`, which open inside the current window.
 - **Agents that can draw.** Claude Code and Codex sessions get a built-in `loci_excalidraw` MCP server: the official Excalidraw MCP server, unmodified, writing into Loci's own canvas store. Antigravity and Pi sessions reach the same tools through Loci's own CLI, with nothing to install or configure. Your hand edits are kept and the panel updates live. See [docs/canvas-mcp.md](docs/canvas-mcp.md).
 - **`/operator`.** Let an agent drive Loci itself: read models, start and message sessions, arrange panes, organise folders, read and write notes and canvases. It uses an authenticated loopback channel that is valid only during the turn you enabled it for.
-- **Resident agents.** Long-lived agents that belong to no project: one conversation you keep coming back to, standing instructions, a memory, habits that run on a schedule, and sessions they start and follow in your projects. They ask with choices to click, and reply with cards. See [Agents](#agents).
+- **Resident agents.** Long-lived agents that belong to no project: one conversation you keep coming back to, standing instructions, a memory, habits that run on a schedule, and courses, documents and notes beside the chat. They ask with choices to click, and reply with cards. See [Agents](#agents).
 - **Source questions and PDF notes.** Attach excerpts from files, PDFs, web pages or conversations to a question. Select PDF passages to save highlights, notes and links back to discussions; web sources accept a URL and a pasted excerpt. See [docs/learning.md](docs/learning.md).
 - **Themes, wallpapers and fonts.** Settings → Appearance offers 22 Omarchy themes, matching code highlighting and 72 wallpapers, alongside custom backgrounds and system-installed fonts. Existing background effects, visibility settings and custom accent colors still apply. See [docs/themes.md](docs/themes.md).
 - **Settings in English or Simplified Chinese.** Settings can follow the system language or use your choice in General → Settings language. The workspace stays in English.
@@ -99,16 +99,18 @@ Commands work at the start of a prompt.
 
 ## Agents
 
-Press **+** beside *Agents* on the rail. **New agent** opens a blank conversation using your default model. A template supplies a written Soul that defines how the agent works. Read and edit it under **Details → Soul**, and change its name, role, model and projects in Details. You can also ask the agent to revise its Soul through chat. Rewrite or reset built-in templates under **Settings → Your agents → Agent templates**; template changes apply to agents created afterwards. Loci supplies identity, projects, memory and tool availability as context. The user and Soul define the agent's behavior.
+Press **+** beside *Agents* on the rail to open a blank conversation using your default model. Give it a purpose or a first task in chat. Read and edit its standing instructions under **Settings → Soul**, and change its name, role, model and projects in Settings. You can also ask the agent to revise its Soul through chat. Loci supplies identity, projects, memory and tool availability as context. The user and Soul define the agent's behavior.
 
 - **It stays.** An agent has one conversation that never ends, a soul (its standing instructions) and memory it can update through the app CLI. Both are files in Loci's data folder, outside your repositories, and they survive a change of model.
-- **It works in your projects.** Give it projects under Details. It can start sessions there, follow them, and report back when they finish.
+- **It works in your projects.** Give it projects under Settings. It can work with their files while you discuss the work in the same agent conversation.
 - **Habits.** Things it does on a schedule while Loci is open, messaging you only when something is worth saying.
 - **Cards.** A reply can carry more than text: a question with choices to click, a document that opens beside the chat, a checklist you tick, a mind map that folds, a Mermaid diagram, or a link to a canvas. Checklist actions send a message.
-- **Library.** Documents an agent writes are kept under Details → Library, grouped by subject, along with the canvases it draws, which need no project. Writing one again revises it, and any of them can be saved to your notes.
-- **A tutor, for example.** Pick the Tutor template and give it a subject to learn. It starts with a lesson or exercise, learns your preferences through use, keeps your progress in memory, and can write a roadmap when you want to continue.
+- **Overview.** Courses, documents, notes, habits and canvases live beside the chat. Open a course, document or editable note in the panel, return to its list, or expand it into a workspace pane. Notes saved here stay associated with the agent and are also available in Notes. Habits show recent reports and failures.
+- **A tutor, for example.** Ask an agent to teach you a subject and keep your progress in memory. You can set its teaching approach in Soul and ask it to write a roadmap when you want to continue.
 
 What an agent does is its prompt at work, so how well it goes depends on the model behind it.
+
+On macOS, agent and document titles share the window's top row. Drag empty space in that row to move the window; use a pane's grip to rearrange it.
 
 ## Data and privacy
 

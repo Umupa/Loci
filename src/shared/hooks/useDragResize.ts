@@ -126,6 +126,7 @@ export function useDragResize({
   return {
     width,
     dragging,
+    setWidth: commit,
     setPaneRef,
     onPointerDown,
     onDoubleClick,

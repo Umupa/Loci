@@ -753,7 +753,7 @@ describe("OMP live command inventories", () => {
 });
 
 describe("OMP workflow dialogs", () => {
-  it("returns the actual selected option with its original text", async () => {
+  it("keeps workflow selections single-choice and returns the original selected text", async () => {
     const running = await started();
     frame("omp-test", {
       type: "extension_ui_request",
@@ -763,6 +763,11 @@ describe("OMP workflow dialogs", () => {
       options: ["fast", "\u001b[32mcareful\u001b[0m"],
     });
     const question = events.find((e) => e.type === "question.asked");
+    expect(question?.questions[0]).toMatchObject({
+      multiSelect: false,
+      allowMultiSelect: false,
+      allowCustom: false,
+    });
     expect(question?.questions[0]?.options.map((o) => o.label)).toEqual([
       "fast",
       "careful",

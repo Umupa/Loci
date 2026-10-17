@@ -1,5 +1,6 @@
 import { useUiText } from "../i18n/SettingsLanguage";
 import { NativePopupHost } from "./NativePopupHost";
+import { InDialog } from "./DialogContext";
 import { X } from "./icons";
 import { useContext, useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -63,7 +64,8 @@ export function ModalPanel({
         event.key !== "Escape" ||
         event.defaultPrevented ||
         (event.target instanceof Element &&
-          event.target.closest("[data-dialog-popover]"))
+          event.target.closest("[data-dialog-popover]")) ||
+        document.querySelector("[data-dialog-popover]")
       )
         return;
       event.preventDefault();
@@ -132,7 +134,7 @@ export function ModalPanel({
             ref={lockOverscroll}
             className="min-h-0 flex-1 overflow-y-auto overscroll-none"
           >
-            {children}
+            <InDialog.Provider value>{children}</InDialog.Provider>
           </div>
         </div>
       </div>

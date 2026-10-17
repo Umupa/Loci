@@ -357,6 +357,56 @@ describe("grok protocol", () => {
     });
   });
 
+  it("preserves multiple answers and custom text when the UI enabled multi-select", () => {
+    const questions = askQuestionsFromAcp({
+      questions: [
+        {
+          question: "Which colour?",
+          multiSelect: false,
+          options: [{ label: "Red" }, { label: "Blue" }],
+        },
+      ],
+    });
+    expect(
+      askQuestionResponse(
+        {
+          kind: "answered",
+          answers: { "Which colour?": ["Red", "Blue"] },
+          custom: { "Which colour?": "  Green  " },
+        },
+        questions,
+      ),
+    ).toEqual({
+      outcome: "accepted",
+      answers: { "Which colour?": "Red, Blue, Green" },
+    });
+  });
+
+  it("keeps the array response for provider-declared multi-select questions", () => {
+    const questions = askQuestionsFromAcp({
+      questions: [
+        {
+          question: "Which colour?",
+          multiSelect: true,
+          options: [{ label: "Red" }, { label: "Blue" }],
+        },
+      ],
+    });
+    expect(
+      askQuestionResponse(
+        {
+          kind: "answered",
+          answers: { "Which colour?": ["Red", "Blue"] },
+          custom: { "Which colour?": "Green" },
+        },
+        questions,
+      ),
+    ).toEqual({
+      outcome: "accepted",
+      answers: { "Which colour?": ["Red", "Blue", "Green"] },
+    });
+  });
+
   it("extracts plan text from exit_plan_mode", () => {
     expect(planFromExitPlan({ planContent: "Ship it" })).toBe("Ship it");
   });

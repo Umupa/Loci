@@ -717,6 +717,28 @@ describe("helpers", () => {
     });
   });
 
+  it("preserves multiple answers and custom text for a single-select AskUserQuestion", () => {
+    const input = {
+      questions: [
+        {
+          question: "Which file?",
+          multiSelect: false,
+          options: [{ label: "a.ts" }, { label: "b.ts" }],
+        },
+      ],
+    };
+    expect(
+      askUserQuestionAllowInput(input, {
+        kind: "answered",
+        answers: { "Which file?": ["a.ts", "b.ts"] },
+        custom: { "Which file?": "  c.ts  " },
+      }),
+    ).toEqual({
+      questions: input.questions,
+      answers: { "Which file?": "a.ts, b.ts, c.ts" },
+    });
+  });
+
   it("drops request lifecycle status pings", () => {
     expect(
       statusTextFromSystem({

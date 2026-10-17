@@ -2,13 +2,15 @@
 import { act, createElement, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { copyMessage } from "../../../platform/tauri/clipboard";
 import { invoke } from "@tauri-apps/api/core";
-import { NOTES_CHANGED_EVENT, upsertNote } from "../../notes";
+import { upsertNote } from "../../notes";
 import { saveAgentDocuments, type StoredDocument } from "../model/agentDocuments";
 import { AgentDocumentReader } from "./AgentDocumentReader";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-vi.mock("../../notes", () => ({ NOTES_CHANGED_EVENT: "notes-changed", upsertNote: vi.fn() }));
+vi.mock("../../../platform/tauri/clipboard", () => ({ copyMessage: vi.fn(async () => undefined) }));
+vi.mock("../../notes", () => ({ upsertNote: vi.fn() }));
 vi.mock("../../sessions/ui/AgentMarkdown", () => ({ AgentMarkdown: ({ text }: { text: string }) => createElement("article", null, text) }));
 
 const reading = { id: "network", title: "Network strategy", subject: "Sandbox", body: "Original strategy" };
@@ -49,7 +51,7 @@ afterEach(() => {
 
 const render = async () => { await act(async () => root.render(createElement(AgentDocumentReader, props))); };
 const button = (label: string) => container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
-const pointerDown = (element: Element) => act(() => element.dispatchEvent(new Event("pointerdown", { bubbles: true })));
+const pointerDown = (element: Element) => act(() => element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 })));
 
 it("focuses the document and starts a pane drag from its title bar", async () => {
   await render();
@@ -74,19 +76,12 @@ it("keeps title bar actions out of pane dragging", async () => {
 });
 
 it("saves a standalone document as a note without looking up an agent library", async () => {
-  const changed = vi.fn();
-  window.addEventListener(NOTES_CHANGED_EVENT, changed);
-  try {
-    await render();
-    await act(async () => button("Save as a note").click());
-    expect(upsertNote).toHaveBeenCalledWith({ id: expect.any(String), title: reading.title, body: reading.body, tags: [reading.subject] });
-    expect(changed).toHaveBeenCalledOnce();
-    expect(button("Save as a note").disabled).toBe(true);
-    expect(invoke).not.toHaveBeenCalled();
-    expect(button("Remove from the library")).toBeNull();
-  } finally {
-    window.removeEventListener(NOTES_CHANGED_EVENT, changed);
-  }
+  await render();
+  await act(async () => button("Save as a note").click());
+  expect(upsertNote).toHaveBeenCalledWith({ id: expect.any(String), title: reading.title, body: reading.body, tags: [reading.subject] });
+  expect(button("Save as a note").disabled).toBe(true);
+  expect(invoke).not.toHaveBeenCalled();
+  expect(button("Remove from the library")).toBeNull();
 });
 
 it("follows revisions from its own library and saves the revised document", async () => {
@@ -99,7 +94,7 @@ it("follows revisions from its own library and saves the revised document", asyn
   expect(container.querySelector("article")?.textContent).toBe("Revised strategy");
   expect(container.querySelector("h2")?.textContent).toBe("Revised network");
   await act(async () => button("Save as a note").click());
-  expect(upsertNote).toHaveBeenCalledWith(expect.objectContaining({ title: "Revised network", body: "Revised strategy" }));
+  expect(upsertNote).toHaveBeenCalledWith(expect.objectContaining({ title: "Revised network", body: "Revised strategy", agentId: "agent-a" }));
   await act(async () => button("Remove from the library").click());
   expect(invoke).toHaveBeenCalledWith("agent_documents_delete", { agent: "agent-a", id: "network" });
   expect(library.has("agent-a:network")).toBe(false);
@@ -114,4 +109,30 @@ it("resets its saved state when switched to another document", async () => {
   await render();
   expect(container.querySelector("article")?.textContent).toBe("Incoming traffic");
   expect(button("Save as a note").disabled).toBe(false);
+});
+
+
+it("keeps overview navigation compact and exposes save-as-note through document actions", async () => {
+  library.set("agent-a:network", { ...reading, createdAt: 1, updatedAt: 1 });
+  props = { ...props, agentId: "agent-a", onBack: vi.fn(), onExpand: vi.fn() };
+  await render();
+  expect(container.querySelector("[data-resource-header]")).not.toBeNull();
+  expect(button("Save as a note")).toBeNull();
+  await act(async () => button("Document actions").click());
+  const save = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((item) => item.textContent === "Save as a note")!;
+  expect(save).toBeDefined();
+  await act(async () => save.click());
+  expect(upsertNote).toHaveBeenCalledWith(expect.objectContaining({ agentId: "agent-a", body: reading.body }));
+  expect(props.onBack).not.toHaveBeenCalled();
+});
+
+
+it("keeps the reader visible when copying fails", async () => {
+  library.set("agent-a:network", { ...reading, createdAt: 1, updatedAt: 1 });
+  props = { ...props, agentId: "agent-a", onBack: vi.fn() };
+  vi.mocked(copyMessage).mockRejectedValueOnce(new Error("Clipboard unavailable"));
+  await render();
+  await act(async () => button("Copy document").click());
+  expect(container.querySelector("article")?.textContent).toBe(reading.body);
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain("Clipboard unavailable");
 });

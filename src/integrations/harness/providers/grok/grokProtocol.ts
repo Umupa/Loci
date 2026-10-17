@@ -71,9 +71,10 @@ export function askQuestionResponse(
   for (const question of questions) {
     const labels = selectedAnswerLabels(question, reply);
     if (labels.length === 0) continue;
+    // Keep the provider's response shape while preserving UI-enabled multiple answers.
     answers[question.prompt] = question.multiSelect
       ? labels
-      : (labels[0] ?? "");
+      : labels.join(", ");
   }
   return { outcome: "accepted", answers };
 }

@@ -110,7 +110,7 @@ function lesson(value: unknown, label: string): CourseLesson {
   if (document !== undefined) {
     if (!/^[\p{L}\p{N}_-]{1,80}$/u.test(document)) throw new Error(`${label} document must be a document id.`);
     if (raw.pages !== undefined) throw new Error(`${label}: pages belong to a file.`);
-    const section = optionalString(raw.section, `${label} section`);
+    const section = typeof raw.section === "string" ? raw.section.trim() || undefined : optionalString(raw.section, `${label} section`);
     return { ...base, document, ...(section ? { section } : {}) };
   }
   if (raw.section !== undefined) throw new Error(`${label}: section belongs to a document.`);
@@ -240,7 +240,7 @@ export async function deleteCourse(agentId: string, id?: string): Promise<void> 
 }
 
 export const OPEN_COURSE_EVENT = "loci:open-course";
-export type OpenCourseDetail = { courseId: string; agentId: string; title: string; sourceSessionId?: string };
+export type OpenCourseDetail = { courseId: string; agentId: string; title: string; sourceSessionId?: string; itemId?: string; openRequest?: number };
 export function openCourse(detail: OpenCourseDetail) {
   window.dispatchEvent(new CustomEvent<OpenCourseDetail>(OPEN_COURSE_EVENT, { detail }));
 }

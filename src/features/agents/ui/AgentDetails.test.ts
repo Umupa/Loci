@@ -89,17 +89,51 @@ it("uses the saved beside setting and changes the resident agent's model options
   expect(props.onModelChange).not.toHaveBeenCalled();
 });
 
-it("moves model options between the menu and beside the picker when settings change", async () => {
+it("keeps model options in labelled settings rows regardless of the composer preference", async () => {
   await render();
-  const modelMenu = () => container.querySelector('[role="menu"][aria-label="Model and settings"]');
-  const menuEffort = () => [...(modelMenu()?.querySelectorAll("button") ?? [])].find((item) => item.textContent?.startsWith("Effort"));
-  expect(button("Effort: High")).toBeNull();
-  act(() => container.querySelector<HTMLButtonElement>('button[aria-label^="Codex Test Model"]')!.click());
-  expect(menuEffort()).toBeDefined();
+  expect(container.querySelector('[aria-orientation="vertical"]')).not.toBeNull();
+  expect(button("Effort: High")).not.toBeNull();
+  expect(button("Effort: High")?.closest(".agent-setting-row")?.textContent).toContain("Effort");
   act(() => saveModelControls("beside"));
   expect(button("Effort: High")).not.toBeNull();
-  expect(modelMenu()).toBeNull();
   act(() => saveModelControls("menu"));
-  expect(button("Effort: High")).toBeNull();
-  expect(menuEffort()).toBeDefined();
+  expect(button("Effort: High")).not.toBeNull();
+  expect(container.querySelector('[role="menu"][aria-label="Model and settings"]')).toBeNull();
+});
+
+async function editMemoryFixture(replaced: boolean) {
+  let memory = "# Memory\n- 2026-10-13 · Prefers concise answers";
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === "agent_load") return { id: "agent", soul: "# Soul", soulHash: "s", memory, memoryHash: "m", topics: [] };
+    if (command === "agent_read") return { text: memory, hash: "current" };
+    if (command === "agent_save") { memory = (args as { text: string }).text; return "saved"; }
+    return original(command, args);
+  });
+  await render();
+  await act(async () => [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((item) => item.textContent === "Memory")!.click());
+  await act(async () => button("Edit: Prefers concise answers")!.click());
+  act(() => {
+    const field = container.querySelector<HTMLTextAreaElement>('[aria-label="Edit memory"]')!;
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field, "Prefers examples before explanations");
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  memory = replaced ? "# Memory\n- 2026-10-13 · This fact was replaced" : "# Memory\n- 2026-10-13 · Uses Linux\n- 2026-10-13 · Prefers concise answers";
+  await act(async () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === "Save")!.click());
+  return memory;
+}
+
+it("edits the same memory fact after another writer inserts a row", async () => {
+  const memory = await editMemoryFixture(false);
+  expect(memory).toContain("Uses Linux");
+  expect(memory).toContain("Prefers examples before explanations");
+  expect(memory).not.toContain("Prefers concise answers");
+  expect(container.querySelector('[aria-label="Edit memory"]')).toBeNull();
+});
+
+it("retains the memory draft when another writer has replaced the original fact", async () => {
+  const memory = await editMemoryFixture(true);
+  expect(memory).toContain("This fact was replaced");
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain("This memory changed");
+  expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Edit memory"]')?.value).toBe("Prefers examples before explanations");
 });
