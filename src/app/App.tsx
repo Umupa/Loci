@@ -1,4 +1,6 @@
 import { AgentOverview } from "../features/agents/ui/AgentOverview";
+import { AgentChatColumn, AgentChatToggle } from "../features/agents/ui/AgentChatColumn";
+import { setAgentReading } from "../features/agents/model/agentReading";
 import { useAgentOverview } from "./hooks/useAgentOverview";
 import { getNote } from "../features/notes";
 import { open as pickFile } from "@tauri-apps/plugin-dialog";
@@ -698,6 +700,13 @@ function Workspace(boot: BootWorkspace) {
       onLoadEarlier={agents.hasEarlier(session.id) ? () => void agents.loadEarlier(session.id) : undefined} />;
   };
 
+  // The left edge of the agent workspace makes room for the window's buttons
+  // when the rail is collapsed; whichever column is there carries it.
+  const agentLeading = IS_MAC && !projectRailOpen ? <>
+    <div className={compactRailActive ? "w-7 shrink-0" : "w-[78px] shrink-0"} />
+    <OverlayNav onBack={closeSurface} onToggleSidebar={toggleProjectRail} />
+  </> : undefined;
+
   return <>
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
       {compactTitleBar ? workspaceTitleBar : null}
@@ -756,13 +765,20 @@ function Workspace(boot: BootWorkspace) {
               <WindowControls />
             </header>}
             <div className="agent-workspace-body">
-              <div className="agent-workspace-panes">
+              {focusedAgent ? <AgentOverview leading={agentLeading && agentOverview.stateFor(focusedAgent.id).open ? <div data-window-pane-nav className="flex h-10 shrink-0 items-center" data-tauri-drag-region="deep">{agentLeading}</div> : undefined} key={focusedAgent.id} agent={focusedAgent} state={agentOverview.stateFor(focusedAgent.id)} recents={workspace.recents}
+                onTabChange={(tab) => agentOverview.selectTab(focusedAgent.id, tab)} onOpen={(page) => agentOverview.show(focusedAgent.id, page)}
+                onBack={() => agentOverview.back(focusedAgent.id)} onClose={() => agentOverview.close(focusedAgent.id)}
+                onBeforeLeave={overviewGuard} onReading={(reading) => setAgentReading(focusedAgent.id, reading)}
+                chatToggle={<AgentChatToggle agent={focusedAgent} open={agentOverview.stateFor(focusedAgent.id).chat} onToggle={() => agentOverview.toggleChat(focusedAgent.id)} />}
+                onExpandCourse={agentWorkspace.showCourse} onExpandDocument={(document) => agentWorkspace.showDocument(document, focusedAgent.id)}
+                onExpandNote={agentWorkspace.showNote} onOpenCanvas={agentWorkspace.showCanvas} /> : null}
+              <AgentChatColumn key={focusedAgent?.id} width={focusedAgent ? agentOverview.stateFor(focusedAgent.id).width : 420}
+                onResize={(width) => { if (focusedAgent) agentOverview.resize(focusedAgent.id, width); }}
+                alone={!focusedAgent || !agentOverview.stateFor(focusedAgent.id).open || leafIds(agentWorkspace.current.layout).length > 1}
+                hidden={!!focusedAgent && !agentOverview.stateFor(focusedAgent.id).chat && agentOverview.stateFor(focusedAgent.id).open}>
               <PaneTree {...sessionPaneProps} layout={agentWorkspace.current.layout} sessions={sessions} visible focusedId={agentWorkspace.current.focusedId} composerFocused
                 windowHeader={IS_MAC ? {
-                  leading: projectRailOpen ? undefined : <>
-                    <div className={compactRailActive ? "w-7 shrink-0" : "w-[78px] shrink-0"} />
-                    <OverlayNav onBack={closeSurface} onToggleSidebar={toggleProjectRail} />
-                  </>,
+                  leading: focusedAgent && agentOverview.stateFor(focusedAgent.id).open ? undefined : agentLeading,
                 } : undefined}
                 composerFocusToken={agentWorkspace.composerFocusToken} onFocus={agentWorkspace.focusPane} onClose={agentWorkspace.closePane}
                 onRatio={agentWorkspace.setRatio} onMovePane={agentWorkspace.movePane} transcriptPool={transcriptPool}
@@ -771,21 +787,14 @@ function Workspace(boot: BootWorkspace) {
                 canvasChatIcon={focusedAgent ? <AgentAvatar name={focusedAgent.avatar} color={focusedAgent.color} className="size-4 shrink-0" /> : undefined}
                 onFilePaneFocus={agentWorkspace.focusPane}
                 onCwdChange={() => undefined} onOpenFile={openProjectFile} />
-              </div>
-              {focusedAgent ? <AgentOverview key={focusedAgent.id} agent={focusedAgent} state={agentOverview.stateFor(focusedAgent.id)} recents={workspace.recents}
-                onTabChange={(tab) => agentOverview.selectTab(focusedAgent.id, tab)} onOpen={(page) => agentOverview.show(focusedAgent.id, page)}
-                onBack={() => agentOverview.back(focusedAgent.id)} onClose={() => agentOverview.close(focusedAgent.id)}
-                onResize={(width) => agentOverview.resize(focusedAgent.id, width)} onBeforeLeave={overviewGuard}
-                onExpandCourse={agentWorkspace.showCourse} onExpandDocument={(document) => agentWorkspace.showDocument(document, focusedAgent.id)}
-                onExpandNote={agentWorkspace.showNote} onOpenCanvas={agentWorkspace.showCanvas} /> : null}
+              </AgentChatColumn>
             </div>
           </section> : null}
           {surface === "search" ? <SearchView open cwd={workspace.projectCwd} recents={workspace.recents} history={workspace.history} sessions={sessions}
             focusToken={searchFocusToken} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
             onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}
           {surface === "notes" ? <NotesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} cwd={workspace.projectCwd} openRequest={noteOpenRequest} recents={workspace.recents} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
-          {surface === "courses" ? <CoursesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
-            onOpenAgent={(id) => void agents.open(id)} /> : null}
+          {surface === "courses" ? <CoursesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
           {surface === "feeds" ? <FeedsView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
             onNoteSaved={(id) => setSavedToast({ type: "note", id })} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest}

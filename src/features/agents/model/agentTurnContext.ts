@@ -9,6 +9,7 @@ import {
   recordAgentContext,
   recordAppContext,
 } from "./agentFiles";
+import { readingContext } from "./agentReading";
 import {
   loadAgentRotation,
   planRotation,
@@ -91,6 +92,9 @@ export async function prepareAppTurn(
   }
   if (files && look && plan && (plan.soul || plan.memory))
     context.push(agentContext(look, files, plan));
+  // What is open beside the chat changes from turn to turn, so it goes every time.
+  const reading = agent ? readingContext(agent.id) : undefined;
+  if (reading) context.push(reading);
   return {
     context,
     introduces: !!plan?.soul,

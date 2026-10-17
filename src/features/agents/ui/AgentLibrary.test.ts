@@ -158,7 +158,7 @@ it("persists each agent's tab and width without persisting reader contents", asy
   await act(async () => control.resize(agent.id, 520));
   await click('[data-resource-kind="document"]');
   const stored = JSON.parse(localStorage.getItem("loci:agent-overviews.v1")!);
-  expect(stored[agent.id]).toEqual({ open: true, tab: "documents", width: 520 });
+  expect(stored[agent.id]).toEqual({ open: true, tab: "documents", width: 520, chat: true });
   expect(JSON.stringify(stored)).not.toContain("Original source text");
   await render(other);
   expect(container.querySelector('[data-tab="courses"]')?.getAttribute("aria-selected")).toBe("true");

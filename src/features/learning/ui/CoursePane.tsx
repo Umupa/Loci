@@ -29,6 +29,8 @@ type Props = {
   actions?: ReactNode;
   /** After a discussion draft is queued, show the conversation it went to. */
   onDiscussed?: () => void;
+  /** The lesson on screen, so the conversation beside it knows what is being read. */
+  onLessonChange?: (lesson: { id: string; title: string } | null) => void;
 };
 type SyncFailure = { itemId: string; status: LearningStatus; message: string };
 /** Fired on `window` when a lesson's status changes in any pane. */
@@ -42,7 +44,7 @@ const SHORT_LESSON_DWELL_MS = 8000;
 /** What a status is called where the work is reading. */
 const READING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Reading", mastered: "Read" };
 
-export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart, actions, onDiscussed, itemId, openRequest, onBack, onExpand }: Props) {
+export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart, actions, onDiscussed, onLessonChange, itemId, openRequest, onBack, onExpand }: Props) {
   const scope = JSON.stringify([agentId, courseId]);
   const [loaded, setLoaded] = useState<{ scope: string; course: CourseWithProgress | null; error: string | null }>({ scope, course: null, error: null });
   const [reload, setReload] = useState(0);
@@ -246,6 +248,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, activeStatus, reading]);
+  const activeTitle = items[currentIndex]?.title;
+  useEffect(() => { onLessonChange?.(activeId && activeTitle ? { id: activeId, title: activeTitle } : null); }, [activeId, activeTitle]); // eslint-disable-line react-hooks/exhaustive-deps
   const iconButton = onBack ? RESOURCE_ACTION : "course-pane__close";
   const controls = course ? <>
     <button type="button" data-no-drag className={iconButton} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-3.5" /><span className="sr-only">Previous</span></button>

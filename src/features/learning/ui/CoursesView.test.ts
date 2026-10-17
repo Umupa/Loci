@@ -32,7 +32,7 @@ afterEach(() => { act(() => root.unmount()); container.remove(); vi.unstubAllGlo
 it("retains the latest course list when an earlier refresh returns after a course revision", async () => {
   const earlier = deferred<CourseSummary[]>(), latest = deferred<CourseSummary[]>();
   vi.mocked(invoke).mockReturnValueOnce(earlier.promise).mockReturnValueOnce(latest.promise);
-  await act(async () => root.render(createElement(CoursesView, { onClose: vi.fn(), onOpenAgent: vi.fn() })));
+  await act(async () => root.render(createElement(CoursesView, { onClose: vi.fn() })));
   act(() => window.dispatchEvent(new CustomEvent(COURSES_CHANGED_EVENT, { detail: { agentId: "owner", courseId: "domain" } })));
   await act(async () => latest.resolve([summary("Current course")]));
   expect(container.textContent).toContain("Current course");

@@ -1,8 +1,8 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { AgentOverviewPage, AgentOverviewState, AgentOverviewTab } from "../../../app/hooks/useAgentOverview";
-import { useDragResize } from "../../../shared/hooks/useDragResize";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import { Clock, File, Mortarboard, Palette, PanelLeft, Plus, StickyNote } from "../../../shared/ui/icons";
+import { ResourceHeaderExtra, ResourceHeaderLeading } from "../../../shared/ui/ResourceHeader";
 import type { OpenCourseDetail } from "../../learning/model/course";
 import { CoursePane } from "../../learning/ui/CoursePane";
 import { createNote, notePreview } from "../../notes";
@@ -10,6 +10,7 @@ import { NotePane } from "../../notes/ui/NotePane";
 import type { RecentProject } from "../../projects/model/recents";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { agentLook, type Agent } from "../model/agent";
+import type { AgentReading } from "../model/agentReading";
 import { AgentDocumentReader } from "./AgentDocumentReader";
 import { AgentHabitDetail, AgentHabits, AgentNewHabit } from "./AgentHabits";
 import { HABITS_MAX } from "../model/agentHabits";
@@ -41,7 +42,12 @@ type Props = {
   onOpen: (page: AgentOverviewPage) => void;
   onBack: () => void;
   onClose: () => void;
-  onResize: (width: number) => void;
+  /** Shows or hides the conversation column; rendered in every header here. */
+  chatToggle?: ReactNode;
+  /** Ahead of every header, when the overview is the window's left edge. */
+  leading?: ReactNode;
+  /** The lesson or page being read, for the conversation to know about. */
+  onReading?: (reading: AgentReading | undefined) => void;
   onExpandCourse: (course: OpenCourseDetail) => void;
   onExpandDocument: (document: AgentDocument) => void;
   onExpandNote: (id: string) => void;
@@ -50,7 +56,7 @@ type Props = {
 };
 
 /** A compact index of one agent's work, with readers on top of the same list. */
-export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBack, onClose, onResize, onExpandCourse, onExpandDocument, onExpandNote, onOpenCanvas, onBeforeLeave }: Props) {
+export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBack, onClose, chatToggle, leading, onReading, onExpandCourse, onExpandDocument, onExpandNote, onOpenCanvas, onBeforeLeave }: Props) {
   const { data, errors, reload } = useAgentResources(agent.id);
   const overview = useRef<HTMLElement | null>(null);
   const scroll = useRef<HTMLDivElement>(null);
@@ -66,14 +72,11 @@ export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBa
     onBeforeLeave?.(agent.id, next);
   }, [agent.id, onBeforeLeave]);
   const leave = async (next: () => void) => { if (!save.current || await save.current()) next(); };
-  const resize = useDragResize({
-    min: 320, max: () => Math.max(320, (overview.current?.parentElement?.clientWidth ?? window.innerWidth) - 360),
-    direction: "left", defaultWidth: 400, initial: state.width, onCommit: onResize,
-  });
-  const setOverviewRef = useCallback((element: HTMLElement | null) => {
-    overview.current = element;
-    resize.setPaneRef(element);
-  }, [resize.setPaneRef]);
+  const [lesson, setLesson] = useState<{ id: string; title: string } | null>(null);
+  const reading = readingOf(state.open ? state.page : undefined, lesson);
+  const readingKey = JSON.stringify(reading ?? null);
+  useEffect(() => { onReading?.(reading); }, [readingKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => onReading?.(undefined), []); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     if (scroll.current) scroll.current.scrollTop = positions.current[state.tab] ?? 0;
   }, [state.tab, state.page, state.open]);
@@ -97,7 +100,7 @@ export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBa
   let reader: ReactNode;
   if (page?.kind === "course") {
     reader = <CoursePane key={`${agent.id}/${page.course.courseId}`} {...page.course} sourceSessionId={agent.sessionId}
-      focused onFocus={() => {}} onClose={() => void leave(onClose)} onBack={onBack}
+      focused onFocus={() => {}} onClose={() => void leave(onClose)} onBack={onBack} onLessonChange={setLesson}
       onExpand={(itemId) => expand(() => onExpandCourse({ ...page.course, itemId, sourceSessionId: agent.sessionId }))} />;
   } else if (page?.kind === "document") {
     reader = <AgentDocumentReader key={`${agent.id}/${page.document.id}`} agentId={agent.id} document={page.document}
@@ -114,21 +117,17 @@ export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBa
       loading={data.habits === undefined} onBack={onBack} onClose={onClose} />;
   }
   return <>
-    {state.open ? <button type="button" className="agent-overview-backdrop" aria-label="Close overview overlay" onClick={() => void leave(onClose)} /> : null}
-    <aside ref={setOverviewRef} hidden={!state.open} aria-label={`${agentLook(agent).name} overview`} className="agent-overview" data-agent-overview={agent.id}
+    <aside ref={overview} hidden={!state.open} aria-label={`${agentLook(agent).name} overview`} className="agent-overview" data-agent-overview={agent.id}
       onKeyDown={(event) => {
         if (event.key !== "Escape" || event.defaultPrevented) return;
         event.preventDefault(); event.stopPropagation();
         void leave(state.page ? onBack : onClose);
       }}>
-      <div role="separator" aria-label="Resize overview" aria-orientation="vertical" tabIndex={0} className="agent-overview-resize" onPointerDown={resize.onPointerDown}
-        onKeyDown={(event) => {
-          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-          event.preventDefault();
-          resize.setWidth(resize.width + (event.key === "ArrowLeft" ? 20 : -20));
-        }} />
+      <ResourceHeaderLeading.Provider value={leading}>
+      <ResourceHeaderExtra.Provider value={chatToggle}>
       {reader ?? <>
         <header className="agent-overview-header" data-tauri-drag-region="deep">
+          {leading}
           <div role="tablist" aria-label="Agent resources" className="agent-overview-tabs" onKeyDown={(event) => {
             const index = TABS.findIndex((tab) => tab.id === state.tab);
             const next = event.key === "ArrowRight" ? (index + 1) % TABS.length : event.key === "ArrowLeft" ? (index + TABS.length - 1) % TABS.length : event.key === "Home" ? 0 : event.key === "End" ? TABS.length - 1 : undefined;
@@ -145,6 +144,7 @@ export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBa
           </div>
           {state.tab === "notes" ? <button type="button" title="New note" aria-label="New note" disabled={creating} className="agent-overview-action" onClick={() => void create()}><Plus className="size-3.5" /></button> : null}
           {state.tab === "habits" ? <button type="button" title="New habit" aria-label="New habit" disabled={!data.habits || data.habits.length >= HABITS_MAX} className="agent-overview-action" onClick={() => onOpen({ kind: "new-habit" })}><Plus className="size-3.5" /></button> : null}
+          {chatToggle}
           <button type="button" title="Hide overview" aria-label="Hide overview" className="agent-overview-action" data-tauri-drag-region="false" onClick={() => void leave(onClose)}><PanelLeft className="size-3.5 rotate-180" /></button>
         </header>
         <div ref={scroll} role="tabpanel" aria-label={current.label} className="agent-overview-list" onScroll={(event) => { positions.current[state.tab] = event.currentTarget.scrollTop; }}>
@@ -168,8 +168,18 @@ export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBa
           {state.tab === "habits" && data.habits ? <AgentHabits agentId={agent.id} habits={data.habits} onCreate={() => onOpen({ kind: "new-habit" })} onOpen={(id) => show({ kind: "habit", id }, id)} /> : null}
         </div>
       </>}
+      </ResourceHeaderExtra.Provider>
+      </ResourceHeaderLeading.Provider>
     </aside>
   </>;
+}
+
+function readingOf(page: AgentOverviewPage | undefined, lesson: { id: string; title: string } | null): AgentReading | undefined {
+  if (page?.kind === "course") return { kind: "course", courseId: page.course.courseId, title: page.course.title ?? page.course.courseId,
+    ...(lesson ? { lessonId: lesson.id, lessonTitle: lesson.title } : {}) };
+  if (page?.kind === "document") return { kind: "document", id: page.document.id, title: page.document.title };
+  if (page?.kind === "note") return { kind: "note", id: page.id };
+  return undefined;
 }
 
 function sourceName(url: string | null | undefined): string {

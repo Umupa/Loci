@@ -323,7 +323,7 @@ export function forgetAgentContext(sessionId: string): void {
 }
 
 /** Version of the app data carried by an agent turn. */
-export const AGENT_PROMPT_VERSION = 5;
+export const AGENT_PROMPT_VERSION = 6;
 
 /** Discoverable app capabilities; teaching style and standing behavior belong to the Soul. */
 const AGENT_TOOLS = `<tools>
@@ -334,6 +334,7 @@ The local app CLI is available in this conversation; its command and help entry 
 - Drawings: use the available canvas tools to create or revise diagrams; canvas.list/get locate existing drawings. A course can reference its canvasId.
 - Memory: memory.read/search find facts and topic notes; memory.add/replace/remove update long-term facts through the CLI. Soul: soul.read/update read or edit standing instructions using the returned hash.
 - Habits: habits.list/add/update/run/remove manage recurring tasks and their schedules. Habits run only while Loci is open, and their reports appear here.
+- Reading: <reading_now> names the course lesson, document or note open beside this chat, when there is one. "This", "here" and "the passage" usually mean it.
 - Reply formats: loci-question presents choices, loci-todo a checklist, and loci-mindmap or mermaid a diagram. The help includes the exact formats.
 </tools>`;
 

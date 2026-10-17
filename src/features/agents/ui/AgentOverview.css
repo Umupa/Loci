@@ -1,9 +1,16 @@
 .agent-workspace-body { position: relative; display: flex; min-height: 0; min-width: 0; flex: 1; container: agent-workspace / inline-size; }
-.agent-workspace-panes { min-height: 0; min-width: 0; flex: 1; }
-.agent-overview { position: relative; display: flex; min-height: 0; flex: none; flex-direction: column; max-width: calc(100% - 360px); border-left: 1px solid var(--color-stroke); background: var(--color-background-base); color: var(--color-content); }
+/* What is being read fills the left; the conversation keeps its column on the right. */
+.agent-overview { position: relative; display: flex; min-height: 0; min-width: 0; flex: 1 1 0; flex-direction: column; background: var(--color-background-base); color: var(--color-content); }
 .agent-overview[hidden] { display: none; }
-.agent-overview-resize { position: absolute; z-index: 4; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; touch-action: none; }
-.agent-overview-resize:hover, .agent-overview-resize:focus-visible { background: color-mix(in srgb, var(--color-accent) 40%, transparent); outline: none; }
+.agent-workspace-panes { position: relative; min-height: 0; min-width: 0; flex: none; max-width: calc(100% - 360px); border-left: 1px solid var(--color-stroke); }
+.agent-workspace-panes[data-alone] { flex: 1 1 0; width: auto !important; max-width: none; }
+.agent-workspace-panes[hidden] { display: none; }
+.agent-overview[hidden] + .agent-workspace-panes { border-left: 0; }
+.agent-chat-resize { position: absolute; z-index: 4; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; touch-action: none; }
+.agent-chat-resize:hover, .agent-chat-resize:focus-visible { background: color-mix(in srgb, var(--color-accent) 40%, transparent); outline: none; }
+.agent-chat-toggle { display: inline-flex; height: 24px; flex: none; align-items: center; gap: 5px; padding: 0 6px; border-radius: 6px; font-size: 12px; }
+.agent-chat-toggle:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
+.agent-chat-toggle:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-accent) 65%, transparent); outline-offset: -2px; }
 .agent-overview-header { display: flex; flex: none; align-items: center; gap: 2px; min-width: 0; height: 40px; padding: 0 12px 0 8px; border-bottom: 1px solid var(--color-stroke); }
 .agent-overview-tabs { display: flex; min-width: 0; flex: 1; align-items: center; gap: 2px; }
 .agent-overview-tab { display: inline-flex; height: 28px; flex: none; align-items: center; justify-content: center; gap: 0; padding: 0 8px; border-radius: 8px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
@@ -29,10 +36,10 @@
 .course-pane--overview .course-pane__content { padding-left: 18px; padding-right: 18px; }
 .course-pane--overview .course-pane__status-actions { flex-wrap: wrap; padding: 10px; gap: 6px; }
 .course-pane--overview .course-pane__next-card { flex-wrap: wrap; gap: 10px; }
+/* Narrow windows lay the conversation over the reading instead of beside it. */
 @container agent-workspace (max-width: 759px) {
-  .agent-overview { position: absolute; top: 0; right: 0; bottom: 0; z-index: 31; max-width: calc(100% - 12px); box-shadow: -12px 0 40px #0003; }
-  .agent-overview-backdrop { display: block; position: absolute; inset: 0; z-index: 30; background: #0003; }
-  .agent-overview-resize { display: none; }
+  .agent-workspace-panes:not([data-alone]) { position: absolute; top: 0; right: 0; bottom: 0; z-index: 31; max-width: calc(100% - 12px); background: var(--color-background-base); box-shadow: -12px 0 40px #0003; }
+  .agent-chat-resize { display: none; }
 }
 
 .agent-overview-tab-label { display: grid; grid-template-columns: 0fr; opacity: 0; transition: grid-template-columns 200ms ease-out, opacity 200ms ease-out; }
