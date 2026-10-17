@@ -103,3 +103,6 @@
 @media (prefers-reduced-motion: reduce) { .course-card--generating svg { animation: none; } .course-toc--expanded { animation: none; } .course-toc__item, .course-toc__line { transition: none; } }
 @container course-pane (max-width: 600px) { .course-pane__nav { width: 150px; } .course-pane__main { padding: 18px 16px 12px; } .course-pane__status-actions { padding: 8px 16px 12px; } }
 @container course-pane (max-width: 380px) { .course-pane__body { flex-direction: column; } .course-pane__right { min-height: 0; } .course-pane__nav { width: auto; max-height: 30%; border-right: 0; border-bottom: 1px solid var(--color-stroke); padding: 10px 8px; } .course-pane__nav-intro { padding-bottom: 6px; } .course-pane__status-actions { padding: 8px 16px 10px; } }
+.course-pane__alerts { flex-shrink: 0; padding: 0 24px; border-top: 1px solid var(--color-stroke); }
+.course-pane__read { color: var(--course-ok); }
+.course-pane__close:disabled { opacity: .35; cursor: default; }

@@ -38,6 +38,11 @@ type Props = {
   agentId?: string;
   /** A heading to focus on, with an option to read the full document. */
   section?: string;
+  /**
+   * Only the text: no section breadcrumb or source line. A course lesson is
+   * read this way; its course already says where the reader is.
+   */
+  bare?: boolean;
 };
 
 /**
@@ -45,7 +50,7 @@ type Props = {
  * shows that page's pictures. Selecting text offers to ask about, comment on,
  * or quote the passage in the chat.
  */
-export function DocumentBody({ document, agentId, section }: Props) {
+export function DocumentBody({ document, agentId, section, bare }: Props) {
   const requestedSection = section?.trim() || undefined;
   const scope = JSON.stringify([document.id, requestedSection]);
   const [view, setView] = useState({ scope, full: false });
@@ -74,12 +79,12 @@ export function DocumentBody({ document, agentId, section }: Props) {
   const { sourceUrl } = document;
   return (
     <div ref={topRef}>
-      {requestedSection ? <div className="document-section-bar">
+      {requestedSection && !bare ? <div className="document-section-bar">
         <nav aria-label="Document section" className="document-section-path"><span>{document.title}</span><span aria-hidden="true">/</span><span aria-current="location">{matchedTitle ?? requestedSection}</span></nav>
         {matchedTitle ? <button type="button" className="document-section-toggle" onClick={() => { dismiss(); setView({ scope, full: !fullDocument }); }}>{fullDocument ? "Only this section" : "View full document"}</button> : null}
       </div> : null}
-      {requestedSection && !matchedTitle ? <p role="status" className="document-section-notice">Section “{requestedSection}” was not found. Showing the full document.</p> : null}
-      {sourceUrl ? (
+      {requestedSection && !matchedTitle && !bare ? <p role="status" className="document-section-notice">Section “{requestedSection}” was not found. Showing the full document.</p> : null}
+      {sourceUrl && !bare ? (
         <p data-document-source className="mb-3 flex flex-wrap items-baseline gap-x-2 border-b border-stroke pb-2 text-[11px] text-content/50">
           <span>Source</span>
           <a href={sourceUrl} title={sourceUrl} className="min-w-0 truncate text-content/70 hover:underline"

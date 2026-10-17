@@ -292,3 +292,16 @@ it("keeps a later selection across revisions and honors an explicit reopen at th
   await act(async () => root.render(createElement(CoursePane, { ...props, openRequest: 2 })));
   expect(container.querySelector('[aria-current="step"]')?.textContent).toContain("pod");
 });
+
+it("marks a lesson read once the reader scrolls to its end, with no footer to click", async () => {
+  await mount();
+  expect(container.querySelector("footer")).toBeNull();
+  const main = container.querySelector<HTMLElement>(".course-pane__main")!;
+  Object.defineProperties(main, { scrollHeight: { value: 2000, configurable: true }, clientHeight: { value: 600, configurable: true } });
+  main.scrollTop = 500;
+  await act(async () => main.dispatchEvent(new Event("scroll")));
+  expect(progress.get("pod")).toBeUndefined();
+  main.scrollTop = 1380;
+  await act(async () => main.dispatchEvent(new Event("scroll")));
+  expect(progress.get("pod")).toBe("mastered");
+});

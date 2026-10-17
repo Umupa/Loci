@@ -57,10 +57,11 @@ const mount = async () => {
   flushFrames();
 };
 
-it("switches lessons sharing a document, focuses descendants, and toggles full text at the selected heading", async () => {
+it("switches lessons sharing a document and shows only each lesson's section, without document chrome", async () => {
   await mount();
   expect(headings()).toEqual(["1. API server", "Requests"]);
-  expect(host.querySelector(".document-section-path")?.textContent).toBe("Kubernetes architecture/1. API server");
+  expect(host.querySelector(".document-section-bar")).toBeNull();
+  expect(host.querySelector("[data-document-source]")).toBeNull();
   await click('[aria-label^="etcd lesson,"]');
   expect(headings()).toEqual(["2. etcd MVCC", "Revisions"]);
   expect(host.querySelector('.agent-markdown a[href="https://example.com/spec"]')).not.toBeNull();
@@ -68,21 +69,11 @@ it("switches lessons sharing a document, focuses descendants, and toggles full t
   expect(host.querySelector(".agent-markdown")?.textContent).toContain("## This is code");
   expect(host.querySelector(".agent-markdown")?.textContent).not.toContain("Scheduling details");
   expect(readAgentDocument).toHaveBeenCalledTimes(1);
-  await click(".document-section-toggle");
-  expect(headings()).toContain("Kubernetes architecture");
-  expect(headings()).toContain("3. Scheduling");
-  expect(scroll).toHaveBeenLastCalledWith({ block: "center", behavior: "smooth" });
-  expect(scroll.mock.contexts.at(-1)?.textContent).toBe("2. etcd MVCC");
-  expect(host.querySelector("[data-section-target]")?.textContent).toBe("2. etcd MVCC");
-  await click(".document-section-toggle");
-  expect(headings()).toEqual(["2. etcd MVCC", "Revisions"]);
-  expect(scroll).toHaveBeenLastCalledWith({ block: "start", behavior: "instant" });
-  await click(".document-section-toggle");
   await click('[aria-label^="API lesson,"]');
   expect(headings()).toEqual(["1. API server", "Requests"]);
 });
 
-it("opens an empty section at the document top and explains unmatched sections", async () => {
+it("opens an empty or unmatched section at the document top", async () => {
   await mount();
   await click('[aria-label^="Whole document,"]');
   expect(headings()[0]).toBe("Kubernetes architecture");
@@ -90,7 +81,6 @@ it("opens an empty section at the document top and explains unmatched sections",
   expect(scroll).toHaveBeenLastCalledWith({ block: "start", behavior: "instant" });
   await click('[aria-label^="Missing section,"]');
   expect(headings()[0]).toBe("Kubernetes architecture");
-  expect(host.querySelector('[role="status"]')?.textContent).toContain("was not found. Showing the full document.");
   expect(host.querySelector(".document-section-toggle")).toBeNull();
 });
 

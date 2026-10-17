@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { ChevronDown, Maximize2, MessageSquarePlus, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Maximize2, MessageSquarePlus, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";
@@ -35,6 +35,10 @@ type SyncFailure = { itemId: string; status: LearningStatus; message: string };
 export const PROGRESS_EVENT = "loci:course-progress";
 type ProgressDetail = { courseId: string; agentId: string; itemId: string; status: LearningStatus };
 const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
+/** How close to the end of a lesson counts as having reached it. */
+const READ_END_SLACK = 48;
+/** A lesson that fits without scrolling counts as read after this long open. */
+const SHORT_LESSON_DWELL_MS = 8000;
 /** What a status is called where the work is reading. */
 const READING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Reading", mastered: "Read" };
 
@@ -226,20 +230,44 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   const items = course ? courseItems(course.data) : [];
   const currentIndex = items.findIndex((item) => item.id === activeId);
   const nextItem = currentIndex >= 0 && currentIndex < items.length - 1 ? items[currentIndex + 1] : null;
+  const previousItem = currentIndex > 0 ? items[currentIndex - 1] : null;
   const sidebarLabel = `${sidebarOpen ? "Hide" : "Show"} course sidebar`;
+  // Reaching the end of a lesson is reading it; a lesson too short to scroll
+  // counts once it has been open a while.
+  const readThrough = () => {
+    const main = scrollRef.current;
+    if (!reading || !activeId || activeStatus === "mastered" || !main) return;
+    if (main.scrollTop + main.clientHeight >= main.scrollHeight - READ_END_SLACK) void markStatus(activeId, "mastered");
+  };
+  useEffect(() => {
+    const main = scrollRef.current;
+    if (!reading || !activeId || activeStatus === "mastered" || !main) return;
+    const timer = window.setTimeout(() => { if (main.scrollHeight <= main.clientHeight + READ_END_SLACK) void markStatus(activeId, "mastered"); }, SHORT_LESSON_DWELL_MS);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, activeStatus, reading]);
+  const iconButton = onBack ? RESOURCE_ACTION : "course-pane__close";
+  const controls = course ? <>
+    <button type="button" data-no-drag className={iconButton} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-3.5" /><span className="sr-only">Previous</span></button>
+    <button type="button" data-no-drag className={iconButton} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-3.5" /><span className="sr-only">Next</span></button>
+    <button type="button" data-no-drag className={`${iconButton}${activeStatus === "mastered" ? " course-pane__read" : ""}`} title={activeStatus === "mastered" ? (reading ? "Read" : "Mastered") : reading ? "Mark as read" : "Mark as mastered"} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}><Check className="size-3.5" /><span className="sr-only">{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</span></button>
+    <button type="button" data-no-drag className={iconButton} title={reading ? "Test my understanding with the agent" : "Discuss this step with the agent"} onClick={discuss}><MessageSquarePlus className="size-3.5" /><span className="sr-only">{reading ? "Test understanding" : "Discuss step"}</span></button>
+  </> : null;
+  const alerts = actionError || syncFailures.size ? <div className="course-pane__alerts">{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {items.find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</div> : null;
 
   return <aside aria-label={course?.title ?? title ?? "Course"} className={`course-pane${onBack ? " course-pane--overview" : ""}`} onPointerDown={() => { if (!focused) onFocus(); }}>
     {onBack ? <ResourceHeader title={course?.title ?? title ?? "Course"} titleContent={course ? <CourseContentsDropdown course={course} activeId={activeId} onSelect={select} /> : undefined} backLabel="Back to courses" onBack={onBack} onClose={onClose}>
+      {controls}
       {onExpand ? <button type="button" aria-label="Expand course to pane" title="Expand to pane" className={RESOURCE_ACTION} onClick={() => onExpand(activeId ?? undefined)}><Maximize2 className="size-3.5" /></button> : null}
       {actions}
     </ResourceHeader> : <>
     <PaneHeader className="course-pane__header" onPaneDragStart={onPaneDragStart}>
       {course ? <button type="button" data-no-drag aria-label={sidebarLabel} title={sidebarLabel} aria-expanded={sidebarOpen} aria-controls={sidebarId} className="course-pane__sidebar-toggle" onClick={() => setSidebarOpen((open) => !open)}><SidebarLeft className="size-3.5" /></button> : null}
-      <Mortarboard className={`size-3.5 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{onExpand ? <button type="button" aria-label="Expand course to pane" title="Expand to pane" className="course-pane__close" onClick={() => onExpand(activeId ?? undefined)}><Maximize2 className="size-3.5" /></button> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-3.5" /></button>
+      <Mortarboard className={`size-3.5 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{controls ? <span data-no-drag className="flex shrink-0 items-center gap-0.5">{controls}</span> : null}{onExpand ? <button type="button" aria-label="Expand course to pane" title="Expand to pane" className="course-pane__close" onClick={() => onExpand(activeId ?? undefined)}><Maximize2 className="size-3.5" /></button> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-3.5" /></button>
     </PaneHeader>
     </>}
     {course ? <>
-      <div className="course-pane__body">{!onBack ? <CourseNav course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main"><CourseContent course={course} activeId={activeId} />{nextItem && !onBack ? <div className="course-pane__content"><div className="course-pane__next-card"><div className="course-pane__next-card-info"><span className="course-pane__next-card-label">Next {reading ? "lesson" : "step"}</span><h4 className="course-pane__next-card-title">{nextItem.title}</h4></div><button type="button" className="course-button course-button--primary" onClick={() => { if (activeId && activeStatus !== "mastered") void markStatus(activeId, "mastered"); select(nextItem.id); }}>{activeStatus === "mastered" ? (reading ? "Next lesson →" : "Next step →") : (reading ? "Mark read & Next →" : "Complete & Next →")}</button></div></div> : null}</main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div><footer className="course-pane__status-actions"><span className="course-pane__status-label">{items.length > 0 && currentIndex >= 0 ? <span className="course-pane__position">{String(currentIndex + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")} · </span> : null}{reading ? READING_STATUS[activeStatus] : activeStatus}</span><button type="button" className="course-button course-button--quiet" title={reading ? "Test understanding with agent" : "Discuss step with agent"} onClick={discuss}><MessageSquarePlus className="size-3.5" />{reading ? "Test understanding" : "Discuss step"}</button>{activeStatus === "mastered" && activeId ? <button type="button" className="course-button course-button--quiet course-pane__reset-button" disabled={saving.has(activeId)} onClick={() => void markStatus(activeId, "untouched")} title="Reset progress for this item">Reset</button> : null}<button type="button" className={`course-button${activeStatus !== "mastered" ? " course-button--primary" : ""}`} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}>{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</button>{nextItem ? <button type="button" className="course-button" title={`Continue to: ${nextItem.title}`} onClick={() => { if (activeId && activeStatus !== "mastered") void markStatus(activeId, "mastered"); select(nextItem.id); }}><span>Next →</span></button> : null}{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {items.find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</footer></div></div>
+      <div className="course-pane__body">{!onBack ? <CourseNav course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough}><CourseContent course={course} activeId={activeId} /></main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div>{alerts}</div></div>
     </> : <div className="course-pane__empty" role={loaded.scope === scope && loaded.error ? "alert" : undefined}><p>{loaded.scope === scope ? loaded.error ?? "Opening course…" : "Opening course…"}</p>{loaded.scope === scope && loaded.error ? <button type="button" className="course-button" onClick={() => setReload((value) => value + 1)}>Retry</button> : null}</div>}
   </aside>;
 }
@@ -327,5 +355,5 @@ function LessonDocument({ agentId, lesson }: { agentId: string; lesson: CourseLe
   const shown = loaded?.id === id ? loaded : undefined;
   if (!shown) return <p className="course-pane__relations">Opening…</p>;
   if (!shown.document) return <article className="course-pane__content"><h2>{lesson.title}</h2><p className="course-error" role="alert">{shown.error ? `Could not open this lesson's document: ${shown.error}` : `This lesson's document (${id}) is not in the library. Ask the agent to save it again.`}</p></article>;
-  return <article className="course-pane__content course-pane__reading" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} /></article>;
+  return <article className="course-pane__content course-pane__reading" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare /></article>;
 }
