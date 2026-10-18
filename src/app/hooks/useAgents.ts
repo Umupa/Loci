@@ -12,7 +12,8 @@ import {
   agentCanvasScope, agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
 } from "../../features/agents/model/agent";
-import { forgetAgentContext } from "../../features/agents/model/agentFiles";
+import { editAgentFile, forgetAgentContext } from "../../features/agents/model/agentFiles";
+import type { AgentTemplate } from "../../features/agents/templates";
 import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession } from "../../features/agents/model/agentWorkspace";
@@ -231,10 +232,12 @@ export function useAgents(options: Options) {
    * Opens a new agent ready for the user's purpose or first task. Creating it
    * does not run a model.
    */
-  const create = useCallback(async () => {
-    const agent = createAgent([]);
+  const create = useCallback(async (template?: AgentTemplate) => {
+    const agent = createAgent([], template ? { name: template.name, role: template.role, avatar: template.avatar } : {});
     const turn = ++request.current;
     try {
+      // Its Soul is in place before its first turn reads it.
+      if (template) await editAgentFile(agent.id, "soul", () => template.soul);
       const session = await ensureAgentSession(agent.id, {
         home: homeDir,
         load: (id) => latest.current.loadSession(id),

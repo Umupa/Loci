@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   ask: vi.fn(), deleteSession: vi.fn(), archive: vi.fn(), page: vi.fn(),
   stop: vi.fn(), flush: vi.fn(), persist: vi.fn(), error: vi.fn(),
   show: vi.fn(), replace: vi.fn(), remove: vi.fn(), submit: vi.fn(),
-  loadFiles: vi.fn(), saveFile: vi.fn(),
+  loadFiles: vi.fn(), saveFile: vi.fn(), editFile: vi.fn(),
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: mocks.ask }));
 vi.mock("../../platform/tauri/fs", () => ({ homeDir: vi.fn(async () => "/home/me") }));
@@ -24,7 +24,7 @@ vi.mock("../../features/agents/model/agentTranscript", async (original) => ({
 vi.mock("../../features/canvas/canvas", () => ({ loadCanvases: vi.fn(async () => []), deleteCanvas: vi.fn() }));
 vi.mock("../../features/agents/model/agentDocuments", () => ({ saveAgentDocuments: vi.fn(), deleteAgentDocument: vi.fn(async () => undefined) }));
 vi.mock("../../features/agents/model/agentFiles", () => ({
-  forgetAgentContext: vi.fn(), loadAgentFiles: mocks.loadFiles, saveAgentFile: mocks.saveFile,
+  forgetAgentContext: vi.fn(), loadAgentFiles: mocks.loadFiles, saveAgentFile: mocks.saveFile, editAgentFile: mocks.editFile,
 }));
 vi.mock("../../features/agents/model/agentRotation", () => ({ forgetAgentRotation: vi.fn() }));
 
@@ -107,6 +107,22 @@ it("opens an agent ready for an editable first task without starting a model or 
   expect(agents.isDetailsOpen(agent.id)).toBe(false);
   expect(mocks.submit).not.toHaveBeenCalled();
   expect(mocks.saveFile).not.toHaveBeenCalled();
+});
+
+it("starts an agent from a template with its look and Soul in place before it opens", async () => {
+  const { AGENT_TEMPLATES } = await import("../../features/agents/templates");
+  const template = AGENT_TEMPLATES.find((entry) => entry.id === "repo-lens")!;
+  mocks.editFile.mockImplementation(async () => {
+    expect(mocks.show).not.toHaveBeenCalled();
+    return "hash";
+  });
+  await mount();
+  await act(async () => agents.create(template));
+  const agent = listAgents()[0];
+  expect(agent).toMatchObject({ name: "Lens", role: "Open-source reader", avatar: "tide" });
+  expect(mocks.editFile).toHaveBeenCalledWith(agent.id, "soul", expect.any(Function));
+  expect(mocks.editFile.mock.calls[0][2]("")).toContain("Repo Lens");
+  expect(mocks.show).toHaveBeenCalledWith(agent.id, liveSessions[0]);
 });
 
 it("protects every visible agent conversation from archiving, including unfocused panes", async () => {

@@ -1,5 +1,6 @@
 import { AgentOverview } from "../features/agents/ui/AgentOverview";
 import { AgentChatColumn, AgentChatToggle } from "../features/agents/ui/AgentChatColumn";
+import { AgentGallery } from "../features/agents/ui/AgentGallery";
 import { setAgentReading } from "../features/agents/model/agentReading";
 import { useAgentOverview, type AgentOverviewPage } from "./hooks/useAgentOverview";
 import { getNote } from "../features/notes";
@@ -474,6 +475,7 @@ function Workspace(boot: BootWorkspace) {
   const openCourses = useCallback(() => startTransition(() => setSurface("courses")), []);
   const toggleProjectRail = useCallback(() => setProjectRailOpen((open) => { saveProjectRailOpen(!open); return !open; }), []);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [agentGalleryOpen, setAgentGalleryOpen] = useState(false);
   const openTabSwitcher = useCallback(() => {
     // The switcher lists what the toast announced, so the toast has done its job.
     closedTabs.dismissNotice();
@@ -743,7 +745,7 @@ function Workspace(boot: BootWorkspace) {
           recents={workspace.recents} busyProjectPaths={shownSessions.filter((session) => session.busy).map((session) => session.cwd)}
           agentActive={!!focusedAgent} projectsEnabled={projectsEnabled}
           agentRail={!agentsEnabled ? undefined : <AgentRailSection activeId={focusedAgent?.id} states={agents.states} unseenIds={unseenAgentIds}
-            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void agents.open(id); }} onCreate={() => void agents.create()} onDelete={(id) => void agents.remove(id)} />}
+            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void agents.open(id); }} onCreate={() => setAgentGalleryOpen(true)} onDelete={(id) => void agents.remove(id)} />}
           liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
           onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
           onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
@@ -835,6 +837,7 @@ function Workspace(boot: BootWorkspace) {
         recent={recentTabs.current} closed={closedHistory} onDismiss={() => setSwitcherOpen(false)}
         onActivate={workspace.activateTab} onCloseTab={(id) => workspace.closeTabs([id])} onPin={workspace.pinTab}
         onReopen={(batch) => { void workspace.reopenClosed(batch); }} onOpenOverview={openTabOverview} /> : null}
+      {agentGalleryOpen ? <AgentGallery onClose={() => setAgentGalleryOpen(false)} onPick={(template) => void agents.create(template ?? undefined)} /> : null}
       <ClosedTabToast onUndo={(batch) => { void workspace.reopenClosed(batch); }} />
       {savedToast && (
         <SavedToast
