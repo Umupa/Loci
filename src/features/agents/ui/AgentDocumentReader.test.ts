@@ -132,7 +132,8 @@ it("keeps the reader visible when copying fails", async () => {
   props = { ...props, agentId: "agent-a", onBack: vi.fn() };
   vi.mocked(copyMessage).mockRejectedValueOnce(new Error("Clipboard unavailable"));
   await render();
-  await act(async () => button("Copy document").click());
+  await act(async () => button("Document actions").click());
+  await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((item) => item.textContent === "Copy document")!.click());
   expect(container.querySelector("article")?.textContent).toBe(reading.body);
   expect(container.querySelector('[role="alert"]')?.textContent).toContain("Clipboard unavailable");
 });

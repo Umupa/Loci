@@ -17,10 +17,10 @@ vi.mock("./DocumentBody", () => ({
 vi.mock("../../sessions/ui/AgentMarkdown", () => ({ AgentMarkdown: ({ text }: { text: string }) => createElement("div", null, text) }));
 vi.mock("../../learning/ui/CoursePane", () => ({
   PROGRESS_EVENT: "loci:course-progress",
-  CoursePane: ({ title, onBack, onExpand }: { title: string; onBack: () => void; onExpand: (id: string) => void }) => createElement("section", { "data-test-course": true }, title,
-    createElement("button", { onClick: onBack }, "Back to courses"),
-    createElement("button", { onClick: () => onExpand("lesson-two") }, "Expand course")),
+  CoursePane: ({ title, onBack }: { title: string; onBack: () => void }) => createElement("section", { "data-test-course": true }, title,
+    createElement("button", { onClick: onBack }, "Back to courses")),
 }));
+vi.mock("../../canvas/ui/CanvasPane", () => ({ CanvasPane: ({ canvas }: { canvas: { title: string } }) => createElement("section", { "data-test-canvas": true }, canvas.title) }));
 vi.mock("../../notes/ui/NotesView", () => ({ NoteEditor: ({ note }: { note: Note }) => createElement("article", { "data-test-note": true }, note.title) }));
 
 let container: HTMLDivElement;
@@ -29,10 +29,7 @@ let control: ReturnType<typeof useAgentOverview>;
 let documents: { id: string; title: string; subject?: string; sourceUrl?: string; updatedAt: number; createdAt: number }[];
 let notes: Note[];
 let documentRead: (agent: string) => Promise<typeof documents>;
-const expandCourse = vi.fn();
-const expandDocument = vi.fn();
-const expandNote = vi.fn();
-const openCanvas = vi.fn();
+const drawings = [{ id: "drawing-a", title: "Ada's sketch", cwd: "", dataJson: "{}", tags: [], createdAt: 1, updatedAt: 2 }];
 const agent: Agent = { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#123456", projects: [] };
 const other: Agent = { ...agent, id: "agent-b", sessionId: "chat-b", name: "Bea" };
 
@@ -41,8 +38,8 @@ function Host({ owner = agent }: { owner?: Agent }) {
   return createElement(AgentOverview, {
     key: owner.id, agent: owner, state: control.stateFor(owner.id), recents: [],
     onTabChange: (tab) => control.selectTab(owner.id, tab), onOpen: (page) => control.show(owner.id, page),
-    onBack: () => control.back(owner.id), onClose: () => control.close(owner.id), onResize: (width) => control.resize(owner.id, width),
-    onExpandCourse: expandCourse, onExpandDocument: expandDocument, onExpandNote: expandNote, onOpenCanvas: openCanvas,
+    onBack: () => control.back(owner.id), onClose: () => control.close(owner.id),
+    canvases: drawings, onCanvasAddToChat: () => {}, onCanvasTitleChange: () => {}, onOpenFile: () => {},
   });
 }
 async function render(owner = agent) { await act(async () => root.render(createElement(Host, { owner }))); }
@@ -85,10 +82,11 @@ it("lists five resource tabs and only the current agent's courses and drawings",
   expect(container.textContent).toContain("Ada's drawing");
   expect(container.textContent).not.toContain("Bea's drawing");
   await click('[data-resource-kind="canvas"]');
-  expect(openCanvas).toHaveBeenCalledWith(agent.id);
+  // The list is read from the agent's scope; the open page comes from the app's canvases.
+  expect(control.stateFor(agent.id).page).toEqual({ kind: "canvas", id: agent.id });
 });
 
-it("opens a document inside the overview, returns to its scroll position, and expands the stored content", async () => {
+it("opens a document inside the overview and returns to its scroll position", async () => {
   await render(); await tab("documents");
   expect(container.textContent).toContain("Networking · example.org");
   const list = container.querySelector<HTMLElement>('[role="tabpanel"]')!;
@@ -99,17 +97,19 @@ it("opens a document inside the overview, returns to its scroll position, and ex
   await click('[aria-label="Back to documents"]');
   expect(container.querySelector('[role="tabpanel"]')?.scrollTop).toBe(120);
   expect(container.querySelector('[data-resource-id="doc"]')?.getAttribute("aria-current")).toBe("true");
-  await click('[data-resource-kind="document"]'); await click('[aria-label="Expand document to pane"]');
-  expect(expandDocument).toHaveBeenCalledWith(expect.objectContaining({ id: "doc", body: "Original source text" }));
-  expect(container.querySelector('[role="tabpanel"]')).not.toBeNull();
+  await click('[data-resource-kind="document"]');
+  expect(container.querySelector('[aria-label="Expand document to pane"]')).toBeNull();
 });
 
-it("expands a course with its owner, discussion target and selected lesson", async () => {
+it("opens a canvas or a file in place of what was being read", async () => {
   await render(); await click('[data-resource-kind="course"]');
   expect(container.querySelector("[data-test-course]")?.textContent).toContain("Ada's course");
-  await act(async () => [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Expand course")!.click());
-  expect(expandCourse).toHaveBeenCalledWith(expect.objectContaining({ agentId: agent.id, sourceSessionId: "chat-a", courseId: "same-id", itemId: "lesson-two" }));
-  expect(container.querySelector('[role="tabpanel"]')).not.toBeNull();
+  await act(async () => control.show(agent.id, { kind: "canvas", id: "drawing-a" }));
+  expect(await vi.waitFor(() => container.querySelector("[data-test-canvas]")!)).toBeTruthy();
+  expect(container.querySelector("[data-test-course]")).toBeNull();
+  expect(control.stateFor(agent.id).tab).toBe("canvases");
+  await act(async () => control.show(agent.id, { kind: "canvas", id: "gone" }));
+  expect(container.textContent).toContain("This drawing is no longer available.");
 });
 
 it("creates an owned note, opens it in place and refreshes its list count", async () => {

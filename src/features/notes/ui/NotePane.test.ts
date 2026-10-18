@@ -11,7 +11,7 @@ vi.mock("@tauri-apps/api/webview", () => ({ getCurrentWebview: () => ({ onDragDr
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ isMaximized: async () => false, onResized: async () => () => {} }) }));
 vi.mock("../../sessions/ui/AgentMarkdown", () => ({ AgentMarkdown: ({ text }: { text: string }) => createElement("div", null, text), MarkdownSourceHighlight: ({ text }: { text: string }) => createElement("span", null, text) }));
 let host: HTMLDivElement, root: Root, stored: Note;
-const back = vi.fn(), expand = vi.fn();
+const back = vi.fn(), close = vi.fn();
 let failSave: boolean;
 
 beforeEach(() => {
@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 afterEach(async () => { failSave = false; await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 async function mount(agentId = "agent-a") {
-  await act(async () => root.render(createElement(NotePane, { noteId: "note-a", agentId, recents: [], focused: true, onFocus: vi.fn(), onClose: vi.fn(), onBack: back, onExpand: expand })));
+  await act(async () => root.render(createElement(NotePane, { noteId: "note-a", agentId, recents: [], focused: true, onFocus: vi.fn(), onClose: close, onBack: back })));
 }
 async function editTitle() {
   await act(async () => {
@@ -40,16 +40,16 @@ async function editTitle() {
   });
 }
 
-it("saves pending edits before expanding and preserves agent ownership", async () => {
+it("saves pending edits before closing and preserves agent ownership", async () => {
   await mount(); await editTitle();
   const changed = vi.fn();
   window.addEventListener(NOTES_CHANGED_EVENT, changed);
-  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Expand note to pane"]')!.click());
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Close"]')!.click());
   window.removeEventListener(NOTES_CHANGED_EVENT, changed);
   expect(changed).toHaveBeenCalledOnce();
   expect(stored.title).toBe("Revised thoughts");
   expect(stored.agentId).toBe("agent-a");
-  expect(expand).toHaveBeenCalledOnce();
+  expect(close).toHaveBeenCalledOnce();
 });
 
 it("keeps the editor and draft visible when saving fails before Back", async () => {

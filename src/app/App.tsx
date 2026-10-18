@@ -1,7 +1,7 @@
 import { AgentOverview } from "../features/agents/ui/AgentOverview";
 import { AgentChatColumn, AgentChatToggle } from "../features/agents/ui/AgentChatColumn";
 import { setAgentReading } from "../features/agents/model/agentReading";
-import { useAgentOverview } from "./hooks/useAgentOverview";
+import { useAgentOverview, type AgentOverviewPage } from "./hooks/useAgentOverview";
 import { getNote } from "../features/notes";
 import { open as pickFile } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
@@ -32,7 +32,6 @@ import { useAgentHabits } from "./hooks/useAgentHabits";
 import { useAgentDelegation } from "./hooks/useAgentDelegation";
 import { AgentRailSection } from "./shell/AgentRailSection";
 import { AgentSessionPane } from "../features/agents/ui/AgentSessionPane";
-import { AgentAvatar } from "../features/agents/ui/AgentAvatar";
 import { OPEN_DOCUMENT_EVENT, type OpenDocumentDetail } from "../features/sessions/model/cards";
 import { agentForSession } from "../features/agents/model/agent";
 import { isEqualOrInside } from "../shared/lib/paths";
@@ -62,7 +61,7 @@ import { requestImageZoom } from "../shared/lib/imageZoomCommands";
 import type { Tab } from "./shell/TitleBar";
 import { linkFamilies } from "../features/workspace/model/tabFamily";
 import { summarizeTab } from "../features/workspace/model/tabSummary";
-import { filePaneId, findLeaf, leafIds, newTab, neighborLeafId } from "../features/workspace/model/layout";
+import { filePaneId, findLeaf, leafIds, newTab } from "../features/workspace/model/layout";
 import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
 import { loadAgentsEnabled, subscribeAgentsEnabled, loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadProjectsEnabled, subscribeProjectsEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../features/settings/model/uiScale";
@@ -191,6 +190,16 @@ function Workspace(boot: BootWorkspace) {
   }, []);
   const agentWorkspaceRef = useRef(agentWorkspace);
   agentWorkspaceRef.current = agentWorkspace;
+  /** Reads something beside the open agent's conversation, in place of what was there. */
+  const showInAgent = useCallback((page: AgentOverviewPage) => {
+    const owner = agentWorkspaceRef.current.currentRef.current?.agentId;
+    if (!owner) return;
+    const show = async () => {
+      const guard = overviewSaveGuards.current.get(owner);
+      if (!guard || await guard()) agentOverviewRef.current.show(owner, page);
+    };
+    void show();
+  }, []);
   const agentsRef = useRef<ReturnType<typeof useAgents> | null>(null);
   const notesEnabled = useSyncExternalStore(subscribeNotesEnabled, loadNotesEnabled);
   const projectsEnabled = useSyncExternalStore(subscribeProjectsEnabled, loadProjectsEnabled);
@@ -315,9 +324,14 @@ function Workspace(boot: BootWorkspace) {
   });
   const delegation = useAgentDelegation({ runtime, submission, loadSession: (id) => workspaceRef.current!.loadSession(id) });
   useAppControl({ workspace: { ...workspace,
-    isCanvasOpen: (id) => agentWorkspace.isCanvasOpen(id) || workspace.isCanvasOpen(id),
+    isCanvasOpen: (id) => {
+      const agentId = surfaceRef.current === "agent" ? agentWorkspaceRef.current.currentRef.current?.agentId : undefined;
+      const page = agentId ? agentOverviewRef.current.readingFor(agentId) : undefined;
+      return (page?.kind === "canvas" && page.id === id) || workspace.isCanvasOpen(id);
+    },
     revealCanvas: (id, sessionId) => {
-      if (agentForSession(sessionId)) agentWorkspace.showCanvasForSession(id, sessionId);
+      const agent = agentForSession(sessionId);
+      if (agent) agentOverviewRef.current.show(agent.id, { kind: "canvas", id });
       else workspace.revealCanvas(id, sessionId);
     },
   }, runtime, submission, delegation });
@@ -336,7 +350,7 @@ function Workspace(boot: BootWorkspace) {
     await workspaceRef.current!.openSession(id);
   }, []);
   const openLearningFile = useCallback((path: string, pin = true) => {
-    if (surfaceRef.current === "agent") agentWorkspaceRef.current.showFile(path, pin);
+    if (surfaceRef.current === "agent") showInAgent({ kind: "file", path });
     else { setSurface("chat"); workspaceRef.current!.openFile(path, pin); }
   }, []);
   const openPdf = useCallback(() => {
@@ -412,7 +426,7 @@ function Workspace(boot: BootWorkspace) {
     onOpenConversation: revealLearningConversation,
     onOpenCanvas: (canvas) => {
       if (surfaceRef.current !== "agent") return false;
-      agentWorkspaceRef.current.showCanvas(canvas.id);
+      showInAgent({ kind: "canvas", id: canvas.id });
       return true;
     }, onOpenNote: (id) => {
     const owner = surfaceRef.current === "agent" ? agentWorkspaceRef.current.currentRef.current?.agentId : null;
@@ -505,11 +519,8 @@ function Workspace(boot: BootWorkspace) {
     agentPane: surface === "agent" && agentWorkspace.current ? {
       focusedId: agentWorkspace.current.focusedId, layout: agentWorkspace.current.layout,
       onClosePane: agentWorkspace.closePane,
-      onFocusDirection: (direction) => {
-        const current = agentWorkspaceRef.current.currentRef.current;
-        const next = current && neighborLeafId(current.layout, current.focusedId, direction);
-        if (next) agentWorkspaceRef.current.focusPane(next);
-      },
+      // The conversation is the agent's only pane.
+      onFocusDirection: () => undefined,
     } : undefined,
     openSearch, openSettings, openNotes, toggleProjectRail, toggleSessionSidebar, openTabSwitcher, jumpToAttention, openTabOverview, reload, sessionOrder,
   });
@@ -592,6 +603,11 @@ function Workspace(boot: BootWorkspace) {
       view.openFile(path);
     } else openFile(path);
   }, [openFile]);
+  // An agent's links open beside its conversation, in place of what was being read.
+  const openAgentFile = useCallback<OpenFileFn>((path, place) => {
+    if (place) requestFilePlace(path, place);
+    showInAgent({ kind: "file", path });
+  }, [showInAgent]);
   useEffect(() => {
     // A file dragged out of the Files tree shows the same edge hint as a
     // dragged pane, and lands as its own pane where it is dropped.
@@ -703,8 +719,9 @@ function Workspace(boot: BootWorkspace) {
   // The left edge of the agent workspace makes room for the window's buttons
   // when the rail is collapsed; whichever column is there carries it.
   const agentLeading = IS_MAC && !projectRailOpen ? <>
-    <div className={compactRailActive ? "w-7 shrink-0" : "w-[78px] shrink-0"} />
-    <OverlayNav onBack={closeSurface} onToggleSidebar={toggleProjectRail} />
+    {/* Beside the collapsed rail, its own button already opens the sidebar. */}
+    <div className={compactRailActive ? "w-9 shrink-0" : "w-[78px] shrink-0"} />
+    <OverlayNav onBack={closeSurface} onToggleSidebar={compactRailActive ? undefined : toggleProjectRail} />
   </> : undefined;
 
   return <>
@@ -765,29 +782,25 @@ function Workspace(boot: BootWorkspace) {
               <WindowControls />
             </header>}
             <div className="agent-workspace-body">
-              {focusedAgent ? <AgentOverview leading={agentLeading && agentOverview.stateFor(focusedAgent.id).open ? <div data-window-pane-nav className="flex h-10 shrink-0 items-center" data-tauri-drag-region="deep">{agentLeading}</div> : undefined} key={focusedAgent.id} agent={focusedAgent} state={agentOverview.stateFor(focusedAgent.id)} recents={workspace.recents}
+              {/* The conversation is on the left; whatever is opened is read on the right, in place of what was there. */}
+              <AgentChatColumn key={`chat:${focusedAgent?.id}`} width={focusedAgent ? agentOverview.stateFor(focusedAgent.id).width : 420}
+                onResize={(width) => { if (focusedAgent) agentOverview.resize(focusedAgent.id, width); }}
+                alone={!focusedAgent || !agentOverview.stateFor(focusedAgent.id).open}
+                hidden={!!focusedAgent && !agentOverview.stateFor(focusedAgent.id).chat && agentOverview.stateFor(focusedAgent.id).open}>
+              <PaneTree {...sessionPaneProps} layout={agentWorkspace.current.layout} sessions={sessions} visible focusedId={agentWorkspace.current.focusedId} composerFocused
+                windowHeader={IS_MAC ? { leading: focusedAgent && !agentOverview.stateFor(focusedAgent.id).chat ? undefined : agentLeading } : undefined}
+                composerFocusToken={agentWorkspace.composerFocusToken} onFocus={agentWorkspace.focusPane} onClose={agentWorkspace.closePane}
+                onRatio={() => undefined} onMovePane={() => undefined} transcriptPool={transcriptPool}
+                renderSession={renderAgentSession} canvases={canvases}
+                onCwdChange={() => undefined} onOpenFile={openAgentFile} />
+              </AgentChatColumn>
+              {focusedAgent ? <AgentOverview key={focusedAgent.id} agent={focusedAgent} state={agentOverview.stateFor(focusedAgent.id)} recents={workspace.recents}
+                leading={agentLeading && !agentOverview.stateFor(focusedAgent.id).chat ? <div data-window-pane-nav className="flex h-10 shrink-0 items-center" data-tauri-drag-region="deep">{agentLeading}</div> : undefined}
                 onTabChange={(tab) => agentOverview.selectTab(focusedAgent.id, tab)} onOpen={(page) => agentOverview.show(focusedAgent.id, page)}
                 onBack={() => agentOverview.back(focusedAgent.id)} onClose={() => agentOverview.close(focusedAgent.id)}
                 onBeforeLeave={overviewGuard} onReading={(reading) => setAgentReading(focusedAgent.id, reading)}
                 chatToggle={<AgentChatToggle agent={focusedAgent} open={agentOverview.stateFor(focusedAgent.id).chat} onToggle={() => agentOverview.toggleChat(focusedAgent.id)} />}
-                onExpandCourse={agentWorkspace.showCourse} onExpandDocument={(document) => agentWorkspace.showDocument(document, focusedAgent.id)}
-                onExpandNote={agentWorkspace.showNote} onOpenCanvas={agentWorkspace.showCanvas} /> : null}
-              <AgentChatColumn key={focusedAgent?.id} width={focusedAgent ? agentOverview.stateFor(focusedAgent.id).width : 420}
-                onResize={(width) => { if (focusedAgent) agentOverview.resize(focusedAgent.id, width); }}
-                alone={!focusedAgent || !agentOverview.stateFor(focusedAgent.id).open || leafIds(agentWorkspace.current.layout).length > 1}
-                hidden={!!focusedAgent && !agentOverview.stateFor(focusedAgent.id).chat && agentOverview.stateFor(focusedAgent.id).open}>
-              <PaneTree {...sessionPaneProps} layout={agentWorkspace.current.layout} sessions={sessions} visible focusedId={agentWorkspace.current.focusedId} composerFocused
-                windowHeader={IS_MAC ? {
-                  leading: focusedAgent && agentOverview.stateFor(focusedAgent.id).open ? undefined : agentLeading,
-                } : undefined}
-                composerFocusToken={agentWorkspace.composerFocusToken} onFocus={agentWorkspace.focusPane} onClose={agentWorkspace.closePane}
-                onRatio={agentWorkspace.setRatio} onMovePane={agentWorkspace.movePane} transcriptPool={transcriptPool}
-                renderSession={renderAgentSession} canvases={canvases} onCanvasFocus={agentWorkspace.focusPane}
-                onCanvasAddToChat={canvasAddToAgent} canvasChatTarget="agent" onCanvasTitleChange={renameCanvas}
-                canvasChatIcon={focusedAgent ? <AgentAvatar name={focusedAgent.avatar} color={focusedAgent.color} className="size-4 shrink-0" /> : undefined}
-                onFilePaneFocus={agentWorkspace.focusPane}
-                onCwdChange={() => undefined} onOpenFile={openProjectFile} />
-              </AgentChatColumn>
+                canvases={canvases} onCanvasAddToChat={canvasAddToAgent} onCanvasTitleChange={renameCanvas} onOpenFile={openAgentFile} /> : null}
             </div>
           </section> : null}
           {surface === "search" ? <SearchView open cwd={workspace.projectCwd} recents={workspace.recents} history={workspace.history} sessions={sessions}
@@ -829,7 +842,7 @@ function Workspace(boot: BootWorkspace) {
           onDismiss={() => setSavedToast(null)}
           onOpen={(t) => {
             if (t.type === "canvas") {
-              if (surface === "agent") agentWorkspace.showCanvas(t.id);
+              if (surface === "agent") showInAgent({ kind: "canvas", id: t.id });
               else workspace.showCanvas(t.id);
             } else {
               setNoteOpenRequest((prev) => ({ id: t.id, sequence: (prev?.sequence ?? 0) + 1 }));

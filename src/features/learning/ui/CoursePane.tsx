@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Maximize2, MessageSquarePlus, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";
@@ -23,7 +23,6 @@ type Props = {
   /** An explicit reopen may select the same requested lesson again. */
   openRequest?: number;
   onBack?: () => void;
-  onExpand?: (itemId?: string) => void;
   focused: boolean; onFocus: () => void; onClose: () => void;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   /** Extra header buttons, before Close; the Courses page puts its own here. */
@@ -45,7 +44,7 @@ const SHORT_LESSON_DWELL_MS = 8000;
 /** What a status is called where the work is reading. */
 const READING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Reading", mastered: "Read" };
 
-export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart, actions, onDiscussed, onLessonChange, itemId, openRequest, onBack, onExpand }: Props) {
+export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart, actions, onDiscussed, onLessonChange, itemId, openRequest, onBack }: Props) {
   const scope = JSON.stringify([agentId, courseId]);
   const [loaded, setLoaded] = useState<{ scope: string; course: CourseWithProgress | null; error: string | null }>({ scope, course: null, error: null });
   const [reload, setReload] = useState(0);
@@ -258,17 +257,27 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     <button type="button" data-no-drag className={`${iconButton}${activeStatus === "mastered" ? " course-pane__read" : ""}`} title={activeStatus === "mastered" ? (reading ? "Read" : "Mastered") : reading ? "Mark as read" : "Mark as mastered"} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}><Check className="size-3.5" /><span className="sr-only">{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</span></button>
     <button type="button" data-no-drag className={iconButton} title={reading ? "Test my understanding with the agent" : "Discuss this step with the agent"} onClick={discuss}><MessageSquarePlus className="size-3.5" /><span className="sr-only">{reading ? "Test understanding" : "Discuss step"}</span></button>
   </> : null;
+  const markLabel = activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered";
+  // Beside a conversation the header keeps to moving through the course; the
+  // rest waits in a menu, since reaching a lesson's end already marks it read.
+  const overviewControls = course ? <>
+    <button type="button" className={RESOURCE_ACTION} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-3.5" /><span className="sr-only">Previous</span></button>
+    <button type="button" className={RESOURCE_ACTION} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-3.5" /><span className="sr-only">Next</span></button>
+    <LessonMenu items={[
+      { label: markLabel, icon: <Check className="size-3.5" />, disabled: !activeId || saving.has(activeId) || activeStatus === "mastered", onSelect: () => { if (activeId) void markStatus(activeId, "mastered"); } },
+      { label: reading ? "Test my understanding" : "Discuss this step", icon: <MessageSquarePlus className="size-3.5" />, onSelect: discuss },
+    ]} />
+  </> : null;
   const alerts = actionError || syncFailures.size ? <div className="course-pane__alerts">{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {items.find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</div> : null;
 
   return <aside aria-label={course?.title ?? title ?? "Course"} className={`course-pane${onBack ? " course-pane--overview" : ""}`} onPointerDown={() => { if (!focused) onFocus(); }}>
     {onBack ? <ResourceHeader title={course?.title ?? title ?? "Course"} titleContent={course ? <CourseContentsDropdown course={course} activeId={activeId} onSelect={select} /> : undefined} backLabel="Back to courses" onBack={onBack} onClose={onClose}>
-      {controls}
-      {onExpand ? <button type="button" aria-label="Expand course to pane" title="Expand to pane" className={RESOURCE_ACTION} onClick={() => onExpand(activeId ?? undefined)}><Maximize2 className="size-3.5" /></button> : null}
+      {overviewControls}
       {actions}
     </ResourceHeader> : <>
     <PaneHeader className="course-pane__header" onPaneDragStart={onPaneDragStart}>
       {course ? <button type="button" data-no-drag aria-label={sidebarLabel} title={sidebarLabel} aria-expanded={sidebarOpen} aria-controls={sidebarId} className="course-pane__sidebar-toggle" onClick={() => setSidebarOpen((open) => !open)}><SidebarLeft className="size-3.5" /></button> : null}
-      <Mortarboard className={`size-3.5 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{controls ? <span data-no-drag className="flex shrink-0 items-center gap-0.5">{controls}</span> : null}{onExpand ? <button type="button" aria-label="Expand course to pane" title="Expand to pane" className="course-pane__close" onClick={() => onExpand(activeId ?? undefined)}><Maximize2 className="size-3.5" /></button> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-3.5" /></button>
+      <Mortarboard className={`size-3.5 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{controls ? <span data-no-drag className="flex shrink-0 items-center gap-0.5">{controls}</span> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-3.5" /></button>
     </PaneHeader>
     </>}
     {course ? <>
@@ -279,6 +288,20 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
 
 function StatusMark({ status }: { status: LearningStatus }) {
   return <span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? "✓" : ""}</span>;
+}
+
+type LessonMenuItem = { label: string; icon: ReactNode; disabled?: boolean; onSelect: () => void };
+
+function LessonMenu({ items }: { items: LessonMenuItem[] }) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  return <>
+    <button ref={trigger} type="button" className={RESOURCE_ACTION} title="Lesson actions" aria-label="Lesson actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="size-3.5" /></button>
+    {open ? <Popover anchor={trigger} side="bottom" align="end" width={210} role="menu" aria-label="Lesson actions" onDismiss={() => setOpen(false)} className="p-1 font-sans">
+      {items.map((item) => <button key={item.label} type="button" role="menuitem" disabled={item.disabled} onClick={() => { setOpen(false); item.onSelect(); }}
+        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40">{item.icon}{item.label}</button>)}
+    </Popover> : null}
+  </>;
 }
 
 function CourseContentsDropdown({ course, activeId, onSelect }: { course: CourseWithProgress; activeId: string | null; onSelect: (id: string) => void }) {

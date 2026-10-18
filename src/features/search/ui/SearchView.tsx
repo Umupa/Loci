@@ -209,7 +209,7 @@ export function SearchView({ open, cwd, recents, history, sessions, focusToken =
     </p>) : null;
     return (<div role="search" aria-label="Search" data-app-search className="flex min-h-0 min-w-0 flex-1 flex-col text-content">
       <div className="flex h-10 shrink-0 select-none items-center border-b border-stroke" data-tauri-drag-region="deep">
-        {IS_MAC && compactRail ? <div className="w-4 shrink-0"/> : null}
+        {IS_MAC && compactRail ? <div className="w-6 shrink-0"/> : null}
         {IS_MAC && !besideRail ? <div className="w-[78px] shrink-0"/> : null}
         {besideRail ? null : (<OverlayNav onBack={onClose} onToggleSidebar={onToggleSidebar}/>)}
         <label className="flex min-w-0 flex-1 items-center gap-2 px-3 text-content/50">

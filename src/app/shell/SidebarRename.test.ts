@@ -721,7 +721,7 @@ describe("collapsed rail actions", () => {
         await act(async () => render());
         const rail = container.querySelector<HTMLElement>("[data-compact-project-rail]")!;
         expect(rail).not.toBeNull();
-        expect(rail.className).toContain("w-12");
+        expect(rail.className).toContain("w-10");
         expect(rail.className).not.toContain("border-r");
         expect(rail.querySelector("[data-compact-rail-divider]")?.className).toContain("top-10");
         expect(rail.querySelectorAll('[class*="border-b"], [class*="border-t"]')).toHaveLength(1);

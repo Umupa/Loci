@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentDocument } from "../../features/sessions/model/cards";
 import { newSession } from "../../features/sessions/model/session";
 import {
-  canvasLeaf, coursePaneId, documentLeaf, documentPaneId, findLeaf, layoutLeaves, leaf, leafIds, newTab,
+  canvasLeaf, documentLeaf, documentPaneId, leaf, leafIds, newTab,
   placeLayout, setSplitRatio, type WorkspaceTab,
 } from "../../features/workspace/model/layout";
 import { separateAgentWorkspaces, useAgentWorkspace, type AgentWorkspaceLayout } from "./useAgentWorkspace";
@@ -41,107 +41,37 @@ afterEach(async () => {
   container?.remove();
 });
 
-describe("independent agent pane layouts", () => {
-  it("restores a course alongside the agent's fresh conversation", async () => {
-    const course = { courseId: "build-agent", agentId: "agent-a", title: "Build an Agent", sourceSessionId: "old" };
+describe("agent conversations", () => {
+  it("gives each agent its conversation alone, and returns to it", async () => {
     await mount();
-    act(() => { workspace.open("agent-a", chat("old")); workspace.showCourse(course); });
-    expect(workspace.focusedId).toBe(coursePaneId(course.courseId, course.agentId));
-    await mount();
-    act(() => workspace.open("agent-a", chat("fresh")));
-    expect(leafIds(workspace.layout!)).toEqual(["fresh", coursePaneId(course.courseId, course.agentId)]);
-    expect(layoutLeaves(workspace.layout!).find((entry) => entry.kind === "course")?.course).toEqual(course);
-  });
-
-  it("ignores a delayed course-open request after switching to a different agent", async () => {
-    await mount();
-    act(() => workspace.open("agent-a", chat("a")));
-    const delayed = { courseId: "course", agentId: "agent-a", title: "Course A" };
-    act(() => workspace.open("agent-b", chat("b")));
-    act(() => workspace.showCourse(delayed));
-    expect(leafIds(workspace.layout!)).toEqual(["b"]);
     act(() => workspace.open("agent-a", chat("a")));
     expect(leafIds(workspace.layout!)).toEqual(["a"]);
-  });
-
-  it("gives each agent its own conversation and artifact arrangement", async () => {
-    await mount();
-    act(() => {
-      workspace.open("agent-a", chat("a"));
-      workspace.showDocument(document);
-      workspace.showCanvas("drawing");
-    });
-    const firstLayout = workspace.layout;
-    expect(leafIds(workspace.layout!)).toEqual(["a", documentId, "drawing"]);
     expect(workspace.currentRef.current).toBe(workspace.current);
     act(() => workspace.open("agent-b", chat("b")));
     expect(leafIds(workspace.layout!)).toEqual(["b"]);
     act(() => workspace.open("agent-a", chat("a")));
-    expect(workspace.layout).toEqual(firstLayout);
+    expect(leafIds(workspace.layout!)).toEqual(["a"]);
     expect(workspace.focusedId).toBe("a");
     expect(workspace).not.toHaveProperty("tabs");
   });
 
-  it("reuses a document pane and keeps multiple documents alongside the chat", async () => {
+  it("hides the agent when closing its conversation", async () => {
     await mount();
-    act(() => {
-      workspace.open("agent-a", chat("a"));
-      workspace.showDocument(document);
-      workspace.showDocument({ ...document, id: "other" });
-      workspace.showDocument({ ...document, body: "Revised" });
-    });
-    expect(leafIds(workspace.layout!)).toEqual(["a", documentId, documentPaneId("other", "agent-a")]);
-    expect(findLeaf(workspace.layout!, documentId)?.document?.body).toBe("Revised");
-    expect(workspace.focusedId).toBe(documentId);
-    act(() => workspace.closePane(documentId));
-    expect(leafIds(workspace.layout!)).toEqual(["a", documentPaneId("other", "agent-a")]);
-    expect(leafIds(workspace.layout!)).toContain(workspace.focusedId);
+    act(() => workspace.open("agent-a", chat("a")));
+    act(() => workspace.closePane("elsewhere"));
     expect(onClose).not.toHaveBeenCalled();
-  });
-
-  it("hides the agent when closing its conversation and restores its panes on return", async () => {
-    await mount();
-    act(() => { workspace.open("agent-a", chat("a")); workspace.showDocument(document); });
-    const layout = workspace.layout;
     act(() => workspace.closePane("a"));
     expect(workspace.current).toBeNull();
     expect(workspace.currentRef.current).toBeNull();
     expect(onClose).toHaveBeenCalledOnce();
-    act(() => workspace.open("agent-a", chat("a")));
-    expect(workspace.layout).toEqual(layout);
-  });
-
-  it("restores pane moves and sash sizes, with the agent's current conversation", async () => {
-    await mount();
-    act(() => {
-      workspace.open("agent-a", chat("old"));
-      workspace.showDocument(document);
-      workspace.showCanvas("drawing");
-      workspace.movePane(documentId, "old", "bottom");
-    });
-    const layout = workspace.layout!;
-    expect(layout.type).toBe("split");
-    if (layout.type !== "split") throw new Error("Expected a split layout");
-    act(() => workspace.setRatio(layout.id, 0, 0.7));
-    const saved = workspace.layout;
-    await mount();
-    expect(workspace.current).toBeNull();
-    act(() => workspace.open("agent-a", chat("fresh")));
-    expect(leafIds(workspace.layout!)).toEqual(["fresh", documentId, "drawing"]);
-    expect(workspace.layout?.type === "split" && workspace.layout.sizes).toEqual(saved?.type === "split" && saved.sizes);
-    expect(workspace.layout?.type === "split" && workspace.layout.sizes[0]).toBeCloseTo(0.7);
-    expect(findLeaf(workspace.layout!, documentId)?.document).toEqual(document);
-    expect(saved?.type === "split" && workspace.layout?.type === "split" && workspace.layout.id).toBe(saved.id);
   });
 
   it("replaces a reset conversation in place and removes a deleted agent workspace", async () => {
     await mount();
-    act(() => { workspace.open("agent-a", chat("old")); workspace.showDocument(document); });
-    const original = workspace.layout;
+    act(() => workspace.open("agent-a", chat("old")));
     act(() => workspace.replaceSession("old", chat("fresh")));
-    expect(leafIds(workspace.layout!)).toEqual(["fresh", documentId]);
-    expect(workspace.layout?.type === "split" && workspace.layout.id).toBe(original?.type === "split" && original.id);
-    expect(workspace.focusedId).toBe(documentId);
+    expect(leafIds(workspace.layout!)).toEqual(["fresh"]);
+    expect(workspace.focusedId).toBe("fresh");
     act(() => workspace.forgetSession("fresh"));
     expect(workspace.current).toBeNull();
     expect(onClose).toHaveBeenCalledOnce();
@@ -149,40 +79,20 @@ describe("independent agent pane layouts", () => {
     expect(leafIds(workspace.layout!)).toEqual(["next"]);
   });
 
-  it("shows generated canvases beside their agent without changing the selected pane", async () => {
-    await mount();
-    act(() => { workspace.open("agent-a", chat("a")); workspace.showDocument(document); });
-    act(() => workspace.showCanvasForSession("first", "a"));
-    expect(workspace.focusedId).toBe(documentId);
-    expect(workspace.isCanvasOpen("first")).toBe(true);
-    act(() => workspace.open("agent-b", chat("b")));
-    act(() => workspace.showCanvasForSession("second", "a"));
-    expect(leafIds(workspace.layout!)).toEqual(["b"]);
-    act(() => workspace.open("agent-a", chat("a")));
-    expect(layoutLeaves(workspace.layout!).filter((pane) => pane.kind === "canvas").map((pane) => pane.id)).toEqual(["second"]);
-  });
-
-  it("imports the legacy active agent only once and keeps a saved layout on later boots", async () => {
+  it("keeps only the conversation of a saved or imported arrangement", async () => {
     const imported: AgentWorkspaceLayout = {
       agentId: "agent-a", sessionId: "a", layout: placeLayout(leaf("a"), documentLeaf(document, "agent-a"), "a", "right"), focusedId: documentId,
     };
     await mount({ initialLayouts: [imported], initialAgentId: "agent-a" });
-    expect(workspace.current).toEqual(imported);
-    act(() => workspace.showCanvas("drawing"));
-    const saved = workspace.layout;
-    await mount({ initialLayouts: [imported], initialAgentId: "agent-a" });
-    expect(workspace.layout).toEqual(saved);
-  });
-
-  it("sanitizes restored layout data and excludes unrelated session panes", async () => {
-    const layout = placeLayout(placeLayout(leaf("a"), leaf("project"), "a", "right"), documentLeaf(document, "agent-a"), "a", "bottom");
-    localStorage.setItem("loci:agent-workspaces.v1", JSON.stringify([
-      { agentId: "agent-a", sessionId: "a", layout, focusedId: "missing" },
-      { agentId: "broken", sessionId: "broken", layout: { type: "split" } },
-    ]));
-    await mount({ initialAgentId: "agent-a" });
-    expect(leafIds(workspace.layout!)).toEqual(["a", documentId]);
+    expect(leafIds(workspace.layout!)).toEqual(["a"]);
     expect(workspace.focusedId).toBe("a");
+    const layout = placeLayout(placeLayout(leaf("b"), leaf("project"), "b", "right"), canvasLeaf("drawing"), "b", "bottom");
+    localStorage.setItem("loci:agent-workspaces.v1", JSON.stringify([
+      { agentId: "agent-b", sessionId: "b", layout, focusedId: "drawing" },
+      { agentId: "broken" },
+    ]));
+    await mount({ initialAgentId: "agent-b" });
+    expect(leafIds(workspace.layout!)).toEqual(["b"]);
     localStorage.setItem("loci:agent-workspaces.v1", "bad json");
     await mount();
     act(() => workspace.open("agent-a", chat("a")));

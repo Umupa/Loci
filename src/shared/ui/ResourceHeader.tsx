@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { ChevronLeft, PanelLeft } from "./icons";
+import { ChevronLeft, X } from "./icons";
 
 export const RESOURCE_ACTION = "grid size-6 shrink-0 place-items-center rounded-md text-content/55 hover:bg-content/8 hover:text-content disabled:opacity-40";
 
@@ -21,6 +21,6 @@ export function ResourceHeader({ title, titleContent, backLabel, onBack, onClose
     <h3 className="min-w-0 flex-1 truncate text-[13px] font-medium" title={title}>{titleContent ?? title}</h3>
     {children}
     {extra}
-    <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="Hide overview" title="Hide overview" onClick={onClose}><PanelLeft className="size-3.5 rotate-180" strokeWidth={1.75} /></button>
+    <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="Close" title="Close" onClick={onClose}><X className="size-3.5" strokeWidth={1.75} /></button>
   </header>;
 }

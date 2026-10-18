@@ -5,7 +5,9 @@
 export type AgentReading =
   | { kind: "course"; courseId: string; title: string; lessonId?: string; lessonTitle?: string }
   | { kind: "document"; id: string; title: string }
-  | { kind: "note"; id: string };
+  | { kind: "note"; id: string }
+  | { kind: "canvas"; id: string }
+  | { kind: "file"; path: string };
 
 const reading = new Map<string, AgentReading>();
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Maximize2, Check, Copy, MoreHorizontal, StickyNote, Trash2, X } from "../../../shared/ui/icons";
+import { Check, Copy, MoreHorizontal, StickyNote, Trash2, X } from "../../../shared/ui/icons";
 import { copyMessage } from "../../../platform/tauri/clipboard";
 import { Popover } from "../../../shared/ui/Popover";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
@@ -23,7 +23,6 @@ type Props = {
   onClose: () => void;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onBack?: () => void;
-  onExpand?: (document: AgentDocument) => void;
 };
 
 const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content disabled:opacity-40";
@@ -33,7 +32,7 @@ const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-cont
  * agent writes while it is open appears here, and a source shows as a source
  * however the pane was opened.
  */
-export function AgentDocumentReader({ agentId, document, focused, onFocus, onClose, onPaneDragStart, onBack, onExpand }: Props) {
+export function AgentDocumentReader({ agentId, document, focused, onFocus, onClose, onPaneDragStart, onBack }: Props) {
   const [latest, setLatest] = useState<AgentDocument>(document);
   const [stored, setStored] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -86,9 +85,6 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
   return (
     <aside aria-label={latest.title} className="flex h-full min-h-0 min-w-0 w-full flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
       {onBack ? <ResourceHeader title={latest.title} backLabel="Back to documents" onBack={onBack} onClose={onClose}>
-        <button type="button" title={copied ? "Copied" : "Copy document"} aria-label="Copy document" disabled={loading || !!error} className={RESOURCE_ACTION}
-          onClick={() => void copyMessage(latest.body).then(() => { setCopied(true); setActionError(undefined); }, (cause) => setActionError(`Could not copy document: ${String(cause)}`))}>{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}</button>
-        {onExpand ? <button type="button" title="Expand to pane" aria-label="Expand document to pane" disabled={loading || !!error} onClick={() => onExpand(latest)} className={RESOURCE_ACTION}><Maximize2 className="size-3.5" /></button> : null}
         <button ref={more} type="button" title="Document actions" aria-label="Document actions" aria-expanded={menu} aria-haspopup="menu" className={RESOURCE_ACTION} onClick={() => setMenu((open) => !open)}><MoreHorizontal className="size-3.5" /></button>
       </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}>
         {!onBack ? <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} /> : null}
@@ -105,12 +101,12 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
             <Trash2 className="size-3.5" strokeWidth={1.75} />
           </button>
         ) : null}
-        {onExpand ? <button type="button" title="Expand to pane" aria-label="Expand document to pane" disabled={loading || !!error} onClick={() => onExpand(latest)} className={iconButton}><Maximize2 className="size-3.5" /></button> : null}
         <button type="button" data-no-drag title="Close" aria-label="Close the document" onClick={onClose} className={iconButton}>
           <X className="size-3.5" strokeWidth={1.75} />
         </button>
       </PaneHeader>}
       {menu ? <Popover anchor={more} side="bottom" align="end" width={204} role="menu" aria-label="Document actions" onDismiss={() => setMenu(false)} className="p-1 font-sans">
+        <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); void copyMessage(latest.body).then(() => { setCopied(true); setActionError(undefined); }, (cause) => setActionError(`Could not copy document: ${String(cause)}`)); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40">{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? "Copied" : "Copy document"}</button>
         <button type="button" role="menuitem" disabled={saved || loading || !!error} onClick={() => { setMenu(false); void saveAsNote(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><StickyNote className="size-3.5" />{saved ? "Saved to Notes" : "Save as a note"}</button>
         {agentId && stored ? <button type="button" role="menuitem" onClick={() => { setMenu(false); void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause))); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-400 hover:bg-content/6"><Trash2 className="size-3.5" />Remove from the library</button> : null}
       </Popover> : null}

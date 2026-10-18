@@ -1171,7 +1171,7 @@ function CompactProjectRail({ projectsEnabled = true, cwd, recents, busy, tabs, 
             onLeaveActive?.();
         onTabChange(nextTab);
     };
-    return (<nav aria-label="Project shortcuts" data-compact-project-rail className="sidebar-glass relative flex h-full w-12 shrink-0 flex-col items-center">
+    return (<nav aria-label="Project shortcuts" data-compact-project-rail className="sidebar-glass relative flex h-full w-10 shrink-0 flex-col items-center">
       {titleBarAbove ? null : (<div className="h-10 w-full shrink-0 border-b border-stroke" data-tauri-drag-region="deep"/>)}
       <span aria-hidden data-compact-rail-divider className={`pointer-events-none absolute bottom-0 right-0 w-px bg-stroke ${titleBarAbove ? "top-0" : "top-10"}`}/>
       <div data-compact-rail-actions className="flex w-full shrink-0 flex-col items-center gap-1.5 py-1.5">

@@ -1,21 +1,25 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { AgentOverviewPage, AgentOverviewState, AgentOverviewTab } from "../../../app/hooks/useAgentOverview";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
-import { Clock, File, Mortarboard, Palette, PanelLeft, Plus, StickyNote } from "../../../shared/ui/icons";
+import { Clock, File, Mortarboard, Palette, Plus, StickyNote, X } from "../../../shared/ui/icons";
 import { ResourceHeaderExtra, ResourceHeaderLeading } from "../../../shared/ui/ResourceHeader";
-import type { OpenCourseDetail } from "../../learning/model/course";
+import type { Canvas } from "../../canvas/canvas";
+import type { OpenFileFn } from "../../files/model/filePlace";
 import { CoursePane } from "../../learning/ui/CoursePane";
 import { createNote, notePreview } from "../../notes";
 import { NotePane } from "../../notes/ui/NotePane";
 import type { RecentProject } from "../../projects/model/recents";
-import type { AgentDocument } from "../../sessions/model/cards";
 import { agentLook, type Agent } from "../model/agent";
 import type { AgentReading } from "../model/agentReading";
+import { AgentAvatar } from "./AgentAvatar";
 import { AgentDocumentReader } from "./AgentDocumentReader";
 import { AgentHabitDetail, AgentHabits, AgentNewHabit } from "./AgentHabits";
 import { HABITS_MAX } from "../model/agentHabits";
 import { useAgentResources } from "./useAgentResources";
 import "./AgentOverview.css";
+
+const CanvasPane = lazy(() => import("../../canvas/ui/CanvasPane").then((m) => ({ default: m.CanvasPane })));
+const FilePane = lazy(() => import("../../files/ui/FilePane").then((m) => ({ default: m.FilePane })));
 
 // Courses are what you read; the library holds the material they point at,
 // so it comes last rather than beside them.
@@ -48,15 +52,18 @@ type Props = {
   leading?: ReactNode;
   /** The lesson or page being read, for the conversation to know about. */
   onReading?: (reading: AgentReading | undefined) => void;
-  onExpandCourse: (course: OpenCourseDetail) => void;
-  onExpandDocument: (document: AgentDocument) => void;
-  onExpandNote: (id: string) => void;
-  onOpenCanvas: (id: string) => void;
+  canvases: readonly Canvas[];
+  onCanvasAddToChat: (text: string) => void;
+  onCanvasTitleChange: (id: string, title: string) => void;
+  onOpenFile: OpenFileFn;
   onBeforeLeave?: (agentId: string, save: (() => Promise<boolean>) | null) => void;
 };
 
-/** A compact index of one agent's work, with readers on top of the same list. */
-export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBack, onClose, chatToggle, leading, onReading, onExpandCourse, onExpandDocument, onExpandNote, onOpenCanvas, onBeforeLeave }: Props) {
+/**
+ * One agent's work beside its conversation: an index, and one reader in its
+ * place. Whatever is opened replaces what was being read.
+ */
+export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBack, onClose, chatToggle, leading, onReading, canvases, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, onBeforeLeave }: Props) {
   const { data, errors, reload } = useAgentResources(agent.id);
   const overview = useRef<HTMLElement | null>(null);
   const scroll = useRef<HTMLDivElement>(null);
@@ -84,7 +91,6 @@ export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBa
     selection.current[state.tab] = id;
     onOpen(page);
   };
-  const expand = (run: () => void) => { run(); onBack(); };
   const create = async () => {
     if (creating) return;
     setCreating(true); setActionError(undefined);
@@ -100,21 +106,27 @@ export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBa
   let reader: ReactNode;
   if (page?.kind === "course") {
     reader = <CoursePane key={`${agent.id}/${page.course.courseId}`} {...page.course} sourceSessionId={agent.sessionId}
-      focused onFocus={() => {}} onClose={() => void leave(onClose)} onBack={onBack} onLessonChange={setLesson}
-      onExpand={(itemId) => expand(() => onExpandCourse({ ...page.course, itemId, sourceSessionId: agent.sessionId }))} />;
+      focused onFocus={() => {}} onClose={() => void leave(onClose)} onBack={onBack} onLessonChange={setLesson} />;
   } else if (page?.kind === "document") {
     reader = <AgentDocumentReader key={`${agent.id}/${page.document.id}`} agentId={agent.id} document={page.document}
-      focused onFocus={() => {}} onClose={onClose} onBack={onBack}
-      onExpand={(document) => expand(() => onExpandDocument(document))} />;
+      focused onFocus={() => {}} onClose={onClose} onBack={onBack} />;
   } else if (page?.kind === "note") {
     reader = <NotePane key={page.id} noteId={page.id} agentId={agent.id} recents={recents}
-      focused onFocus={() => {}} onClose={onClose} onBack={onBack} onBeforeLeave={registerSave}
-      onExpand={() => expand(() => onExpandNote(page.id))} />;
+      focused onFocus={() => {}} onClose={onClose} onBack={onBack} onBeforeLeave={registerSave} />;
   } else if (page?.kind === "new-habit") {
     reader = <AgentNewHabit agentId={agent.id} onBack={onBack} onClose={onClose} />;
   } else if (page?.kind === "habit") {
     reader = <AgentHabitDetail agentId={agent.id} habit={data.habits?.find((habit) => habit.id === page.id)}
       loading={data.habits === undefined} onBack={onBack} onClose={onClose} />;
+  } else if (page?.kind === "canvas") {
+    const canvas = canvases.find((entry) => entry.id === page.id);
+    reader = canvas ? <Suspense fallback={null}><CanvasPane key={canvas.id} canvas={canvas} focused onFocus={() => {}} onClose={onBack}
+      onAddToChat={onCanvasAddToChat} chatTarget="agent" chatIcon={<AgentAvatar name={agent.avatar} color={agent.color} className="size-4 shrink-0" />}
+      onTitleChange={onCanvasTitleChange} /></Suspense>
+      : <p role="status" className="agent-overview-empty">This drawing is no longer available. <button type="button" className="underline" onClick={onBack}>Back</button></p>;
+  } else if (page?.kind === "file") {
+    reader = <Suspense fallback={null}><FilePane key={page.path} path={page.path} cwd="" preview={false} focused onFocus={() => {}} onPin={() => {}}
+      onClose={onBack} onOpenFile={onOpenFile} /></Suspense>;
   }
   return <>
     <aside ref={overview} hidden={!state.open} aria-label={`${agentLook(agent).name} overview`} className="agent-overview" data-agent-overview={agent.id}
@@ -145,7 +157,7 @@ export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBa
           {state.tab === "notes" ? <button type="button" title="New note" aria-label="New note" disabled={creating} className="agent-overview-action" onClick={() => void create()}><Plus className="size-3.5" /></button> : null}
           {state.tab === "habits" ? <button type="button" title="New habit" aria-label="New habit" disabled={!data.habits || data.habits.length >= HABITS_MAX} className="agent-overview-action" onClick={() => onOpen({ kind: "new-habit" })}><Plus className="size-3.5" /></button> : null}
           {chatToggle}
-          <button type="button" title="Hide overview" aria-label="Hide overview" className="agent-overview-action" data-tauri-drag-region="false" onClick={() => void leave(onClose)}><PanelLeft className="size-3.5 rotate-180" /></button>
+          <button type="button" title="Close" aria-label="Close" className="agent-overview-action" data-tauri-drag-region="false" onClick={() => void leave(onClose)}><X className="size-3.5" /></button>
         </header>
         <div ref={scroll} role="tabpanel" aria-label={current.label} className="agent-overview-list" onScroll={(event) => { positions.current[state.tab] = event.currentTarget.scrollTop; }}>
           {errors[state.tab] || actionError ? <div role="alert" className="agent-overview-error"><p>{actionError ?? errors[state.tab]}</p><button type="button" onClick={reload}>Retry</button></div> : null}
@@ -164,7 +176,7 @@ export function AgentOverview({ agent, state, recents, onTabChange, onOpen, onBa
             onOpen={() => show({ kind: "note", id: note.id }, note.id)} />) : null}
           {state.tab === "canvases" ? data.canvases?.map((canvas) => <ResourceRow key={canvas.id} icon={<Palette className="size-4" />} title={canvas.title}
             subtitle={formatRelativeTime(new Date(canvas.updatedAt).toISOString()) || "Drawing"} selected={selection.current.canvases === canvas.id} kind="canvas" id={canvas.id}
-            onOpen={() => { selection.current.canvases = canvas.id; onOpenCanvas(canvas.id); }} />) : null}
+            onOpen={() => show({ kind: "canvas", id: canvas.id }, canvas.id)} />) : null}
           {state.tab === "habits" && data.habits ? <AgentHabits agentId={agent.id} habits={data.habits} onCreate={() => onOpen({ kind: "new-habit" })} onOpen={(id) => show({ kind: "habit", id }, id)} /> : null}
         </div>
       </>}
@@ -179,6 +191,8 @@ function readingOf(page: AgentOverviewPage | undefined, lesson: { id: string; ti
     ...(lesson ? { lessonId: lesson.id, lessonTitle: lesson.title } : {}) };
   if (page?.kind === "document") return { kind: "document", id: page.document.id, title: page.document.title };
   if (page?.kind === "note") return { kind: "note", id: page.id };
+  if (page?.kind === "canvas") return { kind: "canvas", id: page.id };
+  if (page?.kind === "file") return { kind: "file", path: page.path };
   return undefined;
 }
 

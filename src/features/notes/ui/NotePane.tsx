@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Maximize2, StickyNote, X } from "../../../shared/ui/icons";
-import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
+import { StickyNote, X } from "../../../shared/ui/icons";
+import { ResourceHeader } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { findAgent } from "../../agents/model/agent";
 import type { RecentProject } from "../../projects/model/recents";
@@ -17,7 +17,6 @@ type Props = {
   onClose: () => void;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onBack?: () => void;
-  onExpand?: () => void;
   /** The overview waits for pending edits before leaving this page. */
   onBeforeLeave?: (save: (() => Promise<boolean>) | null) => void;
 };
@@ -25,7 +24,7 @@ type Props = {
 const buttonClass = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content";
 
 /** The same note editor in the overview and in a movable workspace pane. */
-export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, onPaneDragStart, onBack, onExpand, onBeforeLeave }: Props) {
+export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, onPaneDragStart, onBack, onBeforeLeave }: Props) {
   const scope = `${agentId ?? ""}/${noteId}`;
   const [loaded, setLoaded] = useState<{ scope: string; note: Note | null }>();
   const note = loaded?.scope === scope ? loaded.note : undefined;
@@ -57,12 +56,9 @@ export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, 
   const leave = async (next: () => void) => { if (await save()) next(); };
   return (
     <section aria-label={note?.title ?? "Note"} className="flex h-full min-h-0 min-w-0 flex-1 flex-col" onPointerDown={() => { if (!focused) onFocus(); }}>
-      {onBack ? <ResourceHeader title={note?.title ?? "Note"} backLabel="Back to notes" onBack={() => void leave(onBack)} onClose={() => void leave(onClose)}>
-        {onExpand ? <button type="button" className={RESOURCE_ACTION} title="Expand to pane" aria-label="Expand note to pane" onClick={() => void leave(onExpand)}><Maximize2 className="size-3.5" /></button> : null}
-      </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}>
+      {onBack ? <ResourceHeader title={note?.title ?? "Note"} backLabel="Back to notes" onBack={() => void leave(onBack)} onClose={() => void leave(onClose)} /> : <PaneHeader onPaneDragStart={onPaneDragStart}>
         <StickyNote className="size-3.5 shrink-0 text-content/50" />
         <span className="min-w-0 flex-1 truncate text-xs" title={note?.title}>{note?.title ?? "Note"}</span>
-        {onExpand ? <button type="button" className={buttonClass} title="Expand to pane" aria-label="Expand note to pane" onClick={() => void leave(onExpand)}><Maximize2 className="size-3.5" /></button> : null}
         <button type="button" className={buttonClass} title="Close" aria-label="Close note" onClick={() => void leave(onClose)}><X className="size-3.5" /></button>
       </PaneHeader>}
       {error ? <div role="alert" className="p-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : null}

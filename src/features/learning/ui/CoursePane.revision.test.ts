@@ -229,15 +229,17 @@ it("finishes the original owner's map save without attaching its error to anothe
 
 
 it("opens the overview's course contents from its title and closes after selecting a lesson", async () => {
-  const expand = vi.fn();
   const back = vi.fn();
   await act(async () => root.render(createElement(CoursePane, {
-    courseId: "domain", agentId: "owner", itemId: "service", focused: true, onFocus: vi.fn(), onClose: vi.fn(), onBack: back, onExpand: expand,
+    courseId: "domain", agentId: "owner", itemId: "service", focused: true, onFocus: vi.fn(), onClose: vi.fn(), onBack: back,
   })));
   expect(document.querySelector('nav[aria-label="Course navigation"]')).toBeNull();
   expect(container.querySelector("main")?.textContent).toContain("Read doc-service");
-  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Expand course to pane"]')!.click());
-  expect(expand).toHaveBeenCalledWith("service");
+  // Beside a conversation the header keeps to moving through the course.
+  expect(container.querySelector('[aria-label="Expand course to pane"]')).toBeNull();
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Lesson actions"]')!.click());
+  expect([...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual(["Mark as read", "Test my understanding"]);
+  await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Lesson actions"]')!.click());
   const contents = container.querySelector<HTMLButtonElement>('[aria-label="Course contents"]')!;
   expect(contents.closest("h3")).not.toBeNull();
   expect(contents.textContent).toContain("Kubernetes");

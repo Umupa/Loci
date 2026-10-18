@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { agentForSession, findAgent } from "../../features/agents/model/agent";
-import type { AgentDocument } from "../../features/sessions/model/cards";
 import type { Session } from "../../features/sessions/model/session";
-import type { OpenCourseDetail } from "../../features/learning/model/course";
-import {
-  closeLeaf, firstLeafId, layoutLeaves, leaf, leafIds, movePane as moveLayoutPane,
-  placeLayout, replaceLeafId, setSplitRatio, showCanvasBeside, showCanvasInTab, showCourseInTab, showDocumentInTab, showFileInTab, showNoteInTab,
-  type LayoutNode, type PaneEdge, type WorkspaceTab,
-} from "../../features/workspace/model/layout";
-import { sanitizeLayout } from "../../features/workspace/model/workspaceSnapshot";
+import { firstLeafId, layoutLeaves, leaf, leafIds, placeLayout, type LayoutNode, type WorkspaceTab } from "../../features/workspace/model/layout";
 
 export type AgentWorkspaceLayout = {
   agentId: string;
@@ -18,15 +11,6 @@ export type AgentWorkspaceLayout = {
 };
 
 const STORAGE_KEY = "loci:agent-workspaces.v1";
-
-/** Reuse the pane operations without giving the agent a title-bar tab. */
-function paneContainer(workspace: AgentWorkspaceLayout): WorkspaceTab {
-  return { kind: "session", id: workspace.agentId, layout: workspace.layout, focusedId: workspace.focusedId };
-}
-
-function paneResult(workspace: AgentWorkspaceLayout, panes: Pick<WorkspaceTab, "layout" | "focusedId">): AgentWorkspaceLayout {
-  return { ...workspace, layout: panes.layout, focusedId: panes.focusedId };
-}
 
 function pruneLayout(node: LayoutNode, keep: (node: Extract<LayoutNode, { type: "leaf" }>) => boolean): LayoutNode | null {
   if (node.type === "leaf") return keep(node) ? node : null;
@@ -88,6 +72,14 @@ export function separateAgentWorkspaces(tabs: readonly WorkspaceTab[]): { tabs: 
   return { tabs: remaining, layouts: [...layouts.values()] };
 }
 
+/**
+ * An agent's workspace is its conversation alone: whatever it reads opens in
+ * the overview beside it and replaces what was there, so panes never pile up.
+ */
+function conversationOnly(agentId: string, sessionId: string): AgentWorkspaceLayout {
+  return { agentId, sessionId, layout: leaf(sessionId), focusedId: sessionId };
+}
+
 function loadLayouts(initial: readonly AgentWorkspaceLayout[]): Map<string, AgentWorkspaceLayout> {
   const layouts = new Map<string, AgentWorkspaceLayout>();
   try {
@@ -96,25 +88,12 @@ function loadLayouts(initial: readonly AgentWorkspaceLayout[]): Map<string, Agen
       if (!item || typeof item !== "object") continue;
       const value = item as Record<string, unknown>;
       if (typeof value.agentId !== "string" || !value.agentId || typeof value.sessionId !== "string" || !value.sessionId) continue;
-      const sanitized = sanitizeLayout(value.layout);
-      if (!sanitized) continue;
-      const seen = new Set<string>();
-      let layout = pruneLayout(sanitized, (pane) => {
-        if ((!pane.leafKind && pane.id !== value.sessionId) || seen.has(pane.id)) return false;
-        seen.add(pane.id);
-        return true;
-      });
-      if (!layout) continue;
-      if (!seen.has(value.sessionId)) layout = placeLayout(layout, leaf(value.sessionId), firstLeafId(layout), "left");
-      layouts.set(value.agentId, {
-        agentId: value.agentId, sessionId: value.sessionId, layout,
-        focusedId: typeof value.focusedId === "string" && leafIds(layout).includes(value.focusedId) ? value.focusedId : value.sessionId,
-      });
+      layouts.set(value.agentId, conversationOnly(value.agentId, value.sessionId));
     }
   } catch {
     // An unreadable saved layout does not prevent the agent's conversation from opening.
   }
-  for (const workspace of initial) if (!layouts.has(workspace.agentId)) layouts.set(workspace.agentId, workspace);
+  for (const workspace of initial) if (!layouts.has(workspace.agentId)) layouts.set(workspace.agentId, conversationOnly(workspace.agentId, workspace.sessionId));
   return layouts;
 }
 
@@ -124,7 +103,7 @@ type Options = {
   initialAgentId?: string;
 };
 
-/** Each agent owns its pane arrangement independently of project/session tabs. */
+/** Each agent keeps its conversation independently of project/session tabs. */
 export function useAgentWorkspace(options: Options) {
   const latest = useRef(options);
   latest.current = options;
@@ -148,25 +127,8 @@ export function useAgentWorkspace(options: Options) {
     catch { /* The arrangement stays available for this app session if storage is full. */ }
   }, [layouts]);
 
-  const updateCurrent = useCallback((update: (current: AgentWorkspaceLayout) => AgentWorkspaceLayout) => {
-    const agentId = activeAgentIdRef.current;
-    if (!agentId) return;
-    updateLayouts((current) => {
-      const workspace = current.get(agentId);
-      return workspace ? new Map(current).set(agentId, update(workspace)) : current;
-    });
-  }, [updateLayouts]);
-
   const open = useCallback((agentId: string, session: Session) => {
-    updateLayouts((current) => {
-      const previous = current.get(agentId);
-      const workspace = previous ? {
-        ...previous, sessionId: session.id,
-        layout: replaceLeafId(previous.layout, previous.sessionId, session.id),
-        focusedId: session.id,
-      } : { agentId, sessionId: session.id, layout: leaf(session.id), focusedId: session.id };
-      return new Map(current).set(agentId, workspace);
-    });
+    updateLayouts((current) => new Map(current).set(agentId, conversationOnly(agentId, session.id)));
     activeAgentIdRef.current = agentId;
     currentRef.current = layoutsRef.current.get(agentId)!;
     setActiveAgentId(agentId);
@@ -179,66 +141,18 @@ export function useAgentWorkspace(options: Options) {
     setActiveAgentId(null);
   }, []);
 
-  const focusPane = useCallback((id: string) => {
-    updateCurrent((current) => leafIds(current.layout).includes(id) ? { ...current, focusedId: id } : current);
-    focusComposer((token) => token + 1);
-  }, [updateCurrent]);
+  const focusPane = useCallback(() => focusComposer((token) => token + 1), []);
 
   const closePane = useCallback((id: string) => {
     const current = activeAgentIdRef.current && layoutsRef.current.get(activeAgentIdRef.current);
-    if (!current || !leafIds(current.layout).includes(id)) return;
-    if (id === current.sessionId) {
-      hide();
-      latest.current.onClose();
-      return;
-    }
-    updateCurrent((workspace) => paneResult(workspace, closeLeaf(paneContainer(workspace), id)!));
-  }, [hide, updateCurrent]);
-
-  const setRatio = useCallback((splitId: string, index: number, boundary: number) => {
-    updateCurrent((current) => ({ ...current, layout: setSplitRatio(current.layout, splitId, index, boundary) }));
-  }, [updateCurrent]);
-
-  const movePane = useCallback((id: string, targetId: string, edge: PaneEdge) => {
-    updateCurrent((current) => !leafIds(current.layout).includes(id) || !leafIds(current.layout).includes(targetId) ? current
-      : { ...current, layout: moveLayoutPane(current.layout, id, targetId, edge), focusedId: id });
-  }, [updateCurrent]);
-
-  const showDocument = useCallback((document: AgentDocument, agentId?: string) => {
-    updateCurrent((current) => paneResult(current, showDocumentInTab(paneContainer(current), document, agentId ?? current.agentId)));
-  }, [updateCurrent]);
-  const showNote = useCallback((noteId: string) => {
-    updateCurrent((current) => paneResult(current, showNoteInTab(paneContainer(current), noteId, current.agentId)));
-  }, [updateCurrent]);
-  const showCourse = useCallback((course: OpenCourseDetail) => {
-    updateCurrent((current) => current.agentId === course.agentId
-      ? paneResult(current, showCourseInTab(paneContainer(current), course)) : current);
-  }, [updateCurrent]);
-
-  const showCanvas = useCallback((id: string) => {
-    updateCurrent((current) => paneResult(current, showCanvasInTab(paneContainer(current), id)));
-  }, [updateCurrent]);
-  const showFile = useCallback((path: string, pin = true) => {
-    updateCurrent((current) => paneResult(current, showFileInTab(paneContainer(current), path, pin)));
-  }, [updateCurrent]);
-
-  const isCanvasOpen = useCallback((id: string) => !!currentRef.current &&
-    layoutLeaves(currentRef.current.layout).some((pane) => pane.kind === "canvas" && pane.id === id), []);
-
-  const showCanvasForSession = useCallback((canvasId: string, sessionId: string) => {
-    updateLayouts((current) => {
-      const workspace = [...current.values()].find((entry) => entry.sessionId === sessionId);
-      return workspace ? new Map(current).set(workspace.agentId,
-        paneResult(workspace, showCanvasBeside(paneContainer(workspace), canvasId, sessionId))) : current;
-    });
-  }, [updateLayouts]);
+    if (!current || id !== current.sessionId) return;
+    hide();
+    latest.current.onClose();
+  }, [hide]);
 
   const replaceSession = useCallback((previousId: string, fresh: Session) => {
-    updateLayouts((current) => new Map([...current].map(([id, workspace]) => [id, workspace.sessionId === previousId ? {
-      ...workspace, sessionId: fresh.id,
-      layout: replaceLeafId(workspace.layout, previousId, fresh.id),
-      focusedId: workspace.focusedId === previousId ? fresh.id : workspace.focusedId,
-    } : workspace])));
+    updateLayouts((current) => new Map([...current].map(([id, workspace]) => [id,
+      workspace.sessionId === previousId ? conversationOnly(workspace.agentId, fresh.id) : workspace])));
   }, [updateLayouts]);
 
   const forgetSession = useCallback((id: string) => {
@@ -255,7 +169,6 @@ export function useAgentWorkspace(options: Options) {
   currentRef.current = current;
   return {
     activeAgentId, current, currentRef, layout: current?.layout, focusedId: current?.focusedId,
-    composerFocusToken, open, hide, focusPane, closePane, setRatio, movePane, showDocument, showCanvas, showCourse, showFile, showNote,
-    isCanvasOpen, showCanvasForSession, replaceSession, forgetSession,
+    composerFocusToken, open, hide, focusPane, closePane, replaceSession, forgetSession,
   };
 }

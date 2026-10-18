@@ -8,12 +8,14 @@ export type AgentOverviewPage =
   | { kind: "document"; document: AgentDocument }
   | { kind: "note"; id: string }
   | { kind: "habit"; id: string }
-  | { kind: "new-habit" };
+  | { kind: "new-habit" }
+  | { kind: "canvas"; id: string }
+  | { kind: "file"; path: string };
 export type AgentOverviewState = {
-  /** The main area: the overview and whatever it has open. */
+  /** The reading side: the overview and whatever it has open. */
   open: boolean;
   tab: AgentOverviewTab;
-  /** Width of the conversation column beside it. */
+  /** Width of the conversation column on its left. */
   width: number;
   /** The conversation column; it never moves, it is only shown or hidden. */
   chat: boolean;
@@ -21,6 +23,9 @@ export type AgentOverviewState = {
 };
 const KEY = "loci:agent-overviews.v1";
 const TABS: AgentOverviewTab[] = ["courses", "documents", "notes", "habits", "canvases"];
+const TAB_OF: Partial<Record<AgentOverviewPage["kind"], AgentOverviewTab>> = {
+  course: "courses", document: "documents", note: "notes", habit: "habits", "new-habit": "habits", canvas: "canvases",
+};
 const DEFAULT: AgentOverviewState = { open: true, tab: "courses", width: 420, chat: true };
 
 function read(): Record<string, AgentOverviewState> {
@@ -53,11 +58,13 @@ export function useAgentOverview() {
     } catch { /* The current window still retains its view. */ }
   }, []);
   const show = useCallback((id: string, page: AgentOverviewPage) => {
-    const tab: AgentOverviewTab = page.kind === "course" ? "courses" : page.kind === "document" ? "documents" : page.kind === "note" ? "notes" : "habits";
-    update(id, (state) => ({ ...state, tab, page, open: true }));
+    // Whatever is opened replaces what was being read; nothing opens beside it.
+    update(id, (state) => ({ ...state, tab: TAB_OF[page.kind] ?? state.tab, page, open: true }));
   }, [update]);
   return {
     stateFor: (id: string) => states[id] ?? DEFAULT,
+    /** What is being read now, outside of rendering. */
+    readingFor: (id: string) => latest.current[id]?.open ? latest.current[id]?.page : undefined,
     show,
     // One of the two is always showing: hiding one brings the other back.
     toggle: (id: string) => update(id, (state) => ({ ...state, open: !state.open, chat: state.open ? true : state.chat })),

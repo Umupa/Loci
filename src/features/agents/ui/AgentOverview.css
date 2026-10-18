@@ -1,12 +1,11 @@
 .agent-workspace-body { position: relative; display: flex; min-height: 0; min-width: 0; flex: 1; container: agent-workspace / inline-size; }
-/* What is being read fills the left; the conversation keeps its column on the right. */
+/* The conversation keeps its column on the left; what is being read fills the rest. */
 .agent-overview { position: relative; display: flex; min-height: 0; min-width: 0; flex: 1 1 0; flex-direction: column; background: var(--color-background-base); color: var(--color-content); }
 .agent-overview[hidden] { display: none; }
-.agent-workspace-panes { position: relative; min-height: 0; min-width: 0; flex: none; max-width: calc(100% - 360px); border-left: 1px solid var(--color-stroke); }
-.agent-workspace-panes[data-alone] { flex: 1 1 0; width: auto !important; max-width: none; }
+.agent-workspace-panes { position: relative; min-height: 0; min-width: 0; flex: none; max-width: calc(100% - 360px); border-right: 1px solid var(--color-stroke); }
+.agent-workspace-panes[data-alone] { flex: 1 1 0; width: auto !important; max-width: none; border-right: 0; }
 .agent-workspace-panes[hidden] { display: none; }
-.agent-overview[hidden] + .agent-workspace-panes { border-left: 0; }
-.agent-chat-resize { position: absolute; z-index: 4; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; touch-action: none; }
+.agent-chat-resize { position: absolute; z-index: 4; right: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; touch-action: none; }
 .agent-chat-resize:hover, .agent-chat-resize:focus-visible { background: color-mix(in srgb, var(--color-accent) 40%, transparent); outline: none; }
 .agent-chat-toggle { display: inline-flex; height: 24px; flex: none; align-items: center; gap: 5px; padding: 0 6px; border-radius: 6px; font-size: 12px; }
 .agent-chat-toggle:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
@@ -38,7 +37,7 @@
 .course-pane--overview .course-pane__next-card { flex-wrap: wrap; gap: 10px; }
 /* Narrow windows lay the conversation over the reading instead of beside it. */
 @container agent-workspace (max-width: 759px) {
-  .agent-workspace-panes:not([data-alone]) { position: absolute; top: 0; right: 0; bottom: 0; z-index: 31; max-width: calc(100% - 12px); background: var(--color-background-base); box-shadow: -12px 0 40px #0003; }
+  .agent-workspace-panes:not([data-alone]) { position: absolute; top: 0; left: 0; bottom: 0; z-index: 31; max-width: calc(100% - 12px); background: var(--color-background-base); box-shadow: 12px 0 40px #0003; }
   .agent-chat-resize { display: none; }
 }
 
