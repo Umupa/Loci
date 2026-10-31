@@ -1,5 +1,6 @@
 import { ResetWorkspace } from "./ResetWorkspace";
 import { SettingsLanguage } from "../../../shared/i18n/SettingsLanguage";
+import { installCli, loadCliAccess, rotateCliToken, setCliAccess, type CliAccess } from "../model/cliAccess";
 import { t, useLocale, getLocale, useLanguagePreference, setLanguagePreference, type LanguagePreference } from "../../../shared/i18n/locale";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { checkForUpdate, updatesEnabled } from "../../updates/model/updates";
@@ -263,6 +264,8 @@ function GeneralPage({}: {}) {
         </Row>
       </Group>
 
+      <CommandLineGroup />
+
       {IS_WIN ? <Group title={t("Window")}>
         {IS_WIN && (<Row id="close-to-tray" label={t("Close to tray")} description={t("Closing a window hides it to the system tray instead of quitting, so running agents keep going. Reopen from the tray icon, and quit for real from its menu. Turn this off to have close end the window.")}>
             <Toggle label={t("Close to tray")} on={closeToTray} onChange={onCloseToTray}/>
@@ -276,6 +279,40 @@ function GeneralPage({}: {}) {
         <ResetWorkspace />
       </Group>
     </>);
+}
+/** `loci` in a terminal: whether it may drive this Loci, its token, and putting it on PATH. */
+function CommandLineGroup() {
+  useLocale();
+    const [access, setAccess] = useState<CliAccess | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [note, setNote] = useState<string | null>(null);
+    useEffect(() => { let live = true; void loadCliAccess().then((next) => { if (live) setAccess(next); }).catch(() => {}); return () => { live = false; }; }, []);
+    const run = (work: () => Promise<CliAccess | void>, done?: string) => {
+        setBusy(true);
+        setNote(null);
+        void work().then((next) => { if (next) setAccess(next); if (done) setNote(done); })
+            .catch((error: unknown) => setNote(String(error instanceof Error ? error.message : error)))
+            .finally(() => setBusy(false));
+    };
+    if (!access) return null;
+    const button = "shrink-0 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 hover:bg-content/10 hover:text-content disabled:opacity-50";
+    return (<Group id="command-line" title={t("Command line")} description={t("`loci` in a terminal can drive this Loci: mentors, courses, sources, notes and the reader. It is how tests and agents outside Loci work with it. Only your user account can use it.")}>
+      <Row label={t("Command-line access")} description={access.enabled
+          ? t("On for {0}. The token in {1} lets a terminal in; only your account can read it.", access.identifier, access.tokenPath ?? "…")
+          : t("Off. Terminals cannot reach this Loci; agents in Loci keep their own access.")}>
+        <Toggle label={t("Command-line access")} on={access.enabled} disabled={busy} onChange={(on) => run(() => setCliAccess(on))}/>
+      </Row>
+      {access.enabled ? (<Row label={t("Token")} description={note ?? t("A new token stops the old one at once, for anything that copied it.")}>
+          <button type="button" className={button} disabled={busy} onClick={() => run(rotateCliToken, t("A new token is in place."))}>{t("Rotate token")}</button>
+        </Row>) : null}
+      <Row label={t("loci command")} description={access.installPath
+          ? access.installed
+            ? t("{0} runs this build. Make sure ~/.local/bin is on your PATH.", access.installPath)
+            : t("Puts a link to this build at {0}, so `loci` talks to this Loci.", access.installPath)
+          : t("Add the folder of {0} to PATH, or call it by its full path.", access.executable ?? "Loci")}>
+        {access.installPath ? (<button type="button" className={button} disabled={busy} onClick={() => run(installCli)}>{access.installed ? t("Reinstall") : t("Install")}</button>) : null}
+      </Row>
+    </Group>);
 }
 function ChatPage() {
   useLocale();

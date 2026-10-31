@@ -550,6 +550,25 @@ pub struct CliAccess {
     identifier: String,
     executable: Option<String>,
     token_path: Option<String>,
+    /// Where the Install button puts `loci`; absent where it cannot (Windows).
+    install_path: Option<String>,
+    /// That path is a link to this executable.
+    installed: bool,
+}
+
+/// `~/.local/bin/loci`: on most users' PATH, and writable without sudo.
+fn install_path() -> Option<PathBuf> {
+    if cfg!(windows) {
+        return None;
+    }
+    crate::dirs_home().map(|home| PathBuf::from(home).join(".local/bin/loci"))
+}
+
+fn links_to(link: &std::path::Path, target: &std::path::Path) -> bool {
+    std::fs::read_link(link).is_ok_and(|points| {
+        points == target
+            || std::fs::canonicalize(&points).ok() == std::fs::canonicalize(target).ok()
+    })
 }
 
 fn cli_access_view(host: &ControlHost) -> CliAccess {
@@ -558,12 +577,14 @@ fn cli_access_view(host: &ControlHost) -> CliAccess {
         .lock()
         .map(|inner| inner.external.enabled)
         .unwrap_or(false);
+    let executable = std::env::current_exe().ok();
+    let install = install_path();
     CliAccess {
         enabled,
         identifier: host.identifier.clone(),
-        executable: std::env::current_exe()
-            .ok()
-            .map(|path| path.to_string_lossy().into_owned()),
+        installed: matches!((&install, &executable), (Some(link), Some(exe)) if links_to(link, exe)),
+        install_path: install.map(|path| path.to_string_lossy().into_owned()),
+        executable: executable.map(|path| path.to_string_lossy().into_owned()),
         token_path: host.control_dir.as_ref().map(|dir| {
             dir.join(cli_access::TOKEN_FILE)
                 .to_string_lossy()
@@ -599,6 +620,42 @@ pub fn cli_access_set(host: State<'_, ControlHost>, enabled: bool) -> Result<Cli
         }
     }
     Ok(cli_access_view(&host))
+}
+
+/// Puts `loci` on the PATH: a link in `~/.local/bin` to this build's
+/// executable, so a terminal's `loci` talks to this Loci by default. Replaces
+/// an earlier link, never a file someone else put there.
+#[tauri::command]
+pub fn cli_install(host: State<'_, ControlHost>) -> Result<CliAccess, String> {
+    let link = install_path().ok_or(
+        "On Windows, add the folder of Loci's executable to PATH, or call it by its full path",
+    )?;
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    install_link(&link, &exe)?;
+    Ok(cli_access_view(&host))
+}
+
+fn install_link(link: &std::path::Path, exe: &std::path::Path) -> Result<(), String> {
+    if let Some(dir) = link.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
+    match std::fs::symlink_metadata(link) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            std::fs::remove_file(link).map_err(|e| format!("{}: {e}", link.display()))?
+        }
+        Ok(_) => {
+            return Err(format!(
+                "{} already exists and is not a link Loci made; remove or rename it first",
+                link.display()
+            ))
+        }
+        Err(_) => {}
+    }
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(exe, link).map_err(|e| format!("{}: {e}", link.display()))?;
+    #[cfg(not(unix))]
+    let _ = exe;
+    Ok(())
 }
 
 /// A new token; the old one stops working at once.
@@ -814,6 +871,27 @@ mod tests {
             token: None,
         };
         assert_eq!(external_access(&inner, "").unwrap_err().1, "unauthorized");
+    }
+    #[cfg(unix)]
+    #[test]
+    fn the_install_link_replaces_only_its_own_kind() {
+        let dir = std::env::temp_dir().join(format!("loci-install-{}", uuid::Uuid::new_v4()));
+        let link = dir.join("bin/loci");
+        let first = dir.join("Loci-1");
+        let second = dir.join("Loci-2");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(&first, "").unwrap();
+        std::fs::write(&second, "").unwrap();
+        install_link(&link, &first).unwrap();
+        assert!(links_to(&link, &first));
+        install_link(&link, &second).unwrap();
+        assert!(links_to(&link, &second));
+        std::fs::remove_file(&link).unwrap();
+        std::fs::write(&link, "someone else's").unwrap();
+        assert!(install_link(&link, &first)
+            .unwrap_err()
+            .contains("not a link"));
+        assert_eq!(std::fs::read_to_string(&link).unwrap(), "someone else's");
     }
     #[test]
     fn terminal_commands_go_to_the_main_window_first() {

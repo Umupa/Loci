@@ -437,5 +437,20 @@
   "Stop all running agents and permanently delete all projects, conversations, agents, notes, canvases, documents and workspace history from Loci? All settings and global backgrounds are kept. Files in your project folders are kept. All windows will reload. This cannot be undone.": "停止所有正在运行的 agent，并永久删除 Loci 中的所有项目、会话、agent、笔记、画布、文档和工作区历史？所有设置和全局背景都会保留，项目文件夹中的文件也会保留。所有窗口将重新加载。此操作不可恢复。",
   "Mentors": "导师",
   "Your mentors": "你的导师",
-  "No mentors yet.": "还没有导师。"
+  "No mentors yet.": "还没有导师。",
+  "Command line": "命令行",
+  "`loci` in a terminal can drive this Loci: mentors, courses, sources, notes and the reader. It is how tests and agents outside Loci work with it. Only your user account can use it.": "终端里的 `loci` 可以操作这个 Loci：导师、课程、资料、笔记和阅读区。测试和 Loci 之外的 agent 都通过它工作。只有你的用户账户可以使用。",
+  "Command-line access": "命令行访问",
+  "On for {0}. The token in {1} lets a terminal in; only your account can read it.": "已为 {0} 开启。终端凭 {1} 里的令牌接入，只有你的账户能读取它。",
+  "Off. Terminals cannot reach this Loci; agents in Loci keep their own access.": "已关闭。终端无法连接这个 Loci；Loci 里的 agent 仍保有各自的访问。",
+  "Token": "令牌",
+  "A new token stops the old one at once, for anything that copied it.": "换成新令牌后，旧令牌立即失效，复制过它的地方也一样。",
+  "A new token is in place.": "新令牌已生效。",
+  "Rotate token": "更换令牌",
+  "loci command": "loci 命令",
+  "{0} runs this build. Make sure ~/.local/bin is on your PATH.": "{0} 指向这个版本。请确认 ~/.local/bin 在你的 PATH 里。",
+  "Puts a link to this build at {0}, so `loci` talks to this Loci.": "在 {0} 放一个指向这个版本的链接，让 `loci` 连接这个 Loci。",
+  "Add the folder of {0} to PATH, or call it by its full path.": "把 {0} 所在的文件夹加入 PATH，或用完整路径调用它。",
+  "Reinstall": "重新安装",
+  "Install": "安装"
 }

@@ -284,6 +284,7 @@ pub fn run() {
             control::cli_access_status,
             control::cli_access_set,
             control::cli_access_rotate,
+            control::cli_install,
             fs::resolve_project_location,
             fs::claude_shell_commands,
             fs::create_path,

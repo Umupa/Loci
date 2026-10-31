@@ -22,6 +22,12 @@ vi.mock("@tauri-apps/api/window", () => ({
     }),
 }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("../model/cliAccess", () => ({
+    loadCliAccess: vi.fn(async () => ({ enabled: true, identifier: "com.loci.desktop.test", executable: "/Applications/Loci.app/Contents/MacOS/loci", tokenPath: "/data/control/cli-token", installPath: "/home/me/.local/bin/loci", installed: false })),
+    setCliAccess: vi.fn(async (enabled: boolean) => ({ enabled, identifier: "com.loci.desktop.test", executable: null, tokenPath: null, installPath: null, installed: false })),
+    rotateCliToken: vi.fn(async () => undefined),
+    installCli: vi.fn(async () => ({ enabled: true, identifier: "com.loci.desktop.test", executable: null, tokenPath: null, installPath: "/home/me/.local/bin/loci", installed: true })),
+}));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(async () => true) }));
 vi.mock("../../../integrations/harness/core/availability", () => ({
     isHarnessAvailable: vi.fn((id: string) => id === "claude" || id === "codex"),
@@ -186,6 +192,20 @@ describe("settings pages", () => {
         await render(section);
         const expected = SETTINGS_INDEX.filter((entry) => entry.section === section).map((entry) => entry.id);
         expect(renderedSettingIds().sort()).toEqual(expected.sort());
+    });
+    it("turns command-line access off, rotates its token and installs loci", async () => {
+        const { setCliAccess, rotateCliToken, installCli } = await import("../model/cliAccess");
+        await render("general");
+        expect(container.textContent).toContain("/data/control/cli-token");
+        const button = (label: string) => [...container.querySelectorAll("button")].find((entry) => entry.textContent === label)!;
+        await act(async () => button("Rotate token").click());
+        expect(rotateCliToken).toHaveBeenCalled();
+        await act(async () => button("Install").click());
+        expect(installCli).toHaveBeenCalled();
+        expect(container.textContent).toContain("runs this build");
+        await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Command-line access"]')!.click());
+        expect(setCliAccess).toHaveBeenCalledWith(false);
+        expect(container.textContent).toContain("Terminals cannot reach this Loci");
     });
     it("shows path details for every Agent CLI", async () => {
         await render("providers");

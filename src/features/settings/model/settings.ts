@@ -121,6 +121,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "claude tools connections oauth authenticate login add remove",
     },
     {
+        id: "command-line",
+        section: "general",
+        get label() { return t("Command line"); },
+        keywords: "loci cli terminal token access tests external agent path install",
+    },
+    {
         id: "sounds",
         section: "general",
         get label() { return t("Sounds"); },
