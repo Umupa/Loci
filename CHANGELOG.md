@@ -4,8 +4,20 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **A mentor for each topic.** The rail on the left lists your mentors. Create one with **+** (or ⌘T) from the Mentor or Lens template, or start a blank one. With no mentors yet, Loci shows how to create the first.
+- **A three-column workspace.** On the left are the outline of the open course and the mentor's library: Courses, Sources, Notes, Canvases and Files. The reader is in the middle and the conversation is on the right. Opening a lesson, source, note, canvas, file, PDF or a session the mentor started replaces what the reader shows. The title bar shows mentor › course › lesson. ⌘B folds the library and ⇧⌘B the conversation.
+- **Back where you left off.** Switching back to a mentor, or restarting Loci, reopens the lesson or page it was showing.
+- **A working folder per mentor.** It is `~/Loci/<name>`, made the first time it is needed, and holds cloned source code and experiments. Mentors know where it is, and its files appear under Files in the library. In the mentor's settings you can reveal it or point it at a folder you already have; nothing in that folder is changed. The Mentor and Lens templates clone repositories there instead of into the shared `~/Loci/repos`.
+- **⌘K search** across your mentors and the titles of their courses, lessons, sources, notes and canvases, plus your conversations with them.
+- **Shortcuts:** ⌘1–9 and ⇧⌘[ / ] switch mentors, and ⌘W closes the reader (or the window when the reader is empty).
+
 ### Changed
 
+- New mentors, and mentors whose conversation you reset, run in their working folder. Existing conversations keep running where they started, so they resume as before.
+- Folders you gave a mentor before are listed as "Other folders" instead of projects.
+- Settings call them mentors (导师) throughout.
 - Loci is now an AI-native learning workspace for engineers: one resident mentor per topic, which gathers first-hand sources and reads them with you. The README, the app description and [docs/roadmap.md](docs/roadmap.md) describe the new direction. Claude Code and Codex are the supported agent CLIs; the other eight are experimental.
 - Scheduled habit runs get app access through an internal turn option instead of a `/operator` prompt. Prompt text can no longer grant app access.
 
@@ -17,8 +29,11 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 - The Ledger market-briefing template. Agents already created from it keep their Soul.
 - The welcome animations, the send accent and the turn celebration sparkles.
 - Per-project chat backgrounds and per-project notification settings. The global background, wallpapers, themes and project mutes stay.
+- Tabs, split panes, the project rail and the session sidebar, with their menu items and shortcuts. Project logos, colors and mascots go with them; mentors keep their own avatars.
+- The global Courses, Notes and Search pages, and Settings → Archive. Courses, notes and canvases live in each mentor's library, and notes from before mentors owned notes are found with ⌘K.
+- Conversations that do not belong to a mentor are no longer listed. They stay on disk, and sessions a mentor starts still open in its reader.
 
-Nothing is deleted from your data: tables and settings that these features used are left in place, unread.
+Nothing is deleted from your data: tables and settings that these features used, including the saved tab layout, are left in place, unread. Shortcuts you had rebound for removed commands are ignored.
 
 ## [0.1.1] - 2026-10-31
 
