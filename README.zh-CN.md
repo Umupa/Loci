@@ -32,7 +32,7 @@ Loci 是一个本地优先的桌面学习工作台，用 agent 学习技术主�
 
 ## 导师
 
-点击侧栏 *Agents* 旁边的 **+** 新建。每位导师负责一个主题。可以从 **Mentor**、**Lens** 或空白 agent 开始。**Mentor** 模板一次一个问题地和你对齐目标，采集一手材料，编排成课程，并在阅读过程中检验你的理解。**Lens** 接收一个仓库，克隆它，写一页速览，并把值得读的文件编成代码导览课。
+点击导师栏上的 **+**（或按 ⌘T）新建。每位导师负责一个主题。可以从 **Mentor**、**Lens** 或空白 agent 开始。**Mentor** 模板一次一个问题地和你对齐目标，采集一手材料，编排成课程，并在阅读过程中检验你的理解。**Lens** 接收一个仓库，克隆它，写一页速览，并把值得读的文件编成代码导览课。
 
 每位导师都有：
 
@@ -46,7 +46,7 @@ Loci 是一个本地优先的桌面学习工作台，用 agent 学习技术主�
 
 导师做什么由提示词决定，所以效果取决于它背后的模型。
 
-在 macOS 上，agent 和文档标题共用窗口顶部的一行。拖动这一行的空白处可以移动窗口，拖动分栏的握把可以调整排列。
+每位导师有自己的工作台：左边是当前课程的目录和资料库，中间是阅读区，右边是对话。打开任何东西（课文、资料、笔记、画布、文件，或导师发起的会话）都只替换阅读区，不开新标签页或新窗口。切回一位导师时，会回到它上次显示的课文。⌘K 查找导师或资料库里的内容，⌘1–9 切换导师，⌘W 关闭阅读区，⌘B 和 ⇧⌘B 折叠资料库和对话。
 
 ## 阅读与来源
 
@@ -122,7 +122,7 @@ Loci 启动你机器上已安装的 CLI，说它的协议，自己不运行模�
 
 ## 数据与隐私
 
-- **数据在哪。** 会话、笔记、画布、来源引用、PDF 批注和布局都在应用数据目录 `com.loci.desktop` 下的 `loci.db`（SQLite）里：macOS 是 `~/Library/Application Support/com.loci.desktop`，Linux 是 `~/.local/share/com.loci.desktop`，Windows 是 `%APPDATA%\com.loci.desktop`。粘贴的图片放在它旁边。你的项目文件仍在你自己的文件夹里，批注不会改写原 PDF。
+- **数据在哪。** 会话、笔记、画布、来源引用和 PDF 批注都在应用数据目录 `com.loci.desktop` 下的 `loci.db`（SQLite）里：macOS 是 `~/Library/Application Support/com.loci.desktop`，Linux 是 `~/.local/share/com.loci.desktop`，Windows 是 `%APPDATA%\com.loci.desktop`。粘贴的图片放在它旁边。你的项目文件仍在你自己的文件夹里，批注不会改写原 PDF。
 - **Loci 会联网做什么。** Loci 没有统计，也没有崩溃上报。安装版会在启动后不久检查 GitHub Releases 上的更新，之后每六小时一次，安装前会征求你的同意；从源码构建的版本不会自己更新。除了 agent CLI 自己和各自的 provider 通信之外，Loci 会读取对话中公开链接的标题和图标（回环和内网地址会被拒绝）。
 - **agent 能做什么。** agent 以你的用户权限运行。权限模式只决定 Loci 在 CLI 行动之前是否询问你，所以选它要像在 CLI 里一样谨慎。**Full access** 会让命令、编辑和受支持的 MCP 确认都不再询问。
 
@@ -162,7 +162,7 @@ npm run build         # 类型检查并构建 Web 包
 ```text
 src/                      React 前端
   app/                    窗口外壳与工作区组合
-  features/               sessions、agents、learning、notes、canvas、projects、search、settings、skills 等
+  features/               mentor（导师工作台）、sessions、agents、learning、notes、canvas、settings、skills 等
   integrations/harness/   agent CLI 协议核心和十个 CLI 适配器
   platform/tauri/         对 Tauri 命令的薄封装
   shared/                 UI 组件、hooks 和工具函数

@@ -32,7 +32,7 @@ Loci is a local-first desktop workspace for learning technical subjects with an 
 
 ## Mentors
 
-Press **+** beside *Agents* on the rail to create one. Use one mentor per topic. Start from **Mentor**, **Lens**, or a blank agent. The **Mentor** template agrees on a goal one question at a time, gathers first-hand sources, arranges them into a course, and tests your understanding as you read. **Lens** takes a repository, clones it, writes a one-page brief, and builds a code-tour course of the files worth reading.
+Press **+** on the mentor rail (or ⌘T) to create one. Use one mentor per topic. Start from **Mentor**, **Lens**, or a blank agent. The **Mentor** template agrees on a goal one question at a time, gathers first-hand sources, arranges them into a course, and tests your understanding as you read. **Lens** takes a repository, clones it, writes a one-page brief, and builds a code-tour course of the files worth reading.
 
 Every mentor has:
 
@@ -46,7 +46,7 @@ A mentor works through the CLI: it can clone a repository, run code and prepare 
 
 What a mentor does is its prompt at work, so how well it goes depends on the model behind it.
 
-On macOS, agent and document titles share the window's top row. Drag empty space in that row to move the window; use a pane's grip to rearrange it.
+Each mentor has its own workspace: the open course's outline and the library on the left, the reader in the middle, and the conversation on the right. Opening anything (a lesson, a source, a note, a canvas, a file, or a session the mentor started) replaces what the reader shows; nothing opens in a new tab or window. Coming back to a mentor reopens the lesson it was showing. ⌘K finds a mentor or anything in its library, ⌘1–9 switch mentors, ⌘W closes the reader, and ⌘B and ⇧⌘B fold the library and the conversation.
 
 ## Reading and sources
 
@@ -122,7 +122,7 @@ Commands work at the start of a prompt.
 
 ## Data and privacy
 
-- **Where your data is.** Sessions, notes, canvases, source references, PDF annotations and layout are in `loci.db` (SQLite) inside the app data folder `com.loci.desktop`: `~/Library/Application Support/com.loci.desktop` on macOS, `~/.local/share/com.loci.desktop` on Linux, `%APPDATA%\com.loci.desktop` on Windows. Pasted images live beside it. Your project files stay in your own folders. PDF annotations do not rewrite the PDF.
+- **Where your data is.** Sessions, notes, canvases, source references and PDF annotations are in `loci.db` (SQLite) inside the app data folder `com.loci.desktop`: `~/Library/Application Support/com.loci.desktop` on macOS, `~/.local/share/com.loci.desktop` on Linux, `%APPDATA%\com.loci.desktop` on Windows. Pasted images live beside it. Your project files stay in your own folders. PDF annotations do not rewrite the PDF.
 - **What Loci sends over the network.** Loci has no analytics or crash reporting. An installed Loci checks GitHub Releases for updates a little after launch and every six hours, and asks before installing one; a build from source does not update itself. Beyond what the agent CLIs do with their own providers, Loci fetches the title and icon of public links shown in a conversation (loopback and private addresses are refused).
 - **What agents can do.** An agent runs with your user's permissions. The permission mode only decides when Loci asks you before the CLI acts, so choose it with the same care as in the CLI itself. **Full access** allows commands, edits and supported MCP confirmations without prompts.
 
@@ -161,8 +161,8 @@ Layout:
 
 ```text
 src/                      React front end
-  app/                    window shell and workspace composition
-  features/               sessions, agents, learning, notes, canvas, projects, search, settings, skills, ...
+  app/                    window shell: the mentor rail, keys and session wiring
+  features/               mentor workspace, sessions, agents, learning, notes, canvas, settings, skills, ...
   integrations/harness/   agent CLI protocol core and the ten CLI adapters
   platform/tauri/         thin wrappers over Tauri commands
   shared/                 UI components, hooks and utilities
