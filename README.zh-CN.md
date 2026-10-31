@@ -4,10 +4,9 @@
 
 # Loci
 
-**一个桌面应用，容纳你已经在用的所有 agent CLI。**
+**给工程师的 AI 原生学习工作台。**
 
-项目就是普通文件夹，会话通过本机已安装的 agent CLI 运行。<br />
-笔记、画布和常驻 agent 就放在对话旁边。
+**一位常驻导师，一个主题。它带来一手材料——文档、规范、论文和源码——陪你一起读。**
 
 [![CI](https://github.com/Umupa/Loci/actions/workflows/ci.yml/badge.svg)](https://github.com/Umupa/Loci/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -18,29 +17,48 @@
 
 ---
 
-Loci 是一个本地优先的 agent CLI 桌面外壳，使用 Tauri 2、Rust、React 19 和 Tailwind 4 构建。它自己不运行模型，也没有服务端：它启动你已安装的 CLI，说它们的协议，并给它们一个共同的工作场所，包括标签与分栏、项目侧栏、笔记、Excalidraw 画布和提醒。数据都留在你的机器上，主要存放在一个本地 SQLite 数据库里。
+Loci 是一个本地优先的桌面学习工作台，用 agent 学习技术主题。每位导师都是一个长期存在的 agent，对应一个主题：一份 Soul（长期指令）、一份记忆，以及对话旁的资料库，存放课程、文档、笔记和画布。导师采集一手材料，陪你一起读。它通过你已经登录的 agent CLI 运行——Claude Code 或 Codex——不需要另配模型 API key，也没有自己的服务端。数据留在你的机器上，主要是一个本地 SQLite 数据库。
 
 > [!NOTE]
 > Loci 还是早期软件（v0.1）。界面、数据模型和内置 MCP 工具都可能变化。各系统上试过什么、没试过什么，见[平台支持](#平台支持)。
 
-## 功能
+## 学习循环
 
-- **十个 agent CLI，一个界面。** Claude Code、Codex、Cursor、Grok Build、OpenCode、Pi、omp、fx、Hermes Agent 和 Antigravity。每个 CLI 继续使用它自己的登录和设置。每个会话可以单独选择模型和权限模式（Supervised、Auto-accept edits、Auto、Full access）。
-- **为长时间运行的 agent 准备的工作区。** 标签和拖拽分栏、agent 提问、计划与任务显示、带文件夹的会话列表、⌘K 跨会话搜索、图片和文档附件、手动提醒及桌面通知。
-- **笔记和画布是一等对象。** 可以在输入框里用 `@` 引用的 Markdown 笔记，以及 Excalidraw 画布。回复里可以用 `loci://note/<id>`、`loci://canvas/<id>` 链接它们，点击后在当前窗口打开。
-- **会画图的 agent。** Claude Code 和 Codex 会话自带内置的 `loci_excalidraw` MCP：未经修改的官方 Excalidraw MCP 服务，写入 Loci 自己的画布存储。Antigravity 和 Pi 会话通过 Loci 自带的 CLI 使用同一组工具，不需要安装或配置。你的手动修改会被保留，面板实时更新。见 [docs/canvas-mcp.md](docs/canvas-mcp.md)。
-- **`/operator`。** 让 agent 操作 Loci 本身：读取模型、启动和发送会话、调整分栏、整理文件夹、读写笔记和画布。它走一条带认证的本机回环通道，只在你启用它的那一个 turn 内有效。
-- **常驻 agent。** 不属于任何项目、长期存在的 agent：一段你会反复回来的对话、常驻指令、记忆、按计划自己运行的习惯，以及它在你的项目里启动并跟进的会话。它用可点选的选项提问，用卡片回复。见 [Agents](#agents)。
-- **来源提问与 PDF 批注。** 文件、PDF、网页和聊天选段可附在问题上。PDF 可保存高亮与笔记、回到关联讨论；网页来源通过 URL 和粘贴的原文片段添加。见 [docs/learning.md](docs/learning.md)。
-- **主题、壁纸与字体。** Settings → Appearance 提供 22 个 Omarchy 主题、配套代码高亮和 72 张壁纸，也支持自选背景与系统已安装的字体。沿用背景效果、显示范围和透明度，自定义强调色优先。见 [docs/themes.md](docs/themes.md)。
-- **中文设置页。** 设置页默认跟随系统语言，也可在“Settings → 通用 → 设置页语言”切换简体中文或英文，立即生效。工作区保持英文。
-- **本地优先。** 本地 SQLite 数据库，不需要账号，没有统计，没有自动更新。见[数据与隐私](#数据与隐私)。
+1. **定下目标。** 告诉导师你想学什么。它一次只问一个问题，直到目标和你的基础都清楚。
+2. **采集一手材料。** 它查找官方文档、规范、论文和源码，放在课程能指向的地方。
+3. **编排课程。** 它把材料排成章节和课时，每一课指向要读的段落、页面或文件。
+4. **阅读与提问。** 你在 Loci 里读原文。可以把文档、PDF、网页或对话中的选段附在问题上，回答可以引用这段原文。
+5. **沉淀理解。** 在对话旁写笔记、画画布。导师把进度记进记忆，下次从你停下的地方继续。
+
+## 导师
+
+点击侧栏 *Agents* 旁边的 **+** 新建。每位导师负责一个主题。可以从 **Mentor**、**Lens** 或空白 agent 开始。**Mentor** 模板一次一个问题地和你对齐目标，采集一手材料，编排成课程，并在阅读过程中检验你的理解。**Lens** 接收一个仓库，克隆它，写一页速览，并把值得读的文件编成代码导览课。
+
+每位导师都有：
+
+- **Soul。** 长期指令：它怎么教、对你有什么期待、要避开什么。可以在导师设置的 **Soul** 页编辑，也可以让导师在对话里修改。
+- **记忆。** 导师通过内置的 `app` CLI 维护的事实和主题笔记。它们是 Loci 数据目录里的文件，换模型也不会丢。
+- **资料库。** 对话旁的课程、文档、笔记和画布。课程是你读的内容，文档是课程指向的材料，笔记由你编辑，画布是 Excalidraw 图。导师通过 `app documents.write` 和 `app courses.write` 保存文档与课程。
+- **一段持续的对话。** 每位导师只有一段对话。旁边打开的课、文档或笔记会作为上下文一起传给导师，所以“这里”“这段”指的就是你正在读的内容。
+- **卡片。** 回复可以带可点选的提问、可打开的文档、清单、思维导图、课程、代码 diff、Mermaid 图，或指向画布的链接。
+
+导师通过 CLI 动手：它可以在你的机器上克隆仓库、运行代码、准备实验，受你选择的权限模式约束。
+
+导师做什么由提示词决定，所以效果取决于它背后的模型。
+
+在 macOS 上，agent 和文档标题共用窗口顶部的一行。拖动这一行的空白处可以移动窗口，拖动分栏的握把可以调整排列。
+
+## 阅读与来源
+
+问题可以附带选段。在文件里选中代码或文字，选择 **Ask agent** 或 **Add to chat**；在 PDF 或对话中选中段落；或者添加网页来源，填写 URL 并贴上原文（Loci 不会为这个功能抓取网页）。选段会随消息显示，并以文本形式交给 CLI。
+
+PDF 支持高亮。选中文字后可以选择 **Ask agent** 提问，或选择 **Highlight** 保存高亮。点击高亮可以写笔记、提问、打开关联讨论或删除。阅读器工具栏的 **PDF annotations** 列出全部高亮。高亮、笔记和讨论保存在本地 `loci.db`，不会改写 PDF。页面需要已有文本层；目前不做 OCR。详见 [docs/learning.md](docs/learning.md)。
 
 ## 安装
 
 ### 下载
 
-macOS（Apple 芯片与 Intel）和 Linux（x64）的安装包在 [Releases](https://github.com/Umupa/Loci/releases) 页面，安装后的 Loci 会从那里自动更新（**设置 → 通用 → 关于**）。发布版没有经过 macOS 公证，第一次打开时 macOS 会要求你确认。每个版本的改动见 [CHANGELOG.md](CHANGELOG.md)。
+macOS（Apple 芯片与 Intel）和 Linux（x64）的安装包在 [Releases](https://github.com/Umupa/Loci/releases) 页面，安装后的 Loci 会从那里检查并安装更新（**设置 → 通用 → 关于**）。发布版没有经过 macOS 公证，第一次打开时 macOS 会要求你确认。每个版本的改动见 [CHANGELOG.md](CHANGELOG.md)。
 
 ### 从源码构建
 
@@ -66,20 +84,22 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Loci Dev
 
 ### 开始第一个会话之前
 
-- 至少安装并登录一个受支持的 agent CLI。Loci 会在 `PATH` 和常见安装位置里找每个 CLI。**Settings → Agent CLIs** 可以指定具体的可执行文件、默认模型，以及隐藏你不用的 CLI。
+- 安装并登录 Claude Code 或 Codex。这两个是受支持的 CLI。Loci 会在 `PATH` 和常见安装位置里找它们。**Settings → Agent CLIs** 可以指定具体的可执行文件、默认模型，以及隐藏你不用的 CLI。
 - 想用内置 MCP 服务（`loci_excalidraw`），需要安装 Node.js 20.11+（或 Bun）。没有它会话照常启动，设置页和画布面板会说明缺什么。
 
 ## 支持的 agent CLI
 
-| CLI | 说明 |
+Loci 启动你机器上已安装的 CLI，说它的协议，自己不运行模型。Claude Code 和 Codex 是受支持的两个。其余八个适配保留，属于实验性。
+
+| CLI | 状态 |
 | --- | --- |
-| Claude Code、Codex | 完整功能：账号管理与额度查询、内置 MCP 服务 |
-| Antigravity、Pi | 对话、模型和权限选择，并通过 Loci 的 CLI 使用画布工具 |
-| Cursor、Grok Build、OpenCode、omp、fx、Hermes Agent | 通过 CLI 自己的协议聊天，并选择模型和权限。除此之外能显示多少（提问、计划、工具详情）取决于 CLI 上报什么 |
+| Claude Code、Codex | 受支持：对话、工具与权限，以及内置画布 MCP 服务 |
+| Antigravity、Pi、Cursor、Grok Build、OpenCode、omp、fx、Hermes Agent | 实验性：可以对话并选择模型和权限。提问、计划、工具详情等还能显示什么，取决于 CLI 上报什么 |
+
+每个 CLI 继续使用自己的登录和设置。每个会话可以选择模型和权限模式：Supervised、Auto-accept edits、Auto 或 Full access。
 
 需要知道的细节：
 
-- 账号管理和额度查询目前只支持 Claude Code 和 Codex。
 - Antigravity 使用独立的 ACP server。遇到认证提示时，请点击应用内的 **Sign in to Antigravity**；交互式 `agy` 的登录不能替代它。
 - Antigravity 和 Pi 通过运行命令来调用画布工具，所以它们是在对话里被告知这些工具的，而不是通过工具列表。Pi 做任何事之前都不询问，画图也一样；Plan 模式下 Pi 没有 shell，用不了这些工具。
 - fx 暂不支持附件。
@@ -91,33 +111,19 @@ macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Loci Dev
 
 | 命令 | 作用 |
 | --- | --- |
-| `/operator` | 让当前会话能访问 Loci 的会话、文件夹、笔记和画布 |
 | `/btw` | 就当前 turn 问一个只读的旁问 |
 | `/draft` | 保存这条消息，但不启动 agent |
 | `/compact` | 总结较早的对话内容，腾出上下文空间 |
 | `/mcp` | 为这条消息查找合适的 MCP 服务 |
-| `/add-to-folder` | 把这个会话放进已有或新建的侧栏文件夹 |
 
+## 外观与语言
 
-## Agents
-
-点击侧栏 *Agents* 旁边的 **+**，用默认模型打开空白对话，在聊天里告诉它用途或第一个任务。你可以在 **Settings → Soul** 查看和编辑常驻指令，在 Settings 调整名称、角色、模型和项目，也可以在聊天里要求智能体修改 Soul。Loci 提供身份、项目、记忆和工具可用性等上下文数据；用户和 Soul 决定智能体的行为。
-
-- **它一直在。** 一个 agent 有一段不会结束的对话、一份 soul（常驻指令）和一份可持续更新的记忆。两者都是 Loci 数据目录里的文件，不在你的仓库里，换模型也不会丢。
-- **它在你的项目里干活。** 在 Settings 里把项目交给它。它可以处理其中的文件，你仍在当前 agent 对话中讨论工作。
-- **习惯。** Loci 开着的时候按计划自己做的事，只有值得说时才给你发消息。
-- **卡片。** 回复不只是文字：可点选的提问、在对话旁打开的文档、可以勾选的清单、可折叠的思维导图、Mermaid 图、指向画布的链接。清单操作会发送消息。
-- **工作总览。** 聊天旁按课程、文档、笔记、习惯和画布组织内容。课程、文档和可编辑笔记默认在面板内打开，可以返回列表或展开到独立分栏。这里保存的笔记关联当前 agent，也能在全局 Notes 中查看；习惯详情显示近期报告和失败原因。
-- **比如做导师。** 让 agent 教你一个主题，并把进度记在记忆里。你可以在 Soul 中设置教学方式，等想继续学习时再让它整理路线图。
-
-agent 做什么由提示词决定，所以效果取决于它背后的模型。
-
-在 macOS 上，agent 和文档标题共用窗口顶部的一行。拖动这一行的空白处可以移动窗口，拖动分栏的握把可以调整排列。
+**Settings → Appearance** 提供 22 个 Omarchy 主题、配套代码高亮和 72 张壁纸，也支持系统已安装的字体和自定义强调色。**Settings → 通用 → 设置页语言** 可以跟随系统语言，或选择简体中文、英文，立即生效。工作区保持英文。见 [docs/themes.md](docs/themes.md)。
 
 ## 数据与隐私
 
-- **数据在哪。** 会话、笔记、画布、来源引用、PDF 批注、布局和提醒都在应用数据目录 `com.loci.desktop` 下的 `loci.db`（SQLite）里：macOS 是 `~/Library/Application Support/com.loci.desktop`，Linux 是 `~/.local/share/com.loci.desktop`，Windows 是 `%APPDATA%\com.loci.desktop`。粘贴的图片和隔离的 provider 账号放在它旁边。你的项目文件仍在你自己的文件夹里，批注不会改写原 PDF。
-- **Loci 会联网做什么。** Loci 没有统计、崩溃上报和更新检查。除了 agent CLI 自己和各自的 provider 通信之外，Loci 会读取对话中公开链接的标题和图标（回环和内网地址会被拒绝）；对 Claude Code，它会用 Claude Code 已保存在本机的登录令牌，向 Anthropic 的用量接口查询你的用量。该令牌不会保存到别处。
+- **数据在哪。** 会话、笔记、画布、来源引用、PDF 批注和布局都在应用数据目录 `com.loci.desktop` 下的 `loci.db`（SQLite）里：macOS 是 `~/Library/Application Support/com.loci.desktop`，Linux 是 `~/.local/share/com.loci.desktop`，Windows 是 `%APPDATA%\com.loci.desktop`。粘贴的图片放在它旁边。你的项目文件仍在你自己的文件夹里，批注不会改写原 PDF。
+- **Loci 会联网做什么。** Loci 没有统计，也没有崩溃上报。安装版会在启动后不久检查 GitHub Releases 上的更新，之后每六小时一次，安装前会征求你的同意；从源码构建的版本不会自己更新。除了 agent CLI 自己和各自的 provider 通信之外，Loci 会读取对话中公开链接的标题和图标（回环和内网地址会被拒绝）。
 - **agent 能做什么。** agent 以你的用户权限运行。权限模式只决定 Loci 在 CLI 行动之前是否询问你，所以选它要像在 CLI 里一样谨慎。**Full access** 会让命令、编辑和受支持的 MCP 确认都不再询问。
 
 报告安全漏洞请见 [SECURITY.md](SECURITY.md)。
@@ -156,8 +162,8 @@ npm run build         # 类型检查并构建 Web 包
 ```text
 src/                      React 前端
   app/                    窗口外壳与工作区组合
-  features/               sessions、agents、notes、canvas、projects、search、settings、skills 等
-  integrations/harness/   agent CLI 协议核心和十个 provider
+  features/               sessions、agents、learning、notes、canvas、projects、search、settings、skills 等
+  integrations/harness/   agent CLI 协议核心和十个 CLI 适配器
   platform/tauri/         对 Tauri 命令的薄封装
   shared/                 UI 组件、hooks 和工具函数
 src-tauri/                Rust 后端：进程、SQLite 存储、应用控制、MCP 资源
@@ -170,8 +176,8 @@ scripts/                  版本号更新、第三方文件引入和真实协议
 
 ## 文档
 
-[文档索引](docs/README.md)列出了全部指南。画布 MCP 的设计记录以中文撰写。
+[文档索引](docs/README.md)列出了全部指南。[docs/roadmap.md](docs/roadmap.md) 说明定位和后续阶段。画布 MCP 的设计记录以中文撰写。
 
 ## 许可证
 
-Loci 以 [MIT 许可证](LICENSE)发布。它派生自一个更早的 MIT 许可项目，并内置同为 MIT 许可的官方 Excalidraw MCP 服务；来源、版本和商标声明见 [NOTICE](NOTICE)。Loci 与它能驱动的各 agent CLI 的厂商没有任何关联。
+Loci 以 [MIT 许可证](LICENSE)发布。它派生自一个更早的 MIT 许可项目，并内置同为 MIT 许可的官方 Excalidraw MCP 服务；来源、版本和商标声明见 [NOTICE](NOTICE)。Loci 与它能运行的各 agent CLI 的厂商相互独立。
