@@ -6,7 +6,7 @@ Claude Code / Codex 会话默认带上内置的 `loci_excalidraw` MCP。Antigrav
 
 它运行**未经修改的官方 Excalidraw MCP 服务**（v0.3.2 `.mcpb` 里的 `dist/server.js`），由 bridge 接入 Loci checkpoint 存储，并调整工具描述和保存结果。agent 用官方的 `read_me`、`create_view` 创建画布、添加或删除元素；修改已有元素用 Loci 提供的 `get_elements` 和 `update_elements`，按原 ID 合并属性，不需要重建整个元素。人工修改被保留，已打开的面板立即更新，结果写入 SQLite，重启后旧 checkpoint 仍可续画。
 
-之前的结论“官方 MCP 只做预览，落盘走 `/operator` CLI”已作废。`/operator` 的 `canvas.*` 动作保留，用于列出、改名、删除和整幅替换。
+之前的结论“官方 MCP 只做预览，落盘走应用 CLI”已作废。`app` CLI 的 `canvas.*` 动作保留，用于列出、改名、删除和整幅替换。
 
 ## 调查到的事实
 
@@ -37,7 +37,7 @@ Claude Code / Codex（Loci 会话子进程，环境里有会话凭据）
 - 官方服务把 `restoreCheckpoint` 解析为“加载的元素 − 删除 + 新增”。bridge 只把删除的 ID 和新增元素发给 Loci，Loci 在保存队列里对**当时的**场景应用，所以用户正在画的内容不会被旧读数覆盖。
 - 场景和 checkpoint 在同一个 SQLite 事务里保存：不会出现已告诉 agent 却找不到的 checkpoint。
 - 更新携带读取时的版本；SQLite 在同一事务内检查版本，冲突时重读并重算修改。手绘保存只合入用户相对本地基线改动的内容，agent 写入完成后也会先保存期间产生的新草稿，再更新面板，避免并发绘图互相覆盖。
-- `canvas` 命名空间比 `/operator` 的 `app` 窄：只需会话有进行中的 turn，只能读写本项目的画布。
+- `canvas` 命名空间比 `app` 命名空间窄：只需会话有进行中的 turn，只能读写本项目的画布。
 
 ## 语义
 
@@ -55,7 +55,7 @@ Claude Code / Codex（Loci 会话子进程，环境里有会话凭据）
 
 SQLite 保存成功后才返回 `canvasId`、`title`、`url`、`saved:true` 及现有 `checkpointId`。bridge 按 MCP 请求 ID 关联回执，并在结果开头提供可直接引用的 Markdown 链接；保存失败返回错误，不提供成功回执。`update_elements` 同样返回保存链接；`read_widget_context` 和 `get_elements` 返回当前画布地址。官方 widget 的私有 `save_checkpoint` 保留原有返回格式。
 
-`/operator` 的笔记、画布列表和读取结果包含 `url`，创建和更新结果额外包含 `saved:true`，其他字段保留。回复可写为 `[笔记标题](loci://note/<noteId>)` 或 `[画布标题](loci://canvas/<canvasId>)`。地址使用稳定 ID，资源重命名后仍可打开。
+`app` CLI 的笔记、画布列表和读取结果包含 `url`，创建和更新结果额外包含 `saved:true`，其他字段保留。回复可写为 `[笔记标题](loci://note/<noteId>)` 或 `[画布标题](loci://canvas/<canvasId>)`。地址使用稳定 ID，资源重命名后仍可打开。
 
 聊天正文将这两类地址显示为带图标的紧凑资源链接。sanitize 和 harden 仅额外允许 `loci` 协议，资源类型与 ID 在 URL 标准化之前校验；其他协议的限制保留。链接由当前窗口处理，不注册系统协议，不从外部唤起应用。既有绘图工具行的 Open 按钮也走同一导航，旧 checkpoint 可继续使用。
 
@@ -97,10 +97,10 @@ SQLite 保存成功后才返回 `canvasId`、`title`、`url`、`saved:true` 及�
 
 | 对象 | 事实 | 结论 |
 | --- | --- | --- |
-| 上游 MonoCode（`d26871f`） | 不给任何 Agent 注入 MCP，所有 ACP 适配器都发 `mcpServers: []`。它的内置能力（`/operator`、编排、Mono 的记忆与 artifacts）一律是：内置命令 → 在该轮消息后追加说明 → 应用自身的可执行文件充当 CLI → 回环控制通道 | 只要求 Agent 能跑 shell，十个 provider 一致。Loci 的 `/operator` 就是这条路 |
+| 上游 MonoCode（`d26871f`） | 不给任何 Agent 注入 MCP，所有 ACP 适配器都发 `mcpServers: []`。它的内置能力（内置命令、编排、Mono 的记忆与 artifacts）一律是：内置命令 → 在该轮消息后追加说明 → 应用自身的可执行文件充当 CLI → 回环控制通道 | 只要求 Agent 能跑 shell，十个 provider 一致。Loci 的 `app` CLI 就是这条路 |
 | Pi 1.1.0（本机实测） | 0.99.0（2026-09-29）才有内置 MCP；配置只在 `~/.pi/agent/mcp.json` 和项目的 `.pi/mcp.json`，都是用户自己的配置。不改配置的唯一办法是 `--extension` 调 `pi.registerMcpServer`，实测可行，但要求新版本。Pi 没有批准协议，shell 会继承 `LOCI_APP_*` | 走 CLI 对所有 Pi 版本都成立 |
 | Antigravity | 本机未安装，无法实测。ACP 的 `mcpServers` 是否被它的官方 server 采纳没有文档，且已有其他 ACP Agent 忽略该字段的报告；它自己的 MCP 配置是全局用户文件 | 不依赖未证实的行为，也不写用户配置 |
-| Antigravity 的进程 | 以 `<会话ID>#<n>` 启动，而会话凭据按会话 ID 查，所以此前它的进程里没有 `LOCI_APP_ENDPOINT/TOKEN`（`/operator` 的 CLI 在它上面同样连不上） | 凭据改为按所属会话查找 |
+| Antigravity 的进程 | 以 `<会话ID>#<n>` 启动，而会话凭据按会话 ID 查，所以此前它的进程里没有 `LOCI_APP_ENDPOINT/TOKEN`（`app` CLI 在它上面同样连不上） | 凭据改为按所属会话查找 |
 
 所以没有再做一套各家专用的挂载，而是给同一组服务加了一种调用方式。Claude Code 和 Codex 的 MCP 挂载没有改动。
 
@@ -112,7 +112,7 @@ loci canvas read_widget_context --json '{"checkpointId":"<id>"}'
 loci canvas --help        # 工具、说明和参数，直接取自服务的 tools/list
 ```
 
-`loci` 是应用自己的可执行文件，与 `/operator` 的 `loci app` 并列（`src-tauri/src/control_cli.rs`）。一次调用做四件事：
+`loci` 是应用自己的可执行文件，与 `loci app` 并列（`src-tauri/src/control_cli.rs`）。一次调用做四件事：
 
 1. 用环境里的会话凭据向应用询问“这个服务用什么命令启动”。这是保留请求 `mcp.server`，由 `control.rs` 直接回答，受该命名空间自己的授权规则约束，窗口看不到它。应用已经知道资源路径和 Node/Bun 在哪，CLI 不重复解析。
 2. 启动这条命令。它就是 MCP 客户端会挂的那个进程（`loci-bridge.mjs`），继承同一份凭据。
@@ -132,7 +132,7 @@ loci canvas --help        # 工具、说明和参数，直接取自服务的 too
 
 ### 开关、批准和显示
 
-- **开关。** turn 开始时把 Settings → MCP 的 Excalidraw 开关记进这一轮的授权，`canvas` 命名空间按它放行或拒绝（`control.rs`）。关闭后下一轮起请求被拒并说明原因，进行中的 turn 正常完成。这对两种调用方式一视同仁；Claude Code / Codex 关闭后本来就不再挂载，行为不变。`/operator` 的 `canvas.*` 走 `app` 命名空间，不受开关影响，与此前相同。
+- **开关。** turn 开始时把 Settings → MCP 的 Excalidraw 开关记进这一轮的授权，`canvas` 命名空间按它放行或拒绝（`control.rs`）。关闭后下一轮起请求被拒并说明原因，进行中的 turn 正常完成。这对两种调用方式一视同仁；Claude Code / Codex 关闭后本来就不再挂载，行为不变。`app` CLI 的 `canvas.*` 走 `app` 命名空间，不受开关影响，与此前相同。
 - **批准（Antigravity）。** 它运行命令前会发批准请求并带上命令。`builtinCliCall` 只在命令**恰好是本应用可执行文件的一次工具调用**时才认：路径必须等于应用自己的路径，参数只能是一个 `--json` 或 `--input`，任何会被 shell 展开、串接或重定向的写法（`;`、`&&`、管道、`$()`、反引号、heredoc）都不认。认出后按 MCP 工具的同一套规则作答：读取不问；`create_view` / `update_elements` 在 Supervised 询问、其余模式直接执行；学习工具不问；计划 turn 只读。认不出的照常作为普通命令询问。
 - **批准（Pi）。** Pi 没有批准协议，任何工具都不询问，画布写入也一样；计划 turn 里 Pi 没有 shell，这些工具不可用，包括读取。
 - **显示。** 对话记录把这样的 shell 行显示成对应的画布调用，绘图行的 Open 按钮照常可用；查看工具列表显示为“View canvas tools”。
@@ -213,7 +213,7 @@ Codex 的 `-c` 覆盖会逐字段合并，连完整 inline table 也不会清除
 | 笔记定位 | 跨项目笔记、全局笔记、笔记内连续跳转均成功；关闭 Notes 返回原聊天项目 |
 | 失效笔记 | 显示 “This note no longer exists”，不显示另一条笔记的编辑器 |
 | Codex 默认绘图 | GPT-6.1-Sol 首轮调用 `loci_excalidraw:read_me`、`create_view`，保存 Kubernetes 简单架构，回复自带可点击画布入口 |
-| Codex 保存笔记 | `/operator` 调用 `notes.write` 返回 `saved:true` 和 `url`；回复中的笔记、画布链接均可打开，笔记内可跳回画布 |
+| Codex 保存笔记 | `app` CLI 调用 `notes.write` 返回 `saved:true` 和 `url`；回复中的笔记、画布链接均可打开，笔记内可跳回画布 |
 | 远端仍可用 | Codex 显式指定远端后成功调用 `excalidraw:read_me`；未增加本地画布 |
 | 重启与 Open 按钮 | 正常退出并重启，3 张画布与 4 条笔记的内容哈希不变；正文链接和工具行 checkpoint Open 均可继续定位 |
 | Claude Code | Sonnet 5 在内置、远端同时可用时仍先调用远端 `mcp__excalidraw__read_me`；随后模型接口返回 429 会话额度限制，本轮未完成 Claude 的绘图保存验收 |

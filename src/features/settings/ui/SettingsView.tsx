@@ -59,7 +59,6 @@ import { loadAgentsEnabled, saveAgentsEnabled, subscribeAgentsEnabled, filterKey
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
 import { cachedNotificationPermission, loadNotificationsEnabled, openNotificationSettings, probeNotificationPermission, requestNotificationPermission, saveNotificationsEnabled, type NotificationPermission, } from "../../notifications/model/notifications";
 import { SkillsPage } from "../../skills/ui/SkillsPage";
-import { ProjectNotificationSettings } from "../../notifications/ui/ProjectNotificationSettings";
 import type {} from "../../sessions/model/session";
 /**
  * The `data-setting-id` Settings should reveal when it opens: one of the ids in
@@ -73,10 +72,6 @@ type Props = {
     section: SettingsSectionId;
     /** Card to scroll to; the General page is too long to land at the top. */
     anchor?: SettingsAnchor | null;
-    /** Project to focus when opening notification settings from a quick action. */
-    notificationProjectPath?: string | null;
-    /** Changes for each quick action, including repeated requests for one project. */
-    notificationSettingsRequest?: number;
     recents?: RecentProject[];
     cwd: string;
     sessions: SessionSummary[];
@@ -95,28 +90,25 @@ type Props = {
 export function SettingsView(props: Props) {
     return <SettingsLanguage><SettingsViewContent {...props}/></SettingsLanguage>;
 }
-function SettingsViewContent({ section, anchor = null, notificationProjectPath = null, notificationSettingsRequest = 0, recents, cwd, sessions, besideRail = false, onClose, onSelectSection, onOpenSession, onArchiveSession, onDeleteSession, onRestoreProject, onDeleteProject, collapsedProjectRailMode, onCollapsedProjectRailModeChange, }: Props) {
+function SettingsViewContent({ section, anchor = null, recents, cwd, sessions, besideRail = false, onClose, onSelectSection, onOpenSession, onArchiveSession, onDeleteSession, onRestoreProject, onDeleteProject, collapsedProjectRailMode, onCollapsedProjectRailModeChange, }: Props) {
   useLocale();
     const lockOverscroll = useLockOverscroll<HTMLDivElement>();
     const [revealed, setRevealed] = useState<string | null>(anchor);
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
     const appearance = useAppearanceSettings(collapsedProjectRailMode, onCollapsedProjectRailModeChange);
-    useEffect(() => setRevealed(anchor), [anchor, notificationSettingsRequest]);
+    useEffect(() => setRevealed(anchor), [anchor]);
     // Section is a dependency so a search result on another page scrolls once
     // that page has mounted the row.
     useEffect(() => {
         if (!revealed)
             return;
-        // A project quick action lets the project card focus itself after discovery.
-        if (!(revealed === "project-notifications" && notificationProjectPath)) {
-            document
-                .getElementById(settingDomId(revealed))
-                ?.scrollIntoView?.({ block: "center" });
-        }
+        document
+            .getElementById(settingDomId(revealed))
+            ?.scrollIntoView?.({ block: "center" });
         const timer = window.setTimeout(() => setRevealed(null), 1800);
         return () => window.clearTimeout(timer);
-    }, [revealed, section, notificationProjectPath, notificationSettingsRequest]);
+    }, [revealed, section]);
     const onReveal = useCallback((next: SettingsSectionId, settingId: string | null) => {
         if (next !== section)
             onSelectSection?.(next);
@@ -159,7 +151,7 @@ function SettingsViewContent({ section, anchor = null, notificationProjectPath =
           <div ref={lockOverscroll} className="@container/settings min-h-0 flex-1 overflow-y-auto overscroll-none">
             <div className="mx-auto w-full max-w-5xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
               <PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)}/>
-              {section === "general" ? (<><GeneralPage /><div id={settingDomId("project-notifications")} data-setting-id="project-notifications"><ProjectNotificationSettings cwd={cwd} recents={recents} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest} highlighted={revealed === "project-notifications"} /></div></>) : null}
+              {section === "general" ? (<GeneralPage />) : null}
 
               {section === "appearance" ? (<AppearancePage appearance={appearance}/>) : null}
               {section === "agents" ? <AgentsPage /> : null}
@@ -310,7 +302,7 @@ function GeneralPage({}: {}) {
         </Row>
       </Group>
       <Group title={t("Alerts")} description={t("How Loci reaches you while you are looking somewhere else.")}>
-        <Row id="sounds" label={t("Sounds")} description={t("Short cues for finished turns. Choose project notification categories below. Switches and Copy on a finished turn also play.")}>
+        <Row id="sounds" label={t("Sounds")} description={t("Short cues for finished turns. Switches and Copy on a finished turn also play.")}>
           <Toggle label={t("Sounds")} on={soundsEnabled} onChange={onSoundsEnabled}/>
         </Row>
         <Row id="notifications" label={t("Notifications")} description={t("Notify when a reminder is due, or when an agent finishes or needs input in another session or while Loci is in the background. Click the notification to open that session.")}>

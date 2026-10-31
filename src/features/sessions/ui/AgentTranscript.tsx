@@ -38,8 +38,6 @@ X,
 } from "../../../shared/ui/icons";
 import { AttachmentChip } from "./AttachmentChip";
 import { GeneratedImage } from "./GeneratedImage";
-import { LociSparkles } from "./LociSparkles";
-import { MessageSendAccent } from "./MessageSendAccent";
 
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { FilePreview } from "./FilePreview";
@@ -94,10 +92,6 @@ import {
   type CanvasToolCall,
 } from "../model/canvasToolCall";
 import { CANVAS_OPEN_CHECKPOINT_EVENT } from "../../canvas/canvas";
-import {
-isOperatorUserTurn,
-operatorUserPrompt,
-} from "../model/operatorCommand";
 import { HARNESS_TITLE,hasPendingApproval,type AgentStep,type Block,type HarnessId,type ToolPreview,type TurnMetrics } from "../model/session";
 import {
 activityPhaseTitle,
@@ -1740,8 +1734,7 @@ function UserMessageBlock({
   const textRef = useRef<HTMLElement>(null);
 
   const note = block.noteCard;
-  const loci = isOperatorUserTurn(block);
-  const text = loci ? operatorUserPrompt(block) : block.text;
+  const text = block.text;
   const messageLink = text ? parseUserMessageLink(text) : null;
   const displayText = messageLink
     ? `${messageLink.beforeText}${messageLink.afterText}`
@@ -1833,7 +1826,6 @@ function UserMessageBlock({
       >
         <div
           data-draft={block.draft ? "true" : undefined}
-          data-loci={loci ? "true" : undefined}
           className={`user-message-bubble relative min-w-0 px-3 py-2 font-sans text-content transition-[background-color] duration-200 ${
             block.draft
               ? "border border-dashed border-content/30 bg-content/4"
@@ -1925,10 +1917,6 @@ function UserMessageBlock({
                 </button>
               </span>
             </div>
-          ) : null}
-          {visible && !block.draft ? (
-            loci ? <LociSparkles blockId={block.id} startedAt={block.startedAt} />
-              : <MessageSendAccent blockId={block.id} startedAt={block.startedAt} />
           ) : null}
         </div>
         {text ||

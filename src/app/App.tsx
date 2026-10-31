@@ -158,8 +158,6 @@ function Workspace(boot: BootWorkspace) {
   const settingsReturn = useRef<Surface>("chat");
   const [settingsSection, setSettingsSection] = useState(loadSettingsSection);
   const [settingsAnchor, setSettingsAnchor] = useState<string | null>(null);
-  const [notificationProjectPath, setNotificationProjectPath] = useState<string | null>(null);
-  const [notificationSettingsRequest, setNotificationSettingsRequest] = useState(0);
   const [projectRailOpen, setProjectRailOpen] = useState(loadProjectRailOpen);
   const [sessionSidebarOpen, setSessionSidebarOpen] = useState(loadSessionSidebarOpen);
   const [searchFocusToken, setSearchFocusToken] = useState(0);
@@ -630,11 +628,6 @@ function Workspace(boot: BootWorkspace) {
     return () => window.removeEventListener(FILE_POINTER_DRAG_EVENT, onDrag);
   }, []);
   const onRailBack = () => surface !== "chat" ? closeSurface() : workspace.visit("back");
-  const notificationsSettings = (path?: string) => {
-    setNotificationProjectPath(path ?? workspace.projectCwd);
-    setNotificationSettingsRequest((request) => request + 1);
-    openSettings("general", "project-notifications");
-  };
   const applyZoom = (direction: -1 | 0 | 1) => {
     if (requestImageZoom(direction === 0 ? "zoom-reset" : direction === 1 ? "zoom-in" : "zoom-out")) return;
     void applyUiScale(saveUiScale(direction === 0 ? UI_SCALE_DEFAULT : direction === 1 ? zoomInUiScale(loadUiScale()) : zoomOutUiScale(loadUiScale())));
@@ -754,7 +747,7 @@ function Workspace(boot: BootWorkspace) {
           onOpenFile={workspace.openFile} onToggleSidebar={toggleSessionSidebar} onFileMoved={workspace.fileMoved} onFileDeleted={workspace.fileDeleted}
           projectRailOpen={projectRailOpen} compactProjectRail={compactProjectRail} titleBarAbove={compactTitleBar} onToggleProjectRail={toggleProjectRail}
           unseenFinishedIds={unseenFinishedIds} settingsOpen={surface === "settings"} settingsSection={settingsSection} onOpenSettings={() => openSettings()}
-          onOpenNotificationSettings={notificationsSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={() => setSurface(settingsReturn.current)} />
+          onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={() => setSurface(settingsReturn.current)} />
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
           <div className={surface === "chat" ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden"} aria-hidden={surface !== "chat"} inert={surface !== "chat" || undefined}>
             {!IS_MAC ? <MenuBar onNew={() => workspace.createSession()} onSwitchTab={openTabSwitcher} onNextAttention={jumpToAttention} onTabOverview={openTabOverview} onReopenTab={() => { void workspace.reopenClosed("latest"); }} onToggleSidebar={toggleProjectRail} onToggleSessionSidebar={toggleSessionSidebar}
@@ -811,7 +804,7 @@ function Workspace(boot: BootWorkspace) {
             onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}
           {surface === "notes" ? <NotesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} cwd={workspace.projectCwd} openRequest={noteOpenRequest} recents={workspace.recents} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
           {surface === "courses" ? <CoursesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
-          {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor} notificationProjectPath={notificationProjectPath} notificationSettingsRequest={notificationSettingsRequest}
+          {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor}
             recents={workspace.recents} cwd={workspace.projectCwd} sessions={workspace.sidebarHistory} besideRail onClose={() => setSurface(settingsReturn.current)} onSelectSection={onSelectSettingsSection}
             onOpenSession={(id) => void workspace.openSession(id)} onArchiveSession={(...args) => void workspace.archiveSession(...args)} onDeleteSession={(id) => void workspace.removeSession(id)}
             onRestoreProject={workspace.openProject} onDeleteProject={(path) => void workspace.removeProject(path, { purgeData: true })}

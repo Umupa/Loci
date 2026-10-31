@@ -42,7 +42,7 @@ function makeMarks(): Mark[] {
 /**
  * A one-shot burst for opening a side question: question marks drift up out
  * of the composer into the panel as it opens, while the composer box glows
- * and a sheen crosses it. The /operator sparkles' cousin, in the accent color.
+ * and a sheen crosses it, in the accent color.
  */
 export function BtwQuestionBurst({
   rect,

@@ -462,29 +462,6 @@ describe("session submission", () => {
     await settle(pending[1]);
   });
 
-  it("activates Operator per thread and preserves the request receipt", async () => {
-    await mount(newSession("codex", "/project", "codex:test"));
-    const id = session().id;
-    await act(async () => { actions.onSubmit(id, "/operator List notes", [], { appRequestId: "app-request-1" }); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.appAccess).toBe(true);
-    expect(pending[0].input.text).toContain("<loci_app>");
-    const app = pending[0].input.text.match(/<loci_app>\n([\s\S]*?)\n<\/loci_app>/)![1];
-    expect(JSON.parse(app)).toMatchObject({ access: "operator", help: `${CLI} app --help` });
-    expect(pending[0].input.text).toContain("loci' app --help");
-    expect(session().blocks[0]).toMatchObject({ text: "List notes", loci: true, appRequestId: "app-request-1" });
-    await act(async () => {
-      pending[0].input.onEvent({ type: "session.providerBound", providerSessionId: "operator-provider" });
-      runtime.flushEvents();
-    });
-    await settle(pending[0]);
-    await act(async () => { actions.onSubmit(id, "Read the first note"); });
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input.appAccess).toBe(true);
-    expect(pending[1].input.text).not.toContain("<loci_app>");
-    await settle(pending[1]);
-  });
-
   it("keeps provider and local history rewound when a replacement is rejected", async () => {
     const initial = newSession("codex", "/project", "codex:test");
     initial.blocks = [
@@ -573,16 +550,15 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
     await settle(pending[1]);
   });
 
-  it.each([
-    ["pi", "loci_canvas"],
-    ["codex", "loci_app"],
-  ] as const)("restores the %s tool entry point after a bound provider rejects its first prompt", async (harness, entryPoint) => {
+  it("restores the canvas tool entry point after a bound provider rejects its first prompt", async () => {
+    const harness = "pi";
+    const entryPoint = "loci_canvas";
     saveCanvasMcpEnabled(true);
     const initial = newSession(harness, "/project");
     await mount({
       ...initial, providerSessionId: "legacy-provider",
       blocks: [
-        { id: "earlier", role: "user", text: "Use the local tools", canvasCli: harness === "pi", loci: harness === "codex" },
+        { id: "earlier", role: "user", text: "Use the local tools", canvasCli: true },
         { id: "reply", role: "assistant", text: "The local tools are available." },
       ],
     });

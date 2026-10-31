@@ -26,7 +26,6 @@ ArrowUp,
 Check,
 CircleDashed,
 CornerDownRight,
-CursorMagicSelection,
 FilePlus,
 ListEnd,
 Pause,
@@ -126,11 +125,6 @@ import { loadComposerRunner, subscribeComposerRunner, loadModelControls,loadNote
 import { resolveTabGroupLogo } from "../../workspace/model/tabGroups";
 import { UsageLimitNotice } from "./UsageLimitNotice";
 import { useComposerSkills } from "./useComposerSkills";
-
-import {
-consumeOperatorCommand,
-OPERATOR_COMMAND,
-} from "../model/operatorCommand";
 
 import { type McpConnection } from "../../settings/model/mcp";
 import {
@@ -602,8 +596,6 @@ export function Composer({
     else if (busy) setRunnerLive(true);
   }, [busy, runnerEnabled]);
 
-  const [operatorSelected, setOperatorSelected] = useState(false);
-
   const [draftSelected, setDraftSelected] = useState(false);
   const [slash, setSlash] = useState<SlashToken | null>(null);
   const [skillActive, setSkillActive] = useState(0);
@@ -670,11 +662,11 @@ export function Composer({
   });
   const skills = skillCatalog.skills;
   const slashItems = useMemo(() => [
-    SESSION_FOLDER_COMMAND, MCP_COMMAND, OPERATOR_COMMAND,
+    SESSION_FOLDER_COMMAND, MCP_COMMAND,
     ...(canSaveDraft && onSaveDraft ? [DRAFT_COMMAND] : []), COMPACT_COMMAND,
     ...(supportsBtwHarness(harness) ? [BTW_COMMAND] : []),
     ...skills.filter((skill) => skill.kind === "native" ||
-      ![OPERATOR_COMMAND.name, COMPACT_COMMAND.name, SESSION_FOLDER_COMMAND.name,
+      ![COMPACT_COMMAND.name, SESSION_FOLDER_COMMAND.name,
         MCP_COMMAND.name, DRAFT_COMMAND.name, BTW_COMMAND.name].includes(skill.name)),
   ], [harness, skills, canSaveDraft, onSaveDraft]);
   const skillLimit = hasNativeCommands(harness)
@@ -727,9 +719,6 @@ export function Composer({
   }, [onLearningContextChange, syncHasValue]);
 
   // A leading mode command in the text shows the same pill as picking the mode.
-  const operatorActive =
-    operatorSelected || leadingMode?.name === OPERATOR_COMMAND.name;
-
   const draftActive = draftSelected || leadingMode?.name === DRAFT_COMMAND.name;
 
 
@@ -1581,10 +1570,6 @@ export function Composer({
     }
 
     const text = folderCommand.matched && sessionFolderSelected ? folderCommand.text : value;
-    const submittedText =
-      operatorSelected && !consumeOperatorCommand(text).matched
-        ? `/operator ${text}`
-        : text;
     const files = attachmentsRef.current;
     if (!text && files.length === 0 && !noteCard && !learningRef.current.sources?.length) return;
     // Clear the parent draft before onSubmit. The app can synchronously remount
@@ -1601,8 +1586,8 @@ export function Composer({
     onLearningContextChange?.({});
     const accepted = onSubmit(
       mcpContextText(
-        taggedMcpServers(submittedText, selectedMcp),
-        submittedText,
+        taggedMcpServers(text, selectedMcp),
+        text,
       ),
       files,
       {
@@ -1640,8 +1625,6 @@ export function Composer({
     setSelectedMcp([]);
     setResendEdited(false);
     onEditingLastTurnChange?.(false);
-
-    setOperatorSelected(false);
 
     setSessionFolderSelected(false);
     setSessionFolderOpen(false);
@@ -2259,37 +2242,6 @@ export function Composer({
                     </span>
                   </button>
 
-                  {(
-                    <button
-                      type="button"
-                      aria-pressed={operatorActive}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        setOperatorSelected(!operatorActive);
-                        if (operatorActive) {
-                          clearLeadingMode(OPERATOR_COMMAND.name);
-                        }
-
-
-                        setDraftSelected(false);
-                        setPlusOpen(false);
-                        ref.current?.focus();
-                      }}
-                      className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left text-content hover:bg-content/10"
-                    >
-                      <CursorMagicSelection className="mt-0.5 size-4 shrink-0 text-sky-300/80" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[13px]">Operator</span>
-                        <span className="block truncate whitespace-nowrap text-[11px] leading-4 text-content/45">
-                          Give this thread access to Loci
-                        </span>
-                      </span>
-                      {operatorActive ? (
-                        <Check className="mt-0.5 size-3.5 shrink-0 text-sky-300/80" />
-                      ) : null}
-                    </button>
-                  )}
-
                   {canSaveDraft && onSaveDraft ? (
                     <button
                       type="button"
@@ -2298,8 +2250,6 @@ export function Composer({
                       onClick={() => {
                         setDraftSelected(!draftActive);
                         if (draftActive) clearLeadingMode(DRAFT_COMMAND.name);
-
-                        setOperatorSelected(false);
 
                         setPlusOpen(false);
                         ref.current?.focus();
@@ -2321,18 +2271,6 @@ export function Composer({
                 </Popover>
               ) : null}
             </div>
-            {!compact && operatorActive ? (
-              <ModeCommandPill
-                name={OPERATOR_COMMAND.name}
-                onClear={() => {
-                  setOperatorSelected(false);
-                  clearLeadingMode(OPERATOR_COMMAND.name);
-                  ref.current?.focus();
-                }}
-              />
-            ) : null}
-
-
             {!compact && draftActive ? (
               <ModeCommandPill
                 name={DRAFT_COMMAND.name}

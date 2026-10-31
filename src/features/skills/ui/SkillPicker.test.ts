@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { SkillPicker } from "./SkillPicker";
 
-import { OPERATOR_COMMAND } from "../../sessions/model/operatorCommand";
 import { COMPACT_COMMAND } from "../../sessions/model/compact";
 import { SESSION_FOLDER_COMMAND } from "../../sessions/model/sessionFolderCommand";
 import type { Skill } from "../model/skills";
@@ -15,7 +14,6 @@ describe("native command picker", () => {
       createElement(SkillPicker, {
         skills: [
           SESSION_FOLDER_COMMAND,
-          OPERATOR_COMMAND,
           COMPACT_COMMAND,
           ...native,
         ],
@@ -32,7 +30,6 @@ describe("native command picker", () => {
     );
 
 
-    expect(html).toContain("/operator");
     expect(html).toContain("/compact");
     expect(html).toContain("/add-to-folder");
     expect(html).toContain("/workflow");

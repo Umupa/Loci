@@ -9,7 +9,6 @@ import { isHarnessAvailable } from "../../../integrations/harness/core/availabil
 import { hasLiveCatalog, modelsFor, resetHarnessModelOverlays, setHarnessModels } from "../../sessions/model/models";
 import { SettingsView } from "./SettingsView";
 import { setLanguagePreference } from "../../../shared/i18n/locale";
-import { rememberNotificationProjects } from "../../notifications/model/notificationProjects";
 import { SETTINGS_INDEX, SETTINGS_SECTIONS, type SettingsSectionId, } from "../model/settings";
 import { providerAccounts, saveProviderAccount, } from "../../providers/model/providerAccounts";
 import { clearCachedRateLimits, setCachedRateLimits, } from "../../providers/model/rateLimitsCache";
@@ -281,75 +280,6 @@ describe("settings pages", () => {
         await act(async () => retry.click());
         expect(invoke).toHaveBeenCalledWith("harness_resolve_codex");
     });
-    it("reopens, scrolls to, focuses and highlights the same project on a repeated notification settings request", async () => {
-        vi.useFakeTimers();
-        const scroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
-        rememberNotificationProjects([
-            {
-                id: "local:/work/app",
-                name: "work/app",
-                detail: "Local project",
-                kind: "local",
-                paths: ["/repo"],
-            },
-        ]);
-        const shortcut = {
-            anchor: "project-notifications" as const,
-            notificationProjectPath: "/repo",
-            notificationSettingsRequest: 1,
-        };
-        await render("general", shortcut);
-        const project = container.querySelector<HTMLButtonElement>('button[aria-label="Notification categories for work/app"]')!;
-        const card = project.closest("fieldset")!;
-        const section = container.querySelector('[data-setting-id="project-notifications"]')!;
-        const highlight = () => section.querySelector(".border-accent\\/60");
-        expect(highlight()).not.toBeNull();
-        expect(project.getAttribute("aria-expanded")).toBe("true");
-        expect(document.activeElement).toBe(card);
-        await act(async () => vi.advanceTimersByTimeAsync(1800));
-        expect(highlight()).toBeNull();
-        await act(async () => project.click());
-        expect(project.getAttribute("aria-expanded")).toBe("false");
-        const search = container.querySelector<HTMLInputElement>('[aria-label="Search settings"]')!;
-        search.focus();
-        expect(document.activeElement).toBe(search);
-        scroll.mockClear();
-        await render("general", { ...shortcut, notificationSettingsRequest: 2 });
-        expect.soft(project.getAttribute("aria-expanded")).toBe("true");
-        expect.soft(scroll).toHaveBeenCalledWith({ block: "nearest" });
-        expect.soft(scroll.mock.contexts).toContain(card);
-        expect.soft(document.activeElement === card).toBe(true);
-        expect.soft(highlight()).not.toBeNull();
-        await act(async () => vi.advanceTimersByTimeAsync(1800));
-        expect(highlight()).toBeNull();
-        expect(project.getAttribute("aria-expanded")).toBe("true");
-        expect(document.activeElement).toBe(card);
-    });
-    it("clears the project shortcut highlight after 1.8 seconds while keeping its project open and focused", async () => {
-        vi.useFakeTimers();
-        rememberNotificationProjects([
-            {
-                id: "local:/work/app",
-                name: "work/app",
-                detail: "Local project",
-                kind: "local",
-                paths: ["/repo"],
-            },
-        ]);
-        await render("general", {
-            anchor: "project-notifications",
-            notificationProjectPath: "/repo",
-        });
-        const section = container.querySelector('[data-setting-id="project-notifications"]')!;
-        const project = section.querySelector('button[aria-label="Notification categories for work/app"]')!;
-        expect(section.querySelector(".border-accent\\/60")).not.toBeNull();
-        expect(project.getAttribute("aria-expanded")).toBe("true");
-        expect(document.activeElement).toBe(project.closest("fieldset"));
-        await act(async () => vi.advanceTimersByTimeAsync(1800));
-        expect(section.querySelector(".border-accent\\/60")).toBeNull();
-        expect(project.getAttribute("aria-expanded")).toBe("true");
-        expect(document.activeElement).toBe(project.closest("fieldset"));
-    });
     it("gives every section a rail group", () => {
         const groups = new Set(SETTINGS_SECTIONS.map((section) => section.group));
         expect([...groups]).toEqual(["app", "agents", "workspace"]);
@@ -484,19 +414,6 @@ describe("settings search", () => {
         await act(async () => options()[0]!.click());
         expect(onSelectSection).toHaveBeenCalledWith("chat");
     });
-    it("finds and reveals project notifications separately from global notifications", async () => {
-        await render("general");
-        await type("project notifications");
-        expect(options().map((item) => item.textContent)).toEqual([
-            "Project notificationsGeneral",
-        ]);
-        await act(async () => options()[0]!.click());
-        expect(onSelectSection).not.toHaveBeenCalled();
-        await render("general");
-        const section = container.querySelector('[data-setting-id="project-notifications"]');
-        expect(section?.querySelector('[aria-label="Project notifications"]')).not.toBeNull();
-        expect(section?.querySelector(".border-accent\\/60")).not.toBeNull();
-    });
     // A page whose name starts with the query beats a setting that merely
     // mentions it; anything weaker loses to the settings themselves.
     it("ranks a page against the settings that mention it", async () => {
@@ -506,7 +423,6 @@ describe("settings search", () => {
         await type("notification");
         expect(options().map((item) => item.querySelector("span")!.textContent)).toEqual([
             "Notifications",
-            "Project notifications",
             "Claude Code hooks",
             "General",
 

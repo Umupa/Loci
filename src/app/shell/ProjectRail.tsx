@@ -59,11 +59,10 @@ type Props = {
     settingsOpen?: boolean;
     settingsSection?: SettingsSectionId;
     onOpenSettings?: () => void;
-    onOpenNotificationSettings?: (projectPath?: string) => void;
     onSelectSettingsSection?: (section: SettingsSectionId) => void;
     onCloseSettings?: () => void;
 };
-export function ProjectRail({ visible = true, agentRail, agentActive = false, projectsEnabled = true, cwd, recents, busyPaths, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onSearch, searchActive = false, notesEnabled = true, onOpenNotes, notesActive = false, onOpenCourses, coursesActive = false, onTogglePanel, onSelectProject, onOpenProject, onRemoveProject, liveAgents = [], activeSessionId, onSelectAgent, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, }: Props) {
+export function ProjectRail({ visible = true, agentRail, agentActive = false, projectsEnabled = true, cwd, recents, busyPaths, canGoBack = false, canGoForward = false, onGoBack, onGoForward, onSearch, searchActive = false, notesEnabled = true, onOpenNotes, notesActive = false, onOpenCourses, coursesActive = false, onTogglePanel, onSelectProject, onOpenProject, onRemoveProject, liveAgents = [], activeSessionId, onSelectAgent, settingsOpen = false, settingsSection = "general", onOpenSettings, onSelectSettingsSection, onCloseSettings, }: Props) {
     const resize = useDragResize({
         min: PROJECT_RAIL_WIDTH_MIN,
         max: () => Math.min(PROJECT_RAIL_WIDTH_MAX, Math.floor(window.innerWidth * 0.35)),
@@ -91,7 +90,6 @@ export function ProjectRail({ visible = true, agentRail, agentActive = false, pr
     }), []);
     const projectMenu = useProjectMenu({
         onRemoveProject,
-        onOpenNotificationSettings,
     });
     useEffect(() => {
         if (visible)

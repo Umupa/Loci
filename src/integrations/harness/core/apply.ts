@@ -426,7 +426,6 @@ type UserTurnExtra = {
   blockId?: string;
   sources?: Block["sources"];
   noteCard?: Block["noteCard"];
-  loci?: boolean;
   canvasCli?: boolean;
   appRequestId?: string;
   agentSessionCompletion?: Block["agentSessionCompletion"];
@@ -438,7 +437,6 @@ function userTurnFields(extra?: UserTurnExtra) {
     ...(extra?.blockId ? { id: extra.blockId } : {}),
     ...(extra?.sources?.length ? { sources: extra.sources } : {}),
     ...(extra?.noteCard ? { noteCard: extra.noteCard } : {}),
-    ...(extra?.loci ? { loci: true } : {}),
     ...(extra?.canvasCli ? { canvasCli: true } : {}),
     ...(extra?.appRequestId ? { appRequestId: extra.appRequestId } : {}),
     ...(extra?.agentSessionCompletion

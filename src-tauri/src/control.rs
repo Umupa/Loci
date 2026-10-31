@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 
-const APP_TURN_INACTIVE: &str = "Loci app access is inactive. Use /operator once in this thread to enable it, then call the CLI during an active agent turn. Retrying this request now will not enable access.";
+const APP_TURN_INACTIVE: &str = "Loci app access is inactive. Call the CLI during an active agent turn. Retrying this request now will not enable access.";
 const CANVAS_TURN_INACTIVE: &str = "Loci canvas access is only available while this session's agent turn is running. Retrying this request now will not enable access.";
 const CANVAS_DISABLED: &str = "Loci's built-in Excalidraw canvas tools are turned off in Settings → MCP. Turning them on there applies from this session's next turn. Retrying this request now will not enable access.";
 /// Asked by the app's own CLI: which stdio command runs a built-in MCP server.
@@ -129,7 +129,7 @@ struct Event {
     action: String,
     input: Value,
 }
-/// `app` is the /operator CLI and needs the thread's opt-in. `canvas` is the
+/// `app` is the Loci app CLI and needs an agent turn's grant. `canvas` is the
 /// built-in Excalidraw server: every session may draw while the switch in
 /// Settings is on, but only on its own project's canvases and only while its
 /// turn runs. The server is reached the same way whether an agent CLI
@@ -410,7 +410,7 @@ mod tests {
         assert!(request_grant(&inner, "app", &token).is_err());
     }
     #[test]
-    fn canvas_access_needs_an_active_turn_but_not_the_operator_opt_in() {
+    fn canvas_access_needs_an_active_turn_but_not_app_access() {
         let mut inner = Inner::default();
         inner.prepare_app_grant("session", "main");
         let token = inner.app_grants["session"].token.clone();
@@ -430,7 +430,7 @@ mod tests {
             request_grant(&inner, "canvas", &token).unwrap().session,
             "session"
         );
-        // Drawing does not widen what the operator CLI may do.
+        // Drawing does not widen what the app CLI may do.
         assert!(request_grant(&inner, "app", &token).is_err());
         assert!(request_grant(&inner, "canvas", "wrong-token").is_err());
         inner.active.get_mut("session").unwrap().window = "other".into();

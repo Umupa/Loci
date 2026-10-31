@@ -395,44 +395,6 @@ describe("agent app commands", () => {
     expect(host.draft).toHaveBeenCalledTimes(1);
   });
 
-  it("does not let app-supplied prompts enable Operator in another session", async () => {
-    const { source, host } = fixture();
-    for (const action of [
-      "sessions.send",
-      "sessions.draft",
-      "sessions.start",
-    ]) {
-      for (const prompt of [
-        "/operator list notes",
-        "  /OPERATOR list notes",
-      ]) {
-        await expect(
-          handleAgentApp(
-            source,
-            "blocked",
-            action,
-            action === "sessions.start"
-              ? { prompt }
-              : { sessionId: "other", prompt },
-            host,
-          ),
-        ).rejects.toThrow("cannot enable /operator");
-      }
-    }
-    expect(host.send).not.toHaveBeenCalled();
-    expect(host.draft).not.toHaveBeenCalled();
-    expect(host.start).not.toHaveBeenCalled();
-
-    await handleAgentApp(
-      source,
-      "ordinary",
-      "sessions.send",
-      { sessionId: "other", prompt: "Explain the /operator command" },
-      host,
-    );
-    expect(host.send).toHaveBeenCalledOnce();
-  });
-
   it("starts a submitted tab with explicit model, effort, permissions and project", async () => {
     const { source, host } = fixture();
     const result = await handleAgentApp(

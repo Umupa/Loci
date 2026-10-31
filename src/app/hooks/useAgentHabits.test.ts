@@ -108,7 +108,7 @@ it("runs a due habit in a hidden full-access session and posts what it found", a
   await mount();
   await vi.waitFor(() => expect(stored[0].lastOutcome).toBe("posted"));
   expect(run).toMatchObject({ ephemeral: true, runtimeMode: "full-access", harness: "codex", model: "codex:test", title: "Ember · Morning CI check" });
-  expect(prompt.startsWith("/operator <agent>")).toBe(true);
+  expect(prompt.startsWith("<agent>")).toBe(true);
   expect(prompt).toContain("Habit: Morning CI check");
   expect(prompt).toContain("Be brief.");
   // The run is gone; only its message stays, marked as the habit's.

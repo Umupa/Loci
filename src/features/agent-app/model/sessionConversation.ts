@@ -1,5 +1,4 @@
 import type { Block, Session } from "../../sessions/model/session";
-import { operatorUserPrompt } from "../../sessions/model/operatorCommand";
 
 type Exchange = { user: Block; assistants: Block[] };
 
@@ -57,7 +56,7 @@ export function sessionConversationPage(
     ),
     turns: selected.map(({ user, assistants }) => ({
       turnId: user.id,
-      user: capped(operatorUserPrompt(user), maxChars),
+      user: capped(user.text, maxChars),
       assistant: assistants.length
         ? capped(assistants[assistants.length - 1].text, maxChars)
         : null,

@@ -336,12 +336,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "pretooluse settings.json block command notification",
     },
     {
-        id: "project-notifications",
-        section: "general",
-        get label() { return t("Project notifications"); },
-        keywords: "mute resume sounds banners reminders categories",
-    },
-    {
         id: "show-archived",
         section: "archive",
         get label() { return t("Show archived in the sidebar"); },

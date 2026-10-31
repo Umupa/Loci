@@ -304,17 +304,6 @@ describe("sanitizeSessionForPersist", () => {
     expect(saved).toHaveLength(2);
   });
 
-  it("keeps the stripped /operator turn marker for later turns", () => {
-    const submitted = appendUser(newSession("codex", "/repo"), "list notes", [], {
-      loci: true,
-    });
-    expect(sanitizeSessionForPersist(submitted).blocks[0]).toMatchObject({
-      role: "user",
-      text: "list notes",
-      loci: true,
-    });
-  });
-
   it("persists the request ID for an agent-sent follow-up", () => {
     const submitted = appendUser(newSession("codex", "/repo"), "Continue", [], {
       appRequestId: "app-source-request-1",
