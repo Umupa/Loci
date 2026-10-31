@@ -560,7 +560,15 @@ function Workspace(boot: BootWorkspace) {
               onOpen={(page) => mentorView.show(focusedAgent.id, page)} onClose={() => mentorView.close(focusedAgent.id)}
               onLessonChange={(lesson) => mentorView.setLesson(focusedAgent.id, lesson)}
               onRestoredChecked={(page, exists) => mentorView.confirmRestored(focusedAgent.id, page, exists)}
-              onToggleLibrary={() => mentorView.toggleLibrary(focusedAgent.id)} onToggleChat={() => mentorView.toggleChat(focusedAgent.id)}
+              onToggleLibrary={() => mentorView.toggleLibrary(focusedAgent.id)}
+              onLibraryChange={(change) => mentorView.openLibrary(focusedAgent.id, change)}
+              onDraft={(text) => {
+                if (!focusedAgent.sessionId) return;
+                // The draft waits in the composer; the conversation comes into view to show it.
+                if (!mentorView.stateFor(focusedAgent.id).chat) mentorView.toggleChat(focusedAgent.id);
+                requestAddToChat(text, "plain", { targetSessionId: focusedAgent.sessionId });
+              }}
+              onToggleChat={() => mentorView.toggleChat(focusedAgent.id)}
               onResizeLibrary={(width) => mentorView.resizeLibrary(focusedAgent.id, width)} onResizeChat={(width) => mentorView.resizeChat(focusedAgent.id, width)}
               onBeforeLeave={readerGuard} onReading={(reading) => setAgentReading(focusedAgent.id, reading)}
               onCanvasAddToChat={canvasAddToAgent} onCanvasTitleChange={renameCanvas} onOpenFile={openAgentFile}

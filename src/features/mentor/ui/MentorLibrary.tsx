@@ -1,27 +1,23 @@
-import { useState, type ReactNode } from "react";
+import { useId, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
-import { ChevronDown, ChevronRight, File, Mortarboard, Palette, Plus, StickyNote } from "../../../shared/ui/icons";
+import { File, Palette, Plus, Search, StickyNote, X } from "../../../shared/ui/icons";
 import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import type { CourseSummary } from "../../learning/model/course";
-import { LiveCourseOutline } from "../../learning/ui/CourseOutline";
 import { notePreview, type Note } from "../../notes";
-import type { Agent } from "../../agents/model/agent";
+import { agentLook, type Agent } from "../../agents/model/agent";
 import type { StoredDocument } from "../../agents/model/agentDocuments";
-import { MentorFilesSection } from "./filesSlot";
+import { LIBRARY_SEGMENTS, type LibrarySegment } from "../model/libraryCourse";
 import { samePage, type MentorLesson, type MentorPage } from "../model/mentorPage";
+import { MentorFilesSection } from "./filesSlot";
+import { LibraryCourses, type CourseBadge } from "./LibraryCourses";
+import { LibraryList, type LibraryEntry } from "./LibraryList";
+import { focusFirstItem } from "./listKeys";
 
 export type LibraryData = { courses?: CourseSummary[]; documents?: StoredDocument[]; notes?: Note[]; canvases?: Canvas[] };
-type Section = "outline" | "courses" | "sources" | "notes" | "canvases" | "files";
-const COLLAPSED_KEY = "loci:mentor-library-collapsed.v1";
-const SECTIONS: readonly Section[] = ["outline", "courses", "sources", "notes", "canvases", "files"];
+export type LibraryChange = { segment?: LibrarySegment; course?: string; filter?: string };
 
-function readCollapsed(): Set<Section> {
-  try {
-    const value = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]");
-    return new Set(Array.isArray(value) ? value.filter((entry): entry is Section => SECTIONS.includes(entry)) : []);
-  } catch { return new Set(); }
-}
+const LABELS: Record<LibrarySegment, string> = { courses: "Courses", sources: "Sources", notes: "Notes", files: "Files" };
 
 type Props = {
   agent: Agent;
@@ -34,66 +30,110 @@ type Props = {
   onNewNote: () => void;
   creatingNote: boolean;
   onOpenFile: OpenFileFn;
+  /** The segment chosen for this mentor; unset picks one from what it has. */
+  segment?: LibrarySegment;
+  /** The course the Courses segment shows. */
+  course?: string;
+  filter?: { segment: LibrarySegment; text: string };
+  onChange: (change: LibraryChange) => void;
+  /** Puts a message in the mentor's composer without sending it. */
+  onDraft: (text: string) => void;
+  /** Room after a course's or a lesson's title, for counts such as highlights. */
+  courseBadge?: CourseBadge;
 };
 
-/** The left column: the open course's outline, then what the mentor keeps. */
-export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile }: Props) {
-  const [collapsed, setCollapsed] = useState(readCollapsed);
-  const toggle = (section: Section) => setCollapsed((current) => {
-    const next = new Set(current);
-    if (next.has(section)) next.delete(section); else next.add(section);
-    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next])); } catch { /* Folding still works for this window. */ }
-    return next;
-  });
+/** The segment a mentor without a remembered choice opens on. */
+export function defaultSegment(data: LibraryData, page?: MentorPage): LibrarySegment {
+  return page?.kind === "course" || !data.courses || data.courses.length ? "courses" : "sources";
+}
+
+/**
+ * The left column: one kind of thing at a time, chosen at the top. Courses
+ * shows the course being learned and where to continue; Sources, Notes (with
+ * drawings) and Files are one list each, with a filter for that list.
+ */
+export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, segment: chosen, course, filter, onChange, onDraft, courseBadge }: Props) {
+  const id = useId();
+  const panel = useRef<HTMLDivElement>(null);
+  const segment = chosen ?? defaultSegment(data, page);
+  const query = filter?.segment === segment ? filter.text : "";
   const failure = Object.values(errors).find(Boolean);
-  const course = page?.kind === "course" ? page.course : undefined;
-  const section = (id: Section, label: string, count: number | undefined, body: ReactNode, action?: ReactNode) => {
-    const open = !collapsed.has(id);
-    return <section className="mentor-library-section" data-library-section={id} aria-label={label}>
-      <div className="mentor-library-heading">
-        <button type="button" className="mentor-library-toggle" aria-expanded={open} onClick={() => toggle(id)}>
-          {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-          <span className="min-w-0 truncate">{label}</span>
-          {count ? <span className="mentor-library-count">{count}</span> : null}
-        </button>
-        {action}
-      </div>
-      {open ? <div className="mentor-library-body">{body}</div> : null}
-    </section>;
+  const notesCount = data.notes || data.canvases ? (data.notes?.length ?? 0) + (data.canvases?.length ?? 0) : undefined;
+  const counts: Record<LibrarySegment, number | undefined> = {
+    courses: data.courses && data.courses.length > 1 ? data.courses.length : undefined,
+    sources: data.documents?.length || undefined,
+    notes: notesCount || undefined,
+    files: undefined,
   };
-  const row = (target: MentorPage, icon: ReactNode, title: string, subtitle: string, kind: string, id: string) =>
-    <button key={`${kind}:${id}`} type="button" className="mentor-library-row" data-resource-kind={kind} data-resource-id={id} aria-label={`${kind}: ${title}`}
-      aria-current={samePage(page, target) || undefined} title={subtitle ? `${title}\n${subtitle}` : title} onClick={() => onOpen(target)}>
-      <span aria-hidden className="mentor-library-icon">{icon}</span>
-      <span className="mentor-library-copy"><span className="mentor-library-title">{title}</span>{subtitle ? <span className="mentor-library-subtitle">{subtitle}</span> : null}</span>
-    </button>;
-  const empty = (items: readonly unknown[] | undefined, text: string) => items === undefined ? <p role="status" className="mentor-library-empty">Loading…</p>
-    : !items.length ? <p className="mentor-library-empty">{text}</p> : null;
-  return <nav className="mentor-library" aria-label={`${agent.name || "Mentor"} library`} data-mentor-library={agent.id}>
+
+  const sources = useMemo<LibraryEntry[] | undefined>(() => data.documents?.map((document) => ({
+    kind: "document", id: document.id, icon: <File className="size-3.5" />, title: document.title,
+    subtitle: [document.subject, sourceName(document.sourceUrl)].filter(Boolean).join(" · "),
+    target: { kind: "document", document: { id: document.id, title: document.title, body: "", ...(document.subject ? { subject: document.subject } : {}) } },
+  })), [data.documents]);
+  const notes = useMemo<LibraryEntry[] | undefined>(() => {
+    if (!data.notes && !data.canvases) return undefined;
+    const written = (data.notes ?? []).map((note) => ({ at: note.updatedAt, entry: {
+      kind: "note", id: note.id, icon: <StickyNote className="size-3.5" />, title: note.title || "Untitled",
+      subtitle: notePreview(note.body, note.title), target: { kind: "note", id: note.id },
+    } satisfies LibraryEntry }));
+    const drawn = (data.canvases ?? []).map((canvas) => ({ at: canvas.updatedAt, entry: {
+      kind: "canvas", id: canvas.id, icon: <Palette className="size-3.5" />, title: canvas.title,
+      subtitle: formatRelativeTime(new Date(canvas.updatedAt).toISOString()), target: { kind: "canvas", id: canvas.id },
+    } satisfies LibraryEntry }));
+    return [...written, ...drawn].sort((a, b) => b.at - a.at).map(({ entry }) => entry);
+  }, [data.notes, data.canvases]);
+
+  const tabKeys = (event: KeyboardEvent<HTMLDivElement>) => {
+    const at = LIBRARY_SEGMENTS.indexOf(segment);
+    const next = event.key === "ArrowRight" ? (at + 1) % LIBRARY_SEGMENTS.length
+      : event.key === "ArrowLeft" ? (at + LIBRARY_SEGMENTS.length - 1) % LIBRARY_SEGMENTS.length
+        : event.key === "Home" ? 0 : event.key === "End" ? LIBRARY_SEGMENTS.length - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    onChange({ segment: LIBRARY_SEGMENTS[next] });
+    event.currentTarget.querySelector<HTMLElement>(`[data-segment="${LIBRARY_SEGMENTS[next]}"]`)?.focus();
+  };
+
+  let body: ReactNode;
+  if (segment === "courses") {
+    body = <LibraryCourses agent={agent} courses={data.courses} selected={course} page={page} lesson={lesson}
+      onOpen={onOpen} onSelect={(courseId) => onChange({ course: courseId })} onDraft={onDraft} badge={courseBadge} />;
+  } else if (segment === "files") {
+    body = MentorFilesSection ? <MentorFilesSection agentId={agent.id} filter={query} onOpenFile={(path) => onOpenFile(path)} /> : null;
+  } else {
+    const entries = segment === "sources" ? sources : notes;
+    body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={onOpen}
+      empty={segment === "sources" ? `Material ${agentLook(agent).name} saves, and documents it writes, appear here.` : "Your notes and drawings appear here."} />;
+  }
+
+  return <nav className="mentor-library" aria-label={`${agent.name || "Mentor"} library`} data-mentor-library={agent.id} data-library-segment={segment}>
     {failure ? <div role="alert" className="mentor-library-error"><p>{failure}</p><button type="button" onClick={onRetry}>Retry</button></div> : null}
-    {course ? section("outline", course.title || "Course", undefined,
-      <LiveCourseOutline courseId={course.courseId} agentId={agent.id} activeId={lesson?.id ?? course.itemId ?? null}
-        onSelect={(itemId) => onOpen({ kind: "course", course: { ...course, itemId } })} />) : null}
-    {section("courses", "Courses", data.courses?.length, <>
-      {empty(data.courses, "Ask your mentor to arrange a course.")}
-      {data.courses?.map((entry) => row({ kind: "course", course: { courseId: entry.id, agentId: agent.id, title: entry.title } }, <Mortarboard className="size-3.5" />, entry.title,
-        `${entry.masteredCount} / ${entry.itemCount} ${entry.engine === "reading" ? "read" : "mastered"}`, "course", entry.id))}
-    </>)}
-    {section("sources", "Sources", data.documents?.length, <>
-      {empty(data.documents, "Material your mentor saves, and documents it writes, appear here.")}
-      {data.documents?.map((document) => row({ kind: "document", document: { id: document.id, title: document.title, body: "", ...(document.subject ? { subject: document.subject } : {}) } },
-        <File className="size-3.5" />, document.title, [document.subject, sourceName(document.sourceUrl)].filter(Boolean).join(" · "), "document", document.id))}
-    </>)}
-    {section("notes", "Notes", data.notes?.length, <>
-      {empty(data.notes, "Keep your own notes here.")}
-      {data.notes?.map((note) => row({ kind: "note", id: note.id }, <StickyNote className="size-3.5" />, note.title || "Untitled", notePreview(note.body, note.title), "note", note.id))}
-    </>, <button type="button" className="mentor-library-action" title="New note" aria-label="New note" disabled={creatingNote} onClick={onNewNote}><Plus className="size-3.5" /></button>)}
-    {section("canvases", "Canvases", data.canvases?.length, <>
-      {empty(data.canvases, "Drawings saved in this mentor's library appear here.")}
-      {data.canvases?.map((canvas) => row({ kind: "canvas", id: canvas.id }, <Palette className="size-3.5" />, canvas.title,
-        formatRelativeTime(new Date(canvas.updatedAt).toISOString()), "canvas", canvas.id))}
-    </>)}
-    {MentorFilesSection ? section("files", "Files", undefined, <MentorFilesSection agentId={agent.id} onOpenFile={(path) => onOpenFile(path)} />) : null}
+    <div role="tablist" aria-label="Library" className="mentor-library-segments" onKeyDown={tabKeys}>
+      {LIBRARY_SEGMENTS.map((entry) => <button key={entry} type="button" role="tab" id={`${id}-${entry}`} data-segment={entry}
+        aria-selected={entry === segment} aria-controls={`${id}-panel`} tabIndex={entry === segment ? 0 : -1}
+        className="mentor-library-segment" onClick={() => onChange({ segment: entry })}>
+        <span>{LABELS[entry]}</span>{counts[entry] ? <span className="mentor-library-count">{counts[entry]}</span> : null}
+      </button>)}
+    </div>
+    {segment === "courses" ? null : <div className="mentor-library-filter">
+      <label className="mentor-library-filter-box">
+        <Search aria-hidden className="size-3 shrink-0 opacity-50" />
+        <input type="text" value={query} placeholder={`Filter ${LABELS[segment].toLowerCase()}`} aria-label={`Filter ${LABELS[segment].toLowerCase()}`}
+          spellCheck={false} autoComplete="off"
+          onChange={(event) => onChange({ filter: event.target.value })}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === "Escape" && query) { event.preventDefault(); event.stopPropagation(); onChange({ filter: "" }); }
+            else if (event.key === "ArrowDown" && focusFirstItem(panel.current)) event.preventDefault();
+          }} />
+        {query ? <button type="button" className="mentor-library-filter-clear" aria-label="Clear filter" title="Clear filter" onClick={() => onChange({ filter: "" })}><X className="size-3" /></button> : null}
+      </label>
+      {segment === "notes" ? <button type="button" className="mentor-library-action" title="New note" aria-label="New note" disabled={creatingNote} onClick={onNewNote}><Plus className="size-3.5" /></button> : null}
+    </div>}
+    <div ref={panel} role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${segment}`} className="mentor-library-panel" data-library-section={segment}>
+      {body}
+    </div>
   </nav>;
 }
 

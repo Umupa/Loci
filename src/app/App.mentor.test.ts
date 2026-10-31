@@ -166,6 +166,11 @@ const pane = (id: string) => container.querySelector<HTMLElement>(`[data-pane-id
 const panes = () => [...container.querySelectorAll<HTMLElement>("[data-pane-id]")];
 const railButton = (name: string) => container.querySelector<HTMLButtonElement>(`[data-agent-rail] button[aria-label^="${name}"]`)!;
 const click = async (button: HTMLButtonElement) => { await act(async () => button.click()); };
+/** Shows one of the library's segments. */
+const segment = async (name: string) => {
+  await settle(() => expect(container.querySelector(`[role="tab"][data-segment="${name}"]`)).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>(`[role="tab"][data-segment="${name}"]`)!);
+};
 const settle = async (assert: () => void, timeout = 5000) => {
   const startedAt = Date.now();
   for (;;) {
@@ -223,7 +228,7 @@ it("opens a course in its owning mentor's reader", async () => {
   await act(async () => openCourse({ courseId: "kubernetes", agentId: "agent-a", title: "Kubernetes", sourceSessionId: "chat-a" }));
   await settle(() => expect(container.querySelector('[data-mentor-workspace="agent-a"] [data-mentor-reader]')?.textContent).toContain("course-content.pdf"));
   expect(panes().map((entry) => entry.dataset.paneId)).toEqual(["chat-a"]);
-  expect(container.querySelector('[data-library-section="outline"]')?.textContent).toContain("Pod");
+  expect(container.querySelector('[data-library-section="courses"]')?.textContent).toContain("Pod");
 });
 
 it("keeps an opened mentor when its idle save finishes before the view renders", async () => {
@@ -320,6 +325,7 @@ it("adds a library canvas to the mentor's draft without starting a turn", async 
   setComposerDraft("chat-a", agentDraft);
   await renderMentor();
   await settle(() => expect(pane("chat-a")?.querySelector("textarea")).toBeTruthy());
+  await segment("notes");
   await settle(() => expect(container.querySelector('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')).not.toBeNull());
   await click(container.querySelector<HTMLButtonElement>('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')!);
   await settle(() => expect(reader().querySelector("[data-test-canvas]")).not.toBeNull());
@@ -353,6 +359,8 @@ it("reads one thing at a time beside the mentor: each opened item replaces the l
   await act(async () => saveAgentDocuments("agent-a", [{ ...reading, body: "# Revised network\n\nLive revision from Ada." }]));
   await settle(() => expect(reader().textContent).toContain("Live revision from Ada."));
 
+  await segment("notes");
+  await settle(() => expect(workspace().querySelector('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')).not.toBeNull());
   await click(workspace().querySelector<HTMLButtonElement>('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')!);
   await settle(() => expect(reader().querySelector("[data-test-canvas]")).not.toBeNull());
   expect(reader().textContent).not.toContain("Live revision from Ada.");

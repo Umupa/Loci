@@ -13,7 +13,8 @@ import { loadCourse } from "../../learning/model/course";
 import { createNote, getNote } from "../../notes";
 import { readingOf, type MentorLesson, type MentorPage } from "../model/mentorPage";
 import { MentorBreadcrumb, mentorCrumbs } from "./MentorBreadcrumb";
-import { MentorLibrary } from "./MentorLibrary";
+import type { CourseBadge } from "./LibraryCourses";
+import { MentorLibrary, type LibraryChange } from "./MentorLibrary";
 import { MentorReader } from "./MentorReader";
 import "./MentorWorkspace.css";
 
@@ -37,6 +38,12 @@ type Props = {
   onLessonChange: (lesson: MentorLesson | null) => void;
   onRestoredChecked: (page: MentorPage, exists: boolean) => void;
   onToggleLibrary: () => void;
+  /** Chooses the library's segment, its course or its filter. */
+  onLibraryChange: (change: LibraryChange) => void;
+  /** Puts a message in the conversation's composer without sending it. */
+  onDraft: (text: string) => void;
+  /** Room in the library after a course's or lesson's title. */
+  courseBadge?: CourseBadge;
   onToggleChat: () => void;
   onResizeLibrary: (width: number) => void;
   onResizeChat: (width: number) => void;
@@ -64,7 +71,7 @@ export async function restoredPageExists(agentId: string, page: MentorPage): Pro
  * the middle and the conversation on the right. Opening anything replaces
  * what the reader showed; nothing opens beside it.
  */
-export function MentorWorkspace({ agent, state, chat, leading, trailing, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle }: Props) {
+export function MentorWorkspace({ agent, state, chat, leading, trailing, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onLibraryChange, onDraft, courseBadge, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle }: Props) {
   const { data, errors, reload } = useAgentResources(agent.id);
   const body = useRef<HTMLDivElement>(null);
   const save = useRef<(() => Promise<boolean>) | null>(null);
@@ -134,7 +141,8 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
     <div ref={body} className="mentor-body">
       <aside ref={library.setPaneRef} className="mentor-library-column" hidden={!state.library} aria-label="Outline and library">
         <MentorLibrary agent={agent} data={data} errors={errors} onRetry={reload} page={state.page} lesson={state.lesson}
-          onOpen={open} onNewNote={() => void newNote()} creatingNote={creating} onOpenFile={(path) => open({ kind: "file", path })} />
+          onOpen={open} onNewNote={() => void newNote()} creatingNote={creating} onOpenFile={(path) => open({ kind: "file", path })}
+          segment={state.segment} course={state.course} filter={state.filter} onChange={onLibraryChange} onDraft={onDraft} courseBadge={courseBadge} />
         {actionError ? <p role="alert" className="mentor-library-error">{actionError}</p> : null}
         <div role="separator" aria-label="Resize library" aria-orientation="vertical" tabIndex={0} className="mentor-resize mentor-resize--right"
           onPointerDown={library.onPointerDown} onDoubleClick={library.onDoubleClick}

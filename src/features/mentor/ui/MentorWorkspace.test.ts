@@ -35,6 +35,7 @@ let control: ReturnType<typeof useMentorView>;
 let documents: { id: string; title: string; subject?: string; sourceUrl?: string; updatedAt: number; createdAt: number }[];
 let notes: Note[];
 let courseGone: boolean;
+let drafts: string[];
 let documentRead: (agent: string) => Promise<typeof documents>;
 const drawings = [{ id: "drawing-a", title: "Ada's sketch", cwd: "", dataJson: "{}", tags: [], createdAt: 1, updatedAt: 2 }];
 const agent: Agent = { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#123456", projects: [] };
@@ -47,7 +48,7 @@ function Host({ owner = agent }: { owner?: Agent }) {
     key: owner.id, agent: owner, state: control.stateFor(owner.id), chat: createElement("div", { "data-test-chat": owner.id }), canvases: drawings,
     onOpen: (page) => control.show(owner.id, page), onClose: () => control.close(owner.id),
     onLessonChange: (lesson) => control.setLesson(owner.id, lesson), onRestoredChecked: (page, exists) => control.confirmRestored(owner.id, page, exists),
-    onToggleLibrary: () => control.toggleLibrary(owner.id), onToggleChat: () => control.toggleChat(owner.id),
+    onToggleLibrary: () => control.toggleLibrary(owner.id), onLibraryChange: (change) => control.openLibrary(owner.id, change), onDraft: (text) => drafts.push(text), onToggleChat: () => control.toggleChat(owner.id),
     onResizeLibrary: (width) => control.resizeLibrary(owner.id, width), onResizeChat: (width) => control.resizeChat(owner.id, width),
     onCanvasAddToChat: () => {}, onCanvasTitleChange: () => {}, onOpenFile: () => {},
     renderSession: (id) => createElement("section", { "data-test-session": id }), sessionTitle: () => "Delegated work",
@@ -55,6 +56,7 @@ function Host({ owner = agent }: { owner?: Agent }) {
 }
 async function render(owner = agent) { await act(async () => root.render(createElement(Host, { owner }))); }
 async function click(selector: string) { await act(async () => container.querySelector<HTMLButtonElement>(selector)!.click()); }
+const tab = (segment: string) => click(`[role="tab"][data-segment="${segment}"]`);
 const reader = () => container.querySelector<HTMLElement>("[data-mentor-reader]")!;
 const crumbs = () => [...container.querySelectorAll(".mentor-breadcrumb-item")].map((item) => item.textContent);
 
@@ -62,7 +64,7 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   localStorage.clear(); invalidateCanvases(); vi.clearAllMocks();
   documents = [{ id: "doc", title: "HTTP reference", subject: "Networking", sourceUrl: "https://example.org/http", updatedAt: 2, createdAt: 1 }];
-  notes = []; courseGone = false;
+  notes = []; courseGone = false; drafts = [];
   documentRead = async (id) => id === agent.id ? documents : [];
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const input = args as { agent?: string; agentId?: string; id?: string; note?: Note };
@@ -90,10 +92,12 @@ it("lays out library, reader and conversation, listing only this mentor's things
   const body = container.querySelector(".mentor-body")!;
   expect([...body.children].map((child) => child.className)).toEqual(["mentor-library-column", "mentor-reader", "mentor-chat-column"]);
   expect(container.querySelector('[data-test-chat="agent-a"]')).not.toBeNull();
-  expect([...container.querySelectorAll("[data-library-section]")].map((section) => section.getAttribute("data-library-section"))).toEqual(["courses", "sources", "notes", "canvases", "files"]);
+  expect([...container.querySelectorAll('[role="tab"]')].map((entry) => entry.textContent)).toEqual(["Courses", "Sources1", "Notes1", "Files"]);
+  expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("data-segment")).toBe("courses");
   expect(container.textContent).toContain("Ada's course");
   expect(container.textContent).not.toContain("Bea's course");
   expect(container.textContent).toContain("1 / 2 read");
+  await tab("notes");
   expect(container.textContent).toContain("Ada's drawing");
   expect(container.textContent).not.toContain("Bea's drawing");
   expect(container.textContent).not.toContain("Habits");
@@ -103,6 +107,7 @@ it("lays out library, reader and conversation, listing only this mentor's things
 
 it("opens whatever is chosen in place of what was read, and closes back to an empty reader", async () => {
   await render();
+  await tab("sources");
   await click('[data-resource-kind="document"]');
   await vi.waitFor(() => expect(container.querySelector("[data-test-document]")?.textContent).toBe("Original source text"));
   expect(crumbs()).toEqual(["Ada", "HTTP reference"]);
@@ -120,8 +125,8 @@ it("opens whatever is chosen in place of what was read, and closes back to an em
 it("shows the open course's outline and opens a lesson from it", async () => {
   await render();
   await click('[data-resource-kind="course"]');
-  await vi.waitFor(() => expect(container.querySelector('[data-library-section="outline"] nav[aria-label="Course navigation"]')).not.toBeNull());
-  const lessons = () => [...container.querySelectorAll<HTMLButtonElement>('[data-library-section="outline"] nav button')];
+  await vi.waitFor(() => expect(container.querySelector('[data-library-section="courses"] nav[aria-label="Course navigation"]')).not.toBeNull());
+  const lessons = () => [...container.querySelectorAll<HTMLButtonElement>('[data-library-section="courses"] nav button')];
   expect(lessons().map((lesson) => lesson.getAttribute("aria-label"))).toEqual(["Pod, Read", "Service, Not started"]);
   const before = Number(container.querySelector<HTMLElement>("[data-test-course]")!.dataset.request);
   await act(async () => lessons()[1].click());
@@ -135,6 +140,7 @@ it("shows the open course's outline and opens a lesson from it", async () => {
 
 it("creates an owned note and opens it in the reader", async () => {
   await render();
+  await tab("notes");
   await click('[aria-label="New note"]');
   expect(invoke).toHaveBeenCalledWith("notes_upsert", { note: expect.objectContaining({ agentId: "agent-a", sourceSessionId: "chat-a" }) });
   await vi.waitFor(() => expect(container.querySelector("[data-test-note]")?.textContent).toBe("Untitled"));
@@ -170,22 +176,55 @@ it("drops a remembered page that no longer exists", async () => {
   expect(container.querySelector<HTMLElement>(".mentor-chat-column")!.hidden).toBe(true);
 });
 
-it("folds library sections and the columns, and ignores an old mentor's late listing", async () => {
+it("shows one segment at a time, remembered per mentor, and ignores an old mentor's late listing", async () => {
   let finish!: (value: typeof documents) => void;
   documentRead = async (id) => id === agent.id ? new Promise((resolve) => { finish = resolve; }) : [];
   await render();
-  await click('[data-library-section="sources"] .mentor-library-toggle');
-  expect(container.querySelector('[data-library-section="sources"] .mentor-library-body')).toBeNull();
+  await tab("sources");
+  expect(container.querySelector("[data-mentor-library]")?.getAttribute("data-library-segment")).toBe("sources");
+  expect(container.querySelector('[data-resource-kind="course"]')).toBeNull();
   await render(other);
-  expect(container.querySelector('[data-library-section="sources"] .mentor-library-body')).toBeNull();
-  await click('[data-library-section="sources"] .mentor-library-toggle');
+  expect(container.querySelector("[data-mentor-library]")?.getAttribute("data-library-segment")).toBe("courses");
+  await tab("sources");
   await act(async () => finish(documents));
   expect(container.textContent).not.toContain("HTTP reference");
+  expect(container.textContent).toContain("Material Bea saves");
+  await render();
+  expect(container.querySelector("[data-mentor-library]")?.getAttribute("data-library-segment")).toBe("sources");
   await click('[aria-label="Hide library"]');
   expect(container.querySelector<HTMLElement>(".mentor-library-column")!.hidden).toBe(true);
   await click('[aria-label="Hide conversation"]');
   expect(container.querySelector<HTMLElement>(".mentor-chat-column")!.hidden).toBe(true);
-  expect(container.querySelector('[aria-label="Chat with Bea"]')).not.toBeNull();
+  expect(container.querySelector('[aria-label="Chat with Ada"]')).not.toBeNull();
+});
+
+it("filters only the segment it was typed in, and moves through a list with the arrow keys", async () => {
+  notes = [{ id: "n1", slug: "n1", title: "Pods by hand", body: "", tags: [], agentId: agent.id, createdAt: 1, updatedAt: 5 } as Note];
+  await render();
+  await tab("notes");
+  expect([...container.querySelectorAll("[data-resource-kind]")].map((row) => row.getAttribute("data-resource-kind"))).toEqual(["note", "canvas"]);
+  const filter = () => container.querySelector<HTMLInputElement>('input[aria-label="Filter notes"]')!;
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setter.call(filter(), "drawing"); filter().dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  expect([...container.querySelectorAll("[data-resource-kind]")].map((row) => row.getAttribute("data-resource-id"))).toEqual([agent.id]);
+  await tab("sources");
+  expect(container.querySelector<HTMLInputElement>('input[aria-label="Filter sources"]')!.value).toBe("");
+  expect(container.querySelector('[data-resource-id="doc"]')).not.toBeNull();
+  await tab("notes");
+  expect(filter().value).toBe("drawing");
+  await act(async () => filter().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(filter().value).toBe("");
+  await act(async () => filter().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+  expect(document.activeElement?.getAttribute("data-resource-id")).toBe("n1");
+  await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
+  expect(document.activeElement?.getAttribute("data-resource-kind")).toBe("canvas");
+  // ← and → move between the segments.
+  const selected = container.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')!;
+  await act(async () => selected.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+  expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("data-segment")).toBe("files");
+  expect(document.activeElement?.getAttribute("data-segment")).toBe("files");
 });
 
 it("shows a conversation as the reader without remembering it", async () => {
@@ -198,6 +237,7 @@ it("shows a conversation as the reader without remembering it", async () => {
 
 it("lists the mentor's working folder under Files and opens a file from it in the reader", async () => {
   await render();
+  await tab("files");
   const files = container.querySelector<HTMLButtonElement>('[data-library-section="files"] [data-test-files="agent-a"]')!;
   expect(files).not.toBeNull();
   await act(async () => files.click());
@@ -205,5 +245,6 @@ it("lists the mentor's working folder under Files and opens a file from it in th
   expect(control.stateFor(agent.id).page).toEqual({ kind: "file", path: "/home/user/Loci/agent-a/repos/notes.md" });
   expect(crumbs()).toEqual(["Ada", "notes.md"]);
   await render(other);
+  await tab("files");
   expect(container.querySelector('[data-test-files="agent-b"]')).not.toBeNull();
 });
