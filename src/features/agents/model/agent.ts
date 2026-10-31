@@ -287,7 +287,7 @@ export function agentsSnapshot(): string {
   }
 }
 
-/** One project an agent works on, as the rail labels it. */
+/** One other folder an agent was given, as the rail labels it. */
 export type AgentProject = { path: string; name: string };
 
 export type AgentLook = {
@@ -297,10 +297,13 @@ export type AgentLook = {
   role?: string;
   avatar: string;
   color: string;
+  /** Its working folder, once it has one. */
+  workdir?: string;
+  /** Other folders it was given, by their rail labels. */
   projects: AgentProject[];
 };
 
-/** How an agent looks, and the projects it works on by their rail labels. */
+/** How an agent looks, its workdir, and the other folders it was given. */
 export function agentLook(agent: Agent): AgentLook {
   const labels = loadTabGroupLabels();
   return {
@@ -308,6 +311,7 @@ export function agentLook(agent: Agent): AgentLook {
     ...(agent.role?.trim() ? { role: agent.role.trim() } : {}),
     avatar: agent.avatar,
     color: agent.color,
+    ...(agent.workdir ? { workdir: agent.workdir } : {}),
     projects: agent.projects.map((path) => ({
       path,
       name: resolveTabGroupLabel(projectKey(path), labels, projectName(path)),

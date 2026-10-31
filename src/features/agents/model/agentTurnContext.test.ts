@@ -30,7 +30,8 @@ beforeEach(() => {
     setItem: (key: string, value: string) => stored.set(key, value),
   });
   invoke.mockReset();
-  invoke.mockResolvedValue(files());
+  invoke.mockImplementation(async (command: string, args: { path?: string }) =>
+    command === "agent_workdir_ensure" ? args.path : files());
 });
 
 afterEach(() => {
@@ -57,6 +58,7 @@ it.each([
   { name: "小序" },
   { role: "Domain guide" },
   { projects: ["/code/app"] },
+  { workdir: "/home/me/Loci-Dev/wisp" },
 ])("refreshes changed identity data without replacing the provider (%j)", async (change) => {
   const session = { id: "chat", providerSessionId: "native-1", blocks: [] };
   (await prepareAppTurn(agent, session, { canRotate: true })).record(session.providerSessionId);
@@ -324,4 +326,25 @@ it.each([agent, undefined])("replaces a restored old provider even when a rotati
   const restored = await prepareAppTurn(identity, session, { canRotate: true });
   expect(restored.rotates).toBe(true);
   expect(restored.context[0]).toBe(first.context[0]);
+});
+
+it("gives a mentor its workdir on its first turn and keeps it", async () => {
+  const { createAgent, findAgent } = await import("./agent");
+  const mentor = createAgent([], { name: "Lens" });
+  invoke.mockImplementation(async (command: string, args: { slug?: string; path?: string }) =>
+    command === "agent_workdir_create" ? `/home/me/Loci/${args.slug}`
+      : command === "agent_workdir_ensure" ? args.path : files());
+  const prepared = await prepareAppTurn(mentor, { id: "lens-chat", blocks: [] }, { canRotate: false });
+  const identity = JSON.parse(prepared.context[0].match(/<agent>\n([\s\S]*?)\n<\/agent>/)![1]);
+  expect(identity).toMatchObject({ workdir: "/home/me/Loci/lens", folders: [] });
+  expect(findAgent(mentor.id)?.workdir).toBe("/home/me/Loci/lens");
+});
+
+it("still sends the turn when the workdir cannot be made", async () => {
+  invoke.mockImplementation(async (command: string) => {
+    if (command.startsWith("agent_workdir")) throw new Error("read-only disk");
+    return files();
+  });
+  const prepared = await prepareAppTurn({ ...agent, workdir: "/gone" }, { id: "chat", blocks: [] }, { canRotate: false });
+  expect(prepared.context[0]).toContain('"workdir": "/gone"');
 });
