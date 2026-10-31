@@ -3,7 +3,6 @@ import type { MentorPage } from "../features/mentor/model/mentorPage";
 import { AgentGallery } from "../features/agents/ui/AgentGallery";
 import { setAgentReading } from "../features/agents/model/agentReading";
 import { useMentorView } from "./hooks/useMentorView";
-import { getNote } from "../features/notes";
 import { open as pickFile } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { Modal } from "../shared/ui/Modal";
@@ -12,31 +11,28 @@ import { queueLearningDraft } from "../features/learning/model/learningDraft";
 import { OPEN_LEARNING_DISCUSSION_EVENT } from "../features/learning/model/navigation";
 import { OPEN_COURSE_EVENT, type OpenCourseDetail } from "../features/learning/model/course";
 import type { DiscussionRef } from "../features/learning/model/types";
-import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { startUpdateChecks } from "../features/updates/model/updates";
-import { Sidebar } from "./shell/Sidebar";
 import { WindowControls } from "./shell/WindowControls";
-import { TitleBar, OverlayNav } from "./shell/TitleBar";
 import { MenuBar } from "./shell/MenuBar";
-import { PaneTree } from "../features/workspace/ui/PaneTree";
+import { MentorRail } from "./shell/MentorRail";
+import { SettingsNav } from "./shell/SettingsRail";
 import { ApprovalToasts } from "../features/sessions/ui/ApprovalToasts";
 import { TranscriptPool, TranscriptPoolOutlet } from "../features/sessions/ui/TranscriptPool";
+import { SessionPane } from "../features/sessions/ui/SessionPane";
 import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
 import { OPEN_FILE_EVENT, requestFilePlace, type OpenFileFn } from "../features/files/model/filePlace";
-import { openPathWithDefaultApp, pickFolders } from "../platform/tauri/fs";
-import { useAgentWorkspace, separateAgentWorkspaces } from "./hooks/useAgentWorkspace";
+import { pickFolders } from "../platform/tauri/fs";
 import { useAgents } from "./hooks/useAgents";
 import { useAgentHabits } from "./hooks/useAgentHabits";
 import { useAgentDelegation } from "./hooks/useAgentDelegation";
-import { AgentRailSection } from "./shell/AgentRailSection";
+import { useActiveMentor, loadActiveMentorId } from "./hooks/useActiveMentor";
+import { useSessionStore } from "./hooks/useSessionStore";
 import { AgentSessionPane } from "../features/agents/ui/AgentSessionPane";
 import { OPEN_DOCUMENT_EVENT, type OpenDocumentDetail } from "../features/sessions/model/cards";
-import { agentForSession } from "../features/agents/model/agent";
-import { isEqualOrInside } from "../shared/lib/paths";
-import { FILE_POINTER_DRAG_EVENT, type FilePointerDragDetail } from "../shared/lib/drag";
-import { paneDropFromPoint, setExternalPaneDrop } from "../features/workspace/model/paneDrop";
+import { agentForSession, agentLook, listAgents } from "../features/agents/model/agent";
 import { lazySurface } from "../shared/ui/lazySurface";
 import { preloadNavigationWhenIdle } from "./model/preloadNavigation";
 import { ProviderSignInDialog } from "../features/sessions/ui/ProviderSignInDialog";
@@ -44,41 +40,26 @@ import { latestTurnNeedsHarnessLogin, supportsHarnessLogin } from "../integratio
 import { registerBuiltinHarnesses } from "../integrations/harness/core/register";
 import { probeHarnessAvailability } from "../integrations/harness/core/availability";
 import { refreshHarnessCatalogs } from "../integrations/harness/core/registry";
-import { newDefaultSession, sessionNeedsInput, type HarnessId, type Session } from "../features/sessions/model/session";
+import { sessionDisplayTitle, type HarnessId, type Session } from "../features/sessions/model/session";
 import { requestTranscriptJump } from "../features/sessions/model/transcriptJump";
 import { useUnseenFinishedSessions } from "../features/sessions/hooks/useUnseenFinishedSessions";
-import { liveAgentsFromSessions } from "../features/sessions/model/liveAgents";
-import { TOGGLE_SECONDARY_SIDEBAR_EVENT } from "./shell/SecondarySidebar";
-import { closedTabs } from "../features/workspace/model/closedTabs";
-import { TabSwitcher } from "./shell/TabSwitcher";
-import { TabOverview } from "./shell/TabOverview";
-import { ClosedTabToast } from "./shell/ClosedTabToast";
 import { SavedToast, type SavedToastData } from "./shell/SavedToast";
-import { attentionOrder, heldTabIds, idleTabIds, parkingCandidates, trackTabGrowth, type TabCountMark } from "../features/workspace/model/tabParking";
-import { loadTabLimit } from "../features/settings/model/settings";
-import { pathKey } from "../shared/lib/paths";
 import { requestImageZoom } from "../shared/lib/imageZoomCommands";
-import type { Tab } from "./shell/TitleBar";
-import { linkFamilies } from "../features/workspace/model/tabFamily";
-import { summarizeTab } from "../features/workspace/model/tabSummary";
-import { filePaneId, findLeaf, leafIds, newTab } from "../features/workspace/model/layout";
-import { loadProjectRailOpen, loadSessionSidebarOpen, saveProjectRailOpen, saveSessionSidebarOpen, watchSystemColorScheme } from "../features/settings/model/appearance";
-import { loadAgentsEnabled, subscribeAgentsEnabled, loadCloseToTray, loadCollapsedProjectRailMode, loadLiveAgentsEnabled, loadNotesEnabled, loadProjectsEnabled, subscribeProjectsEnabled, loadSettingsSection, saveCollapsedProjectRailMode, saveSettingsSection, subscribeCollapsedProjectRailMode, subscribeLiveAgentsEnabled, subscribeNotesEnabled, type SettingsSectionId } from "../features/settings/model/settings";
+import { watchSystemColorScheme } from "../features/settings/model/appearance";
+import { loadCloseToTray, loadSettingsSection, saveSettingsSection, type SettingsSectionId } from "../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../features/settings/model/uiScale";
 import { announceSessionFinished } from "../features/notifications/model/notifications";
 import { hiddenApprovalNotices } from "../features/notifications/model/approvalToast";
 import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
-import { ADD_NOTE_TO_CHAT_EVENT, type NoteComposerCard } from "../features/notes";
 import { CANVASES_CHANGED_EVENT, loadCanvases, updateCanvas, type Canvas } from "../features/canvas/canvas";
 import { SelectCanvasDialog } from "../features/canvas/ui/SelectCanvasDialog";
-import { synchronizeProjectLocation, rememberProjectLocation } from "../features/projects/model/projectLocation";
+import { synchronizeProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
-import { looksLikeProject, replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
+import { replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
 import { rebaseProjectSessions } from "../features/sessions/data/sessionStore";
 import { ProjectNotFoundError } from "../features/projects/model/projectLocationError";
-import { closeBusyWindow, hasInFlightSessions, hideCurrentWindow, isAppQuitting, persistAndCloseWindow, persistLiveTranscripts, persistQuitState, setQuitWorkspace, type BootWorkspace, type WorkspaceSaveMode } from "./model/appLifecycle";
-import { useAppWorkspace, initialWorkspace } from "./hooks/useAppWorkspace";
+import { closeBusyWindow, closeCurrentWindow, hasInFlightSessions, hideCurrentWindow, isAppQuitting, persistAndCloseWindow, persistLiveTranscripts, persistQuitState, setQuitWorkspace, type BootWorkspace, type WorkspaceSaveMode } from "./model/appLifecycle";
 import { useSessionRuntime } from "./hooks/useSessionRuntime";
 import { useSessionSubmission } from "./hooks/useSessionSubmission";
 import { useIdleSessionDetach } from "./hooks/useIdleSessionDetach";
@@ -86,25 +67,15 @@ import { useAppCommands } from "./hooks/useAppCommands";
 import { useAppControl } from "./hooks/useAppControl";
 import { useAppResourceNavigation } from "./hooks/useAppResourceNavigation";
 import { useSaveToCanvas } from "./hooks/useSaveToCanvas";
-import type { NoteOpenRequest } from "../features/notes/ui/NotesView";
 
-const SearchView = lazySurface(async () => ({ default: (await import("../features/search/ui/SearchView")).SearchView }), { suspense: false });
 const SettingsView = lazySurface(async () => ({ default: (await import("../features/settings/ui/SettingsView")).SettingsView }), { suspense: false });
-const NotesView = lazySurface(async () => ({ default: (await import("../features/notes/ui/NotesView")).NotesView }), { suspense: false });
-const CoursesView = lazySurface(async () => ({ default: (await import("../features/learning/ui/CoursesView")).CoursesView }), { suspense: false });
 
 registerBuiltinHarnesses();
-type Surface = "chat" | "search" | "notes" | "courses" | "settings" | "agent";
+type Surface = "mentor" | "settings";
+const NO_TABS: never[] = [];
 
 export default function App(boot: BootWorkspace) {
   return <Suspense fallback={null}><Workspace {...boot} /></Suspense>;
-}
-
-const SURFACE_HISTORY_MAX = 10;
-
-/** Where the app opens and Back ends: project tabs, or Courses when projects are off. */
-function homeSurface(): Surface {
-  return loadProjectsEnabled() ? "chat" : "courses";
 }
 
 function signInRequestKey(session: Session): string {
@@ -112,110 +83,63 @@ function signInRequestKey(session: Session): string {
   return `${session.id}:${lastUser?.id ?? session.blocks[session.blocks.length - 1]?.id ?? "auth"}`;
 }
 
+/**
+ * The window: the mentor rail on the far left, then the open mentor's
+ * workspace (library, reader, conversation), or Settings.
+ */
 function Workspace(boot: BootWorkspace) {
-  const [restored] = useState(() => {
-    const separated = separateAgentWorkspaces(boot.resumed?.tabs ?? []);
-    const activeTab = boot.resumed?.tabs.find((tab) => tab.id === boot.resumed?.activeTabId);
-    const focused = activeTab && findLeaf(activeTab.layout, activeTab.focusedId);
-    const initialAgentId = activeTab && (agentForSession(activeTab.focusedId)?.id ?? focused?.agentId
-      ?? (leafIds(activeTab.layout).every((id) => !boot.resumed?.sessions.some((session) => session.id === id && !agentForSession(id)))
-        ? leafIds(activeTab.layout).map((id) => agentForSession(id)?.id).find(Boolean) : undefined));
-    if (!boot.resumed) return { boot, layouts: separated.layouts, initialAgentId };
-    const sessions = [...boot.resumed.sessions];
-    if (!separated.tabs.length) {
-      const blank = newDefaultSession(boot.resumed.projectCwd);
-      sessions.push(blank);
-      separated.tabs.push(newTab(blank.id));
-    }
-    const activeTabId = separated.tabs.some((tab) => tab.id === boot.resumed!.activeTabId)
-      ? boot.resumed.activeTabId : separated.tabs[0].id;
-    return { boot: { ...boot, resumed: { ...boot.resumed, tabs: separated.tabs, sessions, activeTabId } },
-      layouts: separated.layouts, initialAgentId };
-  });
-  const [initial] = useState(() => initialWorkspace(restored.boot));
-  const [sessions, setSessions] = useState<Session[]>(initial.sessions);
+  // Interrupted turns come back with their sessions; nothing else is reopened.
+  const [initialSessions] = useState(() => boot.resumed?.sessions ?? []);
+  const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const sessionsRef = useRef(sessions);
-  const [surface, setSurface] = useState<Surface>(restored.initialAgentId ? "agent" : homeSurface());
+  const [surface, setSurface] = useState<Surface>("mentor");
   const surfaceRef = useRef(surface);
   surfaceRef.current = surface;
-  // Where Back goes: the surfaces left to reach this one, newest last.
-  const surfaceHistory = useRef<Surface[]>([]);
-  const goingBack = useRef(false);
-  const previousSurface = useRef(surface);
   // One window asks about updates, not each of them.
   useEffect(() => (getCurrentWindow().label === "main" ? startUpdateChecks() : undefined), []);
-  useEffect(() => {
-    const left = previousSurface.current;
-    previousSurface.current = surface;
-    if (left === surface) return;
-    if (goingBack.current) { goingBack.current = false; return; }
-    if (left === "settings" || left === "search") return;
-    surfaceHistory.current = [...surfaceHistory.current.filter((entry) => entry !== left && entry !== surface), left].slice(-SURFACE_HISTORY_MAX);
-  }, [surface]);
-  const settingsReturn = useRef<Surface>("chat");
   const [settingsSection, setSettingsSection] = useState(loadSettingsSection);
   const [settingsAnchor, setSettingsAnchor] = useState<string | null>(null);
-  const [projectRailOpen, setProjectRailOpen] = useState(loadProjectRailOpen);
-  const [sessionSidebarOpen, setSessionSidebarOpen] = useState(loadSessionSidebarOpen);
-  const [searchFocusToken, setSearchFocusToken] = useState(0);
-  const [noteOpenRequest, setNoteOpenRequest] = useState<NoteOpenRequest>();
   const [savedToast, setSavedToast] = useState<SavedToastData | null>(null);
-  const [sessionOrder, setSessionOrder] = useState<readonly string[]>([]);
   const [transcriptPool] = useState(() => new TranscriptPool());
   const [canvases, setCanvases] = useState<Canvas[]>([]);
+  const [agentGalleryOpen, setAgentGalleryOpen] = useState(false);
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
-  const seenSignInRequests = useRef(new Set(initial.sessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
-  const workspaceRef = useRef<ReturnType<typeof useAppWorkspace> | null>(null);
-  /** Into the project tabs, to show a session there. */
-  const showChat = useCallback(() => setSurface("chat"), []);
-  /** Back to the surface this one was reached from. */
-  const closeSurface = useCallback(() => {
-    const history = surfaceHistory.current;
-    let next = history.pop();
-    while (next && (next === surfaceRef.current || (next === "chat" && !loadProjectsEnabled()))) next = history.pop();
-    goingBack.current = true;
-    setSurface(next ?? homeSurface());
-  }, []);
-  const agentWorkspace = useAgentWorkspace({ onClose: closeSurface, initialLayouts: restored.layouts, initialAgentId: restored.initialAgentId });
+  const seenSignInRequests = useRef(new Set(initialSessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
+  const storeRef = useRef<ReturnType<typeof useSessionStore> | null>(null);
+  const reportError = useCallback((error: unknown) => storeRef.current?.setError(String(error)), []);
+
+  const mentor = useActiveMentor();
+  const mentorRef = useRef(mentor);
+  mentorRef.current = mentor;
   const mentorView = useMentorView();
   const mentorViewRef = useRef(mentorView);
   mentorViewRef.current = mentorView;
-  const overviewSaveGuards = useRef(new Map<string, () => Promise<boolean>>());
-  const overviewGuard = useCallback((id: string, save: (() => Promise<boolean>) | null) => {
-    if (save) overviewSaveGuards.current.set(id, save);
-    else overviewSaveGuards.current.delete(id);
+  const readerSaveGuards = useRef(new Map<string, () => Promise<boolean>>());
+  const readerGuard = useCallback((id: string, save: (() => Promise<boolean>) | null) => {
+    if (save) readerSaveGuards.current.set(id, save);
+    else readerSaveGuards.current.delete(id);
   }, []);
-  const agentWorkspaceRef = useRef(agentWorkspace);
-  agentWorkspaceRef.current = agentWorkspace;
-  /** Reads something beside the open agent's conversation, in place of what was there. */
-  const showInAgent = useCallback((page: MentorPage) => {
-    const owner = agentWorkspaceRef.current.currentRef.current?.agentId;
-    if (!owner) return;
-    const show = async () => {
-      const guard = overviewSaveGuards.current.get(owner);
-      if (!guard || await guard()) mentorViewRef.current.show(owner, page);
-    };
-    void show();
+  /** Waits for the reader's unsaved edits; false when they could not be saved. */
+  const leaveReader = useCallback(async (agentId: string) => {
+    const guard = readerSaveGuards.current.get(agentId);
+    return !guard || await guard();
   }, []);
-  const agentsRef = useRef<ReturnType<typeof useAgents> | null>(null);
-  const notesEnabled = useSyncExternalStore(subscribeNotesEnabled, loadNotesEnabled);
-  const projectsEnabled = useSyncExternalStore(subscribeProjectsEnabled, loadProjectsEnabled);
-  const liveAgentsEnabled = useSyncExternalStore(subscribeLiveAgentsEnabled, loadLiveAgentsEnabled);
-  const collapsedProjectRailMode = useSyncExternalStore(subscribeCollapsedProjectRailMode, loadCollapsedProjectRailMode);
+  /** The session the current mentor's reader shows, if it shows one. */
+  const readerSessionId = () => {
+    const agentId = mentorRef.current.currentRef.current?.agentId;
+    const page = agentId ? mentorViewRef.current.readingFor(agentId) : undefined;
+    return page?.kind === "session" ? page.id : undefined;
+  };
+  const isForeground = useCallback((id: string) => surfaceRef.current === "mentor"
+    && (mentorRef.current.currentRef.current?.sessionId === id || readerSessionId() === id), []);
 
-  const isForeground = useCallback((id: string) => {
-    const workspace = workspaceRef.current;
-    const tab = workspace?.tabsRef.current.find((entry) => entry.id === workspace.activeTabIdRef.current);
-    if (surfaceRef.current === "agent") return !!agentWorkspaceRef.current.currentRef.current && leafIds(agentWorkspaceRef.current.currentRef.current.layout).includes(id);
-    return surfaceRef.current === "chat" && !!tab && leafIds(tab.layout).includes(id);
-  }, []);
   const runtime = useSessionRuntime({ sessions, sessionsRef, setSessions, isForeground,
-    onPersisted: (summary) => workspaceRef.current?.acceptSummary(summary),
-    onPersistenceError: (error) => workspaceRef.current?.setError(String(error)),
+    onPersistenceError: reportError,
     onFinished: (session) => { if (!session.ephemeral) void announceSessionFinished(session, isForeground(session.id)); },
   });
   const submission = useSessionSubmission({ runtime,
-    canStartSessionWork: (id) => !workspaceRef.current?.isSessionUnavailable(id),
+    canStartSessionWork: (id) => !storeRef.current?.isSessionUnavailable(id),
+    // A session an agent started in a folder that has since moved follows it.
     synchronizeProject: async (cwd) => {
       const location = await synchronizeProjectLocation(cwd);
       if (!location) throw new ProjectNotFoundError(cwd);
@@ -224,75 +148,92 @@ function Workspace(boot: BootWorkspace) {
       rebaseProjectData(cwd, location.path);
       replaceProjectPath(cwd, location.path);
       runtime.updateSessions((current) => current.map((session) => sameProjectPath(session.cwd, cwd) ? { ...session, cwd: location.path } : session));
-      if (sameProjectPath(workspaceRef.current?.projectCwdRef.current ?? "", cwd)) workspaceRef.current?.openProject(location.path);
     },
-    onDraftDiscarded: () => { void workspaceRef.current?.refreshHistory(); },
   });
-  const workspace = useAppWorkspace({ boot: restored.boot, initial, sessions, sessionsRef,
-    updateSessions: runtime.updateSessions,
-    persistSession: runtime.persistSession,
-    bindSession: runtime.bindRestoredSession,
-    stopSession: submission.stopSessionWork,
-    flushPersistence: runtime.flushPersistence,
-    onNavigate: showChat,
-    onOpenAgent: (id) => { void agentsRef.current?.open(id); },
+  const store = useSessionStore({ sessionsRef, updateSessions: runtime.updateSessions, stopSession: submission.stopSessionWork, flushPersistence: runtime.flushPersistence });
+  storeRef.current = store;
+
+  const agentsRef = useRef<ReturnType<typeof useAgents> | null>(null);
+  const visibleSessionIds = useMemo(() => {
+    const page = mentor.current ? mentorView.stateFor(mentor.current.agentId).page : undefined;
+    return new Set(surface === "mentor" && mentor.current ? [mentor.current.sessionId, ...(page?.kind === "session" ? [page.id] : [])] : []);
+  }, [surface, mentor.current, mentorView]);
+  const agents = useAgents({ runtime, submission,
+    loadSession: (id) => storeRef.current!.loadSession(id),
+    onError: reportError,
+    onShow: (agentId, session) => { mentorRef.current.open(agentId, session); surfaceRef.current = "mentor"; setSurface("mentor"); },
+    onReplaceSession: (oldId, session) => mentorRef.current.replaceSession(oldId, session),
+    onRemoveSession: (id) => mentorRef.current.forgetSession(id),
+    visibleSessionIds,
   });
-  workspaceRef.current = workspace;
+  agentsRef.current = agents;
+  const activeAgent = mentor.current ? agents.agents.find((agent) => agent.id === mentor.current!.agentId) : undefined;
+  const focusedAgent = surface === "mentor" ? activeAgent : undefined;
+  const selectAgent = agents.select;
+  useEffect(() => selectAgent(focusedAgent?.id), [focusedAgent?.id, selectAgent]);
+  // The window opens on the mentor it showed last, or the first one; removing
+  // the open mentor moves to another rather than leaving the window empty.
+  const openingFirst = useRef(false);
+  useEffect(() => {
+    if (mentor.current || !agents.agents.length || openingFirst.current) return;
+    const target = agents.agents.find((agent) => agent.id === loadActiveMentorId()) ?? agents.agents[0];
+    openingFirst.current = true;
+    void agents.open(target.id).finally(() => { openingFirst.current = false; });
+  }, [mentor.current, agents.agents]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Opens a mentor and waits for its workspace; false when that did not happen. */
+  const showMentor = useCallback(async (agentId: string) => {
+    const current = mentorRef.current.currentRef.current?.agentId;
+    if (current && current !== agentId && !await leaveReader(current)) return false;
+    if (surfaceRef.current !== "mentor" || current !== agentId) await agentsRef.current?.open(agentId);
+    return mentorRef.current.currentRef.current?.agentId === agentId;
+  }, [leaveReader]);
+  /** Reads something in the open mentor's reader, in place of what was there. */
+  const showInMentor = useCallback(async (page: MentorPage, agentId = mentorRef.current.currentRef.current?.agentId) => {
+    if (!agentId) throw new Error("Open a mentor first.");
+    if (!await leaveReader(agentId)) return;
+    if (!await showMentor(agentId)) return;
+    mentorViewRef.current.show(agentId, page);
+  }, [leaveReader, showMentor]);
+  /** A mentor's own conversation opens the mentor; any other opens in the reader. */
+  const showSession = useCallback(async (id: string) => {
+    const owner = agentForSession(id);
+    if (owner) { await showMentor(owner.id); return; }
+    await storeRef.current!.ensureSession(id, runtime.bindRestoredSession);
+    await showInMentor({ kind: "session", id });
+  }, [runtime.bindRestoredSession, showInMentor, showMentor]);
+  const showSessionRef = useRef(showSession);
+  showSessionRef.current = showSession;
+
+  // Resource cards and the library share one reader in the owning mentor.
+  useEffect(() => {
+    const open = (event: Event) => {
+      const detail = (event as CustomEvent<OpenDocumentDetail>).detail;
+      if (!detail) return;
+      const owner = detail.agentId && agentsRef.current?.agents.some((agent) => agent.id === detail.agentId) ? detail.agentId : undefined;
+      void showInMentor({ kind: "document", document: detail }, owner).catch(reportError);
+    };
+    window.addEventListener(OPEN_DOCUMENT_EVENT, open);
+    return () => window.removeEventListener(OPEN_DOCUMENT_EVENT, open);
+  }, [reportError, showInMentor]);
+
   const { saveToCanvas: _saveToCanvas, selection: canvasSelection } = useSaveToCanvas({ canvases });
   const saveToCanvas = async (agentId: string, text: string, anchor?: HTMLElement | null) => {
     const id = await _saveToCanvas(text, agentId, anchor);
     const title = canvases.find((c) => c.id === id)?.title ?? "";
     setSavedToast({ type: "canvas", id, title });
   };
-  const active = surface === "agent" ? sessions.find((session) => session.id === agentWorkspace.current?.focusedId) : workspace.activeSession;
-  const visibleSessionIds = useMemo(() => new Set(surface === "agent" && agentWorkspace.current
-    ? leafIds(agentWorkspace.current.layout) : surface === "chat" && workspace.activeTab ? leafIds(workspace.activeTab.layout) : []),
-    [surface, agentWorkspace.current, workspace.activeTab]);
-  const agents = useAgents({ runtime, submission,
-    loadSession: (id) => workspaceRef.current!.loadSession(id),
-    onError: (error) => workspaceRef.current?.setError(String(error)),
-    onShow: (agentId, session) => { agentWorkspaceRef.current.open(agentId, session); surfaceRef.current = "agent"; setSurface("agent"); },
-    onReplaceSession: (oldId, session) => agentWorkspaceRef.current.replaceSession(oldId, session),
-    onRemoveSession: (id) => agentWorkspaceRef.current.forgetSession(id),
-    visibleSessionIds,
-  });
-  agentsRef.current = agents;
-  const focusedAgent = surface === "agent" ? agents.agents.find((agent) => agent.id === agentWorkspace.activeAgentId) : undefined;
-  const agentsEnabled = useSyncExternalStore(subscribeAgentsEnabled, loadAgentsEnabled);
-  // Resource cards and the overview share one reader route in the owning agent.
-  useEffect(() => {
-    const open = (event: Event) => {
-      const detail = (event as CustomEvent<OpenDocumentDetail>).detail;
-      if (!detail) return;
-      const owner = detail.agentId ?? (surfaceRef.current === "agent" ? agentWorkspaceRef.current.currentRef.current?.agentId : null);
-      if (owner && agentsRef.current?.agents.some((agent) => agent.id === owner)) {
-        const show = async () => {
-          const guard = overviewSaveGuards.current.get(owner);
-          if (guard && !await guard()) return;
-          if (surfaceRef.current !== "agent" || agentWorkspaceRef.current.currentRef.current?.agentId !== owner) await agentsRef.current?.open(owner);
-          if (agentWorkspaceRef.current.currentRef.current?.agentId === owner) mentorViewRef.current.show(owner, { kind: "document", document: detail });
-        };
-        void show().catch((error) => workspaceRef.current?.setError(String(error)));
-      } else workspaceRef.current?.showDocument(detail, detail.agentId);
-    };
-    window.addEventListener(OPEN_DOCUMENT_EVENT, open);
-    return () => window.removeEventListener(OPEN_DOCUMENT_EVENT, open);
-  }, []);
   const agentHabits = useAgentHabits({ runtime, submission,
-    loadSession: (id) => workspaceRef.current!.loadSession(id),
+    loadSession: (id) => storeRef.current!.loadSession(id),
     onPosted: (chat, name) => { void announceSessionFinished({ ...chat, title: name }, isForeground(chat.id)); },
-  }, agentsEnabled);
-  const selectAgent = agents.select;
-  useEffect(() => selectAgent(focusedAgent?.id), [focusedAgent?.id, selectAgent]);
-  const viewedSessionId = surface === "agent" ? agentWorkspace.current?.sessionId : surface === "chat" ? active?.id : undefined;
+  }, true);
+  const viewedSessionId = surface === "mentor" ? mentor.current?.sessionId : undefined;
   // A hidden run speaks through whoever started it, so nothing here counts or announces it.
   const shownSessions = useMemo(() => sessions.some((session) => session.ephemeral) ? sessions.filter((session) => !session.ephemeral) : sessions, [sessions]);
   const busySessionIds = useMemo(() => new Set(shownSessions.filter((session) => session.busy).map((session) => session.id)), [shownSessions]);
-  const approvalSessionIds = useMemo(() => new Set(shownSessions.filter(sessionNeedsInput).map((session) => session.id)), [shownSessions]);
   const unseenFinishedIds = useUnseenFinishedSessions(busySessionIds, viewedSessionId);
-  // An agent that finished a reply while the user was elsewhere.
+  // A mentor that finished a reply while the user was elsewhere.
   const unseenAgentIds = useMemo(() => new Set(agents.agents.filter((agent) => agent.sessionId && unseenFinishedIds.has(agent.sessionId)).map((agent) => agent.id)), [agents.agents, unseenFinishedIds]);
-  const liveAgents = useMemo(() => liveAgentsEnabled ? liveAgentsFromSessions(shownSessions, unseenFinishedIds) : [], [shownSessions, unseenFinishedIds, liveAgentsEnabled]);
   useInputNotifications(shownSessions, viewedSessionId);
   useEffect(() => syncDockBadge(shownSessions), [shownSessions]);
   useEffect(() => {
@@ -302,97 +243,75 @@ function Workspace(boot: BootWorkspace) {
       if (!focused) return;
       runtime.flushEvents();
       syncDockBadge(sessionsRef.current);
-      const view = workspaceRef.current;
-      if (surfaceRef.current === "chat" && document.activeElement === document.body && view?.activeSession) view.focusPane(view.activeSession.id);
     }).then((release) => { if (stopped) release(); else unlisten = release; });
     return () => { stopped = true; unlisten?.(); };
   }, [runtime.flushEvents]);
-  useIdleSessionDetach({ sessions, sessionsRef, tabs: workspace.tabs, tabsRef: workspace.tabsRef,
-    keepSessionId: surface === "agent" ? agentWorkspace.current?.sessionId : undefined,
-    isForeground,
-    liveAgentsEnabled, unseenFinishedIds, openingSessionIds: workspace.openingSessionIds,
-    loadedSessionCache: workspace.loadedSessionCache, skipForgetSessionIds: workspace.skipForgetSessionIds,
-    persistSession: runtime.persistSession,
-    onError: (error) => workspaceRef.current?.setError(String(error)), setSessions: runtime.updateSessions,
+  useIdleSessionDetach({ sessions, sessionsRef, tabs: NO_TABS, tabsRef: { current: NO_TABS },
+    keepSessionId: mentor.current?.sessionId, isForeground,
+    liveAgentsEnabled: false, unseenFinishedIds, openingSessionIds: store.openingSessionIds,
+    loadedSessionCache: store.loadedSessionCache, skipForgetSessionIds: store.skipForgetSessionIds,
+    persistSession: runtime.persistSession, onError: reportError, setSessions: runtime.updateSessions,
   });
-  const delegation = useAgentDelegation({ runtime, submission, loadSession: (id) => workspaceRef.current!.loadSession(id) });
-  useAppControl({ workspace: { ...workspace,
-    isCanvasOpen: (id) => {
-      const agentId = surfaceRef.current === "agent" ? agentWorkspaceRef.current.currentRef.current?.agentId : undefined;
-      const page = agentId ? mentorViewRef.current.readingFor(agentId) : undefined;
-      return (page?.kind === "canvas" && page.id === id) || workspace.isCanvasOpen(id);
+  const delegation = useAgentDelegation({ runtime, submission, loadSession: (id) => storeRef.current!.loadSession(id) });
+  useAppControl({ workspace: {
+    loadSession: store.loadSession,
+    addSession: (session, options) => {
+      store.addSession(session);
+      if (options?.reveal) void showSessionRef.current(session.id).catch(reportError);
     },
+    archiveSession: store.archiveSession, removeSession: store.removeSession,
+    isCanvasOpen: (id) => {
+      const agentId = surfaceRef.current === "mentor" ? mentorRef.current.currentRef.current?.agentId : undefined;
+      const page = agentId ? mentorViewRef.current.readingFor(agentId) : undefined;
+      return page?.kind === "canvas" && page.id === id;
+    },
+    // An agent's drawing shows in its own reader; any other in the open mentor's.
     revealCanvas: (id, sessionId) => {
-      const agent = agentForSession(sessionId);
-      if (agent) mentorViewRef.current.show(agent.id, { kind: "canvas", id });
-      else workspace.revealCanvas(id, sessionId);
+      const owner = agentForSession(sessionId)?.id ?? mentorRef.current.currentRef.current?.agentId;
+      if (owner) mentorViewRef.current.show(owner, { kind: "canvas", id });
     },
   }, runtime, submission, delegation });
   const [learningTargetRequest, setLearningTargetRequest] = useState<AddToChatRequest | null>(null);
   const revealLearningConversation = useCallback(async (id: string, blockId?: string, isCurrent: () => boolean = () => true) => {
     const agent = agentForSession(id);
-    const session = sessionsRef.current.find((entry) => entry.id === id) ?? await workspaceRef.current!.loadSession(id);
+    const session = sessionsRef.current.find((entry) => entry.id === id) ?? await storeRef.current!.loadSession(id);
     if (!session) throw new Error("This discussion is no longer available.");
     if (blockId && !session.blocks.some((block) => block.id === blockId)
       && !(agent && await agentsRef.current!.ensureBlockLoaded(id, blockId))) {
       throw new Error("This discussion is no longer available.");
     }
     if (!isCurrent()) return;
-    if (agent) { await agentsRef.current?.open(agent.id); return; }
-    setSurface("chat");
-    await workspaceRef.current!.openSession(id);
+    await showSessionRef.current(id);
   }, []);
-  const openLearningFile = useCallback((path: string, pin = true) => {
-    if (surfaceRef.current === "agent") showInAgent({ kind: "file", path });
-    else { setSurface("chat"); workspaceRef.current!.openFile(path, pin); }
-  }, []);
+  const openLearningFile = useCallback((path: string) => { void showInMentor({ kind: "file", path }).catch(reportError); }, [reportError, showInMentor]);
   const openPdf = useCallback(() => {
     void pickFile({ multiple: false, directory: false, filters: [{ name: "PDF", extensions: ["pdf"] }] })
       .then((path) => { if (typeof path === "string") openLearningFile(path); })
-      .catch((error) => workspaceRef.current?.setError(String(error)));
-  }, [openLearningFile]);
+      .catch(reportError);
+  }, [openLearningFile, reportError]);
   useEffect(() => {
     const queued = (request: AddToChatRequest, id: string) => {
       queueLearningDraft(id, { ...request, targetSessionId: id });
-      void revealLearningConversation(id).catch((error) => workspaceRef.current?.setError(String(error)));
+      void revealLearningConversation(id).catch(reportError);
     };
     const add = (event: Event) => {
       const request = (event as CustomEvent<AddToChatRequest>).detail;
       if (!request || (!request.targetSessionId && !request.sources?.length)) return;
       event.stopImmediatePropagation();
-      let target = request.targetSessionId;
-      if (!target && surfaceRef.current === "agent") target = agentWorkspaceRef.current.currentRef.current?.sessionId;
-      if (!target && surfaceRef.current === "chat") {
-        const tab = workspaceRef.current?.activeTab;
-        const paneIds = tab ? leafIds(tab.layout) : [];
-        target = sessionsRef.current.find((session) => session.id === tab?.focusedId && session.cwd !== "~")?.id
-          ?? sessionsRef.current.find((session) => paneIds.includes(session.id) && session.cwd !== "~")?.id;
-      }
+      const target = request.targetSessionId ?? mentorRef.current.currentRef.current?.sessionId;
       if (target) queued(request, target); else setLearningTargetRequest(request);
     };
     const discussion = (event: Event) => {
       const ref = (event as CustomEvent<DiscussionRef>).detail;
       if (!ref?.sessionId || !ref.blockId) return;
-      void revealLearningConversation(ref.sessionId, ref.blockId).then(() => requestTranscriptJump(ref.sessionId, ref.blockId))
-        .catch((error) => workspaceRef.current?.setError(String(error)));
+      void revealLearningConversation(ref.sessionId, ref.blockId).then(() => requestTranscriptJump(ref.sessionId, ref.blockId)).catch(reportError);
     };
     const course = (event: Event) => {
       const detail = (event as CustomEvent<OpenCourseDetail>).detail;
       if (!detail?.courseId || !detail.agentId) return;
-      const open = async () => {
-        const agent = agentsRef.current?.agents.find((entry) => entry.id === detail.agentId);
-        if (agent) {
-          const guard = overviewSaveGuards.current.get(agent.id);
-          if (guard && !await guard()) return;
-          if (surfaceRef.current !== "agent" || agentWorkspaceRef.current.currentRef.current?.agentId !== agent.id) await agentsRef.current?.open(agent.id);
-          if (agentWorkspaceRef.current.currentRef.current?.agentId !== agent.id) return;
-          mentorViewRef.current.show(agent.id, { kind: "course", course: detail });
-        } else {
-          await revealLearningConversation(detail.sourceSessionId ?? detail.agentId);
-          workspaceRef.current!.showCourse(detail);
-        }
-      };
-      void open().catch((error) => workspaceRef.current?.setError(String(error)));
+      // A course belongs to its mentor; one kept by an ordinary session reads in the open mentor.
+      const owner = agentsRef.current?.agents.some((agent) => agent.id === detail.agentId) ? detail.agentId : undefined;
+      void showInMentor({ kind: "course", course: detail }, owner).catch(reportError);
     };
     window.addEventListener(ADD_TO_CHAT_EVENT, add, true);
     window.addEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
@@ -402,7 +321,7 @@ function Workspace(boot: BootWorkspace) {
       window.removeEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
       window.removeEventListener(OPEN_COURSE_EVENT, course);
     };
-  }, [revealLearningConversation]);
+  }, [reportError, revealLearningConversation, showInMentor]);
   useEffect(() => {
     const open = (event: Event) => {
       const path = (event as CustomEvent<{ path?: string }>).detail?.path;
@@ -415,117 +334,92 @@ function Workspace(boot: BootWorkspace) {
     const release = listen("open_pdf", openPdf);
     return () => { void release.then((stop) => stop()); };
   }, [openPdf]);
-  useAppResourceNavigation({ workspace: { ...workspace, openFile: openLearningFile }, notesEnabled,
+  useAppResourceNavigation({
+    openSession: (id) => showSessionRef.current(id),
+    openFile: openLearningFile,
+    fileBase: () => sessionsRef.current.find((session) => session.id === (readerSessionId() ?? mentorRef.current.currentRef.current?.sessionId))?.cwd,
+    // A drawing an agent keeps opens in that agent's reader; any other in the open mentor's.
+    openCanvas: (canvas, owner) => showInMentor({ kind: "canvas", id: canvas.id }, owner),
+    // A note an agent owns opens in its reader; any other opens in the open mentor's, still unowned.
+    openNote: (id, owner) => showInMentor({ kind: "note", id }, owner),
     onOpenConversation: revealLearningConversation,
-    onOpenCanvas: (canvas) => {
-      if (surfaceRef.current !== "agent") return false;
-      showInAgent({ kind: "canvas", id: canvas.id });
-      return true;
-    }, onOpenNote: (id) => {
-    const owner = surfaceRef.current === "agent" ? agentWorkspaceRef.current.currentRef.current?.agentId : null;
-    if (owner) {
-      void getNote(id).then(async (note) => {
-        if (agentWorkspaceRef.current.currentRef.current?.agentId !== owner || surfaceRef.current !== "agent") return;
-        if (note?.agentId === owner) {
-          const guard = overviewSaveGuards.current.get(owner);
-          if (!guard || await guard()) mentorViewRef.current.show(owner, { kind: "note", id });
-        } else {
-          setNoteOpenRequest((previous) => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
-          setSurface("notes");
-        }
-      }).catch((error) => workspaceRef.current?.setError(String(error)));
-      return;
-    }
-    setNoteOpenRequest((previous) => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
-    setSurface("notes");
-  } });
+    onError: reportError,
+  });
 
   const openSettings = useCallback((section?: SettingsSectionId, anchor: string | null = null) => {
-    if (surfaceRef.current !== "settings") settingsReturn.current = surfaceRef.current;
     if (section) { setSettingsSection(section); saveSettingsSection(section); }
     setSettingsAnchor(anchor);
     startTransition(() => setSurface("settings"));
   }, []);
+  const closeSettings = useCallback(() => setSurface("mentor"), []);
   const onSelectSettingsSection = useCallback((section: SettingsSectionId) => {
     setSettingsSection(section); saveSettingsSection(section); setSettingsAnchor(null);
   }, []);
-  const openSearch = useCallback(() => startTransition(() => { setSurface("search"); setSearchFocusToken((token) => token + 1); }), []);
   const renameCanvas = (id: string, title: string) => {
-    void updateCanvas(id, { title }).catch((error) => workspace.setError(String(error)));
-  };
-  const canvasAddToChat = (text: string) => {
-    const view = workspaceRef.current!;
-    const session = { ...newDefaultSession(view.projectCwdRef.current, view.activeSession?.runtimeMode), title: "Canvas context" };
-    view.addSession({ ...session, noteCard: { id: crypto.randomUUID(), slug: "canvas-context", title: "Canvas context", body: text } });
+    void updateCanvas(id, { title }).catch(reportError);
   };
   const canvasAddToAgent = (text: string) => {
-    const current = agentWorkspaceRef.current.currentRef.current;
+    const current = mentorRef.current.currentRef.current;
     if (current) requestAddToChat(text, "plain", { targetSessionId: current.sessionId });
   };
-  const openNotes = useCallback(() => { if (loadNotesEnabled()) startTransition(() => { setNoteOpenRequest(undefined); setSurface("notes"); }); }, []);
-  const openCourses = useCallback(() => startTransition(() => setSurface("courses")), []);
-  const toggleProjectRail = useCallback(() => setProjectRailOpen((open) => { saveProjectRailOpen(!open); return !open; }), []);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [agentGalleryOpen, setAgentGalleryOpen] = useState(false);
-  const openTabSwitcher = useCallback(() => {
-    // The switcher lists what the toast announced, so the toast has done its job.
-    closedTabs.dismissNotice();
-    setSwitcherOpen((open) => !open);
-  }, []);
-  const [overviewOpen, setOverviewOpen] = useState(false);
-  const openTabOverview = useCallback(() => {
-    closedTabs.dismissNotice();
-    setSwitcherOpen(false);
-    setOverviewOpen((open) => !open);
-  }, []);
-  const closedHistory = useSyncExternalStore(closedTabs.subscribe, closedTabs.history);
-  // Tabs in the order they were last in view, for the switcher.
-  const recentTabs = useRef<string[]>([]);
-  const summariesRef = useRef<Tab[]>([]);
-  // Go to whatever is waiting on the user, approvals before finished work.
-  const jumpToAttention = useCallback(() => {
-    const view = workspaceRef.current;
-    const next = view && attentionOrder(summariesRef.current, view.activeTabIdRef.current)[0];
-    if (view && next) view.activateTab(next);
-  }, []);
-  // The shortcut folds whichever second column the page in view has.
-  const toggleSessionSidebar = useCallback(() => {
-    if (surfaceRef.current === "notes") {
-      window.dispatchEvent(new Event(TOGGLE_SECONDARY_SIDEBAR_EVENT));
-      return;
-    }
-    if (surfaceRef.current === "agent") {
-      const id = agentWorkspaceRef.current.currentRef.current?.agentId;
-      if (id) agentsRef.current?.setDetailsOpenFor(id, (open) => !open);
-      return;
-    }
-    setSessionSidebarOpen((open) => { saveSessionSidebarOpen(!open); return !open; });
-  }, []);
   const persistWindow = useCallback(async (mode: WorkspaceSaveMode = "transition") => {
     runtime.flushEvents();
     await runtime.flushPersistence();
-    const view = workspaceRef.current!;
-    await persistQuitState(sessionsRef.current, view.tabsRef.current, view.activeTabIdRef.current, view.projectCwdRef.current, view.projectReturnMemory.current, mode);
+    await persistQuitState(sessionsRef.current, NO_TABS, "", "~", new Map(), mode);
   }, [runtime.flushEvents, runtime.flushPersistence]);
-  const reload = useCallback(() => { void persistWindow().then(() => window.location.reload()).catch((error) => workspaceRef.current?.setError(String(error))); }, [persistWindow]);
-  useAppCommands({ workspace, submission, sessionsRef, surfaceOpen: surface !== "chat", closeSurface,
-    agentPane: surface === "agent" && agentWorkspace.current ? {
-      focusedId: agentWorkspace.current.focusedId, layout: agentWorkspace.current.layout,
-      onClosePane: agentWorkspace.closePane,
-      // The conversation is the agent's only pane.
-      onFocusDirection: () => undefined,
-    } : undefined,
-    openSearch, openSettings, openNotes, toggleProjectRail, toggleSessionSidebar, openTabSwitcher, jumpToAttention, openTabOverview, reload, sessionOrder,
+  const reload = useCallback(() => { void persistWindow().then(() => window.location.reload()).catch(reportError); }, [persistWindow, reportError]);
+  const applyZoom = (direction: -1 | 0 | 1) => {
+    if (requestImageZoom(direction === 0 ? "zoom-reset" : direction === 1 ? "zoom-in" : "zoom-out")) return;
+    void applyUiScale(saveUiScale(direction === 0 ? UI_SCALE_DEFAULT : direction === 1 ? zoomInUiScale(loadUiScale()) : zoomOutUiScale(loadUiScale())));
+  };
+  const withMentor = (work: (agentId: string) => void) => () => {
+    const id = mentorRef.current.currentRef.current?.agentId;
+    if (id) work(id);
+  };
+  const toggleLibrary = withMentor((id) => mentorViewRef.current.toggleLibrary(id));
+  const toggleChat = withMentor((id) => mentorViewRef.current.toggleChat(id));
+  /** Closes what the reader shows; false when it was already empty. */
+  const closeReader = () => {
+    if (surfaceRef.current === "settings") { closeSettings(); return true; }
+    const id = mentorRef.current.currentRef.current?.agentId;
+    if (!id || !mentorViewRef.current.readingFor(id)) return false;
+    void leaveReader(id).then((saved) => { if (saved) mentorViewRef.current.close(id); });
+    return true;
+  };
+  const stepMentor = (delta: number) => {
+    const roster = listAgents();
+    const index = roster.findIndex((agent) => agent.id === mentorRef.current.currentRef.current?.agentId);
+    const next = roster[(index + delta + roster.length) % roster.length];
+    if (next) void showMentor(next.id);
+  };
+  useAppCommands({ submission, sessionsRef,
+    mentorIds: () => listAgents().map((agent) => agent.id),
+    activeMentorId: () => mentorRef.current.currentRef.current?.agentId ?? null,
+    focusedSessionId: () => {
+      if (surfaceRef.current !== "mentor") return null;
+      const focusedReader = document.activeElement?.closest("[data-mentor-reader]");
+      return (focusedReader ? readerSessionId() : undefined) ?? mentorRef.current.currentRef.current?.sessionId ?? null;
+    },
+    openMentor: (id) => { void showMentor(id); },
+    newMentor: () => setAgentGalleryOpen(true),
+    closeReader, closeWindow: () => { void closeCurrentWindow(); },
+    toggleLibrary, toggleChat,
+    // Search across mentors arrives with the mentor search palette.
+    openSearch: () => undefined,
+    openSettings: () => openSettings(),
+    openSession: (id) => { void showSessionRef.current(id).catch(reportError); },
+    reload,
   });
 
+  const active = surface === "mentor" ? sessions.find((session) => session.id === (readerSessionId() ?? mentor.current?.sessionId)) : undefined;
   useEffect(() => {
     void probeHarnessAvailability();
     void applyUiScale(loadUiScale());
     return watchSystemColorScheme();
   }, []);
   useEffect(() => { if (active) void refreshHarnessCatalogs([active.harness]); }, [active?.harness]);
-  useEffect(() => preloadNavigationWhenIdle([SearchView.preload, SettingsView.preload, NotesView.preload, CoursesView.preload]), []);
-  useLayoutEffect(() => runtime.flushEvents(), [workspace.activeTabId, surface, runtime.flushEvents]);
+  useEffect(() => preloadNavigationWhenIdle([SettingsView.preload]), []);
+  useLayoutEffect(() => runtime.flushEvents(), [mentor.current?.sessionId, surface, runtime.flushEvents]);
   useEffect(() => {
     const flush = () => runtime.flushEvents();
     document.addEventListener("visibilitychange", flush);
@@ -539,30 +433,14 @@ function Workspace(boot: BootWorkspace) {
     setProviderSignIn({ key, sessionId: active.id, harness: active.harness });
   }, [active]);
   useEffect(() => { if (providerSignIn && providerSignIn.sessionId !== active?.id) setProviderSignIn(null); }, [active?.id, providerSignIn]);
-  useEffect(() => { void rememberProjectLocation(workspace.projectCwd); }, [workspace.projectCwd]);
-  useEffect(() => { if (!notesEnabled && surface === "notes") closeSurface(); }, [notesEnabled, surface, closeSurface]);
   useEffect(() => {
-    const refresh = () => { void loadCanvases().then(setCanvases).catch((error) => workspaceRef.current?.setError(String(error))); };
+    const refresh = () => { void loadCanvases().then(setCanvases).catch(reportError); };
     refresh();
     window.addEventListener(CANVASES_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(CANVASES_CHANGED_EVENT, refresh);
-  }, []);
+  }, [reportError]);
   useEffect(() => {
-    const onAdd = (event: Event) => {
-      const card = (event as CustomEvent<NoteComposerCard>).detail;
-      if (!card) return;
-      const view = workspaceRef.current!;
-      const cwd = card.sourceCwd && looksLikeProject(card.sourceCwd) ? card.sourceCwd : view.projectCwdRef.current;
-      const session = { ...newDefaultSession(cwd, view.activeSession?.runtimeMode), title: card.title, noteCard: card };
-      view.addSession(session);
-    };
-    window.addEventListener(ADD_NOTE_TO_CHAT_EVENT, onAdd);
-    return () => window.removeEventListener(ADD_NOTE_TO_CHAT_EVENT, onAdd);
-  }, [runtime.updateSessions]);
-  useEffect(() => {
-    const release = setQuitWorkspace(() => sessionsRef.current, () => workspace.tabsRef.current,
-      () => workspace.activeTabIdRef.current, () => workspace.projectCwdRef.current,
-      () => workspace.projectReturnMemory.current, runtime.flushEvents);
+    const release = setQuitWorkspace(() => sessionsRef.current, () => NO_TABS, () => "", () => "~", () => new Map(), runtime.flushEvents);
     let stop: (() => void) | undefined;
     let disposed = false;
     void getCurrentWindow().onCloseRequested((event) => {
@@ -575,260 +453,131 @@ function Workspace(boot: BootWorkspace) {
         void hideCurrentWindow();
         return;
       }
-      void persistAndCloseWindow(persistWindow, toTray).catch((error) => workspaceRef.current?.setError(String(error)));
+      void persistAndCloseWindow(persistWindow, toTray).catch(reportError);
     }).then((unlisten) => { if (disposed) unlisten(); else stop = unlisten; });
     const unload = () => { if (!isAppQuitting()) void persistWindow("unload"); };
     window.addEventListener("beforeunload", unload);
     return () => { disposed = true; release(); stop?.(); window.removeEventListener("beforeunload", unload); };
-  }, [runtime.flushEvents, persistWindow, workspace.tabsRef, workspace.activeTabIdRef, workspace.projectCwdRef, workspace.projectReturnMemory]);
+  }, [runtime.flushEvents, persistWindow, reportError]);
 
-  const compactProjectRail = collapsedProjectRailMode === "compact";
-  const compactRailActive = compactProjectRail && !projectRailOpen;
-  const compactTitleBar = IS_MAC && compactRailActive && surface === "chat";
-  const openFile = useCallback((path: string) => { void openPathWithDefaultApp(path).catch((error) => workspaceRef.current?.setError(String(error))); }, []);
-  const pinFile = useCallback((path: string) => workspaceRef.current?.openFile(path, true), []);
-  // Links in replies and documents share the file tree's internal preview. Anything
-  // else goes to the app the system uses for it.
-  const openProjectFile = useCallback<OpenFileFn>((path, place) => {
-    const view = workspaceRef.current;
-    if (view && isEqualOrInside(path, view.projectCwdRef.current)) {
-      if (place) requestFilePlace(path, place);
-      view.openFile(path);
-    } else openFile(path);
-  }, [openFile]);
-  // An agent's links open beside its conversation, in place of what was being read.
   const openAgentFile = useCallback<OpenFileFn>((path, place) => {
     if (place) requestFilePlace(path, place);
-    showInAgent({ kind: "file", path });
-  }, [showInAgent]);
-  useEffect(() => {
-    // A file dragged out of the Files tree shows the same edge hint as a
-    // dragged pane, and lands as its own pane where it is dropped.
-    const onDrag = (event: Event) => {
-      const detail = (event as CustomEvent<FilePointerDragDetail>).detail;
-      if (detail.type === "end") { setExternalPaneDrop(null); return; }
-      const over = paneDropFromPoint(detail.x, detail.y);
-      const fromId = filePaneId(detail.path);
-      if (detail.type === "move") {
-        setExternalPaneDrop(over && over.id !== fromId ? { fromId, overId: over.id, edge: over.edge } : null);
-        return;
-      }
-      setExternalPaneDrop(null);
-      if (over && over.id !== fromId) workspaceRef.current?.placeFile(detail.path, over.id, over.edge);
-    };
-    window.addEventListener(FILE_POINTER_DRAG_EVENT, onDrag);
-    return () => window.removeEventListener(FILE_POINTER_DRAG_EVENT, onDrag);
-  }, []);
-  const onRailBack = () => surface !== "chat" ? closeSurface() : workspace.visit("back");
-  const applyZoom = (direction: -1 | 0 | 1) => {
-    if (requestImageZoom(direction === 0 ? "zoom-reset" : direction === 1 ? "zoom-in" : "zoom-out")) return;
-    void applyUiScale(saveUiScale(direction === 0 ? UI_SCALE_DEFAULT : direction === 1 ? zoomInUiScale(loadUiScale()) : zoomOutUiScale(loadUiScale())));
-  };
-  const tabSummaries = useMemo(() => linkFamilies(workspace.tabs.map((tab) => summarizeTab(tab, {
-    sessions,
-    canvasTitle: (id) => canvases.find((canvas) => canvas.id === id)?.title,
-    needsInput: approvalSessionIds,
-    unseenFinished: unseenFinishedIds,
-    fallbackCwd: workspace.projectCwd,
-  })), workspace.tabs), [workspace.tabs, sessions, canvases, approvalSessionIds, unseenFinishedIds, workspace.projectCwd]);
-  // The strip shows this project's tabs; the switcher reaches all of them.
-  const titleTabs = useMemo(() => {
-    const byId = new Map(tabSummaries.map((tab) => [tab.id, tab]));
-    return workspace.visibleTabs.flatMap((tab) => byId.get(tab.id) ?? []);
-  }, [tabSummaries, workspace.visibleTabs]);
-  summariesRef.current = tabSummaries;
-  // Tabs that hold something unfinished are never put away or closed in bulk.
-  const heldIds = useMemo(() => heldTabIds(workspace.tabs, sessions), [workspace.tabs, sessions]);
-  const idleIds = useMemo(() => idleTabIds(titleTabs, workspace.activeTabId, heldIds), [titleTabs, workspace.activeTabId, heldIds]);
-  // When a project's tab count grows past its limit, the longest-idle tabs are
-  // put away. Switching project or restoring a layout is not growth.
-  const parkBaseline = useRef<TabCountMark | null>(null);
-  useEffect(() => {
-    const project = pathKey(workspace.projectCwd);
-    const count = titleTabs.length;
-    const { mark, grew } = trackTabGrowth(parkBaseline.current, project, count);
-    parkBaseline.current = mark;
-    const view = workspaceRef.current;
-    if (!view || !grew) return;
-    const ids = parkingCandidates({ tabs: titleTabs, activeId: view.activeTabIdRef.current, recent: recentTabs.current, held: heldTabIds(view.tabsRef.current, sessionsRef.current), limit: loadTabLimit() });
-    if (ids.length) view.closeTabs(ids, undefined, { parked: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [titleTabs.length, workspace.projectCwd]);
-  useEffect(() => {
-    recentTabs.current = [workspace.activeTabId, ...recentTabs.current.filter((id) => id !== workspace.activeTabId)].slice(0, 60);
-  }, [workspace.activeTabId]);
-  const workspaceTitleBar = <TitleBar tabs={titleTabs} activeId={workspace.activeTabId} cwd={workspace.projectCwd}
-    projectRailOpen={projectRailOpen} sessionSidebarOpen={sessionSidebarOpen} compactRail={compactTitleBar}
-    canGoBack={workspace.visits.back.length > 0} canGoForward={workspace.visits.forward.length > 0}
-    onGoBack={onRailBack} onGoForward={() => workspace.visit("forward")}
-    onToggleSidebar={toggleProjectRail} onToggleSessionSidebar={toggleSessionSidebar}
-    onSelect={workspace.activateTab} onOpenSettings={() => openSettings()} onOpenNotes={notesEnabled ? openNotes : undefined}
-    onClose={(id) => workspace.closeTabs([id])} onCloseMany={workspace.closeTabs}
-    onArchiveTab={(id) => { for (const sessionId of leafIds(workspace.tabs.find((tab) => tab.id === id)!.layout).filter((paneId) => sessions.some((session) => session.id === paneId))) void workspace.archiveSession(sessionId, true); }}
-    onDeleteTab={(id) => { for (const sessionId of leafIds(workspace.tabs.find((tab) => tab.id === id)!.layout).filter((paneId) => sessions.some((session) => session.id === paneId))) void workspace.removeSession(sessionId); }}
-    onReorder={workspace.reorderTabs} onPin={workspace.pinTab} recent={recentTabs.current} onOpenSwitcher={openTabSwitcher} idleTabCount={idleIds.length} onCloseIdle={() => workspace.closeTabs(idleIds)} onPlaceOnPane={workspace.placeTab} recents={workspace.recents} onSelectProject={workspace.openProject} />;
-  const sessionPaneProps = {
-    recents: workspace.recents, hideProjectPicker: true,
-    onFocus: workspace.focusPane, onClose: workspace.closePane, onCwdChange: workspace.changeCwd,
+    void showInMentor({ kind: "file", path }).catch(reportError);
+  }, [reportError, showInMentor]);
+
+  const paneProps = (session: Session, focused: boolean): ComponentProps<typeof SessionPane> => ({
+    session, visible: true, focused, inSplit: false, composerFocused: true, composerFocusToken: mentor.composerFocusToken,
+    recents: [...store.recents], hideProjectPicker: true, transcriptPool,
+    onFocus: () => undefined, onClose: () => undefined, onCwdChange: () => undefined,
     onModelChange: submission.changeModel, onModelSettingsChange: submission.changeModelSettings, onRuntimeModeChange: submission.changeRuntimeMode,
     onSubmit: submission.onSubmit, onSaveDraft: submission.saveDraft, onRemoveDraft: submission.removeDraft,
     onStop: submission.stop, onCompactContext: submission.compact,
     onDeleteQueuedMessage: submission.deleteQueuedMessage, onEditQueuedMessage: submission.editQueuedMessage,
     onQueuedMessageEditingChange: submission.queuedMessageEditingChange, onSteerQueuedMessage: submission.steerQueuedMessage, onResumeQueue: submission.resumeQueue,
     onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
-    onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((session) => session.id === id ? { ...session, noteCard: undefined } : session)),
+    onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((entry) => entry.id === id ? { ...entry, noteCard: undefined } : entry)),
     onNoteSaved: (noteId: string) => setSavedToast({ type: "note", id: noteId }),
     onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
-    onOpenFile: openProjectFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
+    onOpenFile: openAgentFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
     onBtwStop: submission.btwStop, onBtwModelChange: submission.btwModelChange,
+  });
+  const mentorChat = (agentId: string, sessionId: string) => {
+    const agent = agents.agents.find((entry) => entry.id === agentId);
+    const live = sessions.find((entry) => entry.id === sessionId);
+    if (!agent || !live) return null;
+    const earlier = agents.earlierBlocksFor(sessionId);
+    const session = earlier?.length ? { ...live, blocks: [...earlier, ...live.blocks] } : live;
+    return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-pane-id={sessionId}>
+      <AgentSessionPane agent={agent} state={agents.states.get(agent.id) ?? { status: "idle" }}
+        sessionPaneProps={{ ...paneProps(session, true), onApproval: agentHabits.approve,
+          onSaveToCanvas: (text, anchor) => saveToCanvas(agent.id, text, anchor) }}
+        detailsOpen={agents.isDetailsOpen(agent.id)} onToggleDetails={() => agents.setDetailsOpenFor(agent.id, (open) => !open)}
+        onReset={() => void agents.reset(agent.id)} onDelete={() => void agents.remove(agent.id)}
+        onPickFolders={() => pickFolders("Choose projects")}
+        onLoadEarlier={agents.hasEarlier(sessionId) ? () => void agents.loadEarlier(sessionId) : undefined} />
+    </div>;
   };
-
-  const renderAgentSession: NonNullable<import("react").ComponentProps<typeof PaneTree>["renderSession"]> = (paneProps) => {
-    const agent = agents.agents.find((entry) => entry.sessionId === paneProps.session.id);
-    if (!agent) return undefined;
-    const earlier = agents.earlierBlocksFor(paneProps.session.id);
-    const session = earlier?.length ? { ...paneProps.session, blocks: [...earlier, ...paneProps.session.blocks] } : paneProps.session;
-    return <AgentSessionPane agent={agent} state={agents.states.get(agent.id) ?? { status: "idle" }}
-      sessionPaneProps={{ ...paneProps, session, onApproval: agentHabits.approve,
-        onSaveToCanvas: (text, anchor) => saveToCanvas(agent.id, text, anchor) }}
-      detailsOpen={agents.isDetailsOpen(agent.id)} onToggleDetails={() => agents.setDetailsOpenFor(agent.id, (open) => !open)}
-      onReset={() => void agents.reset(agent.id)} onDelete={() => void agents.remove(agent.id)}
-      onPickFolders={() => pickFolders("Choose projects")}
-      onLoadEarlier={agents.hasEarlier(session.id) ? () => void agents.loadEarlier(session.id) : undefined} />;
+  const readerSession = (id: string) => {
+    const session = sessions.find((entry) => entry.id === id);
+    if (!session) return <p role="status" className="mentor-reader-empty">Opening the conversation…</p>;
+    return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-pane-id={id}><SessionPane {...paneProps(session, false)} composerFocused={false} /></div>;
   };
-
-  // The left edge of the agent workspace makes room for the window's buttons
-  // when the rail is collapsed; whichever column is there carries it.
-  const agentLeading = IS_MAC && !projectRailOpen ? <>
-    {/* Beside the collapsed rail, its own button already opens the sidebar. */}
-    <div className={compactRailActive ? "w-9 shrink-0" : "w-[78px] shrink-0"} />
-    <OverlayNav onBack={closeSurface} onToggleSidebar={compactRailActive ? undefined : toggleProjectRail} />
-  </> : undefined;
+  const sessionTitle = (id: string) => {
+    const session = sessions.find((entry) => entry.id === id);
+    return session ? sessionDisplayTitle(session.title, session.harness) : "Conversation";
+  };
+  const shownIds = surface === "mentor" ? visibleSessionIds : new Set<string>();
 
   return <>
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
-      {compactTitleBar ? workspaceTitleBar : null}
+      {!IS_MAC ? <MenuBar onNewMentor={() => setAgentGalleryOpen(true)} onCloseReader={() => { if (!closeReader()) void closeCurrentWindow(); }}
+        onPreviousMentor={() => stepMentor(-1)} onNextMentor={() => stepMentor(1)} onToggleLibrary={toggleLibrary} onToggleChat={toggleChat}
+        onOpenPdf={openPdf} onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
       <div className="flex min-h-0 min-w-0 flex-1">
-        <Sidebar cwd={workspace.projectCwd} open={sessionSidebarOpen && surface !== "agent"} sessions={workspace.sidebarHistory}
-          busySessionIds={busySessionIds} approvalSessionIds={approvalSessionIds} activeSessionId={active?.id}
-          status={workspace.historyFailed ? "error" : "idle"} pending={workspace.historyPending}
-          onSelectSession={(id) => void workspace.openSession(id)} onSessionNavigationOrder={setSessionOrder}
-          onPrefetchSession={(id) => { void workspace.loadSession(id); }} onPlaceSessionOnPane={(...args) => void workspace.placeSession(...args)}
-          onRenameSession={(...args) => void workspace.renameSession(...args)} onArchiveSession={(...args) => void workspace.archiveSession(...args)}
-          onArchiveSessions={(ids, archived) => { for (const id of ids) void workspace.archiveSession(id, archived); }}
-          onPinSession={(...args) => void workspace.pinSession(...args)} onPinSessions={(ids, pinned) => { for (const id of ids) void workspace.pinSession(id, pinned); }}
-          onDeleteSession={(id) => void workspace.removeSession(id)} onDeleteSessions={(ids) => { for (const id of ids) void workspace.removeSession(id); }}
-          onTabChange={showChat} canGoBack={surface !== "chat" || workspace.visits.back.length > 0} canGoForward={workspace.visits.forward.length > 0}
-          onGoBack={onRailBack} onGoForward={() => workspace.visit("forward")}
-          recents={workspace.recents} busyProjectPaths={shownSessions.filter((session) => session.busy).map((session) => session.cwd)}
-          agentActive={!!focusedAgent} projectsEnabled={projectsEnabled}
-          agentRail={!agentsEnabled ? undefined : <AgentRailSection activeId={focusedAgent?.id} states={agents.states} unseenIds={unseenAgentIds}
-            onOpen={(id) => void agents.open(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void agents.open(id); }} onCreate={() => setAgentGalleryOpen(true)} onDelete={(id) => void agents.remove(id)} />}
-          liveAgents={liveAgents} onSelectAgent={(id) => void workspace.openSession(id)} onSelectProject={workspace.openProject} onOpenProject={workspace.pickProject}
-          onRemoveProject={(...args) => void workspace.removeProject(...args)} onNew={() => workspace.createSession()} onSearch={openSearch}
-          onOpenNotes={notesEnabled ? openNotes : undefined} searchActive={surface === "search"} notesActive={surface === "notes"} notesEnabled={notesEnabled}
-          onOpenCourses={openCourses} coursesActive={surface === "courses"}
-          onOpenFile={workspace.openFile} onToggleSidebar={toggleSessionSidebar} onFileMoved={workspace.fileMoved} onFileDeleted={workspace.fileDeleted}
-          projectRailOpen={projectRailOpen} compactProjectRail={compactProjectRail} titleBarAbove={compactTitleBar} onToggleProjectRail={toggleProjectRail}
-          unseenFinishedIds={unseenFinishedIds} settingsOpen={surface === "settings"} settingsSection={settingsSection} onOpenSettings={() => openSettings()}
-          onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={() => setSurface(settingsReturn.current)} />
+        <MentorRail activeId={activeAgent?.id} states={agents.states} unseenIds={unseenAgentIds} settingsOpen={surface === "settings"}
+          onOpen={(id) => void showMentor(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void showMentor(id); }}
+          onCreate={() => setAgentGalleryOpen(true)} onDelete={(id) => void agents.remove(id)}
+          onOpenSettings={() => surface === "settings" ? closeSettings() : openSettings()} />
+        {surface === "settings" ? <aside className="flex w-[220px] shrink-0 flex-col border-r border-stroke" aria-label="Settings sections">
+          <div className="h-10 shrink-0" data-tauri-drag-region="deep" />
+          <SettingsNav section={settingsSection} onSelect={onSelectSettingsSection} onClose={closeSettings} />
+        </aside> : null}
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className={surface === "chat" ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden"} aria-hidden={surface !== "chat"} inert={surface !== "chat" || undefined}>
-            {!IS_MAC ? <MenuBar onNew={() => workspace.createSession()} onSwitchTab={openTabSwitcher} onNextAttention={jumpToAttention} onTabOverview={openTabOverview} onReopenTab={() => { void workspace.reopenClosed("latest"); }} onToggleSidebar={toggleProjectRail} onToggleSessionSidebar={toggleSessionSidebar}
-              onCloseCurrentTab={() => workspace.closeTabs([workspace.activeTabId])} onCloseOtherTabs={() => workspace.closeTabs(workspace.visibleTabs.filter((tab) => tab.id !== workspace.activeTabId).map((tab) => tab.id))}
-              onCloseAllTabs={() => workspace.closeTabs(workspace.visibleTabs.map((tab) => tab.id))} onPickProject={workspace.pickProject} onOpenPdf={openPdf} onSearch={openSearch} onOpenNotes={notesEnabled ? openNotes : undefined}
-              onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
-            {compactTitleBar ? null : workspaceTitleBar}
-            <main className="relative flex min-h-0 min-w-0 flex-1">
-              <div className="relative min-h-0 min-w-0 flex-1">
-                {workspace.tabs.map((tab) => <div key={tab.id} aria-hidden={tab.id !== workspace.activeTabId} className={tab.id === workspace.activeTabId ? "tab-pane-in absolute inset-0 flex h-full min-h-0 flex-col" : "hidden"}>
-                  <PaneTree {...sessionPaneProps} visible={surface === "chat" && tab.id === workspace.activeTabId} layout={tab.layout} sessions={sessions}
-                    focusedId={surface === "chat" && tab.id === workspace.activeTabId ? tab.focusedId : ""} composerFocused={surface === "chat"}
-                    composerFocusToken={workspace.composerFocusToken} onRatio={workspace.ratio} onMovePane={workspace.movePane} onDetachPane={workspace.detachPane} transcriptPool={transcriptPool}
-                    canvases={canvases}
-                    onCanvasFocus={(id) => workspace.focusPane(id)}
-                    onCanvasAddToChat={canvasAddToChat}
-                    onCanvasTitleChange={renameCanvas}
-                    projectCwd={tab.cwd ?? workspace.projectCwd} onFilePaneFocus={workspace.focusPane}
-                    onFilePanePin={pinFile} onOpenProjectFile={openProjectFile} />
-                </div>)}
-              </div>
-            </main>
-          </div>
-          {surface === "agent" && agentWorkspace.current && focusedAgent ? <section data-agent-workspace={agentWorkspace.activeAgentId} className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {surface === "mentor" && mentor.current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
             <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)}
-              leading={IS_MAC ? agentLeading : <OverlayNav onBack={closeSurface} onToggleSidebar={toggleProjectRail} />}
               trailing={IS_MAC ? undefined : <WindowControls />}
-              recents={workspace.recents} canvases={canvases}
+              recents={store.recents} canvases={canvases}
               onOpen={(page) => mentorView.show(focusedAgent.id, page)} onClose={() => mentorView.close(focusedAgent.id)}
               onLessonChange={(lesson) => mentorView.setLesson(focusedAgent.id, lesson)}
               onRestoredChecked={(page, exists) => mentorView.confirmRestored(focusedAgent.id, page, exists)}
               onToggleLibrary={() => mentorView.toggleLibrary(focusedAgent.id)} onToggleChat={() => mentorView.toggleChat(focusedAgent.id)}
               onResizeLibrary={(width) => mentorView.resizeLibrary(focusedAgent.id, width)} onResizeChat={(width) => mentorView.resizeChat(focusedAgent.id, width)}
-              onBeforeLeave={overviewGuard} onReading={(reading) => setAgentReading(focusedAgent.id, reading)}
+              onBeforeLeave={readerGuard} onReading={(reading) => setAgentReading(focusedAgent.id, reading)}
               onCanvasAddToChat={canvasAddToAgent} onCanvasTitleChange={renameCanvas} onOpenFile={openAgentFile}
-              chat={<PaneTree {...sessionPaneProps} layout={agentWorkspace.current.layout} sessions={sessions} visible focusedId={agentWorkspace.current.focusedId} composerFocused
-                composerFocusToken={agentWorkspace.composerFocusToken} onFocus={agentWorkspace.focusPane} onClose={agentWorkspace.closePane}
-                onRatio={() => undefined} onMovePane={() => undefined} transcriptPool={transcriptPool}
-                renderSession={renderAgentSession} canvases={canvases}
-                onCwdChange={() => undefined} onOpenFile={openAgentFile} />} />
+              renderSession={readerSession} sessionTitle={sessionTitle}
+              chat={mentorChat(mentor.current.agentId, mentor.current.sessionId)} />
           </section> : null}
-          {surface === "search" ? <SearchView open cwd={workspace.projectCwd} recents={workspace.recents} history={workspace.history} sessions={sessions}
-            focusToken={searchFocusToken} besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail}
-            onOpenSession={(id, blockId, query) => { if (blockId) requestTranscriptJump(id, blockId, query); void workspace.openSession(id); }} onOpenProject={workspace.openProject} /> : null}
-          {surface === "notes" ? <NotesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} cwd={workspace.projectCwd} openRequest={noteOpenRequest} recents={workspace.recents} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
-          {surface === "courses" ? <CoursesView besideRail={projectRailOpen || compactProjectRail} compactRail={compactRailActive} onClose={closeSurface} onToggleSidebar={toggleProjectRail} /> : null}
+          {surface === "mentor" && !focusedAgent ? <MentorsEmpty hasMentors={agents.agents.length > 0} onCreate={() => setAgentGalleryOpen(true)} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor}
-            recents={workspace.recents} cwd={workspace.projectCwd} sessions={workspace.sidebarHistory} besideRail onClose={() => setSurface(settingsReturn.current)} onSelectSection={onSelectSettingsSection}
-            onOpenSession={(id) => void workspace.openSession(id)} onArchiveSession={(...args) => void workspace.archiveSession(...args)} onDeleteSession={(id) => void workspace.removeSession(id)}
-            onRestoreProject={workspace.openProject} onDeleteProject={(path) => void workspace.removeProject(path, { purgeData: true })}
-            collapsedProjectRailMode={collapsedProjectRailMode} onCollapsedProjectRailModeChange={saveCollapsedProjectRailMode} /> : null}
+            recents={store.recents} cwd="~" sessions={[]} besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection}
+            onOpenSession={(id) => { closeSettings(); void showSession(id).catch(reportError); }}
+            onArchiveSession={(...args) => void store.archiveSession(...args)} onDeleteSession={(id) => void store.removeSession(id)} /> : null}
         </div>
       </div>
-      <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, workspace.activeTabId, workspace.tabs, surface === "chat")
-        .filter((notice) => surface !== "agent" || notice.sessionId !== agentWorkspace.current?.focusedId)} onFocusSession={(id) => void workspace.openSession(id)} onApproval={submission.approve} />
-      {overviewOpen ? <TabOverview tabs={tabSummaries} activeId={workspace.activeTabId} projectPath={workspace.projectCwd} recent={recentTabs.current}
-        onDismiss={() => setOverviewOpen(false)} onActivate={workspace.activateTab}
-        onCloseTabs={(ids) => workspace.closeTabs(ids)} onParkTabs={(ids) => workspace.closeTabs(ids, undefined, { parked: true })}
-        onPinTabs={(ids, pinned) => { for (const id of ids) workspace.pinTab(id, pinned); }} /> : null}
-      {switcherOpen ? <TabSwitcher tabs={tabSummaries} activeId={workspace.activeTabId} projectPath={workspace.projectCwd}
-        recent={recentTabs.current} closed={closedHistory} onDismiss={() => setSwitcherOpen(false)}
-        onActivate={workspace.activateTab} onCloseTab={(id) => workspace.closeTabs([id])} onPin={workspace.pinTab}
-        onReopen={(batch) => { void workspace.reopenClosed(batch); }} onOpenOverview={openTabOverview} /> : null}
+      <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, shownIds)} onFocusSession={(id) => void showSession(id).catch(reportError)} onApproval={submission.approve} />
       {agentGalleryOpen ? <AgentGallery onClose={() => setAgentGalleryOpen(false)} onPick={(template) => void agents.create(template ?? undefined)} /> : null}
-      <ClosedTabToast onUndo={(batch) => { void workspace.reopenClosed(batch); }} />
       {savedToast && (
         <SavedToast
           toast={savedToast}
           onDismiss={() => setSavedToast(null)}
-          onOpen={(t) => {
-            if (t.type === "canvas") {
-              if (surface === "agent") showInAgent({ kind: "canvas", id: t.id });
-              else workspace.showCanvas(t.id);
-            } else {
-              setNoteOpenRequest((prev) => ({ id: t.id, sequence: (prev?.sequence ?? 0) + 1 }));
-              setSurface("notes");
-            }
-          }}
+          onOpen={(t) => { void showInMentor(t.type === "canvas" ? { kind: "canvas", id: t.id } : { kind: "note", id: t.id }).catch(reportError); }}
         />
       )}
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
       {canvasSelection ? <SelectCanvasDialog anchor={canvasSelection.anchor ?? null} canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new DOMException("Cancelled", "AbortError")); }} /> : null}
-      {workspace.error ? <FileActionError message={workspace.error} onDismiss={() => workspace.setError(null)} /> : null}
-      {learningTargetRequest ? <Modal title="Choose a learning conversation" description="Your passage will be added as a draft. Choose an agent or a project conversation." onClose={() => setLearningTargetRequest(null)}>
+      {store.error ? <FileActionError message={store.error} onDismiss={() => store.setError(null)} /> : null}
+      {learningTargetRequest ? <Modal title="Choose a mentor" description="Your passage will be added as a draft to the mentor's conversation." onClose={() => setLearningTargetRequest(null)}>
         <div className="flex max-h-80 flex-col gap-1 overflow-auto p-3">
-          {([...agents.agents.filter((agent) => agent.sessionId).map((agent) => ({ id: agent.sessionId!, title: agent.name || "Agent" })),
-            ...workspace.sidebarHistory.filter((row) => !row.archived).map((row) => ({ id: row.id, title: row.title }))]
-            .filter((entry, index, all) => all.findIndex((other) => other.id === entry.id) === index)).map((entry) =>
-            <button key={entry.id} type="button" className="rounded-lg px-3 py-2 text-left text-sm hover:bg-content/8" onClick={() => {
-              queueLearningDraft(entry.id, { ...learningTargetRequest, targetSessionId: entry.id });
-              setLearningTargetRequest(null);
-              void revealLearningConversation(entry.id).catch((error) => workspaceRef.current?.setError(String(error)));
-            }}>{entry.title}</button>)}
-          {!agents.agents.some((agent) => agent.sessionId) && !workspace.sidebarHistory.length ? <p className="p-3 text-sm text-content/60">Create an agent or open a project conversation, then ask about this passage.</p> : null}
+          {agents.agents.filter((agent) => agent.sessionId).map((agent) => <button key={agent.id} type="button" className="rounded-lg px-3 py-2 text-left text-sm hover:bg-content/8" onClick={() => {
+            queueLearningDraft(agent.sessionId!, { ...learningTargetRequest, targetSessionId: agent.sessionId! });
+            setLearningTargetRequest(null);
+            void revealLearningConversation(agent.sessionId!).catch(reportError);
+          }}>{agentLook(agent).name}</button>)}
+          {!agents.agents.some((agent) => agent.sessionId) ? <p className="p-3 text-sm text-content/60">Create a mentor, then ask about this passage.</p> : null}
         </div>
       </Modal> : null}
     </div>
     <TranscriptPoolOutlet pool={transcriptPool} />
   </>;
+}
+
+/** Before the first mentor, or while the last one is opening. */
+function MentorsEmpty({ hasMentors, onCreate }: { hasMentors: boolean; onCreate: () => void }) {
+  return <div className="flex min-h-0 flex-1 flex-col" data-mentors-empty>
+    <div className="h-10 shrink-0" data-tauri-drag-region="deep" />
+    {hasMentors ? null : <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+      <p className="max-w-sm text-sm text-content/60">A mentor is a resident agent for one topic you are learning. It keeps your courses, sources, notes and drawings, and reads along with you.</p>
+      <button type="button" className="rounded-lg bg-content/10 px-3 py-1.5 text-sm font-medium hover:bg-content/15" onClick={onCreate}>Create a mentor</button>
+    </div>}
+  </div>;
 }

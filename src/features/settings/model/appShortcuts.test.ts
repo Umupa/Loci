@@ -28,7 +28,7 @@ describe("resolveAppShortcut", () => {
     it("resolves the default app chords", () => {
         expect(resolveAppShortcut(key({ key: "k", metaKey: true }))).toBe("App: Search");
         expect(resolveAppShortcut(key({ key: ",", ctrlKey: true }))).toBe("App: Settings");
-        expect(resolveAppShortcut(key({ key: "b", metaKey: true, shiftKey: true }))).toBe("App: Toggle Session Sidebar");
+        expect(resolveAppShortcut(key({ key: "b", metaKey: true, shiftKey: true }))).toBe("App: Toggle Conversation");
     });
     it("ignores a chord while an IME is composing", () => {
         // The maintainer's blocker: these used to fire mid-composition.

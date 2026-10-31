@@ -12,14 +12,23 @@ import { deleteCourse, loadCourse, loadCourseSummaries, saveCourse } from "../..
 import { listSessionsByProject } from "../../features/sessions/data/sessionStore";
 import { newSession, sessionDraftBlock, type Session } from "../../features/sessions/model/session";
 import { sameProjectPath } from "../../features/projects/model/recents";
-import { leafIds } from "../../features/workspace/model/layout";
 import { getNote, loadNotes, NOTES_CHANGED_EVENT, upsertNote } from "../../features/notes";
-import type { useAppWorkspace } from "./useAppWorkspace";
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
 import type { AgentDelegation } from "./useAgentDelegation";
 
-type Options = { workspace: ReturnType<typeof useAppWorkspace>; runtime: SessionRuntime; submission: SessionSubmission; delegation?: AgentDelegation };
+/** What the app CLI needs from the window: its sessions, and where it shows things. */
+export type AppControlWorkspace = {
+  loadSession: (id: string) => Promise<Session | null>;
+  /** Keeps a session in memory; `reveal` also shows it in the current mentor's reader. */
+  addSession: (session: Session, options?: { reveal?: boolean }) => unknown;
+  archiveSession: (id: string, archived: boolean) => Promise<boolean>;
+  removeSession: (id: string) => Promise<boolean>;
+  isCanvasOpen: (id: string) => boolean;
+  revealCanvas: (id: string, sessionId: string) => void;
+};
+
+type Options = { workspace: AppControlWorkspace; runtime: SessionRuntime; submission: SessionSubmission; delegation?: AgentDelegation };
 type ControlRequest = { id: string; namespace: string; sessionId: string; requestId: string; action: string; input: Record<string, unknown> };
 
 /** Routes authenticated loopback requests into the same actions used by the UI. */
@@ -68,14 +77,13 @@ export function useAppControl(options: Options) {
             }
             if (existing?.blocks.some((block) => block.role === "user" && !block.draft)) return;
             if (existing && sessionDraftBlock(existing)) throw new Error("Session ID already has a different draft");
+            // There are no panes to place a session beside; an older request's placement still starts it.
             if (placement) {
               const pane = runtime.sessionsRef.current.find((entry) => entry.id === placement.besideSessionId);
-              if (!pane || !reaches(pane.cwd) || !workspace.tabsRef.current.some((tab) => leafIds(tab.layout).includes(pane.id))) throw new Error("The selected pane is not open in this project");
+              if (!pane || !reaches(pane.cwd)) throw new Error("The selected session is not open in this project");
             }
             const session = existing ?? { ...newSession(launch.harness, launch.cwd, launch.model, launch.runtimeMode, launch.modelSettings), id };
-            workspace.addSession(session, { reveal: launch.reveal === true,
-              ...(placement ? { besideSessionId: placement.besideSessionId, edge: placement.direction === "down" ? "bottom" as const : "right" as const } : {}),
-            });
+            workspace.addSession(session, { reveal: launch.reveal === true });
             // The agent hears back once this session stops, together with the others it launched this turn.
             const watch = notify && delegation ? delegation.monitor(source.id, id, id, launch.cwd, launch.prompt) : undefined;
             try {

@@ -48,6 +48,8 @@ type Props = {
   onCanvasAddToChat: (text: string) => void;
   onCanvasTitleChange: (id: string, title: string) => void;
   onOpenFile: OpenFileFn;
+  renderSession: (id: string) => ReactNode;
+  sessionTitle: (id: string) => string;
 };
 
 /** Whether a page remembered from an earlier visit can still be shown. */
@@ -64,7 +66,7 @@ export async function restoredPageExists(agentId: string, page: MentorPage): Pro
  * the middle and the conversation on the right. Opening anything replaces
  * what the reader showed; nothing opens beside it.
  */
-export function MentorWorkspace({ agent, state, chat, leading, trailing, recents, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile }: Props) {
+export function MentorWorkspace({ agent, state, chat, leading, trailing, recents, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle }: Props) {
   const { data, errors, reload } = useAgentResources(agent.id);
   const body = useRef<HTMLDivElement>(null);
   const save = useRef<(() => Promise<boolean>) | null>(null);
@@ -122,7 +124,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, recents
       <button type="button" data-tauri-drag-region="false" className="mentor-titlebar-button" aria-label={libraryLabel} title={libraryLabel} aria-pressed={state.library} onClick={onToggleLibrary}>
         <SidebarLeft className="size-3.5" />
       </button>
-      <MentorBreadcrumb agent={agent} crumbs={mentorCrumbs(agent, state.page, state.lesson, data)} />
+      <MentorBreadcrumb agent={agent} crumbs={mentorCrumbs(agent, state.page, state.lesson, data, sessionTitle)} />
       <div className="min-w-0 flex-1" data-tauri-drag-region="deep" />
       <button type="button" data-tauri-drag-region="false" className={`mentor-chat-toggle ${state.chat ? "bg-content/8 text-content" : "text-content/60"}`}
         aria-pressed={state.chat} aria-label={chatLabel} title={chatLabel} onClick={onToggleChat}>
@@ -152,7 +154,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, recents
         }}>
         <MentorReader agent={agent} page={state.page} request={state.request} recents={recents} canvases={canvases}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
-          onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} />
+          onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} renderSession={renderSession} />
       </main>
       <aside ref={conversation.setPaneRef} className="mentor-chat-column" hidden={!state.chat} aria-label={`Conversation with ${name}`}>
         <div role="separator" aria-label="Resize conversation" aria-orientation="vertical" tabIndex={0} className="mentor-resize mentor-resize--left"

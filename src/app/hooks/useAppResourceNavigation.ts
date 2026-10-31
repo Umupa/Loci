@@ -1,22 +1,26 @@
 import { canvasScopeAgentId } from "../../features/agents/model/agent";
 import { useEffect, useRef } from "react";
 import { APP_RESOURCE_OPEN_EVENT, fileResourcePath, parseAppResourceUrl, resourceUrl, type AppResource } from "../../shared/lib/appResourceLinks";
-import { joinPath } from "../../shared/lib/paths";
 import { requestFilePlace } from "../../features/files/model/filePlace";
 import { CANVAS_OPEN_CHECKPOINT_EVENT, checkpointCanvasId, getCanvas, type Canvas } from "../../features/canvas/canvas";
-import { sameProjectPath } from "../../features/projects/model/recents";
 import { getLearningSource, getReadingDocument } from "../../features/learning/model/learningStore";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { requestTranscriptJump } from "../../features/sessions/model/transcriptJump";
-import type { useAppWorkspace } from "./useAppWorkspace";
+import { getNote } from "../../features/notes";
+import { joinPath } from "../../shared/lib/paths";
+import { findAgent } from "../../features/agents/model/agent";
 
 type Options = {
-  workspace: Pick<ReturnType<typeof useAppWorkspace>, "projectCwdRef" | "isCanvasOpen" | "openCanvas" | "showCanvas" | "openSession" | "openFile" | "setError">;
-  notesEnabled: boolean;
-  onOpenNote(id: string): void;
+  openSession(id: string): Promise<void>;
+  openFile(path: string): void;
+  /** The folder relative file links resolve against: that of the conversation on screen. */
+  fileBase(): string | undefined;
+  /** `owner` is the agent that keeps the drawing, when one does. */
+  openCanvas(canvas: Canvas, owner?: string): Promise<void>;
+  /** `owner` is the agent that keeps the note, when one does. */
+  openNote(id: string, owner?: string): Promise<void>;
   onOpenConversation?: (id: string, blockId?: string, isCurrent?: () => boolean) => Promise<void>;
-  /** An agent shows drawings in its own pane layout. */
-  onOpenCanvas?: (canvas: Canvas) => boolean;
+  onError(error: unknown): void;
 };
 
 /** Replies and old checkpoint buttons share the current window's navigation. */
@@ -29,12 +33,14 @@ export function useAppResourceNavigation(options: Options) {
       const current = ++request;
       try {
         if (resource.kind === "note") {
-          if (!latest.current.notesEnabled) throw new Error("Notes are disabled in Settings.");
-          latest.current.onOpenNote(resource.id);
+          const note = await getNote(resource.id);
+          if (current !== request) return;
+          if (!note) throw new Error("This note no longer exists.");
+          await latest.current.openNote(note.id, note.agentId && findAgent(note.agentId) ? note.agentId : undefined);
           return;
         }
         if (resource.kind === "session") {
-          await latest.current.workspace.openSession(resource.id);
+          await latest.current.openSession(resource.id);
           return;
         }
         if (resource.kind === "source") {
@@ -44,7 +50,7 @@ export function useAppResourceNavigation(options: Options) {
           if (source.kind === "web") { await openUrl(source.url); return; }
           if (source.kind === "conversation") {
             if (latest.current.onOpenConversation) await latest.current.onOpenConversation(source.sessionId, source.blockId, () => current === request);
-            else await latest.current.workspace.openSession(source.sessionId);
+            else await latest.current.openSession(source.sessionId);
             if (current !== request) return;
             requestTranscriptJump(source.sessionId, source.blockId, source.quote);
             return;
@@ -57,17 +63,17 @@ export function useAppResourceNavigation(options: Options) {
             path = document.path;
             requestFilePlace(path, { page: source.anchors[0]?.page ?? 1, ...(source.annotationId ? { annotationId: source.annotationId } : {}) });
           } else if (source.lines) requestFilePlace(path, { lines: source.lines });
-          latest.current.workspace.openFile(path, true);
+          latest.current.openFile(path);
           return;
         }
         if (resource.kind === "file") {
-          // File links are relative to the project they were written in: the one on screen.
+          // File links are relative to the folder they were written in: the conversation on screen's.
           const relative = fileResourcePath(resource);
-          const cwd = latest.current.workspace.projectCwdRef.current;
-          if (!relative || !cwd) throw new Error("Open the project this file belongs to first.");
+          const cwd = latest.current.fileBase();
+          if (!relative || !cwd || cwd === "~") throw new Error("This file link points into a folder that is not open here.");
           const path = joinPath(cwd, relative);
           if (resource.place) requestFilePlace(path, resource.place);
-          latest.current.workspace.openFile(path, true);
+          latest.current.openFile(path);
           return;
         }
         const id = checkpoint ? await checkpointCanvasId(resource.id) : resource.id;
@@ -75,15 +81,10 @@ export function useAppResourceNavigation(options: Options) {
         const canvas = await getCanvas(id);
         if (current !== request) return;
         if (!canvas) throw new Error("This drawing no longer exists.");
-        if (latest.current.onOpenCanvas?.(canvas)) return;
-        const view = latest.current.workspace;
-        // An agent's own drawing belongs to no project: it opens wherever the user is.
-        const cwd = canvasScopeAgentId(canvas.cwd) ? undefined : canvas.cwd;
-        if (view.isCanvasOpen(canvas.id) || (cwd && !sameProjectPath(cwd, view.projectCwdRef.current))) {
-          view.openCanvas(canvas.id, cwd);
-        } else view.showCanvas(canvas.id);
+        const owner = canvasScopeAgentId(canvas.cwd);
+        await latest.current.openCanvas(canvas, owner && findAgent(owner) ? owner : undefined);
       } catch (error) {
-        if (current === request) latest.current.workspace.setError(String(error));
+        if (current === request) latest.current.onError(error);
       }
     };
     const open = (event: Event) => {

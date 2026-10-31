@@ -48,7 +48,8 @@ export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, 
       const turn = ++request;
       void getNote(noteId).then((found) => {
         if (!live || turn !== request) return;
-        setLoaded({ scope, note: found && (!agentId || found.agentId === agentId) ? found : null });
+        // A note no mentor owns can be read in any mentor's reader; it stays unowned.
+        setLoaded({ scope, note: found && (!agentId || !found.agentId || found.agentId === agentId) ? found : null });
         setError(undefined);
       }, (cause) => { if (live && turn === request) setError(String(cause)); });
     };

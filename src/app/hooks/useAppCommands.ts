@@ -3,44 +3,34 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEffect, useRef, type RefObject } from "react";
 import { NOTIFICATION_CLICK_EVENT, setWindowFocused } from "../../features/notifications/model/notifications";
-import { archiveFocusedSession } from "../../features/sessions/model/archiveShortcut";
 import type { Session } from "../../features/sessions/model/session";
 import { resolveAppShortcut } from "../../features/settings/model/appShortcuts";
 import { keybindingPressed, loadKeybindingOverrides, matchCustomKeybinding } from "../../features/settings/model/settings";
 import { applyUiScale, loadUiScale, saveUiScale, UI_SCALE_DEFAULT, zoomInUiScale, zoomOutUiScale } from "../../features/settings/model/uiScale";
 import { resolveZoomKeybinding } from "../../features/settings/model/zoomKeybinding";
 import { requestImageZoom } from "../../shared/lib/imageZoomCommands";
-import type { FocusDir, LayoutNode } from "../../features/workspace/model/layout";
-import {
-  adjacentItemId, deferUnhandledEscape, focusedBusyAgentSessionId,
-  shouldHandleListNavigation, shouldStopFocusedTurnOnEscape,
-  tabCommand, tabCommandForKeybinding, tabCommandKeybinding, type TabCommand,
-} from "../../features/workspace/model/tabKeys";
-import type { useAppWorkspace } from "./useAppWorkspace";
+import { adjacentItemId, appCommand, appCommandForKeybinding, appCommandKeybinding, deferUnhandledEscape, shouldStopFocusedTurnOnEscape, type AppCommand } from "../model/appKeys";
 import type { SessionSubmission } from "./useSessionSubmission";
 
 type Options = {
-  workspace: ReturnType<typeof useAppWorkspace>;
   submission: SessionSubmission;
   sessionsRef: RefObject<Session[]>;
-  surfaceOpen: boolean;
-  agentPane?: {
-    focusedId: string;
-    layout: LayoutNode;
-    onClosePane: (id: string) => void;
-    onFocusDirection: (direction: FocusDir) => void;
-  };
-  closeSurface: () => void;
+  /** The mentors in rail order, and the one on screen. */
+  mentorIds: () => readonly string[];
+  activeMentorId: () => string | null;
+  /** The conversation Escape stops: the open mentor's, or one shown in the reader. */
+  focusedSessionId: () => string | null;
+  openMentor: (id: string) => void;
+  newMentor: () => void;
+  /** Closes what the reader shows; false when there was nothing to close. */
+  closeReader: () => boolean;
+  closeWindow: () => void;
+  toggleLibrary: () => void;
+  toggleChat: () => void;
   openSearch: () => void;
   openSettings: () => void;
-  openNotes: () => void;
-  toggleProjectRail: () => void;
-  toggleSessionSidebar: () => void;
-  openTabSwitcher: () => void;
-  jumpToAttention: () => void;
-  openTabOverview: () => void;
+  openSession: (id: string) => void;
   reload: () => void;
-  sessionOrder: readonly string[];
 };
 
 /** The keyboard and native menu share one dispatch and duplicate-event guard. */
@@ -64,62 +54,34 @@ export function useAppCommands(options: Options) {
         : direction === "zoom-in" ? zoomInUiScale(loadUiScale()) : zoomOutUiScale(loadUiScale());
       void applyUiScale(saveUiScale(scale));
     });
-    const dispatch = (command: TabCommand) => {
-      const { workspace: w, surfaceOpen, agentPane, closeSurface, sessionOrder } = latest.current;
+    const dispatch = (command: AppCommand) => {
+      const a = latest.current;
       if (typeof command === "object") {
-        if ("focus" in command) run(`focus-${command.focus}`, () => agentPane
-          ? agentPane.onFocusDirection(command.focus) : w.focusDirection(command.focus));
-        else run(`activate-${command.activate}`, () => {
-          const tab = command.activate < 0 ? w.visibleTabs[w.visibleTabs.length - 1] : w.visibleTabs[command.activate];
-          if (tab) w.activateTab(tab.id);
+        run(`activate-${command.activate}`, () => {
+          const id = a.mentorIds()[command.activate];
+          if (id) a.openMentor(id);
         });
         return;
       }
-      if (command.startsWith("prev-session") || command.startsWith("next-session")) {
-        run(command, () => {
-          const id = adjacentItemId(sessionOrder, w.activeSession?.id ?? null, command.startsWith("prev") ? -1 : 1);
-          if (!id || id === w.activeSession?.id) return;
-          if (command.endsWith("-in-tab")) void w.openSessionInCurrentTab(id);
-          else void w.openSession(id);
-        });
-        return;
-      }
-      if (command === "prev-project" || command === "next-project") {
-        run(command, () => {
-          const path = adjacentItemId(w.recents.map((project) => project.path), w.projectCwd, command === "prev-project" ? -1 : 1);
-          if (path && path !== w.projectCwd) w.openProject(path);
-        });
-        return;
-      }
-      const handlers: Partial<Record<TabCommand & string, () => unknown>> = {
-        new: () => w.createSession(),
-        "switch-tab": () => latest.current.openTabSwitcher(),
-        "next-attention": () => latest.current.jumpToAttention(),
-        "tab-overview": () => latest.current.openTabOverview(),
-        "reopen-tab": () => { void w.reopenClosed("latest"); },
-        close: () => {
-          if (agentPane) agentPane.onClosePane(agentPane.focusedId);
-          else if (surfaceOpen) closeSurface();
-          else if (w.activeSession) w.closePane(w.activeSession.id);
-        },
-        // Pinned tabs are what the user chose to keep: bulk closes leave them.
-        "close-others": () => { if (!agentPane) w.closeTabs(w.visibleTabs.filter((tab) => tab.id !== w.activeTabId && !tab.pinned).map((tab) => tab.id), w.activeTabId); },
-        "close-all": () => { if (!agentPane) w.closeTabs(w.visibleTabs.filter((tab) => !tab.pinned).map((tab) => tab.id)); },
-        next: () => w.cycleTab(1), prev: () => w.cycleTab(-1),
-        "cycle-next": () => w.cycleTab(1), "cycle-prev": () => w.cycleTab(-1),
-        back: () => surfaceOpen ? closeSurface() : w.visit("back"), forward: () => w.visit("forward"),
-        "split-right": () => { if (!agentPane) w.split("right"); },
-        "split-down": () => { if (!agentPane) w.split("down"); },
+      const handlers: Record<Exclude<AppCommand, object>, () => unknown> = {
+        "new-mentor": a.newMentor,
+        "close-reader": () => { if (!a.closeReader()) a.closeWindow(); },
+        "next-mentor": () => step(1),
+        "prev-mentor": () => step(-1),
       };
-      const key = command === "cycle-next" ? "next" : command === "cycle-prev" ? "prev" : command;
-      run(key, () => handlers[command]?.());
+      run(command, handlers[command]);
+    };
+    const step = (delta: number) => {
+      const a = latest.current;
+      const id = adjacentItemId(a.mentorIds(), a.activeMentorId(), delta);
+      if (id && id !== a.activeMentorId()) a.openMentor(id);
     };
     const appAction = (name: string) => {
       const a = latest.current;
       const actions: Record<string, () => unknown> = {
-        new_window: () => invoke("open_new_window"), open_project: a.workspace.pickProject,
-        toggle_sidebar: a.toggleProjectRail, toggle_session_sidebar: a.toggleSessionSidebar,
-        open_search: a.openSearch, open_settings: a.openSettings, open_notes: a.openNotes,
+        new_window: () => invoke("open_new_window"),
+        toggle_library: a.toggleLibrary, toggle_chat: a.toggleChat,
+        open_search: a.openSearch, open_settings: a.openSettings,
         sidebar_opacity: a.openSettings, reload: a.reload,
         open_model_picker: () => window.dispatchEvent(new Event("open_model_picker")),
       };
@@ -127,8 +89,8 @@ export function useAppCommands(options: Options) {
       if (action) run(name, action);
     };
     const appShortcuts: Record<string, string> = {
-      "App: New Window": "new_window", "App: Open Project": "open_project",
-      "App: Toggle Sidebar": "toggle_sidebar", "App: Toggle Session Sidebar": "toggle_session_sidebar",
+      "App: New Window": "new_window",
+      "App: Toggle Library": "toggle_library", "App: Toggle Conversation": "toggle_chat",
       "App: Search": "open_search", "App: Settings": "open_settings", "View: Reload": "reload",
     };
     const onKey = (event: KeyboardEvent) => {
@@ -138,64 +100,34 @@ export function useAppCommands(options: Options) {
         event.preventDefault(); event.stopPropagation(); zoom(zoomCommand); return;
       }
       const custom = matchCustomKeybinding(event);
-      const command = custom ? tabCommandForKeybinding(custom, event) : tabCommand(event);
-      if (command && keybindingPressed(tabCommandKeybinding(command), event, !custom)) {
-        if (command === "archive-session") {
-          if (event.repeat) return;
-          const a = latest.current;
-          archiveFocusedSession(event, {
-            activeTabId: a.workspace.activeTabIdRef.current,
-            tabs: a.workspace.tabsRef.current,
-            sessions: a.sessionsRef.current,
-            surfaceOpen: a.surfaceOpen,
-          }, (sessionId) => run("archive-session", () => a.workspace.archiveSession(sessionId, true)));
-          return;
-        }
+      const command = custom ? appCommandForKeybinding(custom, event) : appCommand(event);
+      if (command && keybindingPressed(appCommandKeybinding(command), event, !custom)) {
         const target = event.target instanceof Element ? event.target : null;
-        const listNavigation = typeof command === "string" && /^(?:prev|next)-(?:session|project)/.test(command);
-        if (listNavigation && !shouldHandleListNavigation({
-          blockedTarget: !!target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [data-model-picker], [data-skill-picker], [data-mention-picker], [data-app-search]'),
-          emptyComposerTarget: !!target?.matches('textarea[data-composer-empty="true"]'),
-          surfaceOpen: latest.current.surfaceOpen,
-        })) return;
-        if (typeof command === "object" && "activate" in command && target?.closest('[data-model-picker], [data-skill-picker], [data-mention-picker], [data-app-search]')) return;
+        if (typeof command === "object" && target?.closest('[data-model-picker], [data-skill-picker], [data-mention-picker], [data-app-search]')) return;
         event.preventDefault(); event.stopPropagation(); dispatch(command); return;
       }
       const shortcut = resolveAppShortcut(event);
       if (shortcut && appShortcuts[shortcut]) {
         event.preventDefault(); event.stopPropagation(); appAction(appShortcuts[shortcut]); return;
       }
-      const a = latest.current;
-      const tabId = a.workspace.activeTabIdRef.current;
-      const agentPane = a.agentPane;
-      const sessionId = agentPane
-        ? a.sessionsRef.current.find((session) => session.id === agentPane.focusedId && session.busy)?.id
-        : !a.surfaceOpen ? focusedBusyAgentSessionId(tabId, a.workspace.tabsRef.current, a.sessionsRef.current) : null;
-      if (!sessionId || !shouldStopFocusedTurnOnEscape(event, { focusedSessionBusy: true })) return;
+      const sessionId = latest.current.focusedSessionId();
+      const busy = !!sessionId && latest.current.sessionsRef.current.some((session) => session.id === sessionId && session.busy);
+      if (!sessionId || !shouldStopFocusedTurnOnEscape(event, { focusedSessionBusy: busy })) return;
       // A later surface listener may consume Escape or move focus during the dispatch.
       deferUnhandledEscape(event, () => {
         const current = latest.current;
-        const w = current.workspace;
-        if (disposed) return;
-        if (agentPane) {
-          if (current.agentPane?.focusedId !== sessionId || !current.sessionsRef.current.some((session) => session.id === sessionId && session.busy)) return;
-        } else {
-          if (current.agentPane || current.surfaceOpen || w.activeTabIdRef.current !== tabId) return;
-          if (focusedBusyAgentSessionId(tabId, w.tabsRef.current, current.sessionsRef.current) !== sessionId) return;
-        }
+        if (disposed || current.focusedSessionId() !== sessionId) return;
+        if (!current.sessionsRef.current.some((session) => session.id === sessionId && session.busy)) return;
         void current.submission.stop(sessionId);
       });
     };
     window.addEventListener("keydown", onKey, true);
 
-    const tabEvents: Record<string, TabCommand> = {
-      new_tab: "new", switch_tab: "switch-tab", next_attention: "next-attention", tab_overview: "tab-overview", reopen_tab: "reopen-tab", close_tab: "close", close_other_tabs: "close-others", close_all_tabs: "close-all",
-      next_tab: "next", prev_tab: "prev", back_tab: "back", forward_tab: "forward",
-      split_right: "split-right", split_down: "split-down",
-      focus_left: { focus: "left" }, focus_right: { focus: "right" }, focus_up: { focus: "up" }, focus_down: { focus: "down" },
+    const menuEvents: Record<string, AppCommand> = {
+      new_mentor: "new-mentor", close_reader: "close-reader", next_mentor: "next-mentor", prev_mentor: "prev-mentor",
     };
-    const listeners = Object.entries(tabEvents).map(([name, command]) => listen(name, () => dispatch(command)));
-    for (const name of ["toggle_sidebar", "toggle_session_sidebar", "open_project", "open_search", "open_notes", "open_settings", "sidebar_opacity", "reload", "open_model_picker"]) {
+    const listeners = Object.entries(menuEvents).map(([name, command]) => listen(name, () => dispatch(command)));
+    for (const name of ["toggle_library", "toggle_chat", "open_search", "open_settings", "sidebar_opacity", "reload", "open_model_picker"]) {
       listeners.push(listen(name, () => appAction(name)));
     }
     listeners.push(listen("zoom_in", () => zoom("zoom-in")), listen("zoom_out", () => zoom("zoom-out")), listen("zoom_reset", () => zoom("zoom-reset")));
@@ -204,7 +136,7 @@ export function useAppCommands(options: Options) {
       if (!latest.current.sessionsRef.current.some((session) => session.id === payload)) return;
       const win = getCurrentWindow();
       void win.unminimize().then(() => win.setFocus()).catch(() => undefined);
-      void latest.current.workspace.openSession(payload);
+      latest.current.openSession(payload);
     }));
     const focusListener = getCurrentWindow().onFocusChanged(({ payload }) => setWindowFocused(payload));
     void getCurrentWindow().isFocused().then((focused) => { if (!disposed) setWindowFocused(focused); });

@@ -81,7 +81,7 @@ describe("Codex requests reach the chat and notifications", () => {
             })
           : null,
         createElement(ApprovalToasts, {
-          notices: hiddenApprovalNotices([session], "other", [], false),
+          notices: hiddenApprovalNotices([session], new Set()),
           onFocusSession: () => undefined,
           onApproval: (sessionId, id, decision) =>
             codexAdapter.respondApproval(sessionId, id, decision),

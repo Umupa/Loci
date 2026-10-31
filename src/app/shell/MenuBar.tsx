@@ -1,29 +1,24 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ContextMenu, type ContextMenuItem, } from "../../shared/ui/ContextMenu";
-import { ALT, MOD, SHIFT } from "../../platform/tauri/platform";
+import { MOD, SHIFT } from "../../platform/tauri/platform";
 import { keybindingShortcutLabel, loadKeybindingOverrides, subscribeKeybindings, } from "../../features/settings/model/settings";
 type MenuKey = "file" | "view";
 type Props = {
-    onNew: () => void;
-    onSwitchTab?: () => void;
-    onNextAttention?: () => void;
-    onTabOverview?: () => void;
-    onReopenTab?: () => void;
-    onToggleSidebar: () => void;
-    onToggleSessionSidebar: () => void;
-    onCloseCurrentTab?: () => void;
-    onCloseOtherTabs?: () => void;
-    onCloseAllTabs?: () => void;
-    onPickProject?: () => void;
-    onOpenPdf?: () => void;
+    onNewMentor: () => void;
+    onCloseReader: () => void;
+    onPreviousMentor: () => void;
+    onNextMentor: () => void;
+    onToggleLibrary: () => void;
+    onToggleChat: () => void;
+    onOpenPdf: () => void;
     onSearch?: () => void;
-    onOpenNotes?: () => void;
-    onZoomIn?: () => void;
-    onZoomOut?: () => void;
-    onZoomReset?: () => void;
+    onZoomIn: () => void;
+    onZoomOut: () => void;
+    onZoomReset: () => void;
 };
-export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, onReopenTab, onToggleSidebar, onToggleSessionSidebar, onCloseCurrentTab, onCloseOtherTabs, onCloseAllTabs, onPickProject, onOpenPdf, onSearch, onOpenNotes, onZoomIn, onZoomOut, onZoomReset, }: Props) {
+/** The window menu where the system has none (Windows and Linux), shown with a tap of Alt. */
+export function MenuBar({ onNewMentor, onCloseReader, onPreviousMentor, onNextMentor, onToggleLibrary, onToggleChat, onOpenPdf, onSearch, onZoomIn, onZoomOut, onZoomReset }: Props) {
     const [open, setOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{
@@ -38,12 +33,8 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
     useEffect(() => {
         let altPressedAlone = false;
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Alt") {
-                altPressedAlone = true;
-            }
-            else if (altPressedAlone) {
-                altPressedAlone = false;
-            }
+            if (e.key === "Alt") altPressedAlone = true;
+            else if (altPressedAlone) altPressedAlone = false;
         };
         const onKeyUp = (e: KeyboardEvent) => {
             if (e.key === "Alt" && altPressedAlone) {
@@ -58,9 +49,7 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
                 altPressedAlone = false;
             }
         };
-        const onBlur = () => {
-            altPressedAlone = false;
-        };
+        const onBlur = () => { altPressedAlone = false; };
         window.addEventListener("keydown", onKeyDown);
         window.addEventListener("keyup", onKeyUp);
         window.addEventListener("blur", onBlur);
@@ -79,207 +68,45 @@ export function MenuBar({ onNew, onSwitchTab, onNextAttention, onTabOverview, on
         setActiveMenu(null);
         setMenuAnchor(null);
     }, []);
-    const handlePick = useCallback((id: string) => {
+    const actions: Record<string, (() => void) | undefined> = {
+        new_mentor: onNewMentor,
+        new_window: () => { void invoke("open_new_window").catch(() => { }); },
+        open_pdf: onOpenPdf,
+        open_search: onSearch,
+        close_reader: onCloseReader,
+        prev_mentor: onPreviousMentor,
+        next_mentor: onNextMentor,
+        toggle_library: onToggleLibrary,
+        toggle_chat: onToggleChat,
+        open_model_picker: () => window.dispatchEvent(new Event("open_model_picker")),
+        zoom_in: onZoomIn,
+        zoom_out: onZoomOut,
+        zoom_reset: onZoomReset,
+    };
+    const handlePick = (id: string) => {
         closeMenu();
         setOpen(false);
-        switch (id) {
-            case "new_tab":
-                onNew();
-                break;
-            case "new_window":
-                void invoke("open_new_window").catch(() => { });
-                break;
-            case "open_project":
-                onPickProject?.();
-                break;
-            case "open_pdf":
-                onOpenPdf?.();
-                break;
-            case "open_search":
-                onSearch?.();
-                break;
-            case "open_notes":
-                onOpenNotes?.();
-                break;
-            case "switch_tab":
-                onSwitchTab?.();
-                break;
-            case "next_attention":
-                onNextAttention?.();
-                break;
-            case "tab_overview":
-                onTabOverview?.();
-                break;
-            case "reopen_tab":
-                onReopenTab?.();
-                break;
-            case "close_tab":
-                onCloseCurrentTab?.();
-                break;
-            case "close_other_tabs":
-                onCloseOtherTabs?.();
-                break;
-            case "close_all_tabs":
-                onCloseAllTabs?.();
-                break;
-            case "toggle_sidebar":
-                onToggleSidebar();
-                break;
-            case "toggle_session_sidebar":
-                onToggleSessionSidebar();
-                break;
-            case "open_model_picker":
-                window.dispatchEvent(new Event("open_model_picker"));
-                break;
-            case "zoom_in":
-                onZoomIn?.();
-                break;
-            case "zoom_out":
-                onZoomOut?.();
-                break;
-            case "zoom_reset":
-                onZoomReset?.();
-                break;
-        }
-    }, [
-        closeMenu,
-        onSwitchTab,
-        onNextAttention,
-        onTabOverview,
-        onReopenTab,
-        onCloseCurrentTab,
-        onCloseOtherTabs,
-        onCloseAllTabs,
-        onNew,
-        onPickProject,
-        onOpenPdf,
-        onSearch,
-        onOpenNotes,
-        onToggleSidebar,
-        onToggleSessionSidebar,
-        onZoomIn,
-        onZoomOut,
-        onZoomReset,
-    ]);
-    const getMenuItems = (key: MenuKey): ContextMenuItem[] => {
-        switch (key) {
-            case "file":
-                return [
-                    { kind: "item", id: "open_pdf", label: "Open PDF…" },
-                    {
-                        kind: "item",
-                        id: "new_tab",
-                        label: "New Tab",
-                        shortcut: shortcut("Tab: New", `${MOD}T`),
-                    },
-                    {
-                        kind: "item",
-                        id: "switch_tab",
-                        label: "Switch Tab…",
-                        shortcut: shortcut("Tab: Switch", `${MOD}P`),
-                    },
-                    {
-                        kind: "item",
-                        id: "next_attention",
-                        label: "Next Tab Needing You",
-                        shortcut: shortcut("Tab: Next Needing You", `${MOD}J`),
-                    },
-                    {
-                        kind: "item",
-                        id: "tab_overview",
-                        label: "Tab Overview",
-                        shortcut: shortcut("Tab: Overview", `${MOD}${SHIFT}O`),
-                    },
-                    {
-                        kind: "item",
-                        id: "reopen_tab",
-                        label: "Reopen Closed Tab",
-                        shortcut: shortcut("Tab: Reopen Closed", `${MOD}${SHIFT}T`),
-                    },
-                    {
-                        kind: "item",
-                        id: "new_window",
-                        label: "New Window",
-                        shortcut: shortcut("App: New Window", `${MOD}${SHIFT}N`),
-                    },
-                    { kind: "sep" },
-                    {
-                        kind: "item",
-                        id: "open_project",
-                        label: "Open Project…",
-                        shortcut: shortcut("App: Open Project", `${MOD}O`),
-                    },
-                    {
-                        kind: "item",
-                        id: "open_search",
-                        label: "Search…",
-                        shortcut: shortcut("App: Search", `${MOD}K`),
-                    },
-                    { kind: "sep" },
-                    {
-                        kind: "item",
-                        id: "close_tab",
-                        label: "Close Pane",
-                        shortcut: shortcut("Pane: Close", `${MOD}W`),
-                    },
-                    {
-                        kind: "item",
-                        id: "close_other_tabs",
-                        label: "Close Other Tabs",
-                        shortcut: shortcut("Tab: Close Others", `${MOD}${ALT}T`),
-                    },
-                    {
-                        kind: "item",
-                        id: "close_all_tabs",
-                        label: "Close All Tabs",
-                        shortcut: shortcut("Tab: Close All", `${MOD}${SHIFT}W`),
-                    },
-                ];
-            case "view":
-                return [
-                    {
-                        kind: "item",
-                        id: "toggle_sidebar",
-                        label: "Toggle Sidebar",
-                        shortcut: shortcut("App: Toggle Sidebar", `${MOD}B`),
-                    },
-                    {
-                        kind: "item",
-                        id: "toggle_session_sidebar",
-                        label: "Toggle Session Sidebar",
-                        shortcut: shortcut("App: Toggle Session Sidebar", `${MOD}${SHIFT}B`),
-                    },
-                    ...(onOpenNotes
-                        ? [{ kind: "item" as const, id: "open_notes", label: "Notes" }]
-                        : []),
-                    {
-                        kind: "item",
-                        id: "open_model_picker",
-                        label: "Switch Model…",
-                        shortcut: shortcut("App: Switch Model", `${MOD}.`),
-                    },
-                    { kind: "sep" },
-                    {
-                        kind: "item",
-                        id: "zoom_in",
-                        label: "Zoom In",
-                        shortcut: shortcut("View: Zoom In", `${MOD}+`),
-                    },
-                    {
-                        kind: "item",
-                        id: "zoom_out",
-                        label: "Zoom Out",
-                        shortcut: shortcut("View: Zoom Out", `${MOD}-`),
-                    },
-                    {
-                        kind: "item",
-                        id: "zoom_reset",
-                        label: "Reset Zoom",
-                        shortcut: shortcut("View: Reset Zoom", `${MOD}0`),
-                    },
-                ];
-        }
+        actions[id]?.();
     };
+    const getMenuItems = (key: MenuKey): ContextMenuItem[] => key === "file" ? [
+        { kind: "item", id: "new_mentor", label: "New Mentor…", shortcut: shortcut("Mentor: New", `${MOD}T`) },
+        { kind: "item", id: "new_window", label: "New Window", shortcut: shortcut("App: New Window", `${MOD}${SHIFT}N`) },
+        { kind: "item", id: "open_pdf", label: "Open PDF…" },
+        ...(onSearch ? [{ kind: "item" as const, id: "open_search", label: "Search…", shortcut: shortcut("App: Search", `${MOD}K`) }] : []),
+        { kind: "sep" },
+        { kind: "item", id: "close_reader", label: "Close", shortcut: shortcut("Reader: Close", `${MOD}W`) },
+        { kind: "sep" },
+        { kind: "item", id: "prev_mentor", label: "Previous Mentor", shortcut: shortcut("Mentor: Previous", `${MOD}${SHIFT}[`) },
+        { kind: "item", id: "next_mentor", label: "Next Mentor", shortcut: shortcut("Mentor: Next", `${MOD}${SHIFT}]`) },
+    ] : [
+        { kind: "item", id: "toggle_library", label: "Toggle Library", shortcut: shortcut("App: Toggle Library", `${MOD}B`) },
+        { kind: "item", id: "toggle_chat", label: "Toggle Conversation", shortcut: shortcut("App: Toggle Conversation", `${MOD}${SHIFT}B`) },
+        { kind: "item", id: "open_model_picker", label: "Switch Model…", shortcut: shortcut("App: Switch Model", `${MOD}.`) },
+        { kind: "sep" },
+        { kind: "item", id: "zoom_in", label: "Zoom In", shortcut: shortcut("View: Zoom In", `${MOD}+`) },
+        { kind: "item", id: "zoom_out", label: "Zoom Out", shortcut: shortcut("View: Zoom Out", `${MOD}-`) },
+        { kind: "item", id: "zoom_reset", label: "Reset Zoom", shortcut: shortcut("View: Reset Zoom", `${MOD}0`) },
+    ];
     if (!open && !activeMenu) {
         return null;
     }

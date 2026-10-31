@@ -5,7 +5,7 @@ import { fileName, type MentorLesson, type MentorPage } from "../model/mentorPag
 import type { LibraryData } from "./MentorLibrary";
 
 /** The titles from the mentor down to what is being read. */
-export function mentorCrumbs(agent: Agent, page: MentorPage | undefined, lesson: MentorLesson | undefined, data: LibraryData): string[] {
+export function mentorCrumbs(agent: Agent, page: MentorPage | undefined, lesson: MentorLesson | undefined, data: LibraryData, sessionTitle: (id: string) => string = () => "Conversation"): string[] {
   const crumbs = [agentLook(agent).name];
   if (page?.kind === "course") {
     crumbs.push(data.courses?.find((course) => course.id === page.course.courseId)?.title ?? page.course.title ?? page.course.courseId);
@@ -14,6 +14,7 @@ export function mentorCrumbs(agent: Agent, page: MentorPage | undefined, lesson:
   else if (page?.kind === "note") crumbs.push(data.notes?.find((note) => note.id === page.id)?.title || "Note");
   else if (page?.kind === "canvas") crumbs.push(data.canvases?.find((canvas) => canvas.id === page.id)?.title || "Drawing");
   else if (page?.kind === "file") crumbs.push(fileName(page.path));
+  else if (page?.kind === "session") crumbs.push(sessionTitle(page.id));
   return crumbs;
 }
 

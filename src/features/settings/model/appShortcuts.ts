@@ -12,9 +12,8 @@ type AppShortcutEvent = ShortcutEvent & {
 /** command, key, and whether Shift must be held. */
 const APP_SHORTCUTS: [string, string, boolean][] = [
   ["App: New Window", "n", true],
-  ["App: Open Project", "o", false],
-  ["App: Toggle Sidebar", "b", false],
-  ["App: Toggle Session Sidebar", "b", true],
+  ["App: Toggle Library", "b", false],
+  ["App: Toggle Conversation", "b", true],
   ["View: Reload", "r", true],
   ["App: Search", "k", false],
   ["App: Settings", ",", false],

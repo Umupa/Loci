@@ -8,13 +8,15 @@ export type MentorPage =
   | { kind: "document"; document: AgentDocument }
   | { kind: "note"; id: string }
   | { kind: "canvas"; id: string }
-  | { kind: "file"; path: string };
+  | { kind: "file"; path: string }
+  /** A session a mentor started, or any conversation a link points to. Never remembered. */
+  | { kind: "session"; id: string };
 
 export type MentorLesson = { id: string; title: string };
 
 /** The page as it is remembered between visits: identifiers only, never contents. */
 export function storedPage(page: MentorPage | undefined, lesson?: MentorLesson): MentorPage | undefined {
-  if (!page) return undefined;
+  if (!page || page.kind === "session") return undefined;
   if (page.kind === "course") {
     const { courseId, agentId, title } = page.course;
     const itemId = lesson?.id ?? page.course.itemId;

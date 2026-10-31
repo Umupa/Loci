@@ -7,9 +7,8 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { upsertNote } from "../../features/notes";
 import { modelsFor, setHarnessModels, resetHarnessModelOverlays } from "../../features/sessions/model/models";
 import { newSession, type Session } from "../../features/sessions/model/session";
-import { newTab } from "../../features/workspace/model/layout";
 import { useAppControl } from "./useAppControl";
-import type { useAppWorkspace } from "./useAppWorkspace";
+import type { AppControlWorkspace } from "./useAppControl";
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
 
@@ -59,7 +58,7 @@ beforeEach(async () => {
     sessionsRef, bindRestoredSession: vi.fn(), flushPersistence,
     updateSessions: (update: Session[] | ((current: Session[]) => Session[])) => { sessionsRef.current = typeof update === "function" ? update(sessionsRef.current) : update; },
   } as unknown as SessionRuntime;
-  const workspace = { loadSession, addSession, tabsRef: { current: [newTab(source.id)] } } as unknown as ReturnType<typeof useAppWorkspace>;
+  const workspace = { loadSession, addSession } as unknown as AppControlWorkspace;
   const submission = { submit, saveDraft: vi.fn(() => true) } as unknown as SessionSubmission;
   function Host() { useAppControl({ workspace, runtime, submission }); return null; }
   container = document.createElement("div");
@@ -115,6 +114,15 @@ describe("local app control composition", () => {
     await settle();
     expect(addSession).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
-    expect(reply(request)?.response).toEqual({ ok: false, error: "The selected pane is not open in this project" });
+    expect(reply(request)?.response).toEqual({ ok: false, error: "The selected session is not open in this project" });
+  });
+
+  it("starts a session beside one in its project without placing panes", async () => {
+    const target = { ...newSession("codex", "/project"), id: "beside" };
+    sessionsRef.current.push(target);
+    const request = emit("sessions.start", { prompt: "Beside", placement: "down", besideSessionId: target.id });
+    await settle();
+    expect(addSession.mock.calls[0][1]).toEqual({ reveal: false });
+    expect(reply(request)?.response.ok).toBe(true);
   });
 });

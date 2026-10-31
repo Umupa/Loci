@@ -138,7 +138,7 @@ describe("settings copy", () => {
     setLanguagePreference("zh-CN");
     expect(searchSettings("语言").some((result) => result.settingId === "language")).toBe(true);
     expect(searchSettings("背景").some((result) => result.settingId === "chat-background")).toBe(true);
-    expect(filterKeybindings(KEYBINDINGS, "向右分栏")[0].command).toBe("Pane: Split Right");
+    expect(filterKeybindings(KEYBINDINGS, "资料库")[0].command).toBe("App: Toggle Library");
     expect(KEYBINDINGS.find((row) => row.command === "App: Settings")).toBeDefined();
   });
 

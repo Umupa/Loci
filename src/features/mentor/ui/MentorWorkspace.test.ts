@@ -45,6 +45,7 @@ function Host({ owner = agent }: { owner?: Agent }) {
     onToggleLibrary: () => control.toggleLibrary(owner.id), onToggleChat: () => control.toggleChat(owner.id),
     onResizeLibrary: (width) => control.resizeLibrary(owner.id, width), onResizeChat: (width) => control.resizeChat(owner.id, width),
     onCanvasAddToChat: () => {}, onCanvasTitleChange: () => {}, onOpenFile: () => {},
+    renderSession: (id) => createElement("section", { "data-test-session": id }), sessionTitle: () => "Delegated work",
   });
 }
 async function render(owner = agent) { await act(async () => root.render(createElement(Host, { owner }))); }
@@ -180,4 +181,12 @@ it("folds library sections and the columns, and ignores an old mentor's late lis
   await click('[aria-label="Hide conversation"]');
   expect(container.querySelector<HTMLElement>(".mentor-chat-column")!.hidden).toBe(true);
   expect(container.querySelector('[aria-label="Chat with Bea"]')).not.toBeNull();
+});
+
+it("shows a conversation as the reader without remembering it", async () => {
+  await render();
+  await act(async () => control.show(agent.id, { kind: "session", id: "delegated" }));
+  expect(reader().querySelector('[data-test-session="delegated"]')).not.toBeNull();
+  expect(crumbs()).toEqual(["Ada", "Delegated work"]);
+  expect(JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!)[agent.id].page).toBeUndefined();
 });

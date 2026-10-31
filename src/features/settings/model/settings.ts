@@ -1,5 +1,5 @@
 import { t } from "../../../shared/i18n/locale";
-import { ALT, IS_MAC, IS_WIN, MOD, SHIFT } from "../../../platform/tauri/platform";
+import { IS_MAC, IS_WIN, MOD, SHIFT } from "../../../platform/tauri/platform";
 import { canonicalShortcut, shortcutLabel, shortcutFromKeyEvent, shortcutTokens } from "../../../shared/lib/shortcuts";
 import { readFlag, writeFlag } from "./storageFlags";
 const SECTION_KEY = "loci.settingsSection";
@@ -651,7 +651,6 @@ export function loadClaudeHooks(): boolean {
 export function saveClaudeHooks(value: boolean) {
     writeFlag(CLAUDE_HOOKS_KEY, value);
 }
-const CTRL = IS_MAC ? "⌃" : "Ctrl+";
 export type KeybindingRow = {
     command: string;
     keys: string;
@@ -659,91 +658,26 @@ export type KeybindingRow = {
 };
 /**
  * Mirrors the bindings we actually handle: the native menu accelerators in
- * `src-tauri/src/menu.rs`, `tabCommand`, the window key handler in App, and
+ * `src-tauri/src/menu.rs`, `appCommand`, the window key handler in App, and
  * focused surface handlers.
  */
 export const KEYBINDINGS: KeybindingRow[] = [
-{ command: "Session: Find", keys: `${MOD}F`, when: "sessionFocus" },
+    { command: "Session: Find", keys: `${MOD}F`, when: "sessionFocus" },
     { command: "App: Settings", keys: `${MOD},`, when: "Always" },
     { command: "App: Search", keys: `${MOD}K`, when: "Always" },
-    { command: "App: Open Project", keys: `${MOD}O`, when: "Always" },
     { command: "App: New Window", keys: `${MOD}${SHIFT}N`, when: "Always" },
-    { command: "App: Toggle Sidebar", keys: `${MOD}B`, when: "Always" },
-    {
-        command: "App: Toggle Session Sidebar",
-        keys: `${MOD}${SHIFT}B`,
-        when: "Always",
-    },
+    { command: "App: Toggle Library", keys: `${MOD}B`, when: "Always" },
+    { command: "App: Toggle Conversation", keys: `${MOD}${SHIFT}B`, when: "Always" },
     { command: "App: Switch Model", keys: `${MOD}.`, when: "Always" },
     { command: "View: Reload", keys: `${MOD}${SHIFT}R`, when: "Always" },
     { command: "View: Zoom In", keys: `${MOD}+`, when: "Always" },
     { command: "View: Zoom Out", keys: `${MOD}-`, when: "Always" },
     { command: "View: Reset Zoom", keys: `${MOD}0`, when: "Always" },
-    { command: "Tab: New", keys: `${MOD}T`, when: "Always" },
-    { command: "Tab: Switch", keys: `${MOD}P`, when: "Always" },
-    { command: "Tab: Next Needing You", keys: `${MOD}J`, when: "Always" },
-    { command: "Tab: Overview", keys: `${MOD}${SHIFT}O`, when: "Always" },
-    { command: "Tab: Reopen Closed", keys: `${MOD}${SHIFT}T`, when: "Always" },
-    { command: "Tab: Close Others", keys: `${MOD}${ALT}T`, when: "Always" },
-    { command: "Tab: Close All", keys: `${MOD}${SHIFT}W`, when: "Always" },
-    { command: "Tab: Next", keys: `${MOD}${SHIFT}]`, when: "Always" },
-    { command: "Tab: Previous", keys: `${MOD}${SHIFT}[`, when: "Always" },
-    { command: "Tab: Cycle Next", keys: `${CTRL}Tab`, when: "Always" },
-    {
-        command: "Tab: Cycle Previous",
-        keys: `${CTRL}${SHIFT}Tab`,
-        when: "Always",
-    },
-    { command: "Tab: Back", keys: `${MOD}[`, when: "Always" },
-    { command: "Tab: Forward", keys: `${MOD}]`, when: "Always" },
-    { command: "Tab: Activate 1–8", keys: `${MOD}1 … ${MOD}8`, when: "Always" },
-    { command: "Tab: Activate Last", keys: `${MOD}9`, when: "Always" },
-    {
-        command: "Session: Archive",
-        keys: `${MOD}${SHIFT}A`,
-        when: "sessionFocus && !overlay",
-    },
-    {
-        command: "Session: Previous",
-        keys: `${MOD}${SHIFT}↑`,
-        when: "!overlay && (!textFocus || emptyComposer)",
-    },
-    {
-        command: "Session: Next",
-        keys: `${MOD}${SHIFT}↓`,
-        when: "!overlay && (!textFocus || emptyComposer)",
-    },
-    {
-        command: "Session: Previous in Current Tab",
-        keys: `${MOD}↑`,
-        when: "!overlay && (!textFocus || emptyComposer)",
-    },
-    {
-        command: "Session: Next in Current Tab",
-        keys: `${MOD}↓`,
-        when: "!overlay && (!textFocus || emptyComposer)",
-    },
-    {
-        command: "Project: Previous",
-        keys: `${MOD}${SHIFT}←`,
-        when: "!overlay && (!textFocus || emptyComposer)",
-    },
-    {
-        command: "Project: Next",
-        keys: `${MOD}${SHIFT}→`,
-        when: "!overlay && (!textFocus || emptyComposer)",
-    },
-    { command: "Pane: Close", keys: `${MOD}W`, when: "Always" },
-    { command: "Pane: Split Right", keys: `${MOD}D`, when: "Always" },
-    {
-        command: "Pane: Split Down",
-        keys: `${MOD}${SHIFT}D`,
-        when: "Always",
-    },
-    { command: "Pane: Focus Left", keys: `${MOD}${ALT}←`, when: "Always" },
-    { command: "Pane: Focus Right", keys: `${MOD}${ALT}→`, when: "Always" },
-    { command: "Pane: Focus Up", keys: `${MOD}${ALT}↑`, when: "Always" },
-    { command: "Pane: Focus Down", keys: `${MOD}${ALT}↓`, when: "Always" },
+    { command: "Mentor: New", keys: `${MOD}T`, when: "Always" },
+    { command: "Mentor: Next", keys: `${MOD}${SHIFT}]`, when: "Always" },
+    { command: "Mentor: Previous", keys: `${MOD}${SHIFT}[`, when: "Always" },
+    { command: "Mentor: Activate 1–9", keys: `${MOD}1 … ${MOD}9`, when: "Always" },
+    { command: "Reader: Close", keys: `${MOD}W`, when: "Always" },
 ];
 const KEYBINDING_OVERRIDES_KEY = "loci.keybindingOverrides";
 const KEYBINDINGS_CHANGE_EVENT = "loci:keybindings-change";
@@ -786,7 +720,7 @@ const DISPLAY_MODIFIERS: [
         ["Alt+", "Option"],
         ["Shift+", "Shift"],
     ];
-const ACTIVATE_RANGE_COMMAND = "Tab: Activate 1–8";
+const ACTIVATE_RANGE_COMMAND = "Mentor: Activate 1–9";
 /**
  * Every chord a command owns by default, in stored form. Grouped rows expand
  * to one chord per key so a rebind can never shadow a working shortcut.
@@ -808,7 +742,7 @@ function defaultShortcutsFor(command: string): string[] {
         return value ? [value] : [];
     };
     if (row.keys.includes("…")) {
-        return [1, 2, 3, 4, 5, 6, 7, 8].flatMap((digit) => chords(`Digit${digit}`));
+        return [1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap((digit) => chords(`Digit${digit}`));
     }
     if (/^[A-Za-z]$/.test(rest))
         return chords(`Key${rest.toUpperCase()}`);
@@ -831,8 +765,8 @@ function validateShortcut(command: string, shortcut: string): string {
     const canonical = canonicalShortcut(shortcut);
     if (!canonical)
         throw new Error("That combination is not a valid shortcut");
-    if (command === ACTIVATE_RANGE_COMMAND && !/Digit[1-8]$/.test(canonical)) {
-        throw new Error("Tab: Activate 1–8 needs a number key from 1 to 8");
+    if (command === ACTIVATE_RANGE_COMMAND && !/Digit[1-9]$/.test(canonical)) {
+        throw new Error("Mentor: Activate 1–9 needs a number key from 1 to 9");
     }
     return canonical;
 }

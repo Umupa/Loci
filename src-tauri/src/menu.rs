@@ -95,29 +95,15 @@ pub fn dispatch(app: &AppHandle, id: &str) {
             let _ = crate::window::open_new_window(app);
         }
         "quit" => crate::window::request_quit(app),
-        "close_other_tabs" | "next_tab" | "prev_tab" | "back_tab" | "forward_tab"
-        | "split_right" | "split_down" | "focus_left" | "focus_right" | "focus_up"
-        | "focus_down" | "sidebar_opacity" | "open_project" | "open_search" | "open_notes"
-        | "open_model_picker" | "open_settings" => {
+        "sidebar_opacity" | "open_search" | "open_model_picker" | "open_settings" => {
             let _ = app.emit(id, ());
         }
-        // Tab creation/closing and other window actions target one window:
-        // a broadcast would make every window act on a single menu click.
-        "new_tab"
-        | "close_tab"
-        | "toggle_sidebar"
-        | "toggle_session_sidebar"
-        | "zoom_in"
-        | "zoom_out"
-        | "zoom_reset"
-        | "reload"
-        | "open_command_palette"
-        | "open_pdf"
-        | "close_all_tabs"
-        | "switch_tab"
-        | "next_attention"
-        | "tab_overview"
-        | "reopen_tab" => emit_to_focused(app, id),
+        // Window actions target one window: a broadcast would make every
+        // window act on a single menu click.
+        "new_mentor" | "close_reader" | "prev_mentor" | "next_mentor" | "toggle_library"
+        | "toggle_chat" | "zoom_in" | "zoom_out" | "zoom_reset" | "reload" | "open_pdf" => {
+            emit_to_focused(app, id)
+        }
         _ => {}
     }
 }
@@ -165,23 +151,15 @@ fn build(
         "App: New Window",
         overrides,
     )?;
-    let open_project = menu_item(
+    let new_mentor = menu_item(
         app,
-        "open_project",
-        "Open Project…",
-        "CmdOrCtrl+O",
-        "App: Open Project",
+        "new_mentor",
+        "New Mentor…",
+        "CmdOrCtrl+T",
+        "Mentor: New",
         overrides,
     )?;
     let open_pdf = MenuItemBuilder::with_id("open_pdf", "Open PDF…").build(app)?;
-    let command_palette = menu_item(
-        app,
-        "open_command_palette",
-        "Command Palette…",
-        "CmdOrCtrl+Shift+P",
-        "App: Command Palette",
-        overrides,
-    )?;
     let open_search = menu_item(
         app,
         "open_search",
@@ -190,167 +168,44 @@ fn build(
         "App: Search",
         overrides,
     )?;
-    let open_notes = MenuItemBuilder::with_id("open_notes", "Notes").build(app)?;
-    let new_tab = menu_item(
+    let close_reader = menu_item(
         app,
-        "new_tab",
-        "New Tab",
-        "CmdOrCtrl+T",
-        "Tab: New",
-        overrides,
-    )?;
-    let switch_tab = menu_item(
-        app,
-        "switch_tab",
-        "Switch Tab…",
-        "CmdOrCtrl+P",
-        "Tab: Switch",
-        overrides,
-    )?;
-    let next_attention = menu_item(
-        app,
-        "next_attention",
-        "Next Tab Needing You",
-        "CmdOrCtrl+J",
-        "Tab: Next Needing You",
-        overrides,
-    )?;
-    let tab_overview = menu_item(
-        app,
-        "tab_overview",
-        "Tab Overview",
-        "CmdOrCtrl+Shift+O",
-        "Tab: Overview",
-        overrides,
-    )?;
-    let reopen_tab = menu_item(
-        app,
-        "reopen_tab",
-        "Reopen Closed Tab",
-        "CmdOrCtrl+Shift+T",
-        "Tab: Reopen Closed",
-        overrides,
-    )?;
-    let split_right = menu_item(
-        app,
-        "split_right",
-        "Split Pane Right",
-        "CmdOrCtrl+D",
-        "Pane: Split Right",
-        overrides,
-    )?;
-    let split_down = menu_item(
-        app,
-        "split_down",
-        "Split Pane Down",
-        "CmdOrCtrl+Shift+D",
-        "Pane: Split Down",
-        overrides,
-    )?;
-    let close_tab = menu_item(
-        app,
-        "close_tab",
-        "Close Pane",
+        "close_reader",
+        "Close",
         "CmdOrCtrl+W",
-        "Pane: Close",
+        "Reader: Close",
         overrides,
     )?;
-    let close_other_tabs = menu_item(
+    let prev_mentor = menu_item(
         app,
-        "close_other_tabs",
-        "Close Other Tabs",
-        "CmdOrCtrl+Alt+T",
-        "Tab: Close Others",
-        overrides,
-    )?;
-    let close_all_tabs = menu_item(
-        app,
-        "close_all_tabs",
-        "Close All Tabs",
-        "CmdOrCtrl+Shift+W",
-        "Tab: Close All",
-        overrides,
-    )?;
-    let next_tab = menu_item(
-        app,
-        "next_tab",
-        "Next Tab",
-        "CmdOrCtrl+Shift+]",
-        "Tab: Next",
-        overrides,
-    )?;
-    let prev_tab = menu_item(
-        app,
-        "prev_tab",
-        "Previous Tab",
+        "prev_mentor",
+        "Previous Mentor",
         "CmdOrCtrl+Shift+[",
-        "Tab: Previous",
+        "Mentor: Previous",
         overrides,
     )?;
-    let back_tab = menu_item(
+    let next_mentor = menu_item(
         app,
-        "back_tab",
-        "Go Back",
-        "CmdOrCtrl+[",
-        "Tab: Back",
+        "next_mentor",
+        "Next Mentor",
+        "CmdOrCtrl+Shift+]",
+        "Mentor: Next",
         overrides,
     )?;
-    let forward_tab = menu_item(
+    let toggle_library = menu_item(
         app,
-        "forward_tab",
-        "Go Forward",
-        "CmdOrCtrl+]",
-        "Tab: Forward",
-        overrides,
-    )?;
-
-    let focus_left = menu_item(
-        app,
-        "focus_left",
-        "Focus Pane Left",
-        "CmdOrCtrl+Alt+Left",
-        "Pane: Focus Left",
-        overrides,
-    )?;
-    let focus_right = menu_item(
-        app,
-        "focus_right",
-        "Focus Pane Right",
-        "CmdOrCtrl+Alt+Right",
-        "Pane: Focus Right",
-        overrides,
-    )?;
-    let focus_up = menu_item(
-        app,
-        "focus_up",
-        "Focus Pane Up",
-        "CmdOrCtrl+Alt+Up",
-        "Pane: Focus Up",
-        overrides,
-    )?;
-    let focus_down = menu_item(
-        app,
-        "focus_down",
-        "Focus Pane Down",
-        "CmdOrCtrl+Alt+Down",
-        "Pane: Focus Down",
-        overrides,
-    )?;
-
-    let toggle_sidebar = menu_item(
-        app,
-        "toggle_sidebar",
-        "Toggle Sidebar",
+        "toggle_library",
+        "Toggle Library",
         "CmdOrCtrl+B",
-        "App: Toggle Sidebar",
+        "App: Toggle Library",
         overrides,
     )?;
-    let toggle_session_sidebar = menu_item(
+    let toggle_chat = menu_item(
         app,
-        "toggle_session_sidebar",
-        "Toggle Session Sidebar",
+        "toggle_chat",
+        "Toggle Conversation",
         "CmdOrCtrl+Shift+B",
-        "App: Toggle Session Sidebar",
+        "App: Toggle Conversation",
         overrides,
     )?;
     let open_model_picker = menu_item(
@@ -380,39 +235,20 @@ fn build(
 
     let file = SubmenuBuilder::with_id(app, "file", "File")
         .item(&new_window)
-        .item(&open_project)
+        .item(&new_mentor)
         .item(&open_pdf)
         .item(&open_search)
-        .item(&command_palette)
         .separator()
+        .item(&close_reader)
         .separator()
-        .item(&new_tab)
-        .item(&switch_tab)
-        .item(&next_attention)
-        .item(&tab_overview)
-        .item(&reopen_tab)
-        .item(&split_right)
-        .item(&split_down)
-        .item(&close_tab)
-        .item(&close_other_tabs)
-        .item(&close_all_tabs)
-        .separator()
-        .item(&prev_tab)
-        .item(&next_tab)
-        .item(&back_tab)
-        .item(&forward_tab)
+        .item(&prev_mentor)
+        .item(&next_mentor)
         .build()?;
 
     let view = SubmenuBuilder::new(app, "View")
-        .item(&toggle_sidebar)
-        .item(&toggle_session_sidebar)
-        .item(&open_notes)
+        .item(&toggle_library)
+        .item(&toggle_chat)
         .item(&open_model_picker)
-        .separator()
-        .item(&focus_left)
-        .item(&focus_right)
-        .item(&focus_up)
-        .item(&focus_down)
         .separator()
         .item(&zoom_in)
         .item(&zoom_out)

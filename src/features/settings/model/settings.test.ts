@@ -160,18 +160,18 @@ describe("keybinding overrides", () => {
         // vacuously.
         const mod = IS_MAC ? "Command" : "Control";
         expect(() => saveKeybindingOverride("App: Search", { shortcut: `${mod}+KeyF` })).toThrow("Already used by Session: Find");
-        expect(() => saveKeybindingOverride("Tab: New", { shortcut: "Control+Tab" })).toThrow("Already used by Tab: Cycle Next");
+        expect(() => saveKeybindingOverride("Mentor: Next", { shortcut: `${mod}+KeyW` })).toThrow("Already used by Reader: Close");
     });
-    it("protects every chord in the grouped tab activation range", () => {
+    it("protects every chord in the grouped mentor activation range", () => {
         const mod = IS_MAC ? "Command" : "Control";
-        for (const digit of [1, 4, 8]) {
+        for (const digit of [1, 4, 9]) {
             expect(() => saveKeybindingOverride("App: Search", {
                 shortcut: `${mod}+Digit${digit}`,
-            })).toThrow("Already used by Tab: Activate 1–8");
+            })).toThrow("Already used by Mentor: Activate 1–9");
         }
     });
     it("rejects a chord the command cannot use and invalid chords", () => {
-        expect(() => saveKeybindingOverride("Tab: Activate 1–8", { shortcut: "Control+KeyM" })).toThrow("needs a number key");
+        expect(() => saveKeybindingOverride("Mentor: Activate 1–9", { shortcut: "Control+KeyM" })).toThrow("needs a number key");
         expect(() => saveKeybindingOverride("App: Search", { shortcut: "KeyK" })).toThrow("not a valid shortcut");
     });
     it("normalises modifier order when reading stored shortcuts", () => {
@@ -184,10 +184,12 @@ describe("keybinding overrides", () => {
         localStorage.setItem(KEYBINDING_OVERRIDES_KEY, JSON.stringify({
             "Unknown: Command": { disabled: true },
             "App: Search": { shortcut: "KeyK" },
-            "Tab: New": { shortcut: "Command+KeyT" },
+            "Tab: New": { shortcut: "Command+KeyU" },
+            "Mentor: New": { shortcut: "Command+KeyT" },
         }));
+        // Commands that no longer exist, such as tab ones, are ignored.
         expect(loadKeybindingOverrides()).toEqual({
-            "Tab: New": { shortcut: "Command+KeyT" },
+            "Mentor: New": { shortcut: "Command+KeyT" },
         });
         localStorage.setItem(KEYBINDING_OVERRIDES_KEY, "not-json");
         expect(loadKeybindingOverrides()).toEqual({});
@@ -211,41 +213,15 @@ describe("live agents enabled setting", () => {
     });
 });
 describe("workspace navigation keybindings", () => {
-    it("keeps separate shortcuts for the project rail and session sidebar", () => {
-        expect(KEYBINDINGS.filter((row) => ["App: Toggle Sidebar", "App: Toggle Session Sidebar"].includes(row.command))).toEqual([
-            { command: "App: Toggle Sidebar", keys: `${MOD}B`, when: "Always" },
-            {
-                command: "App: Toggle Session Sidebar",
-                keys: `${MOD}${SHIFT}B`,
-                when: "Always",
-            },
+    it("keeps separate shortcuts for the library and the conversation", () => {
+        expect(KEYBINDINGS.filter((row) => ["App: Toggle Library", "App: Toggle Conversation"].includes(row.command))).toEqual([
+            { command: "App: Toggle Library", keys: `${MOD}B`, when: "Always" },
+            { command: "App: Toggle Conversation", keys: `${MOD}${SHIFT}B`, when: "Always" },
         ]);
     });
-    it("documents the reload shortcut", () => {
-    });
-    it("documents session and project cycling in the shortcut list", () => {
-        const rows = KEYBINDINGS.filter((row) => /^(Session|Project): (Previous|Next)$/.test(row.command));
-        expect(rows.map((row) => row.command)).toEqual([
-            "Session: Previous",
-            "Session: Next",
-            "Project: Previous",
-            "Project: Next",
-        ]);
-        expect(rows.every((row) => row.when === "!overlay && (!textFocus || emptyComposer)")).toBe(true);
-    });
-    it("documents same-tab session switching", () => {
-        expect(KEYBINDINGS.filter((row) => row.command.includes("in Current Tab"))).toEqual([
-            {
-                command: "Session: Previous in Current Tab",
-                keys: `${MOD}↑`,
-                when: "!overlay && (!textFocus || emptyComposer)",
-            },
-            {
-                command: "Session: Next in Current Tab",
-                keys: `${MOD}↓`,
-                when: "!overlay && (!textFocus || emptyComposer)",
-            },
-        ]);
+    it("lists no tab, pane, session-list or project commands", () => {
+        expect(KEYBINDINGS.filter((row) => /^(Tab|Pane|Project): /.test(row.command) || /^Session: (Previous|Next|Archive)/.test(row.command))).toEqual([]);
+        expect(KEYBINDINGS.map((row) => row.command)).toEqual(expect.arrayContaining(["Mentor: New", "Mentor: Next", "Mentor: Previous", "Mentor: Activate 1–9", "Reader: Close"]));
     });
 });
 describe("tab animations setting", () => {

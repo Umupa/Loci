@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import { CoursePane } from "../../learning/ui/CoursePane";
@@ -25,12 +25,14 @@ type Props = {
   onCanvasAddToChat: (text: string) => void;
   onCanvasTitleChange: (id: string, title: string) => void;
   onOpenFile: OpenFileFn;
+  /** A conversation shown as the reader, with the app's session wiring. */
+  renderSession: (id: string) => ReactNode;
 };
 
 const noop = () => {};
 
 /** The one reader in the middle of a mentor's workspace. Whatever opens replaces it. */
-export function MentorReader({ agent, page, request, recents, canvases, onClose, onLessonChange, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile }: Props) {
+export function MentorReader({ agent, page, request, recents, canvases, onClose, onLessonChange, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession }: Props) {
   if (!page) return <div className="mentor-reader-empty" data-tauri-drag-region="deep">
     <p>Open a lesson, a source, a note or a canvas from the library, or ask {agent.name || "your mentor"} to prepare one.</p>
   </div>;
@@ -40,6 +42,7 @@ export function MentorReader({ agent, page, request, recents, canvases, onClose,
     reader focused onFocus={noop} onClose={onClose} />;
   if (page.kind === "note") return <NotePane key={page.id} noteId={page.id} agentId={agent.id} recents={recents}
     reader focused onFocus={noop} onClose={onClose} onBeforeLeave={onBeforeLeave} />;
+  if (page.kind === "session") return renderSession(page.id);
   if (page.kind === "canvas") {
     const canvas = canvases.find((entry) => entry.id === page.id);
     return canvas ? <Suspense fallback={null}><CanvasPane key={canvas.id} canvas={canvas} focused onFocus={noop} onClose={onClose}
