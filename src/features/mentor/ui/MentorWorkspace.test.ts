@@ -180,6 +180,23 @@ it("switches course from the menu, landing in it, and asks the mentor for a new 
   expect(drafts).toEqual(["I'd like a new course on "]);
 });
 
+it("filters the segment a mentor opens on before any segment was chosen", async () => {
+  vi.mocked(invoke).mockImplementation(async (command) => {
+    if (command === "course_list_all" || command === "notes_list" || command === "canvas_list") return [];
+    if (command === "agent_documents_list") return [...documents, { ...documents[0], id: "dns", title: "DNS notes", sourceUrl: undefined }];
+    throw new Error(`Unexpected command: ${command}`);
+  });
+  await render();
+  const filter = () => container.querySelector<HTMLInputElement>('input[aria-label="Filter sources"]')!;
+  await vi.waitFor(() => expect(container.querySelectorAll("[data-resource-kind]")).toHaveLength(2));
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(filter(), "dns");
+    filter().dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  expect(filter().value).toBe("dns");
+  expect([...container.querySelectorAll("[data-resource-kind]")].map((row) => row.getAttribute("data-resource-id"))).toEqual(["dns"]);
+});
+
 it("offers to ask for a course when the mentor has none", async () => {
   vi.mocked(invoke).mockImplementation(async (command) => {
     if (command === "course_list_all" || command === "agent_documents_list" || command === "notes_list" || command === "canvas_list") return [];

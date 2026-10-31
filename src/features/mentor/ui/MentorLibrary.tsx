@@ -121,13 +121,13 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
         <Search aria-hidden className="size-3 shrink-0 opacity-50" />
         <input type="text" value={query} placeholder={`Filter ${LABELS[segment].toLowerCase()}`} aria-label={`Filter ${LABELS[segment].toLowerCase()}`}
           spellCheck={false} autoComplete="off"
-          onChange={(event) => onChange({ filter: event.target.value })}
+          onChange={(event) => onChange({ segment, filter: event.target.value })}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing) return;
-            if (event.key === "Escape" && query) { event.preventDefault(); event.stopPropagation(); onChange({ filter: "" }); }
+            if (event.key === "Escape" && query) { event.preventDefault(); event.stopPropagation(); onChange({ segment, filter: "" }); }
             else if (event.key === "ArrowDown" && focusFirstItem(panel.current)) event.preventDefault();
           }} />
-        {query ? <button type="button" className="mentor-library-filter-clear" aria-label="Clear filter" title="Clear filter" onClick={() => onChange({ filter: "" })}><X className="size-3" /></button> : null}
+        {query ? <button type="button" className="mentor-library-filter-clear" aria-label="Clear filter" title="Clear filter" onClick={() => onChange({ segment, filter: "" })}><X className="size-3" /></button> : null}
       </label>
       {segment === "notes" ? <button type="button" className="mentor-library-action" title="New note" aria-label="New note" disabled={creatingNote} onClick={onNewNote}><Plus className="size-3.5" /></button> : null}
     </div>}
