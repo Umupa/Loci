@@ -679,7 +679,7 @@ const DEV_BUNDLE_DEFAULT_NAME: &str = crate::flavor::DEV_PRODUCT_NAME;
 #[cfg(debug_assertions)]
 const DEV_BUNDLE_NAME_ENV: &str = "LOCI_DEV_APP_NAME";
 #[cfg(debug_assertions)]
-const DEV_ICNS: &[u8] = include_bytes!("../icons/icon.icns");
+const DEV_ICNS: &[u8] = include_bytes!("../icons/dev/icon.icns");
 #[cfg(debug_assertions)]
 fn dev_bundle_dir_name(app_name: &str) -> String {
     format!("{app_name}.app")

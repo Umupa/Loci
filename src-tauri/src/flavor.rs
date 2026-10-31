@@ -47,6 +47,8 @@ pub fn apply(context: &mut tauri::Context<tauri::Wry>) {
         let config = context.config_mut();
         config.identifier = dev_identifier();
         config.product_name = Some(DEV_PRODUCT_NAME.into());
+        // The orange DEV icon, in the windows and taskbars that take it from here.
+        context.set_default_window_icon(Some(tauri::include_image!("icons/dev/128x128@2x.png")));
     }
     #[cfg(not(debug_assertions))]
     let _ = context;

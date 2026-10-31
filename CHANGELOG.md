@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Changed
+
+- A new app icon: a corridor of archways ending in a lit door, after the memory palace Loci is named for. Loci Dev has the same door on orange, marked DEV, so the two are easy to tell apart in the Dock.
+
 ## [0.1.0] - 2026-10-31
 
 ### Added

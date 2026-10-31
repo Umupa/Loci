@@ -9,6 +9,7 @@ There are two apps, and they never share data.
 | | Loci | Loci Dev |
 | --- | --- | --- |
 | What it is | the app you use every day | the app you work on |
+| Icon | an amber doorway on deep blue | the same doorway on orange, marked DEV (`src-tauri/icons/dev`) |
 | Identifier | `com.loci.desktop` | `com.loci.desktop.dev` |
 | Data folder (macOS) | `~/Library/Application Support/com.loci.desktop` | `~/Library/Application Support/com.loci.desktop.dev` |
 | Comes from | a GitHub release, or `npm run install:local` | `npm run app:dev`, `npm run tauri:stable`, `script/build_and_run.sh` |
