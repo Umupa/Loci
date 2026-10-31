@@ -2,6 +2,1312 @@
   "version": 1,
   "commands": [
     {
+      "name": "canvases.create",
+      "summary": "Create an empty drawing.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "help": "Its title",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "canvases.delete",
+      "summary": "Delete a drawing.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "canvases.get",
+      "summary": "Metadata of one drawing.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "canvases.list",
+      "summary": "The mentor's drawings, newest first; metadata only.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "canvases.read-data",
+      "summary": "The full Excalidraw scene of a drawing (dataJson).",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "canvases.rename",
+      "summary": "Rename a drawing.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "help": "The new title",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "canvases.write-data",
+      "summary": "Replace a drawing's scene with Excalidraw JSON.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "dataJson",
+          "type": "string",
+          "help": "The scene as a JSON string (use --data-json-file)",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "courses.delete",
+      "summary": "Remove a course and its progress.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "courses.list",
+      "summary": "The mentor's courses, with how many lessons have been read.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "courses.read",
+      "summary": "One course in full, with progress per lesson.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "courses.write",
+      "summary": "Save a course (a loci-course block's fields; --input course.json works well). The same id replaces it and keeps progress.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "A stable course id",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "help": "Its title",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "engine",
+          "type": "string",
+          "help": "reading (default) or another course engine",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "chapters",
+          "type": "json",
+          "help": "Chapters of lessons, as JSON",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "canvasId",
+          "type": "string",
+          "help": "The canvas a canvas course walks through",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "steps",
+          "type": "json",
+          "help": "Steps of a canvas course, as JSON",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "habits.add",
+      "summary": "Add a habit.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "help": "Its name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "instructions",
+          "type": "string",
+          "help": "What to do",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "schedule",
+          "type": "json",
+          "help": "{\"kind\":\"daily\",\"time\":\"09:00\"} and the like",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "access",
+          "type": "string",
+          "help": "full (default) or auto",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "habits.list",
+      "summary": "What the mentor does on its own, with schedules.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "habits.remove",
+      "summary": "Remove a habit.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "habits.run",
+      "summary": "Run a habit now.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "habits.update",
+      "summary": "Change a habit.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "help": "Its name",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "instructions",
+          "type": "string",
+          "help": "What to do",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "schedule",
+          "type": "json",
+          "help": "Its schedule",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "help": "On or off",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "access",
+          "type": "string",
+          "help": "full or auto",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "memory.add",
+      "summary": "Remember one dated fact.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "fact",
+          "type": "string",
+          "help": "The fact",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "topic",
+          "type": "string",
+          "help": "A topic name",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "until",
+          "type": "string",
+          "help": "YYYY-MM-DD it stops mattering",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "memory.read",
+      "summary": "MEMORY.md, or one topic file.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "topic",
+          "type": "string",
+          "help": "A topic name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "memory.remove",
+      "summary": "Drop an entry that was wrong.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "find",
+          "type": "string",
+          "help": "Text of the entry",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "topic",
+          "type": "string",
+          "help": "A topic name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "memory.replace",
+      "summary": "Supersede an entry that changed.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "find",
+          "type": "string",
+          "help": "Text of the old entry",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "fact",
+          "type": "string",
+          "help": "The new fact",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "topic",
+          "type": "string",
+          "help": "A topic name",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "until",
+          "type": "string",
+          "help": "YYYY-MM-DD",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "memory.search",
+      "summary": "Search memory, topic notes and the archive.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "query",
+          "type": "string",
+          "help": "What to look for",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "since",
+          "type": "string",
+          "help": "A date or a span such as 7d",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "models.list",
+      "summary": "Providers, their models and settings, and the permission modes.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": []
+    },
+    {
+      "name": "notes.delete",
+      "summary": "Delete one of the mentor's notes.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "notes.list",
+      "summary": "Note titles and short previews.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "help": "How many (1-100, default 30)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "help": "How many to skip",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "notes.read",
+      "summary": "One note in full.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "notes.write",
+      "summary": "Create a note for the mentor, or edit one with --id.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "The note to edit",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "help": "Its title; derived from the body when left out",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "help": "Markdown (use --body-file)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "tags",
+          "type": "json",
+          "help": "Tags, as a JSON array of strings",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sessions.archive",
+      "summary": "Stop a session and put it away.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "sessionId",
+          "type": "string",
+          "help": "The session",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sessions.delete",
+      "summary": "Remove a session for good; Loci asks you first.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "sessionId",
+          "type": "string",
+          "help": "The session",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sessions.draft",
+      "summary": "Save an unsent draft in an idle session.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "sessionId",
+          "type": "string",
+          "help": "The session",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "prompt",
+          "type": "string",
+          "help": "The draft",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sessions.list",
+      "summary": "Sessions in one of the mentor's folders.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sessions.read",
+      "summary": "Recent exchanges of a session (the mentor's own conversation too).",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "sessionId",
+          "type": "string",
+          "help": "The session",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "before",
+          "type": "string",
+          "help": "nextBefore from an earlier page",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "help": "Exchanges, up to 3",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "maxChars",
+          "type": "integer",
+          "help": "Characters per message (200-6000)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sessions.send",
+      "summary": "Send a follow-up to an idle session.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "sessionId",
+          "type": "string",
+          "help": "The session",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "prompt",
+          "type": "string",
+          "help": "The follow-up",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "notifyOnComplete",
+          "type": "boolean",
+          "help": "Report the result to the mentor's conversation",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sessions.start",
+      "summary": "Start a session in one of the mentor's folders. It does not report back to the mentor unless --notify-on-complete.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "prompt",
+          "type": "string",
+          "help": "What to do",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "harness",
+          "type": "string",
+          "help": "Provider: claude, codex, antigravity, ... (see models list)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "help": "A model id from models list",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "effort",
+          "type": "string",
+          "help": "The model's effort setting",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "modelSettings",
+          "type": "json",
+          "help": "Other model settings, as a JSON object",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "runtimeMode",
+          "type": "string",
+          "help": "supervised, auto-accept-edits, auto or full-access",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "draft",
+          "type": "boolean",
+          "help": "Save the prompt unsent",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "reveal",
+          "type": "boolean",
+          "help": "Show it in the mentor's reader",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "notifyOnComplete",
+          "type": "boolean",
+          "help": "Report the result to the mentor's conversation",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sessions.stop",
+      "summary": "Cancel a session's current turn.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "sessionId",
+          "type": "string",
+          "help": "The session",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "help": "One of the mentor's folders, by path or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "soul.read",
+      "summary": "The mentor's standing instructions (SOUL.md) and their hash.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "soul.update",
+      "summary": "Replace the mentor's standing instructions.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "help": "The complete Markdown (use --text-file)",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "expectedHash",
+          "type": "string",
+          "help": "The hash soul read returned",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sources.list",
+      "summary": "The sources and documents in the mentor's library, newest first.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "sources.read",
+      "summary": "One source or document in full.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "Its id",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "sources.write",
+      "summary": "Take a UTF-8 Markdown file into the library as a source.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "A stable id, such as k8s-pod-lifecycle",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "help": "Its title",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "help": "Absolute path of the Markdown file (at most 1 MB)",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "sourceUrl",
+          "type": "string",
+          "help": "Where it was published",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "subject",
+          "type": "string",
+          "help": "Its subject, such as Kubernetes",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "version",
+          "type": "string",
+          "help": "The version it describes",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "templates.list",
       "summary": "The mentor templates a new mentor can start from.",
       "callers": [

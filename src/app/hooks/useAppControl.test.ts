@@ -11,6 +11,8 @@ import { useAppControl } from "./useAppControl";
 import type { AppControlWorkspace } from "./useAppControl";
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
+import { agent, testContext } from "../commands/testContext";
+import type { CommandContext } from "../commands/context";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => undefined) }));
 vi.mock("@tauri-apps/api/webviewWindow", () => ({ getCurrentWebviewWindow: vi.fn() }));
@@ -31,8 +33,9 @@ let flushPersistence: ReturnType<typeof vi.fn>;
 async function settle() {
   await act(async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); });
 }
-function emit(action: string, input: Record<string, unknown>, requestId = "request-1", id = crypto.randomUUID()) {
-  listener!({ payload: { id, namespace: "app", sessionId: "source", requestId, action, input } });
+let commands: CommandContext;
+function emit(action: string, input: Record<string, unknown>, requestId = "request-1", id = crypto.randomUUID(), namespace = "app", sessionId = "source") {
+  listener!({ payload: { id, namespace, sessionId, requestId, action, input } });
   return id;
 }
 function reply(id: string) {
@@ -60,7 +63,8 @@ beforeEach(async () => {
   } as unknown as SessionRuntime;
   const workspace = { loadSession, addSession } as unknown as AppControlWorkspace;
   const submission = { submit, saveDraft: vi.fn(() => true) } as unknown as SessionSubmission;
-  function Host() { useAppControl({ workspace, runtime, submission }); return null; }
+  commands = testContext([agent("a1", "Kern")]).ctx;
+  function Host() { useAppControl({ workspace, runtime, submission, commands }); return null; }
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -124,5 +128,28 @@ describe("local app control composition", () => {
     await settle();
     expect(addSession.mock.calls[0][1]).toEqual({ reveal: false });
     expect(reply(request)?.response.ok).toBe(true);
+  });
+});
+
+describe("terminal commands", () => {
+  it("run through the command layer, answer once per request ID and say why they fail", async () => {
+    const first = emit("templates.list", {}, "t1", undefined, "cli", "");
+    const again = emit("templates.list", {}, "t1", undefined, "cli", "");
+    const reused = emit("models.list", {}, "t1", undefined, "cli", "");
+    const unknown = emit("nothing.here", {}, "t2", undefined, "cli", "");
+    const missing = emit("courses.read", { mentor: "Nobody", id: "c" }, "t3", undefined, "cli", "");
+    await settle();
+    expect(reply(first)?.response.ok).toBe(true);
+    expect((reply(first)?.response.result as { templates: unknown[] }).templates.length).toBeGreaterThan(0);
+    expect(reply(again)?.response).toEqual(reply(first)?.response);
+    expect(reply(reused)?.response.ok).toBe(false);
+    expect(reply(unknown)?.response).toEqual({ ok: false, error: "Unknown command: nothing.here", code: "usage" });
+    expect(reply(missing)?.response).toMatchObject({ ok: false, code: "not_found" });
+  });
+
+  it("do not widen what an agent's own app CLI reaches", async () => {
+    const id = emit("templates.list", {}, "t4");
+    await settle();
+    expect(reply(id)?.response).toEqual({ ok: false, error: "Unknown app action: templates.list" });
   });
 });

@@ -65,7 +65,8 @@ import { useSessionRuntime } from "./hooks/useSessionRuntime";
 import { useSessionSubmission } from "./hooks/useSessionSubmission";
 import { useIdleSessionDetach } from "./hooks/useIdleSessionDetach";
 import { useAppCommands } from "./hooks/useAppCommands";
-import { useAppControl } from "./hooks/useAppControl";
+import { useAppControl, type AppControlWorkspace } from "./hooks/useAppControl";
+import { useCommandContext } from "./hooks/useCommandContext";
 import { useAppResourceNavigation } from "./hooks/useAppResourceNavigation";
 import { useSaveToCanvas } from "./hooks/useSaveToCanvas";
 
@@ -218,6 +219,10 @@ function Workspace(boot: BootWorkspace) {
   }, [runtime.bindRestoredSession, showInMentor, showMentor]);
   const showSessionRef = useRef(showSession);
   showSessionRef.current = showSession;
+  const showMentorRef = useRef(showMentor);
+  showMentorRef.current = showMentor;
+  const showInMentorRef = useRef(showInMentor);
+  showInMentorRef.current = showInMentor;
 
   // Resource cards and the library share one reader in the owning mentor.
   useEffect(() => {
@@ -270,7 +275,7 @@ function Workspace(boot: BootWorkspace) {
     persistSession: runtime.persistSession, onError: reportError, setSessions: runtime.updateSessions,
   });
   const delegation = useAgentDelegation({ runtime, submission, loadSession: (id) => storeRef.current!.loadSession(id) });
-  useAppControl({ workspace: {
+  const controlWorkspace: AppControlWorkspace = {
     loadSession: store.loadSession,
     addSession: (session, options) => {
       store.addSession(session);
@@ -287,7 +292,16 @@ function Workspace(boot: BootWorkspace) {
       const owner = agentForSession(sessionId)?.id ?? mentorRef.current.currentRef.current?.agentId;
       if (owner) mentorViewRef.current.show(owner, { kind: "canvas", id });
     },
-  }, runtime, submission, delegation });
+  };
+  const commands = useCommandContext({ workspace: controlWorkspace, runtime, submission, delegation,
+    agents: () => agentsRef.current,
+    activeAgentId: () => mentorRef.current.currentRef.current?.agentId ?? null,
+    showMentor: (id) => showMentorRef.current(id),
+    showInMentor: (page, agentId) => showInMentorRef.current(page, agentId),
+    leaveReader,
+    mentorView: () => mentorViewRef.current,
+  });
+  useAppControl({ workspace: controlWorkspace, runtime, submission, delegation, commands });
   const [learningTargetRequest, setLearningTargetRequest] = useState<AddToChatRequest | null>(null);
   const revealLearningConversation = useCallback(async (id: string, blockId?: string, isCurrent: () => boolean = () => true) => {
     const agent = agentForSession(id);

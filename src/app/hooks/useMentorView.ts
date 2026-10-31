@@ -88,6 +88,8 @@ export function useMentorView() {
     stateFor: (id: string) => states[id] ?? DEFAULT_MENTOR_VIEW,
     /** What is being read now, outside of rendering. */
     readingFor: (id: string) => latest.current[id]?.page,
+    /** The whole view now, outside of rendering: the page and the lesson in it. */
+    viewFor: (id: string) => latest.current[id] ?? DEFAULT_MENTOR_VIEW,
     show, close, setLesson, confirmRestored,
     toggleLibrary: useCallback((id: string) => update(id, (state) => ({ ...state, library: !state.library })), [update]),
     toggleChat: useCallback((id: string) => update(id, (state) => ({ ...state, chat: !state.chat })), [update]),

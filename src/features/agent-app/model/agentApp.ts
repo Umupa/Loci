@@ -965,6 +965,26 @@ function startLaunch(
   };
 }
 
+/** The providers, models, settings and permission modes sessions may use. */
+export function appModels() {
+  return {
+    runtimeModes: RUNTIME_MODES.map((id) => ({
+      id,
+      label: RUNTIME_MODE_LABEL[id],
+      description: RUNTIME_MODE_HINT[id],
+    })),
+    harnesses: HARNESSES.map((harness) => ({
+      id: harness,
+      available: isHarnessAvailable(harness),
+      models: modelsFor(harness).map((model) => ({
+        id: model.id,
+        name: model.name,
+        settings: model.settings ?? [],
+      })),
+    })),
+  };
+}
+
 export async function handleAgentApp(
   source: Session,
   requestId: string,
@@ -1000,22 +1020,7 @@ export async function handleAgentApp(
     return handleCourses(source, action, input, host);
   switch (action) {
     case "models.list":
-      return {
-        runtimeModes: RUNTIME_MODES.map((id) => ({
-          id,
-          label: RUNTIME_MODE_LABEL[id],
-          description: RUNTIME_MODE_HINT[id],
-        })),
-        harnesses: HARNESSES.map((harness) => ({
-          id: harness,
-          available: isHarnessAvailable(harness),
-          models: modelsFor(harness).map((model) => ({
-            id: model.id,
-            name: model.name,
-            settings: model.settings ?? [],
-          })),
-        })),
-      };
+      return appModels();
     case "sessions.list": {
       const cwd = requireProject(source, input, host);
       return { cwd, sessions: await host.sessions(cwd) };

@@ -212,53 +212,53 @@ export function useAgents(options: Options) {
     runtime.updateSessions((current) => current.some((entry) => entry.id === session.id) ? current : [...current, session]);
   }, []);
 
+  /** The agent's conversation, loaded or created and kept in memory, as opening it does. */
+  const chat = useCallback((agentId: string) => ensureAgentSession(agentId, {
+    home: homeDir,
+    workdir: ensureAgentWorkdir,
+    load: (id) => latest.current.loadSession(id),
+    create: (cwd) => newDefaultSession(cwd),
+    add: addSession,
+  }), [addSession]);
+
   const open = useCallback(async (agentId: string) => {
     const turn = ++request.current;
     try {
-      const session = await ensureAgentSession(agentId, {
-        home: homeDir,
-        workdir: ensureAgentWorkdir,
-        load: (id) => latest.current.loadSession(id),
-        create: (cwd) => newDefaultSession(cwd),
-        add: addSession,
-      });
+      const session = await chat(agentId);
       if (!session || turn !== request.current) return;
       setViewId(agentId);
       latest.current.onShow(agentId, session);
     } catch (error) {
       latest.current.onError(error);
     }
-  }, [addSession]);
+  }, [chat]);
 
   /**
    * Opens a new agent ready for the user's purpose or first task. Creating it
-   * does not run a model.
+   * does not run a model. `show: false` (a command) prepares it without
+   * switching the window to it, and reports a failure instead of showing it.
    */
-  const create = useCallback(async (template?: AgentTemplate): Promise<string> => {
+  const create = useCallback(async (template?: AgentTemplate, options: { show?: boolean } = {}): Promise<string> => {
+    const show = options.show ?? true;
     const agent = createAgent([], template ? { name: template.name, role: template.role, avatar: template.avatar } : {});
-    const turn = ++request.current;
+    const turn = show ? ++request.current : request.current;
     try {
       // Its Soul is in place before its first turn reads it.
       if (template) await editAgentFile(agent.id, "soul", () => template.soul);
-      const session = await ensureAgentSession(agent.id, {
-        home: homeDir,
-        workdir: ensureAgentWorkdir,
-        load: (id) => latest.current.loadSession(id),
-        create: (cwd) => newDefaultSession(cwd),
-        add: addSession,
-      });
+      const session = await chat(agent.id);
       // Opened by someone else meanwhile (such as the window opening its first mentor): it is still shown below.
-      if (!session) return agent.id;
+      if (!session || !show) return agent.id;
       if (turn === request.current) {
         setViewId(agent.id);
         latest.current.onShow(agent.id, session);
       }
       return agent.id;
     } catch (error) {
+      if (!show) throw error;
       latest.current.onError(error);
       return agent.id;
     }
-  }, [addSession]);
+  }, [chat]);
 
   /** Sync rail selection to the focused pane without reopening its conversation. */
   const select = useCallback((agentId?: string) => {
@@ -285,13 +285,15 @@ export function useAgents(options: Options) {
     if (notify) latest.current.onRemoveSession(session.id);
   }, [forgetEarlier]);
 
-  const reset = useCallback(async (agentId: string) => {
+  /** `confirmed` (a command run with --yes) skips the question. False when nothing was reset. */
+  const reset = useCallback(async (agentId: string, options: { confirmed?: boolean; rethrow?: boolean } = {}): Promise<boolean> => {
     const agent = findAgent(agentId);
     const current = agent?.sessionId
-      ? latest.current.runtime.sessionsRef.current.find((session) => session.id === agent.sessionId) : undefined;
-    if (!agent || !current) return;
-    if (!await ask(`Reset ${agentLook(agent).name}'s conversation? Its messages are removed; its soul and memory stay.`,
-      { title: "Reset conversation", kind: "warning", okLabel: "Reset", cancelLabel: "Cancel" })) return;
+      ? latest.current.runtime.sessionsRef.current.find((session) => session.id === agent.sessionId)
+        ?? (options.rethrow ? await latest.current.loadSession(agent.sessionId) : undefined) : undefined;
+    if (!agent || !current) return false;
+    if (!options.confirmed && !await ask(`Reset ${agentLook(agent).name}'s conversation? Its messages are removed; its soul and memory stay.`,
+      { title: "Reset conversation", kind: "warning", okLabel: "Reset", cancelLabel: "Cancel" })) return false;
     try {
       await resetAgentSession(current, {
         workdir: ensureAgentWorkdir,
@@ -302,17 +304,21 @@ export function useAgents(options: Options) {
           latest.current.onReplaceSession(previousId, fresh);
         },
       });
+      return true;
     } catch (error) {
+      if (options.rethrow) throw error;
       latest.current.onError(error);
+      return false;
     }
   }, [addSession, discardSession]);
 
   /** Deletes the agent's conversation, then the agent. Its files stay on disk. */
-  const remove = useCallback(async (agentId: string) => {
+  /** `confirmed` (a command run with --yes) skips the question. False when nothing was deleted. */
+  const remove = useCallback(async (agentId: string, options: { confirmed?: boolean; rethrow?: boolean } = {}): Promise<boolean> => {
     const agent = findAgent(agentId);
-    if (!agent) return;
-    if (!await ask(`Delete ${agentLook(agent).name}? Its conversation is permanently removed. Its documents and courses go with it; its soul and memory files stay on disk.`,
-      { title: "Delete agent", kind: "warning", okLabel: "Delete", cancelLabel: "Cancel" })) return;
+    if (!agent) return false;
+    if (!options.confirmed && !await ask(`Delete ${agentLook(agent).name}? Its conversation is permanently removed. Its documents and courses go with it; its soul and memory files stay on disk.`,
+      { title: "Delete agent", kind: "warning", okLabel: "Delete", cancelLabel: "Cancel" })) return false;
     try {
       if (viewIdRef.current === agentId) {
         close();
@@ -336,13 +342,16 @@ export function useAgents(options: Options) {
       // Its library goes with it, canvases included.
       void loadCanvases(true).then((all) => Promise.all(all.filter((canvas) => canvas.cwd === agentCanvasScope(agentId)).map((canvas) => deleteCanvas(canvas.id)))).catch(() => undefined);
       saveAgentPreview(agentId, undefined);
+      return true;
     } catch (error) {
+      if (options.rethrow) throw error;
       latest.current.onError(error);
+      return false;
     }
   }, [close, discardSession]);
 
   return {
     agents, states, viewAgent, viewSession, earlierBlocksFor, hasEarlier, loadEarlier, ensureBlockLoaded, isDetailsOpen, setDetailsOpenFor,
-    open, create, select, close, reset, remove,
+    open, chat, create, select, close, reset, remove,
   };
 }
