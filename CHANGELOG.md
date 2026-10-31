@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-31
+
 ### Changed
 
 - A new app icon: a corridor of archways ending in a lit door, after the memory palace Loci is named for. Loci Dev has the same door on orange, marked DEV, so the two are easy to tell apart in the Dock.
@@ -58,5 +60,6 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Umupa/Loci/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Umupa/Loci/releases/tag/v0.1.0

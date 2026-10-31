@@ -1,7 +1,7 @@
 {
   "name": "loci-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Loci — one desktop app for every agent CLI",
   "license": "MIT",
   "repository": {
