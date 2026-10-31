@@ -437,5 +437,20 @@
   "Stop all running agents and permanently delete all projects, conversations, agents, notes, canvases, documents and workspace history from Loci? All settings and global backgrounds are kept. Files in your project folders are kept. All windows will reload. This cannot be undone.": "停止所有正在运行的 agent，并永久删除 Loci 中的所有项目、会话、agent、笔记、画布、文档和工作区历史？所有设置和全局背景都会保留，项目文件夹中的文件也会保留。所有窗口将重新加载。此操作不可恢复。",
   "Mentors": "导师",
   "Your mentors": "你的导师",
-  "No mentors yet.": "还没有导师。"
+  "No mentors yet.": "还没有导师。",
+  "New mentors": "新导师",
+  "The permissions a mentor starts with. Each mentor can be changed in its own settings.": "导师初始拥有的权限。每位导师都可以在自己的设置中修改。",
+  "Default permissions for new mentors": "新导师的默认权限",
+  "What a new mentor may do without asking.": "新导师无需询问即可执行的操作。",
+  "Supervised": "监督模式",
+  "Auto-accept edits": "自动接受编辑",
+  "Auto": "自动",
+  "Full access": "完全访问",
+  "Ask before commands and file changes.": "执行命令和修改文件前先询问。",
+  "Auto-approve edits, ask before other actions.": "自动批准文件修改，其他操作前询问。",
+  "An AI reviewer can approve or deny actions.": "由 AI 审核者批准或拒绝操作。",
+  "Allow commands, edits, and supported MCP confirmations in non-plan turns without prompts.": "在非计划轮次中无需询问即可执行命令、修改文件，并确认受支持的 MCP 请求。",
+  "Access": "访问权限",
+  "Changes apply to the next turn.": "更改从下一轮开始生效。",
+  "Access changes apply to the next turn. Stop and resend to apply them now.": "权限更改从下一轮开始生效。停止并重新发送可立即生效。"
 }
