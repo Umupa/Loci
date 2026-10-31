@@ -1,5 +1,6 @@
 import { describe,expect,it } from "vitest";
 import {
+  appendComposerPrompt,
 acknowledgeQuoteRequest,
 appendSelectionQuote,
 composerSeedForAddToChat,
@@ -94,5 +95,13 @@ describe("acknowledgeQuoteRequest", () => {
     const current: QuoteRequest = { id: 2, text: "newer" };
     expect(acknowledgeQuoteRequest(current, 2)).toBeUndefined();
     expect(acknowledgeQuoteRequest(current, 1)).toBe(current);
+  });
+});
+
+describe("appendComposerPrompt", () => {
+  it("starts a sentence on its own paragraph and keeps its trailing space", () => {
+    expect(appendComposerPrompt("", "I'd like a new course on ")).toBe("I'd like a new course on ");
+    expect(appendComposerPrompt("Earlier", "I'd like ")).toBe("Earlier\n\nI'd like ");
+    expect(consumeQuoteRequest("", null, { id: 1, text: "Teach me ", mode: "prompt" }).draft).toBe("Teach me ");
   });
 });

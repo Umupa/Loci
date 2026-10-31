@@ -73,3 +73,41 @@
   .mentor-chat-column:not([hidden]) { position: absolute; z-index: 30; top: 0; bottom: 0; right: 0; max-width: calc(100% - 12px); box-shadow: -12px 0 40px #0003; }
   .mentor-resize { display: none; }
 }
+
+/* The library's Courses segment: switcher, progress, where to continue, outline. */
+.mentor-library {
+  --course-ok: #3da975; --course-warn: #cc9333;
+  --course-chapter-0: #3b82f6; --course-chapter-1: #10b981; --course-chapter-2: #a855f7;
+  --course-chapter-3: #f59e0b; --course-chapter-4: #ef4444; --course-chapter-5: #06b6d4;
+}
+.library-course { display: flex; flex-direction: column; }
+.library-course-head { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 4px 2px 0; }
+.library-switcher { display: flex; min-width: 0; flex: 1; align-items: center; gap: 4px; height: 26px; padding: 0 6px; border-radius: 6px; text-align: left; font-size: 12.5px; font-weight: 600; color: var(--color-content); }
+.library-switcher:hover, .library-switcher[aria-expanded="true"] { background: color-mix(in srgb, var(--color-content) 6%, transparent); }
+.library-switcher-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-progress-text { flex: none; padding-right: 6px; font-size: 11px; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.library-progress { height: 3px; margin: 4px 8px 6px; border-radius: 2px; background: color-mix(in srgb, var(--color-content) 10%, transparent); overflow: hidden; }
+.library-progress > i { display: block; height: 100%; border-radius: 2px; background: var(--course-ok); }
+.library-continue { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; margin: 2px 2px 8px; padding: 8px 8px 8px 10px; border: 1px solid var(--color-stroke); border-radius: 8px; }
+.library-continue-label { grid-column: 1; font-size: 10.5px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.library-continue-title { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--color-content); }
+.library-continue-button { grid-column: 2; grid-row: 1 / span 2; height: 24px; padding: 0 9px; border-radius: 6px; background: var(--color-accent); color: white; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.library-continue-button:hover { filter: brightness(1.08); }
+.library-courses-empty { display: flex; flex-direction: column; align-items: flex-start; }
+.library-ask { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin: 0 4px; padding: 0 8px; border-radius: 6px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
+.library-ask:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); color: var(--color-content); }
+.library-outline ol { margin: 0; padding: 0; list-style: none; }
+.library-chapter + .library-chapter { margin-top: 4px; }
+.library-chapter-title { display: flex; width: 100%; min-width: 0; align-items: center; gap: 6px; height: 26px; padding: 0 6px; border-radius: 6px; text-align: left; font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
+.library-chapter-title:hover { color: var(--color-content); background: color-mix(in srgb, var(--color-content) 4%, transparent); }
+.library-chapter-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; }
+.library-lesson { display: flex; width: 100%; align-items: flex-start; gap: 7px; padding: 4px 8px 4px 10px; border-radius: 6px; text-align: left; font-size: 12px; line-height: 1.45; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
+.library-lesson:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); }
+.library-lesson--mastered { opacity: .5; }
+.library-lesson--current { opacity: 1; background: color-mix(in srgb, var(--color-accent) 18%, transparent); color: var(--color-content); font-weight: 600; }
+.library-lesson--current:hover { background: color-mix(in srgb, var(--color-accent) 24%, transparent); }
+.library-lesson-number { flex: none; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
+.library-lesson-title { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.library-mark { display: inline-grid; width: 12px; height: 12px; flex: none; margin-top: 3px; place-items: center; border: 1px solid color-mix(in srgb, var(--color-content) 30%, transparent); border-radius: 50%; font-size: 8px; line-height: 1; }
+.library-mark--learning { border-color: var(--course-warn); background: linear-gradient(90deg, var(--course-warn) 50%, transparent 50%); }
+.library-mark--mastered { border-color: var(--course-ok); background: var(--course-ok); color: white; }

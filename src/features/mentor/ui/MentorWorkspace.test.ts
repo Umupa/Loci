@@ -122,20 +122,74 @@ it("opens whatever is chosen in place of what was read, and closes back to an em
   expect(reader().dataset.mentorReader).toBe("empty");
 });
 
-it("shows the open course's outline and opens a lesson from it", async () => {
+it("shows the course once, with where to continue, and opens lessons from its outline", async () => {
   await render();
-  await click('[data-resource-kind="course"]');
-  await vi.waitFor(() => expect(container.querySelector('[data-library-section="courses"] nav[aria-label="Course navigation"]')).not.toBeNull());
-  const lessons = () => [...container.querySelectorAll<HTMLButtonElement>('[data-library-section="courses"] nav button')];
+  const panel = () => container.querySelector<HTMLElement>('[data-library-section="courses"]')!;
+  await vi.waitFor(() => expect(panel().querySelector('nav[aria-label="Course navigation"]')).not.toBeNull());
+  expect(panel().querySelector(".library-switcher")?.textContent).toBe("Ada's course");
+  expect(panel().textContent).toContain("1 / 2 read");
+  expect(panel().textContent?.match(/Ada's course/g)).toHaveLength(1);
+  const lessons = () => [...panel().querySelectorAll<HTMLButtonElement>("[data-library-lesson]")];
   expect(lessons().map((lesson) => lesson.getAttribute("aria-label"))).toEqual(["Pod, Read", "Service, Not started"]);
-  const before = Number(container.querySelector<HTMLElement>("[data-test-course]")!.dataset.request);
-  await act(async () => lessons()[1].click());
-  const course = container.querySelector<HTMLElement>("[data-test-course]")!;
-  expect(course.dataset.item).toBe("service");
-  expect(Number(course.dataset.request)).toBe(before + 1);
+  expect(lessons()[0].className).toContain("library-lesson--mastered");
+  expect(panel().querySelector("[data-library-continue]")?.getAttribute("data-library-continue")).toBe("service");
+
+  await click(".library-continue-button");
+  const course = () => container.querySelector<HTMLElement>("[data-test-course]")!;
+  expect(course().dataset.item).toBe("service");
+  expect(lessons()[1].getAttribute("aria-current")).toBe("step");
+  // The card is not needed while its lesson is on screen.
+  expect(panel().querySelector("[data-library-continue]")).toBeNull();
+  const before = Number(course().dataset.request);
+  await act(async () => lessons()[0].click());
+  expect(course().dataset.item).toBe("pod");
+  expect(Number(course().dataset.request)).toBe(before + 1);
   await click("[data-test-course] button");
   expect(crumbs()).toEqual(["Ada", "Ada's course", "Service"]);
   expect(lessons()[1].getAttribute("aria-current")).toBe("step");
+});
+
+it("switches course from the menu, landing in it, and asks the mentor for a new one without sending", async () => {
+  const kubeData = courseData;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    const input = args as { agent?: string; agentId?: string; id?: string; courseId?: string };
+    if (command === "course_list_all") return [
+      { id: "kube", agentId: agent.id, title: "Kubernetes", engine: "reading", itemCount: 2, masteredCount: 1, updatedAt: 2 },
+      { id: "sds", agentId: agent.id, title: "SDS", engine: "reading", itemCount: 2, masteredCount: 0, updatedAt: 1 },
+    ];
+    if (command === "course_get") return { id: input.id, agentId: input.agentId, title: input.id === "sds" ? "SDS" : "Kubernetes", updatedAt: 2, engine: "reading", dataJson: kubeData };
+    if (command === "course_progress_get") return input.courseId === "sds" ? [{ itemId: "pod", status: "learning" }] : [{ itemId: "pod", status: "mastered" }];
+    if (command === "agent_documents_list" || command === "notes_list") return [];
+    if (command === "canvas_list") return [];
+    throw new Error(`Unexpected command: ${command}`);
+  });
+  await render();
+  await vi.waitFor(() => expect(container.querySelector(".library-switcher")?.textContent).toBe("Kubernetes"));
+  await click(".library-switcher");
+  const items = () => [...document.querySelectorAll<HTMLElement>('[role="menu"] [role^="menuitem"]')];
+  expect(items().map((item) => item.textContent)).toEqual([expect.stringContaining("Kubernetes"), expect.stringContaining("SDS"), "Ask Ada for a new course"]);
+  expect(items()[0].getAttribute("aria-checked")).toBe("true");
+  await act(async () => items()[1].click());
+  // Picking a course opens it at the lesson to continue with: the one begun.
+  await vi.waitFor(() => expect(container.querySelector<HTMLElement>("[data-test-course]")?.dataset.item).toBe("pod"));
+  expect(control.stateFor(agent.id).course).toBe("sds");
+  await vi.waitFor(() => expect(container.querySelector(".library-switcher")?.textContent).toBe("SDS"));
+  await vi.waitFor(() => expect(container.querySelector('[data-library-lesson="pod"] .library-mark--learning')).not.toBeNull());
+  await click(".library-switcher");
+  await act(async () => items().at(-1)!.click());
+  expect(drafts).toEqual(["I'd like a new course on "]);
+});
+
+it("offers to ask for a course when the mentor has none", async () => {
+  vi.mocked(invoke).mockImplementation(async (command) => {
+    if (command === "course_list_all" || command === "agent_documents_list" || command === "notes_list" || command === "canvas_list") return [];
+    throw new Error(`Unexpected command: ${command}`);
+  });
+  localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [agent.id]: { segment: "courses" } }));
+  await render();
+  await vi.waitFor(() => expect(container.textContent).toContain("No course yet."));
+  await click(".library-ask");
+  expect(drafts).toEqual(["I'd like a new course on "]);
 });
 
 it("creates an owned note and opens it in the reader", async () => {
@@ -150,7 +204,8 @@ it("creates an owned note and opens it in the reader", async () => {
 
 it("comes back to the lesson a mentor was showing, remembering identifiers only", async () => {
   await render();
-  await click('[data-resource-kind="course"]');
+  await vi.waitFor(() => expect(container.querySelector(".library-continue-button")).not.toBeNull());
+  await click('[data-library-lesson="pod"]');
   await click("[data-test-course] button");
   await act(async () => control.resizeChat(agent.id, 520));
   const stored = JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!);

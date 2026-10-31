@@ -1,6 +1,7 @@
 export const ADD_TO_CHAT_EVENT = "loci:add-to-chat";
 
-export type AddToChatMode = "quote" | "plain";
+/** A quoted selection, a plain block, or the start of a sentence for the user to finish. */
+export type AddToChatMode = "quote" | "plain" | "prompt";
 
 export type AddToChatRequest = LearningMessageContext & {
   text: string;
@@ -16,7 +17,9 @@ export type QuoteRequest = LearningMessageContext & {
 
 export function requestAddToChat(text: string, mode: AddToChatMode = "quote", context?: LearningMessageContext & { targetSessionId?: string }) {
   if (typeof window === "undefined") return;
-  const value = text.replace(/\r\n?/g, "\n").trim();
+  const normalized = text.replace(/\r\n?/g, "\n");
+  // A prompt keeps its trailing space, so typing carries on after it.
+  const value = mode === "prompt" ? normalized.trimStart() : normalized.trim();
   if (!value && !context?.sources?.length) return;
   window.dispatchEvent(
     new CustomEvent<AddToChatRequest>(ADD_TO_CHAT_EVENT, {
@@ -32,7 +35,9 @@ export function composerSeedForAddToChat(
 ): string {
   return mode === "plain"
     ? appendComposerInsert("", text)
-    : appendSelectionQuote("", text);
+    : mode === "prompt"
+      ? appendComposerPrompt("", text)
+      : appendSelectionQuote("", text);
 }
 
 export type QuoteConsumption = {
@@ -67,6 +72,14 @@ export function appendComposerInsert(draft: string, text: string): string {
   return joinComposerInsert(draft, selected);
 }
 
+/** The start of a sentence, on its own paragraph, with the cursor meant to follow it. */
+export function appendComposerPrompt(draft: string, text: string): string {
+  const prompt = text.replace(/\r\n?/g, "\n").trimStart();
+  if (!prompt.trim()) return draft;
+  const separator = draft.length === 0 || draft.endsWith("\n\n") ? "" : draft.endsWith("\n") ? "\n" : "\n\n";
+  return `${draft}${separator}${prompt}`;
+}
+
 export function consumeQuoteRequest(
   draft: string,
   consumedId: number | null,
@@ -79,7 +92,9 @@ export function consumeQuoteRequest(
   const next =
     request.mode === "plain"
       ? appendComposerInsert(draft, request.text)
-      : appendSelectionQuote(draft, request.text);
+      : request.mode === "prompt"
+        ? appendComposerPrompt(draft, request.text)
+        : appendSelectionQuote(draft, request.text);
   return {
     draft: next,
     consumedId: request.id,

@@ -566,7 +566,7 @@ function Workspace(boot: BootWorkspace) {
                 if (!focusedAgent.sessionId) return;
                 // The draft waits in the composer; the conversation comes into view to show it.
                 if (!mentorView.stateFor(focusedAgent.id).chat) mentorView.toggleChat(focusedAgent.id);
-                requestAddToChat(text, "plain", { targetSessionId: focusedAgent.sessionId });
+                requestAddToChat(text, "prompt", { targetSessionId: focusedAgent.sessionId });
               }}
               onToggleChat={() => mentorView.toggleChat(focusedAgent.id)}
               onResizeLibrary={(width) => mentorView.resizeLibrary(focusedAgent.id, width)} onResizeChat={(width) => mentorView.resizeChat(focusedAgent.id, width)}
