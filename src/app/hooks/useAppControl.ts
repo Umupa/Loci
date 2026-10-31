@@ -45,6 +45,8 @@ export function useAppControl(options: Options) {
         (error: unknown) => invoke("control_reply", { id: payload.id, response: { ok: false, error: error instanceof Error ? error.message : String(error) } }),
       ).catch(console.error);
     });
+    // Commands from a terminal outside Loci are sent only to windows that listen.
+    void listening.then(() => invoke("control_window_ready")).catch(console.error);
     return () => { void listening.then((stop) => stop()); };
   }, []);
 }

@@ -1,8 +1,9 @@
 //! Authenticated loopback transport. App windows own execution; callers never
 //! receive arbitrary Tauri command access or direct database write access.
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
@@ -10,6 +11,8 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
+
+use crate::cli_access;
 
 const APP_TURN_INACTIVE: &str = "Loci app access is inactive. Call the CLI during an active agent turn. Retrying this request now will not enable access.";
 const CANVAS_TURN_INACTIVE: &str = "Loci canvas access is only available while this session's agent turn is running. Retrying this request now will not enable access.";
@@ -21,6 +24,14 @@ const APP_REQUEST_MAX: usize = 262_144;
 /// A canvas save carries drawing elements. The official Excalidraw MCP server
 /// accepts 5 MB of them, so leave room for the JSON envelope around that.
 const CANVAS_REQUEST_MAX: usize = 6 * 1024 * 1024;
+/// The namespace of the `loci` CLI run from a terminal outside Loci.
+const EXTERNAL_NAMESPACE: &str = "cli";
+/// A command from a terminal may wait on a confirmation dialog.
+const EXTERNAL_TIMEOUT: Duration = Duration::from_secs(120);
+/// How long a terminal command waits for a window that is opening.
+const WINDOW_READY_WAIT: Duration = Duration::from_secs(30);
+const EXTERNAL_DISABLED: &str = "Command-line access to this Loci is turned off. Turn it on in Settings → General → Command line.";
+const EXTERNAL_UNAUTHORIZED: &str = "The Loci token is missing or out of date. It is rotated from Settings → General → Command line.";
 #[derive(Clone)]
 struct Grant {
     window: String,
@@ -40,11 +51,22 @@ struct ActiveTurn {
     canvas_allowed: bool,
 }
 
+/// Access for the `loci` CLI outside Loci: one local token, kept in a file only
+/// this user can read, and a switch the user can turn off.
+#[derive(Default)]
+struct External {
+    enabled: bool,
+    token: Option<String>,
+}
+
 #[derive(Default)]
 struct Inner {
     app_grants: HashMap<String, Grant>,
     pending: HashMap<String, Pending>,
     active: HashMap<String, ActiveTurn>,
+    external: External,
+    /// Windows whose command listener is running.
+    ready: HashSet<String>,
 }
 
 impl Inner {
@@ -88,6 +110,7 @@ impl Inner {
         ids
     }
     fn close_window(&mut self, label: &str) -> Vec<String> {
+        self.ready.remove(label);
         let ids = self.window_sessions(label);
         self.app_grants.retain(|id, _| !ids.contains(id));
         self.active.retain(|id, _| !ids.contains(id));
@@ -107,6 +130,10 @@ impl Inner {
 pub struct ControlHost {
     endpoint: String,
     inner: Arc<Mutex<Inner>>,
+    identifier: String,
+    version: String,
+    /// `<app data>/control`; absent when the data folder is unknown.
+    control_dir: Option<PathBuf>,
 }
 
 #[derive(Deserialize)]
@@ -157,6 +184,27 @@ fn request_grant(host: &Inner, namespace: &str, token: &str) -> Result<Grant, St
     }
 }
 
+/// A terminal's request: allowed while the switch is on and the token matches.
+/// Agents' turn tokens never pass here, and this token passes nowhere else.
+fn external_access(host: &Inner, token: &str) -> Result<(), (&'static str, &'static str)> {
+    if !host.external.enabled {
+        return Err((EXTERNAL_DISABLED, "disabled"));
+    }
+    match &host.external.token {
+        Some(expected) if cli_access::same_secret(expected, token) => Ok(()),
+        _ => Err((EXTERNAL_UNAUTHORIZED, "unauthorized")),
+    }
+}
+
+/// The window that runs a terminal's command: the main window, else another
+/// that is listening.
+fn pick_window(ready: &HashSet<String>) -> Option<String> {
+    if ready.contains("main") {
+        return Some("main".into());
+    }
+    ready.iter().min().cloned()
+}
+
 fn request_size_error(namespace: &str, bytes: usize) -> Option<&'static str> {
     if bytes > CANVAS_REQUEST_MAX {
         Some("Request exceeds 6 MiB")
@@ -173,10 +221,27 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
         .local_addr()
         .map_err(|e| e.to_string())?
         .to_string();
-    let inner = Arc::new(Mutex::new(Inner::default()));
+    let identifier = app.config().identifier.clone();
+    let version = app.package_info().version.to_string();
+    let control_dir = app
+        .path()
+        .app_data_dir()
+        .ok()
+        .map(|dir| cli_access::control_dir(&dir));
+    let mut inner = Inner::default();
+    if let Some(dir) = &control_dir {
+        match publish_endpoint(dir, &endpoint, &identifier, &version) {
+            Ok(external) => inner.external = external,
+            Err(error) => eprintln!("Loci command-line access is unavailable: {error}"),
+        }
+    }
+    let inner = Arc::new(Mutex::new(inner));
     app.manage(ControlHost {
         endpoint,
         inner: inner.clone(),
+        identifier,
+        version,
+        control_dir,
     });
     let app = app.clone();
     std::thread::spawn(move || {
@@ -203,6 +268,164 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Tells the `loci` CLI where this run listens, and readies its token.
+fn publish_endpoint(
+    dir: &std::path::Path,
+    endpoint: &str,
+    identifier: &str,
+    version: &str,
+) -> Result<External, String> {
+    cli_access::ensure_private_dir(dir)?;
+    cli_access::write_endpoint(
+        dir,
+        &cli_access::Endpoint {
+            endpoint: endpoint.into(),
+            pid: std::process::id(),
+            version: version.into(),
+            identifier: identifier.into(),
+        },
+    )?;
+    if !cli_access::access_enabled(dir) {
+        cli_access::remove_token(dir);
+        return Ok(External::default());
+    }
+    Ok(External {
+        enabled: true,
+        token: Some(cli_access::ensure_token(dir)?),
+    })
+}
+
+/// The app is quitting: a terminal should hear "not running", not time out.
+pub fn shutdown(app: &AppHandle) {
+    if let Some(dir) = app
+        .try_state::<ControlHost>()
+        .and_then(|host| host.control_dir.clone())
+    {
+        cli_access::remove_endpoint(&dir, std::process::id());
+    }
+}
+
+fn external_failure(error: &str, code: &str) -> Value {
+    json!({"ok": false, "error": error, "code": code})
+}
+
+/// A window to run the command in. Without one listening, the main window
+/// is shown or opened and the command waits for it.
+fn external_window(app: &AppHandle, inner: &Arc<Mutex<Inner>>) -> Result<String, String> {
+    let ready =
+        |inner: &Arc<Mutex<Inner>>| inner.lock().ok().and_then(|host| pick_window(&host.ready));
+    if let Some(label) = ready(inner) {
+        if let Some(window) = app.get_webview_window(&label) {
+            if !window.is_visible().unwrap_or(true) {
+                let _ = window.show();
+            }
+        }
+        return Ok(label);
+    }
+    crate::window::show_hidden_or_open_new(app)?;
+    let started = std::time::Instant::now();
+    while started.elapsed() < WINDOW_READY_WAIT {
+        if let Some(label) = ready(inner) {
+            return Ok(label);
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    Err("No Loci window is ready to run the command".into())
+}
+
+fn serve_external(app: &AppHandle, inner: &Arc<Mutex<Inner>>, request: Request) -> Value {
+    let host = app.state::<ControlHost>();
+    {
+        let Ok(guard) = inner.lock() else {
+            return external_failure("Control service unavailable", "failed");
+        };
+        if let Err((error, code)) = external_access(&guard, &request.token) {
+            return external_failure(error, code);
+        }
+    }
+    match request.action.as_str() {
+        "status" => {
+            return json!({"ok": true, "result": {
+                "running": true,
+                "identifier": host.identifier,
+                "version": host.version,
+                "pid": std::process::id(),
+                "externalAccess": true,
+            }})
+        }
+        "cli.rotate-token" | "cli.disable" => {
+            let Some(dir) = host.control_dir.clone() else {
+                return external_failure("Loci has no data folder", "failed");
+            };
+            let Ok(mut guard) = inner.lock() else {
+                return external_failure("Control service unavailable", "failed");
+            };
+            if request.action == "cli.disable" {
+                if let Err(error) = cli_access::set_access_enabled(&dir, false) {
+                    return external_failure(&error, "failed");
+                }
+                cli_access::remove_token(&dir);
+                guard.external = External::default();
+                return json!({"ok": true, "result": {"enabled": false}});
+            }
+            return match cli_access::rotate_token(&dir) {
+                Ok(token) => {
+                    guard.external.token = Some(token);
+                    json!({"ok": true, "result": {"rotated": true}})
+                }
+                Err(error) => external_failure(&error, "failed"),
+            };
+        }
+        _ => {}
+    }
+    let window = match external_window(app, inner) {
+        Ok(window) => window,
+        Err(error) => return external_failure(&error, "not_running"),
+    };
+    let id = uuid::Uuid::new_v4().to_string();
+    let (tx, rx) = mpsc::channel();
+    {
+        let Ok(mut guard) = inner.lock() else {
+            return external_failure("Control service unavailable", "failed");
+        };
+        if guard.pending.len() >= 24 {
+            return external_failure("Too many pending control requests", "busy");
+        }
+        guard.pending.insert(
+            id.clone(),
+            Pending {
+                window: window.clone(),
+                reply: tx,
+            },
+        );
+    }
+    let event = Event {
+        id: id.clone(),
+        namespace: request.namespace,
+        session_id: String::new(),
+        request_id: request.request_id,
+        action: request.action,
+        input: request.input,
+    };
+    let response = if app
+        .emit_to(window.as_str(), "loci-control-request", event)
+        .is_err()
+    {
+        external_failure("Loci executor is unavailable", "not_running")
+    } else {
+        rx.recv_timeout(EXTERNAL_TIMEOUT).unwrap_or_else(|_| {
+            external_failure(
+                "Loci did not answer in time. Retry with the same request ID.",
+                "timeout",
+            )
+        })
+    };
+    if let Ok(mut guard) = inner.lock() {
+        guard.pending.remove(&id);
+    }
+    response
+}
+
 fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(3)));
@@ -224,6 +447,10 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
             || request.request_id.len() > 128
         {
             return Err("Invalid input or request ID".into());
+        }
+        if request.namespace == EXTERNAL_NAMESPACE {
+            // Read without a timeout: a command may wait for a dialog.
+            return Ok(serve_external(app, inner, request));
         }
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = mpsc::channel();
@@ -305,6 +532,87 @@ pub fn control_authorize_turn(
             canvas_allowed: canvas_access,
         },
     );
+    Ok(())
+}
+
+/// A window's command listener is running; terminal commands may go to it.
+#[tauri::command]
+pub fn control_window_ready(window: WebviewWindow, host: State<'_, ControlHost>) {
+    if let Ok(mut inner) = host.inner.lock() {
+        inner.ready.insert(window.label().into());
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliAccess {
+    enabled: bool,
+    identifier: String,
+    executable: Option<String>,
+    token_path: Option<String>,
+}
+
+fn cli_access_view(host: &ControlHost) -> CliAccess {
+    let enabled = host
+        .inner
+        .lock()
+        .map(|inner| inner.external.enabled)
+        .unwrap_or(false);
+    CliAccess {
+        enabled,
+        identifier: host.identifier.clone(),
+        executable: std::env::current_exe()
+            .ok()
+            .map(|path| path.to_string_lossy().into_owned()),
+        token_path: host.control_dir.as_ref().map(|dir| {
+            dir.join(cli_access::TOKEN_FILE)
+                .to_string_lossy()
+                .into_owned()
+        }),
+    }
+}
+
+#[tauri::command]
+pub fn cli_access_status(host: State<'_, ControlHost>) -> CliAccess {
+    cli_access_view(&host)
+}
+
+/// Turns command-line access on or off. Off removes the token, so a token
+/// copied earlier stops working too.
+#[tauri::command]
+pub fn cli_access_set(host: State<'_, ControlHost>, enabled: bool) -> Result<CliAccess, String> {
+    let dir = host.control_dir.clone().ok_or("Loci has no data folder")?;
+    {
+        let mut inner = host
+            .inner
+            .lock()
+            .map_err(|_| "Control service unavailable")?;
+        cli_access::set_access_enabled(&dir, enabled)?;
+        if enabled {
+            inner.external = External {
+                enabled: true,
+                token: Some(cli_access::ensure_token(&dir)?),
+            };
+        } else {
+            cli_access::remove_token(&dir);
+            inner.external = External::default();
+        }
+    }
+    Ok(cli_access_view(&host))
+}
+
+/// A new token; the old one stops working at once.
+#[tauri::command]
+pub fn cli_access_rotate(host: State<'_, ControlHost>) -> Result<(), String> {
+    let dir = host.control_dir.clone().ok_or("Loci has no data folder")?;
+    let mut inner = host
+        .inner
+        .lock()
+        .map_err(|_| "Control service unavailable")?;
+    if !inner.external.enabled {
+        return Err("Turn command-line access on first".into());
+    }
+    inner.external.token = Some(cli_access::rotate_token(&dir)?);
     Ok(())
 }
 
@@ -469,6 +777,59 @@ mod tests {
         inner.prepare_app_grant("session", "main");
         assert!(inner.app_grants.contains_key(owning_session("session#3")));
         assert!(!inner.app_grants.contains_key(owning_session("other#3")));
+    }
+    #[test]
+    fn terminal_and_turn_tokens_never_open_each_others_doors() {
+        let mut inner = Inner::default();
+        inner.prepare_app_grant("session", "main");
+        inner.active.insert(
+            "session".into(),
+            ActiveTurn {
+                window: "main".into(),
+                app_allowed: true,
+                canvas_allowed: true,
+            },
+        );
+        let turn_token = inner.app_grants["session"].token.clone();
+        let external = cli_access::new_token();
+        inner.external = External {
+            enabled: true,
+            token: Some(external.clone()),
+        };
+        assert!(external_access(&inner, &external).is_ok());
+        assert_eq!(
+            external_access(&inner, &turn_token).unwrap_err().1,
+            "unauthorized"
+        );
+        assert!(request_grant(&inner, "app", &external).is_err());
+        assert!(request_grant(&inner, "canvas", &external).is_err());
+        assert!(request_grant(&inner, "cli", &turn_token).is_err());
+        inner.external.enabled = false;
+        assert_eq!(
+            external_access(&inner, &external).unwrap_err().1,
+            "disabled"
+        );
+        inner.external = External {
+            enabled: true,
+            token: None,
+        };
+        assert_eq!(external_access(&inner, "").unwrap_err().1, "unauthorized");
+    }
+    #[test]
+    fn terminal_commands_go_to_the_main_window_first() {
+        let mut ready = HashSet::new();
+        assert_eq!(pick_window(&ready), None);
+        ready.insert("window-2".to_string());
+        ready.insert("window-1".to_string());
+        assert_eq!(pick_window(&ready).as_deref(), Some("window-1"));
+        ready.insert("main".to_string());
+        assert_eq!(pick_window(&ready).as_deref(), Some("main"));
+        let mut inner = Inner {
+            ready,
+            ..Default::default()
+        };
+        inner.close_window("main");
+        assert_eq!(pick_window(&inner.ready).as_deref(), Some("window-1"));
     }
     #[test]
     fn only_canvas_requests_may_exceed_the_cli_limit() {

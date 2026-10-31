@@ -2199,6 +2199,7 @@ dependencies = [
  "arboard",
  "base64 0.22.1",
  "block2",
+ "dirs",
  "libc",
  "notify-rust",
  "objc2",

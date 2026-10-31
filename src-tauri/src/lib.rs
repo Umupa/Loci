@@ -7,6 +7,7 @@ mod agent_transcript;
 mod canvas;
 mod canvas_mcp;
 mod chat_background;
+pub mod cli_access;
 mod control;
 pub mod control_cli;
 mod course;
@@ -265,6 +266,10 @@ pub fn run() {
             control::control_turn_finished,
             control::app_cli_path,
             control::control_reply,
+            control::control_window_ready,
+            control::cli_access_status,
+            control::cli_access_set,
+            control::cli_access_rotate,
             fs::resolve_project_location,
             fs::claude_shell_commands,
             fs::create_path,
@@ -440,6 +445,7 @@ pub fn run() {
             window::request_quit(handle);
         }
         tauri::RunEvent::Exit => {
+            control::shutdown(handle);
             reap_harness_children(handle);
         }
         _ => {}
