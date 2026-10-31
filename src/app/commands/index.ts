@@ -1,6 +1,7 @@
 import type { CommandContext } from "./context";
 import { libraryCommands } from "./library";
 import { mentorCommands } from "./mentors";
+import { readerCommands } from "./reader";
 import { defineCommands } from "./registry";
 import { templateCommands } from "./templates";
 
@@ -8,5 +9,6 @@ import { templateCommands } from "./templates";
 export const COMMANDS = defineCommands<CommandContext>([
   ...templateCommands,
   ...mentorCommands,
+  ...readerCommands,
   ...libraryCommands,
 ]);

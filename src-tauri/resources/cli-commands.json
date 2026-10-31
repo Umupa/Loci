@@ -1182,6 +1182,130 @@
       ]
     },
     {
+      "name": "reader.close",
+      "summary": "Empty a mentor's reader.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor whose reader to use, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "reader.open",
+      "summary": "Open a lesson, source, note, canvas or file in a mentor's reader, in place of what it showed.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor whose reader to use, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "course",
+          "type": "string",
+          "help": "A course id",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "lesson",
+          "type": "string",
+          "help": "A lesson id in that course",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "help": "A source or document id from the library",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "help": "A note id",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "canvas",
+          "type": "string",
+          "help": "A canvas id",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "help": "An absolute file path",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "section",
+          "type": "string",
+          "help": "A heading to scroll to, in a source",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "lines",
+          "type": "string",
+          "help": "Lines to show in a text file: 12 or 12-40",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "page",
+          "type": "integer",
+          "help": "A page to show in a PDF",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "switch",
+          "type": "boolean",
+          "help": "Also bring the mentor on screen",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "reader.show",
+      "summary": "What a mentor's reader shows now: the kind, the id or path, the lesson, and the place it was asked to show.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor whose reader to use, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "sessions.archive",
       "summary": "Stop a session and put it away.",
       "callers": [

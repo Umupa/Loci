@@ -209,13 +209,55 @@ fn quoted(value: &str) -> String {
     }
 }
 
+/// The command layer's commands a mentor's own turn may call (`reader.*`).
+fn mentor_commands() -> Vec<crate::external_cli::CommandSpec> {
+    crate::external_cli::manifest()
+        .commands
+        .into_iter()
+        .filter(|command| command.callers.iter().any(|caller| caller == "agent"))
+        .collect()
+}
+
+/// Their part of the help, written from the same definitions as the terminal's.
+fn mentor_commands_help() -> String {
+    let mut out = String::from(
+        "\nAlso in an agent's own conversation (the mentor's reader beside the chat):\n",
+    );
+    for command in mentor_commands() {
+        let fields: Vec<String> = command
+            .fields
+            .iter()
+            .filter(|field| field.name != "mentor" && field.name != "switch")
+            .map(|field| format!("\"{}\"", field.name))
+            .collect();
+        out.push_str(&format!(
+            "  {:<14} {{{}}}\n                  {}\n",
+            command.name,
+            fields.join(","),
+            command.summary
+        ));
+        for field in command
+            .fields
+            .iter()
+            .filter(|field| field.name != "mentor" && field.name != "switch")
+        {
+            out.push_str(&format!(
+                "                  {}: {}\n",
+                field.name, field.help
+            ));
+        }
+    }
+    out
+}
+
 pub fn app_help() -> String {
     let exe = std::env::current_exe()
         .map(|path| quoted(&path.to_string_lossy()))
         .unwrap_or_else(|_| "loci".into());
     format!(
-        "{}\n{}",
+        "{}{}\n{}",
         APP_USAGE.replace("{exe}", &exe),
+        mentor_commands_help(),
         include_str!("../resources/app-formats.md")
     )
 }
@@ -387,10 +429,15 @@ fn parse_args(args: &[String]) -> Result<Parsed, String> {
         return Ok(Parsed::Help);
     }
     let action = action.clone();
-    if !APP_ACTIONS.contains(&action.as_str()) {
+    let mentor_actions = mentor_commands();
+    if !APP_ACTIONS.contains(&action.as_str())
+        && !mentor_actions.iter().any(|command| command.name == action)
+    {
+        let mut all: Vec<&str> = APP_ACTIONS.to_vec();
+        all.extend(mentor_actions.iter().map(|command| command.name.as_str()));
         return Err(format!(
             "Unknown action: {action}. Use one of: {}. Run app --help.",
-            APP_ACTIONS.join(", ")
+            all.join(", ")
         ));
     }
     let mut input = None;
@@ -907,6 +954,10 @@ mod tests {
         let text = app_help();
         for action in APP_ACTIONS {
             assert!(text.contains(action), "help omits {action}");
+        }
+        for action in ["reader.open", "reader.show", "reader.close"] {
+            assert!(text.contains(action), "help omits {action}");
+            assert!(parse_args(&args(&[action])).is_ok());
         }
         assert!(!text.contains("{exe}"));
         assert!(text.contains("--request-id"));

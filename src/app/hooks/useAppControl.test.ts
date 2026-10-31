@@ -152,4 +152,15 @@ describe("terminal commands", () => {
     await settle();
     expect(reply(id)?.response).toEqual({ ok: false, error: "Unknown app action: templates.list" });
   });
+
+  it("let a mentor's own turn use the reader commands, and no other session", async () => {
+    const notMentor = emit("reader.show", {}, "t5");
+    await settle();
+    expect(reply(notMentor)?.response).toEqual({ ok: false, error: "Only a mentor's own conversation can use this action" });
+    localStorage.setItem("loci:agent-roster", JSON.stringify([{ id: "a1", sessionId: "source", avatar: "nova", color: "#000", projects: [] }]));
+    const own = emit("reader.show", {}, "t6");
+    await settle();
+    expect(reply(own)?.response).toMatchObject({ ok: true, result: { mentor: "a1", kind: "none" } });
+  });
 });
+

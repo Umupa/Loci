@@ -98,6 +98,12 @@ export function headingAbove(text: string, line: number): HeadingPlace | null {
   return found;
 }
 
+/** A heading named by its text, such as a section a reader is asked to show; the first one with that text. */
+export function headingPlace(title: string): HeadingPlace | null {
+  const text = headingKey(title);
+  return text ? { text, index: 0 } : null;
+}
+
 /** The element a rendered Markdown document shows for a heading found by `headingAbove`. */
 export function findHeading(root: ParentNode, place: HeadingPlace): HTMLElement | null {
   const matches = [...root.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")].filter((element) => headingKey(element.textContent ?? "") === place.text);
