@@ -533,7 +533,7 @@ describe("workspace lifecycle integration", () => {
     expect(workspace.tabs.flatMap((tab) => leafIds(tab.layout))).not.toContain("slow");
   });
 
-  it("adds an operator split with reveal false without moving focus", async () => {
+  it("adds an app-requested split with reveal false without moving focus", async () => {
     const visible = chat("visible");
     await mount([visible]);
     const originalTab = workspace.activeTabId;

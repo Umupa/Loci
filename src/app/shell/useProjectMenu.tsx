@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Archive, BellOff, FolderOpen, FolderTree, ImagePlus, Pin, PinOff, Settings, Trash2, } from "../../shared/ui/icons";
+import { Archive, BellOff, FolderOpen, FolderTree, Pin, PinOff, Trash2, } from "../../shared/ui/icons";
 import { basename, revealPath, } from "../../platform/tauri/fs";
 import { IS_MAC, IS_WIN } from "../../platform/tauri/platform";
 import { projectKey, projectName } from "../../shared/lib/paths";
@@ -7,7 +7,6 @@ import { loadPinnedProjects, sameProjectPath, subscribeProjectPathsChanged, togg
 import { loadTabGroupColors, loadTabGroupCustomColors, loadTabGroupLabels, loadTabGroupMascots, resolveTabGroupColor, resolveTabGroupColorIndex, resolveTabGroupCustomColor, resolveTabGroupLabel, resolveTabGroupLogo, resolveTabGroupMascot, saveTabGroupColor, saveTabGroupCustomColor, saveTabGroupLabel, saveTabGroupMascot, } from "../../features/workspace/model/tabGroups";
 import { createProjectGroup, deleteProjectGroup, loadProjectGroupAssignments, loadProjectGroups, projectGroupColor, projectGroupIdForPath, saveProjectGroups, setProjectGroupAssignment, updateProjectGroup, type ProjectGroup, } from "../../features/projects/model/projectGroups";
 import { useTabGroupLogos } from "../../features/projects/hooks/useTabGroupLogos";
-import { ProjectBackgroundDialog } from "../../features/projects/ui/ProjectBackgroundDialog";
 import { RemoveProjectDialog } from "../../features/projects/ui/RemoveProjectDialog";
 import { TabGroupMenu, type TabGroupMenuExtraItem, } from "../../features/workspace/ui/TabGroupMenu";
 import { knownNotificationProject, type NotificationProject, } from "../../features/notifications/model/notificationProjects";
@@ -23,7 +22,7 @@ const REVEAL_LABEL = IS_MAC
     : IS_WIN
         ? "Reveal in File Explorer"
         : "Open Containing Folder";
-function projectMenuExtraItems(pinned: boolean, canRemove: boolean, canConfigureNotifications: boolean, notificationReady: boolean, projectGroups: ProjectGroup[], currentProjectGroupId?: string): TabGroupMenuExtraItem[] {
+function projectMenuExtraItems(pinned: boolean, canRemove: boolean, notificationReady: boolean, projectGroups: ProjectGroup[], currentProjectGroupId?: string): TabGroupMenuExtraItem[] {
     const groupSubmenu: ContextMenuItem[] = [
         { kind: "item", id: "project-group:new", label: "New group…" },
         ...(projectGroups.length > 0 ? [{ kind: "sep" } as const] : []),
@@ -43,11 +42,6 @@ function projectMenuExtraItems(pinned: boolean, canRemove: boolean, canConfigure
     ];
     const items: TabGroupMenuExtraItem[] = [
         {
-            id: "background",
-            label: "Background image",
-            icon: ImagePlus,
-        },
-        {
             id: "project-group",
             label: "Move to group",
             icon: FolderTree,
@@ -66,13 +60,6 @@ function projectMenuExtraItems(pinned: boolean, canRemove: boolean, canConfigure
             submenu: notificationMuteActions(),
         },
     ];
-    if (canConfigureNotifications) {
-        items.push({
-            id: "notifications-settings",
-            label: "Notification settings…",
-            icon: Settings,
-        });
-    }
     if (canRemove) {
         items.push({ id: "archive", label: "Archive", icon: Archive, sepBefore: true }, { id: "delete", label: "Delete", icon: Trash2, danger: true });
     }
@@ -86,7 +73,6 @@ type Options = {
     onRemoveProject?: (path: string, options: {
         purgeData: boolean;
     }) => void;
-    onOpenNotificationSettings?: (projectPath?: string) => void;
     /** Called when a project or group menu opens, so hosts can close sibling menus. */
     onOpen?: () => void;
 };
@@ -96,7 +82,7 @@ type Options = {
  * pickers shown while the rail is hidden. Every change lands in storage,
  * which announces it through `subscribeProjectPathsChanged`.
  */
-export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, onOpen, }: Options) {
+export function useProjectMenu({ onRemoveProject, onOpen, }: Options) {
     const [projectMenu, setProjectMenu] = useState<(Point & {
         path: string;
         projectKey: string;
@@ -110,10 +96,6 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
     }) | null>(null);
     const [removing, setRemoving] = useState<{
         path: string;
-        name: string;
-    } | null>(null);
-    const [backgroundProject, setBackgroundProject] = useState<{
-        project: string;
         name: string;
     } | null>(null);
     const [menuError, setMenuError] = useState<string | null>(null);
@@ -179,7 +161,6 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
     const dismiss = () => {
         close();
         setRemoving(null);
-        setBackgroundProject(null);
     };
     const groupLabels = projectMenu ? loadTabGroupLabels() : {};
     const onPick = (action: string) => {
@@ -220,17 +201,8 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
                 return false;
             }
         }
-        else if (action === "notifications-settings") {
-            onOpenNotificationSettings?.(path);
-        }
         else if (action === "pin" || action === "unpin") {
             toggleProjectPin(path);
-        }
-        else if (action === "background") {
-            setBackgroundProject({
-                project: key,
-                name: resolveTabGroupLabel(key, groupLabels, basename(path)),
-            });
         }
         else if (action === "reveal")
             void revealPath(path);
@@ -260,7 +232,7 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
                     description: menuMuteStatus,
                     icon: BellOff,
                 }
-                : undefined} extraItems={projectMenuExtraItems(loadPinnedProjects().some((pinned) => sameProjectPath(pinned, projectMenu.path)), Boolean(onRemoveProject), Boolean(onOpenNotificationSettings), Boolean(readyNotificationProject), loadProjectGroups(), projectGroupIdForPath(projectMenu.path, loadProjectGroupAssignments()))} footer={menuError ? (<p role="alert" className="px-2 py-1 text-xs text-red-400">
+                : undefined} extraItems={projectMenuExtraItems(loadPinnedProjects().some((pinned) => sameProjectPath(pinned, projectMenu.path)), Boolean(onRemoveProject), Boolean(readyNotificationProject), loadProjectGroups(), projectGroupIdForPath(projectMenu.path, loadProjectGroupAssignments()))} footer={menuError ? (<p role="alert" className="px-2 py-1 text-xs text-red-400">
               {menuError}
             </p>) : null} onExtraPick={onPick}/>);
     };
@@ -317,10 +289,6 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
                 setRemoving(null);
                 restoreFocus();
             }}/>) : null}
-      {backgroundProject ? (<ProjectBackgroundDialog project={backgroundProject.project} name={backgroundProject.name} onClose={() => {
-                setBackgroundProject(null);
-                restoreFocus();
-            }}/>) : null}
     </>);
     return {
         open,
@@ -333,8 +301,7 @@ export function useProjectMenu({ onRemoveProject, onOpenNotificationSettings, on
         isActive: projectMenu != null ||
             groupMenu != null ||
             notificationMenu != null ||
-            removing != null ||
-            backgroundProject != null,
+            removing != null,
         element,
     };
 }

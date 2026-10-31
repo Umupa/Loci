@@ -99,11 +99,11 @@ describe("local app control composition", () => {
 
   it("creates a background session through the actual submit path and persists acceptance", async () => {
     const model = modelsFor("codex")[0];
-    const request = emit("sessions.start", { harness: "codex", model: model.id, prompt: "Hello from operator" });
+    const request = emit("sessions.start", { harness: "codex", model: model.id, prompt: "Hello from app" });
     await settle();
     expect(addSession).toHaveBeenCalledTimes(1);
     expect(addSession.mock.calls[0][1]).toEqual({ reveal: false });
-    expect(submit).toHaveBeenCalledWith("app-source-request-1", "Hello from operator", [], { appRequestId: "app-source-request-1" });
+    expect(submit).toHaveBeenCalledWith("app-source-request-1", "Hello from app", [], { appRequestId: "app-source-request-1" });
     expect(flushPersistence).toHaveBeenCalledOnce();
     expect(reply(request)?.response.ok).toBe(true);
   });
@@ -116,12 +116,5 @@ describe("local app control composition", () => {
     expect(addSession).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
     expect(reply(request)?.response).toEqual({ ok: false, error: "The selected pane is not open in this project" });
-  });
-
-  it("cannot enable operator in another thread through a send request", async () => {
-    const request = emit("sessions.send", { sessionId: "other", prompt: "/operator enable control" });
-    await settle();
-    expect(submit).not.toHaveBeenCalled();
-    expect(reply(request)?.response).toEqual({ ok: false, error: "App calls cannot enable /operator in another session" });
   });
 });

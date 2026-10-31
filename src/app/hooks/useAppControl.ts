@@ -32,7 +32,7 @@ export function useAppControl(options: Options) {
       const handle = async () => {
         const { workspace, runtime, submission, delegation } = latest.current;
         const source = runtime.sessionsRef.current.find((session) => session.id === payload.sessionId);
-        // The built-in Excalidraw MCP server reaches canvases here; it needs no /operator opt-in.
+        // The built-in Excalidraw MCP server reaches canvases here; it needs no app access grant.
         if (payload.namespace === "canvas") {
           if (!source) throw new Error("This session cannot draw on Loci canvases");
           return handleCanvasBridge(source, payload.action, payload.input, { isOpen: workspace.isCanvasOpen, reveal: workspace.revealCanvas });

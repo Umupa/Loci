@@ -26,7 +26,6 @@ import {
 import { titleFromPrompt, type AgentSessionCompletion } from "../../features/sessions/model/session";
 import { displayAttachments, prepareAttachments } from "../../features/sessions/model/attachments";
 import { preparePrompt } from "../../features/sessions/model/promptPreparation";
-import { consumeOperatorCommand, operatorEnabledInThread } from "../../features/sessions/model/operatorCommand";
 import { canvasCliPrompt, usesBuiltinCli } from "../../features/sessions/model/builtinCli";
 import {
   appendPreparingHandoff, buildDeterministicHandoff, chooseHandoffBrief,
@@ -83,6 +82,8 @@ export type SubmitOptions = ComposerTurnOptions & {
    * for a message that is refused, queued or steered into a running turn.
    */
   onSettled?: (outcome: TurnOutcome) => void;
+  /** Internal grant for a scheduled habit run; agent chats always have app access. */
+  appAccess?: boolean;
 };
 type Submit = (sessionId: string, text: string, attachments?: Attachment[], options?: SubmitOptions) => SubmissionAcceptance;
 type SubmissionOptions = {
@@ -98,7 +99,7 @@ function shellPath(path: string): string {
   return `'${path.replace(/'/g, `'"'"'`)}'`;
 }
 
-/** The app's own executable as an agent types it: it is also the CLI for /operator and the built-in tools. */
+/** The app's own executable as an agent types it: it is also the CLI for the built-in tools. */
 async function appCli(): Promise<string> {
   return shellPath(await invoke<string>("app_cli_path"));
 }
@@ -113,9 +114,9 @@ function turnProse(blocks: readonly Block[]): string {
 }
 
 /** App CLI availability and its explicit help entry point. */
-async function operatorPrompt(always = false): Promise<string> {
+async function appPrompt(): Promise<string> {
   const cli = `${await appCli()} app`;
-  return `<loci_app>\n${JSON.stringify({ access: always ? "agent" : "operator", command: cli, help: `${cli} --help` }, null, 2)}\n</loci_app>`;
+  return `<loci_app>\n${JSON.stringify({ access: "agent", command: cli, help: `${cli} --help` }, null, 2)}\n</loci_app>`;
 }
 
 function withHarnessChoice(session: Session, harness: HarnessId, model: string, modelSettings: Record<string, string>): Session {
@@ -171,14 +172,11 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const noteCard = options && "noteCard" in options ? options.noteCard : current.noteCard;
     const learningContext = sanitizeLearningContext({ sources: options?.sources ?? draft?.sources });
     if (!text.trim() && !attachments.length && !noteCard && !learningContext.sources?.length) return false;
-    const activation = consumeOperatorCommand(text);
-    const visibleText = activation.matched ? activation.text.trim() || "Explain what you can do in Loci with the app CLI." : text;
-    // An agent has app access in every turn, without the command.
     const agent = agentForSession(sessionId);
-    const appAccess = !!agent || activation.matched || operatorEnabledInThread(current.blocks);
-    const rawCommand = !activation.matched && !learningContext.sources?.length && isNativeCommandPrompt(text, current.harness);
+    const appAccess = !!agent || options?.appAccess === true;
+    const rawCommand = !learningContext.sources?.length && isNativeCommandPrompt(text, current.harness);
     const basePromptText = options?.agentCompletion ? options.agentCompletion.report
-      : rawCommand ? text : composeNoteMessage(noteCard, visibleText);
+      : rawCommand ? text : composeNoteMessage(noteCard, text);
     const promptText = basePromptText;
     const prepareTurnPrompt = async () => rawCommand ? promptText : withLearningContext(promptText, learningContext);
     const submittedBlockId = crypto.randomUUID();
@@ -188,7 +186,6 @@ export function useSessionSubmission(options: SubmissionOptions) {
       blockId: submittedBlockId,
       ...learningContext,
       ...(!rawCommand && noteCard ? { noteCard: noteCardMeta(noteCard) } : {}),
-      ...(activation.matched ? { loci: true } : {}),
       ...(options?.agentCompletion ? { agentSessionCompletion: options.agentCompletion.completion } : {}),
       ...((options?.appRequestId ?? draft?.appRequestId)
         ? { appRequestId: options?.appRequestId ?? draft?.appRequestId } : {}),
@@ -201,9 +198,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       (!current.providerSessionId || !current.blocks.some((block) => block.role === "user" && !block.draft && block.canvasCli));
     let canvasNoteSent = false;
     if (current.busy && !pendingSwitch) {
-      if (activation.matched && options?.queuedMessageId && options.followUpBehavior === "steer") return false;
-      const followUp = activation.matched ? "queue"
-        : current.backgroundTasks?.length ? "steer" : options?.followUpBehavior ?? loadFollowUpBehavior();
+      const followUp = current.backgroundTasks?.length ? "steer" : options?.followUpBehavior ?? loadFollowUpBehavior();
       if (followUp === "queue") {
         setSessions((previous) => previous.map((session) => session.id === sessionId ? {
           ...session, noteCard: rawCommand ? session.noteCard : undefined,
@@ -244,7 +239,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
           // ACP prompt replies may settle only after streaming the follow-up answer.
           setSessions((previous) => previous.map((session) => {
             if (!sameSession(session)) return session;
-            const next = appendSteerUser(session, visibleText, visible, cards);
+            const next = appendSteerUser(session, text, visible, cards);
             optimisticBlockId = next.blocks[next.blocks.length - 1]?.id;
             return { ...next, busy: session.busy };
           }));
@@ -307,7 +302,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
     const firstTurn = current.blocks.length === 0;
     const placeholder = canReplaceSessionTitle(current.title, current.harness, HARNESS_LABEL[current.harness]) || !!draft;
     const titleSeed = firstTurn && !noteCard && placeholder
-      ? titleFromPrompt(visibleText, current.harness, attachments) : current.title;
+      ? titleFromPrompt(text, current.harness, attachments) : current.title;
     const queuedHandoff = !pendingSwitch ? pendingHandoff(current) : null;
     if (pendingSwitch && current.busy) void cancelHarnessTurn(pendingSwitch.from, sessionId);
     const commitSubmittedTurn = () => setSessions((previous) => previous.map((session) => {
@@ -322,7 +317,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       if (edited) next = edited.replace(next);
       if (options?.queuedMessageId) next = dequeueQueuedMessage(next, options.queuedMessageId);
       if (pendingSwitch) next = appendPreparingHandoff(stopStreaming({ ...next, pendingSwitch: undefined }), pendingSwitch.from, next.harness);
-      return appendUser(next, visibleText, visible, canvasNoteSent ? { ...cards, canvasCli: true } : cards);
+      return appendUser(next, text, visible, canvasNoteSent ? { ...cards, canvasCli: true } : cards);
     }));
     if (edited) editedResends.start(sessionId);
     else commitSubmittedTurn();
@@ -419,8 +414,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
             appTurnContext.commitRotation();
           }
           const context = [...appTurnContext.context];
-          if (appAccess && (appTurnContext.rotates || appTurnContext.recovering || appTurnContext.introduces || !current.providerSessionId || activation.matched))
-            context.push(await operatorPrompt(!!agent));
+          if (appAccess && (appTurnContext.rotates || appTurnContext.recovering || appTurnContext.introduces || !current.providerSessionId))
+            context.push(await appPrompt());
           sendText = agentTurn(sendText, context);
         }
         if (!isCurrent()) return;

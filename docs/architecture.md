@@ -84,7 +84,7 @@ Loci reads Cursor's own store to recover sub-agent activity its ACP stream omits
 
 | Namespace | Used by | Rule |
 | --- | --- | --- |
-| `app` | `/operator` and agents, through the `app` subcommand of the desktop executable (`control_cli.rs`) | the thread must have opted in; an agent's conversation and its habit runs always have |
+| `app` | agents, through the `app` subcommand of the desktop executable (`control_cli.rs`) | an agent's conversation and its habit runs always have access |
 | `canvas` | the built-in Excalidraw server | every session may draw while the switch in **Settings → MCP** is on, only in its own project |
 
 The switch is read when a turn starts and kept for that turn, so a change applies from the next turn and a running turn can finish. A provider may start its process under a generation-scoped id (`<session>#<n>`, as Antigravity does); the credential is looked up by the session that owns the process.
@@ -137,7 +137,7 @@ An agent is long-lived and belongs to no project: a name, a Bottts robot avatar 
 - **Habits.** `useAgentHabits.ts` checks every minute while the app is open. A due habit runs in a hidden session (`ephemeral`: never saved, never shown, never counted) with full access, because nobody is watching it. With Codex the run uses an ephemeral thread, so it leaves nothing in the user's own Codex history; other CLIs keep whatever record they normally keep. Its last reply is posted to the agent's chat, or nothing when the reply is `NOTHING_TO_REPORT`. An approval the run asks for is put to the user in the agent's chat and the answer routed back. A run may work for an hour; one that came due more than two hours ago is skipped rather than caught up; one runs at a time.
 - **Delegation.** A session an agent starts reports back by default. The ones started in the same agent turn form a group (`model/agentSessionCompletion.ts`); when that turn has ended and all of them have stopped, the agent is sent their results as one new turn, once it is idle and the user has nothing queued (`useAgentDelegation.ts`). Reports waiting to be delivered live in memory only, so they do not survive a restart.
 
-Everything an agent can reach goes through the same control channel and the same window-side handlers as `/operator`. Widening what agents can do deserves the same care as any other change there. `sessions.delete` asks the user to confirm; an agent cannot remove a conversation on its own.
+Everything an agent can reach goes through the same control channel and the same window-side handlers as its `app` CLI. Widening what agents can do deserves the same care as any other change there. `sessions.delete` asks the user to confirm; an agent cannot remove a conversation on its own.
 
 ## Links between objects
 

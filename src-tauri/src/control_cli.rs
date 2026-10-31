@@ -1,5 +1,5 @@
 //! The desktop executable also provides a small control client: the JSON-only
-//! `app` actions of /operator, and the built-in canvas tools for agent CLIs
+//! `app` actions of the Loci app CLI, and the built-in canvas tools for agent CLIs
 //! that cannot be given an MCP server.
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -50,7 +50,7 @@ const APP_ACTIONS: [&str; 39] = [
     "habits.run",
     "habits.remove",
 ];
-const APP_USAGE: &str = r#"Loci app access — available in agent chats and threads enabled by /operator.
+const APP_USAGE: &str = r#"Loci app access — available in agent chats.
 
 Usage: {exe} app ACTION [--json JSON | --input FILE|-] [--request-id ID]
 

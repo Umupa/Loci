@@ -60,14 +60,6 @@ describe("editLastTurn", () => {
     });
   });
 
-  it("restores /operator when editing an activation turn", () => {
-    const session = chat([
-      { id: "u1", role: "user", text: "list notes", loci: true },
-      { id: "a1", role: "assistant", text: "Here they are." },
-    ]);
-    expect(lastTurnRecall(session)?.text).toBe("/operator list notes");
-  });
-
   it("allows edit on idle Codex sessions without queued follow-ups", () => {
     const session = chat([
       { id: "u1", role: "user", text: "hello" },

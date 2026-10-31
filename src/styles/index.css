@@ -494,25 +494,19 @@ html.is-mac.has-native-glass.has-native-glass-tint:not(.theme-light)
 }
 
 html.chat-background-gradient-blur
-  .chat-pane-background[data-project-chat-background="false"]
-  > .gradient-blur-background,
-.chat-pane-background[data-project-background-effect="gradient-blur"]
+  .chat-pane-background
   > .gradient-blur-background {
   display: block;
 }
 
 html.has-chat-background.chat-background-effect-ready.chat-background-gradient-blur
-  .chat-pane-background[data-project-chat-background="false"]
-  > .gradient-blur-background,
-.chat-pane-background[data-project-background-effect="gradient-blur"]
+  .chat-pane-background
   > .gradient-blur-background {
   opacity: var(--chat-background-empty-opacity);
 }
 
 html.has-chat-background.chat-background-effect-ready.chat-background-gradient-blur
-  .chat-pane-background[data-project-chat-background="false"][data-session-empty="false"]
-  > .gradient-blur-background,
-.chat-pane-background[data-project-background-effect="gradient-blur"][data-session-empty="false"]
+  .chat-pane-background[data-session-empty="false"]
   > .gradient-blur-background {
   opacity: var(--chat-background-session-opacity);
 }
@@ -520,20 +514,14 @@ html.has-chat-background.chat-background-effect-ready.chat-background-gradient-b
 html.has-chat-background.chat-background-effect-ready:not(
     .chat-background-gradient-blur
   )
-  .chat-pane-background[data-project-chat-background="false"]::before,
-.chat-pane-background[data-project-chat-background="true"]:not(
-    [data-project-background-effect="gradient-blur"]
-  )::before {
+  .chat-pane-background::before {
   opacity: var(--chat-background-empty-opacity);
 }
 
 html.has-chat-background.chat-background-effect-ready:not(
     .chat-background-gradient-blur
   )
-  .chat-pane-background[data-project-chat-background="false"][data-session-empty="false"]::before,
-.chat-pane-background[data-project-chat-background="true"]:not(
-    [data-project-background-effect="gradient-blur"]
-  )[data-session-empty="false"]::before {
+  .chat-pane-background[data-session-empty="false"]::before {
   opacity: var(--chat-background-session-opacity);
 }
 
@@ -555,16 +543,13 @@ html.has-chat-background.chat-background-effect-ready:not(
 html.has-chat-background.chat-background-effect-ready:not(
     .chat-background-gradient-blur
   ).chat-background-empty-only
-  .chat-pane-background[data-project-chat-background="false"][data-session-empty="false"]::before,
-.chat-pane-background[data-project-chat-background="true"][data-project-background-scope="empty"][data-session-empty="false"]::before {
+  .chat-pane-background[data-session-empty="false"]::before {
   opacity: 0;
 }
 
 /* Scope and visibility follow the same rules as the existing image layer. */
 html.has-chat-background.chat-background-effect-ready.chat-background-gradient-blur.chat-background-empty-only
-  .chat-pane-background[data-project-chat-background="false"][data-session-empty="false"]
-  > .gradient-blur-background,
-.chat-pane-background[data-project-background-scope="empty"][data-session-empty="false"]
+  .chat-pane-background[data-session-empty="false"]
   > .gradient-blur-background {
   opacity: 0;
 }
@@ -683,156 +668,7 @@ html.has-user-accent .user-message-bubble {
 }
 
 /*
- * A freshly sent /operator turn lights up once: the bubble blooms with a warm
- * halo, a golden sheen sweeps across it, and sparkles drift up from a glow at
- * its base, twinkling as they rise and fading out past the top edge.
- */
-.loci-sparkles {
-  --sparkle-color: #fde68a;
-  --sparkle-glow: rgb(251 191 36 / 0.9);
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: inherit;
-  pointer-events: none;
-  animation: loci-halo 2400ms 150ms ease-out both;
-}
-
-html.theme-light .loci-sparkles {
-  --sparkle-color: #f59e0b;
-  --sparkle-glow: rgb(217 119 6 / 0.55);
-}
-
-.loci-sparkles::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    105deg,
-    transparent 30%,
-    rgb(254 243 199 / 0.5) 48%,
-    rgb(251 191 36 / 0.35) 52%,
-    transparent 70%
-  );
-  transform: translateX(-120%);
-  animation: loci-sheen 1100ms 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-
-.loci-sparkles::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    120% 70% at 50% 100%,
-    rgb(251 191 36 / 0.35),
-    transparent 70%
-  );
-  animation: loci-ember-glow 2200ms 100ms ease-out both;
-}
-
-.loci-sparkle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: var(--x);
-  z-index: 1;
-  width: 0;
-  animation: loci-rise var(--duration) var(--delay)
-    cubic-bezier(0.3, 0.6, 0.4, 1) both;
-}
-
-.loci-sparkle-glyph {
-  position: absolute;
-  bottom: calc(var(--size) * -1);
-  left: calc(var(--size) / -2);
-  width: var(--size);
-  height: var(--size);
-  color: var(--sparkle-color);
-  filter: drop-shadow(0 0 3px var(--sparkle-glow));
-  animation: loci-twinkle var(--duration) var(--delay) ease-in-out both;
-}
-
-.loci-sparkle-ember {
-  border-radius: 9999px;
-  background: radial-gradient(circle, #fffbeb, var(--sparkle-color) 70%);
-}
-
-@keyframes loci-rise {
-  from {
-    transform: translate(0, 0);
-  }
-  to {
-    transform: translate(var(--drift), calc(-100% - 6px));
-  }
-}
-
-@keyframes loci-twinkle {
-  0% {
-    opacity: 0;
-    transform: scale(0.2) rotate(0deg);
-  }
-  18% {
-    opacity: 1;
-    transform: scale(1) rotate(calc(var(--spin) * 0.3));
-  }
-  42% {
-    opacity: 0.75;
-    transform: scale(0.65) rotate(calc(var(--spin) * 0.5));
-  }
-  62% {
-    opacity: 1;
-    transform: scale(1.1) rotate(calc(var(--spin) * 0.7));
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.3) rotate(var(--spin));
-  }
-}
-
-@keyframes loci-halo {
-  0% {
-    box-shadow:
-      0 0 0 0 rgb(245 158 11 / 0),
-      0 0 0 0 rgb(245 158 11 / 0);
-  }
-  25% {
-    box-shadow:
-      0 0 0 1px rgb(245 158 11 / 0.55),
-      0 0 24px 3px rgb(245 158 11 / 0.35);
-  }
-  100% {
-    box-shadow:
-      0 0 0 0 rgb(245 158 11 / 0),
-      0 0 0 0 rgb(245 158 11 / 0);
-  }
-}
-
-@keyframes loci-sheen {
-  to {
-    transform: translateX(120%);
-  }
-}
-
-@keyframes loci-ember-glow {
-  0% {
-    opacity: 0;
-  }
-  30% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .loci-sparkles {
-    display: none;
-  }
-}
-
-/*
- * Plan and Orchestrator turns share the /operator bloom and upward exit.
+ * Plan and Orchestrator turns share one bloom and upward exit.
  * Numbered plan marks and a small agent network keep their own shapes and
  * colors as they travel from the bottom of the bubble past its top edge.
  */
@@ -2635,7 +2471,7 @@ html.theme-light .btw-morph-frame {
 /*
  * Opening a side question: question marks drift up out of the composer into
  * the panel, wobbling as they rise, while the composer box glows and a sheen
- * crosses it. The /operator sparkles' cousin, in the accent color.
+ * crosses it, in the accent color.
  */
 .btw-burst {
   --burst-color: color-mix(

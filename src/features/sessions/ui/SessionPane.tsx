@@ -11,7 +11,6 @@ useMemo,
 useRef,
 useState,
 useSyncExternalStore,
-type CSSProperties,
 type PointerEvent as ReactPointerEvent,
 type ReactNode,
 } from "react";
@@ -28,19 +27,11 @@ type ApprovalDecision,
 type UserQuestionReply,
 } from "../../../integrations/harness";
 import { MOD } from "../../../platform/tauri/platform";
-import { projectKey } from "../../../shared/lib/paths";
 import { createNote,noteTitle } from "../../notes";
-import {
-loadProjectChatBackgroundSettings,
-projectChatBackgroundImageRevision,
-projectChatBackgroundRevision,
-subscribeProjectChatBackground,
-} from "../../projects/model/projectChatBackground";
 import {
 looksLikeProject,
 type RecentProject,
 } from "../../projects/model/recents";
-import { useProjectBackgroundEffect } from "../../projects/ui/useProjectBackgroundEffect";
 import {
 loadChatBackgroundPath,
 loadNewThreadBackgroundEffect,
@@ -51,12 +42,9 @@ loadNotesEnabled,
 subscribeNotesEnabled,
 } from "../../settings/model/settings";
 import { GradientBlurBackground } from "../../settings/ui/GradientBlurBackground";
-import { isAstraModel } from "../model/astraWelcome";
 import { sessionHasBtwThreads,supportsBtwHarness } from "../model/btw";
 import { getComposerDraft,setComposerDraft } from "../model/draftCache";
 import { canEditLastTurn,lastTurnRecall } from "../model/editLastTurn";
-import { resolveModel } from "../model/models";
-import { isOpus55Model } from "../model/opusWelcome";
 import {
 acknowledgeQuoteRequest,
 ADD_TO_CHAT_EVENT,
@@ -70,13 +58,11 @@ peekTranscriptJump,
 subscribeTranscriptJump,
 } from "../model/transcriptJump";
 import { AgentTranscript } from "./AgentTranscript";
-import { AstraWelcome } from "./AstraWelcome";
 import { BtwSheet,useBtwConversation } from "./BtwSheet";
 import { EmptySession } from "./EmptySession";
 import { QuestionCard } from "./QuestionCard";
 import { CARD_REPLY_EVENT } from "../model/cards";
 import { CardRepliesContext } from "./cards/Cards";
-import { OpusWelcome } from "./OpusWelcome";
 import { PromptOutline } from "./PromptOutline";
 import { TranscriptFind } from "./TranscriptFind";
 import { PooledTranscript,type TranscriptPool } from "./TranscriptPool";
@@ -287,11 +273,6 @@ export const SessionPane = memo(function SessionPane({
   const editLastTurnSupported = canEditLastTurn(session);
   const turnRecall = editLastTurnSupported ? lastTurnRecall(session) : null;
   const draftBlock = sessionDraftBlock(session);
-  useSyncExternalStore(
-    subscribeProjectChatBackground,
-    projectChatBackgroundRevision,
-    projectChatBackgroundRevision,
-  );
   const globalBackgroundPath = useSyncExternalStore(
     subscribeChatBackgroundPath,
     loadChatBackgroundPath,
@@ -302,27 +283,6 @@ export const SessionPane = memo(function SessionPane({
     loadNewThreadBackgroundEffect,
     loadNewThreadBackgroundEffect,
   );
-  const projectBackground = loadProjectChatBackgroundSettings(
-    projectKey(session.cwd),
-  );
-  const projectBackgroundUrl = useProjectBackgroundEffect(
-    projectBackground?.path ?? null,
-    projectBackground?.effect ?? "none",
-    projectChatBackgroundImageRevision(),
-  );
-  const projectBackgroundStyle = projectBackground
-    ? ({
-        "--chat-background-image": projectBackgroundUrl
-          ? `url(${JSON.stringify(projectBackgroundUrl)})`
-          : "none",
-        "--chat-background-empty-opacity": String(
-          projectBackground.emptyOpacity,
-        ),
-        "--chat-background-session-opacity": String(
-          projectBackground.sessionOpacity,
-        ),
-      } as CSSProperties)
-    : undefined;
   const approve = useCallback(
     (requestId: number, decision: ApprovalDecision) =>
       onApproval(session.id, requestId, decision),
@@ -368,15 +328,6 @@ export const SessionPane = memo(function SessionPane({
   useEffect(() => {
     setEditingLastTurn(false);
   }, [session.id, editLastTurnSupported]);
-  const modelWelcomeSequence = useRef(0);
-  const [modelWelcome, setModelWelcome] = useState<{
-    kind: "astra" | "opus";
-    run: number;
-  } | null>(null);
-  const dismissModelWelcome = useCallback(() => setModelWelcome(null), []);
-  useEffect(() => {
-    if (!visible) setModelWelcome(null);
-  }, [visible]);
 
   const [quoteRequest, setQuoteRequest] = useState<QuoteRequest>();
   const residentAgent = agentForSession(session.id);
@@ -579,14 +530,6 @@ export const SessionPane = memo(function SessionPane({
 
       onModelChange={(harness, model) => {
         onModelChange(session.id, harness, model);
-        const selected = resolveModel(harness, model);
-        // A new key restarts the animation and its cleanup timer on every pick.
-        const kind = isAstraModel(selected)
-          ? "astra"
-          : isOpus55Model(selected)
-            ? "opus"
-            : null;
-        setModelWelcome(kind && { kind, run: ++modelWelcomeSequence.current });
       }}
       onModelSettingsChange={(settings) =>
         onModelSettingsChange(session.id, settings)
@@ -640,25 +583,11 @@ export const SessionPane = memo(function SessionPane({
     <div
       data-session-drop={session.id}
       data-session-empty={isEmpty}
-      data-project-chat-background={!!projectBackground}
-      data-project-background-effect={projectBackground?.effect}
-      data-project-background-scope={projectBackground?.scope}
-      style={projectBackgroundStyle}
       className="chat-pane-background relative isolate flex h-full min-h-0 min-w-0 flex-1 flex-col"
       onMouseDown={() => onFocus(session.id)}
     >
-      {projectBackground?.effect === "gradient-blur" ||
-      (!projectBackground &&
-        globalBackgroundPath &&
-        globalBackgroundEffect === "gradient-blur") ? (
+      {globalBackgroundPath && globalBackgroundEffect === "gradient-blur" ? (
         <GradientBlurBackground />
-      ) : null}
-      {modelWelcome && visible ? (
-        modelWelcome.kind === "astra" ? (
-          <AstraWelcome key={modelWelcome.run} onDone={dismissModelWelcome} />
-        ) : (
-          <OpusWelcome key={modelWelcome.run} onDone={dismissModelWelcome} />
-        )
       ) : null}
       {inSplit && !hidePaneHeader ? (
         <PaneHeader onPaneDragStart={onPaneDragStart}>

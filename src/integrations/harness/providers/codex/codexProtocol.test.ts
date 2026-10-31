@@ -24,7 +24,7 @@ describe("runtimeModeToCodexConfig", () => {
   });
 
   it("opens loopback for a lead, since every sandbox denies network by default", () => {
-    // Without this an Operator turn cannot reach its local app CLI.
+    // Without this an app-enabled turn cannot reach its local app CLI.
     for (const mode of ["supervised", "auto-accept-edits", "auto"] as const)
       expect(
         runtimeModeToCodexConfig(mode, true).sandboxPolicy,

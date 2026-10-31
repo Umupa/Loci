@@ -88,7 +88,7 @@ flowchart TB
   - 参数为 `loci app ...` 或 `loci canvas ...` 时，秒级切换为轻量 CLI 客户端，直接连接运行中的桌面 GUI。
 - **动态授权通道 (`control.rs`)**：
   - 在 turn 启动时生成一次性凭据 `LOCI_APP_ENDPOINT` 和 `LOCI_APP_TOKEN` 注入环境变量；
-  - **`/operator`**：Agent 在当前 turn 内可操作 Loci 界面（启停会话、拆分分栏、读写笔记、检索画布等）；
+  - **`app` CLI**：Agent 在当前 turn 内可操作 Loci 界面（启停会话、拆分分栏、读写笔记、检索画布等）；
   - **无侵入 MCP 调用**：不支持配置 MCP 的 CLI（如 Antigravity、Pi）直接在 shell 执行 `loci canvas create_view` 透明调用内置 Excalidraw MCP 服务。
 
 ##### 3. 画布与官方 MCP 零侵入协作（Canvas MCP）

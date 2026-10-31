@@ -74,7 +74,6 @@ export type SessionLaunch = {
   reveal?: boolean;
 };
 import type { SplitDir } from "../../workspace/model/layout";
-import { consumeOperatorCommand } from "../../sessions/model/operatorCommand";
 import { courseItems, parseCourseInput, type CourseSummary, type CourseWithProgress, type ParsedCourse } from "../../learning/model/course";
 import { sessionConversationPage, type SessionReadOptions } from "./sessionConversation";
 
@@ -278,10 +277,7 @@ function requiredString(value: unknown, name: string, max = 30_000): string {
 }
 
 function agentPrompt(value: unknown): string {
-  const prompt = requiredString(value, "prompt", 240_000);
-  if (consumeOperatorCommand(prompt).matched)
-    throw new Error("App calls cannot enable /operator in another session");
-  return prompt;
+  return requiredString(value, "prompt", 240_000);
 }
 
 /**

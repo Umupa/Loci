@@ -23,7 +23,7 @@ it("offers each ready-made agent with its Soul, and a blank one", async () => {
   const onPick = vi.fn(), onClose = vi.fn();
   await act(async () => root.render(createElement(AgentGallery, { onPick, onClose })));
   const cards = [...document.querySelectorAll<HTMLElement>("[data-agent-template]")];
-  expect(cards.map((card) => card.dataset.agentTemplate)).toEqual(["learning-guide", "repo-lens", "market-brief"]);
+  expect(cards.map((card) => card.dataset.agentTemplate)).toEqual(["learning-guide", "repo-lens"]);
   expect(AGENT_TEMPLATES.every((template) => template.soul.startsWith("# Soul"))).toBe(true);
 
   const lens = cards[1];

@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { SkillPicker } from "./SkillPicker";
 
-import { OPERATOR_COMMAND } from "../../sessions/model/operatorCommand";
 import { COMPACT_COMMAND } from "../../sessions/model/compact";
 import type { Skill } from "../model/skills";
 
@@ -13,7 +12,6 @@ describe("native command picker", () => {
     const html = renderToStaticMarkup(
       createElement(SkillPicker, {
         skills: [
-          OPERATOR_COMMAND,
           COMPACT_COMMAND,
           ...native,
         ],
@@ -30,7 +28,6 @@ describe("native command picker", () => {
     );
 
 
-    expect(html).toContain("/operator");
     expect(html).toContain("/compact");
     expect(html).toContain("/workflow");
     expect(html).toContain("Choose a workflow");

@@ -108,14 +108,6 @@ describe("AgentTranscript collapsed work", () => {
         expect(markup).toContain("flex shrink-0 items-center gap-2.5");
         expect(markup).not.toContain("ml-auto flex shrink-0 items-center gap-2.5");
     });
-    it("shows a /operator request without the command in its amber bubble", () => {
-        const markup = render([
-            { id: "user", role: "user", text: "list my notes", loci: true },
-        ]);
-        expect(markup).toContain('data-loci="true"');
-        expect(markup).toContain("list my notes");
-        expect(markup).not.toContain("/operator");
-    });
     it("shows Loci CLI actions instead of their long shell commands", () => {
         const command = "/repo/target/debug/Loci.app/Contents/MacOS/loci";
         const markup = render([

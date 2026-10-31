@@ -3,7 +3,6 @@ import { projectKey } from "../../../shared/lib/paths";
 
 import { loadPinnedSessionsCollapsed, savePinnedSessionsCollapsed, } from "../../sessions/model/pinnedSessions";
 import { loadTabGroupLabels, saveTabGroupLabel, } from "../../workspace/model/tabGroups";
-import { loadProjectChatBackgroundSettings, saveProjectChatBackgroundSettings, } from "./projectChatBackground";
 import { rebaseProjectData } from "./projectData";
 import { loadProjectGroupAssignments, saveProjectGroups, setProjectGroupAssignment, } from "./projectGroups";
 function mockBrowserStorage() {
@@ -36,20 +35,10 @@ describe("rebaseProjectData", () => {
         saveProjectGroups([{ id: "personal", name: "Personal", collapsed: false }]);
         setProjectGroupAssignment(from, "personal");
         saveTabGroupLabel(oldKey, "My Loci");
-        saveProjectChatBackgroundSettings(oldKey, {
-            path: "/images/background.png",
-            emptyOpacity: 0.2,
-            sessionOpacity: 0.1,
-            scope: "all",
-            effect: "dither",
-        });
         savePinnedSessionsCollapsed(from, true);
         rebaseProjectData(from, to);
         expect(loadTabGroupLabels()).toEqual({ [newKey]: "My Loci" });
         expect(loadProjectGroupAssignments()).toEqual({ [to]: "personal" });
-        expect(loadProjectChatBackgroundSettings(oldKey)).toBeNull();
-        expect(loadProjectChatBackgroundSettings(newKey)?.path).toBe("/images/background.png");
-        expect(loadProjectChatBackgroundSettings(newKey)?.effect).toBe("dither");
         expect(loadPinnedSessionsCollapsed(from)).toBe(false);
         expect(loadPinnedSessionsCollapsed(to)).toBe(true);
     });

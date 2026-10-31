@@ -37,7 +37,7 @@ export type CodexThreadConfig = {
 
 /**
  * `readOnly` and `workspaceWrite` both default to networkAccess: false, which
- * blocks loopback too. An /operator-enabled thread
+ * blocks loopback too. An app-enabled thread
  * needs the local CLI socket, so its turns enable network access.
  */
 function withNetwork(

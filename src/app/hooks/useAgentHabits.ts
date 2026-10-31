@@ -179,9 +179,8 @@ export function useAgentHabits(options: Options, enabled = true) {
       markHabitRun(run.id, agentId);
       setHabitRunning(habit.id, now);
       runtime.updateSessions((current) => [...current, run]);
-      // /operator gives the run the same app access the agent has.
       const outcome = await watchRun(chatId, habit, run.id,
-        () => submission.runTurn(run.id, `/operator ${habitRunPrompt(look, files, habit, now)}`))
+        () => submission.runTurn(run.id, habitRunPrompt(look, files, habit, now), { appAccess: true }))
         .catch((error: unknown): TurnOutcome => ({ status: "failed", text: "", error: error instanceof Error ? error.message : String(error) }));
       for (const relay of dropRelays(run.id)) decideBlock(relay.chatId, relay.blockId, "cancelled");
       await removeRun(run.id);

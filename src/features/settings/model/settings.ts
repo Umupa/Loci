@@ -317,12 +317,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         get label() { return t("Claude Code hooks"); },
         keywords: "pretooluse settings.json block command notification",
     },
-    {
-        id: "project-notifications",
-        section: "general",
-        get label() { return t("Project notifications"); },
-        keywords: "mute resume sounds banners categories",
-    },
 ];
 export type SettingsSearchResult = {
     section: SettingsSectionId;

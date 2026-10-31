@@ -261,8 +261,6 @@ pub fn run() {
             learning::learning_annotation_link,
             chat_background::save_chat_background,
             chat_background::remove_chat_background,
-            chat_background::save_project_chat_background,
-            chat_background::remove_project_chat_background,
             chat_background::download_wallpaper,
             control::control_authorize_turn,
             control::control_turn_finished,

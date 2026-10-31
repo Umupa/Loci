@@ -117,11 +117,10 @@ type Props = {
     settingsOpen?: boolean;
     settingsSection?: SettingsSectionId;
     onOpenSettings?: () => void;
-    onOpenNotificationSettings?: (projectPath?: string) => void;
     onSelectSettingsSection?: (section: SettingsSectionId) => void;
     onCloseSettings?: () => void;
 };
-function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, onOpenCourses, searchActive = false, notesActive = false, coursesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, onOpenFile, onToggleSidebar, onFileMoved, onFileDeleted, }: Props) {
+function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, onOpenCourses, searchActive = false, notesActive = false, coursesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onSelectSettingsSection, onCloseSettings, onOpenFile, onToggleSidebar, onFileMoved, onFileDeleted,  }: Props) {
     const [tab, setTab] = useState<SidebarTab>(() => rememberedTab);
     const pickTab = (next: SidebarTab) => {
         rememberedTab = next;
@@ -681,7 +680,7 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
               {sidebarToggle}
             </div>)}
           {compactRailVisible ? workspaceHeader : null}
-          {onSelectProject && !compactRailVisible ? (<SidebarProjectPicker cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onNew={onNew} onSearch={onSearch} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} searchActive={searchActive} notesActive={notesActive}/>) : null}
+          {onSelectProject && !compactRailVisible ? (<SidebarProjectPicker cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onNew={onNew} onSearch={onSearch} onOpenNotes={notesEnabled ? onOpenNotes : undefined} searchActive={searchActive} notesActive={notesActive}/>) : null}
           {!compactRailVisible ? (<div role="tablist" aria-label="Workspace" className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-stroke px-2">
               {workspaceTabItems}
             </div>) : null}
@@ -763,8 +762,8 @@ cannot claim "No sessions yet" before the rows have landed.
       <div role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuenow={resize.width} aria-valuemin={MIN_WIDTH} aria-valuemax={MAX_WIDTH} className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick}/>
     </aside>);
     return (<div className={`flex h-full shrink-0 ${railVisible || compactRailVisible || sidebarVisible ? "" : "hidden"}`}>
-      {compactRailVisible ? (<CompactProjectRail projectsEnabled={projectsEnabled} cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} tabs={visibleTabs} activeTab={tab} tabShown={panelOpen} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onTabChange={onCompactTabPick} onSearch={onSearch} searchActive={searchActive} onOpenNotificationSettings={onOpenNotificationSettings} onOpenNotes={notesEnabled ? onOpenNotes : undefined} notesActive={notesActive} onOpenCourses={onOpenCourses} coursesActive={coursesActive} onOpenSettings={onOpenSettings} onTogglePanel={onToggleProjectRail} onLeaveActive={onGoBack} titleBarAbove={titleBarAbove}/>) : null}
-      {railMounted.current && onSelectProject && onOpenProject ? (<ProjectRail visible={railVisible} agentRail={agentRail} agentActive={agentActive} projectsEnabled={projectsEnabled} cwd={cwd} recents={recents} busyPaths={busyProjectPaths} liveAgents={liveAgents} activeSessionId={activeSessionId} onSelectAgent={onSelectAgent} canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} onSearch={onSearch} searchActive={searchActive} notesEnabled={notesEnabled} onOpenNotes={onOpenNotes} notesActive={notesActive} onOpenCourses={onOpenCourses} coursesActive={coursesActive} onTogglePanel={onToggleProjectRail} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} settingsOpen={settingsOpen} settingsSection={settingsSection} onOpenSettings={onOpenSettings} onOpenNotificationSettings={onOpenNotificationSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={onCloseSettings}/>) : null}
+      {compactRailVisible ? (<CompactProjectRail projectsEnabled={projectsEnabled} cwd={cwd} recents={recents} busy={projectPathBusy(busyProjectPaths, cwd)} tabs={visibleTabs} activeTab={tab} tabShown={panelOpen} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onTabChange={onCompactTabPick} onSearch={onSearch} searchActive={searchActive} onOpenNotes={notesEnabled ? onOpenNotes : undefined} notesActive={notesActive} onOpenCourses={onOpenCourses} coursesActive={coursesActive} onOpenSettings={onOpenSettings} onTogglePanel={onToggleProjectRail} onLeaveActive={onGoBack} titleBarAbove={titleBarAbove}/>) : null}
+      {railMounted.current && onSelectProject && onOpenProject ? (<ProjectRail visible={railVisible} agentRail={agentRail} agentActive={agentActive} projectsEnabled={projectsEnabled} cwd={cwd} recents={recents} busyPaths={busyProjectPaths} liveAgents={liveAgents} activeSessionId={activeSessionId} onSelectAgent={onSelectAgent} canGoBack={canGoBack} canGoForward={canGoForward} onGoBack={onGoBack} onGoForward={onGoForward} onSearch={onSearch} searchActive={searchActive} notesEnabled={notesEnabled} onOpenNotes={onOpenNotes} notesActive={notesActive} onOpenCourses={onOpenCourses} coursesActive={coursesActive} onTogglePanel={onToggleProjectRail} onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} settingsOpen={settingsOpen} settingsSection={settingsSection} onOpenSettings={onOpenSettings} onSelectSettingsSection={onSelectSettingsSection} onCloseSettings={onCloseSettings}/>) : null}
       {sidebarVisible ? sidebarContent : null}
       {drawerRendered ? (
         // Pinned to the right edge, so the sidebar slides in as the width grows.
@@ -775,20 +774,18 @@ cannot claim "No sessions yet" before the rows have landed.
 }
 export const Sidebar = memo(SidebarComponent);
 /** Project picker whose rows open the shared project context menu. */
-function SearchableProjectPickerWithMenu({ onRemoveProject, onOpenNotificationSettings, ...pickerProps }: Omit<ComponentProps<typeof SearchableProjectPicker>, "onProjectContextMenu" | "projectMenuActive"> & {
+function SearchableProjectPickerWithMenu({ onRemoveProject, ...pickerProps }: Omit<ComponentProps<typeof SearchableProjectPicker>, "onProjectContextMenu" | "projectMenuActive"> & {
     onRemoveProject?: Props["onRemoveProject"];
-    onOpenNotificationSettings?: (projectPath?: string) => void;
 }) {
     const projectMenu = useProjectMenu({
         onRemoveProject,
-        onOpenNotificationSettings,
     });
     return (<>
       <SearchableProjectPicker {...pickerProps} onProjectContextMenu={projectMenu.open} projectMenuActive={projectMenu.isActive}/>
       {projectMenu.element}
     </>);
 }
-function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotificationSettings, onOpenNotes, searchActive = false, notesActive = false, }: {
+function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, searchActive = false, notesActive = false, }: {
     cwd: string;
     recents: RecentProject[];
     busy: boolean;
@@ -797,13 +794,12 @@ function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProje
     onRemoveProject?: Props["onRemoveProject"];
     onNew?: () => string | void;
     onSearch?: () => void;
-    onOpenNotificationSettings?: (projectPath?: string) => void;
     onOpenNotes?: () => void;
     searchActive?: boolean;
     notesActive?: boolean;
 }) {
     return (<div className="flex h-9 items-center gap-0.5 border-b border-stroke px-2" data-tauri-drag-region="deep">
-      <SearchableProjectPickerWithMenu cwd={cwd} recents={recents} busy={busy} className="flex-1" onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onOpenNotificationSettings={onOpenNotificationSettings}/>
+      <SearchableProjectPickerWithMenu cwd={cwd} recents={recents} busy={busy} className="flex-1" onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject}/>
       <div className="ml-auto flex items-center">
         {onNew ? (<IconButton label={`New tab (${MOD}T)`} onClick={onNew}>
             <Plus className="size-3.5" strokeWidth={1.75}/>
@@ -820,7 +816,7 @@ function SidebarProjectPicker({ cwd, recents, busy, onSelectProject, onOpenProje
 
     </div>);
 }
-function CompactProjectRail({ projectsEnabled = true, cwd, recents, busy, tabs, activeTab, tabShown, onSelectProject, onOpenProject, onRemoveProject, onTabChange, onSearch, searchActive, onOpenNotificationSettings, onOpenNotes, notesActive, onOpenCourses, coursesActive = false, onOpenSettings, onTogglePanel, onLeaveActive, titleBarAbove, }: {
+function CompactProjectRail({ projectsEnabled = true, cwd, recents, busy, tabs, activeTab, tabShown, onSelectProject, onOpenProject, onRemoveProject, onTabChange, onSearch, searchActive, onOpenNotes, notesActive, onOpenCourses, coursesActive = false, onOpenSettings, onTogglePanel, onLeaveActive, titleBarAbove, }: {
     cwd: string;
     recents: RecentProject[];
     busy: boolean;
@@ -833,7 +829,6 @@ function CompactProjectRail({ projectsEnabled = true, cwd, recents, busy, tabs, 
     onTabChange: (tab: SidebarTab) => void;
     onSearch?: () => void;
     searchActive: boolean;
-    onOpenNotificationSettings?: (projectPath?: string) => void;
     onOpenNotes?: () => void;
     notesActive: boolean;
     onOpenCourses?: () => void;
@@ -856,7 +851,7 @@ function CompactProjectRail({ projectsEnabled = true, cwd, recents, busy, tabs, 
       <span aria-hidden data-compact-rail-divider className={`pointer-events-none absolute bottom-0 right-0 w-px bg-stroke ${titleBarAbove ? "top-0" : "top-10"}`}/>
       <div data-compact-rail-actions className="flex w-full shrink-0 flex-col items-center gap-1.5 py-1.5">
         <CompactRailAction label="Expand projects" icon={PanelLeft} onClick={onTogglePanel}/>
-        {onSelectProject && projectsEnabled ? (<SearchableProjectPickerWithMenu cwd={cwd} recents={recents} busy={busy} compact className="w-full justify-center" onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject} onOpenNotificationSettings={onOpenNotificationSettings}/>) : null}
+        {onSelectProject && projectsEnabled ? (<SearchableProjectPickerWithMenu cwd={cwd} recents={recents} busy={busy} compact className="w-full justify-center" onSelectProject={onSelectProject} onOpenProject={onOpenProject} onRemoveProject={onRemoveProject}/>) : null}
         <div role="tablist" aria-label="Workspace" aria-orientation="vertical" className="flex flex-col items-center gap-1.5">
           {(projectsEnabled ? tabs : []).map((itemId) => (<CompactRailAction key={itemId} tab label={TAB_LABELS[itemId]} icon={COMPACT_TAB_ICONS[itemId]} active={workspaceActive && tabShown && activeTab === itemId} onClick={() => openWorkspaceTab(itemId)}/>))}
         </div>
