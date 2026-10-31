@@ -1,10 +1,9 @@
-import { agentLook, agentProjectsPhrase, type Agent } from "../model/agent";
+import { agentLook, type Agent } from "../model/agent";
 import { AgentAvatar } from "./AgentAvatar";
 
 /** The first message is enough to start; profile settings stay in the settings dialog. */
 export function AgentIntro({ agent }: { agent: Agent }) {
   const look = agentLook(agent);
-  const projects = agentProjectsPhrase(look.projects);
   const tutor = look.role === "tutor";
   return (
     <div className="agent-greeting" data-agent-intro>
@@ -19,7 +18,6 @@ export function AgentIntro({ agent }: { agent: Agent }) {
             ? "A topic is enough. We'll start with a short exercise."
             : "A sentence is enough. I'll get started and set myself up as we go."}
         </p>
-        {projects ? <p className="mt-2 text-xs text-content/40">Works on {projects}.</p> : null}
       </div>
     </div>
   );

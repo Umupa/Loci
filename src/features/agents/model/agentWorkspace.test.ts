@@ -20,6 +20,7 @@ function host(saved: Session[] = []) {
   return {
     added,
     home: vi.fn(async () => "/home/me"),
+    workdir: vi.fn(async (_id: string): Promise<string> => { throw new Error("no folder"); }),
     load: vi.fn(async (id: string) => saved.find((session) => session.id === id)),
     create: vi.fn((cwd: string) => newSession("codex", cwd, "codex:test")),
     add: vi.fn((session: Session) => void added.push(session)),
@@ -38,6 +39,42 @@ it("starts an agent's conversation once, at home with Auto permissions", async (
   expect(a).toMatchObject({ cwd: "/home/me", runtimeMode: "auto" });
   expect(findAgent(id)?.sessionId).toBe(a!.id);
   expect(first.added).toEqual([a]);
+});
+
+it("starts a new agent's conversation in its workdir", async () => {
+  const { id } = createAgent();
+  const opening = host();
+  opening.workdir.mockImplementation(async () => "/home/me/Loci/ember");
+  expect(await ensureAgentSession(id, opening)).toMatchObject({ cwd: "/home/me/Loci/ember" });
+  expect(opening.home).not.toHaveBeenCalled();
+});
+
+it("keeps a saved conversation in the folder it started in", async () => {
+  const { id } = createAgent();
+  const session = (await ensureAgentSession(id, host()))!;
+  const again = host([session]);
+  again.workdir.mockImplementation(async () => "/home/me/Loci/ember");
+  expect(await ensureAgentSession(id, again)).toMatchObject({ cwd: "/home/me" });
+  expect(again.workdir).not.toHaveBeenCalled();
+});
+
+it("moves a chat into the workdir when it is reset", async () => {
+  const { id } = createAgent();
+  const session = (await ensureAgentSession(id, host()))!;
+  const fresh = await resetAgentSession(session, {
+    workdir: async () => "/home/me/Loci/ember",
+    stop: async () => undefined,
+    remove: async () => undefined,
+    replace: () => undefined,
+  });
+  expect(fresh.cwd).toBe("/home/me/Loci/ember");
+  const kept = await resetAgentSession(fresh, {
+    workdir: async () => { throw new Error("gone"); },
+    stop: async () => undefined,
+    remove: async () => undefined,
+    replace: () => undefined,
+  });
+  expect(kept.cwd).toBe("/home/me/Loci/ember");
 });
 
 it("comes back to the same conversation, and starts over only when it is gone", async () => {

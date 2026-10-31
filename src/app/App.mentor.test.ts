@@ -125,6 +125,8 @@ beforeEach(async () => {
     if (["stat_files", "session_list", "session_list_by_project", "list_directory", "skills_list", "list_fonts"].includes(command)) return [];
     if (command === "resolve_project_location") return { path: "/repo", identity: "fixture" };
     if (command === "home_dir") return "/home/user";
+    if (command === "agent_workdir_create") return `/home/user/Loci/${(args as { slug: string }).slug}`;
+    if (command === "agent_workdir_ensure") return (args as { path: string }).path;
     if (command.startsWith("plugin:window|") || ["set_dock_badge", "keybindings_set_overrides", "workspace_set_snapshot"].includes(command)) return;
     throw new Error(`Unexpected test IPC: ${command}`);
   }, { shouldMockEvents: true });

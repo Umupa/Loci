@@ -7,13 +7,16 @@ const openingAgents = new Map<string, Promise<Session | undefined>>();
 
 /**
  * Load the agent's conversation without opening or replacing a workspace tab.
- * A new one starts with Auto permissions in the home folder: no single
- * project is its own.
+ * A new one starts with Auto permissions in the agent's workdir, or in the
+ * home folder when that cannot be made. A saved one keeps the folder it
+ * started in: the provider's conversation is tied to it.
  */
 export function ensureAgentSession(
   agentId: string,
   host: {
     home(): Promise<string>;
+    /** The agent's workdir, created on first use. */
+    workdir(agentId: string): Promise<string>;
     load(id: string): Promise<Session | null | undefined>;
     create(cwd: string): Session;
     add(session: Session): void;
@@ -41,29 +44,38 @@ async function loadAgentSession(
       return existing;
     }
   }
-  const home = await host.home();
-  // Removed while the home folder was looked up.
+  const cwd = await host.workdir(agentId).catch(() => host.home());
+  // Removed while its folder was looked up.
   if (!findAgent(agentId)) return undefined;
-  const session: Session = { ...host.create(home), runtimeMode: "auto" };
+  const session: Session = { ...host.create(cwd), runtimeMode: "auto" };
   saveAgentSessionId(agentId, session.id);
   host.add(session);
   return session;
 }
 
-/** Reset only the agent's chat, keeping its identity and memory. */
+/**
+ * Reset only the agent's chat, keeping its identity and memory. The fresh
+ * chat starts in the agent's workdir: this is where a chat that began in the
+ * home folder moves into it, since its provider conversation ends here anyway.
+ */
 export async function resetAgentSession(
   current: Session,
   host: {
+    /** The agent's workdir; the old folder is kept when it cannot be made. */
+    workdir?(agentId: string): Promise<string>;
     stop(id: string): Promise<void>;
     remove(session: Session): Promise<void>;
     replace(previousId: string, session: Session): void;
   },
 ): Promise<Session> {
   const agentId = agentForSession(current.id)?.id;
+  const cwd = agentId && host.workdir
+    ? await host.workdir(agentId).catch(() => current.cwd)
+    : current.cwd;
   await host.stop(current.id);
   const fresh = newSession(
     current.harness,
-    current.cwd,
+    cwd,
     current.model,
     current.runtimeMode,
     current.modelSettings,

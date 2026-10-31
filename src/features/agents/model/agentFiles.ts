@@ -323,7 +323,7 @@ export function forgetAgentContext(sessionId: string): void {
 }
 
 /** Version of the app data carried by an agent turn. */
-export const AGENT_PROMPT_VERSION = 6;
+export const AGENT_PROMPT_VERSION = 7;
 
 /** Discoverable app capabilities; teaching style and standing behavior belong to the Soul. */
 const AGENT_TOOLS = `<tools>
@@ -334,6 +334,7 @@ The local app CLI is available in this conversation; its command and help entry 
 - Drawings: use the available canvas tools to create or revise diagrams; canvas.list/get locate existing drawings. A course can reference its canvasId.
 - Memory: memory.read/search find facts and topic notes; memory.add/replace/remove update long-term facts through the CLI. Soul: soul.read/update read or edit standing instructions using the returned hash.
 - Habits: habits.list/add/update/run/remove manage recurring tasks and their schedules. Habits run only while Loci is open, and their reports appear here.
+- Workdir: <agent>.workdir is your own folder, which the user can browse beside this chat. Clone source code into repos/<owner>/<repo> and keep experiments in lab/; create these when needed. Link a file there by its absolute path to open it beside this chat. <agent>.folders are other folders the user gave you. Never move or delete files you did not create.
 - Reading: <reading_now> names the course lesson, document or note open beside this chat, when there is one. "This", "here" and "the passage" usually mean it.
 - Reply formats: loci-question presents choices, loci-todo a checklist, and loci-mindmap or mermaid a diagram. The help includes the exact formats.
 </tools>`;
@@ -342,6 +343,17 @@ The local app CLI is available in this conversation; its command and help entry 
 export function agentTurn(message: string, context: readonly string[]): string {
   if (!context.length) return message;
   return `<loci_context>\n${context.join("\n\n")}\n</loci_context>\n\n${message}`;
+}
+
+/** Who the agent is and where it works, as the `<agent>` block states it. */
+function agentIdentity(look: AgentLook, id: string) {
+  return {
+    id,
+    name: look.name,
+    role: look.role ?? null,
+    workdir: look.workdir ?? null,
+    folders: look.projects.map((project) => project.path),
+  };
 }
 
 /** Soul and factual app state, with no platform-wide behavior policies. */
@@ -353,7 +365,7 @@ export function agentContext(
   const parts: string[] = [];
   if (plan.soul) {
     parts.push(
-      `<agent>\n${JSON.stringify({ id: files.id, name: look.name, role: look.role ?? null, projects: look.projects }, null, 2)}\n</agent>`,
+      `<agent>\n${JSON.stringify(agentIdentity(look, files.id), null, 2)}\n</agent>`,
       `<soul>\n${files.soul.trim()}\n</soul>`,
       AGENT_TOOLS,
     );

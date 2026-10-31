@@ -93,7 +93,7 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
       {data.canvases?.map((canvas) => row({ kind: "canvas", id: canvas.id }, <Palette className="size-3.5" />, canvas.title,
         formatRelativeTime(new Date(canvas.updatedAt).toISOString()), "canvas", canvas.id))}
     </>)}
-    {MentorFilesSection ? section("files", "Files", undefined, <MentorFilesSection agentId={agent.id} onOpenFile={onOpenFile} />) : null}
+    {MentorFilesSection ? section("files", "Files", undefined, <MentorFilesSection agentId={agent.id} onOpenFile={(path) => onOpenFile(path)} />) : null}
   </nav>;
 }
 

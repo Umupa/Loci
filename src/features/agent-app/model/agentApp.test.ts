@@ -611,6 +611,15 @@ describe("agent app commands", () => {
     ).rejects.toThrow("Request ID was already used");
   });
 
+  it("files an agent's note under the agent, not the folder its chat runs in", async () => {
+    const { source, host } = fixture();
+    host.agentOf = () => ({ id: "a", projects: [source.cwd] });
+    host.saveNote = vi.fn(async (input) => ({ ...note, ...input }));
+    const saved = await handleAgentApp(source, "agent-note", "notes.write", { body: "# Lab log" }, host);
+    expect(saved).toMatchObject({ agentId: "a", sourceSessionId: source.id });
+    expect(saved).not.toHaveProperty("sourceCwd");
+  });
+
   it("returns working resource URLs for compound session and note IDs without failing after persistence", async () => {
     const { source, host } = fixture();
     source.id = `app-5bed7012-c8bc-445d-b95d-ead0f88e36a7-${"s".repeat(128)}`;

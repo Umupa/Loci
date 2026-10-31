@@ -4,6 +4,7 @@ import { CircleAlert, CircleDashed, Pencil, Plus, Search, Settings, SlidersHoriz
 import { Popover, type PopoverAnchor } from "../../shared/ui/Popover";
 import { AgentAvatar } from "../../features/agents/ui/AgentAvatar";
 import { IS_MAC } from "../../platform/tauri/platform";
+import { prettyCwd } from "../../shared/lib/paths";
 import { AGENT_STATUS_LABEL, agentLook, agentsSnapshot, listAgents, reorderAgents, subscribeAgents, type AgentState } from "../../features/agents/model/agent";
 import "./MentorRail.css";
 
@@ -81,7 +82,7 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
           onPointerDown={(event) => { if (event.button === 0) sortable.onItemPointerDown(agent.id, event); }}
           onContextMenu={(event) => { event.preventDefault(); setMenu({ id: agent.id, anchor: { x: event.clientX, y: event.clientY } }); }}>
           <button type="button" className="mentor-rail-button" aria-label={label} aria-current={selected ? "true" : undefined}
-            title={[look.role ? `${look.name} · ${look.role}` : look.name, status, index < 9 ? `${IS_MAC ? "⌘" : "Ctrl+"}${index + 1}` : undefined].filter(Boolean).join("\n")}
+            title={[look.role ? `${look.name} · ${look.role}` : look.name, status, look.workdir ? prettyCwd(look.workdir) : undefined, index < 9 ? `${IS_MAC ? "⌘" : "Ctrl+"}${index + 1}` : undefined].filter(Boolean).join("\n")}
             onClick={() => { if (!sortable.consumeClick()) onOpen(agent.id); }}>
             <AgentAvatar name={look.avatar} color={look.color} className="size-8" />
             <RailSignal phase={phase} />

@@ -10,6 +10,7 @@ import {
   recordAppContext,
 } from "./agentFiles";
 import { readingContext } from "./agentReading";
+import { ensureAgentWorkdir } from "./agentWorkdir";
 import {
   loadAgentRotation,
   planRotation,
@@ -58,15 +59,19 @@ export async function prepareAppTurn(
         options.now ?? Date.now(),
       )
     : undefined;
-  const look = agent && agentLook(agent);
-  // A turn must not fail over its memory; it goes without, and tries again next time.
+  // A turn must not fail over its memory or its folder; it goes without, and
+  // tries again next time.
+  const workdir = agent
+    ? await ensureAgentWorkdir(agent.id).catch(() => agent.workdir)
+    : undefined;
+  const look = agent && agentLook(workdir ? { ...agent, workdir } : agent);
   const files = agent
     ? await loadAgentFiles(agent.id).catch(() => undefined)
     : undefined;
-  // Identity and projects are refreshed with the soul when they change.
+  // Identity and folders are refreshed with the soul when they change.
   const handed = files && look && {
     ...files,
-    soulHash: `${files.soulHash}:${look.name}:${look.role ?? ""}:${look.projects
+    soulHash: `${files.soulHash}:${look.name}:${look.role ?? ""}:${look.workdir ?? ""}:${look.projects
       .map((project) => project.path)
       .join("|")}:${AGENT_PROMPT_VERSION}`,
   };

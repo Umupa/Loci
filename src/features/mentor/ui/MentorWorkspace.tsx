@@ -134,7 +134,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
     <div ref={body} className="mentor-body">
       <aside ref={library.setPaneRef} className="mentor-library-column" hidden={!state.library} aria-label="Outline and library">
         <MentorLibrary agent={agent} data={data} errors={errors} onRetry={reload} page={state.page} lesson={state.lesson}
-          onOpen={open} onNewNote={() => void newNote()} creatingNote={creating} onOpenFile={onOpenFile} />
+          onOpen={open} onNewNote={() => void newNote()} creatingNote={creating} onOpenFile={(path) => open({ kind: "file", path })} />
         {actionError ? <p role="alert" className="mentor-library-error">{actionError}</p> : null}
         <div role="separator" aria-label="Resize library" aria-orientation="vertical" tabIndex={0} className="mentor-resize mentor-resize--right"
           onPointerDown={library.onPointerDown} onDoubleClick={library.onDoubleClick}

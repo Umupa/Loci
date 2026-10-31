@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { canAccessAgentAppProject, handleAgentApp, type AppSessionListing } from "../../features/agent-app/model/agentApp";
-import { agentForSession, findAgent, updateAgent } from "../../features/agents/model/agent";
+import { agentFolders, agentForSession, findAgent, updateAgent } from "../../features/agents/model/agent";
 import { habitRunAgent, loadHabits, updateHabits } from "../../features/agents/model/agentHabits";
 import { loadAgentFiles, readAgentFile, writeAgentFile } from "../../features/agents/model/agentFiles";
 import { readAgentConversation } from "../../features/agents/model/agentTranscript";
@@ -55,11 +55,11 @@ export function useAppControl(options: Options) {
           if (previous.signature !== signature) throw new Error("Request ID was already used with different input");
           return previous.promise;
         }
-        // An agent's chat lives outside its projects, so its reach follows its roster.
+        // An agent's reach is its workdir and the other folders it was given.
         // A habit's hidden run works for its agent, with the same reach.
         const habitRunOf = habitRunAgent(source.id);
         const agent = agentForSession(source.id) ?? (habitRunOf ? findAgent(habitRunOf) : undefined);
-        const reaches = (cwd: string) => canAccessAgentAppProject(source, cwd, agent?.projects);
+        const reaches = (cwd: string) => canAccessAgentAppProject(source, cwd, agent && agentFolders(agent));
         const ensureSession = async (id: string): Promise<Session> => {
           const target = runtime.sessionsRef.current.find((session) => session.id === id) ?? await workspace.loadSession(id);
           if (!target || !reaches(target.cwd)) throw new Error("Session is unavailable in this project");
@@ -153,7 +153,7 @@ export function useAppControl(options: Options) {
             await runtime.flushPersistence();
             return { alreadySaved: false, draft: true };
           },
-          agentOf: () => agent && { id: agent.id, projects: agent.projects, ...(agent.sessionId ? { chatId: agent.sessionId } : {}), ...(habitRunOf ? { habitRun: true } : {}) },
+          agentOf: () => agent && { id: agent.id, projects: agentFolders(agent), ...(agent.sessionId ? { chatId: agent.sessionId } : {}), ...(habitRunOf ? { habitRun: true } : {}) },
           readAgentChat: async (chatId, options) => {
             const chat = runtime.sessionsRef.current.find((session) => session.id === chatId) ?? await workspace.loadSession(chatId);
             if (!chat) throw new Error("The conversation is no longer available");

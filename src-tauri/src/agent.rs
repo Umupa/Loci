@@ -12,6 +12,12 @@
 //! ```
 //!
 //! An agent is not tied to a project, so its folder is named by its own id.
+//!
+//! Separately, each mentor has a working directory the user can see and the
+//! agent works in: cloned source under `repos/`, experiments under `lab/`.
+//! It lives in the home folder, `~/Loci/<slug>` (`~/Loci-Dev/<slug>` for
+//! Loci Dev), or wherever the user pointed it. The app only ever creates
+//! folders there; it never moves or deletes anything.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -276,6 +282,98 @@ pub async fn agent_save(
     .map_err(|e| e.to_string())?
 }
 
+/// The folder every default workdir goes into, by flavor.
+const WORKDIR_ROOT: &str = "Loci";
+const DEV_WORKDIR_ROOT: &str = "Loci-Dev";
+const REPOS_DIR: &str = "repos";
+/// How many `<slug>-N` names to try before giving up.
+const SLUG_TRIES: usize = 99;
+
+fn workdir_root(app: &AppHandle) -> Result<PathBuf, String> {
+    let home = crate::dirs_home().ok_or("No home folder")?;
+    let name = if app.config().identifier == crate::flavor::RELEASE_IDENTIFIER {
+        WORKDIR_ROOT
+    } else {
+        DEV_WORKDIR_ROOT
+    };
+    Ok(PathBuf::from(home).join(name))
+}
+
+fn valid_slug(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug.len() <= 40
+        && !slug.starts_with('-')
+        && !slug.ends_with('-')
+        && slug
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+}
+
+/// A new, empty folder `<root>/<slug>` (or `<slug>-2`, …) with `repos/` in
+/// it. An existing folder is never reused, so nothing of the user's is
+/// adopted or written into by accident.
+fn create_workdir(root: &Path, slug: &str) -> Result<PathBuf, String> {
+    if !valid_slug(slug) || slug == REPOS_DIR {
+        return Err(format!("Not a folder name: {slug}"));
+    }
+    std::fs::create_dir_all(root).map_err(|e| format!("{}: {e}", root.display()))?;
+    for attempt in 1..=SLUG_TRIES {
+        let name = if attempt == 1 {
+            slug.to_string()
+        } else {
+            format!("{slug}-{attempt}")
+        };
+        let dir = root.join(&name);
+        match std::fs::create_dir(&dir) {
+            Ok(()) => {
+                std::fs::create_dir(dir.join(REPOS_DIR))
+                    .map_err(|e| format!("{}: {e}", dir.display()))?;
+                return Ok(dir);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("{}: {e}", dir.display())),
+        }
+    }
+    Err(format!("No free folder name for {slug}"))
+}
+
+/// A workdir already chosen: an existing folder is used as it is, with
+/// nothing created inside it; a missing one is created.
+fn ensure_workdir(path: &Path) -> Result<PathBuf, String> {
+    if !path.is_absolute() {
+        return Err(format!("Not an absolute path: {}", path.display()));
+    }
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.is_dir() => Ok(path.to_path_buf()),
+        Ok(_) => Err(format!("Not a folder: {}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            std::fs::create_dir_all(path).map_err(|e| format!("{}: {e}", path.display()))?;
+            Ok(path.to_path_buf())
+        }
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
+/// Creates a mentor's default workdir and returns its absolute path.
+#[tauri::command]
+pub async fn agent_workdir_create(app: AppHandle, slug: String) -> Result<String, String> {
+    let root = workdir_root(&app)?;
+    tauri::async_runtime::spawn_blocking(move || create_workdir(&root, &slug))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|dir| dir.to_string_lossy().into_owned())
+}
+
+/// Makes sure a mentor's chosen workdir exists and returns its path.
+#[tauri::command]
+pub async fn agent_workdir_ensure(path: String) -> Result<String, String> {
+    let path = crate::fs::expand_home(&path);
+    tauri::async_runtime::spawn_blocking(move || ensure_workdir(&path))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|dir| dir.to_string_lossy().into_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,6 +506,45 @@ mod tests {
         ] {
             assert!(save(&root, "m", path, "x", None).is_err(), "{path}");
         }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn creates_a_fresh_workdir_and_never_reuses_an_existing_folder() {
+        let root = temp_root();
+        std::fs::create_dir_all(root.join("lens")).unwrap();
+        std::fs::write(root.join("lens").join("keep.md"), "mine").unwrap();
+        let dir = create_workdir(&root, "lens").unwrap();
+        assert_eq!(dir, root.join("lens-2"));
+        assert!(dir.join("repos").is_dir());
+        assert_eq!(
+            std::fs::read_to_string(root.join("lens").join("keep.md")).unwrap(),
+            "mine"
+        );
+        assert!(!root.join("lens").join("repos").exists());
+        assert_eq!(create_workdir(&root, "lens").unwrap(), root.join("lens-3"));
+        let fresh = create_workdir(&root, "mentor").unwrap();
+        assert_eq!(fresh, root.join("mentor"));
+        for slug in ["", "repos", "../x", "A", "a b", "-a", "a-", &"a".repeat(41)] {
+            assert!(create_workdir(&root, slug).is_err(), "{slug}");
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn ensures_a_chosen_workdir_without_writing_into_it() {
+        let root = temp_root();
+        let existing = root.join("sandbox-study");
+        std::fs::create_dir_all(&existing).unwrap();
+        assert_eq!(ensure_workdir(&existing).unwrap(), existing);
+        assert_eq!(std::fs::read_dir(&existing).unwrap().count(), 0);
+        let missing = root.join("a").join("b");
+        assert_eq!(ensure_workdir(&missing).unwrap(), missing);
+        assert!(missing.is_dir());
+        let file = root.join("file");
+        std::fs::write(&file, "x").unwrap();
+        assert!(ensure_workdir(&file).is_err());
+        assert!(ensure_workdir(Path::new("relative/dir")).is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
 }

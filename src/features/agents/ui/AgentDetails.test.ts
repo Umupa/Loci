@@ -9,6 +9,8 @@ import { newSession } from "../../sessions/model/session";
 import { AgentDetails } from "./AgentDetails";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+const dialogOpen = vi.hoisted(() => vi.fn());
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: dialogOpen, ask: vi.fn(), message: vi.fn(), save: vi.fn() }));
 vi.mock("../../../integrations/harness/core/availability", () => ({
   getHarnessAvailabilitySnapshot: () => 0,
   hasProbedHarnessAvailability: () => true,
@@ -99,6 +101,28 @@ it("keeps model options in labelled settings rows regardless of the composer pre
   act(() => saveModelControls("menu"));
   expect(button("Effort: High")).not.toBeNull();
   expect(container.querySelector('[role="menu"][aria-label="Model and settings"]')).toBeNull();
+});
+
+it("shows the working folder and points an existing mentor at a folder the user has", async () => {
+  const { createAgent, findAgent, updateAgent } = await import("../model/agent");
+  const created = createAgent([], { name: "Ada" });
+  const agent = updateAgent(created.id, (current) => ({ ...current, workdir: "/home/me/Loci/ada" }))!;
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  vi.mocked(invoke).mockImplementation(async (command, args) =>
+    command === "agent_workdir_ensure" ? (args as { path: string }).path : original(command, args));
+  props = { ...props, agent };
+  await render();
+  const row = [...container.querySelectorAll(".agent-setting-row")].find((item) => item.textContent?.includes("Working folder"))!;
+  expect(row.textContent).toContain("Loci/ada");
+  expect(row.textContent).toContain("Cloned source and experiments go here.");
+
+  dialogOpen.mockResolvedValue("/Volumes/study/sandbox-study");
+  const change = [...row.querySelectorAll("button")].find((item) => item.textContent === "Change…")!;
+  await act(async () => change.click());
+  expect(invoke).toHaveBeenCalledWith("agent_workdir_ensure", { path: "/Volumes/study/sandbox-study" });
+  expect(findAgent(agent.id)?.workdir).toBe("/Volumes/study/sandbox-study");
+  // The chat started in the home folder keeps running there until it is reset.
+  expect(row.textContent).toContain("Reset conversation to start it here.");
 });
 
 async function editMemoryFixture(replaced: boolean) {

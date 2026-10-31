@@ -29,12 +29,12 @@ it("starts a blank agent from a sentence without asking the user to configure it
   expect(host.querySelector("button, input, select, textarea")).toBeNull();
 });
 
-it("lets Tutor start from a topic and keeps the available projects visible", () => {
+it("lets Tutor start from a topic without presenting folders as projects", () => {
   act(() => root.render(createElement(AgentIntro, {
     agent: { ...agent, role: "tutor", projects: ["/projects/Study"] },
   })));
   expect(host.textContent).toContain("What would you like to learn?");
   expect(host.textContent).toContain("A topic is enough.");
-  expect(host.textContent).toContain("Works on Study.");
+  expect(host.textContent).not.toContain("Works on");
   expect(host.querySelector("button, input, select, textarea")).toBeNull();
 });

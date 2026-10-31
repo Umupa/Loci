@@ -100,7 +100,7 @@
   "Works on {0}": "负责 {0}",
   "No projects yet": "还没有项目",
   "Reset {0} to its defaults?": "将 {0} 重置为默认？",
-  "Its soul goes back to the default and its name to {0}. Changes to its soul can't be recovered. Its conversation, projects, memory and habits are kept.": "它的灵魂会恢复为默认内容，名字恢复为 {0}。对灵魂的修改无法找回。它的对话、项目、记忆和习惯会保留。",
+  "Its soul goes back to the default and its name to {0}. Changes to its soul can't be recovered. Its conversation, files, memory and habits are kept.": "它的灵魂会恢复为默认内容，名字恢复为 {0}。对灵魂的修改无法找回。它的对话、文件、记忆和习惯会保留。",
   "Long-lived agents on the project rail, each with its own conversation, memory and habits. Turning this off hides them and pauses their habits; nothing is deleted.": "项目栏上的长期智能体，各有自己的对话、记忆和习惯。关闭后会隐藏它们并暂停习惯，不会删除任何内容。",
   "Markdown view": "Markdown 视图",
   "MCP servers": "MCP 服务",

@@ -1,16 +1,13 @@
 import type { ComponentType } from "react";
-import type { OpenFileFn } from "../../files/model/filePlace";
+import { AgentFilesSection } from "../../agents/ui/AgentFilesSection";
 
 export type MentorFilesSectionProps = {
   agentId: string;
-  onOpenFile: OpenFileFn;
+  /** Opens the file in the reader, in place of what it shows. */
+  onOpenFile: (path: string) => void;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
 };
 
-/**
- * The mentor's working folder in the library. The component is built
- * separately (`agents/ui/AgentFilesSection`); until it lands the section
- * stays out of the library.
- */
-export const MentorFilesSection: ComponentType<MentorFilesSectionProps> | null = null;
+/** The mentor's working folder (and any other folders it was given) in the library. */
+export const MentorFilesSection: ComponentType<MentorFilesSectionProps> | null = AgentFilesSection;

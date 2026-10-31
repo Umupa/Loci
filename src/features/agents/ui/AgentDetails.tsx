@@ -6,6 +6,9 @@ import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/sessi
 import { AccessPicker } from "../../sessions/ui/AccessPicker";
 import { ModelPicker, ModelSettingRows } from "../../sessions/ui/ModelPicker";
 import { addAgentProject, agentLook, removeAgentProject, updateAgent, type Agent } from "../model/agent";
+import { ensureAgentWorkdir, folderHolds, setAgentWorkdir } from "../model/agentWorkdir";
+import { pickFolder, revealPath } from "../../../platform/tauri/fs";
+import { prettyCwd } from "../../../shared/lib/paths";
 import { defaultAgentName } from "../model/agentAvatars";
 import {
   AgentFileConflict,
@@ -26,7 +29,7 @@ import { Popover } from "../../../shared/ui/Popover";
 type Props = {
   agent: Agent;
   /** Its conversation, whose model and permissions are set here rather than in the composer. */
-  session: Pick<Session, "harness" | "model" | "modelSettings" | "runtimeMode" | "busy">;
+  session: Pick<Session, "harness" | "model" | "modelSettings" | "runtimeMode" | "busy" | "cwd">;
   onModelChange: (harness: HarnessId, model: string) => void;
   onModelSettingsChange: (settings: Record<string, string>) => void;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
@@ -105,9 +108,15 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
             row={(label, control) => <SettingRow label={label}>{control}</SettingRow>} />
           <SettingRow label="Permissions" description="What it may do without asking."><AccessPicker value={session.runtimeMode} busy={!!session.busy} onChange={onRuntimeModeChange} /></SettingRow>
         </div>
-        <h4 className="agent-setting-group-title">Projects</h4>
-        <div className="agent-setting-group p-2"><ProjectsField projects={agent.projects} recents={recents} onPickFolders={onPickFolders}
-          onAdd={(path) => addAgentProject(agent.id, path)} onRemove={(path) => removeAgentProject(agent.id, path)} /></div>
+        <h4 className="agent-setting-group-title">Files</h4>
+        <div className="agent-setting-group">
+          <WorkdirRow agent={agent} chatCwd={session.cwd} />
+          <div className="agent-setting-row flex-col items-stretch">
+            <div className="agent-setting-label"><span>Other folders</span><small>More folders it may read and work in.</small></div>
+            <ProjectsField projects={agent.projects} recents={recents} onPickFolders={onPickFolders}
+              onAdd={(path) => addAgentProject(agent.id, path)} onRemove={(path) => removeAgentProject(agent.id, path)} />
+          </div>
+        </div>
         <h4 className="agent-setting-group-title">Conversation</h4>
         <div className="agent-setting-group">
           <SettingRow label="Reset conversation" description="Clear messages. Soul, memory and habits stay."><button type="button" onClick={onReset} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/8">Reset</button></SettingRow>
@@ -121,6 +130,43 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
       </>}
     </div>
   </div>;
+}
+
+/**
+ * Where the mentor keeps cloned source and experiments. Choosing a folder the
+ * user already has uses it as it is; nothing in it is moved or changed.
+ */
+function WorkdirRow({ agent, chatCwd }: { agent: Agent; chatCwd?: string }) {
+  const [shown, setShown] = useState(agent.workdir);
+  const [error, setError] = useState<string>();
+  useEffect(() => {
+    setShown(agent.workdir);
+    if (agent.workdir) return;
+    let live = true;
+    ensureAgentWorkdir(agent.id).then((path) => live && setShown(path), (reason: unknown) => live && setError(String(reason)));
+    return () => { live = false; };
+  }, [agent.id, agent.workdir]);
+  const change = () => void pickFolder("Choose a working folder", shown).then(async (path) => {
+    if (!path) return;
+    try {
+      setShown(await setAgentWorkdir(agent.id, path));
+      setError(undefined);
+    } catch (reason) {
+      setError(String(reason));
+    }
+  });
+  // A running chat stays in the folder it started in; its provider conversation is tied to it.
+  const elsewhere = !!shown && !!chatCwd && !folderHolds(chatCwd, shown);
+  const description = error ?? (elsewhere
+    ? "The current chat keeps running in its own folder; Reset conversation to start it here."
+    : "Cloned source and experiments go here.");
+  return <SettingRow label="Working folder" description={description}>
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span className="min-w-0 truncate text-[12px] text-content/70" title={shown}>{shown ? prettyCwd(shown) : "…"}</span>
+      {shown ? <button type="button" onClick={() => void revealPath(shown)} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Reveal</button> : null}
+      <button type="button" onClick={change} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Change…</button>
+    </div>
+  </SettingRow>;
 }
 
 function SettingRow({ label, description, children }: { label: string; description?: string; children: ReactNode }) {

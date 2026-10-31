@@ -496,7 +496,7 @@ function Workspace(boot: BootWorkspace) {
           onSaveToCanvas: (text, anchor) => saveToCanvas(agent.id, text, anchor) }}
         detailsOpen={agents.isDetailsOpen(agent.id)} onToggleDetails={() => agents.setDetailsOpenFor(agent.id, (open) => !open)}
         onReset={() => void agents.reset(agent.id)} onDelete={() => void agents.remove(agent.id)}
-        onPickFolders={() => pickFolders("Choose projects")}
+        onPickFolders={() => pickFolders("Choose folders")}
         onLoadEarlier={agents.hasEarlier(sessionId) ? () => void agents.loadEarlier(sessionId) : undefined} />
     </div>;
   };

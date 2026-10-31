@@ -1277,7 +1277,8 @@ export async function handleAgentApp(
         tags: tags ?? [],
         sourceSessionId: source.id,
         ...(host.agentOf?.(source.id) ? { agentId: host.agentOf(source.id)!.id } : {}),
-        ...(looksLikeProject(source.cwd) ? { sourceCwd: source.cwd } : {}),
+        // An agent's note belongs to the agent, not to the folder its chat runs in.
+        ...(!host.agentOf?.(source.id) && looksLikeProject(source.cwd) ? { sourceCwd: source.cwd } : {}),
       }));
     }
   }

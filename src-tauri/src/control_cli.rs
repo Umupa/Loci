@@ -71,13 +71,11 @@ Actions:
                   Reuse --request-id on retries.
   sessions.start {"prompt":"...","harness":"codex","model":"codex:...",
                   "effort":"high","reveal":false,
-                  "draft":false,
-                  "placement":"right",
-                  "besideSessionId":"<visible session ID>"}
-                  Create a tab with the prompt, or set placement to right or
-                  down to split a visible session pane. A split defaults to the
-                  calling session; besideSessionId chooses another visible
-                  session in this project, including one just created. Set
+                  "draft":false}
+                  Start a session with the prompt. It runs in the background;
+                  reveal:true shows it in the mentor's reader. There are no
+                  tabs or panes: placement and besideSessionId are accepted
+                  for older requests and ignored. Set
                   draft:true to save the prompt unsent; no agent turn runs.
                   Otherwise the turn is submitted.
                   Returns after creation/acceptance, not agent completion.
@@ -102,7 +100,7 @@ Actions:
   canvas.rename  {"id":"...","title":"New title"}  Rename a drawing.
   canvas.delete  {"id":"..."}  Delete a drawing.
   canvas.read-data  {"id":"..."}  Read full scene data (dataJson) of a drawing
-                  in this project, including pending edits in open panes.
+                  in this project, including pending edits in the open reader.
   canvas.write-data {"id":"...","dataJson":"..."}  Replace a drawing's scene
                   with Excalidraw JSON. dataJson must be a valid JSON string
                   containing {"elements":[...],"appState":{...},"files":{}}.
@@ -113,7 +111,7 @@ Actions:
                   end:{id:"shape-id"}. Native scenes use native bindings.
                   Full scenes support images, frames and freehand elements.
                   MCP cameraUpdate/delete/restoreCheckpoint are not elements.
-                  Writes update open panes. Read first to extend a drawing;
+                  Writes update the open reader. Read first to extend a drawing;
                   this replaces the whole scene, it does not merge elements.
 
 An agent works on several projects rather than in one. Its sessions.* and

@@ -40,8 +40,8 @@ documents are updated through `documents.write`, not reply blocks.
 ## Notes
 
 Use `notes.write` for editable personal notes. A note created in an agent
-conversation belongs to that agent and appears in both Overview → Notes and
-global Notes. Its returned `loci://note/<id>` link opens the note. Documents
+conversation belongs to that agent and appears under Notes in its library.
+Its returned `loci://note/<id>` link opens the note. Documents
 can also be saved as notes from their reader.
 
 ## Checklist
@@ -70,8 +70,8 @@ bullets become child nodes in a collapsible tree.
 
 ## Reading course
 
-Courses appear in the owning agent's Overview → Courses. They open inside the
-overview and can expand into a workspace pane at the selected lesson. Save one with the `courses.write`
+Courses appear in the owning mentor's library under Courses. They open in its
+reader, with the course outline in the library column. Save one with the `courses.write`
 action, then point at it from a reply with a fence that has front matter and
 no body:
 

@@ -148,3 +148,15 @@ it("says what the agent is doing from its conversation", () => {
     }),
   ).toEqual({ status: "needs-you", activity: "Approve rm -rf build" });
 });
+
+it("keeps the workdir and lists it before the other folders", async () => {
+  const { agentFolders } = await import("./agent");
+  const { id } = createAgent(["/code/app"]);
+  updateAgent(id, (agent) => ({ ...agent, workdir: "/home/me/Loci/ember" }));
+  const agent = findAgent(id)!;
+  expect(agent.workdir).toBe("/home/me/Loci/ember");
+  expect(agentFolders(agent)).toEqual(["/home/me/Loci/ember", "/code/app"]);
+  updateAgent(id, (current) => ({ ...current, workdir: " " }));
+  expect(findAgent(id)).not.toHaveProperty("workdir");
+  expect(agentFolders(findAgent(id)!)).toEqual(["/code/app"]);
+});

@@ -111,6 +111,7 @@ it("introduces app tools alongside the user's soul without introducing session d
     role: "domain guide",
     avatar: "luna",
     color: "#fff",
+    workdir: "/home/me/Loci/navigator",
     projects: [{ path: "/code/app", name: "app" }],
   };
   const soul = "# Soul\n\nUse Grilling rounds before collecting sources.";
@@ -120,11 +121,13 @@ it("introduces app tools alongside the user's soul without introducing session d
   expect(blocks.map((block) => block[1])).toEqual(["agent", "soul", "tools", "memory", "memory_files"]);
   expect(blocks.map((block) => block[0]).join("\n\n")).toBe(prompt);
   expect(JSON.parse(blocks[0][2])).toEqual({
-    id: current.id, name: look.name, role: look.role, projects: look.projects,
+    id: current.id, name: look.name, role: look.role,
+    workdir: "/home/me/Loci/navigator", folders: ["/code/app"],
   });
   expect(blocks[1][2]).toBe(soul);
   expect(blocks[2][2]).toContain("courses.write");
   expect(blocks[2][2]).toContain("notes.list/read/write");
+  expect(blocks[2][2]).toContain("<agent>.workdir");
   expect(blocks[2][2]).not.toContain("sessions.start");
   expect(blocks[3][2]).toBe(current.memory);
   expect(JSON.parse(blocks[4][2])).toEqual({
@@ -176,7 +179,7 @@ it.each([
   expect(prompt).toBe(`<loci_context>\n${context}\n</loci_context>\n\n${message}`);
   expect(prompt).toContain(soul);
   expect(JSON.parse(context.match(/<agent>\n([\s\S]*?)\n<\/agent>/)![1])).toEqual({
-    id: "agent", name: "小序", role: role ?? null, projects: [],
+    id: "agent", name: "小序", role: role ?? null, workdir: null, folders: [],
   });
 });
 

@@ -336,6 +336,8 @@ pub fn run() {
             agent::agent_load,
             agent::agent_read,
             agent::agent_save,
+            agent::agent_workdir_create,
+            agent::agent_workdir_ensure,
             agent_documents::agent_documents_list,
             agent_documents::agent_documents_get,
             agent_documents::agent_documents_upsert,

@@ -21,6 +21,11 @@ vi.mock("../../learning/ui/CoursePane", () => ({
     createElement("section", { "data-test-course": true, "data-item": itemId ?? "", "data-request": openRequest }, title,
       createElement("button", { onClick: () => onLessonChange({ id: "service", title: "Service" }) }, "Read service")),
 }));
+vi.mock("../../agents/ui/AgentFilesSection", () => ({
+  AgentFilesSection: ({ agentId, onOpenFile }: { agentId: string; onOpenFile: (path: string) => void }) =>
+    createElement("button", { "data-test-files": agentId, onClick: () => onOpenFile(`/home/user/Loci/${agentId}/repos/notes.md`) }, "notes.md"),
+}));
+vi.mock("../../files/ui/FilePane", () => ({ FilePane: ({ path }: { path: string }) => createElement("section", { "data-test-file": path }, path) }));
 vi.mock("../../canvas/ui/CanvasPane", () => ({ CanvasPane: ({ canvas }: { canvas: { title: string } }) => createElement("section", { "data-test-canvas": true }, canvas.title) }));
 vi.mock("../../notes/ui/NoteEditor", () => ({ NoteEditor: ({ note }: { note: Note }) => createElement("article", { "data-test-note": true }, note.title) }));
 
@@ -85,7 +90,7 @@ it("lays out library, reader and conversation, listing only this mentor's things
   const body = container.querySelector(".mentor-body")!;
   expect([...body.children].map((child) => child.className)).toEqual(["mentor-library-column", "mentor-reader", "mentor-chat-column"]);
   expect(container.querySelector('[data-test-chat="agent-a"]')).not.toBeNull();
-  expect([...container.querySelectorAll("[data-library-section]")].map((section) => section.getAttribute("data-library-section"))).toEqual(["courses", "sources", "notes", "canvases"]);
+  expect([...container.querySelectorAll("[data-library-section]")].map((section) => section.getAttribute("data-library-section"))).toEqual(["courses", "sources", "notes", "canvases", "files"]);
   expect(container.textContent).toContain("Ada's course");
   expect(container.textContent).not.toContain("Bea's course");
   expect(container.textContent).toContain("1 / 2 read");
@@ -189,4 +194,16 @@ it("shows a conversation as the reader without remembering it", async () => {
   expect(reader().querySelector('[data-test-session="delegated"]')).not.toBeNull();
   expect(crumbs()).toEqual(["Ada", "Delegated work"]);
   expect(JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!)[agent.id].page).toBeUndefined();
+});
+
+it("lists the mentor's working folder under Files and opens a file from it in the reader", async () => {
+  await render();
+  const files = container.querySelector<HTMLButtonElement>('[data-library-section="files"] [data-test-files="agent-a"]')!;
+  expect(files).not.toBeNull();
+  await act(async () => files.click());
+  await vi.waitFor(() => expect(container.querySelector("[data-test-file]")?.getAttribute("data-test-file")).toBe("/home/user/Loci/agent-a/repos/notes.md"));
+  expect(control.stateFor(agent.id).page).toEqual({ kind: "file", path: "/home/user/Loci/agent-a/repos/notes.md" });
+  expect(crumbs()).toEqual(["Ada", "notes.md"]);
+  await render(other);
+  expect(container.querySelector('[data-test-files="agent-b"]')).not.toBeNull();
 });
