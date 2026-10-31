@@ -54,3 +54,21 @@ describe("library commands", () => {
     expect(models.harnesses.map((harness) => harness.id)).toContain("antigravity");
   });
 });
+
+vi.mock("../../features/learning/model/course", async (load) => ({
+  ...await load<typeof import("../../features/learning/model/course")>(),
+  loadCourse: vi.fn(async (id: string) => id === "k8s" ? { id, agentId: "a1", title: "K8s", updatedAt: 0, progress: new Map(),
+    data: { engine: "reading", chapters: [{ title: "One", lessons: [{ id: "intro", title: "Intro", source: { kind: "document", id: "doc" } }] }] } } : null),
+  setLessonStatus: vi.fn(async () => undefined),
+}));
+
+describe("lesson status", () => {
+  it("marks a lesson read through the one setter the outline uses", async () => {
+    const { setLessonStatus } = await import("../../features/learning/model/course");
+    const { ctx } = testContext([agent("a1")]);
+    expect(await runCommand(ctx, "courses.lesson", { mentor: "a1", course: "k8s", lesson: "intro", status: "read" }, external)).toEqual({ course: "k8s", lesson: "intro", status: "read", saved: true });
+    expect(setLessonStatus).toHaveBeenCalledWith("k8s", "a1", "intro", "mastered");
+    await expect(runCommand(ctx, "courses.lesson", { mentor: "a1", course: "k8s", lesson: "nope", status: "read" }, external)).rejects.toMatchObject({ code: "not_found" });
+    await expect(runCommand(ctx, "courses.lesson", { mentor: "a1", course: "k8s", lesson: "intro", status: "mastered" }, external)).rejects.toMatchObject({ code: "usage" });
+  });
+});

@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { COURSES_CHANGED_EVENT, courseItems, loadCourse, type CourseChangedDetail, type CourseWithProgress, type LearningStatus } from "../model/course";
+import { COURSES_CHANGED_EVENT, courseItems, loadCourse, PROGRESS_EVENT, type CourseChangedDetail, type ProgressDetail, type CourseWithProgress, type LearningStatus } from "../model/course";
 import "./CoursePane.css";
 
-/** Fired on `window` when a lesson's status changes in any pane. */
-export const PROGRESS_EVENT = "loci:course-progress";
-export type ProgressDetail = { courseId: string; agentId: string; itemId: string; status: LearningStatus };
+export { PROGRESS_EVENT, type ProgressDetail } from "../model/course";
 /** What a status is called where the work is reading. */
 export const READING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Reading", mastered: "Read" };
 

@@ -239,6 +239,16 @@ export function loadCourseSummaries(): Promise<CourseSummary[]> {
   return invoke<CourseSummary[]>("course_list_all");
 }
 
+/** Fired on `window` when a lesson's status changes, from any pane or command. */
+export const PROGRESS_EVENT = "loci:course-progress";
+export type ProgressDetail = { courseId: string; agentId: string; itemId: string; status: LearningStatus };
+
+/** Records how far the user is with one lesson or step, and tells every open view. */
+export async function setLessonStatus(courseId: string, agentId: string, itemId: string, status: LearningStatus): Promise<void> {
+  await invoke("course_progress_set", { courseId, agentId, itemId, status });
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<ProgressDetail>(PROGRESS_EVENT, { detail: { courseId, agentId, itemId, status } }));
+}
+
 /** One course, or with no id every course the agent owns. */
 export async function deleteCourse(agentId: string, id?: string): Promise<void> {
   await invoke("course_delete", { agentId, id: id ?? null });

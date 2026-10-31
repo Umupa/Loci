@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
@@ -12,7 +11,7 @@ import { readTextFile } from "../../../platform/tauri/fs";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
-import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
+import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, setLessonStatus, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
 import { DiffCard } from "./DiffCard";
 import { CourseToc } from "./CourseToc";
 import { CourseOutline, PROGRESS_EVENT, type ProgressDetail } from "./CourseOutline";
@@ -188,8 +187,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     if (pendingWrites.current.has(writeKey)) return;
     pendingWrites.current.set(writeKey, { scope, itemId }); setSaving((previous) => new Set(previous).add(itemId)); setActionError(null);
     try {
-      await invoke("course_progress_set", { courseId, agentId, itemId, status });
-      window.dispatchEvent(new CustomEvent<ProgressDetail>(PROGRESS_EVENT, { detail: { courseId, agentId, itemId, status } }));
+      await setLessonStatus(courseId, agentId, itemId, status);
       // Progress is already committed. A drawing failure is shown separately and
       // retrying the drawing must never undo or duplicate that native write.
       await syncConcept(itemId, status);

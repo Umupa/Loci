@@ -250,6 +250,44 @@
       ]
     },
     {
+      "name": "courses.lesson",
+      "summary": "Mark a lesson read, reading or untouched, as its check mark in the outline does.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "course",
+          "type": "string",
+          "help": "The course id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "lesson",
+          "type": "string",
+          "help": "The lesson (or step) id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "help": "read, reading or untouched",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "courses.list",
       "summary": "The mentor's courses, with how many lessons have been read.",
       "callers": [
@@ -345,6 +383,85 @@
           "type": "json",
           "help": "Steps of a canvas course, as JSON",
           "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "files.list",
+      "summary": "What is in a folder of the mentor's files (its working folder when left out).",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "help": "A folder, relative to the working folder",
+          "required": false,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "files.read",
+      "summary": "One text file of the mentor's.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "help": "The file, relative to the working folder",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "files.write",
+      "summary": "Write a text file in the mentor's files, creating its folder; it replaces a file that is there.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "help": "The file, relative to the working folder",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "help": "Its content (use --text-file)",
+          "required": true,
           "positional": false
         }
       ]
@@ -1641,6 +1758,47 @@
           "help": "One of the mentor's folders, by path or name",
           "required": false,
           "positional": false
+        }
+      ]
+    },
+    {
+      "name": "settings.get",
+      "summary": "App settings a terminal may read: defaultProvider, defaultModel, canvasTools.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "help": "One setting; all when left out",
+          "required": false,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "settings.set",
+      "summary": "Change one of those settings, as Settings does.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "help": "defaultProvider: The provider new conversations start with; defaultModel: The model new conversations start with, for the default provider; canvasTools: Whether agents get the built-in Excalidraw tools (true or false)",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "help": "Its new value",
+          "required": true,
+          "positional": true
         }
       ]
     },

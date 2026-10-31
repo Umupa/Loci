@@ -1,4 +1,5 @@
 import { appModels } from "../../features/agent-app/model/agentApp";
+import { courseItems, loadCourse, setLessonStatus, type LearningStatus } from "../../features/learning/model/course";
 import { deleteNote, getNote, NOTES_CHANGED_EVENT } from "../../features/notes";
 import type { CommandContext } from "./context";
 import { mentorField, resolveMentor } from "./mentor";
@@ -6,6 +7,10 @@ import { CommandError, field, type CommandDefinition, type CommandField } from "
 
 const id = (help = "Its id") => field("id", "string", help, { required: true, positional: true, max: 256 });
 const project = field("project", "string", "One of the mentor's folders, by path or name");
+
+/** What a terminal calls a lesson's status; Loci stores "read" as mastered, with no test behind it. */
+const LESSON_STATUS: Record<string, LearningStatus> = { read: "mastered", reading: "learning", learning: "learning", untouched: "untouched", unread: "untouched" };
+const STATUS_WORD: Record<LearningStatus, string> = { mastered: "read", learning: "reading", untouched: "untouched" };
 
 /**
  * A command that runs one of the app CLI's agent actions for a mentor, as
@@ -56,6 +61,27 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
     field("steps", "json", "Steps of a canvas course, as JSON"),
   ]),
   forMentor("courses.delete", "courses.delete", "Remove a course and its progress.", [id()]),
+  {
+    name: "courses.lesson",
+    summary: "Mark a lesson read, reading or untouched, as its check mark in the outline does.",
+    fields: [
+      mentorField(),
+      field("course", "string", "The course id", { required: true, positional: true }),
+      field("lesson", "string", "The lesson (or step) id", { required: true, positional: true }),
+      field("status", "string", "read, reading or untouched", { required: true }),
+    ],
+    callers: ["external"],
+    run: async (ctx, input, meta) => {
+      const agent = resolveMentor(ctx, input.mentor, meta);
+      const status = LESSON_STATUS[input.status as string];
+      if (!status) throw new CommandError("status is read, reading or untouched", "usage");
+      const course = await loadCourse(input.course as string, agent.id);
+      if (!course) throw new CommandError(`No course ${String(input.course)} for this mentor`, "not_found");
+      if (!courseItems(course.data).some((item) => item.id === input.lesson)) throw new CommandError(`No lesson ${String(input.lesson)} in this course`, "not_found");
+      await setLessonStatus(course.id, agent.id, input.lesson as string, status);
+      return { course: course.id, lesson: input.lesson, status: STATUS_WORD[status], saved: true };
+    },
+  },
 
   forMentor("notes.list", "notes.list", "Note titles and short previews.", [
     field("limit", "integer", "How many (1-100, default 30)"),
