@@ -42,7 +42,7 @@ Every mentor has:
 - **One conversation.** A mentor keeps a single conversation. The lesson, document or note open beside it is passed as context, so "this" and "the passage" refer to what you are reading.
 - **Cards.** A reply can carry a question with choices to click, a document to open, a checklist, a mind map, a course, a code diff, a Mermaid diagram, or a link to a canvas.
 
-A mentor works through the CLI: it can clone a repository, run code and prepare experiments on your machine, within the permission mode you chose.
+A mentor works through the CLI: it can clone a repository, run code and prepare experiments on your machine. It starts with **Full access**, so it does not stop for a prompt on every step; change that in the mentor's settings, or the default for new mentors in **Settings → Your mentors**.
 
 What a mentor does is its prompt at work, so how well it goes depends on the model behind it.
 
@@ -124,7 +124,7 @@ Commands work at the start of a prompt.
 
 - **Where your data is.** Sessions, notes, canvases, source references and PDF annotations are in `loci.db` (SQLite) inside the app data folder `com.loci.desktop`: `~/Library/Application Support/com.loci.desktop` on macOS, `~/.local/share/com.loci.desktop` on Linux, `%APPDATA%\com.loci.desktop` on Windows. Pasted images live beside it. Your project files stay in your own folders. PDF annotations do not rewrite the PDF.
 - **What Loci sends over the network.** Loci has no analytics or crash reporting. An installed Loci checks GitHub Releases for updates a little after launch and every six hours, and asks before installing one; a build from source does not update itself. Beyond what the agent CLIs do with their own providers, Loci fetches the title and icon of public links shown in a conversation (loopback and private addresses are refused).
-- **What agents can do.** An agent runs with your user's permissions. The permission mode only decides when Loci asks you before the CLI acts, so choose it with the same care as in the CLI itself. **Full access** allows commands, edits and supported MCP confirmations without prompts.
+- **What agents can do.** An agent runs with your user's permissions. The permission mode only decides when Loci asks you before the CLI acts, so choose it with the same care as in the CLI itself. **Full access**, what a mentor starts with, allows commands, edits and supported MCP confirmations without prompts.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).
 

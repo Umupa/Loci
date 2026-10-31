@@ -12,6 +12,7 @@ Shield,
 Sparkles,
 } from "../../../shared/ui/icons";
 import { Popover } from "../../../shared/ui/Popover";
+import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import {
 RUNTIME_MODE_HINT,
 RUNTIME_MODE_LABEL,
@@ -45,6 +46,7 @@ export function AccessPicker({
   const [active, setActive] = useState(() =>
     Math.max(0, RUNTIME_MODES.indexOf(value)),
   );
+  const { t } = useUiText();
   const root = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -88,8 +90,8 @@ export function AccessPicker({
       <button
         type="button"
         data-access-picker-trigger
-        title={`${RUNTIME_MODE_HINT[value]}${busy ? " Changes apply to the next turn." : ""}`}
-        aria-label={RUNTIME_MODE_LABEL[value]}
+        title={`${t(RUNTIME_MODE_HINT[value])}${busy ? ` ${t("Changes apply to the next turn.")}` : ""}`}
+        aria-label={t(RUNTIME_MODE_LABEL[value])}
         aria-expanded={open}
         aria-haspopup="listbox"
         onMouseDown={(e) => e.preventDefault()}
@@ -111,7 +113,7 @@ export function AccessPicker({
           strokeWidth={1.75}
         />
         <span className="min-w-0 truncate text-[11px]">
-          {RUNTIME_MODE_LABEL[value]}
+          {t(RUNTIME_MODE_LABEL[value])}
         </span>
         <ChevronDown
           className={`size-3 shrink-0 text-content/50 ${open ? "rotate-180" : ""}`}
@@ -126,7 +128,7 @@ export function AccessPicker({
           autoFocus
           onDismiss={(reason) => dismiss(reason === "escape")}
           role="listbox"
-          aria-label="Access"
+          aria-label={t("Access")}
           data-access-picker
           tabIndex={-1}
           onKeyDown={onMenuKey}
@@ -157,10 +159,10 @@ export function AccessPicker({
                 />
                 <span className="min-w-0">
                   <span className="block text-[13px] font-medium leading-5">
-                    {RUNTIME_MODE_LABEL[mode]}
+                    {t(RUNTIME_MODE_LABEL[mode])}
                   </span>
                   <span className="mt-0.5 block text-[11px] leading-4 text-content/50">
-                    {RUNTIME_MODE_HINT[mode]}
+                    {t(RUNTIME_MODE_HINT[mode])}
                   </span>
                 </span>
               </button>
@@ -168,8 +170,7 @@ export function AccessPicker({
           })}
           {busy ? (
             <p className="px-2 py-1.5 text-[11px] leading-4 text-content/50">
-              Access changes apply to the next turn. Stop and resend to apply
-              them now.
+              {t("Access changes apply to the next turn. Stop and resend to apply them now.")}
             </p>
           ) : null}
         </Popover>

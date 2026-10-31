@@ -491,6 +491,19 @@ describe("agent app commands", () => {
       expect.objectContaining({ runtimeMode: "full-access" }),
       "app-lead-explicit-mode",
     );
+    // A mentor that itself runs in Full access passes that on, too.
+    source.runtimeMode = "full-access";
+    await handleAgentApp(
+      source,
+      "inherited-full-access",
+      "sessions.start",
+      { prompt: "Review this" },
+      host,
+    );
+    expect(host.start).toHaveBeenLastCalledWith(
+      expect.objectContaining({ runtimeMode: "full-access" }),
+      "app-lead-inherited-full-access",
+    );
   });
 
   it("starts with an unsent draft", async () => {
