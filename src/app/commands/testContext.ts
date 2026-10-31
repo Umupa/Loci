@@ -7,6 +7,7 @@ import type { CommandContext } from "./context";
 export function testContext(agents: Agent[] = [], overrides: Partial<CommandContext> = {}) {
   const chats = new Map<string, Session>();
   const views = new Map<string, ReturnType<CommandContext["reader"]["current"]>>();
+  const libraries = new Map<string, ReturnType<CommandContext["library"]["current"]>>();
   const chatOf = (id: string) => {
     let chat = chats.get(id);
     if (!chat) { chat = { ...newSession("claude", `/agents/${id}`), id: `chat-${id}` }; chats.set(id, chat); }
@@ -34,6 +35,19 @@ export function testContext(agents: Agent[] = [], overrides: Partial<CommandCont
       show: vi.fn(async (agentId, page) => { views.set(agentId, { page }); }),
       close: vi.fn(async (agentId) => { views.delete(agentId); return true; }),
       current: (agentId) => views.get(agentId) ?? {},
+    },
+    library: {
+      open: vi.fn((agentId, change) => {
+        const before = libraries.get(agentId) ?? { visible: true };
+        const segment = change.segment ?? before.segment;
+        const next = { ...before, visible: true, ...(change.segment ? { segment: change.segment } : {}), ...(change.course ? { course: change.course } : {}) };
+        if (change.filter !== undefined) {
+          if (change.filter && segment) next.filter = { segment, text: change.filter };
+          else delete next.filter;
+        }
+        libraries.set(agentId, next);
+      }),
+      current: (agentId) => libraries.get(agentId) ?? { visible: true },
     },
     agentApp: vi.fn(async (_source, _requestId, action) => ({ action })),
     ...overrides,

@@ -71,6 +71,13 @@ export function useCommandContext(options: Options): CommandContext {
         return { ...(view.page ? { page: view.page } : {}), ...(view.lesson ? { lesson: view.lesson } : {}) };
       },
     },
+    library: {
+      open: (agentId, change) => latest.current.mentorView().openLibrary(agentId, { ...change, show: true }),
+      current: (agentId) => {
+        const view = latest.current.mentorView().viewFor(agentId);
+        return { visible: view.library, ...(view.segment ? { segment: view.segment } : {}), ...(view.course ? { course: view.course } : {}), ...(view.filter ? { filter: view.filter } : {}) };
+      },
+    },
     agentApp: (source, requestId, action, input) => {
       const { workspace, runtime, submission, delegation } = latest.current;
       return handleAgentApp(source, requestId, action, input, agentAppHost(source, { workspace, runtime, submission, delegation }));

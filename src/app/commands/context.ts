@@ -1,5 +1,6 @@
 import type { Agent } from "../../features/agents/model/agent";
 import type { AgentTemplate } from "../../features/agents/templates";
+import type { LibrarySegment } from "../../features/mentor/model/libraryCourse";
 import type { MentorLesson, MentorPage } from "../../features/mentor/model/mentorPage";
 import type { Session } from "../../features/sessions/model/session";
 import type { SessionSubmission } from "../hooks/useSessionSubmission";
@@ -33,6 +34,11 @@ export type CommandContext = {
     show(agentId: string, page: MentorPage, focus: boolean): Promise<void>;
     close(agentId: string): Promise<boolean>;
     current(agentId: string): { page?: MentorPage; lesson?: MentorLesson };
+  };
+  library: {
+    /** Chooses the library's segment, its course or its filter, and shows the library. */
+    open(agentId: string, change: { segment?: LibrarySegment; course?: string; filter?: string }): void;
+    current(agentId: string): { visible: boolean; segment?: LibrarySegment; course?: string; filter?: { segment: LibrarySegment; text: string } };
   };
   /** Runs one of the app CLI's agent actions as the given session would. */
   agentApp(source: Session, requestId: string, action: string, input: Record<string, unknown>): Promise<unknown>;

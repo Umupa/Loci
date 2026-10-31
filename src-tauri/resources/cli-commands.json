@@ -636,6 +636,70 @@
       ]
     },
     {
+      "name": "library.open",
+      "summary": "Show a mentor's library at one segment (courses, sources, notes, files), a course in its Courses segment, or a filter.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor whose library to use, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "segment",
+          "type": "string",
+          "help": "One of courses, sources, notes, files",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "course",
+          "type": "string",
+          "help": "A course id to show in the Courses segment (it does not open the reader; reader open does)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "filter",
+          "type": "string",
+          "help": "Filter text for the segment's list; empty clears it (not for courses)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "switch",
+          "type": "boolean",
+          "help": "Also bring the mentor on screen",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "library.show",
+      "summary": "What a mentor's library shows now: whether it is visible, the segment, the course and the filter.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor whose library to use, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "memory.add",
       "summary": "Remember one dated fact.",
       "callers": [
