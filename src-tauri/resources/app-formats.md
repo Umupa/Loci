@@ -33,9 +33,22 @@ Markdown content, including code, tables, and links.
 
 `id`, `title`, and `subject` are front matter fields. Without front matter,
 the first heading supplies the title and a document ID is derived from it.
-In an agent chat, the document is saved in that agent's library. A complete
-document with the same ID replaces the earlier document. Imported source
-documents are updated through `documents.write`, not reply blocks.
+In an agent chat, the document is saved in that agent's library as a
+**guide**: the agent's own writing. A complete document with the same ID
+replaces the earlier document.
+
+A library holds two kinds, and `documents.list` reports each one's `kind`:
+
+- **source**: text someone else published (docs, a spec, a paper, a README),
+  taken in verbatim from a saved file with `documents.write` and its
+  `sourceUrl`. A source changes only by taking its file in again.
+- **guide**: what the agent wrote itself (a reading guide, a brief, a map of
+  the material), saved with `guides.write` (`path` to a Markdown file, or
+  `body`) or a `loci-document` block. It has no `sourceUrl` and the user sees
+  it labelled "Mentor's guide", listed after the sources.
+
+Never save your own summary as a source. A guide and a source never share an
+ID: writing one kind over the other is refused.
 
 ## Notes
 

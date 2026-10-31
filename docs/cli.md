@@ -72,7 +72,8 @@ Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false
 | `status` | Whether this Loci runs, and its identifier and version |
 | `templates` | `list` |
 | `mentors` | `list`, `show`, `create`, `update`, `delete`, `reset`, `switch`, `send`, `turn`, `read`, `stop` |
-| `sources` | `list`, `read`, `write` (take a Markdown file in as a source) |
+| `sources` | `list`, `read`, `write` (take a Markdown file someone published in as a first-hand source) |
+| `guides` | `write`: save the mentor's own guide (a reading guide, a brief), from `--path` or `--body`/`--body-file`; listed and labelled apart from sources |
 | `courses` | `list`, `read`, `write`, `delete`, `lesson` (mark read, reading or untouched) |
 | `notes` | `list`, `read`, `write`, `delete` |
 | `canvases` | `list`, `get`, `create`, `rename`, `delete`, `read-data`, `write-data` |
@@ -93,7 +94,7 @@ Notes:
 - `reader open --mentor M` takes exactly one of `--course C [--lesson L]`, `--source S [--section "Heading"]`, `--note N`, `--canvas K`, `--file /abs/path [--lines 10-40 | --page 3]`. It replaces what that mentor's reader shows. When the mentor is not on screen, the page is ready for when it is; `--switch` brings it on screen. `reader show` reports the kind, id or path, lesson and requested place.
 - `library open --mentor M` takes any of `--segment courses|sources|notes|files`, `--course C` (the course the Courses segment shows; it does not open the reader, `reader open --course C` does) and `--filter TEXT` (the filter of the segment shown; empty clears it; Courses has none). It also shows the library if it was hidden, and `--switch` brings the mentor on screen. `library show` reports `visible`, `segment`, `course` and `filter`. A mentor without a chosen segment shows Courses when it has a course, else Sources. The segment and course are remembered per mentor; the filter lasts until the window closes.
 - `mentors delete` and `mentors reset` ask in Loci, as the rail does. `--yes` skips the question on Loci Dev and QA builds only; the installed app always asks, and `loci` waits for the answer (exit 6 when declined).
-- Library commands run exactly as the mentor's own `loci app` actions do (`sources write` is `documents.write`, `canvases` is `canvas.*`), with the same rules. Sessions started from a terminal do not report back to the mentor unless `--notify-on-complete`.
+- Library commands run exactly as the mentor's own `loci app` actions do (`sources write` is `documents.write`, `guides write` is `guides.write`, `canvases` is `canvas.*`), with the same rules. `sources list` gives each entry's `kind`: `source` (with `sourceUrl`) or `guide`. A guide cannot take a source's id, nor a source a guide's. Sessions started from a terminal do not report back to the mentor unless `--notify-on-complete`.
 
 Mentors inside Loci can also use `reader.open`, `reader.show` and `reader.close`, and `library.open` and `library.show`, through `loci app`, for their own reader and library.
 
