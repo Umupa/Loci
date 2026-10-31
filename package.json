@@ -24,6 +24,7 @@
     "test": "vitest run",
     "test:stability": "vitest run --config scripts/acceptance/stability/vitest.config.ts",
     "test:watch": "vitest",
+    "gen:cli": "UPDATE_CLI_MANIFEST=1 vitest run src/app/commands/manifest.test.ts",
     "check": "npm run check:web && npm run check:rust",
     "check:web": "vitest run && tsc --noEmit",
     "check:rust": "cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test",

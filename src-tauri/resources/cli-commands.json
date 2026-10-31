@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "name": "templates.list",
+      "summary": "The mentor templates a new mentor can start from.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": []
+    }
+  ]
+}
