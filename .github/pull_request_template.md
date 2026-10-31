@@ -10,6 +10,6 @@
 
 - [ ] `npm run check` passes
 - [ ] New behavior has tests, and a bug fix has a test that fails without it
-- [ ] User-visible changes are noted under *Unreleased* in `CHANGELOG.md`
+- [ ] User-visible changes are noted under *Unreleased* in `CHANGELOG.md` (that text becomes the release notes and the update prompt)
 - [ ] Docs are updated (`README.md` and `README.zh-CN.md` together, if either changed)
 - [ ] Platform-specific code still compiles on the other platforms

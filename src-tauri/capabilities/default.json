@@ -22,6 +22,8 @@
     "core:webview:allow-set-webview-zoom",
     "opener:default",
     "dialog:default",
-    "window-state:default"
+    "window-state:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

@@ -14,6 +14,7 @@ import { OPEN_COURSE_EVENT, type OpenCourseDetail } from "../features/learning/m
 import type { DiscussionRef } from "../features/learning/model/types";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { startUpdateChecks } from "../features/updates/model/updates";
 import { Sidebar } from "./shell/Sidebar";
 import { WindowControls } from "./shell/WindowControls";
 import { TitleBar, OverlayNav } from "./shell/TitleBar";
@@ -145,6 +146,8 @@ function Workspace(boot: BootWorkspace) {
   const surfaceHistory = useRef<Surface[]>([]);
   const goingBack = useRef(false);
   const previousSurface = useRef(surface);
+  // One window asks about updates, not each of them.
+  useEffect(() => (getCurrentWindow().label === "main" ? startUpdateChecks() : undefined), []);
   useEffect(() => {
     const left = previousSurface.current;
     previousSurface.current = surface;

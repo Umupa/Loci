@@ -1,7 +1,8 @@
 import { ResetWorkspace } from "./ResetWorkspace";
 import { SettingsLanguage } from "../../../shared/i18n/SettingsLanguage";
 import { t, useLocale, getLocale, useLanguagePreference, setLanguagePreference, type LanguagePreference } from "../../../shared/i18n/locale";
-import { getVersion } from "@tauri-apps/api/app";
+import { getName, getVersion } from "@tauri-apps/api/app";
+import { checkForUpdate, updatesEnabled } from "../../updates/model/updates";
 import { shortcutPreview, shortcutFromKeyEvent } from "../../../shared/lib/shortcuts";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -2085,6 +2086,12 @@ function Select({ label, value, options, onChange, }: {
 function VersionRow() {
   useLocale();
  const [version,setVersion] = useState("…");
- useEffect(()=>{let cancelled=false;void getVersion().then(next=>{if(!cancelled)setVersion(next)}).catch(()=>{if(!cancelled)setVersion(t("Unavailable"))});return ()=>{cancelled=true}},[]);
- return <Row id="version" label={<span className="flex items-baseline gap-2">{t("Version")}<span className="font-mono text-[12px] text-content/45">{version}</span></span>} description="Loci" />;
+ const [name,setName] = useState("Loci");
+ const [updates,setUpdates] = useState(false);
+ const [checking,setChecking] = useState(false);
+ useEffect(()=>{let cancelled=false;void getVersion().then(next=>{if(!cancelled)setVersion(next)}).catch(()=>{if(!cancelled)setVersion(t("Unavailable"))});void getName().then(next=>{if(!cancelled)setName(next)}).catch(()=>{});void updatesEnabled().then(next=>{if(!cancelled)setUpdates(next)});return ()=>{cancelled=true}},[]);
+ const onCheck = () => { setChecking(true); void checkForUpdate({ interactive: true }).finally(() => setChecking(false)); };
+ return <Row id="version" label={<span className="flex items-baseline gap-2">{t("Version")}<span className="font-mono text-[12px] text-content/45">{version}</span></span>} description={updates ? name : t("{0} is built from source and does not update itself. Its data is kept apart from the installed Loci.", name)}>
+   {updates ? (<button type="button" onClick={onCheck} disabled={checking} className="shrink-0 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 hover:bg-content/10 hover:text-content disabled:opacity-50">{checking ? t("Checking…") : t("Check for Updates")}</button>) : null}
+ </Row>;
 }

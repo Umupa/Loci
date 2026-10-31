@@ -19,6 +19,7 @@ Files at the root of the repository:
 | [SECURITY.md](../SECURITY.md) | Reporting a vulnerability, and what counts as one |
 | [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) | Community standards |
 | [CHANGELOG.md](../CHANGELOG.md) | What changed in each release |
+| [releasing.md](releasing.md) | Loci and Loci Dev, the release workflow, updates and signing |
 | [NOTICE](../NOTICE) | Origin of the code, bundled third-party software, trademarks |
 
 The earlier extraction plan and acceptance notes are no longer kept in the tree. They remain in git history: `git log --follow -- docs/extraction.md`.

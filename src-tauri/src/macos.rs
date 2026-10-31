@@ -645,7 +645,8 @@ fn relaunch_from_dev_bundle() -> Result<(), String> {
     // UNUserNotificationCenter refuses authorization, without prompting,
     // unless the signing identifier matches CFBundleIdentifier.
     let signed = Command::new("/usr/bin/codesign")
-        .args(["--force", "--sign", "-", "--identifier", DEV_BUNDLE_ID])
+        .args(["--force", "--sign", "-", "--identifier"])
+        .arg(crate::flavor::dev_identifier())
         .arg(&app)
         .status()
         .map(|status| status.success())
@@ -673,13 +674,10 @@ fn write_dev_bundle_icons(app: &Path, app_name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Must match `CFBundleIdentifier` in the generated dev bundle plist and tauri.conf.json.
 #[cfg(debug_assertions)]
-const DEV_BUNDLE_DEFAULT_NAME: &str = "Loci";
+const DEV_BUNDLE_DEFAULT_NAME: &str = crate::flavor::DEV_PRODUCT_NAME;
 #[cfg(debug_assertions)]
 const DEV_BUNDLE_NAME_ENV: &str = "LOCI_DEV_APP_NAME";
-#[cfg(debug_assertions)]
-const DEV_BUNDLE_ID: &str = "com.loci.desktop";
 #[cfg(debug_assertions)]
 const DEV_ICNS: &[u8] = include_bytes!("../icons/icon.icns");
 #[cfg(debug_assertions)]
@@ -729,6 +727,9 @@ fn escape_plist_text(value: &str) -> String {
 fn dev_bundle_plist(app_name: &str) -> Vec<u8> {
     let app_name = escape_plist_text(app_name);
     let app_version = env!("CARGO_PKG_VERSION");
+    // Matches the identifier `flavor::apply` gives the running app, so
+    // notifications are authorized for the data folder it uses.
+    let identifier = escape_plist_text(&crate::flavor::dev_identifier());
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -743,7 +744,7 @@ fn dev_bundle_plist(app_name: &str) -> Vec<u8> {
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.loci.desktop</string>
+	<string>{identifier}</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -820,6 +821,16 @@ mod tests {
         let plist = String::from_utf8(dev_bundle_plist("Loci Dev")).unwrap();
         assert!(plist.contains("<string>Loci Dev</string>"));
         assert!(!plist.contains("<string>Loci</string>"));
+    }
+
+    #[test]
+    fn dev_bundle_never_claims_the_installed_identifier() {
+        let plist = String::from_utf8(dev_bundle_plist("Loci Dev")).unwrap();
+        assert!(!plist.contains("<string>com.loci.desktop</string>"));
+        assert!(plist.contains(&format!(
+            "<key>CFBundleIdentifier</key>\n\t<string>{}</string>",
+            crate::flavor::dev_identifier()
+        )));
     }
 
     #[test]

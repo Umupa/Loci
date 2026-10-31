@@ -40,7 +40,7 @@ Loci 是一个本地优先的 agent CLI 桌面外壳，使用 Tauri 2、Rust、R
 
 ### 下载
 
-第一个版本打上标签后，macOS（Apple Silicon）和 Linux（x64）的安装包会附在 [Releases](https://github.com/Umupa/Loci/releases) 页面。目前还没有发布，所以暂时请从源码构建。发布版没有经过 macOS 公证，第一次打开时 macOS 会要求你确认。
+macOS（Apple 芯片与 Intel）和 Linux（x64）的安装包在 [Releases](https://github.com/Umupa/Loci/releases) 页面，安装后的 Loci 会从那里自动更新（**设置 → 通用 → 关于**）。发布版没有经过 macOS 公证，第一次打开时 macOS 会要求你确认。每个版本的改动见 [CHANGELOG.md](CHANGELOG.md)。
 
 ### 从源码构建
 
@@ -56,11 +56,13 @@ Loci 是一个本地优先的 agent CLI 桌面外壳，使用 Tauri 2、Rust、R
 git clone https://github.com/Umupa/Loci.git
 cd Loci
 npm ci
-npm run tauri dev      # 带热更新运行
+npm run app:dev        # 带热更新运行 Loci Dev
 npm run tauri build    # 为当前平台构建安装包
 ```
 
-macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Release 包（它会先停掉从本仓库构建的、正在运行的实例；`--help` 列出调试和日志选项）。
+从源码运行的是 **Loci Dev**：一个独立的应用，数据目录也独立，可以和安装的 Loci 同时运行，不会碰到你的笔记和 agent。`npm run install:local`（macOS）把当前代码构建成正式的 Loci 并安装到 `/Applications`。详见 [docs/releasing.md](docs/releasing.md)。
+
+macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Loci Dev 的 Release 包（它会先停掉从本仓库构建的、正在运行的实例；`--help` 列出调试和日志选项）。
 
 ### 开始第一个会话之前
 
@@ -134,7 +136,7 @@ CI 在 Linux 和 macOS 上构建并测试 Rust 与 Web 代码，见 [.github/wor
 
 ```sh
 npm ci
-npm run tauri dev     # 带热更新运行
+npm run app:dev       # 带热更新运行 Loci Dev
 npm run check         # CI 运行的全部检查：Vitest、tsc、cargo fmt、clippy 和 cargo test
 npm run build         # 类型检查并构建 Web 包
 ```
@@ -145,7 +147,9 @@ npm run build         # 类型检查并构建 Web 包
 | `npm run check:web` | Vitest 和 `tsc --noEmit` |
 | `npm run check:rust` | `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test` |
 | `npm run set-version -- 0.1.1` | 一次更新所有带版本号的文件 |
-| `npm run tauri:stable` | 文件变化时不会重载的开发实例（无热更新，不重编 Rust） |
+| `npm run tauri:stable` | 文件变化时不会重载的 Loci Dev（无热更新，不重编 Rust） |
+| `npm run install:local` | 把当前代码构建成安装版 Loci 并放进 `/Applications`（macOS） |
+| `npm run release -- 0.2.0` | 从 main 发布一个版本（维护者，见 [docs/releasing.md](docs/releasing.md)） |
 
 目录结构：
 

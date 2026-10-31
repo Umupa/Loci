@@ -149,7 +149,7 @@ Replies can link to notes (`loci://note/<id>`), canvases (`loci://canvas/<id>`),
 - macOS: `macos.rs` (window chrome and background blur), notifications through `UNUserNotificationCenter`.
 - Windows: `windows.rs` (job object so child processes die with the app), `tray.rs` (the way back to a window that closing hid).
 - Linux: notifications through `notify-rust`, Wayland-aware clipboard reads.
-- `src-tauri/tauri.conf.json` is the base configuration. Tauri merges `tauri.linux.conf.json` or `tauri.windows.conf.json` over it. `tauri.stable.conf.json` is only for `npm run tauri:stable`.
+- `src-tauri/tauri.conf.json` is the base configuration. Tauri merges `tauri.linux.conf.json` or `tauri.windows.conf.json` over it. `tauri.stable.conf.json` is only for `npm run tauri:stable`; `tauri.dev.conf.json` makes a release build of Loci Dev (`script/build_and_run.sh`); `tauri.release.conf.json` adds the signed update artifacts the release workflow uploads. Debug builds always run as Loci Dev (`src-tauri/src/flavor.rs`), and only the installed app registers the updater ([releasing.md](releasing.md)).
 
 ## Network and trust boundaries
 

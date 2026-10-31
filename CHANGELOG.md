@@ -4,8 +4,6 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
-Nothing has been tagged yet; the first release will be 0.1.0. Until then this section lists what the first release will contain.
-
 ### Added
 
 - **Courses read from first-hand sources**: a course is chapters of lessons, each pointing at a source to read (a document in the agent's library, optionally from one of its headings, or a PDF and its pages) with saved reading progress. The course holds no text written by the agent. The Navigator template agrees a plan with you before collecting anything, then takes official documentation, specifications and papers into its library with `app documents.write`, which reads the text from a file the agent saved so it is never retyped by a model. A source records where it was published, shows that page's pictures, and cannot be revised by a reply. Selecting text in any library document adds the passage to the agent's chat.
@@ -30,6 +28,9 @@ Nothing has been tagged yet; the first release will be 0.1.0. Until then this se
 - **An agent's library**: documents an agent writes open beside the chat, are kept under Details → Library grouped by subject, are revised by writing them again under the same id, and can be saved as notes. The agent reads them back with `app documents.list` and `documents.read`. Canvases an agent draws are kept in its library as well, so an agent with no project can draw.
 - **Agent creation**: the plus beside Agents offers a blank agent or a template. Both open directly into chat using the default model. A template writes its visible Soul into the new agent. Name, role, model and Soul are editable in Details; built-in templates can be rewritten or reset in Settings → Your agents.
 - The Tutor template starts with a lesson or exercise, learns preferences through use, keeps progress in memory, and teaches with documents, mind maps and checklists. Roadmaps follow when the learner wants to continue. This replaces the `/learn` skill that was in development; learning maps it created remain as ordinary canvases.
+
+- **Updates**: an installed Loci checks GitHub Releases a little after launch and every few hours, shows the new version's notes, and installs it and restarts when you agree. **Settings → General → About** checks on demand.
+- **Loci Dev**: what you run from source has its own name, identifier (`com.loci.desktop.dev`) and data folder, so it runs beside an installed Loci without opening its database. `npm run install:local` installs this checkout as the real Loci on macOS.
 
 ### Changed
 

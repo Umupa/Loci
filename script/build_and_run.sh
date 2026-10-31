@@ -21,7 +21,9 @@ case "$MODE" in
 esac
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_BUNDLE="$ROOT_DIR/target/release/bundle/macos/Loci.app"
+# A release build of Loci Dev: its own identifier and data, so verifying a
+# change never replaces or opens the installed Loci.
+APP_BUNDLE="$ROOT_DIR/target/release/bundle/macos/Loci Dev.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/loci"
 cd "$ROOT_DIR"
 
@@ -35,7 +37,7 @@ for task_pid in $(pgrep -x loci || true); do
   esac
 done
 
-npm run tauri -- build --bundles app
+npm run tauri -- build --bundles app --config src-tauri/tauri.dev.conf.json
 
 case "$MODE" in
   --debug)
@@ -47,7 +49,7 @@ case "$MODE" in
     ;;
   --telemetry)
     /usr/bin/open -n "$APP_BUNDLE"
-    exec /usr/bin/log stream --info --style compact --predicate 'subsystem == "com.loci.desktop"'
+    exec /usr/bin/log stream --info --style compact --predicate 'subsystem == "com.loci.desktop.dev"'
     ;;
   --verify)
     /usr/bin/open -n "$APP_BUNDLE"

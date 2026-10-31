@@ -1,10 +1,16 @@
 name: Release
 
-# Pushing a tag such as v0.1.0 builds the installers and attaches them to a
-# draft GitHub release. Review the draft, then publish it by hand.
+# A tag v<x.y.z>, which scripts/release.sh pushes, builds Loci for macOS
+# (Apple silicon and Intel) and Linux, uploads the installers and the signed
+# updates to a release whose notes are that version's section of
+# CHANGELOG.md, and publishes it. Installed copies of Loci find it at their
+# next update check (latest.json). Run by hand, it builds and signs without
+# releasing anything, to try the secrets; the installers are kept as
+# workflow artifacts.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}
@@ -14,18 +20,104 @@ permissions:
   contents: write
 
 jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      release-id: ${{ steps.release.outputs.id }}
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check the version, changelog and update key
+        id: notes
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing, so updates could not be signed. Run scripts/setup-release.sh."
+            exit 1
+          fi
+          if [[ -z "$(node -p "require('./src-tauri/tauri.conf.json').plugins.updater.pubkey")" ]]; then
+            echo "::error::plugins.updater.pubkey in src-tauri/tauri.conf.json is empty. Run scripts/setup-release.sh."
+            exit 1
+          fi
+          version=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            if [[ "v$version" != "$GITHUB_REF_NAME" ]]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match version $version in package.json. Release with scripts/release.sh."
+              exit 1
+            fi
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            notes=$(node scripts/changelog.mjs notes "$version")
+          else
+            notes="A trial build of $(git rev-parse --short HEAD); nothing is released."
+          fi
+          {
+            echo "notes<<LOCI_NOTES_EOF"
+            echo "$notes"
+            echo "LOCI_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create the draft release
+        id: release
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ steps.notes.outputs.notes }}
+        run: |
+          find_release() {
+            gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+              --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | [.id, .draft] | @tsv" | head -1
+          }
+          found=$(find_release)
+          if [[ -n "$found" && "$(cut -f2 <<<"$found")" == false ]]; then
+            echo "::error::$GITHUB_REF_NAME is published already."
+            exit 1
+          fi
+          if [[ -z "$found" ]]; then
+            {
+              echo "$NOTES"
+              echo
+              echo "---"
+              echo
+              echo "**Install.** Download the \`.dmg\` for your Mac (\`aarch64\` for Apple silicon, \`x64\` for Intel), or the \`.AppImage\` / \`.deb\` for Linux. Installed copies update themselves from here."
+              echo
+              echo "Loci is not notarized by Apple. The first time you open it, macOS may say it cannot check it for malicious software: open **System Settings → Privacy & Security** and choose **Open Anyway**, or run \`xattr -dr com.apple.quarantine /Applications/Loci.app\`."
+            } > "$RUNNER_TEMP/notes.md"
+            # A rerun keeps the draft it made the first time.
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+              --title "Loci $GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
+            found=$(find_release)
+          fi
+          echo "id=$(cut -f1 <<<"$found")" >> "$GITHUB_OUTPUT"
+
   build:
     name: ${{ matrix.name }}
+    needs: prepare
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: macOS (Apple Silicon)
+          - name: macOS (Apple silicon)
             os: macos-latest
+            target: aarch64-apple-darwin
+          - name: macOS (Intel)
+            os: macos-latest
+            target: x86_64-apple-darwin
           - name: Linux (x64)
             os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v7
 
@@ -33,15 +125,6 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-
-      - name: Check that the tag matches the app version
-        shell: bash
-        run: |
-          version=$(node -p "require('./package.json').version")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in package.json. Run 'npm run set-version -- X.Y.Z', commit, and tag again."
-            exit 1
-          fi
 
       - name: Install Linux libraries
         if: runner.os == 'Linux'
@@ -54,22 +137,97 @@ jobs:
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
           toolchain: stable
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: ${{ matrix.target }}
 
       - run: npm ci
+
+      # Every version is signed with the same self-signed "Loci Signing"
+      # identity, so macOS keeps the folder and notification permissions an
+      # installed copy was given when it updates. Without the secret the
+      # build is signed ad hoc, and every update asks for them again.
+      - name: Import the signing identity
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+        run: |
+          if [[ -z "$MACOS_SIGNING_IDENTITY" ]]; then
+            echo "::warning::No MACOS_SIGNING_IDENTITY secret: this build is signed ad hoc. Run scripts/setup-release.sh."
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -base64 24)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$MACOS_SIGNING_IDENTITY" | base64 --decode > "$RUNNER_TEMP/loci.p12"
+          security import "$RUNNER_TEMP/loci.p12" -k "$keychain" -P "$MACOS_SIGNING_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/loci.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain
+          # A self-signed certificate signs code once it is trusted for it.
+          security find-certificate -c "Loci Signing" -p "$keychain" > "$RUNNER_TEMP/loci.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/loci.pem"
+          security find-identity -v -p codesigning "$keychain" | grep -q '"Loci Signing"'
+          echo '{"bundle":{"macOS":{"signingIdentity":"Loci Signing"}}}' > src-tauri/tauri.signing.conf.json
+          echo "SIGNING_ARGS=--config src-tauri/tauri.signing.conf.json" >> "$GITHUB_ENV"
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
 
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Loci ${{ github.ref_name }}
-          releaseBody: |
-            These builds are not code-signed or notarized, so your operating system may ask you to confirm the first time you open one. See the [changelog](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for what changed.
-          generateReleaseNotes: true
-          releaseDraft: true
-          prerelease: false
-          # Loci has no auto-updater, so there is no update manifest to publish.
-          uploadUpdaterJson: false
-          uploadUpdaterSignatures: false
+          releaseId: ${{ needs.prepare.outputs.release-id }}
+          releaseBody: ${{ needs.prepare.outputs.notes }}
+          args: --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json ${{ env.SIGNING_ARGS }}
+          uploadUpdaterJson: ${{ github.event_name == 'push' }}
+          uploadUpdaterSignatures: ${{ github.event_name == 'push' }}
+          uploadWorkflowArtifacts: ${{ github.event_name == 'workflow_dispatch' }}
+          retryAttempts: 1
+
+      - name: Remove the keychain
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          if [[ -n "${KEYCHAIN:-}" ]]; then security delete-keychain "$KEYCHAIN"; fi
+
+  publish:
+    name: Publish
+    needs: [prepare, build]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # The build jobs each add their platform to latest.json; one that
+      # finished at the same moment as another can be lost. Then rerun the
+      # failed jobs: the draft is kept.
+      - name: Check that every platform can update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release-id }}
+        run: |
+          asset=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --paginate \
+            --jq '.[] | select(.name == "latest.json") | .url')
+          if [[ -z "$asset" ]]; then
+            echo "::error::The release has no latest.json."
+            exit 1
+          fi
+          gh api -H "Accept: application/octet-stream" "$asset" > latest.json
+          for platform in darwin-aarch64 darwin-x86_64 linux-x86_64; do
+            if ! jq -e --arg p "$platform" '.platforms[$p].url' latest.json > /dev/null; then
+              echo "::error::latest.json has no $platform update. Rerun the failed jobs, or rerun the $platform build."
+              exit 1
+            fi
+          done
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

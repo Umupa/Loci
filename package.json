@@ -29,7 +29,10 @@
     "check:rust": "cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test",
     "set-version": "node scripts/bump-version.mjs",
     "tauri": "tauri",
-    "tauri:stable": "tauri dev --no-watch --config src-tauri/tauri.stable.conf.json"
+    "app:dev": "tauri dev",
+    "tauri:stable": "tauri dev --no-watch --config src-tauri/tauri.stable.conf.json",
+    "install:local": "scripts/install-local.sh",
+    "release": "scripts/release.sh"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
@@ -41,6 +44,8 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.14.1",
     "cuelume": "^0.2.2",
     "diff": "^9.0.0",
     "katex": "^0.16.47",

@@ -158,6 +158,8 @@
   "Discover and manage file skills from project, personal, and harness folders.": "查找和管理项目、个人及 CLI 目录中的技能文件。",
   "Projects and conversations you have archived.": "已归档的项目和会话。",
   "Version": "版本",
+  "Check for Updates": "检查更新",
+  "{0} is built from source and does not update itself. Its data is kept apart from the installed Loci.": "{0} 由源码构建，不会自动更新；它的数据与安装的 Loci 分开存放。",
   "Built-in Excalidraw MCP": "内置 Excalidraw MCP",
   "Sounds": "提示音",
   "Notifications": "通知",

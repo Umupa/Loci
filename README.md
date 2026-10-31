@@ -40,7 +40,7 @@ Loci is a local-first desktop shell for agent CLIs, built with Tauri 2, Rust, Re
 
 ### Download
 
-Pre-built installers for macOS (Apple Silicon) and Linux (x64) will be attached to the [Releases](https://github.com/Umupa/Loci/releases) page once the first version is tagged. There are none yet, so for now build from source. Release builds are not notarized, so macOS will ask you to confirm the first time you open one.
+Installers for macOS (Apple silicon and Intel) and Linux (x64) are on the [Releases](https://github.com/Umupa/Loci/releases) page, and an installed Loci updates itself from there (**Settings → General → About**). Release builds are not notarized, so macOS asks you to confirm the first time you open one. [CHANGELOG.md](CHANGELOG.md) lists what changed in each version.
 
 ### Build from source
 
@@ -56,11 +56,13 @@ You need:
 git clone https://github.com/Umupa/Loci.git
 cd Loci
 npm ci
-npm run tauri dev      # run with hot reload
+npm run app:dev        # run Loci Dev with hot reload
 npm run tauri build    # build an installer for your platform
 ```
 
-On macOS, `./script/build_and_run.sh --verify` builds and launches a release bundle (it first stops any running copy built from this checkout; `--help` lists the debug and log options).
+What you run from source is **Loci Dev**: a separate app with its own data folder, so it can run beside an installed Loci without touching your notes or agents. `npm run install:local` (macOS) builds this checkout as the real Loci and installs it to `/Applications`. See [docs/releasing.md](docs/releasing.md).
+
+On macOS, `./script/build_and_run.sh --verify` builds and launches a release bundle of Loci Dev (it first stops any running copy built from this checkout; `--help` lists the debug and log options).
 
 ### Before the first session
 
@@ -134,7 +136,7 @@ CI builds and tests the Rust and web code on Linux and macOS (see [.github/workf
 
 ```sh
 npm ci
-npm run tauri dev     # app with hot reload
+npm run app:dev       # Loci Dev with hot reload
 npm run check         # what CI runs: Vitest, tsc, cargo fmt, clippy and cargo test
 npm run build         # type-check and build the web bundle
 ```
@@ -145,7 +147,9 @@ npm run build         # type-check and build the web bundle
 | `npm run check:web` | Vitest and `tsc --noEmit` |
 | `npm run check:rust` | `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` |
 | `npm run set-version -- 0.1.1` | Bump the version in every file that carries it |
-| `npm run tauri:stable` | A dev instance that never reloads when files change (no hot reload, no Rust rebuild) |
+| `npm run tauri:stable` | Loci Dev without reloading when files change (no hot reload, no Rust rebuild) |
+| `npm run install:local` | Build this checkout as the installed Loci and put it in `/Applications` (macOS) |
+| `npm run release -- 0.2.0` | Release a version from main (maintainers; see [docs/releasing.md](docs/releasing.md)) |
 
 Layout:
 
@@ -159,7 +163,7 @@ src/                      React front end
 src-tauri/                Rust back end: processes, SQLite stores, app control, MCP resources
   resources/              bundled MCP servers (excalidraw-mcp)
 docs/                     guides and design records
-scripts/                  version bump, vendoring and live protocol probes
+scripts/                  releases, version bump, vendoring and live protocol probes
 ```
 
 [docs/architecture.md](docs/architecture.md) explains how the pieces fit together. Contributions are welcome; please read [CONTRIBUTING.md](CONTRIBUTING.md) first.

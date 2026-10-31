@@ -114,7 +114,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         get label() { return t("Settings language"); },
         keywords: "language locale english chinese 中文 简体 语言 英文",
     },
-{ id: "version", section: "general", get label() { return t("Version"); }, keywords: "build about" },
+{ id: "version", section: "general", get label() { return t("Version"); }, keywords: "build about update upgrade release" },
     {
         id: "builtin-excalidraw",
         section: "mcp",

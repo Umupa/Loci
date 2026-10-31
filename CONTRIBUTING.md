@@ -25,14 +25,14 @@ Then:
 git clone https://github.com/Umupa/Loci.git
 cd Loci
 npm ci
-npm run tauri dev
+npm run app:dev
 ```
 
-The page that Vite serves on its own (`npm run dev`) is not useful in a browser, because it needs the Tauri APIs. Run the app with `npm run tauri dev`.
+The page that Vite serves on its own (`npm run dev`) is not useful in a browser, because it needs the Tauri APIs. Run the app with `npm run app:dev`.
 
 You also need at least one supported agent CLI, signed in, to exercise a session end to end. Most of the code can be worked on and tested without one.
 
-On macOS, debug builds relaunch from a generated `Loci.app` bundle, because `tauri dev` otherwise runs a bare binary and the Dock paints its icon wrongly. Set `LOCI_DEV_APP_NAME` to change the bundle's name.
+Every debug build runs as **Loci Dev** (`com.loci.desktop.dev`), with a data folder, window state and notification permission of its own, so it never opens the database of an installed Loci and both can run at once. A second checkout can keep its own data too: `LOCI_DEV_IDENTIFIER=com.loci.desktop.feeds npm run app:dev`. On macOS, debug builds relaunch from a generated `Loci Dev.app` bundle, because `tauri dev` otherwise runs a bare binary and the Dock paints its icon wrongly. Set `LOCI_DEV_APP_NAME` to change the bundle's name.
 
 ## Check your change
 
@@ -73,9 +73,4 @@ User-facing documentation is written in English, with [README.zh-CN.md](README.z
 
 ## Releases (maintainers)
 
-1. `npm run set-version -- X.Y.Z` updates the version in `package.json`, `package-lock.json`, `Cargo.toml`, `Cargo.lock` and `src-tauri/tauri.conf.json`.
-2. In [CHANGELOG.md](CHANGELOG.md), rename *Unreleased* to the new version and date, and start a new empty *Unreleased*.
-3. Commit as `chore: release vX.Y.Z`, then tag it: `git tag vX.Y.Z && git push origin main vX.Y.Z`.
-4. The [release workflow](.github/workflows/release.yml) builds installers for macOS (Apple Silicon) and Linux (x64) and attaches them to a draft release. Open the draft, check the artifacts, and publish it.
-
-Release builds are not code-signed or notarized. Add a platform to the workflow's matrix only after someone has run the app there; Windows is not in it yet for that reason.
+`npm run release -- X.Y.Z` releases from main: it turns *Unreleased* in [CHANGELOG.md](CHANGELOG.md) into the `X.Y.Z` section, sets the version, commits, tags and pushes, and follows the [release workflow](.github/workflows/release.yml) until the release is published. That section becomes the release notes and what the in-app updater shows. [docs/releasing.md](docs/releasing.md) describes the one-time setup and what to do when a run fails.

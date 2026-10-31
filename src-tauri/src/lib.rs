@@ -12,6 +12,7 @@ mod control;
 pub mod control_cli;
 mod course;
 mod feeds;
+mod flavor;
 mod fs;
 mod harness;
 mod learning;
@@ -207,13 +208,20 @@ fn should_request_quit(code: Option<i32>) -> bool {
 pub fn run() {
     #[cfg(windows)]
     windows::initialize().expect("Failed to initialize Windows process safety");
+    let mut context = tauri::generate_context!();
+    flavor::apply(&mut context);
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_process::init())
         .manage(harness::HarnessHost::new())
         .manage(reset::WorkspaceReset::default())
         .setup(|app| {
+            if flavor::updates_itself(&app.config().identifier) {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
             harness::reap_orphaned_harness_processes();
             session_store::init(app.handle())?;
             control::init(app.handle())?;
@@ -413,7 +421,7 @@ pub fn run() {
             set_trackpad_zoom_enabled,
             open_new_window,
         ]))
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building Loci");
 
     app.run(|handle, event| match event {
