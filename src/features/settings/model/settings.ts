@@ -62,8 +62,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         id: "providers",
         group: "agents",
         get label() { return t("Providers"); },
-        get description() { return t("Provider accounts, agent CLIs Loci can drive, and the model new sessions start with."); },
-        keywords: "account sign in login model harness claude codex cursor grok opencode pi omp fx hermes antigravity cli default hooks",
+        get description() { return t("Agent CLIs Loci can drive, and the model new sessions start with."); },
+        keywords: "model harness claude codex cursor grok opencode pi omp fx hermes antigravity cli default hooks",
     },
     {
         id: "mcp",
@@ -310,24 +310,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         section: "providers",
         get label() { return t("Agent CLIs"); },
         keywords: "claude codex cursor grok opencode pi omp fx hermes antigravity binary path",
-    },
-    {
-        id: "provider-accounts",
-        section: "providers",
-        get label() { return t("Provider accounts"); },
-        keywords: "account sign in login rename remove delete credentials profile usage limit quota exhausted",
-    },
-    {
-        id: "show-remaining-usage",
-        section: "providers",
-        get label() { return t("Show remaining usage"); },
-        keywords: "usage limit meter bar left used quota percent",
-    },
-    {
-        id: "mask-emails",
-        section: "providers",
-        get label() { return t("Mask account emails"); },
-        keywords: "email privacy blur hide screenshot account",
     },
     {
         id: "claude-hooks",

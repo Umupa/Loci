@@ -6,7 +6,7 @@ import { checkForUpdate, updatesEnabled } from "../../updates/model/updates";
 import { shortcutPreview, shortcutFromKeyEvent } from "../../../shared/lib/shortcuts";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { Check, ChevronDown, ExternalLink, FolderOpen, Globe, ImagePlus, Loader, Pencil, Plus, RefreshCw, RotateCcw, Search, Trash2, X, } from "../../../shared/ui/icons";
+import { Check, ChevronDown, ExternalLink, FolderOpen, Globe, ImagePlus, Loader, Pencil, RefreshCw, RotateCcw, Search, X, } from "../../../shared/ui/icons";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, } from "react";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
 import { ColorPickerPopover, ColorSwatchRow, } from "../../../shared/ui/ColorPickerPopover";
@@ -33,7 +33,6 @@ import { getHarnessAvailabilitySnapshot, harnessUnavailableHint, isHarnessAvaila
 import { inspectHarnessBinary, type HarnessBinaryInspection, } from "../../../integrations/harness/core/child";
 import { loadProviderBinaryPath, providerBinaryPathChangePending, saveProviderBinaryPath, type ConfigurableBinaryProvider, } from "../../providers/model/providerBinaryPaths";
 import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
-import { loginHarness } from "../../../integrations/harness/core/auth";
 import { defaultModelId, firstEnabledHarness, getModelSnapshot, hasLiveCatalog, loadDefaultModels, loadHiddenPickerProviders, loadLastModelChoice, modelsFor, resolveModel, saveDefaultModel, saveLastModelChoice, savePickerProviderVisible, subscribeModels, } from "../../sessions/model/models";
 import { pathKey, prettyCwd, projectKey, projectName, } from "../../../shared/lib/paths";
 import { revealPath } from "../../../platform/tauri/fs";
@@ -41,14 +40,6 @@ import { IS_LINUX, IS_MAC, IS_WIN } from "../../../platform/tauri/platform";
 import { loadArchivedProjects, looksLikeProject, subscribeArchivedProjects, type ArchivedProject, type RecentProject, } from "../../projects/model/recents";
 import { HARNESSES, HARNESS_TITLE, sessionDisplayTitle, type HarnessId, } from "../../sessions/model/session";
 import { loadProjectProviderSettings, projectProvidersRevision, setProjectDefaultModel, setProjectDefaultProvider, setProjectProviderHidden, subscribeProjectProviders, } from "../../sessions/model/projectProviders";
-import { newProviderAccount, providerAccounts, PROVIDER_ACCOUNT_PROVIDERS, removeProviderAccount, renameProviderAccount, saveProviderAccount, subscribeProviderAccounts, type ProviderAccount, type ProviderAccountProvider, } from "../../providers/model/providerAccounts";
-import { removeProviderAccountCredentials } from "../../providers/model/providerAccountCredentials";
-import { identityKey, identityOrganizationTag, useProviderAccountIdentities, } from "../../providers/model/providerAccountIdentity";
-import { ProviderAccountSubtitle } from "../../providers/ui/ProviderAccountSubtitle";
-import { saveMaskEmails, saveShowRemainingUsage, useMaskEmails, useShowRemainingUsage, } from "../model/displayPrefs";
-import { accountStatus, accountUsageKey, useProviderAccountUsage, } from "../../providers/model/accountUsage";
-import { clearCachedRateLimits } from "../../providers/model/rateLimitsCache";
-import { AccountStatusLabel, AccountUsageMeters, AccountUsageRefresh, } from "../../providers/ui/ProviderAccountUsage";
 import { loadSessionSidebarFilters, saveSessionSidebarFilters, } from "../../sessions/model/sessionFilters";
 import type { SessionSummary } from "../../sessions/data/sessionStore";
 import { loadTabGroupColors, loadTabGroupCustomColors, loadTabGroupLabels, loadTabGroupMascots, resolveTabGroupColor, resolveTabGroupLabel, resolveTabGroupLogo, resolveTabGroupMascot, } from "../../workspace/model/tabGroups";
@@ -1296,10 +1287,6 @@ function ProvidersPage({ cwd, recents, }: {
             : [...new Set([...prev, harness])]);
     };
     return (<>
-      <ProviderAccountsSettings />
-
-      <UsageDisplaySettings />
-
       <Group id="agent-clis" title={t("Agent CLIs")} action={<Select label={t("Provider defaults scope")} value={scope} options={scopeOptions} onChange={setScope}/>} description={project
             ? t("These defaults apply to {0} only. A provider with Show in picker off is also kept out of new conversations started in this project. CLI paths remain global for Loci.", projectName(project))
             : "A provider is listed as installed once its CLI is found on your PATH. Uninstalled CLIs stay listed but are left out of the model picker, as are installed ones with Show in picker off. The model beside a provider is what its new conversations start with; Use by default picks the provider itself. CLI paths are global for Loci and apply to every project."}>
@@ -1337,205 +1324,6 @@ function ProvidersPage({ cwd, recents, }: {
         </Row>
       </Group>
     </>);
-}
-function UsageDisplaySettings() {
-  useLocale();
-    const showRemainingUsage = useShowRemainingUsage();
-    const maskEmails = useMaskEmails();
-    return (<Group title={t("Usage and privacy")}>
-      <Row id="show-remaining-usage" label={t("Show remaining usage")} description={t("Fill usage meters with what is left in each limit instead of what has been used.")}>
-        <Toggle label={t("Show remaining usage")} on={showRemainingUsage} onChange={saveShowRemainingUsage}/>
-      </Row>
-      <Row id="mask-emails" label={t("Mask account emails")} description={t("Blur account emails in Settings and the usage popover until you click one, so they stay out of screenshots.")}>
-        <Toggle label={t("Mask account emails")} on={maskEmails} onChange={saveMaskEmails}/>
-      </Row>
-    </Group>);
-}
-type AccountEditor = {
-    provider: ProviderAccountProvider;
-    accountId?: string;
-    label: string;
-};
-function ProviderAccountsSettings() {
-  useLocale();
-    const [version, setVersion] = useState(0);
-    const [editor, setEditor] = useState<AccountEditor | null>(null);
-    const [working, setWorking] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    useEffect(() => subscribeProviderAccounts(() => setVersion((value) => value + 1)), []);
-    const startAdd = (provider: ProviderAccountProvider) => {
-        setError(null);
-        setEditor({ provider, label: "" });
-    };
-    const startRename = (account: ProviderAccount) => {
-        setError(null);
-        setEditor({
-            provider: account.provider,
-            accountId: account.id,
-            label: account.label,
-        });
-    };
-    const submitEditor = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        if (!editor || !editor.label.trim() || working)
-            return;
-        const key = editor.accountId
-            ? `rename:${editor.provider}:${editor.accountId}`
-            : `add:${editor.provider}`;
-        setWorking(key);
-        setError(null);
-        try {
-            if (editor.accountId) {
-                renameProviderAccount(editor.provider, editor.accountId, editor.label);
-            }
-            else {
-                const account = newProviderAccount(editor.provider, editor.label);
-                await loginHarness(editor.provider, account.id);
-                saveProviderAccount(account);
-            }
-            setEditor(null);
-        }
-        catch (caught) {
-            setError(caught instanceof Error
-                ? caught.message
-                : t("Could not save this account"));
-        }
-        finally {
-            setWorking(null);
-        }
-    };
-    const removeAccount = async (account: ProviderAccount) => {
-        if (account.isDefault || working)
-            return;
-        const confirmed = await ask(t("Remove “{0}”? Its stored credentials will be deleted and any running turns for this account will stop. Existing conversations stay in history, but cannot continue until you switch accounts.", account.label), {
-            title: t("Remove {0} account", HARNESS_TITLE[account.provider]),
-            kind: "warning",
-            okLabel: t("Remove account"),
-            cancelLabel: t("Cancel"),
-        });
-        if (!confirmed)
-            return;
-        const key = `remove:${account.provider}:${account.id}`;
-        setWorking(key);
-        setError(null);
-        try {
-            await removeProviderAccountCredentials(account.provider, account.id);
-            removeProviderAccount(account.provider, account.id);
-            clearCachedRateLimits(account.provider, account.id);
-            if (editor?.provider === account.provider &&
-                editor.accountId === account.id) {
-                setEditor(null);
-            }
-        }
-        catch (caught) {
-            setError(caught instanceof Error
-                ? caught.message
-                : t("Could not remove this account"));
-        }
-        finally {
-            setWorking(null);
-        }
-    };
-    const identities = useProviderAccountIdentities(PROVIDER_ACCOUNT_PROVIDERS.flatMap(providerAccounts), version);
-    const usage = useProviderAccountUsage(version);
-    return (<Group id="provider-accounts" title={t("Accounts")} description={t("Create isolated sign-ins for providers that support account profiles. Account switching stays available from the usage control in the footer.")} action={<AccountUsageRefresh usage={usage}/>}>
-      {PROVIDER_ACCOUNT_PROVIDERS.map((provider) => {
-            const accounts = providerAccounts(provider);
-            const adding = editor?.provider === provider && !editor.accountId;
-            return (<div key={provider} className="border-b border-content/5 last:border-b-0">
-            <div className="flex items-center gap-4 px-4 py-3.5">
-              <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-content/[0.05] ring-1 ring-inset ring-content/[0.06]">
-                  <HarnessIcon harness={provider} className="size-4"/>
-                </span>
-                <div className="min-w-0">
-                  <div className="text-[13px] font-medium text-content">
-                    {HARNESS_TITLE[provider]}
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-content/40">
-                    {accounts.length}{" "}
-                    {accounts.length === 1 ? "account" : "accounts"}
-                  </div>
-                </div>
-              </div>
-              <button type="button" disabled={Boolean(working)} onClick={() => startAdd(provider)} className="flex shrink-0 items-center gap-1.5 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 transition-transform duration-150 hover:bg-content/10 hover:text-content active:scale-[0.97] disabled:cursor-default disabled:opacity-40">
-                <Plus className="size-3.5" strokeWidth={1.75} aria-hidden/>
-                {t("Add account")}</button>
-            </div>
-            <div className="border-t border-content/5 bg-content/[0.015] pl-10">
-              {accounts.map((account) => {
-                    const editing = editor?.provider === provider &&
-                        editor.accountId === account.id;
-                    const removing = working === `remove:${provider}:${account.id}`;
-                    const identity = identities[identityKey(account)];
-                    const orgTag = identityOrganizationTag(identity);
-                    const limits = usage.usage[accountUsageKey(account)];
-                    return editing ? (<ProviderAccountEditor key={account.id} editor={editor} working={Boolean(working)} onLabel={(label) => setEditor((current) => current ? { ...current, label } : current)} onCancel={() => setEditor(null)} onSubmit={submitEditor}/>) : (<div key={account.id} className="flex h-12 items-center gap-3 border-b border-content/5 px-4 py-2 last:border-b-0">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-[12px] text-content/85">
-                          {account.label}
-                        </span>
-                        {orgTag ? (<span className="max-w-[8rem] shrink-0 truncate rounded bg-content/[0.07] px-1 text-[9px] leading-4 text-content/50">
-                            {orgTag}
-                          </span>) : null}
-                      </div>
-                      <div className="mt-0.5 flex min-w-0 items-center gap-2.5 text-[10px]">
-                        <AccountStatusLabel status={accountStatus(limits, usage.now)} className="shrink-0"/>
-                        <ProviderAccountSubtitle identity={identity} fallback={account.isDefault
-                            ? t("Provider CLI profile")
-                            : t("Isolated profile")} className="truncate text-content/30"/>
-                      </div>
-                    </div>
-                    <AccountUsageMeters limits={limits} now={usage.now}/>
-                    <div className="flex w-24 shrink-0 items-center justify-end gap-1">
-                      {account.isDefault ? (<span className="mr-1 text-[10px] font-medium uppercase tracking-wide text-content/30">
-                          {t("Default")}</span>) : null}
-                      <button type="button" disabled={Boolean(working)} aria-label={t("Rename {0}", account.label)} title={t("Rename account")} onClick={() => startRename(account)} className="grid size-7 place-items-center rounded-md text-content/40 transition-transform duration-150 hover:bg-content/10 hover:text-content active:scale-[0.96] disabled:opacity-35">
-                        <Pencil className="size-3.5" strokeWidth={1.75}/>
-                      </button>
-                      {!account.isDefault ? (<button type="button" disabled={Boolean(working)} aria-label={t("Remove {0}", account.label)} title={t("Remove account")} onClick={() => void removeAccount(account)} className="grid size-7 place-items-center rounded-md text-content/35 transition-transform duration-150 hover:bg-red-400/10 hover:text-red-400 active:scale-[0.96] disabled:opacity-35">
-                          {removing ? (<Loader className="size-3.5 animate-spin"/>) : (<Trash2 className="size-3.5" strokeWidth={1.75}/>)}
-                        </button>) : null}
-                    </div>
-                  </div>);
-                })}
-              {adding && editor ? (<ProviderAccountEditor editor={editor} working={Boolean(working)} onLabel={(label) => setEditor((current) => current ? { ...current, label } : current)} onCancel={() => setEditor(null)} onSubmit={submitEditor}/>) : null}
-            </div>
-          </div>);
-        })}
-      {error ? (<p className="border-t border-content/5 px-4 py-2.5 text-[11px] leading-4 text-red-400" role="alert">
-          {error}
-        </p>) : null}
-    </Group>);
-}
-function ProviderAccountEditor({ editor, working, onLabel, onCancel, onSubmit, }: {
-    editor: AccountEditor;
-    working: boolean;
-    onLabel: (label: string) => void;
-    onCancel: () => void;
-    onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-}) {
-  useLocale();
-    const adding = !editor.accountId;
-    return (<form className="flex h-12 items-center border-b border-content/5 px-4 py-2 last:border-b-0" onSubmit={onSubmit}>
-      <div data-provider-account-editor-field className="flex items-center pr-1 h-8 min-w-0 flex-1 overflow-hidden rounded-md border border-content/10 bg-content/[0.04] focus-within:border-accent/45">
-        <label className="h-full min-w-0 flex-1">
-          <span className="sr-only">{t("Account name")}</span>
-          <input autoFocus type="text" maxLength={48} value={editor.label} disabled={working} placeholder={t("Work or Personal")} aria-label={t("{0} {1} account", adding ? "New" : "Rename", HARNESS_TITLE[editor.provider])} onChange={(event) => onLabel(event.target.value)} className="h-full w-full bg-transparent px-2.5 text-[12px] text-content outline-none placeholder:text-content/25 disabled:opacity-50"/>
-        </label>
-        <button type="button" disabled={working} onClick={onCancel} className="flex h-6 shrink-0 items-center rounded-[4.5px] bg-content/[0.05] px-2.5 text-[11px] text-content/45 transition-transform duration-150 hover:bg-content/10 hover:text-content active:scale-[0.97] disabled:opacity-40">
-          {t("Cancel")}</button>
-        <button type="submit" disabled={working || !editor.label.trim()} className="ml-1 flex h-6 shrink-0 items-center gap-1.5 rounded-[4.5px] bg-content px-2.5 text-[11px] font-medium text-background-base transition-transform duration-150 hover:bg-content/85 active:scale-[0.97] disabled:cursor-default disabled:opacity-40">
-          {working ? <Loader className="size-3 animate-spin"/> : null}
-          {adding
-            ? working
-                ? t("Waiting for browser…")
-                : t("Sign in and add")
-            : t("Save")}
-        </button>
-      </div>
-    </form>);
 }
 /** The icon the project rail shows: custom logo, else the project mascot. */
 function ProjectScopeIcon({ path }: {

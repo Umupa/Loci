@@ -8,7 +8,7 @@ const SETTINGS = new Set([
   "settingsSection", "followUpBehavior", "composerEffortVisible", "modelControls",
   "tabAnimationsEnabled", "tabLimit", "collapsedProjectRailMode", "composerRunner",
   "notesEnabled", "agentsEnabled", "liveAgentsEnabled", "closeToTray", "claudeHooks",
-  "keybindingOverrides", "language", "maskEmails", "showRemainingUsage", "sounds",
+  "keybindingOverrides", "language", "sounds",
   "soundsEnabledAt", "notifications", "transcriptLayout", "transcriptAnchor",
   "defaultModels", "favoriteModels", "hiddenPickerProviders", "lastModel",
   "lastModelSettings", "recentModels", "modelPickerTab", "providerAccounts.v1",

@@ -13,7 +13,6 @@ import "../../src/styles/index.css";
 mockWindows("localization-preview");
 mockIPC((command) => {
   if (command === "plugin:app|version") return "0.1.0";
-  if (command === "provider_account_identity") return null;
   if (command === "plugin:event|listen") return 1;
   if (command === "plugin:window|is_maximized") return false;
   return undefined;

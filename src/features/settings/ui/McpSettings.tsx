@@ -531,7 +531,7 @@ function McpConnections({
             {projectPicker}
           </div>
           <p className="mt-1 text-xs text-content/55">
-            {t("Configured servers for the selected project and your provider accounts.")}</p>
+            {t("Configured servers for the selected project.")}</p>
         </div>
         <div className="flex items-center gap-2">
           <button

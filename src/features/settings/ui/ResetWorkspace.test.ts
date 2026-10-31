@@ -29,7 +29,7 @@ it("requires destructive confirmation before invoking the backend", async () => 
   expect(invoke).not.toHaveBeenCalled();
   await click();
   expect(ask).toHaveBeenCalledWith(expect.stringContaining("This cannot be undone"), expect.objectContaining({ kind: "warning", cancelLabel: "Cancel", okLabel: "Reset workspace" }));
-  expect(ask.mock.calls[0][0]).toContain("All settings, provider accounts and global backgrounds are kept");
+  expect(ask.mock.calls[0][0]).toContain("All settings and global backgrounds are kept");
   expect(invoke).toHaveBeenCalledExactlyOnceWith("workspace_reset");
 });
 it("does nothing when confirmation is canceled", async () => {

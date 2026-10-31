@@ -1,7 +1,6 @@
 mod cursor_store;
 use tauri::Manager;
 
-mod account_identity;
 mod agent;
 mod agent_documents;
 mod agent_transcript;
@@ -24,7 +23,6 @@ mod notes;
 mod notifications;
 mod pasteboard;
 mod project_logo;
-mod rate_limits;
 mod reminders;
 mod reset;
 mod session_store;
@@ -263,7 +261,6 @@ pub fn run() {
             learning::learning_annotation_upsert,
             learning::learning_annotation_delete,
             learning::learning_annotation_link,
-            account_identity::provider_account_identity,
             chat_background::save_chat_background,
             chat_background::remove_chat_background,
             chat_background::save_project_chat_background,
@@ -318,7 +315,6 @@ pub fn run() {
             harness::claude_mcp_remove,
             harness::mcp_provider_login,
             harness::harness_spawn,
-            harness::provider_account_remove,
             harness::harness_write,
             harness::harness_kill,
             harness::harness_kill_all,
@@ -370,7 +366,6 @@ pub fn run() {
             project_logo::save_project_logo,
             project_logo::forget_logo_file,
             project_logo::remove_project_logo,
-            rate_limits::fetch_claude_usage,
             reminders::reminder_list,
             reminders::reminder_set,
             reminders::reminder_clear,
