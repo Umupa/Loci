@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-31
+
 ### Added
 
 - **Courses read from first-hand sources**: a course is chapters of lessons, each pointing at a source to read (a document in the agent's library, optionally from one of its headings, or a PDF and its pages) with saved reading progress. The course holds no text written by the agent. The Navigator template agrees a plan with you before collecting anything, then takes official documentation, specifications and papers into its library with `app documents.write`, which reads the text from a file the agent saved so it is never retyped by a model. A source records where it was published, shows that page's pictures, and cannot be revised by a reply. Selecting text in any library document adds the passage to the agent's chat.
@@ -52,4 +54,5 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/commits/main
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Umupa/Loci/releases/tag/v0.1.0
