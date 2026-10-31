@@ -73,7 +73,6 @@ export type SessionLaunch = {
   runtimeMode: Session["runtimeMode"];
   reveal?: boolean;
 };
-import type { SplitDir } from "../../workspace/model/layout";
 import { courseItems, parseCourseInput, type CourseSummary, type CourseWithProgress, type ParsedCourse } from "../../learning/model/course";
 import { sessionConversationPage, type SessionReadOptions } from "./sessionConversation";
 
@@ -86,8 +85,9 @@ export type AppSessionListing = {
   hasDraft: boolean;
 };
 
+/** Kept for older requests; there are no panes to place a session in. */
 export type AppSessionPlacement = {
-  direction: SplitDir;
+  direction: "right" | "down";
   besideSessionId: string;
 };
 
@@ -1114,7 +1114,7 @@ export async function handleAgentApp(
             source.id);
       const id = `app-${source.id}-${requestId}`;
       const beside = besideSessionId
-        ? { direction: placement as SplitDir, besideSessionId }
+        ? { direction: placement as "right" | "down", besideSessionId }
         : undefined;
       if (notify) await host.start(launch, id, beside, true);
       else if (beside) await host.start(launch, id, beside);

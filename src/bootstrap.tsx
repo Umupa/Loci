@@ -93,18 +93,14 @@ void Promise.all([
   ([
     ,
     ,
-    { resumed, history, historyCwd },
+    { resumed },
     { default: App },
   ]) => {
     performance.mark("loci:workspace-ready");
     ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       <React.StrictMode>
         <BootGate>
-          <App
-            resumed={resumed}
-            history={history}
-            historyCwd={historyCwd}
-          />
+          <App resumed={resumed} />
         </BootGate>
       </React.StrictMode>,
     );

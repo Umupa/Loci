@@ -1,11 +1,6 @@
 import { afterEach,describe,expect,it,vi } from "vitest";
-import {
-leafIds,
-newTab
-} from "../../workspace/model/layout";
 import { newSession,type Session } from "./session";
-import { createSessionRemover } from "./sessionRemoval";
-import type { SessionWorkspaceRemoval } from "./sessionWorkspaceLifecycle";
+import { createSessionRemover, type SessionRemoval } from "./sessionRemoval";
 
 const mocks = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
@@ -30,16 +25,10 @@ function fixture(mode: "archive" | "delete") {
     queueStatus: "active",
   };
   const other = newSession("codex", "/tmp/project");
-  let state = {
-    tabs: [newTab(closing.id), newTab(other.id)],
-    sessions: [closing, other],
-    activeTabId: "",
-    dirtyFiles: new Set<string>(),
-  };
-  state.activeTabId = state.tabs[0].id;
+  let state = { sessions: [closing, other] };
   const confirmClose = vi.fn(async () => true);
   const stop = vi.fn(async () => {});
-  const commit = vi.fn((removal: SessionWorkspaceRemoval) => {
+  const commit = vi.fn((removal: SessionRemoval) => {
     state = { ...state, ...removal };
   });
   mocks.invoke.mockImplementation(async (command, args) => {
@@ -87,28 +76,13 @@ function fixture(mode: "archive" | "delete") {
 afterEach(() => mocks.invoke.mockReset());
 
 describe.each(["archive", "delete"] as const)("%s lifecycle", (mode) => {
-  it("creates the replacement session behind the removal interface", async () => {
+  it("removes only that session, leaving no replacement behind", async () => {
     const f = fixture(mode);
-    const onlyTab = f.read().tabs[0];
-    f.write({
-      ...f.read(),
-      tabs: [onlyTab],
-      sessions: [f.closing],
-      activeTabId: onlyTab.id,
-    });
-
     expect(await f.run()).toBe(true);
-    expect(f.read().sessions).toHaveLength(1);
-    expect(f.read().sessions[0]).toMatchObject({
-      cwd: "/tmp/project",
-      harness: "codex",
-      blocks: [],
-    });
-    expect(f.read().sessions[0].id).not.toBe(f.closing.id);
-    expect(leafIds(f.read().tabs[0].layout)).toEqual([f.read().sessions[0].id]);
+    expect(f.read().sessions).toEqual([f.other]);
   });
 
-  it("preserves another agent's completion, new tabs, and focus across both waits", async () => {
+  it("preserves another agent's completion and new sessions across both waits", async () => {
     const f = fixture(mode);
     const confirm = deferred();
     const saving = deferred();
@@ -132,18 +106,10 @@ describe.each(["archive", "delete"] as const)("%s lifecycle", (mode) => {
     confirm.resolve();
     await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalled());
     const added = newSession("codex", "/tmp/project");
-    const addedTab = newTab(added.id);
-    f.write({
-      ...f.read(),
-      tabs: [...f.read().tabs, addedTab],
-      sessions: [...f.read().sessions, added],
-      activeTabId: addedTab.id,
-    });
+    f.write({ ...f.read(), sessions: [...f.read().sessions, added] });
     saving.resolve();
     await pending;
     expect(f.read().sessions).toEqual([updated, added]);
-    expect(f.read().activeTabId).toBe(addedTab.id);
-    expect(f.read().tabs.map((tab) => tab.id)).toContain(addedTab.id);
   });
 
   it("retains a stopped session and paused queue when storage fails", async () => {
@@ -157,7 +123,7 @@ describe.each(["archive", "delete"] as const)("%s lifecycle", (mode) => {
       queueStatus: "paused",
     });
     expect(f.read().sessions[0].blocks[1].streaming).toBeFalsy();
-    expect(f.read().tabs).toHaveLength(2);
+    expect(f.read().sessions).toHaveLength(2);
   });
 
   it("does not stop or write anything if confirmation is declined", async () => {

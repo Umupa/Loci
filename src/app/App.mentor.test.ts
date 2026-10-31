@@ -31,7 +31,7 @@ vi.mock("../integrations/harness/core/registry", async (original) => ({
   refreshHarnessCatalogs: vi.fn(),
 }));
 vi.mock("./model/preloadNavigation", () => ({ preloadNavigationWhenIdle: () => () => undefined }));
-vi.mock("../features/notes/ui/NotesView", () => ({ NoteEditor: ({ note }: { note: Note }) => createElement("article", { "data-test-note": true }, note.title) }));
+vi.mock("../features/notes/ui/NoteEditor", () => ({ NoteEditor: ({ note }: { note: Note }) => createElement("article", { "data-test-note": true }, note.title) }));
 vi.mock("../features/canvas/ui/CanvasPane", () => ({
   CanvasPane: ({ canvas, focused, onFocus, onAddToChat, chatTarget = "chat" }: ComponentProps<typeof CanvasPane>) => createElement("section", {
     "data-test-canvas": canvas.id,
@@ -148,8 +148,7 @@ afterEach(async () => {
 
 async function renderApp(resumed: Session[] = []) {
   await act(async () => root.render(createElement(App, {
-    resumed: resumed.length ? { sessions: resumed, tabs: [], activeTabId: "", projectCwd: "~" } : null,
-    history: [], historyCwd: null,
+    resumed: resumed.length ? { sessions: resumed } : null,
   })));
 }
 async function renderMentor(name = "Ada") {

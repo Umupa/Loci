@@ -6,13 +6,7 @@ import {
   isPreparingHandoff,
   sessionChildHarnesses,
 } from "./handoff";
-import type { WorkspaceTab } from "../../workspace/model/layout";
-import {
-  newSession,
-  type HarnessId,
-  type RuntimeMode,
-  type Session,
-} from "./session";
+import type { HarnessId, RuntimeMode, Session } from "./session";
 import {
   deleteSession,
   setSessionArchived,
@@ -20,17 +14,12 @@ import {
   upsertSession,
   type SessionSummary,
 } from "../data/sessionStore";
-import {
-  removeSessionFromWorkspace,
-  type SessionWorkspaceRemoval,
-} from "./sessionWorkspaceLifecycle";
-import type { WorkspaceTabCloseScope } from "../../workspace/model/workspaceTabGroups";
-
 type Workspace = {
-  tabs: WorkspaceTab[];
   sessions: Session[];
-  activeTabId: string;
 };
+
+/** The sessions left once one is removed. */
+export type SessionRemoval = { sessions: Session[] };
 
 type ReplacementSeed = {
   harness?: HarnessId;
@@ -45,7 +34,7 @@ type WorkspaceChange =
   | {
       type: "removed";
       mode: SessionRemovalMode;
-      removal: SessionWorkspaceRemoval;
+      removal: SessionRemoval;
       session?: Session;
       savedSummary?: SessionSummary;
     };
@@ -54,13 +43,12 @@ type SessionRemovalMode = "archive" | "delete";
 
 type SessionRemovalOptions = {
   mode: SessionRemovalMode;
-  scope?: WorkspaceTabCloseScope;
   replacement: ReplacementSeed;
   workspace: {
     snapshot(): Workspace;
     apply(change: WorkspaceChange): void;
   };
-  confirm(tabs: WorkspaceTab[], mode: SessionRemovalMode): Promise<boolean>;
+  confirm(mode: SessionRemovalMode): Promise<boolean>;
   stop(sessionId: string): Promise<unknown>;
 };
 
@@ -71,39 +59,15 @@ type SessionRemovalOptions = {
 export function createSessionRemover(options: SessionRemovalOptions): {
   remove(sessionId: string): Promise<boolean>;
 } {
-  const scope = options.scope ?? "project";
-  const createReplacement = (latest: Session | undefined): Session => {
-    const seed = latest ?? options.replacement;
-    return newSession(
-      seed.harness ?? "claude",
-      seed.cwd,
-      seed.model,
-      seed.runtimeMode,
-      seed.modelSettings,
-    );
-  };
-
-  return {
-    remove: (sessionId) =>
-      removeSession(sessionId, scope, createReplacement, options),
-  };
+  return { remove: (sessionId) => removeSession(sessionId, options) };
 }
 
 /** Run the same lifecycle for archive and delete, reading state after each wait. */
 async function removeSession(
   sessionId: string,
-  scope: WorkspaceTabCloseScope,
-  createReplacement: (seed: Session | undefined) => Session,
   options: SessionRemovalOptions,
 ): Promise<boolean> {
-  const initial = options.workspace.snapshot();
-  const plan = removeSessionFromWorkspace({
-    ...initial,
-    sessionId,
-    scope,
-    createReplacement,
-  });
-  if (!(await options.confirm(plan.closedTabs, options.mode))) return false;
+  if (!(await options.confirm(options.mode))) return false;
 
   await options.stop(sessionId);
   const latest = options.workspace
@@ -152,16 +116,9 @@ async function removeSession(
   const removedSession = current.sessions.find(
     (session) => session.id === sessionId,
   );
-  const confirmed = new Map(plan.closedTabs.map((tab) => [tab.id, tab]));
-  const removal = removeSessionFromWorkspace({
-    ...current,
-    sessionId,
-    scope,
-    createReplacement,
-    canCloseTab: (tab) => confirmed.get(tab.id)?.layout === tab.layout,
-  });
-  // No await between the final read and commit: unrelated streaming updates,
-  // tabs, and focus changes must survive this operation.
+  const removal = { sessions: current.sessions.filter((session) => session.id !== sessionId) };
+  // No await between the final read and commit: unrelated streaming updates
+  // must survive this operation.
   if (options.mode === "archive") {
     for (const harness of harnesses) {
       void forgetHarnessSession(harness, sessionId);

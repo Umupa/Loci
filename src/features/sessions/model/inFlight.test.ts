@@ -1,5 +1,4 @@
 import { describe,expect,it } from "vitest";
-import { newTab } from "../../workspace/model/layout";
 import {
 CONTINUE_PROMPT,
 INTERRUPT_MESSAGE,
@@ -31,7 +30,7 @@ describe("isInFlightSession", () => {
       createdAt: 1, updatedAt: 1, status: "running", messages: [] }];
     expect(hasLiveSessionWork(session)).toBe(true);
     expect(isInFlightSession(session)).toBe(false);
-    expect(inFlightRefs([session], [newTab(session.id)])).toEqual([]);
+    expect(inFlightRefs([session])).toEqual([]);
     expect(canAutoContinue(session)).toBe(false);
     session.blocks[0].btwThreads[0].status = "ready";
     expect(hasLiveSessionWork(session)).toBe(false);
@@ -77,26 +76,22 @@ describe("isInFlightSession", () => {
 });
 
 describe("inFlightRefs", () => {
-  it("walks open tabs first, then parked busy sessions", () => {
+  it("lists busy persisted sessions in the window's order", () => {
     const parked = chat("/tmp/parked", { busy: true });
     const openBusy = chat("/tmp/open", { busy: true });
     const idle = chat("/tmp/idle");
     const blank = newSession("codex", "/tmp/blank");
     blank.busy = true;
-
-    const tabs = [newTab(idle.id), newTab(openBusy.id)];
-    expect(
-      inFlightRefs([parked, openBusy, idle, blank], tabs),
-    ).toEqual([
-      { sessionId: openBusy.id, cwd: "/tmp/open" },
+    expect(inFlightRefs([parked, openBusy, idle, blank])).toEqual([
       { sessionId: parked.id, cwd: "/tmp/parked" },
+      { sessionId: openBusy.id, cwd: "/tmp/open" },
     ]);
   });
 
   it("skips chats that were never persisted", () => {
     const blank = newSession("codex", "/tmp/a");
     blank.busy = true;
-    expect(inFlightRefs([blank], [newTab(blank.id)])).toEqual([]);
+    expect(inFlightRefs([blank])).toEqual([]);
     expect(hasInFlightSessions([blank])).toBe(true);
   });
 });
@@ -212,18 +207,10 @@ describe("quitWhileBusyMessage", () => {
 });
 
 describe("workspaceFromResumed", () => {
-  it("opens one tab per restored chat", () => {
+  it("keeps the restored chats in order", () => {
     const first = chat("/tmp/a");
     const second = chat("/tmp/b");
-    const workspace = workspaceFromResumed([first, second]);
-    expect(workspace?.projectCwd).toBe("/tmp/a");
-    expect(workspace?.sessions.map((session) => session.id)).toEqual([
-      first.id,
-      second.id,
-    ]);
-    expect(workspace?.tabs).toHaveLength(2);
-    expect(workspace?.tabs[0]?.focusedId).toBe(first.id);
-    expect(workspace?.activeTabId).toBe(workspace?.tabs[0]?.id);
+    expect(workspaceFromResumed([first, second])).toEqual({ sessions: [first, second] });
   });
 
   it("returns null when there is nothing to restore", () => {

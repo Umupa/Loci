@@ -22,7 +22,7 @@ vi.mock("../../learning/ui/CoursePane", () => ({
       createElement("button", { onClick: () => onLessonChange({ id: "service", title: "Service" }) }, "Read service")),
 }));
 vi.mock("../../canvas/ui/CanvasPane", () => ({ CanvasPane: ({ canvas }: { canvas: { title: string } }) => createElement("section", { "data-test-canvas": true }, canvas.title) }));
-vi.mock("../../notes/ui/NotesView", () => ({ NoteEditor: ({ note }: { note: Note }) => createElement("article", { "data-test-note": true }, note.title) }));
+vi.mock("../../notes/ui/NoteEditor", () => ({ NoteEditor: ({ note }: { note: Note }) => createElement("article", { "data-test-note": true }, note.title) }));
 
 let container: HTMLDivElement;
 let root: Root;

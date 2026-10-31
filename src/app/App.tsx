@@ -72,7 +72,6 @@ const SettingsView = lazySurface(async () => ({ default: (await import("../featu
 
 registerBuiltinHarnesses();
 type Surface = "mentor" | "settings";
-const NO_TABS: never[] = [];
 
 export default function App(boot: BootWorkspace) {
   return <Suspense fallback={null}><Workspace {...boot} /></Suspense>;
@@ -246,9 +245,12 @@ function Workspace(boot: BootWorkspace) {
     }).then((release) => { if (stopped) release(); else unlisten = release; });
     return () => { stopped = true; unlisten?.(); };
   }, [runtime.flushEvents]);
-  useIdleSessionDetach({ sessions, sessionsRef, tabs: NO_TABS, tabsRef: { current: NO_TABS },
-    keepSessionId: mentor.current?.sessionId, isForeground,
-    liveAgentsEnabled: false, unseenFinishedIds, openingSessionIds: store.openingSessionIds,
+  // The open mentor's conversation and its reader stay in memory, even behind Settings.
+  const readerPage = mentor.current ? mentorView.stateFor(mentor.current.agentId).page : undefined;
+  const keepIds = useMemo(() => [mentor.current?.sessionId, readerPage?.kind === "session" ? readerPage.id : undefined].filter((id): id is string => !!id),
+    [mentor.current?.sessionId, readerPage]);
+  useIdleSessionDetach({ sessions, sessionsRef, keepIds, isForeground,
+    openingSessionIds: store.openingSessionIds,
     loadedSessionCache: store.loadedSessionCache, skipForgetSessionIds: store.skipForgetSessionIds,
     persistSession: runtime.persistSession, onError: reportError, setSessions: runtime.updateSessions,
   });
@@ -365,7 +367,7 @@ function Workspace(boot: BootWorkspace) {
   const persistWindow = useCallback(async (mode: WorkspaceSaveMode = "transition") => {
     runtime.flushEvents();
     await runtime.flushPersistence();
-    await persistQuitState(sessionsRef.current, NO_TABS, "", "~", new Map(), mode);
+    await persistQuitState(sessionsRef.current, mode);
   }, [runtime.flushEvents, runtime.flushPersistence]);
   const reload = useCallback(() => { void persistWindow().then(() => window.location.reload()).catch(reportError); }, [persistWindow, reportError]);
   const applyZoom = (direction: -1 | 0 | 1) => {
@@ -440,7 +442,7 @@ function Workspace(boot: BootWorkspace) {
     return () => window.removeEventListener(CANVASES_CHANGED_EVENT, refresh);
   }, [reportError]);
   useEffect(() => {
-    const release = setQuitWorkspace(() => sessionsRef.current, () => NO_TABS, () => "", () => "~", () => new Map(), runtime.flushEvents);
+    const release = setQuitWorkspace(() => sessionsRef.current, runtime.flushEvents);
     let stop: (() => void) | undefined;
     let disposed = false;
     void getCurrentWindow().onCloseRequested((event) => {

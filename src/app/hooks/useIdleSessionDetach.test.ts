@@ -15,15 +15,10 @@ import {
   type SessionRecord,
 } from "../../features/sessions/data/sessionStore";
 import { useUnseenFinishedSessions } from "../../features/sessions/hooks/useUnseenFinishedSessions";
-import { liveAgentsFromSessions } from "../../features/sessions/model/liveAgents";
 import {
   newSession,
   type Session,
 } from "../../features/sessions/model/session";
-import {
-  newTab,
-  type WorkspaceTab,
-} from "../../features/workspace/model/layout";
 import { useIdleSessionDetach } from "./useIdleSessionDetach";
 
 const mocks = vi.hoisted(() => ({
@@ -92,23 +87,20 @@ function chat(id: string, patch: Partial<Session> = {}): Session {
 
 type WorkspaceState = {
   sessions: Session[];
-  tabs: WorkspaceTab[];
+  keepIds: string[];
   busySessionIds: ReadonlySet<string>;
   activeSessionId: string;
-  liveAgentsEnabled: boolean;
 };
 
 function mountWorkspace(initial: Partial<WorkspaceState> = {}, save?: (session: Session) => Promise<void>) {
   let props: WorkspaceState = {
     sessions: [chat("ordinary", { busy: true }), chat("other")],
-    tabs: [newTab("other")],
+    keepIds: ["other"],
     busySessionIds: new Set(["ordinary"]),
     activeSessionId: "other",
-    liveAgentsEnabled: true,
     ...initial,
   };
   const sessionsRef = { current: props.sessions };
-  const tabsRef = { current: props.tabs };
   const openingSessionIds = { current: new Set<string>() };
   const loadedSessionCache = { current: new Map<string, Session>() };
   const skipForgetSessionIds = { current: new Set<string>() };
@@ -128,7 +120,6 @@ function mountWorkspace(initial: Partial<WorkspaceState> = {}, save?: (session: 
   function Workspace(state: WorkspaceState) {
     const [sessions, setSessions] = useState(state.sessions);
     sessionsRef.current = sessions;
-    tabsRef.current = state.tabs;
     const unseenFinishedIds = useUnseenFinishedSessions(
       state.busySessionIds,
       state.activeSessionId,
@@ -137,8 +128,6 @@ function mountWorkspace(initial: Partial<WorkspaceState> = {}, save?: (session: 
       ...state,
       sessions,
       sessionsRef,
-      tabsRef,
-      unseenFinishedIds,
       openingSessionIds,
       loadedSessionCache,
       skipForgetSessionIds,
@@ -188,7 +177,7 @@ describe("idle session detachment", () => {
   it("retains unsaved content until the write succeeds", async () => {
     let complete!: () => void;
     const saving = new Promise<void>((resolve) => { complete = resolve; });
-    const workspace = mountWorkspace({ sessions: [chat("hidden")], tabs: [], busySessionIds: new Set() }, () => saving);
+    const workspace = mountWorkspace({ sessions: [chat("hidden")], keepIds: [], busySessionIds: new Set() }, () => saving);
     await advance();
     expect(workspace.snapshot().sessions.map((s) => s.id)).toEqual(["hidden"]);
     expect(workspace.cache.size).toBe(0);
@@ -202,7 +191,7 @@ describe("idle session detachment", () => {
   it.each([0, 100, 250])("retries a failed save after reopening for %i ms and closing", async (openFor) => {
     const failure = new Error("disk unavailable");
     const save = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue(undefined);
-    const workspace = mountWorkspace({ sessions: [chat("hidden")], tabs: [], busySessionIds: new Set() }, save);
+    const workspace = mountWorkspace({ sessions: [chat("hidden")], keepIds: [], busySessionIds: new Set() }, save);
     await advance();
     expect(workspace.onError).toHaveBeenCalledExactlyOnceWith(failure);
     expect(workspace.snapshot().sessions).toHaveLength(1);
@@ -210,9 +199,9 @@ describe("idle session detachment", () => {
     workspace.update({ sessions: [...workspace.snapshot().sessions] });
     await advance(1000);
     expect(save).toHaveBeenCalledTimes(1);
-    workspace.update({ tabs: [newTab("hidden")] });
+    workspace.update({ keepIds: ["hidden"] });
     await advance(openFor);
-    workspace.update({ tabs: [] });
+    workspace.update({ keepIds: [] });
     await advance();
     expect(save).toHaveBeenCalledTimes(2);
     expect(workspace.snapshot().sessions).toEqual([]);
@@ -222,10 +211,10 @@ describe("idle session detachment", () => {
     let reject!: (error: Error) => void;
     const saving = new Promise<void>((_resolve, fail) => { reject = fail; });
     const save = vi.fn().mockReturnValueOnce(saving).mockResolvedValue(undefined);
-    const workspace = mountWorkspace({ sessions: [chat("hidden")], tabs: [], busySessionIds: new Set() }, save);
+    const workspace = mountWorkspace({ sessions: [chat("hidden")], keepIds: [], busySessionIds: new Set() }, save);
     await advance();
-    workspace.update({ tabs: [newTab("hidden")] });
-    workspace.update({ tabs: [] });
+    workspace.update({ keepIds: ["hidden"] });
+    workspace.update({ keepIds: [] });
     await advance();
     await act(async () => reject(new Error("earlier write failed")));
     await advance();
@@ -237,9 +226,9 @@ describe("idle session detachment", () => {
     "does not release a %s session when an older save completes", async (change) => {
       let complete!: () => void;
       const saving = new Promise<void>((resolve) => { complete = resolve; });
-      const workspace = mountWorkspace({ sessions: [chat("hidden")], tabs: [], busySessionIds: new Set() }, () => saving);
+      const workspace = mountWorkspace({ sessions: [chat("hidden")], keepIds: [], busySessionIds: new Set() }, () => saving);
       await advance();
-      if (change === "reopened") workspace.update({ tabs: [newTab("hidden")] });
+      if (change === "reopened") workspace.update({ keepIds: ["hidden"] });
       if (change === "busy") workspace.update({ sessions: [chat("hidden", { busy: true })] });
       if (change === "replaced") workspace.update({ sessions: [chat("hidden", { title: "New snapshot" })] });
       if (change === "protected") workspace.skipForgetSessionIds.add("hidden");
@@ -256,27 +245,9 @@ describe("idle session detachment", () => {
     },
   );
 
-  it("keeps unseen completed chats until they are focused", async () => {
+  it("detaches a finished chat once nothing shows it", async () => {
     const workspace = mountWorkspace();
     workspace.finish();
-    await advance();
-    expect(workspace.snapshot().unseenFinishedIds).toEqual(new Set(["ordinary"]));
-    expect(mocks.forgetHarnessSession).not.toHaveBeenCalled();
-    expect(liveAgentsFromSessions(workspace.snapshot().sessions, workspace.snapshot().unseenFinishedIds)).toMatchObject([{ id: "ordinary", done: true }]);
-    workspace.update({ tabs: [newTab("ordinary")], activeSessionId: "ordinary" });
-    await advance();
-    expect(workspace.snapshot().unseenFinishedIds.size).toBe(0);
-    workspace.update({ tabs: [newTab("other")], activeSessionId: "other" });
-    await advance();
-    expect(workspace.snapshot().sessions.map((session) => session.id)).not.toContain("ordinary");
-    expect(mocks.forgetHarnessSession).toHaveBeenCalledWith("claude", "ordinary");
-  });
-
-  it("detaches unseen finished chats when the activity overview is disabled", async () => {
-    const workspace = mountWorkspace();
-    workspace.finish();
-    await advance();
-    workspace.update({ liveAgentsEnabled: false });
     await advance();
     expect(workspace.snapshot().sessions.map((session) => session.id)).toEqual(["other"]);
     expect(mocks.forgetHarnessSession).toHaveBeenCalledExactlyOnceWith("claude", "ordinary");
@@ -285,7 +256,7 @@ describe("idle session detachment", () => {
   it.each(["busy", "opening", "protected"] as const)("keeps a %s hidden chat attached", async (reason) => {
     const workspace = mountWorkspace({
       sessions: [chat("hidden", { busy: reason === "busy" }), chat("other")],
-      tabs: [newTab("other")], busySessionIds: new Set(reason === "busy" ? ["hidden"] : []),
+      keepIds: ["other"], busySessionIds: new Set(reason === "busy" ? ["hidden"] : []),
     });
     if (reason === "opening") workspace.openingSessionIds.add("hidden");
     if (reason === "protected") workspace.skipForgetSessionIds.add("hidden");

@@ -108,7 +108,7 @@ export function useSessionStore(options: Options) {
           await latest.current.flushPersistence();
         },
         workspace: {
-          snapshot: () => ({ tabs: [], sessions: latest.current.sessionsRef.current, activeTabId: "" }),
+          snapshot: () => ({ sessions: latest.current.sessionsRef.current }),
           apply: (change) => {
             if (change.type === "stopped") {
               latest.current.updateSessions((sessions) => sessions.map((session) => session.id === id ? change.session : session));

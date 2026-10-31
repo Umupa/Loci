@@ -3,7 +3,6 @@ import { act, createElement, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newSession, type Session } from "../../features/sessions/model/session";
-import { newTab, type WorkspaceTab } from "../../features/workspace/model/layout";
 import { registerHarness, resetHarnessIdlePark, type TextPromptInput } from "../../integrations/harness/core/registry";
 import { useSessionRuntime, type SessionRuntime } from "./useSessionRuntime";
 import { useSessionSubmission, type SessionSubmission } from "./useSessionSubmission";
@@ -19,11 +18,11 @@ let root: Root;
 let host: HTMLDivElement;
 let runtime: SessionRuntime;
 let actions: SessionSubmission;
-let tabs: { current: WorkspaceTab[] };
+let shown: { current: string[] };
 let cache: Map<string, Session>;
 let stored: Map<string, Session>;
 let pending: Array<{ input: TextPromptInput; resolve: (value: string) => void }>;
-let setTabs: (next: WorkspaceTab[]) => void;
+let setShown: (next: string[]) => void;
 
 function chat(id: string): Session {
   return { ...newSession("codex", "/background-fixture", "codex:test"), id, blocks: [
@@ -36,11 +35,12 @@ async function mount(initial: Session) {
   function Workspace() {
     const [sessions, update] = useState([initial]);
     const sessionsRef = useRef(sessions);
-    const [openTabs, updateTabs] = useState([newTab(initial.id)]);
-    const tabsRef = useRef(openTabs);
-    tabsRef.current = openTabs;
-    tabs = tabsRef;
-    setTabs = updateTabs;
+    // The conversations on screen, as the mentor workspace reports them.
+    const [keepIds, updateShown] = useState([initial.id]);
+    const shownRef = useRef(keepIds);
+    shownRef.current = keepIds;
+    shown = shownRef;
+    setShown = updateShown;
     const loaded = useRef(new Map<string, Session>());
     const opening = useRef(new Set<string>());
     const protectedIds = useRef(new Set<string>());
@@ -48,8 +48,7 @@ async function mount(initial: Session) {
     runtime = useSessionRuntime({ sessions, sessionsRef, setSessions: update });
     actions = useSessionSubmission({ runtime });
     useIdleSessionDetach({
-      sessions, sessionsRef, tabs: openTabs, tabsRef, liveAgentsEnabled: false,
-      unseenFinishedIds: new Set(), openingSessionIds: opening,
+      sessions, sessionsRef, keepIds, openingSessionIds: opening,
       loadedSessionCache: loaded, skipForgetSessionIds: protectedIds,
       persistSession: runtime.persistSession, setSessions: runtime.updateSessions,
       onError: (error) => { throw error; },
@@ -104,18 +103,18 @@ describe("background side-question lifetime", () => {
       pending[0].input.onEvent?.({ type: "message.delta", text: "Partial answer" });
     });
     const remover = createSessionRemover({
-      mode: "archive", scope: "project", replacement: initial,
+      mode: "archive", replacement: initial,
       confirm: async () => true,
       stop: async (id) => { await actions.stopSessionWork(id); await runtime.flushPersistence(); },
       workspace: {
-        snapshot: () => ({ sessions: runtime.sessionsRef.current, tabs: tabs.current, activeTabId: tabs.current[0].id }),
+        snapshot: () => ({ sessions: runtime.sessionsRef.current }),
         apply: (change) => {
           if (change.type === "stopped") {
             runtime.updateSessions((sessions) => sessions.map((session) => session.id === initial.id ? change.session : session));
           } else {
             rememberLoadedSession(cache, change.session!);
             runtime.updateSessions(change.removal.sessions);
-            setTabs(change.removal.tabs);
+            setShown([]);
           }
         },
       },
@@ -129,7 +128,7 @@ describe("background side-question lifetime", () => {
     await act(async () => {
       runtime.bindRestoredSession(cached);
       runtime.updateSessions([cached]);
-      setTabs([newTab(cached.id)]);
+      setShown([cached.id]);
       expect(actions.btwSubmit(cached.id, cached.blocks, "side", "retry", "Continue")).toBe(true);
     });
     expect(pending).toHaveLength(2);
@@ -153,7 +152,7 @@ describe("background side-question lifetime", () => {
     await act(async () => { actions.btwSubmit(first.id, first.blocks, "side", "question", "First"); });
     await act(async () => {
       runtime.updateSessions([...runtime.sessionsRef.current, second]);
-      setTabs([newTab(first.id), newTab(second.id)]);
+      setShown([first.id, second.id]);
       actions.btwSubmit(second.id, second.blocks, "side", "question", "Second");
     });
     await act(async () => runtime.updateSessions(runtime.sessionsRef.current.filter((session) => session.id !== first.id)));
@@ -168,8 +167,8 @@ describe("background side-question lifetime", () => {
     await mount(initial);
     await act(async () => { expect(actions.btwSubmit(initial.id, initial.blocks, "side", "question", "Explain")).toBe(true); });
     expect(runtime.sessionsRef.current[0].busy).toBeFalsy();
-    await act(async () => setTabs([]));
-    expect(tabs.current).toEqual([]);
+    await act(async () => setShown([]));
+    expect(shown.current).toEqual([]);
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     expect(runtime.sessionsRef.current).toHaveLength(1);
     expect(mocks.forget).not.toHaveBeenCalled();
@@ -191,7 +190,7 @@ describe("background side-question lifetime", () => {
       const session = chat(`removed-${i}`);
       await act(async () => {
         runtime.updateSessions([session]);
-        setTabs([newTab(session.id)]);
+        setShown([session.id]);
         expect(actions.btwSubmit(session.id, session.blocks, "side", "question", "Explain")).toBe(true);
       });
       await act(async () => runtime.updateSessions([]));

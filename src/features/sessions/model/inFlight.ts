@@ -1,7 +1,5 @@
-import { leafIds, newTab, type WorkspaceTab } from "../../workspace/model/layout";
 import { sessionNeedsInput, type Session } from "./session";
 import { stopStreaming } from "../../../integrations/harness/core/apply";
-import type { ProjectReturnMemory } from "../../projects/model/projectReturn";
 
 export const INTERRUPT_MESSAGE =
   "Turn interrupted when Loci quit.";
@@ -15,10 +13,6 @@ export type InFlightRef = {
 
 export type ResumedWorkspace = {
   sessions: Session[];
-  tabs: WorkspaceTab[];
-  activeTabId: string;
-  projectCwd: string;
-  projectReturnMemory?: ProjectReturnMemory;
 };
 
 /** Main-turn work used by quit/resume; side questions have their own lifetime. */
@@ -38,15 +32,8 @@ export function hasInFlightSessions(sessions: Session[]): boolean {
   return sessions.some(isInFlightSession);
 }
 
-/**
- * Busy chats in tab order, then parked ones still running after their tab closed.
- * Only persistable sessions can come back after a real quit.
- */
-export function inFlightRefs(
-  sessions: Session[],
-  tabs: WorkspaceTab[],
-): InFlightRef[] {
-  const byId = new Map(sessions.map((session) => [session.id, session]));
+/** Busy chats, in the window's order. Only persistable sessions can come back after a real quit. */
+export function inFlightRefs(sessions: Session[]): InFlightRef[] {
   const seen = new Set<string>();
   const refs: InFlightRef[] = [];
 
@@ -57,9 +44,6 @@ export function inFlightRefs(
     refs.push({ sessionId: session.id, cwd: session.cwd });
   };
 
-  for (const tab of tabs) {
-    for (const id of leafIds(tab.layout)) push(byId.get(id));
-  }
   for (const session of sessions) push(session);
   return refs;
 }
@@ -97,14 +81,7 @@ export function markTurnInterrupted(session: Session): Session {
 export function workspaceFromResumed(
   sessions: Session[],
 ): ResumedWorkspace | null {
-  if (sessions.length === 0) return null;
-  const tabs = sessions.map((session) => newTab(session.id));
-  return {
-    sessions,
-    tabs,
-    activeTabId: tabs[0].id,
-    projectCwd: sessions[0].cwd,
-  };
+  return sessions.length === 0 ? null : { sessions };
 }
 
 export function wasTurnInterrupted(session: Session): boolean {

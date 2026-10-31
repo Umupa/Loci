@@ -6,7 +6,7 @@ import { findAgent } from "../../agents/model/agent";
 import type { RecentProject } from "../../projects/model/recents";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { deleteNote, getNote, NOTES_CHANGED_EVENT, type Note } from "../notes";
-import { NoteEditor, type NoteEditorActions } from "./NotesView";
+import { NoteEditor, type NoteEditorActions } from "./NoteEditor";
 
 type Props = {
   noteId: string;

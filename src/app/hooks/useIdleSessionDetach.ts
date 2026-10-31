@@ -12,10 +12,6 @@ import { shouldPersistSession } from "../../features/sessions/data/sessionStore"
 import { sessionChildHarnesses } from "../../features/sessions/model/handoff";
 import { hasLiveSessionWork } from "../../features/sessions/model/inFlight";
 import type { Session } from "../../features/sessions/model/session";
-import {
-leafIds,
-type WorkspaceTab,
-} from "../../features/workspace/model/layout";
 import { forgetHarnessSession } from "../../integrations/harness/core/registry";
 
 const SESSION_DETACH_DELAY_MS = 250;
@@ -23,14 +19,10 @@ const SESSION_DETACH_DELAY_MS = 250;
 export function useIdleSessionDetach({
   sessions,
   sessionsRef,
-  tabs,
-  tabsRef,
-  liveAgentsEnabled,
-  unseenFinishedIds,
+  keepIds,
   openingSessionIds,
   loadedSessionCache,
   skipForgetSessionIds,
-  keepSessionId,
   isForeground,
   persistSession,
   onError,
@@ -38,15 +30,11 @@ export function useIdleSessionDetach({
 }: {
   sessions: Session[];
   sessionsRef: RefObject<Session[]>;
-  tabs: WorkspaceTab[];
-  tabsRef: RefObject<WorkspaceTab[]>;
-  liveAgentsEnabled: boolean;
-  unseenFinishedIds: ReadonlySet<string>;
+  /** Conversations on screen, such as the open mentor's and the one in its reader. */
+  keepIds: readonly string[];
   openingSessionIds: RefObject<Set<string>>;
   loadedSessionCache: RefObject<Map<string, Session>>;
   skipForgetSessionIds: RefObject<Set<string>>;
-  /** A conversation in view outside any tab, such as an agent's. */
-  keepSessionId?: string;
   /** Recheck the synchronous view before releasing a session, even before React commits it. */
   isForeground?: (sessionId: string) => boolean;
   persistSession: (session: Session | undefined) => Promise<void>;
@@ -55,10 +43,9 @@ export function useIdleSessionDetach({
 }) {
   // Dropping a session re-renders the whole app, so it waits until a switch
   // has painted, and a burst of switches pays for it once.
-  const detachInputs = useRef({ liveAgentsEnabled, keepSessionId, isForeground, persistSession, onError });
-  detachInputs.current = { liveAgentsEnabled, keepSessionId, isForeground, persistSession, onError };
-  const unseenFinishedRef = useRef(unseenFinishedIds);
-  unseenFinishedRef.current = unseenFinishedIds;
+  const detachInputs = useRef({ keepIds, isForeground, persistSession, onError });
+  detachInputs.current = { keepIds, isForeground, persistSession, onError };
+  const keepKey = keepIds.join("\n");
   const detachTimer = useRef<number | null>(null);
   const mounted = useRef(true);
   const saving = useRef(new Set<string>());
@@ -66,13 +53,11 @@ export function useIdleSessionDetach({
   // background update. Observe navigation even when it is faster than the timer.
   const navigationEpoch = useRef(0);
   const failed = useRef(new WeakMap<Session, number>());
-  useEffect(() => { navigationEpoch.current += 1; }, [tabs, keepSessionId]);
+  useEffect(() => { navigationEpoch.current += 1; }, [keepKey]);
   const detachIdleSessions = useCallback(function detachIdleSessions() {
     detachTimer.current = null;
     const sessions = sessionsRef.current;
-    const visibleIds = new Set(
-      tabsRef.current.flatMap((tab) => leafIds(tab.layout)),
-    );
+    const visibleIds = new Set(detachInputs.current.keepIds);
 
     for (const sessionId of visibleIds) {
       openingSessionIds.current.delete(sessionId);
@@ -82,13 +67,11 @@ export function useIdleSessionDetach({
     const canDetach = (session: Session) =>
       // A hidden run is removed by whoever started it, once its answer is read.
       !session.ephemeral &&
-      session.id !== detachInputs.current.keepSessionId &&
+      !detachInputs.current.keepIds.includes(session.id) &&
       !detachInputs.current.isForeground?.(session.id) &&
-      !tabsRef.current.some((tab) => leafIds(tab.layout).includes(session.id)) &&
       !hasLiveSessionWork(session) &&
       !openingSessionIds.current.has(session.id) &&
-      !skipForgetSessionIds.current.has(session.id) &&
-      !(detachInputs.current.liveAgentsEnabled && unseenFinishedRef.current.has(session.id));
+      !skipForgetSessionIds.current.has(session.id);
 
     for (const session of sessions) {
       if (!canDetach(session) || saving.current.has(session.id) || failed.current.get(session) === navigationEpoch.current) continue;
@@ -127,7 +110,6 @@ export function useIdleSessionDetach({
     }
   }, [
     sessionsRef,
-    tabsRef,
     openingSessionIds,
     loadedSessionCache,
     skipForgetSessionIds,
@@ -142,9 +124,7 @@ export function useIdleSessionDetach({
     );
   }, [
     sessions,
-    tabs,
-    liveAgentsEnabled,
-    keepSessionId,
+    keepKey,
     detachIdleSessions,
   ]);
 
