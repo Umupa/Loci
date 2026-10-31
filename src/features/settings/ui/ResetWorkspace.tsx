@@ -14,7 +14,7 @@ export function ResetWorkspace() {
     setBusy(true);
     setError(null);
     try {
-      if (await ask(t("Stop all running agents and permanently delete all projects, conversations, agents, notes, canvases, documents and workspace history from Loci? All settings, provider accounts and global backgrounds are kept. Files in your project folders are kept. All windows will reload. This cannot be undone."), {
+      if (await ask(t("Stop all running agents and permanently delete all projects, conversations, agents, notes, canvases, documents and workspace history from Loci? All settings and global backgrounds are kept. Files in your project folders are kept. All windows will reload. This cannot be undone."), {
         title: t("Reset workspace?"), kind: "warning",
         okLabel: t("Reset workspace"), cancelLabel: t("Cancel"),
       })) await resetWorkspace();

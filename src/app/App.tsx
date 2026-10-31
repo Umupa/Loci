@@ -19,7 +19,6 @@ import { Sidebar } from "./shell/Sidebar";
 import { WindowControls } from "./shell/WindowControls";
 import { TitleBar, OverlayNav } from "./shell/TitleBar";
 import { MenuBar } from "./shell/MenuBar";
-import { UsageFooter } from "./shell/UsageFooter";
 import { PaneTree } from "../features/workspace/ui/PaneTree";
 import { ApprovalToasts } from "../features/sessions/ui/ApprovalToasts";
 import { ReminderNotices } from "../features/sessions/ui/ReminderNotices";
@@ -46,7 +45,7 @@ import { latestTurnNeedsHarnessLogin, supportsHarnessLogin } from "../integratio
 import { registerBuiltinHarnesses } from "../integrations/harness/core/register";
 import { probeHarnessAvailability } from "../integrations/harness/core/availability";
 import { refreshHarnessCatalogs } from "../integrations/harness/core/registry";
-import { newDefaultSession, newSession, sessionNeedsInput, type HarnessId, type Session } from "../features/sessions/model/session";
+import { newDefaultSession, sessionNeedsInput, type HarnessId, type Session } from "../features/sessions/model/session";
 import { requestTranscriptJump } from "../features/sessions/model/transcriptJump";
 import { useUnseenFinishedSessions } from "../features/sessions/hooks/useUnseenFinishedSessions";
 import { liveAgentsFromSessions } from "../features/sessions/model/liveAgents";
@@ -816,13 +815,6 @@ function Workspace(boot: BootWorkspace) {
             onOpenSession={(id) => void workspace.openSession(id)} onArchiveSession={(...args) => void workspace.archiveSession(...args)} onDeleteSession={(id) => void workspace.removeSession(id)}
             onRestoreProject={workspace.openProject} onDeleteProject={(path) => void workspace.removeProject(path, { purgeData: true })}
             collapsedProjectRailMode={collapsedProjectRailMode} onCollapsedProjectRailModeChange={saveCollapsedProjectRailMode} /> : null}
-          {surface === "chat" ? <UsageFooter providers={active && (active.harness === "claude" || active.harness === "codex") ? [active.harness] : []} session={active ? { ...active, authRequired: latestTurnNeedsHarnessLogin(active.blocks) } : undefined} project={active?.cwd ?? workspace.projectCwd} onManageAccounts={() => openSettings("providers", "provider-accounts")}
-            onSelectAccount={(provider, accountId) => {
-              const current = workspaceRef.current?.activeSession;
-              if (!current || current.harness !== provider || (current.providerAccountId ?? "default") === accountId) return;
-              if (!current.blocks.length && !current.busy) runtime.updateSessions((entries) => entries.map((session) => session.id === current.id ? { ...session, providerAccountId: accountId } : session));
-              else workspace.addSession({ ...newSession(current.harness, current.cwd, current.model, current.runtimeMode, current.modelSettings), providerAccountId: accountId });
-            }} /> : null}
         </div>
       </div>
       <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, workspace.activeTabId, workspace.tabs, surface === "chat")

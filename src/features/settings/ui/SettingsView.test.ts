@@ -11,10 +11,7 @@ import { SettingsView } from "./SettingsView";
 import { setLanguagePreference } from "../../../shared/i18n/locale";
 import { rememberNotificationProjects } from "../../notifications/model/notificationProjects";
 import { SETTINGS_INDEX, SETTINGS_SECTIONS, type SettingsSectionId, } from "../model/settings";
-import { providerAccounts, saveProviderAccount, } from "../../providers/model/providerAccounts";
-import { clearCachedRateLimits, setCachedRateLimits, } from "../../providers/model/rateLimitsCache";
 import { HARNESSES, HARNESS_TITLE, } from "../../sessions/model/session";
-import { saveMaskEmails, saveShowRemainingUsage } from "../model/displayPrefs";
 vi.mock("@tauri-apps/api/core", () => ({
     invoke: vi.fn(async () => undefined),
     convertFileSrc: (path: string) => path,
@@ -82,7 +79,6 @@ beforeEach(() => {
 afterEach(async () => {
     await act(async () => root.unmount());
     container.remove();
-    clearCachedRateLimits();
     localStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -101,90 +97,6 @@ describe("settings pages", () => {
         setHarnessModels("pi", modelsFor("pi"));
         await render("providers");
         expect(refreshHarnessCatalogs).not.toHaveBeenCalled();
-    });
-    it("keeps account emails blurred until clicked and hides them when settings reopen", async () => {
-        saveMaskEmails(true);
-        vi.mocked(invoke).mockImplementation(async (command, args) => {
-            if (command === "provider_account_identity") {
-                const { provider } = args as {
-                    provider: string;
-                };
-                return { email: `${provider}@example.com`, plan: "Pro" };
-            }
-            return undefined;
-        });
-        await render("providers");
-        const emails = container.querySelectorAll<HTMLButtonElement>('[aria-label="Reveal email"]');
-        expect(emails).toHaveLength(2);
-        expect([...emails].every((email) => email.querySelector("span")?.className.includes("blur-[5px]"))).toBe(true);
-        expect(container.textContent).toContain("Pro");
-        await act(async () => emails[0].click());
-        expect(emails[0].getAttribute("aria-label")).toBe("Hide email");
-        expect(emails[0].querySelector("span")?.className).not.toContain("blur");
-        expect(emails[1].getAttribute("aria-label")).toBe("Reveal email");
-        await act(async () => emails[0].click());
-        expect(emails[0].getAttribute("aria-label")).toBe("Reveal email");
-        await act(async () => emails[0].click());
-        await render("general");
-        await render("providers");
-        expect(container.querySelector('[aria-label="Hide email"]')).toBeNull();
-        expect(container.querySelectorAll('[aria-label="Reveal email"]')).toHaveLength(2);
-    });
-    it("shows used usage and plain emails until the options are turned on", async () => {
-        vi.mocked(invoke).mockImplementation(async (command) => command === "provider_account_identity"
-            ? { email: "user@example.com", plan: "Pro" }
-            : undefined);
-        setCachedRateLimits("claude", "default", {
-            provider: "claude",
-            session: {
-                usedPercent: 23,
-                windowMinutes: 300,
-                resetsAt: Date.now() + 3600000,
-            },
-            weekly: null,
-            monthly: null,
-            resetCredits: null,
-            updatedAt: Date.now(),
-            error: null,
-            status: "ok",
-        });
-        await render("providers");
-        const used = container.querySelector('[aria-label="5h limit used"]');
-        expect(used?.getAttribute("aria-valuenow")).toBe("23");
-        expect(used?.querySelector("span")?.getAttribute("style")).toBe("width: 23%;");
-        expect(container.textContent).toContain("user@example.com");
-        expect(container.querySelector('[aria-label="Reveal email"]')).toBeNull();
-        await act(async () => container
-            .querySelector<HTMLButtonElement>('[aria-label="Show remaining usage"]')!
-            .click());
-        await act(async () => container
-            .querySelector<HTMLButtonElement>('[aria-label="Mask account emails"]')!
-            .click());
-        const remaining = container.querySelector('[aria-label="5h limit remaining"]');
-        expect(remaining?.getAttribute("aria-valuenow")).toBe("77");
-        expect(container.querySelectorAll('[aria-label="Reveal email"]').length).toBeGreaterThan(0);
-    });
-    it("shows account usage bars as remaining capacity", async () => {
-        saveShowRemainingUsage(true);
-        setCachedRateLimits("claude", "default", {
-            provider: "claude",
-            session: {
-                usedPercent: 23,
-                windowMinutes: 300,
-                resetsAt: Date.now() + 3600000,
-            },
-            weekly: null,
-            monthly: null,
-            resetCredits: null,
-            updatedAt: Date.now(),
-            error: null,
-            status: "ok",
-        });
-        await render("providers");
-        const bar = container.querySelector('[aria-label="5h limit remaining"]');
-        expect(bar?.getAttribute("aria-valuenow")).toBe("77");
-        expect(bar?.querySelector("span")?.getAttribute("style")).toBe("width: 77%;");
-        expect(bar?.parentElement?.textContent).toContain("77% left");
     });
     it("shows background effect choices above scope when artwork is available", async () => {
         localStorage.setItem("loci.chatBackgroundPath", "/app-data/backgrounds/chat-background.png");
@@ -221,49 +133,6 @@ describe("settings pages", () => {
             .querySelector("#new-thread-background-effect-gradient-blur")
             ?.getAttribute("aria-checked")).toBe("true");
         expect(container.querySelector(".gradient-blur-background")).not.toBeNull();
-    });
-    it("manages named accounts independently for each supported provider", async () => {
-        saveProviderAccount({
-            id: "account-work",
-            provider: "codex",
-            label: "Wrk",
-        });
-        await render("providers");
-        expect(container.textContent).toContain("Claude Code");
-        expect(container.textContent).toContain("Codex");
-        await act(async () => container
-            .querySelector<HTMLButtonElement>('[aria-label="Rename Default account"]')!
-            .click());
-        const defaultInput = container.querySelector<HTMLInputElement>('[aria-label="Rename Claude Code account"]')!;
-        await act(async () => {
-            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(defaultInput, "Primary");
-            defaultInput.dispatchEvent(new Event("input", { bubbles: true }));
-        });
-        await act(async () => container
-            .querySelector<HTMLButtonElement>('button[type="submit"]')!
-            .click());
-        expect(providerAccounts("claude")[0]?.label).toBe("Primary");
-        await act(async () => container
-            .querySelector<HTMLButtonElement>('[aria-label="Rename Wrk"]')!
-            .click());
-        const input = container.querySelector<HTMLInputElement>('[aria-label="Rename Codex account"]')!;
-        await act(async () => {
-            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Work");
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-        });
-        await act(async () => container
-            .querySelector<HTMLButtonElement>('button[type="submit"]')!
-            .click());
-        expect(providerAccounts("codex")[1]?.label).toBe("Work");
-        await act(async () => container
-            .querySelector<HTMLButtonElement>('[aria-label="Remove Work"]')!
-            .click());
-        expect(ask).toHaveBeenCalled();
-        expect(invoke).toHaveBeenCalledWith("provider_account_remove", {
-            provider: "codex",
-            accountId: "account-work",
-        });
-        expect(providerAccounts("codex")).toHaveLength(1);
     });
     it("offers manual auto-detect retry when a CLI is missing", async () => {
         vi.mocked(invoke).mockImplementation(async (command) => {

@@ -73,7 +73,7 @@ Agents keep their own files beside the database, in `agents/<id>/` (see [Agents]
 
 A canvas and its checkpoint are written in one transaction, so an agent is never given a checkpoint id the next call cannot find. Tables are created on demand with `CREATE TABLE IF NOT EXISTS` (the `ensure_*` helpers), and `schema_migrations` only records the baseline version. There is no migration framework yet, so a change to an existing table has to keep reading databases written by older versions: for many people this file is the only copy of their notes and canvases.
 
-Loci reads a few things other tools already keep, and writes none of them: the sign-in identity a CLI cached on disk (`account_identity.rs`), the Claude Code token for its usage meter (`rate_limits.rs`), and Cursor's own store to recover sub-agent activity its ACP stream omits (`cursor_store.rs`).
+Loci reads Cursor's own store to recover sub-agent activity its ACP stream omits (`cursor_store.rs`), and writes none of it.
 
 ## The control channel
 

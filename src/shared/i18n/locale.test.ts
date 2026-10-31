@@ -12,9 +12,7 @@ import { searchSettings, KEYBINDINGS, filterKeybindings } from "../../features/s
 import { RUNTIME_MODES, RUNTIME_MODE_LABEL, RUNTIME_MODE_HINT } from "../../features/sessions/model/session";
 import { formatRelativeTime } from "../lib/relativeTime";
 import { EmptySession } from "../../features/sessions/ui/EmptySession";
-import { PrivateEmail } from "../ui/PrivateEmail";
 import { Modal } from "../ui/Modal";
-import { saveMaskEmails } from "../../features/settings/model/displayPrefs";
 
 let root: Root;
 let host: HTMLDivElement;
@@ -99,31 +97,32 @@ describe("settings language preferences", () => {
   });
 
   it("keeps settings dialogs localized through portals without translating workspace controls", async () => {
-    saveMaskEmails(true);
+    const TranslatedButton = () => {
+      const { t } = useUiText();
+      return createElement("button", { type: "button", "aria-label": t("Rename") }, t("Rename"));
+    };
     setLanguagePreference("zh-CN");
     await act(async () => root.render(createElement("div", null,
-      createElement(PrivateEmail, { email: "workspace@example.com" }),
+      createElement(TranslatedButton),
       createElement(SettingsLanguage, { children: createElement(Modal, {
         title: "Settings preview", onClose: () => {},
-        children: createElement(PrivateEmail, { email: "settings@example.com" }),
+        children: createElement(TranslatedButton),
       }) }))));
-    expect(host.querySelector('[aria-label="Reveal email"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="Rename"]')).not.toBeNull();
     const dialog = document.querySelector('[role="dialog"]')!;
     expect(host.contains(dialog)).toBe(false);
-    expect(dialog.querySelector('[aria-label="显示邮箱"]')).not.toBeNull();
-    expect(dialog.querySelector('[aria-label="关闭"]')).not.toBeNull();
+    expect(dialog.querySelector('[aria-label="重命名"]')).not.toBeNull();
     expect(dialog.closest('[lang]')?.getAttribute("lang")).toBe("zh-CN");
     await act(async () => setLanguagePreference("en"));
-    expect(dialog.querySelector('[aria-label="Reveal email"]')).not.toBeNull();
-    expect(dialog.querySelector('[aria-label="Close"]')).not.toBeNull();
-    expect(host.querySelector('[aria-label="Reveal email"]')).not.toBeNull();
+    expect(dialog.querySelector('[aria-label="Rename"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="Rename"]')).not.toBeNull();
   });
 });
 
 describe("settings copy", () => {
   it("preserves interpolation values verbatim without recursively replacing placeholders", () => {
     setLanguagePreference("zh-CN");
-    expect(t("Rename {0}", "项目 {1} <tag>")).toBe("重命名 项目 {1} <tag>");
+    expect(t("Delete {0}", "项目 {1} <tag>")).toBe("删除 项目 {1} <tag>");
     expect(t("Unknown source {0}", "raw")).toBe("Unknown source raw");
   });
 

@@ -3,7 +3,6 @@ import type { HarnessId } from "../../sessions/model/session";
 
 const ACCOUNTS_KEY = "loci.providerAccounts.v1";
 const SELECTIONS_KEY = "loci.providerAccountSelections.v1";
-const CHANGE_EVENT = "loci-provider-accounts-changed";
 
 export const DEFAULT_PROVIDER_ACCOUNT_ID = "default";
 const DEFAULT_PROVIDER_ACCOUNT_LABEL = "Default account";
@@ -20,7 +19,7 @@ export function sameProviderAccountId(
 }
 
 /** Providers whose CLIs support isolated, locally named account profiles. */
-export const PROVIDER_ACCOUNT_PROVIDERS = [
+const PROVIDER_ACCOUNT_PROVIDERS = [
   "claude",
   "codex",
 ] as const satisfies readonly HarnessId[];
@@ -34,7 +33,7 @@ export function supportsProviderAccounts(
   return PROVIDER_ACCOUNT_PROVIDERS.some((candidate) => candidate === provider);
 }
 
-export type ProviderAccount = {
+type ProviderAccount = {
   id: string;
   provider: ProviderAccountProvider;
   label: string;
@@ -49,7 +48,7 @@ type StoredSelections = Record<
   Partial<Record<ProviderAccountProvider, string>>
 >;
 
-export function providerAccounts(
+function providerAccounts(
   provider: ProviderAccountProvider,
 ): ProviderAccount[] {
   const stored = readRecord<StoredAccounts>(ACCOUNTS_KEY);
@@ -84,105 +83,6 @@ export function providerAccounts(
   ];
 }
 
-export function newProviderAccount(
-  provider: ProviderAccountProvider,
-  label: string,
-): ProviderAccount {
-  return {
-    id: `account-${crypto.randomUUID()}`,
-    provider,
-    label:
-      cleanLabel(label) || `Account ${providerAccounts(provider).length + 1}`,
-  };
-}
-
-export function saveProviderAccount(account: ProviderAccount): void {
-  if (
-    account.id === DEFAULT_PROVIDER_ACCOUNT_ID ||
-    !validAccountId(account.id)
-  ) {
-    return;
-  }
-  const label = cleanLabel(account.label);
-  if (!label) return;
-  const stored = readRecord<StoredAccounts>(ACCOUNTS_KEY);
-  const next = providerAccounts(account.provider).filter(
-    (entry) => entry.id !== account.id,
-  );
-  stored[account.provider] = serializeProviderAccounts([
-    ...next,
-    { id: account.id, provider: account.provider, label },
-  ]);
-  writeJson(ACCOUNTS_KEY, stored);
-  announceChange();
-}
-
-export function renameProviderAccount(
-  provider: ProviderAccountProvider,
-  accountId: string,
-  label: string,
-): ProviderAccount | null {
-  if (!validAccountId(accountId)) return null;
-  const nextLabel = cleanLabel(label);
-  if (!nextLabel) return null;
-  const accounts = providerAccounts(provider);
-  const target = accounts.find((account) => account.id === accountId);
-  if (!target) return null;
-  const renamed = { ...target, label: nextLabel };
-  const stored = readRecord<StoredAccounts>(ACCOUNTS_KEY);
-  stored[provider] = serializeProviderAccounts(
-    accounts.map((account) => (account.id === accountId ? renamed : account)),
-  );
-  writeJson(ACCOUNTS_KEY, stored);
-  announceChange();
-  return renamed;
-}
-
-/** Remove account metadata after native credential cleanup has succeeded. */
-export function removeProviderAccount(
-  provider: ProviderAccountProvider,
-  accountId: string,
-): boolean {
-  if (accountId === DEFAULT_PROVIDER_ACCOUNT_ID || !validAccountId(accountId)) {
-    return false;
-  }
-  const accounts = providerAccounts(provider);
-  if (!accounts.some((account) => account.id === accountId)) return false;
-  const stored = readRecord<StoredAccounts>(ACCOUNTS_KEY);
-  stored[provider] = serializeProviderAccounts(
-    accounts.filter((account) => account.id !== accountId),
-  );
-  writeJson(ACCOUNTS_KEY, stored);
-
-  const selections = readRecord<StoredSelections>(SELECTIONS_KEY);
-  for (const [key, selection] of Object.entries(selections)) {
-    if (!isRecord(selection) || selection[provider] !== accountId) continue;
-    const nextSelection = { ...selection };
-    delete nextSelection[provider];
-    if (Object.keys(nextSelection).length === 0) delete selections[key];
-    else selections[key] = nextSelection;
-  }
-  writeJson(SELECTIONS_KEY, selections);
-  announceChange();
-  return true;
-}
-
-function serializeProviderAccounts(
-  accounts: ProviderAccount[],
-): ProviderAccount[] {
-  return accounts.flatMap((account) => {
-    const label = cleanLabel(account.label);
-    if (!label) return [];
-    if (
-      account.id === DEFAULT_PROVIDER_ACCOUNT_ID &&
-      label === DEFAULT_PROVIDER_ACCOUNT_LABEL
-    ) {
-      return [];
-    }
-    return [{ id: account.id, provider: account.provider, label }];
-  });
-}
-
 export function providerAccountExists(
   provider: ProviderAccountProvider,
   accountId: string | undefined,
@@ -199,44 +99,6 @@ export function selectedProviderAccountId(
   return providerAccounts(provider).some((account) => account.id === id)
     ? id!
     : DEFAULT_PROVIDER_ACCOUNT_ID;
-}
-
-export function selectProviderAccount(
-  provider: ProviderAccountProvider,
-  project: string | undefined,
-  accountId: string,
-): void {
-  if (!providerAccounts(provider).some((account) => account.id === accountId)) {
-    return;
-  }
-  const selections = readRecord<StoredSelections>(SELECTIONS_KEY);
-  const key = selectionKey(project);
-  selections[key] = { ...selections[key], [provider]: accountId };
-  writeJson(SELECTIONS_KEY, selections);
-  announceChange();
-}
-
-export function providerAccountLabel(
-  provider: ProviderAccountProvider,
-  accountId: string | undefined,
-): string {
-  return (
-    providerAccounts(provider).find((account) => account.id === accountId)
-      ?.label ?? "Default account"
-  );
-}
-
-export function subscribeProviderAccounts(listener: () => void): () => void {
-  const local = () => listener();
-  const storage = (event: StorageEvent) => {
-    if (event.key === ACCOUNTS_KEY || event.key === SELECTIONS_KEY) listener();
-  };
-  window.addEventListener(CHANGE_EVENT, local);
-  window.addEventListener("storage", storage);
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, local);
-    window.removeEventListener("storage", storage);
-  };
 }
 
 function selectionKey(project: string | undefined): string {
@@ -274,16 +136,4 @@ function readJson<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-function writeJson(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // A private or full storage area should not block the provider itself.
-  }
-}
-
-function announceChange(): void {
-  window.dispatchEvent(new Event(CHANGE_EVENT));
 }

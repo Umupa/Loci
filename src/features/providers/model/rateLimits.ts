@@ -1,10 +1,5 @@
 import { asRecord } from "../../../integrations/harness/providers/codex/codexProtocol";
 
-export type RateLimitProvider = "claude" | "codex";
-
-export type RateLimitStatus =
-  "idle" | "fetching" | "ok" | "error" | "unavailable";
-
 export type RateLimitWindow = {
   /** Percentage of the window consumed (0–100). */
   usedPercent: number;
@@ -14,157 +9,16 @@ export type RateLimitWindow = {
   resetsAt: number | null;
 };
 
-export type RateLimitResetCredit = {
-  id: string;
-  resetType: "codexRateLimits" | "unknown";
-  status: "available" | "redeeming" | "redeemed" | "unknown";
-  grantedAt: number | null;
-  expiresAt: number | null;
-  title: string | null;
-  description: string | null;
-};
-
-export type RateLimitResetCredits = {
-  availableCount: number;
-  /** Optional detail rows; the backend can report only the aggregate count. */
-  credits: RateLimitResetCredit[] | null;
-};
-
-export type ProviderRateLimits = {
-  provider: RateLimitProvider;
+export type RateLimitWindows = {
   session: RateLimitWindow | null;
   weekly: RateLimitWindow | null;
   monthly: RateLimitWindow | null;
-  /** Codex-only banked rate-limit reset rewards, when supplied by app-server. */
-  resetCredits: RateLimitResetCredits | null;
-  updatedAt: number;
-  error: string | null;
-  status: RateLimitStatus;
 };
 
-export const SESSION_WINDOW_MINUTES = 300;
-export const WEEKLY_WINDOW_MINUTES = 10_080;
-export const MONTHLY_WINDOW_MINUTES = 43_200;
-export const RATE_LIMIT_POLL_MS = 15 * 60_000;
-export const RATE_LIMIT_MIN_REFETCH_MS = 5 * 60_000;
-
+const SESSION_WINDOW_MINUTES = 300;
+const WEEKLY_WINDOW_MINUTES = 10_080;
+const MONTHLY_WINDOW_MINUTES = 43_200;
 const WINDOW_DURATION_TOLERANCE_MINUTES = 1;
-
-export function idleRateLimits(
-  provider: RateLimitProvider,
-): ProviderRateLimits {
-  return {
-    provider,
-    session: null,
-    weekly: null,
-    monthly: null,
-    resetCredits: null,
-    updatedAt: 0,
-    error: null,
-    status: "idle",
-  };
-}
-
-export function fetchingRateLimits(
-  provider: RateLimitProvider,
-  previous?: ProviderRateLimits | null,
-): ProviderRateLimits {
-  if (
-    previous &&
-    (previous.session ||
-      previous.weekly ||
-      previous.monthly ||
-      previous.resetCredits)
-  ) {
-    return { ...previous, status: "fetching" };
-  }
-  return {
-    provider,
-    session: previous?.session ?? null,
-    weekly: previous?.weekly ?? null,
-    monthly: previous?.monthly ?? null,
-    resetCredits: previous?.resetCredits ?? null,
-    updatedAt: previous?.updatedAt ?? 0,
-    error: null,
-    status: "fetching",
-  };
-}
-
-export function unavailableRateLimits(
-  provider: RateLimitProvider,
-  error: string,
-): ProviderRateLimits {
-  return {
-    provider,
-    session: null,
-    weekly: null,
-    monthly: null,
-    resetCredits: null,
-    updatedAt: Date.now(),
-    error,
-    status: "unavailable",
-  };
-}
-
-export function errorRateLimits(
-  provider: RateLimitProvider,
-  error: string,
-  previous?: ProviderRateLimits | null,
-): ProviderRateLimits {
-  if (
-    previous &&
-    (previous.session ||
-      previous.weekly ||
-      previous.monthly ||
-      previous.resetCredits)
-  ) {
-    return {
-      ...previous,
-      error,
-      status: "error",
-      updatedAt: Date.now(),
-    };
-  }
-  return {
-    provider,
-    session: null,
-    weekly: null,
-    monthly: null,
-    resetCredits: null,
-    updatedAt: Date.now(),
-    error,
-    status: "error",
-  };
-}
-
-export function clampUsedPercent(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(100, Math.max(0, value));
-}
-
-export function formatUsagePercent(usedPercent: number): string {
-  return `${Math.round(clampUsedPercent(usedPercent))}%`;
-}
-
-/**
- * Compact window-size label. 10080 minutes stays "wk" to match the
- * original status-bar copy.
- */
-export function formatWindowLabel(windowMinutes: number): string {
-  if (windowMinutes === WEEKLY_WINDOW_MINUTES) return "wk";
-  if (windowMinutes === MONTHLY_WINDOW_MINUTES) return "mo";
-  if (windowMinutes === SESSION_WINDOW_MINUTES) return "5h";
-  if (windowMinutes === 60) return "1h";
-  if (windowMinutes < 60) return `${windowMinutes}m`;
-  if (windowMinutes % (60 * 24 * 7) === 0) {
-    return `${windowMinutes / (60 * 24 * 7)}wk`;
-  }
-  if (windowMinutes % (60 * 24) === 0) {
-    return `${windowMinutes / (60 * 24)}d`;
-  }
-  if (windowMinutes % 60 === 0) return `${windowMinutes / 60}h`;
-  return `${windowMinutes}m`;
-}
 
 /**
  * Compact remaining duration, flooring to whole units: "47m", "3h 54m",
@@ -184,41 +38,9 @@ export function formatResetDuration(ms: number): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
-export function formatResetCountdown(ms: number): string {
-  const duration = formatResetDuration(ms);
-  return duration === "now" ? "Resets now" : `Resets in ${duration}`;
-}
-
-/**
- * Status-bar chip label. Prefer remaining time when resetsAt is known;
- * fall back to the fixed window size otherwise.
- */
-export function formatRateLimitWindowChipLabel(
-  window: RateLimitWindow,
-  now = Date.now(),
-): string {
-  if (window.resetsAt != null) {
-    return formatResetDuration(window.resetsAt - now);
-  }
-  return formatWindowLabel(window.windowMinutes);
-}
-
-export function rateLimitWindowTooltip(
-  window: RateLimitWindow,
-  now = Date.now(),
-  showRemaining = false,
-): string {
-  const pct = clampUsedPercent(window.usedPercent);
-  const usage = `${formatUsagePercent(showRemaining ? 100 - pct : pct)} ${showRemaining ? "remaining" : "used"}`;
-  if (window.resetsAt == null) {
-    return `${usage} · ${formatWindowLabel(window.windowMinutes)} window`;
-  }
-  return `${usage} · ${formatResetCountdown(window.resetsAt - now)}`;
-}
-
 /** When a used-up window resets; the later one when several are spent. */
 export function exhaustedWindowResetAt(
-  limits: ProviderRateLimits,
+  limits: RateLimitWindows,
 ): number | null {
   let latest: number | null = null;
   for (const window of [limits.session, limits.weekly, limits.monthly]) {
@@ -248,63 +70,13 @@ function normalizeEpochMs(value: number): number | null {
   return value > 10_000_000_000 ? value : value * 1000;
 }
 
-export function mapUsageWindow(
-  raw: unknown,
-  windowMinutes: number,
-): RateLimitWindow | null {
-  const rec = asRecord(raw);
-  if (!rec) return null;
-  const usedPercent = usedPercentFrom(rec);
-  if (usedPercent == null) return null;
-  return {
-    usedPercent: clampUsedPercent(usedPercent),
-    windowMinutes,
-    resetsAt:
-      parseResetTimestamp(rec.resets_at) ??
-      parseResetTimestamp(rec.resetsAt) ??
-      null,
-  };
-}
-
-function usedPercentFrom(rec: Record<string, unknown>): number | null {
-  const value =
-    numberField(rec, "used_percentage") ??
-    numberField(rec, "usedPercent") ??
-    numberField(rec, "utilization");
-  if (value == null) return null;
-  return value;
-}
-
-export function parseClaudeOAuthUsage(body: string): ProviderRateLimits {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    return errorRateLimits("claude", "Claude usage response was not JSON");
-  }
-  const rec = asRecord(parsed);
-  if (!rec) {
-    return errorRateLimits("claude", "Claude usage response was empty");
-  }
-  return {
-    provider: "claude",
-    session: mapUsageWindow(rec.five_hour, SESSION_WINDOW_MINUTES),
-    weekly: mapUsageWindow(rec.seven_day, WEEKLY_WINDOW_MINUTES),
-    monthly: null,
-    resetCredits: null,
-    updatedAt: Date.now(),
-    error: null,
-    status: "ok",
-  };
-}
-
 type CodexWindowSnapshot = {
   usedPercent: number;
   windowDurationMins: number | null;
   resetsAt: unknown;
 };
 
-export function parseCodexRateLimits(result: unknown): ProviderRateLimits {
+export function parseCodexRateLimits(result: unknown): RateLimitWindows {
   const rec = asRecord(result);
   const wrapper = asRecord(rec?.rateLimits) ?? rec;
   const classified = classifyCodexWindows({
@@ -312,58 +84,9 @@ export function parseCodexRateLimits(result: unknown): ProviderRateLimits {
     secondary: snapshotFrom(asRecord(wrapper?.secondary)),
   });
   return {
-    provider: "codex",
     session: mapCodexSnapshot(classified.session, SESSION_WINDOW_MINUTES),
     weekly: mapCodexSnapshot(classified.weekly, WEEKLY_WINDOW_MINUTES),
     monthly: mapCodexSnapshot(classified.monthly, MONTHLY_WINDOW_MINUTES),
-    resetCredits: parseResetCredits(
-      rec?.rateLimitResetCredits ?? rec?.rate_limit_reset_credits,
-    ),
-    updatedAt: Date.now(),
-    error: null,
-    status: "ok",
-  };
-}
-
-function parseResetCredits(raw: unknown): RateLimitResetCredits | null {
-  const rec = asRecord(raw);
-  if (!rec) return null;
-  const count =
-    numberField(rec, "availableCount") ?? numberField(rec, "available_count");
-  if (count == null) return null;
-  const rawCredits = rec.credits;
-  const credits = Array.isArray(rawCredits)
-    ? rawCredits
-        .map(parseResetCredit)
-        .filter((credit): credit is RateLimitResetCredit => credit != null)
-    : null;
-  return {
-    availableCount: Math.max(0, Math.floor(count)),
-    credits,
-  };
-}
-
-function parseResetCredit(raw: unknown): RateLimitResetCredit | null {
-  const rec = asRecord(raw);
-  if (!rec || typeof rec.id !== "string" || rec.id.trim() === "") {
-    return null;
-  }
-  const resetType =
-    rec.resetType === "codexRateLimits" ? "codexRateLimits" : "unknown";
-  const status =
-    rec.status === "available" ||
-    rec.status === "redeeming" ||
-    rec.status === "redeemed"
-      ? rec.status
-      : "unknown";
-  return {
-    id: rec.id,
-    resetType,
-    status,
-    grantedAt: parseResetTimestamp(rec.grantedAt ?? rec.granted_at),
-    expiresAt: parseResetTimestamp(rec.expiresAt ?? rec.expires_at),
-    title: stringField(rec, "title"),
-    description: stringField(rec, "description"),
   };
 }
 
@@ -459,6 +182,11 @@ function mapCodexSnapshot(
   };
 }
 
+function clampUsedPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, value));
+}
+
 function numberField(rec: Record<string, unknown>, key: string): number | null {
   const value = rec[key];
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -467,9 +195,4 @@ function numberField(rec: Record<string, unknown>, key: string): number | null {
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
-}
-
-function stringField(rec: Record<string, unknown>, key: string): string | null {
-  const value = rec[key];
-  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
