@@ -49,7 +49,7 @@ if [[ "$ci" != success ]]; then
 	npm run check
 fi
 
-npm run -s set-version -- "$version" >/dev/null
+[[ "$version" == "$current" ]] || npm run -s set-version -- "$version" >/dev/null
 node scripts/changelog.mjs release "$version"
 git commit -q -m "chore: release $tag" -- package.json package-lock.json Cargo.toml Cargo.lock src-tauri/tauri.conf.json CHANGELOG.md
 git tag "$tag"
