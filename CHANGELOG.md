@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-31
+
 ### Added
 
 - **A mentor for each topic.** The rail on the left lists your mentors. Create one with **+** (or ⌘T) from the Mentor or Lens template, or start a blank one. With no mentors yet, Loci shows how to create the first.
@@ -91,6 +93,7 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Umupa/Loci/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Umupa/Loci/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Umupa/Loci/releases/tag/v0.1.0
