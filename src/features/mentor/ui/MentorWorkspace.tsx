@@ -14,6 +14,7 @@ import { createNote, getNote } from "../../notes";
 import { readingOf, type MentorLesson, type MentorPage } from "../model/mentorPage";
 import { MentorBreadcrumb, mentorCrumbs } from "./MentorBreadcrumb";
 import type { CourseBadge } from "./LibraryCourses";
+import { useReadingPlace } from "./useReadingPlace";
 import { MentorLibrary, type LibraryChange } from "./MentorLibrary";
 import { MentorReader } from "./MentorReader";
 import "./MentorWorkspace.css";
@@ -91,6 +92,8 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
   const readingKey = JSON.stringify(reading ?? null);
   useEffect(() => { onReading?.(reading); }, [readingKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onReading?.(undefined), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const readerRef = useRef<HTMLElement>(null);
+  useReadingPlace(readerRef, agent.id, readingKey);
 
   // A page remembered from the last visit may have been removed since.
   const restored = state.restored ? state.page : undefined;
@@ -152,7 +155,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
             library.setWidth(library.width + (event.key === "ArrowRight" ? 20 : -20));
           }} />
       </aside>
-      <main className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}
+      <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}
         onKeyDown={(event) => {
           if (event.key !== "Escape" || event.defaultPrevented || !state.page) return;
           event.preventDefault(); event.stopPropagation();

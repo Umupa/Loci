@@ -368,12 +368,12 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         className="block h-full w-full resize-none overflow-auto overscroll-none bg-transparent px-5 py-4 font-mono text-[12.5px] leading-[1.55] text-content/90 outline-none"
       />
     ) : (
-      <div ref={markdownRef} className="h-full min-h-0"><MarkdownDocumentPreview text={shownText} metadataLabel="Front matter" cwd={parentPath(path)} onOpenFile={onOpenFile} /></div>
+      <div ref={markdownRef} className="h-full min-h-0" data-reading-text><MarkdownDocumentPreview text={shownText} metadataLabel="Front matter" cwd={parentPath(path)} onOpenFile={onOpenFile} /></div>
     );
   } else {
     body = (
       <div className="h-full overflow-auto overscroll-none">
-        <pre ref={textRef} className="min-h-full select-text whitespace-pre-wrap break-words px-5 py-4 font-mono text-[12.5px] leading-[1.55] text-content/90">{content.text}</pre>
+        <pre ref={textRef} data-reading-text data-reading-lines-from="1" className="min-h-full select-text whitespace-pre-wrap break-words px-5 py-4 font-mono text-[12.5px] leading-[1.55] text-content/90">{content.text}</pre>
       </div>
     );
   }
@@ -422,7 +422,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       {content.status === "text" ? <div className="flex min-h-0 min-w-0 flex-1">
         <div ref={bodyRef} className="min-h-0 min-w-0 flex-1">{body}</div>
         {annotationsOpen ? marks.list(() => setAnnotationsOpen(false)) : null}
-      </div> : <div ref={bodyRef} className="min-h-0 min-w-0 flex-1">{body}</div>}
+      </div> : <div ref={bodyRef} className="min-h-0 min-w-0 flex-1" {...(content.status === "pdf" ? { "data-reading-text": "" } : {})}>{body}</div>}
       {content.status === "pdf"
         ? <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`pdf:${path}`} toChat={pdfToChat} onMark={highlightPdfSelection} />
         : <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`text:${path}:${diskText?.length ?? 0}`} askLabel={marks.askLabel}

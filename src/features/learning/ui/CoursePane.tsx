@@ -360,12 +360,14 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
   const excerptRef = useRef<HTMLDivElement>(null);
   const { selection, dismiss } = useFileSelection(excerptRef, true);
   const first = lesson.lines?.[0] ?? 1;
+  // A Markdown file with no range is shown as itself: its code blocks are not the file's lines.
+  const fenced = !!lesson.lines || !/\.(md|markdown)$/i.test(file);
   const spec = useMemo((): MarkSpec => ({
     target: { kind: "file", path: file },
     source: (anchor, quote, annotationId) => ({ id: crypto.randomUUID(), kind: "file", path: file, title: file.split(/[\\/]/).pop() || file, quote,
       ...(anchor.lines ? { lines: anchor.lines } : {}), anchor, ...(annotationId ? { annotationId } : {}) }),
-    lines: (range) => excerptLines(range, first),
-  }), [file, first]);
+    lines: (range) => fenced ? excerptLines(range, first) : undefined,
+  }), [file, first, fenced]);
   const marks = useReadingMarks(excerptRef, spec, { agentId });
   const count = marks.annotations.length;
   useEffect(() => { onMarks?.(count); }, [onMarks, count]);
@@ -388,7 +390,7 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
     <p className="course-pane__summary" title={file}>{name}{where}</p>
     {!shown ? <p className="course-pane__relations">Opening…</p>
       : shown.error ? <><p className="course-error" role="alert">Could not read {name}: {shown.error}</p>{open}</>
-      : <div ref={excerptRef} className="select-text"><AgentMarkdown text={sourceExcerpt(shown.text!, name, lesson.lines)} wholeDocument /></div>}
+      : <div ref={excerptRef} className="select-text" data-reading-text {...(fenced ? { "data-reading-lines-from": first } : {})}><AgentMarkdown text={sourceExcerpt(shown.text!, name, lesson.lines)} wholeDocument /></div>}
     <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} />
     {marks.popover}
     {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title) : null}

@@ -103,7 +103,7 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
           {document.fetchedAt ? <span>saved {new Date(document.fetchedAt).toLocaleDateString()}</span> : null}
         </p>
       ) : null}
-      <div ref={bodyRef} className="select-text">
+      <div ref={bodyRef} className="select-text" data-reading-text>
         <AgentMarkdown text={document.body} wholeDocument sourceUrl={sourceUrl} section={fullDocument ? undefined : requestedSection} />
       </div>
       <ReadingSelectionMenu selection={selection} onDismiss={dismiss} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark}

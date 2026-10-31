@@ -98,7 +98,10 @@ export async function prepareAppTurn(
   if (files && look && plan && (plan.soul || plan.memory))
     context.push(agentContext(look, files, plan));
   // What is open beside the chat changes from turn to turn, so it goes every time.
-  const reading = agent ? readingContext(agent.id) : undefined;
+  // A selection the message already carries as a source is not sent twice.
+  const lastUser = [...session.blocks].reverse().find((block) => block.role === "user");
+  const attached = lastUser?.sources?.map((source) => source.quote) ?? [];
+  const reading = agent ? readingContext(agent.id, attached) : undefined;
   if (reading) context.push(reading);
   return {
     context,
