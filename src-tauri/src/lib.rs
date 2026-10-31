@@ -11,6 +11,7 @@ pub mod cli_access;
 mod control;
 pub mod control_cli;
 mod course;
+pub mod external_cli;
 mod flavor;
 mod fs;
 mod harness;
@@ -199,12 +200,25 @@ fn should_request_quit(code: Option<i32>) -> bool {
     code.is_some() || cfg!(any(target_os = "linux", target_os = "windows"))
 }
 
+/// The configuration this executable was built with, flavor applied.
+fn context() -> tauri::Context<tauri::Wry> {
+    let mut context = tauri::generate_context!();
+    flavor::apply(&mut context);
+    context
+}
+
+/// The identifier this executable runs under: `com.loci.desktop` for the
+/// installed app, Loci Dev's for debug builds, and whatever a QA bundle was
+/// built with (`--config '{"identifier":...}'`).
+pub fn built_identifier() -> String {
+    context().config().identifier.clone()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(windows)]
     windows::initialize().expect("Failed to initialize Windows process safety");
-    let mut context = tauri::generate_context!();
-    flavor::apply(&mut context);
+    let context = context();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
