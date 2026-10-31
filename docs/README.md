@@ -7,7 +7,7 @@ Start with the [project README](../README.md) for what Loci is and how to run it
 | [roadmap.md](roadmap.md) | 简体中文 | 产品定位与分阶段路线图：M0 减法、M1 新布局、M2 陪你读、M3 读码、M4 实验、M5 沉淀 |
 | [architecture.md](architecture.md) | English | How the app is put together: processes, agent CLI adapters, storage, the control channel, the built-in MCP servers, trust boundaries |
 | [cli.md](cli.md) | English | The `loci` command line: reaching Loci Dev or a QA build, access and the token, commands, exit codes, end-to-end tests, acting as a mentor from outside Loci |
-| [learning.md](learning.md) | 简体中文 | 来源提问、PDF 高亮批注、关联讨论与本地存储 |
+| [learning.md](learning.md) | 简体中文 | 和导师一起阅读：选中即问、高亮与笔记、阅读位置、跳转到原文、本地存储 |
 | [canvas-mcp.md](canvas-mcp.md) | 中文 | Excalidraw canvases and the built-in `loci_excalidraw` MCP server: design, semantics, limits and verification records |
 | [stability-validation.md](stability-validation.md) | 中文 | Session persistence, background work and rendering: regression checks, measurements and remaining verification limits |
 | [localization.md](localization.md) | 中文 | Settings language preferences, translation boundaries and UI verification |
