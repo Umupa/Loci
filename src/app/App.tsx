@@ -12,6 +12,7 @@ import { queueLearningDraft } from "../features/learning/model/learningDraft";
 import { OPEN_LEARNING_DISCUSSION_EVENT } from "../features/learning/model/navigation";
 import { courseItems, loadCourse, OPEN_COURSE_EVENT, type OpenCourseDetail } from "../features/learning/model/course";
 import { readAgentDocument } from "../features/agents/model/agentDocuments";
+import { LessonMarks } from "../features/learning/ui/LessonMarks";
 import { requestDocumentPlace } from "../features/agents/model/documentPlace";
 import type { DiscussionRef } from "../features/learning/model/types";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
@@ -574,6 +575,7 @@ function Workspace(boot: BootWorkspace) {
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
           {surface === "mentor" && mentor.current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
             <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)}
+              courseBadge={(courseId, lessonId) => <LessonMarks agentId={focusedAgent.id} courseId={courseId} lessonId={lessonId} />}
               trailing={IS_MAC ? undefined : <WindowControls />}
               canvases={canvases}
               onOpen={(page) => mentorView.show(focusedAgent.id, page)} onClose={() => mentorView.close(focusedAgent.id)}

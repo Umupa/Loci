@@ -1,0 +1,21 @@
+.lesson-marks {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  margin-top: 1px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgb(253 224 71 / 0.16);
+  color: color-mix(in srgb, var(--color-content) 55%, transparent);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+}
+.lesson-marks__note {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(217 119 6 / 0.85);
+}
