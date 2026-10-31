@@ -21,7 +21,6 @@ import { TitleBar, OverlayNav } from "./shell/TitleBar";
 import { MenuBar } from "./shell/MenuBar";
 import { PaneTree } from "../features/workspace/ui/PaneTree";
 import { ApprovalToasts } from "../features/sessions/ui/ApprovalToasts";
-import { ReminderNotices } from "../features/sessions/ui/ReminderNotices";
 import { TranscriptPool, TranscriptPoolOutlet } from "../features/sessions/ui/TranscriptPool";
 import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
@@ -70,7 +69,6 @@ import { announceSessionFinished } from "../features/notifications/model/notific
 import { hiddenApprovalNotices } from "../features/notifications/model/approvalToast";
 import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
-import { useSessionReminders } from "../features/notifications/hooks/useSessionReminders";
 import { ADD_NOTE_TO_CHAT_EVENT, type NoteComposerCard } from "../features/notes";
 import { CANVASES_CHANGED_EVENT, loadCanvases, updateCanvas, type Canvas } from "../features/canvas/canvas";
 import { SelectCanvasDialog } from "../features/canvas/ui/SelectCanvasDialog";
@@ -165,7 +163,6 @@ function Workspace(boot: BootWorkspace) {
   const [noteOpenRequest, setNoteOpenRequest] = useState<NoteOpenRequest>();
   const [savedToast, setSavedToast] = useState<SavedToastData | null>(null);
   const [sessionOrder, setSessionOrder] = useState<readonly string[]>([]);
-  const [reminderNoticesHeight, setReminderNoticesHeight] = useState(0);
   const [transcriptPool] = useState(() => new TranscriptPool());
   const [canvases, setCanvases] = useState<Canvas[]>([]);
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
@@ -312,10 +309,6 @@ function Workspace(boot: BootWorkspace) {
     }).then((release) => { if (stopped) release(); else unlisten = release; });
     return () => { stopped = true; unlisten?.(); };
   }, [runtime.flushEvents]);
-  const ensureSaved = useCallback(async (ids: readonly string[]) => {
-    await Promise.all(ids.map((id) => runtime.persistSession(id)));
-  }, [runtime.persistSession]);
-  const reminders = useSessionReminders(workspace.openSession, ensureSaved, sessions.map((session) => session.id));
   useIdleSessionDetach({ sessions, sessionsRef, tabs: workspace.tabs, tabsRef: workspace.tabsRef,
     keepSessionId: surface === "agent" ? agentWorkspace.current?.sessionId : undefined,
     isForeground,
@@ -686,7 +679,7 @@ function Workspace(boot: BootWorkspace) {
     onFocus: workspace.focusPane, onClose: workspace.closePane, onCwdChange: workspace.changeCwd,
     onModelChange: submission.changeModel, onModelSettingsChange: submission.changeModelSettings, onRuntimeModeChange: submission.changeRuntimeMode,
     onSubmit: submission.onSubmit, onSaveDraft: submission.saveDraft, onRemoveDraft: submission.removeDraft,
-    onStop: submission.stop, onCompactContext: submission.compact, onPlaceSessionInFolder: workspace.placeInFolder,
+    onStop: submission.stop, onCompactContext: submission.compact,
     onDeleteQueuedMessage: submission.deleteQueuedMessage, onEditQueuedMessage: submission.editQueuedMessage,
     onQueuedMessageEditingChange: submission.queuedMessageEditingChange, onSteerQueuedMessage: submission.steerQueuedMessage, onResumeQueue: submission.resumeQueue,
     onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
@@ -730,7 +723,7 @@ function Workspace(boot: BootWorkspace) {
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
       {compactTitleBar ? workspaceTitleBar : null}
       <div className="flex min-h-0 min-w-0 flex-1">
-        <Sidebar cwd={workspace.projectCwd} open={sessionSidebarOpen && surface !== "agent"} sessions={workspace.sidebarHistory} openSessions={workspace.openProjectSessions}
+        <Sidebar cwd={workspace.projectCwd} open={sessionSidebarOpen && surface !== "agent"} sessions={workspace.sidebarHistory}
           busySessionIds={busySessionIds} approvalSessionIds={approvalSessionIds} activeSessionId={active?.id}
           status={workspace.historyFailed ? "error" : "idle"} pending={workspace.historyPending}
           onSelectSession={(id) => void workspace.openSession(id)} onSessionNavigationOrder={setSessionOrder}
@@ -739,7 +732,6 @@ function Workspace(boot: BootWorkspace) {
           onArchiveSessions={(ids, archived) => { for (const id of ids) void workspace.archiveSession(id, archived); }}
           onPinSession={(...args) => void workspace.pinSession(...args)} onPinSessions={(ids, pinned) => { for (const id of ids) void workspace.pinSession(id, pinned); }}
           onDeleteSession={(id) => void workspace.removeSession(id)} onDeleteSessions={(ids) => { for (const id of ids) void workspace.removeSession(id); }}
-          reminders={reminders.reminders} onSetReminders={reminders.schedule} onCancelReminders={reminders.cancel}
           onTabChange={showChat} canGoBack={surface !== "chat" || workspace.visits.back.length > 0} canGoForward={workspace.visits.forward.length > 0}
           onGoBack={onRailBack} onGoForward={() => workspace.visit("forward")}
           recents={workspace.recents} busyProjectPaths={shownSessions.filter((session) => session.busy).map((session) => session.cwd)}
@@ -818,8 +810,7 @@ function Workspace(boot: BootWorkspace) {
         </div>
       </div>
       <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, workspace.activeTabId, workspace.tabs, surface === "chat")
-        .filter((notice) => surface !== "agent" || notice.sessionId !== agentWorkspace.current?.focusedId)} topOffset={12 + (reminderNoticesHeight ? reminderNoticesHeight + 8 : 0)} onFocusSession={(id) => void workspace.openSession(id)} onApproval={submission.approve} />
-      <ReminderNotices reminders={reminders.due} error={reminders.error} onOpen={reminders.open} onSnooze={reminders.schedule} onDismiss={reminders.cancel} onRetry={reminders.refresh} onOpenSettings={() => openSettings("general", "notifications")} onHeightChange={setReminderNoticesHeight} />
+        .filter((notice) => surface !== "agent" || notice.sessionId !== agentWorkspace.current?.focusedId)} onFocusSession={(id) => void workspace.openSession(id)} onApproval={submission.approve} />
       {overviewOpen ? <TabOverview tabs={tabSummaries} activeId={workspace.activeTabId} projectPath={workspace.projectCwd} recent={recentTabs.current}
         onDismiss={() => setOverviewOpen(false)} onActivate={workspace.activateTab}
         onCloseTabs={(ids) => workspace.closeTabs(ids)} onParkTabs={(ids) => workspace.closeTabs(ids, undefined, { parked: true })}

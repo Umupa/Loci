@@ -64,7 +64,6 @@ type AddToChatRequest,
 type QuoteRequest,
 } from "../model/quoteDraft";
 import { sessionDisplayTitle,sessionDraftBlock,sessionWorkCwd,type Attachment,type Block,type ComposerTurnOptions,type HarnessId,type RuntimeMode,type Session } from "../model/session";
-import type { SessionFolderTarget } from "../model/sessionFolders";
 import {
 clearTranscriptJump,
 peekTranscriptJump,
@@ -136,10 +135,6 @@ export type SessionPaneProps = {
   onRemoveDraft: (sessionId: string, draftBlockId: string) => boolean | void;
   onStop: (sessionId: string) => void;
   onCompactContext: (sessionId: string) => boolean;
-  onPlaceSessionInFolder: (
-    sessionId: string,
-    target: SessionFolderTarget,
-  ) => void;
   onDeleteQueuedMessage: (sessionId: string, messageId: string) => void;
   onEditQueuedMessage: (
     sessionId: string,
@@ -251,7 +246,6 @@ export const SessionPane = memo(function SessionPane({
   onSubmit,
   onStop,
   onCompactContext,
-  onPlaceSessionInFolder,
   onDeleteQueuedMessage,
   onEditQueuedMessage,
   onQueuedMessageEditingChange,
@@ -609,7 +603,6 @@ export const SessionPane = memo(function SessionPane({
       onBtwCommand={btw.openWith}
       onStop={() => onStop(session.id)}
       onCompactContext={() => onCompactContext(session.id)}
-      onPlaceInFolder={(target) => onPlaceSessionInFolder(session.id, target)}
       queuedMessages={session.queuedMessages}
       queueStatus={session.queueStatus}
       onDeleteQueuedMessage={(messageId) =>

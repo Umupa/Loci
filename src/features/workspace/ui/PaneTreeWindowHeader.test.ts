@@ -52,7 +52,7 @@ function render(layout: LayoutNode, focusedId = "first") {
     sessions: ["first", "second", "third"].map((id) => ({ ...newSession("claude", "/project"), id })),
     onFocus: noop, onClose: noop, onRatio: noop, onCwdChange: noop, onModelChange: noop,
     onModelSettingsChange: noop, onRuntimeModeChange: noop, onSubmit: noop, onSaveDraft: noop,
-    onRemoveDraft: noop, onStop: noop, onCompactContext: noop, onPlaceSessionInFolder: noop,
+    onRemoveDraft: noop, onStop: noop, onCompactContext: noop,
     onDeleteQueuedMessage: noop, onEditQueuedMessage: noop, onQueuedMessageEditingChange: noop,
     onSteerQueuedMessage: noop, onResumeQueue: noop, onApproval: noop, onQuestionReply: noop,
     onOpenFile: noop, onMovePane: noop,

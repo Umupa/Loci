@@ -371,7 +371,7 @@ describe("settings search", () => {
     it("ranks a page against the settings that mention it", async () => {
         await render("general");
         await type("archive");
-        expect(options().map((item) => item.querySelector("span")!.textContent)).toEqual(["Archive", "Show archived in the sidebar"]);
+        expect(options().map((item) => item.querySelector("span")!.textContent)).toEqual(["Archive"]);
         await type("notification");
         expect(options().map((item) => item.querySelector("span")!.textContent)).toEqual([
             "Notifications",

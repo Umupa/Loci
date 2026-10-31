@@ -5,7 +5,6 @@ import { SkillPicker } from "./SkillPicker";
 
 import { OPERATOR_COMMAND } from "../../sessions/model/operatorCommand";
 import { COMPACT_COMMAND } from "../../sessions/model/compact";
-import { SESSION_FOLDER_COMMAND } from "../../sessions/model/sessionFolderCommand";
 import type { Skill } from "../model/skills";
 
 describe("native command picker", () => {
@@ -14,7 +13,6 @@ describe("native command picker", () => {
     const html = renderToStaticMarkup(
       createElement(SkillPicker, {
         skills: [
-          SESSION_FOLDER_COMMAND,
           OPERATOR_COMMAND,
           COMPACT_COMMAND,
           ...native,
@@ -34,7 +32,6 @@ describe("native command picker", () => {
 
     expect(html).toContain("/operator");
     expect(html).toContain("/compact");
-    expect(html).toContain("/add-to-folder");
     expect(html).toContain("/workflow");
     expect(html).toContain("Choose a workflow");
     expect(html).toContain("&lt;topic&gt; [format]");

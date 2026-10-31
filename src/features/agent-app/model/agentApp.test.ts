@@ -15,10 +15,6 @@ resetHarnessModelOverlays,
 setHarnessModels,
 } from "../../sessions/model/models";
 import { newSession } from "../../sessions/model/session";
-import {
-loadSessionFolders,
-saveSessionFolders,
-} from "../../sessions/model/sessionFolders";
 import { handleAgentApp,notePreview,type AgentAppHost } from "./agentApp";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -535,7 +531,7 @@ describe("agent app commands", () => {
     );
   });
 
-  it("starts with an unsent draft and can immediately move the new session into a folder", async () => {
+  it("starts with an unsent draft", async () => {
     const { source, host } = fixture();
     const result = (await handleAgentApp(
       source,
@@ -557,24 +553,6 @@ describe("agent app commands", () => {
       expect.objectContaining({ prompt: "Test prompt", draft: true }),
       result.id,
     );
-    host.sessions = vi.fn(async () => [
-      {
-        id: result.id,
-        title: "Test prompt",
-        harness: "codex",
-        model: "codex:test",
-        busy: false,
-        hasDraft: true,
-      },
-    ]);
-    const moved = await handleAgentApp(
-      source,
-      "folder",
-      "folders.move",
-      { sessionId: result.id, newFolderName: "test" },
-      host,
-    );
-    expect(moved).toMatchObject({ sessionId: result.id, folderName: "test" });
   });
 
   it("rejects invalid model settings before starting a session", async () => {
@@ -604,65 +582,6 @@ describe("agent app commands", () => {
     await expect(
       handleAgentApp(source, "unexpected", "toString", {}, host),
     ).rejects.toThrow("Unknown app action");
-  });
-
-  it("moves an existing project session into a sidebar folder", async () => {
-    const { source, host } = fixture();
-    saveSessionFolders(source.cwd, [
-      {
-        id: "folder-1",
-        name: "Research",
-        sessionIds: ["lead"],
-        collapsed: false,
-      },
-    ]);
-    expect(
-      await handleAgentApp(
-        source,
-        "move",
-        "folders.move",
-        {
-          sessionId: "other",
-          folderId: "folder-1",
-        },
-        host,
-      ),
-    ).toMatchObject({ folderId: "folder-1", sessionId: "other" });
-    expect(loadSessionFolders(source.cwd)[0]?.sessionIds).toEqual([
-      "lead",
-      "other",
-    ]);
-  });
-
-  it("creates a folder during a move and rejects unknown sessions", async () => {
-    const { source, host } = fixture();
-    await expect(
-      handleAgentApp(
-        source,
-        "bad-move",
-        "folders.move",
-        {
-          sessionId: "missing",
-          newFolderName: "Research",
-        },
-        host,
-      ),
-    ).rejects.toThrow("Session was not found");
-    const moved = (await handleAgentApp(
-      source,
-      "new-folder",
-      "folders.move",
-      {
-        sessionId: "other",
-        newFolderName: "Research",
-      },
-      host,
-    )) as { folderId: string; folderName: string };
-    expect(moved.folderName).toBe("Research");
-    expect(loadSessionFolders(source.cwd)[0]).toMatchObject({
-      id: moved.folderId,
-      sessionIds: ["other"],
-    });
   });
 
   it("lists short note previews and reads one full note on request", async () => {

@@ -158,24 +158,12 @@ taggedMcpServers,
 type McpTag,
 } from "../model/mcpPicker";
 import {
-consumeSessionFolderCommand,
-isSessionFolderCommand,
-runsSessionFolderCommandOnSpace,
-SESSION_FOLDER_COMMAND,
-} from "../model/sessionFolderCommand";
-import {
-loadSessionFolders,
-type SessionFolder,
-type SessionFolderTarget,
-} from "../model/sessionFolders";
-import {
 leadingModeCommand,
 MODE_COMMAND_INDENT,
 ModeCommandPill,
 ModeCommandText,
 type ModeCommandToken,
 } from "./modeCommands";
-import { SessionFolderPicker } from "./SessionFolderPicker";
 
 type Props = {
   enabled?: boolean;
@@ -261,7 +249,6 @@ type Props = {
   onSaveDraft?: (text: string, attachments: Attachment[], context?: LearningMessageContext) => boolean | void;
   onStop?: () => void;
   onCompactContext?: () => boolean;
-  onPlaceInFolder?: (target: SessionFolderTarget) => void;
   onDeleteQueuedMessage?: (messageId: string) => void;
   onEditQueuedMessage?: (messageId: string, text: string) => void;
   onQueuedMessageEditingChange?: (messageId?: string) => void;
@@ -544,7 +531,6 @@ export function Composer({
   onSaveDraft,
   onStop,
   onCompactContext,
-  onPlaceInFolder,
   onDeleteQueuedMessage,
   onEditQueuedMessage,
   onQueuedMessageEditingChange,
@@ -608,9 +594,6 @@ export function Composer({
   const [slash, setSlash] = useState<SlashToken | null>(null);
   const [skillActive, setSkillActive] = useState(0);
   const [creatingSkill, setCreatingSkill] = useState(false);
-  const [sessionFolderOpen, setSessionFolderOpen] = useState(false);
-  const [sessionFolders, setSessionFolders] = useState<SessionFolder[]>([]);
-  const [sessionFolderSelected, setSessionFolderSelected] = useState(false);
   const [mcpPickerOpen, setMcpPickerOpen] = useState(false);
   const [mcpConnections, setMcpConnections] = useState<McpConnection[]>([]);
   const [mcpStatus, setMcpStatus] = useState<Map<string, string>>(new Map());
@@ -661,7 +644,7 @@ export function Composer({
     !learningContext.sources?.length &&
     !noteCard;
   const skillPickerOpen = creatingSkill || slash !== null;
-  const pickerOpen = skillPickerOpen || sessionFolderOpen || mcpPickerOpen;
+  const pickerOpen = skillPickerOpen || mcpPickerOpen;
   const skillCatalog = useComposerSkills({
     harness,
     executionCwd: localCwd,
@@ -670,11 +653,11 @@ export function Composer({
   });
   const skills = skillCatalog.skills;
   const slashItems = useMemo(() => [
-    SESSION_FOLDER_COMMAND, MCP_COMMAND, OPERATOR_COMMAND,
+    MCP_COMMAND, OPERATOR_COMMAND,
     ...(canSaveDraft && onSaveDraft ? [DRAFT_COMMAND] : []), COMPACT_COMMAND,
     ...(supportsBtwHarness(harness) ? [BTW_COMMAND] : []),
     ...skills.filter((skill) => skill.kind === "native" ||
-      ![OPERATOR_COMMAND.name, COMPACT_COMMAND.name, SESSION_FOLDER_COMMAND.name,
+      ![OPERATOR_COMMAND.name, COMPACT_COMMAND.name,
         MCP_COMMAND.name, DRAFT_COMMAND.name, BTW_COMMAND.name].includes(skill.name)),
   ], [harness, skills, canSaveDraft, onSaveDraft]);
   const skillLimit = hasNativeCommands(harness)
@@ -913,11 +896,6 @@ export function Composer({
   }, [slash?.query, cwd]);
 
   useEffect(() => {
-    setSessionFolderOpen(false);
-    setSessionFolderSelected(false);
-  }, [cwd]);
-
-  useEffect(() => {
     setSkillActive((index) =>
       rankedSkills.length === 0 ? 0 : Math.min(index, rankedSkills.length - 1),
     );
@@ -1029,8 +1007,6 @@ export function Composer({
     replaceLearningContext({});
 
 
-    setSessionFolderSelected(false);
-    setSessionFolderOpen(false);
     setMcpPickerOpen(false);
     setSelectedMcp([]);
     setPlusOpen(false);
@@ -1069,11 +1045,6 @@ export function Composer({
     setSlash(token);
     setMention(token ? null : mentionTokenAt(el.value, cursor));
   };
-
-  const openSessionFolderPicker = useCallback(() => {
-    setSessionFolders(loadSessionFolders(cwd));
-    setSessionFolderOpen(true);
-  }, [cwd]);
 
   useEffect(() => {
     const el = ref.current;
@@ -1154,28 +1125,6 @@ export function Composer({
         openMcpPicker();
         return;
       }
-      const sessionFolderCommand =
-        skill.kind === "builtin" &&
-        skill.name === SESSION_FOLDER_COMMAND.name &&
-        !!onPlaceInFolder;
-      if (sessionFolderCommand) {
-        const next = replaceSlashToken(
-          el.value,
-          token,
-          SESSION_FOLDER_COMMAND.invocation,
-        );
-        el.value = next;
-        resizeComposer(el);
-        let cursor = token.start + SESSION_FOLDER_COMMAND.invocation.length + 1;
-        if (next[cursor] === " ") cursor += 1;
-        el.setSelectionRange(cursor, cursor);
-        setDraft(next);
-        syncHasValue(next, attachmentsRef.current);
-        setSlash(null);
-        setCreatingSkill(false);
-        openSessionFolderPicker();
-        return;
-      }
       const next = replaceSlashToken(el.value, token, skill.invocation);
       el.value = next;
       resizeComposer(el);
@@ -1194,9 +1143,7 @@ export function Composer({
     [
       enterBtwFromPrefix,
       onDraftChange,
-      onPlaceInFolder,
       openMcpPicker,
-      openSessionFolderPicker,
       syncHasValue,
     ],
   );
@@ -1532,7 +1479,6 @@ export function Composer({
       syncHasValue("", []);
       return;
     }
-    const folderCommand = consumeSessionFolderCommand(value);
     const btwCommand = consumeBtwCommand(value);
     if (
       btwCommand.matched &&
@@ -1558,11 +1504,6 @@ export function Composer({
       syncHasValue("", []);
       return;
     }
-    if (folderCommand.matched && onPlaceInFolder && !sessionFolderSelected) {
-      openSessionFolderPicker();
-      return;
-    }
-
     if (isCompactCommand(value)) {
       if (!onCompactContext?.()) return;
       if (!ref.current) return;
@@ -1580,7 +1521,7 @@ export function Composer({
       return;
     }
 
-    const text = folderCommand.matched && sessionFolderSelected ? folderCommand.text : value;
+    const text = value;
     const submittedText =
       operatorSelected && !consumeOperatorCommand(text).matched
         ? `/operator ${text}`
@@ -1643,8 +1584,6 @@ export function Composer({
 
     setOperatorSelected(false);
 
-    setSessionFolderSelected(false);
-    setSessionFolderOpen(false);
     setPlusOpen(false);
     setSlash(null);
     setMention(null);
@@ -1668,18 +1607,13 @@ export function Composer({
     }
 
     if (
-      e.key === " " &&
-      runsSessionFolderCommandOnSpace({
-        text: e.currentTarget.value,
-        selectionStart: e.currentTarget.selectionStart,
-        selectionEnd: e.currentTarget.selectionEnd,
-        altKey: e.altKey,
-        ctrlKey: e.ctrlKey,
-        metaKey: e.metaKey,
-      })
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      (isCompactCommand(e.currentTarget.value) ||
+        isMcpCommand(e.currentTarget.value))
     ) {
       e.preventDefault();
-      openSessionFolderPicker();
+      submit(e.currentTarget.value);
       return;
     }
 
@@ -1724,8 +1658,7 @@ export function Composer({
       e.key === "Enter" &&
       !e.shiftKey &&
       (isCompactCommand(e.currentTarget.value) ||
-        isMcpCommand(e.currentTarget.value) ||
-        isSessionFolderCommand(e.currentTarget.value))
+        isMcpCommand(e.currentTarget.value))
     ) {
       e.preventDefault();
       submit(e.currentTarget.value);
@@ -1974,34 +1907,6 @@ export function Composer({
               }}
             />
           </div>
-        ) : sessionFolderOpen ? (
-          <div className="absolute inset-x-0 bottom-full z-30 mb-1">
-            <SessionFolderPicker
-              folders={sessionFolders}
-              onPick={(target) => {
-                setSessionFolderOpen(false);
-                setSessionFolderSelected(true);
-                onPlaceInFolder?.(target);
-                const el = ref.current;
-                if (!el) return;
-                const cursor = el.selectionStart ?? el.value.length;
-                if (/^\s*\/add-to-folder$/i.test(el.value)) {
-                  el.value = `${el.value} `;
-                  resizeComposer(el);
-                  setDraft(el.value);
-                  syncHasValue(el.value, attachmentsRef.current);
-                  el.setSelectionRange(el.value.length, el.value.length);
-                } else {
-                  el.setSelectionRange(cursor, cursor);
-                }
-                requestAnimationFrame(() => el.focus());
-              }}
-              onDismiss={() => {
-                setSessionFolderOpen(false);
-                ref.current?.focus();
-              }}
-            />
-          </div>
         ) : skillPickerOpen ? (
           <div className="absolute inset-x-0 bottom-full z-30 mb-1">
             <SkillPicker
@@ -2195,12 +2100,6 @@ export function Composer({
                     : retained;
                 });
                 setPasteError(null);
-                if (
-                  sessionFolderSelected &&
-                  !consumeSessionFolderCommand(el.value).matched
-                ) {
-                  setSessionFolderSelected(false);
-                }
                 syncHasValue(el.value, attachments);
                 syncTokensFromTextarea(el);
               }}

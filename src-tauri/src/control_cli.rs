@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 41] = [
+const APP_ACTIONS: [&str; 39] = [
     "models.list",
     "sessions.list",
     "sessions.read",
@@ -19,8 +19,6 @@ const APP_ACTIONS: [&str; 41] = [
     "sessions.archive",
     "sessions.delete",
     "sessions.start",
-    "folders.list",
-    "folders.move",
     "notes.list",
     "notes.read",
     "notes.write",
@@ -82,16 +80,12 @@ Actions:
                   session in this project, including one just created. Set
                   draft:true to save the prompt unsent; no agent turn runs.
                   Otherwise the turn is submitted.
-                  Returns after creation/acceptance, not agent completion;
-                  use its ID with folders.move immediately. Optional model,
-                  effort, modelSettings and permission mode
+                  Returns after creation/acceptance, not agent completion.
+                  Optional model, effort, modelSettings and permission mode
                   use composer values. Omit
                   runtimeMode to inherit this
                   session's permission mode; set it to override. Run
                   models.list for allowed IDs. cwd is your project; no attachments.
-  folders.list   {}  Folders in your current project.
-  folders.move   {"sessionId":"...","folderId":"..."}
-                  Or use "newFolderName":"Research" to create a folder.
   notes.list     {"limit":30,"offset":0}  Titles and short previews only.
   notes.read     {"id":"..."}  Full body of one note.
   notes.write    {"title":"Plan","body":"Markdown","tags":["work"]}
@@ -122,8 +116,8 @@ Actions:
                   Writes update open panes. Read first to extend a drawing;
                   this replaces the whole scene, it does not merge elements.
 
-An agent works on several projects rather than in one. Its sessions.*,
-folders.* and canvas.* actions also take "project":"<path or name>" to choose
+An agent works on several projects rather than in one. Its sessions.* and
+canvas.* actions also take "project":"<path or name>" to choose
 which; it may be left out with one project. canvas.* without it works on the
 canvases in the agent's library. Ordinary sessions cannot pass it.
   sessions.stop    {"sessionId":"..."}  Cancel another session's current turn.

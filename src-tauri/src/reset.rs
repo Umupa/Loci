@@ -119,7 +119,6 @@ pub fn workspace_reset(app: AppHandle, state: State<'_, WorkspaceReset>) -> Resu
             for window in crate::window::workspace_windows(&app) {
                 crate::control::window_closed(&app, window.label());
             }
-            crate::reminders::reset_workspace(&app);
             Ok(())
         });
         if let Some(run) = app.state::<WorkspaceReset>().0.lock().unwrap().run.as_mut() {
@@ -365,7 +364,6 @@ mod tests {
             "INSERT INTO sessions (id,cwd,harness,model,runtime_mode,title,created_at,updated_at) VALUES ('s','/repo','claude','model','supervised','title',1,1);
              INSERT INTO in_flight_sessions VALUES ('s','/repo',0);
              INSERT INTO workspace_snapshot VALUES (1,'{}',1);
-             INSERT INTO session_reminders VALUES ('s',1,NULL);
              INSERT INTO agent_transcript_pages VALUES ('s',0,'b','[]',1);
              INSERT INTO agent_documents (agent_id,id,title,body,created_at,updated_at) VALUES ('a','d','title','body',1,1);
              INSERT INTO canvases (id,created_at,updated_at) VALUES ('c',1,1);
@@ -495,7 +493,7 @@ mod tests {
         seed(&store);
         assert_eq!(
             table_counts(&store).len(),
-            15,
+            14,
             "Update fixtures when the schema grows"
         );
         assert!(table_counts(&store).iter().all(|(_, count)| *count == 1));

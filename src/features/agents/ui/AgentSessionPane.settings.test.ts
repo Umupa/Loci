@@ -43,7 +43,7 @@ async function render(extra: Partial<Session> = {}, look = agent) {
     onFocus: vi.fn(), onClose: vi.fn(), onCwdChange: vi.fn(), onModelChange: vi.fn(),
     onModelSettingsChange: vi.fn(), onRuntimeModeChange: vi.fn(), onSubmit,
     onSaveDraft: vi.fn(), onRemoveDraft: vi.fn(), onStop: vi.fn(), onCompactContext: vi.fn(() => true),
-    onPlaceSessionInFolder: vi.fn(), onDeleteQueuedMessage, onEditQueuedMessage,
+    onDeleteQueuedMessage, onEditQueuedMessage,
     onQueuedMessageEditingChange, onSteerQueuedMessage, onResumeQueue,
     onUsageLimitResume: vi.fn(), onUsageLimitResumeAtReset: vi.fn(), onUsageLimitDismiss: vi.fn(),
     onApproval: vi.fn(), onQuestionReply: vi.fn(), onOpenFile: vi.fn(),

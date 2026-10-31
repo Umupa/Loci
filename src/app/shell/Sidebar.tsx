@@ -1,5 +1,5 @@
 import { ContextMenu, type ContextMenuItem } from "../../shared/ui/ContextMenu";
-import { Archive, Chatting, Check, ChevronDown, ChevronRight, CircleAlert, CircleDashed, Clock, Folder, ListFilter, FileScript, Mortarboard, PanelLeft, Pin, Plus, Search, Settings, StickyNote, } from "../../shared/ui/icons";
+import { Archive, Chatting, Check, ChevronDown, ChevronRight, CircleAlert, CircleDashed, FileScript, Mortarboard, PanelLeft, Pin, Plus, Search, Settings, StickyNote, } from "../../shared/ui/icons";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, } from "react";
 import { IS_MAC, MOD } from "../../platform/tauri/platform";
 import { copyText } from "../../platform/tauri/clipboard";
@@ -12,20 +12,15 @@ import { paneDropFromPoint, setExternalPaneDrop, } from "../../features/workspac
 import type { PaneEdge } from "../../features/workspace/model/layout";
 import { suppressTextSelection } from "../../shared/lib/drag";
 import { compareSessionSummaries, filterSessionsByArchive, filterSessionsByQuery, } from "../../features/sessions/data/sessionHistory";
-import { addSessionToFolder, applySessionListDrop, buildSessionList, createFolderWithSessions, dissolveFolder, folderAccent, folderContaining, folderShellFill, loadPinnedSessionsCollapsed, loadReminderSessionsCollapsed, loadSessionFolders, mergeFolderSessionSummaries, pruneSessionFolders, removeSessionFromFolder, renameFolder, reorderSessionFolders, savePinnedSessionsCollapsed, saveReminderSessionsCollapsed, saveSessionFolders, sessionListNavigationIds, setFolderCollapsed, setFolderColor, setFolderCustomColor, subscribeSessionFolders, ungroupedSessions, type SessionFolder, type SessionListDropTarget, } from "../../features/sessions/model/sessionFolders";
+import { loadPinnedSessionsCollapsed, savePinnedSessionsCollapsed, } from "../../features/sessions/model/pinnedSessions";
 import { LIST_PAGE_SIZE, listWindowSize } from "../../shared/lib/listWindow";
-import { filterSessionsByHarness, filterSessionsByStatus, filterSessionsByTime, harnessesInSessions, hasActiveSessionFilters, loadSessionSidebarFilters, saveSessionSidebarFilters, type SessionSidebarFilters, } from "../../features/sessions/model/sessionFilters";
 import type {} from "../../features/sessions/model/session";
 import type { LiveAgent } from "../../features/sessions/model/liveAgents";
 import type { SessionSummary } from "../../features/sessions/data/sessionStore";
 import type { SettingsSectionId } from "../../features/settings/model/settings";
-import { TAB_GROUP_COLORS } from "../../features/workspace/model/tabGroups";
 import { useDragResize } from "../../shared/hooks/useDragResize";
 import { useLockOverscroll } from "../../shared/hooks/useLockOverscroll";
-import { useSortable } from "../../shared/hooks/useSortable";
-import { normalizeHex } from "../../shared/lib/colorUtils";
 import { looksLikeProject, sameProjectPath, type RecentProject, } from "../../features/projects/model/recents";
-import { ColorPickerPopover, ColorSwatchRow, } from "../../shared/ui/ColorPickerPopover";
 import { HarnessIcon } from "../../features/sessions/ui/HarnessIcon";
 import { LiveAgentsPreview } from "../../features/sessions/ui/LiveAgentsPreview";
 import { ProjectRail } from "./ProjectRail";
@@ -34,16 +29,12 @@ import { ActivitySpinner } from "../../features/sessions/ui/ActivitySpinner";
 import { DevModeSlot, IconButton, TabVisitNav } from "./TitleBar";
 import { SearchableProjectPicker } from "../../features/projects/ui/SearchableProjectPicker";
 import { useProjectMenu } from "./useProjectMenu";
-import { SessionFiltersMenu } from "../../features/sessions/ui/SessionFiltersMenu";
-import { sessionReminderPresets } from "../../features/sessions/ui/sessionReminderPresets";
-import { formatReminderTime, reminderTime, type SessionReminder, } from "../../features/sessions/model/sessionReminders";
 import { SessionsEmpty } from "../../features/sessions/ui/SessionsEmpty";
 import { SecondarySidebarToggle } from "./SecondarySidebar";
 import { FileTree } from "../../features/files/ui/FileTree";
 const MIN_WIDTH = 260;
 const MAX_WIDTH = 560;
 const DEFAULT_WIDTH = 260;
-const REMINDERS_COLOR = "#f59e0b";
 let rememberedWidth = DEFAULT_WIDTH;
 type SidebarTab = "sessions" | "files";
 const SIDEBAR_TABS: SidebarTab[] = ["sessions", "files"];
@@ -72,8 +63,6 @@ type Props = {
     busySessionIds: Set<string>;
     approvalSessionIds: Set<string>;
     activeSessionId?: string;
-    /** Open tabs, including blank ones not yet in history. */
-    openSessions?: readonly SessionSummary[];
     status: "idle" | "error";
     /** First listing for this project has not arrived yet. */
     pending: boolean;
@@ -86,9 +75,6 @@ type Props = {
     onArchiveSessions?: (sessionIds: readonly string[], archived: boolean) => void;
     onPinSession?: (sessionId: string, pinned: boolean) => void;
     onPinSessions?: (sessionIds: readonly string[], pinned: boolean) => void;
-    reminders?: readonly SessionReminder[];
-    onSetReminders?: (sessionIds: readonly string[], dueAt: number) => void;
-    onCancelReminders?: (sessionIds: readonly string[]) => void;
     onDeleteSession?: (sessionId: string) => void;
     onDeleteSessions?: (sessionIds: readonly string[]) => void;
     onTabChange: (tab: SidebarTab) => void;
@@ -135,7 +121,7 @@ type Props = {
     onSelectSettingsSection?: (section: SettingsSectionId) => void;
     onCloseSettings?: () => void;
 };
-function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, openSessions = [], status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, reminders = [], onSetReminders, onCancelReminders, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, onOpenCourses, searchActive = false, notesActive = false, coursesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, onOpenFile, onToggleSidebar, onFileMoved, onFileDeleted, }: Props) {
+function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd, open, sessions, busySessionIds, approvalSessionIds, activeSessionId, status, pending, onSelectSession: onSelectLocalSession, onSessionNavigationOrder, onPrefetchSession: onPrefetchLocalSession, onPlaceSessionOnPane: onPlaceLocalSessionOnPane, onRenameSession: onRenameLocalSession, onArchiveSession: onArchiveLocalSession, onArchiveSessions: onArchiveLocalSessions, onPinSession: onPinLocalSession, onPinSessions: onPinLocalSessions, onDeleteSession: onDeleteLocalSession, onDeleteSessions: onDeleteLocalSessions, onTabChange, canGoBack = false, canGoForward = false, onGoBack, onGoForward, recents = [], busyProjectPaths, liveAgents = [], onSelectAgent, onSelectProject, onOpenProject, onRemoveProject, onNew, onSearch, onOpenNotes, onOpenCourses, searchActive = false, notesActive = false, coursesActive = false, notesEnabled = true, onToggleProjectRail, projectRailOpen = true, compactProjectRail = true, titleBarAbove = false, unseenFinishedIds: unseenFinishedIdsProp, settingsOpen = false, settingsSection = "general", onOpenSettings, onOpenNotificationSettings, onSelectSettingsSection, onCloseSettings, onOpenFile, onToggleSidebar, onFileMoved, onFileDeleted, }: Props) {
     const [tab, setTab] = useState<SidebarTab>(() => rememberedTab);
     const pickTab = (next: SidebarTab) => {
         rememberedTab = next;
@@ -175,27 +161,12 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
     const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(() => new Set());
     const contextSelectionRef = useRef(false);
     const selectionAnchorRef = useRef<string | null>(null);
-    const [folderMenu, setFolderMenu] = useState<{
-        x: number;
-        y: number;
-        folderId: string;
-    } | null>(null);
     const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null);
-    const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
-    const [sessionFolders, setSessionFolders] = useState<SessionFolder[]>(() => loadSessionFolders(cwd));
     const [pinnedSessionsCollapsed, setPinnedSessionsCollapsed] = useState(() => loadPinnedSessionsCollapsed(cwd));
-    const [reminderSessionsCollapsed, setReminderSessionsCollapsed] = useState(() => loadReminderSessionsCollapsed(cwd));
-    const [sessionDrop, setSessionDrop] = useState<SessionListDropTarget | null>(null);
-    const [sessionFilters, setSessionFilters] = useState(loadSessionSidebarFilters);
-    const [filterMenu, setFilterMenu] = useState<{
-        x: number;
-        y: number;
-    } | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [sessionListLimit, setSessionListLimit] = useState(LIST_PAGE_SIZE);
     const loadMoreRef = useRef<HTMLLIElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
-    const pendingFolderSessionIds = useRef(new Set<string>());
     const busyIdsRef = useRef(busySessionIds);
     const focusedSessionIdRef = useRef(activeSessionId);
     const unseenFinishedLocalRef = useRef<Set<string>>(new Set());
@@ -214,29 +185,28 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
     // Revisits render straight from cache, so this is only ever true the first
     // time a project is opened.
     const pendingFirstLoad = pending && sessions.length === 0;
-    const listedSessions = mergeFolderSessionSummaries(projectSessions, openSessions, sessionFolders);
+    const listedSessions = projectSessions;
     const visibleSessions = [
-        ...filterSessionsByQuery(filterSessionsByStatus(filterSessionsByTime(filterSessionsByHarness(filterSessionsByArchive(listedSessions, sessionFilters.showArchived), sessionFilters.hiddenHarnesses), sessionFilters.time, now), sessionFilters.status, listedBusySessionIds, listedApprovalSessionIds, unseenFinishedIds), searchQuery),
+        ...filterSessionsByQuery(filterSessionsByArchive(listedSessions, false), searchQuery),
     ].sort(compareSessionSummaries);
-    const filtersActive = hasActiveSessionFilters(sessionFilters);
     const searchNarrowed = Boolean(searchQuery.trim());
-    // Summaries for the whole project stay in `sessions` so filters still work.
-    // Folders sit above the ungrouped list. Only a page of ungrouped cards
-    // mounts; the sentinel below asks for the next page.
-    const reminderIds = new Set(reminders.map((reminder) => reminder.sessionId));
-    const reminderGroup = {
-        sessionIds: [...reminders]
-            .sort((a, b) => a.dueAt - b.dueAt)
-            .map((reminder) => reminder.sessionId),
-        collapsed: reminderSessionsCollapsed,
-    };
-    const ungroupedVisible = ungroupedSessions(visibleSessions, sessionFolders).filter((session) => !reminderIds.has(session.id));
-    const activeUngroupedIndex = ungroupedVisible.findIndex((session) => session.id === activeListedSessionId);
-    const shownUngroupedCount = listWindowSize(ungroupedVisible.length, sessionListLimit, activeUngroupedIndex);
-    const shownUngrouped = ungroupedVisible.slice(0, shownUngroupedCount);
-    const fullSessionListEntries = buildSessionList(visibleSessions, sessionFolders, ungroupedVisible, pinnedSessionsCollapsed, reminderGroup);
-    const sessionListEntries = buildSessionList(visibleSessions, sessionFolders, shownUngrouped, pinnedSessionsCollapsed, reminderGroup);
-    const sessionNavigationIds = sessionListNavigationIds(fullSessionListEntries, searchNarrowed);
+    // Pinned sessions sit in their own collapsible group above the flat list.
+    // Only a page of the remaining cards mounts; the sentinel below asks for
+    // the next page.
+    const pinnedSessions = visibleSessions.filter((session) => session.pinned);
+    const looseSessions = visibleSessions.filter((session) => !session.pinned);
+    const pinnedExpanded = searchNarrowed || !pinnedSessionsCollapsed;
+    const activeLooseIndex = looseSessions.findIndex((session) => session.id === activeListedSessionId);
+    const shownLooseCount = listWindowSize(looseSessions.length, sessionListLimit, activeLooseIndex);
+    const shownLoose = looseSessions.slice(0, shownLooseCount);
+    const sessionNavigationIds = [
+        ...(pinnedExpanded ? pinnedSessions : []),
+        ...looseSessions,
+    ].map((session) => session.id);
+    const visibleNavigationIds = [
+        ...(pinnedExpanded ? pinnedSessions : []),
+        ...shownLoose,
+    ].map((session) => session.id);
     const sessionNavigationKey = sessionNavigationIds.join("\0");
     useEffect(() => {
         onSessionNavigationOrder?.(sessionNavigationIds);
@@ -249,21 +219,9 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         }
         setSelectedSessionIds((current) => pruneSessionSelection(current, available));
     }, [cwd, tab, sessionNavigationKey]);
-    const hasMoreSessions = shownUngroupedCount < ungroupedVisible.length;
-    const sessionListKey = `${cwd}\0${sessionFilters.showArchived}\0${sessionFilters.time}\0${sessionFilters.hiddenHarnesses.join(",")}\0${sessionFilters.status.working}\0${sessionFilters.status.needsApproval}\0${sessionFilters.status.done}\0${searchQuery}`;
-    const sessionHarnesses = harnessesInSessions(projectSessions);
-    const narrowedByUser = searchNarrowed || filtersActive;
+    const hasMoreSessions = shownLooseCount < looseSessions.length;
+    const sessionListKey = `${cwd}\0${searchQuery}`;
     const visibleTabs = SIDEBAR_TABS;
-    const visibleFolderIds = sessionListEntries.flatMap((entry) => entry.kind === "folder" ? [entry.folder.id] : []);
-    const folderSortable = useSortable(visibleFolderIds, (ids) => {
-        setSessionFolders((current) => {
-            const next = reorderSessionFolders(current, ids);
-            if (next === current)
-                return current;
-            saveSessionFolders(cwd, next);
-            return next;
-        });
-    }, { axis: "y" });
     const showProjectRail = Boolean(onSelectProject && onOpenProject);
     // Settings live in the rail slot, so they keep it visible even when the
     // project rail itself is collapsed.
@@ -395,58 +353,24 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         }, { root, rootMargin: "240px" });
         observer.observe(sentinel);
         return () => observer.disconnect();
-    }, [tab, hasMoreSessions, shownUngroupedCount]);
+    }, [tab, hasMoreSessions, shownLooseCount]);
     useEffect(() => {
-        setSessionFolders(loadSessionFolders(cwd));
         setPinnedSessionsCollapsed(loadPinnedSessionsCollapsed(cwd));
-        setReminderSessionsCollapsed(loadReminderSessionsCollapsed(cwd));
-        setRenamingFolderId(null);
-        setFolderMenu(null);
-        setSessionDrop(null);
-        pendingFolderSessionIds.current.clear();
     }, [cwd]);
-    useEffect(() => subscribeSessionFolders(cwd, () => {
-        setSessionFolders(loadSessionFolders(cwd));
-    }), [cwd]);
-    useEffect(() => {
-        if (pending || status === "error")
-            return;
-        const known = new Set(projectSessions.map(session => session.id));
-        for (const session of openSessions)
-            known.add(session.id);
-        if (activeListedSessionId)
-            known.add(activeListedSessionId);
-        for (const id of pendingFolderSessionIds.current) {
-            known.add(id);
-            if (projectSessions.some(session => session.id === id) || openSessions.some(session => session.id === id))
-                pendingFolderSessionIds.current.delete(id);
-        }
-        setSessionFolders(current => {
-            const next = pruneSessionFolders(current, known);
-            if (next === current)
-                return current;
-            saveSessionFolders(cwd, next);
-            return next;
-        });
-    }, [
-        activeListedSessionId, cwd, openSessions, pending, projectSessions, status
-    ]);
     useEffect(() => {
         const id = window.setInterval(() => setNow(Date.now()), 30000);
         return () => window.clearInterval(id);
     }, [tab]);
     useEffect(() => {
-        if (!sessionMenu && !folderMenu && !filterMenu)
+        if (!sessionMenu)
             return;
         const onScroll = () => {
             closeSessionMenu();
-            setFolderMenu(null);
-            setFilterMenu(null);
         };
         const scrollParent = sessionsScrollRef.current ?? window;
         scrollParent.addEventListener("scroll", onScroll, true);
         return () => scrollParent.removeEventListener("scroll", onScroll, true);
-    }, [sessionMenu, folderMenu, filterMenu]);
+    }, [sessionMenu]);
     useEffect(() => {
         if (selectedSessionIds.size === 0)
             return;
@@ -477,22 +401,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
             window.removeEventListener("pointerdown", onPointerDown);
         };
     }, [selectedSessionIds.size]);
-    const commitSessionFolders = (next: SessionFolder[]) => {
-        setSessionFolders(next);
-        saveSessionFolders(cwd, next);
-    };
-    const onNewInFolder = (folderId: string) => {
-        const sessionId = onNew?.();
-        if (!sessionId)
-            return;
-        pendingFolderSessionIds.current.add(sessionId);
-        setSearchQuery("");
-        setSessionFolders((current) => {
-            const next = setFolderCollapsed(addSessionToFolder(current, folderId, sessionId), folderId, false);
-            saveSessionFolders(cwd, next);
-            return next;
-        });
-    };
     const menuSessionIds = sessionMenu
         ? orderedSessionActionIds(sessionMenu.sessionId, selectedSessionIds, sessionNavigationIds)
         : [];
@@ -501,43 +409,10 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         return session ? [session] : [];
     });
     const multipleMenuSessions = menuSessionIds.length > 1;
-    const menuReminderTimes = [
-        ...new Set(reminders
-            .filter((reminder) => menuSessionIds.includes(reminder.sessionId))
-            .map((reminder) => reminder.dueAt)),
-    ];
     const allMenuSessionsPinned = menuSessions.length > 0 && menuSessions.every((session) => session.pinned);
     const allMenuSessionsArchived = menuSessions.length > 0 &&
         menuSessions.every((session) => session.archived);
-    const menuSessionFolder = menuSessionIds.length === 1
-        ? folderContaining(sessionFolders, menuSessionIds[0])
-        : undefined;
-    const anyMenuSessionFoldered = menuSessionIds.some((sessionId) => sessionFolders.some((folder) => folder.sessionIds.includes(sessionId)));
-    const canRemoveMenuSessionsFromFolders = multipleMenuSessions
-        ? anyMenuSessionFoldered
-        : !!menuSessionFolder;
-    const menuFolder = folderMenu
-        ? sessionFolders.find((folder) => folder.id === folderMenu.folderId)
-        : undefined;
-    const folderMenuItems: ContextMenuItem[] = [
-        { kind: "item", id: "rename", label: "Rename", shortcut: "F2" },
-        { kind: "sep" },
-        { kind: "item", id: "ungroup", label: "Ungroup" },
-    ];
     const sessionMenuItems: ContextMenuItem[] = [
-        ...(onCancelReminders && menuReminderTimes.length > 0
-            ? [
-                {
-                    kind: "item" as const,
-                    id: "reminder:cancel",
-                    label: "Cancel reminder",
-                    description: menuReminderTimes.length === 1
-                        ? formatReminderTime(menuReminderTimes[0])
-                        : "Multiple reminder times",
-                },
-                { kind: "sep" as const },
-            ]
-            : []),
         ...(onPinSession || onPinSessions
             ? [
                 {
@@ -579,34 +454,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
                 },
             ]
             : []),
-        {
-            kind: "item",
-            id: "reminder",
-            label: "Remind me",
-            disabled: !onSetReminders,
-            submenu: sessionReminderPresets(),
-        },
-        { kind: "sep" as const },
-        { kind: "item" as const, id: "folder-new", label: "New folder" },
-        ...(sessionFolders.length > 0 ? [{ kind: "sep" as const }] : []),
-        ...sessionFolders.map((folder) => ({
-            kind: "item" as const,
-            id: `folder-add:${folder.id}`,
-            label: `Add to ${folder.name}`,
-            checked: menuSessionIds.length > 0 &&
-                menuSessionIds.every((sessionId) => folder.sessionIds.includes(sessionId)),
-        })),
-        ...(canRemoveMenuSessionsFromFolders
-            ? [
-                {
-                    kind: "item" as const,
-                    id: "folder-remove",
-                    label: multipleMenuSessions
-                        ? "Remove from folders"
-                        : "Remove from folder",
-                },
-            ]
-            : []),
         ...(onArchiveSession ||
             onArchiveSessions ||
             onDeleteSession ||
@@ -643,8 +490,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         if (contextSelectionRef.current) {
             setSelectedSessionIds(new Set([sessionId]));
         }
-        setFilterMenu(null);
-        setFolderMenu(null);
         setSessionMenu({ x: e.clientX, y: e.clientY, sessionId });
     };
     const closeSessionMenu = () => {
@@ -655,13 +500,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         selectionAnchorRef.current = null;
         setSelectedSessionIds(new Set());
     };
-    const onFolderContextMenu = (folderId: string, e: ReactMouseEvent<HTMLButtonElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setFilterMenu(null);
-        setSessionMenu(null);
-        setFolderMenu({ x: e.clientX, y: e.clientY, folderId });
-    };
     const onSessionMenuPick = (id: string) => {
         if (!sessionMenu)
             return;
@@ -671,19 +509,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         const archived = allMenuSessionsArchived;
         const pinned = allMenuSessionsPinned;
         closeSessionMenu();
-        if (id === "reminder:cancel") {
-            onCancelReminders?.(sessionIds);
-            return;
-        }
-        if (id.startsWith("reminder:")) {
-            const dueAt = reminderTime(id);
-            if (dueAt != null) {
-                setReminderSessionsCollapsed(false);
-                saveReminderSessionsCollapsed(cwd, false);
-                onSetReminders?.(sessionIds, dueAt);
-            }
-            return;
-        }
         if (id === "pin") {
             if (sessionIds.length > 1 && onPinSessions) {
                 onPinSessions(sessionIds, !pinned);
@@ -707,24 +532,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
             }
             return;
         }
-        if (id === "folder-new") {
-            const { folders, id: createdId } = createFolderWithSessions(sessionFolders, sessionIds);
-            if (!createdId)
-                return;
-            commitSessionFolders(folders);
-            setRenamingFolderId(createdId);
-            return;
-        }
-        if (id.startsWith("folder-add:")) {
-            const folderId = id.slice("folder-add:".length);
-            const folders = sessionIds.reduce((current, id) => addSessionToFolder(current, folderId, id), sessionFolders);
-            commitSessionFolders(setFolderCollapsed(folders, folderId, false));
-            return;
-        }
-        if (id === "folder-remove") {
-            commitSessionFolders(sessionIds.reduce((current, id) => removeSessionFromFolder(current, id), sessionFolders));
-            return;
-        }
         if (id === "archive") {
             if (sessionIds.length > 1 && onArchiveSessions) {
                 onArchiveSessions(sessionIds, !archived);
@@ -745,38 +552,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
             }
         }
     };
-    const onFolderMenuPick = (id: string) => {
-        if (!folderMenu)
-            return;
-        const folderId = folderMenu.folderId;
-        setFolderMenu(null);
-        if (id === "rename") {
-            setRenamingFolderId(folderId);
-            return;
-        }
-        if (id === "ungroup") {
-            commitSessionFolders(dissolveFolder(sessionFolders, folderId));
-        }
-    };
-    const onFolderColorChange = (colorIndex: number | null) => {
-        if (!folderMenu)
-            return;
-        commitSessionFolders(setFolderColor(sessionFolders, folderMenu.folderId, colorIndex));
-    };
-    const onFolderCustomColorChange = (color: string) => {
-        if (!folderMenu)
-            return;
-        commitSessionFolders(setFolderCustomColor(sessionFolders, folderMenu.folderId, color));
-    };
-    const onSessionListDrop = (draggedId: string, target: SessionListDropTarget) => {
-        const { folders, createdId } = applySessionListDrop(sessionFolders, draggedId, target);
-        if (folders === sessionFolders)
-            return;
-        commitSessionFolders(folders);
-        if (createdId)
-            setRenamingFolderId(createdId);
-    };
-    const isSessionDrop = (kind: "folder" | "session", id: string) => sessionDrop?.kind === kind && sessionDrop.id === id;
     const onSessionCardSelect = (sessionId: string, event: {
         shiftKey: boolean;
         ctrlKey: boolean;
@@ -785,7 +560,7 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         contextSelectionRef.current = false;
         setSessionMenu(null);
         if (event.shiftKey) {
-            const visibleIds = sessionListNavigationIds(sessionListEntries, searchNarrowed);
+            const visibleIds = visibleNavigationIds;
             if (selectionAnchorRef.current &&
                 !visibleIds.includes(selectionAnchorRef.current)) {
                 selectionAnchorRef.current = null;
@@ -818,7 +593,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         onSessionCardSelect,
         onPrefetchSession,
         onPlaceSessionOnPane,
-        onSessionListDrop,
         onSessionContextMenu,
         onArchiveSession,
         setRenamingSessionId,
@@ -828,7 +602,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         onSessionCardSelect,
         onPrefetchSession,
         onPlaceSessionOnPane,
-        onSessionListDrop,
         onSessionContextMenu,
         onArchiveSession,
         setRenamingSessionId,
@@ -842,7 +615,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         }) => cardHandlers.current.onSessionCardSelect(sessionId, event),
         prefetch: (sessionId: string) => cardHandlers.current.onPrefetchSession?.(sessionId),
         placeOnPane: (sessionId: string, targetId: string, edge: PaneEdge) => cardHandlers.current.onPlaceSessionOnPane?.(sessionId, targetId, edge),
-        listDrop: (draggedId: string, target: SessionListDropTarget) => cardHandlers.current.onSessionListDrop(draggedId, target),
         contextMenu: (sessionId: string, e: ReactMouseEvent<HTMLDivElement>) => cardHandlers.current.onSessionContextMenu(sessionId, e),
         archive: (sessionId: string, archived: boolean) => cardHandlers.current.onArchiveSession?.(sessionId, archived),
         rename: (sessionId: string) => cardHandlers.current.setRenamingSessionId(sessionId),
@@ -853,7 +625,7 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
         seen: new Set(),
     });
     // Runs after the rows' mount effects: a project's first paint never animates,
-    // and rows that mount later (drawer opened, folder expanded) are not new.
+    // and rows that mount later (drawer opened) are not new.
     useLayoutEffect(() => {
         const motion = sessionInsertMotion.current;
         motion.cwd = cwd;
@@ -863,24 +635,7 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
     const renderSessionCard = (session: SessionSummary, compact = false) => renamingSessionId === session.id && onRenameSession ? (<SessionRenameRow session={session} isActive={session.id === activeListedSessionId} needsApproval={listedApprovalSessionIds.has(session.id)} onCommit={(title) => {
             onRenameSession(session.id, title);
             setRenamingSessionId(null);
-        }} onCancel={() => setRenamingSessionId(null)}/>) : (<SessionCard session={session} isActive={session.id === activeListedSessionId} isSelected={selectedSessionIds.has(session.id)} busy={listedBusySessionIds.has(session.id)} done={unseenFinishedIds.has(session.id)} needsApproval={listedApprovalSessionIds.has(session.id)} dropTarget={isSessionDrop("session", session.id)} compact={compact} now={now} onSelect={cardActions.select} onPrefetch={onPrefetchSession ? cardActions.prefetch : undefined} onPlaceOnPane={onPlaceSessionOnPane ? cardActions.placeOnPane : undefined} onListDrop={reminderIds.has(session.id) ? undefined : cardActions.listDrop} onListDropTargetChange={setSessionDrop} onContextMenu={cardActions.contextMenu} onArchive={onArchiveSession ? cardActions.archive : undefined} onRename={onRenameSession ? cardActions.rename : undefined} onDelete={onDeleteSession ? cardActions.delete : undefined}/>);
-    const onSessionFiltersChange = (next: SessionSidebarFilters) => {
-        setSessionFilters(next);
-        saveSessionSidebarFilters(next);
-    };
-    const onFilterButtonClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
-        if (filterMenu) {
-            setFilterMenu(null);
-            return;
-        }
-        const rect = event.currentTarget.getBoundingClientRect();
-        setSessionMenu(null);
-        setFolderMenu(null);
-        setFilterMenu({
-            x: rect.right - 228,
-            y: rect.bottom + 2,
-        });
-    };
+        }} onCancel={() => setRenamingSessionId(null)}/>) : (<SessionCard session={session} isActive={session.id === activeListedSessionId} isSelected={selectedSessionIds.has(session.id)} busy={listedBusySessionIds.has(session.id)} done={unseenFinishedIds.has(session.id)} needsApproval={listedApprovalSessionIds.has(session.id)} compact={compact} now={now} onSelect={cardActions.select} onPrefetch={onPrefetchSession ? cardActions.prefetch : undefined} onPlaceOnPane={onPlaceSessionOnPane ? cardActions.placeOnPane : undefined} onContextMenu={cardActions.contextMenu} onArchive={onArchiveSession ? cardActions.archive : undefined} onRename={onRenameSession ? cardActions.rename : undefined} onDelete={onDeleteSession ? cardActions.delete : undefined}/>);
     const sessionSearchInput = (<input ref={searchInputRef} type="text" value={searchQuery} placeholder="Search conversations..." aria-label="Search conversations" spellCheck={false} autoComplete="off" autoCorrect="off" autoCapitalize="off" onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => {
             if (event.key !== "Escape")
                 return;
@@ -942,9 +697,6 @@ function SidebarComponent({ agentRail, agentActive, projectsEnabled = true, cwd,
               <Search className="pointer-events-none absolute left-2 size-3 shrink-0 opacity-50"/>
               {sessionSearchInput}
             </div>
-            <SessionsHeaderButton label="Filter sessions" active={filtersActive} open={!!filterMenu} hasPopup onClick={onFilterButtonClick}>
-              <ListFilter className="size-3" strokeWidth={1.75}/>
-            </SessionsHeaderButton>
           </div>) : null}
         <div ref={(el) => {
             sessionsLock(el);
@@ -967,94 +719,29 @@ cannot claim "No sessions yet" before the rows have landed.
             // A narrowed-down result is a transient answer to what the user
             // just typed, so it stays a quiet line of text. Only the genuine
             // "this project has nothing in it" case earns the illustration.
-            narrowedByUser ? (<p className="px-3 py-2 text-[12px] text-content/50">
-                    {searchNarrowed
-                    ? "No matching sessions"
-                    : "No sessions match these filters"}
+            searchNarrowed ? (<p className="px-3 py-2 text-[12px] text-content/50">
+                    No matching sessions
                   </p>) :
                 (<SessionsEmpty message="Sessions you start will show up here"/>)) : (<ul data-session-list className="flex flex-col gap-0.5 p-1.5 pb-10">
-                  {sessionListEntries.map((entry, index) => {
-                    if (entry.kind === "pinned" || entry.kind === "reminders") {
-                        const isReminders = entry.kind === "reminders";
-                        const expanded = searchNarrowed || !entry.collapsed;
-                        const beforeUngrouped = sessionListEntries[index + 1]?.kind === "session";
-                        return (<li key={`${entry.kind}-sessions`} data-pinned-sessions={isReminders ? undefined : ""} data-reminder-sessions={isReminders ? "" : undefined} className={`relative ${expanded || beforeUngrouped ? "mb-1.5" : ""}`}>
-                          <div className="overflow-hidden rounded-md bg-content/5">
-                            <FolderRow folder={isReminders
-                                ? {
-                                    name: "Reminders",
-                                    customColor: REMINDERS_COLOR,
-                                }
-                                : { name: "Pinned" }} sessions={entry.sessions} expanded={expanded} dropTarget={false} busy={entry.sessions.some((session) => listedBusySessionIds.has(session.id))} done={entry.sessions.some((session) => unseenFinishedIds.has(session.id))} needsApproval={entry.sessions.some((session) => listedApprovalSessionIds.has(session.id))} groupIcon={isReminders ? (<Clock className="size-3.5" strokeWidth={1.75}/>) : (<Pin className="size-3.5 text-content" strokeWidth={1.75}/>)} onToggle={() => {
+                  {pinnedSessions.length > 0 ? (<li data-pinned-sessions className="relative mb-1.5">
+                      <div className="overflow-hidden rounded-md bg-content/5">
+                        <SessionGroupRow name="Pinned" sessions={pinnedSessions} expanded={pinnedExpanded} busy={pinnedSessions.some((session) => listedBusySessionIds.has(session.id))} done={pinnedSessions.some((session) => unseenFinishedIds.has(session.id))} needsApproval={pinnedSessions.some((session) => listedApprovalSessionIds.has(session.id))} icon={(<Pin className="size-3.5 text-content" strokeWidth={1.75}/>)} onToggle={() => {
                                 if (searchNarrowed)
                                     return;
-                                const collapsed = !entry.collapsed;
-                                if (isReminders) {
-                                    setReminderSessionsCollapsed(collapsed);
-                                    saveReminderSessionsCollapsed(cwd, collapsed);
-                                    return;
-                                }
+                                const collapsed = !pinnedSessionsCollapsed;
                                 setPinnedSessionsCollapsed(collapsed);
                                 savePinnedSessionsCollapsed(cwd, collapsed);
                             }}/>
-                            {expanded ? (<ul className="flex flex-col gap-px p-1">
-                                {entry.sessions.map((session) => (<SessionListItem key={session.id} session={session} cwd={cwd} motion={sessionInsertMotion}>
-                                    {renderSessionCard(session, true)}
-                                  </SessionListItem>))}
-                              </ul>) : null}
-                          </div>
-                        </li>);
-                    }
-                    if (entry.kind === "folder") {
-                        const expanded = searchNarrowed || !entry.folder.collapsed;
-                        const shellFill = folderShellFill(entry.folder.colorIndex, entry.folder.customColor);
-                        const folderIndex = visibleFolderIds.indexOf(entry.folder.id);
-                        const beforeUngrouped = sessionListEntries[index + 1]?.kind === "session";
-                        const draggingFolder = folderSortable.draggingId === entry.folder.id;
-                        const showFolderDropStart = folderSortable.draggingId &&
-                            folderSortable.toIndex === folderIndex &&
-                            folderSortable.fromIndex !== null &&
-                            folderSortable.toIndex < folderSortable.fromIndex;
-                        const showFolderDropEnd = folderSortable.draggingId &&
-                            folderSortable.toIndex === folderIndex &&
-                            folderSortable.fromIndex !== null &&
-                            folderSortable.toIndex > folderSortable.fromIndex;
-                        return (<li key={entry.folder.id} ref={(el) => folderSortable.setItemRef(entry.folder.id, el)} data-session-folder={entry.folder.id} className={`relative ${expanded || beforeUngrouped ? "mb-1.5" : ""} ${draggingFolder ? "opacity-40" : ""}`}>
-                          {showFolderDropStart ? (<div className="pointer-events-none absolute inset-x-1 top-0 z-20 h-0.5 rounded-full bg-accent"/>) : null}
-                          {showFolderDropEnd ? (<div className="pointer-events-none absolute inset-x-1 bottom-0 z-20 h-0.5 rounded-full bg-accent"/>) : null}
-                          <div className={`overflow-hidden rounded-md ${shellFill ? "" : "bg-content/5"}`} style={shellFill ? { background: shellFill } : undefined}>
-                            {renamingFolderId === entry.folder.id ? (<FolderRenameRow folder={entry.folder} memberCount={entry.sessions.length} dropTarget={isSessionDrop("folder", entry.folder.id)} onCommit={(name) => {
-                                    commitSessionFolders(renameFolder(sessionFolders, entry.folder.id, name));
-                                    setRenamingFolderId(null);
-                                }} onCancel={() => setRenamingFolderId(null)}/>) : (<FolderRow folder={entry.folder} sessions={entry.sessions} expanded={expanded} dropTarget={isSessionDrop("folder", entry.folder.id)} busy={entry.sessions.some((session) => listedBusySessionIds.has(session.id))} done={entry.sessions.some((session) => unseenFinishedIds.has(session.id))} needsApproval={entry.sessions.some((session) => listedApprovalSessionIds.has(session.id))} onPointerDown={(event) => folderSortable.onItemPointerDown(entry.folder.id, event)} onToggle={() => {
-                                    if (folderSortable.consumeClick())
-                                        return;
-                                    if (searchNarrowed)
-                                        return;
-                                    commitSessionFolders(setFolderCollapsed(sessionFolders, entry.folder.id, !entry.folder.collapsed));
-                                }} onContextMenu={(event) => onFolderContextMenu(entry.folder.id, event)} onRename={() => setRenamingFolderId(entry.folder.id)}/>)}
-                            {expanded ? (<>
-                                <ul className="flex flex-col gap-px p-1">
-                                  {entry.sessions.map((session) => (<SessionListItem key={session.id} session={session} cwd={cwd} motion={sessionInsertMotion}>
-                                      {renderSessionCard(session, true)}
-                                    </SessionListItem>))}
-                                </ul>
-                                {onNew ? (<div className="border-t border-stroke p-1">
-                                    <button type="button" data-no-drag data-tauri-drag-region="false" title="New session" aria-label="New session" onClick={() => onNewInFolder(entry.folder.id)} className="relative flex w-full items-center gap-1 rounded-md border border-transparent px-2.5 py-1.5 text-left text-content/45 hover:bg-content/10 hover:text-content">
-                                      <Plus className="size-3 shrink-0" strokeWidth={1.75}/>
-                                      <span className="text-[13px] font-semibold leading-snug">
-                                        New session
-                                      </span>
-                                    </button>
-                                  </div>) : null}
-                              </>) : null}
-                          </div>
-                        </li>);
-                    }
-                    return (<SessionListItem key={entry.session.id} session={entry.session} cwd={cwd} motion={sessionInsertMotion}>
-                        {renderSessionCard(entry.session)}
-                      </SessionListItem>);
-                })}
+                        {pinnedExpanded ? (<ul className="flex flex-col gap-px p-1">
+                            {pinnedSessions.map((session) => (<SessionListItem key={session.id} session={session} cwd={cwd} motion={sessionInsertMotion}>
+                                {renderSessionCard(session, true)}
+                              </SessionListItem>))}
+                          </ul>) : null}
+                      </div>
+                    </li>) : null}
+                  {shownLoose.map((session) => (<SessionListItem key={session.id} session={session} cwd={cwd} motion={sessionInsertMotion}>
+                      {renderSessionCard(session)}
+                    </SessionListItem>))}
                   {hasMoreSessions ? (<li ref={loadMoreRef} aria-hidden className="h-px list-none"/>) : null}
                 </ul>)}
             </div>)}
@@ -1072,8 +759,6 @@ cannot claim "No sessions yet" before the rows have landed.
       {sessionMenu ? (<ContextMenu x={sessionMenu.x} y={sessionMenu.y} items={sessionMenuItems} ariaLabel={multipleMenuSessions
                 ? `${menuSessionIds.length} selected session actions`
                 : "Session actions"} onPick={onSessionMenuPick} onClose={closeSessionMenu}/>) : null}
-      {folderMenu ? (<ContextMenu x={folderMenu.x} y={folderMenu.y} items={folderMenuItems} ariaLabel="Folder actions" width={260} header={<FolderColorSwatches colorIndex={menuFolder?.colorIndex} customColor={menuFolder?.customColor} onChange={onFolderColorChange} onCustomChange={onFolderCustomColorChange}/>} onPick={onFolderMenuPick} onClose={() => setFolderMenu(null)}/>) : null}
-      {filterMenu ? (<SessionFiltersMenu x={filterMenu.x} y={filterMenu.y} harnesses={sessionHarnesses} filters={sessionFilters} onChange={onSessionFiltersChange} onClose={() => setFilterMenu(null)}/>) : null}
 
       <div role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuenow={resize.width} aria-valuemin={MIN_WIDTH} aria-valuemax={MAX_WIDTH} className={`absolute inset-y-0 -right-px z-10 w-1.5 cursor-col-resize touch-none ${resize.dragging ? "bg-content/15" : "hover:bg-content/10"}`} onPointerDown={resize.onPointerDown} onDoubleClick={resize.onDoubleClick}/>
     </aside>);
@@ -1234,154 +919,41 @@ function WorkspaceTitleActions({ onNew, }: {
         </IconButton>) : null}
     </div>);
 }
-function SessionsHeaderButton({ label, active = false, open = false, hasPopup = false, onClick, children, }: {
-    label: string;
-    active?: boolean;
-    open?: boolean;
-    hasPopup?: boolean;
-    onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void;
-    children: ReactNode;
-}) {
-    return (<button type="button" title={label} aria-label={label} aria-expanded={open} aria-haspopup={hasPopup ? "menu" : undefined} onPointerDown={(event) => event.stopPropagation()} onClick={onClick} className={`relative z-50 grid size-6 place-items-center rounded-md text-content/50 hover:bg-content/10 hover:text-content ${open || active ? "bg-selection text-content" : ""}`}>
-      {children}
-    </button>);
-}
-function sessionListDropFromPoint(x: number, y: number, draggedId: string): SessionListDropTarget | null {
-    const el = document.elementFromPoint(x, y);
-    if (!el)
-        return null;
-    if (el.closest("[data-reminder-sessions]"))
-        return null;
-    const card = el.closest("[data-session-card]") as HTMLElement | null;
-    const cardId = card?.dataset.sessionCard;
-    if (cardId === draggedId)
-        return null;
-    const folder = el.closest("[data-session-folder]") as HTMLElement | null;
-    const folderId = folder?.dataset.sessionFolder;
-    if (folderId && cardId && card && folder.contains(card)) {
-        return { kind: "folder", id: folderId };
-    }
-    if (cardId)
-        return { kind: "session", id: cardId };
-    if (folderId)
-        return { kind: "folder", id: folderId };
-    return null;
-}
-function FolderColorSwatches({ colorIndex, customColor, onChange, onCustomChange, }: {
-    colorIndex: number | undefined;
-    customColor: string | undefined;
-    onChange: (index: number | null) => void;
-    onCustomChange: (color: string) => void;
-}) {
-    const paletteColor = colorIndex != null ? TAB_GROUP_COLORS[colorIndex] : TAB_GROUP_COLORS[0];
-    const pickerValue = customColor ?? normalizeHex(paletteColor ?? TAB_GROUP_COLORS[0]);
-    return (<div className="px-1 py-1">
-      <ColorSwatchRow colors={TAB_GROUP_COLORS} colorIndex={colorIndex} customColor={customColor} customPickerOpen customHighlighted={customColor != null} onPickIndex={(index) => onChange(index === 0 ? null : index)}/>
-      <ColorPickerPopover value={pickerValue} onChange={onCustomChange}/>
-    </div>);
-}
-function FolderRow({ folder, sessions, expanded, dropTarget, busy, done, needsApproval, groupIcon, onPointerDown, onToggle, onContextMenu, onRename, }: {
-    folder: Pick<SessionFolder, "name" | "colorIndex" | "customColor">;
+function SessionGroupRow({ name, sessions, expanded, busy, done, needsApproval, icon, onToggle, }: {
+    name: string;
     sessions: SessionSummary[];
     expanded: boolean;
-    dropTarget: boolean;
     busy: boolean;
     done: boolean;
     needsApproval: boolean;
-    groupIcon?: ReactNode;
-    onPointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+    icon: ReactNode;
     onToggle: () => void;
-    onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
-    onRename?: () => void;
 }) {
     const count = sessions.length;
-    const accent = folderAccent(folder.colorIndex, folder.customColor);
-    return (<button type="button" title={folder.name} aria-expanded={expanded} data-tauri-drag-region="false" onPointerDown={onPointerDown} onClick={onToggle} onContextMenu={onContextMenu} onKeyDown={(event) => {
-            if (event.key === "F2" && onRename) {
-                event.preventDefault();
-                onRename();
-            }
-        }} className={`group relative flex w-full touch-none items-center gap-1.5 px-2 h-8 text-left ${expanded ? "rounded-md" : ""} ${dropTarget
-            ? "text-content"
-            : expanded
-                ? "text-content hover:bg-content/10"
-                : "text-content/80 hover:bg-content/10 hover:text-content"}`}>
-      {dropTarget ? (<div className="pointer-events-none absolute inset-0 rounded-md bg-accent/20"/>) : null}
-      <span className={`relative grid size-4 shrink-0 place-items-center ${accent ? "" : "text-content/50"}`} style={accent ? { color: accent } : undefined}>
-        {expanded ? (groupIcon ? (<>
-              <span className="group-hover:hidden group-focus-visible:hidden">
-                {groupIcon}
-              </span>
-              <ChevronDown className="hidden size-3.5 text-content group-hover:block group-focus-visible:block" strokeWidth={1.75}/>
-            </>) : (<ChevronDown className="size-3.5 text-content" strokeWidth={1.75}/>)) : (<>
+    return (<button type="button" title={name} aria-expanded={expanded} data-tauri-drag-region="false" onClick={onToggle} className={`group relative flex w-full touch-none items-center gap-1.5 px-2 h-8 text-left ${expanded
+            ? "rounded-md text-content hover:bg-content/10"
+            : "text-content/80 hover:bg-content/10 hover:text-content"}`}>
+      <span className="relative grid size-4 shrink-0 place-items-center text-content/50">
+        {expanded ? (<>
             <span className="group-hover:hidden group-focus-visible:hidden">
-              {groupIcon ?? (<Folder className="size-3.5 text-content" strokeWidth={1.75}/>)}
+              {icon}
+            </span>
+            <ChevronDown className="hidden size-3.5 text-content group-hover:block group-focus-visible:block" strokeWidth={1.75}/>
+          </>) : (<>
+            <span className="group-hover:hidden group-focus-visible:hidden">
+              {icon}
             </span>
             <ChevronRight className="hidden size-3.5 group-hover:block group-focus-visible:block text-content" strokeWidth={1.75}/>
           </>)}
       </span>
       <span className="relative min-w-0 flex-1 truncate text-[13px] font-semibold leading-snug text-content">
-        {folder.name}
+        {name}
       </span>
       <span className="relative flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-content/45">
         {!expanded && needsApproval ? (<CircleAlert className="size-3 text-amber-400" strokeWidth={1.75}/>) : !expanded && busy ? (<ActivitySpinner className="inline-block w-3 select-none text-center text-[11px] leading-none text-accent"/>) : !expanded && done ? (<Check className="size-3 text-emerald-400" strokeWidth={2.25}/>) : null}
         <span>{count}</span>
       </span>
     </button>);
-}
-function FolderRenameRow({ folder, memberCount, dropTarget, onCommit, onCancel, }: {
-    folder: SessionFolder;
-    memberCount: number;
-    dropTarget: boolean;
-    onCommit: (name: string) => void;
-    onCancel: () => void;
-}) {
-    const inputRef = useRef<HTMLInputElement>(null);
-    const finished = useRef(false);
-    const [value, setValue] = useState(folder.name);
-    useEffect(() => {
-        const input = inputRef.current;
-        if (!input)
-            return;
-        input.focus();
-        input.select();
-    }, []);
-    const finish = (success: boolean) => {
-        if (finished.current)
-            return;
-        if (success) {
-            const trimmed = value.trim();
-            if (!trimmed) {
-                onCancel();
-                return;
-            }
-            finished.current = true;
-            onCommit(trimmed);
-            return;
-        }
-        finished.current = true;
-        onCancel();
-    };
-    return (<div className={`relative flex w-full items-center gap-1.5 px-2 py-1.5 ${dropTarget ? "" : "text-content"}`}>
-      {dropTarget ? (<div className="pointer-events-none absolute inset-0 rounded-md bg-accent/20"/>) : null}
-      <span className="relative grid size-4 shrink-0 place-items-center text-content/50">
-        <ChevronDown className="size-3.5" strokeWidth={1.75}/>
-      </span>
-      <input ref={inputRef} value={value} onChange={(event) => setValue(event.target.value)} onBlur={() => finish(true)} onKeyDown={(event) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                finish(true);
-                return;
-            }
-            if (event.key === "Escape") {
-                event.preventDefault();
-                finish(false);
-            }
-        }} className="relative min-w-0 flex-1 rounded bg-content/10 px-2 py-0.5 text-[13px] font-semibold leading-snug text-content outline-none ring-1 ring-accent/40"/>
-      <span className="relative shrink-0 text-[11px] tabular-nums text-content/45">
-        {memberCount}
-      </span>
-    </div>);
 }
 const SESSION_PREFETCH_DELAY_MS = 120;
 /** Rows created this recently slide in; older ones are just being listed. */
@@ -1390,7 +962,6 @@ type SessionInsertMotion = {
     cwd: string;
     seen: Set<string>;
 };
-/** List row that grows open when a new session lands, pushing rows below it down. */
 function SessionListItem({ session, cwd, motion, children, }: {
     session: SessionSummary;
     cwd: string;
@@ -1443,14 +1014,13 @@ function SessionListItem({ session, cwd, motion, children, }: {
     }, []);
     return <li ref={ref}>{children}</li>;
 }
-const SessionCard = memo(function SessionCard({ session, isActive, isSelected, busy, done, needsApproval, dropTarget, compact = false, now, onSelect, onPrefetch, onPlaceOnPane, onListDrop, onListDropTargetChange, onContextMenu, onArchive, onRename, onDelete, }: {
+const SessionCard = memo(function SessionCard({ session, isActive, isSelected, busy, done, needsApproval, compact = false, now, onSelect, onPrefetch, onPlaceOnPane, onContextMenu, onArchive, onRename, onDelete, }: {
     session: SessionSummary;
     isActive: boolean;
     isSelected: boolean;
     busy: boolean;
     done: boolean;
     needsApproval: boolean;
-    dropTarget?: boolean;
     compact?: boolean;
     now: number;
     onSelect: (sessionId: string, event: {
@@ -1460,8 +1030,6 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
     }) => void;
     onPrefetch?: (sessionId: string) => void;
     onPlaceOnPane?: (sessionId: string, targetId: string, edge: PaneEdge) => void;
-    onListDrop?: (draggedId: string, target: SessionListDropTarget) => void;
-    onListDropTargetChange?: (target: SessionListDropTarget | null) => void;
     onContextMenu?: (sessionId: string, e: ReactMouseEvent<HTMLDivElement>) => void;
     onArchive?: (sessionId: string, archived: boolean) => void;
     onRename?: (sessionId: string) => void;
@@ -1528,7 +1096,7 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
             prefetchTimer.current = null;
         }
         onPrefetch?.(session.id);
-        if (!onPlaceOnPane && !onListDrop)
+        if (!onPlaceOnPane)
             return;
         const handle = event.currentTarget;
         const pointerId = event.pointerId;
@@ -1537,15 +1105,8 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
         let active = false;
         let lastX = startX;
         let lastY = startY;
-        let lastList: SessionListDropTarget | null = null;
         handle.setPointerCapture(pointerId);
         const restoreSelection = suppressTextSelection();
-        const setListTarget = (next: SessionListDropTarget | null) => {
-            if (lastList?.kind === next?.kind && lastList?.id === next?.id)
-                return;
-            lastList = next;
-            onListDropTargetChange?.(next);
-        };
         const onMove = (ev: PointerEvent) => {
             lastX = ev.clientX;
             lastY = ev.clientY;
@@ -1554,19 +1115,12 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
                     return;
                 active = true;
                 setDragging(true);
-                if (onPlaceOnPane) {
-                    setExternalPaneDrop({
-                        fromId: session.id,
-                        overId: null,
-                        edge: "left",
-                    });
-                }
+                setExternalPaneDrop({
+                    fromId: session.id,
+                    overId: null,
+                    edge: "left",
+                });
             }
-            setListTarget(onListDrop
-                ? sessionListDropFromPoint(ev.clientX, ev.clientY, session.id)
-                : null);
-            if (!onPlaceOnPane)
-                return;
             const over = paneDropFromPoint(ev.clientX, ev.clientY);
             if (!over || over.id === session.id) {
                 setExternalPaneDrop({
@@ -1597,7 +1151,6 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
             restoreSelection();
             setDragging(false);
             setExternalPaneDrop(null);
-            setListTarget(null);
             try {
                 handle.releasePointerCapture(pointerId);
             }
@@ -1609,13 +1162,6 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
             skipClickUntil.current = performance.now() + 400;
             if (!commit)
                 return;
-            const listOver = onListDrop
-                ? sessionListDropFromPoint(lastX, lastY, session.id)
-                : null;
-            if (listOver) {
-                onListDrop?.(session.id, listOver);
-                return;
-            }
             const over = paneDropFromPoint(lastX, lastY);
             if (over && over.id !== session.id) {
                 onPlaceOnPane?.(session.id, over.id, over.edge);
@@ -1655,9 +1201,7 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
             onSelect(session.id, event);
         }} onContextMenu={onContextMenu
             ? (event) => onContextMenu(session.id, event)
-            : undefined} className={`relative border flex w-full cursor-default select-none touch-none flex-col rounded-md px-2.5 text-left ${cardPaddingY} ${dragging ? "opacity-40" : ""} ${dropTarget
-            ? "text-content border-transparent"
-            : isSelected
+            : undefined} className={`relative border flex w-full cursor-default select-none touch-none flex-col rounded-md px-2.5 text-left ${cardPaddingY} ${dragging ? "opacity-40" : ""} ${isSelected
                 ? `bg-accent/15 text-content ${draft ? "border-content/30 border-dashed" : "border-transparent"}`
                 : needsApproval
                     ? "bg-content/20 text-content border-content/30 border-dashed"
@@ -1666,7 +1210,6 @@ const SessionCard = memo(function SessionCard({ session, isActive, isSelected, b
                         : draft
                             ? "border-content/25 border-dashed text-content/80 hover:bg-content/5 hover:text-content"
                             : `text-content/80 hover:text-content border-transparent ${"hover:bg-content/5"}`}`}>
-        {dropTarget ? (<div className="pointer-events-none absolute inset-0 rounded-md bg-accent/20"/>) : null}
         <div role="button" tabIndex={0} aria-current={isActive ? "true" : undefined} aria-pressed={isSelected} data-session-select={session.id} onKeyDown={onKeyDown} onMouseDown={(event) => {
             if (event.button !== 0)
                 return;
