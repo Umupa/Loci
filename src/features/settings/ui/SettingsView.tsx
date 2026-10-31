@@ -6,10 +6,10 @@ import { checkForUpdate, updatesEnabled } from "../../updates/model/updates";
 import { shortcutPreview, shortcutFromKeyEvent } from "../../../shared/lib/shortcuts";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { Check, ChevronDown, ExternalLink, FolderOpen, Globe, ImagePlus, Loader, Pencil, RefreshCw, RotateCcw, Search, X, } from "../../../shared/ui/icons";
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, } from "react";
+import { Check, ChevronDown, ExternalLink, Folder, FolderOpen, Globe, ImagePlus, Loader, Pencil, RefreshCw, RotateCcw, Search, X } from "../../../shared/ui/icons";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
-import { ColorPickerPopover, ColorSwatchRow, } from "../../../shared/ui/ColorPickerPopover";
+import { ColorPickerPopover, ColorSwatchRow } from "../../../shared/ui/ColorPickerPopover";
 import { Popover } from "../../../shared/ui/Popover";
 import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
 import { agentLook, agentProjectsPhrase, agentsSnapshot, listAgents, subscribeAgents, type Agent } from "../../agents/model/agent";
@@ -18,36 +18,31 @@ import { resetAgentDefaults } from "../../agents/model/agentFiles";
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { GradientBlurBackground } from "./GradientBlurBackground";
 import { McpSettings } from "./McpSettings";
-import { RemoveProjectDialog } from "../../projects/ui/RemoveProjectDialog";
 import { WindowControls } from "../../../app/shell/WindowControls";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { useColorScheme } from "../../../shared/hooks/useColorScheme";
-import { applyChatBackground, applyChatBackgroundEmptyOpacity, applyChatBackgroundSessionOpacity, applyChatBackgroundScope, applyBodyGlass, applySidebarBlur, applySidebarOpacity, applyThemeDarkLightness, applyThemePreference, applyThemeTint, BODY_GLASS_DEFAULT, ACCENT_COLOR_DEFAULT, CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT, CHAT_BACKGROUND_OPACITY_MAX, CHAT_BACKGROUND_OPACITY_MIN, CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT, CHAT_BACKGROUND_SCOPE_DEFAULT, THEME_PREFERENCE_DEFAULT, chatBackgroundSrc, loadBodyGlass, loadAccentColor, loadChatBackgroundEmptyOpacity, loadChatBackgroundPath, loadChatBackgroundSessionOpacity, loadChatBackgroundScope, loadNewThreadBackgroundEffect, loadThemeDarkLightness, loadThemePreference, loadSidebarBlur, loadSidebarOpacity, loadThemeHue, loadThemeSaturation, loadTranscriptLayout, loadTranscriptAnchor, saveBodyGlass, saveAccentColor, saveChatBackgroundEmptyOpacity, saveChatBackgroundPath, saveChatBackgroundSessionOpacity, saveChatBackgroundScope, setNewThreadBackgroundEffect, saveThemeDarkLightness, saveThemePreference, saveSidebarBlur, saveSidebarOpacity, saveThemeHue, saveThemeSaturation, isLightScheme, saveTranscriptLayout, saveTranscriptAnchor, syncNativeGlass, TRANSCRIPT_ANCHOR_CHANGE_EVENT, SIDEBAR_BLUR_DEFAULT, SIDEBAR_BLUR_MAX, SIDEBAR_BLUR_MIN, SIDEBAR_OPACITY_DEFAULT, SIDEBAR_OPACITY_MAX, SIDEBAR_OPACITY_MIN, THEME_DARK_LIGHTNESS_DEFAULT, THEME_DARK_LIGHTNESS_MAX, THEME_DARK_LIGHTNESS_MIN, THEME_HUE_DEFAULT, THEME_HUE_MAX, THEME_HUE_MIN, THEME_SATURATION_DEFAULT, THEME_SATURATION_MAX, THEME_SATURATION_MIN, type ThemePreference, type ChatBackgroundScope, NEW_THREAD_BACKGROUND_EFFECTS, NEW_THREAD_BACKGROUND_EFFECT_LABELS, NEW_THREAD_BACKGROUND_EFFECT_DESCRIPTIONS, NEW_THREAD_BACKGROUND_EFFECT_DEFAULT, type NewThreadBackgroundEffect, type TranscriptLayout, } from "../model/appearance";
-import { pickAndSaveChatBackground, removeChatBackground, } from "../../projects/model/chatBackground";
-import { applyEffectiveAccent, loadThemeId, saveThemeWallpaperAuto, setTheme, } from "../model/appearance";
-import { applyFonts, loadCodeFont, loadUiFont, normalizeFontFamily, OMARCHY_FONTS, rendersMonospace, saveCodeFont, saveUiFont, subscribeFonts, UI_FONT_FOLLOWS_CODE, } from "../model/fonts";
-import { findTheme, isThemeWallpaperPath, resolveTheme, type ThemeWallpaper, } from "../model/themes";
+import { applyChatBackground, applyChatBackgroundEmptyOpacity, applyChatBackgroundSessionOpacity, applyChatBackgroundScope, applyBodyGlass, applySidebarBlur, applySidebarOpacity, applyThemeDarkLightness, applyThemePreference, applyThemeTint, BODY_GLASS_DEFAULT, ACCENT_COLOR_DEFAULT, CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT, CHAT_BACKGROUND_OPACITY_MAX, CHAT_BACKGROUND_OPACITY_MIN, CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT, CHAT_BACKGROUND_SCOPE_DEFAULT, THEME_PREFERENCE_DEFAULT, chatBackgroundSrc, loadBodyGlass, loadAccentColor, loadChatBackgroundEmptyOpacity, loadChatBackgroundPath, loadChatBackgroundSessionOpacity, loadChatBackgroundScope, loadNewThreadBackgroundEffect, loadThemeDarkLightness, loadThemePreference, loadSidebarBlur, loadSidebarOpacity, loadThemeHue, loadThemeSaturation, loadTranscriptLayout, loadTranscriptAnchor, saveBodyGlass, saveAccentColor, saveChatBackgroundEmptyOpacity, saveChatBackgroundPath, saveChatBackgroundSessionOpacity, saveChatBackgroundScope, setNewThreadBackgroundEffect, saveThemeDarkLightness, saveThemePreference, saveSidebarBlur, saveSidebarOpacity, saveThemeHue, saveThemeSaturation, isLightScheme, saveTranscriptLayout, saveTranscriptAnchor, syncNativeGlass, TRANSCRIPT_ANCHOR_CHANGE_EVENT, SIDEBAR_BLUR_DEFAULT, SIDEBAR_BLUR_MAX, SIDEBAR_BLUR_MIN, SIDEBAR_OPACITY_DEFAULT, SIDEBAR_OPACITY_MAX, SIDEBAR_OPACITY_MIN, THEME_DARK_LIGHTNESS_DEFAULT, THEME_DARK_LIGHTNESS_MAX, THEME_DARK_LIGHTNESS_MIN, THEME_HUE_DEFAULT, THEME_HUE_MAX, THEME_HUE_MIN, THEME_SATURATION_DEFAULT, THEME_SATURATION_MAX, THEME_SATURATION_MIN, type ThemePreference, type ChatBackgroundScope, NEW_THREAD_BACKGROUND_EFFECTS, NEW_THREAD_BACKGROUND_EFFECT_LABELS, NEW_THREAD_BACKGROUND_EFFECT_DESCRIPTIONS, NEW_THREAD_BACKGROUND_EFFECT_DEFAULT, type NewThreadBackgroundEffect, type TranscriptLayout } from "../model/appearance";
+import { pickAndSaveChatBackground, removeChatBackground } from "../../projects/model/chatBackground";
+import { applyEffectiveAccent, loadThemeId, saveThemeWallpaperAuto, setTheme } from "../model/appearance";
+import { applyFonts, loadCodeFont, loadUiFont, normalizeFontFamily, OMARCHY_FONTS, rendersMonospace, saveCodeFont, saveUiFont, subscribeFonts, UI_FONT_FOLLOWS_CODE } from "../model/fonts";
+import { findTheme, isThemeWallpaperPath, resolveTheme, type ThemeWallpaper } from "../model/themes";
 import { ThemeGallery, WallpaperStrip } from "./ThemeGallery";
-import { applyUiScale, loadUiScale, saveUiScale, subscribeUiScale, UI_SCALE_DEFAULT, UI_SCALE_PERCENTS, } from "../model/uiScale";
-import { getHarnessAvailabilitySnapshot, harnessUnavailableHint, isHarnessAvailable, probeHarnessAvailability, subscribeHarnessAvailability, } from "../../../integrations/harness/core/availability";
-import { inspectHarnessBinary, type HarnessBinaryInspection, } from "../../../integrations/harness/core/child";
-import { loadProviderBinaryPath, providerBinaryPathChangePending, saveProviderBinaryPath, type ConfigurableBinaryProvider, } from "../../providers/model/providerBinaryPaths";
+import { applyUiScale, loadUiScale, saveUiScale, subscribeUiScale, UI_SCALE_DEFAULT, UI_SCALE_PERCENTS } from "../model/uiScale";
+import { getHarnessAvailabilitySnapshot, harnessUnavailableHint, isHarnessAvailable, probeHarnessAvailability, subscribeHarnessAvailability } from "../../../integrations/harness/core/availability";
+import { inspectHarnessBinary, type HarnessBinaryInspection } from "../../../integrations/harness/core/child";
+import { loadProviderBinaryPath, providerBinaryPathChangePending, saveProviderBinaryPath, type ConfigurableBinaryProvider } from "../../providers/model/providerBinaryPaths";
 import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
-import { defaultModelId, firstEnabledHarness, getModelSnapshot, hasLiveCatalog, loadDefaultModels, loadHiddenPickerProviders, loadLastModelChoice, modelsFor, resolveModel, saveDefaultModel, saveLastModelChoice, savePickerProviderVisible, subscribeModels, } from "../../sessions/model/models";
-import { pathKey, prettyCwd, projectKey, projectName, } from "../../../shared/lib/paths";
+import { defaultModelId, firstEnabledHarness, getModelSnapshot, hasLiveCatalog, loadDefaultModels, loadHiddenPickerProviders, loadLastModelChoice, modelsFor, resolveModel, saveDefaultModel, saveLastModelChoice, savePickerProviderVisible, subscribeModels } from "../../sessions/model/models";
+import { pathKey, projectName } from "../../../shared/lib/paths";
 import { revealPath } from "../../../platform/tauri/fs";
 import { IS_LINUX, IS_MAC, IS_WIN } from "../../../platform/tauri/platform";
-import { loadArchivedProjects, looksLikeProject, subscribeArchivedProjects, type ArchivedProject, type RecentProject, } from "../../projects/model/recents";
-import { HARNESSES, HARNESS_TITLE, sessionDisplayTitle, type HarnessId, } from "../../sessions/model/session";
-import { loadProjectProviderSettings, projectProvidersRevision, setProjectDefaultModel, setProjectDefaultProvider, setProjectProviderHidden, subscribeProjectProviders, } from "../../sessions/model/projectProviders";
-import type { SessionSummary } from "../../sessions/data/sessionStore";
-import { loadTabGroupColors, loadTabGroupCustomColors, loadTabGroupLabels, loadTabGroupMascots, resolveTabGroupColor, resolveTabGroupLabel, resolveTabGroupLogo, resolveTabGroupMascot, } from "../../workspace/model/tabGroups";
-import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
-import { ProjectLogoIcon } from "../../projects/ui/ProjectLogoIcon";
-import { ProjectMascot } from "../../projects/ui/ProjectMascot";
-import { loadAgentsEnabled, saveAgentsEnabled, subscribeAgentsEnabled, filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadCollapsedProjectRailMode, loadFollowUpBehavior, loadLiveAgentsEnabled, loadModelControls, loadNotesEnabled, loadProjectsEnabled, saveProjectsEnabled, loadKeybindingOverrides, loadTabAnimationsEnabled, loadTabLimit, saveTabLimit, TAB_LIMIT_CHOICES, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveCollapsedProjectRailMode, saveFollowUpBehavior, saveLiveAgentsEnabled, saveModelControls, saveNotesEnabled, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, saveTabAnimationsEnabled, searchSettings, settingsSectionDescription, settingsSectionLabel, COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, type CollapsedProjectRailMode, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId, } from "../model/settings";
+import {  looksLikeProject, type RecentProject } from "../../projects/model/recents";
+import { HARNESSES, HARNESS_TITLE, type HarnessId } from "../../sessions/model/session";
+import { loadProjectProviderSettings, projectProvidersRevision, setProjectDefaultModel, setProjectDefaultProvider, setProjectProviderHidden, subscribeProjectProviders } from "../../sessions/model/projectProviders";
+import type {} from "../../sessions/data/sessionStore";
+import {  filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadFollowUpBehavior, loadModelControls, loadKeybindingOverrides, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveFollowUpBehavior, saveModelControls, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, searchSettings, settingsSectionDescription, settingsSectionLabel, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId } from "../model/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
-import { cachedNotificationPermission, loadNotificationsEnabled, openNotificationSettings, probeNotificationPermission, requestNotificationPermission, saveNotificationsEnabled, type NotificationPermission, } from "../../notifications/model/notifications";
+import { cachedNotificationPermission, loadNotificationsEnabled, openNotificationSettings, probeNotificationPermission, requestNotificationPermission, saveNotificationsEnabled, type NotificationPermission } from "../../notifications/model/notifications";
 import { SkillsPage } from "../../skills/ui/SkillsPage";
 import type {} from "../../sessions/model/session";
 /**
@@ -64,29 +59,21 @@ type Props = {
     anchor?: SettingsAnchor | null;
     recents?: RecentProject[];
     cwd: string;
-    sessions: SessionSummary[];
     besideRail?: boolean;
     onClose: () => void;
     /** Lets search jump to a setting that lives on another page. */
     onSelectSection?: (section: SettingsSectionId) => void;
-    onOpenSession: (sessionId: string) => void;
-    onArchiveSession: (sessionId: string, archived: boolean) => void;
-    onDeleteSession: (sessionId: string) => void;
-    onRestoreProject?: (path: string) => void;
-    onDeleteProject?: (path: string) => void;
-    collapsedProjectRailMode?: CollapsedProjectRailMode;
-    onCollapsedProjectRailModeChange?: (mode: CollapsedProjectRailMode) => void;
 };
 export function SettingsView(props: Props) {
     return <SettingsLanguage><SettingsViewContent {...props}/></SettingsLanguage>;
 }
-function SettingsViewContent({ section, anchor = null, recents, cwd, sessions, besideRail = false, onClose, onSelectSection, onOpenSession, onArchiveSession, onDeleteSession, onRestoreProject, onDeleteProject, collapsedProjectRailMode, onCollapsedProjectRailModeChange, }: Props) {
+function SettingsViewContent({ section, anchor = null, recents, cwd, besideRail = false, onClose, onSelectSection, }: Props) {
   useLocale();
     const lockOverscroll = useLockOverscroll<HTMLDivElement>();
     const [revealed, setRevealed] = useState<string | null>(anchor);
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
-    const appearance = useAppearanceSettings(collapsedProjectRailMode, onCollapsedProjectRailModeChange);
+    const appearance = useAppearanceSettings();
     useEffect(() => setRevealed(anchor), [anchor]);
     // Section is a dependency so a search result on another page scrolls once
     // that page has mounted the row.
@@ -151,7 +138,6 @@ function SettingsViewContent({ section, anchor = null, recents, cwd, sessions, b
               {section === "providers" ? (<ProvidersPage cwd={cwd} recents={recents}/>) : null}
 
 
-              {section === "archive" ? (<ArchivePage cwd={cwd} sessions={sessions} onOpenSession={onOpenSession} onArchiveSession={onArchiveSession} onDeleteSession={onDeleteSession} onRestoreProject={onRestoreProject} onDeleteProject={onDeleteProject}/>) : null}
             </div>
           </div>
         </RevealedSetting.Provider>)}
@@ -227,11 +213,6 @@ function GeneralPage({}: {}) {
     const [soundsEnabled, setSoundsEnabled] = useState(loadSoundsEnabled);
     const [notificationsEnabled, setNotificationsEnabled] = useState(loadNotificationsEnabled);
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(cachedNotificationPermission);
-    const [notesEnabled, setNotesEnabled] = useState(loadNotesEnabled);
-    const [projectsEnabled, setProjectsEnabled] = useState(loadProjectsEnabled);
-    const [liveAgentsEnabled, setLiveAgentsEnabled] = useState(loadLiveAgentsEnabled);
-    const [tabAnimationsEnabled, setTabAnimationsEnabled] = useState(loadTabAnimationsEnabled);
-    const [tabLimit, setTabLimit] = useState(loadTabLimit);
     const [closeToTray, setCloseToTray] = useState(loadCloseToTray);
     // The user may flip the switch in System Settings and come back: re-read
     // the OS state whenever the window regains focus while the toggle is on.
@@ -255,27 +236,6 @@ function GeneralPage({}: {}) {
         if (!next)
             return;
         void requestNotificationPermission().then(setNotificationPermission);
-    };
-    const onProjectsEnabled = (next: boolean) => {
-        saveProjectsEnabled(next);
-        setProjectsEnabled(next);
-    };
-    const onNotesEnabled = (next: boolean) => {
-        saveNotesEnabled(next);
-        setNotesEnabled(next);
-    };
-    const onLiveAgentsEnabled = (next: boolean) => {
-        saveLiveAgentsEnabled(next);
-        setLiveAgentsEnabled(next);
-    };
-    const onTabLimit = (value: string) => {
-        const next = Number(value);
-        saveTabLimit(next);
-        setTabLimit(next);
-    };
-    const onTabAnimationsEnabled = (next: boolean) => {
-        saveTabAnimationsEnabled(next);
-        setTabAnimationsEnabled(next);
     };
     const onCloseToTray = (next: boolean) => {
         saveCloseToTray(next);
@@ -303,28 +263,11 @@ function GeneralPage({}: {}) {
         </Row>
       </Group>
 
-      <Group title={t("Workspace")} description={t("How project navigation and workspace tabs behave.")}>
-
-        <Row id="projects" label={t("Projects")} description={t("Project folders on the rail, each with its own tabs, sessions and files. Agents and their courses work without them. Turning this off only hides them; nothing is deleted.")}>
-          <Toggle label={t("Projects")} on={projectsEnabled} onChange={onProjectsEnabled}/>
-        </Row>
-        <Row id="tab-animations" label={t("Tab animations")} description={t("Animate tabs as they open and close. Turn this off for instant tab changes.")}>
-          <Toggle label={t("Tab animations")} on={tabAnimationsEnabled} onChange={onTabAnimationsEnabled}/>
-        </Row>
-        <Row id="tab-limit" label={t("Tab limit")} description={t("When a project has more tabs open than this, idle ones are put away to keep the strip usable. Nothing is closed for good: find them under Parked in the tab switcher. Tabs that are working, waiting on you, pinned, or holding unsent text are never put away.")}>
-          <Select label={t("Tab limit")} value={String(tabLimit)} onChange={onTabLimit} options={TAB_LIMIT_CHOICES.map((choice) => ({ value: String(choice), label: choice === 0 ? t("No limit") : t("{0} tabs", choice) }))}/>
-        </Row>
-        <Row id="notes" label={t("Notes")} description={t("A global markdown notebook on the project rail. Save a finished turn from the transcript, then mention it later with @note or add it to chat.")}>
-          <Toggle label={t("Notes")} on={notesEnabled} onChange={onNotesEnabled}/>
-        </Row>
-
-        <Row id="working-agents" label={t("Working agents")} description={t("When two or more chats are in flight, a card on the project rail lists them so you can jump across projects. Finished turns stay until you open that session.")}>
-          <Toggle label={t("Working agents")} on={liveAgentsEnabled} onChange={onLiveAgentsEnabled}/>
-        </Row>
+      {IS_WIN ? <Group title={t("Window")}>
         {IS_WIN && (<Row id="close-to-tray" label={t("Close to tray")} description={t("Closing a window hides it to the system tray instead of quitting, so running agents keep going. Reopen from the tray icon, and quit for real from its menu. Turn this off to have close end the window.")}>
             <Toggle label={t("Close to tray")} on={closeToTray} onChange={onCloseToTray}/>
           </Row>)}
-      </Group>
+      </Group> : null}
 
       <Group title={t("About")}>
         <VersionRow />
@@ -386,7 +329,7 @@ function ChatPage() {
             { value: "steer", label: t("Steer") },
         ]} onChange={onFollowUpBehavior}/>
         </Row>
-        <Row id="composer-mascot" label={t("Composer mascot")} description={t("While an agent is working, the project mascot runs along the composer, jumps obstacles and occasionally collects a coin.")}>
+        <Row id="composer-mascot" label={t("Composer mascot")} description={t("While an agent is working, its avatar or a small robot runs along the composer, jumps obstacles and occasionally collects a coin.")}>
           <Toggle label={t("Composer mascot")} on={composerRunner} onChange={(next) => { saveComposerRunner(next); setComposerRunner(next); }}/>
         </Row>
         <Row id="model-controls" label={t("Model controls")} description={t("Show model options beside the picker instead of inside the model menu.")}>
@@ -405,7 +348,7 @@ function ChatPage() {
     </>);
 }
 type AppearanceSettings = ReturnType<typeof useAppearanceSettings>;
-function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedProjectRailMode, onControlledCollapsedProjectRailModeChange?: (mode: CollapsedProjectRailMode) => void) {
+function useAppearanceSettings() {
   useLocale();
     const [themePreference, setThemePreference] = useState<ThemePreference>(loadThemePreference);
     const [themeId, setThemeId] = useState(loadThemeId);
@@ -426,8 +369,6 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
     const [chatBackgroundBusy, setChatBackgroundBusy] = useState(false);
     const [chatBackgroundError, setChatBackgroundError] = useState<string | null>(null);
     const [uiScale, setUiScale] = useState(loadUiScale);
-    const [storedCollapsedProjectRailMode, setStoredCollapsedProjectRailMode] = useState<CollapsedProjectRailMode>(loadCollapsedProjectRailMode);
-    const collapsedProjectRailMode = controlledCollapsedProjectRailMode ?? storedCollapsedProjectRailMode;
     useEffect(() => subscribeUiScale(() => setUiScale(loadUiScale())), []);
     useEffect(() => subscribeFonts(() => {
         setCodeFont(loadCodeFont());
@@ -558,11 +499,6 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         setUiScale(next);
         void applyUiScale(next);
     }, []);
-    const onCollapsedProjectRailMode = useCallback((next: CollapsedProjectRailMode) => {
-        saveCollapsedProjectRailMode(next);
-        setStoredCollapsedProjectRailMode(next);
-        onControlledCollapsedProjectRailModeChange?.(next);
-    }, [onControlledCollapsedProjectRailModeChange]);
     const restoreDefaults = useCallback(() => {
         onTheme(null);
         saveThemeWallpaperAuto(true);
@@ -582,7 +518,6 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         if (chatBackgroundPath)
             void onClearChatBackground();
         onUiScale(Math.round(UI_SCALE_DEFAULT * 100));
-        onCollapsedProjectRailMode(COLLAPSED_PROJECT_RAIL_MODE_DEFAULT);
     }, [
         chatBackgroundPath,
         onBlur,
@@ -601,7 +536,6 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         onTint,
         onDarkLightness,
         onUiScale,
-        onCollapsedProjectRailMode,
     ]);
     return {
         themePreference,
@@ -623,7 +557,6 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         chatBackgroundBusy,
         chatBackgroundError,
         uiScale,
-        collapsedProjectRailMode,
         onThemePreference,
         onTheme,
         onAccentColor,
@@ -642,7 +575,6 @@ function useAppearanceSettings(controlledCollapsedProjectRailMode?: CollapsedPro
         onChatBackgroundScope,
         onNewThreadBackgroundEffect,
         onUiScale,
-        onCollapsedProjectRailMode,
         restoreDefaults,
     };
 }
@@ -703,7 +635,7 @@ function AppearancePage({ appearance }: {
       <Group title={t("Translucency")} description={glassDisabled
             ? t("Light mode always uses an opaque window, so these are off. Your dark-mode values are preserved.")
             : t("How much of the desktop shows through Loci. Blur costs more to composite the higher it goes.")}>
-        <Row id="sidebar-opacity" label={t("Sidebar opacity")} description={t("Applies to the project rail and the other glass panes.")}>
+        <Row id="sidebar-opacity" label={t("Sidebar opacity")} description={t("Applies to the mentor rail and the other glass panes.")}>
           <Slider label={t("Sidebar opacity")} value={percent} display={`${percent}%`} min={Math.round(SIDEBAR_OPACITY_MIN * 100)} max={Math.round(SIDEBAR_OPACITY_MAX * 100)} onChange={appearance.onOpacity} disabled={glassDisabled}/>
         </Row>
         <Row id="blur" label={t("Blur radius")} description={t("Background blur behind the window.")}>
@@ -717,12 +649,6 @@ function AppearancePage({ appearance }: {
       <ChatBackgroundCard appearance={appearance}/>
 
       <Group title={t("Layout")}>
-        <Row id="collapsed-project-rail" label={t("Collapsed project rail")} description={t("Keep project navigation available as a compact icon rail, or hide the rail completely.")}>
-          <Segmented label={t("Collapsed project rail")} value={appearance.collapsedProjectRailMode} options={[
-            { value: "compact", label: t("Icon rail") },
-            { value: "hidden", label: t("Hidden") },
-        ]} onChange={appearance.onCollapsedProjectRailMode}/>
-        </Row>
         <Row id="interface-scale" label={t("Interface scale")} description={t("Zoom the whole interface. You can also use Ctrl+=, Ctrl+-, and Ctrl+0 (Cmd on macOS).")}>
           <Select label={t("Interface scale")} value={String(Math.round(appearance.uiScale * 100))} options={UI_SCALE_PERCENTS.map((percent) => ({
             value: String(percent),
@@ -1316,22 +1242,9 @@ function ProvidersPage({ cwd, recents, }: {
       </Group>
     </>);
 }
-/** The icon the project rail shows: custom logo, else the project mascot. */
-function ProjectScopeIcon({ path }: {
-    path: string;
-}) {
-  useLocale();
-    const logos = useTabGroupLogos();
-    const [colors] = useState(loadTabGroupColors);
-    const [customColors] = useState(loadTabGroupCustomColors);
-    const [mascots] = useState(loadTabGroupMascots);
-    const key = projectKey(path);
-    const name = projectName(path);
-    const logoPath = resolveTabGroupLogo(key, logos);
-    if (logoPath) {
-        return (<ProjectLogoIcon path={logoPath} className="size-4 rounded-sm" imageClassName="size-4"/>);
-    }
-    return (<ProjectMascot project={name} color={resolveTabGroupColor(key, colors, customColors, name)} name={resolveTabGroupMascot(key, mascots)} className="size-3.5"/>);
+/** A folder scope's icon. */
+function ProjectScopeIcon(_: { path: string }) {
+    return <Folder className="size-3.5" strokeWidth={1.75}/>;
 }
 function ProviderRow({ harness, selectedModel, isDefault, inPicker, pickerLocked = false, onDefault, onModelChange, onPickerVisible, }: {
     harness: HarnessId;
@@ -1377,88 +1290,6 @@ function ProviderRow({ harness, selectedModel, isDefault, inPicker, pickerLocked
         </div>) : null}
     </Row>);
 }
-function useArchivedProjects(): ArchivedProject[] {
-  useLocale();
-    const [items, setItems] = useState(loadArchivedProjects);
-    useEffect(() => subscribeArchivedProjects(() => setItems(loadArchivedProjects())), []);
-    return items;
-}
-function archivedProjectLabel(path: string): string {
-    return resolveTabGroupLabel(projectKey(path), loadTabGroupLabels(), projectName(path));
-}
-function ArchivePage({ cwd, sessions, onOpenSession, onArchiveSession, onDeleteSession, onRestoreProject, onDeleteProject, }: {
-    cwd: string;
-    sessions: SessionSummary[];
-    onOpenSession: (sessionId: string) => void;
-    onArchiveSession: (sessionId: string, archived: boolean) => void;
-    onDeleteSession: (sessionId: string) => void;
-    onRestoreProject?: (path: string) => void;
-    onDeleteProject?: (path: string) => void;
-}) {
-  useLocale();
-    const [deleting, setDeleting] = useState<ArchivedProject | null>(null);
-    const archivedProjects = useArchivedProjects();
-    const archived = useMemo(() => sessions
-        .filter((session) => session.archived)
-        .sort((a, b) => b.updatedAt - a.updatedAt), [getLocale(), sessions]);
-    return (<>
-      <Group title={t("Archived projects")} description={t("Archive a project from the rail to keep its chats without listing it in the sidebar.")}>
-        {archivedProjects.length === 0 ? (<p className="px-4 py-3.5 text-[12px] text-content/45">
-            {t("No archived projects.")}</p>) : (archivedProjects.map((project) => (<div key={project.path} className="flex items-center gap-3 border-b border-content/5 px-4 py-2.5 last:border-b-0">
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px]">
-                  {archivedProjectLabel(project.path)}
-                </div>
-                <div className="truncate text-[11px] text-content/40">
-                  {prettyCwd(project.path)}
-                </div>
-              </div>
-              {onRestoreProject ? (<SecondaryButton onClick={() => onRestoreProject(project.path)}>
-                  {t("Restore")}</SecondaryButton>) : null}
-              {onDeleteProject ? (<SecondaryButton danger onClick={() => setDeleting(project)}>
-                  {t("Delete")}</SecondaryButton>) : null}
-            </div>)))}
-      </Group>
-
-      <Group title={looksLikeProject(cwd)
-            ? t("Archived in {0}", projectName(cwd))
-            : t("Archived conversations")}>
-        {!looksLikeProject(cwd) ? (<p className="px-4 py-3.5 text-[12px] text-content/45">
-            {t("Open a project to see its archived conversations.")}</p>) : archived.length === 0 ? (<p className="px-4 py-3.5 text-[12px] text-content/45">
-            {t("No archived conversations in this project.")}</p>) : (archived.map((session) => (<div key={session.id} className="flex items-center gap-3 border-b border-content/5 px-4 py-2.5 last:border-b-0">
-              <HarnessIcon harness={session.harness} className="size-3.5 shrink-0"/>
-              <button type="button" onClick={() => onOpenSession(session.id)} className="min-w-0 flex-1 truncate text-left text-[13px] hover:text-content">
-                {sessionDisplayTitle(session.title, session.harness)}
-              </button>
-              <span className="shrink-0 text-[11px] text-content/35 tabular-nums">
-                {formatDate(session.updatedAt)}
-              </span>
-              <SecondaryButton onClick={() => onArchiveSession(session.id, false)}>
-                {t("Unarchive")}</SecondaryButton>
-              <SecondaryButton danger onClick={() => onDeleteSession(session.id)}>
-                {t("Delete")}</SecondaryButton>
-            </div>)))}
-      </Group>
-
-      {deleting ? (<RemoveProjectDialog name={archivedProjectLabel(deleting.path)} path={deleting.path} onCancel={() => setDeleting(null)} onConfirm={() => {
-                onDeleteProject?.(deleting.path);
-                setDeleting(null);
-            }}/>) : null}
-    </>);
-}
-function formatDate(value: number): string {
-    if (!Number.isFinite(value) || value <= 0)
-        return "";
-    try {
-        return new Intl.DateTimeFormat(getLocale(), {
-            month: "short",
-            day: "numeric",
-        }).format(new Date(value));
-    }
-    catch {
-        return "";
-    }
-}
 function PageHeader({ title, description, }: {
     title: string;
     description: string;
@@ -1480,17 +1311,11 @@ function PageHeader({ title, description, }: {
 /** The agents the user has, and whether the app shows them at all. */
 function AgentsPage() {
     useLocale();
-    const enabled = useSyncExternalStore(subscribeAgentsEnabled, loadAgentsEnabled, () => true);
     const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const agents = useMemo(() => listAgents(), [snapshot]);
     return (<>
-      <Group title={t("Agents")}>
-        <Row id="agents-enabled" label={t("Show agents")} description={t("Long-lived agents on the project rail, each with its own conversation, memory and habits. Turning this off hides them and pauses their habits; nothing is deleted.")}>
-          <Toggle label={t("Show agents")} on={enabled} onChange={saveAgentsEnabled}/>
-        </Row>
-      </Group>
-      <Group id="agent-list" title={t("Your agents")} description={t("Add an agent with the plus beside Agents on the project rail. Its model, projects, soul, habits and memory are set in its Details panel.")}>
+      <Group id="agent-list" title={t("Your agents")} description={t("Add a mentor with the plus on the mentor rail. Its model, folders, soul, habits and memory are set in its settings.")}>
         {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No agents yet.")}</p>)}
       </Group>
     </>);

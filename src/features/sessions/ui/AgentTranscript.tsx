@@ -62,7 +62,7 @@ stubFilePreview,
 } from "../../../integrations/harness/core/preview";
 import { copyMessage } from "../../../platform/tauri/clipboard";
 import { Popover } from "../../../shared/ui/Popover";
-import { ProjectMascot } from "../../projects/ui/ProjectMascot";
+import { PixelRobot } from "../../../shared/ui/PixelSprite";
 import type { Attachment } from "../model/session";
 import { ActivitySpinner } from "./ActivitySpinner";
 
@@ -2704,23 +2704,17 @@ function SubagentPanel({
   );
 }
 
-/**
- * The pixel mascot standing in for a subagent, hopping while it works. The
- * sprite is hashed off the agent's name, so the same reviewer keeps the same
- * face across a session and two agents in a row are told apart at a glance.
- */
+/** The pixel robot standing in for a subagent, hopping while it works. */
 function SubagentMascot({
-  name,
   state,
   active = false,
 }: {
-  name: string;
+  name?: string;
   state: ToolCallState;
   active?: boolean;
 }) {
   return (
-    <ProjectMascot
-      project={name}
+    <PixelRobot
       active={active}
       className={`size-3.5 shrink-0 ${
         state === "rejected"

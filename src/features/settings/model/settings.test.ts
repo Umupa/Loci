@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { COLLAPSED_PROJECT_RAIL_MODE_DEFAULT, searchSettings, SETTINGS_INDEX, settingsSectionsByGroup, MODEL_CONTROLS_DEFAULT, FOLLOW_UP_BEHAVIOR_DEFAULT, KEYBINDINGS, LIVE_AGENTS_ENABLED_DEFAULT, TAB_ANIMATIONS_ENABLED_DEFAULT, loadCollapsedProjectRailMode, loadModelControls, loadKeybindingOverrides, loadFollowUpBehavior, loadLiveAgentsEnabled, loadNotesEnabled, keybindingPressed, matchCustomKeybinding, loadTabAnimationsEnabled, NOTES_ENABLED_DEFAULT, saveCollapsedProjectRailMode, saveModelControls, saveFollowUpBehavior, saveLiveAgentsEnabled, saveNotesEnabled, saveKeybindingOverride, type KeybindingOverride, saveTabAnimationsEnabled, } from "./settings";
+import { searchSettings, SETTINGS_INDEX, settingsSectionsByGroup, MODEL_CONTROLS_DEFAULT, FOLLOW_UP_BEHAVIOR_DEFAULT, KEYBINDINGS, loadModelControls, loadKeybindingOverrides, loadFollowUpBehavior, keybindingPressed, matchCustomKeybinding, saveModelControls, saveFollowUpBehavior, saveKeybindingOverride, type KeybindingOverride, } from "./settings";
 import { IS_MAC, MOD, SHIFT } from "../../../platform/tauri/platform";
 const KEY = "loci.composerRunner";
 const MODEL_CONTROLS_KEY = "loci.modelControls";
@@ -78,23 +78,6 @@ describe("model controls setting", () => {
         localStorage.setItem(LEGACY_EFFORT_VISIBLE_KEY, "0");
         localStorage.removeItem(MODEL_CONTROLS_KEY);
         expect(loadModelControls()).toBe("menu");
-    });
-});
-describe("notes enabled setting", () => {
-    beforeEach(mockLocalStorage);
-    afterEach(() => {
-        localStorage.removeItem(NOTES_KEY);
-    });
-    it("defaults to on", () => {
-        expect(NOTES_ENABLED_DEFAULT).toBe(true);
-        expect(loadNotesEnabled()).toBe(true);
-    });
-    it("persists an off switch", () => {
-        saveNotesEnabled(false);
-        expect(localStorage.getItem(NOTES_KEY)).toBe("0");
-        expect(loadNotesEnabled()).toBe(false);
-        saveNotesEnabled(true);
-        expect(loadNotesEnabled()).toBe(true);
     });
 });
 describe("keybinding overrides", () => {
@@ -195,23 +178,6 @@ describe("keybinding overrides", () => {
         expect(loadKeybindingOverrides()).toEqual({});
     });
 });
-describe("live agents enabled setting", () => {
-    beforeEach(mockLocalStorage);
-    afterEach(() => {
-        localStorage.removeItem(LIVE_AGENTS_KEY);
-    });
-    it("defaults to on", () => {
-        expect(LIVE_AGENTS_ENABLED_DEFAULT).toBe(true);
-        expect(loadLiveAgentsEnabled()).toBe(true);
-    });
-    it("persists an off switch", () => {
-        saveLiveAgentsEnabled(false);
-        expect(localStorage.getItem(LIVE_AGENTS_KEY)).toBe("0");
-        expect(loadLiveAgentsEnabled()).toBe(false);
-        saveLiveAgentsEnabled(true);
-        expect(loadLiveAgentsEnabled()).toBe(true);
-    });
-});
 describe("workspace navigation keybindings", () => {
     it("keeps separate shortcuts for the library and the conversation", () => {
         expect(KEYBINDINGS.filter((row) => ["App: Toggle Library", "App: Toggle Conversation"].includes(row.command))).toEqual([
@@ -224,47 +190,12 @@ describe("workspace navigation keybindings", () => {
         expect(KEYBINDINGS.map((row) => row.command)).toEqual(expect.arrayContaining(["Mentor: New", "Mentor: Next", "Mentor: Previous", "Mentor: Activate 1–9", "Reader: Close"]));
     });
 });
-describe("tab animations setting", () => {
-    beforeEach(mockLocalStorage);
-    afterEach(() => {
-        localStorage.removeItem(TAB_ANIMATIONS_KEY);
-    });
-    it("defaults to off", () => {
-        expect(TAB_ANIMATIONS_ENABLED_DEFAULT).toBe(false);
-        expect(loadTabAnimationsEnabled()).toBe(false);
-    });
-    it("persists an off switch", () => {
-        saveTabAnimationsEnabled(false);
-        expect(localStorage.getItem(TAB_ANIMATIONS_KEY)).toBe("0");
-        expect(loadTabAnimationsEnabled()).toBe(false);
-        saveTabAnimationsEnabled(true);
-        expect(loadTabAnimationsEnabled()).toBe(true);
-    });
-});
-describe("collapsed project rail setting", () => {
-    beforeEach(mockLocalStorage);
-    afterEach(() => {
-        localStorage.removeItem(COLLAPSED_PROJECT_RAIL_MODE_KEY);
-    });
-    it("defaults to the icon rail", () => {
-        expect(COLLAPSED_PROJECT_RAIL_MODE_DEFAULT).toBe("compact");
-        expect(loadCollapsedProjectRailMode()).toBe("compact");
-    });
-    it("persists the hidden mode and ignores unknown values", () => {
-        saveCollapsedProjectRailMode("hidden");
-        expect(localStorage.getItem(COLLAPSED_PROJECT_RAIL_MODE_KEY)).toBe("hidden");
-        expect(loadCollapsedProjectRailMode()).toBe("hidden");
-        localStorage.setItem(COLLAPSED_PROJECT_RAIL_MODE_KEY, "floating");
-        expect(loadCollapsedProjectRailMode()).toBe("compact");
-    });
-});
 describe("settings navigation", () => {
     it("lists every section under exactly one rail group", () => {
         const groups = settingsSectionsByGroup();
         expect(groups.map((group) => group.label)).toEqual([
             "App",
             "Agents",
-            "Workspace",
         ]);
         expect(groups.flatMap((group) => group.sections.map((s) => s.id))).toEqual([
             "general",
@@ -275,7 +206,6 @@ describe("settings navigation", () => {
             "providers",
             "mcp",
             "skills",
-            "archive",
         ]);
     });
     it("points every indexed setting at a real section", () => {

@@ -1,6 +1,6 @@
 /** Pixel mascot that patrols the composer's top edge while a turn is in flight. */
 
-import { mascotPath } from "../../projects/model/projectMascots";
+import { pixelPath as mascotPath } from "../../../shared/lib/pixelSprite";
 
 export const RUNNER_SIZE = 16;
 export const RUNNER_SPEED_PX = 160;

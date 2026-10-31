@@ -39,7 +39,7 @@ const courseData = JSON.stringify({ engine: "reading", chapters: [{ title: "Work
 function Host({ owner = agent }: { owner?: Agent }) {
   control = useMentorView();
   return createElement(MentorWorkspace, {
-    key: owner.id, agent: owner, state: control.stateFor(owner.id), chat: createElement("div", { "data-test-chat": owner.id }), recents: [], canvases: drawings,
+    key: owner.id, agent: owner, state: control.stateFor(owner.id), chat: createElement("div", { "data-test-chat": owner.id }), canvases: drawings,
     onOpen: (page) => control.show(owner.id, page), onClose: () => control.close(owner.id),
     onLessonChange: (lesson) => control.setLesson(owner.id, lesson), onRestoredChecked: (page, exists) => control.confirmRestored(owner.id, page, exists),
     onToggleLibrary: () => control.toggleLibrary(owner.id), onToggleChat: () => control.toggleChat(owner.id),

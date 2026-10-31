@@ -11,7 +11,6 @@ import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import { loadCourse } from "../../learning/model/course";
 import { createNote, getNote } from "../../notes";
-import type { RecentProject } from "../../projects/model/recents";
 import { readingOf, type MentorLesson, type MentorPage } from "../model/mentorPage";
 import { MentorBreadcrumb, mentorCrumbs } from "./MentorBreadcrumb";
 import { MentorLibrary } from "./MentorLibrary";
@@ -32,7 +31,6 @@ type Props = {
   leading?: ReactNode;
   /** After the title bar's own controls, such as the window's buttons. */
   trailing?: ReactNode;
-  recents: readonly RecentProject[];
   canvases: readonly Canvas[];
   onOpen: (page: MentorPage) => void;
   onClose: () => void;
@@ -66,7 +64,7 @@ export async function restoredPageExists(agentId: string, page: MentorPage): Pro
  * the middle and the conversation on the right. Opening anything replaces
  * what the reader showed; nothing opens beside it.
  */
-export function MentorWorkspace({ agent, state, chat, leading, trailing, recents, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle }: Props) {
+export function MentorWorkspace({ agent, state, chat, leading, trailing, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle }: Props) {
   const { data, errors, reload } = useAgentResources(agent.id);
   const body = useRef<HTMLDivElement>(null);
   const save = useRef<(() => Promise<boolean>) | null>(null);
@@ -152,7 +150,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, recents
           event.preventDefault(); event.stopPropagation();
           close();
         }}>
-        <MentorReader agent={agent} page={state.page} request={state.request} recents={recents} canvases={canvases}
+        <MentorReader agent={agent} page={state.page} request={state.request} canvases={canvases}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
           onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} renderSession={renderSession} />
       </main>

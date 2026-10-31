@@ -41,27 +41,6 @@ describe.each([
         "loci:composer-runner-change",
     ],
     [
-        "loci.tabAnimationsEnabled",
-        settings.loadTabAnimationsEnabled,
-        settings.saveTabAnimationsEnabled,
-        false,
-        undefined,
-    ],
-    [
-        "loci.notesEnabled",
-        settings.loadNotesEnabled,
-        settings.saveNotesEnabled,
-        true,
-        "loci:notes-enabled-change",
-    ],
-    [
-        "loci.liveAgentsEnabled",
-        settings.loadLiveAgentsEnabled,
-        settings.saveLiveAgentsEnabled,
-        true,
-        "loci:live-agents-enabled-change",
-    ],
-    [
         "loci.closeToTray",
         settings.loadCloseToTray,
         settings.saveCloseToTray,
@@ -80,20 +59,6 @@ describe.each([
         appearance.loadBodyGlass,
         appearance.saveBodyGlass,
         appearance.BODY_GLASS_DEFAULT,
-        undefined,
-    ],
-    [
-        "loci.projectRailOpen",
-        appearance.loadProjectRailOpen,
-        appearance.saveProjectRailOpen,
-        true,
-        undefined,
-    ],
-    [
-        "loci.sessionSidebarOpen",
-        appearance.loadSessionSidebarOpen,
-        appearance.saveSessionSidebarOpen,
-        true,
         undefined,
     ],
     [
@@ -168,6 +133,10 @@ describe.each([
         save(!fallback);
         expect(load()).toBe(!fallback);
     });
+});
+it("keeps notes on whatever an earlier version saved", () => {
+    localStorage.setItem("loci.notesEnabled", "0");
+    expect(settings.loadNotesEnabled()).toBe(true);
 });
 it("disables close-to-tray outside Windows without consulting storage", () => {
     platform.isWindows = false;

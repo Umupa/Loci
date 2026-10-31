@@ -1,4 +1,4 @@
-import { mascotPath } from "../../projects/model/projectMascots";
+import { pixelPath as mascotPath } from "../../../shared/lib/pixelSprite";
 
 const GRID_W = 16;
 

@@ -1,21 +1,6 @@
 import { File, X } from "../../../shared/ui/icons";
-import { useState } from "react";
-import { ProjectLogoIcon } from "../../projects/ui/ProjectLogoIcon";
-import { ProjectMascot } from "../../projects/ui/ProjectMascot";
-import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
-import {
-  noteSourceProject,
-  type NoteCardMeta,
-} from "../notes";
-import { projectKey } from "../../../shared/lib/paths";
-import {
-  loadTabGroupColors,
-  loadTabGroupCustomColors,
-  loadTabGroupMascots,
-  resolveTabGroupColor,
-  resolveTabGroupLogo,
-  resolveTabGroupMascot,
-} from "../../workspace/model/tabGroups";
+import { Folder } from "../../../shared/ui/icons";
+import { noteSourceProject, type NoteCardMeta } from "../notes";
 
 type Props = {
   card: NoteCardMeta;
@@ -24,18 +9,7 @@ type Props = {
 };
 
 export function NoteMiniCard({ card, onDismiss, embedded = false }: Props) {
-  const logos = useTabGroupLogos();
-  const [mascots] = useState(loadTabGroupMascots);
-  const [colors] = useState(loadTabGroupColors);
-  const [customColors] = useState(loadTabGroupCustomColors);
   const project = noteSourceProject(card.sourceCwd);
-  const key = card.sourceCwd ? projectKey(card.sourceCwd) : null;
-  const logoPath = key ? resolveTabGroupLogo(key, logos) : null;
-  const mascotName = key ? resolveTabGroupMascot(key, mascots) : null;
-  const mascotColor =
-    key && project
-      ? resolveTabGroupColor(key, colors, customColors, project)
-      : undefined;
 
   const inner = (
     <div
@@ -58,20 +32,7 @@ export function NoteMiniCard({ card, onDismiss, embedded = false }: Props) {
         </span>
         {!embedded && project ? (
           <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-content/45">
-            {logoPath ? (
-              <ProjectLogoIcon
-                path={logoPath}
-                className="size-3.5 shrink-0 rounded-sm"
-                imageClassName="size-3.5"
-              />
-            ) : (
-              <ProjectMascot
-                project={project}
-                color={mascotColor}
-                name={mascotName}
-                className="size-3 shrink-0"
-              />
-            )}
+            <Folder className="size-3 shrink-0" strokeWidth={1.75} />
             <span className="min-w-0 truncate">{project}</span>
           </span>
         ) : null}

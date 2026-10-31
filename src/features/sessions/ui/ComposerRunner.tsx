@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
+import { useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import {
   COIN_EDGE_PATH,
@@ -35,19 +35,10 @@ import {
   type Obstacle,
   type RunnerTrack,
 } from "../model/composerRunner";
-import { projectKey, projectName } from "../../../shared/lib/paths";
-import {
-  loadTabGroupColors,
-  loadTabGroupCustomColors,
-  loadTabGroupMascots,
-  resolveTabGroupColor,
-  resolveTabGroupMascot,
-} from "../../workspace/model/tabGroups";
-import { ProjectMascot } from "../../projects/ui/ProjectMascot";
+import { PixelRobot } from "../../../shared/ui/PixelSprite";
 
 type Props = {
   boxRef: RefObject<HTMLElement | null>;
-  cwd: string;
   busy: boolean;
   enabled?: boolean;
   avatar?: ReactNode;
@@ -63,10 +54,9 @@ const COIN_SVG = `<svg viewBox="0 0 8 8" width="${COIN_SIZE}" height="${COIN_SIZ
 const STAR_SVG = `<svg viewBox="0 0 8 8" width="${STAR_SIZE}" height="${STAR_SIZE}" shape-rendering="crispEdges" fill="#f4e27a" aria-hidden="true"><path class="composer-coin-face" d="${STAR_FACE_PATH}"/><path class="composer-coin-edge" d="${STAR_EDGE_PATH}"/></svg>`;
 const GEOMETRY_SAMPLE_MS = 100;
 
-/** Pixel mascot or agent avatar running the composer's top ledge while a turn is live. */
+/** A pixel robot or the agent's avatar running the composer's top ledge while a turn is live. */
 export function ComposerRunner({
   boxRef,
-  cwd,
   busy,
   enabled = true,
   avatar,
@@ -82,20 +72,6 @@ export function ComposerRunner({
   busyRef.current = busy;
   enabledRef.current = enabled;
   onExitedRef.current = onExited;
-
-  const project = projectName(cwd);
-  const key = projectKey(cwd);
-  const appearance = useMemo(() => {
-    return {
-      name: resolveTabGroupMascot(key, loadTabGroupMascots()),
-      color: resolveTabGroupColor(
-        key,
-        loadTabGroupColors(),
-        loadTabGroupCustomColors(),
-        project,
-      ),
-    };
-  }, [key, project]);
 
   useLayoutEffect(() => {
     const layer = layerRef.current;
@@ -479,13 +455,7 @@ export function ComposerRunner({
         }}
       >
         {avatar == null ? (
-          <ProjectMascot
-            project={project}
-            name={appearance.name}
-            color={appearance.color}
-            className="size-4"
-            active
-          />
+          <PixelRobot className="size-4" active />
         ) : (
           <div className="mascot-active size-4">{avatar}</div>
         )}

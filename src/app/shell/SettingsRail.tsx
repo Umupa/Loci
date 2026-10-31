@@ -1,6 +1,6 @@
 import { SettingsLanguage } from "../../shared/i18n/SettingsLanguage";
 import { t, useLocale } from "../../shared/i18n/locale";
-import { Archive, ArrowLeft, Bot, Chatting, Globe, Keyboard, MessageSquare, Palette, SlidersHorizontal, Sparkles, type IconComponent, } from "../../shared/ui/icons";
+import { ArrowLeft, Bot, Chatting, Globe, Keyboard, MessageSquare, Palette, SlidersHorizontal, Sparkles, type IconComponent, } from "../../shared/ui/icons";
 import { useLockOverscroll } from "../../shared/hooks/useLockOverscroll";
 import { settingsSectionsByGroup, type SettingsSectionId, } from "../../features/settings/model/settings";
 const SECTION_ICONS: Record<SettingsSectionId, IconComponent> = {
@@ -12,7 +12,6 @@ const SECTION_ICONS: Record<SettingsSectionId, IconComponent> = {
     providers: Bot,
     mcp: Globe,
     skills: Sparkles,
-    archive: Archive,
 };
 type Props = {
     section: SettingsSectionId;

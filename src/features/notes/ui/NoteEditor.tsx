@@ -10,7 +10,6 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useMarkdownMode } from "../../sessions/ui/MarkdownModeToggle";
-import { SearchableProjectPicker } from "../../projects/ui/SearchableProjectPicker";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import {
@@ -27,7 +26,6 @@ import {
   saveNoteImagesFromPaths,
   type NoteImageAsset,
 } from "../noteImages";
-import type { RecentProject } from "../../projects/model/recents";
 import { AgentMarkdown, MarkdownSourceHighlight } from "../../sessions/ui/AgentMarkdown";
 
 // Keep pending saves ordered across editor unmounts and reopened notes.
@@ -86,8 +84,6 @@ function NoteDetailTab({
 
 export function NoteEditor({
   note,
-  recents,
-  activeCwd,
   onSaved,
   onDelete,
   onActions,
@@ -96,8 +92,6 @@ export function NoteEditor({
 }: {
   compact?: boolean;
   note: Note;
-  recents: RecentProject[];
-  activeCwd?: string;
   onSaved: (note: Note) => void;
   onDelete: (id: string) => void | Promise<void>;
   onActions: (actions: NoteEditorActions | null) => void;
@@ -111,10 +105,8 @@ export function NoteEditor({
   const title = edits.title ?? note.title;
   const body = edits.body ?? note.body;
   const tags = edits.tags ?? note.tags;
-  // Keep only an unsaved choice locally so completed moves survive reopening.
-  const [projectChange, setProjectChange] = useState<{ path: string } | null>(
-    null,
-  );
+  // Notes are no longer moved between projects; a note keeps the folder it was written in.
+  const [projectChange] = useState<{ path: string } | null>(null);
   const sourceCwd = projectChange?.path ?? note.sourceCwd;
   const [saveError, setSaveError] = useState<string | null>(null);
   const [imageDrag, setImageDrag] = useState(false);
@@ -171,10 +163,7 @@ export function NoteEditor({
       editsRef.current = remaining;
       bodyRef.current = remaining.body ?? saved.body;
       setEdits(remaining);
-      if (projectChangeRef.current === nextProject) {
-        projectChangeRef.current = null;
-        setProjectChange(null);
-      }
+      if (projectChangeRef.current === nextProject) projectChangeRef.current = null;
       setSaveError(null);
     };
     const finalizeRequest = finalizeRef.current;
@@ -393,19 +382,6 @@ export function NoteEditor({
             {note.slug ? (
               <span className="min-w-0 truncate">{note.slug}</span>
             ) : null}
-            <SearchableProjectPicker
-              cwd={sourceCwd ?? "~"}
-              recents={recents}
-              mode="move"
-              railCwd={activeCwd}
-              buttonClassName="px-1.5"
-              onSelectProject={(path) => {
-                const change = { path };
-                projectChangeRef.current = change;
-                setProjectChange(change);
-                void saveNow();
-              }}
-            />
           </div>
           <input
             value={title}

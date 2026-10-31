@@ -3,7 +3,6 @@ import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import { CoursePane } from "../../learning/ui/CoursePane";
 import { NotePane } from "../../notes/ui/NotePane";
-import type { RecentProject } from "../../projects/model/recents";
 import type { Agent } from "../../agents/model/agent";
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { AgentDocumentReader } from "../../agents/ui/AgentDocumentReader";
@@ -17,7 +16,6 @@ type Props = {
   page?: MentorPage;
   /** Bumped by every explicit opening, so the same lesson can be asked for again. */
   request: number;
-  recents: readonly RecentProject[];
   canvases: readonly Canvas[];
   onClose: () => void;
   onLessonChange: (lesson: MentorLesson | null) => void;
@@ -32,7 +30,7 @@ type Props = {
 const noop = () => {};
 
 /** The one reader in the middle of a mentor's workspace. Whatever opens replaces it. */
-export function MentorReader({ agent, page, request, recents, canvases, onClose, onLessonChange, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession }: Props) {
+export function MentorReader({ agent, page, request, canvases, onClose, onLessonChange, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession }: Props) {
   if (!page) return <div className="mentor-reader-empty" data-tauri-drag-region="deep">
     <p>Open a lesson, a source, a note or a canvas from the library, or ask {agent.name || "your mentor"} to prepare one.</p>
   </div>;
@@ -40,7 +38,7 @@ export function MentorReader({ agent, page, request, recents, canvases, onClose,
     sourceSessionId={agent.sessionId} reader focused onFocus={noop} onClose={onClose} onLessonChange={onLessonChange} />;
   if (page.kind === "document") return <AgentDocumentReader key={`${agent.id}/${page.document.id}`} agentId={agent.id} document={page.document}
     reader focused onFocus={noop} onClose={onClose} />;
-  if (page.kind === "note") return <NotePane key={page.id} noteId={page.id} agentId={agent.id} recents={recents}
+  if (page.kind === "note") return <NotePane key={page.id} noteId={page.id} agentId={agent.id}
     reader focused onFocus={noop} onClose={onClose} onBeforeLeave={onBeforeLeave} />;
   if (page.kind === "session") return renderSession(page.id);
   if (page.kind === "canvas") {

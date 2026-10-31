@@ -1,12 +1,6 @@
-import { type ReactNode,useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
 import { basename } from "../../../platform/tauri/fs";
-import { projectKey } from "../../../shared/lib/paths";
 import { looksLikeProject } from "../../projects/model/recents";
-import {
-loadTabGroupLabels,
-resolveTabGroupLabel,
-subscribeTabGroupLabels,
-} from "../../workspace/model/tabGroups";
 
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 
@@ -21,19 +15,7 @@ type Props = {
 export function EmptySession({ cwd, composer, intro }: Props) {
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
 
-  const getProjectLabel = () =>
-    looksLikeProject(cwd)
-      ? resolveTabGroupLabel(
-          projectKey(cwd),
-          loadTabGroupLabels(),
-          basename(cwd),
-        )
-      : null;
-  const project = useSyncExternalStore(
-    subscribeTabGroupLabels,
-    getProjectLabel,
-    getProjectLabel,
-  );
+  const project = looksLikeProject(cwd) ? basename(cwd) : null;
   const title = project
     ? `What should we work on in ${project}?`
     : "What should we work on?";

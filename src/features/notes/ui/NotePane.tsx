@@ -3,7 +3,6 @@ import { StickyNote, X } from "../../../shared/ui/icons";
 import { ResourceHeader } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { findAgent } from "../../agents/model/agent";
-import type { RecentProject } from "../../projects/model/recents";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { deleteNote, getNote, NOTES_CHANGED_EVENT, type Note } from "../notes";
 import { NoteEditor, type NoteEditorActions } from "./NoteEditor";
@@ -11,7 +10,6 @@ import { NoteEditor, type NoteEditorActions } from "./NoteEditor";
 type Props = {
   noteId: string;
   agentId?: string;
-  recents: readonly RecentProject[];
   focused: boolean;
   onFocus: () => void;
   onClose: () => void;
@@ -26,7 +24,7 @@ type Props = {
 const buttonClass = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content";
 
 /** The same note editor in the overview and in a movable workspace pane. */
-export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, onPaneDragStart, onBack, onBeforeLeave, reader = false }: Props) {
+export function NotePane({ noteId, agentId, focused, onFocus, onClose, onPaneDragStart, onBack, onBeforeLeave, reader = false }: Props) {
   const embedded = reader || !!onBack;
   const scope = `${agentId ?? ""}/${noteId}`;
   const [loaded, setLoaded] = useState<{ scope: string; note: Note | null }>();
@@ -68,7 +66,7 @@ export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, 
       {error ? <div role="alert" className="p-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : null}
       {note === undefined ? !error && <p role="status" className="p-4 text-xs text-content/50">Opening note…</p>
         : note === null ? <p role="status" className="p-4 text-xs text-content/50">This note is no longer available.</p>
-        : <NoteEditor key={note.id} note={note} recents={[...recents]} compact={embedded} onActions={register} onSaved={(saved) => setLoaded((current) => current?.scope === scope ? { scope, note: saved } : current)}
+        : <NoteEditor key={note.id} note={note} compact={embedded} onActions={register} onSaved={(saved) => setLoaded((current) => current?.scope === scope ? { scope, note: saved } : current)}
             onDelete={async (id) => { await deleteNote(id); (onBack ?? onClose)(); }}
             onAddToChat={(draft) => {
               const targetSessionId = agentId ? findAgent(agentId)?.sessionId : undefined;

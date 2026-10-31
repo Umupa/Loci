@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
-import { PROJECT_MASCOTS } from "../../projects/model/projectMascots";
 import {
   AGENT_AVATARS,
   agentAvatar,
@@ -59,13 +58,6 @@ describe("agentAvatars", () => {
     expect(eyes.length).toBeGreaterThan(0);
     // Animating an eye definition used by a clone does not repaint the visible eyes.
     for (const eye of eyes) expect(eye.closest("defs")).toBeNull();
-  });
-
-  it("shares no name with a project mascot", () => {
-    const mascots = new Set(PROJECT_MASCOTS.map((mascot) => mascot.name));
-    for (const avatar of AGENT_AVATARS) {
-      expect(mascots.has(avatar.name)).toBe(false);
-    }
   });
 
   it("falls back to the first avatar for an unknown name", () => {

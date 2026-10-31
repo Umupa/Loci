@@ -1,19 +1,21 @@
 import { projectKey, projectName } from "../../../shared/lib/paths";
 import {
-  loadTabGroupLabels,
-  resolveTabGroupLabel,
-} from "../../workspace/model/tabGroups";
-import { TAB_GROUP_COLORS } from "../../workspace/model/tabGroupColors";
-import {
   hasPendingApproval,
   type Block,
   type Session,
 } from "../../sessions/model/session";
 import { AGENT_AVATARS, defaultAgentName } from "./agentAvatars";
 
-/** The project palette's colors, plus indigo for an agent's ninth preset. */
+/** The colors an agent's avatar can take. */
 export const AGENT_COLORS = [
-  ...TAB_GROUP_COLORS.slice(1),
+  "hsl(211 92% 62%)",
+  "hsl(12 80% 58%)",
+  "hsl(45 90% 55%)",
+  "hsl(142 55% 50%)",
+  "hsl(330 70% 62%)",
+  "hsl(280 55% 62%)",
+  "hsl(175 55% 48%)",
+  "hsl(25 85% 58%)",
   "hsl(245 75% 65%)",
 ] as const;
 
@@ -255,15 +257,10 @@ export function subscribeAgents(onChange: () => void): () => void {
   return () => window.removeEventListener(AGENTS_CHANGED, onChange);
 }
 
-/**
- * Snapshot for `useSyncExternalStore`; stable while storage is unchanged.
- * Project labels are part of it, since an agent's look names its projects.
- */
+/** Snapshot for `useSyncExternalStore`; stable while storage is unchanged. */
 export function agentsSnapshot(): string {
   try {
-    return `${localStorage.getItem(ROSTER_KEY) ?? ""}|${JSON.stringify(
-      loadTabGroupLabels(),
-    )}`;
+    return localStorage.getItem(ROSTER_KEY) ?? "";
   } catch {
     return "";
   }
@@ -282,9 +279,8 @@ export type AgentLook = {
   projects: AgentProject[];
 };
 
-/** How an agent looks, and the projects it works on by their rail labels. */
+/** How an agent looks, and the folders it works in by name. */
 export function agentLook(agent: Agent): AgentLook {
-  const labels = loadTabGroupLabels();
   return {
     name: agent.name?.trim() || defaultAgentName(agent.avatar),
     ...(agent.role?.trim() ? { role: agent.role.trim() } : {}),
@@ -292,7 +288,7 @@ export function agentLook(agent: Agent): AgentLook {
     color: agent.color,
     projects: agent.projects.map((path) => ({
       path,
-      name: resolveTabGroupLabel(projectKey(path), labels, projectName(path)),
+      name: projectName(path),
     })),
   };
 }

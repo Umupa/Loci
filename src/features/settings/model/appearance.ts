@@ -22,11 +22,8 @@ const THEME_SATURATION_KEY = "loci.themeSaturation";
 const THEME_DARK_LIGHTNESS_KEY = "loci.themeDarkLightness";
 const OPACITY_KEY = "loci.sidebarOpacity";
 const BLUR_KEY = "loci.sidebarBlur";
-const PROJECT_RAIL_OPEN_KEY = "loci.projectRailOpen";
-const SESSION_SIDEBAR_OPEN_KEY = "loci.sessionSidebarOpen";
 const BODY_KEY = "loci.bodyGlass";
 const SCHEME_KEY = "loci.colorScheme";
-const PROJECT_RAIL_WIDTH_KEY = "loci.projectRailWidth";
 const TRANSCRIPT_LAYOUT_KEY = "loci.transcriptLayout";
 const TRANSCRIPT_ANCHOR_KEY = "loci.transcriptAnchor";
 const CHAT_BACKGROUND_PATH_KEY = "loci.chatBackgroundPath";
@@ -124,9 +121,6 @@ export const SIDEBAR_BLUR_MIN = 1;
 export const SIDEBAR_BLUR_MAX = 64;
 export const SIDEBAR_BLUR_DEFAULT = 24;
 
-export const PROJECT_RAIL_WIDTH_MIN = 180;
-export const PROJECT_RAIL_WIDTH_MAX = 360;
-export const PROJECT_RAIL_WIDTH_DEFAULT = 200;
 
 export const BODY_GLASS_DEFAULT = !IS_LINUX;
 
@@ -945,50 +939,6 @@ export function applyChatBackgroundScope(value: ChatBackgroundScope) {
     value === "empty",
   );
   return value;
-}
-
-export function loadProjectRailOpen(): boolean {
-  return readFlag(PROJECT_RAIL_OPEN_KEY) ?? true;
-}
-
-export function saveProjectRailOpen(value: boolean) {
-  writeFlag(PROJECT_RAIL_OPEN_KEY, value);
-}
-
-export function loadSessionSidebarOpen(): boolean {
-  return readFlag(SESSION_SIDEBAR_OPEN_KEY) ?? true;
-}
-
-export function saveSessionSidebarOpen(value: boolean) {
-  writeFlag(SESSION_SIDEBAR_OPEN_KEY, value);
-}
-
-/** Which list-and-content pages keep their list column open. */
-export type SecondarySidebarId = "notes";
-
-export function loadSecondarySidebarOpen(id: SecondarySidebarId): boolean {
-  return readFlag(`loci.${id}ListOpen`) ?? true;
-}
-
-export function saveSecondarySidebarOpen(id: SecondarySidebarId, value: boolean) {
-  writeFlag(`loci.${id}ListOpen`, value);
-}
-
-export function loadProjectRailWidth(): number {
-  return Math.round(
-    clamp(
-      readNumber(PROJECT_RAIL_WIDTH_KEY) ?? PROJECT_RAIL_WIDTH_DEFAULT,
-      PROJECT_RAIL_WIDTH_MIN,
-      PROJECT_RAIL_WIDTH_MAX,
-    ),
-  );
-}
-
-export function saveProjectRailWidth(value: number) {
-  writeNumber(
-    PROJECT_RAIL_WIDTH_KEY,
-    Math.round(clamp(value, PROJECT_RAIL_WIDTH_MIN, PROJECT_RAIL_WIDTH_MAX)),
-  );
 }
 
 function isTranscriptLayout(value: unknown): value is TranscriptLayout {

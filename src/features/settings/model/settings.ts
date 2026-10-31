@@ -3,7 +3,7 @@ import { IS_MAC, IS_WIN, MOD, SHIFT } from "../../../platform/tauri/platform";
 import { canonicalShortcut, shortcutLabel, shortcutFromKeyEvent, shortcutTokens } from "../../../shared/lib/shortcuts";
 import { readFlag, writeFlag } from "./storageFlags";
 const SECTION_KEY = "loci.settingsSection";
-export type SettingsSectionId = "general" | "appearance" | "keybindings" | "agents" | "chat" | "providers" | "mcp" | "skills" | "archive";
+export type SettingsSectionId = "general" | "appearance" | "keybindings" | "agents" | "chat" | "providers" | "mcp" | "skills";
 /** Rail buckets. Sections list in order under their group label. */
 export type SettingsGroupId = "app" | "agents" | "workspace";
 export const SETTINGS_GROUPS: {
@@ -79,13 +79,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         get description() { return t("Discover and manage file skills from project, personal, and harness folders."); },
         keywords: "skill instructions prompt",
     },
-    {
-        id: "archive",
-        group: "workspace",
-        get label() { return t("Archive"); },
-        get description() { return t("Projects and conversations you have archived."); },
-        keywords: "archived restore delete hidden",
-    },
 ];
 export function settingsSectionsByGroup(): {
     id: SettingsGroupId;
@@ -140,46 +133,10 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "notify alert toast permission background",
     },
     {
-        id: "projects",
-        section: "general",
-        get label() { return t("Projects"); },
-        keywords: "folders repositories rail tabs sessions files hide",
-    },
-    {
-        id: "notes",
-        section: "general",
-        get label() { return t("Notes"); },
-        keywords: "notebook markdown rail scratchpad",
-    },
-    {
-        id: "agents-enabled",
-        section: "agents",
-        get label() { return t("Show agents"); },
-        keywords: "agent persistent memory soul habits schedule rail hide",
-    },
-    {
         id: "agent-list",
         section: "agents",
         get label() { return t("Your agents"); },
-        keywords: "agent reset soul name projects",
-    },
-    {
-        id: "working-agents",
-        section: "general",
-        get label() { return t("Working agents"); },
-        keywords: "live running sessions rail card",
-    },
-    {
-        id: "tab-animations",
-        section: "general",
-        get label() { return t("Tab animations"); },
-        keywords: "motion open close resize transition",
-    },
-    {
-        id: "tab-limit",
-        section: "general",
-        get label() { return t("Tab limit"); },
-        keywords: "park idle maximum open tabs too many clutter auto close",
+        keywords: "agent mentor reset soul name folders",
     },
     ...(IS_WIN
         ? [
@@ -262,12 +219,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         section: "appearance",
         get label() { return t("Interface scale"); },
         keywords: "zoom font size bigger smaller ui",
-    },
-    {
-        id: "collapsed-project-rail",
-        section: "appearance",
-        get label() { return t("Collapsed project rail"); },
-        keywords: "sidebar compact icons hidden navigation layout",
     },
     {
         id: "chat-background",
@@ -408,8 +359,6 @@ export function saveSettingsSection(id: SettingsSectionId) {
 const FOLLOW_UP_BEHAVIOR_KEY = "loci.followUpBehavior";
 const COMPOSER_EFFORT_VISIBLE_KEY = "loci.composerEffortVisible";
 const MODEL_CONTROLS_KEY = "loci.modelControls";
-const TAB_ANIMATIONS_ENABLED_KEY = "loci.tabAnimationsEnabled";
-const COLLAPSED_PROJECT_RAIL_MODE_KEY = "loci.collapsedProjectRailMode";
 export type FollowUpBehavior = "steer" | "queue";
 export const FOLLOW_UP_BEHAVIOR_DEFAULT: FollowUpBehavior = "steer";
 export function loadFollowUpBehavior(): FollowUpBehavior {
@@ -430,68 +379,6 @@ export function saveFollowUpBehavior(value: FollowUpBehavior) {
     catch {
         // private mode / quota
     }
-}
-export const TAB_ANIMATIONS_ENABLED_DEFAULT = false;
-export function loadTabAnimationsEnabled(): boolean {
-    return readFlag(TAB_ANIMATIONS_ENABLED_KEY) ?? TAB_ANIMATIONS_ENABLED_DEFAULT;
-}
-export function saveTabAnimationsEnabled(value: boolean) {
-    writeFlag(TAB_ANIMATIONS_ENABLED_KEY, value);
-}
-const TAB_LIMIT_KEY = "loci.tabLimit";
-export const TAB_LIMIT_DEFAULT = 10;
-export const TAB_LIMIT_CHOICES = [0, 6, 8, 10, 12, 16, 24] as const;
-/** How many tabs a project may have open before idle ones are put away; 0 means no limit. */
-export function loadTabLimit(): number {
-    try {
-        const raw = localStorage.getItem(TAB_LIMIT_KEY);
-        if (raw === null)
-            return TAB_LIMIT_DEFAULT;
-        const value = Number(raw);
-        return Number.isInteger(value) && value >= 0 ? value : TAB_LIMIT_DEFAULT;
-    }
-    catch {
-        return TAB_LIMIT_DEFAULT;
-    }
-}
-export function saveTabLimit(value: number) {
-    try {
-        localStorage.setItem(TAB_LIMIT_KEY, String(value));
-    }
-    catch {
-        // private mode / quota
-    }
-}
-export type CollapsedProjectRailMode = "compact" | "hidden";
-export const COLLAPSED_PROJECT_RAIL_MODE_DEFAULT: CollapsedProjectRailMode = "compact";
-export const COLLAPSED_PROJECT_RAIL_MODE_CHANGE_EVENT = "loci:collapsed-project-rail-mode-change";
-export function loadCollapsedProjectRailMode(): CollapsedProjectRailMode {
-    try {
-        const raw = localStorage.getItem(COLLAPSED_PROJECT_RAIL_MODE_KEY);
-        return raw === "compact" || raw === "hidden"
-            ? raw
-            : COLLAPSED_PROJECT_RAIL_MODE_DEFAULT;
-    }
-    catch {
-        return COLLAPSED_PROJECT_RAIL_MODE_DEFAULT;
-    }
-}
-export function saveCollapsedProjectRailMode(value: CollapsedProjectRailMode) {
-    try {
-        localStorage.setItem(COLLAPSED_PROJECT_RAIL_MODE_KEY, value);
-    }
-    catch {
-        // private mode / quota
-    }
-    if (typeof window === "undefined")
-        return;
-    window.dispatchEvent(new CustomEvent<CollapsedProjectRailMode>(COLLAPSED_PROJECT_RAIL_MODE_CHANGE_EVENT, { detail: value }));
-}
-export function subscribeCollapsedProjectRailMode(onStoreChange: () => void) {
-    if (typeof window === "undefined")
-        return () => { };
-    window.addEventListener(COLLAPSED_PROJECT_RAIL_MODE_CHANGE_EVENT, onStoreChange);
-    return () => window.removeEventListener(COLLAPSED_PROJECT_RAIL_MODE_CHANGE_EVENT, onStoreChange);
 }
 export type ModelControls = "menu" | "beside";
 export const MODEL_CONTROLS_DEFAULT: ModelControls = "menu";
@@ -549,88 +436,20 @@ export function subscribeComposerRunner(onStoreChange: () => void) {
     return () => window.removeEventListener(COMPOSER_RUNNER_CHANGE_EVENT, onStoreChange);
 }
 
-const NOTES_ENABLED_KEY = "loci.notesEnabled";
-export const NOTES_ENABLED_DEFAULT = true;
-/** Fired on `window` when the Notes UI setting flips. */
+/** Fired on `window` if notes are switched off; they no longer can be. */
 export const NOTES_ENABLED_CHANGE_EVENT = "loci:notes-enabled-change";
+/**
+ * Notes are always on: they belong to mentors now. An off switch saved by an
+ * earlier version (`loci.notesEnabled`) is ignored.
+ */
 export function loadNotesEnabled(): boolean {
-    return readFlag(NOTES_ENABLED_KEY) ?? NOTES_ENABLED_DEFAULT;
-}
-export function saveNotesEnabled(value: boolean) {
-    writeFlag(NOTES_ENABLED_KEY, value);
-    if (typeof window === "undefined")
-        return;
-    window.dispatchEvent(new CustomEvent<boolean>(NOTES_ENABLED_CHANGE_EVENT, { detail: value }));
+    return true;
 }
 export function subscribeNotesEnabled(onStoreChange: () => void) {
     if (typeof window === "undefined")
         return () => { };
     window.addEventListener(NOTES_ENABLED_CHANGE_EVENT, onStoreChange);
     return () => window.removeEventListener(NOTES_ENABLED_CHANGE_EVENT, onStoreChange);
-}
-const PROJECTS_ENABLED_KEY = "loci.projectsEnabled";
-/** Fired on `window` when the projects setting flips. */
-export const PROJECTS_ENABLED_CHANGE_EVENT = "loci:projects-enabled-change";
-/**
- * Project folders on the rail, with their tabs and session sidebar. Off by
- * default: Loci is organised around agents, and their chats need no project.
- */
-export function loadProjectsEnabled(): boolean {
-    return readFlag(PROJECTS_ENABLED_KEY) ?? false;
-}
-export function saveProjectsEnabled(value: boolean) {
-    writeFlag(PROJECTS_ENABLED_KEY, value);
-    if (typeof window === "undefined")
-        return;
-    window.dispatchEvent(new CustomEvent<boolean>(PROJECTS_ENABLED_CHANGE_EVENT, { detail: value }));
-}
-export function subscribeProjectsEnabled(onStoreChange: () => void) {
-    if (typeof window === "undefined")
-        return () => { };
-    window.addEventListener(PROJECTS_ENABLED_CHANGE_EVENT, onStoreChange);
-    return () => window.removeEventListener(PROJECTS_ENABLED_CHANGE_EVENT, onStoreChange);
-}
-const AGENTS_ENABLED_KEY = "loci.agentsEnabled";
-/** Fired on `window` when the agents setting flips. */
-export const AGENTS_ENABLED_CHANGE_EVENT = "loci:agents-enabled-change";
-/** Agents on the rail, and their habits; on unless the user turns them off. */
-export function loadAgentsEnabled(): boolean {
-    return readFlag(AGENTS_ENABLED_KEY) ?? true;
-}
-export function saveAgentsEnabled(value: boolean) {
-    writeFlag(AGENTS_ENABLED_KEY, value);
-    if (typeof window === "undefined")
-        return;
-    window.dispatchEvent(new CustomEvent<boolean>(AGENTS_ENABLED_CHANGE_EVENT, {
-        detail: value,
-    }));
-}
-export function subscribeAgentsEnabled(onStoreChange: () => void) {
-    if (typeof window === "undefined")
-        return () => { };
-    window.addEventListener(AGENTS_ENABLED_CHANGE_EVENT, onStoreChange);
-    return () => window.removeEventListener(AGENTS_ENABLED_CHANGE_EVENT, onStoreChange);
-}
-const LIVE_AGENTS_ENABLED_KEY = "loci.liveAgentsEnabled";
-export const LIVE_AGENTS_ENABLED_DEFAULT = true;
-/** Fired on `window` when the working-agents rail card setting flips. */
-export const LIVE_AGENTS_ENABLED_CHANGE_EVENT = "loci:live-agents-enabled-change";
-export function loadLiveAgentsEnabled(): boolean {
-    return readFlag(LIVE_AGENTS_ENABLED_KEY) ?? LIVE_AGENTS_ENABLED_DEFAULT;
-}
-export function saveLiveAgentsEnabled(value: boolean) {
-    writeFlag(LIVE_AGENTS_ENABLED_KEY, value);
-    if (typeof window === "undefined")
-        return;
-    window.dispatchEvent(new CustomEvent<boolean>(LIVE_AGENTS_ENABLED_CHANGE_EVENT, {
-        detail: value,
-    }));
-}
-export function subscribeLiveAgentsEnabled(onStoreChange: () => void) {
-    if (typeof window === "undefined")
-        return () => { };
-    window.addEventListener(LIVE_AGENTS_ENABLED_CHANGE_EVENT, onStoreChange);
-    return () => window.removeEventListener(LIVE_AGENTS_ENABLED_CHANGE_EVENT, onStoreChange);
 }
 const CLOSE_TO_TRAY_KEY = "loci.closeToTray";
 export const CLOSE_TO_TRAY_DEFAULT = true;

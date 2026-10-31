@@ -5,39 +5,16 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { useTabGroupLogos } from "../hooks/useTabGroupLogos";
 import { basename } from "../../../platform/tauri/fs";
-import { prettyParent, projectKey, projectName } from "../../../shared/lib/paths";
+import { prettyParent, projectName } from "../../../shared/lib/paths";
 import {
   looksLikeProject,
   projectRailItems,
   sameProjectPath,
-  subscribeProjectPathsChanged,
   type RecentProject,
 } from "../model/recents";
-import {
-  loadTabGroupColors,
-  loadTabGroupCustomColors,
-  loadTabGroupLabels,
-  loadTabGroupMascots,
-  resolveTabGroupColor,
-  resolveTabGroupLabel,
-  resolveTabGroupLogo,
-  resolveTabGroupMascot,
-} from "../../workspace/model/tabGroups";
-import { Check, ChevronDown, Plus, Search } from "../../../shared/ui/icons";
+import { Check, ChevronDown, Folder, Plus, Search } from "../../../shared/ui/icons";
 import { Popover } from "../../../shared/ui/Popover";
-import { ProjectLogoIcon } from "./ProjectLogoIcon";
-import { ProjectMascot } from "./ProjectMascot";
-
-function loadAppearance() {
-  return {
-    groupLabels: loadTabGroupLabels(),
-    groupColors: loadTabGroupColors(),
-    groupCustomColors: loadTabGroupCustomColors(),
-    groupMascots: loadTabGroupMascots(),
-  };
-}
 
 type Props = {
   cwd: string;
@@ -67,7 +44,6 @@ export function SearchableProjectPicker({
   cwd,
   recents,
   railCwd,
-  busy = false,
   mode = "switch",
   className,
   buttonClassName,
@@ -85,21 +61,9 @@ export function SearchableProjectPicker({
   const pickerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const [{ groupLabels, groupColors, groupCustomColors, groupMascots }, setAppearance] =
-    useState(loadAppearance);
-  useEffect(
-    () => subscribeProjectPathsChanged(() => setAppearance(loadAppearance())),
-    [],
-  );
-  const groupLogos = useTabGroupLogos();
   const inProject = looksLikeProject(cwd);
   const seed = projectName(cwd);
-  const key = projectKey(cwd);
-  const label = inProject
-    ? resolveTabGroupLabel(key, groupLabels, basename(cwd) || seed)
-    : t("Choose project");
-  const logoPath = resolveTabGroupLogo(key, groupLogos);
-  const color = resolveTabGroupColor(key, groupColors, groupCustomColors, seed);
+  const label = inProject ? basename(cwd) || seed : t("Choose project");
   const railProjects = projectRailItems(recents, railCwd ?? cwd);
   const projects =
     inProject && !railProjects.some((item) => sameProjectPath(item.path, cwd))
@@ -112,12 +76,7 @@ export function SearchableProjectPicker({
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredProjects = normalizedQuery
     ? orderedProjects.filter((item) => {
-        const itemKey = projectKey(item.path);
-        const itemLabel = resolveTabGroupLabel(
-          itemKey,
-          groupLabels,
-          basename(item.path) || projectName(item.path),
-        );
+        const itemLabel = basename(item.path) || projectName(item.path);
         return `${itemLabel}\n${item.path}`
           .toLocaleLowerCase()
           .includes(normalizedQuery);
@@ -228,21 +187,7 @@ export function SearchableProjectPicker({
               : "text-content/50 hover:bg-content/5 hover:text-content"
         }${buttonClassName ? ` ${buttonClassName}` : ""}`}
       >
-        {!inProject ? null : logoPath ? (
-          <ProjectLogoIcon
-            path={logoPath}
-            className={`${compact ? "size-4" : "size-3.5"} shrink-0 rounded-sm`}
-            imageClassName={compact ? "size-4" : "size-3.5"}
-          />
-        ) : (
-          <ProjectMascot
-            project={seed}
-            color={color}
-            name={resolveTabGroupMascot(key, groupMascots)}
-            className={`${compact ? "size-3.5" : "size-3"} shrink-0`}
-            active={busy}
-          />
-        )}
+        {inProject ? <Folder className={`${compact ? "size-3.5" : "size-3"} shrink-0`} strokeWidth={1.75} /> : null}
         {compact ? null : (
           <>
             <span className="min-w-0 truncate font-medium text-content/90">
@@ -292,20 +237,7 @@ export function SearchableProjectPicker({
             {filteredProjects.length > 0 ? (
               filteredProjects.map((item, index) => {
                 const current = sameProjectPath(item.path, cwd);
-                const itemKey = projectKey(item.path);
-                const itemSeed = projectName(item.path);
-                const itemLabel = resolveTabGroupLabel(
-                  itemKey,
-                  groupLabels,
-                  basename(item.path) || itemSeed,
-                );
-                const itemLogo = resolveTabGroupLogo(itemKey, groupLogos);
-                const itemColor = resolveTabGroupColor(
-                  itemKey,
-                  groupColors,
-                  groupCustomColors,
-                  itemSeed,
-                );
+                const itemLabel = basename(item.path) || projectName(item.path);
                 return (
                   <button
                     key={item.path}
@@ -336,19 +268,8 @@ export function SearchableProjectPicker({
                     <span className="grid size-4 shrink-0 place-items-center">
                       {current ? (
                         <Check className="size-3.5" strokeWidth={2} />
-                      ) : itemLogo ? (
-                        <ProjectLogoIcon
-                          path={itemLogo}
-                          className="size-4 rounded-sm"
-                          imageClassName="size-4"
-                        />
                       ) : (
-                        <ProjectMascot
-                          project={itemSeed}
-                          color={itemColor}
-                          name={resolveTabGroupMascot(itemKey, groupMascots)}
-                          className="size-3.5"
-                        />
+                        <Folder className="size-3.5" strokeWidth={1.75} />
                       )}
                     </span>
                     <span className="min-w-0 max-w-[calc(100%_-_36px)] shrink-0 truncate text-[13px] font-medium">

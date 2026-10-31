@@ -100,14 +100,11 @@ import { ContextMeter } from "./ContextMeter";
 
 
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
-import { CwdPicker } from "../../projects/ui/CwdPicker";
 import { McpServerPicker } from "./McpServerPicker";
 import { NoteMentionPicker } from "./NoteMentionPicker";
 
 import { NoteMiniCard } from "../../notes/ui/NoteMiniCard";
 
-import { projectKey } from "../../../shared/lib/paths";
-import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
 import { SkillPicker } from "../../skills/ui/SkillPicker";
 import { consumeQuoteRequest,type QuoteRequest } from "../model/quoteDraft";
 import { ModelControlPills,ModelPicker } from "./ModelPicker";
@@ -122,7 +119,6 @@ type Note,
 type NoteComposerCard,
 } from "../../notes";
 import { loadComposerRunner, subscribeComposerRunner, loadModelControls,loadNotesEnabled,subscribeModelControls,subscribeNotesEnabled } from "../../settings/model/settings";
-import { resolveTabGroupLogo } from "../../workspace/model/tabGroups";
 import { UsageLimitNotice } from "./UsageLimitNotice";
 import { useComposerSkills } from "./useComposerSkills";
 
@@ -472,10 +468,7 @@ export function Composer({
   executionCwd,
   sessionId,
 
-  recents = [],
-  hideProjectPicker = false,
 
-  hideTopBar = false,
   chat = false,
 
 
@@ -499,7 +492,6 @@ export function Composer({
   queueStatus,
   usageLimit,
   onFocus,
-  onCwdChange,
 
 
 
@@ -620,8 +612,6 @@ export function Composer({
   const [resendEdited, setResendEdited] = useState(false);
 
 
-  const groupLogos = useTabGroupLogos();
-  const projectLogoPath = resolveTabGroupLogo(projectKey(cwd), groupLogos);
 
   slashRef.current = slash;
   mentionRef.current = mention;
@@ -1982,21 +1972,6 @@ export function Composer({
               Drop files to attach
             </div>
           ) : null}
-          {/* The row only holds the project picker, so it is gone when that is. */}
-          {hideTopBar || hideProjectPicker ? null : (
-            <div className="flex min-w-0 items-center gap-2.5 overflow-hidden px-3 pt-2.5">
-              <CwdPicker
-                cwd={cwd}
-                recents={recents}
-                projectLogoPath={projectLogoPath}
-                enabled={enabled}
-                onCwdChange={onCwdChange}
-
-                onClose={() => ref.current?.focus()}
-              />
-            </div>
-          )}
-
           {attachments.length > 0 ? (
             <div className="flex flex-wrap gap-1.5 px-3 pt-2">
               {attachments.map((file) => (
@@ -2260,7 +2235,7 @@ export function Composer({
           </div>
         </div>
         {runnerLive && runnerEnabled ? (
-          <ComposerRunner boxRef={boxRef} cwd={cwd} busy={busy} enabled={enabled} avatar={runnerAvatar} onExited={() => setRunnerLive(false)} />
+          <ComposerRunner boxRef={boxRef} busy={busy} enabled={enabled} avatar={runnerAvatar} onExited={() => setRunnerLive(false)} />
         ) : null}
       </div>
     </div>

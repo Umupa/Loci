@@ -52,12 +52,8 @@ async function render(section: SettingsSectionId, options: Partial<ComponentProp
     await act(async () => root.render(createElement(SettingsView, {
         section,
         cwd: "/repo",
-        sessions: [],
         onClose: vi.fn(),
         onSelectSection,
-        onOpenSession: vi.fn(),
-        onArchiveSession: vi.fn(),
-        onDeleteSession: vi.fn(),
         ...options,
     })));
 }
@@ -151,36 +147,25 @@ describe("settings pages", () => {
     });
     it("gives every section a rail group", () => {
         const groups = new Set(SETTINGS_SECTIONS.map((section) => section.group));
-        expect([...groups]).toEqual(["app", "agents", "workspace"]);
+        expect([...groups]).toEqual(["app", "agents"]);
     });
     it("indexes each setting once", () => {
         const ids = SETTINGS_INDEX.map((entry) => entry.id);
         expect(ids).toEqual([...new Set(ids)]);
     });
-    it("offers tab animations as an opt-in", async () => {
+    it("offers no project, tab, notes or agents switches", async () => {
         await render("general");
-        const control = container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Tab animations"]')!;
-        expect(control.getAttribute("aria-checked")).toBe("false");
-        await act(async () => control.click());
-        expect(control.getAttribute("aria-checked")).toBe("true");
-        expect(localStorage.getItem("loci.tabAnimationsEnabled")).toBe("1");
-    });
-    it("defaults to the icon rail and lets users hide it", async () => {
-        await render("appearance");
-        let control = container.querySelector<HTMLElement>('[role="radiogroup"][aria-label="Collapsed project rail"]')!;
-        let [iconRail, hidden] = Array.from(control.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
-        expect(iconRail?.getAttribute("aria-checked")).toBe("true");
-        expect(hidden?.getAttribute("aria-checked")).toBe("false");
-        await act(async () => hidden?.click());
-        expect(hidden?.getAttribute("aria-checked")).toBe("true");
-        expect(localStorage.getItem("loci.collapsedProjectRailMode")).toBe("hidden");
+        for (const label of ["Projects", "Tab animations", "Tab limit", "Notes", "Working agents"]) {
+            expect(container.querySelector(`[role="switch"][aria-label="${label}"]`)).toBeNull();
+        }
+        await act(async () => root.unmount());
+        root = createRoot(container);
+        await render("agents");
+        expect(container.querySelector('[role="switch"][aria-label="Show agents"]')).toBeNull();
         await act(async () => root.unmount());
         root = createRoot(container);
         await render("appearance");
-        control = container.querySelector<HTMLElement>('[role="radiogroup"][aria-label="Collapsed project rail"]')!;
-        [iconRail, hidden] = Array.from(control.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
-        expect(iconRail?.getAttribute("aria-checked")).toBe("false");
-        expect(hidden?.getAttribute("aria-checked")).toBe("true");
+        expect(container.querySelector('[aria-label="Collapsed project rail"]')).toBeNull();
     });
     it("sets interface scale from a menu instead of a live slider", async () => {
         await render("appearance");
@@ -195,17 +180,6 @@ describe("settings pages", () => {
         expect(localStorage.getItem("loci.uiScale")).toBe("1.5");
         expect(trigger.getAttribute("aria-label")).toBe("Interface scale: 150%");
         document.documentElement.style.removeProperty("zoom");
-    });
-    it("reports collapsed project rail changes to the app shell", async () => {
-        const onCollapsedProjectRailModeChange = vi.fn();
-        await render("appearance", {
-            collapsedProjectRailMode: "compact",
-            onCollapsedProjectRailModeChange,
-        });
-        const control = container.querySelector<HTMLElement>('[role="radiogroup"][aria-label="Collapsed project rail"]')!;
-        const hidden = control.querySelectorAll<HTMLButtonElement>('[role="radio"]')[1];
-        await act(async () => hidden?.click());
-        expect(onCollapsedProjectRailModeChange).toHaveBeenCalledWith("hidden");
     });
     // The search index is hand-maintained; this is what keeps it honest.
     it.each([...new Set(SETTINGS_INDEX.map((entry) => entry.section))].map((section) => ({ section })))("renders every indexed setting on the $section page", async ({ section }) => {
@@ -288,7 +262,7 @@ describe("settings search", () => {
     it("ranks a page against the settings that mention it", async () => {
         await render("general");
         await type("archive");
-        expect(options().map((item) => item.querySelector("span")!.textContent)).toEqual(["Archive"]);
+        expect(options()).toHaveLength(0);
         await type("notification");
         expect(options().map((item) => item.querySelector("span")!.textContent)).toEqual([
             "Notifications",

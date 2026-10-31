@@ -1,18 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { projectKey, projectName } from "../../../shared/lib/paths";
-import { FolderOpen, Plus, X } from "../../../shared/ui/icons";
+import { Folder, FolderOpen, Plus, X } from "../../../shared/ui/icons";
 import { Popover } from "../../../shared/ui/Popover";
-import { ProjectMascot } from "../../projects/ui/ProjectMascot";
 import type { RecentProject } from "../../projects/model/recents";
-import {
-  loadTabGroupColors,
-  loadTabGroupCustomColors,
-  loadTabGroupLabels,
-  loadTabGroupMascots,
-  resolveTabGroupColor,
-  resolveTabGroupLabel,
-  resolveTabGroupMascot,
-} from "../../workspace/model/tabGroups";
 import { AGENT_COLORS } from "../model/agent";
 import { AGENT_AVATARS, agentAvatar, defaultAgentName, type AgentAvatarStyle } from "../model/agentAvatars";
 import { AgentAvatar } from "./AgentAvatar";
@@ -57,21 +47,13 @@ export function ColorPicker({ current, onPick }: { current: string; onPick: (col
   );
 }
 
-/** A project as the rail shows it: its mascot in its color, and its label. */
+/** A folder by its name. */
 function projectLook(path: string) {
-  const key = projectKey(path);
-  const seed = projectName(path);
-  return {
-    name: resolveTabGroupLabel(key, loadTabGroupLabels(), seed),
-    color: resolveTabGroupColor(key, loadTabGroupColors(), loadTabGroupCustomColors(), seed),
-    mascot: resolveTabGroupMascot(key, loadTabGroupMascots()),
-    seed,
-  };
+  return { name: projectName(path) };
 }
 
-function ProjectIcon({ path }: { path: string }) {
-  const look = projectLook(path);
-  return <ProjectMascot project={look.seed} color={look.color} name={look.mascot} className="size-3.5 shrink-0" />;
+function ProjectIcon(_: { path: string }) {
+  return <Folder className="size-3.5 shrink-0 text-content/50" strokeWidth={1.75} />;
 }
 
 /**

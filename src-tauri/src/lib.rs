@@ -22,7 +22,6 @@ mod menu;
 mod notes;
 mod notifications;
 mod pasteboard;
-mod project_logo;
 mod reset;
 mod session_store;
 mod skills;
@@ -359,9 +358,6 @@ pub fn run() {
             pasteboard::clipboard_file_paths,
             pasteboard::copy_file_to_clipboard,
             pasteboard::clipboard_image,
-            project_logo::save_project_logo,
-            project_logo::forget_logo_file,
-            project_logo::remove_project_logo,
             session_store::session_upsert,
             session_store::session_list_by_project,
             session_store::session_rebase_project,
@@ -472,7 +468,6 @@ mod tests {
             serde_json::json!([
                 "$APPDATA/backgrounds/**",
                 "$APPDATA/wallpaper-cache/**",
-                "$APPDATA/project-logos/**",
                 "$APPDATA/note-assets/**",
                 "$APPDATA/generated-images/**"
             ])

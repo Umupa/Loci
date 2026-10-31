@@ -528,7 +528,7 @@ function Workspace(boot: BootWorkspace) {
           {surface === "mentor" && mentor.current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
             <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)}
               trailing={IS_MAC ? undefined : <WindowControls />}
-              recents={store.recents} canvases={canvases}
+              canvases={canvases}
               onOpen={(page) => mentorView.show(focusedAgent.id, page)} onClose={() => mentorView.close(focusedAgent.id)}
               onLessonChange={(lesson) => mentorView.setLesson(focusedAgent.id, lesson)}
               onRestoredChecked={(page, exists) => mentorView.confirmRestored(focusedAgent.id, page, exists)}
@@ -541,9 +541,7 @@ function Workspace(boot: BootWorkspace) {
           </section> : null}
           {surface === "mentor" && !focusedAgent ? <MentorsEmpty hasMentors={agents.agents.length > 0} onCreate={() => setAgentGalleryOpen(true)} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor}
-            recents={store.recents} cwd="~" sessions={[]} besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection}
-            onOpenSession={(id) => { closeSettings(); void showSession(id).catch(reportError); }}
-            onArchiveSession={(...args) => void store.archiveSession(...args)} onDeleteSession={(id) => void store.removeSession(id)} /> : null}
+            recents={store.recents} cwd="~" besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection} /> : null}
         </div>
       </div>
       <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, shownIds)} onFocusSession={(id) => void showSession(id).catch(reportError)} onApproval={submission.approve} />
