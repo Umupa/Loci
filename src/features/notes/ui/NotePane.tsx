@@ -17,6 +17,8 @@ type Props = {
   onClose: () => void;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onBack?: () => void;
+  /** Shown as the window's one reader: a reader header with Close, no pane chrome. */
+  reader?: boolean;
   /** The overview waits for pending edits before leaving this page. */
   onBeforeLeave?: (save: (() => Promise<boolean>) | null) => void;
 };
@@ -24,7 +26,8 @@ type Props = {
 const buttonClass = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content";
 
 /** The same note editor in the overview and in a movable workspace pane. */
-export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, onPaneDragStart, onBack, onBeforeLeave }: Props) {
+export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, onPaneDragStart, onBack, onBeforeLeave, reader = false }: Props) {
+  const embedded = reader || !!onBack;
   const scope = `${agentId ?? ""}/${noteId}`;
   const [loaded, setLoaded] = useState<{ scope: string; note: Note | null }>();
   const note = loaded?.scope === scope ? loaded.note : undefined;
@@ -56,7 +59,7 @@ export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, 
   const leave = async (next: () => void) => { if (await save()) next(); };
   return (
     <section aria-label={note?.title ?? "Note"} className="flex h-full min-h-0 min-w-0 flex-1 flex-col" onPointerDown={() => { if (!focused) onFocus(); }}>
-      {onBack ? <ResourceHeader title={note?.title ?? "Note"} backLabel="Back to notes" onBack={() => void leave(onBack)} onClose={() => void leave(onClose)} /> : <PaneHeader onPaneDragStart={onPaneDragStart}>
+      {embedded ? <ResourceHeader title={note?.title ?? "Note"} backLabel="Back to notes" onBack={onBack ? () => void leave(onBack) : undefined} onClose={() => void leave(onClose)} /> : <PaneHeader onPaneDragStart={onPaneDragStart}>
         <StickyNote className="size-3.5 shrink-0 text-content/50" />
         <span className="min-w-0 flex-1 truncate text-xs" title={note?.title}>{note?.title ?? "Note"}</span>
         <button type="button" className={buttonClass} title="Close" aria-label="Close note" onClick={() => void leave(onClose)}><X className="size-3.5" /></button>
@@ -64,7 +67,7 @@ export function NotePane({ noteId, agentId, recents, focused, onFocus, onClose, 
       {error ? <div role="alert" className="p-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : null}
       {note === undefined ? !error && <p role="status" className="p-4 text-xs text-content/50">Opening note…</p>
         : note === null ? <p role="status" className="p-4 text-xs text-content/50">This note is no longer available.</p>
-        : <NoteEditor key={note.id} note={note} recents={[...recents]} compact={!!onBack} onActions={register} onSaved={(saved) => setLoaded((current) => current?.scope === scope ? { scope, note: saved } : current)}
+        : <NoteEditor key={note.id} note={note} recents={[...recents]} compact={embedded} onActions={register} onSaved={(saved) => setLoaded((current) => current?.scope === scope ? { scope, note: saved } : current)}
             onDelete={async (id) => { await deleteNote(id); (onBack ?? onClose)(); }}
             onAddToChat={(draft) => {
               const targetSessionId = agentId ? findAgent(agentId)?.sessionId : undefined;

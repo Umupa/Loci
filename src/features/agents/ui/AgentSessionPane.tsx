@@ -11,8 +11,6 @@ type Props = {
   agent: Agent;
   state: AgentState;
   sessionPaneProps: ComponentProps<typeof SessionPane>;
-  overviewOpen?: boolean;
-  onToggleOverview?: () => void;
   detailsOpen: boolean;
   onToggleDetails: () => void;
   onReset: () => void;
@@ -22,12 +20,11 @@ type Props = {
 };
 
 /** Keeps an agent's composer and settings inside its movable workspace pane. */
-export function AgentSessionPane({ agent, state, sessionPaneProps, detailsOpen, onToggleDetails, onReset, onDelete, onPickFolders, onLoadEarlier, overviewOpen, onToggleOverview }: Props) {
+export function AgentSessionPane({ agent, state, sessionPaneProps, detailsOpen, onToggleDetails, onReset, onDelete, onPickFolders, onLoadEarlier }: Props) {
   const { session, focused, onFocus, onPaneDragStart, onModelChange, onModelSettingsChange, onRuntimeModeChange, recents } = sessionPaneProps;
   return (
     <AgentView agent={agent} state={state} focused={focused} onFocus={() => onFocus(session.id)}
       onPaneDragStart={onPaneDragStart}
-      overviewOpen={overviewOpen} onToggleOverview={onToggleOverview}
       detailsOpen={detailsOpen} onToggleDetails={onToggleDetails} onLoadEarlier={onLoadEarlier}
       details={<Modal title={`${agentLook(agent).name} settings`} onClose={onToggleDetails} fitViewport minimalHeader size="lg" className="agent-settings-modal h-[min(680px,calc(100dvh-32px))]"><AgentDetails agent={agent} session={session} recents={recents} refreshKey={session.busy}
         onModelChange={(harness, model) => onModelChange(session.id, harness, model)}

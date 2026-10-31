@@ -108,3 +108,7 @@
 .course-pane__alerts { flex-shrink: 0; padding: 0 24px; border-top: 1px solid var(--color-stroke); }
 .course-pane__read { color: var(--course-ok); }
 .course-pane__close:disabled { opacity: .35; cursor: default; }
+/* As a reader beside other columns, the course keeps to its own width. */
+.course-pane--overview .course-pane__body { position: relative; }
+.course-pane--overview .course-pane__status-actions { flex-wrap: wrap; padding: 10px; gap: 6px; }
+.course-pane--overview .course-pane__next-card { flex-wrap: wrap; gap: 10px; }

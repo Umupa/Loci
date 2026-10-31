@@ -23,6 +23,8 @@ type Props = {
   onClose: () => void;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onBack?: () => void;
+  /** Shown as the window's one reader: a reader header with Close, no pane chrome. */
+  reader?: boolean;
 };
 
 const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content disabled:opacity-40";
@@ -32,7 +34,8 @@ const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-cont
  * agent writes while it is open appears here, and a source shows as a source
  * however the pane was opened.
  */
-export function AgentDocumentReader({ agentId, document, focused, onFocus, onClose, onPaneDragStart, onBack }: Props) {
+export function AgentDocumentReader({ agentId, document, focused, onFocus, onClose, onPaneDragStart, onBack, reader = false }: Props) {
+  const embedded = reader || !!onBack;
   const [latest, setLatest] = useState<AgentDocument>(document);
   const [stored, setStored] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -84,10 +87,10 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
 
   return (
     <aside aria-label={latest.title} className="flex h-full min-h-0 min-w-0 w-full flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
-      {onBack ? <ResourceHeader title={latest.title} backLabel="Back to documents" onBack={onBack} onClose={onClose}>
+      {embedded ? <ResourceHeader title={latest.title} backLabel="Back to documents" onBack={onBack} onClose={onClose}>
         <button ref={more} type="button" title="Document actions" aria-label="Document actions" aria-expanded={menu} aria-haspopup="menu" className={RESOURCE_ACTION} onClick={() => setMenu((open) => !open)}><MoreHorizontal className="size-3.5" /></button>
       </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}>
-        {!onBack ? <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} /> : null}
+        {!embedded ? <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} /> : null}
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           <h2 className="min-w-0 truncate text-xs" title={latest.title}>{latest.title}</h2>
           {latest.subject ? <span className="pane-header-secondary min-w-0 truncate text-[11px] text-content/45">{latest.subject}</span> : null}
@@ -110,7 +113,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         <button type="button" role="menuitem" disabled={saved || loading || !!error} onClick={() => { setMenu(false); void saveAsNote(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><StickyNote className="size-3.5" />{saved ? "Saved to Notes" : "Save as a note"}</button>
         {agentId && stored ? <button type="button" role="menuitem" onClick={() => { setMenu(false); void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause))); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-400 hover:bg-content/6"><Trash2 className="size-3.5" />Remove from the library</button> : null}
       </Popover> : null}
-      <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${onBack ? "px-7 py-6" : "px-6 pb-10 pt-2"} text-[14px] leading-relaxed`}>
+      <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${embedded ? "px-7 py-6" : "px-6 pb-10 pt-2"} text-[14px] leading-relaxed`}>
         {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <DocumentBody document={latest} agentId={agentId} />}
         {actionError ? <p role="alert" className="mt-3 text-xs text-red-400">{actionError}</p> : null}
       </div>

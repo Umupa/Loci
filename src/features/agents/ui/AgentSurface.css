@@ -1,8 +1,5 @@
 /* Resident surfaces follow MonoCode's compact chrome and quiet content hierarchy. */
 .agent-chat-header { padding-inline: 12px; }
-.agent-overview-toggle { display: flex; height: 28px; align-items: center; gap: 6px; border-radius: 6px; padding: 0 8px; font-size: 12px; font-weight: 500; transition: background-color 160ms; }
-.agent-overview-toggle:hover { background: color-mix(in srgb, var(--color-content) 10%, transparent); }
-@container pane-header (max-width: 350px) { .agent-overview-toggle > span { display: none; } }
 [data-agent-view] .agent-transcript { font-family: var(--font-sans); }
 [data-agent-view] [data-transcript-content] { padding-top: 8px; }
 [data-agent-view] [data-agent-prose] { width: auto; max-width: none; background: transparent; padding: 0; border-radius: 0; }
@@ -60,10 +57,10 @@ button.agent-speaker-pill:hover { background: color-mix(in srgb, var(--color-con
 .agent-settings-page-title { display: flex; height: 40px; flex: none; align-items: center; border-bottom: 1px solid var(--color-stroke); padding: 0 16px; font-size: 13px; font-weight: 500; }
 .agent-settings-file-page { padding: 24px 32px; }
 @media (max-width: 720px) { .agent-settings-nav { width: 140px; } .agent-settings-general, .agent-settings-file-page { padding: 20px; } .agent-setting-row { flex-wrap: wrap; gap: 4px; } .agent-setting-value { max-width: 100%; } }
-@media (prefers-reduced-motion: reduce) { .agent-resource-chip, .agent-overview-toggle { transition: none; } }
 
 .agent-setting-value > button { max-width: 100%; min-width: 0; }
 .agent-setting-value > button > span:first-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 [data-agent-view][data-focused="false"] .agent-chat-header h1 { color: color-mix(in srgb, var(--color-content) 75%, transparent); }
 
 [data-composer-chat] .composer-field { display: block; min-height: 40px; }
+@media (prefers-reduced-motion: reduce) { .agent-resource-chip { transition: none; } }

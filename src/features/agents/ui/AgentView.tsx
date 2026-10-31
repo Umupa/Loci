@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { DashboardSquare, Settings } from "../../../shared/ui/icons";
+import { Settings } from "../../../shared/ui/icons";
 import { PaneHeader, PaneHeaderChrome } from "../../../shared/ui/PaneHeader";
 import { agentLook, agentProjectsPhrase, type Agent, type AgentState } from "../model/agent";
 import { AgentAvatar } from "./AgentAvatar";
@@ -9,8 +9,6 @@ import "./AgentSurface.css";
 type Props = {
   agent: Agent;
   state: AgentState;
-  overviewOpen?: boolean;
-  onToggleOverview?: () => void;
   detailsOpen: boolean;
   focused: boolean;
   onFocus: () => void;
@@ -25,7 +23,7 @@ type Props = {
 };
 
 /** An agent's conversation and details, with the workspace's pane controls. */
-export function AgentView({ agent, state, detailsOpen, focused, onFocus, onPaneDragStart, onToggleDetails, onLoadEarlier, children, details, overviewOpen, onToggleOverview }: Props) {
+export function AgentView({ agent, state, detailsOpen, focused, onFocus, onPaneDragStart, onToggleDetails, onLoadEarlier, children, details }: Props) {
   const look = agentLook(agent);
   const projects = agentProjectsPhrase(look.projects);
   return (
@@ -38,8 +36,6 @@ export function AgentView({ agent, state, detailsOpen, focused, onFocus, onPaneD
           <AgentStatus state={state} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {onToggleOverview ? <button type="button" data-no-drag title={overviewOpen ? "Hide overview" : "Show overview"} aria-label="Toggle agent overview" aria-expanded={overviewOpen} onClick={onToggleOverview}
-            className={`agent-overview-toggle ${overviewOpen ? "bg-content/8 text-content" : "text-content/50"}`}><DashboardSquare className="size-3.5" /><span>Overview</span></button> : null}
           <button type="button" data-no-drag title="Settings" aria-label="Agent settings" aria-pressed={detailsOpen} onClick={onToggleDetails}
             className={`grid size-7 place-items-center rounded-md hover:bg-content/8 hover:text-content ${detailsOpen ? "bg-content/8 text-content" : "text-content/50"}`}>
             <Settings className="size-4" strokeWidth={1.75} />
