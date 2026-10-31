@@ -13,6 +13,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCI="${LOCI_BIN:-loci}"
 APP="${LOCI_APP_ID:-}"
 PROVIDER="${LOCI_SMOKE_PROVIDER:-antigravity}"
+# Loci reports providers by id; agy is Antigravity's command.
+[[ "$PROVIDER" == "agy" ]] && PROVIDER=antigravity
 if [[ -z "$APP" ]]; then
   echo "Set LOCI_APP_ID to the Loci Dev or QA identifier to drive." >&2
   exit 2
