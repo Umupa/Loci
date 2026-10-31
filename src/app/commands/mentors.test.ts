@@ -90,7 +90,7 @@ describe("a turn's state", () => {
       .toMatchObject({ status: "done", text: "One\n\nTwo" });
   });
   it("reports a turn that ended in an error, and one it cannot find", () => {
-    expect(turnState(chat([user({ startedAt: 1, durationMs: 5 }), { id: "s", role: "system", text: "Provider crashed" }]), "cli-r1")).toMatchObject({ status: "failed", error: "Provider crashed" });
+    expect(turnState(chat([user({ startedAt: 1, durationMs: 5 }), { id: "t", role: "system", text: "Thinking…", statusKey: "k" }, { id: "s", role: "system", text: "Provider crashed", notice: "error" }]), "cli-r1")).toMatchObject({ status: "failed", error: "Provider crashed" });
     expect(() => turnState(chat([]), "cli-r1")).toThrow(/No such turn/);
   });
 });

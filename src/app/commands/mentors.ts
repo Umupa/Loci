@@ -127,7 +127,8 @@ export function turnState(chat: Session, turn: string) {
   const next = chat.blocks.findIndex((block, index) => index > at && block.role === "user" && !block.draft);
   const after = chat.blocks.slice(at + 1, next < 0 ? undefined : next);
   const text = after.filter((block) => block.role === "assistant").map((block) => block.text.trim()).filter(Boolean).join("\n\n");
-  const lastSystem = [...after].reverse().find((block: Block) => block.role === "system" && !block.statusKey)?.text;
+  // A provider's error is a system block marked as one; status lines are not errors.
+  const lastSystem = [...after].reverse().find((block: Block) => block.role === "system" && block.notice === "error")?.text;
   const base = { sessionId: chat.id, turn, text };
   if (user.draft) return { ...base, status: "queued" as const };
   const finished = user.durationMs != null || next >= 0;
