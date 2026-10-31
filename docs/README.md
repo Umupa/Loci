@@ -4,6 +4,7 @@ Start with the [project README](../README.md) for what Loci is and how to run it
 
 | Document | Language | What it covers |
 | --- | --- | --- |
+| [roadmap.md](roadmap.md) | 简体中文 | 产品定位与分阶段路线图：M0 减法、M1 新布局、M2 陪你读、M3 读码、M4 实验、M5 沉淀 |
 | [architecture.md](architecture.md) | English | How the app is put together: processes, agent CLI adapters, storage, the control channel, the built-in MCP servers, trust boundaries |
 | [learning.md](learning.md) | 简体中文 | 来源提问、PDF 高亮批注、关联讨论与本地存储 |
 | [canvas-mcp.md](canvas-mcp.md) | 中文 | Excalidraw canvases and the built-in `loci_excalidraw` MCP server: design, semantics, limits and verification records |
