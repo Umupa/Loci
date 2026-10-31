@@ -11,13 +11,13 @@ export const ResourceHeaderLeading = createContext<ReactNode>(null);
 
 /** Resource pages occupy the overview's same 40px navigation row. */
 export function ResourceHeader({ title, titleContent, backLabel, onBack, onClose, children }: {
-  title: string; titleContent?: ReactNode; backLabel: string; onBack: () => void; onClose: () => void; children?: ReactNode;
+  title: string; titleContent?: ReactNode; backLabel?: string; onBack?: () => void; onClose: () => void; children?: ReactNode;
 }) {
   const extra = useContext(ResourceHeaderExtra);
   const leading = useContext(ResourceHeaderLeading);
   return <header data-resource-header data-tauri-drag-region="deep" className="flex h-10 min-w-0 shrink-0 items-center gap-1 border-b border-stroke pl-2 pr-3 font-sans">
     {leading}
-    <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label={backLabel} title={backLabel} onClick={onBack}><ChevronLeft className="size-3.5" strokeWidth={1.75} /></button>
+    {onBack ? <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label={backLabel ?? "Back"} title={backLabel ?? "Back"} onClick={onBack}><ChevronLeft className="size-3.5" strokeWidth={1.75} /></button> : null}
     <h3 className="min-w-0 flex-1 truncate text-[13px] font-medium" title={title}>{titleContent ?? title}</h3>
     {children}
     {extra}

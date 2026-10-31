@@ -24,6 +24,8 @@
 .course-pane__body { display: flex; min-height: 0; flex: 1; min-width: 0; }
 .course-pane__nav { width: 230px; flex-shrink: 0; overflow: auto; border-right: 1px solid var(--color-stroke); padding: 16px 8px; }
 .course-pane__nav[hidden] { display: none; }
+/* Outside a course pane, the outline flows inside its column. */
+.course-outline.course-pane__nav { width: auto; padding: 4px 0; border: 0; overflow: visible; }
 .course-pane__right { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .course-pane__reader { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; }
 .course-pane__nav-intro { padding: 0 8px 14px; color: color-mix(in srgb, var(--color-content) 55%, transparent); font-size: 11px; }

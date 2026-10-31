@@ -15,6 +15,7 @@ import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
 import { DiffCard } from "./DiffCard";
 import { CourseToc } from "./CourseToc";
+import { CourseOutline, PROGRESS_EVENT, type ProgressDetail } from "./CourseOutline";
 import "./CoursePane.css";
 
 type Props = {
@@ -31,25 +32,27 @@ type Props = {
   onDiscussed?: () => void;
   /** The lesson on screen, so the conversation beside it knows what is being read. */
   onLessonChange?: (lesson: { id: string; title: string } | null) => void;
+  /**
+   * Shown as the window's one reader: its outline lives outside, so the pane
+   * has no sidebar and no Back, only Close.
+   */
+  reader?: boolean;
 };
 type SyncFailure = { itemId: string; status: LearningStatus; message: string };
-/** Fired on `window` when a lesson's status changes in any pane. */
-export const PROGRESS_EVENT = "loci:course-progress";
-type ProgressDetail = { courseId: string; agentId: string; itemId: string; status: LearningStatus };
+export { PROGRESS_EVENT };
 const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
 /** How close to the end of a lesson counts as having reached it. */
 const READ_END_SLACK = 48;
 /** A lesson that fits without scrolling counts as read after this long open. */
 const SHORT_LESSON_DWELL_MS = 8000;
-/** What a status is called where the work is reading. */
-const READING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Reading", mastered: "Read" };
 
-export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart, actions, onDiscussed, onLessonChange, itemId, openRequest, onBack }: Props) {
+export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart, actions, onDiscussed, onLessonChange, itemId, openRequest, onBack, reader = false }: Props) {
+  const embedded = reader || !!onBack;
   const scope = JSON.stringify([agentId, courseId]);
   const [loaded, setLoaded] = useState<{ scope: string; course: CourseWithProgress | null; error: string | null }>({ scope, course: null, error: null });
   const [reload, setReload] = useState(0);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(!onBack);
+  const [sidebarOpen, setSidebarOpen] = useState(!embedded);
   const sidebarId = useId();
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState<string | null>(null);
@@ -70,7 +73,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   if (lastRequest.current !== requestKey) { lastRequest.current = requestKey; pendingItem.current = itemId; }
   useEffect(() => {
     if (itemId && course && courseItems(course.data).some((item) => item.id === itemId)) {
-      setActiveId(itemId);
+      // Choosing a lesson from outside is opening it, as choosing it here is.
+      select(itemId);
       pendingItem.current = undefined;
     }
     // Only an explicit navigation changes selection; ordinary revisions keep it.
@@ -250,7 +254,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   }, [activeId, activeStatus, reading]);
   const activeTitle = items[currentIndex]?.title;
   useEffect(() => { onLessonChange?.(activeId && activeTitle ? { id: activeId, title: activeTitle } : null); }, [activeId, activeTitle]); // eslint-disable-line react-hooks/exhaustive-deps
-  const iconButton = onBack ? RESOURCE_ACTION : "course-pane__close";
+  const iconButton = embedded ? RESOURCE_ACTION : "course-pane__close";
   const controls = course ? <>
     <button type="button" data-no-drag className={iconButton} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-3.5" /><span className="sr-only">Previous</span></button>
     <button type="button" data-no-drag className={iconButton} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-3.5" /><span className="sr-only">Next</span></button>
@@ -270,8 +274,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   </> : null;
   const alerts = actionError || syncFailures.size ? <div className="course-pane__alerts">{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {items.find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</div> : null;
 
-  return <aside aria-label={course?.title ?? title ?? "Course"} className={`course-pane${onBack ? " course-pane--overview" : ""}`} onPointerDown={() => { if (!focused) onFocus(); }}>
-    {onBack ? <ResourceHeader title={course?.title ?? title ?? "Course"} titleContent={course ? <CourseContentsDropdown course={course} activeId={activeId} onSelect={select} /> : undefined} backLabel="Back to courses" onBack={onBack} onClose={onClose}>
+  return <aside aria-label={course?.title ?? title ?? "Course"} className={`course-pane${embedded ? " course-pane--overview" : ""}`} onPointerDown={() => { if (!focused) onFocus(); }}>
+    {embedded ? <ResourceHeader title={course?.title ?? title ?? "Course"} titleContent={course ? <CourseContentsDropdown course={course} activeId={activeId} onSelect={select} /> : undefined} backLabel="Back to courses" onBack={onBack} onClose={onClose}>
       {overviewControls}
       {actions}
     </ResourceHeader> : <>
@@ -281,13 +285,9 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     </PaneHeader>
     </>}
     {course ? <>
-      <div className="course-pane__body">{!onBack ? <CourseNav course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough}><CourseContent course={course} activeId={activeId} /></main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div>{alerts}</div></div>
+      <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough}><CourseContent course={course} activeId={activeId} /></main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div>{alerts}</div></div>
     </> : <div className="course-pane__empty" role={loaded.scope === scope && loaded.error ? "alert" : undefined}><p>{loaded.scope === scope ? loaded.error ?? "Opening course…" : "Opening course…"}</p>{loaded.scope === scope && loaded.error ? <button type="button" className="course-button" onClick={() => setReload((value) => value + 1)}>Retry</button> : null}</div>}
   </aside>;
-}
-
-function StatusMark({ status }: { status: LearningStatus }) {
-  return <span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? "✓" : ""}</span>;
 }
 
 type LessonMenuItem = { label: string; icon: ReactNode; disabled?: boolean; onSelect: () => void };
@@ -330,24 +330,9 @@ function CourseContentsDropdown({ course, activeId, onSelect }: { course: Course
       <span>{course.title}</span><ChevronDown className="size-3.5 shrink-0 text-content/45" aria-hidden="true" />
     </button>
     {open ? <Popover ref={popup} anchor={trigger} id={id} role="dialog" aria-label="Course contents" side="bottom" align="start" width={320} maxHeight={420} className="course-pane__contents" onKeyDown={navigate} onDismiss={(reason) => { if (reason === "escape") close(); else setOpen(false); }}>
-      <CourseNav course={course} activeId={activeId} onSelect={(item) => { onSelect(item); close(); }} />
+      <CourseOutline course={course} activeId={activeId} onSelect={(item) => { onSelect(item); close(); }} />
     </Popover> : null}
   </>;
-}
-
-function CourseNav({ course, activeId, onSelect, id, hidden }: { course: CourseWithProgress; activeId: string | null; onSelect: (id: string) => void; id?: string; hidden?: boolean }) {
-  const items = courseItems(course.data);
-  const reading = course.data.engine === "reading";
-  const mastered = items.filter((item) => course.progress.get(item.id) === "mastered").length;
-  const row = (item: { id: string; title: string }, index: number) => {
-    const status = course.progress.get(item.id) ?? "untouched";
-    return <li key={item.id}><button type="button" className={`course-pane__nav-item${activeId === item.id ? " course-pane__nav-item--active" : ""}`} aria-current={activeId === item.id ? "step" : undefined} aria-label={`${item.title}, ${reading ? READING_STATUS[status] : status}`} onClick={() => onSelect(item.id)}><StatusMark status={status} /><span className="course-pane__nav-label"><span className="course-pane__step-number">{String(index + 1).padStart(2, "0")}</span>{item.title}</span></button></li>;
-  };
-  // Lessons are numbered through the whole course, in the order shown.
-  let number = 0;
-  return <nav id={id} hidden={hidden} className="course-pane__nav" aria-label="Course navigation"><div className="course-pane__nav-intro">{reading ? null : <span>Build Your Own</span>}<p>{mastered} / {items.length} {reading ? "read" : "mastered"}</p><progress max={items.length} value={mastered} aria-label="Course completion" /></div>{course.data.engine === "reading"
-    ? course.data.chapters.map((chapter, at) => <section key={at} className="course-pane__chapter" aria-label={chapter.title}><h3 className="course-pane__chapter-title"><span className="course-pane__chapter-dot" style={{ background: `var(--course-chapter-${at % 6})` }} aria-hidden="true" />{chapter.title}</h3><ol>{chapter.lessons.map((lesson) => row(lesson, number++))}</ol></section>)
-    : <ol>{items.map(row)}</ol>}</nav>;
 }
 
 function CourseContent({ course, activeId }: { course: CourseWithProgress; activeId: string | null }) {
