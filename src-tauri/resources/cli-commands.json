@@ -2,6 +2,191 @@
   "version": 1,
   "commands": [
     {
+      "name": "annotations.add",
+      "summary": "Highlight a passage of a source or a text file, found by its words, optionally with a note.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor whose library it is, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "help": "A source or document id from the mentor's library",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "help": "An absolute path of a text or source file",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "quote",
+          "type": "string",
+          "help": "The passage, verbatim from the text",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "section",
+          "type": "string",
+          "help": "The heading it is under, in a source (picks among repeats)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "lines",
+          "type": "string",
+          "help": "Lines it is near, in a file: 12 or 12-40",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "help": "A note on it",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "annotations.counts",
+      "summary": "How many highlights and notes a course's lessons (or one source) have, as the course outline shows.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor whose library it is, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "course",
+          "type": "string",
+          "help": "A course id",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "help": "A source or document id from the mentor's library",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "annotations.delete",
+      "summary": "Delete a highlight and its note. Questions asked about it keep their passage.",
+      "callers": [
+        "external"
+      ],
+      "destructive": true,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "help": "The highlight's id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "yes",
+          "type": "boolean",
+          "help": "Do not ask (Loci Dev and QA builds only)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "annotations.list",
+      "summary": "The learner's highlights and notes on a source, a file or a course's lessons, in reading order.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor whose library it is, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "source",
+          "type": "string",
+          "help": "A source or document id from the mentor's library",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "help": "An absolute path of a text or source file",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "course",
+          "type": "string",
+          "help": "A course id: the marks on its lessons",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "lesson",
+          "type": "string",
+          "help": "One lesson of that course",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "annotations.note",
+      "summary": "Write (or, with an empty note, clear) the note on a highlight.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "help": "The highlight's id",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "help": "The note",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "canvases.create",
       "summary": "Create an empty drawing.",
       "callers": [

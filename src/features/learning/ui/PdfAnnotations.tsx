@@ -4,6 +4,9 @@ import { ChevronRight, Pencil, MessageSquare, MessageSquarePlus, Trash2, X } fro
 import type { FileSelection } from "../../files/hooks/useFileSelection";
 import { openLearningDiscussion } from "../model/navigation";
 import type { Annotation } from "../model/types";
+import { annotationPlace } from "../model/annotationPlace";
+
+export { annotationPlace };
 import "./PdfAnnotations.css";
 
 type Actions = {
@@ -11,16 +14,6 @@ type Actions = {
   onSave: (annotation: Annotation, note: string) => Promise<void>;
   onDelete: (annotation: Annotation) => Promise<void>;
 };
-
-/** Where a mark is, as a reader would say it: a page, a section, some lines. */
-export function annotationPlace(annotation: Annotation, orphan = false): string {
-  if (orphan) return "This passage changed";
-  if (annotation.anchors.length) return `Page ${annotation.anchors.map((anchor) => anchor.page).join(", ")}`;
-  const lines = annotation.anchor?.lines;
-  if (lines) return lines[0] === lines[1] ? `Line ${lines[0]}` : `Lines ${lines[0]}–${lines[1]}`;
-  const headings = annotation.anchor?.headings;
-  return headings?.length ? headings[headings.length - 1] : "Passage";
-}
 
 /** Reading order: PDF marks by page and height, text marks by where they start. */
 function readingOrder(a: Annotation, b: Annotation): number {

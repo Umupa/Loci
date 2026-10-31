@@ -1,3 +1,4 @@
+import { annotationCommands } from "./annotations";
 import type { CommandContext } from "./context";
 import { fileCommands } from "./files";
 import { libraryCommands } from "./library";
@@ -17,4 +18,5 @@ export const COMMANDS = defineCommands<CommandContext>([
   ...fileCommands,
   ...settingsCommands,
   ...libraryCommands,
+  ...annotationCommands,
 ]);

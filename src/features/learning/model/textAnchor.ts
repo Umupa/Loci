@@ -8,7 +8,7 @@ import type { TextAnchor } from "./types";
 
 const CONTEXT = 32;
 const HEADING_MAX = 200;
-const HEADINGS_KEPT = 3;
+const HEADINGS_KEPT = 6;
 /** Rendered chrome that is not the text being read: buttons, pictures, the duplicate MathML of a formula. */
 const SKIP = "[data-anchor-skip], .katex-mathml, svg, button, script, style, textarea, input, select";
 

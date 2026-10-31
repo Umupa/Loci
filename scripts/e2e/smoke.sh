@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Drives a running Loci through its command line: create a mentor, take in a
-# source, save a course, read a lesson, ask the mentor about it, mark it read,
+# source, save a course, read a lesson, highlight and note a passage, ask the
+# mentor about it, mark it read,
 # and clean up. Run it against Loci Dev or a QA build, never the installed app:
 #
 #   LOCI_APP_ID=com.loci.desktop.qa LOCI_BIN="/path/Loci Dev.app/Contents/MacOS/loci" scripts/e2e/smoke.sh
@@ -57,6 +58,19 @@ if [[ "${LOCI_SMOKE_SEND:-1}" != "0" ]]; then
     step "skipping the question: $PROVIDER is not available in this Loci"
   fi
 fi
+
+step "highlight a passage, note it, count it on its lesson, delete it"
+MARK=$(loci annotations add --mentor "$MENTOR" --source smoke-scheduling --section Filtering \
+  --quote "not enough free CPU or memory" --note "smoke" \
+  | jq -er 'select(.result.saved and .result.annotation.section[-1] == "Filtering") | .result.annotation.id')
+loci annotations counts --mentor "$MENTOR" --course smoke-scheduling \
+  | jq -e '.result.lessons.filtering == {"highlights":1,"notes":1} and .result.lessons.scoring.highlights == 0' >/dev/null
+loci annotations note "$MARK" --note "" | jq -e '.result.annotation.note == ""' >/dev/null
+loci annotations list --mentor "$MENTOR" --course smoke-scheduling --lesson filtering | jq -e '.result.annotations | length == 1' >/dev/null
+loci reader open --mentor "$MENTOR" --source smoke-scheduling --quote "the pod is bound to the best one" >/dev/null
+loci reader show --mentor "$MENTOR" | jq -e '.result.focus.quote == "the pod is bound to the best one"' >/dev/null
+loci annotations delete "$MARK" --yes | jq -e '.result.deleted' >/dev/null
+loci annotations counts --mentor "$MENTOR" --source smoke-scheduling | jq -e '.result.highlights == 0' >/dev/null
 
 step "mark the lesson read"
 loci courses lesson smoke-scheduling filtering --mentor "$MENTOR" --status read | jq -e '.result.status == "read"' >/dev/null

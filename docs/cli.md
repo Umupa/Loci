@@ -77,7 +77,8 @@ Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false
 | `notes` | `list`, `read`, `write`, `delete` |
 | `canvases` | `list`, `get`, `create`, `rename`, `delete`, `read-data`, `write-data` |
 | `files` | `list`, `read`, `write`, in the mentor's working folder and the folders it was given |
-| `reader` | `open`, `show`, `close` |
+| `reader` | `open`, `show`, `close` (`open --source ID --quote TEXT` shows and flashes a passage) |
+| `annotations` | `list`, `counts`, `add`, `note`, `delete`: the learner's highlights and notes on sources, files and lessons |
 | `library` | `open`, `show`: the mentor's left column (segment, course, filter) |
 | `sessions` | `list`, `read`, `start`, `send`, `draft`, `stop`, `archive`, `delete` |
 | `soul`, `memory`, `habits` | The mentor's standing instructions, memory and habits |
@@ -100,7 +101,7 @@ If no Loci window is listening, the command shows or opens the main window and w
 
 ## Tests
 
-`scripts/e2e/smoke.sh` runs the whole path against a running Loci Dev or QA build: create a mentor on Antigravity with Full access, take in a source, save a course, open a lesson and a section, ask the mentor a question and wait for the reply, mark the lesson read, and delete the mentor.
+`scripts/e2e/smoke.sh` runs the whole path against a running Loci Dev or QA build: create a mentor on Antigravity with Full access, take in a source, save a course, open a lesson and a section, highlight and note a passage and count it on its lesson, open a quoted passage, ask the mentor a question and wait for the reply, mark the lesson read, and delete the mentor.
 
 ```sh
 LOCI_APP_ID=com.loci.desktop.qa \
@@ -133,7 +134,8 @@ You prepare reading for the user in Loci, through the `loci` command line (run `
 - Arrange sources into a course: `loci courses write --mentor <id> --input course.json`
   (the format is in `loci app --help`, "Reading course").
 - Show the user where to read: `loci reader open --mentor <id> --course <course> --lesson <lesson>`,
-  or `--source <slug> --section "<heading>"`.
+  or `--source <slug> --section "<heading>"`, or a passage: `--source <slug> --quote "<verbatim words>"`.
+- See what the user marked: `loci annotations list --mentor <id> --course <course>` (highlights and their notes).
 - Keep open questions in a note: `loci notes write --mentor <id> --title "Open questions" --body-file notes.md`.
 Every command prints JSON; a non-zero exit status means it did not happen.
 ```
