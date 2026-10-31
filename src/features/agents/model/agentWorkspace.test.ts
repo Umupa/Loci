@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { newSession, type Session } from "../../sessions/model/session";
-import { createAgent, findAgent, removeAgent } from "./agent";
+import { createAgent, findAgent, removeAgent, saveAgentSessionId } from "./agent";
+import { loadNewAgentAccess, markAgentAccessMigrated, saveNewAgentAccess } from "./agentAccess";
 import { planAgentContext, recordAgentContext } from "./agentFiles";
 import { ensureAgentSession, resetAgentSession } from "./agentWorkspace";
 
@@ -27,7 +28,7 @@ function host(saved: Session[] = []) {
   };
 }
 
-it("starts an agent's conversation once, at home with Auto permissions", async () => {
+it("starts an agent's conversation once, at home with Full access", async () => {
   const { id } = createAgent(["/code/app"]);
   const first = host();
   const [a, b] = await Promise.all([
@@ -36,9 +37,40 @@ it("starts an agent's conversation once, at home with Auto permissions", async (
   ]);
   expect(a).toBe(b);
   expect(first.create).toHaveBeenCalledTimes(1);
-  expect(a).toMatchObject({ cwd: "/home/me", runtimeMode: "auto" });
+  expect(a).toMatchObject({ cwd: "/home/me", runtimeMode: "full-access" });
   expect(findAgent(id)?.sessionId).toBe(a!.id);
   expect(first.added).toEqual([a]);
+});
+
+it("starts new mentors with the default chosen for new mentors", async () => {
+  saveNewAgentAccess("supervised");
+  expect(loadNewAgentAccess()).toBe("supervised");
+  const { id } = createAgent();
+  const session = (await ensureAgentSession(id, host()))!;
+  expect(session.runtimeMode).toBe("supervised");
+  // Reopening a mentor created now does not migrate it to Full access.
+  const again = host([session]);
+  expect(await ensureAgentSession(id, again)).toMatchObject({ runtimeMode: "supervised" });
+});
+
+it("switches an existing mentor's saved chat to Full access once", async () => {
+  const { id } = createAgent();
+  saveAgentSessionId(id, "old-chat");
+  const saved = { ...newSession("codex", "/home/me", "codex:test", "auto"), id: "old-chat" };
+  const migrated = await ensureAgentSession(id, host([saved]));
+  expect(migrated).toMatchObject({ id: "old-chat", runtimeMode: "full-access" });
+  expect(findAgent(id)?.accessMigrated).toBe(true);
+});
+
+it("keeps a permission mode chosen after the migration", async () => {
+  const { id } = createAgent();
+  saveAgentSessionId(id, "old-chat");
+  const saved = { ...newSession("codex", "/home/me", "codex:test", "auto"), id: "old-chat" };
+  await ensureAgentSession(id, host([saved]));
+  // The user picks Supervised in the mentor's settings after the switch.
+  const chosen = { ...saved, runtimeMode: "supervised" as const };
+  markAgentAccessMigrated(id);
+  expect(await ensureAgentSession(id, host([chosen]))).toMatchObject({ runtimeMode: "supervised" });
 });
 
 it("starts a new agent's conversation in its workdir", async () => {
@@ -123,7 +155,7 @@ it("resets the chat alone: a fresh conversation that is told who it is again", a
     cwd: "/home/me",
     model: "codex:other",
     modelSettings: { effort: "high" },
-    runtimeMode: "auto",
+    runtimeMode: "full-access",
     blocks: [],
   });
   expect(findAgent(id)?.sessionId).toBe(fresh.id);

@@ -47,6 +47,11 @@ export type Agent = {
   showStartedSessionsInSidebar?: boolean;
   /** Files the sessions it starts into a sidebar folder named after it. */
   useSidebarFolders?: boolean;
+  /**
+   * Its saved chat has already had the one-time switch to Full access, so the
+   * permission mode the user picks from now on is kept.
+   */
+  accessMigrated?: true;
 };
 
 const ROSTER_KEY = "loci:agent-roster";
@@ -100,6 +105,7 @@ function parseAgent(value: unknown): Agent | undefined {
       ? { showStartedSessionsInSidebar: entry.showStartedSessionsInSidebar }
       : {}),
     ...(entry.useSidebarFolders === true ? { useSidebarFolders: true } : {}),
+    ...(entry.accessMigrated === true ? { accessMigrated: true } : {}),
   };
 }
 

@@ -1,5 +1,10 @@
 import { newSession, type Session } from "../../sessions/model/session";
-import { agentForSession, findAgent, saveAgentSessionId } from "./agent";
+import { agentForSession, findAgent, saveAgentSessionId, type Agent } from "./agent";
+import {
+  AGENT_ACCESS_MIGRATION,
+  loadNewAgentAccess,
+  markAgentAccessMigrated,
+} from "./agentAccess";
 import { forgetAgentContext } from "./agentFiles";
 import { forgetAgentRotation } from "./agentRotation";
 
@@ -7,9 +12,11 @@ const openingAgents = new Map<string, Promise<Session | undefined>>();
 
 /**
  * Load the agent's conversation without opening or replacing a workspace tab.
- * A new one starts with Auto permissions in the agent's workdir, or in the
- * home folder when that cannot be made. A saved one keeps the folder it
- * started in: the provider's conversation is tied to it.
+ * A new one starts with the default permissions for new mentors in the agent's
+ * workdir, or in the home folder when that cannot be made. A saved one keeps
+ * the folder it started in: the provider's conversation is tied to it. A saved
+ * chat from before mentors defaulted to Full access switches once; a choice
+ * made in its settings after that is kept.
  */
 export function ensureAgentSession(
   agentId: string,
@@ -40,23 +47,42 @@ async function loadAgentSession(
   if (agent.sessionId) {
     const existing = await host.load(agent.sessionId);
     if (existing) {
-      host.add(existing);
-      return existing;
+      const session = migrateAgentAccess(agent, existing);
+      host.add(session);
+      return session;
     }
   }
   const cwd = await host.workdir(agentId).catch(() => host.home());
   // Removed while its folder was looked up.
   if (!findAgent(agentId)) return undefined;
-  const session: Session = { ...host.create(cwd), runtimeMode: "auto" };
+  const session: Session = {
+    ...host.create(cwd),
+    runtimeMode: loadNewAgentAccess(),
+  };
   saveAgentSessionId(agentId, session.id);
+  // A mentor created now took the current default; reopening it is not a migration.
+  markAgentAccessMigrated(agentId);
   host.add(session);
   return session;
 }
 
 /**
- * Reset only the agent's chat, keeping its identity and memory. The fresh
- * chat starts in the agent's workdir: this is where a chat that began in the
- * home folder moves into it, since its provider conversation ends here anyway.
+ * The one-time switch for a mentor whose chat predates Full access. The flag is
+ * recorded here so a later manual choice in its settings is not overridden.
+ */
+function migrateAgentAccess(agent: Agent, session: Session): Session {
+  if (agent.accessMigrated) return session;
+  markAgentAccessMigrated(agent.id);
+  return session.runtimeMode === AGENT_ACCESS_MIGRATION
+    ? session
+    : { ...session, runtimeMode: AGENT_ACCESS_MIGRATION };
+}
+
+/**
+ * Reset only the agent's chat, keeping its identity, memory and permissions.
+ * The fresh chat starts in the agent's workdir: this is where a chat that began
+ * in the home folder moves into it, since its provider conversation ends here
+ * anyway.
  */
 export async function resetAgentSession(
   current: Session,
