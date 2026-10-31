@@ -17,6 +17,7 @@ import type { AgentTemplate } from "../../features/agents/templates";
 import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession } from "../../features/agents/model/agentWorkspace";
+import { ensureAgentWorkdir } from "../../features/agents/model/agentWorkdir";
 import { archiveOlderTurns, canArchive, loadTranscriptPage, planArchive, type TranscriptPage } from "../../features/agents/model/agentTranscript";
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
@@ -216,6 +217,7 @@ export function useAgents(options: Options) {
     try {
       const session = await ensureAgentSession(agentId, {
         home: homeDir,
+        workdir: ensureAgentWorkdir,
         load: (id) => latest.current.loadSession(id),
         create: (cwd) => newDefaultSession(cwd),
         add: addSession,
@@ -240,6 +242,7 @@ export function useAgents(options: Options) {
       if (template) await editAgentFile(agent.id, "soul", () => template.soul);
       const session = await ensureAgentSession(agent.id, {
         home: homeDir,
+        workdir: ensureAgentWorkdir,
         load: (id) => latest.current.loadSession(id),
         create: (cwd) => newDefaultSession(cwd),
         add: addSession,
@@ -286,6 +289,7 @@ export function useAgents(options: Options) {
       { title: "Reset conversation", kind: "warning", okLabel: "Reset", cancelLabel: "Cancel" })) return;
     try {
       await resetAgentSession(current, {
+        workdir: ensureAgentWorkdir,
         stop: (id) => latest.current.submission.stopSessionWork(id),
         remove: (session) => discardSession(session, false),
         replace: (previousId, fresh) => {

@@ -273,7 +273,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
       })();
       return true;
     }
-    if (!options?.projectLocationReady && looksLikeProject(current.cwd) && optionsRef.current.synchronizeProject) {
+    // An agent's workdir is its own folder, not a project to keep track of.
+    if (!options?.projectLocationReady && !agent && looksLikeProject(current.cwd) && optionsRef.current.synchronizeProject) {
       let sync = projectSyncs.current.get(current.cwd);
       if (!sync) {
         sync = optionsRef.current.synchronizeProject(current.cwd);
