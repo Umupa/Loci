@@ -12,7 +12,7 @@ import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
 import { ColorPickerPopover, ColorSwatchRow, } from "../../../shared/ui/ColorPickerPopover";
 import { Popover } from "../../../shared/ui/Popover";
 import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
-import { agentLook, agentProjectsPhrase, agentsSnapshot, listAgents, subscribeAgents, type Agent } from "../../agents/model/agent";
+import { agentLook, agentsSnapshot, listAgents, subscribeAgents, type Agent } from "../../agents/model/agent";
 import { defaultAgentName } from "../../agents/model/agentAvatars";
 import { resetAgentDefaults } from "../../agents/model/agentFiles";
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
@@ -1500,14 +1500,14 @@ function AgentRow({ agent }: { agent: Agent }) {
     const look = agentLook(agent);
     const [error, setError] = useState<string>();
     const reset = async () => {
-        if (!await ask(t("Its soul goes back to the default and its name to {0}. Changes to its soul can't be recovered. Its conversation, projects, memory and habits are kept.", defaultAgentName(look.avatar)), { title: t("Reset {0} to its defaults?", look.name), kind: "warning", okLabel: t("Reset"), cancelLabel: t("Cancel") }))
+        if (!await ask(t("Its soul goes back to the default and its name to {0}. Changes to its soul can't be recovered. Its conversation, files, memory and habits are kept.", defaultAgentName(look.avatar)), { title: t("Reset {0} to its defaults?", look.name), kind: "warning", okLabel: t("Reset"), cancelLabel: t("Cancel") }))
             return;
         await resetAgentDefaults(agent.id).then(() => setError(undefined), (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
     };
     return (<Row label={<span className="flex min-w-0 items-center gap-2">
           <AgentAvatar name={look.avatar} color={look.color} className="size-4 shrink-0"/>
           <span className="truncate">{look.name}</span>
-        </span>} description={error ?? (look.projects.length ? t("Works on {0}", agentProjectsPhrase(look.projects)) : t("No projects yet"))}>
+        </span>} description={error ?? (look.workdir ? prettyCwd(look.workdir) : look.role)}>
       <SecondaryButton onClick={() => void reset()}>{t("Reset")}</SecondaryButton>
     </Row>);
 }

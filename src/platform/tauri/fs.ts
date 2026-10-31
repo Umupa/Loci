@@ -167,6 +167,17 @@ export async function pickFolders(title = "Open projects"): Promise<string[]> {
   return typeof selected === "string" && selected ? [slash(selected)] : [];
 }
 
+/** One folder chosen from the system picker, starting at `defaultPath`. */
+export async function pickFolder(title: string, defaultPath?: string): Promise<string | undefined> {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title,
+    ...(defaultPath ? { defaultPath } : {}),
+  });
+  const path = Array.isArray(selected) ? selected[0] : selected;
+  return typeof path === "string" && path ? slash(path) : undefined;
+}
 
 export async function pickFiles(title = "Attach files"): Promise<string[] | null> {
   const selected = await open({

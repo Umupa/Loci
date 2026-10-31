@@ -61,3 +61,12 @@ it("points a mentor at a folder the user already has", async () => {
   expect(invoke).toHaveBeenCalledWith("agent_workdir_ensure", { path: "/home/me/Loci/sandbox-study" });
   expect(findAgent(id)?.workdir).toBe("/home/me/Loci/sandbox-study");
 });
+
+it("knows whether a chat's folder already holds the workdir", async () => {
+  const { folderHolds } = await import("./agentWorkdir");
+  expect(folderHolds("/home/me", "/home/me/Loci/lens")).toBe(true);
+  expect(folderHolds("/home/me/", "/home/me")).toBe(true);
+  expect(folderHolds("~", "/home/me/Loci/lens")).toBe(true);
+  expect(folderHolds("/home/me/Loci/lens", "/home/me/Loci/lens-2")).toBe(false);
+  expect(folderHolds("/home/me", "/Volumes/study")).toBe(false);
+});

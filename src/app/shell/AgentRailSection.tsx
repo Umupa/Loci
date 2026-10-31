@@ -1,3 +1,4 @@
+import { prettyCwd } from "../../shared/lib/paths";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useAnimatedReorder } from "../../shared/hooks/useAnimatedReorder";
 import { CircleAlert, CircleDashed, MoreHorizontal, Pencil, Plus, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
@@ -8,7 +9,6 @@ import "./AgentRailSection.css";
 import {
   AGENT_STATUS_LABEL,
   agentLook,
-  agentProjectsPhrase,
   agentsSnapshot,
   listAgents,
   reorderAgents,
@@ -131,7 +131,6 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
           const look = agentLook(agent);
           const state = states.get(agent.id) ?? IDLE;
           const selected = agent.id === activeId;
-          const projects = agentProjectsPhrase(look.projects);
           const unseen = !selected && !!unseenIds?.has(agent.id);
           const preview = previews[agent.id];
           const phase = railPhase(state, unseen);
@@ -164,8 +163,8 @@ export function AgentRailSection({ activeId, states, unseenIds, onOpen, onOpenDe
             >
               <button
                 type="button"
-                title={[look.role ? `${look.name} · ${look.role}` : look.name, status, unseen ? "New update" : undefined, projects || "No projects yet", state.status === "idle" && preview ? `${preview.text}${preview.at != null ? ` · ${previewTimeLabel(preview.at)}` : ""}` : undefined].filter(Boolean).join("\n")}
-                aria-label={[look.name, status, unseen ? "New update" : undefined, projects || "no projects yet"].filter(Boolean).join(", ")}
+                title={[look.role ? `${look.name} · ${look.role}` : look.name, status, unseen ? "New update" : undefined, look.workdir ? prettyCwd(look.workdir) : undefined, state.status === "idle" && preview ? `${preview.text}${preview.at != null ? ` · ${previewTimeLabel(preview.at)}` : ""}` : undefined].filter(Boolean).join("\n")}
+                aria-label={[look.name, status, unseen ? "New update" : undefined].filter(Boolean).join(", ")}
                 aria-current={selected ? "true" : undefined}
                 className="flex min-w-0 flex-1 cursor-default items-center gap-2 pr-6 text-left"
               >

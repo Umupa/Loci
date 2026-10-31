@@ -700,7 +700,7 @@ function Workspace(boot: BootWorkspace) {
       }}
       detailsOpen={agents.isDetailsOpen(agent.id)} onToggleDetails={() => agents.setDetailsOpenFor(agent.id, (open) => !open)}
       onReset={() => void agents.reset(agent.id)} onDelete={() => void agents.remove(agent.id)}
-      onPickFolders={() => pickFolders("Choose projects")}
+      onPickFolders={() => pickFolders("Choose folders")}
       onLoadEarlier={agents.hasEarlier(session.id) ? () => void agents.loadEarlier(session.id) : undefined} />;
   };
 

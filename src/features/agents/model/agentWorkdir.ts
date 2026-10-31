@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { findAgent, updateAgent, type Agent } from "./agent";
 import { defaultAgentName } from "./agentAvatars";
+import { pathKey } from "../../../shared/lib/paths";
 
 /**
  * Each mentor works in a folder of its own that the user can see: cloned
@@ -67,4 +68,12 @@ export async function setAgentWorkdir(agentId: string, path: string): Promise<st
   const chosen = await invoke<string>("agent_workdir_ensure", { path });
   updateAgent(agentId, (agent) => ({ ...agent, workdir: chosen }));
   return chosen;
+}
+
+/** Whether `path` is `folder` or inside it; `~` stands for the home folder. */
+export function folderHolds(folder: string, path: string): boolean {
+  if (folder === "~") return true;
+  const parent = pathKey(folder).replace(/\/+$/, "");
+  const child = pathKey(path).replace(/\/+$/, "");
+  return child === parent || child.startsWith(`${parent}/`);
 }
