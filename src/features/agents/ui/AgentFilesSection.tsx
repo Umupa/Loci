@@ -11,6 +11,8 @@ type Props = {
   onOpenFile: OpenFileFn;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
+  /** Filters the working folder's tree by name or path; the tree then has no search field of its own. */
+  filter?: string;
 };
 
 type Workdir = { path?: string; error?: string };
@@ -20,7 +22,7 @@ type Workdir = { path?: string; error?: string };
  * was given, each folded until opened. It fills the width it is given and
  * brings no layout of its own, so it can sit in any column.
  */
-export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDeleted }: Props) {
+export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDeleted, filter }: Props) {
   const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
   const agent = useMemo(() => findAgent(agentId), [agentId, snapshot]);
   const [workdir, setWorkdir] = useState<Workdir>({});
@@ -40,13 +42,9 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
   return (
     <section className="flex min-h-0 min-w-0 flex-col" aria-label="Files">
       {workdir.path ? (
-        <>
-          <p className="truncate px-3 pb-1 pt-2 text-[11px] text-content/45" title={workdir.path}>
-            {prettyCwd(workdir.path)}
-          </p>
-          <FileTree key={workdir.path} cwd={workdir.path} rootLabel={projectName(workdir.path)}
-            onOpenFile={onOpenFile} onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} />
-        </>
+        <FileTree key={workdir.path} cwd={workdir.path} rootLabel={projectName(workdir.path)} query={filter}
+          header={<p className="truncate text-[11px] text-content/45" title={workdir.path}>{prettyCwd(workdir.path)}</p>}
+          onOpenFile={onOpenFile} onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} />
       ) : workdir.error ? (
         <p className="px-3 py-2 text-[12px] text-content/50" role="alert">
           Could not open the working folder: {workdir.error}
@@ -67,7 +65,7 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
   );
 }
 
-function OtherFolder({ path, ...tree }: { path: string } & Omit<Props, "agentId">) {
+function OtherFolder({ path, ...tree }: { path: string } & Omit<Props, "agentId" | "filter">) {
   const [open, setOpen] = useState(false);
   const Chevron = open ? ChevronDown : ChevronRight;
   return (

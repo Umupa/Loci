@@ -1,12 +1,7 @@
 import {
   ChevronDown,
   ChevronRight,
-  Eye,
-  EyeOff,
-  FilePlus,
-  FolderOpen,
-  FolderPlus,
-  FoldVertical,
+  MoreHorizontal,
   Search,
   X,
 } from "../../../shared/ui/icons";
@@ -87,6 +82,10 @@ type Props = {
   onOpenFile: OpenFileFn;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
+  /** A filter typed outside the tree; given, the tree shows no search field of its own. */
+  query?: string;
+  /** Shown ahead of the actions button, such as the folder's path. */
+  header?: ReactNode;
 };
 
 type Creating = { id: number; parent: string; isDir: boolean };
@@ -244,6 +243,21 @@ function treeMenuItems(target: MenuTarget, clip: Clip | null): ContextMenuItem[]
   ];
 }
 
+/** What the folder's "…" button offers: everything that is not about one entry. */
+export function folderMenuItems(showHidden: boolean): ContextMenuItem[] {
+  return [
+    { kind: "item", id: "new-file", label: "New File" },
+    { kind: "item", id: "new-folder", label: "New Folder" },
+    { kind: "item", id: "import", label: "Import Files…" },
+    { kind: "sep" },
+    { kind: "item", id: "refresh", label: "Refresh" },
+    { kind: "item", id: "collapse", label: "Collapse All" },
+    { kind: "item", id: "hidden", label: "Show Hidden Files", checked: showHidden },
+    { kind: "sep" },
+    { kind: "item", id: "reveal", label: REVEAL_LABEL },
+  ];
+}
+
 // Chat updates rerender the sidebar even when Files is hidden. Keep its tree
 // intact unless file-tree props, local state, or subscriptions actually change.
 export const FileTree = memo(function FileTree({
@@ -252,6 +266,8 @@ export const FileTree = memo(function FileTree({
   onOpenFile,
   onFileMoved,
   onFileDeleted,
+  query: outerQuery,
+  header,
 }: Props) {
   const [expanded, setExpanded] = useState(() => loadExpanded(cwd));
   const [selectedPath, setSelectedPath] = useState(() => loadSelected(cwd));
@@ -272,7 +288,9 @@ export const FileTree = memo(function FileTree({
     setEpoch((n) => n + 1);
   };
   const [showHidden, setShowHidden] = useState(readShowHidden);
-  const [query, setQuery] = useState("");
+  const [ownQuery, setQuery] = useState("");
+  const query = outerQuery ?? ownQuery;
+  const [actionsAnchor, setActionsAnchor] = useState<HTMLElement | null>(null);
   const [index, setIndex] = useState<ProjectFile[] | null>(null);
   const [activeMatch, setActiveMatch] = useState(0);
   const searching = query.trim().length > 0;
@@ -702,6 +720,52 @@ export const FileTree = memo(function FileTree({
     setMenu({ x, y, target });
   };
 
+  const runFolderAction = async (id: string) => {
+    switch (id) {
+      case "new-file":
+        startCreate(false);
+        return;
+      case "new-folder":
+        startCreate(true);
+        return;
+      case "import": {
+        const files = await pickFiles("Import files to project");
+        if (files) {
+          for (const file of files) {
+            try {
+              await copyPath(file, cwd);
+            } catch (err) {
+              console.error(`Failed to import ${file}:`, err);
+            }
+          }
+          notifyDirsChanged();
+        }
+        return;
+      }
+      case "refresh":
+        await run(async () => {
+          await Promise.all([...expanded].map((path) => refreshDir(path)));
+          notifyDirsChanged();
+        });
+        return;
+      case "collapse": {
+        setCreating(null);
+        setRenaming(null);
+        const next = new Set([cwd]);
+        saveExpanded(cwd, next);
+        setExpanded(next);
+        return;
+      }
+      case "hidden":
+        writeShowHidden(!showHidden);
+        setShowHidden(!showHidden);
+        return;
+      case "reveal":
+        await run(() => revealPath(cwd));
+        return;
+    }
+  };
+
   const runAction = async (id: string, target: MenuTarget) => {
     switch (id) {
       case "open":
@@ -961,57 +1025,29 @@ export const FileTree = memo(function FileTree({
         onContextMenu={onBackgroundMenu}
       >
         <div
-          className="flex h-9 shrink-0 items-center gap-px overflow-visible border-b border-stroke px-2"
+          className="flex h-8 shrink-0 items-center gap-1 pl-3 pr-1.5"
           onContextMenu={(e) => e.stopPropagation()}
         >
-          <HeaderIcon label="New File" onClick={() => startCreate(false)}>
-            <FilePlus className="size-3.5" strokeWidth={1.75} />
-          </HeaderIcon>
-          <HeaderIcon label="New Folder" onClick={() => startCreate(true)}>
-            <FolderPlus className="size-3.5" strokeWidth={1.75} />
-          </HeaderIcon>
-          <HeaderIcon label="Import Files" onClick={async () => {
-            const files = await pickFiles("Import files to project");
-            if (files) {
-              for (const file of files) {
-                try {
-                  await copyPath(file, cwd);
-                } catch (err) {
-                  console.error(`Failed to import ${file}:`, err);
-                }
-              }
-              notifyDirsChanged();
-            }
-          }}>
-            <FolderOpen className="size-3.5" strokeWidth={1.75} />
-          </HeaderIcon>
-          <HeaderIcon
-            label="Collapse All"
-            onClick={() => {
-              setCreating(null);
-              setRenaming(null);
-              const next = new Set([cwd]);
-              saveExpanded(cwd, next);
-              setExpanded(next);
+          <div className="min-w-0 flex-1">{header}</div>
+          <button
+            type="button"
+            title="File actions"
+            aria-label="File actions"
+            aria-haspopup="menu"
+            aria-expanded={actionsAnchor ? true : undefined}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              const anchor = e.currentTarget;
+              setActionsAnchor((open) => (open ? null : anchor));
             }}
+            className={`grid size-6 shrink-0 place-items-center rounded-md ${
+              actionsAnchor ? "bg-selection text-content" : "text-content/50 hover:bg-content/5 hover:text-content"
+            }`}
           >
-            <FoldVertical className="size-3.5" strokeWidth={1.75} />
-          </HeaderIcon>
-          <HeaderIcon
-            label={showHidden ? "Hide Hidden Files" : "Show Hidden Files"}
-            active={showHidden}
-            onClick={() => {
-              writeShowHidden(!showHidden);
-              setShowHidden(!showHidden);
-            }}
-          >
-            {showHidden ? (
-              <Eye className="size-3.5" strokeWidth={1.75} />
-            ) : (
-              <EyeOff className="size-3.5" strokeWidth={1.75} />
-            )}
-          </HeaderIcon>
+            <MoreHorizontal className="size-3.5" strokeWidth={1.75} />
+          </button>
         </div>
+        {outerQuery === undefined ? (
         <div
           className="flex h-9 shrink-0 items-center gap-1 border-b border-stroke px-2"
           onContextMenu={(e) => e.stopPropagation()}
@@ -1063,6 +1099,7 @@ export const FileTree = memo(function FileTree({
             ) : null}
           </div>
         </div>
+        ) : null}
         {searching ? (
           <FileMatches
             matches={matches}
@@ -1099,6 +1136,18 @@ export const FileTree = memo(function FileTree({
         </>
         )}
       </div>
+      {actionsAnchor ? (
+        <ContextMenu
+          anchor={actionsAnchor}
+          ariaLabel="Folder actions"
+          items={folderMenuItems(showHidden)}
+          onPick={(id) => {
+            setActionsAnchor(null);
+            void runFolderAction(id);
+          }}
+          onClose={() => setActionsAnchor(null)}
+        />
+      ) : null}
       {menu ? (
         <ContextMenu
           x={menu.x}
@@ -1116,36 +1165,6 @@ export const FileTree = memo(function FileTree({
     </TreeCtx.Provider>
   );
 });
-
-function HeaderIcon({
-  label,
-  onClick,
-  active = false,
-  children,
-}: {
-  label: string;
-  onClick?: () => void;
-  active?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      aria-pressed={active || undefined}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      className={`flex h-6 min-w-0 flex-1 items-center justify-center self-center rounded-md ${
-        active
-          ? "bg-selection text-content"
-          : "text-content/50 hover:bg-content/5 hover:text-content"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 function TreeChildren({
   parent,

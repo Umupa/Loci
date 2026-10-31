@@ -6,8 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
 vi.mock("../../files/ui/FileTree", () => ({
-  FileTree: ({ cwd, onOpenFile }: { cwd: string; onOpenFile: (path: string) => void }) =>
-    createElement("button", { "data-tree": cwd, onClick: () => onOpenFile(`${cwd}/README.md`) }, `tree ${cwd}`),
+  FileTree: ({ cwd, onOpenFile, query }: { cwd: string; onOpenFile: (path: string) => void; query?: string }) =>
+    createElement("button", { "data-tree": cwd, "data-query": query ?? "", onClick: () => onOpenFile(`${cwd}/README.md`) }, `tree ${cwd}`),
 }));
 
 import { createAgent } from "../model/agent";
@@ -40,10 +40,12 @@ it("lists the mentor's workdir and opens its files through the callback", async 
   invoke.mockImplementation(async (command: string, args: { slug?: string; path?: string }) =>
     command === "agent_workdir_create" ? `/home/me/Loci/${args.slug}` : args.path);
   const onOpenFile = vi.fn();
-  act(() => root.render(createElement(AgentFilesSection, { agentId: agent.id, onOpenFile })));
+  act(() => root.render(createElement(AgentFilesSection, { agentId: agent.id, onOpenFile, filter: "read" })));
   await settle();
   const tree = host.querySelector<HTMLButtonElement>('[data-tree="/home/me/Loci/lens"]');
   expect(tree).not.toBeNull();
+  // The library's filter reaches the working folder's tree.
+  expect(tree!.dataset.query).toBe("read");
   act(() => tree!.click());
   expect(onOpenFile).toHaveBeenCalledWith("/home/me/Loci/lens/README.md");
 

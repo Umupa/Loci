@@ -7,6 +7,8 @@ export type MentorFilesSectionProps = {
   onOpenFile: (path: string) => void;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
+  /** The library's filter, applied to the working folder. */
+  filter?: string;
 };
 
 /** The mentor's working folder (and any other folders it was given) in the library. */
