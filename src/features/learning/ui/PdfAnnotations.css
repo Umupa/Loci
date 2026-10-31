@@ -408,3 +408,17 @@
 ::highlight(loci-mark) { background-color: rgb(253 224 71 / 0.42); }
 ::highlight(loci-mark-selected) { background-color: rgb(251 191 36 / 0.55); }
 ::highlight(loci-flash) { background-color: rgb(96 165 250 / 0.4); }
+
+/* The list dropping from a reader's menu, rather than beside a PDF. */
+.pdf-annotations--floating {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-content) 14%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+}
+.pdf-annotations--floating .pdf-annotations {
+  width: 100%;
+  height: auto;
+  max-height: 460px;
+  border-left: 0;
+}

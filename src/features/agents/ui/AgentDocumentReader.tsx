@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, Copy, MoreHorizontal, StickyNote, Trash2, X } from "../../../shared/ui/icons";
+import { Check, Copy, MoreHorizontal, Pencil, StickyNote, Trash2, X } from "../../../shared/ui/icons";
 import { copyMessage } from "../../../platform/tauri/clipboard";
 import { Popover } from "../../../shared/ui/Popover";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
@@ -46,6 +46,8 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
   const [reload, setReload] = useState(0);
   const [menu, setMenu] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [marksOpen, setMarksOpen] = useState(false);
+  const [marks, setMarks] = useState(0);
   const more = useRef<HTMLButtonElement>(null);
   const [loading, setLoading] = useState(!!agentId);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -128,11 +130,13 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
       </PaneHeader>}
       {menu ? <Popover anchor={more} side="bottom" align="end" width={204} role="menu" aria-label="Document actions" onDismiss={() => setMenu(false)} className="p-1 font-sans">
         <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); void copyMessage(latest.body).then(() => { setCopied(true); setActionError(undefined); }, (cause) => setActionError(`Could not copy document: ${String(cause)}`)); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40">{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? "Copied" : "Copy document"}</button>
+        {agentId ? <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); setMarksOpen(true); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><Pencil className="size-3.5" />Highlights &amp; notes{marks ? ` (${marks})` : ""}</button> : null}
         <button type="button" role="menuitem" disabled={saved || loading || !!error} onClick={() => { setMenu(false); void saveAsNote(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><StickyNote className="size-3.5" />{saved ? "Saved to Notes" : "Save as a note"}</button>
         {agentId && stored ? <button type="button" role="menuitem" onClick={() => { setMenu(false); void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause))); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-400 hover:bg-content/6"><Trash2 className="size-3.5" />Remove from the library</button> : null}
       </Popover> : null}
       <div ref={bodyRef} className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${embedded ? "px-7 py-6" : "px-6 pb-10 pt-2"} text-[14px] leading-relaxed`}>
-        {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <DocumentBody document={latest} agentId={agentId} />}
+        {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <DocumentBody document={latest} agentId={agentId} onMarks={setMarks}
+          marksList={marksOpen ? { anchor: more, onClose: () => setMarksOpen(false) } : undefined} />}
         {actionError ? <p role="alert" className="mt-3 text-xs text-red-400">{actionError}</p> : null}
       </div>
     </aside>

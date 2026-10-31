@@ -10,9 +10,13 @@ import type { FileSelection } from "../../files/hooks/useFileSelection";
 
 const selected = vi.hoisted(() => ({ value: null as FileSelection | null, dismiss: vi.fn() }));
 
+vi.mock("../../../platform/tauri/platform", async (importOriginal) => ({ ...await importOriginal<object>(), IS_MAC: true }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("../model/agent", () => ({ findAgent: vi.fn() }));
-vi.mock("../../learning/model/learningStore", () => ({ registerLearningSource: vi.fn() }));
+vi.mock("../../learning/model/learningStore", () => ({
+  registerLearningSource: vi.fn(), listAnnotations: vi.fn(async () => []), subscribeLearningChanges: () => () => {},
+  upsertAnnotation: vi.fn(), deleteAnnotation: vi.fn(),
+}));
 vi.mock("../../sessions/model/quoteDraft", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../sessions/model/quoteDraft")>(),
   requestAddToChat: vi.fn(),
@@ -43,7 +47,7 @@ beforeEach(() => {
   root = createRoot(container);
 });
 
-const quoteButton = () => [...document.querySelectorAll<HTMLButtonElement>('[role="toolbar"] button')].find((button) => button.textContent?.startsWith("Quote"))!;
+const quote = () => act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyL", key: "l", metaKey: true, ctrlKey: false, bubbles: true, cancelable: true })); });
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
@@ -62,19 +66,20 @@ it("says where a source came from and hands its address to the text, and says no
   expect(container.querySelector("article")?.getAttribute("data-source-url")).toBe("");
 });
 
-it("puts a selected passage of a source to its agent as a quoted source, without sending anything", async () => {
+it("puts a selected passage of a source to its agent as a quoted passage of the library document, without sending anything", async () => {
   await act(async () => root.render(createElement(DocumentBody, { document: source, agentId: "a" })));
-  await act(async () => quoteButton().click());
-  const quoted = { id: "source-1", kind: "web", url: source.sourceUrl, title: "Pod Lifecycle", quote: "A Pod's phase" };
+  await quote();
+  const quoted = { id: "source-1", kind: "document", agentId: "a", documentId: "k8s-pod-lifecycle", url: source.sourceUrl, title: "Pod Lifecycle", quote: "A Pod's phase",
+    anchor: { exact: "A Pod's phase", prefix: "", suffix: "", start: 0, end: 0 } };
   expect(registerLearningSource).toHaveBeenCalledWith(quoted);
   expect(requestAddToChat).toHaveBeenCalledWith("", "plain", { sources: [quoted], targetSessionId: "agent-chat" });
 });
 
-it("quotes a selected passage of the agent's own document as plain text", async () => {
-  await act(async () => root.render(createElement(DocumentBody, { document: { id: "notes", title: "Notes", body: "Mine" }, agentId: "a" })));
-  await act(async () => quoteButton().click());
+it("quotes a selected passage of a document outside any library as plain text", async () => {
+  await act(async () => root.render(createElement(DocumentBody, { document: { id: "notes", title: "Notes", body: "Mine" } })));
+  await quote();
   expect(registerLearningSource).not.toHaveBeenCalled();
-  expect(requestAddToChat).toHaveBeenCalledWith("A Pod's phase", "quote", { targetSessionId: "agent-chat" });
+  expect(requestAddToChat).toHaveBeenCalledWith("A Pod's phase", "quote", {});
 });
 
 it("finds the heading a lesson starts at by its words, however it is spaced or cased", async () => {

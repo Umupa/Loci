@@ -1,11 +1,14 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { sectionHeadingIndex } from "../../../shared/lib/markdown/markdownSection";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import type { StoredDocument } from "../model/agentDocuments";
-import { DocumentSelectionMenu } from "./DocumentSelectionMenu";
+import { ReadingSelectionMenu } from "../../learning/ui/ReadingSelectionMenu";
+import { useReadingMarks } from "../../learning/ui/useReadingMarks";
+import { documentMarkSpec } from "../model/documentMarks";
+import type { PopoverAnchor } from "../../../shared/ui/Popover";
 import "./DocumentBody.css";
 
 /** A library document as a reader shows it, with where it came from when it is a source. */
@@ -43,14 +46,18 @@ type Props = {
    * read this way; its course already says where the reader is.
    */
   bare?: boolean;
+  /** Show the list of highlights and notes, dropping from this anchor. */
+  marksList?: { anchor: PopoverAnchor; onClose: () => void; title?: string };
+  /** How many highlights the document has, for a menu to say. */
+  onMarks?: (count: number) => void;
 };
 
 /**
  * A document's text, for reading. A source says where it was published and
- * shows that page's pictures. Selecting text offers to ask about, comment on,
- * or quote the passage in the chat.
+ * shows that page's pictures. Selecting text offers to ask about, highlight or
+ * note the passage; its highlights are painted on the text.
  */
-export function DocumentBody({ document, agentId, section, bare }: Props) {
+export function DocumentBody({ document, agentId, section, bare, marksList, onMarks }: Props) {
   const requestedSection = section?.trim() || undefined;
   const scope = JSON.stringify([document.id, requestedSection]);
   const [view, setView] = useState({ scope, full: false });
@@ -60,6 +67,10 @@ export function DocumentBody({ document, agentId, section, bare }: Props) {
   const topRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { selection, dismiss } = useFileSelection(bodyRef, true);
+  const spec = useMemo(() => documentMarkSpec(document, agentId), [document, agentId]);
+  const marks = useReadingMarks(bodyRef, spec, { agentId });
+  const count = marks.annotations.length;
+  useEffect(() => { onMarks?.(count); }, [onMarks, count]);
 
   useLayoutEffect(() => {
     const root = bodyRef.current;
@@ -96,7 +107,10 @@ export function DocumentBody({ document, agentId, section, bare }: Props) {
       <div ref={bodyRef} className="select-text">
         <AgentMarkdown text={document.body} wholeDocument sourceUrl={sourceUrl} section={fullDocument ? undefined : requestedSection} />
       </div>
-      <DocumentSelectionMenu document={document} agentId={agentId} selection={selection} onDismiss={dismiss} />
+      <ReadingSelectionMenu selection={selection} onDismiss={dismiss} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark}
+        resetKey={JSON.stringify([document.id, document.body, document.title, document.sourceUrl, agentId])} />
+      {marks.popover}
+      {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title) as ReactNode : null}
     </div>
   );
 }

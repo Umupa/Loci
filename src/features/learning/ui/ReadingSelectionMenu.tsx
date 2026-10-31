@@ -3,21 +3,33 @@ import { IS_MAC } from "../../../platform/tauri/platform";
 import { isImeComposition } from "../../../shared/lib/keyboard";
 import { Popover } from "../../../shared/ui/Popover";
 import type { FileSelection } from "../../files/hooks/useFileSelection";
-import { registerLearningSource } from "../../learning/model/learningStore";
-import type { AgentDocument } from "../../sessions/model/cards";
-import { appendSelectionQuote, requestAddToChat } from "../../sessions/model/quoteDraft";
-import { findAgent } from "../model/agent";
-import "./DocumentSelectionMenu.css";
+import "./ReadingSelectionMenu.css";
+
+/** What a passage goes to the chat as: a question, a bare quote, or a comment on it. */
+export type ChatIntent = { kind: "ask" } | { kind: "quote" } | { kind: "comment"; text: string };
 
 type Props = {
-  document: AgentDocument;
-  agentId?: string;
   selection: FileSelection | null;
   onDismiss: () => void;
+  /** Changes when the text being read changes: a captured passage no longer belongs to it. */
+  resetKey: string;
+  /** "Ask Kern", for the mentor beside the reader. */
+  askLabel?: string;
+  /**
+   * Put the passage in the composer's draft. Nothing is sent. `current` turns
+   * false once the menu was dismissed or its text changed: then nothing is added.
+   */
+  toChat: (passage: FileSelection, intent: ChatIntent, current: () => boolean) => Promise<void> | void;
+  /** Save a highlight; `note` opens it to write a note. Absent where nothing can be kept. */
+  onMark?: (passage: FileSelection, note: boolean) => Promise<void>;
 };
 
-/** Keep a passage available while focus moves from the document to its comment. */
-export function DocumentSelectionMenu({ document, agentId, selection, onDismiss }: Props) {
+/**
+ * The actions on selected text in any reader: Ask the mentor, Highlight, Note.
+ * Quote (⌘L) and Comment (⌥⌘M) stay as shortcuts. The passage is kept while
+ * focus moves to the comment field.
+ */
+export function ReadingSelectionMenu({ selection, onDismiss, resetKey, askLabel = "Ask", toChat, onMark }: Props) {
   const [commentSelection, setCommentSelection] = useState<FileSelection | null>(null);
   const [comment, setComment] = useState("");
   const [pending, setPending] = useState(false);
@@ -25,7 +37,7 @@ export function DocumentSelectionMenu({ document, agentId, selection, onDismiss 
   const commentRef = useRef<HTMLTextAreaElement>(null);
   const pendingRef = useRef(false);
   const actionRef = useRef(0);
-  const previousContext = useRef({ document, agentId });
+  const previousKey = useRef(resetKey);
   const dismissRef = useRef(onDismiss);
   dismissRef.current = onDismiss;
 
@@ -41,11 +53,8 @@ export function DocumentSelectionMenu({ document, agentId, selection, onDismiss 
   }, [onDismiss]);
 
   useEffect(() => {
-    const previous = previousContext.current;
-    previousContext.current = { document, agentId };
-    if (previous.document.id === document.id && previous.document.body === document.body
-      && previous.document.title === document.title && previous.document.sourceUrl === document.sourceUrl
-      && previous.agentId === agentId) return;
+    if (previousKey.current === resetKey) return;
+    previousKey.current = resetKey;
     actionRef.current += 1;
     pendingRef.current = false;
     setPending(false);
@@ -53,7 +62,7 @@ export function DocumentSelectionMenu({ document, agentId, selection, onDismiss 
     setComment("");
     setError(null);
     dismissRef.current();
-  }, [document.id, document.body, document.title, document.sourceUrl, agentId]);
+  }, [resetKey]);
 
   useEffect(() => () => { actionRef.current += 1; }, []);
 
@@ -77,35 +86,33 @@ export function DocumentSelectionMenu({ document, agentId, selection, onDismiss 
     };
   }, [selection, commentSelection, close]);
 
-  const addToChat = async (passage: FileSelection, followUp?: string) => {
+  const run = async (action: (current: () => boolean) => Promise<void> | void, keepSelection = false) => {
     if (pendingRef.current) return;
-    const action = ++actionRef.current;
+    const turn = ++actionRef.current;
+    const current = () => turn === actionRef.current;
     pendingRef.current = true;
     setPending(true);
     setError(null);
     try {
-      const targetSessionId = agentId ? findAgent(agentId)?.sessionId : undefined;
-      const target = targetSessionId ? { targetSessionId } : undefined;
-      if (document.sourceUrl) {
-        const source = { id: crypto.randomUUID(), kind: "web" as const, url: document.sourceUrl, title: document.title, quote: passage.text };
-        await registerLearningSource(source);
-        if (action !== actionRef.current) return;
-        requestAddToChat(followUp ?? "", "plain", { sources: [source], ...target });
-      } else if (followUp !== undefined) {
-        requestAddToChat(appendSelectionQuote("", passage.text) + followUp, "plain", target);
-      } else {
-        requestAddToChat(passage.text, "quote", target);
-      }
-      close();
+      await action(current);
+      if (turn !== actionRef.current) return;
+      if (keepSelection) {
+        actionRef.current += 1;
+        setCommentSelection(null);
+        window.getSelection()?.removeAllRanges();
+        onDismiss();
+      } else close();
     } catch (cause) {
-      if (action === actionRef.current) setError(cause instanceof Error ? cause.message : String(cause));
+      if (turn === actionRef.current) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      if (action === actionRef.current) {
+      if (turn === actionRef.current) {
         pendingRef.current = false;
         setPending(false);
       }
     }
   };
+  const send = (passage: FileSelection, intent: ChatIntent) => run((current) => toChat(passage, intent, current));
+  const mark = (passage: FileSelection, note: boolean) => onMark ? run(() => onMark(passage, note), true) : undefined;
 
   useEffect(() => {
     if (!selection || commentSelection) return;
@@ -121,7 +128,7 @@ export function DocumentSelectionMenu({ document, agentId, selection, onDismiss 
       event.preventDefault();
       event.stopPropagation();
       if (isComment) { setError(null); setCommentSelection(selection); }
-      else void addToChat(selection);
+      else void send(selection, { kind: "quote" });
     };
     window.addEventListener("keydown", key, true);
     return () => window.removeEventListener("keydown", key, true);
@@ -129,16 +136,17 @@ export function DocumentSelectionMenu({ document, agentId, selection, onDismiss 
 
   const passage = commentSelection ?? selection;
   if (!passage) return null;
+  const keep = (event: { preventDefault(): void }) => event.preventDefault();
 
   return (
     <Popover bare anchor={{ x: passage.rect.right, y: passage.rect.bottom }} side="bottom" align="start"
       onDismiss={close} role={commentSelection ? "dialog" : "toolbar"}
-      aria-label={commentSelection ? "Comment on selected text" : "Selected document text actions"}
+      aria-label={commentSelection ? "Comment on selected text" : "Selected text actions"}
       width={commentSelection ? 320 : undefined} className="document-selection-menu">
       {commentSelection ? (
         <form className="document-selection-menu__comment" onSubmit={(event) => {
           event.preventDefault();
-          if (comment.trim()) void addToChat(commentSelection, comment.trim());
+          if (comment.trim()) void send(commentSelection, { kind: "comment", text: comment.trim() });
         }}>
           <blockquote>{commentSelection.text}</blockquote>
           <textarea ref={commentRef} aria-label="Comment" placeholder="Add a comment…" value={comment}
@@ -150,21 +158,15 @@ export function DocumentSelectionMenu({ document, agentId, selection, onDismiss 
         </form>
       ) : (
         <div className="document-selection-menu__actions">
-          <button type="button" disabled={pending} title="Ask about this passage"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => void addToChat(passage, "请解释这段内容。")}>Ask</button>
-          <button type="button" disabled={pending} aria-keyshortcuts={IS_MAC ? "Alt+Meta+M" : "Alt+Control+M"}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => { setError(null); setCommentSelection(selection); }}>
-            <span>Comment</span><kbd>{IS_MAC ? "⌥ ⌘ M" : "Ctrl+Alt+M"}</kbd>
-          </button>
-          <button type="button" disabled={pending} aria-keyshortcuts={IS_MAC ? "Meta+L" : "Control+L"}
-            onMouseDown={(event) => event.preventDefault()} onClick={() => void addToChat(passage)}>
-            <span>Quote</span><kbd>{IS_MAC ? "⌘ L" : "Ctrl+L"}</kbd>
-          </button>
+          <button type="button" disabled={pending} title={`Put this passage in a question, without sending it (Quote: ${IS_MAC ? "⌘L" : "Ctrl+L"}; Comment: ${IS_MAC ? "⌥⌘M" : "Ctrl+Alt+M"})`}
+            onMouseDown={keep} onClick={() => void send(passage, { kind: "ask" })}>{askLabel}</button>
+          {onMark ? <>
+            <button type="button" disabled={pending} title="Keep this passage highlighted" onMouseDown={keep} onClick={() => void mark(passage, false)}>Highlight</button>
+            <button type="button" disabled={pending} title="Highlight this passage and write a note on it" onMouseDown={keep} onClick={() => void mark(passage, true)}>Note</button>
+          </> : null}
         </div>
       )}
-      {error ? <p role="alert" className="document-selection-menu__error">Could not add to chat. {error}</p> : null}
+      {error ? <p role="alert" className="document-selection-menu__error">Could not do that. {error}</p> : null}
     </Popover>
   );
 }
