@@ -761,7 +761,7 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       expect(first.text.startsWith("<loci_context>")).toBe(true);
       expect(first.text.endsWith("</loci_context>\n\nWhat broke?")).toBe(true);
       expect(first.text).toContain('"name": "Ember"');
-      expect(first.text).toContain('"path": "/code/app"');
+      expect(first.text).toContain('"folders": [\n    "/code/app"\n  ]');
       expect(first.text).toContain("- Be brief.");
       expect(first.text).toContain("CI runs on Actions");
       expect(first.text).toContain('"access": "agent"');
