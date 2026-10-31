@@ -4,6 +4,22 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Changed
+
+- Loci is now an AI-native learning workspace for engineers: one resident mentor per topic, which gathers first-hand sources and reads them with you. The README, the app description and [docs/roadmap.md](docs/roadmap.md) describe the new direction. Claude Code and Codex are the supported agent CLIs; the other eight are experimental.
+- Scheduled habit runs get app access through an internal turn option instead of a `/operator` prompt. Prompt text can no longer grant app access.
+
+### Removed
+
+- Usage meters, account switching and the Accounts and "Usage and privacy" settings. The notice shown when a CLI reports that its usage limit was hit stays, and sessions that already use a saved account keep working.
+- Session reminders, session folders, `/add-to-folder` (and the agent `folders.list` / `folders.move` actions), and session filters in the sidebar, including "Show archived in the sidebar".
+- The `/operator` command.
+- The Ledger market-briefing template. Agents already created from it keep their Soul.
+- The welcome animations, the send accent and the turn celebration sparkles.
+- Per-project chat backgrounds and per-project notification settings. The global background, wallpapers, themes and project mutes stay.
+
+Nothing is deleted from your data: tables and settings that these features used are left in place, unread.
+
 ## [0.1.1] - 2026-10-31
 
 ### Changed
