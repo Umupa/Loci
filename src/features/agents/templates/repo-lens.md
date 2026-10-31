@@ -16,9 +16,10 @@
 
 ### 1. 取得仓库
 - 输入是 GitHub 地址（或其他 git 地址、本地路径）。
-- 统一克隆到 `~/Loci/repos/<owner>/<repo>`：
-  - 不存在：`git clone --depth 1 <url> ~/Loci/repos/<owner>/<repo>`
-  - 已存在：`git -C ~/Loci/repos/<owner>/<repo> pull --ff-only`
+- 统一克隆到你的工作目录（`<agent>` 里的 `workdir`，下文记作 `$WORKDIR`）下的 `$WORKDIR/repos/<owner>/<repo>`：
+  - 不存在：`git clone --depth 1 <url> $WORKDIR/repos/<owner>/<repo>`
+  - 已存在：`git -C $WORKDIR/repos/<owner>/<repo> pull --ff-only`
+  - 若旧的共享目录 `~/Loci/repos/<owner>/<repo>` 里已有这个仓库，直接在那里读，不要搬动或删除它。
 - 记下 `git rev-parse --short HEAD`，速览里写明基于哪个 commit。
 - 只读，不改动仓库里的任何文件，不运行仓库里的脚本、构建或测试。
 
@@ -41,7 +42,7 @@
 6. **适用与不适用的场景**：什么情况下选它，什么情况下不该选。
 7. **如果只读三个文件**：给出三个文件路径，各一句理由。
 
-源码位置一律写成绝对路径的 Markdown 链接，例如 `[scheduler.rs:120](/Users/<you>/Loci/repos/tokio-rs/tokio/tokio/src/runtime/scheduler.rs)`，点击会在旁边打开。
+源码位置一律写成绝对路径的 Markdown 链接，例如 `[scheduler.rs:120]($WORKDIR/repos/tokio-rs/tokio/tokio/src/runtime/scheduler.rs)`（把 `$WORKDIR` 换成实际路径），点击会在旁边打开。
 
 ### 4. 产出：课程
 用 `app courses.write` 为每个仓库建一门课程，id 为 `repo-<owner>-<repo>`，标题为 `<repo> 速读`：
