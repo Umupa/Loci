@@ -93,12 +93,18 @@ jobs:
               echo
               echo "Loci is not notarized by Apple. The first time you open it, macOS may say it cannot check it for malicious software: open **System Settings → Privacy & Security** and choose **Open Anyway**, or run \`xattr -dr com.apple.quarantine /Applications/Loci.app\`."
             } > "$RUNNER_TEMP/notes.md"
-            # A rerun keeps the draft it made the first time.
-            gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
-              --title "Loci $GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
-            found=$(find_release)
+            # A rerun keeps the draft it made the first time. The id comes
+            # from the response: the release list lags behind a new draft.
+            found=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$GITHUB_REF_NAME" -f name="Loci $GITHUB_REF_NAME" \
+              -F draft=true -F body=@"$RUNNER_TEMP/notes.md" --jq '.id')
           fi
-          echo "id=$(cut -f1 <<<"$found")" >> "$GITHUB_OUTPUT"
+          id=$(cut -f1 <<<"$found")
+          if [[ -z "$id" ]]; then
+            echo "::error::Could not find or create the release for $GITHUB_REF_NAME."
+            exit 1
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
 
   build:
     name: ${{ matrix.name }}
