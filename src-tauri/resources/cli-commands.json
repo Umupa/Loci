@@ -688,6 +688,367 @@
       ]
     },
     {
+      "name": "mentors.create",
+      "summary": "Add a mentor, from a template or blank. It does not start a model.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "template",
+          "type": "string",
+          "help": "A template id from `loci templates list` (blank when left out)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "help": "Its name",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "help": "Its job in a few words",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "avatar",
+          "type": "string",
+          "help": "A face by name (see the mentor settings)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "help": "One of the mentor colors",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "workdir",
+          "type": "string",
+          "help": "Its working folder (created when missing)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "help": "The agent CLI: claude, codex, cursor, grok, opencode, pi, omp, fx, hermes, antigravity (agy for antigravity)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "help": "A model id from `loci models list`",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "effort",
+          "type": "string",
+          "help": "The model's effort setting",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "help": "Permissions: supervised, auto-accept-edits, auto, full-access",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "switch",
+          "type": "boolean",
+          "help": "Show it in the window",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "mentors.delete",
+      "summary": "Delete a mentor, its conversation, documents and courses. Its soul and memory files stay on disk.",
+      "callers": [
+        "external"
+      ],
+      "destructive": true,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "yes",
+          "type": "boolean",
+          "help": "Do not ask (Loci Dev and QA builds only)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "mentors.list",
+      "summary": "Every mentor, in rail order.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": []
+    },
+    {
+      "name": "mentors.read",
+      "summary": "Recent exchanges of a mentor's conversation, newest page first.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "before",
+          "type": "string",
+          "help": "nextBefore from an earlier page",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "help": "Exchanges, up to 3",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "maxChars",
+          "type": "integer",
+          "help": "Characters per message (200-6000)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "mentors.reset",
+      "summary": "Clear a mentor's conversation; its soul, memory and library stay.",
+      "callers": [
+        "external"
+      ],
+      "destructive": true,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "yes",
+          "type": "boolean",
+          "help": "Do not ask (Loci Dev and QA builds only)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "mentors.send",
+      "summary": "Send a message to a mentor, as typing it in its conversation does. Returns the turn to follow.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "help": "The message (or --text-file)",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "mentors.show",
+      "summary": "One mentor: identity, provider, model, permissions, status and what its reader shows.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "mentors.stop",
+      "summary": "Stop the mentor's current turn.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "mentors.switch",
+      "summary": "Show a mentor in the window, as choosing it on the rail does.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "mentors.turn",
+      "summary": "Where a turn started by `mentors send` is: queued, running, needs-you, done or failed, with the reply so far.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "turn",
+          "type": "string",
+          "help": "The turn id `mentors send` returned",
+          "required": true,
+          "positional": true
+        }
+      ]
+    },
+    {
+      "name": "mentors.update",
+      "summary": "Change a mentor's name, role, face, working folder, provider, model, effort or permissions.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "help": "Its name",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "role",
+          "type": "string",
+          "help": "Its job in a few words",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "avatar",
+          "type": "string",
+          "help": "A face by name (see the mentor settings)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "help": "One of the mentor colors",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "workdir",
+          "type": "string",
+          "help": "Its working folder (created when missing)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "help": "The agent CLI: claude, codex, cursor, grok, opencode, pi, omp, fx, hermes, antigravity (agy for antigravity)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "help": "A model id from `loci models list`",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "effort",
+          "type": "string",
+          "help": "The model's effort setting",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "help": "Permissions: supervised, auto-accept-edits, auto, full-access",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "models.list",
       "summary": "Providers, their models and settings, and the permission modes.",
       "callers": [
