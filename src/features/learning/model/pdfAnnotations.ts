@@ -74,6 +74,6 @@ export function pdfSelectionSource(document: ReadingDocument, quote: string, anc
 export function createPdfAnnotation(document: ReadingDocument, quote: string, anchors: PdfAnchor[]): PdfAnnotation {
   const id = crypto.randomUUID();
   const now = Date.now();
-  return { id, documentId: document.id, source: pdfSelectionSource(document, quote, anchors, id),
+  return { id, documentId: document.id, target: { kind: "pdf", documentId: document.id }, source: pdfSelectionSource(document, quote, anchors, id),
     anchors, note: "", discussions: [], createdAt: now, updatedAt: now };
 }

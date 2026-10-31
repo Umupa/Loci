@@ -9,6 +9,15 @@ describe("learning message context", () => {
   it("roundtrips source anchors through transcript validation", () => {
     expect(sanitizeLearningContext(JSON.parse(JSON.stringify(context)))).toEqual(context);
   });
+  it("keeps document and file passages with their text anchors, and drops bad ids", () => {
+    const anchor = { exact: "Pending", prefix: "phase: ", suffix: " means", start: 10, end: 17, headings: ["Pod phase"] };
+    const passages: LearningMessageContext = { sources: [
+      { id: "d", kind: "document", title: "Pods", quote: "Pending", agentId: "agent", documentId: "pods", section: "Pod phase", url: "https://k8s.io/pods", anchor, annotationId: "mark" },
+      { id: "f", kind: "file", title: "main.rs", quote: "fn main", path: "/src/main.rs", lines: [3, 3], anchor: { ...anchor, lines: [3, 3] } },
+    ] };
+    expect(sanitizeLearningContext(JSON.parse(JSON.stringify(passages)))).toEqual(passages);
+    expect(sanitizeLearningContext({ sources: [{ id: "x", kind: "document", title: "T", quote: "", agentId: "../a", documentId: "d" }] })).toEqual({});
+  });
   it("appends only source data to the user's question", () => {
     const prompt = withLearningContext("Why does it block?", context);
     const [question, metadata] = prompt.split("\n\n<loci_learning_context>\n");

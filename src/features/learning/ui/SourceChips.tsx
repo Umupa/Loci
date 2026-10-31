@@ -6,7 +6,7 @@ import { openLearningSource } from "../model/navigation";
 import { registerLearningSource } from "../model/learningStore";
 import "./SourceChips.css";
 
-const sourceIcons = { file: File, pdf: File, web: Globe, conversation: Chatting };
+const sourceIcons = { file: File, pdf: File, document: File, web: Globe, conversation: Chatting };
 
 function SourceChip({ source, onRemove, onError }: {
   source: LearningSource;

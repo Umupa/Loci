@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { LearningSource, PdfAnnotation, ReadingDocument } from "./types";
+import type { Annotation, AnnotationTarget, LearningSource, PdfAnnotation, ReadingDocument } from "./types";
 
 export const LEARNING_CHANGED_EVENT = "loci:learning-changed";
 function changed() { window.dispatchEvent(new Event(LEARNING_CHANGED_EVENT)); }
@@ -23,3 +23,9 @@ export const listPdfAnnotations = (documentId: string) => invoke<PdfAnnotation[]
 export const upsertPdfAnnotation = (annotation: PdfAnnotation) => write<PdfAnnotation>("learning_annotation_upsert", { annotation });
 export const deletePdfAnnotation = (id: string) => write<void>("learning_annotation_delete", { id });
 export const linkAnnotationDiscussion = (id: string, sessionId: string, blockId: string) => write<void>("learning_annotation_link", { id, sessionId, blockId });
+export const listAnnotations = (target: AnnotationTarget) => invoke<Annotation[]>("learning_annotations_for", { target });
+/** Marks on several targets in one call, as a course's lessons need them. */
+export const queryAnnotations = (targets: AnnotationTarget[]) => targets.length ? invoke<Annotation[]>("learning_annotations_query", { targets }) : Promise.resolve([]);
+export const getAnnotation = (id: string) => invoke<Annotation | null>("learning_annotation_get", { id });
+export const upsertAnnotation = (annotation: Annotation) => write<Annotation>("learning_annotation_upsert", { annotation });
+export const deleteAnnotation = deletePdfAnnotation;

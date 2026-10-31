@@ -55,6 +55,7 @@ export function useAppResourceNavigation(options: Options) {
             requestTranscriptJump(source.sessionId, source.blockId, source.quote);
             return;
           }
+          if (source.kind === "document") throw new Error("This passage is in a library document that can't be opened here.");
           let path = source.path;
           if (source.kind === "pdf") {
             const document = await getReadingDocument(source.documentId);

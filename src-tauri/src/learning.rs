@@ -1,4 +1,9 @@
-//! Source-backed learning and PDF annotations.
+//! Source-backed learning and reading annotations.
+//!
+//! One annotation table serves every reader. It started as PDF-only
+//! (`pdf_annotations`) and was widened in place: a row names its target (a PDF,
+//! a library document or a text file) and, for text, a quote anchor. Older
+//! builds list by `document_id`, so they keep seeing exactly their PDF rows.
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -20,13 +25,42 @@ enum SourceLocation {
     File {
         path: String,
         lines: Option<[u32; 2]>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        anchor: Option<TextAnchor>,
+        #[serde(
+            rename = "annotationId",
+            default,
+            skip_serializing_if = "Option::is_none"
+        )]
+        annotation_id: Option<String>,
     },
     Pdf {
         #[serde(rename = "documentId")]
         document_id: String,
         path: String,
         anchors: Vec<PdfAnchor>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        anchor: Option<TextAnchor>,
         #[serde(rename = "annotationId", skip_serializing_if = "Option::is_none")]
+        annotation_id: Option<String>,
+    },
+    /// A passage of a document in an agent's library.
+    Document {
+        #[serde(rename = "agentId")]
+        agent_id: String,
+        #[serde(rename = "documentId")]
+        document_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        url: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        section: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        anchor: Option<TextAnchor>,
+        #[serde(
+            rename = "annotationId",
+            default,
+            skip_serializing_if = "Option::is_none"
+        )]
         annotation_id: Option<String>,
     },
     Web {
@@ -51,6 +85,95 @@ pub struct PdfAnchor {
     page: u32,
     rects: Vec<PdfRect>,
 }
+/// A passage of text found again by its words: the quote with a little context,
+/// where it was (a hint), the headings above it and, in a text file, its lines.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TextAnchor {
+    exact: String,
+    #[serde(default)]
+    prefix: String,
+    #[serde(default)]
+    suffix: String,
+    #[serde(default)]
+    start: u64,
+    #[serde(default)]
+    end: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    headings: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    lines: Option<[u32; 2]>,
+}
+/// What an annotation marks.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum AnnotationTarget {
+    Pdf {
+        #[serde(rename = "documentId")]
+        document_id: String,
+    },
+    Document {
+        #[serde(rename = "agentId")]
+        agent_id: String,
+        #[serde(rename = "documentId")]
+        document_id: String,
+    },
+    File {
+        path: String,
+    },
+}
+impl AnnotationTarget {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::Pdf { .. } => "pdf",
+            Self::Document { .. } => "document",
+            Self::File { .. } => "file",
+        }
+    }
+    fn key(&self) -> String {
+        match self {
+            Self::Pdf { document_id } => document_id.clone(),
+            Self::Document {
+                agent_id,
+                document_id,
+            } => format!("{agent_id}/{document_id}"),
+            Self::File { path } => path.clone(),
+        }
+    }
+    fn from_row(kind: &str, key: &str, document_id: &str) -> Option<Self> {
+        match kind {
+            "document" => {
+                let (agent_id, document_id) = key.split_once('/')?;
+                Some(Self::Document {
+                    agent_id: agent_id.into(),
+                    document_id: document_id.into(),
+                })
+            }
+            "file" => Some(Self::File { path: key.into() }),
+            _ => Some(Self::Pdf {
+                document_id: if key.is_empty() { document_id } else { key }.into(),
+            }),
+        }
+    }
+    fn check(&self) -> Result<(), String> {
+        match self {
+            Self::Pdf { document_id } => key(document_id, 128),
+            Self::Document {
+                agent_id,
+                document_id,
+            } => {
+                key(agent_id, 128)?;
+                key(document_id, 128)
+            }
+            Self::File { path } => {
+                if !std::path::Path::new(path).is_absolute() || path.len() > 4096 {
+                    return Err("Annotated files need an absolute path".into());
+                }
+                Ok(())
+            }
+        }
+    }
+}
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Discussion {
@@ -71,8 +194,16 @@ pub struct ReadingDocument {
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
     id: String,
+    /// The PDF's record, for PDF marks; empty for the others.
+    #[serde(default)]
     document_id: String,
+    /// Absent in what older builds send: then it is the PDF `document_id` names.
+    #[serde(default)]
+    target: Option<AnnotationTarget>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    anchor: Option<TextAnchor>,
     source: Source,
+    #[serde(default)]
     anchors: Vec<PdfAnchor>,
     note: String,
     discussions: Vec<Discussion>,
@@ -91,7 +222,45 @@ pub(crate) fn ensure_table(conn: &Connection) -> rusqlite::Result<()> {
       anchors_json TEXT NOT NULL, note TEXT NOT NULL, discussions_json TEXT NOT NULL,
       created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS pdf_annotations_document ON pdf_annotations(document_id);",
+    )?;
+    // Widened in place for every reader; nothing is rewritten or dropped.
+    for column in [
+        "target_kind TEXT NOT NULL DEFAULT 'pdf'",
+        "target_key TEXT NOT NULL DEFAULT ''",
+        "anchor_json TEXT",
+    ] {
+        let name = column.split(' ').next().unwrap_or_default();
+        let present: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('pdf_annotations') WHERE name = ?1",
+            [name],
+            |row| row.get(0),
+        )?;
+        if present == 0 {
+            conn.execute_batch(&format!("ALTER TABLE pdf_annotations ADD COLUMN {column};"))?;
+        }
+    }
+    conn.execute_batch(
+        "UPDATE pdf_annotations SET target_key=document_id WHERE target_kind='pdf' AND target_key='';
+    CREATE INDEX IF NOT EXISTS annotations_target ON pdf_annotations(target_kind,target_key);",
     )
+}
+fn anchor_valid(anchor: &TextAnchor) -> Result<(), String> {
+    if anchor.exact.trim().is_empty()
+        || anchor.exact.len() > 8 * 1024
+        || anchor.prefix.len() > 1024
+        || anchor.suffix.len() > 1024
+        || anchor.end < anchor.start
+        || anchor
+            .headings
+            .as_ref()
+            .is_some_and(|h| h.len() > 8 || h.iter().any(|t| t.len() > 512))
+        || anchor
+            .lines
+            .is_some_and(|[first, last]| first == 0 || last < first)
+    {
+        return Err("Invalid text anchor".into());
+    }
+    Ok(())
 }
 
 fn key(id: &str, max: usize) -> Result<(), String> {
@@ -151,20 +320,62 @@ fn check_source(source: &Source) -> Result<(), String> {
         return Err("Invalid source text".into());
     }
     match &source.location {
-        SourceLocation::File { path, lines } => {
+        SourceLocation::File {
+            path,
+            lines,
+            anchor,
+            annotation_id,
+        } => {
             if !std::path::Path::new(path).is_absolute() {
                 return Err("Source files need an absolute path".into());
             }
             if lines.is_some_and(|[first, last]| first == 0 || last < first) {
                 return Err("Invalid source lines".into());
             }
+            if let Some(anchor) = anchor {
+                anchor_valid(anchor)?;
+            }
+            if let Some(id) = annotation_id {
+                key(id, 128)?;
+            }
+        }
+        SourceLocation::Document {
+            agent_id,
+            document_id,
+            url,
+            section,
+            anchor,
+            annotation_id,
+        } => {
+            key(agent_id, 128)?;
+            key(document_id, 128)?;
+            if url.as_ref().is_some_and(|u| {
+                url::Url::parse(u)
+                    .map(|u| !matches!(u.scheme(), "http" | "https"))
+                    .unwrap_or(true)
+            }) {
+                return Err("Invalid source URL".into());
+            }
+            if section.as_ref().is_some_and(|s| s.chars().count() > 512) {
+                return Err("Invalid source section".into());
+            }
+            if let Some(anchor) = anchor {
+                anchor_valid(anchor)?;
+            }
+            if let Some(id) = annotation_id {
+                key(id, 128)?;
+            }
         }
         SourceLocation::Pdf {
             document_id,
             path,
             anchors,
+            anchor,
             annotation_id,
         } => {
+            if let Some(anchor) = anchor {
+                anchor_valid(anchor)?;
+            }
             key(document_id, 128)?;
             if !std::path::Path::new(path).is_absolute() {
                 return Err("PDF sources need an absolute path".into());
@@ -334,12 +545,19 @@ pub fn learning_document_relocate(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "PDF relocation failed".into())
 }
+const ANNOTATION_COLUMNS: &str = "id,document_id,source_id,anchors_json,note,discussions_json,created_at,updated_at,target_kind,target_key,anchor_json";
 fn annotation_row(conn: &Connection, row: &rusqlite::Row<'_>) -> rusqlite::Result<Annotation> {
     let source_id: String = row.get(2)?;
     let found = source(conn, &source_id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
+    let document_id: String = row.get(1)?;
+    let kind: String = row.get(8)?;
+    let target_key: String = row.get(9)?;
+    let anchor: Option<String> = row.get(10)?;
     Ok(Annotation {
         id: row.get(0)?,
-        document_id: row.get(1)?,
+        target: AnnotationTarget::from_row(&kind, &target_key, &document_id),
+        document_id,
+        anchor: anchor.map(decode).transpose()?,
         source: found,
         anchors: decode(row.get(3)?)?,
         note: row.get(4)?,
@@ -349,35 +567,122 @@ fn annotation_row(conn: &Connection, row: &rusqlite::Row<'_>) -> rusqlite::Resul
     })
 }
 fn annotations(conn: &Connection, document_id: &str) -> rusqlite::Result<Vec<Annotation>> {
-    let mut statement=conn.prepare("SELECT id,document_id,source_id,anchors_json,note,discussions_json,created_at,updated_at FROM pdf_annotations WHERE document_id=?1 ORDER BY created_at,id")?;
+    let mut statement = conn.prepare(&format!(
+        "SELECT {ANNOTATION_COLUMNS} FROM pdf_annotations WHERE document_id=?1 AND target_kind='pdf' ORDER BY created_at,id"
+    ))?;
     let rows = statement.query_map([document_id], |row| annotation_row(conn, row))?;
     rows.collect()
 }
+fn annotations_for(
+    conn: &Connection,
+    target: &AnnotationTarget,
+) -> rusqlite::Result<Vec<Annotation>> {
+    let mut statement = conn.prepare(&format!(
+        "SELECT {ANNOTATION_COLUMNS} FROM pdf_annotations WHERE target_kind=?1 AND target_key=?2 ORDER BY created_at,id"
+    ))?;
+    let rows = statement.query_map(params![target.kind(), target.key()], |row| {
+        annotation_row(conn, row)
+    })?;
+    rows.collect()
+}
+fn annotation_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<Annotation>> {
+    conn.query_row(
+        &format!("SELECT {ANNOTATION_COLUMNS} FROM pdf_annotations WHERE id=?1"),
+        [id],
+        |row| annotation_row(conn, row),
+    )
+    .optional()
+}
+fn library_document_exists(
+    conn: &Connection,
+    agent_id: &str,
+    document_id: &str,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM agent_documents WHERE agent_id=?1 AND id=?2",
+        params![agent_id, document_id],
+        |row| row.get::<_, i64>(0),
+    )
+    .map(|count| count > 0)
+    .map_err(|e| e.to_string())
+}
 fn put_annotation(conn: &Connection, annotation: &Annotation) -> Result<(), String> {
     key(&annotation.id, 128)?;
-    key(&annotation.document_id, 128)?;
-    anchors_valid(&annotation.anchors)?;
-    if annotation.anchors.iter().any(|a| a.rects.is_empty()) {
-        return Err("A highlight needs selected text rectangles".into());
-    }
     if annotation.note.len() > 64 * 1024 {
         return Err("The annotation is too large".into());
     }
-    if document(conn, &annotation.document_id)
-        .map_err(|e| e.to_string())?
-        .is_none()
-    {
-        return Err("The PDF is not registered".into());
+    if let Some(anchor) = &annotation.anchor {
+        anchor_valid(anchor)?;
     }
-    match &annotation.source.location {
-        SourceLocation::Pdf { document_id, .. } if document_id == &annotation.document_id => {}
-        _ => return Err("The annotation must refer to its PDF".into()),
-    }
+    let target = annotation
+        .target
+        .clone()
+        .unwrap_or_else(|| AnnotationTarget::Pdf {
+            document_id: annotation.document_id.clone(),
+        });
+    target.check()?;
+    let document_id = match &target {
+        AnnotationTarget::Pdf { document_id } => {
+            if !annotation.document_id.is_empty() && &annotation.document_id != document_id {
+                return Err("The annotation must refer to its PDF".into());
+            }
+            anchors_valid(&annotation.anchors)?;
+            if annotation.anchors.iter().any(|a| a.rects.is_empty()) {
+                return Err("A highlight needs selected text rectangles".into());
+            }
+            if document(conn, document_id)
+                .map_err(|e| e.to_string())?
+                .is_none()
+            {
+                return Err("The PDF is not registered".into());
+            }
+            match &annotation.source.location {
+                SourceLocation::Pdf {
+                    document_id: source_document,
+                    ..
+                } if source_document == document_id => {}
+                _ => return Err("The annotation must refer to its PDF".into()),
+            }
+            document_id.clone()
+        }
+        AnnotationTarget::Document {
+            agent_id,
+            document_id,
+        } => {
+            if annotation.anchor.is_none() || !annotation.anchors.is_empty() {
+                return Err("A document highlight needs a text anchor".into());
+            }
+            if !library_document_exists(conn, agent_id, document_id)? {
+                return Err("That document is not in the library".into());
+            }
+            match &annotation.source.location {
+                SourceLocation::Document {
+                    agent_id: a,
+                    document_id: d,
+                    ..
+                } if a == agent_id && d == document_id => {}
+                _ => return Err("The annotation must refer to its document".into()),
+            }
+            String::new()
+        }
+        AnnotationTarget::File { path } => {
+            if annotation.anchor.is_none() || !annotation.anchors.is_empty() {
+                return Err("A file highlight needs a text anchor".into());
+            }
+            match &annotation.source.location {
+                SourceLocation::File { path: p, .. } if p == path => {}
+                _ => return Err("The annotation must refer to its file".into()),
+            }
+            String::new()
+        }
+    };
     put_source(conn, &annotation.source)?;
     let now = now_millis();
-    conn.execute("INSERT INTO pdf_annotations(id,document_id,source_id,anchors_json,note,discussions_json,created_at,updated_at)
-      VALUES(?1,?2,?3,?4,?5,?6,?7,?7) ON CONFLICT(id) DO UPDATE SET note=excluded.note,updated_at=excluded.updated_at",
-      params![annotation.id,annotation.document_id,annotation.source.id,encode(&annotation.anchors)?,annotation.note,encode(&annotation.discussions)?,now]).map_err(|e|e.to_string())?;
+    let anchor = annotation.anchor.as_ref().map(encode).transpose()?;
+    conn.execute("INSERT INTO pdf_annotations(id,document_id,source_id,anchors_json,note,discussions_json,created_at,updated_at,target_kind,target_key,anchor_json)
+      VALUES(?1,?2,?3,?4,?5,?6,?7,?7,?8,?9,?10) ON CONFLICT(id) DO UPDATE SET note=excluded.note,updated_at=excluded.updated_at,
+      anchor_json=COALESCE(excluded.anchor_json,pdf_annotations.anchor_json)",
+      params![annotation.id,document_id,annotation.source.id,encode(&annotation.anchors)?,annotation.note,encode(&annotation.discussions)?,now,target.kind(),target.key(),anchor]).map_err(|e|e.to_string())?;
     Ok(())
 }
 #[tauri::command(async)]
@@ -388,6 +693,40 @@ pub fn learning_annotations_list(
     key(&document_id, 128)?;
     annotations(&*store.lock_conn()?, &document_id).map_err(|e| e.to_string())
 }
+/// Every mark on one target: a PDF, a library document or a text file.
+#[tauri::command(async)]
+pub fn learning_annotations_for(
+    store: State<'_, SessionStore>,
+    target: AnnotationTarget,
+) -> Result<Vec<Annotation>, String> {
+    target.check()?;
+    annotations_for(&*store.lock_conn()?, &target).map_err(|e| e.to_string())
+}
+/// Marks on several targets at once, as a course's lessons need them.
+#[tauri::command(async)]
+pub fn learning_annotations_query(
+    store: State<'_, SessionStore>,
+    targets: Vec<AnnotationTarget>,
+) -> Result<Vec<Annotation>, String> {
+    if targets.len() > 512 {
+        return Err("Too many annotation targets".into());
+    }
+    let conn = store.lock_conn()?;
+    let mut found = Vec::new();
+    for target in &targets {
+        target.check()?;
+        found.extend(annotations_for(&conn, target).map_err(|e| e.to_string())?);
+    }
+    Ok(found)
+}
+#[tauri::command(async)]
+pub fn learning_annotation_get(
+    store: State<'_, SessionStore>,
+    id: String,
+) -> Result<Option<Annotation>, String> {
+    key(&id, 128)?;
+    annotation_by_id(&*store.lock_conn()?, &id).map_err(|e| e.to_string())
+}
 #[tauri::command(async)]
 pub fn learning_annotation_upsert(
     store: State<'_, SessionStore>,
@@ -395,10 +734,8 @@ pub fn learning_annotation_upsert(
 ) -> Result<Annotation, String> {
     let conn = store.lock_conn()?;
     put_annotation(&conn, &annotation)?;
-    annotations(&conn, &annotation.document_id)
+    annotation_by_id(&conn, &annotation.id)
         .map_err(|e| e.to_string())?
-        .into_iter()
-        .find(|a| a.id == annotation.id)
         .ok_or_else(|| "Annotation could not be saved".into())
 }
 #[tauri::command(async)]
@@ -484,9 +821,12 @@ mod tests {
                     document_id: doc.id.clone(),
                     path: doc.path,
                     anchors: anchors.clone(),
+                    anchor: None,
                     annotation_id: Some("annotation".into()),
                 },
             },
+            target: None,
+            anchor: None,
             anchors,
             note: String::new(),
             discussions: vec![],
@@ -528,5 +868,119 @@ mod tests {
             }]
         }])
         .is_err());
+    }
+    fn text_anchor(exact: &str) -> TextAnchor {
+        TextAnchor {
+            exact: exact.into(),
+            prefix: String::new(),
+            suffix: String::new(),
+            start: 0,
+            end: exact.len() as u64,
+            headings: Some(vec!["Pod phase".into()]),
+            lines: None,
+        }
+    }
+    #[test]
+    fn a_pdf_table_from_an_older_build_is_widened_without_losing_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE learning_sources (id TEXT PRIMARY KEY, source_json TEXT NOT NULL, created_at INTEGER NOT NULL);
+             CREATE TABLE reading_documents (id TEXT PRIMARY KEY, path TEXT NOT NULL, title TEXT NOT NULL, fingerprint TEXT NOT NULL,
+               created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE(path,fingerprint));
+             CREATE TABLE pdf_annotations (id TEXT PRIMARY KEY, document_id TEXT NOT NULL, source_id TEXT NOT NULL,
+               anchors_json TEXT NOT NULL, note TEXT NOT NULL, discussions_json TEXT NOT NULL,
+               created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             INSERT INTO reading_documents VALUES('doc','/b.pdf','B','f',1,1);
+             INSERT INTO learning_sources VALUES('s','{\"id\":\"s\",\"title\":\"B\",\"quote\":\"q\",\"kind\":\"pdf\",\"documentId\":\"doc\",\"path\":\"/b.pdf\",\"anchors\":[{\"page\":1,\"rects\":[{\"x\":0.1,\"y\":0.1,\"width\":0.2,\"height\":0.1}]}],\"annotationId\":\"a\"}',1);
+             INSERT INTO pdf_annotations VALUES('a','doc','s','[{\"page\":1,\"rects\":[{\"x\":0.1,\"y\":0.1,\"width\":0.2,\"height\":0.1}]}]','mine','[]',1,1);",
+        )
+        .unwrap();
+        ensure_table(&conn).unwrap();
+        ensure_table(&conn).unwrap();
+        let old = annotations(&conn, "doc").unwrap();
+        assert_eq!(old.len(), 1);
+        assert_eq!(old[0].note, "mine");
+        let target = AnnotationTarget::Pdf {
+            document_id: "doc".into(),
+        };
+        assert_eq!(old[0].target, Some(target.clone()));
+        assert_eq!(annotations_for(&conn, &target).unwrap().len(), 1);
+    }
+    #[test]
+    fn documents_and_files_take_text_highlights_that_pdf_lists_never_show() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        conn.execute("INSERT INTO agent_documents(agent_id,id,title,body,created_at,updated_at) VALUES('agent','pods','Pods','A Pod phase.',1,1)", []).unwrap();
+        let target = AnnotationTarget::Document {
+            agent_id: "agent".into(),
+            document_id: "pods".into(),
+        };
+        let mut annotation = Annotation {
+            id: "mark".into(),
+            document_id: String::new(),
+            target: Some(target.clone()),
+            anchor: Some(text_anchor("Pod phase")),
+            source: Source {
+                id: "mark-source".into(),
+                title: "Pods".into(),
+                quote: "Pod phase".into(),
+                location: SourceLocation::Document {
+                    agent_id: "agent".into(),
+                    document_id: "pods".into(),
+                    url: None,
+                    section: None,
+                    anchor: Some(text_anchor("Pod phase")),
+                    annotation_id: Some("mark".into()),
+                },
+            },
+            anchors: vec![],
+            note: "why".into(),
+            discussions: vec![],
+            created_at: 0,
+            updated_at: 0,
+        };
+        put_annotation(&conn, &annotation).unwrap();
+        let found = annotations_for(&conn, &target).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].anchor, Some(text_anchor("Pod phase")));
+        assert!(annotations(&conn, "").unwrap().is_empty());
+        // A missing library document, or a source that points elsewhere, is refused.
+        annotation.target = Some(AnnotationTarget::Document {
+            agent_id: "agent".into(),
+            document_id: "gone".into(),
+        });
+        assert!(put_annotation(&conn, &annotation).is_err());
+        annotation.id = "file-mark".into();
+        annotation.target = Some(AnnotationTarget::File {
+            path: "/src/main.rs".into(),
+        });
+        assert!(put_annotation(&conn, &annotation).is_err());
+        annotation.source.location = SourceLocation::File {
+            path: "/src/main.rs".into(),
+            lines: Some([3, 4]),
+            anchor: None,
+            annotation_id: Some("file-mark".into()),
+        };
+        put_annotation(&conn, &annotation).unwrap();
+        let file = AnnotationTarget::File {
+            path: "/src/main.rs".into(),
+        };
+        assert_eq!(annotations_for(&conn, &file).unwrap().len(), 1);
+        assert_eq!(
+            annotation_by_id(&conn, "file-mark")
+                .unwrap()
+                .unwrap()
+                .target,
+            Some(file)
+        );
+        annotation.anchor = None;
+        annotation.id = "no-anchor".into();
+        assert!(put_annotation(&conn, &annotation).is_err());
+    }
+    #[test]
+    fn older_annotation_json_without_a_target_still_parses() {
+        let parsed: Annotation = serde_json::from_str(r#"{"id":"a","documentId":"doc","source":{"id":"s","title":"T","quote":"q","kind":"file","path":"/a","lines":null},"anchors":[],"note":"","discussions":[],"createdAt":0,"updatedAt":0}"#).unwrap();
+        assert_eq!(parsed.target, None);
+        assert_eq!(parsed.document_id, "doc");
     }
 }
