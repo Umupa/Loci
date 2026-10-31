@@ -29,10 +29,10 @@ describe("Loci CLI tool calls", () => {
     expect(
       lociToolCall(
         shell(
-          "'/Applications/Loci App/loci' app folders.move --input -",
+          "'/Applications/Loci App/loci' app sessions.start --input -",
         ),
       )?.label,
-    ).toBe("Move a session");
+    ).toBe("Start a session");
     expect(
       lociToolCall(
         shell('"C:\\Program Files\\Loci\\loci.exe" app notes.list'),

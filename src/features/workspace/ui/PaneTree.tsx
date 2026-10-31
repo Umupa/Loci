@@ -10,7 +10,6 @@ import { type Attachment, type Block, type HarnessId, type RuntimeMode, type Ses
 import type { LearningMessageContext } from "../../learning/model/types";
 import { SessionPane } from "../../sessions/ui/SessionPane";
 import type { TranscriptPool } from "../../sessions/ui/TranscriptPool";
-import type { SessionFolderTarget } from "../../sessions/model/sessionFolders";
 import type { Canvas } from "../../canvas/canvas";
 const NotePane = lazy(() => import("../../notes/ui/NotePane").then((m) => ({ default: m.NotePane })));
 const FilePane = lazy(() => import("../../files/ui/FilePane").then((m) => ({ default: m.FilePane })));
@@ -38,7 +37,6 @@ type Shared = {
     onRemoveDraft: (sessionId: string, draftBlockId: string) => boolean | void;
     onStop: (sessionId: string) => void;
     onCompactContext: (sessionId: string) => boolean;
-    onPlaceSessionInFolder: (sessionId: string, target: SessionFolderTarget) => void;
     onDeleteQueuedMessage: (sessionId: string, messageId: string) => void;
     onEditQueuedMessage: (sessionId: string, messageId: string, text: string) => void;
     onQueuedMessageEditingChange: (sessionId: string, messageId?: string) => void;
@@ -85,7 +83,7 @@ type PaneDrag = {
     edge: PaneEdge;
 };
 const DRAG_THRESHOLD = 5;
-function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocused, composerFocusToken, recents, hideProjectPicker, onOpenFile, onFocus, onClose, onRatio, onCwdChange, onModelChange, onModelSettingsChange, onRuntimeModeChange, onSaveDraft, onRemoveDraft, onSubmit, onStop, onCompactContext, onPlaceSessionInFolder, onDeleteQueuedMessage, onEditQueuedMessage, onQueuedMessageEditingChange, onSteerQueuedMessage, onResumeQueue, onUsageLimitResume, onUsageLimitResumeAtReset, onUsageLimitDismiss, onNoteCardDismiss, onApproval, onQuestionReply, onQuestionInteraction, onBtwSubmit, onBtwRetry, onBtwDelete, onBtwStop, onBtwModelChange, onMovePane, onDetachPane, transcriptPool, canvases, renderSession, onCanvasFocus, onCanvasAddToChat, canvasChatTarget, canvasChatIcon, onCanvasTitleChange, onSaveToCanvas, projectCwd, onFilePaneFocus, onFilePanePin, onOpenProjectFile, windowHeader, }: Props) {
+function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocused, composerFocusToken, recents, hideProjectPicker, onOpenFile, onFocus, onClose, onRatio, onCwdChange, onModelChange, onModelSettingsChange, onRuntimeModeChange, onSaveDraft, onRemoveDraft, onSubmit, onStop, onCompactContext, onDeleteQueuedMessage, onEditQueuedMessage, onQueuedMessageEditingChange, onSteerQueuedMessage, onResumeQueue, onUsageLimitResume, onUsageLimitResumeAtReset, onUsageLimitDismiss, onNoteCardDismiss, onApproval, onQuestionReply, onQuestionInteraction, onBtwSubmit, onBtwRetry, onBtwDelete, onBtwStop, onBtwModelChange, onMovePane, onDetachPane, transcriptPool, canvases, renderSession, onCanvasFocus, onCanvasAddToChat, canvasChatTarget, canvasChatIcon, onCanvasTitleChange, onSaveToCanvas, projectCwd, onFilePaneFocus, onFilePanePin, onOpenProjectFile, windowHeader, }: Props) {
     const treeRef = useRef<HTMLDivElement>(null);
     const windowNavRef = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(0);
@@ -271,7 +269,6 @@ function PaneTreeComponent({ visible, layout, sessions, focusedId, composerFocus
                 onSubmit: onSubmit,
                 onStop: onStop,
                 onCompactContext: onCompactContext,
-                onPlaceSessionInFolder: onPlaceSessionInFolder,
                 onDeleteQueuedMessage: onDeleteQueuedMessage,
                 onEditQueuedMessage: onEditQueuedMessage,
                 onQueuedMessageEditingChange: onQueuedMessageEditingChange,

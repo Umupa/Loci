@@ -3,9 +3,7 @@ import { act, createElement, StrictMode, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatSessionTitle } from "../../features/sessions/model/session";
-import { formatReminderTime } from "../../features/sessions/model/sessionReminders";
 import { Sidebar } from "./Sidebar";
-import { loadSessionFolders } from "../../features/sessions/model/sessionFolders";
 import { copyText } from "../../platform/tauri/clipboard";
 vi.mock("../../platform/tauri/clipboard", () => ({
     copyText: vi.fn().mockResolvedValue(undefined),
@@ -287,28 +285,6 @@ describe("sidebar session multiselection", () => {
         expect(Array.from(container.querySelectorAll('[data-session-selected="true"]'), (el) => el.getAttribute("data-session-card"))).toEqual(["session-1", "session-2", "session-3"]);
         expect(props.onSelectSession).toHaveBeenCalledTimes(1);
     });
-    it("creates a folder containing the Ctrl-clicked sessions without opening them", () => {
-        props.sessions = [1, 2, 3].map((n) => ({
-            ...props.sessions[0],
-            id: `session-${n}`,
-            updatedAt: 100 - n,
-        }));
-        act(() => render());
-        for (const id of ["session-1", "session-3"]) {
-            act(() => container
-                .querySelector(`[data-session-card="${id}"]`)!
-                .dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true })));
-        }
-        expect(props.onSelectSession).not.toHaveBeenCalled();
-        expect(container.querySelectorAll('[data-session-selected="true"]')).toHaveLength(2);
-        act(() => card().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
-        const newFolder = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === "New folder")!;
-        act(() => newFolder.click());
-        expect(loadSessionFolders(props.cwd)[0].sessionIds).toEqual([
-            "session-1",
-            "session-3",
-        ]);
-    });
 });
 describe("sidebar session IDs", () => {
     function openCopyIdMenu(sessionId: string) {
@@ -477,7 +453,7 @@ describe("sidebar project picker", () => {
     });
 });
 describe("sidebar reorder affordances", () => {
-    it("keeps the default cursor on reorderable tabs and folders", () => {
+    it("keeps the default cursor on reorderable tabs", () => {
         props.sessions = [
             props.sessions[0],
             {
@@ -486,32 +462,12 @@ describe("sidebar reorder affordances", () => {
                 title: formatSessionTitle("codex", "Second conversation"),
             },
         ];
-        localStorage.setItem("loci.sessionFolders", JSON.stringify({
-            "/workspace/project": [
-                {
-                    id: "folder-1",
-                    name: "Folder one",
-                    sessionIds: ["session-1"],
-                    collapsed: false,
-                },
-                {
-                    id: "folder-2",
-                    name: "Folder two",
-                    sessionIds: ["session-2"],
-                    collapsed: false,
-                },
-            ],
-        }));
         act(() => render());
         const tabs = container.querySelectorAll<HTMLElement>('.workspace-tab');
         expect(Array.from(tabs, (tab) => tab.textContent)).toEqual(["Sessions", "Files"]);
         for (const tab of tabs) {
             expect(tab.className).not.toContain("cursor-grab");
             expect(tab.parentElement?.className).not.toContain("cursor-grab");
-        }
-        for (const name of ["Folder one", "Folder two"]) {
-            expect(container.querySelector<HTMLButtonElement>(`button[title="${name}"]`)!
-                .className).not.toContain("cursor-grab");
         }
     });
 });
@@ -562,7 +518,7 @@ describe("sidebar new session rows", () => {
     });
 });
 describe("sidebar pinned sessions", () => {
-    it("renders them as a collapsible folder-style group without a divider", () => {
+    it("renders them as a collapsible group without a divider", () => {
         props.sessions = [
             { ...props.sessions[0], pinned: true },
             {
@@ -582,65 +538,6 @@ describe("sidebar pinned sessions", () => {
         expect(toggle.getAttribute("aria-expanded")).toBe("false");
         expect(group.querySelector('[data-session-card="session-1"]')).toBeNull();
         expect(JSON.parse(localStorage.getItem("loci.pinnedSessionsCollapsed") ?? "{}")).toEqual({ "/workspace/project": true });
-    });
-});
-describe("sidebar session reminders", () => {
-    function openReminderMenu() {
-        act(() => card().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
-        const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((item) => item.textContent === "Remind me")!;
-        act(() => trigger.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
-        return document.querySelector<HTMLElement>('[role="menu"][aria-label="Remind me"]')!;
-    }
-    it("schedules the selected session from the hover submenu", () => {
-        props.onSetReminders = vi.fn();
-        act(() => render());
-        const submenu = openReminderMenu();
-        const preset = Array.from(submenu.querySelectorAll<HTMLButtonElement>("button")).find((item) => item.textContent?.startsWith("In 3 hours"))!;
-        const before = Date.now();
-        act(() => preset.click());
-        const [ids, dueAt] = vi.mocked(props.onSetReminders).mock.calls[0];
-        expect(ids).toEqual(["session-1"]);
-        expect(dueAt).toBeGreaterThanOrEqual(before + 3 * 60 * 60 * 1000);
-        expect(dueAt).toBeLessThanOrEqual(Date.now() + 3 * 60 * 60 * 1000);
-        expect(document.querySelector('[role="menu"]')).toBeNull();
-    });
-    it("groups reminders first without a card clock and offers cancellation first", () => {
-        props.onSetReminders = vi.fn();
-        props.onCancelReminders = vi.fn();
-        props.reminders = [
-            {
-                sessionId: "session-1",
-                dueAt: Date.now() + 3600000,
-                firedAt: null,
-                title: "Original conversation",
-                harness: "codex",
-                cwd: props.cwd,
-            },
-        ];
-        props.sessions = [
-            { ...props.sessions[0], pinned: true },
-            { ...props.sessions[0], id: "session-2", pinned: true },
-        ];
-        act(() => render());
-        const group = container.querySelector<HTMLElement>("[data-reminder-sessions]")!;
-        expect(group.parentElement!.firstElementChild).toBe(group);
-        expect(group.querySelector('[data-session-card="session-1"]')).toBe(card());
-        expect(container.querySelectorAll('[data-session-card="session-1"]')).toHaveLength(1);
-        expect(group.hasAttribute("data-session-folder")).toBe(false);
-        expect(group.querySelector('button[title="Reminders"]')!.className).not.toContain("cursor-grab");
-        expect(card().querySelector('[aria-label^="Reminder:"]')).toBeNull();
-        act(() => card().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
-        const cancel = document.querySelector<HTMLButtonElement>('[aria-label="Session actions"] [role="menuitem"]')!;
-        expect(cancel.textContent).toBe(`Cancel reminder${formatReminderTime(props.reminders[0].dueAt)}`);
-        act(() => cancel.click());
-        expect(props.onCancelReminders).toHaveBeenCalledExactlyOnceWith([
-            "session-1",
-        ]);
-        expect(props.onSetReminders).not.toHaveBeenCalled();
-        props.reminders = [];
-        act(() => render());
-        expect(container.querySelector("[data-reminder-sessions]")).toBeNull();
-        expect(container.querySelector('[data-pinned-sessions] [data-session-card="session-1"]')).toBe(card());
     });
 });
 describe("collapsed rail actions", () => {

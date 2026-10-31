@@ -40,7 +40,7 @@ function click(label: string) {
 
 describe("NotificationMuteControl", () => {
   it("mutes selected projects for eight hours without replacing category choices", () => {
-    updateNotificationPreferences(["private"], { disabled: ["reminders"] });
+    updateNotificationPreferences(["private"], { disabled: ["agentInput"] });
     act(() =>
       root.render(
         createElement(NotificationMuteControl, {
@@ -51,14 +51,14 @@ describe("NotificationMuteControl", () => {
     click("Mute notifications");
     click("8 hours");
     expect(loadNotificationPreferences()).toEqual({
-      private: { disabled: ["reminders"], mutedUntil: 1_800_028_800_000 },
+      private: { disabled: ["agentInput"], mutedUntil: 1_800_028_800_000 },
       personal: { disabled: [], mutedUntil: 1_800_028_800_000 },
     });
   });
 
   it("resumes notifications while preserving the project's chosen categories", () => {
     updateNotificationPreferences(["private"], {
-      disabled: ["reminders"],
+      disabled: ["agentInput"],
       mutedUntil: null,
     });
     act(() =>
@@ -68,7 +68,7 @@ describe("NotificationMuteControl", () => {
     );
     expect(container.textContent).toContain("Muted until resumed");
     click("Resume notifications");
-    expect(loadNotificationPreferences().private.disabled).toEqual(["reminders"]);
+    expect(loadNotificationPreferences().private.disabled).toEqual(["agentInput"]);
     expect(loadNotificationPreferences().private.mutedUntil).toBeUndefined();
     expect(container.textContent).not.toContain("Muted until resumed");
   });

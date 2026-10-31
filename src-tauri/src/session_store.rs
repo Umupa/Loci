@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use serde_json::json;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 pub struct SessionStore {
     conn: Mutex<Connection>,
@@ -436,7 +436,6 @@ pub fn session_delete(
             eprintln!("Generated image cleanup will need a retry: {error}");
         }
     }
-    let _ = app.emit(crate::reminders::CHANGED, ());
     Ok(())
 }
 
@@ -559,7 +558,6 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     );",
     )?;
     crate::notes::ensure_notes_table(conn)?;
-    crate::reminders::ensure_table(conn)?;
     crate::canvas::ensure_canvases_table(conn)?;
     crate::course::ensure_courses_table(conn)?;
     crate::agent_transcript::ensure_table(conn)?;

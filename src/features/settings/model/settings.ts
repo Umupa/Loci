@@ -137,7 +137,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         id: "notifications",
         section: "general",
         get label() { return t("Notifications"); },
-        keywords: "notify alert toast permission reminder background",
+        keywords: "notify alert toast permission background",
     },
     {
         id: "projects",
@@ -339,13 +339,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         id: "project-notifications",
         section: "general",
         get label() { return t("Project notifications"); },
-        keywords: "mute resume sounds banners reminders categories",
-    },
-    {
-        id: "show-archived",
-        section: "archive",
-        get label() { return t("Show archived in the sidebar"); },
-        keywords: "hidden conversations list",
+        keywords: "mute resume sounds banners categories",
     },
 ];
 export type SettingsSearchResult = {

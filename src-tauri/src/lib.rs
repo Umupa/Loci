@@ -25,7 +25,6 @@ mod notifications;
 mod pasteboard;
 mod project_logo;
 mod rate_limits;
-mod reminders;
 mod reset;
 mod session_store;
 mod skills;
@@ -223,7 +222,6 @@ pub fn run() {
             harness::reap_orphaned_harness_processes();
             session_store::init(app.handle())?;
             control::init(app.handle())?;
-            reminders::init(app.handle());
             menu::install(app.handle())?;
             #[cfg(target_os = "windows")]
             tray::install(app.handle())?;
@@ -371,13 +369,6 @@ pub fn run() {
             project_logo::forget_logo_file,
             project_logo::remove_project_logo,
             rate_limits::fetch_claude_usage,
-            reminders::reminder_list,
-            reminders::reminder_set,
-            reminders::reminder_clear,
-            reminders::reminder_configure,
-            reminders::reminder_register_window,
-            reminders::reminder_open,
-            reminders::reminder_take_open,
             session_store::session_upsert,
             session_store::session_list_by_project,
             session_store::session_rebase_project,

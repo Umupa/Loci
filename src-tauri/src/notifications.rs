@@ -19,11 +19,7 @@ pub const CLICK_EVENT: &str = "loci:notification-click";
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 fn handle_click(app: &AppHandle, identifier: &str) {
     use tauri::Emitter;
-    if let Some(reminder) = identifier.strip_prefix(crate::reminders::NOTIFICATION_PREFIX) {
-        crate::reminders::open_from_notification(app, reminder);
-    } else {
-        let _ = app.emit(CLICK_EVENT, identifier);
-    }
+    let _ = app.emit(CLICK_EVENT, identifier);
 }
 
 #[cfg(target_os = "macos")]
@@ -511,8 +507,6 @@ mod platform {
     /// Action payload for the explicit "Show" button. The body click carries
     /// no arguments, so the session id is also captured in the activation
     /// closure; the payload is a fallback for routing, not the primary path.
-    /// Reminder identifiers (`reminder:<session>:<due>`) flow through the
-    /// same path and are routed by `handle_click`.
     const SHOW_ACTION_PREFIX: &str = "show:";
 
     /// Wraps the session id in the "Show" button's activation payload.
@@ -688,15 +682,6 @@ mod platform {
             let action = show_action("549ae7ac");
             assert_eq!(session_from_action(&action), Some("549ae7ac"));
             assert_eq!(session_from_action("other"), None);
-        }
-
-        #[test]
-        fn show_action_preserves_reminder_identifiers() {
-            let action = show_action("reminder:549ae7ac:1700000000");
-            assert_eq!(
-                session_from_action(&action),
-                Some("reminder:549ae7ac:1700000000")
-            );
         }
 
         #[test]

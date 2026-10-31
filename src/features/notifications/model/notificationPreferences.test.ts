@@ -13,7 +13,7 @@ beforeEach(() => localStorage.clear());
 
 it("temporarily silences the whole project and restores only its selected categories at expiry", () => {
   updateNotificationPreferences(["private"], {
-    disabled: ["reminders", "agentInput"],
+    disabled: ["agentInput"],
   });
   updateNotificationPreferences(["private"], { mutedUntil: 5000 });
   expect(
@@ -36,7 +36,7 @@ it("temporarily silences the whole project and restores only its selected catego
   ).toBe(true);
   expect(
     allowsProjectNotification(
-      { projectId: "private", category: "reminders" },
+      { projectId: "private", category: "agentInput" },
       5000,
     ),
   ).toBe(false);
@@ -46,7 +46,7 @@ it("allows an event scheduled exactly at the mute deadline", () => {
   updateNotificationPreferences(["private"], { mutedUntil: 2000 });
   expect(
     allowsProjectNotification(
-      { projectId: "private", category: "reminders", occurredAt: 2000 },
+      { projectId: "private", category: "agentInput", occurredAt: 2000 },
       2000,
     ),
   ).toBe(true);
@@ -54,19 +54,19 @@ it("allows an event scheduled exactly at the mute deadline", () => {
 
 it("provides native delivery with the same category and time rule without depending on a running UI timer", () => {
   updateNotificationPreferences(["private"], {
-    disabled: ["reminders"],
+    disabled: ["agentInput"],
     mutedUntil: 5000,
   });
   expect(getProjectNotificationRule("private", "agentFinished")).toEqual({
     enabled: true,
     after: 4999,
   });
-  expect(getProjectNotificationRule("private", "reminders")).toEqual({
+  expect(getProjectNotificationRule("private", "agentInput")).toEqual({
     enabled: false,
     after: 4999,
   });
   updateNotificationPreferences(["private"], { mutedUntil: null });
-  expect(getProjectNotificationRule("private", "reminders").enabled).toBe(
+  expect(getProjectNotificationRule("private", "agentInput").enabled).toBe(
     false,
   );
 });
@@ -75,12 +75,12 @@ it("re-enabling one category resumes new events without replaying its delayed hi
   vi.useFakeTimers();
   vi.setSystemTime(1000);
   try {
-    updateNotificationPreferences(["private"], { disabled: ["reminders"] });
+    updateNotificationPreferences(["private"], { disabled: ["agentInput"] });
     vi.setSystemTime(2000);
     updateNotificationPreferences(["private"], { disabled: [] });
     expect(
       allowsProjectNotification(
-        { projectId: "private", category: "reminders", occurredAt: 1500 },
+        { projectId: "private", category: "agentInput", occurredAt: 1500 },
         2100,
       ),
     ).toBe(false);
@@ -92,7 +92,7 @@ it("re-enabling one category resumes new events without replaying its delayed hi
     ).toBe(true);
     expect(
       allowsProjectNotification(
-        { projectId: "private", category: "reminders", occurredAt: 2050 },
+        { projectId: "private", category: "agentInput", occurredAt: 2050 },
         2100,
       ),
     ).toBe(true);
@@ -108,13 +108,13 @@ it("does not replay activity from a mute period when the next refresh arrives af
     updateNotificationPreferences(["private"], { mutedUntil: 2000 });
     expect(
       allowsProjectNotification(
-        { projectId: "private", category: "reminders", occurredAt: 1500 },
+        { projectId: "private", category: "agentInput", occurredAt: 1500 },
         2100,
       ),
     ).toBe(false);
     expect(
       allowsProjectNotification(
-        { projectId: "private", category: "reminders", occurredAt: 2050 },
+        { projectId: "private", category: "agentInput", occurredAt: 2050 },
         2100,
       ),
     ).toBe(true);
@@ -123,13 +123,13 @@ it("does not replay activity from a mute period when the next refresh arrives af
     updateNotificationPreferences(["private"], { mutedUntil: undefined });
     expect(
       allowsProjectNotification(
-        { projectId: "private", category: "reminders", occurredAt: 2900 },
+        { projectId: "private", category: "agentInput", occurredAt: 2900 },
         3100,
       ),
     ).toBe(false);
     expect(
       allowsProjectNotification(
-        { projectId: "private", category: "reminders", occurredAt: 3050 },
+        { projectId: "private", category: "agentInput", occurredAt: 3050 },
         3100,
       ),
     ).toBe(true);
@@ -166,16 +166,16 @@ it("ignores malformed persisted entries without losing valid project choices", (
     "loci.projectNotifications.v1",
     JSON.stringify({
       private: {
-        disabled: ["reminders", "future-category", 5],
+        disabled: ["agentInput", "future-category", 5],
         mutedUntil: "forever",
       },
       broken: null,
     }),
   );
   expect(loadNotificationPreferences()).toEqual({
-    private: { disabled: ["reminders"] },
+    private: { disabled: ["agentInput"] },
   });
   expect(
-    allowsProjectNotification({ projectId: "broken", category: "reminders" }),
+    allowsProjectNotification({ projectId: "broken", category: "agentInput" }),
   ).toBe(true);
 });

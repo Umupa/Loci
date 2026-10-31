@@ -23,7 +23,6 @@ import { applyMoveWorkspacePane, applyDetachPaneToTab, applyPlaceSessionOnPane, 
 import { collectWorkspaceSnapshot } from "../../features/workspace/model/workspaceSnapshot";
 import { emptyTabVisitHistory, pruneTabVisitHistory, recordTabVisit, tabVisitBack, tabVisitForward } from "../../features/workspace/model/tabVisitHistory";
 import type { TitleTabDropPosition } from "../../features/workspace/model/paneDrop";
-import { loadSessionFolders, placeSessionInFolder, saveSessionFolders, type SessionFolderTarget } from "../../features/sessions/model/sessionFolders";
 import { pickFolders } from "../../platform/tauri/fs";
 import { moveFileDrafts, setFileDraft } from "../../features/files/model/fileDrafts";
 import { isEqualOrInside, projectName, rebasePath } from "../../shared/lib/paths";
@@ -681,12 +680,6 @@ export function useAppWorkspace(options: Options) {
     }
   }, [activateTab, invalidateLoadedSession, openProject, updateTabs]);
 
-  const placeInFolder = useCallback((id: string, target: SessionFolderTarget) => {
-    const session = latest.current.sessionsRef.current.find((entry) => entry.id === id);
-    if (!session) return;
-    saveSessionFolders(session.cwd, placeSessionInFolder(loadSessionFolders(session.cwd), id, target));
-  }, []);
-
   useEffect(() => {
     projectReturnMemory.current = reconcileProjectReturn({ memory: projectReturnMemory.current, tabs, sessions: options.sessions, activeTabId });
     setVisits((current) => pruneTabVisitHistory(current, new Set(tabs.map((tab) => tab.id)), activeTabId));
@@ -705,7 +698,6 @@ export function useAppWorkspace(options: Options) {
   const activeSession = options.sessions.find((session) => session.id === activeTab?.focusedId);
   const visibleTabs = filterTabsForProject(tabs, options.sessions, projectCwd);
   const sidebarHistory = useMemo(() => historyWithLiveSessions(history, options.sessions, projectCwd), [history, options.sessions, projectCwd]);
-  const openProjectSessions = useMemo(() => options.sessions.filter((session) => sameProjectPath(session.cwd, projectCwd) && tabs.some((tab) => leafIds(tab.layout).includes(session.id))).map(summaryFromSession), [options.sessions, projectCwd, tabs]);
 
   const openCanvas = useCallback((canvasId: string, cwd?: string) => {
     const alreadyOpen = tabsRef.current.find((tab) => leafIds(tab.layout).includes(canvasId));
@@ -813,7 +805,7 @@ export function useAppWorkspace(options: Options) {
     });
   }, [activateTab]);
 
-  return { isSessionUnavailable: sessionUnavailable, tabs, tabsRef, activeTabId, activeTabIdRef, projectCwd, projectCwdRef, projectReturnMemory, recents, history, historyPending, historyFailed, error, setError, composerFocusToken, activeTab, activeSession, visibleTabs, sidebarHistory, openProjectSessions, loadedSessionCache, openingSessionIds, skipForgetSessionIds, updateTabs, activateTab, addSession, createSession, focusPane, openProject, pickProject, refreshHistory, acceptSummary, loadSession, openSession, openSessionInCurrentTab, closeTabs, closePane, split, placeSession, movePane, placeTab, detachPane, changeCwd, renameSession, archiveSession, pinSession, removeSession, removeProject, placeInFolder, visits, visit, openCanvas, revealCanvas, isCanvasOpen, showCanvas, showDocument, showCourse, openFile, placeFile, fileMoved, fileDeleted, reopenClosed, pinTab,
+  return { isSessionUnavailable: sessionUnavailable, tabs, tabsRef, activeTabId, activeTabIdRef, projectCwd, projectCwdRef, projectReturnMemory, recents, history, historyPending, historyFailed, error, setError, composerFocusToken, activeTab, activeSession, visibleTabs, sidebarHistory, loadedSessionCache, openingSessionIds, skipForgetSessionIds, updateTabs, activateTab, addSession, createSession, focusPane, openProject, pickProject, refreshHistory, acceptSummary, loadSession, openSession, openSessionInCurrentTab, closeTabs, closePane, split, placeSession, movePane, placeTab, detachPane, changeCwd, renameSession, archiveSession, pinSession, removeSession, removeProject, visits, visit, openCanvas, revealCanvas, isCanvasOpen, showCanvas, showDocument, showCourse, openFile, placeFile, fileMoved, fileDeleted, reopenClosed, pinTab,
     ratio: (splitId: string, index: number, ratio: number) => updateTabs((current) => current.map((tab) => ({ ...tab, layout: setSplitRatio(tab.layout, splitId, index, ratio) }))),
     focusDirection: (direction: FocusDir) => { const tab = tabsRef.current.find((entry) => entry.id === activeTabIdRef.current); const id = tab && neighborLeafId(tab.layout, tab.focusedId, direction); if (id) focusPane(id); },
     cycleTab: (delta: number) => { const current = filterTabsForProject(tabsRef.current, latest.current.sessionsRef.current, projectCwdRef.current); const index = current.findIndex((tab) => tab.id === activeTabIdRef.current); const next = current[(index + delta + current.length) % current.length]; if (next) activateTab(next.id); },

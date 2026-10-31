@@ -49,7 +49,6 @@ import { saveMaskEmails, saveShowRemainingUsage, useMaskEmails, useShowRemaining
 import { accountStatus, accountUsageKey, useProviderAccountUsage, } from "../../providers/model/accountUsage";
 import { clearCachedRateLimits } from "../../providers/model/rateLimitsCache";
 import { AccountStatusLabel, AccountUsageMeters, AccountUsageRefresh, } from "../../providers/ui/ProviderAccountUsage";
-import { loadSessionSidebarFilters, saveSessionSidebarFilters, } from "../../sessions/model/sessionFilters";
 import type { SessionSummary } from "../../sessions/data/sessionStore";
 import { loadTabGroupColors, loadTabGroupCustomColors, loadTabGroupLabels, loadTabGroupMascots, resolveTabGroupColor, resolveTabGroupLabel, resolveTabGroupLogo, resolveTabGroupMascot, } from "../../workspace/model/tabGroups";
 import { useTabGroupLogos } from "../../projects/hooks/useTabGroupLogos";
@@ -313,7 +312,7 @@ function GeneralPage({}: {}) {
         <Row id="sounds" label={t("Sounds")} description={t("Short cues for finished turns. Choose project notification categories below. Switches and Copy on a finished turn also play.")}>
           <Toggle label={t("Sounds")} on={soundsEnabled} onChange={onSoundsEnabled}/>
         </Row>
-        <Row id="notifications" label={t("Notifications")} description={t("Notify when a reminder is due, or when an agent finishes or needs input in another session or while Loci is in the background. Click the notification to open that session.")}>
+        <Row id="notifications" label={t("Notifications")} description={t("Notify when an agent finishes or needs input in another session or while Loci is in the background. Click the notification to open that session.")}>
           {notificationsEnabled && notificationPermission === "denied" ? (<NotificationsBlocked />) : null}
           {notificationsEnabled && notificationPermission === "unsupported" ? (<span className="text-[12px] text-content/45">
               {t("Not available on this platform")}</span>) : null}
@@ -1617,17 +1616,11 @@ function ArchivePage({ cwd, sessions, onOpenSession, onArchiveSession, onDeleteS
     onDeleteProject?: (path: string) => void;
 }) {
   useLocale();
-    const [filters, setFilters] = useState(loadSessionSidebarFilters);
     const [deleting, setDeleting] = useState<ArchivedProject | null>(null);
     const archivedProjects = useArchivedProjects();
     const archived = useMemo(() => sessions
         .filter((session) => session.archived)
         .sort((a, b) => b.updatedAt - a.updatedAt), [getLocale(), sessions]);
-    const onShowArchived = (showArchived: boolean) => {
-        const next = { ...filters, showArchived };
-        saveSessionSidebarFilters(next);
-        setFilters(next);
-    };
     return (<>
       <Group title={t("Archived projects")} description={t("Archive a project from the rail to keep its chats without listing it in the sidebar.")}>
         {archivedProjects.length === 0 ? (<p className="px-4 py-3.5 text-[12px] text-content/45">
@@ -1650,9 +1643,6 @@ function ArchivePage({ cwd, sessions, onOpenSession, onArchiveSession, onDeleteS
       <Group title={looksLikeProject(cwd)
             ? t("Archived in {0}", projectName(cwd))
             : t("Archived conversations")}>
-        <Row id="show-archived" label={t("Show archived in the sidebar")} description={t("Keep archived conversations listed alongside the active ones.")}>
-          <Toggle label={t("Show archived in the sidebar")} on={filters.showArchived} onChange={onShowArchived}/>
-        </Row>
         {!looksLikeProject(cwd) ? (<p className="px-4 py-3.5 text-[12px] text-content/45">
             {t("Open a project to see its archived conversations.")}</p>) : archived.length === 0 ? (<p className="px-4 py-3.5 text-[12px] text-content/45">
             {t("No archived conversations in this project.")}</p>) : (archived.map((session) => (<div key={session.id} className="flex items-center gap-3 border-b border-content/5 px-4 py-2.5 last:border-b-0">

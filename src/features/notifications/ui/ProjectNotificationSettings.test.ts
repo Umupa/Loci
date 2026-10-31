@@ -60,15 +60,14 @@ it("saves only the selected project's categories while preserving its mute deadl
     await act(async () => root.render(createElement(ProjectNotificationSettings, { cwd: "" })));
     act(() => categoriesButton("me/private").click());
     for (const category of [
-        "Reminders",
         "Agent finished",
         "Agent approvals and questions",
     ]) {
         act(() => checkbox(`${category} for me/private`).click());
     }
-    expect(checkbox("Reminders for me/private").checked).toBe(false);
+    expect(checkbox("Agent finished for me/private").checked).toBe(false);
     expect(loadNotificationPreferences()["local:/me/private"]).toEqual({
-        disabled: ["agentFinished", "agentInput", "reminders"],
+        disabled: ["agentFinished", "agentInput"],
         mutedUntil: null,
     });
     expect(loadNotificationPreferences()["local:/work/app"]).toBeUndefined();
@@ -89,7 +88,6 @@ it("keeps local projects while offering only local notification categories", asy
     act(() => local.click());
     expect(checkbox("Agent finished for fun").checked).toBe(true);
     expect(checkbox("Agent approvals and questions for fun").checked).toBe(true);
-    expect(checkbox("Reminders for fun").checked).toBe(true);
 
 });
 it("discovers recent projects and focuses the project requested by a quick action", async () => {
@@ -125,13 +123,13 @@ it("keeps projects collapsed until opened and preserves choices when switching p
     expect(workPanel.hidden).toBe(true);
     act(() => personal.click());
     expect(personalPanel.hidden).toBe(false);
-    act(() => checkbox("Reminders for me/private").click());
-    expect(personal.textContent).toContain("2 of 3 enabled");
+    act(() => checkbox("Agent finished for me/private").click());
+    expect(personal.textContent).toContain("1 of 2 enabled");
     act(() => work.click());
     expect(personalPanel.hidden).toBe(true);
     expect(workPanel.hidden).toBe(false);
     act(() => personal.click());
-    expect(checkbox("Reminders for me/private").checked).toBe(false);
+    expect(checkbox("Agent finished for me/private").checked).toBe(false);
     act(() => personal.click());
     expect(personalPanel.hidden).toBe(true);
     expect(workPanel.hidden).toBe(true);
@@ -170,10 +168,9 @@ it.each(["manual", "expiry"])("explains the project-wide pause and preserves edi
     vi.setSystemTime(new Date("2030-01-15T12:00:00Z"));
     updateNotificationPreferences(["local:/me/private"], {
         mutedUntil: resumeMode === "manual" ? null : Date.now() + 60000,
-        disabled: ["agentInput"],
     });
     await act(async () => root.render(createElement(ProjectNotificationSettings, { cwd: "" })));
-    const project = checkbox("Reminders for me/private").closest("fieldset")!;
+    const project = checkbox("Agent finished for me/private").closest("fieldset")!;
     act(() => categoriesButton("me/private").click());
     expect(categoriesButton("me/private").textContent).toContain("All notifications paused");
     const pr = checkbox("Agent finished for me/private");
@@ -181,7 +178,7 @@ it.each(["manual", "expiry"])("explains the project-wide pause and preserves edi
     expect(description?.textContent).toContain("Your category choices apply when notifications resume.");
     expect(pr.checked).toBe(true);
     expect(pr.disabled).toBe(false);
-    act(() => checkbox("Reminders for me/private").click());
+    act(() => checkbox("Agent finished for me/private").click());
     expect(categoriesButton("me/private").textContent).toContain("All notifications paused");
     const resume = [...project.querySelectorAll("button")].find((button) => button.textContent === "Resume notifications");
     expect(resume).toBeInstanceOf(HTMLButtonElement);
@@ -191,15 +188,15 @@ it.each(["manual", "expiry"])("explains the project-wide pause and preserves edi
     else {
         await act(async () => vi.advanceTimersByTimeAsync(60000));
     }
-    expect(categoriesButton("me/private").textContent).toContain("1 of 3 enabled");
+    expect(categoriesButton("me/private").textContent).toContain("1 of 2 enabled");
     expect(project.textContent).not.toContain("All notifications paused");
     expect(pr.hasAttribute("aria-describedby")).toBe(false);
-    expect(checkbox("Reminders for me/private").checked).toBe(false);
-    expect(loadNotificationPreferences()["local:/me/private"]).toMatchObject({ disabled: ["agentInput", "reminders"] });
+    expect(checkbox("Agent finished for me/private").checked).toBe(false);
+    expect(loadNotificationPreferences()["local:/me/private"]).toMatchObject({ disabled: ["agentFinished"] });
 });
 it("dismisses the mute menu and custom date picker without changing preferences", async () => {
     await act(async () => root.render(createElement(ProjectNotificationSettings, { cwd: "" })));
-    const project = checkbox("Reminders for me/private").closest("fieldset")!;
+    const project = checkbox("Agent finished for me/private").closest("fieldset")!;
     const trigger = project.querySelector<HTMLButtonElement>('[aria-label="Mute notifications"]')!;
     act(() => trigger.click());
     expect(trigger.getAttribute("aria-expanded")).toBe("true");

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { projectKey } from "../../../shared/lib/paths";
-import { loadSessionFolders, saveSessionFolders, } from "../../sessions/model/sessionFolders";
+
+import { loadPinnedSessionsCollapsed, savePinnedSessionsCollapsed, } from "../../sessions/model/pinnedSessions";
 import { loadTabGroupLabels, saveTabGroupLabel, } from "../../workspace/model/tabGroups";
 import { loadProjectChatBackgroundSettings, saveProjectChatBackgroundSettings, } from "./projectChatBackground";
 import { rebaseProjectData } from "./projectData";
@@ -42,21 +43,14 @@ describe("rebaseProjectData", () => {
             scope: "all",
             effect: "dither",
         });
-        saveSessionFolders(from, [
-            {
-                id: "folder-1",
-                name: "Active",
-                sessionIds: ["session-1"],
-                collapsed: false,
-            },
-        ]);
+        savePinnedSessionsCollapsed(from, true);
         rebaseProjectData(from, to);
         expect(loadTabGroupLabels()).toEqual({ [newKey]: "My Loci" });
         expect(loadProjectGroupAssignments()).toEqual({ [to]: "personal" });
         expect(loadProjectChatBackgroundSettings(oldKey)).toBeNull();
         expect(loadProjectChatBackgroundSettings(newKey)?.path).toBe("/images/background.png");
         expect(loadProjectChatBackgroundSettings(newKey)?.effect).toBe("dither");
-        expect(loadSessionFolders(from)).toEqual([]);
-        expect(loadSessionFolders(to)[0]?.name).toBe("Active");
+        expect(loadPinnedSessionsCollapsed(from)).toBe(false);
+        expect(loadPinnedSessionsCollapsed(to)).toBe(true);
     });
 });

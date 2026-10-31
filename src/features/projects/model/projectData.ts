@@ -15,7 +15,7 @@ import {
   rebaseProjectGroupAssignment,
   removeProjectGroupAssignment,
 } from "./projectGroups";
-import { rebaseSessionFolderSettings } from "../../sessions/model/sessionFolders";
+import { rebasePinnedSessionsCollapsed } from "../../sessions/model/pinnedSessions";
 import { clearProjectProviders, rebaseProjectProviders } from "../../sessions/model/projectProviders";
 
 /** Saved chats filed under this project, so the confirm prompt can count them. */
@@ -48,6 +48,6 @@ export function rebaseProjectData(from: string, to: string): void {
   rebaseProjectTabGroupSettings(from, to);
   rebaseProjectGroupAssignment(from, to);
   rebaseProjectChatBackgroundSetting(oldKey, newKey);
-  rebaseSessionFolderSettings(from, to);
+  rebasePinnedSessionsCollapsed(from, to);
   rebaseProjectProviders(oldKey, newKey);
 }

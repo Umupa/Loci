@@ -1,7 +1,6 @@
 export const NOTIFICATION_CATEGORIES = [
   { id: "agentFinished", label: "Agent finished" },
   { id: "agentInput", label: "Agent approvals and questions" },
-  { id: "reminders", label: "Reminders" },
 ] as const;
 
 export type NotificationCategory =
