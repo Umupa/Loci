@@ -29,8 +29,9 @@ git rev-parse -q --verify "refs/tags/$tag" >/dev/null && fail "$tag exists alrea
 node -e '
 const [a, b] = process.argv.slice(1).map((v) => v.split(".").map(Number));
 const newer = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-process.exit(newer > 0 ? 0 : 1);
-' "$version" "$current" || fail "$version is not newer than $current, the current version."
+// The first release keeps the version the code already has.
+process.exit(newer >= 0 ? 0 : 1);
+' "$version" "$current" || fail "$version is older than $current, the current version."
 node scripts/changelog.mjs check || fail "Add what changed under \"## [Unreleased]\" in CHANGELOG.md first."
 [[ -n "$(node -p "require('./src-tauri/tauri.conf.json').plugins.updater.pubkey")" ]] ||
 	fail "There is no update public key yet. Run scripts/setup-release.sh once."
