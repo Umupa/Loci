@@ -26,3 +26,16 @@
   to { background-color: transparent; }
 }
 @media (prefers-reduced-motion: reduce) { [data-section-target] { animation: none; } }
+
+.document-guide-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-stroke);
+  font-size: 11px;
+  color: var(--color-accent);
+}
+.document-guide-note { color: color-mix(in srgb, var(--color-content) 45%, transparent); }

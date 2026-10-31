@@ -1,12 +1,12 @@
 import { useId, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
-import { File, Palette, Plus, Search, StickyNote, X } from "../../../shared/ui/icons";
+import { File, Palette, PenLine, Plus, Search, StickyNote, X } from "../../../shared/ui/icons";
 import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import type { CourseSummary } from "../../learning/model/course";
 import { notePreview, type Note } from "../../notes";
 import { agentLook, type Agent } from "../../agents/model/agent";
-import type { StoredDocument } from "../../agents/model/agentDocuments";
+import { isGuide, type StoredDocument } from "../../agents/model/agentDocuments";
 import { LIBRARY_SEGMENTS, type LibrarySegment } from "../model/libraryCourse";
 import { samePage, type MentorLesson, type MentorPage } from "../model/mentorPage";
 import { MentorFilesSection } from "./filesSlot";
@@ -66,11 +66,22 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
     files: undefined,
   };
 
-  const sources = useMemo<LibraryEntry[] | undefined>(() => data.documents?.map((document) => ({
-    kind: "document", id: document.id, icon: <File className="size-3.5" />, title: document.title,
-    subtitle: [document.subject, sourceName(document.sourceUrl)].filter(Boolean).join(" · "),
-    target: { kind: "document", document: { id: document.id, title: document.title, body: "", ...(document.subject ? { subject: document.subject } : {}) } },
-  })), [data.documents]);
+  // First-hand sources first, then the mentor's own guides, each under its heading once both kinds exist.
+  const sources = useMemo<LibraryEntry[] | undefined>(() => {
+    if (!data.documents) return undefined;
+    const both = data.documents.some(isGuide) && data.documents.some((document) => !isGuide(document));
+    const entry = (document: StoredDocument): LibraryEntry => {
+      const guide = isGuide(document);
+      return {
+        kind: "document", id: document.id, title: document.title,
+        icon: guide ? <PenLine className="size-3.5" /> : <File className="size-3.5" />,
+        subtitle: (guide ? [document.subject, "Mentor's guide"] : [document.subject, sourceName(document.sourceUrl)]).filter(Boolean).join(" · "),
+        target: { kind: "document", document: { id: document.id, title: document.title, body: "", ...(document.subject ? { subject: document.subject } : {}) } },
+        ...(both ? { group: guide ? "Mentor's guides" : "Sources" } : {}),
+      };
+    };
+    return [...data.documents.filter((document) => !isGuide(document)), ...data.documents.filter(isGuide)].map(entry);
+  }, [data.documents]);
   const notes = useMemo<LibraryEntry[] | undefined>(() => {
     if (!data.notes && !data.canvases) return undefined;
     const written = (data.notes ?? []).map((note) => ({ at: note.updatedAt, entry: {
@@ -104,7 +115,7 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
   } else {
     const entries = segment === "sources" ? sources : notes;
     body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={onOpen}
-      empty={segment === "sources" ? `Material ${agentLook(agent).name} saves, and documents it writes, appear here.` : "Your notes and drawings appear here."} />;
+      empty={segment === "sources" ? `First-hand material ${agentLook(agent).name} saves, and guides it writes, appear here.` : "Your notes and drawings appear here."} />;
   }
 
   return <nav className="mentor-library" aria-label={`${agent.name || "Mentor"} library`} data-mentor-library={agent.id} data-library-segment={segment}>

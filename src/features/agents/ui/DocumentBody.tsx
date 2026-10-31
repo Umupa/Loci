@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { PenLine } from "../../../shared/ui/icons";
 import { sectionHeadingIndex } from "../../../shared/lib/markdown/markdownSection";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
 import type { AgentDocument } from "../../sessions/model/cards";
@@ -145,6 +146,13 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
             onClick={(event) => { event.preventDefault(); void openUrl(sourceUrl).catch(() => undefined); }}>{hostOf(sourceUrl)}</a>
           {document.sourceVersion ? <span>{document.sourceVersion}</span> : null}
           {document.fetchedAt ? <span>saved {new Date(document.fetchedAt).toLocaleDateString()}</span> : null}
+        </p>
+      ) : agentId && !sourceUrl ? (
+        // The mentor's own writing is never mistaken for what someone else published.
+        <p data-document-guide className="document-guide-label">
+          <PenLine aria-hidden className="size-3 shrink-0" />
+          <span>Mentor's guide</span>
+          <span className="document-guide-note">written by your mentor, not a first-hand source</span>
         </p>
       ) : null}
       <div ref={bodyRef} className="select-text" data-reading-text>
