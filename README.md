@@ -116,6 +116,10 @@ Commands work at the start of a prompt.
 | `/compact` | Summarize older conversation context to free space |
 | `/mcp` | Find an MCP server for this message |
 
+## Command line
+
+`loci` drives a running Loci from a terminal: create mentors and talk to them, write sources, courses and notes, and open them in the reader. Tests and agents outside Loci use it. **Settings → General → Command line** puts it on your PATH and can turn it off. See [docs/cli.md](docs/cli.md).
+
 ## Appearance and language
 
 **Settings → Appearance** offers 22 Omarchy themes, matching code highlighting and 72 wallpapers, alongside system-installed fonts and custom accent colors. **Settings → General → Settings language** can follow the system language or use English or Simplified Chinese. The workspace stays in English. See [docs/themes.md](docs/themes.md).
@@ -124,6 +128,7 @@ Commands work at the start of a prompt.
 
 - **Where your data is.** Sessions, notes, canvases, source references and PDF annotations are in `loci.db` (SQLite) inside the app data folder `com.loci.desktop`: `~/Library/Application Support/com.loci.desktop` on macOS, `~/.local/share/com.loci.desktop` on Linux, `%APPDATA%\com.loci.desktop` on Windows. Pasted images live beside it. Your project files stay in your own folders. PDF annotations do not rewrite the PDF.
 - **What Loci sends over the network.** Loci has no analytics or crash reporting. An installed Loci checks GitHub Releases for updates a little after launch and every six hours, and asks before installing one; a build from source does not update itself. Beyond what the agent CLIs do with their own providers, Loci fetches the title and icon of public links shown in a conversation (loopback and private addresses are refused).
+- **The command line.** `loci` in a terminal can drive Loci while it runs. It needs a token that only your user account can read, and it can be turned off in **Settings → General → Command line**.
 - **What agents can do.** An agent runs with your user's permissions. The permission mode only decides when Loci asks you before the CLI acts, so choose it with the same care as in the CLI itself. **Full access** allows commands, edits and supported MCP confirmations without prompts.
 
 To report a vulnerability, see [SECURITY.md](SECURITY.md).

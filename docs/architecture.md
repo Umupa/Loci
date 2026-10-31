@@ -88,6 +88,9 @@ Loci reads Cursor's own store to recover sub-agent activity its ACP stream omits
 | --- | --- | --- |
 | `app` | agents, through the `app` subcommand of the desktop executable (`control_cli.rs`) | an agent's conversation and its habit runs always have access |
 | `canvas` | the built-in Excalidraw server | every session may draw while the switch in **Settings → MCP** is on, only in its own project |
+| `cli` | `loci <noun> <verb>` from a terminal outside Loci (`external_cli.rs`) | the local token in `<app data>/control/cli-token`, while **Settings → General → Command line** is on |
+
+The `cli` namespace is not tied to a turn. A running Loci writes where it listens to `<app data>/control/endpoint.json` and keeps a token in `cli-token` beside it, both readable only by the user (`cli_access.rs`). The token is the only credential that opens `cli`, and it opens nothing else. The host answers `status` and the token commands itself. Every other command goes to the main window, or to the first window whose listener is up; when none is, the main window is shown or opened. Each build has its own data folder, so `loci --app <identifier>` reaches Loci Dev or a QA build and never the installed app by accident. See [cli.md](cli.md).
 
 The switch is read when a turn starts and kept for that turn, so a change applies from the next turn and a running turn can finish. A provider may start its process under a generation-scoped id (`<session>#<n>`, as Antigravity does); the credential is looked up by the session that owns the process.
 
@@ -140,7 +143,11 @@ An agent, shown to the user as a mentor, is long-lived and belongs to no project
 - **Habits.** `useAgentHabits.ts` checks every minute while the app is open. A due habit runs in a hidden session (`ephemeral`: never saved, never shown, never counted) with full access, because nobody is watching it. With Codex the run uses an ephemeral thread, so it leaves nothing in the user's own Codex history; other CLIs keep whatever record they normally keep. Its last reply is posted to the agent's chat, or nothing when the reply is `NOTHING_TO_REPORT`. An approval the run asks for is put to the user in the agent's chat and the answer routed back. A run may work for an hour; one that came due more than two hours ago is skipped rather than caught up; one runs at a time.
 - **Delegation.** A session an agent starts reports back by default. The ones started in the same agent turn form a group (`model/agentSessionCompletion.ts`); when that turn has ended and all of them have stopped, the agent is sent their results as one new turn, once it is idle and the user has nothing queued (`useAgentDelegation.ts`). Reports waiting to be delivered live in memory only, so they do not survive a restart.
 
-Everything an agent can reach goes through the same control channel and the same window-side handlers as its `app` CLI. Widening what agents can do deserves the same care as any other change there. `sessions.delete` asks the user to confirm; an agent cannot remove a conversation on its own.
+Everything an agent can reach goes through the same control channel and the same window-side handlers as its `app` CLI. The terminal's `loci` reaches the same handlers: a library command for a mentor (`loci courses write --mentor M`) runs the `app` action as that mentor's own conversation would. Widening what agents can do deserves the same care as any other change there. `sessions.delete` asks the user to confirm; an agent cannot remove a conversation on its own.
+
+## The command layer
+
+`src/app/commands` defines every command of the `loci` command line once: its name, its fields, who may call it (a terminal, a mentor's own turn, or both) and the function it runs. That function is the one the UI calls (`useAgents.create`, `mentorView.show`, `setLessonStatus`, the composer's `changeModel`, ...). `useCommandContext.ts` gives commands the window's hooks, and `useAppControl.ts` routes `cli` requests, and mentors' `reader.*` requests, to them. `npm run gen:cli` writes `src-tauri/resources/cli-commands.json` from the definitions. The Rust client reads it to parse arguments and print help without the app, and a test keeps it current. A new feature adds its command in the same place.
 
 ## Links between objects
 

@@ -116,6 +116,10 @@ Loci 启动你机器上已安装的 CLI，说它的协议，自己不运行模�
 | `/compact` | 总结较早的对话内容，腾出上下文空间 |
 | `/mcp` | 为这条消息查找合适的 MCP 服务 |
 
+## 命令行
+
+终端里的 `loci` 可以操作正在运行的 Loci：创建导师并和它对话，写入资料、课程和笔记，在阅读区打开它们。测试和 Loci 之外的 agent 都用它。**Settings → 通用 → 命令行** 可以把它加到 PATH，也可以关闭它。见 [docs/cli.md](docs/cli.md)。
+
 ## 外观与语言
 
 **Settings → Appearance** 提供 22 个 Omarchy 主题、配套代码高亮和 72 张壁纸，也支持系统已安装的字体和自定义强调色。**Settings → 通用 → 设置页语言** 可以跟随系统语言，或选择简体中文、英文，立即生效。工作区保持英文。见 [docs/themes.md](docs/themes.md)。
@@ -124,6 +128,7 @@ Loci 启动你机器上已安装的 CLI，说它的协议，自己不运行模�
 
 - **数据在哪。** 会话、笔记、画布、来源引用和 PDF 批注都在应用数据目录 `com.loci.desktop` 下的 `loci.db`（SQLite）里：macOS 是 `~/Library/Application Support/com.loci.desktop`，Linux 是 `~/.local/share/com.loci.desktop`，Windows 是 `%APPDATA%\com.loci.desktop`。粘贴的图片放在它旁边。你的项目文件仍在你自己的文件夹里，批注不会改写原 PDF。
 - **Loci 会联网做什么。** Loci 没有统计，也没有崩溃上报。安装版会在启动后不久检查 GitHub Releases 上的更新，之后每六小时一次，安装前会征求你的同意；从源码构建的版本不会自己更新。除了 agent CLI 自己和各自的 provider 通信之外，Loci 会读取对话中公开链接的标题和图标（回环和内网地址会被拒绝）。
+- **命令行。** Loci 运行时，终端里的 `loci` 可以操作它。它需要一个只有你的用户账户能读取的令牌，可以在 **Settings → 通用 → 命令行** 关闭。
 - **agent 能做什么。** agent 以你的用户权限运行。权限模式只决定 Loci 在 CLI 行动之前是否询问你，所以选它要像在 CLI 里一样谨慎。**Full access** 会让命令、编辑和受支持的 MCP 确认都不再询问。
 
 报告安全漏洞请见 [SECURITY.md](SECURITY.md)。

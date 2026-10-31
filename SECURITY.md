@@ -22,7 +22,8 @@ Loci runs agent CLIs with your user's permissions, and it is not a sandbox. The 
 
 These are in scope:
 
-- Using the local control channel without a grant for an active turn, or reaching a namespace or a project the grant does not cover (see [The control channel](docs/architecture.md#the-control-channel)).
+- Using the local control channel without a grant for an active turn or the command-line token, or reaching a namespace or a project the grant does not cover (see [The control channel](docs/architecture.md#the-control-channel)).
+- Another user account on the same machine driving Loci through the command line, or the command-line token being readable by one.
 - Bypassing a rule Loci enforces itself, such as the learning map rules, canvas ownership, or the loopback-only restrictions.
 - Script execution in the app window from agent output, notes, canvases or links, including a Content Security Policy bypass.
 - Reading or writing files outside what a feature is meant to reach, through app commands or `loci://` links.
@@ -36,6 +37,12 @@ These are out of scope:
 - Anything that needs the attacker to already run code as you. Such an attacker can read Loci's database directly.
 - The warning your OS shows for a release build that is not notarized or signed.
 - Vulnerabilities in a dependency with no path to Loci; Dependabot tracks those.
+
+## The `loci` command line
+
+`loci` in a terminal can drive a running Loci: create and change mentors, send them messages, write to their libraries and open things in the reader ([docs/cli.md](docs/cli.md)). This access is **on by default**. It is guarded by a token in Loci's data folder that only your user account can read. Settings → General → Command line turns it off (removing the token) and rotates the token.
+
+Anything that runs as you can read that token, including an agent in Full access mode, just as it can read Loci's database. Turn command-line access off if you do not use it. Each Loci build (the installed app, Loci Dev, a QA build) has its own token, so a token for one does not open another.
 
 ## Where to read more
 

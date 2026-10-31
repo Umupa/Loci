@@ -1,0 +1,14 @@
+{
+  "id": "smoke-scheduling",
+  "title": "Scheduling (smoke test)",
+  "engine": "reading",
+  "chapters": [
+    {
+      "title": "The scheduler",
+      "lessons": [
+        { "id": "filtering", "title": "Filtering", "document": "smoke-scheduling", "section": "Filtering" },
+        { "id": "scoring", "title": "Scoring", "document": "smoke-scheduling", "section": "Scoring" }
+      ]
+    }
+  ]
+}
