@@ -154,6 +154,8 @@ export type AgentAppHost = {
     read(agentId: string, id: string): Promise<AgentLibraryEntry | undefined>;
     /** Takes the file at `path` in as a source. */
     importSource(agentId: string, source: AgentSourceImport): Promise<AgentLibraryEntry>;
+    /** Saves a guide the agent wrote itself: no sourceUrl, listed apart from sources. */
+    writeGuide(agentId: string, guide: AgentGuideWrite): Promise<AgentLibraryEntry>;
   };
   /** Courses in an agent's library: chapters of lessons that point at its documents. */
   courses?: {
@@ -171,6 +173,8 @@ export type AgentLibraryEntry = {
   title: string;
   subject?: string | null;
   body?: string;
+  /** `source` (first-hand, with sourceUrl) or `guide` (the agent wrote it). */
+  kind?: "source" | "guide";
   /** Where a source was published; absent on what the agent wrote. */
   sourceUrl?: string | null;
   sourceVersion?: string | null;
@@ -185,6 +189,14 @@ export type AgentSourceImport = {
   path: string;
   sourceUrl: string;
   version?: string;
+};
+
+export type AgentGuideWrite = {
+  id: string;
+  title: string;
+  subject?: string;
+  path?: string;
+  body?: string;
 };
 
 export type AgentFileStore = {
@@ -242,6 +254,7 @@ const FIELDS = new Map<string, readonly string[]>([
   ["documents.list", []],
   ["documents.read", ["id"]],
   ["documents.write", ["id", "title", "subject", "path", "sourceUrl", "version"]],
+  ["guides.write", ["id", "title", "subject", "path", "body"]],
   ["courses.list", []],
   ["courses.read", ["id"]],
   ["courses.write", ["id", "title", "engine", "chapters", "canvasId", "steps"]],
@@ -458,6 +471,7 @@ async function handleDocuments(
   const named = (entry: AgentLibraryEntry) => ({
     id: entry.id,
     title: entry.title,
+    kind: entry.kind ?? (entry.sourceUrl ? "source" : "guide"),
     ...(entry.subject ? { subject: entry.subject } : {}),
     ...(entry.sourceUrl ? { sourceUrl: entry.sourceUrl } : {}),
     ...(entry.sourceVersion ? { version: entry.sourceVersion } : {}),
@@ -467,7 +481,21 @@ async function handleDocuments(
     const documents = await host.documents.list(agentId);
     return { documents: documents.map(named) };
   }
+  if (action === "guides.write") {
+    if ((input.path === undefined) === (input.body === undefined))
+      throw new Error("Give the guide's text as path (an absolute Markdown file) or body, not both");
+    const saved = await host.documents.writeGuide(agentId, {
+      id: requiredString(input.id, "id", 80),
+      title: requiredString(input.title, "title", 200),
+      ...(input.subject === undefined ? {} : { subject: requiredString(input.subject, "subject", 80) }),
+      ...(input.path === undefined ? {} : { path: requiredString(input.path, "path", 4096) }),
+      ...(input.body === undefined ? {} : { body: requiredString(input.body, "body", 1024 * 1024) }),
+    });
+    return { ...named(saved), saved: true };
+  }
   if (action === "documents.write") {
+    if (typeof input.sourceUrl !== "string" || !input.sourceUrl.trim())
+      throw new Error("sourceUrl must be the address the text was published at; a guide you wrote yourself goes through guides.write");
     const saved = await host.documents.importSource(agentId, {
       id: requiredString(input.id, "id", 80),
       title: requiredString(input.title, "title", 200),
@@ -1012,7 +1040,7 @@ export async function handleAgentApp(
     return handleSoul(source, action, input, host);
   if (action.startsWith("memory."))
     return handleMemory(source, action, input, host);
-  if (action.startsWith("documents."))
+  if (action.startsWith("documents.") || action === "guides.write")
     return handleDocuments(source, action, input, host);
   if (action.startsWith("habits."))
     return handleHabits(source, action, input, host);

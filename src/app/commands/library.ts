@@ -39,8 +39,8 @@ function forMentor(
 
 export const libraryCommands: CommandDefinition<CommandContext>[] = [
   // Sources: what others published, taken into the mentor's library.
-  forMentor("sources.list", "documents.list", "The sources and documents in the mentor's library, newest first.", []),
-  forMentor("sources.read", "documents.read", "One source or document in full.", [id()]),
+  forMentor("sources.list", "documents.list", "The mentor's library, newest first: first-hand sources (kind source, with sourceUrl) and its own guides (kind guide).", []),
+  forMentor("sources.read", "documents.read", "One source or guide in full.", [id()]),
   forMentor("sources.write", "documents.write", "Take a UTF-8 Markdown file into the library as a source.", [
     field("id", "string", "A stable id, such as k8s-pod-lifecycle", { required: true, max: 80 }),
     field("title", "string", "Its title", { required: true, max: 200 }),
@@ -48,6 +48,14 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
     field("sourceUrl", "string", "Where it was published", { required: true, max: 2000 }),
     field("subject", "string", "Its subject, such as Kubernetes", { max: 80 }),
     field("version", "string", "The version it describes", { max: 80 }),
+  ]),
+  // Guides: what the mentor wrote itself, kept apart from first-hand sources.
+  forMentor("guides.write", "guides.write", "Save a guide the mentor wrote (a reading guide, a brief) from a Markdown file or text; it has no sourceUrl and is labelled as the mentor's guide.", [
+    field("id", "string", "A stable id, such as k8s-reading-guide", { required: true, max: 80 }),
+    field("title", "string", "Its title", { required: true, max: 200 }),
+    field("path", "string", "Absolute path of the Markdown file (at most 1 MB); or give --body", { max: 4096 }),
+    field("body", "string", "The guide's Markdown, instead of --path", { max: 1024 * 1024 }),
+    field("subject", "string", "Its subject, such as Kubernetes", { max: 80 }),
   ]),
 
   forMentor("courses.list", "courses.list", "The mentor's courses, with how many lessons have been read.", []),

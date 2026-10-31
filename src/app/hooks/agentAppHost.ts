@@ -1,4 +1,4 @@
-import { importAgentSource, listAgentDocuments, readAgentDocument } from "../../features/agents/model/agentDocuments";
+import { importAgentSource, writeAgentGuide, listAgentDocuments, readAgentDocument } from "../../features/agents/model/agentDocuments";
 import { canAccessAgentAppProject, type AgentAppHost, type AppSessionListing } from "../../features/agent-app/model/agentApp";
 import { agentFolders, agentForSession, findAgent, updateAgent } from "../../features/agents/model/agent";
 import { habitRunAgent, loadHabits, updateHabits } from "../../features/agents/model/agentHabits";
@@ -139,7 +139,7 @@ export function agentAppHost(source: Session, { workspace, runtime, submission, 
     habits: { load: loadHabits, update: updateHabits },
     renameAgent: (agentId, look) => { updateAgent(agentId, (current) => ({ ...current, ...look })); },
     files: { load: loadAgentFiles, read: readAgentFile, write: writeAgentFile },
-    documents: { list: listAgentDocuments, read: readAgentDocument, importSource: importAgentSource },
+    documents: { list: listAgentDocuments, read: readAgentDocument, importSource: importAgentSource, writeGuide: writeAgentGuide },
     courses: {
       list: async (agentId) => (await loadCourseSummaries()).filter((course) => course.agentId === agentId),
       read: (agentId, id) => loadCourse(id, agentId),

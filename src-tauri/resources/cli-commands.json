@@ -652,6 +652,58 @@
       ]
     },
     {
+      "name": "guides.write",
+      "summary": "Save a guide the mentor wrote (a reading guide, a brief) from a Markdown file or text; it has no sourceUrl and is labelled as the mentor's guide.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "A stable id, such as k8s-reading-guide",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "help": "Its title",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "help": "Absolute path of the Markdown file (at most 1 MB); or give --body",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "help": "The guide's Markdown, instead of --path",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "subject",
+          "type": "string",
+          "help": "Its subject, such as Kubernetes",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "habits.add",
       "summary": "Add a habit.",
       "callers": [
@@ -2108,7 +2160,7 @@
     },
     {
       "name": "sources.list",
-      "summary": "The sources and documents in the mentor's library, newest first.",
+      "summary": "The mentor's library, newest first: first-hand sources (kind source, with sourceUrl) and its own guides (kind guide).",
       "callers": [
         "external"
       ],
@@ -2125,7 +2177,7 @@
     },
     {
       "name": "sources.read",
-      "summary": "One source or document in full.",
+      "summary": "One source or guide in full.",
       "callers": [
         "external"
       ],

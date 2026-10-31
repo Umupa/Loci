@@ -29,6 +29,8 @@ describe("library commands", () => {
     const { ctx, chatOf } = testContext([agent("a1", "Kern")]);
     await runCommand(ctx, "sources.write", { mentor: "Kern", id: "doc", title: "Doc", path: "/tmp/doc.md", sourceUrl: "https://example.com" }, external);
     expect(ctx.agentApp).toHaveBeenCalledWith(chatOf("a1"), "r1", "documents.write", { id: "doc", title: "Doc", path: "/tmp/doc.md", sourceUrl: "https://example.com" });
+    await runCommand(ctx, "guides.write", { mentor: "Kern", id: "guide", title: "Guide", body: "# Read this first" }, external);
+    expect(ctx.agentApp).toHaveBeenLastCalledWith(chatOf("a1"), "r1", "guides.write", { id: "guide", title: "Guide", body: "# Read this first" });
     await runCommand(ctx, "canvases.read-data", { mentor: "a1", id: "c1" }, external);
     expect(ctx.agentApp).toHaveBeenLastCalledWith(chatOf("a1"), "r1", "canvas.read-data", { id: "c1" });
   });
