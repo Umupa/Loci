@@ -11,12 +11,12 @@ type Props = {
   onClose: () => void;
 };
 
-/** Where a new agent starts: a ready-made one for a kind of work, or a blank one. */
+/** Where a new mentor starts: a ready-made one for a kind of work, or a blank one. */
 export function AgentGallery({ onPick, onClose }: Props) {
   const [shown, setShown] = useState<string | null>(null);
   const pick = (template: AgentTemplate | null) => { onClose(); onPick(template); };
-  return <Modal title="New agent" description="Start from an agent made for a kind of work, or from a blank one. You can change its Soul any time in its settings." size="lg" fitViewport onClose={onClose}>
-    <ul className="grid gap-2 p-4 pt-1 sm:grid-cols-2" aria-label="Agents">
+  return <Modal title="New mentor" description="Start from a mentor made for a kind of work, or from a blank one. You can change its Soul any time in its settings." size="lg" fitViewport onClose={onClose}>
+    <ul className="grid gap-2 p-4 pt-1 sm:grid-cols-2" aria-label="Mentor templates">
       {AGENT_TEMPLATES.map((template, index) => <li key={template.id} data-agent-template={template.id}
         className="flex min-w-0 flex-col gap-2 rounded-lg border border-stroke p-3">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -38,7 +38,7 @@ export function AgentGallery({ onPick, onClose }: Props) {
       <li className="flex min-w-0">
         <button type="button" onClick={() => pick(null)}
           className="flex min-h-28 w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-stroke p-3 text-[12px] text-content/55 hover:bg-content/5 hover:text-content">
-          <Plus className="size-4" /> Blank agent
+          <Plus className="size-4" /> Blank mentor
         </button>
       </li>
     </ul>

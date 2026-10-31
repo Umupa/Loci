@@ -195,7 +195,7 @@ describe("settings navigation", () => {
         const groups = settingsSectionsByGroup();
         expect(groups.map((group) => group.label)).toEqual([
             "App",
-            "Agents",
+            "Mentors",
         ]);
         expect(groups.flatMap((group) => group.sections.map((s) => s.id))).toEqual([
             "general",

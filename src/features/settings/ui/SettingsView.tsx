@@ -1315,8 +1315,8 @@ function AgentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const agents = useMemo(() => listAgents(), [snapshot]);
     return (<>
-      <Group id="agent-list" title={t("Your agents")} description={t("Add a mentor with the plus on the mentor rail. Its model, folders, soul, habits and memory are set in its settings.")}>
-        {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No agents yet.")}</p>)}
+      <Group id="agent-list" title={t("Your mentors")} description={t("Add a mentor with the plus on the mentor rail. Its model, folders, soul, habits and memory are set in its settings.")}>
+        {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No mentors yet.")}</p>)}
       </Group>
     </>);
 }

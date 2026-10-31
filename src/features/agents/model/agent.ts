@@ -270,9 +270,18 @@ export function agentWorksOn(agent: Pick<Agent, "projects">, path: string) {
   return agent.projects.some((project) => projectKey(project) === key);
 }
 
+/**
+ * Calls back when the roster changes: in this window through its own event,
+ * and in another window (or anything else writing storage) through `storage`.
+ */
 export function subscribeAgents(onChange: () => void): () => void {
+  const onStorage = (event: StorageEvent) => { if (event.key === ROSTER_KEY || event.key === null) onChange(); };
   window.addEventListener(AGENTS_CHANGED, onChange);
-  return () => window.removeEventListener(AGENTS_CHANGED, onChange);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(AGENTS_CHANGED, onChange);
+    window.removeEventListener("storage", onStorage);
+  };
 }
 
 /** Snapshot for `useSyncExternalStore`; stable while storage is unchanged. */

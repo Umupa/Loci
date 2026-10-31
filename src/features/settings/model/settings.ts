@@ -11,7 +11,7 @@ export const SETTINGS_GROUPS: {
     label: string;
 }[] = [
     { id: "app", get label() { return t("App"); } },
-    { id: "agents", get label() { return t("Agents"); } },
+    { id: "agents", get label() { return t("Mentors"); } },
     { id: "workspace", get label() { return t("Workspace"); } },
 ];
 export type SettingsSection = {
@@ -47,7 +47,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     {
         id: "agents",
         group: "agents",
-        get label() { return t("Your agents"); },
+        get label() { return t("Your mentors"); },
         get description() { return t("Long-lived agents on the project rail: whether they are shown, and the ones you have."); },
         keywords: "agent persistent memory soul habits schedule rail reset",
     },
@@ -135,7 +135,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     {
         id: "agent-list",
         section: "agents",
-        get label() { return t("Your agents"); },
+        get label() { return t("Your mentors"); },
         keywords: "agent mentor reset soul name folders",
     },
     ...(IS_WIN

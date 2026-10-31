@@ -234,7 +234,7 @@ export function useAgents(options: Options) {
    * Opens a new agent ready for the user's purpose or first task. Creating it
    * does not run a model.
    */
-  const create = useCallback(async (template?: AgentTemplate) => {
+  const create = useCallback(async (template?: AgentTemplate): Promise<string> => {
     const agent = createAgent([], template ? { name: template.name, role: template.role, avatar: template.avatar } : {});
     const turn = ++request.current;
     try {
@@ -247,11 +247,16 @@ export function useAgents(options: Options) {
         create: (cwd) => newDefaultSession(cwd),
         add: addSession,
       });
-      if (!session || turn !== request.current) return;
-      setViewId(agent.id);
-      latest.current.onShow(agent.id, session);
+      // Opened by someone else meanwhile (such as the window opening its first mentor): it is still shown below.
+      if (!session) return agent.id;
+      if (turn === request.current) {
+        setViewId(agent.id);
+        latest.current.onShow(agent.id, session);
+      }
+      return agent.id;
     } catch (error) {
       latest.current.onError(error);
+      return agent.id;
     }
   }, [addSession]);
 

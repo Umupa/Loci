@@ -118,6 +118,7 @@ beforeEach(async () => {
     }
     if (command === "agent_load") return { id: input.agent, dir: `/agents/${input.agent}`, soul: "# Soul", soulHash: "soul", memory: "", memoryHash: "memory", memoryPath: `/agents/${input.agent}/MEMORY.md`, topics: [] };
     if (command === "agent_read") return { text: "[]", hash: "habits" };
+    if (command === "agent_write") return "written";
     if (command === "agent_transcript_page") return readArchive(input.sessionId!, input.before ?? null);
     if (command === "learning_source_get") return { id: input.id, kind: "conversation", sessionId: "chat-a", blockId: "archived-question", title: "Earlier discussion", quote: "Archived question" };
     if (command === "open_path_with_default_app") return externalOpen(args);
@@ -201,11 +202,20 @@ it("leaves room for the window's buttons in the rail on macOS", async () => {
   expect(workspace().querySelector(".mentor-titlebar button[aria-label^='Back']")).toBeNull();
 });
 
-it("asks for a first mentor when there is none", async () => {
+it("starts on the mentor workspace's empty state when there is no mentor, and offers the gallery", async () => {
   localStorage.setItem("loci:agent-roster", "[]");
+  localStorage.setItem("loci.settingsSection", "chat");
   await renderApp();
-  await settle(() => expect(container.querySelector("[data-mentors-empty]")?.textContent).toContain("Create a mentor"));
+  await settle(() => expect(container.querySelector("[data-mentors-empty]")).not.toBeNull());
+  expect(container.querySelector("[data-app-settings]")).toBeNull();
   expect(workspace()).toBeNull();
+  const create = container.querySelector<HTMLButtonElement>('[data-mentors-empty] button')!;
+  expect(create.textContent).toBe("Create a mentor");
+  await click(create);
+  const gallery = () => document.querySelector<HTMLElement>('[role="dialog"]');
+  await settle(() => expect(gallery()?.textContent).toContain("New mentor"));
+  expect([...document.querySelectorAll<HTMLElement>("[data-agent-template]")].map((card) => card.dataset.agentTemplate)).toEqual(["learning-guide", "repo-lens"]);
+  expect(gallery()!.textContent).toContain("Blank mentor");
 });
 
 it("opens a course in its owning mentor's reader", async () => {
@@ -418,4 +428,40 @@ it("finds a lesson with Cmd-K and opens it in its mentor's reader", async () => 
   await click(container.querySelector<HTMLButtonElement>('[data-app-search] [data-search-kind="lesson"]')!);
   await settle(() => expect(container.querySelector('[data-mentor-workspace="agent-a"] [data-mentor-reader]')?.textContent).toContain("course-content.pdf"));
   expect(container.querySelector("[data-app-search]")).toBeNull();
+});
+
+it("creates a mentor from the gallery while Settings is open and switches to its workspace", async () => {
+  localStorage.setItem("loci:agent-roster", "[]");
+  // Real IPC takes time; the first-mentor effect must not take over a creation in flight.
+  await act(async () => {
+    const original = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = async (command: string, args: unknown, options: unknown) => {
+      if (["agent_write", "agent_read", "agent_workdir_create", "agent_workdir_ensure", "session_get"].includes(command)) await new Promise((resolve) => setTimeout(resolve, 150));
+      return original(command, args, options);
+    };
+  });
+  await renderApp();
+  await settle(() => expect(container.querySelector("[data-mentors-empty]")).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>('[data-agent-rail] button[aria-label="Settings"]')!);
+  await settle(() => expect(container.querySelector("[data-app-settings]")).not.toBeNull());
+  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "t", code: "KeyT", ctrlKey: true, metaKey: true, bubbles: true, cancelable: true })); });
+  await settle(() => expect(document.querySelector("[data-agent-template]")).not.toBeNull());
+  await click(document.querySelector<HTMLButtonElement>('[data-agent-template="learning-guide"] button[aria-label^="Add"]')!);
+  // The rail and the surface change at once, before the new mentor's conversation is ready.
+  expect(container.querySelectorAll("[data-agent-rail] [data-agent-id]")).toHaveLength(1);
+  expect(container.querySelector("[data-app-settings]")).toBeNull();
+  await settle(() => expect(workspace()).not.toBeNull());
+  const created = JSON.parse(localStorage.getItem("loci:agent-roster")!)[0].id;
+  expect(workspace().dataset.mentorWorkspace).toBe(created);
+  expect(localStorage.getItem(ACTIVE_MENTOR_KEY)).toBe(created);
+  expect(railButton("Mentor").getAttribute("aria-current")).toBe("true");
+});
+
+it("shows a mentor another window created on the rail at once", async () => {
+  await renderMentor();
+  const roster = JSON.parse(localStorage.getItem("loci:agent-roster")!);
+  localStorage.setItem("loci:agent-roster", JSON.stringify([...roster, { id: "agent-c", name: "Cy", avatar: "loci", color: "#123456", projects: [] }]));
+  await act(async () => { window.dispatchEvent(new StorageEvent("storage", { key: "loci:agent-roster" })); });
+  expect(container.querySelectorAll("[data-agent-rail] [data-agent-id]")).toHaveLength(3);
+  expect(railButton("Cy")).not.toBeNull();
 });

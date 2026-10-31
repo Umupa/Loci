@@ -434,5 +434,8 @@
   "Project folders on the rail, each with its own tabs, sessions and files. Agents and their courses work without them. Turning this off only hides them; nothing is deleted.": "在侧栏显示项目文件夹，每个项目有自己的标签页、会话和文件。Agent 和课程不依赖项目。关闭只是隐藏，不会删除任何内容。",
   "Agent CLIs Loci can drive, and the model new sessions start with.": "Loci 可驱动的智能体 CLI，以及新会话的默认模型。",
   "Configured servers for the selected project.": "所选项目中已配置的服务。",
-  "Stop all running agents and permanently delete all projects, conversations, agents, notes, canvases, documents and workspace history from Loci? All settings and global backgrounds are kept. Files in your project folders are kept. All windows will reload. This cannot be undone.": "停止所有正在运行的 agent，并永久删除 Loci 中的所有项目、会话、agent、笔记、画布、文档和工作区历史？所有设置和全局背景都会保留，项目文件夹中的文件也会保留。所有窗口将重新加载。此操作不可恢复。"
+  "Stop all running agents and permanently delete all projects, conversations, agents, notes, canvases, documents and workspace history from Loci? All settings and global backgrounds are kept. Files in your project folders are kept. All windows will reload. This cannot be undone.": "停止所有正在运行的 agent，并永久删除 Loci 中的所有项目、会话、agent、笔记、画布、文档和工作区历史？所有设置和全局背景都会保留，项目文件夹中的文件也会保留。所有窗口将重新加载。此操作不可恢复。",
+  "Mentors": "导师",
+  "Your mentors": "你的导师",
+  "No mentors yet.": "还没有导师。"
 }

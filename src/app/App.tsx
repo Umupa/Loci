@@ -175,8 +175,10 @@ function Workspace(boot: BootWorkspace) {
   // The window opens on the mentor it showed last, or the first one; removing
   // the open mentor moves to another rather than leaving the window empty.
   const openingFirst = useRef(false);
+  // While a mentor is being created, it is the one that opens, not the first on the rail.
+  const creatingMentor = useRef(false);
   useEffect(() => {
-    if (mentor.current || !agents.agents.length || openingFirst.current) return;
+    if (mentor.current || !agents.agents.length || openingFirst.current || creatingMentor.current) return;
     const target = agents.agents.find((agent) => agent.id === loadActiveMentorId()) ?? agents.agents[0];
     openingFirst.current = true;
     void agents.open(target.id).finally(() => { openingFirst.current = false; });
@@ -189,6 +191,17 @@ function Workspace(boot: BootWorkspace) {
     if (surfaceRef.current !== "mentor" || current !== agentId) await agentsRef.current?.open(agentId);
     return mentorRef.current.currentRef.current?.agentId === agentId;
   }, [leaveReader]);
+  /** Creates a mentor from any surface and opens its workspace. */
+  const createMentor = useCallback(async (template?: Parameters<typeof agents.create>[0]) => {
+    creatingMentor.current = true;
+    surfaceRef.current = "mentor";
+    setSurface("mentor");
+    try {
+      const id = await agentsRef.current!.create(template);
+      if (mentorRef.current.currentRef.current?.agentId !== id) await showMentor(id);
+    } catch (error) { reportError(error); }
+    finally { creatingMentor.current = false; }
+  }, [reportError, showMentor]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Reads something in the open mentor's reader, in place of what was there. */
   const showInMentor = useCallback(async (page: MentorPage, agentId = mentorRef.current.currentRef.current?.agentId) => {
     if (!agentId) throw new Error("Open a mentor first.");
@@ -551,7 +564,7 @@ function Workspace(boot: BootWorkspace) {
         const work = item.page ? showInMentor(item.page, item.agentId) : item.agentId ? showMentor(item.agentId) : Promise.resolve();
         void work.catch(reportError);
       }} /> : null}
-      {agentGalleryOpen ? <AgentGallery onClose={() => setAgentGalleryOpen(false)} onPick={(template) => void agents.create(template ?? undefined)} /> : null}
+      {agentGalleryOpen ? <AgentGallery onClose={() => setAgentGalleryOpen(false)} onPick={(template) => void createMentor(template ?? undefined)} /> : null}
       {savedToast && (
         <SavedToast
           toast={savedToast}
@@ -582,8 +595,9 @@ function MentorsEmpty({ hasMentors, onCreate }: { hasMentors: boolean; onCreate:
   return <div className="flex min-h-0 flex-1 flex-col" data-mentors-empty>
     <div className="h-10 shrink-0" data-tauri-drag-region="deep" />
     {hasMentors ? null : <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+      <h1 className="text-base font-semibold">Create your first mentor</h1>
       <p className="max-w-sm text-sm text-content/60">A mentor is a resident agent for one topic you are learning. It keeps your courses, sources, notes and drawings, and reads along with you.</p>
-      <button type="button" className="rounded-lg bg-content/10 px-3 py-1.5 text-sm font-medium hover:bg-content/15" onClick={onCreate}>Create a mentor</button>
+      <button type="button" className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90" onClick={onCreate}>Create a mentor</button>
     </div>}
   </div>;
 }
