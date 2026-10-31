@@ -148,7 +148,7 @@ it("comes back to the lesson a mentor was showing, remembering identifiers only"
   await click("[data-test-course] button");
   await act(async () => control.resizeChat(agent.id, 520));
   const stored = JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!);
-  expect(stored[agent.id]).toEqual({ library: true, libraryWidth: 260, chat: true, width: 520,
+  expect(stored[agent.id]).toEqual({ library: true, libraryWidth: 260, chat: true, width: 520, course: "kube",
     page: { kind: "course", course: { courseId: "kube", agentId: "agent-a", title: "Ada's course", itemId: "service" } } });
   await render(other);
   expect(reader().dataset.mentorReader).toBe("empty");

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { isLibrarySegment, type LibrarySegment } from "../../features/mentor/model/libraryCourse";
 import { parseStoredPage, storedPage, type MentorLesson, type MentorPage } from "../../features/mentor/model/mentorPage";
 
 export type MentorViewState = {
@@ -13,6 +14,12 @@ export type MentorViewState = {
   /** The outline and library column on the left. */
   library: boolean;
   libraryWidth: number;
+  /** Which kind of thing the library shows; unset picks one from what the mentor has. */
+  segment?: LibrarySegment;
+  /** The course the library's Courses segment shows. */
+  course?: string;
+  /** The library's filter text, for this window only. */
+  filter?: { segment: LibrarySegment; text: string };
   /** The conversation column on the right. */
   chat: boolean;
   chatWidth: number;
@@ -36,6 +43,8 @@ function read(): Record<string, MentorViewState> {
         request: 0,
         library: typeof item.library === "boolean" ? item.library : DEFAULT_MENTOR_VIEW.library,
         libraryWidth: width(item.libraryWidth, 200, DEFAULT_MENTOR_VIEW.libraryWidth),
+        ...(isLibrarySegment(item.segment) ? { segment: item.segment } : {}),
+        ...(typeof item.course === "string" && /^[A-Za-z0-9_-]+$/.test(item.course) ? { course: item.course } : {}),
         chat: typeof item.chat === "boolean" ? item.chat : DEFAULT_MENTOR_VIEW.chat,
         // `width` was the conversation's width before the reader moved to the middle.
         chatWidth: width(item.width, 320, DEFAULT_MENTOR_VIEW.chatWidth),
@@ -48,6 +57,8 @@ function write(states: Record<string, MentorViewState>) {
   try {
     localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify(Object.fromEntries(Object.entries(states).map(([id, state]) => [id, {
       library: state.library, libraryWidth: state.libraryWidth, chat: state.chat, width: state.chatWidth,
+      ...(state.segment ? { segment: state.segment } : {}),
+      ...(state.course ? { course: state.course } : {}),
       ...(state.page ? { page: storedPage(state.page, state.lesson) } : {}),
     }]))));
   } catch { /* This window keeps its view even when storage is unavailable. */ }
@@ -71,6 +82,8 @@ export function useMentorView() {
   }, []);
   const show = useCallback((id: string, page: MentorPage) => update(id, (state) => ({
     ...state, page, request: state.request + 1, restored: false,
+    // The library's Courses segment follows the course being read.
+    ...(page.kind === "course" ? { course: page.course.courseId } : {}),
     // A different course starts without the previous one's lesson.
     lesson: page.kind === "course" && state.page?.kind === "course" && state.page.course.courseId === page.course.courseId ? state.lesson : undefined,
   })), [update]);
@@ -91,6 +104,16 @@ export function useMentorView() {
     /** The whole view now, outside of rendering: the page and the lesson in it. */
     viewFor: (id: string) => latest.current[id] ?? DEFAULT_MENTOR_VIEW,
     show, close, setLesson, confirmRestored,
+    /** Shows one kind of thing in the library, a course in its Courses segment, or a filter. */
+    openLibrary: useCallback((id: string, change: { segment?: LibrarySegment; course?: string; filter?: string; show?: boolean }) => update(id, (state) => {
+      const segment = change.segment ?? state.segment;
+      const next: MentorViewState = { ...state, ...(change.segment ? { segment: change.segment } : {}), ...(change.course ? { course: change.course } : {}), ...(change.show ? { library: true } : {}) };
+      if (change.filter !== undefined) {
+        if (change.filter && segment) next.filter = { segment, text: change.filter };
+        else delete next.filter;
+      }
+      return next.segment === state.segment && next.course === state.course && next.library === state.library && next.filter === state.filter ? state : next;
+    }), [update]),
     toggleLibrary: useCallback((id: string) => update(id, (state) => ({ ...state, library: !state.library })), [update]),
     toggleChat: useCallback((id: string) => update(id, (state) => ({ ...state, chat: !state.chat })), [update]),
     resizeLibrary: useCallback((id: string, value: number) => update(id, (state) => ({ ...state, libraryWidth: value })), [update]),
