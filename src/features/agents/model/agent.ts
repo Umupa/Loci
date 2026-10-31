@@ -19,8 +19,7 @@ export const AGENT_COLORS = [
 
 /**
  * An agent is long-lived and its own: a name, a face and a color, one
- * conversation, and the projects it works on. It is not tied to any one of
- * them; it lives on the rail beside the projects and can be given more.
+ * conversation, and a working folder of its own (see `agentWorkdir`).
  */
 export type Agent = {
   id: string;
@@ -32,7 +31,15 @@ export type Agent = {
   role?: string;
   avatar: string;
   color: string;
-  /** Project folders it works on, in the order they were added. */
+  /**
+   * Its working folder: cloned source in `repos/`, experiments in `lab/`.
+   * Absent until first use; it keeps its path when the agent is renamed.
+   */
+  workdir?: string;
+  /**
+   * Other folders it may use, in the order they were added. Older agents
+   * were given these as "projects"; the key keeps that name for their data.
+   */
   projects: string[];
   /** New sessions appear in the project sidebar unless explicitly disabled. */
   showStartedSessionsInSidebar?: boolean;
@@ -73,6 +80,7 @@ function parseAgent(value: unknown): Agent | undefined {
   const sessionId = text("sessionId");
   const name = text("name");
   const role = text("role");
+  const workdir = text("workdir");
   return {
     id: entry.id,
     ...(sessionId ? { sessionId } : {}),
@@ -80,6 +88,7 @@ function parseAgent(value: unknown): Agent | undefined {
     ...(role ? { role } : {}),
     avatar: text("avatar") ?? AGENT_AVATARS[0].name,
     color: text("color") ?? AGENT_COLORS[0],
+    ...(workdir ? { workdir } : {}),
     projects: Array.isArray(entry.projects)
       ? entry.projects.filter(
           (path): path is string => typeof path === "string" && !!path,
@@ -202,6 +211,7 @@ export function updateAgent(
   const next = change(roster[index]);
   if (!next.name?.trim()) delete next.name;
   if (!next.role?.trim()) delete next.role;
+  if (!next.workdir?.trim()) delete next.workdir;
   next.projects = uniqueProjects(next.projects);
   roster[index] = next;
   saveRoster(roster);
@@ -242,6 +252,14 @@ export function removeAgentProject(agentId: string, path: string): void {
     ...agent,
     projects: agent.projects.filter((project) => projectKey(project) !== key),
   }));
+}
+
+/**
+ * Every folder the agent works in: its own workdir first, then the other
+ * folders it was given. Its reach through the app CLI follows this list.
+ */
+export function agentFolders(agent: Pick<Agent, "workdir" | "projects">): string[] {
+  return uniqueProjects(agent.workdir ? [agent.workdir, ...agent.projects] : agent.projects);
 }
 
 /** Whether the agent has been given this project. */
