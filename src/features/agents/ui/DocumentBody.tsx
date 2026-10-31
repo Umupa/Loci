@@ -8,6 +8,9 @@ import type { StoredDocument } from "../model/agentDocuments";
 import { ReadingSelectionMenu } from "../../learning/ui/ReadingSelectionMenu";
 import { useReadingMarks, type MarksListRequest } from "../../learning/ui/useReadingMarks";
 import { documentMarkSpec } from "../model/documentMarks";
+import { consumeDocumentPlace, useDocumentPlace } from "../model/documentPlace";
+import { quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
+import { flashRange } from "../../learning/ui/useTextHighlights";
 import "./DocumentBody.css";
 
 /** A library document as a reader shows it, with where it came from when it is a source. */
@@ -86,6 +89,41 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
     return () => { cancelAnimationFrame(frame); heading?.removeAttribute("data-section-target"); };
   }, [document.id, document.body, requestedSection, fullDocument]);
 
+  // A place asked for from outside (a mentor's link, a command): the quoted passage, flashed,
+  // else its section. A lesson showing one section widens to the whole document when the
+  // passage lies outside it.
+  const placeRequest = useDocumentPlace(agentId, document.id);
+  const [notice, setNotice] = useState<{ scope: string; text: string }>();
+  const { annotations, select } = marks;
+  useEffect(() => {
+    if (!placeRequest || !agentId) return;
+    let timer = 0;
+    const show = (tries: number) => {
+      const root = bodyRef.current;
+      if (!root) { if (tries > 0) timer = window.setTimeout(() => show(tries - 1), 50); return; }
+      const mark = placeRequest.annotationId ? annotations.find((entry) => entry.id === placeRequest.annotationId) : undefined;
+      if (mark && marks.rangeOf(mark.id)) { select(mark); consumeDocumentPlace(agentId, document.id, placeRequest.token); return; }
+      const heading = placeRequest.section ? findSection(root, placeRequest.section) : undefined;
+      let range: Range | null = null;
+      if (placeRequest.quote) {
+        const index = textIndex(root);
+        const near = heading ? index.pieces.find((piece) => heading.contains(piece.node))?.start ?? 0 : 0;
+        const found = quoteInText(index.text, placeRequest.quote, near);
+        range = found ? rangeAt(index, found.start, found.end) : null;
+      }
+      const wanted = placeRequest.quote ? !!range : placeRequest.section ? !!heading : true;
+      if (!wanted && tries > 0) { timer = window.setTimeout(() => show(tries - 1), 50); return; }
+      if (!wanted && requestedSection && !fullDocument) { setView({ scope, full: true }); return; }
+      if (range) flashRange(range);
+      else heading?.scrollIntoView?.({ block: "start" });
+      if (placeRequest.quote && !range) setNotice({ scope, text: heading ? "That passage has changed; showing its section." : "That passage is no longer in this document." });
+      consumeDocumentPlace(agentId, document.id, placeRequest.token);
+    };
+    // After the layout effect has put the document at its start.
+    timer = window.setTimeout(() => show(20), 60);
+    return () => window.clearTimeout(timer);
+  }, [placeRequest, agentId, document.id, document.body, fullDocument, annotations]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const { sourceUrl } = document;
   return (
     <div ref={topRef}>
@@ -94,6 +132,7 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
         {matchedTitle ? <button type="button" className="document-section-toggle" onClick={() => { dismiss(); setView({ scope, full: !fullDocument }); }}>{fullDocument ? "Only this section" : "View full document"}</button> : null}
       </div> : null}
       {requestedSection && !matchedTitle && !bare ? <p role="status" className="document-section-notice">Section “{requestedSection}” was not found. Showing the full document.</p> : null}
+      {notice?.scope === scope ? <p role="status" className="document-section-notice">{notice.text}</p> : null}
       {sourceUrl && !bare ? (
         <p data-document-source className="mb-3 flex flex-wrap items-baseline gap-x-2 border-b border-stroke pb-2 text-[11px] text-content/50">
           <span>Source</span>

@@ -1,5 +1,5 @@
 import { readAgentDocument } from "../../features/agents/model/agentDocuments";
-import { requestDocumentSection } from "../../features/agents/model/documentPlace";
+import { requestDocumentPlace } from "../../features/agents/model/documentPlace";
 import { getCanvas } from "../../features/canvas/canvas";
 import { requestFilePlace } from "../../features/files/model/filePlace";
 import { courseItems, loadCourse } from "../../features/learning/model/course";
@@ -11,7 +11,7 @@ import { readingView } from "./mentors";
 import { resolveMentor } from "./mentor";
 import { CommandError, field, type CommandDefinition } from "./registry";
 
-export type ReaderFocus = { section?: string; lines?: [number, number]; page?: number };
+export type ReaderFocus = { section?: string; quote?: string; lines?: [number, number]; page?: number };
 
 /** The place each reader was last asked to show, while it still shows that page. */
 const focuses = new Map<string, { page: MentorPage; focus: ReaderFocus }>();
@@ -44,6 +44,7 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
       field("canvas", "string", "A canvas id"),
       field("file", "string", "An absolute file path", { max: 4096 }),
       field("section", "string", "A heading to scroll to, in a source", { max: 300 }),
+      field("quote", "string", "A passage to show and flash, verbatim from the text (with --source, or --file and --lines)", { max: 500 }),
       field("lines", "string", "Lines to show in a text file: 12 or 12-40"),
       field("page", "integer", "A page to show in a PDF"),
       field("switch", "boolean", "Also bring the mentor on screen"),
@@ -57,6 +58,8 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
       const value = input[kind] as string;
       if (input.lesson !== undefined && kind !== "course") throw new CommandError("--lesson goes with --course", "usage");
       if (input.section !== undefined && kind !== "source") throw new CommandError("--section goes with --source", "usage");
+      if (input.quote !== undefined && kind !== "source" && !(kind === "file" && input.lines !== undefined))
+        throw new CommandError("--quote goes with --source, or with --file and --lines", "usage");
       if ((input.lines !== undefined || input.page !== undefined) && kind !== "file") throw new CommandError("--lines and --page go with --file", "usage");
       if (input.lines !== undefined && input.page !== undefined) throw new CommandError("Choose --lines or --page", "usage");
       const focus: ReaderFocus = {};
@@ -72,10 +75,9 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
         const found = await readAgentDocument(agent.id, value);
         if (found?.body == null) throw new CommandError(`No source ${value} in this mentor's library`, "not_found");
         page = { kind: "document", document: { id: found.id, title: found.title, body: found.body, ...(found.subject ? { subject: found.subject } : {}) } };
-        if (input.section !== undefined) {
-          focus.section = input.section as string;
-          requestDocumentSection(agent.id, found.id, focus.section);
-        }
+        if (input.section !== undefined) focus.section = input.section as string;
+        if (input.quote !== undefined) focus.quote = input.quote as string;
+        if (focus.section || focus.quote) requestDocumentPlace(agent.id, found.id, { ...(focus.section ? { section: focus.section } : {}), ...(focus.quote ? { quote: focus.quote } : {}) });
       } else if (kind === "note") {
         if (!await getNote(value)) throw new CommandError(`No note ${value}`, "not_found");
         page = { kind: "note", id: value };
@@ -86,7 +88,10 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
         if (!isAbsolute(value)) throw new CommandError("--file takes an absolute path", "usage");
         page = { kind: "file", path: value };
         let place: FilePlace | undefined;
-        if (input.lines !== undefined) place = { lines: focus.lines = lineSpan(input.lines as string) };
+        if (input.lines !== undefined) {
+          place = { lines: focus.lines = lineSpan(input.lines as string) };
+          if (input.quote !== undefined) place.quote = focus.quote = input.quote as string;
+        }
         if (input.page !== undefined) {
           if ((input.page as number) < 1) throw new CommandError("page starts at 1", "usage");
           place = { page: focus.page = input.page as number };

@@ -6,6 +6,7 @@ import { registerLearningSource } from "../../learning/model/learningStore";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { findAgent } from "../model/agent";
 import { DocumentBody, findSection, shownDocument } from "./DocumentBody";
+import { requestDocumentPlace } from "../model/documentPlace";
 import type { FileSelection } from "../../files/hooks/useFileSelection";
 
 const selected = vi.hoisted(() => ({ value: null as FileSelection | null, dismiss: vi.fn() }));
@@ -88,4 +89,17 @@ it("finds the heading a lesson starts at by its words, however it is spaced or c
   expect(findSection(article, "## pod phase")?.textContent).toBe("Pod  phase");
   expect(findSection(article, "Container")?.textContent).toBe("Container states");
   expect(findSection(article, "Probes")).toBeUndefined();
+});
+
+it("shows a passage a link asks for, flashing it, and says so when its words are gone", async () => {
+  const painted: string[] = [];
+  vi.stubGlobal("Highlight", class { constructor(...ranges: Range[]) { painted.push(...ranges.map(String)); } });
+  vi.stubGlobal("CSS", { highlights: { set: vi.fn(), delete: vi.fn() } });
+  await act(async () => root.render(createElement(DocumentBody, { document: source, agentId: "a" })));
+  await act(async () => requestDocumentPlace("a", source.id, { quote: "Original text" }));
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 120)); });
+  expect(painted).toContain("Original text");
+  await act(async () => requestDocumentPlace("a", source.id, { section: "Container states", quote: "Words that were removed" }));
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1300)); });
+  expect(container.querySelector('[role="status"]')?.textContent).toContain("That passage has changed");
 });

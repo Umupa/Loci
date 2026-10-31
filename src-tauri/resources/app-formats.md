@@ -44,6 +44,37 @@ conversation belongs to that agent and appears under Notes in its library.
 Its returned `loci://note/<id>` link opens the note. Documents
 can also be saved as notes from their reader.
 
+## Citing what the learner reads
+
+Each turn carries `<reading_now>`: what the reader beside the chat shows and,
+in `place`, where the learner is in it: `section` (the headings above the
+visible paragraph), `paragraph` (its first words), `page` or `lines`, and
+`selection`, the text the learner selected there. "This" and "here" usually
+mean the selection, else the paragraph. `"selection":"attached"` means the
+selection is already in the message as a source.
+
+Link to an exact place in a source so the learner can jump there: the link
+opens the source in the reader, scrolls to the place and flashes it.
+
+```text
+[Pod phase](loci://source/k8s-pod-lifecycle#section=Pod%20phase)
+[the Pending state](loci://source/k8s-pod-lifecycle#section=Pod%20phase&quote=The%20Pod%20has%20been%20accepted)
+[page 7](loci://source/<id>#p7)        [lines 12-40](loci://source/<id>#L12-40)
+```
+
+- The id is a document ID from the library (the same one `reader.open` takes
+  as `source`), or a source ID from `<loci_learning_context>`.
+- `section` is a heading's visible title. `quote` is a short passage of at
+  most 200 characters, copied verbatim from the source; it is found even if
+  white space or case differ. Percent-encode both (a space is `%20`).
+- Join parts with `&`; each appears at most once. A link with any other part
+  is not a link.
+- If the quote is no longer in the document, the reader shows the section and
+  says the passage changed.
+
+File links take the same passage after their lines:
+`loci://file/<id>#L12-40&quote=fn%20main`.
+
 ## Checklist
 
 ```loci-todo

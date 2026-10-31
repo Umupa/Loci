@@ -34,7 +34,17 @@ let flashTimer = 0;
 export function flashRange(range: Range): void {
   const element = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
   const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  element?.scrollIntoView?.({ block: "center", behavior: reduced ? "instant" : "smooth" });
+  // Centre the passage itself in its scroller: one long text node (a file's <pre>)
+  // would otherwise scroll to its start.
+  const rect = range.getBoundingClientRect();
+  let scroller: HTMLElement | null = element instanceof HTMLElement ? element : element?.parentElement ?? null;
+  while (scroller && !(scroller.scrollHeight > scroller.clientHeight && /(auto|scroll)/.test(getComputedStyle(scroller).overflowY))) scroller = scroller.parentElement;
+  if (scroller && (rect.width || rect.height)) {
+    const box = scroller.getBoundingClientRect();
+    const top = scroller.scrollTop + rect.top - box.top - box.height / 2 + rect.height / 2;
+    if (typeof scroller.scrollTo === "function") scroller.scrollTo({ top: Math.max(0, top), behavior: reduced ? "instant" : "smooth" });
+    else scroller.scrollTop = Math.max(0, top);
+  } else element?.scrollIntoView?.({ block: "center", behavior: reduced ? "instant" : "smooth" });
   const api = registry();
   if (!api) return;
   api.highlights.set("loci-flash", new api.Highlight(range));

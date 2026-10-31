@@ -10,7 +10,9 @@ import { Modal } from "../shared/ui/Modal";
 import { ADD_TO_CHAT_EVENT, requestAddToChat, type AddToChatRequest } from "../features/sessions/model/quoteDraft";
 import { queueLearningDraft } from "../features/learning/model/learningDraft";
 import { OPEN_LEARNING_DISCUSSION_EVENT } from "../features/learning/model/navigation";
-import { OPEN_COURSE_EVENT, type OpenCourseDetail } from "../features/learning/model/course";
+import { courseItems, loadCourse, OPEN_COURSE_EVENT, type OpenCourseDetail } from "../features/learning/model/course";
+import { readAgentDocument } from "../features/agents/model/agentDocuments";
+import { requestDocumentPlace } from "../features/agents/model/documentPlace";
 import type { DiscussionRef } from "../features/learning/model/types";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -369,6 +371,23 @@ function Workspace(boot: BootWorkspace) {
     openSession: (id) => showSessionRef.current(id),
     openFile: openLearningFile,
     fileBase: () => sessionsRef.current.find((session) => session.id === (readerSessionId() ?? mentorRef.current.currentRef.current?.sessionId))?.cwd,
+    mentorBase: () => mentorRef.current.currentRef.current?.agentId,
+    openDocument: async (agentId, documentId, place) => {
+      const found = await readAgentDocument(agentId, documentId);
+      if (found?.body == null) return false;
+      // A lesson already showing this document keeps the reader; the passage is shown in the lesson.
+      const state = mentorViewRef.current.stateFor(agentId);
+      let inLesson = false;
+      if (state.page?.kind === "course" && state.lesson) {
+        const course = await loadCourse(state.page.course.courseId, agentId).catch(() => null);
+        const lesson = course ? courseItems(course.data).find((item) => item.id === state.lesson!.id) : undefined;
+        inLesson = !!lesson && "document" in lesson && lesson.document === documentId;
+      }
+      if (place) requestDocumentPlace(agentId, documentId, place);
+      if (inLesson) { await showMentorRef.current(agentId); return true; }
+      await showInMentor({ kind: "document", document: { id: found.id, title: found.title, body: found.body, ...(found.subject ? { subject: found.subject } : {}) } }, agentId);
+      return true;
+    },
     // A drawing an agent keeps opens in that agent's reader; any other in the open mentor's.
     openCanvas: (canvas, owner) => showInMentor({ kind: "canvas", id: canvas.id }, owner),
     // A note an agent owns opens in its reader; any other opens in the open mentor's, still unowned.

@@ -20,6 +20,7 @@ let container: HTMLDivElement;
 const view = {
   openSession: vi.fn(async () => undefined), openFile: vi.fn(), fileBase: vi.fn<() => string | undefined>(),
   openCanvas: vi.fn(async () => undefined), openNote: vi.fn(async () => undefined), onError: vi.fn(),
+  mentorBase: vi.fn<() => string | undefined>(), openDocument: vi.fn(async (..._args: unknown[]) => true),
 };
 function Harness() {
   useAppResourceNavigation(view);
@@ -29,6 +30,8 @@ beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   for (const mock of [...Object.values(mocks), ...Object.values(view)]) mock.mockReset();
   view.fileBase.mockReturnValue("/project");
+  view.mentorBase.mockReturnValue("agent-a");
+  view.openDocument.mockResolvedValue(true);
   mocks.getCanvas.mockImplementation(async (id) => ({ id, cwd: "/project" }));
   mocks.checkpointCanvasId.mockResolvedValue("drawing");
   mocks.getNote.mockImplementation(async (id) => ({ id, agentId: id === "owned" ? "agent-a" : id === "orphan-of-removed" ? "gone" : undefined }));
@@ -110,4 +113,25 @@ it("opens a current PDF source at its registered location", async () => {
   await act(async () => requestOpenAppResource({ kind: "source", id: "pdf-source" }));
   expect(view.openFile).toHaveBeenCalledWith("/relocated-book.pdf");
   expect(view.openNote).not.toHaveBeenCalled();
+});
+
+it("opens a source link to a library document of the mentor on screen, at the section and passage it names", async () => {
+  mocks.getLearningSource.mockResolvedValue(null);
+  await act(async () => requestOpenAppResource({ kind: "source", id: "k8s-pods", place: { section: "Pod phase", quote: "The phase of a Pod" } }));
+  expect(view.openDocument).toHaveBeenCalledWith("agent-a", "k8s-pods", { section: "Pod phase", quote: "The phase of a Pod" });
+  view.openDocument.mockResolvedValue(false);
+  await act(async () => requestOpenAppResource({ kind: "source", id: "missing" }));
+  expect(view.onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("no longer available") }));
+});
+it("opens a registered document passage at its highlight, and a file passage at its lines with its words", async () => {
+  mocks.getLearningSource.mockResolvedValueOnce({ id: "s", kind: "document", agentId: "agent-a", documentId: "pods", title: "Pods", quote: "Pending",
+    section: "Pod phase", anchor: { exact: "Pending", prefix: "", suffix: "", start: 0, end: 7 }, annotationId: "mark" });
+  await act(async () => requestOpenAppResource({ kind: "source", id: "s" }));
+  expect(view.openDocument).toHaveBeenCalledWith("agent-a", "pods", { section: "Pod phase", quote: "Pending", annotationId: "mark" });
+  const place = vi.fn();
+  window.addEventListener("loci:open-file", place);
+  mocks.getLearningSource.mockResolvedValueOnce({ id: "f", kind: "file", path: "/src/main.rs", title: "main.rs", quote: "run()", lines: [2, 2] });
+  await act(async () => requestOpenAppResource({ kind: "source", id: "f" }));
+  expect(view.openFile).toHaveBeenCalledWith("/src/main.rs");
+  window.removeEventListener("loci:open-file", place);
 });

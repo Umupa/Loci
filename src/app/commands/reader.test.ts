@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { requestDocumentSection } from "../../features/agents/model/documentPlace";
+import { requestDocumentPlace } from "../../features/agents/model/documentPlace";
 import { requestFilePlace } from "../../features/files/model/filePlace";
 import { runCommand } from "./dispatch";
 import { lineSpan } from "./reader";
@@ -16,7 +16,7 @@ vi.mock("../../features/agents/model/agentDocuments", () => ({
 }));
 vi.mock("../../features/notes", () => ({ getNote: vi.fn(async (id: string) => id === "n1" ? { id } : null) }));
 vi.mock("../../features/canvas/canvas", () => ({ getCanvas: vi.fn(async () => null) }));
-vi.mock("../../features/agents/model/documentPlace", () => ({ requestDocumentSection: vi.fn() }));
+vi.mock("../../features/agents/model/documentPlace", () => ({ requestDocumentPlace: vi.fn() }));
 vi.mock("../../features/files/model/filePlace", () => ({ requestFilePlace: vi.fn() }));
 
 const external = { requestId: "r1", caller: "external" as const };
@@ -34,7 +34,7 @@ describe("reader commands", () => {
   it("ask the source and file readers for a section, lines or a page", async () => {
     const { ctx } = testContext([agent("a1")]);
     await runCommand(ctx, "reader.open", { mentor: "a1", source: "doc", section: "B", switch: true }, external);
-    expect(requestDocumentSection).toHaveBeenCalledWith("a1", "doc", "B");
+    expect(requestDocumentPlace).toHaveBeenCalledWith("a1", "doc", { section: "B" });
     expect(ctx.reader.show).toHaveBeenLastCalledWith("a1", expect.objectContaining({ kind: "document" }), true);
     expect(await runCommand(ctx, "reader.show", { mentor: "a1" }, external)).toMatchObject({ kind: "source", id: "doc", focus: { section: "B" } });
     await runCommand(ctx, "reader.open", { mentor: "a1", file: "/src/main.rs", lines: "10-20" }, external);

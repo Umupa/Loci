@@ -1446,6 +1446,13 @@
           "positional": false
         },
         {
+          "name": "quote",
+          "type": "string",
+          "help": "A passage to show and flash, verbatim from the text (with --source, or --file and --lines)",
+          "required": false,
+          "positional": false
+        },
+        {
           "name": "lines",
           "type": "string",
           "help": "Lines to show in a text file: 12 or 12-40",

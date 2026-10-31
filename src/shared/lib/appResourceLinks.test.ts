@@ -37,4 +37,21 @@ describe("Loci resource addresses", () => {
   it.each(["loci://file/c291cmNlcw#p0", "loci://file/c291cmNlcw#L3", "loci://file/c291cmNlcw#x", "loci://note/id#p3", "loci://file/"])("rejects a malformed file link: %s", (url) => {
     expect(parseAppResourceUrl(url)).toBeUndefined();
   });
+  it("carries a section, a quoted passage, a page or lines in a source link, and round-trips them", () => {
+    const url = "loci://source/k8s-pod-lifecycle#section=Pod%20phase&quote=The%20phase%20of%20a%20Pod";
+    expect(parseAppResourceUrl(url)).toEqual({ kind: "source", id: "k8s-pod-lifecycle", place: { section: "Pod phase", quote: "The phase of a Pod" } });
+    expect(resourceUrl(parseAppResourceUrl(url)!)).toBe(url);
+    expect(parseAppResourceUrl("loci://source/paper#p7")).toEqual({ kind: "source", id: "paper", place: { page: 7 } });
+    expect(parseAppResourceUrl("loci://source/main#L12")).toEqual({ kind: "source", id: "main", place: { lines: [12, 12] } });
+    const file = parseAppResourceUrl("loci://file/c291cmNlcw#L3-9&quote=fn%20main")!;
+    expect(file).toEqual({ kind: "file", id: "c291cmNlcw", place: { lines: [3, 9], quote: "fn main" } });
+    expect(resourceUrl(file)).toBe("loci://file/c291cmNlcw#L3-9&quote=fn%20main");
+  });
+  it.each([
+    "loci://source/id#", "loci://source/id#quote=", "loci://source/id#quote=a&quote=b", "loci://source/id#other=x",
+    "loci://source/id#quote=%E0%A4%A", "loci://source/id#L9-3", `loci://source/id#quote=${"a".repeat(501)}`,
+    "loci://file/c291cmNlcw#section=Intro", "loci://file/c291cmNlcw#p2&quote=x",
+  ])("rejects a malformed place: %s", (url) => {
+    expect(parseAppResourceUrl(url)).toBeUndefined();
+  });
 });

@@ -1,6 +1,6 @@
 import { canvasScopeAgentId } from "../../features/agents/model/agent";
 import { useEffect, useRef } from "react";
-import { APP_RESOURCE_OPEN_EVENT, fileResourcePath, parseAppResourceUrl, resourceUrl, type AppResource } from "../../shared/lib/appResourceLinks";
+import { APP_RESOURCE_OPEN_EVENT, fileResourcePath, parseAppResourceUrl, resourceUrl, type AppResource, type SourcePlace } from "../../shared/lib/appResourceLinks";
 import { requestFilePlace } from "../../features/files/model/filePlace";
 import { CANVAS_OPEN_CHECKPOINT_EVENT, checkpointCanvasId, getCanvas, type Canvas } from "../../features/canvas/canvas";
 import { getLearningSource, getReadingDocument } from "../../features/learning/model/learningStore";
@@ -9,12 +9,27 @@ import { requestTranscriptJump } from "../../features/sessions/model/transcriptJ
 import { getNote } from "../../features/notes";
 import { joinPath } from "../../shared/lib/paths";
 import { findAgent } from "../../features/agents/model/agent";
+import type { DocumentPlace } from "../../features/agents/model/documentPlace";
+import type { LearningSource } from "../../features/learning/model/types";
+
+/** The place a source link asks for, over the place its registered passage remembers. */
+export function documentPlaceOf(source: Extract<LearningSource, { kind: "document" }> | undefined, link?: SourcePlace): DocumentPlace | undefined {
+  const section = link?.section ?? (link?.quote ? undefined : source?.section);
+  const quote = link?.quote ?? (link?.section ? undefined : source?.anchor?.exact ?? source?.quote);
+  const annotationId = link ? undefined : source?.annotationId;
+  const place = { ...(section ? { section } : {}), ...(quote ? { quote } : {}), ...(annotationId ? { annotationId } : {}) };
+  return Object.keys(place).length ? place : undefined;
+}
 
 type Options = {
   openSession(id: string): Promise<void>;
   openFile(path: string): void;
   /** The folder relative file links resolve against: that of the conversation on screen. */
   fileBase(): string | undefined;
+  /** The mentor on screen: a source link names a document in its library. */
+  mentorBase(): string | undefined;
+  /** Show a library document, at a place in it, in its mentor's reader. False when it is not in that library. */
+  openDocument(agentId: string, documentId: string, place?: DocumentPlace): Promise<boolean>;
   /** `owner` is the agent that keeps the drawing, when one does. */
   openCanvas(canvas: Canvas, owner?: string): Promise<void>;
   /** `owner` is the agent that keeps the note, when one does. */
@@ -46,7 +61,13 @@ export function useAppResourceNavigation(options: Options) {
         if (resource.kind === "source") {
           const source = await getLearningSource(resource.id);
           if (current !== request) return;
-          if (!source) throw new Error("This learning source is no longer available.");
+          const link = resource.place;
+          if (!source) {
+            // Not a registered passage: a document in the library of the mentor on screen.
+            const mentor = latest.current.mentorBase();
+            if (mentor && await latest.current.openDocument(mentor, resource.id, documentPlaceOf(undefined, link))) return;
+            throw new Error("This learning source is no longer available.");
+          }
           if (source.kind === "web") { await openUrl(source.url); return; }
           if (source.kind === "conversation") {
             if (latest.current.onOpenConversation) await latest.current.onOpenConversation(source.sessionId, source.blockId, () => current === request);
@@ -55,15 +76,25 @@ export function useAppResourceNavigation(options: Options) {
             requestTranscriptJump(source.sessionId, source.blockId, source.quote);
             return;
           }
-          if (source.kind === "document") throw new Error("This passage is in a library document that can't be opened here.");
+          if (source.kind === "document") {
+            if (!findAgent(source.agentId) || !await latest.current.openDocument(source.agentId, source.documentId, documentPlaceOf(source, link))) {
+              if (source.url) { await openUrl(source.url); return; }
+              throw new Error("This passage's document is no longer in the library.");
+            }
+            return;
+          }
           let path = source.path;
           if (source.kind === "pdf") {
             const document = await getReadingDocument(source.documentId);
             if (current !== request) return;
             if (!document) throw new Error("This PDF is no longer registered.");
             path = document.path;
-            requestFilePlace(path, { page: source.anchors[0]?.page ?? 1, ...(source.annotationId ? { annotationId: source.annotationId } : {}) });
-          } else if (source.lines) requestFilePlace(path, { lines: source.lines });
+            requestFilePlace(path, { page: link?.page ?? source.anchors[0]?.page ?? 1, ...(source.annotationId && !link?.page ? { annotationId: source.annotationId } : {}) });
+          } else {
+            const lines = link?.lines ?? source.lines ?? source.anchor?.lines;
+            const quote = link?.quote ?? (link?.lines ? undefined : source.anchor?.exact ?? source.quote);
+            if (lines) requestFilePlace(path, { lines, ...(quote ? { quote } : {}) });
+          }
           latest.current.openFile(path);
           return;
         }

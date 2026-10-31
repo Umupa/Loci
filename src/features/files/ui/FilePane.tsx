@@ -12,7 +12,15 @@ import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { fileReference, selectionLines, type SelectionPlace } from "../model/fileReference";
 import { ReadingSelectionMenu, type ChatIntent } from "../../learning/ui/ReadingSelectionMenu";
 import { chatDraft, useReadingMarks, type MarkSpec } from "../../learning/ui/useReadingMarks";
-import { describeRange } from "../../learning/model/textAnchor";
+import { describeRange, quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
+import { flashRange } from "../../learning/ui/useTextHighlights";
+
+/** A quoted passage in rendered text, where it best fits. */
+function quoteRange(root: HTMLElement, quote: string): Range | null {
+  const index = textIndex(root);
+  const found = quoteInText(index.text, quote);
+  return found ? rangeAt(index, found.start, found.end) : null;
+}
 import type { FileSelection } from "../hooks/useFileSelection";
 import { useFileSelection } from "../hooks/useFileSelection";
 import { MarkdownDocumentPreview } from "../../sessions/ui/MarkdownDocumentPreview";
@@ -294,6 +302,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   useEffect(() => {
     if (!placeRequest || !("lines" in placeRequest.place) || content.status !== "text") return;
     const [first, last] = placeRequest.place.lines;
+    const quote = placeRequest.place.quote;
     if (kind === "markdown" && mode === "source") {
       const area = areaRef.current;
       if (!area) return;
@@ -313,6 +322,8 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         const heading = scroller && place ? findHeading(scroller, place) : null;
         if (place && !heading && tries > 0) { timer = window.setTimeout(() => show(tries - 1), 50); return; }
         if (scroller) scroller.scrollTop = heading ? scroller.scrollTop + heading.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16 : 0;
+        const passage = quote && markdownRef.current ? quoteRange(markdownRef.current, quote) : null;
+        if (passage) flashRange(passage);
         consumeFilePlace(path, placeRequest.token);
       };
       show(20);
@@ -326,6 +337,12 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     range.collapse(true);
     const scroller = pre.parentElement;
     if (scroller) scroller.scrollTop += range.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;
+    // The quoted passage near those lines, else the lines themselves, flashes once.
+    const index = textIndex(pre);
+    const found = quote ? quoteInText(shownPlainText, quote, lineOffset(shownPlainText, first)) : null;
+    const [from, to] = found ? [found.start, found.end] : lineRange(shownPlainText, first, last);
+    const passage = rangeAt(index, from, to);
+    if (passage) flashRange(passage);
     consumeFilePlace(path, placeRequest.token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeRequest, content.status, kind, mode, shownPlainText, path]);
