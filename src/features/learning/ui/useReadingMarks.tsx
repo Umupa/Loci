@@ -120,13 +120,13 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
       setAnnotations((current) => current.filter((entry) => entry.id !== annotation.id));
     }} /> : null;
 
-  const list = (onClose: () => void, title?: string): ReactNode =>
-    <AnnotationList annotations={annotations} orphans={orphans} selectedId={open?.id} title={title} onSelect={select} onClose={onClose} />;
+  const list = (onClose: () => void, title?: string, only: readonly Annotation[] = annotations): ReactNode =>
+    <AnnotationList annotations={[...only]} orphans={orphans} selectedId={open?.id} title={title} onSelect={select} onClose={onClose} />;
 
   /** The list as a panel dropping from a reader's menu button. */
-  const listPopover = (anchor: PopoverAnchor, onClose: () => void, title?: string): ReactNode =>
+  const listPopover = (anchor: PopoverAnchor, onClose: () => void, title?: string, only?: readonly Annotation[]): ReactNode =>
     <Popover bare anchor={anchor} side="bottom" align="end" width={300} maxHeight={460} onDismiss={onClose} className="pdf-annotations--floating">
-      {list(onClose, title)}
+      {list(onClose, title, only)}
     </Popover>;
 
   return { annotations, orphans, askLabel, popover, list, listPopover, select, rangeOf, toChat, onMark: target && cite ? onMark : undefined };

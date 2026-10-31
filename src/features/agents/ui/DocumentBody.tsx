@@ -8,6 +8,7 @@ import type { StoredDocument } from "../model/agentDocuments";
 import { ReadingSelectionMenu } from "../../learning/ui/ReadingSelectionMenu";
 import { useReadingMarks, type MarksListRequest } from "../../learning/ui/useReadingMarks";
 import { documentMarkSpec } from "../model/documentMarks";
+import { inLesson } from "../../learning/model/annotationCounts";
 import { consumeDocumentPlace, useDocumentPlace } from "../model/documentPlace";
 import { quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
 import { flashRange } from "../../learning/ui/useTextHighlights";
@@ -71,7 +72,11 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
   const { selection, dismiss } = useFileSelection(bodyRef, true);
   const spec = useMemo(() => documentMarkSpec(document, agentId), [document, agentId]);
   const marks = useReadingMarks(bodyRef, spec, { agentId });
-  const count = marks.annotations.length;
+  // A lesson reading one section lists and counts that section's marks, as its outline does.
+  const shownMarks = useMemo(() => bare && requestedSection
+    ? marks.annotations.filter((annotation) => inLesson({ id: "", title: "", document: document.id, section: requestedSection }, annotation))
+    : marks.annotations, [marks.annotations, bare, requestedSection, document.id]);
+  const count = shownMarks.length;
   useEffect(() => { onMarks?.(count); }, [onMarks, count]);
 
   useLayoutEffect(() => {
@@ -148,7 +153,7 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
       <ReadingSelectionMenu selection={selection} onDismiss={dismiss} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark}
         resetKey={JSON.stringify([document.id, document.body, document.title, document.sourceUrl, agentId])} />
       {marks.popover}
-      {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title) as ReactNode : null}
+      {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) as ReactNode : null}
     </div>
   );
 }
