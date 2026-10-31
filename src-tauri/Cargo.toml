@@ -2,7 +2,7 @@
 name = "loci"
 version.workspace = true
 edition.workspace = true
-description = "Loci — one UI for every agent harness"
+description = "Loci — an AI-native learning workspace for engineers"
 authors = ["Nick"]
 license.workspace = true
 repository.workspace = true
