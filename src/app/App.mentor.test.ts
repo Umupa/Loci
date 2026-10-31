@@ -395,3 +395,25 @@ it("opens links in a mentor's reply in its reader, once, at the linked lines", a
   expect(container.querySelectorAll(".markdown-preview h1")).toHaveLength(1);
   expect(reader().querySelector(".markdown-preview h1")).toBe(preview);
 });
+
+it("finds a lesson with Cmd-K and opens it in its mentor's reader", async () => {
+  await act(async () => {
+    const original = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = async (command: string, args: unknown, options: unknown) => command === "course_list_all"
+      ? [{ id: "kubernetes", agentId: "agent-a", title: "Kubernetes", engine: "reading", itemCount: 1, masteredCount: 0, updatedAt: 2 }]
+      : original(command, args, options);
+  });
+  await renderMentor("Bea");
+  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true, metaKey: true, bubbles: true, cancelable: true })); });
+  const input = () => container.querySelector<HTMLInputElement>('[data-app-search] input')!;
+  await settle(() => expect(input()).not.toBeNull());
+  await settle(() => expect(container.querySelector('[data-app-search] [data-search-kind="mentor"]')).not.toBeNull());
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input(), "pod");
+    input().dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await settle(() => expect(container.querySelector('[data-app-search] [data-search-kind="lesson"]')).not.toBeNull());
+  await click(container.querySelector<HTMLButtonElement>('[data-app-search] [data-search-kind="lesson"]')!);
+  await settle(() => expect(container.querySelector('[data-mentor-workspace="agent-a"] [data-mentor-reader]')?.textContent).toContain("course-content.pdf"));
+  expect(container.querySelector("[data-app-search]")).toBeNull();
+});

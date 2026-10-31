@@ -1,4 +1,5 @@
 import { MentorWorkspace } from "../features/mentor/ui/MentorWorkspace";
+import { MentorSearch } from "../features/mentor/ui/MentorSearch";
 import type { MentorPage } from "../features/mentor/model/mentorPage";
 import { AgentGallery } from "../features/agents/ui/AgentGallery";
 import { setAgentReading } from "../features/agents/model/agentReading";
@@ -102,6 +103,7 @@ function Workspace(boot: BootWorkspace) {
   const [transcriptPool] = useState(() => new TranscriptPool());
   const [canvases, setCanvases] = useState<Canvas[]>([]);
   const [agentGalleryOpen, setAgentGalleryOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
   const seenSignInRequests = useRef(new Set(initialSessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
   const storeRef = useRef<ReturnType<typeof useSessionStore> | null>(null);
@@ -406,8 +408,7 @@ function Workspace(boot: BootWorkspace) {
     newMentor: () => setAgentGalleryOpen(true),
     closeReader, closeWindow: () => { void closeCurrentWindow(); },
     toggleLibrary, toggleChat,
-    // Search across mentors arrives with the mentor search palette.
-    openSearch: () => undefined,
+    openSearch: () => setSearchOpen((open) => !open),
     openSettings: () => openSettings(),
     openSession: (id) => { void showSessionRef.current(id).catch(reportError); },
     reload,
@@ -514,12 +515,12 @@ function Workspace(boot: BootWorkspace) {
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
       {!IS_MAC ? <MenuBar onNewMentor={() => setAgentGalleryOpen(true)} onCloseReader={() => { if (!closeReader()) void closeCurrentWindow(); }}
         onPreviousMentor={() => stepMentor(-1)} onNextMentor={() => stepMentor(1)} onToggleLibrary={toggleLibrary} onToggleChat={toggleChat}
-        onOpenPdf={openPdf} onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
+        onOpenPdf={openPdf} onSearch={() => setSearchOpen(true)} onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
       <div className="flex min-h-0 min-w-0 flex-1">
         <MentorRail activeId={activeAgent?.id} states={agents.states} unseenIds={unseenAgentIds} settingsOpen={surface === "settings"}
           onOpen={(id) => void showMentor(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void showMentor(id); }}
           onCreate={() => setAgentGalleryOpen(true)} onDelete={(id) => void agents.remove(id)}
-          onOpenSettings={() => surface === "settings" ? closeSettings() : openSettings()} />
+          onSearch={() => setSearchOpen(true)} onOpenSettings={() => surface === "settings" ? closeSettings() : openSettings()} />
         {surface === "settings" ? <aside className="flex w-[220px] shrink-0 flex-col border-r border-stroke" aria-label="Settings sections">
           <div className="h-10 shrink-0" data-tauri-drag-region="deep" />
           <SettingsNav section={settingsSection} onSelect={onSelectSettingsSection} onClose={closeSettings} />
@@ -545,6 +546,11 @@ function Workspace(boot: BootWorkspace) {
         </div>
       </div>
       <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, shownIds)} onFocusSession={(id) => void showSession(id).catch(reportError)} onApproval={submission.approve} />
+      {searchOpen ? <MentorSearch onClose={() => setSearchOpen(false)} onPick={(item) => {
+        // A note no mentor owns opens in the open mentor's reader.
+        const work = item.page ? showInMentor(item.page, item.agentId) : item.agentId ? showMentor(item.agentId) : Promise.resolve();
+        void work.catch(reportError);
+      }} /> : null}
       {agentGalleryOpen ? <AgentGallery onClose={() => setAgentGalleryOpen(false)} onPick={(template) => void agents.create(template ?? undefined)} /> : null}
       {savedToast && (
         <SavedToast
