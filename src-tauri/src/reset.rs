@@ -373,7 +373,7 @@ mod tests {
              INSERT INTO course_progress VALUES ('a','course','item','learning');
              INSERT INTO learning_sources VALUES ('source','{}',1);
              INSERT INTO reading_documents VALUES ('doc','/document.pdf','title','fingerprint',1,1);
-             INSERT INTO pdf_annotations VALUES ('annotation','doc','source','[]','note','[]',1,1);"
+             INSERT INTO pdf_annotations(id,document_id,source_id,anchors_json,note,discussions_json,created_at,updated_at) VALUES ('annotation','doc','source','[]','note','[]',1,1);"
         ).unwrap();
     }
     fn table_counts(store: &SessionStore) -> Vec<(String, i64)> {
