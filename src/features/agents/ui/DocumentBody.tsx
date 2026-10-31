@@ -6,9 +6,8 @@ import type { AgentDocument } from "../../sessions/model/cards";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import type { StoredDocument } from "../model/agentDocuments";
 import { ReadingSelectionMenu } from "../../learning/ui/ReadingSelectionMenu";
-import { useReadingMarks } from "../../learning/ui/useReadingMarks";
+import { useReadingMarks, type MarksListRequest } from "../../learning/ui/useReadingMarks";
 import { documentMarkSpec } from "../model/documentMarks";
-import type { PopoverAnchor } from "../../../shared/ui/Popover";
 import "./DocumentBody.css";
 
 /** A library document as a reader shows it, with where it came from when it is a source. */
@@ -47,7 +46,7 @@ type Props = {
    */
   bare?: boolean;
   /** Show the list of highlights and notes, dropping from this anchor. */
-  marksList?: { anchor: PopoverAnchor; onClose: () => void; title?: string };
+  marksList?: MarksListRequest;
   /** How many highlights the document has, for a menu to say. */
   onMarks?: (count: number) => void;
 };

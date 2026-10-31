@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, Pencil, SidebarLeft, X } from "../../../shared/ui/icons";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";
@@ -13,6 +13,10 @@ import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, setLessonStatus, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
 import { DiffCard } from "./DiffCard";
+import { useFileSelection } from "../../files/hooks/useFileSelection";
+import { linesOf } from "../model/textAnchor";
+import { ReadingSelectionMenu } from "./ReadingSelectionMenu";
+import { useReadingMarks, type MarkSpec, type MarksListRequest } from "./useReadingMarks";
 import { CourseToc } from "./CourseToc";
 import { CourseOutline, PROGRESS_EVENT, type ProgressDetail } from "./CourseOutline";
 import "./CoursePane.css";
@@ -58,6 +62,9 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   const [syncFailures, setSyncFailures] = useState<Map<string, SyncFailure>>(new Map());
   const pendingWrites = useRef(new Map<string, { scope: string; itemId: string }>());
   const scrollRef = useRef<HTMLElement>(null);
+  const lessonMenu = useRef<HTMLButtonElement>(null);
+  const [marksOpen, setMarksOpen] = useState(false);
+  const [marks, setMarks] = useState(0);
   const pendingConcept = useRef<NavigateConceptDetail | null>(null);
   const pendingProgress = useRef<{ scope: string; items: Map<string, LearningStatus> }>({ scope, items: new Map() });
   const courseLoad = useRef<{ scope: string; promise: Promise<CourseWithProgress | null> } | null>(null);
@@ -265,9 +272,10 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   const overviewControls = course ? <>
     <button type="button" className={RESOURCE_ACTION} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-3.5" /><span className="sr-only">Previous</span></button>
     <button type="button" className={RESOURCE_ACTION} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-3.5" /><span className="sr-only">Next</span></button>
-    <LessonMenu items={[
+    <LessonMenu trigger={lessonMenu} items={[
       { label: markLabel, icon: <Check className="size-3.5" />, disabled: !activeId || saving.has(activeId) || activeStatus === "mastered", onSelect: () => { if (activeId) void markStatus(activeId, "mastered"); } },
       { label: reading ? "Test my understanding" : "Discuss this step", icon: <MessageSquarePlus className="size-3.5" />, onSelect: discuss },
+      ...(reading ? [{ label: `Highlights & notes${marks ? ` (${marks})` : ""}`, icon: <Pencil className="size-3.5" />, disabled: !activeId, onSelect: () => setMarksOpen(true) }] : []),
     ]} />
   </> : null;
   const alerts = actionError || syncFailures.size ? <div className="course-pane__alerts">{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {items.find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</div> : null;
@@ -283,15 +291,15 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     </PaneHeader>
     </>}
     {course ? <>
-      <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough}><CourseContent course={course} activeId={activeId} /></main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div>{alerts}</div></div>
+      <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough}><CourseContent course={course} activeId={activeId} onMarks={setMarks}
+        marksList={marksOpen ? { anchor: lessonMenu, onClose: () => setMarksOpen(false), title: "Highlights & notes in this lesson" } : undefined} /></main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div>{alerts}</div></div>
     </> : <div className="course-pane__empty" role={loaded.scope === scope && loaded.error ? "alert" : undefined}><p>{loaded.scope === scope ? loaded.error ?? "Opening course…" : "Opening course…"}</p>{loaded.scope === scope && loaded.error ? <button type="button" className="course-button" onClick={() => setReload((value) => value + 1)}>Retry</button> : null}</div>}
   </aside>;
 }
 
 type LessonMenuItem = { label: string; icon: ReactNode; disabled?: boolean; onSelect: () => void };
 
-function LessonMenu({ items }: { items: LessonMenuItem[] }) {
-  const trigger = useRef<HTMLButtonElement>(null);
+function LessonMenu({ items, trigger }: { items: LessonMenuItem[]; trigger: RefObject<HTMLButtonElement | null> }) {
   const [open, setOpen] = useState(false);
   return <>
     <button ref={trigger} type="button" className={RESOURCE_ACTION} title="Lesson actions" aria-label="Lesson actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="size-3.5" /></button>
@@ -333,19 +341,34 @@ function CourseContentsDropdown({ course, activeId, onSelect }: { course: Course
   </>;
 }
 
-function CourseContent({ course, activeId }: { course: CourseWithProgress; activeId: string | null }) {
+type MarksProps = { marksList?: MarksListRequest; onMarks?: (count: number) => void };
+
+function CourseContent({ course, activeId, marksList, onMarks }: { course: CourseWithProgress; activeId: string | null } & MarksProps) {
   if (course.data.engine === "build-your-own") {
     const step = course.data.steps.find((item) => item.id === activeId);
     return step ? <article className="course-pane__content" key={step.id}><h2>{step.title}</h2><p className="course-pane__summary">{step.summary}</p><DiffCard {...step} id={`${course.id}-${step.id}`} /><AgentMarkdown text={step.explanation} wholeDocument /></article> : null;
   }
   const lesson = course.data.chapters.flatMap((chapter) => chapter.lessons).find((item) => item.id === activeId);
   if (!lesson) return null;
-  return lesson.file !== undefined ? <LessonFile lesson={lesson} /> : <LessonDocument agentId={course.agentId} lesson={lesson} />;
+  return lesson.file !== undefined ? <LessonFile agentId={course.agentId} lesson={lesson} marksList={marksList} onMarks={onMarks} />
+    : <LessonDocument agentId={course.agentId} lesson={lesson} marksList={marksList} onMarks={onMarks} />;
 }
 
 /** A lesson read from a file. Source and text files are shown in place; a PDF or other document opens in its own pane, where it can be highlighted. */
-function LessonFile({ lesson }: { lesson: CourseLesson }) {
+function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; lesson: CourseLesson } & MarksProps) {
   const file = lesson.file!;
+  const excerptRef = useRef<HTMLDivElement>(null);
+  const { selection, dismiss } = useFileSelection(excerptRef, true);
+  const first = lesson.lines?.[0] ?? 1;
+  const spec = useMemo((): MarkSpec => ({
+    target: { kind: "file", path: file },
+    source: (anchor, quote, annotationId) => ({ id: crypto.randomUUID(), kind: "file", path: file, title: file.split(/[\\/]/).pop() || file, quote,
+      ...(anchor.lines ? { lines: anchor.lines } : {}), anchor, ...(annotationId ? { annotationId } : {}) }),
+    lines: (range) => excerptLines(range, first),
+  }), [file, first]);
+  const marks = useReadingMarks(excerptRef, spec, { agentId });
+  const count = marks.annotations.length;
+  useEffect(() => { onMarks?.(count); }, [onMarks, count]);
   const name = file.split(/[\\/]/).pop() || file;
   const inline = !lesson.pages && isReadableSource(name);
   const [loaded, setLoaded] = useState<{ file: string; text?: string; error?: string }>();
@@ -365,8 +388,21 @@ function LessonFile({ lesson }: { lesson: CourseLesson }) {
     <p className="course-pane__summary" title={file}>{name}{where}</p>
     {!shown ? <p className="course-pane__relations">Opening…</p>
       : shown.error ? <><p className="course-error" role="alert">Could not read {name}: {shown.error}</p>{open}</>
-      : <AgentMarkdown text={sourceExcerpt(shown.text!, name, lesson.lines)} wholeDocument />}
+      : <div ref={excerptRef} className="select-text"><AgentMarkdown text={sourceExcerpt(shown.text!, name, lesson.lines)} wholeDocument /></div>}
+    <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} />
+    {marks.popover}
+    {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title) : null}
   </article>;
+}
+
+/** The file lines a selection in a lesson's code excerpt covers; none outside code (a Markdown file shown as itself). */
+export function excerptLines(range: Range, first: number): [number, number] | undefined {
+  const start = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
+  const code = start?.closest("pre")?.querySelector("code") ?? start?.closest("pre");
+  if (!code || !code.contains(range.endContainer)) return undefined;
+  const offset = (node: Node, at: number) => { const before = document.createRange(); before.selectNodeContents(code); before.setEnd(node, at); return before.toString().length; };
+  const [a, b] = linesOf(code.textContent ?? "", offset(range.startContainer, range.startOffset), offset(range.endContainer, range.endOffset));
+  return [a + first - 1, b + first - 1];
 }
 
 /** Lines shown in place when a lesson names no range, so a huge file stays readable. */
@@ -391,7 +427,7 @@ export function sourceExcerpt(text: string, name: string, lines?: [number, numbe
 }
 
 /** A lesson read from the agent's library: the document itself, from the lesson's heading. */
-function LessonDocument({ agentId, lesson }: { agentId: string; lesson: CourseLesson }) {
+function LessonDocument({ agentId, lesson, marksList, onMarks }: { agentId: string; lesson: CourseLesson } & MarksProps) {
   const id = lesson.document!;
   const [loaded, setLoaded] = useState<{ id: string; document?: AgentDocument; error?: string }>();
   useEffect(() => {
@@ -406,5 +442,5 @@ function LessonDocument({ agentId, lesson }: { agentId: string; lesson: CourseLe
   const shown = loaded?.id === id ? loaded : undefined;
   if (!shown) return <p className="course-pane__relations">Opening…</p>;
   if (!shown.document) return <article className="course-pane__content"><h2>{lesson.title}</h2><p className="course-error" role="alert">{shown.error ? `Could not open this lesson's document: ${shown.error}` : `This lesson's document (${id}) is not in the library. Ask the agent to save it again.`}</p></article>;
-  return <article className="course-pane__content course-pane__reading" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare /></article>;
+  return <article className="course-pane__content course-pane__reading" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare marksList={marksList} onMarks={onMarks} /></article>;
 }

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FilePane } from "./FilePane";
 import { ADD_TO_CHAT_EVENT, type AddToChatRequest } from "../../sessions/model/quoteDraft";
 import * as learning from "../../learning/model/learningStore";
-import { readDocumentFile } from "../../../platform/tauri/fs";
+import { readDocumentFile, readTextFile } from "../../../platform/tauri/fs";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { LoadedPdf } from "./PdfView";
 import type { PdfAnnotation } from "../../learning/model/types";
@@ -15,7 +15,7 @@ vi.mock("../model/fileWatch", () => ({ watchFile: () => () => {}, syncWatchedMti
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 vi.mock("../../learning/model/learningStore", () => ({
   registerReadingDocument: vi.fn(), getReadingDocumentByPath: vi.fn(), relocateReadingDocument: vi.fn(), listPdfAnnotations: vi.fn(), registerLearningSource: vi.fn(),
-  upsertPdfAnnotation: vi.fn(), deletePdfAnnotation: vi.fn(), subscribeLearningChanges: () => () => {},
+  upsertPdfAnnotation: vi.fn(), deletePdfAnnotation: vi.fn(), listAnnotations: vi.fn(async () => []), upsertAnnotation: vi.fn(), deleteAnnotation: vi.fn(), subscribeLearningChanges: () => () => {},
 }));
 vi.mock("./PdfView", () => ({
   readPdfFingerprint: async () => "document-fingerprint",
@@ -62,7 +62,7 @@ describe("PDF passage workflows", () => {
     const receive = (event: Event) => requests.push((event as CustomEvent<AddToChatRequest>).detail);
     window.addEventListener(ADD_TO_CHAT_EVENT, receive);
     await show(); await selectPassage();
-    await act(async () => button("Ask agent").click());
+    await act(async () => button("Ask").click());
     expect(learning.registerReadingDocument).toHaveBeenCalledWith("/book.pdf", "document-fingerprint", "book.pdf");
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({ text: "Explain this passage.", mode: "plain", sources: [{ kind: "pdf", documentId: "document", quote: "Selectable passage", anchors: [{ page: 1, rects: [{ x: 0.1, y: 0.2, width: 0.4, height: 0.1 }] }] }] });
@@ -100,5 +100,23 @@ describe("PDF passage workflows", () => {
     await act(async () => button("Locate file").click());
     expect(onOpenFile).not.toHaveBeenCalled();
     expect(host.textContent).toContain("The selected PDF does not match this document.");
+  });
+
+  it("highlights lines of a text file on the file, with the lines it covers", async () => {
+    vi.mocked(readTextFile).mockResolvedValue("fn main() {\n    run();\n}\n");
+    vi.mocked(learning.upsertAnnotation).mockImplementation(async (mark) => mark);
+    await act(async () => root.render(createElement(FilePane, { path: "/src/main.rs", cwd: "/src", preview: false, focused: true, onFocus: vi.fn(), onPin: vi.fn(), onClose: vi.fn(), onOpenFile })));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    const text = host.querySelector("pre")!.firstChild!;
+    vi.spyOn(Range.prototype, "getClientRects").mockReturnValue([new DOMRect(10, 20, 40, 10)] as unknown as DOMRectList);
+    const range = document.createRange(); range.setStart(text, 16); range.setEnd(text, 21);
+    window.getSelection()!.addRange(range);
+    await act(async () => { document.dispatchEvent(new Event("selectionchange")); await new Promise((resolve) => setTimeout(resolve, 30)); });
+    await act(async () => button("Highlight").click());
+    expect(learning.upsertAnnotation).toHaveBeenCalledWith(expect.objectContaining({
+      target: { kind: "file", path: "/src/main.rs" },
+      anchor: expect.objectContaining({ exact: "run()", lines: [2, 2] }),
+      source: expect.objectContaining({ kind: "file", path: "/src/main.rs", lines: [2, 2] }),
+    }));
   });
 });

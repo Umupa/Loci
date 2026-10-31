@@ -32,12 +32,12 @@ vi.mock("../../learning/model/learningStore", () => ({
   registerReadingDocument: async (path: string) => ({ ...record, path }),
   listPdfAnnotations: () => loadMarks(),
   subscribeLearningChanges: () => () => {}, registerLearningSource: vi.fn(),
-  upsertPdfAnnotation: vi.fn(), deletePdfAnnotation: vi.fn(), relocateReadingDocument: vi.fn(),
+  upsertPdfAnnotation: vi.fn(), deletePdfAnnotation: vi.fn(), listAnnotations: vi.fn(async () => []), upsertAnnotation: vi.fn(), deleteAnnotation: vi.fn(), relocateReadingDocument: vi.fn(),
 }));
 // Inspect the anchor handed to the real annotation UI after the real PDF view scrolls.
 vi.mock("../../learning/ui/PdfAnnotations", () => ({
-  PdfAnnotationsList: () => null, PdfSelectionMenu: () => null,
-  PdfAnnotationPopover: ({ annotation, anchor }: { annotation: PdfAnnotation; anchor: DOMRect }) =>
+  AnnotationList: () => null,
+  AnnotationPopover: ({ annotation, anchor }: { annotation: PdfAnnotation; anchor: DOMRect }) =>
     createElement("output", { "data-open-annotation": annotation.id, "data-anchor": JSON.stringify({ x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height }) }),
 }));
 

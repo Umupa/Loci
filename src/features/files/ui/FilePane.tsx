@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { open as chooseFile } from "@tauri-apps/plugin-dialog";
 import { CircleAlert, ExternalLink, Folder, MessageSquarePlus, Pencil, Pin, X } from "../../../shared/ui/icons";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
@@ -9,8 +9,11 @@ import { formatFileSize, sniffImageMime } from "../../../shared/lib/filePreview"
 import { displayPath, parentPath } from "../../../shared/lib/paths";
 import { lazySurface } from "../../../shared/ui/lazySurface";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
-import { TranscriptSelectionMenu } from "../../sessions/ui/TranscriptSelectionMenu";
-import { fileReference, selectionLines, selectionReference, type SelectionPlace } from "../model/fileReference";
+import { fileReference, selectionLines, type SelectionPlace } from "../model/fileReference";
+import { ReadingSelectionMenu, type ChatIntent } from "../../learning/ui/ReadingSelectionMenu";
+import { chatDraft, useReadingMarks, type MarkSpec } from "../../learning/ui/useReadingMarks";
+import { describeRange } from "../../learning/model/textAnchor";
+import type { FileSelection } from "../hooks/useFileSelection";
 import { useFileSelection } from "../hooks/useFileSelection";
 import { MarkdownDocumentPreview } from "../../sessions/ui/MarkdownDocumentPreview";
 import { fileKind } from "../model/fileKind";
@@ -24,7 +27,7 @@ import type { LoadedPdf } from "./PdfView";
 import type { PdfAnnotation, ReadingDocument } from "../../learning/model/types";
 import { createPdfAnnotation, pdfSelectionAnchors, pdfSelectionSource } from "../../learning/model/pdfAnnotations";
 import { deletePdfAnnotation, getReadingDocumentByPath, listPdfAnnotations, registerLearningSource, registerReadingDocument, relocateReadingDocument, subscribeLearningChanges, upsertPdfAnnotation } from "../../learning/model/learningStore";
-import { PdfAnnotationPopover, PdfAnnotationsList, PdfSelectionMenu } from "../../learning/ui/PdfAnnotations";
+import { AnnotationList, AnnotationPopover } from "../../learning/ui/PdfAnnotations";
 
 // pdf.js is large and only needed once a PDF is actually opened.
 const PdfView = lazySurface(async () => ({ default: (await import("./PdfView")).PdfView }));
@@ -66,7 +69,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   const [annotationsLoaded, setAnnotationsLoaded] = useState(false);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
-  const [openAnnotation, setOpenAnnotation] = useState<{ id: string; rect: DOMRect } | null>(null);
+  const [openAnnotation, setOpenAnnotation] = useState<{ id: string; rect: DOMRect; note?: boolean } | null>(null);
   const [relocating, setRelocating] = useState(false);
   const currentPath = useRef(path);
   currentPath.current = path;
@@ -84,7 +87,17 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   const relative = displayPath(path, cwd);
   const bodyRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLPreElement>(null);
+  const markdownRef = useRef<HTMLDivElement>(null);
   const { selection, dismiss } = useFileSelection(bodyRef, (content.status === "text" && !editing) || content.status === "pdf");
+  // Text and Markdown keep highlights on the file; a PDF keeps its own, on page rectangles.
+  const placeOfRef = useRef<(range: Range) => SelectionPlace>(() => null);
+  const textMarks = useMemo((): MarkSpec => ({
+    target: { kind: "file", path },
+    source: (anchor, quote, annotationId) => ({ id: crypto.randomUUID(), kind: "file", path, title: name, quote,
+      ...(anchor.lines ? { lines: anchor.lines } : {}), anchor, ...(annotationId ? { annotationId } : {}) }),
+    lines: (range) => { const place = placeOfRef.current(range); return place && "lines" in place ? place.lines : undefined; },
+  }), [path, name]);
+  const marks = useReadingMarks(kind === "markdown" ? markdownRef : textRef, textMarks, { enabled: content.status === "text" && !editing });
 
   useEffect(() => {
     setReadingDocument(null); setAnnotations([]); setAnnotationsLoaded(false); setOpenAnnotation(null); setAnnotationError(null);
@@ -122,17 +135,22 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     if (!anchors.length) throw new Error("This selection has no readable PDF text. Image-only pages aren’t supported yet.");
     return { document: readingDocument, quote: selection.text, anchors };
   };
-  const askPdfSelection = async () => {
+  const pdfToChat = async (passage: FileSelection, intent: ChatIntent, current: () => boolean) => {
     const details = selectionDetails();
     const source = pdfSelectionSource(details.document, details.quote, details.anchors);
     await registerLearningSource(source);
-    requestAddToChat("Explain this passage.", "plain", { sources: [source] });
+    if (!current()) return;
+    const [text] = chatDraft(intent, passage.text, source);
+    requestAddToChat(text, "plain", { sources: [source] });
   };
-  const highlightPdfSelection = async () => {
+  const highlightPdfSelection = async (passage: FileSelection, note: boolean) => {
     const details = selectionDetails();
-    const annotation = await upsertPdfAnnotation(createPdfAnnotation(details.document, details.quote, details.anchors));
+    // The words too, so the mark can be found by them as well as by its rectangles.
+    const anchor = bodyRef.current ? describeRange(bodyRef.current, passage.range) : null;
+    const created = createPdfAnnotation(details.document, details.quote, details.anchors);
+    const annotation = await upsertPdfAnnotation(anchor ? { ...created, anchor } : created);
     setAnnotations((current) => [...current.filter((entry) => entry.id !== annotation.id), annotation]);
-    setOpenAnnotation({ id: annotation.id, rect: selection!.rect });
+    setOpenAnnotation({ id: annotation.id, rect: passage.rect, note });
     onPin();
   };
   const askAnnotation = (annotation: PdfAnnotation) => {
@@ -183,6 +201,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     };
     return { lines: selectionLines(content.text, offset(range.startContainer, range.startOffset), offset(range.endContainer, range.endOffset)) };
   };
+  placeOfRef.current = placeOf;
   const edit = (text: string) => {
     if (diskText === null) return;
     const next = editDraft(draft, diskText, text);
@@ -209,12 +228,6 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     if (draft && !window.confirm(`Close “${name}” and discard its unsaved changes?`)) return;
     setDraft(null);
     onClose();
-  };
-  const addSelection = () => {
-    if (!selection) return;
-    requestAddToChat(selectionReference(selection.text, relative, placeOf(selection.range)), "plain");
-    window.getSelection()?.removeAllRanges();
-    dismiss();
   };
 
   // A new path starts blank; a reload of the same file keeps what is shown
@@ -340,7 +353,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
           consumeFilePlace(path, placed.token);
         }} />
       </div>
-      {annotationsOpen ? <PdfAnnotationsList annotations={annotations} selectedId={openAnnotation?.id} onSelect={selectAnnotation} onClose={() => setAnnotationsOpen(false)} /> : null}
+      {annotationsOpen ? <AnnotationList annotations={annotations} selectedId={openAnnotation?.id} onSelect={selectAnnotation} onClose={() => setAnnotationsOpen(false)} /> : null}
     </div>;
   } else if (content.status === "image") {
     body = <ImageView url={content.url} size={content.size} mime={content.mime} focused={focused} />;
@@ -355,7 +368,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         className="block h-full w-full resize-none overflow-auto overscroll-none bg-transparent px-5 py-4 font-mono text-[12.5px] leading-[1.55] text-content/90 outline-none"
       />
     ) : (
-      <MarkdownDocumentPreview text={shownText} metadataLabel="Front matter" cwd={parentPath(path)} onOpenFile={onOpenFile} />
+      <div ref={markdownRef} className="h-full min-h-0"><MarkdownDocumentPreview text={shownText} metadataLabel="Front matter" cwd={parentPath(path)} onOpenFile={onOpenFile} /></div>
     );
   } else {
     body = (
@@ -383,7 +396,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         {draft ? <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-content/60" /> : null}
         {folder && folder !== "." ? <span className="pane-header-secondary min-w-0 flex-1 truncate text-[11px] text-content/40">{folder}</span> : <span className="flex-1" />}
         {editable ? <div data-no-drag className="shrink-0"><MarkdownModeToggle mode={mode} onChange={setMode} /></div> : null}
-        {kind === "pdf" ? <PaneButton label="PDF annotations" onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-3.5" /></PaneButton> : null}
+        {kind === "pdf" || content.status === "text" ? <PaneButton label="Highlights & notes" onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-3.5" /></PaneButton> : null}
         {draft ? (
           <button type="button" data-no-drag disabled={conflict || saving} onClick={() => void save()} title={conflict ? "Resolve the conflict first" : "Save (Ctrl/Cmd+S)"}
             className="h-6 shrink-0 rounded px-2 text-[11px] text-content hover:bg-content/10 disabled:opacity-40">{saving ? "Saving…" : "Save"}</button>
@@ -406,11 +419,17 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       {kind === "pdf" && content.status === "error" && readingDocument ? <Banner tone="warn" message="This PDF may have moved. Locate the same document to restore its annotations.">
         <BannerButton onClick={() => void relocatePdf()}>{relocating ? "Locating…" : "Locate file"}</BannerButton>
       </Banner> : null}
-      <div ref={bodyRef} className="min-h-0 min-w-0 flex-1">{body}</div>
-      {content.status === "pdf" && selection ? <PdfSelectionMenu selection={selection} onAsk={askPdfSelection} onHighlight={highlightPdfSelection} onDismiss={dismiss} />
-        : <TranscriptSelectionMenu selection={selection} onAddToChat={addSelection} onDismiss={dismiss} />}
+      {content.status === "text" ? <div className="flex min-h-0 min-w-0 flex-1">
+        <div ref={bodyRef} className="min-h-0 min-w-0 flex-1">{body}</div>
+        {annotationsOpen ? marks.list(() => setAnnotationsOpen(false)) : null}
+      </div> : <div ref={bodyRef} className="min-h-0 min-w-0 flex-1">{body}</div>}
+      {content.status === "pdf"
+        ? <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`pdf:${path}`} toChat={pdfToChat} onMark={highlightPdfSelection} />
+        : <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`text:${path}:${diskText?.length ?? 0}`} askLabel={marks.askLabel}
+          toChat={marks.toChat} onMark={editing ? undefined : marks.onMark} />}
+      {content.status === "text" ? marks.popover : null}
       {content.status === "pdf" && openAnnotation && annotations.find((annotation) => annotation.id === openAnnotation.id) ?
-        <PdfAnnotationPopover key={openAnnotation.id} annotation={annotations.find((annotation) => annotation.id === openAnnotation.id)!} anchor={openAnnotation.rect}
+        <AnnotationPopover key={openAnnotation.id} annotation={annotations.find((annotation) => annotation.id === openAnnotation.id)!} anchor={openAnnotation.rect} focusNote={openAnnotation.note}
           onDismiss={() => setOpenAnnotation(null)} onAsk={askAnnotation} onSave={saveAnnotation} onDelete={removeAnnotation} /> : null}
     </div>
   );

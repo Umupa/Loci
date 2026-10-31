@@ -12,6 +12,9 @@ import { flashRange, useTextHighlights } from "./useTextHighlights";
 
 export const ASK_PROMPT = "Explain this passage.";
 
+/** Show a reader's list of highlights, dropping from this anchor. */
+export type MarksListRequest = { anchor: PopoverAnchor; onClose: () => void; title?: string };
+
 export type MarkSpec = {
   /** What highlights are kept on. Without it the reader offers Ask only. */
   target?: AnnotationTarget;
