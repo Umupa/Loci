@@ -2,6 +2,7 @@ import { Modal } from "../../../shared/ui/Modal";
 import type { ComponentProps } from "react";
 import { SessionPane } from "../../sessions/ui/SessionPane";
 import { agentLook, type Agent, type AgentState } from "../model/agent";
+import { markAgentAccessMigrated } from "../model/agentAccess";
 import { AgentAvatar } from "./AgentAvatar";
 import { AgentDetails } from "./AgentDetails";
 import { AgentIntro } from "./AgentIntro";
@@ -29,9 +30,16 @@ export function AgentSessionPane({ agent, state, sessionPaneProps, detailsOpen, 
       details={<Modal title={`${agentLook(agent).name} settings`} onClose={onToggleDetails} fitViewport minimalHeader size="lg" className="agent-settings-modal h-[min(680px,calc(100dvh-32px))]"><AgentDetails agent={agent} session={session} recents={recents} refreshKey={session.busy}
         onModelChange={(harness, model) => onModelChange(session.id, harness, model)}
         onModelSettingsChange={(settings) => onModelSettingsChange(session.id, settings)}
-        onRuntimeModeChange={(mode) => onRuntimeModeChange(session.id, mode)}
+        onRuntimeModeChange={(mode) => {
+          onRuntimeModeChange(session.id, mode);
+          // Choosing here is the mentor's access from now on, migration included.
+          markAgentAccessMigrated(agent.id);
+        }}
         onPickFolders={onPickFolders} onReset={onReset} onDelete={onDelete} onClose={onToggleDetails} /></Modal>}>
-      <SessionPane {...sessionPaneProps} hidePaneHeader hideProjectPicker
+      <SessionPane {...sessionPaneProps} onRuntimeModeChange={(id, mode) => {
+        sessionPaneProps.onRuntimeModeChange(id, mode);
+        markAgentAccessMigrated(agent.id);
+      }} hidePaneHeader hideProjectPicker
         runnerAvatar={<AgentAvatar name={agent.avatar} color={agent.color} className="size-4" />}
         emptyIntro={<AgentIntro agent={agent} />}
         chatPlaceholder={`Message ${agentLook(agent).name}`} />

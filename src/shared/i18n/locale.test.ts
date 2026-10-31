@@ -150,6 +150,13 @@ describe("settings copy", () => {
     expect(RUNTIME_MODE_HINT["full-access"]).toContain("non-plan turns without prompts");
   });
 
+  it("translates permission names for Settings while the composer keeps English", () => {
+    setLanguagePreference("zh-CN");
+    expect(t("Full access")).toBe("完全访问");
+    expect(t("Supervised")).toBe("监督模式");
+    expect(t("Default permissions for new mentors")).toBe("新导师的默认权限");
+  });
+
   it("keeps workspace dates in English regardless of the settings preference", () => {
     const now = Date.UTC(2026, 9, 9);
     setLanguagePreference("zh-CN");

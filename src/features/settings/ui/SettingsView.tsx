@@ -10,10 +10,12 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { Check, ChevronDown, ExternalLink, Folder, FolderOpen, Globe, ImagePlus, Loader, Pencil, RefreshCw, RotateCcw, Search, X } from "../../../shared/ui/icons";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
+import { AccessPicker } from "../../sessions/ui/AccessPicker";
 import { ColorPickerPopover, ColorSwatchRow } from "../../../shared/ui/ColorPickerPopover";
 import { Popover } from "../../../shared/ui/Popover";
 import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
 import { agentLook, agentsSnapshot, listAgents, subscribeAgents, type Agent } from "../../agents/model/agent";
+import { loadNewAgentAccess, NEW_AGENT_ACCESS, saveNewAgentAccess, subscribeNewAgentAccess } from "../../agents/model/agentAccess";
 import { defaultAgentName } from "../../agents/model/agentAvatars";
 import { resetAgentDefaults } from "../../agents/model/agentFiles";
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
@@ -1349,9 +1351,15 @@ function PageHeader({ title, description, }: {
 function AgentsPage() {
     useLocale();
     const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
+    const newAccess = useSyncExternalStore(subscribeNewAgentAccess, loadNewAgentAccess, () => NEW_AGENT_ACCESS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const agents = useMemo(() => listAgents(), [snapshot]);
     return (<>
+      <Group id="agent-access" title={t("New mentors")} description={t("The permissions a mentor starts with. Each mentor can be changed in its own settings.")}>
+        <Row label={t("Default permissions for new mentors")} description={t("What a new mentor may do without asking.")}>
+          <AccessPicker value={newAccess} onChange={saveNewAgentAccess}/>
+        </Row>
+      </Group>
       <Group id="agent-list" title={t("Your mentors")} description={t("Add a mentor with the plus on the mentor rail. Its model, folders, soul, habits and memory are set in its settings.")}>
         {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No mentors yet.")}</p>)}
       </Group>

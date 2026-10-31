@@ -139,6 +139,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "notify alert toast permission background",
     },
     {
+        id: "agent-access",
+        section: "agents",
+        get label() { return t("Default permissions for new mentors"); },
+        keywords: "agent mentor permission access full access supervised auto accept edits default",
+    },
+    {
         id: "agent-list",
         section: "agents",
         get label() { return t("Your mentors"); },

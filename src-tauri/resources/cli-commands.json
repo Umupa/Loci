@@ -1763,7 +1763,7 @@
     },
     {
       "name": "settings.get",
-      "summary": "App settings a terminal may read: defaultProvider, defaultModel, canvasTools.",
+      "summary": "App settings a terminal may read: defaultProvider, defaultModel, defaultMentorAccess, canvasTools.",
       "callers": [
         "external"
       ],
@@ -1789,7 +1789,7 @@
         {
           "name": "key",
           "type": "string",
-          "help": "defaultProvider: The provider new conversations start with; defaultModel: The model new conversations start with, for the default provider; canvasTools: Whether agents get the built-in Excalidraw tools (true or false)",
+          "help": "defaultProvider: The provider new conversations start with; defaultModel: The model new conversations start with, for the default provider; defaultMentorAccess: The permissions a new mentor starts with: supervised, auto-accept-edits, auto, full-access; canvasTools: Whether agents get the built-in Excalidraw tools (true or false)",
           "required": true,
           "positional": true
         },

@@ -84,6 +84,13 @@ it("keeps the rail's order and forgets a removed agent", () => {
   expect(listAgents().map((agent) => agent.id)).toEqual([c.id, b.id]);
 });
 
+it("keeps the one-time access migration flag", () => {
+  const { id } = createAgent();
+  updateAgent(id, (agent) => ({ ...agent, accessMigrated: true }));
+  expect(findAgent(id)?.accessMigrated).toBe(true);
+  expect(JSON.parse(localStorage.getItem("loci:agent-roster")!)[0].accessMigrated).toBe(true);
+});
+
 it("finds an agent by its conversation", () => {
   const { id } = createAgent();
   expect(agentForSession("s1")).toBeUndefined();

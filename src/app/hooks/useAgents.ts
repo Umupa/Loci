@@ -209,7 +209,14 @@ export function useAgents(options: Options) {
   const addSession = useCallback((session: Session) => {
     const { runtime } = latest.current;
     runtime.bindRestoredSession(session);
-    runtime.updateSessions((current) => current.some((entry) => entry.id === session.id) ? current : [...current, session]);
+    // A session restored at boot is already live, with its own turns and blocks.
+    // Adopt the access it was loaded with without replacing that live copy.
+    runtime.updateSessions((current) => {
+      const index = current.findIndex((entry) => entry.id === session.id);
+      if (index < 0) return [...current, session];
+      if (current[index].runtimeMode === session.runtimeMode) return current;
+      return current.map((entry, at) => at === index ? { ...entry, runtimeMode: session.runtimeMode } : entry);
+    });
   }, []);
 
   /** The agent's conversation, loaded or created and kept in memory, as opening it does. */

@@ -452,5 +452,20 @@
   "Puts a link to this build at {0}, so `loci` talks to this Loci.": "在 {0} 放一个指向这个版本的链接，让 `loci` 连接这个 Loci。",
   "Add the folder of {0} to PATH, or call it by its full path.": "把 {0} 所在的文件夹加入 PATH，或用完整路径调用它。",
   "Reinstall": "重新安装",
-  "Install": "安装"
+  "Install": "安装",
+  "New mentors": "新导师",
+  "The permissions a mentor starts with. Each mentor can be changed in its own settings.": "导师初始拥有的权限。每位导师都可以在自己的设置中修改。",
+  "Default permissions for new mentors": "新导师的默认权限",
+  "What a new mentor may do without asking.": "新导师无需询问即可执行的操作。",
+  "Supervised": "监督模式",
+  "Auto-accept edits": "自动接受编辑",
+  "Auto": "自动",
+  "Full access": "完全访问",
+  "Ask before commands and file changes.": "执行命令和修改文件前先询问。",
+  "Auto-approve edits, ask before other actions.": "自动批准文件修改，其他操作前询问。",
+  "An AI reviewer can approve or deny actions.": "由 AI 审核者批准或拒绝操作。",
+  "Allow commands, edits, and supported MCP confirmations in non-plan turns without prompts.": "在非计划轮次中无需询问即可执行命令、修改文件，并确认受支持的 MCP 请求。",
+  "Access": "访问权限",
+  "Changes apply to the next turn.": "更改从下一轮开始生效。",
+  "Access changes apply to the next turn. Stop and resend to apply them now.": "权限更改从下一轮开始生效。停止并重新发送可立即生效。"
 }

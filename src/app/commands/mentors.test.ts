@@ -43,9 +43,12 @@ describe("mentors create and update", () => {
 
   it("update the look and permissions, and refuse while the mentor is busy", async () => {
     const mentors = [agent("a1", "Kern")];
+    localStorage.setItem("loci:agent-roster", JSON.stringify(mentors));
     const { ctx, chatOf } = testContext(mentors);
     await runCommand(ctx, "mentors.update", { mentor: "Kern", mode: "auto" }, external);
     expect(ctx.submission.changeRuntimeMode).toHaveBeenCalledWith(chatOf("a1").id, "auto");
+    // A mode chosen from the terminal is the mentor's own choice, as in its settings.
+    expect(JSON.parse(localStorage.getItem("loci:agent-roster") ?? "[]")[0].accessMigrated).toBe(true);
     await expect(runCommand(ctx, "mentors.update", { mentor: "a1", mode: "yolo" }, external)).rejects.toMatchObject({ code: "usage" });
     chatOf("a1").busy = true;
     await expect(runCommand(ctx, "mentors.update", { mentor: "a1", mode: "auto" }, external)).rejects.toMatchObject({ code: "busy" });

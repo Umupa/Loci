@@ -1,3 +1,5 @@
+import { loadNewAgentAccess, saveNewAgentAccess } from "../../features/agents/model/agentAccess";
+import { RUNTIME_MODES, type RuntimeMode } from "../../features/sessions/model/session";
 import { loadCanvasMcpEnabled, saveCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { defaultSessionChoice, loadLastModelChoice, modelsFor, preferredModelId, saveLastModelChoice } from "../../features/sessions/model/models";
 import type { CommandContext } from "./context";
@@ -21,6 +23,15 @@ const SETTINGS: Record<string, Setting> = {
       const harness = loadLastModelChoice()?.harness ?? defaultSessionChoice().harness;
       if (!modelsFor(harness).some((model) => model.id === value)) throw new CommandError(`Unknown model for ${harness}; run \`loci models list\``, "usage");
       saveLastModelChoice(harness, value);
+    },
+  },
+  defaultMentorAccess: {
+    help: `The permissions a new mentor starts with: ${RUNTIME_MODES.join(", ")}`,
+    get: () => loadNewAgentAccess(),
+    // As Settings → Mentors → New mentors does.
+    set: (value) => {
+      if (!RUNTIME_MODES.includes(value as RuntimeMode)) throw new CommandError(`defaultMentorAccess is one of: ${RUNTIME_MODES.join(", ")}`, "usage");
+      saveNewAgentAccess(value as RuntimeMode);
     },
   },
   canvasTools: {

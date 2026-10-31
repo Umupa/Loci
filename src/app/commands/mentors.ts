@@ -1,4 +1,5 @@
 import { agentLook, agentState, AGENT_COLORS, updateAgent, type Agent } from "../../features/agents/model/agent";
+import { markAgentAccessMigrated } from "../../features/agents/model/agentAccess";
 import { AGENT_AVATARS } from "../../features/agents/model/agentAvatars";
 import { setAgentWorkdir } from "../../features/agents/model/agentWorkdir";
 import { AGENT_TEMPLATES } from "../../features/agents/templates";
@@ -75,7 +76,11 @@ async function applySettings(ctx: CommandContext, agent: Agent, settings: Settin
       throw new CommandError(`effort must be one of: ${effort.options.map((option) => option.value).join(", ")}`, "usage");
     ctx.submission.changeModelSettings(chat.id, { ...current.modelSettings, [effort.id]: settings.effort });
   }
-  if (mode) ctx.submission.changeRuntimeMode(chat.id, mode as RuntimeMode);
+  if (mode) {
+    ctx.submission.changeRuntimeMode(chat.id, mode as RuntimeMode);
+    // As choosing in the mentor's settings does: this is its access from now on.
+    markAgentAccessMigrated(agent.id);
+  }
   await ctx.flushPersistence();
 }
 

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
+import { loadNewAgentAccess } from "../../features/agents/model/agentAccess";
 import { loadCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { loadLastModelChoice } from "../../features/sessions/model/models";
 import { runCommand } from "./dispatch";
@@ -17,6 +18,10 @@ describe("settings commands", () => {
     expect(await runCommand(ctx, "settings.get", { key: "defaultProvider" }, external)).toEqual({ defaultProvider: "antigravity" });
     await runCommand(ctx, "settings.set", { key: "canvasTools", value: "false" }, external);
     expect(loadCanvasMcpEnabled()).toBe(false);
+    expect(await runCommand(ctx, "settings.get", { key: "defaultMentorAccess" }, external)).toEqual({ defaultMentorAccess: "full-access" });
+    await runCommand(ctx, "settings.set", { key: "defaultMentorAccess", value: "auto" }, external);
+    expect(loadNewAgentAccess()).toBe("auto");
+    await expect(runCommand(ctx, "settings.set", { key: "defaultMentorAccess", value: "yolo" }, external)).rejects.toMatchObject({ code: "usage" });
   });
 
   it("refuse anything else", async () => {

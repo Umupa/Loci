@@ -159,6 +159,17 @@ describe("settings pages", () => {
         const ids = SETTINGS_INDEX.map((entry) => entry.id);
         expect(ids).toEqual([...new Set(ids)]);
     });
+    it("starts new mentors with Full access and remembers another default", async () => {
+        await render("agents");
+        const row = container.querySelector('[data-setting-id="agent-access"]')!;
+        const trigger = row.querySelector<HTMLButtonElement>("[data-access-picker-trigger]")!;
+        expect(trigger.getAttribute("aria-label")).toBe("Full access");
+        await act(async () => trigger.click());
+        const option = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((node) => node.textContent?.includes("Supervised"));
+        await act(async () => option!.click());
+        expect(localStorage.getItem("loci:agent-default-access")).toBe("supervised");
+        expect(trigger.getAttribute("aria-label")).toBe("Supervised");
+    });
     it("offers no project, tab, notes or agents switches", async () => {
         await render("general");
         for (const label of ["Projects", "Tab animations", "Tab limit", "Notes", "Working agents"]) {

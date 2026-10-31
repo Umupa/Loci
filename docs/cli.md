@@ -81,7 +81,7 @@ Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false
 | `sessions` | `list`, `read`, `start`, `send`, `draft`, `stop`, `archive`, `delete` |
 | `soul`, `memory`, `habits` | The mentor's standing instructions, memory and habits |
 | `models` | `list`: providers, models, settings and permission modes |
-| `settings` | `get`, `set`: `defaultProvider`, `defaultModel`, `canvasTools` |
+| `settings` | `get`, `set`: `defaultProvider`, `defaultModel`, `defaultMentorAccess`, `canvasTools` |
 | `cli` | `rotate-token`, `disable` |
 
 Notes:
