@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 
-/** List-and-detail pages (Feeds, Courses) in the inbox look. Detail action buttons: filled, outlined, bare. */
+/** List-and-detail pages (Courses) in the inbox look. Detail action buttons: filled, outlined, bare. */
 const ACTION = "inline-flex items-center gap-1.5 rounded-md px-3 text-[12px] disabled:cursor-default disabled:opacity-40";
 export const ACTION_FILLED = `${ACTION} h-6.5 bg-content text-background-base hover:bg-content/80`;
 export const ACTION_OUTLINE = `${ACTION} h-7 border border-content/15 text-content/80 hover:bg-content/5`;

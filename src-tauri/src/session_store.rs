@@ -565,7 +565,6 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     crate::agent_transcript::ensure_table(conn)?;
     crate::agent_documents::ensure_table(conn)?;
     crate::learning::ensure_table(conn)?;
-    crate::feeds::ensure_table(conn)?;
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, ?1)",
         [now_millis()],

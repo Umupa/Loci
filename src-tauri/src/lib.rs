@@ -11,7 +11,6 @@ mod chat_background;
 mod control;
 pub mod control_cli;
 mod course;
-mod feeds;
 mod flavor;
 mod fs;
 mod harness;
@@ -34,7 +33,6 @@ mod skills;
 mod trackpad_zoom;
 #[cfg(target_os = "windows")]
 mod tray;
-mod v2ex;
 mod window;
 #[cfg(windows)]
 mod windows;
@@ -326,18 +324,6 @@ pub fn run() {
             harness::harness_kill_all,
             harness::harness_exec,
             link_preview::fetch_link_preview,
-            feeds::feeds_state_list,
-            feeds::feeds_mark_seen,
-            feeds::feeds_mark_seen_many,
-            feeds::feeds_set_starred,
-            v2ex::v2ex_status,
-            v2ex::v2ex_set_token,
-            v2ex::v2ex_clear_token,
-            v2ex::v2ex_topics,
-            v2ex::v2ex_topic,
-            v2ex::v2ex_replies,
-            v2ex::v2ex_node,
-            v2ex::v2ex_notifications,
             mcp::mcp_add,
             mcp::mcp_discover,
             #[cfg(target_os = "macos")]

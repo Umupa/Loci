@@ -375,8 +375,7 @@ mod tests {
              INSERT INTO course_progress VALUES ('a','course','item','learning');
              INSERT INTO learning_sources VALUES ('source','{}',1);
              INSERT INTO reading_documents VALUES ('doc','/document.pdf','title','fingerprint',1,1);
-             INSERT INTO pdf_annotations VALUES ('annotation','doc','source','[]','note','[]',1,1);
-             INSERT INTO feed_item_state (provider,item_id,starred) VALUES ('v2ex','item',1);"
+             INSERT INTO pdf_annotations VALUES ('annotation','doc','source','[]','note','[]',1,1);"
         ).unwrap();
     }
     fn table_counts(store: &SessionStore) -> Vec<(String, i64)> {
@@ -496,7 +495,7 @@ mod tests {
         seed(&store);
         assert_eq!(
             table_counts(&store).len(),
-            16,
+            15,
             "Update fixtures when the schema grows"
         );
         assert!(table_counts(&store).iter().all(|(_, count)| *count == 1));
@@ -539,7 +538,7 @@ mod tests {
     #[test]
     fn reset_handles_missing_feature_tables_and_clears_legacy_tables() {
         let store = SessionStore::open_in_memory().unwrap();
-        store.lock_conn().unwrap().execute_batch("DROP TABLE course_progress; DROP TABLE courses; DROP TABLE feed_item_state; CREATE TABLE legacy_feature(value TEXT); INSERT INTO legacy_feature VALUES ('old');").unwrap();
+        store.lock_conn().unwrap().execute_batch("DROP TABLE course_progress; DROP TABLE courses; CREATE TABLE legacy_feature(value TEXT); INSERT INTO legacy_feature VALUES ('old');").unwrap();
         let dir = TestDir::new();
         reset_data(&store, &dir.0).unwrap();
         assert!(table_counts(&store).contains(&("legacy_feature".into(), 0)));

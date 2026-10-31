@@ -27,6 +27,6 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "market-brief", name: "Ledger", role: "Market briefing", avatar: "pebble", soul: marketBrief,
-    summary: "Asks for your watchlist, then files a sourced market briefing each trading day, read in Feeds → Briefings.",
+    summary: "Asks for your watchlist, then files a sourced market briefing each trading day as a note.",
   },
 ];
