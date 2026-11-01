@@ -9,6 +9,7 @@ import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { useAgentResources } from "../../agents/ui/useAgentResources";
 import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
+import { moveFileDrafts, setFileDraft } from "../../files/model/fileDrafts";
 import { loadCourse } from "../../learning/model/course";
 import { createNote, getNote } from "../../notes";
 import { readingOf, type MentorLesson, type MentorPage } from "../model/mentorPage";
@@ -114,6 +115,25 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
     finally { if (mounted.current) setCreating(false); }
   };
 
+  // A rename, move or trash in the Files tree follows the file the reader has
+  // open, including its unsaved edits, so Save never writes the old path.
+  const fileMoved = (from: string, to: string) => {
+    const rebase = (path: string) => path === from || path.startsWith(`${from}/`) ? to + path.slice(from.length) : path;
+    moveFileDrafts(rebase);
+    const page = state.page;
+    if (page?.kind !== "file") return;
+    const next = rebase(page.path);
+    if (next === page.path) return;
+    setActionError(undefined);
+    onOpen({ kind: "file", path: next });
+  };
+  const fileDeleted = (path: string) => {
+    const page = state.page;
+    if (page?.kind !== "file" || (page.path !== path && !page.path.startsWith(`${path}/`))) return;
+    setFileDraft(page.path, null);
+    onClose();
+  };
+
   const library = useDragResize({
     min: LIBRARY_MIN, direction: "right", defaultWidth: 260, initial: state.libraryWidth, onCommit: onResizeLibrary,
     max: () => Math.max(LIBRARY_MIN, (body.current?.clientWidth ?? window.innerWidth) - READER_MIN - (state.chat ? CHAT_MIN : 0)),
@@ -145,6 +165,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
       <aside ref={library.setPaneRef} className="mentor-library-column" hidden={!state.library} aria-label="Outline and library">
         <MentorLibrary agent={agent} data={data} errors={errors} onRetry={reload} page={state.page} lesson={state.lesson}
           onOpen={open} onNewNote={() => void newNote()} creatingNote={creating} onOpenFile={(path) => open({ kind: "file", path })}
+          onFileMoved={fileMoved} onFileDeleted={fileDeleted}
           segment={state.segment} course={state.course} filter={state.filter} onChange={onLibraryChange} onDraft={onDraft} courseBadge={courseBadge} />
         {actionError ? <p role="alert" className="mentor-library-error">{actionError}</p> : null}
         <div role="separator" aria-label="Resize library" aria-orientation="vertical" tabIndex={0} className="mentor-resize mentor-resize--right"

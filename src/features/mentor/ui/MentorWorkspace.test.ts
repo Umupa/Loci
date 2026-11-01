@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { MENTOR_VIEW_KEY, useMentorView } from "../../../app/hooks/useMentorView";
 import { invalidateCanvases } from "../../canvas/canvas";
+import { getFileDraft, setFileDraft } from "../../files/model/fileDrafts";
 import type { Note } from "../../notes";
 import { agentCanvasScope, type Agent } from "../../agents/model/agent";
 import { MentorWorkspace } from "./MentorWorkspace";
@@ -22,8 +23,17 @@ vi.mock("../../learning/ui/CoursePane", () => ({
       createElement("button", { onClick: () => onLessonChange({ id: "service", title: "Service" }) }, "Read service")),
 }));
 vi.mock("../../agents/ui/AgentFilesSection", () => ({
-  AgentFilesSection: ({ agentId, onOpenFile }: { agentId: string; onOpenFile: (path: string) => void }) =>
-    createElement("button", { "data-test-files": agentId, onClick: () => onOpenFile(`/home/user/Loci/${agentId}/repos/notes.md`) }, "notes.md"),
+  AgentFilesSection: ({ agentId, onOpenFile, onFileMoved, onFileDeleted }: {
+    agentId: string; onOpenFile: (path: string) => void;
+    onFileMoved?: (from: string, to: string) => void; onFileDeleted?: (path: string) => void;
+  }) => {
+    const path = `/home/user/Loci/${agentId}/repos/notes.md`;
+    const next = `/home/user/Loci/${agentId}/repos/notes-v2.md`;
+    return createElement("div", null,
+      createElement("button", { "data-test-files": agentId, onClick: () => onOpenFile(path) }, "notes.md"),
+      createElement("button", { "data-test-file-move": agentId, onClick: () => onFileMoved?.(path, next) }, "rename notes.md"),
+      createElement("button", { "data-test-file-delete": agentId, onClick: () => onFileDeleted?.(next) }, "trash notes.md"));
+  },
 }));
 vi.mock("../../files/ui/FilePane", () => ({ FilePane: ({ path }: { path: string }) => createElement("section", { "data-test-file": path }, path) }));
 vi.mock("../../canvas/ui/CanvasPane", () => ({ CanvasPane: ({ canvas }: { canvas: { title: string } }) => createElement("section", { "data-test-canvas": true }, canvas.title) }));
@@ -297,6 +307,25 @@ it("filters only the segment it was typed in, and moves through a list with the 
   await act(async () => selected.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
   expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("data-segment")).toBe("files");
   expect(document.activeElement?.getAttribute("data-segment")).toBe("files");
+});
+
+it("keeps the open file's reader and pending edits with it when the file is renamed or trashed", async () => {
+  const from = "/home/user/Loci/agent-a/repos/notes.md";
+  const to = "/home/user/Loci/agent-a/repos/notes-v2.md";
+  await render();
+  await tab("files");
+  await click('[data-test-files="agent-a"]');
+  await vi.waitFor(() => expect(container.querySelector("[data-test-file]")?.getAttribute("data-test-file")).toBe(from));
+  setFileDraft(from, { text: "edited", base: "original" });
+  await click('[data-test-file-move="agent-a"]');
+  expect(control.stateFor(agent.id).page).toEqual({ kind: "file", path: to });
+  expect(getFileDraft(from)).toBeNull();
+  expect(getFileDraft(to)).toEqual({ text: "edited", base: "original" });
+  expect(container.querySelector("[data-test-file]")?.getAttribute("data-test-file")).toBe(to);
+  await click('[data-test-file-delete="agent-a"]');
+  expect(container.querySelector("[data-test-file]")).toBeNull();
+  expect(reader().dataset.mentorReader).toBe("empty");
+  expect(getFileDraft(to)).toBeNull();
 });
 
 it("shows a conversation as the reader without remembering it", async () => {

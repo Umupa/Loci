@@ -30,6 +30,10 @@ type Props = {
   onNewNote: () => void;
   creatingNote: boolean;
   onOpenFile: OpenFileFn;
+  /** A file or folder in the Files tree was renamed or moved. */
+  onFileMoved?: (from: string, to: string) => void;
+  /** A file or folder in the Files tree went to the Trash. */
+  onFileDeleted?: (path: string) => void;
   /** The segment chosen for this mentor; unset picks one from what it has. */
   segment?: LibrarySegment;
   /** The course the Courses segment shows. */
@@ -52,7 +56,7 @@ export function defaultSegment(data: LibraryData, page?: MentorPage): LibrarySeg
  * shows the course being learned and where to continue; Sources, Notes (with
  * drawings) and Files are one list each, with a filter for that list.
  */
-export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, segment: chosen, course, filter, onChange, onDraft, courseBadge }: Props) {
+export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, onFileMoved, onFileDeleted, segment: chosen, course, filter, onChange, onDraft, courseBadge }: Props) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
   const segment = chosen ?? defaultSegment(data, page);
@@ -100,7 +104,8 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
     body = <LibraryCourses agent={agent} courses={data.courses} selected={course} page={page} lesson={lesson}
       onOpen={onOpen} onSelect={(courseId) => onChange({ course: courseId })} onDraft={onDraft} badge={courseBadge} />;
   } else if (segment === "files") {
-    body = MentorFilesSection ? <MentorFilesSection agentId={agent.id} filter={query} onOpenFile={(path) => onOpenFile(path)} /> : null;
+    body = MentorFilesSection ? <MentorFilesSection agentId={agent.id} filter={query} onOpenFile={(path) => onOpenFile(path)}
+      onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} /> : null;
   } else {
     const entries = segment === "sources" ? sources : notes;
     body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={onOpen}
