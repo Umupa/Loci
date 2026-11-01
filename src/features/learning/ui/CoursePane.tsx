@@ -271,8 +271,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   useEffect(() => { onLessonChange?.(activeId && activeTitle ? { id: activeId, title: activeTitle } : null); }, [activeId, activeTitle]); // eslint-disable-line react-hooks/exhaustive-deps
   const iconButton = embedded ? RESOURCE_ACTION : "course-pane__close";
   const controls = course ? <>
-    <button type="button" data-no-drag className={iconButton} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-3.5" /><span className="sr-only">Previous</span></button>
-    <button type="button" data-no-drag className={iconButton} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-3.5" /><span className="sr-only">Next</span></button>
+    <button type="button" data-no-drag className={iconButton} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-4" /><span className="sr-only">Previous</span></button>
+    <button type="button" data-no-drag className={iconButton} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-4" /><span className="sr-only">Next</span></button>
     <button type="button" data-no-drag className={`${iconButton}${activeStatus === "mastered" ? " course-pane__read" : ""}`} title={activeStatus === "mastered" ? (reading ? "Read" : "Mastered") : reading ? "Mark as read" : "Mark as mastered"} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}><Check className="size-3.5" /><span className="sr-only">{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</span></button>
     <button type="button" data-no-drag className={iconButton} title={reading ? "Test my understanding with the agent" : "Discuss this step with the agent"} onClick={discuss}><MessageSquarePlus className="size-3.5" /><span className="sr-only">{reading ? "Test understanding" : "Discuss step"}</span></button>
   </> : null;
@@ -280,8 +280,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   // Beside a conversation the header keeps to moving through the course; the
   // rest waits in a menu, since reaching a lesson's end already marks it read.
   const overviewControls = course ? <>
-    <button type="button" className={RESOURCE_ACTION} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-3.5" /><span className="sr-only">Previous</span></button>
-    <button type="button" className={RESOURCE_ACTION} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-3.5" /><span className="sr-only">Next</span></button>
+    <button type="button" className={RESOURCE_ACTION} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-4" /><span className="sr-only">Previous</span></button>
+    <button type="button" className={RESOURCE_ACTION} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-4" /><span className="sr-only">Next</span></button>
     <LessonMenu trigger={lessonMenu} items={[
       { label: markLabel, icon: <Check className="size-3.5" />, disabled: !activeId || saving.has(activeId) || activeStatus === "mastered", onSelect: () => { if (activeId) void markStatus(activeId, "mastered"); } },
       { label: reading ? "Test my understanding" : "Discuss this step", icon: <MessageSquarePlus className="size-3.5" />, onSelect: discuss },
@@ -296,8 +296,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       {actions}
     </ResourceHeader> : <>
     <PaneHeader className="course-pane__header" onPaneDragStart={onPaneDragStart}>
-      {course ? <button type="button" data-no-drag aria-label={sidebarLabel} title={sidebarLabel} aria-expanded={sidebarOpen} aria-controls={sidebarId} className="course-pane__sidebar-toggle" onClick={() => setSidebarOpen((open) => !open)}><SidebarLeft className="size-3.5" /></button> : null}
-      <Mortarboard className={`size-3.5 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{controls ? <span data-no-drag className="flex shrink-0 items-center gap-0.5">{controls}</span> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-3.5" /></button>
+      {course ? <button type="button" data-no-drag aria-label={sidebarLabel} title={sidebarLabel} aria-expanded={sidebarOpen} aria-controls={sidebarId} className="course-pane__sidebar-toggle" onClick={() => setSidebarOpen((open) => !open)}><SidebarLeft className="size-4" /></button> : null}
+      <Mortarboard className={`size-4 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{controls ? <span data-no-drag className="flex shrink-0 items-center gap-0.5">{controls}</span> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-4" /></button>
     </PaneHeader>
     </>}
     {course ? <>
@@ -312,7 +312,7 @@ type LessonMenuItem = { label: string; icon: ReactNode; disabled?: boolean; onSe
 function LessonMenu({ items, trigger }: { items: LessonMenuItem[]; trigger: RefObject<HTMLButtonElement | null> }) {
   const [open, setOpen] = useState(false);
   return <>
-    <button ref={trigger} type="button" className={RESOURCE_ACTION} title="Lesson actions" aria-label="Lesson actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="size-3.5" /></button>
+    <button ref={trigger} type="button" className={RESOURCE_ACTION} title="Lesson actions" aria-label="Lesson actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="size-4" /></button>
     {open ? <Popover anchor={trigger} side="bottom" align="end" width={210} role="menu" aria-label="Lesson actions" onDismiss={() => setOpen(false)} className="p-1 font-sans">
       {items.map((item) => <button key={item.label} type="button" role="menuitem" disabled={item.disabled} onClick={() => { setOpen(false); item.onSelect(); }}
         className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40">{item.icon}{item.label}</button>)}

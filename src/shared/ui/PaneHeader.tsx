@@ -26,7 +26,7 @@ export function PaneHeader({ children, className = "", style, onPaneDragStart, .
       {onPaneDragStart ? (
         <span data-pane-drag-handle data-tauri-drag-region={chrome ? "false" : undefined}
           title="Drag to move pane" className="grid size-5 shrink-0 cursor-grab place-items-center text-content/35 active:cursor-grabbing touch-none">
-          <GripVertical className="size-3.5" strokeWidth={1.75} />
+          <GripVertical className="size-4" strokeWidth={1.5} />
         </span>
       ) : null}
       {children}

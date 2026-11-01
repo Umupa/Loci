@@ -1,4 +1,5 @@
 import { memo, useMemo, useSyncExternalStore } from "react";
+import { Folder, FolderOpen } from "./icons";
 
 type Props = {
   name: string;
@@ -45,10 +46,16 @@ export const FileTypeIcon = memo(function FileTypeIcon({
   name,
   isDir,
   isOpen = false,
-  isRoot = false,
   size = 16,
 }: Props) {
   const icons = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  // Folders are chrome, not file-type decoration: the plain line icon in the
+  // muted text color, so the tree has one accentless icon family.
+  if (isDir) {
+    const DirIcon = isOpen ? FolderOpen : Folder;
+    return <DirIcon aria-hidden data-folder-icon={isOpen ? "open" : "closed"} className="shrink-0 text-content/50" style={{ width: size, height: size }} />;
+  }
 
   const iconName = icons
     ? isDir

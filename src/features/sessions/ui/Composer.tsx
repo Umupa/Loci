@@ -2333,9 +2333,9 @@ function FileMentionRuns({
                   colour back. */}
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 indent-0 text-mention">
                 {mentionKind(part.file.path) === "note" ? (
-                  <StickyNote className="size-3.5" strokeWidth={1.75} />
+                  <StickyNote className="size-3.5" strokeWidth={1.5} />
                 ) : mentionKind(part.file.path) === "canvas" ? (
-                  <ExcalidrawIcon className="size-3.5" strokeWidth={1.75} />
+                  <ExcalidrawIcon className="size-3.5" strokeWidth={1.5} />
                 ) : (
                   <FileTypeIcon
                     name={part.file.name}

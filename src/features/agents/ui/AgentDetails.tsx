@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
-import { Pencil, Plus, Settings, Sparkles, StickyNote, X } from "../../../shared/ui/icons";
+import { Pencil, Plus, Settings, Feather, StickyNote, X } from "../../../shared/ui/icons";
 import type { RecentProject } from "../../projects/model/recents";
 import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/session";
 import { AccessPicker } from "../../sessions/ui/AccessPicker";
@@ -85,7 +85,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
   const { files, error } = useAgentFiles(agent.id, refreshKey);
   const [page, setPage] = useState<Page>("general");
   useEffect(() => setPage("general"), [agent.id]);
-  const icons = { general: Settings, soul: Sparkles, memory: StickyNote };
+  const icons = { general: Settings, soul: Feather, memory: StickyNote };
   const pages = Object.keys(PAGE_TITLE) as Page[];
   const tabId = useId();
   const tabDomId = (id: Page) => `${tabId}-${id}`;
@@ -108,7 +108,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
       {pages.map((id) => {
         const Icon = icons[id];
         return <button key={id} id={tabDomId(id)} type="button" role="tab" aria-selected={page === id} tabIndex={page === id ? 0 : -1}
-          aria-controls={`${tabId}-panel`} onKeyDown={onTabKeyDown} onClick={() => setPage(id)}><Icon className="size-3.5 shrink-0" strokeWidth={1.75} />{PAGE_TITLE[id]}</button>;
+          aria-controls={`${tabId}-panel`} onKeyDown={onTabKeyDown} onClick={() => setPage(id)}><Icon className="size-3.5 shrink-0" strokeWidth={1.5} />{PAGE_TITLE[id]}</button>;
       })}
     </nav>
     <div id={`${tabId}-panel`} className="agent-settings-content" role="tabpanel" aria-labelledby={tabDomId(page)}>

@@ -105,7 +105,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
   return (
     <aside aria-label={latest.title} className="flex h-full min-h-0 min-w-0 w-full flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
       {embedded ? <ResourceHeader title={latest.title} backLabel="Back to documents" onBack={onBack} onClose={onClose}>
-        <button ref={more} type="button" title="Document actions" aria-label="Document actions" aria-expanded={menu} aria-haspopup="menu" className={RESOURCE_ACTION} onClick={() => setMenu((open) => !open)}><MoreHorizontal className="size-3.5" /></button>
+        <button ref={more} type="button" title="Document actions" aria-label="Document actions" aria-expanded={menu} aria-haspopup="menu" className={RESOURCE_ACTION} onClick={() => setMenu((open) => !open)}><MoreHorizontal className="size-4" /></button>
       </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}>
         {!embedded ? <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} /> : null}
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
@@ -113,16 +113,16 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
           {latest.subject ? <span className="pane-header-secondary min-w-0 truncate text-[11px] text-content/45">{latest.subject}</span> : null}
         </div>
         <button type="button" data-no-drag title={saved ? "Saved to Notes" : "Save as a note"} aria-label="Save as a note" disabled={saved || loading || !!error} onClick={() => void saveAsNote()} className={iconButton}>
-          {saved ? <Check className="size-3.5" strokeWidth={2} /> : <StickyNote className="size-3.5" strokeWidth={1.75} />}
+          {saved ? <Check className="size-4" strokeWidth={2} /> : <StickyNote className="size-4" strokeWidth={1.5} />}
         </button>
         {agentId && stored ? (
           <button type="button" data-no-drag title="Remove from the library" aria-label="Remove from the library" className={iconButton}
             onClick={removeFromLibrary}>
-            <Trash2 className="size-3.5" strokeWidth={1.75} />
+            <Trash2 className="size-4" strokeWidth={1.5} />
           </button>
         ) : null}
         <button type="button" data-no-drag title="Close" aria-label="Close the document" onClick={onClose} className={iconButton}>
-          <X className="size-3.5" strokeWidth={1.75} />
+          <X className="size-4" strokeWidth={1.5} />
         </button>
       </PaneHeader>}
       {menu ? <Popover anchor={more} side="bottom" align="end" width={204} role="menu" aria-label="Document actions" onDismiss={() => setMenu(false)} className="p-1 font-sans">

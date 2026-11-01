@@ -53,7 +53,7 @@ function projectLook(path: string) {
 }
 
 function ProjectIcon(_: { path: string }) {
-  return <Folder className="size-3.5 shrink-0 text-content/50" strokeWidth={1.75} />;
+  return <Folder className="size-3.5 shrink-0 text-content/50" strokeWidth={1.5} />;
 }
 
 /**
@@ -83,13 +83,13 @@ export function ProjectsField({ projects, recents, onAdd, onRemove, onPickFolder
           <span className="min-w-0 flex-1 truncate text-[13px]">{projectLook(path).name}</span>
           <button type="button" title="Remove folder" aria-label={`Remove ${projectLook(path).name}`} onClick={() => onRemove(path)}
             className="grid size-5 shrink-0 place-items-center rounded text-content/40 opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100">
-            <X className="size-3" strokeWidth={1.75} />
+            <X className="size-3" strokeWidth={1.5} />
           </button>
         </div>
       ))}
       <button ref={anchor} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => (candidates.length ? setOpen((value) => !value) : pick())}
         className="flex h-7 w-fit items-center gap-2 rounded-md px-1.5 text-[13px] text-content/50 hover:bg-content/6 hover:text-content">
-        <Plus className="size-3.5" strokeWidth={1.75} />
+        <Plus className="size-3.5" strokeWidth={1.5} />
         Add folder
       </button>
       {open ? (
@@ -106,7 +106,7 @@ export function ProjectsField({ projects, recents, onAdd, onRemove, onPickFolder
           <div role="separator" className="my-1 h-px bg-content/10" />
           <button type="button" role="menuitem" onClick={pick}
             className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-content/85 hover:bg-content/8">
-            <FolderOpen className="size-3.5 shrink-0" strokeWidth={1.75} />
+            <FolderOpen className="size-3.5 shrink-0" strokeWidth={1.5} />
             Choose folder…
           </button>
         </Popover>

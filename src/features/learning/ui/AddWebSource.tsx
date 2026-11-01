@@ -21,7 +21,7 @@ export function AddWebSource({ onAdd, onCancel }: { onAdd: (source: LearningSour
   return (
     <div className="learning-web-source" aria-label="Add web source">
       <div className="learning-web-source__heading">
-        <span className="learning-web-source__icon"><Globe aria-hidden className="size-4" strokeWidth={1.75} /></span>
+        <span className="learning-web-source__icon"><Globe aria-hidden className="size-4" strokeWidth={1.5} /></span>
         <div className="min-w-0">
           <h3>Web reference</h3>
           <p>Add a passage to your question.</p>
@@ -43,7 +43,7 @@ export function AddWebSource({ onAdd, onCancel }: { onAdd: (source: LearningSour
       <div className="learning-web-source__actions">
         <SecondaryButton onClick={onCancel}>Cancel</SecondaryButton>
         <button type="button" onClick={add} className="learning-web-source__add">
-          <Plus aria-hidden className="size-3" strokeWidth={1.75} />
+          <Plus aria-hidden className="size-3" strokeWidth={1.5} />
           Add source
         </button>
       </div>

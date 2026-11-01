@@ -75,18 +75,19 @@ describe("FileTypeIcon DOM updates", () => {
     expect(writes).toHaveBeenCalledTimes(1);
   });
 
-  it("updates folder glyphs when their expansion state changes", async () => {
+  it("draws folders as quiet line icons that follow their expansion state", async () => {
     const render = (isOpen: boolean) =>
       root.render(
         createElement(FileTypeIcon, { name: "src", isDir: true, isOpen }),
       );
     await act(async () => render(false));
-    expect(container.querySelector("svg")?.getAttribute("data-icon")).toBe(
-      "folder",
+    expect(container.querySelector("svg")?.getAttribute("data-folder-icon")).toBe(
+      "closed",
     );
+    expect(container.querySelector('[data-icon="folder"]')).toBeNull();
     act(() => render(true));
-    expect(container.querySelector("svg")?.getAttribute("data-icon")).toBe(
-      "folder-open",
+    expect(container.querySelector("svg")?.getAttribute("data-folder-icon")).toBe(
+      "open",
     );
   });
 });

@@ -380,7 +380,7 @@ export function NoteEditor({
       <div className={`mx-auto flex w-full max-w-5xl flex-col ${compact ? "gap-4 px-4 py-4" : "gap-5 px-8 py-8"}`}>
         <header className="flex flex-col gap-3">
           <div data-note-meta className="flex min-w-0 items-center gap-2 text-[12px] text-content/50">
-            <File className="size-3.5 shrink-0" strokeWidth={1.75} />
+            <File className="size-3.5 shrink-0" strokeWidth={1.5} />
             <span>Note</span>
             {note.slug ? (
               <span className="min-w-0 truncate">{note.slug}</span>
@@ -429,7 +429,7 @@ export function NoteEditor({
               }}
               className="inline-flex items-center gap-1.5 rounded-md px-3 h-7 text-[12px] text-content/70 hover:bg-content/10 hover:text-red-400"
             >
-              <Trash2 className="size-3.5" strokeWidth={1.75} />
+              <Trash2 className="size-3.5" strokeWidth={1.5} />
               Delete
             </button>
           </div>
@@ -614,7 +614,7 @@ function NoteTagsEditor({
             onClick={() => onChange(tags.filter((item) => item !== tag))}
             className="grid size-4 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content"
           >
-            <X className="size-2.5" strokeWidth={1.75} />
+            <X className="size-2.5" strokeWidth={1.5} />
           </button>
         </span>
       ))}

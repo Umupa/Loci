@@ -81,9 +81,9 @@ export function WorkFoldLine({
       >
         <span data-work-symbol className="flex size-3.5 items-center justify-center">
           {state === "waiting" ? (
-            <Pause className="size-3.5" strokeWidth={1.75} />
+            <Pause className="size-3.5" strokeWidth={1.5} />
           ) : state === "working" ? (
-            <CircleDashed className="size-3.5" strokeWidth={1.75} />
+            <CircleDashed className="size-3.5" strokeWidth={1.5} />
           ) : (
             <span className="size-1.5 rounded-full bg-current" />
           )}
@@ -116,7 +116,7 @@ export function WorkFoldLine({
           data-work-chevron
           aria-hidden
           className={`size-3.5 shrink-0 text-content/45${open ? " rotate-90" : ""}`}
-          strokeWidth={1.75}
+          strokeWidth={1.5}
         />
       ) : null}
       <span data-work-announcement className="sr-only" role="status" aria-live="polite" aria-atomic="true">

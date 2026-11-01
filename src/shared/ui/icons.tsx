@@ -81,7 +81,8 @@ import RotateCcwIcon from "@hugeicons/core-free-icons/RotateCcwIcon";
 import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
 import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
 import ShieldAlertIcon from "@hugeicons/core-free-icons/ShieldAlertIcon";
-import SparklesIcon from "@hugeicons/core-free-icons/SparklesIcon";
+import FeatherIcon from "@hugeicons/core-free-icons/FeatherIcon";
+import PuzzleIcon from "@hugeicons/core-free-icons/PuzzleIcon";
 import SquareIcon from "@hugeicons/core-free-icons/SquareIcon";
 import SquareLock02Icon from "@hugeicons/core-free-icons/SquareLock02Icon";
 import NewspaperIcon from "@hugeicons/core-free-icons/NewspaperIcon";
@@ -97,7 +98,7 @@ import { forwardRef, type Ref } from "react";
 export type IconProps = Omit<HugeiconsIconProps, "icon">;
 export type IconComponent = ReturnType<typeof wrap>;
 function wrap(icon: IconSvgElement, name: string) {
-    const Component = forwardRef(function Icon({ strokeWidth = 1.75, ...props }: IconProps, ref: Ref<SVGSVGElement>) {
+    const Component = forwardRef(function Icon({ strokeWidth = 1.5, ...props }: IconProps, ref: Ref<SVGSVGElement>) {
         return (<HugeiconsIcon ref={ref} icon={icon} strokeWidth={strokeWidth} {...props}/>);
     });
     Component.displayName = name;
@@ -199,7 +200,8 @@ export const Search = wrap(Search01Icon, "Search");
 export const Settings = wrap(Settings01Icon, "Settings");
 export const Shield = wrap(ShieldAlertIcon, "Shield");
 export const SlidersHorizontal = wrap(PreferenceHorizontalIcon, "SlidersHorizontal");
-export const Sparkles = wrap(SparklesIcon, "Sparkles");
+export const Feather = wrap(FeatherIcon, "Feather");
+export const Puzzle = wrap(PuzzleIcon, "Puzzle");
 export const Square = wrap(SquareIcon, "Square");
 export const SquarePlus = wrap(AddSquareIcon, "SquarePlus");
 export const Newspaper = wrap(NewspaperIcon, "Newspaper");

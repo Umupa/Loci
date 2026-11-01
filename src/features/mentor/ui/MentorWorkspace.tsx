@@ -203,13 +203,13 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
     <header className="mentor-titlebar" data-tauri-drag-region="deep">
       {leading}
       <button type="button" data-tauri-drag-region="false" className="mentor-titlebar-button" aria-label={libraryLabel} title={libraryLabel} aria-pressed={state.library} onClick={onToggleLibrary}>
-        <SidebarLeft className="size-3.5" />
+        <SidebarLeft className="size-4" />
       </button>
       <MentorBreadcrumb agent={agent} crumbs={mentorCrumbs(agent, state.page, state.lesson, data, sessionTitle)} />
       <div className="min-w-0 flex-1" data-tauri-drag-region="deep" />
       <button type="button" data-tauri-drag-region="false" className={`mentor-chat-toggle ${state.chat ? "bg-content/8 text-content" : "text-content/60"}`}
         aria-pressed={state.chat} aria-label={chatLabel} title={chatLabel} onClick={onToggleChat}>
-        <AgentAvatar name={agent.avatar} color={agent.color} className="size-3.5 shrink-0" />
+        <AgentAvatar name={agent.avatar} color={agent.color} className="size-4 shrink-0" />
         {state.chat ? <X className="size-3 shrink-0" strokeWidth={2} /> : <span>Chat</span>}
       </button>
       {trailing}

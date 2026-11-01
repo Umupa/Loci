@@ -85,7 +85,7 @@ export function SkillPicker({
               onClick={onStartCreate}
               className="flex w-full items-center gap-2 border-t border-stroke px-2.5 py-2 text-left text-[12px] text-content/70 hover:bg-content/10 hover:text-content"
             >
-              <Plus className="size-3.5 shrink-0" strokeWidth={1.75} />
+              <Plus className="size-3.5 shrink-0" strokeWidth={1.5} />
               {t("New skill")}</button>
           ) : null}
         </>
