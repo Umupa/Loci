@@ -331,7 +331,7 @@ fn require_object_items(value: &serde_json::Value, field: &str) -> Result<(), St
 
 /// Typed deserialization keeps progress and other unknown fields out of the
 /// stored structure. Item ids are the contract used to preserve progress.
-fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<String>), String> {
+pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<String>), String> {
     if raw.len() > DATA_MAX {
         return Err("Course data is too large".into());
     }

@@ -33,6 +33,10 @@ url = "2.5"
 arboard = { version = "3.6", features = ["wayland-data-control"] }
 png = "0.18"
 trash = "5"
+serde_yaml_ng = "0.10.0"
+unicode-normalization = "0.1.26"
+notify = { version = "8.2.1", default-features = false, features = ["macos_fsevent"] }
+zip = { version = "9.2.0", default-features = false, features = ["deflate"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

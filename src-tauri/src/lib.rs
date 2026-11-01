@@ -20,6 +20,7 @@ mod link_preview;
 #[cfg(target_os = "macos")]
 mod macos;
 mod mcp;
+mod mentor_store;
 mod menu;
 mod notes;
 mod notifications;
