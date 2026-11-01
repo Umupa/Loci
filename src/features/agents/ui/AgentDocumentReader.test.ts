@@ -116,6 +116,15 @@ it("keeps a library document when removing it is declined", async () => {
   expect(props.onClose).not.toHaveBeenCalled();
 });
 
+it("reads the copy a reply carried when the library no longer has the document", async () => {
+  props = { ...props, agentId: "agent-a" };
+  await render();
+  expect(container.querySelector('[role="status"]')?.textContent).toBe("This document is no longer in the library. Showing the copy from this conversation.");
+  expect(container.querySelector("article")?.textContent).toBe(reading.body);
+  expect([...container.querySelectorAll("button")].find((entry) => entry.textContent === "Retry")).toBeUndefined();
+  expect(button("Remove from the library")).toBeNull();
+});
+
 it("says the document was saved and offers to open the note", async () => {
   await render();
   expect(container.querySelector('[role="status"]')).toBeNull();

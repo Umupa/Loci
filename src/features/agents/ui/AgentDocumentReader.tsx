@@ -41,6 +41,8 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
   const [stored, setStored] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savedNoteId, setSavedNoteId] = useState<string>();
+  /** The library no longer has it; the copy the conversation handed over still reads. */
+  const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string>();
   const [actionError, setActionError] = useState<string>();
   const [reload, setReload] = useState(0);
@@ -57,6 +59,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
     setSavedNoteId(undefined);
     setCopied(false);
     setMenu(false);
+    setMissing(false);
     setError(undefined);
     setActionError(undefined);
     setLoading(!!agentId);
@@ -69,7 +72,9 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         if (!current || turn !== request) return;
         setStored(!!found);
         setLoading(false);
-        setError(found?.body != null ? undefined : "This document is no longer in the library.");
+        // A reply's copy is still worth reading when the library no longer has its document.
+        setMissing(!found);
+        setError(undefined);
         if (found?.body != null) setLatest(shownDocument({ ...found, body: found.body }));
       }, (cause) => {
         if (current && turn === request) { setLoading(false); setError(String(cause)); }
@@ -131,8 +136,11 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         <button type="button" onClick={() => requestOpenAppResource({ kind: "note", id: savedNoteId })} className="underline hover:text-content">Open</button>
       </div> : null}
       <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${embedded ? "px-7 py-6" : "px-6 pb-10 pt-2"} text-[14px] leading-relaxed`}>
-        {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <DocumentBody document={latest} agentId={agentId} onMarks={setMarks}
-          marksList={marksOpen ? { anchor: more, onClose: () => setMarksOpen(false) } : undefined} />}
+        {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <>
+          {missing ? <p role="status" className="document-section-notice">This document is no longer in the library. Showing the copy from this conversation.</p> : null}
+          <DocumentBody document={latest} agentId={agentId} onMarks={setMarks}
+            marksList={marksOpen ? { anchor: more, onClose: () => setMarksOpen(false) } : undefined} />
+        </>}
         {actionError ? <p role="alert" className="mt-3 text-xs text-red-400">{actionError}</p> : null}
       </div>
     </aside>
