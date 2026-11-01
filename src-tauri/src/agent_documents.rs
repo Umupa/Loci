@@ -16,12 +16,21 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::mentor_store::{self, format, index, paths::Kind, MentorCtx};
+use crate::mentor_store::{self, format, index, paths, paths::Kind, pdf, MentorCtx};
 use crate::session_store::{now_millis, SessionStore};
 
 const BODY_MAX: usize = 1024 * 1024;
 const URL_MAX: usize = 2000;
 const VERSION_MAX: usize = 80;
+
+/// A source kept as a PDF: where its file is, and how many pages it has.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PdfDocument {
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pages: Option<u32>,
+}
 
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +49,13 @@ pub struct AgentDocument {
     /// The edition of a source, when it has one: "v1.34".
     #[serde(skip_serializing_if = "Option::is_none")]
     source_version: Option<String>,
+    /// A source kept as a PDF opens in the PDF reader, at a page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pdf: Option<PdfDocument>,
+    /// A PDF's text page by page, when one is read: page 1 first, so a
+    /// citation can name a real page and quote its words.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    page_text: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     fetched_at: Option<i64>,
     created_at: i64,
@@ -156,6 +172,8 @@ fn list(conn: &Connection, agent: &str) -> rusqlite::Result<Vec<AgentDocument>> 
             kind: kind_of(&row.get::<_, Option<String>>(3)?),
             source_url: row.get(3)?,
             source_version: row.get(4)?,
+            pdf: None,
+            page_text: None,
             fetched_at: row.get(5)?,
             created_at: row.get(6)?,
             updated_at: row.get(7)?,
@@ -178,6 +196,8 @@ fn get(conn: &Connection, agent: &str, id: &str) -> rusqlite::Result<Option<Agen
                 kind: kind_of(&row.get::<_, Option<String>>(4)?),
                 source_url: row.get(4)?,
                 source_version: row.get(5)?,
+                pdf: None,
+                page_text: None,
                 fetched_at: row.get(6)?,
                 created_at: row.get(7)?,
                 updated_at: row.get(8)?,
@@ -332,7 +352,7 @@ fn check(agent: &str, id: Option<&str>) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 // A mentor whose library is in its folder: sources/<id>.md and guides/<id>.md.
 
-fn doc_from_row(row: index::Row) -> AgentDocument {
+fn doc_from_row(row: index::Row, folder: Option<&std::path::Path>) -> AgentDocument {
     let kind = if row.kind == "source" {
         "source"
     } else {
@@ -344,6 +364,31 @@ fn doc_from_row(row: index::Row) -> AgentDocument {
             .and_then(|v| v.as_str())
             .map(str::to_string)
     };
+    let pdf = row
+        .meta
+        .get("pdf")
+        .and_then(|v| v.as_bool())
+        .filter(|_| kind == "source")
+        .and(folder)
+        .map(|folder| PdfDocument {
+            path: paths::pdf_source_path(folder, &row.id)
+                .to_string_lossy()
+                .into_owned(),
+            pages: row
+                .meta
+                .get("pages")
+                .and_then(|v| v.as_u64())
+                .map(|pages| pages as u32),
+        });
+    let page_text = if pdf.is_some() {
+        row.body.as_deref().map(|body| {
+            body.split(pdf::PAGE_BREAK)
+                .map(|page| page.trim().to_string())
+                .collect()
+        })
+    } else {
+        None
+    };
     AgentDocument {
         id: row.id.clone(),
         title: row.title.clone(),
@@ -352,6 +397,8 @@ fn doc_from_row(row: index::Row) -> AgentDocument {
         body: row.body.clone(),
         source_url: text("sourceUrl").filter(|_| kind == "source"),
         source_version: text("version").filter(|_| kind == "source"),
+        pdf,
+        page_text,
         fetched_at: row.meta.get("fetchedAt").and_then(|v| v.as_i64()),
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -362,7 +409,7 @@ fn file_list(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<AgentDocument>, S
     Ok(index::list(conn, &ctx.agent, &[Kind::Source, Kind::Guide])
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(doc_from_row)
+        .map(|row| doc_from_row(row, Some(&ctx.folder)))
         .collect())
 }
 
@@ -370,7 +417,7 @@ fn file_list(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<AgentDocument>, S
 fn file_get(conn: &Connection, ctx: &MentorCtx, id: &str) -> Result<Option<AgentDocument>, String> {
     for kind in [Kind::Source, Kind::Guide] {
         if let Some(row) = mentor_store::current(conn, ctx, kind, id)? {
-            return Ok(Some(doc_from_row(row)));
+            return Ok(Some(doc_from_row(row, Some(&ctx.folder))));
         }
     }
     Ok(None)
@@ -446,6 +493,13 @@ fn file_import(
     let now = now_millis();
     let created = mentor_store::current(conn, ctx, Kind::Source, &source.id)?
         .map_or(now, |row| row.created_at);
+    // Taking a PDF's id over with Markdown takes the PDF and its sidecar away,
+    // so the id names one file.
+    if let Some(row) = mentor_store::current(conn, ctx, Kind::Source, &source.id)? {
+        if row.meta.get("pdf").and_then(|v| v.as_bool()) == Some(true) {
+            mentor_store::remove_pdf_source(conn, ctx, &source.id)?;
+        }
+    }
     let meta = format::DocMeta {
         title: Some(source.title.trim().to_string()),
         subject: source.subject.clone(),
@@ -463,12 +517,53 @@ fn file_import(
     Ok(())
 }
 
+/// Takes a PDF in: copied to `sources/<id>.pdf`, with a sidecar for what the
+/// source says about itself. A Markdown source with the same id is replaced.
+fn file_import_pdf(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    source: &AgentDocumentImport,
+    bytes: &[u8],
+) -> Result<(), String> {
+    if file_kind(conn, ctx, &source.id)? == Some(Kind::Guide) {
+        return Err(format!(
+            "{} is the mentor's guide; a source cannot replace it. Give the source another id",
+            source.id
+        ));
+    }
+    if let Some(row) = mentor_store::current(conn, ctx, Kind::Source, &source.id)? {
+        let path = mentor_store::row_path(ctx, &row);
+        if !paths::is_pdf_sidecar(&path) {
+            std::fs::remove_file(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            index::index_file(conn, ctx, Kind::Source, &source.id, &path, true)?;
+        }
+    }
+    let now = now_millis();
+    let meta = pdf::PdfMeta {
+        title: Some(source.title.trim().to_string()),
+        source_url: Some(source.source_url.clone()),
+        version: source.version.clone(),
+        fetched_at: Some(now),
+        subject: source.subject.clone(),
+        pages: pdf::page_count(std::path::Path::new(&source.path)).ok(),
+    };
+    mentor_store::write_pdf_source(conn, ctx, &source.id, bytes, &meta)?;
+    Ok(())
+}
+
 fn file_delete(conn: &Connection, ctx: &MentorCtx, id: Option<&str>) -> Result<(), String> {
     // Without an id the whole library is meant (the mentor is being deleted):
     // its folder stays on disk, so nothing is removed here.
     if let Some(id) = id {
         for kind in [Kind::Source, Kind::Guide] {
-            mentor_store::remove_content(conn, ctx, kind, id)?;
+            let is_pdf = kind == Kind::Source
+                && mentor_store::current(conn, ctx, kind, id)?
+                    .is_some_and(|row| row.meta.get("pdf").and_then(|v| v.as_bool()) == Some(true));
+            if is_pdf {
+                mentor_store::remove_pdf_source(conn, ctx, id)?;
+            } else {
+                mentor_store::remove_content(conn, ctx, kind, id)?;
+            }
         }
     }
     Ok(())
@@ -571,6 +666,46 @@ pub fn agent_documents_write_guide(
     write_guide(&conn, &agent, &guide, now_millis())
 }
 
+/// The bytes a source is taken from: an absolute path to a file that is a
+/// paper-sized PDF or a document-sized text.
+fn source_bytes(path: &str) -> Result<Vec<u8>, String> {
+    let path = std::path::Path::new(path);
+    if !path.is_absolute() {
+        return Err("path must be an absolute path to the saved file".into());
+    }
+    let size = std::fs::metadata(path)
+        .map_err(|e| format!("Could not read {}: {e}", path.display()))?
+        .len();
+    if size > pdf::PDF_MAX {
+        return Err("The file is too large for one source".into());
+    }
+    let bytes =
+        std::fs::read(path).map_err(|e| format!("Could not read {}: {e}", path.display()))?;
+    if bytes.iter().all(u8::is_ascii_whitespace) {
+        return Err("The file is empty".into());
+    }
+    Ok(bytes)
+}
+
+/// A PDF taken in by a mentor whose library is not in a folder yet is kept as
+/// its text, so it is still readable and searchable there.
+fn pdf_body_as_text(path: &str) -> Result<String, String> {
+    let read = pdf::read_pdf(std::path::Path::new(path))?;
+    if read.text.trim().is_empty() {
+        return Err(read
+            .warning
+            .unwrap_or_else(|| "This PDF has no readable text".into()));
+    }
+    if read.text.len() > BODY_MAX {
+        let mut cut = BODY_MAX;
+        while !read.text.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        return Ok(read.text[..cut].to_string());
+    }
+    Ok(read.text)
+}
+
 /// Takes a saved file into the library as a source and returns it without its text.
 #[tauri::command(async)]
 pub fn agent_documents_import(
@@ -580,14 +715,46 @@ pub fn agent_documents_import(
 ) -> Result<AgentDocument, String> {
     check(&agent, Some(&source.id))?;
     check_source(&source)?;
-    let body = source_text(&source.path)?;
-    let conn = store.lock_conn()?;
-    let mut saved = if let Some(ctx) = mentor_store::ctx_for(&conn, &agent)? {
-        file_import(&conn, &ctx, &source, &body)?;
-        file_get(&conn, &ctx, &source.id)?
+    let bytes = source_bytes(&source.path)?;
+    let is_pdf = bytes.starts_with(b"%PDF-");
+    let body = if is_pdf {
+        None
     } else {
-        import(&conn, &agent, &source, &body, now_millis())?;
-        get(&conn, &agent, &source.id).map_err(|e| e.to_string())?
+        if bytes.len() > BODY_MAX {
+            return Err("The file is too large for one document; split it by chapter".into());
+        }
+        Some(String::from_utf8(bytes.clone()).map_err(|_| {
+            format!(
+                "Could not read {} as UTF-8 text",
+                std::path::Path::new(&source.path).display()
+            )
+        })?)
+    };
+    let conn = store.lock_conn()?;
+    let mut saved = match mentor_store::ctx_for(&conn, &agent)? {
+        Some(ctx) if is_pdf => {
+            file_import_pdf(&conn, &ctx, &source, &bytes)?;
+            file_get(&conn, &ctx, &source.id)?
+        }
+        Some(ctx) => {
+            file_import(&conn, &ctx, &source, body.as_deref().unwrap_or_default())?;
+            file_get(&conn, &ctx, &source.id)?
+        }
+        None if is_pdf => {
+            let text = pdf_body_as_text(&source.path)?;
+            import(&conn, &agent, &source, &text, now_millis())?;
+            get(&conn, &agent, &source.id).map_err(|e| e.to_string())?
+        }
+        None => {
+            import(
+                &conn,
+                &agent,
+                &source,
+                body.as_deref().unwrap_or_default(),
+                now_millis(),
+            )?;
+            get(&conn, &agent, &source.id).map_err(|e| e.to_string())?
+        }
     }
     .ok_or("The saved document is missing")?;
     saved.body = None;
@@ -944,6 +1111,83 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM agent_documents", [], |r| r.get(0))
             .unwrap();
         assert_eq!(rows, 0);
+        std::fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn a_pdf_is_taken_in_as_a_source_with_its_sidecar_and_reads_back_as_a_pdf() {
+        use crate::mentor_store::testing::{register, temp_dir};
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let folder = temp_dir("pdf-library");
+        register(&conn, "agent", &folder);
+        let ctx = mentor_store::ctx_for(&conn, "agent").unwrap().unwrap();
+        let download = folder.join("download.pdf");
+        std::fs::write(
+            &download,
+            crate::mentor_store::pdf::sample_pdf(&["Sandbox page one", "Sandbox page two"]),
+        )
+        .unwrap();
+        let source = AgentDocumentImport {
+            id: "firecracker".into(),
+            title: "Firecracker: Lightweight Virtualization".into(),
+            subject: Some("Virtualization".into()),
+            path: download.to_string_lossy().into_owned(),
+            source_url: "https://www.usenix.org/system/files/nsdi20-paper-agache.pdf".into(),
+            version: Some("NSDI '20".into()),
+        };
+        let bytes = std::fs::read(&download).unwrap();
+        file_import_pdf(&conn, &ctx, &source, &bytes).unwrap();
+        assert!(folder.join("sources/firecracker.pdf").is_file());
+        let sidecar = std::fs::read_to_string(folder.join("sources/firecracker.pdf.yaml")).unwrap();
+        assert!(sidecar.contains("title: 'Firecracker: Lightweight Virtualization'"));
+        assert!(sidecar
+            .contains("sourceUrl: https://www.usenix.org/system/files/nsdi20-paper-agache.pdf"));
+        assert!(sidecar.contains("pages: 2"));
+        let saved = file_get(&conn, &ctx, "firecracker").unwrap().unwrap();
+        assert_eq!(saved.kind, "source");
+        assert_eq!(
+            saved.pdf,
+            Some(PdfDocument {
+                path: folder
+                    .join("sources/firecracker.pdf")
+                    .to_string_lossy()
+                    .into_owned(),
+                pages: Some(2),
+            })
+        );
+        assert_eq!(saved.source_version.as_deref(), Some("NSDI '20"));
+        // A read gives the pages apart, so a citation can quote page 7's words.
+        assert_eq!(
+            saved.page_text.as_deref(),
+            Some(
+                &[
+                    "Sandbox page one".to_string(),
+                    "Sandbox page two".to_string()
+                ][..]
+            )
+        );
+
+        // The same id taken in again as Markdown replaces the pair with one file.
+        file_import(&conn, &ctx, &source, "# Firecracker\n").unwrap();
+        assert!(!folder.join("sources/firecracker.pdf").exists());
+        assert!(!folder.join("sources/firecracker.pdf.yaml").exists());
+        assert!(folder.join("sources/firecracker.md").is_file());
+        assert_eq!(
+            file_get(&conn, &ctx, "firecracker").unwrap().unwrap().pdf,
+            None
+        );
+
+        // And a PDF over the Markdown replaces that file, leaving one source.
+        file_import_pdf(&conn, &ctx, &source, &bytes).unwrap();
+        assert!(!folder.join("sources/firecracker.md").exists());
+        assert!(folder.join("sources/firecracker.pdf.yaml").is_file());
+
+        // Deleting a PDF source takes both files away.
+        file_delete(&conn, &ctx, Some("firecracker")).unwrap();
+        assert!(!folder.join("sources/firecracker.pdf").exists());
+        assert!(!folder.join("sources/firecracker.pdf.yaml").exists());
+        assert!(file_get(&conn, &ctx, "firecracker").unwrap().is_none());
         std::fs::remove_dir_all(folder).unwrap();
     }
 }

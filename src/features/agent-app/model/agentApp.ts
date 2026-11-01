@@ -178,6 +178,10 @@ export type AgentLibraryEntry = {
   /** Where a source was published; absent on what the agent wrote. */
   sourceUrl?: string | null;
   sourceVersion?: string | null;
+  /** A source kept as a PDF: its file and page count; it opens in the PDF reader. */
+  pdf?: { path: string; pages?: number | null } | null;
+  /** A PDF's text page by page, when one document is read. */
+  pageText?: string[] | null;
   fetchedAt?: number | null;
   updatedAt: number;
 };
@@ -475,8 +479,16 @@ async function handleDocuments(
     ...(entry.subject ? { subject: entry.subject } : {}),
     ...(entry.sourceUrl ? { sourceUrl: entry.sourceUrl } : {}),
     ...(entry.sourceVersion ? { version: entry.sourceVersion } : {}),
+    // A PDF source opens at a page; pageText gives the words on each one.
+    ...(entry.pdf ? { pdf: { pages: entry.pdf.pages ?? null, path: entry.pdf.path } } : {}),
+    ...(entry.pageText?.length ? { pages: entry.pageText.map((text, index) => ({ page: index + 1, text })) } : {}),
     updatedAt: new Date(entry.updatedAt).toISOString(),
   });
+  // A write answers with what changed, not a whole paper's text.
+  const savedSummary = (entry: AgentLibraryEntry) => {
+    const { pages: _pageText, ...summary } = named(entry);
+    return { ...summary, saved: true };
+  };
   if (action === "documents.list") {
     const documents = await host.documents.list(agentId);
     return { documents: documents.map(named) };
@@ -484,18 +496,18 @@ async function handleDocuments(
   if (action === "guides.write") {
     if ((input.path === undefined) === (input.body === undefined))
       throw new Error("Give the guide's text as path (an absolute Markdown file) or body, not both");
-    const saved = await host.documents.writeGuide(agentId, {
+    const guide = await host.documents.writeGuide(agentId, {
       id: requiredString(input.id, "id", 80),
       title: requiredString(input.title, "title", 200),
       ...(input.subject === undefined ? {} : { subject: requiredString(input.subject, "subject", 80) }),
       ...(input.path === undefined ? {} : { path: requiredString(input.path, "path", 4096) }),
       ...(input.body === undefined ? {} : { body: requiredString(input.body, "body", 1024 * 1024) }),
     });
-    return { ...named(saved), saved: true };
+    return savedSummary(guide);
   }
   if (action === "documents.write") {
     if (typeof input.sourceUrl !== "string" || !input.sourceUrl.trim())
-      throw new Error("sourceUrl must be the address the text was published at; a guide you wrote yourself goes through guides.write");
+      throw new Error("sourceUrl must be the address the source was published at; a guide you wrote yourself goes through guides.write");
     const saved = await host.documents.importSource(agentId, {
       id: requiredString(input.id, "id", 80),
       title: requiredString(input.title, "title", 200),
@@ -508,14 +520,15 @@ async function handleDocuments(
         ? {}
         : { version: requiredString(input.version, "version", 80) }),
     });
-    return { ...named(saved), saved: true };
+    return savedSummary(saved);
   }
   const found = await host.documents.read(
     agentId,
     requiredString(input.id, "id", 80),
   );
-  if (found?.body == null) throw new Error("No such document");
-  return { ...named(found), text: found.body };
+  if (!found) throw new Error("No such document");
+  // A PDF whose text could not be read (a scan, or a missing file) still has its metadata.
+  return { ...named(found), text: found.body ?? "" };
 }
 
 async function handleCourses(
