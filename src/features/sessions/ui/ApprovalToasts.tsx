@@ -36,8 +36,8 @@ export function ApprovalToasts({
 
   return createPortal(
     <div
-      aria-live="polite"
-      style={{ zIndex: LAYER.toast, top: 12 }}
+      // Below the window's title bar, so its controls stay reachable while a request waits.
+      style={{ zIndex: LAYER.toast, top: 48 }}
       className="pointer-events-none fixed right-3 flex w-[min(360px,calc(100vw-24px))] flex-col gap-2"
     >
       {notices.map((notice) => (
@@ -92,10 +92,7 @@ function ApprovalToastCard({
   const openSession = () => onFocusSession(session.id);
 
   return (
-    <article
-      className="approval-toast pointer-events-auto overflow-hidden rounded-xl border border-content/20 border-dashed bg-content/10 shadow-xl backdrop-blur-xl"
-      role="status"
-    >
+    <article className="approval-toast pointer-events-auto overflow-hidden rounded-xl border border-content/20 border-dashed bg-content/10 shadow-xl backdrop-blur-xl">
       <button
         type="button"
         onClick={openSession}
@@ -111,7 +108,8 @@ function ApprovalToastCard({
             <span>{notice.kind === "question" ? "Question" : "Approval"}</span>
           </span>
         </span>
-        <span className="line-clamp-3 text-[12px] leading-relaxed text-content/70">
+        {/* Only the request text is a status; the card's buttons are not announced as one. */}
+        <span role="status" className="line-clamp-3 text-[12px] leading-relaxed text-content/70">
           {label}
         </span>
         <span className="text-[11px] text-content/40">{harness}</span>
