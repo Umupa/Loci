@@ -119,6 +119,22 @@ export function useDragResize({
 
   useEffect(() => () => stopDrag.current?.(), []);
 
+  /**
+   * Applies the limits again, for when the container shrinks under a width
+   * remembered from a larger window. `max` overrides the current limit so two
+   * columns can be fitted in one pass. Returns the width that now applies.
+   */
+  const reclamp = useCallback((max?: number): number => {
+    const next = clampTo(widthRef.current, minRef.current, max ?? maxRef.current());
+    if (next === widthRef.current) return next;
+    const pane = paneRef.current;
+    if (pane) pane.style.width = `${next}px`;
+    widthRef.current = next;
+    setWidth(next);
+    onCommitRef.current?.(next);
+    return next;
+  }, []);
+
   const onDoubleClick = () => {
     commit(defaultRef.current);
   };
@@ -130,5 +146,6 @@ export function useDragResize({
     setPaneRef,
     onPointerDown,
     onDoubleClick,
+    reclamp,
   };
 }

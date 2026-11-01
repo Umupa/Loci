@@ -307,6 +307,61 @@ it("shows a conversation as the reader without remembering it", async () => {
   expect(JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!)[agent.id].page).toBeUndefined();
 });
 
+it("keeps the reader 360px when a column saved on a bigger window is dragged wider", async () => {
+  const inner = Object.getOwnPropertyDescriptor(window, "innerWidth");
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1600 });
+  localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [agent.id]: { libraryWidth: 500, chatWidth: 420 } }));
+  try {
+    await render();
+    const body = container.querySelector<HTMLElement>(".mentor-body")!;
+    Object.defineProperty(body, "clientWidth", { configurable: true, value: 1400 });
+    await act(async () => window.dispatchEvent(new Event("resize")));
+    const handle = container.querySelector<HTMLElement>('[aria-label="Resize library"]')!;
+    for (let step = 0; step < 12; step++) {
+      await act(async () => handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    }
+    // 1400 − 360 for the reader − the conversation's 420 leaves the library 620.
+    expect(control.stateFor(agent.id).libraryWidth).toBe(620);
+    expect(control.stateFor(agent.id).chatWidth).toBe(420);
+  } finally {
+    if (inner) Object.defineProperty(window, "innerWidth", inner);
+    else delete (window as unknown as Record<string, unknown>).innerWidth;
+  }
+});
+
+it("re-clamps both columns when the window shrinks below their saved widths", async () => {
+  const inner = Object.getOwnPropertyDescriptor(window, "innerWidth");
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1600 });
+  localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [agent.id]: { libraryWidth: 620, chatWidth: 420 } }));
+  try {
+    await render();
+    const body = container.querySelector<HTMLElement>(".mentor-body")!;
+    Object.defineProperty(body, "clientWidth", { configurable: true, value: 1000 });
+    await act(async () => window.dispatchEvent(new Event("resize")));
+    expect(control.stateFor(agent.id).libraryWidth).toBe(220);
+    expect(control.stateFor(agent.id).chatWidth).toBe(420);
+    expect(container.querySelector<HTMLElement>(".mentor-library-column")!.style.width).toBe("220px");
+  } finally {
+    if (inner) Object.defineProperty(window, "innerWidth", inner);
+    else delete (window as unknown as Record<string, unknown>).innerWidth;
+  }
+});
+
+it("puts the library away after a choice while it covers the reader", async () => {
+  await render();
+  const body = container.querySelector<HTMLElement>(".mentor-body")!;
+  Object.defineProperty(body, "clientWidth", { configurable: true, value: 800 });
+  await act(async () => window.dispatchEvent(new Event("resize")));
+  expect(container.querySelector(".mentor-library-scrim")).not.toBeNull();
+  await tab("sources");
+  await vi.waitFor(() => expect(container.querySelector('[data-resource-kind="document"]')).not.toBeNull());
+  await click('[data-resource-kind="document"]');
+  expect(control.stateFor(agent.id).library).toBe(false);
+  expect(control.stateFor(agent.id).page).toMatchObject({ kind: "document" });
+  expect(container.querySelector<HTMLElement>(".mentor-library-column")!.hidden).toBe(true);
+  expect(container.querySelector(".mentor-library-scrim")).toBeNull();
+});
+
 it("lists the mentor's working folder under Files and opens a file from it in the reader", async () => {
   await render();
   await tab("files");
