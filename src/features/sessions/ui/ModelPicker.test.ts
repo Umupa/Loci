@@ -71,7 +71,7 @@ describe("fast mode indicator", () => {
         const render = (values: Record<string, string>, selected = model) => act(() => root.render(createElement(ModelPicker, {
             harness, model: selected, values, hideSettings: true, onChange: vi.fn(), onSettingsChange: vi.fn(),
         })));
-        const lightning = () => container.querySelector('button[aria-haspopup] svg.text-accent');
+        const lightning = () => container.querySelector('button[aria-haspopup] svg.text-accent-text');
         catalog();
         render({ [id]: enabled });
         expect(lightning()).not.toBeNull();
