@@ -164,7 +164,7 @@ export const codeCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "code.pins",
-    summary: "Every pinned code lesson of the mentor's courses and how it stands: current, moved (HEAD moved, file unchanged), changed (with where the lines are now), missing-commit, missing-file.",
+    summary: "Every pinned code lesson (and pinned comparison part) of the mentor's courses and how it stands: current, moved (HEAD moved, file unchanged), changed (with where the lines are now), missing-commit, missing-file.",
     fields: [mentorField(), field("course", "string", "Only this course", { max: 200 })],
     callers: ["external", "agent"],
     run: async (ctx, input, meta) => {
@@ -180,9 +180,12 @@ export const codeCommands: CommandDefinition<CommandContext>[] = [
         }
         if (course.data.engine !== "reading") continue;
         for (const lesson of course.data.chapters.flatMap((chapter) => chapter.lessons)) {
-          if (!lesson.file || !lesson.commit) continue;
-          const status = await codePinStatus(lesson.file, lesson.commit, lesson.lines).catch((cause: unknown) => ({ state: "error", error: String(cause) }));
-          pins.push({ course: id, lesson: lesson.id, title: lesson.title, file: lessonPath(agent, lesson.file), pin: lesson.commit, ...(lesson.lines ? { lines: lesson.lines } : {}), ...status });
+          // A comparison's pinned parts are listed one by one, with their labels.
+          for (const place of lesson.compare ?? [lesson]) {
+            if (!place.file || !place.commit) continue;
+            const status = await codePinStatus(place.file, place.commit, place.lines).catch((cause: unknown) => ({ state: "error", error: String(cause) }));
+            pins.push({ course: id, lesson: lesson.id, title: lesson.title, ...("label" in place ? { part: place.label } : {}), file: lessonPath(agent, place.file), pin: place.commit, ...(place.lines ? { lines: place.lines } : {}), ...status });
+          }
         }
       }
       return { pins, stale: pins.filter((pin) => pin.state !== "current" && pin.state !== "moved").length };

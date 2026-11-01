@@ -4,6 +4,7 @@ import { requestFilePlace } from "../../features/files/model/filePlace";
 import { runCommand } from "./dispatch";
 import { lineSpan } from "./reader";
 import { agent, testContext } from "./testContext";
+import { publishCompareView } from "../../features/learning/model/compareView";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => undefined) }));
 vi.mock("../../features/learning/model/course", async (load) => ({
@@ -29,6 +30,25 @@ describe("reader commands", () => {
     expect(ctx.reader.show).toHaveBeenCalledWith("a1", { kind: "course", course: { courseId: "k8s", agentId: "a1", title: "K8s", itemId: "intro" } }, false);
     expect(opened).toMatchObject({ mentor: "a1", opened: true, kind: "course", id: "k8s", lesson: { id: "intro" } });
     expect(await runCommand(ctx, "reader.show", { mentor: "a1" }, external)).toMatchObject({ kind: "course", id: "k8s", lesson: { id: "intro" }, active: true });
+  });
+
+  it("say which parts a comparison on screen shows", async () => {
+    const { ctx } = testContext([agent("a1", "Kern")]);
+    await runCommand(ctx, "reader.open", { mentor: "Kern", course: "k8s", lesson: "intro" }, external);
+    const compare = [{ label: "E2B", file: "/m/repos/e2b/restore.go", lines: [2, 3] as [number, number], commit: "a".repeat(40) }, { label: "Spec", document: "doc" }];
+    // The reader learns the lesson (and its parts) from the course on screen.
+    const view = ctx.reader.current("a1");
+    vi.spyOn(ctx.reader, "current").mockReturnValue({ ...view, lesson: { id: "intro", title: "Intro", compare } });
+    expect(await runCommand(ctx, "reader.show", { mentor: "a1" }, external)).toMatchObject({ lesson: { id: "intro", title: "Intro" },
+      compare: [{ label: "E2B", collapsed: false, commit: "a".repeat(40) }, { label: "Spec", collapsed: false, document: "doc" }] });
+    publishCompareView("a1", { courseId: "k8s", lessonId: "intro", parts: [
+      { label: "E2B", collapsed: true, file: "/m/repos/e2b/restore.go", lines: [3, 4], pin: "changed" },
+      { label: "Spec", collapsed: false, document: "doc" },
+    ] });
+    const shown = await runCommand(ctx, "reader.show", { mentor: "a1" }, external) as { compare: unknown[]; lesson: Record<string, unknown> };
+    expect(shown.compare).toEqual([{ label: "E2B", collapsed: true, file: "/m/repos/e2b/restore.go", lines: [3, 4], pin: "changed" }, { label: "Spec", collapsed: false, document: "doc" }]);
+    expect(shown.lesson).not.toHaveProperty("compare");
+    publishCompareView("a1", undefined);
   });
 
   it("ask the source and file readers for a section, lines or a page", async () => {

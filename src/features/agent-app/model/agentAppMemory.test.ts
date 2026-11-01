@@ -71,7 +71,7 @@ function fixture(agent = true) {
   } as unknown as AgentAppHost;
   const run = (action: string, input: Record<string, unknown> = {}) =>
     handleAgentApp(source, `req-${Math.random()}`, action, input, host);
-  return { files, write, versions, run };
+  return { files, write, versions, run, courses };
 }
 
 it("adds, supersedes and removes dated entries in MEMORY.md", async () => {
@@ -190,4 +190,23 @@ it("keeps courses in the agent's own library through courses.*", async () => {
   expect(await run("courses.delete", { id: "k8s" })).toEqual({ id: "k8s", deleted: true });
   await expect(run("courses.read", { id: "k8s" })).rejects.toThrow("No such course");
   await expect(fixture(false).run("courses.list")).rejects.toThrow("Only an agent's own conversation");
+});
+
+it("saves a comparison lesson whose parts are pasted from code pin", async () => {
+  const { run, courses } = fixture();
+  const ref = `repos/e2b-dev/runtime@${"a".repeat(40)}:orchestrator/restore.go#L40-88`;
+  const course = { id: "sbx", title: "Sandboxes", chapters: [{ title: "Lifecycle", lessons: [{ id: "restore", title: "Restoring", compare: [
+    { label: "E2B", file: ref, note: "Starts from the snapshot." },
+    { label: "Cube", file: "repos/cube/src/restore.rs#L3-9" },
+    { label: "Spec", document: "virtio", section: "Virtqueues" },
+  ] }] }] };
+  expect(await run("courses.write", course)).toMatchObject({ id: "sbx", items: 1, saved: true });
+  const saved = courses.get("sbx")!;
+  expect(saved.data.engine === "reading" && saved.data.chapters[0].lessons[0].compare).toEqual([
+    { label: "E2B", file: "repos/e2b-dev/runtime/orchestrator/restore.go", lines: [40, 88], commit: "a".repeat(40), note: "Starts from the snapshot." },
+    { label: "Cube", file: "repos/cube/src/restore.rs", lines: [3, 9] },
+    { label: "Spec", document: "virtio", section: "Virtqueues" },
+  ]);
+  await expect(run("courses.write", { ...course, chapters: [{ title: "L", lessons: [{ id: "r", title: "R", compare: [course.chapters[0].lessons[0].compare[0]] }] }] }))
+    .rejects.toThrow("2 to 4 parts");
 });

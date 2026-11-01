@@ -118,7 +118,12 @@ function mentorView(ctx: CommandContext, agent: Agent, chat?: Session) {
 export function readingView({ page, lesson }: ReturnType<CommandContext["reader"]["current"]>) {
   if (!page) return { kind: "none" };
   switch (page.kind) {
-    case "course": return { kind: "course", id: page.course.courseId, title: page.course.title, ...(lesson ? { lesson } : page.course.itemId ? { lesson: { id: page.course.itemId } } : {}) };
+    case "course": {
+      // A comparison's parts are listed beside the lesson, as `compare`.
+      const { compare: parts, ...shown } = lesson ?? { id: "", title: "" };
+      return { kind: "course", id: page.course.courseId, title: page.course.title, ...(lesson ? { lesson: shown } : page.course.itemId ? { lesson: { id: page.course.itemId } } : {}),
+        ...(parts ? { compare: parts.map((part) => ({ ...part, collapsed: false })) } : {}) };
+    }
     case "document": return { kind: "source", id: page.document.id, title: page.document.title };
     case "file": return { kind: "file", path: page.path, ...(page.commit ? { commit: page.commit } : {}) };
     default: return { kind: page.kind, id: page.id };
