@@ -51,7 +51,27 @@ describe("reading notes and discussions", () => {
     expect(onSave).toHaveBeenCalledWith(annotation, "How does this compare with the experiment?");
     const ask = [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Ask agent")!;
     await act(async () => ask.click());
-    expect(onAsk).toHaveBeenCalledWith(annotation);
+    // The question carries the note as it stands in the field.
+    expect(onAsk).toHaveBeenCalledWith({ ...annotation, note: "How does this compare with the experiment?" });
+  });
+
+  it("keeps a typed note when the popover is dismissed or the note is asked about", async () => {
+    const onSave = vi.fn(async () => {}); const onAsk = vi.fn(); const onDismiss = vi.fn();
+    await act(async () => root.render(createElement(PdfAnnotationPopover, { annotation, anchor: new DOMRect(100, 100, 10, 10), onAsk, onSave, onDelete: vi.fn(async () => {}), onDismiss })));
+    const note = document.querySelector<HTMLTextAreaElement>('[aria-label="Annotation note"]')!;
+    const type = async (text: string) => act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(note, text);
+      note.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await type("A half-formed thought");
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Close annotation"]')!.click());
+    expect(onSave).toHaveBeenCalledWith(annotation, "A half-formed thought");
+    expect(onDismiss).toHaveBeenCalledOnce();
+    onSave.mockClear(); onDismiss.mockClear();
+    await type("Why does this hold?");
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Ask agent")!.click());
+    expect(onSave).toHaveBeenCalledWith(annotation, "Why does this hold?");
+    expect(onAsk).toHaveBeenCalledWith({ ...annotation, note: "Why does this hold?" });
   });
 
   it("reopens the linked discussion and removes a mark through its visible controls", async () => {
