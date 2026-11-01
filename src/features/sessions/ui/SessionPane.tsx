@@ -27,7 +27,7 @@ type ApprovalDecision,
 type UserQuestionReply,
 } from "../../../integrations/harness";
 import { MOD } from "../../../platform/tauri/platform";
-import { createNote,noteTitle } from "../../notes";
+import { appendToNote,createNote,listAgentNotes,loadNotes,noteTitle,type NoteTarget } from "../../notes";
 import {
 looksLikeProject,
 type RecentProject,
@@ -435,8 +435,9 @@ export const SessionPane = memo(function SessionPane({
     [session.cwd, session.harness, session.id, session.title, onNoteSaved, residentAgent?.id],
   );
   const saveSelectionNote = useCallback(
-    async (text: string) => {
-      await createNote({
+    async (text: string, target: NoteTarget) => {
+      if (target.kind === "note") return appendToNote(target.id, text);
+      return createNote({
         title: noteTitle(text),
         body: text,
         sourceSessionId: session.id,
@@ -445,6 +446,11 @@ export const SessionPane = memo(function SessionPane({
       });
     },
     [session.cwd, session.id, residentAgent?.id],
+  );
+  const residentAgentId = residentAgent?.id;
+  const listSelectionNotes = useCallback(
+    () => (residentAgentId ? listAgentNotes(residentAgentId) : loadNotes()),
+    [residentAgentId],
   );
 
   useEffect(() => {
@@ -613,7 +619,7 @@ export const SessionPane = memo(function SessionPane({
               onClose(session.id);
             }}
           >
-            <X className="size-3" strokeWidth={1.5} />
+            <X className="size-3" />
           </button>
         </PaneHeader>
       ) : null}
@@ -704,6 +710,8 @@ export const SessionPane = memo(function SessionPane({
                   onSaveSelectionNote={
                     notesEnabled ? saveSelectionNote : undefined
                   }
+                  listSelectionNotes={listSelectionNotes}
+                  notesScope={residentAgentId ?? "global"}
                   onOpenFile={onOpenFile}
 
 

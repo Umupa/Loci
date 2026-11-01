@@ -16,6 +16,8 @@ beforeEach(() => {
       disconnect() {}
     },
   );
+  localStorage.clear();
+  localStorage.setItem("loci.noteTarget.global", JSON.stringify({ kind: "new" }));
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -81,7 +83,7 @@ describe("TranscriptSelectionMenu", () => {
     expect(alert).toContain("No session");
   });
 
-  it("offers the selected text to both chat and notes", () => {
+  it("offers the selected text to both chat and notes", async () => {
     const onAddToChat = vi.fn();
     const onAddToNotes = vi.fn();
     const onDismiss = vi.fn();
@@ -103,15 +105,56 @@ describe("TranscriptSelectionMenu", () => {
       '[role="toolbar"][aria-label="Selected text actions"]',
     );
     expect(toolbar?.textContent).toContain("Add to chat");
-    expect(toolbar?.textContent).toContain("Add to notes");
+    expect(toolbar?.textContent).toContain("Add to a new note");
 
     const notes = Array.from(toolbar?.querySelectorAll("button") ?? []).find(
-      (button) => button.textContent?.includes("Add to notes"),
+      (button) => button.textContent?.includes("Add to a new note"),
     );
-    act(() => notes?.click());
+    await act(async () => notes?.click());
 
-    expect(onAddToNotes).toHaveBeenCalledWith("A useful link");
+    expect(onAddToNotes).toHaveBeenCalledWith("A useful link", { kind: "new" });
     expect(onAddToChat).not.toHaveBeenCalled();
     expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  const notes = [
+    { id: "n-old", slug: "old", title: "Old reading", body: "", tags: [], slugPending: false, createdAt: 1, updatedAt: 1 },
+    { id: "n-new", slug: "new", title: "Kernel notes", body: "", tags: [], slugPending: false, createdAt: 2, updatedAt: 5 },
+  ];
+  const buttonNamed = (text: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="toolbar"] button')).find((button) => button.textContent?.includes(text));
+  async function show(onAddToNotes: ReturnType<typeof vi.fn>, onDismiss = vi.fn()) {
+    await act(async () => root.render(createElement(TranscriptSelectionMenu, {
+      selection: { text: "mmap is lazy", rect: new DOMRect(10, 20, 100, 20) },
+      onAddToNotes, listNotes: async () => notes, onDismiss,
+    })));
+  }
+
+  it("asks the first time whether to start a note or add to one", async () => {
+    localStorage.clear();
+    const onAddToNotes = vi.fn(async () => notes[1]);
+    const onDismiss = vi.fn();
+    await show(onAddToNotes, onDismiss);
+    await act(async () => buttonNamed("Add to notes…")!.click());
+    expect(onAddToNotes).not.toHaveBeenCalled();
+    const items = [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent);
+    expect(items).toEqual(["New note", "Kernel notes", "Old reading"]);
+    await act(async () => buttonNamed("Kernel notes")!.click());
+    expect(onAddToNotes).toHaveBeenCalledWith("mmap is lazy", { kind: "note", id: "n-new", title: "Kernel notes" });
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(JSON.parse(localStorage.getItem("loci.noteTarget.global")!)).toEqual({ kind: "note", id: "n-new", title: "Kernel notes" });
+  });
+
+  it("goes to the last note chosen, and can be pointed at another", async () => {
+    localStorage.setItem("loci.noteTarget.global", JSON.stringify({ kind: "note", id: "n-new", title: "Kernel notes" }));
+    const onAddToNotes = vi.fn(async () => undefined);
+    await show(onAddToNotes);
+    await act(async () => buttonNamed("Add to “Kernel notes”")!.click());
+    expect(onAddToNotes).toHaveBeenLastCalledWith("mmap is lazy", { kind: "note", id: "n-new", title: "Kernel notes" });
+
+    await show(onAddToNotes);
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Choose another note"]')!.click());
+    await act(async () => buttonNamed("New note")!.click());
+    expect(onAddToNotes).toHaveBeenLastCalledWith("mmap is lazy", { kind: "new" });
+    expect(JSON.parse(localStorage.getItem("loci.noteTarget.global")!)).toEqual({ kind: "new" });
   });
 });

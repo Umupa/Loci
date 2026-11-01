@@ -138,6 +138,7 @@ import { HarnessIcon } from "./HarnessIcon";
 import { WorkFoldLine, type WorkFoldState } from "./WorkFoldLine";
 import { TurnProgress } from "./TurnProgress";
 import { TranscriptSelectionMenu } from "./TranscriptSelectionMenu";
+import type { Note, NoteTarget } from "../../notes";
 import { UserLinkPreview } from "./UserLinkPreview";
 
 const NEAR_BOTTOM_PX = 16;
@@ -179,7 +180,9 @@ type Props = {
   onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
   onSendDraft?: (block: Block) => boolean | void;
   onRemoveDraft?: (block: Block) => boolean | void;
-  onSaveSelectionNote?: (text: string) => void | Promise<void>;
+  onSaveSelectionNote?: (text: string, target: NoteTarget) => void | Promise<Note | void>;
+  listSelectionNotes?: () => Promise<Note[]>;
+  notesScope?: string;
   onOpenFile?: OpenFileFn;
 
 
@@ -224,6 +227,8 @@ function AgentTranscriptComponent({
   onSendDraft,
   onRemoveDraft,
   onSaveSelectionNote,
+  listSelectionNotes,
+  notesScope,
   onOpenFile,
 
 
@@ -1067,6 +1072,8 @@ function AgentTranscriptComponent({
           selection={selection}
           onAddToChat={onAddToChat}
           onAddToNotes={onSaveSelectionNote}
+          listNotes={listSelectionNotes}
+          notesScope={notesScope}
           onDismiss={dismissSelection}
         />
       ) : null}
