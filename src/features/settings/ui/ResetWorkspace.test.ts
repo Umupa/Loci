@@ -30,6 +30,10 @@ it("requires destructive confirmation before invoking the backend", async () => 
   await click();
   expect(ask).toHaveBeenCalledWith(expect.stringContaining("This cannot be undone"), expect.objectContaining({ kind: "warning", cancelLabel: "Cancel", okLabel: "Reset workspace" }));
   expect(ask.mock.calls[0][0]).toContain("All settings and global backgrounds are kept");
+  // The dialog names what exists and reassures about the mentors' folders.
+  expect(ask.mock.calls[0][0]).toContain("conversations, mentors, courses, sources, notes, canvases");
+  expect(ask.mock.calls[0][0]).toContain("folders under ~/Loci");
+  expect(ask.mock.calls[0][0]).not.toContain("projects");
   expect(invoke).toHaveBeenCalledExactlyOnceWith("workspace_reset");
 });
 it("does nothing when confirmation is canceled", async () => {

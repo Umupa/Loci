@@ -57,8 +57,8 @@ function ProjectIcon(_: { path: string }) {
 }
 
 /**
- * The projects an agent works on, each removable, and a menu to add one of
- * the projects the app already knows or any folder.
+ * The other folders an agent works in, each removable, and a menu to add one
+ * of the folders the app already knows or any folder.
  */
 export function ProjectsField({ projects, recents, onAdd, onRemove, onPickFolders }: {
   projects: readonly string[];
@@ -81,7 +81,7 @@ export function ProjectsField({ projects, recents, onAdd, onRemove, onPickFolder
         <div key={projectKey(path)} title={path} className="group flex h-7 min-w-0 items-center gap-2 rounded-md px-1.5 hover:bg-content/6">
           <ProjectIcon path={path} />
           <span className="min-w-0 flex-1 truncate text-[13px]">{projectLook(path).name}</span>
-          <button type="button" title="Remove project" aria-label={`Remove ${projectLook(path).name}`} onClick={() => onRemove(path)}
+          <button type="button" title="Remove folder" aria-label={`Remove ${projectLook(path).name}`} onClick={() => onRemove(path)}
             className="grid size-5 shrink-0 place-items-center rounded text-content/40 opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100">
             <X className="size-3" strokeWidth={1.75} />
           </button>
@@ -90,10 +90,10 @@ export function ProjectsField({ projects, recents, onAdd, onRemove, onPickFolder
       <button ref={anchor} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => (candidates.length ? setOpen((value) => !value) : pick())}
         className="flex h-7 w-fit items-center gap-2 rounded-md px-1.5 text-[13px] text-content/50 hover:bg-content/6 hover:text-content">
         <Plus className="size-3.5" strokeWidth={1.75} />
-        Add project
+        Add folder
       </button>
       {open ? (
-        <Popover anchor={anchor} side="bottom" align="start" width={240} onDismiss={() => setOpen(false)} role="menu" aria-label="Add project" className="p-1.5">
+        <Popover anchor={anchor} side="bottom" align="start" width={240} onDismiss={() => setOpen(false)} role="menu" aria-label="Add folder" className="p-1.5">
           <div className="max-h-56 overflow-y-auto">
             {candidates.map((recent) => (
               <button key={recent.path} type="button" role="menuitem" title={recent.path} onClick={() => { setOpen(false); onAdd(recent.path); }}
