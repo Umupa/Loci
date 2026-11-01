@@ -28,7 +28,7 @@
 .course-pane__nav-intro progress::-webkit-progress-value { background: color-mix(in srgb, var(--color-content) 55%, transparent); }
 .course-pane__nav-intro progress::-moz-progress-bar { background: color-mix(in srgb, var(--color-content) 55%, transparent); }
 .course-pane__nav ol { margin: 0; padding: 0; list-style: none; }
-.course-pane__nav-item { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 8px; margin: 2px 0; border-radius: 8px; text-align: left; font-size: 13px; line-height: 20px; color: color-mix(in srgb, var(--color-content) 65%, transparent); }
+.course-pane__nav-item { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 8px; margin: 2px 0; border-radius: 6px; text-align: left; font-size: 13px; line-height: 20px; color: color-mix(in srgb, var(--color-content) 65%, transparent); }
 .course-pane__nav-item:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); }
 .course-pane__nav-item--active { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
 .course-pane__nav-label { min-width: 0; overflow-wrap: anywhere; }
@@ -43,7 +43,7 @@
 .course-pane__main { min-width: 0; flex: 1; overflow: auto; padding: 24px 28px 16px; }
 .course-pane__content { max-width: 850px; margin: 0 auto; }
 .course-toc { position: absolute; z-index: 2; top: 24px; right: 20px; display: flex; flex-direction: column; width: 28px; max-width: calc(100% - 40px); max-height: min(280px, calc(100% - 48px)); color: var(--color-content); }
-.course-toc--expanded { width: 192px; padding: 6px; border: 1px solid var(--color-stroke); border-radius: 8px; background: var(--color-background-base); box-shadow: 0 2px 6px rgb(0 0 0 / .04), 0 8px 24px rgb(0 0 0 / .08); animation: course-toc-reveal 100ms ease-out; }
+.course-toc--expanded { width: 192px; padding: 6px; border: 1px solid var(--color-stroke); border-radius: 10px; background: var(--color-background-base); box-shadow: 0 2px 6px rgb(0 0 0 / .04), 0 8px 24px rgb(0 0 0 / .08); animation: course-toc-reveal 100ms ease-out; }
 .course-toc__panel { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
 .course-toc__panel[hidden] { display: none; }
 .course-toc__list { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--color-content) 15%, transparent) transparent; margin: 0; padding: 0; list-style: none; }

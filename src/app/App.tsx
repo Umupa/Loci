@@ -661,7 +661,7 @@ function Workspace(boot: BootWorkspace) {
       {store.error ? <FileActionError message={store.error} onDismiss={() => store.setError(null)} /> : null}
       {learningTargetRequest ? <Modal title="Choose a mentor" description="Your passage will be added as a draft to the mentor's conversation." onClose={() => setLearningTargetRequest(null)}>
         <div className="flex max-h-80 flex-col gap-1 overflow-auto p-3">
-          {agents.agents.filter((agent) => agent.sessionId).map((agent) => <button key={agent.id} type="button" className="rounded-lg px-3 py-2 text-left text-sm hover:bg-content/8" onClick={() => {
+          {agents.agents.filter((agent) => agent.sessionId).map((agent) => <button key={agent.id} type="button" className="rounded-md px-3 py-2 text-left text-sm hover:bg-content/8" onClick={() => {
             queueLearningDraft(agent.sessionId!, { ...learningTargetRequest, targetSessionId: agent.sessionId! });
             setLearningTargetRequest(null);
             void revealLearningConversation(agent.sessionId!).catch(reportError);
@@ -684,11 +684,11 @@ function MentorsEmpty({ hasMentors, openingName, failed, onCreate, onRetry, trai
       <p role="status" className="text-sm text-content/60">
         {failed ? `Couldn't open ${openingName ?? "your mentor"}.` : `Opening ${openingName ?? "your mentor"}…`}
       </p>
-      {failed ? <button type="button" className="primary-action rounded-lg px-3 py-1.5 text-sm font-medium" onClick={onRetry}>Try again</button> : null}
+      {failed ? <button type="button" className="primary-action rounded-md px-3 py-1.5 text-sm font-medium" onClick={onRetry}>Try again</button> : null}
     </div> : <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
       <h1 className="text-[15px] font-medium">Create your first mentor</h1>
       <p className="max-w-sm text-sm text-content/60">A mentor is a resident agent for one topic you are learning. It keeps your courses, sources, notes and drawings, and reads along with you.</p>
-      <button type="button" className="primary-action rounded-lg px-3 py-1.5 text-sm font-medium" onClick={onCreate}>Create a mentor</button>
+      <button type="button" className="primary-action rounded-md px-3 py-1.5 text-sm font-medium" onClick={onCreate}>Create a mentor</button>
     </div>}
   </div>;
 }

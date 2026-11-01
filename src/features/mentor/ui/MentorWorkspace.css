@@ -37,7 +37,7 @@
 
 .mentor-library { display: flex; min-height: 0; flex: 1; flex-direction: column; container: library / inline-size; font-family: var(--font-sans); }
 .mentor-library-segments { display: flex; flex: none; gap: 2px; margin: 8px 8px 4px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--color-content) 6%, transparent); }
-.mentor-library-segment { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: 5px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 55%, transparent); white-space: nowrap; }
+.mentor-library-segment { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: 6px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 55%, transparent); white-space: nowrap; }
 .mentor-library-segment > span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .mentor-library-segment:hover { color: var(--color-content); }
 .mentor-library-segment[aria-selected="true"] { background: var(--color-selection); color: var(--color-content); font-weight: 500; box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent); }
