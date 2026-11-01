@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { slash } from "../../shared/lib/paths";
 
 
@@ -177,6 +177,19 @@ export async function pickFolder(title: string, defaultPath?: string): Promise<s
     title,
     ...(defaultPath ? { defaultPath } : {}),
   });
+  const path = Array.isArray(selected) ? selected[0] : selected;
+  return typeof path === "string" && path ? slash(path) : undefined;
+}
+
+/** Where to save a file, from the system's save dialog. */
+export async function pickSavePath(title: string, defaultPath: string, extensions: string[]): Promise<string | undefined> {
+  const chosen = await save({ title, defaultPath, filters: [{ name: extensions.join(", "), extensions }] });
+  return typeof chosen === "string" && chosen ? slash(chosen) : undefined;
+}
+
+/** One file of these extensions, from the system picker. */
+export async function pickFile(title: string, extensions: string[]): Promise<string | undefined> {
+  const selected = await open({ title, multiple: false, directory: false, filters: [{ name: extensions.join(", "), extensions }] });
   const path = Array.isArray(selected) ? selected[0] : selected;
   return typeof path === "string" && path ? slash(path) : undefined;
 }

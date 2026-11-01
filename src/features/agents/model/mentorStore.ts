@@ -197,6 +197,21 @@ export function contentChangeEvents(change: ContentChange): Event[] {
   }
 }
 
+export type ExportSummary = { path: string; files: number; bytes: number; repos: { path: string; remote?: string; head?: string }[] };
+export type ImportSummary = { id: string; folder: string; renamedId: boolean; files: number; progress: number; annotations: number };
+
+/** Zips the mentor's folder (without repos/ and lab/ unless asked) to `path`. */
+export function exportMentor(agentId: string, path: string, withRepos = false): Promise<ExportSummary> {
+  return invoke<ExportSummary>("mentors_export", { agent: agentId, path, withRepos });
+}
+
+/** Imports a mentor from an exported .zip, or brings back a mentor folder where it is. */
+export async function importMentor(from: { path: string } | { folder: string }): Promise<ImportSummary> {
+  const summary = await invoke<ImportSummary>("mentors_import", "path" in from ? { path: from.path } : { folder: from.folder });
+  await reload();
+  return summary;
+}
+
 let viewTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Mirrors each mentor's view state into SQLite, a moment after it settles. */

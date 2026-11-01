@@ -241,11 +241,6 @@ pub fn create_folder(root: &Path, slug: &str) -> Result<PathBuf, String> {
     Err(format!("No free folder name for {slug}"))
 }
 
-/// Whether `path` is `folder` itself or inside it, by path components.
-pub fn holds(folder: &Path, path: &Path) -> bool {
-    path.starts_with(folder)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

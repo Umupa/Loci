@@ -544,6 +544,50 @@ pub fn mentor_state_set(
     Ok(())
 }
 
+/// Zips a mentor's folder (without repos/ and lab/ unless asked) to `path`.
+#[tauri::command(async)]
+pub fn mentors_export(
+    app: AppHandle,
+    store: State<'_, SessionStore>,
+    agent: String,
+    path: String,
+    with_repos: Option<bool>,
+) -> Result<super::bundle::ExportSummary, String> {
+    crate::session_store::validate_id(&agent, "agent")?;
+    let out = crate::fs::expand_home(&path);
+    if !out.is_absolute() {
+        return Err("path must be an absolute path for the .zip".into());
+    }
+    let version = app.package_info().version.to_string();
+    let conn = store.lock_conn()?;
+    super::bundle::export(&conn, &agent, &out, with_repos.unwrap_or(false), &version)
+}
+
+/// Imports a mentor from an exported .zip (`path`) or adopts a mentor folder
+/// where it is (`folder`).
+#[tauri::command(async)]
+pub fn mentors_import(
+    app: AppHandle,
+    store: State<'_, SessionStore>,
+    root: State<'_, MentorsRoot>,
+    path: Option<String>,
+    folder: Option<String>,
+) -> Result<super::bundle::ImportSummary, String> {
+    let conn = store.lock_conn()?;
+    let summary = match (path, folder) {
+        (Some(path), None) => {
+            super::bundle::import_zip(&conn, &root.path(), &crate::fs::expand_home(&path))?
+        }
+        (None, Some(folder)) => {
+            super::bundle::import_folder(&conn, &crate::fs::expand_home(&folder))?
+        }
+        _ => return Err("Give the .zip to import or the folder to bring back, not both".into()),
+    };
+    drop(conn);
+    notify_mentors(&app);
+    Ok(summary)
+}
+
 /// The kinds a window refreshes on, by the event it already listens to.
 pub fn kind_event(kind: Kind) -> &'static str {
     match kind {

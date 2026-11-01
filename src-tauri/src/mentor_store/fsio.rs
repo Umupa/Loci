@@ -41,15 +41,6 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     result
 }
 
-/// Writes only when the file does not exist yet. Returns whether it wrote.
-pub fn write_new(path: &Path, bytes: &[u8]) -> Result<bool, String> {
-    if path.exists() {
-        return Ok(false);
-    }
-    write_atomic(path, bytes)?;
-    Ok(true)
-}
-
 pub fn sha256(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest.iter().map(|b| format!("{b:02x}")).collect()
@@ -187,7 +178,6 @@ mod tests {
         write_atomic(&path, b"one").unwrap();
         write_atomic(&path, b"two").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "two");
-        assert!(!write_new(&path, b"three").unwrap());
         assert_eq!(std::fs::read_dir(dir.join("a")).unwrap().count(), 1);
         std::fs::remove_dir_all(dir).unwrap();
     }

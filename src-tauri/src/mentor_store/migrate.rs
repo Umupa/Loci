@@ -50,14 +50,6 @@ pub struct MigrateInput {
     pub redo: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Counts {
-    pub written: usize,
-    pub unchanged: usize,
-    pub conflicts: usize,
-}
-
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MentorReport {

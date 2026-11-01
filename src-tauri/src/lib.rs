@@ -374,6 +374,8 @@ pub fn run() {
             mentor_store::commands::library_search,
             mentor_store::commands::mentor_state_all,
             mentor_store::commands::mentor_state_set,
+            mentor_store::commands::mentors_export,
+            mentor_store::commands::mentors_import,
             agent_documents::agent_documents_list,
             agent_documents::agent_documents_get,
             agent_documents::agent_documents_upsert,

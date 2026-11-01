@@ -13,9 +13,7 @@
 //! for anything else (a mentor not migrated yet, a note with no mentor, a
 //! project canvas) they read the old tables as before.
 
-// Wired into the commands in the commits that follow.
-#![allow(dead_code)]
-
+pub mod bundle;
 pub mod commands;
 pub mod format;
 pub mod fsio;
@@ -179,16 +177,6 @@ pub fn remove_content(
     let change = index::index_file(conn, ctx, kind, id, &path, true)?;
     Ok(existed || change == Change::Removed)
 }
-
-/// Whether a file was saved over by someone else since `expected` was read.
-pub fn check_expected(row: Option<&Row>, expected: Option<&str>) -> Result<(), String> {
-    match (expected, row) {
-        (Some(expected), Some(row)) if row.hash != expected => Err(CONFLICT.into()),
-        _ => Ok(()),
-    }
-}
-
-pub const CONFLICT: &str = "This file changed on disk since it was opened.";
 
 /// The current time as a file name part: `20261101-091200`.
 pub fn stamp_now() -> String {

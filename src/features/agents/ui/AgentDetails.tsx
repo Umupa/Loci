@@ -7,7 +7,8 @@ import { AccessPicker } from "../../sessions/ui/AccessPicker";
 import { ModelPicker, ModelSettingRows } from "../../sessions/ui/ModelPicker";
 import { addAgentProject, agentLook, removeAgentProject, updateAgent, type Agent } from "../model/agent";
 import { ensureAgentWorkdir, folderHolds, setAgentWorkdir } from "../model/agentWorkdir";
-import { pickFolder, revealPath } from "../../../platform/tauri/fs";
+import { pickFolder, pickSavePath, revealPath } from "../../../platform/tauri/fs";
+import { exportMentor } from "../model/mentorStore";
 import { prettyCwd } from "../../../shared/lib/paths";
 import { defaultAgentName } from "../model/agentAvatars";
 import {
@@ -129,6 +130,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         </div>
         <h4 className="agent-setting-group-title">Files</h4>
         <div className="agent-setting-group">
+          {agent.folder ? <FolderRow agent={agent} folder={agent.folder} /> : null}
           <WorkdirRow agent={agent} chatCwd={session.cwd} />
           <div className="agent-setting-row flex-col items-stretch">
             <div className="agent-setting-label"><span>Other folders</span><small>More folders it may read and work in.</small></div>
@@ -139,7 +141,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         <h4 className="agent-setting-group-title">Conversation</h4>
         <div className="agent-setting-group">
           <SettingRow label="Reset conversation" description="Clear messages. Soul, memory and habits stay."><button type="button" onClick={onReset} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/8">Reset</button></SettingRow>
-          <SettingRow label="Delete agent" description="Remove this agent and its conversation."><button type="button" onClick={onDelete} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/8">Delete</button></SettingRow>
+          <SettingRow label="Delete agent" description="Remove this agent and its conversation. Its folder of files stays on disk."><button type="button" onClick={onDelete} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/8">Delete</button></SettingRow>
         </div>
         {error ? <p role="alert" className="mt-3 text-xs text-red-400/90">{error}</p> : null}
       </div> : <>
@@ -184,6 +186,30 @@ function WorkdirRow({ agent, chatCwd }: { agent: Agent; chatCwd?: string }) {
       <span className="min-w-0 truncate text-[12px] text-content/70" title={shown}>{shown ? prettyCwd(shown) : "…"}</span>
       {shown ? <button type="button" onClick={() => void revealPath(shown)} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Reveal</button> : null}
       <button type="button" onClick={change} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Change…</button>
+    </div>
+  </SettingRow>;
+}
+
+/**
+ * The mentor's folder: its sources, guides, courses, notes, drawings, Soul
+ * and memory as files. Export zips it so it can be imported elsewhere.
+ */
+function FolderRow({ agent, folder }: { agent: Agent; folder: string }) {
+  const [status, setStatus] = useState<string>();
+  const exportZip = () => void pickSavePath("Export mentor", `${folder.replace(/\/+$/, "")}.zip`, ["zip"]).then(async (path) => {
+    if (!path) return;
+    try {
+      const summary = await exportMentor(agent.id, path);
+      setStatus(`Exported ${summary.files} files to ${prettyCwd(summary.path)}`);
+    } catch (reason) {
+      setStatus(String(reason));
+    }
+  });
+  return <SettingRow label="Mentor folder" description={status ?? "Its library, courses, notes, Soul and memory, as files you and it can edit."}>
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span className="min-w-0 truncate text-[12px] text-content/70" title={folder}>{prettyCwd(folder)}</span>
+      <button type="button" onClick={() => void revealPath(folder)} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Reveal</button>
+      <button type="button" onClick={exportZip} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Export…</button>
     </div>
   </SettingRow>;
 }
