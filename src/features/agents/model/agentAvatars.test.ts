@@ -6,30 +6,21 @@ import {
   defaultAgentName,
 } from "./agentAvatars";
 
+const SAVED_NAMES = ["ember", "wisp", "dew", "moss", "nimbus", "pebble", "luna", "nova", "flint", "tide"];
+
 describe("agentAvatars", () => {
-  it("keeps the persisted Bottts names and adds a matching Neutral series on its own canvas", () => {
-    const bottts = AGENT_AVATARS.filter((avatar) => avatar.style === "bottts");
-    const neutral = AGENT_AVATARS.filter((avatar) => avatar.style === "bottts-neutral");
-    expect(bottts.map((avatar) => avatar.name)).toEqual([
-      "ember",
-      "wisp",
-      "dew",
-      "moss",
-      "nimbus",
-      "pebble",
-      "luna",
-      "nova",
-      "flint",
-      "tide",
-    ]);
-    expect(neutral.map((avatar) => avatar.name)).toEqual(bottts.map((avatar) => `neutral-${avatar.name}`));
-    expect(AGENT_AVATARS).toHaveLength(20);
-    for (const avatar of bottts) expect(avatar.viewBox).toBe("0 0 180 180");
-    for (const avatar of neutral) expect(avatar.viewBox).toBe("0 0 120 120");
-    expect(new Set(AGENT_AVATARS.map((avatar) => avatar.markup)).size).toBe(20);
+  it("keeps every name agents saved with the earlier faces, each a distinct face", () => {
+    const names = AGENT_AVATARS.map((avatar) => avatar.name);
+    expect(names.slice(0, SAVED_NAMES.length)).toEqual(SAVED_NAMES);
+    expect(new Set(names).size).toBe(names.length);
+    expect(new Set(AGENT_AVATARS.map((avatar) => avatar.markup)).size).toBe(AGENT_AVATARS.length);
+    for (const avatar of AGENT_AVATARS) {
+      expect(avatar.style).toBe("notionists");
+      expect(avatar.viewBox).not.toBe(avatar.faceViewBox);
+    }
   });
 
-  it("embeds local artwork whose base color can follow the agent's color", () => {
+  it("embeds local artwork on a card that follows the agent's color", () => {
     for (const avatar of AGENT_AVATARS) {
       expect(avatar.markup).toContain('fill="currentColor"');
       expect(avatar.markup).not.toMatch(/<(?:script|foreignObject|image|filter)\b/i);
@@ -40,38 +31,25 @@ describe("agentAvatars", () => {
     }
   });
 
-  it("only marks faces with animated eye artwork as able to blink", () => {
-    for (const avatar of AGENT_AVATARS) {
-      expect(avatar.canBlink).toBe(avatar.markup.includes('class="agent-avatar-eyes"'));
-    }
-    for (const name of ["ember", "wisp", "pebble", "neutral-ember", "neutral-wisp", "neutral-pebble"]) {
-      expect(agentAvatar(name).canBlink).toBe(false);
-    }
-    expect(agentAvatar("dew").canBlink).toBe(true);
-    expect(agentAvatar("neutral-dew").canBlink).toBe(true);
-  });
-
-  it.each(AGENT_AVATARS.filter((avatar) => avatar.canBlink))("keeps $name's animated eyes in the rendered SVG tree", ({ markup }) => {
+  it.each(AGENT_AVATARS)("keeps $name's eyes in one blinkable group in the rendered SVG tree", ({ markup, canBlink }) => {
+    expect(canBlink).toBe(true);
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.innerHTML = markup;
     const eyes = svg.querySelectorAll("g.agent-avatar-eyes");
-    expect(eyes.length).toBeGreaterThan(0);
-    // Animating an eye definition used by a clone does not repaint the visible eyes.
-    for (const eye of eyes) expect(eye.closest("defs")).toBeNull();
+    expect(eyes).toHaveLength(1);
+    expect(eyes[0].closest("defs")).toBeNull();
   });
 
-  it("falls back to the first avatar for an unknown name", () => {
+  it("wears the same face for an earlier neutral name, and the first face for an unknown one", () => {
     expect(agentAvatar("dew").name).toBe("dew");
-    expect(agentAvatar("neutral-dew").name).toBe("neutral-dew");
+    expect(agentAvatar("neutral-dew").name).toBe("dew");
     expect(agentAvatar("nope")).toBe(AGENT_AVATARS[0]);
     expect(agentAvatar(null)).toBe(AGENT_AVATARS[0]);
   });
 
   it("names an agent after its avatar until the user names it", () => {
     expect(defaultAgentName("ember")).toBe("Ember");
+    expect(defaultAgentName("neutral-tide")).toBe("Tide");
     expect(defaultAgentName("nope")).toBe("Ember");
-    for (const avatar of AGENT_AVATARS.filter((avatar) => avatar.style === "bottts")) {
-      expect(defaultAgentName(`neutral-${avatar.name}`)).toBe(defaultAgentName(avatar.name));
-    }
   });
 });
