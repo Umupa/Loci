@@ -114,6 +114,19 @@ describe("settings pages", () => {
         await render("providers");
         expect(refreshHarnessCatalogs).not.toHaveBeenCalled();
     });
+    it("sets the reader body font and stores the choice", async () => {
+        await render("appearance");
+        const sans = container.querySelector<HTMLButtonElement>("#reading-font-sans")!;
+        const serif = container.querySelector<HTMLButtonElement>("#reading-font-serif")!;
+        expect(sans.getAttribute("aria-checked")).toBe("true");
+        await act(async () => serif.click());
+        expect(localStorage.getItem("loci.readingFont")).toBe("serif");
+        expect(document.documentElement.style.getPropertyValue("--font-reading")).toContain("Songti SC");
+        expect(serif.getAttribute("aria-checked")).toBe("true");
+        await act(async () => sans.click());
+        expect(localStorage.getItem("loci.readingFont")).toBeNull();
+        expect(document.documentElement.style.getPropertyValue("--font-reading")).toBe("");
+    });
     it("shows background effect choices above scope when artwork is available", async () => {
         localStorage.setItem("loci.chatBackgroundPath", "/app-data/backgrounds/chat-background.png");
         await render("appearance");

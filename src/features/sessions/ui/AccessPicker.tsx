@@ -9,7 +9,7 @@ ChevronDown,
 Lock,
 Pencil,
 Shield,
-Sparkles,
+Gauge,
 } from "../../../shared/ui/icons";
 import { Popover } from "../../../shared/ui/Popover";
 import { useUiText } from "../../../shared/i18n/SettingsLanguage";
@@ -32,7 +32,7 @@ const MENU_WIDTH = 288;
 const ICONS: Record<RuntimeMode, typeof Lock> = {
   supervised: Lock,
   "auto-accept-edits": Pencil,
-  auto: Sparkles,
+  auto: Gauge,
   "full-access": Shield,
 };
 
@@ -110,14 +110,14 @@ export function AccessPicker({
       >
         <Icon
           className={`size-3.5 shrink-0 ${value === "full-access" ? "text-amber-400/90" : ""}`}
-          strokeWidth={1.75}
+          strokeWidth={1.5}
         />
         <span className="min-w-0 truncate text-[11px]">
           {t(RUNTIME_MODE_LABEL[value])}
         </span>
         <ChevronDown
           className={`size-3 shrink-0 text-content/50 ${open ? "rotate-180" : ""}`}
-          strokeWidth={1.75}
+          strokeWidth={1.5}
         />
       </button>
       {open ? (
@@ -155,7 +155,7 @@ export function AccessPicker({
               >
                 <ModeIcon
                   className={`mt-0.5 size-3.5 shrink-0 ${mode === "full-access" ? "text-amber-400/90" : "text-content/70"}`}
-                  strokeWidth={1.75}
+                  strokeWidth={1.5}
                 />
                 <span className="min-w-0">
                   <span className="block text-[13px] font-medium leading-5">

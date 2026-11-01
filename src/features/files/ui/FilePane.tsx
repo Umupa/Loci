@@ -5,6 +5,7 @@ import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
+import { CodeReader } from "../../../shared/ui/CodeReader";
 import { basename, openPathWithDefaultApp, readBinaryFile, readDocumentFile, readTextFile, revealPath, writeTextFile } from "../../../platform/tauri/fs";
 import { IS_MAC } from "../../../platform/tauri/platform";
 import { formatFileSize, sniffImageMime } from "../../../shared/lib/filePreview";
@@ -107,6 +108,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   const relative = displayPath(path, cwd);
   const bodyRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLPreElement>(null);
+  const codeScrollRef = useRef<HTMLDivElement>(null);
   const markdownRef = useRef<HTMLDivElement>(null);
   const { selection, dismiss } = useFileSelection(bodyRef, (content.status === "text" && !editing) || content.status === "pdf");
   // Text and Markdown keep highlights on the file; a PDF keeps its own, on page rectangles.
@@ -356,18 +358,16 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       return () => window.clearTimeout(timer);
     }
     const pre = textRef.current;
-    const node = pre?.firstChild;
-    if (shownPlainText === null || !pre || node?.nodeType !== Node.TEXT_NODE) return;
-    const range = document.createRange();
-    range.setStart(node, Math.min(lineOffset(shownPlainText, first), shownPlainText.length));
-    range.collapse(true);
-    const scroller = pre.parentElement;
-    if (scroller) scroller.scrollTop += range.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;
+    if (shownPlainText === null || !pre) return;
+    const readerText = textIndex(pre);
+    const at = Math.min(lineOffset(shownPlainText, first), readerText.text.length);
+    const caret = rangeAt(readerText, at, Math.min(at + 1, readerText.text.length));
+    const scroller = codeScrollRef.current;
+    if (caret && scroller) scroller.scrollTop += caret.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 24;
     // The quoted passage near those lines, else the lines themselves, flashes once.
-    const index = textIndex(pre);
     const found = quote ? quoteInText(shownPlainText, quote, lineOffset(shownPlainText, first)) : null;
     const [from, to] = found ? [found.start, found.end] : lineRange(shownPlainText, first, last);
-    const passage = rangeAt(index, from, to);
+    const passage = rangeAt(readerText, from, to);
     if (passage) flashRange(passage);
     consumeFilePlace(path, placeRequest.token);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -411,12 +411,14 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         className="block h-full w-full resize-none overflow-auto overscroll-none bg-transparent px-5 py-4 font-mono text-[12.5px] leading-[1.55] text-content/90 outline-none"
       />
     ) : (
-      <div ref={markdownRef} className="h-full min-h-0" data-reading-text><MarkdownDocumentPreview text={shownText} metadataLabel="Front matter" cwd={parentPath(path)} onOpenFile={onOpenFile} /></div>
+      <div ref={markdownRef} className="h-full min-h-0 reader-body" data-reading-text><MarkdownDocumentPreview text={shownText} metadataLabel="Front matter" cwd={parentPath(path)} onOpenFile={onOpenFile} /></div>
     );
   } else {
     body = (
-      <div className="h-full overflow-auto overscroll-none">
-        <pre ref={textRef} data-reading-text data-reading-lines-from="1" className="min-h-full select-text whitespace-pre-wrap break-words px-5 py-4 font-mono text-[12.5px] leading-[1.55] text-content/90">{content.text}</pre>
+      <div ref={codeScrollRef} className="h-full overflow-auto overscroll-none">
+        <div data-reading-text data-reading-lines-from="1" className="select-text">
+          <CodeReader text={content.text} file={name} preRef={textRef} label={name} />
+        </div>
       </div>
     );
   }
@@ -431,16 +433,16 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       {reader ? <ResourceHeader title={name} onClose={close}>
         {draft ? <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-content/60" /> : null}
         {editable ? <span data-tauri-drag-region="false"><MarkdownModeToggle mode={mode} onChange={setMode} /></span> : null}
-        {kind === "pdf" || content.status === "text" ? <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="Highlights & notes" title="Highlights & notes" aria-expanded={annotationsOpen} onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-3.5" /></button> : null}
+        {kind === "pdf" || content.status === "text" ? <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="Highlights & notes" title="Highlights & notes" aria-expanded={annotationsOpen} onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-4" /></button> : null}
         {draft ? (
           <button type="button" data-tauri-drag-region="false" disabled={conflict || saving} onClick={() => void save()} title={conflict ? "Resolve the conflict first" : "Save (Ctrl/Cmd+S)"}
             className="h-6 shrink-0 rounded px-2 text-[11px] text-content hover:bg-content/10 disabled:opacity-40">{saving ? "Saving…" : "Save"}</button>
         ) : null}
         <button type="button" data-tauri-drag-region="false" onClick={() => requestAddToChat(fileReference(relative), "plain")} title={chatName ? `Add ${name} to ${chatName}` : "Add file to chat"}
           className="flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs text-content/55 hover:bg-content/8 hover:text-content">
-          <MessageSquarePlus className="size-3.5" /><span>{chatName ? `Add to ${chatName}` : "Add to chat"}</span>
+          <MessageSquarePlus className="size-4" /><span>{chatName ? `Add to ${chatName}` : "Add to chat"}</span>
         </button>
-        <button ref={fileMenuRef} type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="File actions" title="File actions" aria-haspopup="menu" aria-expanded={fileMenu} onClick={() => setFileMenu((open) => !open)}><MoreHorizontal className="size-3.5" /></button>
+        <button ref={fileMenuRef} type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="File actions" title="File actions" aria-haspopup="menu" aria-expanded={fileMenu} onClick={() => setFileMenu((open) => !open)}><MoreHorizontal className="size-4" /></button>
       </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}
         onDoubleClick={(event) => {
           if (event.currentTarget.hasAttribute("data-window-titlebar") && !(event.target as HTMLElement).closest("[data-pane-title]")) return;

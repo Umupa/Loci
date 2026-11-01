@@ -58,7 +58,7 @@ export function TranscriptSelectionMenu({
             <MessageSquarePlus
               aria-hidden="true"
               className="size-3.5"
-              strokeWidth={1.75}
+              strokeWidth={1.5}
             />
           </SelectionAction>
         ) : null}
@@ -72,7 +72,7 @@ export function TranscriptSelectionMenu({
             <FilePlusCorner
               aria-hidden="true"
               className="size-3.5"
-              strokeWidth={1.75}
+              strokeWidth={1.5}
             />
           </SelectionAction>
         ) : null}
@@ -117,7 +117,7 @@ function SelectionAction({
             setPending(false);
           }
         }}
-        className="flex h-8 w-full items-center gap-2 whitespace-nowrap rounded-lg px-2.5 font-sans text-[13px] leading-none text-content outline-none ring-accent/40 hover:bg-content/5 focus-visible:ring-2"
+        className="flex h-8 w-full items-center gap-2 whitespace-nowrap rounded-lg px-2.5 font-sans text-[13px] leading-none text-content outline-none ring-accent-ring/40 hover:bg-content/5 focus-visible:ring-2"
       >
         {children}
         {label}

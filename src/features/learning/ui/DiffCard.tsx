@@ -4,6 +4,7 @@ import type { BundledLanguage } from "shiki";
 import { useEffect, useMemo, useState } from "react";
 import { copyText } from "../../../platform/tauri/clipboard";
 import { useCodePlugin } from "../../../shared/hooks/useCodePlugin";
+import { languageFromFile } from "../../../shared/lib/markdown/codeLanguage";
 import { useColorScheme } from "../../../shared/hooks/useColorScheme";
 import { Copy } from "../../../shared/ui/icons";
 import { parseDiff, type DiffSpec } from "../model/course";
@@ -28,12 +29,6 @@ export function computeLineDiff(before: string, after: string): DiffLine[] | und
   return result.length > 2000 ? undefined : result;
 }
 
-function languageFromFile(file: string): BundledLanguage {
-  const name = file.split(/[/\\]/).pop()!.toLowerCase();
-  const extension = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : name;
-  const aliases: Record<string, BundledLanguage> = { py: "python", js: "javascript", jsx: "jsx", ts: "typescript", tsx: "tsx", rs: "rust", rb: "ruby", sh: "bash", zsh: "bash", yml: "yaml", md: "markdown", h: "c", cpp: "cpp", cs: "csharp", dockerfile: "dockerfile", makefile: "makefile" };
-  return aliases[extension] ?? extension as BundledLanguage;
-}
 
 export type DiffCardProps = DiffSpec;
 export function DiffCard({ id, title, file, before, after, runCommand }: DiffCardProps) {
@@ -50,7 +45,7 @@ export function DiffCard({ id, title, file, before, after, runCommand }: DiffCar
     const language = languageFromFile(file);
     for (const [side, code] of [["before", before], ["after", after]] as const) {
       const apply = (result: HighlightResult) => { if (current) setTokens((previous) => ({ ...previous, [side]: result })); };
-      const result = plugin.highlight({ code, language, themes: plugin.getThemes() }, apply);
+      const result = plugin.highlight({ code, language: language as BundledLanguage, themes: plugin.getThemes() }, apply);
       if (result) apply(result);
     }
     return () => { current = false; };
@@ -68,7 +63,7 @@ export function DiffCard({ id, title, file, before, after, runCommand }: DiffCar
     <header className="diff-card__header"><span className="diff-card__file" title={title}>{file}</span>{lines ? <span className="diff-card__stats"><span className="diff-card__add">+{additions}</span><span className="diff-card__remove">−{removals}</span></span> : null}{runCommand ? <button type="button" className="diff-card__run-btn" disabled={copyState === "busy"} onClick={() => void copy()} title={runCommand}><Copy className="size-3.5" />{copyState === "copied" ? "Copied" : "Copy command"}</button> : null}</header>
     {lines ? <pre className="diff-card__body"><code>{lines.length ? lines.map((line, index) => {
       const lineTokens = line.kind === "remove" ? tokens.before?.tokens[(line.beforeLine ?? 1) - 1] : tokens.after?.tokens[(line.afterLine ?? 1) - 1];
-      return <span key={index} className={`diff-card__line diff-card__line--${line.kind}`}><span className="diff-card__number" aria-hidden="true">{line.beforeLine ?? ""}</span><span className="diff-card__number" aria-hidden="true">{line.afterLine ?? ""}</span><span className="diff-card__gutter" aria-hidden="true">{line.kind === "add" ? "+" : line.kind === "remove" ? "−" : " "}</span><span className="diff-card__text">{lineTokens?.length ? lineTokens.map((token, tokenIndex) => <span key={tokenIndex} style={{ color: scheme === "dark" ? token.htmlStyle?.["--shiki-dark"] ?? token.color : token.color }}>{token.content}</span>) : line.text || " "}</span></span>;
+      return <span key={index} className={`diff-card__line diff-card__line--${line.kind}`}><span className="diff-card__number" aria-hidden="true">{line.beforeLine ?? ""}</span><span className="diff-card__number" aria-hidden="true">{line.afterLine ?? ""}</span><span className="diff-card__gutter" aria-hidden="true">{line.kind === "add" ? "+" : line.kind === "remove" ? "−" : " "}</span><span className="diff-card__text">{lineTokens?.length ? lineTokens.map((token, tokenIndex) => <span key={tokenIndex} style={{ color: scheme === "dark" ? token.htmlStyle?.["--shiki-dark"] ?? token.htmlStyle?.color ?? token.color : token.htmlStyle?.color ?? token.color }}>{token.content}</span>) : line.text || " "}</span></span>;
     }) : <span className="diff-card__empty">Both files are empty.</span>}</code></pre> : <div className="diff-card__fallback"><p role="status">This change is too large for a line diff. Read the full code below.</p><details><summary>Before</summary><pre><code>{before || "(empty file)"}</code></pre></details><details><summary>After</summary><pre><code>{after || "(empty file)"}</code></pre></details></div>}
     {runCommand ? <div className="diff-card__command"><code>{runCommand}</code></div> : null}
     {copyError ? <p className="diff-card__error" role="alert">{copyError}</p> : null}

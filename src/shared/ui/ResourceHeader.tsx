@@ -17,10 +17,10 @@ export function ResourceHeader({ title, titleContent, backLabel, onBack, onClose
   const leading = useContext(ResourceHeaderLeading);
   return <header data-resource-header data-tauri-drag-region="deep" className="flex h-10 min-w-0 shrink-0 items-center gap-1 border-b border-stroke pl-2 pr-3 font-sans">
     {leading}
-    {onBack ? <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label={backLabel ?? "Back"} title={backLabel ?? "Back"} onClick={onBack}><ChevronLeft className="size-3.5" strokeWidth={1.75} /></button> : null}
+    {onBack ? <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label={backLabel ?? "Back"} title={backLabel ?? "Back"} onClick={onBack}><ChevronLeft className="size-4" strokeWidth={1.5} /></button> : null}
     <h3 className="min-w-0 flex-1 truncate text-[13px] font-medium" title={title}>{titleContent ?? title}</h3>
     {children}
     {extra}
-    <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="Close" title="Close" onClick={onClose}><X className="size-3.5" strokeWidth={1.75} /></button>
+    <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="Close" title="Close" onClick={onClose}><X className="size-4" strokeWidth={1.5} /></button>
   </header>;
 }

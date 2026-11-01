@@ -9,6 +9,7 @@ import { readDocumentFile, readTextFile } from "../../../platform/tauri/fs";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { LoadedPdf } from "./PdfView";
 import type { PdfAnnotation } from "../../learning/model/types";
+import { rangeAt, textIndex } from "../../learning/model/textAnchor";
 
 vi.mock("../../../platform/tauri/fs", () => ({ basename: (path: string) => path.split("/").pop(), readDocumentFile: vi.fn(), readBinaryFile: vi.fn(), readTextFile: vi.fn(), writeTextFile: vi.fn(), openPathWithDefaultApp: vi.fn(), revealPath: vi.fn() }));
 vi.mock("../model/fileWatch", () => ({ watchFile: () => () => {}, syncWatchedMtime: vi.fn() }));
@@ -115,9 +116,11 @@ describe("PDF passage workflows", () => {
     vi.mocked(learning.upsertAnnotation).mockImplementation(async (mark) => mark);
     await act(async () => root.render(createElement(FilePane, { path: "/src/main.rs", cwd: "/src", preview: false, focused: true, onFocus: vi.fn(), onPin: vi.fn(), onClose: vi.fn(), onOpenFile })));
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
-    const text = host.querySelector("pre")!.firstChild!;
+    const code = host.querySelector("pre code")!;
+    const index = textIndex(code);
+    const at = index.text.indexOf("run()");
     vi.spyOn(Range.prototype, "getClientRects").mockReturnValue([new DOMRect(10, 20, 40, 10)] as unknown as DOMRectList);
-    const range = document.createRange(); range.setStart(text, 16); range.setEnd(text, 21);
+    const range = rangeAt(index, at, at + "run()".length)!;
     window.getSelection()!.addRange(range);
     await act(async () => { document.dispatchEvent(new Event("selectionchange")); await new Promise((resolve) => setTimeout(resolve, 30)); });
     await act(async () => button("Highlight").click());

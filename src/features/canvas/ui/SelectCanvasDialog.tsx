@@ -53,7 +53,7 @@ export function SelectCanvasDialog({ canvases, anchor, onSelect, onCancel }: Pro
               data-focused={isFocused}
               onFocus={() => setFocusedIndex(index)}
               onClick={() => onSelect(canvas.id)}
-              className={`relative w-full flex items-center gap-2.5 px-3 py-2 text-left transition-all duration-100 ${
+              className={`relative w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors duration-100 ${
                 isFocused
                   ? "bg-accent/12 text-content"
                   : "text-content/60 hover:bg-content/5 hover:text-content/85"
@@ -62,7 +62,7 @@ export function SelectCanvasDialog({ canvases, anchor, onSelect, onCancel }: Pro
               {isFocused && (
                 <span className="absolute left-0 inset-y-1.5 w-[2px] rounded-full bg-accent" />
               )}
-              <span className="min-w-0 truncate text-[13px] font-medium leading-none tracking-[-0.01em]">
+              <span className="min-w-0 truncate text-[13px] font-medium leading-none">
                 {canvas.title}
               </span>
             </button>

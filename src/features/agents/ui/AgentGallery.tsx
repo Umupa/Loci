@@ -18,11 +18,11 @@ export function AgentGallery({ onPick, onClose }: Props) {
   return <Modal title="New mentor" description="Start from a mentor made for a kind of work, or from a blank one. You can change its Soul any time in its settings." size="lg" fitViewport onClose={onClose}>
     <ul className="grid gap-2 p-4 pt-1 sm:grid-cols-2" aria-label="Mentor templates">
       {AGENT_TEMPLATES.map((template, index) => <li key={template.id} data-agent-template={template.id}
-        className="flex min-w-0 flex-col gap-2 rounded-lg border border-stroke p-3">
+        className="flex min-w-0 flex-col gap-2 rounded-[10px] border border-stroke p-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <AgentAvatar name={template.avatar} color={AGENT_COLORS[index % AGENT_COLORS.length]} className="size-8 shrink-0" />
           <div className="min-w-0">
-            <h3 className="truncate text-[13px] font-semibold text-content">{template.name}</h3>
+            <h3 className="truncate text-[13px] font-medium text-content">{template.name}</h3>
             <p className="truncate text-[11px] text-content/50">{template.role}</p>
           </div>
         </div>
@@ -37,7 +37,7 @@ export function AgentGallery({ onPick, onClose }: Props) {
       </li>)}
       <li className="flex min-w-0">
         <button type="button" onClick={() => pick(null)}
-          className="flex min-h-28 w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-stroke p-3 text-[12px] text-content/55 hover:bg-content/5 hover:text-content">
+          className="flex min-h-28 w-full flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-stroke p-3 text-[12px] text-content/55 hover:bg-content/5 hover:text-content">
           <Plus className="size-4" /> Blank mentor
         </button>
       </li>

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 // Settings are an explicit allowlist; new workspace keys are reset by default.
 const SETTINGS = new Set([
   "accentColor", "themeHue", "themeSaturation", "themeDarkLightness", "themeId",
-  "themeBoot", "themeWallpaperAuto", "colorScheme", "codeFont", "uiFont", "uiScale",
+  "themeBoot", "themeWallpaperAuto", "colorScheme", "codeFont", "uiFont", "readingFont", "uiScale",
   "sidebarOpacity", "sidebarBlur", "bodyGlass", "newThreadBackgroundEffect",
   "settingsSection", "followUpBehavior", "composerEffortVisible", "modelControls",
   "tabAnimationsEnabled", "tabLimit", "collapsedProjectRailMode", "composerRunner",

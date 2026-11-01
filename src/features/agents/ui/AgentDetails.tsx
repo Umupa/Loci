@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
-import { Pencil, Plus, Settings, Sparkles, StickyNote, X } from "../../../shared/ui/icons";
+import { Pencil, Plus, Settings, Feather, StickyNote, X } from "../../../shared/ui/icons";
 import type { RecentProject } from "../../projects/model/recents";
 import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/session";
 import { AccessPicker } from "../../sessions/ui/AccessPicker";
@@ -87,7 +87,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
   const { files, error } = useAgentFiles(agent.id, refreshKey);
   const [page, setPage] = useState<Page>("general");
   useEffect(() => setPage("general"), [agent.id]);
-  const icons = { general: Settings, soul: Sparkles, memory: StickyNote };
+  const icons = { general: Settings, soul: Feather, memory: StickyNote };
   const pages = Object.keys(PAGE_TITLE) as Page[];
   const tabId = useId();
   const tabDomId = (id: Page) => `${tabId}-${id}`;
@@ -110,7 +110,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
       {pages.map((id) => {
         const Icon = icons[id];
         return <button key={id} id={tabDomId(id)} type="button" role="tab" aria-selected={page === id} tabIndex={page === id ? 0 : -1}
-          aria-controls={`${tabId}-panel`} onKeyDown={onTabKeyDown} onClick={() => setPage(id)}><Icon className="size-3.5 shrink-0" strokeWidth={1.75} />{PAGE_TITLE[id]}</button>;
+          aria-controls={`${tabId}-panel`} onKeyDown={onTabKeyDown} onClick={() => setPage(id)}><Icon className="size-3.5 shrink-0" strokeWidth={1.5} />{PAGE_TITLE[id]}</button>;
       })}
     </nav>
     <div id={`${tabId}-panel`} className="agent-settings-content" role="tabpanel" aria-labelledby={tabDomId(page)}>
@@ -341,7 +341,7 @@ function MemoryPage({ agentId, files }: { agentId: string; files: AgentFiles }) 
     <div className="-mx-1.5 flex min-h-0 flex-col gap-3 overflow-y-auto">
       <MemoryFacts path="MEMORY.md" text={files.memory} saving={saving} run={run} onError={setError} />
       {topics.map((note) => <section key={note.name} className="flex flex-col gap-px">
-        <h3 className="px-1.5 text-[11px] font-medium uppercase tracking-wide text-content/40">{note.name}</h3>
+        <h3 className="px-1.5 text-[12px] font-medium text-content/40">{note.name}</h3>
         <MemoryFacts path={`memory/${note.name}.md`} text={note.text} saving={saving} run={run} onError={setError} />
       </section>)}
     </div>

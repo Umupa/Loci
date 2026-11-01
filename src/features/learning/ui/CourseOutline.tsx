@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Check } from "../../../shared/ui/icons";
 import { COURSES_CHANGED_EVENT, courseItems, loadCourse, PROGRESS_EVENT, type CourseChangedDetail, type ProgressDetail, type CourseWithProgress, type LearningStatus } from "../model/course";
 import "./CoursePane.css";
 
@@ -14,7 +15,7 @@ export function statusLabel(status: LearningStatus, reading: boolean): string {
 }
 
 export function StatusMark({ status }: { status: LearningStatus }) {
-  return <span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? "✓" : ""}</span>;
+  return <span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? <Check className="size-2.5" strokeWidth={2.5} /> : null}</span>;
 }
 
 /** Chapters and lessons with their read marks; selecting one opens it in the reader. */
@@ -29,7 +30,7 @@ export function CourseOutline({ course, activeId, onSelect, id, hidden, classNam
   // Lessons are numbered through the whole course, in the order shown.
   let number = 0;
   return <nav id={id} hidden={hidden} className={`course-pane__nav${className ? ` ${className}` : ""}`} aria-label="Course navigation"><div className="course-pane__nav-intro">{reading ? null : <span>Build Your Own</span>}<p>{mastered} / {items.length} {reading ? "read" : "mastered"}</p><progress max={items.length} value={mastered} aria-label="Course completion" /></div>{course.data.engine === "reading"
-    ? course.data.chapters.map((chapter, at) => <section key={at} className="course-pane__chapter" aria-label={chapter.title}><h3 className="course-pane__chapter-title"><span className="course-pane__chapter-dot" style={{ background: `var(--course-chapter-${at % 6})` }} aria-hidden="true" />{chapter.title}</h3><ol>{chapter.lessons.map((lesson) => row(lesson, number++))}</ol></section>)
+    ? course.data.chapters.map((chapter, at) => <section key={at} className="course-pane__chapter" aria-label={chapter.title}><h3 className="course-pane__chapter-title"><span className="course-pane__chapter-dot" aria-hidden="true" />{chapter.title}</h3><ol>{chapter.lessons.map((lesson) => row(lesson, number++))}</ol></section>)
     : <ol>{items.map(row)}</ol>}</nav>;
 }
 

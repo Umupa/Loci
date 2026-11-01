@@ -62,7 +62,7 @@ export function GeneratedImage({ image }: { image: GeneratedImageMeta }) {
         aria-label={`Open ${image.name} full screen`}
         title={`Open ${image.name} full screen`}
         onClick={() => setOpen(true)}
-        className="block max-w-full cursor-zoom-in overflow-hidden rounded-xl border border-content/10 bg-content/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="block max-w-full cursor-zoom-in overflow-hidden rounded-xl border border-content/10 bg-content/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring"
       >
         <img
           src={state.url}

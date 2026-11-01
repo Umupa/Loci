@@ -27,7 +27,7 @@ import { useColorScheme } from "../../../shared/hooks/useColorScheme";
 import { applyChatBackground, applyChatBackgroundEmptyOpacity, applyChatBackgroundSessionOpacity, applyChatBackgroundScope, applyBodyGlass, applySidebarBlur, applySidebarOpacity, applyThemeDarkLightness, applyThemePreference, applyThemeTint, BODY_GLASS_DEFAULT, ACCENT_COLOR_DEFAULT, CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT, CHAT_BACKGROUND_OPACITY_MAX, CHAT_BACKGROUND_OPACITY_MIN, CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT, CHAT_BACKGROUND_SCOPE_DEFAULT, THEME_PREFERENCE_DEFAULT, chatBackgroundSrc, loadBodyGlass, loadAccentColor, loadChatBackgroundEmptyOpacity, loadChatBackgroundPath, loadChatBackgroundSessionOpacity, loadChatBackgroundScope, loadNewThreadBackgroundEffect, loadThemeDarkLightness, loadThemePreference, loadSidebarBlur, loadSidebarOpacity, loadThemeHue, loadThemeSaturation, loadTranscriptLayout, loadTranscriptAnchor, saveBodyGlass, saveAccentColor, saveChatBackgroundEmptyOpacity, saveChatBackgroundPath, saveChatBackgroundSessionOpacity, saveChatBackgroundScope, setNewThreadBackgroundEffect, saveThemeDarkLightness, saveThemePreference, saveSidebarBlur, saveSidebarOpacity, saveThemeHue, saveThemeSaturation, isLightScheme, saveTranscriptLayout, saveTranscriptAnchor, syncNativeGlass, TRANSCRIPT_ANCHOR_CHANGE_EVENT, SIDEBAR_BLUR_DEFAULT, SIDEBAR_BLUR_MAX, SIDEBAR_BLUR_MIN, SIDEBAR_OPACITY_DEFAULT, SIDEBAR_OPACITY_MAX, SIDEBAR_OPACITY_MIN, THEME_DARK_LIGHTNESS_DEFAULT, THEME_DARK_LIGHTNESS_MAX, THEME_DARK_LIGHTNESS_MIN, THEME_HUE_DEFAULT, THEME_HUE_MAX, THEME_HUE_MIN, THEME_SATURATION_DEFAULT, THEME_SATURATION_MAX, THEME_SATURATION_MIN, type ThemePreference, type ChatBackgroundScope, NEW_THREAD_BACKGROUND_EFFECTS, NEW_THREAD_BACKGROUND_EFFECT_LABELS, NEW_THREAD_BACKGROUND_EFFECT_DESCRIPTIONS, NEW_THREAD_BACKGROUND_EFFECT_DEFAULT, type NewThreadBackgroundEffect, type TranscriptLayout } from "../model/appearance";
 import { pickAndSaveChatBackground, removeChatBackground } from "../../projects/model/chatBackground";
 import { applyEffectiveAccent, loadThemeId, saveThemeWallpaperAuto, setTheme } from "../model/appearance";
-import { applyFonts, loadCodeFont, loadUiFont, normalizeFontFamily, OMARCHY_FONTS, rendersMonospace, saveCodeFont, saveUiFont, subscribeFonts, UI_FONT_FOLLOWS_CODE } from "../model/fonts";
+import { applyFonts, loadCodeFont, loadReadingFont, loadUiFont, normalizeFontFamily, OMARCHY_FONTS, READING_FONT_DEFAULT, rendersMonospace, saveCodeFont, saveReadingFont, saveUiFont, subscribeFonts, UI_FONT_FOLLOWS_CODE, type ReadingFont } from "../model/fonts";
 import { findTheme, isThemeWallpaperPath, resolveTheme, type ThemeWallpaper } from "../model/themes";
 import { ThemeGallery, WallpaperStrip } from "./ThemeGallery";
 import { applyUiScale, loadUiScale, saveUiScale, subscribeUiScale, UI_SCALE_DEFAULT, UI_SCALE_PERCENTS } from "../model/uiScale";
@@ -120,7 +120,7 @@ function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, 
         </div>
         <div className="flex shrink-0 items-center gap-1.5 pr-2" data-tauri-drag-region="false">
           {section === "appearance" ? (<button type="button" onClick={appearance.restoreDefaults} className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-content/50 hover:bg-content/10 hover:text-content">
-              <RotateCcw className="size-3.5" strokeWidth={1.75}/>
+              <RotateCcw className="size-3.5" strokeWidth={1.5}/>
               {t("Restore defaults")}</button>) : null}
           <SettingsSearch onReveal={onReveal}/>
         </div>
@@ -184,7 +184,7 @@ function SettingsSearch({ onReveal, }: {
     };
     return (<div ref={root} className="relative shrink-0">
       <label className="flex h-7 w-48 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
-        <Search className="size-3.5 shrink-0" strokeWidth={1.75}/>
+        <Search className="size-3.5 shrink-0" strokeWidth={1.5}/>
         <input ref={input} role="combobox" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onKeyDown} placeholder={t("Search settings")} aria-label={t("Search settings")} aria-expanded={open} aria-controls={listId} spellCheck={false} autoComplete="off" className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"/>
         {query ? (<button type="button" aria-label={t("Clear settings search")} onMouseDown={(event) => event.preventDefault()} onClick={() => {
                 setQuery("");
@@ -394,6 +394,7 @@ function useAppearanceSettings() {
     const [accentColor, setAccentColor] = useState(loadAccentColor);
     const [codeFont, setCodeFont] = useState(loadCodeFont);
     const [uiFont, setUiFont] = useState(loadUiFont);
+    const [readingFont, setReadingFont] = useState(loadReadingFont);
     const [opacity, setOpacity] = useState(loadSidebarOpacity);
     const [blur, setBlur] = useState(loadSidebarBlur);
     const [themeHue, setThemeHue] = useState(loadThemeHue);
@@ -412,6 +413,7 @@ function useAppearanceSettings() {
     useEffect(() => subscribeFonts(() => {
         setCodeFont(loadCodeFont());
         setUiFont(loadUiFont());
+        setReadingFont(loadReadingFont());
     }), []);
     const onThemePreference = useCallback((next: ThemePreference) => {
         applyThemePreference(next);
@@ -446,6 +448,11 @@ function useAppearanceSettings() {
         saveUiFont(value);
         applyFonts();
         setUiFont(loadUiFont());
+    }, []);
+    const onReadingFont = useCallback((value: ReadingFont) => {
+        saveReadingFont(value);
+        applyFonts();
+        setReadingFont(loadReadingFont());
     }, []);
     const onOpacity = useCallback((percent: number) => {
         const next = applySidebarOpacity(percent / 100);
@@ -543,6 +550,7 @@ function useAppearanceSettings() {
         saveThemeWallpaperAuto(true);
         onCodeFont(null);
         onUiFont(null);
+        onReadingFont(READING_FONT_DEFAULT);
         onThemePreference(THEME_PREFERENCE_DEFAULT);
         onAccentColor(ACCENT_COLOR_DEFAULT);
         onOpacity(Math.round(SIDEBAR_OPACITY_DEFAULT * 100));
@@ -570,6 +578,7 @@ function useAppearanceSettings() {
         onTheme,
         onCodeFont,
         onUiFont,
+        onReadingFont,
         onThemePreference,
         onOpacity,
         onTint,
@@ -582,6 +591,7 @@ function useAppearanceSettings() {
         accentColor,
         codeFont,
         uiFont,
+        readingFont,
         opacity,
         blur,
         themeHue,
@@ -601,6 +611,7 @@ function useAppearanceSettings() {
         onAccentColor,
         onCodeFont,
         onUiFont,
+        onReadingFont,
         onSelectThemeWallpaper,
         onOpacity,
         onBlur,
@@ -668,6 +679,10 @@ function AppearancePage({ appearance }: {
         </Row>
         <Row id="interface-font" label={t("Interface font")} description={t("Chat, menus and notes.")}>
           <FontSelect label={t("Interface font")} value={appearance.uiFont} emptyLabel={t("System default")} followLabel={t("Same as code font")} onChange={appearance.onUiFont}/>
+        </Row>
+        <Row id="reading-font" label={t("Reading font")} description={t("The body text of lessons, sources and notes. Code and the interface stay as they are.")}>
+          <Segmented label={t("Reading font")} value={appearance.readingFont} optionIdPrefix="reading-font"
+            options={[{ value: "sans", label: t("Sans") }, { value: "serif", label: t("Serif") }]} onChange={appearance.onReadingFont}/>
         </Row>
       </Group>
 
@@ -878,7 +893,7 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
     }, [onApply, onDisable, onError, recording]);
     return (<div className="relative w-40 shrink-0">
       <div className="flex items-center gap-0.5">
-        <input type="text" readOnly aria-label={t("Change {0} shortcut", name)} data-shortcut-recorder-active={recording ? "true" : undefined} aria-busy={busy || undefined} value={recording || busy ? preview || t("Record…") : (display ?? t("Disabled"))} onFocus={beginRecording} onClick={beginRecording} onBlur={() => setRecording(false)} className={`h-6 w-28 shrink-0 truncate rounded-md border bg-transparent px-1.5 py-0 font-mono text-[11px] leading-none outline-none focus:border-accent ${busy ? "opacity-50" : ""} ${display === null
+        <input type="text" readOnly aria-label={t("Change {0} shortcut", name)} data-shortcut-recorder-active={recording ? "true" : undefined} aria-busy={busy || undefined} value={recording || busy ? preview || t("Record…") : (display ?? t("Disabled"))} onFocus={beginRecording} onClick={beginRecording} onBlur={() => setRecording(false)} className={`h-6 w-28 shrink-0 truncate rounded-md border bg-transparent px-1.5 py-0 font-mono text-[11px] leading-none outline-none focus:border-accent-ring ${busy ? "opacity-50" : ""} ${display === null
             ? "border-dashed border-content/15 text-content/35"
             : "border-content/15 text-content/80 hover:bg-content/10"}`}/>
         {resetVisible ? (<button type="button" aria-label={t("Reset {0} shortcut", name)} disabled={busy} onClick={() => void run(onReset)} className="rounded-md px-1 py-1 text-content/35 hover:bg-content/10 hover:text-content disabled:opacity-50">
@@ -916,11 +931,11 @@ function KeybindingsPage() {
             {rows.length === 1 ? t("{0} binding", rows.length) : t("{0} bindings", rows.length)}
           </span>
           <label className="flex h-7 w-44 shrink-0 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
-            <Search className="size-3.5 shrink-0" strokeWidth={1.75}/>
+            <Search className="size-3.5 shrink-0" strokeWidth={1.5}/>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Filter")} aria-label={t("Filter keybindings")} spellCheck={false} autoComplete="off" className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"/>
           </label>
         </div>}>
-      <div className="flex items-center border-b border-stroke bg-content/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-content/40">
+      <div className="flex items-center border-b border-stroke bg-content/5 px-4 py-2 text-[12px] font-medium text-content/40">
         <span className="min-w-0 flex-1">{t("Command")}</span>
         <span className="w-40 shrink-0">{t("Keybinding")}</span>
         <span className="w-28 shrink-0">{t("When")}</span>
@@ -1053,8 +1068,8 @@ function ProviderBinaryControl({ provider, }: {
             }
             setOpen((value) => !value);
             setEditing(false);
-        }} className={`grid size-6 place-items-center rounded hover:bg-content/10 focus-visible:outline-2 focus-visible:outline-accent ${restartRequired ? "text-amber-300" : "text-content/35 hover:text-content"}`}>
-        <FolderOpen className="size-3.5" strokeWidth={1.75}/>
+        }} className={`grid size-6 place-items-center rounded hover:bg-content/10 focus-visible:outline-2 focus-visible:outline-accent-ring ${restartRequired ? "text-amber-300" : "text-content/35 hover:text-content"}`}>
+        <FolderOpen className="size-3.5" strokeWidth={1.5}/>
       </button>
       {open ? (<Popover id={`${provider}-binary-popover`} role="dialog" aria-label={t("{0} CLI details", title)} aria-busy={working} tabIndex={-1} anchor={root} side="bottom" align="start" width={440} className="p-3" autoFocus onKeyDown={(event) => {
                 if (event.key !== "Tab")
@@ -1094,7 +1109,7 @@ function ProviderBinaryControl({ provider, }: {
           {editing ? (<form className="mt-2" onSubmit={submit}>
               <label htmlFor={`${provider}-binary-path`} className="text-[11px] text-content/50">
                 {t("CLI path")}</label>
-              <input id={`${provider}-binary-path`} ref={editInput} type="text" value={draft} placeholder={inspection?.path ?? t("Auto-detected path")} disabled={working} autoFocus onChange={(event) => setDraft(event.target.value)} className="mt-1.5 h-8 w-full rounded-md border border-content/10 bg-content/[0.04] px-2 font-mono text-[11px] text-content outline-none placeholder:font-sans placeholder:text-content/35 focus:border-accent/45 disabled:opacity-50"/>
+              <input id={`${provider}-binary-path`} ref={editInput} type="text" value={draft} placeholder={inspection?.path ?? t("Auto-detected path")} disabled={working} autoFocus onChange={(event) => setDraft(event.target.value)} className="mt-1.5 h-8 w-full rounded-md border border-content/10 bg-content/[0.04] px-2 font-mono text-[11px] text-content outline-none placeholder:font-sans placeholder:text-content/35 focus:border-accent-ring/45 disabled:opacity-50"/>
               <p className="mt-1.5 text-[10px] text-content/40">
                 {t("Enter the absolute path to the CLI executable. Changes apply after restarting Loci.")}
               </p>
@@ -1132,7 +1147,7 @@ function ProviderBinaryControl({ provider, }: {
                  </span>) : null}
                <div className="mt-3 flex justify-end gap-2">
                 {error ? (<SecondaryButton disabled={working} aria-label={t("Retry {0} {1}", title, overridden ? "configured path" : "auto-detect")} onClick={() => void inspect(overridden ? draft.trim() || null : null)}>
-                    <RefreshCw className="size-3.5" strokeWidth={1.75}/>
+                    <RefreshCw className="size-3.5" strokeWidth={1.5}/>
                     {overridden ? t("Retry configured path") : t("Retry auto-detect")}
                   </SecondaryButton>) : null}
                 <SecondaryButton aria-label={t("Open {0} CLI location", title)} disabled={!inspection} onClick={() => {
@@ -1142,10 +1157,10 @@ function ProviderBinaryControl({ provider, }: {
                         });
                     }
                 }}>
-                  <ExternalLink className="size-3.5" strokeWidth={1.75}/>
+                  <ExternalLink className="size-3.5" strokeWidth={1.5}/>
                   {t("Open location")}</SecondaryButton>
                 <SecondaryButton aria-label={t("Edit {0} CLI path", title)} disabled={working} onClick={() => setEditing(true)}>
-                  <Pencil className="size-3.5" strokeWidth={1.75}/>
+                  <Pencil className="size-3.5" strokeWidth={1.5}/>
                   {t("Edit path")}</SecondaryButton>
               </div>
             </>)}
@@ -1229,7 +1244,7 @@ function ProviderRow({ harness, selectedModel, isDefault, inPicker, onDefault, o
           <HarnessIcon harness={harness} className="size-4 shrink-0"/>
           {HARNESS_TITLE[harness]}
           <ProviderBinaryControl provider={harness}/>
-          {isDefault ? (<span className="rounded-full bg-content/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-content/60">
+          {isDefault ? (<span className="rounded-full bg-content/10 px-1.5 py-0.5 text-[11px] font-medium text-content/60">
               {t("Default")}</span>) : null}
         </span>} description={available
             ? (models.length === 1
@@ -1464,7 +1479,7 @@ function Segmented<T extends string>({ label, value, options, onChange, optionId
         }}>
       {options.map((option) => (<button id={optionIdPrefix
                 ? `${optionIdPrefix}-${option.value.toLowerCase()}`
-                : undefined} key={option.value} type="button" role="radio" aria-checked={value === option.value} disabled={disabled} onClick={() => onChange(option.value)} className={`min-w-0 rounded-[5px] px-2.5 py-1 disabled:cursor-not-allowed ${value === option.value
+                : undefined} key={option.value} type="button" role="radio" aria-checked={value === option.value} disabled={disabled} onClick={() => onChange(option.value)} className={`min-w-0 rounded-[4px] px-2.5 py-1 disabled:cursor-not-allowed ${value === option.value
                 ? "bg-selection text-content"
                 : "text-content/50 hover:text-content"}`}>
           {option.label}
@@ -1618,7 +1633,7 @@ function Select({ label, value, options, onChange, }: {
         }
     };
     return (<div ref={root} className="relative max-w-52">
-      <button type="button" ref={trigger} aria-label={`${label}: ${selected?.label ?? value}`} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((prev) => !prev)} className="flex w-full items-center justify-between gap-2 rounded-md border border-content/10 bg-content/5 px-2 py-1 text-left text-[12px] text-content outline-none hover:border-content/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
+      <button type="button" ref={trigger} aria-label={`${label}: ${selected?.label ?? value}`} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((prev) => !prev)} className="flex w-full items-center justify-between gap-2 rounded-md border border-content/10 bg-content/5 px-2 py-1 text-left text-[12px] text-content outline-none hover:border-content/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring">
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
           {selected?.icon ? (<span className="grid size-4 shrink-0 place-items-center">
               {selected.icon}
@@ -1627,7 +1642,7 @@ function Select({ label, value, options, onChange, }: {
             {selected ? selected.label : value}
           </span>
         </span>
-        <ChevronDown className={`size-3.5 shrink-0 text-content/50 transition-transform ${open ? "rotate-180" : ""}`} strokeWidth={1.75}/>
+        <ChevronDown className={`size-3.5 shrink-0 text-content/50 transition-transform ${open ? "rotate-180" : ""}`} strokeWidth={1.5}/>
       </button>
       {open ? (<Popover anchor={root} side="bottom" align="end" width={280} maxHeight={320} autoFocus onDismiss={(reason) => {
                 setOpen(false);
@@ -1665,7 +1680,7 @@ function VersionRow() {
  return <Row id="version" label={<span className="flex items-baseline gap-2">{t("Version")}<span className="font-mono text-[12px] text-content/45">{version}</span></span>} description={updates ? name : t("{0} is built from source and does not update itself. Its data is kept apart from the installed Loci.", name)}>
    <div className="flex flex-col items-end gap-1.5">
      {updates ? (<button type="button" onClick={onCheck} disabled={checking} className="shrink-0 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 hover:bg-content/10 hover:text-content disabled:opacity-50">{checking ? t("Checking…") : t("Check for Updates")}</button>) : null}
-     {pending ? (<span className="flex flex-wrap items-center justify-end gap-1.5 text-right text-[12px] leading-snug text-content/55"><span role="status">{t("Loci {0} is available.", pending.version)}</span><button type="button" onClick={() => openUpdatePrompt()} className="rounded px-1 py-0.5 font-medium text-accent hover:bg-accent/10">{t("View update")}</button></span>) : null}
+     {pending ? (<span className="flex flex-wrap items-center justify-end gap-1.5 text-right text-[12px] leading-snug text-content/55"><span role="status">{t("Loci {0} is available.", pending.version)}</span><button type="button" onClick={() => openUpdatePrompt()} className="rounded px-1 py-0.5 font-medium text-accent-text hover:bg-accent/10">{t("View update")}</button></span>) : null}
      {note ? (<span role="status" className="text-right text-[12px] leading-snug text-content/45">{note}</span>) : null}
    </div>
  </Row>;

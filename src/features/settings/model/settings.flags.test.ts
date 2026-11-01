@@ -37,7 +37,7 @@ describe.each([
         "loci.composerRunner",
         settings.loadComposerRunner,
         settings.saveComposerRunner,
-        true,
+        false,
         "loci:composer-runner-change",
     ],
     [

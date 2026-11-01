@@ -727,7 +727,7 @@ export function BtwSheet({
                       aria-selected={selected}
                       title={tab.question}
                       onClick={() => btw.selectTab(tab.id)}
-                      className="flex h-full min-w-0 items-center gap-1.5 rounded-md pr-1 pl-2.5 text-xs focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+                      className="flex h-full min-w-0 items-center gap-1.5 rounded-md pr-1 pl-2.5 text-xs focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring"
                     >
                       {tab.status ? (
                         <span
@@ -746,11 +746,11 @@ export function BtwSheet({
                       }
                       title={tab.thread ? "Delete" : "Discard"}
                       onClick={() => btw.closeTab(tab)}
-                      className={`mr-1 grid size-5 shrink-0 place-items-center rounded text-content/40 transition-opacity hover:bg-content/10 hover:text-content focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent ${
+                      className={`mr-1 grid size-5 shrink-0 place-items-center rounded text-content/40 transition-opacity hover:bg-content/10 hover:text-content focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent-ring ${
                         selected ? "" : "opacity-0 group-hover:opacity-100"
                       }`}
                     >
-                      <X className="size-3" strokeWidth={1.75} />
+                      <X className="size-3" strokeWidth={1.5} />
                     </button>
                   </div>
                 );
@@ -762,9 +762,9 @@ export function BtwSheet({
                 aria-label="New side question"
                 title="New side question"
                 onClick={btw.startDraft}
-                className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+                className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring"
               >
-                <Plus className="size-3.5" strokeWidth={1.75} />
+                <Plus className="size-3.5" strokeWidth={1.5} />
               </button>
             ) : null}
             <button
@@ -772,9 +772,9 @@ export function BtwSheet({
               aria-label="Back to the conversation"
               title="Back to the conversation (Esc)"
               onClick={btw.close}
-              className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+              className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring"
             >
-              <ChevronDown className="size-4" strokeWidth={1.75} />
+              <ChevronDown className="size-4" strokeWidth={1.5} />
             </button>
           </div>
 
@@ -796,7 +796,7 @@ export function BtwSheet({
             <div className="btw-sheet-body shrink-0 px-5 pb-3">
               <div className="btw-error" role="alert">
                 <div className="min-w-0">
-                  <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-diff-del-fg/75">
+                  <div className="text-[11px] font-medium text-diff-del-fg/75">
                     Couldn’t finish
                   </div>
                   <div className="mt-1 text-[12px] leading-4.5 text-diff-del-fg">
@@ -809,7 +809,7 @@ export function BtwSheet({
                   onClick={btw.retry}
                   className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-diff-del-fg transition-colors hover:bg-diff-del/10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-diff-del-fg/60"
                 >
-                  <RefreshCw className="size-3" strokeWidth={1.75} />
+                  <RefreshCw className="size-3" strokeWidth={1.5} />
                   Retry
                 </button>
               </div>

@@ -86,7 +86,7 @@ export function UpdateDialog({ update, progress, onLater, onInstall }: Props) {
 
           {progress.phase === "installing" ? (
             <p data-update-progress role="status" className="flex items-center gap-2 px-4 pt-3 text-[12px] text-content/60">
-              <Loader className="size-3.5 animate-spin" strokeWidth={1.75} />
+              <Loader className="size-3.5 animate-spin" strokeWidth={1.5} />
               {t("Installing…")}
             </p>
           ) : null}
@@ -101,9 +101,9 @@ export function UpdateDialog({ update, progress, onLater, onInstall }: Props) {
             <button
               type="button"
               onClick={openNotes}
-              className="flex min-w-0 items-center gap-1.5 rounded-md text-[12px] text-content/50 hover:text-content focus-visible:outline-2 focus-visible:outline-accent"
+              className="flex min-w-0 items-center gap-1.5 rounded-md text-[12px] text-content/50 hover:text-content focus-visible:outline-2 focus-visible:outline-accent-ring"
             >
-              <ExternalLink className="size-3.5 shrink-0" strokeWidth={1.75} />
+              <ExternalLink className="size-3.5 shrink-0" strokeWidth={1.5} />
               <span className="truncate">{t("Release notes on GitHub")}</span>
             </button>
             <div className="flex shrink-0 items-center gap-2">
@@ -115,7 +115,7 @@ export function UpdateDialog({ update, progress, onLater, onInstall }: Props) {
                 type="button"
                 onClick={onInstall}
                 disabled={busy}
-                className="rounded-md bg-accent px-3 py-1 text-[12px] font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50 disabled:hover:opacity-50"
+                className="rounded-md bg-accent px-3 py-1 text-[12px] font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-accent-ring disabled:cursor-default disabled:opacity-50 disabled:hover:opacity-50"
               >
                 {progress.phase === "failed" ? t("Retry") : t("Install and Restart")}
               </button>

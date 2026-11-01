@@ -613,7 +613,7 @@ export const SessionPane = memo(function SessionPane({
               onClose(session.id);
             }}
           >
-            <X className="size-3" strokeWidth={1.75} />
+            <X className="size-3" strokeWidth={1.5} />
           </button>
         </PaneHeader>
       ) : null}

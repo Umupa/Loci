@@ -1,6 +1,6 @@
 import { SettingsLanguage } from "../../shared/i18n/SettingsLanguage";
 import { t, useLocale } from "../../shared/i18n/locale";
-import { ArrowLeft, Bot, Chatting, Globe, Keyboard, MessageSquare, Palette, SlidersHorizontal, Sparkles, type IconComponent, } from "../../shared/ui/icons";
+import { ArrowLeft, Bot, Chatting, Globe, Keyboard, MessageSquare, Palette, SlidersHorizontal, Puzzle, type IconComponent, } from "../../shared/ui/icons";
 import { useLockOverscroll } from "../../shared/hooks/useLockOverscroll";
 import { settingsSectionsByGroup, type SettingsSectionId, } from "../../features/settings/model/settings";
 const SECTION_ICONS: Record<SettingsSectionId, IconComponent> = {
@@ -11,7 +11,7 @@ const SECTION_ICONS: Record<SettingsSectionId, IconComponent> = {
     chat: MessageSquare,
     providers: Bot,
     mcp: Globe,
-    skills: Sparkles,
+    skills: Puzzle,
 };
 type Props = {
     section: SettingsSectionId;
@@ -49,7 +49,7 @@ function NavRow({ label, icon: Icon, active = false, onClick, }: {
     return (<button type="button" onClick={onClick} aria-current={active ? "true" : undefined} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left ${active
             ? "bg-selection text-content"
             : "text-content/50 hover:bg-content/5 hover:text-content"}`}>
-      <Icon className="size-4 shrink-0 opacity-70" strokeWidth={1.75}/>
+      <Icon className="size-4 shrink-0 opacity-70" strokeWidth={1.5}/>
       <span className="min-w-0 flex-1 truncate text-sm font-medium leading-tight">
         {label}
       </span>

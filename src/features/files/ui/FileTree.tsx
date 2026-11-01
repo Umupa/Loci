@@ -1057,7 +1057,7 @@ export const FileTree = memo(function FileTree({
               actionsAnchor ? "bg-selection text-content" : "text-content/50 hover:bg-content/5 hover:text-content"
             }`}
           >
-            <MoreHorizontal className="size-3.5" strokeWidth={1.75} />
+            <MoreHorizontal className="size-3.5" strokeWidth={1.5} />
           </button>
         </div>
         {outerQuery === undefined ? (
@@ -1070,7 +1070,7 @@ export const FileTree = memo(function FileTree({
             <input
               type="text"
               value={query}
-              placeholder="Search files..."
+              placeholder="Filter files"
               aria-label="Search files by name or path"
               spellCheck={false}
               autoComplete="off"
@@ -1346,9 +1346,9 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
           <span className="grid size-4 shrink-0 place-items-center text-content/50">
             {entry.isDir ? (
               open ? (
-                <ChevronDown className="size-3.5" strokeWidth={1.75} />
+                <ChevronDown className="size-3.5" strokeWidth={1.5} />
               ) : (
-                <ChevronRight className="size-3.5" strokeWidth={1.75} />
+                <ChevronRight className="size-3.5" strokeWidth={1.5} />
               )
             ) : null}
           </span>
@@ -1542,7 +1542,7 @@ export function NameRow({
       >
         <span className="grid size-4 shrink-0 place-items-center text-content/50">
           {isDir ? (
-            <ChevronRight className="size-3.5" strokeWidth={1.75} />
+            <ChevronRight className="size-3.5" strokeWidth={1.5} />
           ) : null}
         </span>
         <span className="shrink-0">
@@ -1574,7 +1574,7 @@ export function NameRow({
             }
           }}
           onBlur={() => finish(issue === null || issue.severity !== "error")}
-          className="h-5 min-w-0 flex-1 rounded-sm bg-content/10 px-1 text-[14px] leading-none text-content outline-none ring-1 ring-accent"
+          className="h-5 min-w-0 flex-1 rounded-sm bg-content/10 px-1 text-[14px] leading-none text-content outline-none ring-1 ring-accent-ring"
         />
       </div>
       {showIssue ? (

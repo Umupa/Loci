@@ -9,7 +9,7 @@
 .diff-card__remove { color: #d66b6b; }
 .diff-card__run-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 5px; color: color-mix(in srgb, var(--color-content) 65%, transparent); white-space: nowrap; }
 .diff-card__run-btn:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
-.diff-card__run-btn:focus-visible { outline: 2px solid var(--color-accent); }
+.diff-card__run-btn:focus-visible { outline: 2px solid var(--color-accent-ring); }
 .diff-card__run-btn:disabled { opacity: .5; }
 .diff-card__body { overflow: auto; margin: 0; padding: 10px 0; font-family: var(--font-mono); font-size: 12px; line-height: 1.75; tab-size: 4; }
 .diff-card__body code { display: block; min-width: max-content; }

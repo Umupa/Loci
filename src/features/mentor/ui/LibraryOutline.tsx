@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { ChevronDown, ChevronRight } from "../../../shared/ui/icons";
+import { Check, ChevronDown, ChevronRight } from "../../../shared/ui/icons";
 import type { CourseWithProgress, LearningStatus } from "../../learning/model/course";
 import { statusLabel } from "../../learning/ui/CourseOutline";
 import { listKeyDown } from "./listKeys";
@@ -53,7 +53,7 @@ export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
 
   let number = 0;
   return <nav className="library-outline" aria-label="Course navigation" onKeyDown={listKeyDown}>
-    {chapters.map((chapter, at) => {
+    {chapters.map((chapter) => {
       const open = isOpen(chapter);
       const first = number;
       number += chapter.lessons.length;
@@ -67,7 +67,7 @@ export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
             aria-current={current ? "step" : undefined} aria-label={`${lesson.title}, ${statusLabel(state, reading)}`}
             aria-describedby={marks ? `${marksId}-${lesson.id}` : undefined}
             title={lesson.title} onClick={() => onSelect(lesson.id)}>
-            <span aria-hidden className={`library-mark library-mark--${state}`}>{state === "mastered" ? "✓" : ""}</span>
+            <span aria-hidden className={`library-mark library-mark--${state}`}>{state === "mastered" ? <Check className="size-2.5" strokeWidth={2.5} /> : null}</span>
             <span className="library-lesson-number" aria-hidden>{String(first + index + 1).padStart(2, "0")}</span>
             <span className="library-lesson-title">{lesson.title}</span>
             {marks ? <span id={`${marksId}-${lesson.id}`} className="ml-auto flex">{marks}</span> : null}
@@ -79,7 +79,7 @@ export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
         <button type="button" data-library-item className="library-chapter-title" aria-expanded={open}
           onClick={() => setOpen(chapter.key, !open)} onKeyDown={chapterKeys(chapter, open)}>
           {open ? <ChevronDown aria-hidden className="size-3 shrink-0" /> : <ChevronRight aria-hidden className="size-3 shrink-0" />}
-          <span className="library-chapter-dot" style={{ background: `var(--course-chapter-${at % 6})` }} aria-hidden />
+          <span className="library-chapter-dot" aria-hidden />
           <span className="min-w-0 flex-1 truncate">{chapter.title}</span>
           {open ? null : <span className="mentor-library-count">{chapter.lessons.length}</span>}
         </button>

@@ -57,6 +57,10 @@ function advance(milliseconds: number) {
   act(() => vi.advanceTimersByTime(milliseconds));
 }
 
+function hover() {
+  act(() => svg().dispatchEvent(new Event("pointerenter")));
+}
+
 function svg() {
   return container.querySelector<SVGSVGElement>("svg")!;
 }
@@ -175,26 +179,50 @@ describe("AgentAvatarPreview", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("stops blinking for a fixed expression and resumes when selecting an animated face", () => {
+  it("blinks once when it appears, then stays still until the pointer is over it", () => {
+    preview();
+    expect(vi.getTimerCount()).toBe(0);
+    intersect(true);
+    expect(isBlinking()).toBe(true);
+    expect(vi.getTimerCount()).toBe(1);
+    advance(160);
+    expect(isBlinking()).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+    advance(30_000);
+    expect(isBlinking()).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+
+    hover();
+    expect(isBlinking()).toBe(true);
+    expect(vi.getTimerCount()).toBe(1);
+    advance(160);
+    expect(isBlinking()).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("stops blinking for a fixed expression and blinks when selecting an animated face", () => {
     preview();
     intersect(true);
-    const observerCount = observers.length;
-    advance(6000);
     expect(isBlinking()).toBe(true);
+    const observerCount = observers.length;
+
     preview("wisp");
     expect(isBlinking()).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
     advance(20_000);
+    expect(isBlinking()).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
 
     preview("moss");
     expect(observers).toHaveLength(observerCount);
-    expect(vi.getTimerCount()).toBe(1);
-    advance(180);
     expect(isBlinking()).toBe(true);
+    expect(vi.getTimerCount()).toBe(1);
+    advance(160);
+    expect(isBlinking()).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it.each(["dew", "neutral-dew"])("blinks %s at low frequency with one timer, without animation frames or React commits", (name) => {
+  it.each(["dew", "neutral-dew"])("blinks %s once on appearance without animation frames or React commits", (name) => {
     const onRender = vi.fn();
     act(() => root.render(createElement(
       Profiler,
@@ -206,22 +234,14 @@ describe("AgentAvatarPreview", () => {
     intersect(true);
     const commits = onRender.mock.calls.length;
     const artwork = svg().innerHTML;
-    expect(vi.getTimerCount()).toBe(1);
-
-    advance(5999);
-    expect(isBlinking()).toBe(false);
-    advance(1);
     expect(isBlinking()).toBe(true);
     expect(vi.getTimerCount()).toBe(1);
-    expect(svg().innerHTML).toBe(artwork);
     advance(159);
     expect(isBlinking()).toBe(true);
     advance(1);
     expect(isBlinking()).toBe(false);
-    expect(vi.getTimerCount()).toBe(1);
-    advance(6000);
-    expect(isBlinking()).toBe(true);
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(svg().innerHTML).toBe(artwork);
     expect(onRender).toHaveBeenCalledTimes(commits);
     expect(requestFrame).not.toHaveBeenCalled();
     expect(setInterval).not.toHaveBeenCalled();
@@ -231,48 +251,43 @@ describe("AgentAvatarPreview", () => {
     const addListener = vi.spyOn(document, "addEventListener");
     preview();
     intersect(true);
+    advance(160);
     const observerCount = observers.length;
     const mediaCount = matchMedia.mock.calls.length;
     const visibilityListeners = () => addListener.mock.calls.filter(([type]) => type === "visibilitychange").length;
     const listenerCount = visibilityListeners();
-    advance(1000);
+
     preview("moss");
-    const intermediateArtwork = svg().innerHTML;
+    expect(isBlinking()).toBe(true);
     advance(100);
     preview("dew");
-    const selectedArtwork = svg().innerHTML;
-    expect(selectedArtwork).not.toBe(intermediateArtwork);
+    expect(isBlinking()).toBe(true);
     expect(svg().dataset.agentAvatar).toBe("dew");
     // Changing a face does not change its visibility or require another IO notification.
     expect(observers).toHaveLength(observerCount);
     expect(matchMedia).toHaveBeenCalledTimes(mediaCount);
     expect(visibilityListeners()).toBe(listenerCount);
     expect(vi.getTimerCount()).toBe(1);
-    advance(100);
+
+    advance(160);
+    expect(isBlinking()).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+    const artwork = svg().innerHTML;
     preview("dew", "hsl(45 90% 55%)");
     expect(observers).toHaveLength(observerCount);
-    advance(79);
+    expect(vi.getTimerCount()).toBe(0);
     expect(isBlinking()).toBe(false);
-    advance(1);
-    expect(isBlinking()).toBe(true);
-    expect(svg().innerHTML).toBe(selectedArtwork);
-    expect(vi.getTimerCount()).toBe(1);
-
-    advance(80);
-    preview("dew", "#428fff");
-    expect(isBlinking()).toBe(true);
-    advance(80);
-    expect(isBlinking()).toBe(false);
-    expect(vi.getTimerCount()).toBe(1);
+    expect(svg().innerHTML).toBe(artwork);
   });
 
   it("switches series without adding animation resources or losing the chosen color", () => {
     preview();
     intersect(true);
+    advance(160);
     const originalArtwork = svg().innerHTML;
     const observerCount = observers.length;
     const mediaCount = matchMedia.mock.calls.length;
-    advance(1000);
+
     preview("neutral-dew");
     expect(svg().dataset.agentAvatar).toBe("neutral-dew");
     expect(svg().getAttribute("viewBox")).toBe("0 0 120 120");
@@ -280,47 +295,47 @@ describe("AgentAvatarPreview", () => {
     expect(svg().innerHTML).not.toBe(originalArtwork);
     expect(observers).toHaveLength(observerCount);
     expect(matchMedia).toHaveBeenCalledTimes(mediaCount);
-    expect(vi.getTimerCount()).toBe(1);
-    advance(180);
     expect(isBlinking()).toBe(true);
+    expect(vi.getTimerCount()).toBe(1);
+    advance(160);
+    expect(isBlinking()).toBe(false);
 
     preview("neutral-wisp");
     expect(isBlinking()).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
+
     preview("dew");
     expect(svg().getAttribute("viewBox")).toBe("0 0 180 180");
     expect(svg().style.color).toBe("#428fff");
     expect(observers).toHaveLength(observerCount);
+    expect(isBlinking()).toBe(true);
     expect(vi.getTimerCount()).toBe(1);
   });
 
-  it("does no scheduled work outside the viewport and resumes after re-entering", () => {
+  it("does no scheduled work outside the viewport and blinks once on re-entering", () => {
     preview();
     intersect(false);
     expect(vi.getTimerCount()).toBe(0);
     advance(20_000);
     expect(isBlinking()).toBe(false);
     intersect(true);
-    expect(vi.getTimerCount()).toBe(1);
-    advance(6000);
     expect(isBlinking()).toBe(true);
-    intersect(false);
+    expect(vi.getTimerCount()).toBe(1);
+    advance(160);
     expect(isBlinking()).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+    intersect(false);
     expect(vi.getTimerCount()).toBe(0);
     preview("moss");
     expect(vi.getTimerCount()).toBe(0);
     intersect(true);
-    expect(isBlinking()).toBe(false);
-    advance(180);
-    expect(isBlinking()).toBe(false);
-    advance(5820);
     expect(isBlinking()).toBe(true);
+    expect(vi.getTimerCount()).toBe(1);
   });
 
   it("stops an in-progress blink when the document is hidden", () => {
     preview();
     intersect(true);
-    advance(6000);
     expect(isBlinking()).toBe(true);
     visibility(true);
     expect(isBlinking()).toBe(false);
@@ -328,9 +343,10 @@ describe("AgentAvatarPreview", () => {
     advance(20_000);
     visibility(false);
     expect(isBlinking()).toBe(false);
-    expect(vi.getTimerCount()).toBe(1);
-    advance(6000);
+    expect(vi.getTimerCount()).toBe(0);
+    hover();
     expect(isBlinking()).toBe(true);
+    expect(vi.getTimerCount()).toBe(1);
   });
 
   it("honors reduced motion at mount and when the preference changes", () => {
@@ -340,29 +356,35 @@ describe("AgentAvatarPreview", () => {
     expect(vi.getTimerCount()).toBe(0);
     advance(20_000);
     expect(isBlinking()).toBe(false);
+
     reduced(false);
-    expect(vi.getTimerCount()).toBe(1);
-    advance(6000);
+    hover();
     expect(isBlinking()).toBe(true);
+    expect(vi.getTimerCount()).toBe(1);
     reduced(true);
     expect(isBlinking()).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("resumes only when viewport, document visibility, and motion preference all permit it", () => {
+  it("blinks only when viewport, document visibility, and motion preference all permit it", () => {
     preview();
     intersect(false);
     visibility(true);
+    hover();
     intersect(true);
     expect(vi.getTimerCount()).toBe(0);
+    expect(isBlinking()).toBe(false);
+
     reduced(true);
     visibility(false);
-    expect(vi.getTimerCount()).toBe(0);
     reduced(false);
-    expect(vi.getTimerCount()).toBe(1);
-    visibility(false);
+    expect(vi.getTimerCount()).toBe(0);
+    intersect(false);
     intersect(true);
-    expect(vi.getTimerCount()).toBe(1);
+    expect(isBlinking()).toBe(true);
+    visibility(true);
+    expect(isBlinking()).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("cleans up timers, observers, and listeners across StrictMode effects and unmount", () => {
@@ -376,7 +398,6 @@ describe("AgentAvatarPreview", () => {
     expect(observers.filter((observer) => observer.targets.size > 0)).toHaveLength(1);
     expect(observers[0].disconnect).toHaveBeenCalled();
     intersect(true);
-    advance(6000);
     expect(isBlinking()).toBe(true);
     expect(vi.getTimerCount()).toBe(1);
     const target = svg();

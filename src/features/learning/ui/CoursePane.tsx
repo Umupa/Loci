@@ -11,6 +11,7 @@ import { readTextFile } from "../../../platform/tauri/fs";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
+import { CodeReader } from "../../../shared/ui/CodeReader";
 import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, setLessonStatus, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
 import { inLesson } from "../model/annotationCounts";
 import { DiffCard } from "./DiffCard";
@@ -271,8 +272,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   useEffect(() => { onLessonChange?.(activeId && activeTitle ? { id: activeId, title: activeTitle } : null); }, [activeId, activeTitle]); // eslint-disable-line react-hooks/exhaustive-deps
   const iconButton = embedded ? RESOURCE_ACTION : "course-pane__close";
   const controls = course ? <>
-    <button type="button" data-no-drag className={iconButton} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-3.5" /><span className="sr-only">Previous</span></button>
-    <button type="button" data-no-drag className={iconButton} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-3.5" /><span className="sr-only">Next</span></button>
+    <button type="button" data-no-drag className={iconButton} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-4" /><span className="sr-only">Previous</span></button>
+    <button type="button" data-no-drag className={iconButton} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-4" /><span className="sr-only">Next</span></button>
     <button type="button" data-no-drag className={`${iconButton}${activeStatus === "mastered" ? " course-pane__read" : ""}`} title={activeStatus === "mastered" ? (reading ? "Read" : "Mastered") : reading ? "Mark as read" : "Mark as mastered"} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}><Check className="size-3.5" /><span className="sr-only">{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</span></button>
     <button type="button" data-no-drag className={iconButton} title={reading ? "Test my understanding with the agent" : "Discuss this step with the agent"} onClick={discuss}><MessageSquarePlus className="size-3.5" /><span className="sr-only">{reading ? "Test understanding" : "Discuss step"}</span></button>
   </> : null;
@@ -280,8 +281,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   // Beside a conversation the header keeps to moving through the course; the
   // rest waits in a menu, since reaching a lesson's end already marks it read.
   const overviewControls = course ? <>
-    <button type="button" className={RESOURCE_ACTION} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-3.5" /><span className="sr-only">Previous</span></button>
-    <button type="button" className={RESOURCE_ACTION} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-3.5" /><span className="sr-only">Next</span></button>
+    <button type="button" className={RESOURCE_ACTION} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-4" /><span className="sr-only">Previous</span></button>
+    <button type="button" className={RESOURCE_ACTION} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-4" /><span className="sr-only">Next</span></button>
     <LessonMenu trigger={lessonMenu} items={[
       { label: markLabel, icon: <Check className="size-3.5" />, disabled: !activeId || saving.has(activeId) || activeStatus === "mastered", onSelect: () => { if (activeId) void markStatus(activeId, "mastered"); } },
       { label: reading ? "Test my understanding" : "Discuss this step", icon: <MessageSquarePlus className="size-3.5" />, onSelect: discuss },
@@ -296,8 +297,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       {actions}
     </ResourceHeader> : <>
     <PaneHeader className="course-pane__header" onPaneDragStart={onPaneDragStart}>
-      {course ? <button type="button" data-no-drag aria-label={sidebarLabel} title={sidebarLabel} aria-expanded={sidebarOpen} aria-controls={sidebarId} className="course-pane__sidebar-toggle" onClick={() => setSidebarOpen((open) => !open)}><SidebarLeft className="size-3.5" /></button> : null}
-      <Mortarboard className={`size-3.5 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{controls ? <span data-no-drag className="flex shrink-0 items-center gap-0.5">{controls}</span> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-3.5" /></button>
+      {course ? <button type="button" data-no-drag aria-label={sidebarLabel} title={sidebarLabel} aria-expanded={sidebarOpen} aria-controls={sidebarId} className="course-pane__sidebar-toggle" onClick={() => setSidebarOpen((open) => !open)}><SidebarLeft className="size-4" /></button> : null}
+      <Mortarboard className={`size-4 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{controls ? <span data-no-drag className="flex shrink-0 items-center gap-0.5">{controls}</span> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-4" /></button>
     </PaneHeader>
     </>}
     {course ? <>
@@ -312,7 +313,7 @@ type LessonMenuItem = { label: string; icon: ReactNode; disabled?: boolean; onSe
 function LessonMenu({ items, trigger }: { items: LessonMenuItem[]; trigger: RefObject<HTMLButtonElement | null> }) {
   const [open, setOpen] = useState(false);
   return <>
-    <button ref={trigger} type="button" className={RESOURCE_ACTION} title="Lesson actions" aria-label="Lesson actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="size-3.5" /></button>
+    <button ref={trigger} type="button" className={RESOURCE_ACTION} title="Lesson actions" aria-label="Lesson actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="size-4" /></button>
     {open ? <Popover anchor={trigger} side="bottom" align="end" width={210} role="menu" aria-label="Lesson actions" onDismiss={() => setOpen(false)} className="p-1 font-sans">
       {items.map((item) => <button key={item.label} type="button" role="menuitem" disabled={item.disabled} onClick={() => { setOpen(false); item.onSelect(); }}
         className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40">{item.icon}{item.label}</button>)}
@@ -398,12 +399,19 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
   const open = <button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button>;
   if (!inline) return <article className="course-pane__content" key={lesson.id}><h2>{lesson.title}</h2><p className="course-pane__summary" title={file}>{name}{where}</p>{open}</article>;
   const shown = loaded?.file === file ? loaded : undefined;
-  return <article className="course-pane__content course-pane__reading" key={lesson.id}>
+  return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id}>
     <h2>{lesson.title}</h2>
     <p className="course-pane__summary" title={file}>{name}{where}</p>
     {!shown ? <p className="course-pane__relations">Opening…</p>
       : shown.error ? <><p className="course-error" role="alert">Could not read {name}: {shown.error}</p>{open}</>
-      : <div ref={excerptRef} className="select-text" data-reading-text {...(fenced ? { "data-reading-lines-from": first } : {})}><AgentMarkdown text={sourceExcerpt(shown.text!, name, lesson.lines)} wholeDocument /></div>}
+      : fenced ? (() => {
+        const excerpt = codeExcerpt(shown.text!, lesson.lines);
+        return <div ref={excerptRef} className="select-text" data-reading-text data-reading-lines-from={first}>
+          <CodeReader text={excerpt.code} file={name} firstLine={first} label={`${name}, lines ${first}–${first + excerpt.code.split("\n").length - 1}`} />
+          {excerpt.shown < excerpt.total ? <p className="course-pane__relations">Showing the first {excerpt.shown} of {excerpt.total} lines.</p> : null}
+        </div>;
+      })()
+      : <div ref={excerptRef} className="select-text" data-reading-text><AgentMarkdown text={shown.text!} wholeDocument /></div>}
     <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} />
     {marks.popover}
     {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) : null}
@@ -429,16 +437,21 @@ function isReadableSource(name: string): boolean {
   return !DOCUMENT_EXTENSIONS.has(extension);
 }
 
-/** A file's lines as a fenced block, highlighted by its extension; Markdown is shown as itself. */
-export function sourceExcerpt(text: string, name: string, lines?: [number, number]): string {
+/** The lines a code lesson shows, and how much of the file that leaves out. */
+export function codeExcerpt(text: string, lines?: [number, number]): { code: string; total: number; shown: number } {
   const all = text.replace(/\r\n/g, "\n").split("\n");
   const [from, to] = lines ?? [1, Math.min(all.length, SOURCE_LINES_MAX)];
-  const body = all.slice(from - 1, to).join("\n");
+  return { code: all.slice(from - 1, to).join("\n"), total: all.length, shown: to };
+}
+
+/** A file's lines as a fenced block, highlighted by its extension; Markdown is shown as itself. */
+export function sourceExcerpt(text: string, name: string, lines?: [number, number]): string {
+  const excerpt = codeExcerpt(text, lines);
   const extension = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
-  if (!lines && (extension === "md" || extension === "markdown")) return body;
-  const fence = body.includes("```") ? "````" : "```";
-  const more = !lines && all.length > to ? `\n\n*Showing the first ${to} of ${all.length} lines.*` : "";
-  return `${fence}${extension}\n${body}\n${fence}${more}`;
+  if (!lines && (extension === "md" || extension === "markdown")) return excerpt.code;
+  const fence = excerpt.code.includes("```") ? "````" : "```";
+  const more = !lines && excerpt.total > excerpt.shown ? `\n\n*Showing the first ${excerpt.shown} of ${excerpt.total} lines.*` : "";
+  return `${fence}${extension}\n${excerpt.code}\n${fence}${more}`;
 }
 
 /** A lesson read from the agent's library: the document itself, from the lesson's heading. */
@@ -457,5 +470,5 @@ function LessonDocument({ agentId, lesson, marksList, onMarks }: { agentId: stri
   const shown = loaded?.id === id ? loaded : undefined;
   if (!shown) return <p className="course-pane__relations">Opening…</p>;
   if (!shown.document) return <article className="course-pane__content"><h2>{lesson.title}</h2><p className="course-error" role="alert">{shown.error ? `Could not open this lesson's document: ${shown.error}` : `This lesson's document (${id}) is not in the library. Ask the agent to save it again.`}</p></article>;
-  return <article className="course-pane__content course-pane__reading" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare marksList={marksList} onMarks={onMarks} /></article>;
+  return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare marksList={marksList} onMarks={onMarks} /></article>;
 }

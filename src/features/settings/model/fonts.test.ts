@@ -5,11 +5,15 @@ import {
   cssFamilies,
   FONT_CHANGE_EVENT,
   loadCodeFont,
+  loadReadingFont,
   loadUiFont,
   normalizeFontFamily,
   OMARCHY_FONTS,
+  READING_FONT_DEFAULT,
+  READING_FONT_SERIF,
   rendersMonospace,
   saveCodeFont,
+  saveReadingFont,
   saveUiFont,
   subscribeFonts,
   UI_FONT_FOLLOWS_CODE,
@@ -177,6 +181,26 @@ describe("applyFonts", () => {
     applyFonts();
     expect(prop("--font-sans-user")).toBe("");
     expect(root().classList.contains("has-ui-font")).toBe(false);
+  });
+
+  it("uses the interface sans for reader body text by default", () => {
+    expect(READING_FONT_DEFAULT).toBe("sans");
+    expect(loadReadingFont()).toBe("sans");
+    applyFonts();
+    expect(prop("--font-reading")).toBe("");
+  });
+
+  it("sets the reader body face to a system serif when asked, and clears it again", () => {
+    saveReadingFont("serif");
+    expect(loadReadingFont()).toBe("serif");
+    applyFonts();
+    expect(prop("--font-reading")).toBe(READING_FONT_SERIF);
+    expect(READING_FONT_SERIF).toContain("Songti SC");
+    expect(READING_FONT_SERIF).toContain("Noto Serif CJK SC");
+
+    saveReadingFont("sans");
+    applyFonts();
+    expect(prop("--font-reading")).toBe("");
   });
 
   it("goes back to the system fonts when the choices are cleared", () => {

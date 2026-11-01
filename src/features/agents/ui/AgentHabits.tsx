@@ -111,7 +111,7 @@ export function AgentHabits({ agentId, habits: provided, onOpen, onCreate }: { a
               <div className="flex shrink-0 items-center gap-0.5 pr-2 opacity-0 focus-within:opacity-100 group-hover:opacity-100">
                 <button type="button" title="Run now" aria-label={`Run ${habit.name} now`} disabled={running || !!habit.runRequested} className={iconButton}
                   onClick={() => void change(habit.id, (current) => ({ ...current, runRequested: true })).then(checkHabitsNow)}>
-                  <Zap className="size-3" strokeWidth={1.75} />
+                  <Zap className="size-3" strokeWidth={1.5} />
                 </button>
                 <button type="button" title={habit.enabled ? "Pause" : "Resume"} aria-label={`${habit.enabled ? "Pause" : "Resume"} ${habit.name}`} className={iconButton}
                   onClick={() => void change(habit.id, (current) => ({
@@ -119,10 +119,10 @@ export function AgentHabits({ agentId, habits: provided, onOpen, onCreate }: { a
                     // Turning it back on counts from now.
                     ...(current.enabled ? {} : { nextRunAt: nextHabitRunAt(current.schedule, Date.now()) }),
                   }))}>
-                  {habit.enabled ? <Pause className="size-3" strokeWidth={1.75} /> : <Play className="size-3" strokeWidth={1.75} />}
+                  {habit.enabled ? <Pause className="size-3" strokeWidth={1.5} /> : <Play className="size-3" strokeWidth={1.5} />}
                 </button>
                 <button type="button" title="Remove" aria-label={`Remove ${habit.name}`} className={iconButton} onClick={() => void change(habit.id, () => undefined)}>
-                  <Trash2 className="size-3" strokeWidth={1.75} />
+                  <Trash2 className="size-3" strokeWidth={1.5} />
                 </button>
               </div>
             </li>
@@ -136,7 +136,7 @@ export function AgentHabits({ agentId, habits: provided, onOpen, onCreate }: { a
       ) : (
         <button type="button" onClick={onCreate ?? (() => setAdding(true))}
           className="inline-flex w-fit items-center gap-1.5 rounded-md border border-stroke px-2 py-1.5 text-xs text-content/70 hover:bg-content/8 hover:text-content">
-          <Plus className="size-3" strokeWidth={1.75} /> Add habit
+          <Plus className="size-3" strokeWidth={1.5} /> Add habit
         </button>
       )}
       {error ? <p className="text-[11px] text-red-400/90">{error}</p> : null}

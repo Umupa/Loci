@@ -47,7 +47,7 @@ export function DocumentCard({ source, incomplete }: { source: string; incomplet
     }}
       className={`${shell} flex items-center gap-3 px-3.5 py-3 text-left enabled:hover:bg-content/6 disabled:cursor-default`}>
       <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-content/8 text-content/60">
-        <File className="size-4" strokeWidth={1.75} />
+        <File className="size-4" strokeWidth={1.5} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-[13px] font-medium text-content">{document?.title ?? "Document"}</span>
@@ -55,7 +55,7 @@ export function DocumentCard({ source, incomplete }: { source: string; incomplet
           {incomplete ? "Writing…" : [document?.subject, "Document", words ? `${words.toLocaleString()} words` : ""].filter(Boolean).join(" · ")}
         </span>
       </span>
-      {incomplete ? null : <ChevronRight className="size-3.5 shrink-0 text-content/35" strokeWidth={1.75} />}
+      {incomplete ? null : <ChevronRight className="size-3.5 shrink-0 text-content/35" strokeWidth={1.5} />}
     </button>
   );
 }
@@ -70,13 +70,13 @@ export function CanvasCard({ source }: { source: string }) {
     <button type="button" data-card="canvas" onClick={() => requestOpenAppResource({ kind: "canvas", id: link.id })}
       className={`${shell} flex items-center gap-3 px-3.5 py-3 text-left hover:bg-content/6`}>
       <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-content/8 text-content/60">
-        <Palette className="size-4" strokeWidth={1.75} />
+        <Palette className="size-4" strokeWidth={1.5} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-[13px] font-medium text-content">{link.title ?? "Canvas"}</span>
         <span className="truncate text-xs text-content/45">Canvas · Open</span>
       </span>
-      <ChevronRight className="size-3.5 shrink-0 text-content/35" strokeWidth={1.75} />
+      <ChevronRight className="size-3.5 shrink-0 text-content/35" strokeWidth={1.5} />
     </button>
   );
 }

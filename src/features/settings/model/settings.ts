@@ -227,6 +227,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "font typeface family omarchy code interface monospace fonts",
     },
     {
+        id: "reading-font",
+        section: "appearance",
+        get label() { return t("Reading font"); },
+        keywords: "reader body serif sans book lesson source note typeface reading",
+    },
+    {
         id: "sidebar-opacity",
         section: "appearance",
         get label() { return t("Sidebar opacity"); },
@@ -465,7 +471,7 @@ export function subscribeModelControls(onStoreChange: () => void) {
     return () => window.removeEventListener(MODEL_CONTROLS_CHANGE_EVENT, onStoreChange);
 }
 const COMPOSER_RUNNER_KEY = "loci.composerRunner";
-export const COMPOSER_RUNNER_DEFAULT = true;
+export const COMPOSER_RUNNER_DEFAULT = false;
 export const COMPOSER_RUNNER_CHANGE_EVENT = "loci:composer-runner-change";
 export function loadComposerRunner(): boolean {
     return readFlag(COMPOSER_RUNNER_KEY) ?? COMPOSER_RUNNER_DEFAULT;

@@ -116,16 +116,16 @@ export function McpServerPicker({
             }
           }}
           className="min-w-0 flex-1 bg-transparent text-[13px] text-content outline-none placeholder:text-content/40"
-          placeholder="Search MCP servers…"
+          placeholder="Search servers"
         />
         <button
           type="button"
           aria-label="Close MCP picker"
           title="Back to the conversation (Esc)"
           onClick={() => onDismiss("escape")}
-          className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring"
         >
-          <ChevronDown className="size-4" strokeWidth={1.75} />
+          <ChevronDown className="size-4" strokeWidth={1.5} />
         </button>
       </div>
       <div
@@ -167,7 +167,7 @@ export function McpServerPicker({
                   if (available) setActive(index);
                 }}
                 onClick={() => onPick(server)}
-                className={`flex h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${available ? (active === index ? "bg-selection text-content" : "text-content hover:bg-content/5") : "cursor-default text-content/40"}`}
+                className={`flex h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring ${available ? (active === index ? "bg-selection text-content" : "text-content hover:bg-content/5") : "cursor-default text-content/40"}`}
               >
                 <HarnessIcon
                   harness={

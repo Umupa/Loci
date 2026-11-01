@@ -119,7 +119,7 @@
 }
 
 .learning-web-source__add:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-ring);
   outline-offset: 2px;
 }
 

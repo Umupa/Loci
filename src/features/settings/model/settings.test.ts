@@ -235,6 +235,13 @@ describe("settings search", () => {
             label: "Follow-up behavior",
         });
     });
+    it("finds the reader's font by what it is for", () => {
+        expect(searchSettings("serif")[0]).toMatchObject({
+            section: "appearance",
+            settingId: "reading-font",
+            label: "Reading font",
+        });
+    });
     it("returns a whole page with no setting id", () => {
         expect(searchSettings("skills")).toEqual([
             {

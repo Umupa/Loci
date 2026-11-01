@@ -84,7 +84,7 @@
 
 .learning-source-chip__open:focus-visible,
 .learning-source-chip__action:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-ring);
   outline-offset: -2px;
 }
 

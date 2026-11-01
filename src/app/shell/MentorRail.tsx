@@ -141,15 +141,15 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
         </div>;
       })}
       <button type="button" className="mentor-rail-action" aria-label="New mentor" title="New mentor" onClick={onCreate}>
-        <Plus className="size-4" strokeWidth={1.75} />
+        <Plus className="size-4" strokeWidth={1.5} />
       </button>
     </div>
     <div className="mentor-rail-bottom">
       {onSearch ? <button type="button" className="mentor-rail-action" aria-label="Search" title={`Search (${IS_MAC ? "⌘" : "Ctrl+"}K)`} onClick={onSearch}>
-        <Search className="size-4" strokeWidth={1.75} />
+        <Search className="size-4" strokeWidth={1.5} />
       </button> : null}
       <button type="button" className="mentor-rail-action" aria-label="Settings" title="Settings" aria-pressed={settingsOpen} onClick={onOpenSettings}>
-        <Settings className="size-4" strokeWidth={1.75} />
+        <Settings className="size-4" strokeWidth={1.5} />
       </button>
       {/* Beside the gear rather than on its corner, with a target of its own. */}
       {updateVersion && onViewUpdate ? <UpdateBadge version={updateVersion} onOpen={onViewUpdate} /> : null}
@@ -159,11 +159,11 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
       onContextMenu={(event) => event.preventDefault()} className="p-1.5">
       <button type="button" role="menuitem" onClick={() => { dismissMenu(true); onOpenDetails(menu.id); }}
         className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-content/85 hover:bg-content/8">
-        <SlidersHorizontal className="size-3.5 shrink-0" strokeWidth={1.75} />Settings
+        <SlidersHorizontal className="size-3.5 shrink-0" strokeWidth={1.5} />Settings
       </button>
       <button type="button" role="menuitem" onClick={() => { dismissMenu(true); onDelete(menu.id); }}
         className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-danger hover:bg-content/8">
-        <Trash2 className="size-3.5 shrink-0" strokeWidth={1.75} />Delete mentor…
+        <Trash2 className="size-3.5 shrink-0" strokeWidth={1.5} />Delete mentor…
       </button>
     </Popover> : null}
   </nav>;

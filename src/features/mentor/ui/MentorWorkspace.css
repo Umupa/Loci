@@ -1,12 +1,12 @@
 /* One mentor: outline and library | reader | conversation, under one title bar. */
 .mentor-workspace { display: flex; min-height: 0; min-width: 0; flex: 1; flex-direction: column; color: var(--color-content); }
-.mentor-titlebar { display: flex; height: 40px; flex: none; align-items: center; gap: 4px; min-width: 0; padding: 0 10px 0 8px; border-bottom: 1px solid var(--color-stroke); font-family: var(--font-sans); }
+.mentor-titlebar { display: flex; height: 40px; flex: none; align-items: center; gap: 4px; min-width: 0; padding: 0 12px 0 8px; border-bottom: 1px solid var(--color-stroke); font-family: var(--font-sans); }
 .mentor-titlebar-button { display: grid; width: 26px; height: 26px; flex: none; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
 .mentor-titlebar-button:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
 .mentor-titlebar-button[aria-pressed="true"] { color: color-mix(in srgb, var(--color-content) 75%, transparent); }
-.mentor-chat-toggle { display: inline-flex; height: 26px; flex: none; align-items: center; gap: 5px; padding: 0 7px; border-radius: 6px; font-size: 12px; }
+.mentor-chat-toggle { display: inline-flex; height: 28px; flex: none; align-items: center; gap: 4px; padding: 0 8px; border-radius: 6px; font-size: 12px; }
 .mentor-chat-toggle:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
-.mentor-titlebar button:focus-visible, .mentor-library button:focus-visible, .mentor-resize:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-accent) 65%, transparent); outline-offset: -2px; }
+.mentor-titlebar button:focus-visible, .mentor-library button:focus-visible, .mentor-resize:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-accent-ring) 65%, transparent); outline-offset: -2px; }
 
 .mentor-breadcrumb { display: flex; min-width: 0; flex: 0 1 auto; align-items: center; gap: 2px; margin: 0 0 0 4px; padding: 0; list-style: none; font-size: 13px; }
 .mentor-breadcrumb-item { display: flex; min-width: 0; align-items: center; gap: 6px; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
@@ -36,12 +36,12 @@
 .mentor-resize:hover { background: color-mix(in srgb, var(--color-accent) 40%, transparent); }
 
 .mentor-library { display: flex; min-height: 0; flex: 1; flex-direction: column; container: library / inline-size; font-family: var(--font-sans); }
-.mentor-library-segments { display: flex; flex: none; gap: 2px; margin: 8px 8px 4px; padding: 2px; border-radius: 7px; background: color-mix(in srgb, var(--color-content) 6%, transparent); }
-.mentor-library-segment { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: 5px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 55%, transparent); white-space: nowrap; }
+.mentor-library-segments { display: flex; flex: none; gap: 2px; margin: 8px 8px 4px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--color-content) 6%, transparent); }
+.mentor-library-segment { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: 6px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 55%, transparent); white-space: nowrap; }
 .mentor-library-segment > span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .mentor-library-segment:hover { color: var(--color-content); }
-.mentor-library-segment[aria-selected="true"] { background: var(--color-selection); color: var(--color-content); font-weight: 600; box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent); }
-.mentor-library-count { font-size: 10.5px; font-variant-numeric: tabular-nums; font-weight: 500; opacity: .6; }
+.mentor-library-segment[aria-selected="true"] { background: var(--color-selection); color: var(--color-content); font-weight: 500; box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent); }
+.mentor-library-count { font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 500; opacity: .6; }
 /* Counts give way before the segment names do; below the narrowest comfortable
    width the four names take two rows rather than ellipses. */
 @container library (max-width: 300px) {
@@ -51,25 +51,25 @@
   .mentor-library-segments { display: grid; grid-template-columns: 1fr 1fr; }
   .mentor-library-segment { height: 22px; }
 }
-.mentor-library-filter { display: flex; flex: none; align-items: center; gap: 2px; margin: 2px 8px 4px; }
-.mentor-library-filter-box { position: relative; display: flex; min-width: 0; flex: 1; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 8px; border-radius: 6px; background: color-mix(in srgb, var(--color-content) 4%, transparent); }
+.mentor-library-filter { display: flex; flex: none; align-items: center; gap: 4px; margin: 4px 8px 4px; }
+.mentor-library-filter-box { position: relative; display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 6px; background: color-mix(in srgb, var(--color-content) 4%, transparent); }
 .mentor-library-filter-box:focus-within { background: color-mix(in srgb, var(--color-content) 7%, transparent); }
 .mentor-library-filter-box input { min-width: 0; flex: 1; background: transparent; font-size: 12px; outline: none; color: var(--color-content); }
 .mentor-library-filter-box input::placeholder { color: color-mix(in srgb, var(--color-content) 35%, transparent); }
 .mentor-library-filter-clear { display: grid; width: 18px; height: 18px; flex: none; place-items: center; border-radius: 4px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
 .mentor-library-filter-clear:hover { background: color-mix(in srgb, var(--color-content) 10%, transparent); color: var(--color-content); }
-.mentor-library-panel { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding: 2px 6px 16px; }
+.mentor-library-panel { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding: 4px 6px 16px; }
 .mentor-library-panel[data-library-section="files"] { padding: 0 0 8px; }
-.mentor-library-action { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.mentor-library-action { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
 .mentor-library-action:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); color: var(--color-content); }
 .mentor-library-body { display: flex; flex-direction: column; }
-.mentor-library-row { display: flex; width: 100%; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; text-align: left; }
+.mentor-library-row { display: flex; width: 100%; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; text-align: left; }
 .mentor-library-row:hover, .mentor-library-row[aria-current="true"] { background: color-mix(in srgb, var(--color-content) 6%, transparent); }
 .mentor-library-row[aria-current="true"] .mentor-library-title { color: var(--color-content); font-weight: 500; }
 .mentor-library-icon { display: grid; flex: none; place-items: center; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
 .mentor-library-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .mentor-library-title, .mentor-library-subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mentor-library-title { font-size: 12px; line-height: 18px; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
+.mentor-library-title { font-size: 13px; line-height: 20px; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
 .mentor-library-subtitle { font-size: 11px; line-height: 15px; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .mentor-library-group { margin: 8px 8px 2px; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .mentor-library-group:first-child { margin-top: 2px; }
@@ -90,37 +90,33 @@
 }
 
 /* The library's Courses segment: switcher, progress, where to continue, outline. */
-.mentor-library {
-  --course-ok: #3da975; --course-warn: #cc9333;
-  --course-chapter-0: #3b82f6; --course-chapter-1: #10b981; --course-chapter-2: #a855f7;
-  --course-chapter-3: #f59e0b; --course-chapter-4: #ef4444; --course-chapter-5: #06b6d4;
-}
 .library-course { display: flex; flex-direction: column; }
-.library-course-head { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 4px 2px 0; }
-.library-switcher { display: flex; min-width: 0; flex: 1; align-items: center; gap: 4px; height: 26px; padding: 0 6px; border-radius: 6px; text-align: left; font-size: 12.5px; font-weight: 600; color: var(--color-content); }
+.library-course-head { display: flex; min-width: 0; align-items: center; gap: 8px; padding: 4px 4px 0; }
+.library-switcher { display: flex; min-width: 0; flex: 1; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border-radius: 6px; text-align: left; font-size: 13px; font-weight: 500; color: var(--color-content); }
 .library-switcher:hover, .library-switcher[aria-expanded="true"] { background: color-mix(in srgb, var(--color-content) 6%, transparent); }
 .library-switcher-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.library-progress-text { flex: none; padding-right: 6px; font-size: 11px; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
-.library-progress { height: 3px; margin: 4px 8px 6px; border-radius: 2px; background: color-mix(in srgb, var(--color-content) 10%, transparent); overflow: hidden; }
-.library-progress > i { display: block; height: 100%; border-radius: 2px; background: var(--course-ok); }
-.library-continue { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; margin: 2px 2px 8px; padding: 8px 8px 8px 10px; border: 1px solid var(--color-stroke); border-radius: 8px; }
-.library-continue-label { grid-column: 1; font-size: 10.5px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
-.library-continue-title { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--color-content); }
-.library-continue-button { grid-column: 2; grid-row: 1 / span 2; height: 24px; padding: 0 9px; border-radius: 6px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.library-progress-text { flex: none; padding-right: 8px; font-size: 11px; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.library-progress { height: 4px; margin: 4px 8px 8px; border-radius: 2px; background: color-mix(in srgb, var(--color-content) 10%, transparent); overflow: hidden; }
+.library-progress > i { display: block; height: 100%; border-radius: 2px; background: color-mix(in srgb, var(--color-content) 55%, transparent); }
+.library-continue { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; margin: 4px 0 12px; padding: 8px 12px; border: 1px solid var(--color-stroke); border-radius: 10px; }
+.library-continue-label { grid-column: 1; font-size: 11px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.library-continue-title { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--color-content); }
+.library-continue-button { grid-column: 2; grid-row: 1 / span 2; height: 28px; padding: 0 12px; border-radius: 6px; background: var(--color-selection); color: var(--color-content); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.library-continue-button:hover { background: var(--color-selection-hover); }
 .library-courses-empty { display: flex; flex-direction: column; align-items: flex-start; }
-.library-ask { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin: 0 4px; padding: 0 8px; border-radius: 6px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
+.library-ask { display: inline-flex; align-items: center; gap: 8px; height: 28px; margin: 0 4px; padding: 0 8px; border-radius: 6px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
 .library-ask:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); color: var(--color-content); }
 .library-outline ol { margin: 0; padding: 0; list-style: none; }
-.library-chapter + .library-chapter { margin-top: 4px; }
-.library-chapter-title { display: flex; width: 100%; min-width: 0; align-items: center; gap: 6px; height: 26px; padding: 0 6px; border-radius: 6px; text-align: left; font-size: 11px; font-weight: 600; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
+.library-chapter + .library-chapter { margin-top: 12px; }
+.library-chapter-title { display: flex; width: 100%; min-width: 0; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 6px; text-align: left; font-size: 12px; font-weight: 500; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
 .library-chapter-title:hover { color: var(--color-content); background: color-mix(in srgb, var(--color-content) 4%, transparent); }
-.library-chapter-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; }
-.library-lesson { display: flex; width: 100%; align-items: flex-start; gap: 7px; padding: 4px 8px 4px 10px; border-radius: 6px; text-align: left; font-size: 12px; line-height: 1.45; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
+.library-chapter-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: color-mix(in srgb, var(--color-content) 30%, transparent); }
+.library-lesson { display: flex; width: 100%; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 6px; text-align: left; font-size: 13px; line-height: 20px; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
 .library-lesson:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); }
-.library-lesson--current { opacity: 1; background: color-mix(in srgb, var(--color-accent) 18%, transparent); color: var(--color-content); font-weight: 600; }
-.library-lesson--current:hover { background: color-mix(in srgb, var(--color-accent) 24%, transparent); }
+.library-lesson--current { opacity: 1; background: color-mix(in srgb, var(--color-accent) 12%, transparent); color: var(--color-content); font-weight: 500; }
+.library-lesson--current:hover { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
 .library-lesson-number { flex: none; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .library-lesson-title { min-width: 0; flex: 1; overflow-wrap: anywhere; }
-.library-mark { display: inline-grid; width: 12px; height: 12px; flex: none; margin-top: 3px; place-items: center; border: 1px solid color-mix(in srgb, var(--color-content) 30%, transparent); border-radius: 50%; font-size: 8px; line-height: 1; }
-.library-mark--learning { border-color: var(--course-warn); background: linear-gradient(90deg, var(--course-warn) 50%, transparent 50%); }
-.library-mark--mastered { border-color: var(--course-ok); background: var(--course-ok); color: white; }
+.library-mark { display: inline-grid; width: 14px; height: 14px; flex: none; margin-top: 3px; place-items: center; border: 1px solid color-mix(in srgb, var(--color-content) 30%, transparent); border-radius: 50%; line-height: 1; }
+.library-mark--learning { border-color: var(--color-mark); background: linear-gradient(90deg, var(--color-mark) 50%, transparent 50%); }
+.library-mark--mastered { border-color: color-mix(in srgb, var(--color-content) 62%, transparent); background: color-mix(in srgb, var(--color-content) 62%, transparent); color: var(--color-background-base); }

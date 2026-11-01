@@ -152,7 +152,7 @@ export function ModalPanel({
         tabIndex={-1}
         onKeyDown={trapTab}
         onMouseDown={(event) => event.stopPropagation()}
-        className={`relative isolate flex flex-col overflow-hidden rounded-2xl border border-content/7 shadow-2xl outline-none ${fitViewport ? "max-h-[calc(100dvh-32px)]" : ""} ${className ?? ""}`}
+        className={`relative isolate flex flex-col overflow-hidden rounded-[14px] border border-content/7 shadow-2xl outline-none ${fitViewport ? "max-h-[calc(100dvh-32px)]" : ""} ${className ?? ""}`}
       >
         <GlassBackdrop className="bg-background-base/55" />
         <div className="modal-panel relative z-[1] flex min-h-0 flex-1 flex-col">
@@ -187,9 +187,9 @@ export function ModalPanel({
               aria-label={t("Close")}
               onClick={onClose}
               disabled={closeDisabled}
-              className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/8 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-content/45"
+              className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/8 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-content/45"
             >
-              <X className="size-3.5" strokeWidth={1.75} />
+              <X className="size-3.5" strokeWidth={1.5} />
             </button>
           </header>
           <div

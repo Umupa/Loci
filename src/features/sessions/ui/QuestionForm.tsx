@@ -132,7 +132,7 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
         <div className="flex items-center gap-1.5">
           <MessageSquare
             className="size-3.5 shrink-0 text-content/45"
-            strokeWidth={1.75}
+            strokeWidth={1.5}
           />
           <span className="min-w-0 flex-1 truncate text-[11px] text-content/50">
             {title}
@@ -362,7 +362,7 @@ function QuestionFields({
                     setHighlighted(optionIndex);
                     onSelect(option.id);
                   }}
-                  className={`flex w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
+                  className={`flex w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring ${
                     active
                       ? "border-content/35 bg-selection"
                       : "border-content/10 hover:bg-content/5"

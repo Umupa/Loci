@@ -167,7 +167,7 @@ export function DateTimePicker({
             aria-label={t("Previous month")}
             disabled={previousDisabled}
             onClick={() => navigate(shiftMonth(focusedDate, -1), false)}
-            className="grid size-7 place-items-center rounded text-content/55 hover:bg-content/5 hover:text-content focus-visible:outline-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-30"
+            className="grid size-7 place-items-center rounded text-content/55 hover:bg-content/5 hover:text-content focus-visible:outline-2 focus-visible:outline-accent-ring disabled:pointer-events-none disabled:opacity-30"
           >
             <ChevronLeft className="size-3.5" />
           </button>
@@ -175,7 +175,7 @@ export function DateTimePicker({
             type="button"
             aria-label={t("Next month")}
             onClick={() => navigate(shiftMonth(focusedDate, 1), false)}
-            className="grid size-7 place-items-center rounded text-content/55 hover:bg-content/5 hover:text-content focus-visible:outline-2 focus-visible:outline-accent"
+            className="grid size-7 place-items-center rounded text-content/55 hover:bg-content/5 hover:text-content focus-visible:outline-2 focus-visible:outline-accent-ring"
           >
             <ChevronRight className="size-3.5" />
           </button>
@@ -215,7 +215,7 @@ export function DateTimePicker({
                     aria-current={
                       dateKey(date) === dateKey(today) ? "date" : undefined
                     }
-                className={`relative size-8 rounded text-xs tabular-nums focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:pointer-events-none disabled:text-content/20 ${dateKey(date) === selectedKey ? "bg-selection-hover font-medium text-content ring-1 ring-inset ring-content/20" : "text-content/70 hover:bg-content/5 hover:text-content"}`}
+                className={`relative size-8 rounded text-xs tabular-nums focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-ring disabled:pointer-events-none disabled:text-content/20 ${dateKey(date) === selectedKey ? "bg-selection-hover font-medium text-content ring-1 ring-inset ring-content/20" : "text-content/70 hover:bg-content/5 hover:text-content"}`}
                     onClick={() => pick(date)}
                   >
                     {date.getDate()}
@@ -246,7 +246,7 @@ export function DateTimePicker({
           <p id={timeHintId} className="mt-0.5 text-[10px] text-content/40">
             {t("Local time, 24-hour")}</p>
         </div>
-        <div className="w-20 rounded border border-content/10 bg-content/5 focus-within:border-content/40 focus-within:outline-2 focus-within:outline-accent">
+        <div className="w-20 rounded border border-content/10 bg-content/5 focus-within:border-content/40 focus-within:outline-2 focus-within:outline-accent-ring">
           <input
             id={timeId}
             type="text"

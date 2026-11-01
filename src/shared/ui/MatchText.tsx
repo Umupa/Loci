@@ -19,7 +19,7 @@ export function MatchText({ text, positions, active }: Props): ReactNode {
   }
   return runs.map((run, index) =>
     run.match ? (
-      <span key={index} className="text-accent">
+      <span key={index} className="text-accent-text">
         {run.text}
       </span>
     ) : (

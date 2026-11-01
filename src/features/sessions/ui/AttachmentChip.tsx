@@ -32,7 +32,7 @@ export function AttachmentChip({ attachment, onRemove }: Props) {
               event.stopPropagation();
               setPreviewOpen(true);
             }}
-            className="shrink-0 cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="shrink-0 cursor-zoom-in rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring"
           >
             <img
               src={preview}

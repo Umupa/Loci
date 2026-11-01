@@ -224,19 +224,19 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
               event.currentTarget.blur();
             }
           }}
-          className="h-5 w-10 rounded bg-content/10 px-1 text-center tabular-nums text-content outline-none focus:ring-1 focus:ring-accent"
+          className="h-5 w-10 rounded bg-content/10 px-1 text-center tabular-nums text-content outline-none focus:ring-1 focus:ring-accent-ring"
         />
         <span className="tabular-nums">/ {doc?.numPages ?? "—"}</span>
         <span className="flex-1" />
         <FooterButton label="Zoom out" disabled={!doc} onClick={() => zoomTo(clampZoom(scale / ZOOM_STEP))}>
-          <Minus className="size-3" strokeWidth={1.75} />
+          <Minus className="size-3" strokeWidth={1.5} />
         </FooterButton>
         <button type="button" title="Fit to width" disabled={!doc} onClick={() => zoomTo("fit")}
           className="w-11 rounded text-center tabular-nums hover:text-content">
           {zoom === "fit" ? "Fit" : `${Math.round(zoom * 100)}%`}
         </button>
         <FooterButton label="Zoom in" disabled={!doc} onClick={() => zoomTo(clampZoom(scale * ZOOM_STEP))}>
-          <Plus className="size-3" strokeWidth={1.75} />
+          <Plus className="size-3" strokeWidth={1.5} />
         </FooterButton>
       </footer>
     </div>
