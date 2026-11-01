@@ -2,7 +2,7 @@ import { readAgentDocument } from "../../features/agents/model/agentDocuments";
 import { requestDocumentPlace } from "../../features/agents/model/documentPlace";
 import { getCanvas } from "../../features/canvas/canvas";
 import { requestFilePlace } from "../../features/files/model/filePlace";
-import { courseItems, loadCourse } from "../../features/learning/model/course";
+import { courseItems, isCommit, loadCourse } from "../../features/learning/model/course";
 import { samePage, type MentorPage } from "../../features/mentor/model/mentorPage";
 import { getNote } from "../../features/notes";
 import type { FilePlace } from "../../shared/lib/appResourceLinks";
@@ -47,6 +47,7 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
       field("quote", "string", "A passage to show and flash, verbatim from the text (with --source, or --file and --lines)", { max: 500 }),
       field("lines", "string", "Lines to show in a text file: 12 or 12-40"),
       field("page", "integer", "A page to show in a PDF"),
+      field("at", "string", "With --file: show source code as it was at this commit (read-only)", { max: 64 }),
       field("switch", "boolean", "Also bring the mentor on screen"),
     ],
     callers: ["external", "agent"],
@@ -62,6 +63,7 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
         throw new CommandError("--quote goes with --source, or with --file and --lines", "usage");
       if ((input.lines !== undefined || input.page !== undefined) && kind !== "file") throw new CommandError("--lines and --page go with --file", "usage");
       if (input.lines !== undefined && input.page !== undefined) throw new CommandError("Choose --lines or --page", "usage");
+      if (input.at !== undefined && (kind !== "file" || !isCommit(input.at as string))) throw new CommandError("--at is a commit id (7 to 40 hex digits) and goes with --file", "usage");
       const focus: ReaderFocus = {};
       let page: MentorPage;
       if (kind === "course") {
@@ -86,7 +88,7 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
         page = { kind: "canvas", id: value };
       } else {
         if (!isAbsolute(value)) throw new CommandError("--file takes an absolute path", "usage");
-        page = { kind: "file", path: value };
+        page = { kind: "file", path: value, ...(input.at !== undefined ? { commit: (input.at as string).toLowerCase() } : {}) };
         let place: FilePlace | undefined;
         if (input.lines !== undefined) {
           place = { lines: focus.lines = lineSpan(input.lines as string) };

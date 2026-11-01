@@ -21,6 +21,7 @@ import { ReadingSelectionMenu } from "./ReadingSelectionMenu";
 import { useReadingMarks, type MarkSpec, type MarksListRequest } from "./useReadingMarks";
 import { CourseToc } from "./CourseToc";
 import { PinNotice, usePinnedCode } from "./usePinnedCode";
+import { useCodeNavigation } from "../../files/ui/useCodeNavigation";
 import { CourseOutline, PROGRESS_EVENT, type ProgressDetail } from "./CourseOutline";
 import "./CoursePane.css";
 
@@ -385,6 +386,11 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
     lines: (range) => fenced ? excerptLines(range, first) : undefined,
   }), [file, first, fenced, pin.commit]);
   const marks = useReadingMarks(excerptRef, spec, { agentId });
+  const preRef = useRef<HTMLPreElement>(null);
+  const nav = useCodeNavigation({
+    file, commit: pin.commit, codeRef: preRef, firstLine: first, enabled: inline && fenced && !!pin.loaded?.text,
+    onGo: (target, from) => requestOpenFile(target.file, { lines: [target.line, target.line] }, { ...(target.commit ? { commit: target.commit } : {}), fromLine: from }),
+  });
   // A code-tour lesson reads part of a file: its menu counts and lists that part, as its outline does.
   const shownMarks = useMemo(() => lesson.lines ? marks.annotations.filter((annotation) => inLesson(lesson, annotation)) : marks.annotations,
     [marks.annotations, lesson]);
@@ -398,20 +404,23 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
   const shown = pin.loaded;
   return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id} data-pin-view={lesson.commit ? pin.view : undefined}>
     <h2>{lesson.title}</h2>
-    <p className="course-pane__summary" title={lesson.commit ? `${file} at ${pin.commit ?? lesson.commit}` : file}>{name}{where}{pin.view === "pinned" ? at : ""}</p>
+    <p className="course-pane__summary" title={lesson.commit ? `${file} at ${pin.commit ?? lesson.commit}` : file}>{name}{where}{pin.view === "pinned" ? at : ""}
+      {nav.active ? <button type="button" className="course-button course-button--quiet course-pane__pin-action" title="Open the whole file in the reader, with its symbols"
+        onClick={() => requestOpenFile(file, shownLines ? { lines: shownLines } : undefined, pin.commit ? { commit: pin.commit } : {})}>Open whole file</button> : null}</p>
     {lesson.commit ? <PinNotice name={name} commit={lesson.commit} pin={pin} /> : null}
     {!shown ? <p className="course-pane__relations">Opening…</p>
       : shown.error ? <><p className="course-error" role="alert">Could not read {name}: {shown.error}</p>{open}</>
       : fenced ? (() => {
         const excerpt = codeExcerpt(shown.text!, shownLines);
-        return <div ref={excerptRef} className="select-text" data-reading-text data-reading-lines-from={first}>
-          <CodeReader text={excerpt.code} file={name} firstLine={first} label={`${name}, lines ${first}–${first + excerpt.code.split("\n").length - 1}`} />
+        return <div ref={excerptRef} className="select-text" data-reading-text data-reading-lines-from={first} onClick={nav.onClick}>
+          <CodeReader text={excerpt.code} file={name} firstLine={first} preRef={preRef} label={`${name}, lines ${first}–${first + excerpt.code.split("\n").length - 1}`} />
           {excerpt.shown < excerpt.total ? <p className="course-pane__relations">Showing the first {excerpt.shown} of {excerpt.total} lines.</p> : null}
         </div>;
       })()
       : <div ref={excerptRef} className="select-text" data-reading-text><AgentMarkdown text={shown.text!} wholeDocument /></div>}
-    <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${pin.view}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} />
+    <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${pin.view}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} actions={nav.selectionActions} />
     {marks.popover}
+    {nav.results}
     {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) : null}
   </article>;
 }

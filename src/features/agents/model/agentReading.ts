@@ -7,7 +7,8 @@ export type AgentReading =
   | { kind: "document"; id: string; title: string }
   | { kind: "note"; id: string }
   | { kind: "canvas"; id: string }
-  | { kind: "file"; path: string };
+  /** `commit`: code read as it was at that commit, not as it is on disk. */
+  | { kind: "file"; path: string; commit?: string };
 
 /**
  * Where in it the reader is: the headings above the visible paragraph, the

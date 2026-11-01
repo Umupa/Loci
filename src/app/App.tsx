@@ -28,7 +28,7 @@ import { TranscriptPool, TranscriptPoolOutlet } from "../features/sessions/ui/Tr
 import { SessionPane } from "../features/sessions/ui/SessionPane";
 import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
-import { OPEN_FILE_EVENT, requestFilePlace, type OpenFileFn } from "../features/files/model/filePlace";
+import { OPEN_FILE_EVENT, requestFilePlace, type OpenFileFn, type OpenFileOptions } from "../features/files/model/filePlace";
 import { pickFolders } from "../platform/tauri/fs";
 import { useAgents } from "./hooks/useAgents";
 import { useAgentHabits } from "./hooks/useAgentHabits";
@@ -337,7 +337,9 @@ function Workspace(boot: BootWorkspace) {
     if (!isCurrent()) return;
     await showSessionRef.current(id);
   }, []);
-  const openLearningFile = useCallback((path: string) => { void showInMentor({ kind: "file", path }).catch(reportError); }, [reportError, showInMentor]);
+  const openLearningFile = useCallback((path: string, options: OpenFileOptions = {}) => {
+    void showInMentor({ kind: "file", path, ...(options.commit ? { commit: options.commit } : {}) }).catch(reportError);
+  }, [reportError, showInMentor]);
   const openPdf = useCallback(() => {
     void pickFile({ multiple: false, directory: false, filters: [{ name: "PDF", extensions: ["pdf"] }] })
       .then((path) => { if (typeof path === "string") openLearningFile(path); })
@@ -382,8 +384,8 @@ function Workspace(boot: BootWorkspace) {
   }, [reportError, revealLearningConversation, showInMentor]);
   useEffect(() => {
     const open = (event: Event) => {
-      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
-      if (path) openLearningFile(path);
+      const detail = (event as CustomEvent<{ path?: string } & OpenFileOptions>).detail;
+      if (detail?.path) openLearningFile(detail.path, detail);
     };
     window.addEventListener(OPEN_FILE_EVENT, open);
     return () => window.removeEventListener(OPEN_FILE_EVENT, open);
@@ -548,9 +550,9 @@ function Workspace(boot: BootWorkspace) {
     return () => { disposed = true; release(); stop?.(); window.removeEventListener("beforeunload", unload); };
   }, [runtime.flushEvents, persistWindow, reportError]);
 
-  const openAgentFile = useCallback<OpenFileFn>((path, place) => {
+  const openAgentFile = useCallback<OpenFileFn>((path, place, options) => {
     if (place) requestFilePlace(path, place);
-    void showInMentor({ kind: "file", path }).catch(reportError);
+    void showInMentor({ kind: "file", path, ...(options?.commit ? { commit: options.commit } : {}) }).catch(reportError);
   }, [reportError, showInMentor]);
 
   const paneProps = (session: Session, focused: boolean): ComponentProps<typeof SessionPane> => ({

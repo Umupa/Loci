@@ -67,6 +67,6 @@ export function MentorReader({ agent, page, request, canvases, onClose, onLesson
     if (!canvases.length && !peekCanvases()) return <ReaderLoading label="Opening drawing…" />;
     return <><ResourceBar /><div role="status" className="mentor-reader-empty"><p>This drawing is no longer available. <button type="button" className="underline" onClick={onClose}>Close</button></p></div></>;
   }
-  return <Suspense fallback={<ReaderLoading label={`Opening ${basename(page.path)}…`} />}><FilePane key={page.path} path={page.path} cwd="" preview={false} focused onFocus={noop} onPin={noop}
+  return <Suspense fallback={<ReaderLoading label={`Opening ${basename(page.path)}…`} />}><FilePane key={`${page.path}@${page.commit ?? ""}`} path={page.path} commit={page.commit} cwd="" preview={false} focused onFocus={noop} onPin={noop}
     onClose={onClose} onOpenFile={onOpenFile} onBeforeLeave={onBeforeLeave} askLabel={`Ask ${mentorName}`} chatName={mentorName} reader /></Suspense>;
 }

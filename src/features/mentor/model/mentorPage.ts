@@ -8,7 +8,8 @@ export type MentorPage =
   | { kind: "document"; document: AgentDocument }
   | { kind: "note"; id: string }
   | { kind: "canvas"; id: string }
-  | { kind: "file"; path: string }
+  /** `commit`: source code read as it was at that commit (read-only). */
+  | { kind: "file"; path: string; commit?: string }
   /** A session a mentor started, or any conversation a link points to. Never remembered. */
   | { kind: "session"; id: string };
 
@@ -48,7 +49,7 @@ export function parseStoredPage(value: unknown): MentorPage | undefined {
       ...(text(document.subject) ? { subject: document.subject } : {}) } };
   }
   if ((page.kind === "note" || page.kind === "canvas") && text(page.id)) return { kind: page.kind, id: page.id };
-  if (page.kind === "file" && text(page.path)) return { kind: "file", path: page.path };
+  if (page.kind === "file" && text(page.path)) return { kind: "file", path: page.path, ...(text(page.commit) && /^[0-9a-f]{7,40}$/i.test(page.commit) ? { commit: page.commit } : {}) };
   return undefined;
 }
 
@@ -59,7 +60,7 @@ export function readingOf(page: MentorPage | undefined, lesson: MentorLesson | u
   if (page?.kind === "document") return { kind: "document", id: page.document.id, title: page.document.title };
   if (page?.kind === "note") return { kind: "note", id: page.id };
   if (page?.kind === "canvas") return { kind: "canvas", id: page.id };
-  if (page?.kind === "file") return { kind: "file", path: page.path };
+  if (page?.kind === "file") return { kind: "file", path: page.path, ...(page.commit ? { commit: page.commit } : {}) };
   return undefined;
 }
 
@@ -68,7 +69,7 @@ export function samePage(a: MentorPage | undefined, b: MentorPage | undefined): 
   if (!a || !b || a.kind !== b.kind) return false;
   if (a.kind === "course") return a.course.courseId === (b as typeof a).course.courseId;
   if (a.kind === "document") return a.document.id === (b as typeof a).document.id;
-  if (a.kind === "file") return a.path === (b as typeof a).path;
+  if (a.kind === "file") return a.path === (b as typeof a).path && a.commit === (b as typeof a).commit;
   return a.id === (b as typeof a).id;
 }
 

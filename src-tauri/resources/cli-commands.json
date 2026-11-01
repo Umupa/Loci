@@ -2088,6 +2088,13 @@
           "positional": false
         },
         {
+          "name": "at",
+          "type": "string",
+          "help": "With --file: show source code as it was at this commit (read-only)",
+          "required": false,
+          "positional": false
+        },
+        {
           "name": "switch",
           "type": "boolean",
           "help": "Also bring the mentor on screen",
