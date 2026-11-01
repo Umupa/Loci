@@ -148,12 +148,11 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
       {onSearch ? <button type="button" className="mentor-rail-action" aria-label="Search" title={`Search (${IS_MAC ? "⌘" : "Ctrl+"}K)`} onClick={onSearch}>
         <Search className="size-4" strokeWidth={1.75} />
       </button> : null}
-      <div className="relative">
-        <button type="button" className="mentor-rail-action" aria-label="Settings" title="Settings" aria-pressed={settingsOpen} onClick={onOpenSettings}>
-          <Settings className="size-4" strokeWidth={1.75} />
-        </button>
-        {updateVersion && onViewUpdate ? <UpdateBadge version={updateVersion} onOpen={onViewUpdate} /> : null}
-      </div>
+      <button type="button" className="mentor-rail-action" aria-label="Settings" title="Settings" aria-pressed={settingsOpen} onClick={onOpenSettings}>
+        <Settings className="size-4" strokeWidth={1.75} />
+      </button>
+      {/* Beside the gear rather than on its corner, with a target of its own. */}
+      {updateVersion && onViewUpdate ? <UpdateBadge version={updateVersion} onOpen={onViewUpdate} /> : null}
     </div>
     {menu && menuAgent ? <Popover ref={menuSurface} anchor={menu.anchor} side="right" align="start" gap={0} width={200} constrainHeight={false}
       onDismiss={(reason) => dismissMenu(reason !== "outside")} role="menu" aria-label={`${agentLook(menuAgent).name} options`}

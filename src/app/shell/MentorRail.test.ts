@@ -100,10 +100,15 @@ describe("the rail's keyboard navigation", () => {
 });
 
 describe("the rail's update indicator", () => {
-  it("puts a dot on Settings that opens the prompt, not Settings", () => {
+  it("puts a dot beside Settings that opens the prompt, not Settings", () => {
     const { onViewUpdate, onOpenSettings } = mount("0.3.0");
     const badge = host.querySelector<HTMLButtonElement>("[data-update-indicator]")!;
     expect(badge).not.toBeNull();
+    // Its own target, not a corner of the gear.
+    const settings = host.querySelector<HTMLButtonElement>('[aria-label="Settings"]')!;
+    expect(settings.contains(badge)).toBe(false);
+    expect(settings.parentElement).toBe(badge.parentElement);
+    expect(settings.nextElementSibling).toBe(badge);
     expect(badge.getAttribute("aria-label")).toBe("Update available: Loci 0.3.0");
     act(() => badge.click());
     expect(onViewUpdate).toHaveBeenCalledTimes(1);
