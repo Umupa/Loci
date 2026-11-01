@@ -34,3 +34,10 @@ export function resolveCommit(file: string, rev?: string): Promise<{ commit: str
 }
 
 export const shortCommit = (sha: string) => sha.slice(0, 7);
+
+/** One definition in a file; lines 1-based, `column` the 1-based character. */
+export type CodeSymbol = { name: string; kind: string; line: number; column: number; endLine: number; container?: string; depth: number };
+
+export function codeSymbols(file: string, commit?: string): Promise<{ language?: string; symbols: CodeSymbol[] }> {
+  return invoke("code_symbols", { file, commit: commit ?? null });
+}

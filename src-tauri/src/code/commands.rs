@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::git;
+use super::lang::{self, Lang, Symbol};
 
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, String> + Send + 'static,
@@ -213,6 +214,35 @@ pub fn resolve(file: &str, rev: Option<&str>) -> Result<Resolved, String> {
 #[tauri::command]
 pub async fn code_resolve(file: String, rev: Option<String>) -> Result<Resolved, String> {
     blocking(move || resolve(&file, rev.as_deref())).await
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Symbols {
+    /// The language it was read as; none when Loci cannot read its symbols.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<&'static str>,
+    pub symbols: Vec<Symbol>,
+}
+
+/// The outline of a file, at `commit` or as it is on disk.
+pub fn symbols(file: &str, commit: Option<&str>) -> Result<Symbols, String> {
+    let Some(language) = Lang::of(file) else {
+        return Ok(Symbols {
+            language: None,
+            symbols: Vec::new(),
+        });
+    };
+    let text = read(file, commit)?.text;
+    Ok(Symbols {
+        language: Some(language.id()),
+        symbols: lang::symbols(language, &text),
+    })
+}
+
+#[tauri::command]
+pub async fn code_symbols(file: String, commit: Option<String>) -> Result<Symbols, String> {
+    blocking(move || symbols(&file, commit.as_deref())).await
 }
 
 #[cfg(test)]

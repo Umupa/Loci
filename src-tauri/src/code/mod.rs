@@ -3,3 +3,5 @@
 
 pub mod commands;
 pub mod git;
+#[allow(dead_code)] // identifiers and occurrences serve definitions and references, next.
+pub mod lang;

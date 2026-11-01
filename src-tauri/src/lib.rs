@@ -368,6 +368,7 @@ pub fn run() {
             code::commands::code_read,
             code::commands::code_pin_status,
             code::commands::code_resolve,
+            code::commands::code_symbols,
             mentor_store::commands::mentors_load,
             mentor_store::commands::mentors_sync,
             mentor_store::commands::mentors_remove,
