@@ -4,6 +4,7 @@ import type { BundledLanguage } from "shiki";
 import { useEffect, useMemo, useState } from "react";
 import { copyText } from "../../../platform/tauri/clipboard";
 import { useCodePlugin } from "../../../shared/hooks/useCodePlugin";
+import { languageFromFile } from "../../../shared/lib/markdown/codeLanguage";
 import { useColorScheme } from "../../../shared/hooks/useColorScheme";
 import { Copy } from "../../../shared/ui/icons";
 import { parseDiff, type DiffSpec } from "../model/course";
@@ -28,12 +29,6 @@ export function computeLineDiff(before: string, after: string): DiffLine[] | und
   return result.length > 2000 ? undefined : result;
 }
 
-function languageFromFile(file: string): BundledLanguage {
-  const name = file.split(/[/\\]/).pop()!.toLowerCase();
-  const extension = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : name;
-  const aliases: Record<string, BundledLanguage> = { py: "python", js: "javascript", jsx: "jsx", ts: "typescript", tsx: "tsx", rs: "rust", rb: "ruby", sh: "bash", zsh: "bash", yml: "yaml", md: "markdown", h: "c", cpp: "cpp", cs: "csharp", dockerfile: "dockerfile", makefile: "makefile" };
-  return aliases[extension] ?? extension as BundledLanguage;
-}
 
 export type DiffCardProps = DiffSpec;
 export function DiffCard({ id, title, file, before, after, runCommand }: DiffCardProps) {
@@ -50,7 +45,7 @@ export function DiffCard({ id, title, file, before, after, runCommand }: DiffCar
     const language = languageFromFile(file);
     for (const [side, code] of [["before", before], ["after", after]] as const) {
       const apply = (result: HighlightResult) => { if (current) setTokens((previous) => ({ ...previous, [side]: result })); };
-      const result = plugin.highlight({ code, language, themes: plugin.getThemes() }, apply);
+      const result = plugin.highlight({ code, language: language as BundledLanguage, themes: plugin.getThemes() }, apply);
       if (result) apply(result);
     }
     return () => { current = false; };

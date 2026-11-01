@@ -11,6 +11,7 @@ import { readTextFile } from "../../../platform/tauri/fs";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
+import { CodeReader } from "../../../shared/ui/CodeReader";
 import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, setLessonStatus, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
 import { inLesson } from "../model/annotationCounts";
 import { DiffCard } from "./DiffCard";
@@ -403,7 +404,14 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
     <p className="course-pane__summary" title={file}>{name}{where}</p>
     {!shown ? <p className="course-pane__relations">Opening…</p>
       : shown.error ? <><p className="course-error" role="alert">Could not read {name}: {shown.error}</p>{open}</>
-      : <div ref={excerptRef} className="select-text" data-reading-text {...(fenced ? { "data-reading-lines-from": first } : {})}><AgentMarkdown text={sourceExcerpt(shown.text!, name, lesson.lines)} wholeDocument /></div>}
+      : fenced ? (() => {
+        const excerpt = codeExcerpt(shown.text!, lesson.lines);
+        return <div ref={excerptRef} className="select-text" data-reading-text data-reading-lines-from={first}>
+          <CodeReader text={excerpt.code} file={name} firstLine={first} label={`${name}, lines ${first}–${first + excerpt.code.split("\n").length - 1}`} />
+          {excerpt.shown < excerpt.total ? <p className="course-pane__relations">Showing the first {excerpt.shown} of {excerpt.total} lines.</p> : null}
+        </div>;
+      })()
+      : <div ref={excerptRef} className="select-text" data-reading-text><AgentMarkdown text={shown.text!} wholeDocument /></div>}
     <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} />
     {marks.popover}
     {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) : null}
@@ -429,16 +437,21 @@ function isReadableSource(name: string): boolean {
   return !DOCUMENT_EXTENSIONS.has(extension);
 }
 
-/** A file's lines as a fenced block, highlighted by its extension; Markdown is shown as itself. */
-export function sourceExcerpt(text: string, name: string, lines?: [number, number]): string {
+/** The lines a code lesson shows, and how much of the file that leaves out. */
+export function codeExcerpt(text: string, lines?: [number, number]): { code: string; total: number; shown: number } {
   const all = text.replace(/\r\n/g, "\n").split("\n");
   const [from, to] = lines ?? [1, Math.min(all.length, SOURCE_LINES_MAX)];
-  const body = all.slice(from - 1, to).join("\n");
+  return { code: all.slice(from - 1, to).join("\n"), total: all.length, shown: to };
+}
+
+/** A file's lines as a fenced block, highlighted by its extension; Markdown is shown as itself. */
+export function sourceExcerpt(text: string, name: string, lines?: [number, number]): string {
+  const excerpt = codeExcerpt(text, lines);
   const extension = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
-  if (!lines && (extension === "md" || extension === "markdown")) return body;
-  const fence = body.includes("```") ? "````" : "```";
-  const more = !lines && all.length > to ? `\n\n*Showing the first ${to} of ${all.length} lines.*` : "";
-  return `${fence}${extension}\n${body}\n${fence}${more}`;
+  if (!lines && (extension === "md" || extension === "markdown")) return excerpt.code;
+  const fence = excerpt.code.includes("```") ? "````" : "```";
+  const more = !lines && excerpt.total > excerpt.shown ? `\n\n*Showing the first ${excerpt.shown} of ${excerpt.total} lines.*` : "";
+  return `${fence}${extension}\n${excerpt.code}\n${fence}${more}`;
 }
 
 /** A lesson read from the agent's library: the document itself, from the lesson's heading. */

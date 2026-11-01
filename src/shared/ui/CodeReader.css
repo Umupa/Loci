@@ -1,0 +1,42 @@
+/* A source file read as a source: a muted number gutter and highlighted lines. */
+.code-reader {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100%;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 20px;
+}
+
+.code-reader__gutter {
+  flex: none;
+  padding: 16px 8px 16px 12px;
+  border-right: 1px solid var(--color-stroke);
+  color: color-mix(in srgb, var(--color-content) 30%, transparent);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.code-reader__number {
+  display: block;
+  height: 20px;
+}
+
+.code-reader__scroll {
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.code-reader__pre {
+  margin: 0;
+  padding: 16px 20px 16px 12px;
+  width: max-content;
+  min-width: 100%;
+  white-space: pre;
+  tab-size: 2;
+  font: inherit;
+  color: color-mix(in srgb, var(--color-content) 90%, transparent);
+}
