@@ -11,6 +11,7 @@ import { canvasElementsToText, type Canvas } from "../features/canvas/canvas";
 import type { CanvasPane } from "../features/canvas/ui/CanvasPane";
 import type { Note } from "../features/notes";
 import { clearComposerDraft, getComposerDraft, setComposerDraft } from "../features/sessions/model/draftCache";
+import { ADD_TO_CHAT_EVENT } from "../features/sessions/model/quoteDraft";
 import { newSession, type Block, type Session } from "../features/sessions/model/session";
 import { clearTranscriptJump, peekTranscriptJump, requestTranscriptJump } from "../features/sessions/model/transcriptJump";
 import { openLearningDiscussion } from "../features/learning/model/navigation";
@@ -370,6 +371,19 @@ it("reads one thing at a time beside the mentor: each opened item replaces the l
   await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW", ctrlKey: true, metaKey: true, bubbles: true, cancelable: true })); });
   await settle(() => expect(reader().dataset.mentorReader).toBe("empty"));
   expect(pane("chat-a")).not.toBeNull();
+}, 15000);
+
+it("unfolds the conversation when a passage is added to it from the reader", async () => {
+  await renderMentor();
+  const column = () => workspace().querySelector<HTMLElement>(".mentor-chat-column")!;
+  expect(column().hasAttribute("hidden")).toBe(false);
+  await click(workspace().querySelector<HTMLButtonElement>(".mentor-chat-toggle")!);
+  expect(column().hasAttribute("hidden")).toBe(true);
+  await act(async () => {
+    window.dispatchEvent(new CustomEvent(ADD_TO_CHAT_EVENT, { detail: { text: "A passage worth discussing.", mode: "quote", targetSessionId: "chat-a" } }));
+  });
+  await settle(() => expect(column().hasAttribute("hidden")).toBe(false));
+  await settle(() => expect(getComposerDraft("chat-a")).toContain("A passage worth discussing."));
 }, 15000);
 
 it("shows only the current mentor when switching, each with what it was reading", async () => {
