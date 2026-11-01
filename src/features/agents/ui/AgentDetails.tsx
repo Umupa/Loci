@@ -25,6 +25,8 @@ import { addMemoryEntry, memoryDate, memoryEntry, memoryLines, withLineEdited, w
 import { AgentAvatarPreview } from "./AgentAvatar";
 import { ColorPicker, FacePicker, ProjectsField } from "./agentPanelParts";
 import { Popover } from "../../../shared/ui/Popover";
+import { ask } from "@tauri-apps/plugin-dialog";
+import { AGENT_TEMPLATES, type AgentTemplate } from "../templates";
 
 type Props = {
   agent: Agent;
@@ -256,13 +258,31 @@ function SoulPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
       else setConflict(true);
     }
   };
+  // A deliberate replacement, confirmed first: it goes over the file as it is now, draft included.
+  const replace = async (template: AgentTemplate) => {
+    const confirmed = await ask(`Its current Soul is replaced by the ${template.name} template, including any changes you or it made. This can't be undone. Its conversation, memory, library and files are kept.`,
+      { title: `Replace the Soul with ${template.name}?`, kind: "warning", okLabel: "Replace", cancelLabel: "Cancel" });
+    if (!confirmed) return;
+    try {
+      const hash = await editAgentFile(agentId, "soul", () => template.soul);
+      opened.current = { text: template.soul, hash };
+      setText(template.soul);
+      setConflict(false);
+      setError(undefined);
+    } catch (replaceError) {
+      setError(String(replaceError));
+    }
+  };
   // Leaving the page is leaving the field.
   const latest = useRef(save);
   latest.current = save;
   useEffect(() => () => void latest.current().catch(() => undefined), []);
   return (
     <div className="agent-settings-file-page flex min-h-0 flex-1 flex-col gap-3">
-      <p className="text-xs leading-snug text-content/45">The rules it keeps while helping you. Refine them here or in chat.</p>
+      <div className="flex items-start gap-3">
+        <p className="min-w-0 flex-1 text-xs leading-snug text-content/45">The rules it keeps while helping you. Refine them here or in chat.</p>
+        <TemplatePicker onPick={(template) => void replace(template)} />
+      </div>
       <textarea aria-label="Soul" value={text} spellCheck={false} className={`${fieldClass} min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed`}
         onChange={(event) => setText(event.target.value)} onBlur={() => void save()} />
       {conflict ? (
@@ -275,6 +295,23 @@ function SoulPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
       {error ? <p role="alert" className="text-[11px] text-red-400">Could not save the Soul. {error}</p> : null}
     </div>
   );
+}
+
+/** The built-in templates a Soul can be replaced with, e.g. to move an older mentor to the current one. */
+function TemplatePicker({ onPick }: { onPick: (template: AgentTemplate) => void }) {
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
+  return <>
+    <button ref={anchor} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}
+      className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Replace with template…</button>
+    {open ? <Popover anchor={anchor} side="bottom" align="end" width={300} constrainHeight={false} onDismiss={() => setOpen(false)} autoFocus role="menu" aria-label="Templates" className="flex flex-col gap-0.5 p-1">
+      {AGENT_TEMPLATES.map((template) => <button key={template.id} type="button" role="menuitem" onClick={() => { setOpen(false); onPick(template); }}
+        className="flex flex-col items-start gap-0.5 rounded-md px-2.5 py-2 text-left hover:bg-content/6">
+        <span className="text-[12px] font-medium text-content">{template.name} <span className="font-normal text-content/45">· {template.role}</span></span>
+        <span className="text-[11px] leading-snug text-content/55">{template.summary}</span>
+      </button>)}
+    </Popover> : null}
+  </>;
 }
 
 /** Facts stay editable even if another writer inserts or removes rows. */

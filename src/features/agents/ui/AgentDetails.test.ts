@@ -3,6 +3,8 @@ import { act, createElement, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
+import { ask } from "@tauri-apps/plugin-dialog";
+import { AGENT_TEMPLATES } from "../templates";
 import { saveModelControls } from "../../settings/model/settings";
 import { resetHarnessModelOverlays, setHarnessModels } from "../../sessions/model/models";
 import { newSession } from "../../sessions/model/session";
@@ -212,4 +214,36 @@ it("keeps the Soul draft and says so when the save fails", async () => {
   expect(container.querySelector('[role="alert"]')?.textContent).toContain("Could not save the Soul");
   expect(container.querySelector('[role="alert"]')?.textContent).toContain("Permission denied");
   expect(field().value).toBe("# Changed soul");
+});
+
+it("replaces the Soul with a template only after the warning is confirmed", async () => {
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  const saves: unknown[] = [];
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === "agent_load") return { id: "agent", soul: "# Soul\nold rules", soulHash: "s", memory: "", memoryHash: "m", topics: [] };
+    if (command === "agent_read") return { text: "# Soul\nold rules", hash: "s" };
+    if (command === "agent_save") { saves.push(args); return "s2"; }
+    return original(command, args);
+  });
+  await render();
+  await act(async () => [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((item) => item.textContent === "Soul")!.click());
+  const field = () => container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Soul"]')!;
+  const lens = AGENT_TEMPLATES.find((template) => template.id === "repo-lens")!;
+  const pick = async () => {
+    await act(async () => [...container.querySelectorAll("button")].find((item) => item.textContent === "Replace with template…")!.click());
+    const items = [...container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+    expect(items.map((item) => item.textContent)).toEqual(AGENT_TEMPLATES.map((template) => expect.stringContaining(template.name)));
+    await act(async () => { items.find((item) => item.textContent?.startsWith(lens.name))!.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  };
+
+  vi.mocked(ask).mockResolvedValueOnce(false);
+  await pick();
+  expect(ask).toHaveBeenCalledWith(expect.stringContaining("can't be undone"), expect.objectContaining({ kind: "warning", okLabel: "Replace" }));
+  expect(saves).toEqual([]);
+  expect(field().value).toBe("# Soul\nold rules");
+
+  vi.mocked(ask).mockResolvedValueOnce(true);
+  await pick();
+  expect(saves).toEqual([expect.objectContaining({ agent: "agent", text: lens.soul, expectedHash: "s" })]);
+  expect(field().value).toBe(lens.soul);
 });
