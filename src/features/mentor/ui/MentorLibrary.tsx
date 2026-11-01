@@ -46,9 +46,16 @@ type Props = {
   courseBadge?: CourseBadge;
 };
 
-/** The segment a mentor without a remembered choice opens on. */
-export function defaultSegment(data: LibraryData, page?: MentorPage): LibrarySegment {
-  return page?.kind === "course" || !data.courses || data.courses.length ? "courses" : "sources";
+/**
+ * The segment a mentor without a remembered choice opens on: the kind of thing
+ * the reader already shows, and Courses otherwise. It reads only the page, so
+ * a late listing cannot move the tab after it has been seen.
+ */
+export function defaultSegment(page?: MentorPage): LibrarySegment {
+  if (page?.kind === "document") return "sources";
+  if (page?.kind === "note" || page?.kind === "canvas") return "notes";
+  if (page?.kind === "file") return "files";
+  return "courses";
 }
 
 /**
@@ -59,7 +66,7 @@ export function defaultSegment(data: LibraryData, page?: MentorPage): LibrarySeg
 export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, onFileMoved, onFileDeleted, segment: chosen, course, filter, onChange, onDraft, courseBadge }: Props) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
-  const segment = chosen ?? defaultSegment(data, page);
+  const segment = chosen ?? defaultSegment(page);
   // A new segment starts at its first row, not at the old list's offset.
   useLayoutEffect(() => { if (panel.current) panel.current.scrollTop = 0; }, [segment]);
   const query = filter?.segment === segment ? filter.text : "";

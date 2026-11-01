@@ -200,13 +200,14 @@ it("gives focus back to the course switcher when its menu closes", async () => {
   expect(document.activeElement).toBe(switcher);
 });
 
-it("filters the segment a mentor opens on before any segment was chosen", async () => {
+it("filters the segment being shown", async () => {
   vi.mocked(invoke).mockImplementation(async (command) => {
     if (command === "course_list_all" || command === "notes_list" || command === "canvas_list") return [];
     if (command === "agent_documents_list") return [...documents, { ...documents[0], id: "dns", title: "DNS notes", sourceUrl: undefined }];
     throw new Error(`Unexpected command: ${command}`);
   });
   await render();
+  await tab("sources");
   const filter = () => container.querySelector<HTMLInputElement>('input[aria-label="Filter sources"]')!;
   await vi.waitFor(() => expect(container.querySelectorAll("[data-resource-kind]")).toHaveLength(2));
   await act(async () => {
@@ -222,9 +223,9 @@ it("offers to ask for a course when the mentor has none", async () => {
     if (command === "course_list_all" || command === "agent_documents_list" || command === "notes_list" || command === "canvas_list") return [];
     throw new Error(`Unexpected command: ${command}`);
   });
-  localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [agent.id]: { segment: "courses" } }));
   await render();
   await vi.waitFor(() => expect(container.textContent).toContain("No course yet."));
+  expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("data-segment")).toBe("courses");
   await click(".library-ask");
   expect(drafts).toEqual(["I'd like a new course on "]);
 });
