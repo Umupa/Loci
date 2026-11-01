@@ -276,7 +276,9 @@ fn reset_data(store: &SessionStore, dir: &Path) -> Result<(), String> {
     // SQLite's internal tables and migration history must survive verbatim.
     let tables = {
         let mut statement = transaction.prepare(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB 'sqlite_*' AND name != 'schema_migrations'"
+            // The full-text index follows mentor_content through its triggers;
+            // its own tables must never be cleared by hand.
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB 'sqlite_*' AND name != 'schema_migrations' AND name NOT GLOB 'mentor_content_fts*'"
         ).map_err(|e| e.to_string())?;
         let rows = statement
             .query_map([], |row| row.get::<_, String>(0))
@@ -373,12 +375,16 @@ mod tests {
              INSERT INTO course_progress VALUES ('a','course','item','learning');
              INSERT INTO learning_sources VALUES ('source','{}',1);
              INSERT INTO reading_documents VALUES ('doc','/document.pdf','title','fingerprint',1,1);
-             INSERT INTO pdf_annotations(id,document_id,source_id,anchors_json,note,discussions_json,created_at,updated_at) VALUES ('annotation','doc','source','[]','note','[]',1,1);"
+             INSERT INTO pdf_annotations(id,document_id,source_id,anchors_json,note,discussions_json,created_at,updated_at) VALUES ('annotation','doc','source','[]','note','[]',1,1);
+             INSERT INTO mentors (id,folder,added_at) VALUES ('a','/Loci/a',1);
+             INSERT INTO mentor_content (agent_id,kind,id,rel_path,title,hash,size,mtime_ns,created_at,updated_at,indexed_at) VALUES ('a','guide','g','guides/g.md','title','h',1,1,1,1,1);
+             INSERT INTO lesson_progress VALUES ('a','course','item','learning',1);
+             INSERT INTO mentor_state VALUES ('a','view','{}',1);"
         ).unwrap();
     }
     fn table_counts(store: &SessionStore) -> Vec<(String, i64)> {
         let conn = store.lock_conn().unwrap();
-        let mut query = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB 'sqlite_*' ORDER BY name").unwrap();
+        let mut query = conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB 'sqlite_*' AND name NOT GLOB 'mentor_content_fts*' ORDER BY name").unwrap();
         query
             .query_map([], |row| row.get::<_, String>(0))
             .unwrap()
@@ -493,7 +499,7 @@ mod tests {
         seed(&store);
         assert_eq!(
             table_counts(&store).len(),
-            14,
+            18,
             "Update fixtures when the schema grows"
         );
         assert!(table_counts(&store).iter().all(|(_, count)| *count == 1));
