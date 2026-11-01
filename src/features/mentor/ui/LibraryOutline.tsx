@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "../../../shared/ui/icons";
 import type { CourseWithProgress, LearningStatus } from "../../learning/model/course";
-import { READING_STATUS } from "../../learning/ui/CourseOutline";
+import { statusLabel } from "../../learning/ui/CourseOutline";
 import { listKeyDown } from "./listKeys";
 
 type Props = {
@@ -22,6 +22,7 @@ type Chapter = { key: string; title: string | null; lessons: { id: string; title
  * folded unless the open lesson is in it.
  */
 export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
+  const marksId = useId();
   const reading = course.data.engine === "reading";
   const chapters: Chapter[] = course.data.engine === "reading"
     ? course.data.chapters.map((chapter, at) => ({ key: String(at), title: chapter.title, lessons: chapter.lessons }))
@@ -59,15 +60,17 @@ export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
       const lessons = open ? <ol className="library-outline-lessons">{chapter.lessons.map((lesson, index) => {
         const state = status(lesson.id);
         const current = lesson.id === activeId;
+        const marks = badge?.(lesson.id);
         return <li key={lesson.id}>
           <button ref={current ? active : undefined} type="button" data-library-item data-library-lesson={lesson.id}
             className={`library-lesson library-lesson--${state}${current ? " library-lesson--current" : ""}`}
-            aria-current={current ? "step" : undefined} aria-label={`${lesson.title}, ${reading ? READING_STATUS[state] : state}`}
+            aria-current={current ? "step" : undefined} aria-label={`${lesson.title}, ${statusLabel(state, reading)}`}
+            aria-describedby={marks ? `${marksId}-${lesson.id}` : undefined}
             title={lesson.title} onClick={() => onSelect(lesson.id)}>
             <span aria-hidden className={`library-mark library-mark--${state}`}>{state === "mastered" ? "✓" : ""}</span>
             <span className="library-lesson-number" aria-hidden>{String(first + index + 1).padStart(2, "0")}</span>
             <span className="library-lesson-title">{lesson.title}</span>
-            {badge?.(lesson.id)}
+            {marks ? <span id={`${marksId}-${lesson.id}`} className="ml-auto flex">{marks}</span> : null}
           </button>
         </li>;
       })}</ol> : null;

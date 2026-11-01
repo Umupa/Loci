@@ -134,7 +134,7 @@ it("opens the first unmastered step, saves progress, and recovers it after remou
   await act(async () => root.render(pane())); expect(nav("Step s02").getAttribute("aria-current")).toBe("step"); expect(container.textContent).toContain("Explanation s02");
   await act(async () => button("Mark as mastered").click());
   expect(invoke).toHaveBeenCalledWith("course_progress_set", { courseId: "build", agentId: "owner", itemId: "s02", status: "mastered" });
-  expect(nav("Step s02").getAttribute("aria-label")).toContain("mastered");
+  expect(nav("Step s02").getAttribute("aria-label")).toBe("Step s02, Done");
   act(() => root.unmount()); root = createRoot(container); await act(async () => root.render(pane())); expect(nav("Step s03").getAttribute("aria-current")).toBe("step");
 });
 
@@ -224,7 +224,7 @@ it("merges progress saved by another pane while its early progress snapshot is s
   const read = deferred<unknown>(); vi.mocked(invoke).mockImplementation(async (name, args) => name === "course_get" ? read.promise : command(name, args));
   await act(async () => root.render(pane()));
   act(() => window.dispatchEvent(new CustomEvent("loci:course-progress", { detail: { courseId: "build", agentId: "owner", itemId: "s01", status: "mastered" } })));
-  await act(async () => read.resolve(stored(build))); expect(nav("Step s01").getAttribute("aria-label")).toContain("mastered"); expect(nav("Step s02").getAttribute("aria-current")).toBe("step");
+  await act(async () => read.resolve(stored(build))); expect(nav("Step s01").getAttribute("aria-label")).toBe("Step s01, Done"); expect(nav("Step s02").getAttribute("aria-current")).toBe("step");
 });
 
 it("prepares scoped course progress in the original conversation without sending it", async () => {
@@ -244,7 +244,7 @@ it("keeps same-id courses from different owners separate during a pane switch", 
   progress.set(key("owner", "build"), new Map([["s01", "mastered"]]));
   await act(async () => root.render(pane())); await act(async () => root.render(pane("build", "other-owner")));
   expect(container.textContent).toContain("Other explanation"); expect(container.textContent).not.toContain("Explanation s02");
-  expect(nav("Other lesson").getAttribute("aria-label")).toContain("untouched");
+  expect(nav("Other lesson").getAttribute("aria-label")).toBe("Other lesson, Not started");
   await act(async () => button("Mark as mastered").click());
   expect(progress.get(key("other-owner", "build"))?.get("s01")).toBe("mastered"); expect(progress.get(key("owner", "build"))?.get("s02")).toBeUndefined();
 });

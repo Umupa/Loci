@@ -67,7 +67,9 @@ export function LessonMarks({ agentId, courseId, lessonId }: { agentId: string; 
   const count = lessonId ? counts.get(lessonId) : [...counts.values()].reduce((sum, entry) => ({ highlights: sum.highlights + entry.highlights, notes: sum.notes + entry.notes }), { highlights: 0, notes: 0 });
   if (!count?.highlights) return null;
   const label = markLabel(count);
-  return <span className="lesson-marks" title={label} aria-label={label} data-lesson-marks={count.highlights}>
-    {count.highlights}{count.notes ? <i aria-hidden className="lesson-marks__note" /> : null}
+  return <span className="lesson-marks" title={label} data-lesson-marks={count.highlights}>
+    <span aria-hidden="true">{count.highlights}</span>
+    {count.notes ? <i aria-hidden className="lesson-marks__note" /> : null}
+    <span className="sr-only">{label}</span>
   </span>;
 }

@@ -18,15 +18,33 @@ type Props = {
   onOpen: (page: MentorPage) => void;
   /** One line said when there is nothing yet. */
   empty: string;
+  /** What this list holds, as a load failure names it. */
+  subject: string;
+  /** Why this list could not be read, if it could not. */
+  error?: string;
+  onRetry?: () => void;
 };
 
+/** A list that failed to load, said in the panel that wanted it. */
+export function LibraryLoadError({ subject, onRetry }: { subject: string; onRetry?: () => void }) {
+  return <div role="alert" className="mentor-library-error">
+    <p>Couldn't load {subject}.</p>
+    {onRetry ? <button type="button" onClick={onRetry}>Retry</button> : null}
+  </div>;
+}
+
 /** One kind of thing the mentor keeps, filtered; ↑/↓ move between rows. */
-export function LibraryList({ entries, query, isCurrent, onOpen, empty }: Props) {
+export function LibraryList({ entries, query, isCurrent, onOpen, empty, subject, error, onRetry }: Props) {
+  if (entries === undefined && error) return <LibraryLoadError subject={subject} onRetry={onRetry} />;
   if (entries === undefined) return <p role="status" className="mentor-library-empty">Loading…</p>;
-  if (!entries.length) return <p className="mentor-library-empty">{empty}</p>;
+  if (!entries.length) return <>
+    {error ? <LibraryLoadError subject={subject} onRetry={onRetry} /> : null}
+    <p className="mentor-library-empty">{empty}</p>
+  </>;
   const shown = query.trim() ? entries.filter((entry) => matchesFilter(entry, query)) : entries;
   if (!shown.length) return <p className="mentor-library-empty">Nothing matches “{query.trim()}”.</p>;
   return <div className="mentor-library-body" onKeyDown={listKeyDown}>
+    {error ? <LibraryLoadError subject={subject} onRetry={onRetry} /> : null}
     {shown.map((entry) => <button key={`${entry.kind}:${entry.id}`} type="button" className="mentor-library-row" data-library-item
       data-resource-kind={entry.kind} data-resource-id={entry.id} aria-label={`${entry.kind}: ${entry.title}`}
       aria-current={isCurrent(entry.target) || undefined} title={entry.subtitle ? `${entry.title}\n${entry.subtitle}` : entry.title}

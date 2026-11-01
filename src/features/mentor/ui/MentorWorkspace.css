@@ -34,13 +34,22 @@
 .mentor-resize--left { left: -3px; }
 .mentor-resize:hover { background: color-mix(in srgb, var(--color-accent) 40%, transparent); }
 
-.mentor-library { display: flex; min-height: 0; flex: 1; flex-direction: column; font-family: var(--font-sans); }
+.mentor-library { display: flex; min-height: 0; flex: 1; flex-direction: column; container: library / inline-size; font-family: var(--font-sans); }
 .mentor-library-segments { display: flex; flex: none; gap: 2px; margin: 8px 8px 4px; padding: 2px; border-radius: 7px; background: color-mix(in srgb, var(--color-content) 6%, transparent); }
 .mentor-library-segment { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: 5px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 55%, transparent); white-space: nowrap; }
 .mentor-library-segment > span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .mentor-library-segment:hover { color: var(--color-content); }
 .mentor-library-segment[aria-selected="true"] { background: var(--color-selection); color: var(--color-content); font-weight: 600; box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent); }
 .mentor-library-count { font-size: 10.5px; font-variant-numeric: tabular-nums; font-weight: 500; opacity: .6; }
+/* Counts give way before the segment names do; below the narrowest comfortable
+   width the four names take two rows rather than ellipses. */
+@container library (max-width: 300px) {
+  .mentor-library-count { display: none; }
+}
+@container library (max-width: 224px) {
+  .mentor-library-segments { display: grid; grid-template-columns: 1fr 1fr; }
+  .mentor-library-segment { height: 22px; }
+}
 .mentor-library-filter { display: flex; flex: none; align-items: center; gap: 2px; margin: 2px 8px 4px; }
 .mentor-library-filter-box { position: relative; display: flex; min-width: 0; flex: 1; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 8px; border-radius: 6px; background: color-mix(in srgb, var(--color-content) 4%, transparent); }
 .mentor-library-filter-box:focus-within { background: color-mix(in srgb, var(--color-content) 7%, transparent); }
@@ -91,8 +100,7 @@
 .library-continue { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 8px; margin: 2px 2px 8px; padding: 8px 8px 8px 10px; border: 1px solid var(--color-stroke); border-radius: 8px; }
 .library-continue-label { grid-column: 1; font-size: 10.5px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
 .library-continue-title { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--color-content); }
-.library-continue-button { grid-column: 2; grid-row: 1 / span 2; height: 24px; padding: 0 9px; border-radius: 6px; background: var(--color-accent); color: white; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
-.library-continue-button:hover { filter: brightness(1.08); }
+.library-continue-button { grid-column: 2; grid-row: 1 / span 2; height: 24px; padding: 0 9px; border-radius: 6px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
 .library-courses-empty { display: flex; flex-direction: column; align-items: flex-start; }
 .library-ask { display: inline-flex; align-items: center; gap: 6px; height: 26px; margin: 0 4px; padding: 0 8px; border-radius: 6px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
 .library-ask:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); color: var(--color-content); }
@@ -103,7 +111,6 @@
 .library-chapter-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; }
 .library-lesson { display: flex; width: 100%; align-items: flex-start; gap: 7px; padding: 4px 8px 4px 10px; border-radius: 6px; text-align: left; font-size: 12px; line-height: 1.45; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
 .library-lesson:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); }
-.library-lesson--mastered { opacity: .5; }
 .library-lesson--current { opacity: 1; background: color-mix(in srgb, var(--color-accent) 18%, transparent); color: var(--color-content); font-weight: 600; }
 .library-lesson--current:hover { background: color-mix(in srgb, var(--color-accent) 24%, transparent); }
 .library-lesson-number { flex: none; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-content) 40%, transparent); }

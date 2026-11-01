@@ -24,6 +24,7 @@ it("shows a lesson's highlights with a note dot, the course total, nothing at ze
   await render();
   const marks = [...host.querySelectorAll<HTMLElement>("[data-lesson-marks]")];
   expect(marks.map((mark) => mark.title)).toEqual(["3 highlights · 1 note", "3 highlights · 1 note"]);
+  expect(marks[0].querySelector(".sr-only")?.textContent).toBe("3 highlights · 1 note");
   counts.value = new Map([["phase", { highlights: 1, notes: 0 }]]);
   await act(async () => { window.dispatchEvent(new Event("loci:learning-changed")); await new Promise((resolve) => setTimeout(resolve, 10)); });
   expect(host.querySelector<HTMLElement>("[data-lesson-marks]")!.title).toBe("1 highlight");

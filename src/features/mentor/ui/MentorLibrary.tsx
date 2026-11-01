@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import { File, Palette, Plus, Search, StickyNote, X } from "../../../shared/ui/icons";
 import type { Canvas } from "../../canvas/canvas";
@@ -30,6 +30,10 @@ type Props = {
   onNewNote: () => void;
   creatingNote: boolean;
   onOpenFile: OpenFileFn;
+  /** A file or folder in the Files tree was renamed or moved. */
+  onFileMoved?: (from: string, to: string) => void;
+  /** A file or folder in the Files tree went to the Trash. */
+  onFileDeleted?: (path: string) => void;
   /** The segment chosen for this mentor; unset picks one from what it has. */
   segment?: LibrarySegment;
   /** The course the Courses segment shows. */
@@ -42,9 +46,16 @@ type Props = {
   courseBadge?: CourseBadge;
 };
 
-/** The segment a mentor without a remembered choice opens on. */
-export function defaultSegment(data: LibraryData, page?: MentorPage): LibrarySegment {
-  return page?.kind === "course" || !data.courses || data.courses.length ? "courses" : "sources";
+/**
+ * The segment a mentor without a remembered choice opens on: the kind of thing
+ * the reader already shows, and Courses otherwise. It reads only the page, so
+ * a late listing cannot move the tab after it has been seen.
+ */
+export function defaultSegment(page?: MentorPage): LibrarySegment {
+  if (page?.kind === "document") return "sources";
+  if (page?.kind === "note" || page?.kind === "canvas") return "notes";
+  if (page?.kind === "file") return "files";
+  return "courses";
 }
 
 /**
@@ -52,12 +63,18 @@ export function defaultSegment(data: LibraryData, page?: MentorPage): LibrarySeg
  * shows the course being learned and where to continue; Sources, Notes (with
  * drawings) and Files are one list each, with a filter for that list.
  */
-export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, segment: chosen, course, filter, onChange, onDraft, courseBadge }: Props) {
+export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, onFileMoved, onFileDeleted, segment: chosen, course, filter, onChange, onDraft, courseBadge }: Props) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
-  const segment = chosen ?? defaultSegment(data, page);
+  const segment = chosen ?? defaultSegment(page);
+  // A new segment starts at its first row, not at the old list's offset.
+  useLayoutEffect(() => { if (panel.current) panel.current.scrollTop = 0; }, [segment]);
   const query = filter?.segment === segment ? filter.text : "";
-  const failure = Object.values(errors).find(Boolean);
+  // Only the segment being shown reports its own load failure.
+  const failure = segment === "courses" ? errors.courses
+    : segment === "sources" ? errors.documents
+      : segment === "notes" ? errors.notes ?? errors.canvases
+        : undefined;
   const notesCount = data.notes || data.canvases ? (data.notes?.length ?? 0) + (data.canvases?.length ?? 0) : undefined;
   const counts: Record<LibrarySegment, number | undefined> = {
     courses: data.courses && data.courses.length > 1 ? data.courses.length : undefined,
@@ -98,17 +115,19 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
   let body: ReactNode;
   if (segment === "courses") {
     body = <LibraryCourses agent={agent} courses={data.courses} selected={course} page={page} lesson={lesson}
-      onOpen={onOpen} onSelect={(courseId) => onChange({ course: courseId })} onDraft={onDraft} badge={courseBadge} />;
+      onOpen={onOpen} onSelect={(courseId) => onChange({ course: courseId })} onDraft={onDraft} badge={courseBadge}
+      error={failure} onRetry={onRetry} />;
   } else if (segment === "files") {
-    body = MentorFilesSection ? <MentorFilesSection agentId={agent.id} filter={query} onOpenFile={(path) => onOpenFile(path)} /> : null;
+    body = MentorFilesSection ? <MentorFilesSection agentId={agent.id} filter={query} onOpenFile={(path) => onOpenFile(path)}
+      onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} onClearQuery={() => onChange({ segment, filter: "" })} /> : null;
   } else {
     const entries = segment === "sources" ? sources : notes;
     body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={onOpen}
+      subject={segment === "sources" ? "sources" : "notes"} error={failure} onRetry={onRetry}
       empty={segment === "sources" ? `Material ${agentLook(agent).name} saves, and documents it writes, appear here.` : "Your notes and drawings appear here."} />;
   }
 
   return <nav className="mentor-library" aria-label={`${agent.name || "Mentor"} library`} data-mentor-library={agent.id} data-library-segment={segment}>
-    {failure ? <div role="alert" className="mentor-library-error"><p>{failure}</p><button type="button" onClick={onRetry}>Retry</button></div> : null}
     <div role="tablist" aria-label="Library" className="mentor-library-segments" onKeyDown={tabKeys}>
       {LIBRARY_SEGMENTS.map((entry) => <button key={entry} type="button" role="tab" id={`${id}-${entry}`} data-segment={entry}
         aria-selected={entry === segment} aria-controls={`${id}-panel`} tabIndex={entry === segment ? 0 : -1}

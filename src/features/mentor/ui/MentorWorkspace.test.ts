@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { MENTOR_VIEW_KEY, useMentorView } from "../../../app/hooks/useMentorView";
 import { invalidateCanvases } from "../../canvas/canvas";
+import { getFileDraft, setFileDraft } from "../../files/model/fileDrafts";
 import type { Note } from "../../notes";
 import { agentCanvasScope, type Agent } from "../../agents/model/agent";
 import { MentorWorkspace } from "./MentorWorkspace";
@@ -22,8 +23,17 @@ vi.mock("../../learning/ui/CoursePane", () => ({
       createElement("button", { onClick: () => onLessonChange({ id: "service", title: "Service" }) }, "Read service")),
 }));
 vi.mock("../../agents/ui/AgentFilesSection", () => ({
-  AgentFilesSection: ({ agentId, onOpenFile }: { agentId: string; onOpenFile: (path: string) => void }) =>
-    createElement("button", { "data-test-files": agentId, onClick: () => onOpenFile(`/home/user/Loci/${agentId}/repos/notes.md`) }, "notes.md"),
+  AgentFilesSection: ({ agentId, onOpenFile, onFileMoved, onFileDeleted }: {
+    agentId: string; onOpenFile: (path: string) => void;
+    onFileMoved?: (from: string, to: string) => void; onFileDeleted?: (path: string) => void;
+  }) => {
+    const path = `/home/user/Loci/${agentId}/repos/notes.md`;
+    const next = `/home/user/Loci/${agentId}/repos/notes-v2.md`;
+    return createElement("div", null,
+      createElement("button", { "data-test-files": agentId, onClick: () => onOpenFile(path) }, "notes.md"),
+      createElement("button", { "data-test-file-move": agentId, onClick: () => onFileMoved?.(path, next) }, "rename notes.md"),
+      createElement("button", { "data-test-file-delete": agentId, onClick: () => onFileDeleted?.(next) }, "trash notes.md"));
+  },
 }));
 vi.mock("../../files/ui/FilePane", () => ({ FilePane: ({ path }: { path: string }) => createElement("section", { "data-test-file": path }, path) }));
 vi.mock("../../canvas/ui/CanvasPane", () => ({ CanvasPane: ({ canvas }: { canvas: { title: string } }) => createElement("section", { "data-test-canvas": true }, canvas.title) }));
@@ -180,13 +190,24 @@ it("switches course from the menu, landing in it, and asks the mentor for a new 
   expect(drafts).toEqual(["I'd like a new course on "]);
 });
 
-it("filters the segment a mentor opens on before any segment was chosen", async () => {
+it("gives focus back to the course switcher when its menu closes", async () => {
+  await render();
+  await vi.waitFor(() => expect(container.querySelector(".library-switcher")).not.toBeNull());
+  const switcher = container.querySelector<HTMLButtonElement>(".library-switcher")!;
+  await act(async () => { switcher.focus(); switcher.click(); });
+  expect(document.activeElement).not.toBe(switcher);
+  await act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  expect(document.activeElement).toBe(switcher);
+});
+
+it("filters the segment being shown", async () => {
   vi.mocked(invoke).mockImplementation(async (command) => {
     if (command === "course_list_all" || command === "notes_list" || command === "canvas_list") return [];
     if (command === "agent_documents_list") return [...documents, { ...documents[0], id: "dns", title: "DNS notes", sourceUrl: undefined }];
     throw new Error(`Unexpected command: ${command}`);
   });
   await render();
+  await tab("sources");
   const filter = () => container.querySelector<HTMLInputElement>('input[aria-label="Filter sources"]')!;
   await vi.waitFor(() => expect(container.querySelectorAll("[data-resource-kind]")).toHaveLength(2));
   await act(async () => {
@@ -202,11 +223,38 @@ it("offers to ask for a course when the mentor has none", async () => {
     if (command === "course_list_all" || command === "agent_documents_list" || command === "notes_list" || command === "canvas_list") return [];
     throw new Error(`Unexpected command: ${command}`);
   });
-  localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [agent.id]: { segment: "courses" } }));
   await render();
   await vi.waitFor(() => expect(container.textContent).toContain("No course yet."));
+  expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("data-segment")).toBe("courses");
   await click(".library-ask");
   expect(drafts).toEqual(["I'd like a new course on "]);
+});
+
+it("reports a failed list in its own segment, with a retry", async () => {
+  let noteLoads = 0;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    const input = args as { agentId?: string; id?: string };
+    if (command === "course_list_all") return [{ id: "kube", agentId: agent.id, title: "Ada's course", engine: "reading", itemCount: 2, masteredCount: 1, updatedAt: 2 }];
+    if (command === "course_get") return { id: input.id, agentId: input.agentId, title: "Ada's course", updatedAt: 2, engine: "reading", dataJson: courseData };
+    if (command === "course_progress_get") return [];
+    if (command === "agent_documents_list") return documents;
+    if (command === "notes_list") { noteLoads += 1; throw new Error("disk full"); }
+    if (command === "canvas_list") return [];
+    if (command === "agent_read") return { text: "[]", hash: "h" };
+    throw new Error(`Unexpected command: ${command}`);
+  });
+  await render();
+  await vi.waitFor(() => expect(container.textContent).toContain("Ada's course"));
+  expect(container.textContent).not.toContain("Couldn't load notes");
+  await tab("sources");
+  expect(container.querySelector('[data-resource-id="doc"]')).not.toBeNull();
+  expect(container.textContent).not.toContain("Couldn't load notes");
+  await tab("notes");
+  await vi.waitFor(() => expect(container.textContent).toContain("Couldn't load notes."));
+  const retry = [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Retry")!;
+  const before = noteLoads;
+  await act(async () => retry.click());
+  expect(noteLoads).toBeGreaterThan(before);
 });
 
 it("creates an owned note and opens it in the reader", async () => {
@@ -270,6 +318,14 @@ it("shows one segment at a time, remembered per mentor, and ignores an old mento
   expect(container.querySelector('[aria-label="Chat with Ada"]')).not.toBeNull();
 });
 
+it("starts a newly chosen segment at its top", async () => {
+  await render();
+  const panel = () => container.querySelector<HTMLElement>(".mentor-library-panel")!;
+  panel().scrollTop = 180;
+  await tab("files");
+  expect(panel().scrollTop).toBe(0);
+});
+
 it("filters only the segment it was typed in, and moves through a list with the arrow keys", async () => {
   notes = [{ id: "n1", slug: "n1", title: "Pods by hand", body: "", tags: [], agentId: agent.id, createdAt: 1, updatedAt: 5 } as Note];
   await render();
@@ -297,6 +353,25 @@ it("filters only the segment it was typed in, and moves through a list with the 
   await act(async () => selected.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
   expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("data-segment")).toBe("files");
   expect(document.activeElement?.getAttribute("data-segment")).toBe("files");
+});
+
+it("keeps the open file's reader and pending edits with it when the file is renamed or trashed", async () => {
+  const from = "/home/user/Loci/agent-a/repos/notes.md";
+  const to = "/home/user/Loci/agent-a/repos/notes-v2.md";
+  await render();
+  await tab("files");
+  await click('[data-test-files="agent-a"]');
+  await vi.waitFor(() => expect(container.querySelector("[data-test-file]")?.getAttribute("data-test-file")).toBe(from));
+  setFileDraft(from, { text: "edited", base: "original" });
+  await click('[data-test-file-move="agent-a"]');
+  expect(control.stateFor(agent.id).page).toEqual({ kind: "file", path: to });
+  expect(getFileDraft(from)).toBeNull();
+  expect(getFileDraft(to)).toEqual({ text: "edited", base: "original" });
+  expect(container.querySelector("[data-test-file]")?.getAttribute("data-test-file")).toBe(to);
+  await click('[data-test-file-delete="agent-a"]');
+  expect(container.querySelector("[data-test-file]")).toBeNull();
+  expect(reader().dataset.mentorReader).toBe("empty");
+  expect(getFileDraft(to)).toBeNull();
 });
 
 it("shows a conversation as the reader without remembering it", async () => {

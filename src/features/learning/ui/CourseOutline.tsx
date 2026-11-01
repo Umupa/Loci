@@ -5,6 +5,13 @@ import "./CoursePane.css";
 export { PROGRESS_EVENT, type ProgressDetail } from "../model/course";
 /** What a status is called where the work is reading. */
 export const READING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Reading", mastered: "Read" };
+/** What a status is called where the work is building. */
+export const LEARNING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Working", mastered: "Done" };
+
+/** A status in the words the course's kind of work uses. */
+export function statusLabel(status: LearningStatus, reading: boolean): string {
+  return reading ? READING_STATUS[status] : LEARNING_STATUS[status];
+}
 
 export function StatusMark({ status }: { status: LearningStatus }) {
   return <span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? "✓" : ""}</span>;
@@ -17,7 +24,7 @@ export function CourseOutline({ course, activeId, onSelect, id, hidden, classNam
   const mastered = items.filter((item) => course.progress.get(item.id) === "mastered").length;
   const row = (item: { id: string; title: string }, index: number) => {
     const status = course.progress.get(item.id) ?? "untouched";
-    return <li key={item.id}><button type="button" className={`course-pane__nav-item${activeId === item.id ? " course-pane__nav-item--active" : ""}`} aria-current={activeId === item.id ? "step" : undefined} aria-label={`${item.title}, ${reading ? READING_STATUS[status] : status}`} onClick={() => onSelect(item.id)}><StatusMark status={status} /><span className="course-pane__nav-label"><span className="course-pane__step-number">{String(index + 1).padStart(2, "0")}</span>{item.title}</span></button></li>;
+    return <li key={item.id}><button type="button" className={`course-pane__nav-item${activeId === item.id ? " course-pane__nav-item--active" : ""}`} aria-current={activeId === item.id ? "step" : undefined} aria-label={`${item.title}, ${statusLabel(status, reading)}`} onClick={() => onSelect(item.id)}><StatusMark status={status} /><span className="course-pane__nav-label"><span className="course-pane__step-number">{String(index + 1).padStart(2, "0")}</span>{item.title}</span></button></li>;
   };
   // Lessons are numbered through the whole course, in the order shown.
   let number = 0;

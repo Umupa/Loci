@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronRight } from "../../../shared/ui/icons";
 import { prettyCwd, projectName } from "../../../shared/lib/paths";
 import { FileTree, type OpenFileFn } from "../../files/ui/FileTree";
-import { agentsSnapshot, findAgent, subscribeAgents } from "../model/agent";
+import { agentLook, agentsSnapshot, findAgent, subscribeAgents } from "../model/agent";
 import { ensureAgentWorkdir } from "../model/agentWorkdir";
 
 type Props = {
@@ -11,8 +11,10 @@ type Props = {
   onOpenFile: OpenFileFn;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
-  /** Filters the working folder's tree by name or path; the tree then has no search field of its own. */
+  /** Filters the trees by name or path; they then have no search field of their own. */
   filter?: string;
+  /** Clears that filter, as choosing a folder from its matches does. */
+  onClearQuery?: () => void;
 };
 
 type Workdir = { path?: string; error?: string };
@@ -22,7 +24,7 @@ type Workdir = { path?: string; error?: string };
  * was given, each folded until opened. It fills the width it is given and
  * brings no layout of its own, so it can sit in any column.
  */
-export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDeleted, filter }: Props) {
+export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDeleted, filter, onClearQuery }: Props) {
   const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
   const agent = useMemo(() => findAgent(agentId), [agentId, snapshot]);
   const [workdir, setWorkdir] = useState<Workdir>({});
@@ -39,10 +41,12 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
   }, [agentId, saved]);
 
   if (!agent) return null;
+  const empty = `No files yet — ask ${agentLook(agent).name} to write one.`;
   return (
     <section className="flex min-h-0 min-w-0 flex-col" aria-label="Files">
       {workdir.path ? (
-        <FileTree key={workdir.path} cwd={workdir.path} rootLabel={projectName(workdir.path)} query={filter}
+        <FileTree key={workdir.path} cwd={workdir.path} rootLabel={projectName(workdir.path)} query={filter} onClearQuery={onClearQuery}
+          paneActions={false} empty={empty}
           header={<p className="truncate text-[11px] text-content/45" title={workdir.path}>{prettyCwd(workdir.path)}</p>}
           onOpenFile={onOpenFile} onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} />
       ) : workdir.error ? (
@@ -56,8 +60,8 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
         <div className="mt-2 flex flex-col">
           <p className="px-3 pb-1 text-[11px] font-medium text-content/45">Other folders</p>
           {agent.projects.map((path) => (
-            <OtherFolder key={path} path={path} onOpenFile={onOpenFile}
-              onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} />
+            <OtherFolder key={path} path={path} filter={filter} empty={empty} onOpenFile={onOpenFile}
+              onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} onClearQuery={onClearQuery} />
           ))}
         </div>
       ) : null}
@@ -65,7 +69,7 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
   );
 }
 
-function OtherFolder({ path, ...tree }: { path: string } & Omit<Props, "agentId" | "filter">) {
+function OtherFolder({ path, filter, empty, ...tree }: { path: string; empty: string } & Omit<Props, "agentId">) {
   const [open, setOpen] = useState(false);
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
@@ -75,7 +79,7 @@ function OtherFolder({ path, ...tree }: { path: string } & Omit<Props, "agentId"
         <Chevron className="size-3 shrink-0" />
         <span className="truncate">{projectName(path)}</span>
       </button>
-      {open ? <FileTree cwd={path} rootLabel={projectName(path)} {...tree} /> : null}
+      {open ? <FileTree cwd={path} rootLabel={projectName(path)} query={filter} paneActions={false} empty={empty} {...tree} /> : null}
     </div>
   );
 }
