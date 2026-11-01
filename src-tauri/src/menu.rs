@@ -107,10 +107,9 @@ pub fn dispatch(app: &AppHandle, id: &str) {
         }
         // Window actions target one window: a broadcast would make every
         // window act on a single menu click.
-        "new_mentor" | "close_reader" | "prev_mentor" | "next_mentor" | "toggle_library"
-        | "toggle_chat" | "zoom_in" | "zoom_out" | "zoom_reset" | "reload" | "open_pdf" => {
-            emit_to_focused(app, id)
-        }
+        "new_mentor" | "close_reader" | "reader_back" | "reader_forward" | "prev_mentor"
+        | "next_mentor" | "toggle_library" | "toggle_chat" | "zoom_in" | "zoom_out"
+        | "zoom_reset" | "reload" | "open_pdf" => emit_to_focused(app, id),
         _ => {}
     }
 }
@@ -183,6 +182,22 @@ fn build(
         "Reader: Close",
         overrides,
     )?;
+    let reader_back = menu_item(
+        app,
+        "reader_back",
+        "Back",
+        "CmdOrCtrl+[",
+        "Reader: Back",
+        overrides,
+    )?;
+    let reader_forward = menu_item(
+        app,
+        "reader_forward",
+        "Forward",
+        "CmdOrCtrl+]",
+        "Reader: Forward",
+        overrides,
+    )?;
     let prev_mentor = menu_item(
         app,
         "prev_mentor",
@@ -247,6 +262,8 @@ fn build(
         .item(&open_search)
         .separator()
         .item(&close_reader)
+        .item(&reader_back)
+        .item(&reader_forward)
         .separator()
         .item(&prev_mentor)
         .item(&next_mentor)

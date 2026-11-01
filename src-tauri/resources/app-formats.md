@@ -143,7 +143,7 @@ The `courses.write` input is one object:
 `id` and `title` are required; `engine` defaults to `reading`.
 Chapters and lessons are non-empty arrays. Each lesson has a unique `id`,
 `title`, and exactly one of `document` (an imported document ID) or `file`
-(an absolute path). `section` belongs to a document; `pages: [first, last]`
+(an absolute path, or a path in your folder such as `repos/…`). `section` belongs to a document; `pages: [first, last]`
 belongs to a file and uses positive, inclusive page numbers. A source or text
 file is shown in place, highlighted; `lines: [first, last]` (inclusive) shows
 only that range, which suits a code tour through a cloned repository. Name
@@ -156,6 +156,46 @@ A course can
 link a canvas through optional `canvasId`. Updating the same course ID retains
 progress for lesson IDs that remain in the course. A fence that still carries
 the JSON body after its front matter is shown as a preview; Open saves it.
+
+### Code-tour lessons
+
+A code-tour lesson reads lines of a file in a cloned repository, pinned to
+the commit you read: `"file": "repos/<owner>/<repo>@<sha>:path/in/repo#L40-88"`
+(or `file` plus `"commit": "<sha>"` and `lines`). Loci shows the file as it
+was at that commit, and tells the learner when the repository has moved past
+it and the file changed, with the current file one click away. Always pin
+code lessons:
+
+- `code.pin` with `file` (`repos/<owner>/<repo>/path`) and `lines` gives the
+  exact string for `file` (HEAD's full commit) and the numbered excerpt;
+- `code.read` shows numbered lines at a pin, to check what a lesson shows;
+- `code.symbols` lists a file's definitions with their lines, and
+  `code.definition` / `code.references` find where a name is defined or
+  used (Go, Rust, C, TypeScript, JavaScript, Python; matched by name), so a
+  tour can follow the real call path;
+- `code.pins` lists pinned lessons whose file changed since their commit,
+  with where the lines are now, so you can refresh them.
+
+A short commit is expanded when the course is saved; a commit the clone does
+not have is refused (fetch it first). In the reader the learner can open the
+whole file, see its symbols, and ⌘-click a name to go to its definition.
+Comparison lessons across repositories will use the same pinned form.
+
+### Learning path
+
+A broad goal is a path of 3–5 short courses (6–12 lessons each), in order.
+Write it with `path.write`:
+
+```json
+{"title":"Sandboxes from the source","courses":[{"id":"sandbox-foundations"},{"id":"cube-internals","after":["sandbox-foundations"]},{"id":"snapshots-compared","title":"Snapshot and restore, three ways","after":["cube-internals"]}]}
+```
+
+`courses` lists course ids in reading order; `after` names earlier courses
+the learner may want first. It is a hint shown in the library, never a lock:
+every course stays open. A course may be on the path before it is written;
+give it a `title` until then. `path.read` returns the path with how far each
+course is read. The path is the file `courses/_path.yaml`; `_path` is never a
+course id.
 
 The `build-your-own` engine uses `{"steps":[...]}`. Each step has a unique
 `id`, `title`, `summary`, `file`, `before`, `after`, `explanation`, and optional
@@ -205,6 +245,7 @@ SOUL.md  MEMORY.md  memory/   change only with soul.* and memory.*
 sources/<id>.md           first-hand text, verbatim, with front-matter
 guides/<id>.md            what you wrote: reading guides, briefs
 courses/<id>.yaml         courses
+courses/_path.yaml        the learning path (path.write)
 notes/<id>.md             notes
 canvases/<id>.excalidraw  drawings (Excalidraw files)
 repos/  lab/              cloned source and experiments; not indexed
@@ -249,8 +290,11 @@ chapters:
         document: kvm-api#4.1 KVM_CREATE_VM
       - id: vmm-loop
         title: The VMM loop in Firecracker
-        file: repos/firecracker-microvm/firecracker/src/vmm/src/lib.rs#L120-188
+        file: repos/firecracker-microvm/firecracker@3f2a9c1e5b7d4e6f8a9b0c1d2e3f4a5b6c7d8e9f:src/vmm/src/lib.rs#L120-188
 ```
+
+`repos/<repo>@<sha>:path` pins a code lesson to a commit (see Code-tour
+lessons); Loci writes pinned lessons back in this form.
 
 A note has front-matter `title`, optional `tags: [a, b]`, and its Markdown.
 

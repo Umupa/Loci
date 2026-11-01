@@ -1,0 +1,58 @@
+import { invoke } from "@tauri-apps/api/core";
+
+/** Where a file sits in its git repository. */
+export type RepoPlace = { repoRoot: string; pathInRepo: string };
+
+/** A file's text, at a commit or (no `commit`) as it is on disk. */
+export type CodeText = { text: string; commit?: string; head?: string } & Partial<RepoPlace>;
+
+export type PinState = "current" | "moved" | "changed" | "missing-commit" | "missing-file" | "no-repo";
+
+/** How a pinned file stands against the working tree. */
+export type PinStatus = {
+  state: PinState;
+  commit?: string;
+  head?: string;
+  /** Commits HEAD is ahead of the pin. */
+  ahead?: number;
+  /** For `changed` with lines: where they are now, and whether untouched. */
+  currentLines?: [number, number];
+  exact?: boolean;
+};
+
+export function readCode(file: string, commit?: string): Promise<CodeText> {
+  return invoke<CodeText>("code_read", { file, commit: commit ?? null });
+}
+
+export function codePinStatus(file: string, commit: string, lines?: [number, number]): Promise<PinStatus> {
+  return invoke<PinStatus>("code_pin_status", { query: { file, commit, ...(lines ? { lines } : {}) } });
+}
+
+/** The full commit of `rev` (HEAD when left out) in the repository holding `file`. */
+export function resolveCommit(file: string, rev?: string): Promise<{ commit: string } & RepoPlace> {
+  return invoke<{ commit: string } & RepoPlace>("code_resolve", { file, rev: rev ?? null });
+}
+
+export const shortCommit = (sha: string) => sha.slice(0, 7);
+
+/** One definition in a file; lines 1-based, `column` the 1-based character. */
+export type CodeSymbol = { name: string; kind: string; line: number; column: number; endLine: number; container?: string; depth: number };
+
+export function codeSymbols(file: string, commit?: string): Promise<{ language?: string; symbols: CodeSymbol[] }> {
+  return invoke("code_symbols", { file, commit: commit ?? null });
+}
+
+/** A place a definition or reference search found. */
+export type CodeHit = { file: string; pathInRepo?: string; line: number; column: number; kind?: string; container?: string; preview: string };
+
+/** Where a search starts: a place in a file (or a name), at a commit or on disk. */
+export type CodeQuery = { file: string; commit?: string; line?: number; column?: number; name?: string; limit?: number };
+
+export function codeDefinition(query: CodeQuery): Promise<{ name: string; commit?: string; definitions: CodeHit[] }> {
+  return invoke("code_definition", { query });
+}
+
+/** Uses of a name, matched by name (not resolved like a compiler would). */
+export function codeReferences(query: CodeQuery): Promise<{ name: string; commit?: string; match: "name"; total: number; truncated: boolean; references: CodeHit[] }> {
+  return invoke("code_references", { query });
+}

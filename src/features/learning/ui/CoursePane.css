@@ -103,3 +103,6 @@
 .course-pane--overview .course-pane__body { position: relative; }
 .course-pane--overview .course-pane__status-actions { flex-wrap: wrap; padding: 10px; gap: 6px; }
 .course-pane--overview .course-pane__next-card { flex-wrap: wrap; gap: 10px; }
+.course-pane__pin { margin: -4px 0 16px; font-size: 12px; line-height: 1.6; color: color-mix(in srgb, var(--color-content) 60%, transparent); }
+.course-pane__pin[data-pin-state="changed"], .course-pane__pin[data-pin-state="missing-commit"], .course-pane__pin[data-pin-state="missing-file"] { color: color-mix(in srgb, var(--color-content) 78%, transparent); }
+.course-pane__pin-action { margin-left: 6px; min-height: 22px; padding: 1px 6px; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }

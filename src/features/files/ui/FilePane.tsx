@@ -17,6 +17,8 @@ import { ReadingSelectionMenu, type ChatIntent } from "../../learning/ui/Reading
 import { chatDraft, useReadingMarks, type MarkSpec } from "../../learning/ui/useReadingMarks";
 import { describeRange, quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
 import { flashRange } from "../../learning/ui/useTextHighlights";
+import { readCode, shortCommit } from "../../../platform/tauri/code";
+import { useCodeNavigation } from "./useCodeNavigation";
 
 /** A quoted passage in rendered text, where it best fits. */
 function quoteRange(root: HTMLElement, quote: string): Range | null {
@@ -45,6 +47,8 @@ const PdfView = lazySurface(async () => ({ default: (await import("./PdfView")).
 
 type Props = {
   path: string;
+  /** Source code read as it was at this commit: read-only, from git. */
+  commit?: string;
   cwd: string;
   /** Opened by a single click: the next file opened replaces this pane. */
   preview: boolean;
@@ -74,11 +78,13 @@ type Content =
 
 const REVEAL_LABEL = IS_MAC ? "Reveal in Finder" : "Open containing folder";
 
-function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart, onBeforeLeave, askLabel = "Ask", chatName, reader = false }: Props) {
+function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart, onBeforeLeave, askLabel = "Ask", chatName, reader = false }: Props) {
   const name = basename(path);
   const kind = fileKind(name);
   const [content, setContent] = useState<Content>({ status: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
+  /** For a file read at a commit: the repository's HEAD now. */
+  const [head, setHead] = useState<string>();
   const [mode, setMode] = useMarkdownMode(`file:${path}`);
   const [draft, setDraftState] = useState<FileDraft | null>(() => getFileDraft(path));
   const [saving, setSaving] = useState(false);
@@ -98,7 +104,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     setFileDraft(path, next);
     setDraftState(next);
   };
-  const editable = kind === "markdown" && content.status === "text";
+  const editable = kind === "markdown" && content.status === "text" && !commit;
   const diskText = content.status === "text" ? content.text : null;
   const conflict = diskText !== null && draftConflicts(draft, diskText);
   const shownText = draft?.text ?? diskText ?? "";
@@ -116,9 +122,9 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   const textMarks = useMemo((): MarkSpec => ({
     target: { kind: "file", path },
     source: (anchor, quote, annotationId) => ({ id: crypto.randomUUID(), kind: "file", path, title: name, quote,
-      ...(anchor.lines ? { lines: anchor.lines } : {}), anchor, ...(annotationId ? { annotationId } : {}) }),
+      ...(anchor.lines ? { lines: anchor.lines } : {}), ...(commit ? { commit } : {}), anchor, ...(annotationId ? { annotationId } : {}) }),
     lines: (range) => { const place = placeOfRef.current(range); return place && "lines" in place ? place.lines : undefined; },
-  }), [path, name]);
+  }), [path, name, commit]);
   const marks = useReadingMarks(kind === "markdown" ? markdownRef : textRef, textMarks, { enabled: content.status === "text" && !editing });
 
   useEffect(() => {
@@ -292,7 +298,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         show({ status: "image", url: created, mime, size: bytes.byteLength });
       }, fail);
     } else {
-      readTextFile(path).then((text) => show({ status: "text", text }), (cause: unknown) => {
+      (commit ? readCode(path, commit).then((found) => { if (!cancelled) setHead(found.head); return found.text; }) : readTextFile(path)).then((text) => show({ status: "text", text }), (cause: unknown) => {
         const message = cause instanceof Error ? cause.message : String(cause);
         // Binary and oversized files are not errors, just not ours to render.
         if (/binary|utf-8|too large/i.test(message)) show({ status: "unsupported", detail: "Loci can’t display this kind of file." });
@@ -304,16 +310,25 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       // Revoked a tick late so the swap to the next image never shows a gap.
       if (created) { const url = created; window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
     };
-  }, [path, kind, reloadKey]);
+  }, [path, commit, kind, reloadKey]);
 
   useEffect(() => {
+    // A file read at a commit does not change.
+    if (commit) return;
     let timer = 0;
     const stop = watchFile(path, () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(reload, 50);
     });
     return () => { window.clearTimeout(timer); stop(); };
-  }, [path, reload]);
+  }, [path, commit, reload]);
+
+  // Code: ⌘-click a name for its definition, select one for its references, and the outline.
+  const nav = useCodeNavigation({
+    file: path, commit, codeRef: textRef, enabled: reader && content.status === "text" && kind === "text",
+    onGo: (target, from) => onOpenFile(target.file, { lines: [target.line, target.line] }, { ...(target.commit ? { commit: target.commit } : {}), fromLine: from }),
+    onShowLine: (line) => requestFilePlace(path, { lines: [line, line] }),
+  });
 
   // A link to lines of this file. Plain text scrolls to the first line. Markdown is read in its
   // preview, which has no lines, so the link shows the section they fall in; only a pane that is
@@ -416,7 +431,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   } else {
     body = (
       <div ref={codeScrollRef} className="h-full overflow-auto overscroll-none">
-        <div data-reading-text data-reading-lines-from="1" className="select-text">
+        <div data-reading-text data-reading-lines-from="1" className="select-text" onClick={nav.onClick}>
           <CodeReader text={content.text} file={name} preRef={textRef} label={name} />
         </div>
       </div>
@@ -431,6 +446,9 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         void save();
       }}>
       {reader ? <ResourceHeader title={name} onClose={close}>
+        {commit ? <button type="button" data-tauri-drag-region="false" className="file-pane__commit" title={`Read as it was at commit ${commit}. Open the current file${head && head !== commit ? ` (HEAD ${shortCommit(head)})` : ""}.`}
+          onClick={() => onOpenFile(path)}>@{shortCommit(commit)}</button> : null}
+        {nav.outline}
         {draft ? <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-content/60" /> : null}
         {editable ? <span data-tauri-drag-region="false"><MarkdownModeToggle mode={mode} onChange={setMode} /></span> : null}
         {kind === "pdf" || content.status === "text" ? <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="Highlights & notes" title="Highlights & notes" aria-expanded={annotationsOpen} onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-4" /></button> : null}
@@ -489,7 +507,8 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       {content.status === "pdf"
         ? <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`pdf:${path}`} askLabel={askLabel} toChat={pdfToChat} onMark={highlightPdfSelection} />
         : <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`text:${path}:${diskText?.length ?? 0}`} askLabel={askLabel}
-          toChat={marks.toChat} onMark={editing ? undefined : marks.onMark} />}
+          toChat={marks.toChat} onMark={editing ? undefined : marks.onMark} actions={nav.selectionActions} />}
+      {nav.results}
       {content.status === "text" ? marks.popover : null}
       {content.status === "pdf" && openAnnotation && annotations.find((annotation) => annotation.id === openAnnotation.id) ?
         <AnnotationPopover key={openAnnotation.id} annotation={annotations.find((annotation) => annotation.id === openAnnotation.id)!} anchor={openAnnotation.rect} focusNote={openAnnotation.note}

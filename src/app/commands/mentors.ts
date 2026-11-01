@@ -120,7 +120,7 @@ export function readingView({ page, lesson }: ReturnType<CommandContext["reader"
   switch (page.kind) {
     case "course": return { kind: "course", id: page.course.courseId, title: page.course.title, ...(lesson ? { lesson } : page.course.itemId ? { lesson: { id: page.course.itemId } } : {}) };
     case "document": return { kind: "source", id: page.document.id, title: page.document.title };
-    case "file": return { kind: "file", path: page.path };
+    case "file": return { kind: "file", path: page.path, ...(page.commit ? { commit: page.commit } : {}) };
     default: return { kind: page.kind, id: page.id };
   }
 }

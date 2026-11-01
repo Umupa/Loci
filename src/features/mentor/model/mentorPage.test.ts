@@ -13,8 +13,9 @@ it("reads back only well-formed pages", () => {
   for (const page of [
     { kind: "course", course: { courseId: "c", agentId: "a", title: "C", itemId: "l" } },
     { kind: "document", document: { id: "d", title: "Doc", body: "" } },
-    { kind: "note", id: "n" }, { kind: "canvas", id: "x" }, { kind: "file", path: "/a/b.pdf" },
+    { kind: "note", id: "n" }, { kind: "canvas", id: "x" }, { kind: "file", path: "/a/b.pdf" }, { kind: "file", path: "/r/a.go", commit: "abcdef0" },
   ]) expect(parseStoredPage(page)).toEqual(page);
+  expect(parseStoredPage({ kind: "file", path: "/r/a.go", commit: "HEAD; rm" })).toEqual({ kind: "file", path: "/r/a.go" });
   for (const bad of [null, "note", { kind: "note" }, { kind: "habit", id: "h" }, { kind: "course", course: { courseId: "c" } }, { kind: "file", path: "" }])
     expect(parseStoredPage(bad)).toBeUndefined();
 });
@@ -25,4 +26,6 @@ it("tells the conversation what is read and compares pages by what they show", (
   expect(readingOf(undefined, undefined)).toBeUndefined();
   expect(samePage(course, { kind: "course", course: { ...course.course, itemId: "other" } })).toBe(true);
   expect(samePage({ kind: "note", id: "n" }, { kind: "canvas", id: "n" })).toBe(false);
+  expect(samePage({ kind: "file", path: "/a.go", commit: "abcdef0" }, { kind: "file", path: "/a.go" })).toBe(false);
+  expect(readingOf({ kind: "file", path: "/a.go", commit: "abcdef0" }, undefined)).toEqual({ kind: "file", path: "/a.go", commit: "abcdef0" });
 });

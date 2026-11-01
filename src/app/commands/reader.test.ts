@@ -42,6 +42,11 @@ describe("reader commands", () => {
     await runCommand(ctx, "reader.open", { mentor: "a1", file: "/papers/x.pdf", page: 3 }, external);
     expect(requestFilePlace).toHaveBeenLastCalledWith("/papers/x.pdf", { page: 3 });
     expect(await runCommand(ctx, "reader.show", { mentor: "a1" }, external)).toMatchObject({ kind: "file", path: "/papers/x.pdf", focus: { page: 3 } });
+    await runCommand(ctx, "reader.open", { mentor: "a1", file: "/m/repos/x/main.go", at: "ABCDEF0", lines: "3-9" }, external);
+    expect(ctx.reader.show).toHaveBeenLastCalledWith("a1", { kind: "file", path: "/m/repos/x/main.go", commit: "abcdef0" }, false);
+    expect(await runCommand(ctx, "reader.show", { mentor: "a1" }, external)).toMatchObject({ kind: "file", path: "/m/repos/x/main.go", commit: "abcdef0" });
+    await expect(runCommand(ctx, "reader.open", { mentor: "a1", file: "/m/x.go", at: "main" }, external)).rejects.toMatchObject({ code: "usage" });
+    await expect(runCommand(ctx, "reader.open", { mentor: "a1", note: "n1", at: "abcdef0" }, external)).rejects.toMatchObject({ code: "usage" });
   });
 
   it("refuse what is missing or ambiguous", async () => {

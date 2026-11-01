@@ -37,6 +37,14 @@ serde_yaml_ng = "0.10.0"
 unicode-normalization = "0.1.26"
 notify = { version = "8.2.1", default-features = false, features = ["macos_fsevent"] }
 zip = { version = "9.2.0", default-features = false, features = ["deflate"] }
+# Code reading: symbols, definitions and references (no LSP).
+tree-sitter = "0.25.10"
+tree-sitter-go = "0.25.0"
+tree-sitter-rust = "0.24.0"
+tree-sitter-c = "0.24.1"
+tree-sitter-typescript = "0.23.2"
+tree-sitter-javascript = "0.25.0"
+tree-sitter-python = "0.25.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

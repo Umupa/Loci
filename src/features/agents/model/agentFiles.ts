@@ -323,7 +323,7 @@ export function forgetAgentContext(sessionId: string): void {
 }
 
 /** Version of the app data carried by an agent turn. */
-export const AGENT_PROMPT_VERSION = 8;
+export const AGENT_PROMPT_VERSION = 9;
 
 /** Discoverable app capabilities; teaching style and standing behavior belong to the Soul. */
 const AGENT_TOOLS = `<tools>

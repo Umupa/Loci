@@ -16,7 +16,8 @@ export type TextAnchor = {
 
 type SourceBase = { id: string; title: string; quote: string };
 export type LearningSource = SourceBase & (
-  | { kind: "file"; path: string; lines?: [number, number]; anchor?: TextAnchor; annotationId?: string }
+  /** `commit`: the file was read at that commit (a pinned code lesson). */
+  | { kind: "file"; path: string; lines?: [number, number]; commit?: string; anchor?: TextAnchor; annotationId?: string }
   | { kind: "pdf"; documentId: string; path: string; anchors: PdfAnchor[]; anchor?: TextAnchor; annotationId?: string }
   /** A passage of a document in an agent's library; `url` is where a source was published. */
   | { kind: "document"; agentId: string; documentId: string; url?: string; section?: string; anchor?: TextAnchor; annotationId?: string }

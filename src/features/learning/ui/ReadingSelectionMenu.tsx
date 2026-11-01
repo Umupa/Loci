@@ -22,14 +22,19 @@ type Props = {
   toChat: (passage: FileSelection, intent: ChatIntent, current: () => boolean) => Promise<void> | void;
   /** Save a highlight; `note` opens it to write a note. Absent where nothing can be kept. */
   onMark?: (passage: FileSelection, note: boolean) => Promise<void>;
+  /** More actions after those, such as Definition and References in code. */
+  actions?: readonly SelectionAction[];
 };
+
+/** An action on the selected passage, shown after Ask, Highlight and Note. */
+export type SelectionAction = { label: string; title?: string; run: (passage: FileSelection) => Promise<void> | void };
 
 /**
  * The actions on selected text in any reader: Ask the mentor, Highlight, Note.
  * Quote (⌘L) and Comment (⌥⌘M) stay as shortcuts. The passage is kept while
  * focus moves to the comment field.
  */
-export function ReadingSelectionMenu({ selection, onDismiss, resetKey, askLabel = "Ask", toChat, onMark }: Props) {
+export function ReadingSelectionMenu({ selection, onDismiss, resetKey, askLabel = "Ask", toChat, onMark, actions }: Props) {
   const [commentSelection, setCommentSelection] = useState<FileSelection | null>(null);
   const [comment, setComment] = useState("");
   const [pending, setPending] = useState(false);
@@ -164,6 +169,8 @@ export function ReadingSelectionMenu({ selection, onDismiss, resetKey, askLabel 
             <button type="button" disabled={pending} title="Keep this passage highlighted" onMouseDown={keep} onClick={() => void mark(passage, false)}>Highlight</button>
             <button type="button" disabled={pending} title="Highlight this passage and write a note on it" onMouseDown={keep} onClick={() => void mark(passage, true)}>Note</button>
           </> : null}
+          {actions?.map((action) => <button key={action.label} type="button" disabled={pending} title={action.title} onMouseDown={keep}
+            onClick={() => void run(() => action.run(passage))}>{action.label}</button>)}
         </div>
       )}
       {error ? <p role="alert" className="document-selection-menu__error">Could not do that. {error}</p> : null}

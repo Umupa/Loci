@@ -61,3 +61,47 @@ it("shows a hidden library when asked to", async () => {
   await act(async () => view.openLibrary("a", { segment: "files", show: true }));
   expect(view.stateFor("a")).toMatchObject({ library: true, segment: "files" });
 });
+
+it("goes back and forward through the pages a mentor's reader showed, like a browser", async () => {
+  await mount();
+  const lesson = { kind: "course" as const, course: { courseId: "tour", agentId: "a", title: "Tour" } };
+  const main = { kind: "file" as const, path: "/r/main.go", commit: "abcdef0" };
+  const vm = { kind: "file" as const, path: "/r/vm.go", commit: "abcdef0" };
+  await act(async () => view.show("a", lesson));
+  await act(async () => view.setLesson("a", { id: "l3", title: "Three" }));
+  expect(view.historyFor("a")).toEqual({ back: 0, forward: 0 });
+  await act(async () => view.show("a", main, { fromLine: 12 }));
+  await act(async () => view.show("a", vm, { fromLine: 40 }));
+  // A jump inside the same file is a step too.
+  await act(async () => view.show("a", vm, { fromLine: 7 }));
+  // Opening the page already shown, with no jump, is not.
+  await act(async () => view.show("a", vm));
+  expect(view.historyFor("a")).toEqual({ back: 3, forward: 0 });
+
+  await act(async () => { view.back("a"); });
+  await act(async () => { view.back("a"); });
+  expect(view.stateFor("a").page).toEqual(main);
+  expect(view.historyFor("a")).toEqual({ back: 1, forward: 2 });
+  await act(async () => { view.back("a"); });
+  // Back to the lesson it was on, not the course's start.
+  expect(view.stateFor("a").page).toEqual({ kind: "course", course: { ...lesson.course, itemId: "l3" } });
+  expect(view.stateFor("a").lesson).toEqual({ id: "l3", title: "Three" });
+  expect(view.back("a")).toBe(false);
+  await act(async () => { view.forward("a"); });
+  expect(view.stateFor("a").page).toEqual(main);
+
+  // A new page drops what was ahead; closing can be gone back from.
+  await act(async () => view.show("a", { kind: "note", id: "n" }));
+  expect(view.historyFor("a")).toEqual({ back: 2, forward: 0 });
+  await act(async () => view.close("a"));
+  await act(async () => { view.back("a"); });
+  expect(view.stateFor("a").page).toEqual({ kind: "note", id: "n" });
+  // Other mentors keep their own.
+  expect(view.historyFor("b")).toEqual({ back: 0, forward: 0 });
+});
+
+it("remembers at most fifty pages back", async () => {
+  await mount();
+  for (let index = 0; index < 60; index++) await act(async () => view.show("a", { kind: "note", id: `n${index}` }));
+  expect(view.historyFor("a").back).toBe(50);
+});

@@ -120,6 +120,14 @@ struct Lesson {
         skip_serializing_if = "Option::is_none"
     )]
     lines: Option<[u32; 2]>,
+    /// For a file in a git repository: the commit the lesson was written
+    /// against, so it is read as it was then.
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    commit: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -232,6 +240,15 @@ fn file_courses(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<Course>, Strin
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+pub(crate) mod tests_support {
+    /// The courses a folder mentor has, as the app lists them.
+    pub fn courses_of(conn: &rusqlite::Connection, agent: &str) -> Vec<super::Course> {
+        let ctx = crate::mentor_store::ctx_for(conn, agent).unwrap().unwrap();
+        super::file_courses(conn, &ctx).unwrap()
+    }
 }
 
 fn file_course(conn: &Connection, ctx: &MentorCtx, id: &str) -> Result<Option<Course>, String> {
@@ -411,11 +428,33 @@ pub fn course_upsert(
     course: CourseUpsert,
 ) -> Result<Course, String> {
     validate_id(&course.agent_id, "agent")?;
-    let conn = store.lock_conn()?;
-    if let Some(ctx) = mentor_store::ctx_for(&conn, &course.agent_id)? {
-        return file_save_course(&conn, &ctx, &course);
+    if course.id == crate::course_path::PATH_ID {
+        return Err("_path is the learning path's file; give the course another id".into());
     }
-    save_course(&conn, &course)
+    let ctx = mentor_store::ctx_for(&*store.lock_conn()?, &course.agent_id)?;
+    // Lesson files relative to the mentor's folder, or pinned as
+    // repos/<repo>@<sha>:path, become absolute with full commit ids. Git
+    // runs before the database is locked.
+    let course = if course.engine == "reading" {
+        let data_json = match &ctx {
+            Some(ctx) => {
+                let resolve = |path: &str| ctx.resolve_lesson_file(path);
+                mentor_store::format::resolve_lesson_files(&course.data_json, &resolve)?
+            }
+            None => course.data_json.clone(),
+        };
+        CourseUpsert {
+            data_json: crate::code::expand_pins(&data_json)?,
+            ..course
+        }
+    } else {
+        course
+    };
+    let conn = store.lock_conn()?;
+    match ctx {
+        Some(ctx) => file_save_course(&conn, &ctx, &course),
+        None => save_course(&conn, &course),
+    }
 }
 
 #[tauri::command(async)]
@@ -476,6 +515,11 @@ fn item_ids<'a>(ids: impl Iterator<Item = &'a str>) -> Result<HashSet<String>, S
 
 /// A document id as the library accepts it: letters of any script, digits,
 /// hyphens and underscores.
+/// A commit id as a lesson pins it: 7 to 40 hexadecimal digits.
+pub(crate) fn is_commit(text: &str) -> bool {
+    (7..=40).contains(&text.len()) && text.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 fn validate_id_text(id: &str) -> Result<(), String> {
     if id.is_empty()
         || id.chars().count() > 80
@@ -554,6 +598,9 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                 match (&lesson.document, &lesson.file) {
                     (Some(document), None) => {
                         validate_id_text(document)?;
+                        if lesson.commit.is_some() {
+                            return Err(format!("Lesson {}: commit belongs to a file", lesson.id));
+                        }
                         if lesson.pages.is_some() || lesson.lines.is_some() {
                             return Err(format!(
                                 "Lesson {}: pages and lines belong to a file",
@@ -599,6 +646,14 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                         "Lesson {}: name pages or lines, not both",
                         lesson.id
                     ));
+                }
+                if let Some(commit) = &lesson.commit {
+                    if !is_commit(commit) {
+                        return Err(format!(
+                            "Lesson {}: commit must be a commit id (7 to 40 hex digits)",
+                            lesson.id
+                        ));
+                    }
                 }
             }
             Ok((

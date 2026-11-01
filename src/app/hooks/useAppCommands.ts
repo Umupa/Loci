@@ -24,6 +24,9 @@ type Options = {
   newMentor: () => void;
   /** Closes what the reader shows; false when there was nothing to close. */
   closeReader: () => boolean;
+  /** Back and forward in the reader; false when there is nowhere to go. */
+  readerBack: () => boolean;
+  readerForward: () => boolean;
   closeWindow: () => void;
   toggleLibrary: () => void;
   toggleChat: () => void;
@@ -70,6 +73,8 @@ export function useAppCommands(options: Options) {
       const handlers: Record<Exclude<AppCommand, object>, () => unknown> = {
         "new-mentor": a.newMentor,
         "close-reader": () => { if (!a.closeReader()) a.closeWindow(); },
+        "reader-back": () => a.readerBack(),
+        "reader-forward": () => a.readerForward(),
         "next-mentor": () => step(1),
         "prev-mentor": () => step(-1),
       };
@@ -132,6 +137,7 @@ export function useAppCommands(options: Options) {
 
     const menuEvents: Record<string, AppCommand> = {
       new_mentor: "new-mentor", close_reader: "close-reader", next_mentor: "next-mentor", prev_mentor: "prev-mentor",
+      reader_back: "reader-back", reader_forward: "reader-forward",
     };
     const listeners = Object.entries(menuEvents).map(([name, command]) => listen(name, () => dispatch(command)));
     for (const name of ["toggle_library", "toggle_chat", "open_search", "open_settings", "sidebar_opacity", "reload", "open_model_picker"]) {

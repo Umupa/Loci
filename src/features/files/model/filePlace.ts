@@ -1,8 +1,14 @@
 import { useSyncExternalStore } from "react";
 import type { FilePlace } from "../../../shared/lib/appResourceLinks";
 
+/**
+ * How a file opens beyond its place: at a commit (code read as it was then),
+ * and the line navigation left, for Back.
+ */
+export type OpenFileOptions = { commit?: string; fromLine?: number };
+
 /** A file link carries its location to the owner that decides where to open it. */
-export type OpenFileFn = (path: string, place?: FilePlace) => void;
+export type OpenFileFn = (path: string, place?: FilePlace, options?: OpenFileOptions) => void;
 
 /** A place a link asked a file pane to show; `token` tells two requests for the same place apart. */
 export type FilePlaceRequest = { place: FilePlace; token: number };
@@ -25,9 +31,9 @@ export function requestFilePlace(path: string, place: FilePlace): void {
 export const OPEN_FILE_EVENT = "loci:open-file";
 
 /** Open a file from somewhere that owns no panes, such as a lesson, optionally at a place in it. */
-export function requestOpenFile(path: string, place?: FilePlace): void {
+export function requestOpenFile(path: string, place?: FilePlace, options: OpenFileOptions = {}): void {
   if (place) requestFilePlace(path, place);
-  window.dispatchEvent(new CustomEvent<{ path: string }>(OPEN_FILE_EVENT, { detail: { path } }));
+  window.dispatchEvent(new CustomEvent<{ path: string } & OpenFileOptions>(OPEN_FILE_EVENT, { detail: { path, ...options } }));
 }
 
 /** The pane has shown the place. A request is for the click that made it, so it does not outlive it. */

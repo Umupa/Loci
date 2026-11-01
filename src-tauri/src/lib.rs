@@ -8,9 +8,11 @@ mod canvas;
 mod canvas_mcp;
 mod chat_background;
 pub mod cli_access;
+mod code;
 mod control;
 pub mod control_cli;
 mod course;
+mod course_path;
 pub mod external_cli;
 mod flavor;
 mod fs;
@@ -364,6 +366,14 @@ pub fn run() {
             agent::agent_save,
             agent::agent_workdir_create,
             agent::agent_workdir_ensure,
+            course_path::course_path_read,
+            course_path::course_path_write,
+            code::commands::code_read,
+            code::commands::code_pin_status,
+            code::commands::code_resolve,
+            code::commands::code_symbols,
+            code::commands::code_definition,
+            code::commands::code_references,
             mentor_store::commands::mentors_load,
             mentor_store::commands::mentors_sync,
             mentor_store::commands::mentors_remove,

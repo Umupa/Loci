@@ -4,6 +4,8 @@ import { IS_MAC } from "../../platform/tauri/platform";
  * Window keybindings:
  *   New mentor          cmd-t
  *   Close the reader    cmd-w (the window when the reader is empty)
+ *   Reader back         cmd-[
+ *   Reader forward      cmd-]
  *   Next mentor         shift-cmd-}
  *   Previous mentor     shift-cmd-{
  *   Mentor 1–9          cmd-1 … cmd-9
@@ -11,7 +13,7 @@ import { IS_MAC } from "../../platform/tauri/platform";
  * Library, conversation, search, settings and zoom go through `appShortcuts`
  * and `zoomKeybinding`.
  */
-export type AppCommand = "new-mentor" | "close-reader" | "next-mentor" | "prev-mentor" | { activate: number };
+export type AppCommand = "new-mentor" | "close-reader" | "reader-back" | "reader-forward" | "next-mentor" | "prev-mentor" | { activate: number };
 
 export function appCommand(e: KeyboardEvent): AppCommand | null {
   if (e.isComposing) return null;
@@ -28,6 +30,8 @@ export function appCommand(e: KeyboardEvent): AppCommand | null {
   if (key === "t" && !e.repeat) return "new-mentor";
   // A held key closes the reader once, never the window that follows it.
   if (key === "w" && !e.repeat) return "close-reader";
+  if (e.key === "[") return "reader-back";
+  if (e.key === "]") return "reader-forward";
   if (key >= "1" && key <= "9" && key.length === 1) return { activate: Number(key) - 1 };
   return null;
 }
@@ -35,6 +39,8 @@ export function appCommand(e: KeyboardEvent): AppCommand | null {
 const KEYBINDING_OF: Record<Exclude<AppCommand, object>, string> = {
   "new-mentor": "Mentor: New",
   "close-reader": "Reader: Close",
+  "reader-back": "Reader: Back",
+  "reader-forward": "Reader: Forward",
   "next-mentor": "Mentor: Next",
   "prev-mentor": "Mentor: Previous",
 };

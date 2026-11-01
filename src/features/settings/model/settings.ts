@@ -547,6 +547,8 @@ export const KEYBINDINGS: KeybindingRow[] = [
     { command: "Mentor: Previous", keys: `${MOD}${SHIFT}[`, when: "Always" },
     { command: "Mentor: Activate 1–9", keys: `${MOD}1 … ${MOD}9`, when: "Always" },
     { command: "Reader: Close", keys: `${MOD}W`, when: "Always" },
+    { command: "Reader: Back", keys: `${MOD}[`, when: "Always" },
+    { command: "Reader: Forward", keys: `${MOD}]`, when: "Always" },
 ];
 const KEYBINDING_OVERRIDES_KEY = "loci.keybindingOverrides";
 const KEYBINDINGS_CHANGE_EVENT = "loci:keybindings-change";
