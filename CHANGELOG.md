@@ -4,6 +4,41 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **Read with your mentor.** Selecting text in any reader (lessons, sources, notes, Markdown and code files, PDFs) offers **Ask (your mentor) · Highlight · Note**. Highlights and notes work in every reader, follow small edits to the text, and are listed under "Highlights & notes"; a passage whose words are gone is kept and marked as changed. Your mentor knows the heading and paragraph you are reading and what you selected, and its replies link to the exact passage, which opens in the reader and flashes.
+- **A new left column.** Four icons at the top (Courses, Sources, Notes, Files) show one list at a time; the chosen one opens into a labelled pill. Courses has a course switcher with your progress and an outline that reads like a table of contents and follows the reader, with highlight counts per lesson. Each mentor remembers its segment.
+- **Reading type.** Reader text is set at 15/26 in a measured column. Settings → Appearance → Fonts → Reading font switches it to a serif (with Chinese serif fallbacks); the interface stays sans.
+- **Code reads like a source.** Code files and code lessons have syntax highlighting and line numbers; highlights and line links still land.
+- **The `loci` command line.** Drive a running Loci from any terminal: mentors (create, settings, send a message and wait for or stream the reply), sources and guides, courses and lesson status, notes, canvases, the mentor's files, highlights, the reader and the library, sessions, soul and memory, models, updates and a few settings. Output is JSON. `--app` targets Loci Dev or a test build. Settings → General → Command line turns it off, rotates its token, or installs `loci` into `~/.local/bin`. Agents outside Loci, such as Claude Code in a terminal, can use it to act as a mentor.
+- **Mentor guides.** A mentor's own reading guides and briefs are kept apart from first-hand sources: listed under "Mentor's guides" and labelled in the reader.
+- **Rewritten Mentor and Lens templates.** New mentors ask at most one question before you are reading, reply in the language you write in, save sources verbatim and pinned to a version or commit, keep a first course to 6–12 lessons, and cite clickable passages. Lens hands you the course first, starting with the project's own README and design docs. A mentor's Soul page has **Replace with template…** to move an existing mentor to the new template.
+- **An in-app update prompt.** Release notes are formatted and scroll inside the dialog, with Later and Install always visible, a progress bar, and Retry on failure. Automatic checks only put a dot beside Settings.
+
+### Changed
+
+- **One header row.** The separate title bar and breadcrumb are gone: each column's header is the window's top row. The library's toggle sits at the end of its header, the conversation has its own ✕, and once either is folded its button moves into the reader's header.
+- **Mentors start in Full access** and stop asking before every command. Existing mentors switch once; a mode you choose afterwards sticks. Settings → Your mentors sets the default for new mentors.
+- A quieter, more consistent interface: one accent used sparingly, one highlighter colour for what you marked, neutral chapter marks, sentence-case labels, one type scale, line icons instead of sparkles, and fewer looping animations. The composer mascot is off unless you turn it on.
+- Every mentor opens with a learning greeting. Settings, the gallery and confirmations say "mentor" and no longer mention projects.
+- File links in replies accept `#L12-40` as well as `#L12-L40`, and `#p7` opens a PDF at that page.
+- Grok Build conversations use the model the `grok` CLI reports as its default, list all its models, and show the CLI's own error when a turn fails.
+- Keyboard and screen readers: focus stays inside dialogs and returns to what opened them; the mentor rail, ⌘K search, settings tabs and lists answer the arrow keys; Escape closes the reader from anywhere except a text field.
+
+### Fixed
+
+- Selecting "Ask" while the conversation is folded now opens it with your draft.
+- Opening a lesson starts at its top and no longer marks it read on arrival.
+- Unsaved file edits, typed highlight notes and a Soul that failed to save are no longer lost; quitting with unsaved files asks first. Deleting a note, a highlight or a source asks first.
+- Renaming or trashing the file you are reading keeps the reader in step.
+- The reader keeps at least 360 px when columns are resized or the window shrinks, and on narrow windows the library folds away after a choice.
+- A conversation opened in the reader has a close button; approval prompts no longer cover the title bar; Windows and Linux keep their window buttons with no mentor open.
+- Holding ⌘W no longer closes the window, and Ctrl+W/Ctrl+T on macOS are left to text editing.
+- Settings → MCP and the provider defaults are global (no empty project pickers); personal skills are labelled personal; the Chinese Settings no longer mix in English words.
+- Many smaller layout, contrast and copy fixes from a full UI review.
+
+Nothing in your data is deleted: existing mentors keep their Soul, conversations and library.
+
 ## [0.2.0] - 2026-10-31
 
 ### Added
