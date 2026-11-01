@@ -45,7 +45,7 @@
 .course-compare__label { font-size: 14px; font-weight: 600; color: var(--color-content); }
 .course-compare__where { display: inline-flex; min-width: 0; flex: 1; flex-wrap: wrap; gap: 0 8px; font-family: var(--font-mono); font-size: 11.5px; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
 .course-compare__repo { color: color-mix(in srgb, var(--color-content) 70%, transparent); }
-.course-compare__path { min-width: 0; overflow-wrap: anywhere; }
+.course-compare__path { min-width: 0; overflow-wrap: break-word; }
 .course-compare__actions { display: inline-flex; margin-left: auto; }
 .course-compare__actions .course-pane__pin-action { margin-left: 0; }
 .course-compare__note {

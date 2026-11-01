@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { ChevronDown, PenLine } from "../../../shared/ui/icons";
 import { shortCommit, type RepoPlace } from "../../../platform/tauri/code";
 import { publishCompareView, type ComparePartView } from "../model/compareView";
@@ -102,7 +102,7 @@ export function PartHeader({ chrome, where, title, actions, bodyId }: { chrome: 
       </button>
       <span className="course-compare__where" title={title}>
         {where.repo ? <span className="course-compare__repo">{where.repo}</span> : null}
-        <span className="course-compare__path">{where.path}{where.lines ? <>:{where.lines}</> : null}</span>
+        <span className="course-compare__path">{where.path.split("/").map((piece, index) => <Fragment key={index}>{index ? <>/<wbr /></> : null}{piece}</Fragment>)}{where.lines ? <>:{where.lines}</> : null}</span>
         {where.section ? <span className="course-compare__section">§ {where.section}</span> : null}
       </span>
       {actions ? <span className="course-compare__actions">{actions}</span> : null}
