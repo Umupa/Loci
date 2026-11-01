@@ -27,7 +27,19 @@ export type CourseLesson = {
   lines?: [number, number];
   /** For a file in a git checkout: the commit the lesson reads it at. */
   commit?: string;
+  /**
+   * A comparison lesson: the same mechanism in 2–4 places, read one under
+   * another. It names no document or file of its own.
+   */
+  compare?: ComparePart[];
 };
+/** One place a comparison reads: a file's lines (maybe pinned) or a document's section, with the mentor's optional guide note. */
+export type ComparePart = {
+  label: string; note?: string;
+  document?: string; section?: string;
+  file?: string; lines?: [number, number]; commit?: string;
+};
+export const COMPARE_PARTS = { min: 2, max: 4, label: 60, note: 2000 } as const;
 export type CourseChapter = { title: string; lessons: CourseLesson[] };
 export type CourseData =
   | { engine: "build-your-own"; steps: CourseStep[] }
@@ -112,6 +124,7 @@ export function parseCourseData(engine: unknown, value: unknown, canvasId?: stri
 function lesson(value: unknown, label: string): CourseLesson {
   const raw = object(value, label);
   const base = { id: id(raw.id, `${label} id`), title: string(raw.title, `${label} title`) };
+  if (raw.compare !== undefined) return { ...base, compare: compareParts(raw, label) };
   const document = optionalString(raw.document, `${label} document`);
   let file = optionalString(raw.file, `${label} file`);
   let pinned: string | undefined;
@@ -146,6 +159,32 @@ function lesson(value: unknown, label: string): CourseLesson {
   if (lines !== undefined) return { ...base, file, lines: range(lines, "lines"), ...pin };
   if (raw.pages === undefined) return { ...base, file, ...pin };
   return { ...base, file, pages: range(raw.pages, "pages"), ...pin };
+}
+
+function compareParts(raw: Record<string, unknown>, label: string): ComparePart[] {
+  if (["document", "file", "section", "lines", "pages", "commit"].some((key) => raw[key] !== undefined)) throw new Error(`${label}: a comparison names its places in compare, not document or file.`);
+  if (!Array.isArray(raw.compare) || raw.compare.length < COMPARE_PARTS.min || raw.compare.length > COMPARE_PARTS.max) throw new Error(`${label}: compare must list 2 to 4 parts.`);
+  const labels = new Set<string>();
+  return raw.compare.map((value, index): ComparePart => {
+    const at = `${label} part ${index + 1}`;
+    const part = object(value, at);
+    const name = string(part.label, `${at} label`).trim();
+    if ([...name].length > COMPARE_PARTS.label) throw new Error(`${at} label must be at most ${COMPARE_PARTS.label} characters.`);
+    if (labels.has(name.toLowerCase())) throw new Error(`${at} label ${name} is used twice.`);
+    labels.add(name.toLowerCase());
+    const note = optionalString(part.note, `${at} note`);
+    if (note !== undefined && [...note].length > COMPARE_PARTS.note) throw new Error(`${at} note must be at most ${COMPARE_PARTS.note} characters.`);
+    if (part.pages !== undefined) throw new Error(`${at}: a part reads lines of a file or a document's section, not pages.`);
+    // A part is read as a lesson of its own would be.
+    const place = lesson({ ...part, id: "part", title: name, label: undefined, note: undefined, compare: undefined }, at);
+    const { id: _id, title: _title, ...where } = place;
+    return { label: name, ...where, ...(note !== undefined ? { note } : {}) };
+  });
+}
+
+/** The places a lesson reads: its parts for a comparison, else itself. */
+export function lessonPlaces(lesson: CourseLesson): (ComparePart | CourseLesson)[] {
+  return lesson.compare ?? [lesson];
 }
 
 export function parseCourse(source: string): CourseParseResult {
