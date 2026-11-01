@@ -135,7 +135,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         <span>Saved to Notes.</span>
         <button type="button" onClick={() => requestOpenAppResource({ kind: "note", id: savedNoteId })} className="underline hover:text-content">Open</button>
       </div> : null}
-      <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${embedded ? "px-7 py-6" : "px-6 pb-10 pt-2"} text-[14px] leading-relaxed`}>
+      <div className={`reader-body min-h-0 min-w-0 flex-1 overflow-y-auto ${embedded ? "px-7 py-6" : "px-6 pb-10 pt-2"}`}>
         {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <>
           {missing ? <p role="status" className="document-section-notice">This document is no longer in the library. Showing the copy from this conversation.</p> : null}
           <DocumentBody document={latest} agentId={agentId} onMarks={setMarks}

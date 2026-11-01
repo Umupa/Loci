@@ -27,7 +27,7 @@ import { useColorScheme } from "../../../shared/hooks/useColorScheme";
 import { applyChatBackground, applyChatBackgroundEmptyOpacity, applyChatBackgroundSessionOpacity, applyChatBackgroundScope, applyBodyGlass, applySidebarBlur, applySidebarOpacity, applyThemeDarkLightness, applyThemePreference, applyThemeTint, BODY_GLASS_DEFAULT, ACCENT_COLOR_DEFAULT, CHAT_BACKGROUND_EMPTY_OPACITY_DEFAULT, CHAT_BACKGROUND_OPACITY_MAX, CHAT_BACKGROUND_OPACITY_MIN, CHAT_BACKGROUND_SESSION_OPACITY_DEFAULT, CHAT_BACKGROUND_SCOPE_DEFAULT, THEME_PREFERENCE_DEFAULT, chatBackgroundSrc, loadBodyGlass, loadAccentColor, loadChatBackgroundEmptyOpacity, loadChatBackgroundPath, loadChatBackgroundSessionOpacity, loadChatBackgroundScope, loadNewThreadBackgroundEffect, loadThemeDarkLightness, loadThemePreference, loadSidebarBlur, loadSidebarOpacity, loadThemeHue, loadThemeSaturation, loadTranscriptLayout, loadTranscriptAnchor, saveBodyGlass, saveAccentColor, saveChatBackgroundEmptyOpacity, saveChatBackgroundPath, saveChatBackgroundSessionOpacity, saveChatBackgroundScope, setNewThreadBackgroundEffect, saveThemeDarkLightness, saveThemePreference, saveSidebarBlur, saveSidebarOpacity, saveThemeHue, saveThemeSaturation, isLightScheme, saveTranscriptLayout, saveTranscriptAnchor, syncNativeGlass, TRANSCRIPT_ANCHOR_CHANGE_EVENT, SIDEBAR_BLUR_DEFAULT, SIDEBAR_BLUR_MAX, SIDEBAR_BLUR_MIN, SIDEBAR_OPACITY_DEFAULT, SIDEBAR_OPACITY_MAX, SIDEBAR_OPACITY_MIN, THEME_DARK_LIGHTNESS_DEFAULT, THEME_DARK_LIGHTNESS_MAX, THEME_DARK_LIGHTNESS_MIN, THEME_HUE_DEFAULT, THEME_HUE_MAX, THEME_HUE_MIN, THEME_SATURATION_DEFAULT, THEME_SATURATION_MAX, THEME_SATURATION_MIN, type ThemePreference, type ChatBackgroundScope, NEW_THREAD_BACKGROUND_EFFECTS, NEW_THREAD_BACKGROUND_EFFECT_LABELS, NEW_THREAD_BACKGROUND_EFFECT_DESCRIPTIONS, NEW_THREAD_BACKGROUND_EFFECT_DEFAULT, type NewThreadBackgroundEffect, type TranscriptLayout } from "../model/appearance";
 import { pickAndSaveChatBackground, removeChatBackground } from "../../projects/model/chatBackground";
 import { applyEffectiveAccent, loadThemeId, saveThemeWallpaperAuto, setTheme } from "../model/appearance";
-import { applyFonts, loadCodeFont, loadUiFont, normalizeFontFamily, OMARCHY_FONTS, rendersMonospace, saveCodeFont, saveUiFont, subscribeFonts, UI_FONT_FOLLOWS_CODE } from "../model/fonts";
+import { applyFonts, loadCodeFont, loadReadingFont, loadUiFont, normalizeFontFamily, OMARCHY_FONTS, READING_FONT_DEFAULT, rendersMonospace, saveCodeFont, saveReadingFont, saveUiFont, subscribeFonts, UI_FONT_FOLLOWS_CODE, type ReadingFont } from "../model/fonts";
 import { findTheme, isThemeWallpaperPath, resolveTheme, type ThemeWallpaper } from "../model/themes";
 import { ThemeGallery, WallpaperStrip } from "./ThemeGallery";
 import { applyUiScale, loadUiScale, saveUiScale, subscribeUiScale, UI_SCALE_DEFAULT, UI_SCALE_PERCENTS } from "../model/uiScale";
@@ -394,6 +394,7 @@ function useAppearanceSettings() {
     const [accentColor, setAccentColor] = useState(loadAccentColor);
     const [codeFont, setCodeFont] = useState(loadCodeFont);
     const [uiFont, setUiFont] = useState(loadUiFont);
+    const [readingFont, setReadingFont] = useState(loadReadingFont);
     const [opacity, setOpacity] = useState(loadSidebarOpacity);
     const [blur, setBlur] = useState(loadSidebarBlur);
     const [themeHue, setThemeHue] = useState(loadThemeHue);
@@ -412,6 +413,7 @@ function useAppearanceSettings() {
     useEffect(() => subscribeFonts(() => {
         setCodeFont(loadCodeFont());
         setUiFont(loadUiFont());
+        setReadingFont(loadReadingFont());
     }), []);
     const onThemePreference = useCallback((next: ThemePreference) => {
         applyThemePreference(next);
@@ -446,6 +448,11 @@ function useAppearanceSettings() {
         saveUiFont(value);
         applyFonts();
         setUiFont(loadUiFont());
+    }, []);
+    const onReadingFont = useCallback((value: ReadingFont) => {
+        saveReadingFont(value);
+        applyFonts();
+        setReadingFont(loadReadingFont());
     }, []);
     const onOpacity = useCallback((percent: number) => {
         const next = applySidebarOpacity(percent / 100);
@@ -543,6 +550,7 @@ function useAppearanceSettings() {
         saveThemeWallpaperAuto(true);
         onCodeFont(null);
         onUiFont(null);
+        onReadingFont(READING_FONT_DEFAULT);
         onThemePreference(THEME_PREFERENCE_DEFAULT);
         onAccentColor(ACCENT_COLOR_DEFAULT);
         onOpacity(Math.round(SIDEBAR_OPACITY_DEFAULT * 100));
@@ -570,6 +578,7 @@ function useAppearanceSettings() {
         onTheme,
         onCodeFont,
         onUiFont,
+        onReadingFont,
         onThemePreference,
         onOpacity,
         onTint,
@@ -582,6 +591,7 @@ function useAppearanceSettings() {
         accentColor,
         codeFont,
         uiFont,
+        readingFont,
         opacity,
         blur,
         themeHue,
@@ -601,6 +611,7 @@ function useAppearanceSettings() {
         onAccentColor,
         onCodeFont,
         onUiFont,
+        onReadingFont,
         onSelectThemeWallpaper,
         onOpacity,
         onBlur,
@@ -668,6 +679,10 @@ function AppearancePage({ appearance }: {
         </Row>
         <Row id="interface-font" label={t("Interface font")} description={t("Chat, menus and notes.")}>
           <FontSelect label={t("Interface font")} value={appearance.uiFont} emptyLabel={t("System default")} followLabel={t("Same as code font")} onChange={appearance.onUiFont}/>
+        </Row>
+        <Row id="reading-font" label={t("Reading font")} description={t("The body text of lessons, sources and notes. Code and the interface stay as they are.")}>
+          <Segmented label={t("Reading font")} value={appearance.readingFont} optionIdPrefix="reading-font"
+            options={[{ value: "sans", label: t("Sans") }, { value: "serif", label: t("Serif") }]} onChange={appearance.onReadingFont}/>
         </Row>
       </Group>
 

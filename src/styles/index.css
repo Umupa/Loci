@@ -110,6 +110,9 @@
 }
 
 :root {
+  /* Reader body text: the interface sans unless Settings > Appearance > Fonts
+     asks for a serif. Codes and chrome never use this. */
+  --font-reading: var(--font-sans);
   --font-mono-system:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
@@ -163,6 +166,34 @@ html.theme-light {
   --color-danger: hsl(0 72% 42%);
   --color-warning: hsl(32 85% 32%);
   color-scheme: light;
+}
+
+/*
+ * The reading surface. Lessons, sources, notes and file previews set their body
+ * text at 15/26 in a column of about 68 characters. The measure is centred in
+ * whatever the reader column gives it, and the face is the reading face.
+ */
+.reader-body {
+  font-family: var(--font-reading);
+  font-size: 15px;
+  line-height: 26px;
+}
+
+.reader-body.reader-measure {
+  max-width: 68ch;
+  margin-inline: auto;
+}
+
+.reader-body .agent-markdown {
+  max-width: 68ch;
+  margin-inline: auto;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.reader-body .agent-markdown :is(pre, code, kbd, samp) {
+  font-family: var(--font-mono);
 }
 
 html,

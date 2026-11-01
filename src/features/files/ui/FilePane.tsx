@@ -411,7 +411,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         className="block h-full w-full resize-none overflow-auto overscroll-none bg-transparent px-5 py-4 font-mono text-[12.5px] leading-[1.55] text-content/90 outline-none"
       />
     ) : (
-      <div ref={markdownRef} className="h-full min-h-0" data-reading-text><MarkdownDocumentPreview text={shownText} metadataLabel="Front matter" cwd={parentPath(path)} onOpenFile={onOpenFile} /></div>
+      <div ref={markdownRef} className="h-full min-h-0 reader-body" data-reading-text><MarkdownDocumentPreview text={shownText} metadataLabel="Front matter" cwd={parentPath(path)} onOpenFile={onOpenFile} /></div>
     );
   } else {
     body = (

@@ -227,6 +227,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "font typeface family omarchy code interface monospace fonts",
     },
     {
+        id: "reading-font",
+        section: "appearance",
+        get label() { return t("Reading font"); },
+        keywords: "reader body serif sans book lesson source note typeface reading",
+    },
+    {
         id: "sidebar-opacity",
         section: "appearance",
         get label() { return t("Sidebar opacity"); },

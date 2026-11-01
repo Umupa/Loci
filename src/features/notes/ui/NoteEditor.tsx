@@ -400,7 +400,7 @@ export function NoteEditor({
             }}
             onKeyDown={onTitleKeyDown}
             aria-label="Note title"
-            className="w-full border-0 bg-transparent p-0 text-[20px] font-semibold leading-tight text-content outline-none placeholder:text-content/35"
+            className="w-full border-0 bg-transparent p-0 text-[18px] font-medium leading-tight text-content outline-none placeholder:text-content/35"
             placeholder="Untitled"
           />
           {time ? (
@@ -516,7 +516,7 @@ export function NoteEditor({
               }}
             />
           ) : body.trim() ? (
-            <AgentMarkdown text={body} cwd={sourceCwd} hardBreaks />
+            <div className="reader-body reader-measure"><AgentMarkdown text={body} cwd={sourceCwd} hardBreaks /></div>
           ) : (
             <p className="text-[13px] text-content/45">No description</p>
           )}

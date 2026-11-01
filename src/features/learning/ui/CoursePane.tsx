@@ -398,7 +398,7 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
   const open = <button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button>;
   if (!inline) return <article className="course-pane__content" key={lesson.id}><h2>{lesson.title}</h2><p className="course-pane__summary" title={file}>{name}{where}</p>{open}</article>;
   const shown = loaded?.file === file ? loaded : undefined;
-  return <article className="course-pane__content course-pane__reading" key={lesson.id}>
+  return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id}>
     <h2>{lesson.title}</h2>
     <p className="course-pane__summary" title={file}>{name}{where}</p>
     {!shown ? <p className="course-pane__relations">Opening…</p>
@@ -457,5 +457,5 @@ function LessonDocument({ agentId, lesson, marksList, onMarks }: { agentId: stri
   const shown = loaded?.id === id ? loaded : undefined;
   if (!shown) return <p className="course-pane__relations">Opening…</p>;
   if (!shown.document) return <article className="course-pane__content"><h2>{lesson.title}</h2><p className="course-error" role="alert">{shown.error ? `Could not open this lesson's document: ${shown.error}` : `This lesson's document (${id}) is not in the library. Ask the agent to save it again.`}</p></article>;
-  return <article className="course-pane__content course-pane__reading" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare marksList={marksList} onMarks={onMarks} /></article>;
+  return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare marksList={marksList} onMarks={onMarks} /></article>;
 }

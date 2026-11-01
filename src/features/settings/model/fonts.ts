@@ -1,5 +1,16 @@
 const CODE_FONT_KEY = "loci.codeFont";
 const UI_FONT_KEY = "loci.uiFont";
+const READING_FONT_KEY = "loci.readingFont";
+
+/** The face for reader body text: the interface sans, or a book serif. */
+export type ReadingFont = "sans" | "serif";
+export const READING_FONT_DEFAULT: ReadingFont = "sans";
+/**
+ * Reader body only, and only when asked for. Every family is a system face, so
+ * the choice works offline; the Chinese serifs keep CJK text in the same voice.
+ */
+export const READING_FONT_SERIF =
+  '"New York", "Iowan Old Style", Georgia, "Songti SC", "Noto Serif CJK SC", serif';
 
 /** Stored as the interface font to say "use the code font here too". */
 export const UI_FONT_FOLLOWS_CODE = "@code";
@@ -102,10 +113,23 @@ export function saveUiFont(value: string | null) {
   writeString(UI_FONT_KEY, value == null ? null : normalizeUiFont(value));
 }
 
+export function loadReadingFont(): ReadingFont {
+  return readString(READING_FONT_KEY) === "serif" ? "serif" : READING_FONT_DEFAULT;
+}
+
+export function saveReadingFont(value: ReadingFont) {
+  writeString(READING_FONT_KEY, value === "serif" ? "serif" : null);
+}
+
 export function subscribeFonts(onChange: () => void) {
   if (typeof window === "undefined") return () => {};
   const onStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === CODE_FONT_KEY || event.key === UI_FONT_KEY) {
+    if (
+      event.key === null ||
+      event.key === CODE_FONT_KEY ||
+      event.key === UI_FONT_KEY ||
+      event.key === READING_FONT_KEY
+    ) {
       onChange();
     }
   };
@@ -156,6 +180,11 @@ export function applyFonts() {
   }
   // "Same as code font" with no code font set keeps the system interface font.
   root.classList.toggle("has-ui-font", sans != null);
+  if (loadReadingFont() === "serif") {
+    root.style.setProperty("--font-reading", READING_FONT_SERIF);
+  } else {
+    root.style.removeProperty("--font-reading");
+  }
 }
 
 // Narrow and wide letters: they only measure the same in a monospace font.

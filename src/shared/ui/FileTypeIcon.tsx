@@ -57,11 +57,7 @@ export const FileTypeIcon = memo(function FileTypeIcon({
     return <DirIcon aria-hidden data-folder-icon={isOpen ? "open" : "closed"} className="shrink-0 text-content/50" style={{ width: size, height: size }} />;
   }
 
-  const iconName = icons
-    ? isDir
-      ? icons.getFolderIcon({ folderName: name, isOpen, isRoot })
-      : resolveFileIcon(icons, name)
-    : "";
+  const iconName = icons ? resolveFileIcon(icons, name) : "";
   const svg = icons?.getIconSvg(iconName) ?? "";
   // React compares this prop by identity. A fresh object replaces the SVG
   // subtree even when the glyph is unchanged (for example, on resize).
