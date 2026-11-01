@@ -200,7 +200,9 @@ it("opens on the mentor shown last, with mentors on the rail and no tabs or proj
   expect(container.querySelector('[data-agent-rail] button[aria-label="New mentor"]')).not.toBeNull();
   expect(container.querySelector('nav[aria-label="Projects"]')).toBeNull();
   expect(container.querySelector("[data-title-tab-id]")).toBeNull();
-  expect(workspace().querySelector(".mentor-breadcrumb")?.textContent).toBe("Bea");
+  expect(workspace().getAttribute("aria-label")).toBe("Bea workspace");
+  // No title bar of its own: the columns' headers are the window's top row.
+  expect(workspace().querySelector(".mentor-titlebar")).toBeNull();
   await click(railButton("Ada"));
   await settle(() => expect(workspace()?.dataset.mentorWorkspace).toBe("agent-a"));
   expect(localStorage.getItem(ACTIVE_MENTOR_KEY)).toBe("agent-a");
@@ -210,7 +212,7 @@ it("leaves room for the window's buttons in the rail on macOS", async () => {
   platform.mac = true;
   await renderMentor();
   expect(container.querySelector(".mentor-rail[data-mac]")).not.toBeNull();
-  expect(workspace().querySelector(".mentor-titlebar button[aria-label^='Back']")).toBeNull();
+  expect(workspace().querySelector("[data-resource-header] button[aria-label^='Back']")).toBeNull();
 });
 
 it("starts on the mentor workspace's empty state when there is no mentor, and offers the gallery", async () => {
@@ -389,7 +391,7 @@ it("reads one thing at a time beside the mentor: each opened item replaces the l
 
   await click(pane("chat-a").querySelector<HTMLButtonElement>('[data-card="document"]')!);
   await settle(() => expect(reader().textContent).toContain("Owned by Ada."));
-  expect(workspace().querySelector(".mentor-breadcrumb")?.textContent).toBe("AdaNetwork strategy");
+  expect(reader().querySelector("[data-resource-header] h3")?.textContent).toBe("Network strategy");
   await act(async () => saveAgentDocuments("agent-a", [{ ...reading, body: "# Revised network\n\nLive revision from Ada." }]));
   await settle(() => expect(reader().textContent).toContain("Live revision from Ada."));
 
@@ -410,7 +412,7 @@ it("unfolds the conversation when a passage is added to it from the reader", asy
   await renderMentor();
   const column = () => workspace().querySelector<HTMLElement>(".mentor-chat-column")!;
   expect(column().hasAttribute("hidden")).toBe(false);
-  await click(workspace().querySelector<HTMLButtonElement>(".mentor-chat-toggle")!);
+  await click(workspace().querySelector<HTMLButtonElement>('.mentor-chat-column [aria-label="Hide conversation"]')!);
   expect(column().hasAttribute("hidden")).toBe(true);
   await act(async () => {
     window.dispatchEvent(new CustomEvent(ADD_TO_CHAT_EVENT, { detail: { text: "A passage worth discussing.", mode: "quote", targetSessionId: "chat-a" } }));
@@ -444,7 +446,7 @@ it("shows a session a mentor started in the reader, and never on its own", async
   expect(pane("delegated")).toBeNull();
   await act(async () => requestOpenAppResource({ kind: "session", id: "delegated" }));
   await settle(() => expect(reader().querySelector('[data-pane-id="delegated"]')?.textContent).toContain("The jailer chroots first."));
-  expect(workspace().querySelector(".mentor-breadcrumb")?.textContent).toBe("AdaDelegated work");
+  expect(reader().querySelector("[data-resource-header]")?.textContent).toContain("Delegated work");
   expect(pane("chat-a")).not.toBeNull();
 });
 

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import { act, createElement } from "react";
+import { act, createElement, useContext } from "react";
+import { AgentHeaderExtra } from "../../agents/ui/AgentView";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
@@ -47,6 +48,12 @@ let notes: Note[];
 let courseGone: boolean;
 let drafts: string[];
 let documentRead: (agent: string) => Promise<typeof documents>;
+
+/** Stands in for the conversation, showing what the workspace adds to its header. */
+function TestChat({ id }: { id: string }) {
+  return createElement("div", { "data-test-chat": id }, useContext(AgentHeaderExtra));
+}
+
 const drawings = [{ id: "drawing-a", title: "Ada's sketch", cwd: "", dataJson: "{}", tags: [], createdAt: 1, updatedAt: 2 }];
 const agent: Agent = { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#123456", projects: [] };
 const other: Agent = { ...agent, id: "agent-b", sessionId: "chat-b", name: "Bea" };
@@ -55,7 +62,7 @@ const courseData = JSON.stringify({ engine: "reading", chapters: [{ title: "Work
 function Host({ owner = agent }: { owner?: Agent }) {
   control = useMentorView();
   return createElement(MentorWorkspace, {
-    key: owner.id, agent: owner, state: control.stateFor(owner.id), chat: createElement("div", { "data-test-chat": owner.id }), canvases: drawings,
+    key: owner.id, agent: owner, state: control.stateFor(owner.id), chat: createElement(TestChat, { id: owner.id }), canvases: drawings,
     onOpen: (page) => control.show(owner.id, page), onClose: () => control.close(owner.id),
     onLessonChange: (lesson) => control.setLesson(owner.id, lesson), onRestoredChecked: (page, exists) => control.confirmRestored(owner.id, page, exists),
     onToggleLibrary: () => control.toggleLibrary(owner.id), onLibraryChange: (change) => control.openLibrary(owner.id, change), onDraft: (text) => drafts.push(text), onToggleChat: () => control.toggleChat(owner.id),
@@ -68,7 +75,6 @@ async function render(owner = agent) { await act(async () => root.render(createE
 async function click(selector: string) { await act(async () => container.querySelector<HTMLButtonElement>(selector)!.click()); }
 const tab = (segment: string) => click(`[role="tab"][data-segment="${segment}"]`);
 const reader = () => container.querySelector<HTMLElement>("[data-mentor-reader]")!;
-const crumbs = () => [...container.querySelectorAll(".mentor-breadcrumb-item")].map((item) => item.textContent);
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -102,17 +108,22 @@ it("lays out library, reader and conversation, listing only this mentor's things
   const body = container.querySelector(".mentor-body")!;
   expect([...body.children].map((child) => child.className)).toEqual(["mentor-library-column", "mentor-reader", "mentor-chat-column"]);
   expect(container.querySelector('[data-test-chat="agent-a"]')).not.toBeNull();
-  expect([...container.querySelectorAll('[role="tab"]')].map((entry) => entry.textContent)).toEqual(["Courses", "Sources1", "Notes1", "Files"]);
+  // The chosen segment is a labelled pill; the others are icons named for assistive tech.
+  expect([...container.querySelectorAll('[role="tab"]')].map((entry) => entry.getAttribute("aria-label"))).toEqual(["Courses", "Sources, 1", "Notes, 1", "Files"]);
+  expect([...container.querySelectorAll('[role="tab"]')].map((entry) => entry.textContent)).toEqual(["Courses", "", "", ""]);
+  // No title bar of its own: the library's header is the window's top row.
+  expect(container.querySelector(".mentor-titlebar")).toBeNull();
+  expect(container.querySelector(".mentor-library-header [aria-label='Hide library']")).not.toBeNull();
   expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("data-segment")).toBe("courses");
   expect(container.textContent).toContain("Ada's course");
   expect(container.textContent).not.toContain("Bea's course");
-  expect(container.textContent).toContain("1 / 2 read");
+  expect(container.textContent).toContain("1/2");
   await tab("notes");
   expect(container.textContent).toContain("Ada's drawing");
   expect(container.textContent).not.toContain("Bea's drawing");
   expect(container.textContent).not.toContain("Habits");
   expect(reader().dataset.mentorReader).toBe("empty");
-  expect(crumbs()).toEqual(["Ada"]);
+  expect(reader().querySelector("[data-resource-header]")).not.toBeNull();
 });
 
 it("opens whatever is chosen in place of what was read, and closes back to an empty reader", async () => {
@@ -120,7 +131,7 @@ it("opens whatever is chosen in place of what was read, and closes back to an em
   await tab("sources");
   await click('[data-resource-kind="document"]');
   await vi.waitFor(() => expect(container.querySelector("[data-test-document]")?.textContent).toBe("Original source text"));
-  expect(crumbs()).toEqual(["Ada", "HTTP reference"]);
+  expect(reader().dataset.mentorReader).toBe("document");
   expect(container.querySelector('[data-resource-id="doc"]')?.getAttribute("aria-current")).toBe("true");
   expect(container.querySelector('[aria-label="Back to documents"]')).toBeNull();
   await act(async () => control.show(agent.id, { kind: "canvas", id: "drawing-a" }));
@@ -132,30 +143,28 @@ it("opens whatever is chosen in place of what was read, and closes back to an em
   expect(reader().dataset.mentorReader).toBe("empty");
 });
 
-it("shows the course once, with where to continue, and opens lessons from its outline", async () => {
+it("shows the course once, with its progress, and opens lessons from its outline", async () => {
   await render();
   const panel = () => container.querySelector<HTMLElement>('[data-library-section="courses"]')!;
   await vi.waitFor(() => expect(panel().querySelector('nav[aria-label="Course navigation"]')).not.toBeNull());
   expect(panel().querySelector(".library-switcher")?.textContent).toBe("Ada's course");
-  expect(panel().textContent).toContain("1 / 2 read");
+  expect(panel().textContent).toContain("1/2");
+  expect(panel().querySelector("[data-library-continue]")).toBeNull();
   expect(panel().textContent?.match(/Ada's course/g)).toHaveLength(1);
   const lessons = () => [...panel().querySelectorAll<HTMLButtonElement>("[data-library-lesson]")];
   expect(lessons().map((lesson) => lesson.getAttribute("aria-label"))).toEqual(["Pod, Read", "Service, Not started"]);
   expect(lessons()[0].className).toContain("library-lesson--mastered");
-  expect(panel().querySelector("[data-library-continue]")?.getAttribute("data-library-continue")).toBe("service");
 
-  await click(".library-continue-button");
+  await act(async () => lessons()[1].click());
   const course = () => container.querySelector<HTMLElement>("[data-test-course]")!;
   expect(course().dataset.item).toBe("service");
   expect(lessons()[1].getAttribute("aria-current")).toBe("step");
-  // The card is not needed while its lesson is on screen.
-  expect(panel().querySelector("[data-library-continue]")).toBeNull();
   const before = Number(course().dataset.request);
   await act(async () => lessons()[0].click());
   expect(course().dataset.item).toBe("pod");
   expect(Number(course().dataset.request)).toBe(before + 1);
   await click("[data-test-course] button");
-  expect(crumbs()).toEqual(["Ada", "Ada's course", "Service"]);
+  expect(control.stateFor(agent.id).lesson?.title).toBe("Service");
   expect(lessons()[1].getAttribute("aria-current")).toBe("step");
 });
 
@@ -272,7 +281,7 @@ it("creates an owned note and opens it in the reader", async () => {
 
 it("comes back to the lesson a mentor was showing, remembering identifiers only", async () => {
   await render();
-  await vi.waitFor(() => expect(container.querySelector(".library-continue-button")).not.toBeNull());
+  await vi.waitFor(() => expect(container.querySelector('[data-library-lesson="pod"]')).not.toBeNull());
   await click('[data-library-lesson="pod"]');
   await click("[data-test-course] button");
   await act(async () => control.resizeChat(agent.id, 520));
@@ -316,8 +325,9 @@ it("shows one segment at a time, remembered per mentor, and ignores an old mento
   expect(container.querySelector("[data-mentor-library]")?.getAttribute("data-library-segment")).toBe("sources");
   await click('[aria-label="Hide library"]');
   expect(container.querySelector<HTMLElement>(".mentor-library-column")!.hidden).toBe(true);
-  // The open conversation's toggle shows the ✕ as well as the face.
-  expect(container.querySelector('[aria-label="Hide conversation"]')!.querySelectorAll("svg")).toHaveLength(2);
+  // The open conversation's ✕ sits in its own header; the reader's header takes the library's toggle.
+  expect(container.querySelector('[aria-label="Hide conversation"]')!.querySelectorAll("svg")).toHaveLength(1);
+  expect(reader().querySelector("[data-resource-header] [aria-label='Show library']")).not.toBeNull();
   await click('[aria-label="Hide conversation"]');
   expect(container.querySelector<HTMLElement>(".mentor-chat-column")!.hidden).toBe(true);
   expect(container.querySelector('[aria-label="Chat with Ada"]')).not.toBeNull();
@@ -397,7 +407,6 @@ it("shows a conversation as the reader without remembering it, with a header tha
   await render();
   await act(async () => control.show(agent.id, { kind: "session", id: "delegated" }));
   expect(reader().querySelector('[data-test-session="delegated"]')).not.toBeNull();
-  expect(crumbs()).toEqual(["Ada", "Delegated work"]);
   expect(reader().querySelector("[data-resource-header]")?.textContent).toContain("Delegated work");
   expect(JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!)[agent.id].page).toBeUndefined();
   await click('[data-resource-header] [aria-label="Close"]');
@@ -467,7 +476,6 @@ it("lists the mentor's working folder under Files and opens a file from it in th
   await act(async () => files.click());
   await vi.waitFor(() => expect(container.querySelector("[data-test-file]")?.getAttribute("data-test-file")).toBe("/home/user/Loci/agent-a/repos/notes.md"));
   expect(control.stateFor(agent.id).page).toEqual({ kind: "file", path: "/home/user/Loci/agent-a/repos/notes.md" });
-  expect(crumbs()).toEqual(["Ada", "notes.md"]);
   await render(other);
   await tab("files");
   expect(container.querySelector('[data-test-files="agent-b"]')).not.toBeNull();

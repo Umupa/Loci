@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { MentorViewState } from "../../../app/hooks/useMentorView";
 import { useDragResize } from "../../../shared/hooks/useDragResize";
-import { SidebarLeft, X } from "../../../shared/ui/icons";
+import { MessageSquare, SidebarLeft, X } from "../../../shared/ui/icons";
+import { PaneHeaderChrome } from "../../../shared/ui/PaneHeader";
+import { ResourceHeaderExtra, ResourceHeaderLeading } from "../../../shared/ui/ResourceHeader";
 import { agentLook, type Agent } from "../../agents/model/agent";
 import { readAgentDocument } from "../../agents/model/agentDocuments";
 import type { AgentReading } from "../../agents/model/agentReading";
-import { AgentAvatar } from "../../agents/ui/AgentAvatar";
+import { AgentHeaderExtra } from "../../agents/ui/AgentView";
 import { useAgentResources } from "../../agents/ui/useAgentResources";
 import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
@@ -13,7 +15,6 @@ import { moveFileDrafts, setFileDraft } from "../../files/model/fileDrafts";
 import { loadCourse } from "../../learning/model/course";
 import { createNote, getNote } from "../../notes";
 import { readingOf, type MentorLesson, type MentorPage } from "../model/mentorPage";
-import { MentorBreadcrumb, mentorCrumbs } from "./MentorBreadcrumb";
 import type { CourseBadge } from "./LibraryCourses";
 import { useReadingPlace } from "./useReadingPlace";
 import { MentorLibrary, type LibraryChange } from "./MentorLibrary";
@@ -46,9 +47,9 @@ type Props = {
   state: MentorViewState;
   /** The conversation, rendered by the app with its session wiring. */
   chat: ReactNode;
-  /** Ahead of the title bar, when the workspace is the window's left edge. */
+  /** Ahead of the leftmost column's header, when the workspace is the window's left edge. */
   leading?: ReactNode;
-  /** After the title bar's own controls, such as the window's buttons. */
+  /** At the end of the rightmost column's header, such as the window's buttons. */
   trailing?: ReactNode;
   canvases: readonly Canvas[];
   onOpen: (page: MentorPage) => void;
@@ -74,6 +75,9 @@ type Props = {
   renderSession: (id: string) => ReactNode;
   sessionTitle: (id: string) => string;
 };
+
+/** The conversation's header is the window's top row, like the other columns'. */
+const CHAT_CHROME = { windowTop: true, leadingInset: 4 };
 
 /** Whether a page remembered from an earlier visit can still be shown. */
 export async function restoredPageExists(agentId: string, page: MentorPage): Promise<boolean> {
@@ -187,8 +191,24 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
     return () => { observer?.disconnect(); window.removeEventListener("resize", fit); };
   }, [state.library, state.chat, library.reclamp, conversation.reclamp]); // eslint-disable-line react-hooks/exhaustive-deps
   const name = agentLook(agent).name;
-  const chatLabel = state.chat ? "Hide conversation" : `Chat with ${name}`;
   const libraryLabel = state.library ? "Hide library" : "Show library";
+  // There is no title bar of its own: each column's header is the window's top
+  // row. The library's toggle sits at the end of its header, or ahead of the
+  // reader's once the library is folded; the conversation's ✕ sits in its own
+  // header, or a Chat button at the end of the reader's once it is folded.
+  const libraryToggle = <button type="button" data-tauri-drag-region="false" className="mentor-bar-button" aria-label={libraryLabel} title={libraryLabel}
+    aria-pressed={state.library} onClick={onToggleLibrary}><SidebarLeft className="size-4" /></button>;
+  const readerLeading = state.library ? null : <>{leading}{libraryToggle}</>;
+  const readerExtra = state.chat ? null : <>
+    <button type="button" data-tauri-drag-region="false" className="mentor-chat-show" aria-pressed={false} aria-label={`Chat with ${name}`} title={`Chat with ${name}`} onClick={onToggleChat}>
+      <MessageSquare className="size-4 shrink-0" /><span>Chat</span>
+    </button>
+    {trailing}
+  </>;
+  const chatExtra = <>
+    <button type="button" data-no-drag className="mentor-bar-button" aria-pressed aria-label="Hide conversation" title="Hide conversation" onClick={onToggleChat}><X className="size-4" /></button>
+    {trailing}
+  </>;
 
   return <section className="mentor-workspace" data-mentor-workspace={agent.id} aria-label={`${name} workspace`}
     onKeyDown={(event) => {
@@ -200,24 +220,10 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
       event.preventDefault(); event.stopPropagation();
       close();
     }}>
-    <header className="mentor-titlebar" data-tauri-drag-region="deep">
-      {leading}
-      <button type="button" data-tauri-drag-region="false" className="mentor-titlebar-button" aria-label={libraryLabel} title={libraryLabel} aria-pressed={state.library} onClick={onToggleLibrary}>
-        <SidebarLeft className="size-4" />
-      </button>
-      <MentorBreadcrumb agent={agent} crumbs={mentorCrumbs(agent, state.page, state.lesson, data, sessionTitle)} />
-      <div className="min-w-0 flex-1" data-tauri-drag-region="deep" />
-      <button type="button" data-tauri-drag-region="false" className={`mentor-chat-toggle ${state.chat ? "bg-content/8 text-content" : "text-content/60"}`}
-        aria-pressed={state.chat} aria-label={chatLabel} title={chatLabel} onClick={onToggleChat}>
-        <AgentAvatar name={agent.avatar} color={agent.color} className="size-4 shrink-0" />
-        {state.chat ? <X className="size-3 shrink-0" strokeWidth={2} /> : <span>Chat</span>}
-      </button>
-      {trailing}
-    </header>
     <div ref={body} className="mentor-body">
       {narrowLibrary && state.library ? <div className="mentor-library-scrim" aria-hidden="true" onPointerDown={onToggleLibrary} /> : null}
       <aside ref={library.setPaneRef} className="mentor-library-column" hidden={!state.library} aria-label="Outline and library">
-        <MentorLibrary agent={agent} data={data} errors={errors} onRetry={reload} page={state.page} lesson={state.lesson}
+        <MentorLibrary agent={agent} headerLeading={leading} headerEnd={libraryToggle} data={data} errors={errors} onRetry={reload} page={state.page} lesson={state.lesson}
           onOpen={open} onNewNote={() => void newNote()} creatingNote={creating} onOpenFile={(path) => open({ kind: "file", path })}
           onFileMoved={fileMoved} onFileDeleted={fileDeleted}
           segment={state.segment} course={state.course} filter={state.filter} onChange={onLibraryChange} onDraft={onDraft} courseBadge={courseBadge} />
@@ -231,10 +237,12 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
           }} />
       </aside>
       <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}>
+        <ResourceHeaderLeading.Provider value={readerLeading}><ResourceHeaderExtra.Provider value={readerExtra}>
         <MentorReader agent={agent} page={state.page} request={state.request} canvases={canvases}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
           onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} renderSession={renderSession}
           sessionTitle={sessionTitle} />
+        </ResourceHeaderExtra.Provider></ResourceHeaderLeading.Provider>
       </main>
       <aside ref={conversation.setPaneRef} className="mentor-chat-column" hidden={!state.chat} aria-label={`Conversation with ${name}`}>
         <div role="separator" aria-label="Resize conversation" aria-orientation="vertical" tabIndex={0} className="mentor-resize mentor-resize--left"
@@ -244,7 +252,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
             event.preventDefault();
             conversation.setWidth(conversation.width + (event.key === "ArrowLeft" ? 20 : -20));
           }} />
-        {chat}
+        <PaneHeaderChrome.Provider value={CHAT_CHROME}><AgentHeaderExtra.Provider value={chatExtra}>{chat}</AgentHeaderExtra.Provider></PaneHeaderChrome.Provider>
       </aside>
     </div>
   </section>;
