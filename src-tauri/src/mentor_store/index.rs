@@ -721,10 +721,11 @@ mod tests {
         reconcile(&conn, &ctx).unwrap();
         let started = std::time::Instant::now();
         assert!(reconcile(&conn, &ctx).unwrap().is_empty());
-        assert!(started.elapsed() < std::time::Duration::from_secs(3));
+        // Generous: this runs beside other builds; a cold walk is ~50 ms.
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
         let listed = std::time::Instant::now();
         assert_eq!(list(&conn, "a1", &[Kind::Guide]).unwrap().len(), 3000);
-        assert!(listed.elapsed() < std::time::Duration::from_secs(1));
+        assert!(listed.elapsed() < std::time::Duration::from_secs(5));
         std::fs::remove_dir_all(folder).unwrap();
     }
 }

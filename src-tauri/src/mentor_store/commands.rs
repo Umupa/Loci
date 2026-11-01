@@ -179,12 +179,7 @@ pub fn sync(conn: &Connection, root: &Path, roster: &[Value]) -> Result<bool, St
             Some(_) => continue,
             None if !ready => continue,
             None => {
-                let slug = paths::mentor_slug(
-                    text(entry, "name").as_deref(),
-                    text(entry, "role").as_deref(),
-                    &id,
-                );
-                let folder = paths::create_folder(root, &slug)?;
+                let folder = paths::create_folder(root, &desired_slug(entry, &id))?;
                 std::fs::create_dir_all(folder.join(SHARED_REPOS))
                     .map_err(|e| format!("{}: {e}", folder.display()))?;
                 let mut identity = Map::new();
@@ -221,10 +216,16 @@ pub fn sync(conn: &Connection, root: &Path, roster: &[Value]) -> Result<bool, St
             }
         }
         match text(entry, "workdir").map(|w| crate::fs::expand_home(&w)) {
-            Some(workdir) if workdir != record.folder && workdir.is_absolute() => {
+            Some(workdir) if workdir == record.folder => {
+                identity.remove("workdir");
+            }
+            // Chosen folders exist (setting one creates it); a path that does
+            // not is a stale copy of a folder that moved, not a choice.
+            Some(workdir) if workdir.is_absolute() && workdir.is_dir() => {
                 identity.insert("workdir".into(), json!(workdir.to_string_lossy()));
             }
-            _ => {
+            Some(_) => {}
+            None => {
                 identity.remove("workdir");
             }
         }
@@ -235,6 +236,12 @@ pub fn sync(conn: &Connection, root: &Path, roster: &[Value]) -> Result<bool, St
             _ => {
                 identity.remove("folders");
             }
+        }
+        // A mentor named after it was made (the CLI names it in a second
+        // step) moves to a folder of its name while nothing points at the old one.
+        if let Some(folder) = rename_unused(conn, root, &record, entry, &id)? {
+            record.folder = folder;
+            changed = true;
         }
         if identity != before_identity && registry::write_identity(&record.folder, &identity)? {
             changed = true;
@@ -258,6 +265,71 @@ pub fn sync(conn: &Connection, root: &Path, roster: &[Value]) -> Result<bool, St
         }
     }
     Ok(changed)
+}
+
+fn valid_slug(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug.len() <= 40
+        && slug != SHARED_REPOS
+        && !slug.starts_with('-')
+        && !slug.ends_with('-')
+        && slug
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
+/// The folder name the window asks for (its name, else its face's name, as
+/// 0.3 named workdirs), else one made from its name or role here.
+fn desired_slug(entry: &Map<String, Value>, id: &str) -> String {
+    text(entry, "slug")
+        .filter(|slug| valid_slug(slug))
+        .unwrap_or_else(|| {
+            paths::mentor_slug(
+                text(entry, "name").as_deref(),
+                text(entry, "role").as_deref(),
+                id,
+            )
+        })
+}
+
+/// A new folder for a mentor whose name changed before anything used its
+/// folder: no conversation, no content, nothing in `repos/`, no workdir of
+/// the user's. Anything else keeps its path, as workdirs always have.
+fn rename_unused(
+    conn: &Connection,
+    root: &Path,
+    record: &MentorRecord,
+    entry: &Map<String, Value>,
+    id: &str,
+) -> Result<Option<PathBuf>, String> {
+    let slug = desired_slug(entry, id);
+    let name = record
+        .folder
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    if name == slug
+        || name.strip_prefix(&slug).is_some_and(|rest| {
+            rest.starts_with('-') && rest[1..].bytes().all(|b| b.is_ascii_digit())
+        })
+        || record.session_id.is_some()
+        || text(entry, "sessionId").is_some()
+        || record.folder.parent() != Some(root)
+        || text(entry, "workdir").is_some_and(|w| crate::fs::expand_home(&w) != record.folder)
+        || !index::list(conn, id, &paths::KINDS)
+            .map_err(|e| e.to_string())?
+            .is_empty()
+    {
+        return Ok(None);
+    }
+    let repos = record.folder.join(SHARED_REPOS);
+    if std::fs::read_dir(&repos).is_ok_and(|mut entries| entries.next().is_some()) {
+        return Ok(None);
+    }
+    let target = paths::create_folder(root, &slug)?;
+    std::fs::remove_dir(&target).map_err(|e| e.to_string())?;
+    std::fs::rename(&record.folder, &target).map_err(|e| format!("{}: {e}", target.display()))?;
+    Ok(Some(target))
 }
 
 /// Forgets a mentor. Its folder stays, with `mentor.json` renamed so it is
@@ -635,13 +707,23 @@ mod tests {
         // Renaming keeps the folder; a custom workdir is recorded; same roster is no change.
         let mut renamed = agents[0].clone();
         renamed["name"] = json!("Lens");
-        renamed["workdir"] = json!("/Users/x/study");
+        let study = root.join("elsewhere/study");
+        std::fs::create_dir_all(&study).unwrap();
+        renamed["workdir"] = json!(study.to_string_lossy());
         renamed["sessionId"] = json!("s-9");
         assert!(sync(&conn, &root, &[renamed.clone()]).unwrap());
         assert!(!sync(&conn, &root, &[renamed]).unwrap());
         let agents = load(&conn, &root).unwrap();
         assert_eq!(agents[0]["name"], "Lens");
-        assert_eq!(agents[0]["workdir"], "/Users/x/study");
+        assert_eq!(agents[0]["workdir"], study.to_string_lossy().as_ref());
+        // A stale workdir that no longer exists is not taken as a choice.
+        let mut stale = agents[0].clone();
+        stale["workdir"] = json!("/nonexistent/old-folder");
+        sync(&conn, &root, &[stale]).unwrap();
+        assert_eq!(
+            load(&conn, &root).unwrap()[0]["workdir"],
+            study.to_string_lossy().as_ref()
+        );
         assert_eq!(agents[0]["sessionId"], "s-9");
         assert_eq!(agents[0]["folder"], folder.to_string_lossy().as_ref());
 
@@ -649,6 +731,47 @@ mod tests {
         remove(&conn, "m-1").unwrap();
         assert!(load(&conn, &root).unwrap().is_empty());
         assert!(folder.join(REMOVED_MENTOR_FILE).is_file());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_mentor_named_after_it_was_made_moves_to_a_folder_of_its_name_until_it_is_used() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("rename");
+        ready(&conn);
+        sync(
+            &conn,
+            &root,
+            &[json!({"id":"m-1","avatar":"ember","slug":"ember"})],
+        )
+        .unwrap();
+        assert!(root.join("ember").is_dir());
+        sync(
+            &conn,
+            &root,
+            &[json!({"id":"m-1","avatar":"ember","name":"E2B Reader","slug":"e2b-reader"})],
+        )
+        .unwrap();
+        assert!(!root.join("ember").exists());
+        let agents = load(&conn, &root).unwrap();
+        assert_eq!(
+            agents[0]["folder"],
+            root.join("e2b-reader").to_string_lossy().as_ref()
+        );
+        assert_eq!(
+            agents[0]["workdir"],
+            root.join("e2b-reader").to_string_lossy().as_ref()
+        );
+        // Once it has a conversation, it keeps its folder whatever it is called.
+        sync(&conn, &root, &[json!({"id":"m-1","avatar":"ember","name":"E2B Reader","slug":"e2b-reader","sessionId":"s1"})]).unwrap();
+        sync(
+            &conn,
+            &root,
+            &[json!({"id":"m-1","avatar":"ember","name":"Other","slug":"other","sessionId":"s1"})],
+        )
+        .unwrap();
+        assert!(root.join("e2b-reader").is_dir() && !root.join("other").exists());
         std::fs::remove_dir_all(root).unwrap();
     }
 

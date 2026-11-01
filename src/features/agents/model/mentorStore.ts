@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { workdirSlug } from "./mentorSlug";
 
 /**
  * Mentors live in folders (v0.4): `<mentors root>/<slug>/mentor.json` says who
@@ -146,7 +147,9 @@ export function queueRosterSync(roster: readonly RosterEntry[]): void {
       const sending = latest;
       latest = undefined;
       if (!sending) return;
-      const agents = await invoke<RosterEntry[]>("mentors_sync", { roster: sending });
+      // The folder name a new mentor gets: its name, else its face's name, as 0.3 named workdirs.
+      const roster = sending.map((entry) => typeof entry.avatar === "string" ? { ...entry, slug: workdirSlug(entry as { id: string; name?: string; avatar: string }) } : entry);
+      const agents = await invoke<RosterEntry[]>("mentors_sync", { roster });
       for (const entry of sending) unsynced.delete(entry.id);
       if (registryReady && !latest) writeCopy(mergeRoster(agents, readArray(ROSTER_KEY), unsynced, removing));
     })
