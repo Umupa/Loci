@@ -1,17 +1,20 @@
-//! Each agent keeps its files in the app's data folder, never in a repo: it
-//! works in repos with full file access, so a soul kept there could be
-//! rewritten outside the app's controlled CLI or by a pull request.
+//! An agent's Soul and memory live in its mentor folder (v0.4), beside its
+//! sources and courses; until its 0.3 data has moved there, in the app's
+//! data folder as before. Habits always stay in the app's data folder: they
+//! run things on their own, and a mentor folder copied or imported from
+//! elsewhere must not bring jobs with it.
 //!
 //! ```text
-//! <app data>/agents/
-//! └── <agent id>/
-//!     ├── SOUL.md           who it is; edited by the user or at their request
-//!     ├── MEMORY.md         what it has learned; loads into every turn
-//!     ├── habits.json       what it does on its own, on a schedule
-//!     └── memory/           topic notes read on demand, and archive.md
+//! ~/Loci/<slug>/                 <app data>/agents/<agent id>/
+//! ├── SOUL.md                    └── habits.json
+//! ├── MEMORY.md
+//! └── memory/<topic>.md, archive.md
 //! ```
 //!
-//! An agent is not tied to a project, so its folder is named by its own id.
+//! The folder is not a repository; cloned source lives in its `repos/`, each
+//! a repository of its own, so a pull request there cannot reach the Soul.
+//! Writes still name the hash they read, so the user, the agent's CLI and an
+//! editor cannot overwrite each other.
 //!
 //! Separately, each mentor has a working directory the user can see and the
 //! agent works in: cloned source under `repos/`, experiments under `lab/`.
@@ -74,11 +77,36 @@ pub struct TopicNote {
     pub hash: String,
 }
 
+/// Where an agent's files are: its Soul and memory, and its habits.
+#[derive(Debug, Clone)]
+pub struct Dirs {
+    pub files: PathBuf,
+    pub habits: PathBuf,
+}
+
+impl Dirs {
+    /// Both in `<root>/<agent>`, as before v0.4.
+    fn legacy(root: &Path, agent: &str) -> Result<Self, String> {
+        if !valid_id(agent) {
+            return Err("Not an agent id".into());
+        }
+        let dir = root.join(agent);
+        Ok(Self {
+            files: dir.clone(),
+            habits: dir,
+        })
+    }
+}
+
 /// The files the app reads and writes for an agent, relative to its folder:
 /// SOUL.md, MEMORY.md, habits.json, or one `memory/<name>.md`. Nothing nested, nothing
 /// hidden, so a path from the agent's CLI can never leave the folder.
-fn resolve_file(dir: &Path, relative: &str) -> Result<PathBuf, String> {
-    if relative == SOUL_FILE || relative == MEMORY_FILE || relative == HABITS_FILE {
+fn resolve_file(dirs: &Dirs, relative: &str) -> Result<PathBuf, String> {
+    if relative == HABITS_FILE {
+        return Ok(dirs.habits.join(relative));
+    }
+    let dir = &dirs.files;
+    if relative == SOUL_FILE || relative == MEMORY_FILE {
         return Ok(dir.join(relative));
     }
     let name = relative
@@ -171,13 +199,11 @@ fn valid_id(id: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
 }
 
-/// The agent's folder, created with an empty memory on first use.
-fn agent_dir(root: &Path, agent: &str) -> Result<PathBuf, String> {
-    if !valid_id(agent) {
-        return Err("Not an agent id".into());
-    }
-    let dir = root.join(agent);
+/// The agent's folders, created with an empty memory on first use.
+fn agent_dir(dirs: &Dirs) -> Result<PathBuf, String> {
+    let dir = dirs.files.clone();
     std::fs::create_dir_all(dir.join(MEMORY_DIR)).map_err(|e| format!("{}: {e}", dir.display()))?;
+    std::fs::create_dir_all(&dirs.habits).map_err(|e| format!("{}: {e}", dirs.habits.display()))?;
     let memory = dir.join(MEMORY_FILE);
     if !memory.exists() {
         write_atomic(&memory, "")?;
@@ -185,9 +211,9 @@ fn agent_dir(root: &Path, agent: &str) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-fn load(root: &Path, agent: &str) -> Result<AgentFiles, String> {
+fn load(dirs: &Dirs, agent: &str) -> Result<AgentFiles, String> {
     let _guard = FILES_LOCK.lock().map_err(|e| e.to_string())?;
-    let dir = agent_dir(root, agent)?;
+    let dir = agent_dir(dirs)?;
     let soul = read_optional(&dir.join(SOUL_FILE))?;
     let memory_path = dir.join(MEMORY_FILE);
     let memory = read_optional(&memory_path)?.unwrap_or_default();
@@ -215,10 +241,10 @@ fn load(root: &Path, agent: &str) -> Result<AgentFiles, String> {
     })
 }
 
-fn read(root: &Path, agent: &str, relative: &str) -> Result<AgentFile, String> {
+fn read(dirs: &Dirs, relative: &str) -> Result<AgentFile, String> {
     let _guard = FILES_LOCK.lock().map_err(|e| e.to_string())?;
-    let dir = agent_dir(root, agent)?;
-    let text = read_optional(&resolve_file(&dir, relative)?)?;
+    agent_dir(dirs)?;
+    let text = read_optional(&resolve_file(dirs, relative)?)?;
     Ok(AgentFile {
         hash: content_hash(text.as_deref().unwrap_or("")),
         text,
@@ -228,8 +254,7 @@ fn read(root: &Path, agent: &str, relative: &str) -> Result<AgentFile, String> {
 /// Saves only over the text the editor opened, so the user never overwrites
 /// what the agent wrote while they were typing. No hash means overwrite.
 fn save(
-    root: &Path,
-    agent: &str,
+    dirs: &Dirs,
     relative: &str,
     text: &str,
     expected_hash: Option<&str>,
@@ -238,8 +263,8 @@ fn save(
         return Err(format!("{relative} is too large"));
     }
     let _guard = FILES_LOCK.lock().map_err(|e| e.to_string())?;
-    let dir = agent_dir(root, agent)?;
-    let path = resolve_file(&dir, relative)?;
+    agent_dir(dirs)?;
+    let path = resolve_file(dirs, relative)?;
     if let Some(expected) = expected_hash {
         let current = read_optional(&path)?.unwrap_or_default();
         if content_hash(&current) != expected {
@@ -250,18 +275,31 @@ fn save(
     Ok(content_hash(text))
 }
 
+/// The agent's mentor folder when its content is in one, else app data.
+fn dirs_for(app: &AppHandle, agent: &str) -> Result<Dirs, String> {
+    let mut dirs = Dirs::legacy(&agents_root(app)?, agent)?;
+    let store = app.state::<crate::session_store::SessionStore>();
+    let conn = store.lock_conn()?;
+    if let Some(folder) =
+        crate::mentor_store::registry::active_folder(&conn, agent).map_err(|e| e.to_string())?
+    {
+        dirs.files = folder;
+    }
+    Ok(dirs)
+}
+
 #[tauri::command]
 pub async fn agent_load(app: AppHandle, agent: String) -> Result<AgentFiles, String> {
-    let root = agents_root(&app)?;
-    tauri::async_runtime::spawn_blocking(move || load(&root, &agent))
+    let dirs = dirs_for(&app, &agent)?;
+    tauri::async_runtime::spawn_blocking(move || load(&dirs, &agent))
         .await
         .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub async fn agent_read(app: AppHandle, agent: String, path: String) -> Result<AgentFile, String> {
-    let root = agents_root(&app)?;
-    tauri::async_runtime::spawn_blocking(move || read(&root, &agent, &path))
+    let dirs = dirs_for(&app, &agent)?;
+    tauri::async_runtime::spawn_blocking(move || read(&dirs, &path))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -274,9 +312,9 @@ pub async fn agent_save(
     text: String,
     expected_hash: Option<String>,
 ) -> Result<String, String> {
-    let root = agents_root(&app)?;
+    let dirs = dirs_for(&app, &agent)?;
     tauri::async_runtime::spawn_blocking(move || {
-        save(&root, &agent, &path, &text, expected_hash.as_deref())
+        save(&dirs, &path, &text, expected_hash.as_deref())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -371,6 +409,10 @@ pub async fn agent_workdir_ensure(path: String) -> Result<String, String> {
 mod tests {
     use super::*;
 
+    fn load_at(root: &Path, agent: &str) -> Result<AgentFiles, String> {
+        load(&Dirs::legacy(root, agent)?, agent)
+    }
+
     fn temp_root() -> PathBuf {
         let root = std::env::temp_dir().join(format!("agent-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
@@ -380,31 +422,48 @@ mod tests {
     #[test]
     fn creates_one_folder_per_agent_with_empty_memory() {
         let root = temp_root();
-        let first = load(&root, "agent-a").unwrap();
-        let again = load(&root, "agent-a").unwrap();
-        let other = load(&root, "agent-b").unwrap();
+        let first = load_at(&root, "agent-a").unwrap();
+        let again = load_at(&root, "agent-a").unwrap();
+        let other = load_at(&root, "agent-b").unwrap();
         assert_eq!(first.id, "agent-a");
         assert_eq!(first.dir, again.dir);
         assert_ne!(first.dir, other.dir);
         assert_eq!(first.soul, None);
         assert_eq!(first.memory, "");
         assert!(Path::new(&first.dir).join("memory").is_dir());
-        assert!(load(&root, "../x").is_err());
+        assert!(load_at(&root, "../x").is_err());
         std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
     fn refuses_to_overwrite_a_changed_file() {
         let root = temp_root();
-        let files = load(&root, "m").unwrap();
-        let hash = save(&root, "m", MEMORY_FILE, "- a", Some(&files.memory_hash)).unwrap();
+        let files = load_at(&root, "m").unwrap();
+        let hash = save(
+            &Dirs::legacy(&root, "m").unwrap(),
+            MEMORY_FILE,
+            "- a",
+            Some(&files.memory_hash),
+        )
+        .unwrap();
         assert_eq!(
-            save(&root, "m", MEMORY_FILE, "- b", Some(&files.memory_hash)),
+            save(
+                &Dirs::legacy(&root, "m").unwrap(),
+                MEMORY_FILE,
+                "- b",
+                Some(&files.memory_hash)
+            ),
             Err(CONFLICT.into())
         );
-        save(&root, "m", MEMORY_FILE, "- c", Some(&hash)).unwrap();
-        save(&root, "m", SOUL_FILE, "soul", None).unwrap();
-        let loaded = load(&root, "m").unwrap();
+        save(
+            &Dirs::legacy(&root, "m").unwrap(),
+            MEMORY_FILE,
+            "- c",
+            Some(&hash),
+        )
+        .unwrap();
+        save(&Dirs::legacy(&root, "m").unwrap(), SOUL_FILE, "soul", None).unwrap();
+        let loaded = load_at(&root, "m").unwrap();
         assert_eq!(loaded.memory, "- c");
         assert_eq!(loaded.soul.as_deref(), Some("soul"));
         std::fs::remove_dir_all(root).unwrap();
@@ -444,7 +503,7 @@ mod tests {
         use std::sync::{Arc, Barrier};
 
         let root = temp_root();
-        let hash = save(&root, "m", HABITS_FILE, "[]", None).unwrap();
+        let hash = save(&Dirs::legacy(&root, "m").unwrap(), HABITS_FILE, "[]", None).unwrap();
         let barrier = Arc::new(Barrier::new(8));
         let claims: Vec<_> = (0..8)
             .map(|index| {
@@ -454,7 +513,12 @@ mod tests {
                 std::thread::spawn(move || {
                     let text = format!("[{{\"claimedBy\":{index}}}]");
                     barrier.wait();
-                    let result = save(&root, "m", HABITS_FILE, &text, Some(&hash));
+                    let result = save(
+                        &Dirs::legacy(&root, "m").unwrap(),
+                        HABITS_FILE,
+                        &text,
+                        Some(&hash),
+                    );
                     (text, result)
                 })
             })
@@ -471,7 +535,7 @@ mod tests {
         for (_, result) in results.iter().filter(|(_, result)| result.is_err()) {
             assert_eq!(result.as_ref().unwrap_err(), CONFLICT);
         }
-        let saved = read(&root, "m", HABITS_FILE).unwrap();
+        let saved = read(&Dirs::legacy(&root, "m").unwrap(), HABITS_FILE).unwrap();
         assert_eq!(saved.text.as_ref(), Some(&winners[0].0));
         assert_eq!(saved.hash, content_hash(&winners[0].0));
         std::fs::remove_dir_all(root).unwrap();
@@ -480,16 +544,39 @@ mod tests {
     #[test]
     fn reads_and_writes_topics_inside_the_folder_only() {
         let root = temp_root();
-        save(&root, "m", "memory/releases.md", "# Releases", None).unwrap();
-        save(&root, "m", "memory/archive.md", "- old", None).unwrap();
-        let loaded = load(&root, "m").unwrap();
+        save(
+            &Dirs::legacy(&root, "m").unwrap(),
+            "memory/releases.md",
+            "# Releases",
+            None,
+        )
+        .unwrap();
+        save(
+            &Dirs::legacy(&root, "m").unwrap(),
+            "memory/archive.md",
+            "- old",
+            None,
+        )
+        .unwrap();
+        let loaded = load_at(&root, "m").unwrap();
         assert_eq!(loaded.topics, vec!["releases".to_string()]);
         assert_eq!(loaded.topic_notes.len(), 1);
         assert_eq!(loaded.topic_notes[0].text, "# Releases");
-        let topic = read(&root, "m", "memory/releases.md").unwrap();
+        let topic = read(&Dirs::legacy(&root, "m").unwrap(), "memory/releases.md").unwrap();
         assert_eq!(topic.text.as_deref(), Some("# Releases"));
-        assert_eq!(read(&root, "m", "memory/none.md").unwrap().text, None);
-        save(&root, "m", "habits.json", "[]", None).unwrap();
+        assert_eq!(
+            read(&Dirs::legacy(&root, "m").unwrap(), "memory/none.md")
+                .unwrap()
+                .text,
+            None
+        );
+        save(
+            &Dirs::legacy(&root, "m").unwrap(),
+            "habits.json",
+            "[]",
+            None,
+        )
+        .unwrap();
         for path in [
             "../x.md",
             "memory/../SOUL.md",
@@ -497,7 +584,10 @@ mod tests {
             "memory/.hidden.md",
             "notes.md",
         ] {
-            assert!(save(&root, "m", path, "x", None).is_err(), "{path}");
+            assert!(
+                save(&Dirs::legacy(&root, "m").unwrap(), path, "x", None).is_err(),
+                "{path}"
+            );
         }
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -538,6 +628,26 @@ mod tests {
         std::fs::write(&file, "x").unwrap();
         assert!(ensure_workdir(&file).is_err());
         assert!(ensure_workdir(Path::new("relative/dir")).is_err());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn soul_and_memory_live_in_the_mentor_folder_and_habits_stay_in_app_data() {
+        let root = temp_root();
+        let dirs = Dirs {
+            files: root.join("Loci/repo-lens"),
+            habits: root.join("app/agents/m"),
+        };
+        save(&dirs, SOUL_FILE, "soul", None).unwrap();
+        save(&dirs, "memory/kvm.md", "topic", None).unwrap();
+        save(&dirs, HABITS_FILE, "[]", None).unwrap();
+        assert!(root.join("Loci/repo-lens/SOUL.md").is_file());
+        assert!(root.join("Loci/repo-lens/memory/kvm.md").is_file());
+        assert!(root.join("app/agents/m/habits.json").is_file());
+        assert!(!root.join("Loci/repo-lens/habits.json").exists());
+        let files = load(&dirs, "m").unwrap();
+        assert_eq!(files.soul.as_deref(), Some("soul"));
+        assert_eq!(files.dir, root.join("Loci/repo-lens").to_string_lossy());
         std::fs::remove_dir_all(root).unwrap();
     }
 }
