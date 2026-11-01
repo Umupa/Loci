@@ -419,11 +419,30 @@ pub fn course_upsert(
     course: CourseUpsert,
 ) -> Result<Course, String> {
     validate_id(&course.agent_id, "agent")?;
+    let ctx = mentor_store::ctx_for(&*store.lock_conn()?, &course.agent_id)?;
+    // Lesson files relative to the mentor's folder, or pinned as
+    // repos/<repo>@<sha>:path, become absolute with full commit ids. Git
+    // runs before the database is locked.
+    let course = if course.engine == "reading" {
+        let data_json = match &ctx {
+            Some(ctx) => {
+                let resolve = |path: &str| ctx.resolve_lesson_file(path);
+                mentor_store::format::resolve_lesson_files(&course.data_json, &resolve)?
+            }
+            None => course.data_json.clone(),
+        };
+        CourseUpsert {
+            data_json: crate::code::expand_pins(&data_json)?,
+            ..course
+        }
+    } else {
+        course
+    };
     let conn = store.lock_conn()?;
-    if let Some(ctx) = mentor_store::ctx_for(&conn, &course.agent_id)? {
-        return file_save_course(&conn, &ctx, &course);
+    match ctx {
+        Some(ctx) => file_save_course(&conn, &ctx, &course),
+        None => save_course(&conn, &course),
     }
-    save_course(&conn, &course)
 }
 
 #[tauri::command(async)]

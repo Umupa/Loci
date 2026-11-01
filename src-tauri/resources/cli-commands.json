@@ -411,6 +411,254 @@
       ]
     },
     {
+      "name": "code.definition",
+      "summary": "Where a name is defined in the file's repository (by name, best first: the project before vendored code, the same file and folder first).",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "help": "A file: repos/<repo>@<sha>:path (pinned), a path in the mentor's folder, or an absolute path inside its folders",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "line",
+          "type": "integer",
+          "help": "A line (1-based) holding the name",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "column",
+          "type": "integer",
+          "help": "The column (1-based character) of the name on that line; default 1",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "help": "The name itself, instead of --line/--column",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "at",
+          "type": "string",
+          "help": "Read at this commit (default: the pin in --file, else the working tree)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "code.pin",
+      "summary": "Pin lines of a file in a git checkout to a commit (HEAD unless --at): gives the repos/<repo>@<sha>:path#L… string for a lesson's file, and the excerpt.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "help": "A file: repos/<repo>@<sha>:path (pinned), a path in the mentor's folder, or an absolute path inside its folders",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "lines",
+          "type": "string",
+          "help": "The lines the lesson shows: 12 or 12-40 (default: the range in --file)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "at",
+          "type": "string",
+          "help": "Read at this commit (default: the pin in --file, else the working tree)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "code.pins",
+      "summary": "Every pinned code lesson of the mentor's courses and how it stands: current, moved (HEAD moved, file unchanged), changed (with where the lines are now), missing-commit, missing-file.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "course",
+          "type": "string",
+          "help": "Only this course",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "code.read",
+      "summary": "A source file's lines, numbered, at a commit (a pin or --at) or as it is now, to check what a code-tour lesson shows.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "help": "A file: repos/<repo>@<sha>:path (pinned), a path in the mentor's folder, or an absolute path inside its folders",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "at",
+          "type": "string",
+          "help": "Read at this commit (default: the pin in --file, else the working tree)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "lines",
+          "type": "string",
+          "help": "Lines to show: 12 or 12-40 (default: the range in --file, else all, up to 2000)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "code.references",
+      "summary": "Where a name is used in the file's repository, matched by name (not resolved like a compiler). --file may be the repository folder with --name.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "help": "A file: repos/<repo>@<sha>:path (pinned), a path in the mentor's folder, or an absolute path inside its folders",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "line",
+          "type": "integer",
+          "help": "A line (1-based) holding the name",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "column",
+          "type": "integer",
+          "help": "The column (1-based character) of the name on that line; default 1",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "help": "The name itself, instead of --line/--column",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "at",
+          "type": "string",
+          "help": "Read at this commit (default: the pin in --file, else the working tree)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "help": "At most this many places (default and maximum 500)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "code.symbols",
+      "summary": "The outline of a source file (Go, Rust, C, TypeScript, JavaScript, Python): each definition's name, kind, lines and container.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "help": "A file: repos/<repo>@<sha>:path (pinned), a path in the mentor's folder, or an absolute path inside its folders",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "at",
+          "type": "string",
+          "help": "Read at this commit (default: the pin in --file, else the working tree)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "courses.delete",
       "summary": "Remove a course and its progress.",
       "callers": [

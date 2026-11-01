@@ -287,6 +287,36 @@ pub fn parse_course(
     })
 }
 
+/// A course JSON whose lesson files may be relative to the mentor's folder
+/// or use the shorthands below, with every file made absolute.
+pub fn resolve_lesson_files(
+    data_json: &str,
+    resolve: &dyn Fn(&str) -> Result<String, String>,
+) -> Result<String, String> {
+    let mut data: Value =
+        serde_json::from_str(data_json).map_err(|e| format!("Invalid course JSON: {e}"))?;
+    for chapter in data
+        .get_mut("chapters")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+    {
+        for lesson in chapter
+            .get_mut("lessons")
+            .and_then(Value::as_array_mut)
+            .into_iter()
+            .flatten()
+        {
+            if let Value::Object(lesson) = lesson {
+                if lesson.contains_key("file") {
+                    read_lesson(lesson, resolve)?;
+                }
+            }
+        }
+    }
+    serde_json::to_string(&data).map_err(|e| e.to_string())
+}
+
 /// Lesson shorthands: `document: id#section`, `file: path#L12-40` or `#p7-9`,
 /// and `file: repos/<repo>@<sha>:path`, a file pinned to a commit (the
 /// lesson gains `commit`; `file` is the path in the working tree).
@@ -758,6 +788,19 @@ mod tests {
         let normalized = |raw: &str| serde_json::from_str::<Value>(raw).unwrap();
         assert_eq!(normalized(&again.data_json), normalized(&course.data_json));
         std::fs::remove_dir_all(folder).ok();
+    }
+
+    #[test]
+    fn course_json_from_a_mentor_may_use_folder_paths_and_pins() {
+        let raw = r#"{"chapters":[{"title":"C","lessons":[{"id":"a","title":"A","file":"repos/fc@0123abc:src/vmm.rs#L3-9"},{"id":"b","title":"B","file":"/abs/x.pdf","pages":[1,2]},{"id":"c","title":"C","document":"d"}]}]}"#;
+        let data: Value =
+            serde_json::from_str(&resolve_lesson_files(raw, &resolve).unwrap()).unwrap();
+        let lessons = &data["chapters"][0]["lessons"];
+        assert_eq!(lessons[0]["file"], "/m/x/repos/fc/src/vmm.rs");
+        assert_eq!(lessons[0]["commit"], "0123abc");
+        assert_eq!(lessons[0]["lines"], json!([3, 9]));
+        assert_eq!(lessons[1]["file"], "/abs/x.pdf");
+        assert_eq!(lessons[2].get("file"), None);
     }
 
     #[test]

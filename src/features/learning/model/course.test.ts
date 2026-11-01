@@ -28,6 +28,13 @@ describe("generated course boundary", () => {
     expect(courseItems(result.course!.data).map((item) => item.id)).toEqual(["pod", "probe", "borg", "omega"]);
   });
 
+  it("takes a file in the mentor's folder, and the pin shorthand with its lines", () => {
+    expect(parseCourse(courseSource("reading", chapters({ id: "a", title: "A", file: "repos/e2b@3f2a9c1:envd/main.go#L4-9" }))).course?.data)
+      .toMatchObject({ chapters: [{ lessons: [{ file: "repos/e2b/envd/main.go", commit: "3f2a9c1", lines: [4, 9] }] }] });
+    expect(parseCourse(courseSource("reading", chapters({ id: "a", title: "A", file: "sources/paper.pdf", pages: [2, 3] }))).course?.data)
+      .toMatchObject({ chapters: [{ lessons: [{ file: "sources/paper.pdf", pages: [2, 3] }] }] });
+  });
+
   it("keeps a code lesson's pin and refuses one that is not a commit id", () => {
     const pinned = { id: "envd", title: "envd", file: "/m/repos/e2b/main.go", lines: [40, 88], commit: "3F2A9C1" };
     expect(parseCourse(courseSource("reading", chapters(pinned))).course?.data).toMatchObject({ chapters: [{ lessons: [{ ...pinned, commit: "3f2a9c1" }] }] });
@@ -49,7 +56,8 @@ describe("generated course boundary", () => {
     chapters({ ...read("pod"), document: "../notes" }),
     chapters({ ...read("pod"), pages: [1, 2] }),
     chapters({ ...read("pod"), section: 42 }),
-    chapters({ id: "borg", title: "Borg", file: "borg.pdf" }),
+    chapters({ id: "borg", title: "Borg", file: "../borg.pdf" }),
+    chapters({ id: "borg", title: "Borg", file: "repos//x.go" }),
     chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", section: "Intro" }),
     chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [9, 3] }),
     chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [0, 3] }),

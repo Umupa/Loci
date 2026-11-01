@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { rosterSettled } from "../../agents/model/mentorStore";
+import { isCommit, parseCodeRef } from "./codeRef";
+
+export { isCommit };
 
 export const COURSE_FENCE = "loci-course";
 export const DIFF_FENCE = "loci-diff";
@@ -110,7 +113,18 @@ function lesson(value: unknown, label: string): CourseLesson {
   const raw = object(value, label);
   const base = { id: id(raw.id, `${label} id`), title: string(raw.title, `${label} title`) };
   const document = optionalString(raw.document, `${label} document`);
-  const file = optionalString(raw.file, `${label} file`);
+  let file = optionalString(raw.file, `${label} file`);
+  let pinned: string | undefined;
+  let fragmentLines: [number, number] | undefined;
+  // A mentor's folder resolves relative files and the pin shorthand
+  // repos/<repo>@<sha>:path#L12-40; other places keep absolute paths.
+  if (file !== undefined && !/^(?:\/|[A-Za-z]:[\\/])/.test(file)) {
+    const ref = parseCodeRef(file);
+    if (ref.path.split(/[\\/]/).some((part) => part === ".." || part === "")) throw new Error(`${label} file must be an absolute path or a path inside the mentor's folder.`);
+    file = ref.path;
+    pinned = ref.commit;
+    fragmentLines = ref.lines;
+  }
   if ((document === undefined) === (file === undefined)) throw new Error(`${label} must name exactly one of document or file.`);
   if (document !== undefined) {
     if (!/^[\p{L}\p{N}_-]{1,80}$/u.test(document)) throw new Error(`${label} document must be a document id.`);
@@ -120,23 +134,18 @@ function lesson(value: unknown, label: string): CourseLesson {
     return { ...base, document, ...(section ? { section } : {}) };
   }
   if (raw.section !== undefined) throw new Error(`${label}: section belongs to a document.`);
-  if (!/^(?:\/|[A-Za-z]:[\\/])/.test(file!)) throw new Error(`${label} file must be an absolute path.`);
   if (raw.pages !== undefined && raw.lines !== undefined) throw new Error(`${label}: name pages or lines, not both.`);
   const range = (value: unknown, name: string): [number, number] => {
     if (!Array.isArray(value) || value.length !== 2 || !value.every((n) => Number.isSafeInteger(n) && n > 0) || value[1] < value[0]) throw new Error(`${label} ${name} must be [first, last].`);
     return [value[0], value[1]];
   };
-  const commit = optionalString(raw.commit, `${label} commit`);
+  const commit = optionalString(raw.commit, `${label} commit`) ?? pinned;
+  const lines = raw.lines ?? (raw.pages === undefined ? fragmentLines : undefined);
   if (commit !== undefined && !isCommit(commit)) throw new Error(`${label} commit must be a commit id (7 to 40 hex digits).`);
   const pin = commit ? { commit: commit.toLowerCase() } : {};
-  if (raw.lines !== undefined) return { ...base, file, lines: range(raw.lines, "lines"), ...pin };
+  if (lines !== undefined) return { ...base, file, lines: range(lines, "lines"), ...pin };
   if (raw.pages === undefined) return { ...base, file, ...pin };
   return { ...base, file, pages: range(raw.pages, "pages"), ...pin };
-}
-
-/** A commit id as a lesson pins it. */
-export function isCommit(text: string): boolean {
-  return /^[0-9a-fA-F]{7,40}$/.test(text);
 }
 
 export function parseCourse(source: string): CourseParseResult {
