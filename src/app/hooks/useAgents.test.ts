@@ -121,7 +121,7 @@ it("starts an agent from a template with its look and Soul in place before it op
   const agent = listAgents()[0];
   expect(agent).toMatchObject({ name: "Lens", role: "Open-source reader", avatar: "tide" });
   expect(mocks.editFile).toHaveBeenCalledWith(agent.id, "soul", expect.any(Function));
-  expect(mocks.editFile.mock.calls[0][2]("")).toContain("Repo Lens");
+  expect(mocks.editFile.mock.calls[0][2]("")).toContain("You read an open-source repository");
   expect(mocks.show).toHaveBeenCalledWith(agent.id, liveSessions[0]);
 });
 
