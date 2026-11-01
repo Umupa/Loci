@@ -41,7 +41,7 @@ export const storageCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "library.check",
-    summary: "Files in the mentor's folder that Loci could not read (bad front-matter or YAML, a missing sourceUrl, a file too large), with the reason. Run it after editing files directly.",
+    summary: "Files in the mentor's folder that Loci could not read (bad front-matter or YAML, a missing sourceUrl, a file too large), a PDF without its sidecar or a sidecar without its PDF, with the reason. Run it after editing files directly.",
     fields: [ownMentor],
     callers: ["external", "agent"],
     run: async (ctx, input, meta) => {
