@@ -71,6 +71,8 @@
 .mentor-library-title, .mentor-library-subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mentor-library-title { font-size: 12px; line-height: 18px; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
 .mentor-library-subtitle { font-size: 11px; line-height: 15px; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
+.mentor-library-group { margin: 8px 8px 2px; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
+.mentor-library-group:first-child { margin-top: 2px; }
 .mentor-library-empty { margin: 4px 8px 8px; font-size: 12px; line-height: 1.5; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .mentor-library-error { margin: 4px 8px; font-size: 12px; overflow-wrap: anywhere; color: color-mix(in srgb, var(--color-content) 65%, transparent); }
 .mentor-library-error button { margin-top: 4px; text-decoration: underline; }

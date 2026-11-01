@@ -210,6 +210,9 @@ it("filters the segment being shown", async () => {
   await tab("sources");
   const filter = () => container.querySelector<HTMLInputElement>('input[aria-label="Filter sources"]')!;
   await vi.waitFor(() => expect(container.querySelectorAll("[data-resource-kind]")).toHaveLength(2));
+  // First-hand sources and the mentor's own guides are listed apart.
+  expect([...container.querySelectorAll("[data-library-group]")].map((group) => group.textContent)).toEqual(["Sources", "Mentor's guides"]);
+  expect(container.querySelector('[data-resource-id="dns"]')?.textContent).toContain("Mentor's guide");
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(filter(), "dns");
     filter().dispatchEvent(new Event("input", { bubbles: true }));
@@ -308,7 +311,7 @@ it("shows one segment at a time, remembered per mentor, and ignores an old mento
   await tab("sources");
   await act(async () => finish(documents));
   expect(container.textContent).not.toContain("HTTP reference");
-  expect(container.textContent).toContain("Material Bea saves");
+  expect(container.textContent).toContain("First-hand material Bea saves");
   await render();
   expect(container.querySelector("[data-mentor-library]")?.getAttribute("data-library-segment")).toBe("sources");
   await click('[aria-label="Hide library"]');

@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 39] = [
+const APP_ACTIONS: [&str; 40] = [
     "models.list",
     "sessions.list",
     "sessions.read",
@@ -40,6 +40,7 @@ const APP_ACTIONS: [&str; 39] = [
     "documents.list",
     "documents.read",
     "documents.write",
+    "guides.write",
     "courses.list",
     "courses.read",
     "courses.write",
@@ -140,8 +141,9 @@ Only in an agent's own conversation:
   memory.read    {"topic":"<name>"}  One topic file, or MEMORY.md without topic.
   memory.search  {"query":"...","since":"7d"}  Search memory, topic notes and
                   the archive. since is a date or a span like 24h, 7d, 2w.
-  documents.list {}  The documents in its library, newest first. One taken in
-                  from a file is a source and lists its sourceUrl.
+  documents.list {}  The documents in its library, newest first, each with its
+                  kind: "source" (first-hand, lists its sourceUrl) or "guide"
+                  (one it wrote itself).
   documents.read {"id":"pods"}  One of them, in full, to revise or build on.
   documents.write {"id":"k8s-pod-lifecycle","title":"Pod Lifecycle",
                   "subject":"Kubernetes","path":"/abs/path/pod-lifecycle.md",
@@ -153,6 +155,15 @@ Only in an agent's own conversation:
                   Absolute https image URLs are rendered directly.
                   A source cannot be revised by a document block; the
                   same id here takes the file in again. At most 1 MB a file.
+                  Only what someone else published is a source; never save
+                  your own summary or notes here.
+  guides.write   {"id":"k8s-reading-guide","title":"How to read the scheduler docs",
+                  "subject":"Kubernetes","path":"/abs/path/guide.md"}
+                  Save a guide you wrote yourself (a reading guide, a brief, a
+                  map of the material): from the Markdown file at path, or
+                  given as "body". It has no sourceUrl and the user sees it
+                  labelled as your guide, apart from first-hand sources. The
+                  same id revises it. A guide and a source never share an id.
   courses.list   {}  Its courses, newest first, with how many lessons the user
                   has read of each.
   courses.read   {"id":"k8s-reading"}  One course in full, with progress per

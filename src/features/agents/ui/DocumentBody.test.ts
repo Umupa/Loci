@@ -56,7 +56,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("says where a source came from and hands its address to the text, and says nothing for the agent's own writing", async () => {
+it("says where a source came from and hands its address to the text, and labels the agent's own writing as its guide", async () => {
   await act(async () => root.render(createElement(DocumentBody, { document: source, agentId: "a" })));
   const line = container.querySelector("[data-document-source]")!;
   expect(line.textContent).toContain("kubernetes.io");
@@ -64,6 +64,7 @@ it("says where a source came from and hands its address to the text, and says no
   expect(container.querySelector("article")?.getAttribute("data-source-url")).toBe(source.sourceUrl);
   await act(async () => root.render(createElement(DocumentBody, { document: { id: "notes", title: "Notes", body: "Mine" }, agentId: "a" })));
   expect(container.querySelector("[data-document-source]")).toBeNull();
+  expect(container.querySelector("[data-document-guide]")?.textContent).toContain("Mentor's guide");
   expect(container.querySelector("article")?.getAttribute("data-source-url")).toBe("");
 });
 
@@ -78,6 +79,7 @@ it("puts a selected passage of a source to its agent as a quoted passage of the 
 
 it("quotes a selected passage of a document outside any library as plain text", async () => {
   await act(async () => root.render(createElement(DocumentBody, { document: { id: "notes", title: "Notes", body: "Mine" } })));
+  expect(container.querySelector("[data-document-guide]")).toBeNull();
   await quote();
   expect(registerLearningSource).not.toHaveBeenCalled();
   expect(requestAddToChat).toHaveBeenCalledWith("A Pod's phase", "quote", {});

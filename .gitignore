@@ -21,6 +21,7 @@ build/
 target/
 **/gen/schemas/
 coverage/
+eval/results/
 output/
 .vite/
 .turbo/

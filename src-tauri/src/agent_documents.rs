@@ -7,6 +7,10 @@
 //! saved to a file, taken in from that file with where it came from. A reply
 //! cannot revise one, so what the user reads stays what was published; only
 //! taking the file in again replaces it.
+//!
+//! So a library holds two kinds, told apart by `source_url`: first-hand
+//! sources (with one) and the mentor's own guides (without). An id names one
+//! kind for good: a guide cannot replace a source, nor a source a guide.
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -24,6 +28,8 @@ pub struct AgentDocument {
     id: String,
     title: String,
     subject: Option<String>,
+    /// `source` (someone else's text, with `source_url`) or `guide` (the mentor wrote it).
+    kind: &'static str,
     /// Left out of listings, which only name the documents.
     #[serde(skip_serializing_if = "Option::is_none")]
     body: Option<String>,
@@ -46,6 +52,17 @@ pub struct AgentDocumentUpsert {
     title: String,
     subject: Option<String>,
     body: String,
+}
+
+/// A guide the mentor wrote, from a file or given in full.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentGuideWrite {
+    id: String,
+    title: String,
+    subject: Option<String>,
+    path: Option<String>,
+    body: Option<String>,
 }
 
 /// A source to take in: the file holding its text, and where it was published.
@@ -101,6 +118,29 @@ fn valid_key(value: &str, max: usize) -> bool {
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
 }
 
+fn kind_of(source_url: &Option<String>) -> &'static str {
+    if source_url.is_some() {
+        "source"
+    } else {
+        "guide"
+    }
+}
+
+/// Whether `id` is already in the library, and as which kind.
+fn existing_kind(
+    conn: &Connection,
+    agent: &str,
+    id: &str,
+) -> rusqlite::Result<Option<&'static str>> {
+    conn.query_row(
+        "SELECT source_url FROM agent_documents WHERE agent_id = ?1 AND id = ?2",
+        params![agent, id],
+        |row| row.get::<_, Option<String>>(0),
+    )
+    .optional()
+    .map(|found| found.map(|url| kind_of(&url)))
+}
+
 fn list(conn: &Connection, agent: &str) -> rusqlite::Result<Vec<AgentDocument>> {
     let mut statement = conn.prepare(
         "SELECT id, title, subject, source_url, source_version, fetched_at, created_at, updated_at
@@ -112,6 +152,7 @@ fn list(conn: &Connection, agent: &str) -> rusqlite::Result<Vec<AgentDocument>> 
             title: row.get(1)?,
             subject: row.get(2)?,
             body: None,
+            kind: kind_of(&row.get::<_, Option<String>>(3)?),
             source_url: row.get(3)?,
             source_version: row.get(4)?,
             fetched_at: row.get(5)?,
@@ -133,6 +174,7 @@ fn get(conn: &Connection, agent: &str, id: &str) -> rusqlite::Result<Option<Agen
                 title: row.get(1)?,
                 subject: row.get(2)?,
                 body: Some(row.get(3)?),
+                kind: kind_of(&row.get::<_, Option<String>>(4)?),
                 source_url: row.get(4)?,
                 source_version: row.get(5)?,
                 fetched_at: row.get(6)?,
@@ -146,13 +188,19 @@ fn get(conn: &Connection, agent: &str, id: &str) -> rusqlite::Result<Option<Agen
 
 /// Writes the document, keeping when it was first made. Unchanged text leaves
 /// its date alone, so re-reading a chat does not reorder the library. A source
-/// with this id is left as it is.
+/// with this id is refused and left as it is.
 fn upsert(
     conn: &Connection,
     agent: &str,
     document: &AgentDocumentUpsert,
     now: i64,
-) -> rusqlite::Result<()> {
+) -> Result<(), String> {
+    if existing_kind(conn, agent, &document.id).map_err(|e| e.to_string())? == Some("source") {
+        return Err(format!(
+            "{} is a first-hand source; a guide cannot replace it. Give the guide another id",
+            document.id
+        ));
+    }
     conn.execute(
         "INSERT INTO agent_documents (agent_id, id, title, subject, body, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
@@ -170,7 +218,8 @@ fn upsert(
             document.body,
             now
         ],
-    )?;
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -182,7 +231,13 @@ fn import(
     source: &AgentDocumentImport,
     body: &str,
     now: i64,
-) -> rusqlite::Result<()> {
+) -> Result<(), String> {
+    if existing_kind(conn, agent, &source.id).map_err(|e| e.to_string())? == Some("guide") {
+        return Err(format!(
+            "{} is the mentor's guide; a source cannot replace it. Give the source another id",
+            source.id
+        ));
+    }
     conn.execute(
         "INSERT INTO agent_documents
            (agent_id, id, title, subject, body, source_url, source_version, fetched_at, created_at, updated_at)
@@ -201,7 +256,8 @@ fn import(
             source.version,
             now
         ],
-    )?;
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -305,7 +361,55 @@ pub fn agent_documents_upsert(
     }
     check_title(&document.title)?;
     let conn = store.lock_conn()?;
-    upsert(&conn, &agent, &document, now_millis()).map_err(|e| e.to_string())
+    upsert(&conn, &agent, &document, now_millis())
+}
+
+/// The text of a guide: the file at `path`, or `body`, exactly one of them.
+fn guide_text(guide: &AgentGuideWrite) -> Result<String, String> {
+    match (&guide.path, &guide.body) {
+        (Some(path), None) => source_text(path),
+        (None, Some(body)) if body.len() > BODY_MAX => {
+            Err("The guide is too large; split it".into())
+        }
+        (None, Some(body)) if body.trim().is_empty() => Err("The guide is empty".into()),
+        (None, Some(body)) => Ok(body.clone()),
+        _ => Err("Give the guide's text as path (an absolute file) or body, not both".into()),
+    }
+}
+
+/// Saves a guide the mentor wrote and returns it without its text.
+fn write_guide(
+    conn: &Connection,
+    agent: &str,
+    guide: &AgentGuideWrite,
+    now: i64,
+) -> Result<AgentDocument, String> {
+    check_title(&guide.title)?;
+    let body = guide_text(guide)?;
+    let document = AgentDocumentUpsert {
+        id: guide.id.clone(),
+        title: guide.title.trim().to_string(),
+        subject: guide.subject.clone(),
+        body,
+    };
+    upsert(conn, agent, &document, now)?;
+    let mut saved = get(conn, agent, &guide.id)
+        .map_err(|e| e.to_string())?
+        .ok_or("The saved guide is missing")?;
+    saved.body = None;
+    Ok(saved)
+}
+
+/// Saves a guide the mentor wrote (no `sourceUrl`): it is listed apart from first-hand sources.
+#[tauri::command(async)]
+pub fn agent_documents_write_guide(
+    store: State<'_, SessionStore>,
+    agent: String,
+    guide: AgentGuideWrite,
+) -> Result<AgentDocument, String> {
+    check(&agent, Some(&guide.id))?;
+    let conn = store.lock_conn()?;
+    write_guide(&conn, &agent, &guide, now_millis())
 }
 
 /// Takes a saved file into the library as a source and returns it without its text.
@@ -319,7 +423,7 @@ pub fn agent_documents_import(
     check_source(&source)?;
     let body = source_text(&source.path)?;
     let conn = store.lock_conn()?;
-    import(&conn, &agent, &source, &body, now_millis()).map_err(|e| e.to_string())?;
+    import(&conn, &agent, &source, &body, now_millis())?;
     let mut saved = get(&conn, &agent, &source.id)
         .map_err(|e| e.to_string())?
         .ok_or("The saved document is missing")?;
@@ -435,13 +539,14 @@ mod tests {
             10,
         )
         .unwrap();
-        upsert(
+        let refused = upsert(
             &conn,
             "agent-a",
             &document("pod-lifecycle", "Rewritten", "summary"),
             20,
         )
-        .unwrap();
+        .unwrap_err();
+        assert!(refused.contains("first-hand source"), "{refused}");
         let saved = get(&conn, "agent-a", "pod-lifecycle").unwrap().unwrap();
         assert_eq!(saved.body.as_deref(), Some("original"));
         assert_eq!(saved.title, "Pod Lifecycle");
@@ -489,6 +594,98 @@ mod tests {
             bad.source_url = url.into();
             assert!(check_source(&bad).is_err(), "{url}");
         }
+    }
+
+    fn guide(id: &str, body: Option<&str>, path: Option<&str>) -> AgentGuideWrite {
+        AgentGuideWrite {
+            id: id.into(),
+            title: " Reading guide ".into(),
+            subject: None,
+            path: path.map(Into::into),
+            body: body.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn a_guide_is_listed_as_the_mentors_own_and_never_takes_a_sources_id() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let saved = write_guide(
+            &conn,
+            "agent-a",
+            &guide("k8s-guide", Some("# Read this first"), None),
+            10,
+        )
+        .unwrap();
+        assert_eq!(
+            (saved.kind, saved.title.as_str(), saved.body.is_none()),
+            ("guide", "Reading guide", true)
+        );
+        assert_eq!(saved.source_url, None);
+        import(&conn, "agent-a", &source("pods", "/x"), "original", 20).unwrap();
+        let kinds: Vec<_> = list(&conn, "agent-a")
+            .unwrap()
+            .iter()
+            .map(|d| (d.id.clone(), d.kind))
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                ("pods".to_string(), "source"),
+                ("k8s-guide".to_string(), "guide")
+            ]
+        );
+        // Neither kind replaces the other under one id.
+        assert!(write_guide(&conn, "agent-a", &guide("pods", Some("mine"), None), 30).is_err());
+        assert_eq!(
+            get(&conn, "agent-a", "pods")
+                .unwrap()
+                .unwrap()
+                .body
+                .as_deref(),
+            Some("original")
+        );
+        let refused =
+            import(&conn, "agent-a", &source("k8s-guide", "/x"), "theirs", 40).unwrap_err();
+        assert!(refused.contains("mentor's guide"), "{refused}");
+        assert_eq!(
+            get(&conn, "agent-a", "k8s-guide").unwrap().unwrap().kind,
+            "guide"
+        );
+        // A guide is revised by writing it again.
+        write_guide(
+            &conn,
+            "agent-a",
+            &guide("k8s-guide", Some("# Read this second"), None),
+            50,
+        )
+        .unwrap();
+        assert_eq!(
+            get(&conn, "agent-a", "k8s-guide")
+                .unwrap()
+                .unwrap()
+                .body
+                .as_deref(),
+            Some("# Read this second")
+        );
+    }
+
+    #[test]
+    fn a_guides_text_comes_from_exactly_one_of_path_or_body() {
+        let dir = std::env::temp_dir().join(format!("loci-guide-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("guide.md");
+        std::fs::write(&file, "# Guide\n").unwrap();
+        assert_eq!(
+            guide_text(&guide("g", None, file.to_str())).unwrap(),
+            "# Guide\n"
+        );
+        assert_eq!(guide_text(&guide("g", Some("text"), None)).unwrap(), "text");
+        assert!(guide_text(&guide("g", None, None)).is_err());
+        assert!(guide_text(&guide("g", Some("text"), file.to_str())).is_err());
+        assert!(guide_text(&guide("g", Some("  "), None)).is_err());
+        assert!(guide_text(&guide("g", None, Some("guide.md"))).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

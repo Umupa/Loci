@@ -1,0 +1,29 @@
+{
+  "id": "cubesandbox-snapshot",
+  "template": "repo-lens",
+  "opening": "Help me read CubeSandbox's snapshot and restore path: https://github.com/TencentCloud/CubeSandbox",
+  "learner": {
+    "background": "Backend/infrastructure engineer, six years of Go and Linux in production, comfortable with Docker, containers and basic networking; reads English technical docs fluently.",
+    "answers": {
+      "level": "I'm comfortable with Go, Linux processes, cgroups and Docker; I haven't read this part's internals before.",
+      "background": "Go and Linux are my strongest base; I know how the Go runtime schedules goroutines and how cgroups limit resources.",
+      "time": "About an hour a day; I'd like to be reading something useful within the first few minutes.",
+      "language": "English is fine; keep the original terms.",
+      "confirm": "Yes, go ahead.",
+      "goal": "We may run CubeSandbox for agent sandboxes; I need to know how snapshot/restore works and what it costs.",
+      "scope": "Snapshot creation and restore end to end: what is captured, where it is stored, how a sandbox is resumed. Skip the web console.",
+      "depth": "Follow the main call path through the code."
+    }
+  },
+  "firstPartyDomains": [
+    "github.com/TencentCloud"
+  ],
+  "probe": "What exactly is persisted in a snapshot, and where in the code is it restored?",
+  "expect": {
+    "minLessons": 4,
+    "maxLessons": 12
+  },
+  "maxTurns": 8,
+  "maxMinutes": 18,
+  "turnTimeoutSeconds": 600
+}

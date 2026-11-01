@@ -52,6 +52,8 @@ function fixture(agent = true) {
         id === "pods" ? { id, title: "Pods, explained", subject: "Kubernetes", body: "# Pods", updatedAt: Date.UTC(2026, 9, 9) } : undefined,
       importSource: async (_agentId: string, input: { id: string; title: string; subject?: string; sourceUrl: string; version?: string }) =>
         ({ id: input.id, title: input.title, subject: input.subject, sourceUrl: input.sourceUrl, sourceVersion: input.version, fetchedAt: Date.UTC(2026, 9, 10), updatedAt: Date.UTC(2026, 9, 10) }),
+      writeGuide: async (_agentId: string, input: { id: string; title: string; subject?: string }) =>
+        ({ id: input.id, title: input.title, subject: input.subject, kind: "guide", updatedAt: Date.UTC(2026, 9, 12) }),
     },
     courses: {
       list: async (agentId: string) => [...courses.values()].filter((course) => course.agentId === agentId)
@@ -139,7 +141,7 @@ it("searches MEMORY.md, topics and the archive", async () => {
 it("lets an agent read back the documents it wrote, and nobody else", async () => {
   const { run } = fixture();
   expect(await run("documents.list")).toEqual({
-    documents: [{ id: "pods", title: "Pods, explained", subject: "Kubernetes", updatedAt: "2026-10-09T00:00:00.000Z" }],
+    documents: [{ id: "pods", title: "Pods, explained", kind: "guide", subject: "Kubernetes", updatedAt: "2026-10-09T00:00:00.000Z" }],
   });
   expect(await run("documents.read", { id: "pods" })).toMatchObject({ title: "Pods, explained", text: "# Pods" });
   await expect(run("documents.read", { id: "missing" })).rejects.toThrow("No such document");
@@ -150,7 +152,7 @@ it("takes a source into the library from the file the agent saved, with where it
   const { run } = fixture();
   const source = { id: "k8s-pod-lifecycle", title: "Pod Lifecycle", subject: "Kubernetes", path: "/tmp/k8s/pod-lifecycle.md", sourceUrl: "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/", version: "v1.34" };
   expect(await run("documents.write", source)).toEqual({
-    id: "k8s-pod-lifecycle", title: "Pod Lifecycle", subject: "Kubernetes", sourceUrl: source.sourceUrl, version: "v1.34",
+    id: "k8s-pod-lifecycle", title: "Pod Lifecycle", kind: "source", subject: "Kubernetes", sourceUrl: source.sourceUrl, version: "v1.34",
     updatedAt: "2026-10-10T00:00:00.000Z", saved: true,
   });
   // The text comes from the file: there is no field to pass it in.
@@ -158,6 +160,19 @@ it("takes a source into the library from the file the agent saved, with where it
   await expect(run("documents.write", { ...source, path: undefined })).rejects.toThrow("path");
   await expect(run("documents.write", { ...source, sourceUrl: "" })).rejects.toThrow("sourceUrl");
   await expect(fixture(false).run("documents.write", source)).rejects.toThrow("Only an agent's own conversation");
+});
+
+it("saves a guide the agent wrote apart from sources, from a file or its text", async () => {
+  const { run } = fixture();
+  expect(await run("guides.write", { id: "k8s-guide", title: "How to read the scheduler docs", body: "# Start here" })).toEqual({
+    id: "k8s-guide", title: "How to read the scheduler docs", kind: "guide", updatedAt: "2026-10-12T00:00:00.000Z", saved: true,
+  });
+  expect(await run("guides.write", { id: "k8s-guide", title: "Guide", path: "/tmp/guide.md" })).toMatchObject({ kind: "guide", saved: true });
+  await expect(run("guides.write", { id: "g", title: "Guide" })).rejects.toThrow("path");
+  await expect(run("guides.write", { id: "g", title: "Guide", body: "x", path: "/tmp/g.md" })).rejects.toThrow("not both");
+  await expect(run("guides.write", { id: "g", title: "Guide", body: "x", sourceUrl: "https://example.com" })).rejects.toThrow();
+  // A source without its address points at guides.write.
+  await expect(run("documents.write", { id: "g", title: "Guide", path: "/tmp/g.md" })).rejects.toThrow("guides.write");
 });
 
 it("keeps courses in the agent's own library through courses.*", async () => {

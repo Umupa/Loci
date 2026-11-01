@@ -1,0 +1,33 @@
+{
+  "id": "firecracker-paper",
+  "template": "learning-guide",
+  "opening": "I want to read the Firecracker NSDI'20 paper with you.",
+  "learner": {
+    "background": "Backend/infrastructure engineer, six years of Go and Linux in production, comfortable with Docker, containers and basic networking; reads English technical docs fluently.",
+    "answers": {
+      "level": "I'm comfortable with Go, Linux processes, cgroups and Docker; I haven't read this part's internals before.",
+      "background": "Go and Linux are my strongest base; I know how the Go runtime schedules goroutines and how cgroups limit resources.",
+      "time": "About an hour a day; I'd like to be reading something useful within the first few minutes.",
+      "language": "English is fine; keep the original terms.",
+      "confirm": "Yes, go ahead.",
+      "goal": "We're evaluating microVM sandboxes for running untrusted code; I want to understand Firecracker's design choices and their costs.",
+      "scope": "The paper end to end, plus the parts of Firecracker's own docs that the paper relies on (jailer, device model). Skip Lambda's control plane.",
+      "depth": "Read the whole paper carefully; follow up with the design docs where the paper is thin."
+    }
+  },
+  "firstPartyDomains": [
+    "usenix.org",
+    "arxiv.org",
+    "github.com/firecracker-microvm",
+    "amazon.science",
+    "firecracker-microvm.github.io"
+  ],
+  "probe": "Why did the authors not just use QEMU, and what did they give up by writing their own VMM?",
+  "expect": {
+    "minLessons": 4,
+    "maxLessons": 20
+  },
+  "maxTurns": 8,
+  "maxMinutes": 18,
+  "turnTimeoutSeconds": 600
+}
