@@ -921,8 +921,10 @@ function AgentTranscriptComponent({
             </TurnRow>
           );
           // The running turn says what it is doing without opening the work
-          // trail. It sits right under the work's status line, where the
-          // prompt-to-top anchor keeps it in view however long the turn runs.
+          // trail. With prompt-to-top anchoring it sits right under the work's
+          // status line; otherwise it follows the end of the turn, which is
+          // where the transcript keeps the viewport.
+          const anchorProgress = promptAnchor && anchorTurn;
           const progressRow = isLastTurn && !settled && busy ? (
             <TurnProgress
               key="turn-progress"
@@ -949,7 +951,7 @@ function AgentTranscriptComponent({
                   if (itemIndex !== fold.start) return [];
                   return [
                     foldLineRow,
-                    progressRow,
+                    anchorProgress ? progressRow : null,
                     <TurnRow key="work-details" folded={!workOpen}>
                       {() =>
                         foldWork.map(({ entry, index }, offset) => (
@@ -1025,9 +1027,15 @@ function AgentTranscriptComponent({
                   </div>
                 );
                 if (itemIndex !== foldLineAt) return row;
-                return [foldLineRow, progressRow, row];
+                return [foldLineRow, anchorProgress ? progressRow : null, row];
               })}
-              {foldLineAt >= items.length ? [foldLineRow, progressRow] : null}
+              {foldLineAt >= items.length
+                ? [foldLineRow, anchorProgress ? progressRow : null]
+                : null}
+
+              {isLastTurn && !settled && busy && !anchorProgress
+                ? progressRow
+                : null}
 
               {/* The accessory keeps the pane's props, which go stale once parked. */}
               {isLastTurn && latestTurnAccessory && !parked
