@@ -52,7 +52,8 @@ it("counts and lists only the highlights inside the lesson's lines", async () =>
   const actions = host.querySelector<HTMLButtonElement>('button[aria-label="Lesson actions"]')!;
   await act(async () => actions.click());
   const item = () => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].find((entry) => entry.textContent?.startsWith("Highlights & notes"))!;
-  expect(item().textContent).toBe("Highlights & notes (1)");
+  expect(item().querySelector(".lesson-menu__label")?.textContent).toBe("Highlights & notes");
+  expect(item().querySelector(".lesson-menu__meta")?.textContent).toBe("1");
   await act(async () => item().click());
   const listed = [...document.querySelectorAll<HTMLButtonElement>(".pdf-annotations__entry")];
   expect(listed).toHaveLength(1);

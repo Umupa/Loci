@@ -192,6 +192,18 @@ html.theme-light {
   line-height: inherit;
 }
 
+/* Full-width text (the reader menus): the body runs the width of its column. */
+:root[data-reading-wide] .reader-body.reader-measure,
+:root[data-reading-wide] .reader-body .agent-markdown,
+:root[data-reading-wide] .course-pane__content {
+  max-width: none;
+}
+
+/* …but stays clear of the lesson outline pinned at the pane's right edge. */
+:root[data-reading-wide] .course-pane__main:has(.course-toc) {
+  padding-right: 56px;
+}
+
 .reader-body .agent-markdown :is(pre, code, kbd, samp) {
   font-family: var(--font-mono);
 }

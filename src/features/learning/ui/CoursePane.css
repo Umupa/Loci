@@ -106,3 +106,14 @@
 .course-pane__pin { margin: -4px 0 16px; font-size: 12px; line-height: 1.6; color: color-mix(in srgb, var(--color-content) 60%, transparent); }
 .course-pane__pin[data-pin-state="changed"], .course-pane__pin[data-pin-state="missing-commit"], .course-pane__pin[data-pin-state="missing-file"] { color: color-mix(in srgb, var(--color-content) 78%, transparent); }
 .course-pane__pin-action { margin-left: 6px; min-height: 22px; padding: 1px 6px; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
+
+/* The lesson menu: quiet icons in one column, a count or a tick at the end. */
+.lesson-menu__item { display: flex; width: 100%; height: 32px; align-items: center; gap: 10px; padding: 0 10px 0 8px; border-radius: 7px; text-align: left; font-size: 13px; color: var(--color-content); }
+.lesson-menu__item:hover:not(:disabled), .lesson-menu__item:focus-visible { background: color-mix(in srgb, var(--color-content) 7%, transparent); outline: none; }
+.lesson-menu__item:disabled { opacity: .4; }
+.lesson-menu__icon { width: 16px; height: 16px; flex: none; color: color-mix(in srgb, var(--color-content) 65%, transparent); }
+.lesson-menu__item:hover:not(:disabled) .lesson-menu__icon { color: var(--color-content); }
+.lesson-menu__label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lesson-menu__meta { min-width: 18px; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--color-content) 8%, transparent); text-align: center; font-size: 11px; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-content) 60%, transparent); }
+.lesson-menu__check { width: 14px; height: 14px; flex: none; color: var(--color-content); }
+.lesson-menu__rule { height: 1px; margin: 4px 6px; background: color-mix(in srgb, var(--color-content) 10%, transparent); }

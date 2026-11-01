@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, Copy, MoreHorizontal, Pencil, StickyNote, Trash2, X } from "../../../shared/ui/icons";
+import { ArrowHorizontal, Check, Copy, Highlighter, MoreHorizontal, StickyNote, Trash2, X } from "../../../shared/ui/icons";
 import { copyMessage } from "../../../platform/tauri/clipboard";
 import { Popover } from "../../../shared/ui/Popover";
+import { useReadingWide } from "../../../shared/lib/readingWidth";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { upsertNote } from "../../notes";
@@ -47,6 +48,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
   const [actionError, setActionError] = useState<string>();
   const [reload, setReload] = useState(0);
   const [menu, setMenu] = useState(false);
+  const [readingWide, setReadingWide] = useReadingWide();
   const [copied, setCopied] = useState(false);
   const [marksOpen, setMarksOpen] = useState(false);
   const [marks, setMarks] = useState(0);
@@ -113,22 +115,25 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
           {latest.subject ? <span className="pane-header-secondary min-w-0 truncate text-[11px] text-content/45">{latest.subject}</span> : null}
         </div>
         <button type="button" data-no-drag title={saved ? "Saved to Notes" : "Save as a note"} aria-label="Save as a note" disabled={saved || loading || !!error} onClick={() => void saveAsNote()} className={iconButton}>
-          {saved ? <Check className="size-4" strokeWidth={2} /> : <StickyNote className="size-4" strokeWidth={1.5} />}
+          {saved ? <Check className="size-4" strokeWidth={2} /> : <StickyNote className="size-4" />}
         </button>
         {agentId && stored ? (
           <button type="button" data-no-drag title="Remove from the library" aria-label="Remove from the library" className={iconButton}
             onClick={removeFromLibrary}>
-            <Trash2 className="size-4" strokeWidth={1.5} />
+            <Trash2 className="size-4" />
           </button>
         ) : null}
         <button type="button" data-no-drag title="Close" aria-label="Close the document" onClick={onClose} className={iconButton}>
-          <X className="size-4" strokeWidth={1.5} />
+          <X className="size-4" />
         </button>
       </PaneHeader>}
       {menu ? <Popover anchor={more} side="bottom" align="end" width={204} role="menu" aria-label="Document actions" onDismiss={() => setMenu(false)} className="p-1 font-sans">
         <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); void copyMessage(latest.body).then(() => { setCopied(true); setActionError(undefined); }, (cause) => setActionError(`Could not copy document: ${String(cause)}`)); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40">{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? "Copied" : "Copy document"}</button>
-        {agentId ? <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); setMarksOpen(true); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><Pencil className="size-3.5" />Highlights &amp; notes{marks ? ` (${marks})` : ""}</button> : null}
+        {agentId ? <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); setMarksOpen(true); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><Highlighter className="size-3.5" />Highlights &amp; notes{marks ? ` (${marks})` : ""}</button> : null}
         <button type="button" role="menuitem" disabled={saved || loading || !!error} onClick={() => { setMenu(false); void saveAsNote(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><StickyNote className="size-3.5" />{saved ? "Saved to Notes" : "Save as a note"}</button>
+        <div role="separator" className="mx-1.5 my-1 h-px bg-content/10" />
+        <button type="button" role="menuitemcheckbox" aria-checked={readingWide} onClick={() => { setMenu(false); setReadingWide(!readingWide); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6"><ArrowHorizontal className="size-3.5" /><span className="flex-1">Full-width text</span>{readingWide ? <Check className="size-3.5" strokeWidth={2} /> : null}</button>
+        {agentId && stored ? <div role="separator" className="mx-1.5 my-1 h-px bg-content/10" /> : null}
         {agentId && stored ? <button type="button" role="menuitem" onClick={() => { setMenu(false); removeFromLibrary(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-400 hover:bg-content/6"><Trash2 className="size-3.5" />Remove from the library</button> : null}
       </Popover> : null}
       {saved && savedNoteId ? <div role="status" className="flex shrink-0 items-center gap-2 border-b border-stroke px-6 py-1.5 text-[12px] text-content/60">

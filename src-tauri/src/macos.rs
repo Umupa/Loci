@@ -50,8 +50,9 @@ use tauri::{AppHandle, Manager, WebviewWindow, WindowEvent};
 /// Must match the HTML title bar (`h-10` = 40px).
 const TAB_BAR_HEIGHT: f64 = 40.0;
 const BUTTON_SIZE: f64 = 14.0;
-const LEFT_MARGIN: f64 = 12.0;
-const BUTTON_SPACING: f64 = 6.0;
+/// Packed tighter than AppKit's 12/6 so they fit the 60px mentor rail (end at 58px).
+const LEFT_MARGIN: f64 = 8.0;
+const BUTTON_SPACING: f64 = 4.0;
 /// Vertically center 14pt buttons in the tab bar: (40 - 14) / 2.
 const TOP_INSET: f64 = (TAB_BAR_HEIGHT - BUTTON_SIZE) / 2.0;
 

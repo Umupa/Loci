@@ -238,7 +238,7 @@ it("opens the overview's course contents from its title and closes after selecti
   // Beside a conversation the header keeps to moving through the course.
   expect(container.querySelector('[aria-label="Expand course to pane"]')).toBeNull();
   await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Lesson actions"]')!.click());
-  expect([...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual(["Mark as read", "Test my understanding", "Highlights & notes"]);
+  expect([...document.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent)).toEqual(["Test my understanding", "Highlights & notes", "Full-width text"]);
   await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Lesson actions"]')!.click());
   const contents = container.querySelector<HTMLButtonElement>('[aria-label="Course contents"]')!;
   expect(contents.closest("h3")).not.toBeNull();

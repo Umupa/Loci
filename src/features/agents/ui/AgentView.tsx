@@ -1,5 +1,5 @@
 import { createContext, useContext, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { Settings } from "../../../shared/ui/icons";
+import { AgentSettings } from "../../../shared/ui/icons";
 import { PaneHeader, PaneHeaderChrome } from "../../../shared/ui/PaneHeader";
 import { agentLook, type Agent, type AgentState } from "../model/agent";
 import { AgentAvatar } from "./AgentAvatar";
@@ -41,7 +41,7 @@ export function AgentView({ agent, state, detailsOpen, focused, onFocus, onPaneD
         <div className="flex shrink-0 items-center gap-1">
           <button type="button" data-no-drag title="Settings" aria-label="Agent settings" aria-pressed={detailsOpen} onClick={onToggleDetails}
             className={`grid size-7 place-items-center rounded-md hover:bg-content/8 hover:text-content ${detailsOpen ? "bg-content/8 text-content" : "text-content/50"}`}>
-            <Settings className="size-4" strokeWidth={1.5} />
+            <AgentSettings className="size-4" />
           </button>
           {extra}
         </div>

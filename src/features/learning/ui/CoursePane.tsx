@@ -1,8 +1,9 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, Pencil, SidebarLeft, X } from "../../../shared/ui/icons";
+import { cloneElement, Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode } from "react";
+import { ArrowHorizontal, ChatQuestion, Check, Highlighter, ChevronDown, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";
+import { useReadingWide } from "../../../shared/lib/readingWidth";
 import { findAgent } from "../../agents/model/agent";
 import { readAgentDocument, subscribeAgentDocuments } from "../../agents/model/agentDocuments";
 import { DocumentBody, shownDocument } from "../../agents/ui/DocumentBody";
@@ -285,6 +286,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     <button type="button" data-no-drag className={`${iconButton}${activeStatus === "mastered" ? " course-pane__read" : ""}`} title={activeStatus === "mastered" ? (reading ? "Read" : "Mastered") : reading ? "Mark as read" : "Mark as mastered"} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}><Check className="size-3.5" /><span className="sr-only">{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</span></button>
     <button type="button" data-no-drag className={iconButton} title={reading ? "Test my understanding with the agent" : "Discuss this step with the agent"} onClick={discuss}><MessageSquarePlus className="size-3.5" /><span className="sr-only">{reading ? "Test understanding" : "Discuss step"}</span></button>
   </> : null;
+  const [readingWide, setReadingWide] = useReadingWide();
   const markLabel = activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered";
   // Beside a conversation the header keeps to moving through the course; the
   // rest waits in a menu, since reaching a lesson's end already marks it read.
@@ -292,9 +294,11 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     <button type="button" className={RESOURCE_ACTION} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-4" /><span className="sr-only">Previous</span></button>
     <button type="button" className={RESOURCE_ACTION} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-4" /><span className="sr-only">Next</span></button>
     <LessonMenu trigger={lessonMenu} items={[
-      { label: markLabel, icon: <Check className="size-3.5" />, disabled: !activeId || saving.has(activeId) || activeStatus === "mastered", onSelect: () => { if (activeId) void markStatus(activeId, "mastered"); } },
-      { label: reading ? "Test my understanding" : "Discuss this step", icon: <MessageSquarePlus className="size-3.5" />, onSelect: discuss },
-      ...(reading ? [{ label: `Highlights & notes${marks ? ` (${marks})` : ""}`, icon: <Pencil className="size-3.5" />, disabled: !activeId, onSelect: () => setMarksOpen(true) }] : []),
+      // A reading is marked read by reaching its end; only steps are marked by hand.
+      ...(reading ? [] : [{ label: markLabel, icon: <Check />, disabled: !activeId || saving.has(activeId) || activeStatus === "mastered", onSelect: () => { if (activeId) void markStatus(activeId, "mastered"); } }]),
+      { label: reading ? "Test my understanding" : "Discuss this step", icon: <ChatQuestion />, onSelect: discuss },
+      ...(reading ? [{ label: "Highlights & notes", icon: <Highlighter />, meta: marks || undefined, disabled: !activeId, onSelect: () => setMarksOpen(true) }] : []),
+      { label: "Full-width text", icon: <ArrowHorizontal />, checked: readingWide, separated: true, onSelect: () => setReadingWide(!readingWide) },
     ]} />
   </> : null;
   const alerts = actionError || syncFailures.size ? <div className="course-pane__alerts">{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {items.find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</div> : null;
@@ -316,15 +320,34 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   </aside>;
 }
 
-type LessonMenuItem = { label: string; icon: ReactNode; disabled?: boolean; onSelect: () => void };
+type LessonMenuItem = {
+  label: string;
+  icon: ReactElement<{ className?: string }>;
+  disabled?: boolean;
+  /** A count shown at the end of the row. */
+  meta?: number;
+  /** A setting that stays on: a tick shows when it is. */
+  checked?: boolean;
+  /** Starts a new group, below a rule. */
+  separated?: boolean;
+  onSelect: () => void;
+};
 
 function LessonMenu({ items, trigger }: { items: LessonMenuItem[]; trigger: RefObject<HTMLButtonElement | null> }) {
   const [open, setOpen] = useState(false);
   return <>
     <button ref={trigger} type="button" className={RESOURCE_ACTION} title="Lesson actions" aria-label="Lesson actions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><MoreHorizontal className="size-4" /></button>
-    {open ? <Popover anchor={trigger} side="bottom" align="end" width={210} role="menu" aria-label="Lesson actions" onDismiss={() => setOpen(false)} className="p-1 font-sans">
-      {items.map((item) => <button key={item.label} type="button" role="menuitem" disabled={item.disabled} onClick={() => { setOpen(false); item.onSelect(); }}
-        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40">{item.icon}{item.label}</button>)}
+    {open ? <Popover anchor={trigger} side="bottom" align="end" width={224} role="menu" aria-label="Lesson actions" onDismiss={() => setOpen(false)} className="lesson-menu p-1 font-sans">
+      {items.map((item) => <Fragment key={item.label}>
+        {item.separated ? <div role="separator" className="lesson-menu__rule" /> : null}
+        <button type="button" role={item.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={item.checked} disabled={item.disabled}
+          onClick={() => { setOpen(false); item.onSelect(); }} className="lesson-menu__item">
+          {cloneElement(item.icon, { className: "lesson-menu__icon" })}
+          <span className="lesson-menu__label">{item.label}</span>
+          {item.meta ? <span className="lesson-menu__meta">{item.meta}</span> : null}
+          {item.checked ? <Check className="lesson-menu__check" strokeWidth={2} /> : null}
+        </button>
+      </Fragment>)}
     </Popover> : null}
   </>;
 }

@@ -111,7 +111,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
       {pages.map((id) => {
         const Icon = icons[id];
         return <button key={id} id={tabDomId(id)} type="button" role="tab" aria-selected={page === id} tabIndex={page === id ? 0 : -1}
-          aria-controls={`${tabId}-panel`} onKeyDown={onTabKeyDown} onClick={() => setPage(id)}><Icon className="size-3.5 shrink-0" strokeWidth={1.5} />{PAGE_TITLE[id]}</button>;
+          aria-controls={`${tabId}-panel`} onKeyDown={onTabKeyDown} onClick={() => setPage(id)}><Icon className="size-3.5 shrink-0" />{PAGE_TITLE[id]}</button>;
       })}
     </nav>
     <div id={`${tabId}-panel`} className="agent-settings-content" role="tabpanel" aria-labelledby={tabDomId(page)}>
@@ -132,9 +132,9 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         <div className="agent-setting-group">
           {agent.folder ? <FolderRow agent={agent} folder={agent.folder} /> : null}
           <WorkdirRow agent={agent} chatCwd={session.cwd} />
-          <div className="agent-setting-row flex-col items-stretch">
-            <div className="agent-setting-label"><span>Other folders</span><small>More folders it may read and work in.</small></div>
-            <ProjectsField projects={agent.projects} recents={recents} onPickFolders={onPickFolders}
+          <div className="agent-setting-row">
+            <ProjectsField header={<div className="agent-setting-label"><span>Other folders</span><small>More folders it may read and work in.</small></div>}
+              projects={agent.projects} recents={recents} onPickFolders={onPickFolders}
               onAdd={(path) => addAgentProject(agent.id, path)} onRemove={(path) => removeAgentProject(agent.id, path)} />
           </div>
         </div>
