@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { MentorViewState } from "../../../app/hooks/useMentorView";
 import { useDragResize } from "../../../shared/hooks/useDragResize";
-import { SidebarLeft } from "../../../shared/ui/icons";
+import { SidebarLeft, X } from "../../../shared/ui/icons";
 import { agentLook, type Agent } from "../../agents/model/agent";
 import { readAgentDocument } from "../../agents/model/agentDocuments";
 import type { AgentReading } from "../../agents/model/agentReading";
@@ -170,7 +170,16 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
   const chatLabel = state.chat ? "Hide conversation" : `Chat with ${name}`;
   const libraryLabel = state.library ? "Hide library" : "Show library";
 
-  return <section className="mentor-workspace" data-mentor-workspace={agent.id} aria-label={`${name} workspace`}>
+  return <section className="mentor-workspace" data-mentor-workspace={agent.id} aria-label={`${name} workspace`}
+    onKeyDown={(event) => {
+      if (event.key !== "Escape" || event.defaultPrevented || !state.page) return;
+      const target = event.target;
+      // A field keeps Escape for its own editing, and an open dialog owns it.
+      if (target instanceof Element && target.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      event.preventDefault(); event.stopPropagation();
+      close();
+    }}>
     <header className="mentor-titlebar" data-tauri-drag-region="deep">
       {leading}
       <button type="button" data-tauri-drag-region="false" className="mentor-titlebar-button" aria-label={libraryLabel} title={libraryLabel} aria-pressed={state.library} onClick={onToggleLibrary}>
@@ -181,7 +190,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
       <button type="button" data-tauri-drag-region="false" className={`mentor-chat-toggle ${state.chat ? "bg-content/8 text-content" : "text-content/60"}`}
         aria-pressed={state.chat} aria-label={chatLabel} title={chatLabel} onClick={onToggleChat}>
         <AgentAvatar name={agent.avatar} color={agent.color} className="size-3.5 shrink-0" />
-        {state.chat ? null : <span>Chat</span>}
+        {state.chat ? <X className="size-3 shrink-0" strokeWidth={2} /> : <span>Chat</span>}
       </button>
       {trailing}
     </header>
@@ -200,12 +209,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
             library.setWidth(library.width + (event.key === "ArrowRight" ? 20 : -20));
           }} />
       </aside>
-      <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}
-        onKeyDown={(event) => {
-          if (event.key !== "Escape" || event.defaultPrevented || !state.page) return;
-          event.preventDefault(); event.stopPropagation();
-          close();
-        }}>
+      <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}>
         <MentorReader agent={agent} page={state.page} request={state.request} canvases={canvases}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
           onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} renderSession={renderSession}

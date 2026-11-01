@@ -265,9 +265,25 @@ it("shows one segment at a time, remembered per mentor, and ignores an old mento
   expect(container.querySelector("[data-mentor-library]")?.getAttribute("data-library-segment")).toBe("sources");
   await click('[aria-label="Hide library"]');
   expect(container.querySelector<HTMLElement>(".mentor-library-column")!.hidden).toBe(true);
+  // The open conversation's toggle shows the ✕ as well as the face.
+  expect(container.querySelector('[aria-label="Hide conversation"]')!.querySelectorAll("svg")).toHaveLength(2);
   await click('[aria-label="Hide conversation"]');
   expect(container.querySelector<HTMLElement>(".mentor-chat-column")!.hidden).toBe(true);
   expect(container.querySelector('[aria-label="Chat with Ada"]')).not.toBeNull();
+});
+
+it("closes the reader on Escape from anywhere in the workspace, except from a text field", async () => {
+  await render();
+  await tab("sources");
+  await vi.waitFor(() => expect(container.querySelector('[data-resource-kind="document"]')).not.toBeNull());
+  await click('[data-resource-kind="document"]');
+  expect(reader().dataset.mentorReader).toBe("document");
+  const filter = () => container.querySelector<HTMLInputElement>('input[aria-label="Filter sources"]')!;
+  await act(async () => filter().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(reader().dataset.mentorReader).toBe("document");
+  const tabButton = container.querySelector<HTMLElement>('[role="tab"][data-segment="sources"]')!;
+  await act(async () => tabButton.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(reader().dataset.mentorReader).toBe("empty");
 });
 
 it("filters only the segment it was typed in, and moves through a list with the arrow keys", async () => {
