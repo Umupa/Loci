@@ -15,6 +15,10 @@ function tool(id: string, approval?: Block["approval"]): Block {
 function render(blocks: Block[], busy = false, latestTurnAccessory?: ReactNode) {
     return renderToStaticMarkup(createElement(AgentTranscript, { blocks, busy, latestTurnAccessory }));
 }
+/** The folded work, without the live progress line the running turn adds below it. */
+function withoutProgress(markup: string) {
+    return markup.replace(/<section data-turn-progress[\s\S]*?<\/section>/, "");
+}
 describe("AgentTranscript turn status", () => {
     const prompt: Block = { id: "status-prompt", role: "user", text: "Check this", startedAt: 1000 };
 
@@ -78,6 +82,23 @@ describe("AgentTranscript turn status", () => {
         expect(markup).not.toContain("data-work-animated");
         expect(markup).not.toContain("Work complete");
         expect(markup).not.toContain(">Done<");
+    });
+
+    it("shows what the running turn is doing under it, and only while it runs", () => {
+        const clone: Block = {
+            id: "progress-clone",
+            role: "tool",
+            text: "git clone https://github.com/tokio-rs/tokio.git",
+            tool: { kind: "execute", title: "git clone https://github.com/tokio-rs/tokio.git", status: "in_progress" },
+        };
+        const live = render([prompt, clone], true);
+        expect(live).toContain("data-turn-progress");
+        expect(live).toContain("Cloning tokio-rs/tokio");
+        expect(live).toContain('data-activity-status="running"');
+
+        const settled = render([{ ...prompt, durationMs: 2000 }, clone, { id: "progress-answer", role: "assistant", text: "Finished." }], false);
+        expect(settled).not.toContain("data-turn-progress");
+        expect(settled).not.toContain("Cloning tokio-rs/tokio");
     });
 
     it("retains error and interruption outcomes instead of announcing a successful turn", () => {
@@ -462,7 +483,7 @@ describe("AgentTranscript collapsed work", () => {
         expect(stackAt).toBeGreaterThan(statusAt);
         // The work around it is collapsed away, and the stack is still on screen:
         // it is pinned outside the fold's body, not inside it.
-        expect(markup).not.toContain("hidden-detail-t1");
+        expect(withoutProgress(markup)).not.toContain("hidden-detail-t1");
         expect(markup).not.toContain("Splitting the review in two.");
         // A row-length name is capped, and the whole brief stays on the hover.
         expect(markup).toContain("Independently review the current repository&#x27;s recent…");
@@ -583,7 +604,7 @@ describe("AgentTranscript collapsed work", () => {
         expect(markup).not.toContain("Show every subagent");
         expect(markup).toContain("Correctness review");
         expect(markup).toContain("1 step");
-        expect(markup).not.toContain("done");
+        expect(withoutProgress(markup)).not.toContain("done");
         expect(markup).toContain("Show Correctness review&#x27;s work");
     });
     it("places a session accessory after the latest reply and before its action row", () => {

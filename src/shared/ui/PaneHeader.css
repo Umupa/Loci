@@ -18,3 +18,10 @@
     display: none;
   }
 }
+
+/* A narrow conversation header leaves the working line to the transcript. */
+@container pane-header (max-width: 340px) {
+  [data-agent-activity] {
+    display: none;
+  }
+}

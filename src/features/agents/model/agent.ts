@@ -4,6 +4,7 @@ import {
   type Block,
   type Session,
 } from "../../sessions/model/session";
+import { turnActivity } from "../../sessions/model/turnProgress";
 import { AGENT_AVATARS, defaultAgentName } from "./agentAvatars";
 
 /** The colors an agent's avatar can take. */
@@ -395,14 +396,10 @@ export function agentState(
   if (last?.role === "assistant" && !last.tool && last.streaming) {
     return { status: "working", activity: "Writing a reply" };
   }
-  // Only a step from the current turn says what it is doing now.
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    const block = blocks[i];
-    if (block.role === "user") break;
-    if (block.tool?.title) {
-      return { status: "working", activity: plainLine(block.tool.title) };
-    }
-  }
+  // The newest line from the running turn says what it is doing now, in the
+  // same words the transcript's progress line uses.
+  const activity = turnActivity(blocks)[0]?.text;
+  if (activity) return { status: "working", activity };
   return { status: "working", activity: "Thinking" };
 }
 

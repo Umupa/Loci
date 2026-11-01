@@ -133,13 +133,13 @@ it("says what the agent is doing from its conversation", () => {
         { id: "u", role: "user", text: "go" },
         {
           id: "t",
-          role: "assistant",
+          role: "tool",
           text: "",
-          tool: { title: "Run `npm test`" },
+          tool: { kind: "execute", title: "npm test", status: "in_progress" },
         },
       ] as never,
     }),
-  ).toEqual({ status: "working", activity: "Run npm test" });
+  ).toEqual({ status: "working", activity: "Running npm test" });
   expect(
     agentState({
       busy: true,

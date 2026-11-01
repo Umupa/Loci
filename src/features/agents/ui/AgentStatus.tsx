@@ -1,3 +1,4 @@
+import { CircleDashed } from "../../../shared/ui/icons";
 import {
   AGENT_STATUS_LABEL,
   type AgentState,
@@ -29,7 +30,11 @@ export function AgentStatusDot({
   );
 }
 
-/** Keep the title short; the activity is available on hover. */
+/**
+ * The header's one-line status. While the agent works it names the step in the
+ * same words as the transcript's progress line; the full label stays on hover,
+ * and a narrow header keeps only the name and its controls.
+ */
 export function AgentStatus({
   state,
   className = "",
@@ -37,9 +42,30 @@ export function AgentStatus({
   state: AgentState;
   className?: string;
 }) {
+  const title = [AGENT_STATUS_LABEL[state.status], state.activity]
+    .filter(Boolean)
+    .join(" · ");
+  if (state.status === "working" && state.activity) {
+    return (
+      <span
+        data-agent-activity
+        title={title}
+        className={`inline-flex min-w-0 max-w-[11rem] shrink items-center gap-1.5 text-xs text-content/50 ${className}`}
+      >
+        <CircleDashed
+          aria-hidden
+          className="size-3 shrink-0 motion-safe:animate-spin [animation-duration:2.4s]"
+          strokeWidth={1.5}
+        />
+        <span className="min-w-0 truncate">{state.activity}</span>
+      </span>
+    );
+  }
   return (
-    <span title={[AGENT_STATUS_LABEL[state.status], state.activity].filter(Boolean).join(" · ")}
-      className={`shrink-0 text-xs text-content/50 ${className}`}>
+    <span
+      title={title}
+      className={`shrink-0 text-xs text-content/50 ${className}`}
+    >
       {AGENT_STATUS_LABEL[state.status]}
     </span>
   );

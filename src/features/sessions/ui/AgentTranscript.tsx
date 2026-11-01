@@ -136,6 +136,7 @@ import { AgentMarkdown } from "./AgentMarkdown";
 import { cardsOnly } from "../model/cards";
 import { HarnessIcon } from "./HarnessIcon";
 import { WorkFoldLine, type WorkFoldState } from "./WorkFoldLine";
+import { TurnProgress } from "./TurnProgress";
 import { TranscriptSelectionMenu } from "./TranscriptSelectionMenu";
 import { UserLinkPreview } from "./UserLinkPreview";
 
@@ -919,6 +920,16 @@ function AgentTranscriptComponent({
               />}
             </TurnRow>
           );
+          // The running turn says what it is doing without opening the work
+          // trail. It sits right under the work's status line, where the
+          // prompt-to-top anchor keeps it in view however long the turn runs.
+          const progressRow = isLastTurn && !settled && busy ? (
+            <TurnProgress
+              key="turn-progress"
+              blocks={turn}
+              visible={visible && !parked}
+            />
+          ) : null;
           return (
             <div
               key={turn[0].id}
@@ -938,6 +949,7 @@ function AgentTranscriptComponent({
                   if (itemIndex !== fold.start) return [];
                   return [
                     foldLineRow,
+                    progressRow,
                     <TurnRow key="work-details" folded={!workOpen}>
                       {() =>
                         foldWork.map(({ entry, index }, offset) => (
@@ -1013,9 +1025,9 @@ function AgentTranscriptComponent({
                   </div>
                 );
                 if (itemIndex !== foldLineAt) return row;
-                return [foldLineRow, row];
+                return [foldLineRow, progressRow, row];
               })}
-              {foldLineAt >= items.length ? foldLineRow : null}
+              {foldLineAt >= items.length ? [foldLineRow, progressRow] : null}
 
               {/* The accessory keeps the pane's props, which go stale once parked. */}
               {isLastTurn && latestTurnAccessory && !parked
