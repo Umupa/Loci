@@ -102,7 +102,6 @@
 .library-chapter-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; }
 .library-lesson { display: flex; width: 100%; align-items: flex-start; gap: 7px; padding: 4px 8px 4px 10px; border-radius: 6px; text-align: left; font-size: 12px; line-height: 1.45; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
 .library-lesson:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); }
-.library-lesson--mastered { opacity: .5; }
 .library-lesson--current { opacity: 1; background: color-mix(in srgb, var(--color-accent) 18%, transparent); color: var(--color-content); font-weight: 600; }
 .library-lesson--current:hover { background: color-mix(in srgb, var(--color-accent) 24%, transparent); }
 .library-lesson-number { flex: none; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
