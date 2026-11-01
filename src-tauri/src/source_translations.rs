@@ -16,7 +16,9 @@ fn valid_id(value: &str) -> bool {
 fn valid_language(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 16
-        && value.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
 fn translation_path(folder: &str, id: &str, language: &str) -> Result<PathBuf, String> {
@@ -30,7 +32,10 @@ fn translation_path(folder: &str, id: &str, language: &str) -> Result<PathBuf, S
     if !folder.is_absolute() || !folder.is_dir() {
         return Err(format!("No mentor folder at {}", folder.display()));
     }
-    Ok(folder.join("translations").join(language).join(format!("{id}.md")))
+    Ok(folder
+        .join("translations")
+        .join(language)
+        .join(format!("{id}.md")))
 }
 
 fn read(path: &Path) -> Result<Option<String>, String> {

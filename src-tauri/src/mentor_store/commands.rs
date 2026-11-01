@@ -801,16 +801,23 @@ mod tests {
         let conn = store.lock_conn().unwrap();
         let root = temp_dir("language");
         ready(&conn);
-        let entry = json!({"id":"m-1","name":"Kern","avatar":"nova","color":"red","language":"zh-CN"});
-        sync(&conn, &root, &[entry.clone()]).unwrap();
+        let entry =
+            json!({"id":"m-1","name":"Kern","avatar":"nova","color":"red","language":"zh-CN"});
+        sync(&conn, &root, std::slice::from_ref(&entry)).unwrap();
         let folder = root.join("kern");
-        assert_eq!(registry::read_identity(&folder).unwrap()["language"], "zh-CN");
+        assert_eq!(
+            registry::read_identity(&folder).unwrap()["language"],
+            "zh-CN"
+        );
         assert_eq!(load(&conn, &root).unwrap()[0]["language"], "zh-CN");
         // Back to Settings' choice: the key goes.
         let mut cleared = entry;
         cleared.as_object_mut().unwrap().remove("language");
         sync(&conn, &root, &[cleared]).unwrap();
-        assert!(registry::read_identity(&folder).unwrap().get("language").is_none());
+        assert!(registry::read_identity(&folder)
+            .unwrap()
+            .get("language")
+            .is_none());
         std::fs::remove_dir_all(root).unwrap();
     }
 
