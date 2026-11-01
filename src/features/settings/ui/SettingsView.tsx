@@ -1618,7 +1618,7 @@ function Select({ label, value, options, onChange, }: {
         }
     };
     return (<div ref={root} className="relative max-w-52">
-      <button type="button" ref={trigger} aria-label={`${label}: ${selected?.label ?? value}`} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((prev) => !prev)} className="flex w-full items-center justify-between gap-2 rounded-md border border-content/10 bg-content/5 px-2 py-1 text-left text-[12px] text-content outline-none hover:border-content/20">
+      <button type="button" ref={trigger} aria-label={`${label}: ${selected?.label ?? value}`} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((prev) => !prev)} className="flex w-full items-center justify-between gap-2 rounded-md border border-content/10 bg-content/5 px-2 py-1 text-left text-[12px] text-content outline-none hover:border-content/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
           {selected?.icon ? (<span className="grid size-4 shrink-0 place-items-center">
               {selected.icon}
