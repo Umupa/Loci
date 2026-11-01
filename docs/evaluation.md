@@ -39,7 +39,7 @@ scripts/eval/qa-app.sh down       # quit it, delete its data dirs and the empty 
 
 **Mentors on grok.** A fresh QA app lists only grok's built-in models until a grok conversation is on screen, so `--model grok:deepseek-flash` fails with "Unknown model". Warm it up once after `up`: `"$BIN" mentors create --name warm --provider grok --workdir "$(mktemp -d)" --switch`, wait until `models list` shows `grok:deepseek-flash`, then `mentors delete warm --yes`.
 
-**Antigravity's region check.** Since 2026-11-01 (later that day) Antigravity also refuses this location inside Loci's adapter ("User location is not supported for the API use"). The runner records that reply as a finished turn, so check the conversation before trusting an agy run.
+**Antigravity's region check.** Later on 2026-11-01, Antigravity also started refusing this location inside Loci's adapter ("User location is not supported for the API use"). The runner records that reply as a finished turn, so check the conversation before trusting an agy run.
 
 A run whose mentors are not on agy is labelled **Provisional, non-agy** in its summary; a run with agy mentors and another judge says which judge. It checks the harness and gives early findings; it is not the baseline. Node 22.18 or later is needed: the scorer imports the reader's TypeScript directly.
 
