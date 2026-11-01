@@ -377,24 +377,42 @@ export function bindHarnessSession(
 /**
  * Probe model lists only for the harnesses the caller actually needs.
  */
-/** `force` re-reads a catalog that already loaded, e.g. after a CLI update. */
+/**
+ * `force` re-reads a catalog that already loaded, e.g. after a CLI update.
+ * `timeoutMs` stops waiting after a slow provider probe; the probe keeps
+ * running, so its catalog still lands for the next caller.
+ */
 export async function refreshHarnessCatalogs(
   ids: Iterable<HarnessId>,
-  options?: { force?: boolean },
+  options?: { force?: boolean; timeoutMs?: number },
 ): Promise<void> {
   const wanted = new Set(ids);
   if (wanted.size === 0) return;
-  await Promise.all(
+  const probes = Promise.all(
     [...adapters.values()]
       .filter((adapter) => wanted.has(adapter.id))
       .map(async (adapter) => {
         if (!adapter.refreshCatalog) return;
         if (!options?.force && hasLiveCatalog(adapter.id)) return;
-        await adapter.refreshCatalog().catch((error: unknown) => {
+        try {
+          await adapter.refreshCatalog();
+        } catch (error) {
           console.debug(`[loci] ${adapter.id} catalog`, error);
-        });
+        }
       }),
   );
+  if (options?.timeoutMs === undefined) {
+    await probes;
+    return;
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    probes,
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, options.timeoutMs);
+    }),
+  ]);
+  if (timer !== undefined) clearTimeout(timer);
 }
 
 export async function generateHarnessTitle(

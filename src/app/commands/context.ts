@@ -2,7 +2,7 @@ import type { Agent } from "../../features/agents/model/agent";
 import type { AgentTemplate } from "../../features/agents/templates";
 import type { LibrarySegment } from "../../features/mentor/model/libraryCourse";
 import type { MentorLesson, MentorPage } from "../../features/mentor/model/mentorPage";
-import type { Session } from "../../features/sessions/model/session";
+import type { HarnessId, Session } from "../../features/sessions/model/session";
 import type { SessionSubmission } from "../hooks/useSessionSubmission";
 
 /**
@@ -25,6 +25,11 @@ export type CommandContext = {
   switchAgent(id: string): Promise<boolean>;
   /** The mentor's conversation, loaded and kept in memory as opening it would. */
   agentChat(id: string): Promise<Session>;
+  /**
+   * Reads these providers' model catalogs now, as opening the model picker
+   * does, waiting only a few seconds for slow CLIs.
+   */
+  refreshModels(harnesses: readonly HarnessId[]): Promise<void>;
   /** A session the window holds in memory. */
   liveSession(id: string): Session | undefined;
   submission: Pick<SessionSubmission, "submit" | "stopSessionWork" | "changeModel" | "changeModelSettings" | "changeRuntimeMode">;

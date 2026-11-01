@@ -1,6 +1,7 @@
 import { appModels } from "../../features/agent-app/model/agentApp";
 import { courseItems, loadCourse, setLessonStatus, type LearningStatus } from "../../features/learning/model/course";
 import { deleteNote, getNote, NOTES_CHANGED_EVENT } from "../../features/notes";
+import { HARNESSES } from "../../features/sessions/model/session";
 import { RELEASE_IDENTIFIER } from "../../features/updates/model/updates";
 import type { CommandContext } from "./context";
 import { mentorField, resolveMentor } from "./mentor";
@@ -206,6 +207,11 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
     summary: "Providers, their models and settings, and the permission modes.",
     fields: [],
     callers: ["external"],
-    run: async () => appModels(),
+    run: async (ctx) => {
+      // A terminal sees the providers' own lists, not only the built-in
+      // fallbacks: a fresh window may not have read a catalog yet.
+      await ctx.refreshModels(HARNESSES);
+      return appModels();
+    },
   },
 ];

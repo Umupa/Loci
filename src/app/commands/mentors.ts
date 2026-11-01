@@ -61,6 +61,9 @@ async function applySettings(ctx: CommandContext, agent: Agent, settings: Settin
   if (chat.busy) throw new CommandError("The mentor is busy; change its model or permissions when it is idle", "busy");
   if (harness || settings.model) {
     const target = harness ?? chat.harness;
+    // A CLI-only model name (grok's custom models, say) is known once the
+    // provider's catalog has been read; the picker would have done this on open.
+    await ctx.refreshModels([target]);
     const model = settings.model
       ? modelsFor(target).find((entry) => entry.id === settings.model)
       : resolveModel(target, target === chat.harness ? chat.model : preferredModelId(target));

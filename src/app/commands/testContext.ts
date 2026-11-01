@@ -22,6 +22,7 @@ export function testContext(agents: Agent[] = [], overrides: Partial<CommandCont
     resetAgent: vi.fn(async () => true),
     switchAgent: vi.fn(async () => true),
     agentChat: vi.fn(async (id: string) => chatOf(id)),
+    refreshModels: vi.fn(async () => undefined),
     liveSession: (id) => [...chats.values()].find((chat) => chat.id === id),
     submission: {
       submit: vi.fn(async () => true),

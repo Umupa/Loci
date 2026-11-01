@@ -212,6 +212,28 @@ describe("harness registry", () => {
     expect(codex).not.toHaveBeenCalled();
   });
 
+  it("stops waiting for a slow catalog after the timeout", async () => {
+    const slow = vi.fn(() => new Promise<void>(() => undefined));
+    registerHarness(stub("grok", { refreshCatalog: slow }));
+    const started = Date.now();
+    await refreshHarnessCatalogs(["grok"], { timeoutMs: 25 });
+    expect(slow).toHaveBeenCalledOnce();
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
+  it("re-reads a live catalog when forced", async () => {
+    const codex = vi.fn(async () => {
+      setHarnessModels("codex", [
+        { id: "codex:opus", harness: "codex", name: "Opus" },
+      ]);
+    });
+    registerHarness(stub("codex", { refreshCatalog: codex }));
+    await refreshHarnessCatalogs(["codex"]);
+    await refreshHarnessCatalogs(["codex"]);
+    await refreshHarnessCatalogs(["codex"], { force: true });
+    expect(codex).toHaveBeenCalledTimes(2);
+  });
+
   it("parks a live child a few minutes after the turn settles", async () => {
     vi.useFakeTimers();
     const stopSession = vi.fn(async () => undefined);

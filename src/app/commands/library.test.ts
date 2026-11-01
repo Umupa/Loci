@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { HARNESSES } from "../../features/sessions/model/session";
 import { runCommand } from "./dispatch";
 import { resolveMentor } from "./mentor";
 import { commandFailure } from "./registry";
@@ -77,6 +78,8 @@ describe("library commands", () => {
     const { ctx } = testContext();
     const models = await runCommand(ctx, "models.list", {}, external) as { harnesses: { id: string }[] };
     expect(models.harnesses.map((harness) => harness.id)).toContain("antigravity");
+    // A fresh window has read no catalog yet; the CLI asks for them first.
+    expect(ctx.refreshModels).toHaveBeenCalledWith(HARNESSES);
   });
 });
 

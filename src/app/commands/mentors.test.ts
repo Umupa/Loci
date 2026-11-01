@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetHarnessModelOverlays, setHarnessModels } from "../../features/sessions/model/models";
 import { newSession, type Block, type Session } from "../../features/sessions/model/session";
 import { runCommand } from "./dispatch";
 import { providerId, turnState } from "./mentors";
@@ -11,6 +12,7 @@ vi.mock("../../features/agents/model/agentWorkdir", () => ({ setAgentWorkdir: vi
 
 const external = { requestId: "r1", caller: "external" as const };
 beforeEach(() => localStorage.clear());
+afterEach(() => resetHarnessModelOverlays());
 
 describe("providers", () => {
   it("accept Loci's ids and the names people use", () => {
@@ -32,6 +34,21 @@ describe("mentors create and update", () => {
     expect(ctx.submission.changeRuntimeMode).toHaveBeenCalledWith(chatOf("new").id, "full-access");
     expect(ctx.switchAgent).not.toHaveBeenCalled();
     expect(created).toMatchObject({ id: "new", created: true });
+  });
+
+  it("read the target provider's catalog before checking a model the CLI names", async () => {
+    const mentors = [agent("a1", "Kern")];
+    const { ctx, chatOf } = testContext(mentors);
+    ctx.createAgent = vi.fn(async () => { mentors.push(agent("new", "Mentor")); return "new"; });
+    ctx.refreshModels = vi.fn(async ([harness]) => {
+      setHarnessModels(harness, [{ id: `${harness}:custom`, harness, name: "Custom" }]);
+    });
+    await runCommand(ctx, "mentors.create", { provider: "grok", model: "grok:custom" }, external);
+    expect(ctx.refreshModels).toHaveBeenCalledWith(["grok"]);
+    expect(ctx.submission.changeModel).toHaveBeenCalledWith(chatOf("new").id, "grok", "grok:custom");
+    await runCommand(ctx, "mentors.update", { mentor: "a1", model: "claude:custom" }, external);
+    expect(ctx.refreshModels).toHaveBeenLastCalledWith(["claude"]);
+    expect(ctx.submission.changeModel).toHaveBeenLastCalledWith(chatOf("a1").id, "claude", "claude:custom");
   });
 
   it("refuse unknown templates and settings before creating anything", async () => {

@@ -37,7 +37,7 @@ scripts/eval/qa-app.sh down       # quit it, delete its data dirs and the empty 
 | `--out DIR` | `eval/results/<timestamp>` | git-ignored |
 | `--keep` | off | keep the mentors instead of deleting them |
 
-**Mentors on grok.** A fresh QA app lists only grok's built-in models until a grok conversation is on screen, so `--model grok:deepseek-flash` fails with "Unknown model". Warm it up once after `up`: `"$BIN" mentors create --name warm --provider grok --workdir "$(mktemp -d)" --switch`, wait until `models list` shows `grok:deepseek-flash`, then `mentors delete warm --yes`.
+**Mentors on grok.** `models list` and `mentors create/update --provider grok --model ...` read grok's own catalog on demand (waiting up to five seconds), so grok's custom models are visible in a fresh QA app without opening a grok conversation first. If the CLI's probe is slower than that, the first call still lists the built-in models; a later call picks the custom ones up.
 
 **Antigravity's region check.** Later on 2026-11-01, Antigravity also started refusing this location inside Loci's adapter ("User location is not supported for the API use"). The runner records that reply as a finished turn, so check the conversation before trusting an agy run.
 
