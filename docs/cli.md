@@ -2,7 +2,7 @@
 
 `loci` drives a running Loci from any terminal: mentors, their courses, sources, notes, canvases and files, the reader, and the settings tests need. End-to-end tests and the [mentor evaluation](evaluation.md) use it, and so can an agent outside Loci (Claude Code, Codex, Antigravity, ...) acting as a mentor.
 
-It is the same executable as the app. `loci <command> <verb>` runs a command and exits; it never starts the app.
+It is the same executable as the app. `loci <command> <verb>` runs a command and exits. Only the bare executable (and the launch arguments macOS passes when the app is opened) starts Loci: an unknown command or option is a usage error with exit status 2, so a typo never opens the window.
 
 ```sh
 loci --help                     # the commands
