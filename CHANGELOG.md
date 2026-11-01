@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Changed
+
+- A new app icon: an elephant in ink on paper, the animal said never to forget, after the memory Loci keeps for each mentor. Loci Dev is the same elephant in paper on ink, so the two are easy to tell apart in the Dock.
+
 ## [0.3.0] - 2026-11-01
 
 ### Added
