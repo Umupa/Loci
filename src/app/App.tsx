@@ -582,7 +582,8 @@ function Workspace(boot: BootWorkspace) {
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
       {!IS_MAC ? <MenuBar onNewMentor={() => setAgentGalleryOpen(true)} onCloseReader={() => { if (!closeReader()) void closeCurrentWindow(); }}
         onPreviousMentor={() => stepMentor(-1)} onNextMentor={() => stepMentor(1)} onToggleLibrary={toggleLibrary} onToggleChat={toggleChat}
-        onOpenPdf={openPdf} onSearch={() => setSearchOpen(true)} onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
+        onOpenPdf={openPdf} onSearch={() => setSearchOpen(true)} onOpenSettings={() => openSettings()}
+        onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
       <div className="flex min-h-0 min-w-0 flex-1">
         <MentorRail activeId={activeAgent?.id} states={agents.states} unseenIds={unseenAgentIds} settingsOpen={surface === "settings"}
           onOpen={(id) => void showMentor(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void showMentor(id); }}

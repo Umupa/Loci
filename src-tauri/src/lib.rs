@@ -404,6 +404,7 @@ pub fn run() {
             window::quit_poll_reply,
             window::quit_decision,
             window::quit_ready,
+            menu::quit_app,
             default_cwd,
             home_dir,
             set_traffic_lights_visible,

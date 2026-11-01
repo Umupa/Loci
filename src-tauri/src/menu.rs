@@ -54,6 +54,13 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Exit from the in-app menu bar where the system has none, through the same
+/// unsaved-work check as the window's own close.
+#[tauri::command]
+pub fn quit_app(app: AppHandle) {
+    crate::window::request_quit(&app);
+}
+
 #[cfg(target_os = "macos")]
 #[tauri::command]
 pub fn keybindings_set_overrides(
