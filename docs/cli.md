@@ -83,14 +83,14 @@ Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false
 | `library` | `open`, `show`: the mentor's left column (segment, course, filter) |
 | `sessions` | `list`, `read`, `start`, `send`, `draft`, `stop`, `archive`, `delete` |
 | `soul`, `memory`, `habits` | The mentor's standing instructions, memory and habits |
-| `models` | `list`: providers, models, settings and permission modes |
+| `models` | `list`: providers and their current models (each catalog is read first, waiting up to five seconds), settings and permission modes |
 | `settings` | `get`, `set`: `defaultProvider`, `defaultModel`, `defaultMentorAccess`, `canvasTools` |
 | `updates` | `check`: whether GitHub Releases offers a newer installed Loci, without opening the update prompt |
 | `cli` | `rotate-token`, `disable` |
 
 Notes:
 
-- `mentors create` and `update` take `--provider` (any agent CLI id; `agy` means `antigravity`), `--model`, `--effort`, `--mode` (`supervised`, `auto-accept-edits`, `auto`, `full-access`), `--name`, `--role`, `--workdir`, `--avatar`, `--color`. Creating a mentor does not switch the window to it (`--switch` does) and does not run a model.
+- `mentors create` and `update` take `--provider` (any agent CLI id; `agy` means `antigravity`), `--model`, `--effort`, `--mode` (`supervised`, `auto-accept-edits`, `auto`, `full-access`), `--name`, `--role`, `--workdir`, `--avatar`, `--color`. Creating a mentor does not switch the window to it (`--switch` does) and does not run a model. With `--provider` or `--model`, the provider's catalog is read first, so a model only the CLI knows (grok's custom models, say) is visible in a fresh window; `sessions start` does the same.
 - `mentors send` returns `{mentor, sessionId, turn}` as soon as the message is accepted. `--wait` follows the turn until it is done (`--timeout`, default 900 s). `--stream` also prints the reply as it grows, one JSON line per change, then `{"type":"done","response":...}`. `mentors turn <mentor> <turn>` reads a turn's state later: `queued`, `running`, `needs-you`, `done` or `failed`, with the reply so far and `tools`, the number of tool calls it made. A busy mentor refuses a new message (`busy`).
 - `reader open --mentor M` takes exactly one of `--course C [--lesson L]`, `--source S [--section "Heading"]`, `--note N`, `--canvas K`, `--file /abs/path [--lines 10-40 | --page 3]`. It replaces what that mentor's reader shows. When the mentor is not on screen, the page is ready for when it is; `--switch` brings it on screen. `reader show` reports the kind, id or path, lesson and requested place.
 - `library open --mentor M` takes any of `--segment courses|sources|notes|files`, `--course C` (the course the Courses segment shows; it does not open the reader, `reader open --course C` does) and `--filter TEXT` (the filter of the segment shown; empty clears it; Courses has none). It also shows the library if it was hidden, and `--switch` brings the mentor on screen. `library show` reports `visible`, `segment`, `course` and `filter`. A mentor without a chosen segment shows Courses when it has a course, else Sources. The segment and course are remembered per mentor; the filter lasts until the window closes.

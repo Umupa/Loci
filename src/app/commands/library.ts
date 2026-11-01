@@ -5,6 +5,7 @@ import { HARNESSES } from "../../features/sessions/model/session";
 import { RELEASE_IDENTIFIER } from "../../features/updates/model/updates";
 import type { CommandContext } from "./context";
 import { mentorField, resolveMentor } from "./mentor";
+import { providerId } from "./mentors";
 import { CommandError, field, type CommandDefinition, type CommandField } from "./registry";
 
 const id = (help = "Its id") => field("id", "string", help, { required: true, positional: true, max: 256 });
@@ -31,6 +32,7 @@ function forMentor(
   summary: string,
   fields: CommandField[],
   defaults: Record<string, unknown> = {},
+  options: { refreshModelCatalog?: boolean } = {},
 ): CommandDefinition<CommandContext> {
   return {
     name,
@@ -41,6 +43,12 @@ function forMentor(
       const { mentor, ...rest } = input;
       const agent = resolveMentor(ctx, mentor, meta);
       const chat = await ctx.agentChat(agent.id);
+      // A custom model id (grok's, say) is known once that provider's catalog
+      // has been read, as opening the model picker would have done.
+      if (options.refreshModelCatalog && (rest.harness !== undefined || rest.model !== undefined || rest.effort !== undefined)) {
+        const harness = rest.harness !== undefined ? providerId(String(rest.harness)) : chat.harness;
+        await ctx.refreshModels([harness]);
+      }
       return ctx.agentApp(chat, meta.requestId, action, { ...defaults, ...rest });
     },
   };
@@ -188,7 +196,7 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
     field("runtimeMode", "string", "supervised, auto-accept-edits, auto or full-access"),
     field("draft", "boolean", "Save the prompt unsent"), field("reveal", "boolean", "Show it in the mentor's reader"),
     field("notifyOnComplete", "boolean", "Report the result to the mentor's conversation"), project,
-  ], { notifyOnComplete: false }),
+  ], { notifyOnComplete: false }, { refreshModelCatalog: true }),
   forMentor("sessions.send", "sessions.send", "Send a follow-up to an idle session.", [
     field("sessionId", "string", "The session", { required: true, positional: true }),
     field("prompt", "string", "The follow-up", { required: true, positional: true, max: 240_000 }),
