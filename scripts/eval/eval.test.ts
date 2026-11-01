@@ -8,6 +8,8 @@ import { checkCitation, checkLessons, citationsIn, flattenMarkdown, headingsOf, 
 // @ts-expect-error plain ESM without types
 import { judgeCommand, judgePrompt, parseVerdict } from "./judge.mjs";
 // @ts-expect-error plain ESM without types
+import { providerErrorIn } from "./providerErrors.mjs";
+// @ts-expect-error plain ESM without types
 import { isOfficial, summaryMarkdown } from "./report.mjs";
 
 const answers = { goal: "Fix SQLITE_BUSY.", level: "Comfortable with Go.", time: "An hour a day.", confirm: "Yes, go ahead.", scope: "WAL only.", depth: "Deep.", language: "English.", background: "Go and Linux." };
@@ -55,6 +57,27 @@ describe("the scripted learner", () => {
 
   it("ignores question marks inside code", () => {
     expect(asksSomething("Run this:\n```sql\nSELECT ?;\n```\nDone.")).toBe(false);
+  });
+});
+
+describe("provider error replies", () => {
+  it.each([
+    "User location is not supported for the API use.",
+    "Agent connection was lost",
+    "Unauthorized",
+    "Internal error",
+    "Invalid or expired credentials",
+  ])("fails a turn whose whole reply is the provider's error: %s", (text) => {
+    expect(providerErrorIn({ status: "done", text, tools: 0 })).toBe(text);
+    expect(providerErrorIn({ status: "done", text: `${text}\n\nretry later`, tools: 0 })).toBe(text);
+  });
+
+  it("leaves a turn that did work, or that writes about errors, to the mentor", () => {
+    expect(providerErrorIn({ status: "done", text: "Internal error", tools: 2 })).toBeNull();
+    expect(providerErrorIn({ status: "done", text: "An internal error is raised when a lock is held.", tools: 0 })).toBeNull();
+    expect(providerErrorIn({ status: "failed", text: "Unauthorized", tools: 0 })).toBeNull();
+    expect(providerErrorIn({ status: "done", text: "", tools: 0 })).toBeNull();
+    expect(providerErrorIn({ status: "needs-you", text: "Unauthorized?", tools: 0 })).toBeNull();
   });
 });
 

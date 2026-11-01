@@ -15,6 +15,7 @@ import { parseArgs } from "node:util";
 import { lociCli, LociCliError } from "../e2e/loci.mjs";
 import { DEFAULT_JUDGE_MODEL, judge, parseVerdict, probeProvider } from "./judge.mjs";
 import { nextMessage } from "./learner.mjs";
+import { providerErrorIn } from "./providerErrors.mjs";
 import { summaryMarkdown } from "./report.mjs";
 import { scoreRun } from "./score.mjs";
 
@@ -270,10 +271,17 @@ async function runScenario(scenario, runDir, meta) {
       turns.push({ role: "learner", text: message, at: elapsed() });
       log(`${scenario.id}: learner → ${message.slice(0, 90)}`);
       const reply = await turn(mentor, message, timeoutSeconds, failures);
+      const providerError = providerErrorIn(reply);
       if (reply.status === "failed") failures.push(`turn failed: ${reply.error ?? "no reply"}`);
-      turns.push({ role: "mentor", text: reply.text ?? "", status: reply.status, at: elapsed() });
+      turns.push({ role: "mentor", text: reply.text ?? "", status: providerError ? "failed" : reply.status, ...(providerError ? { providerError } : {}), at: elapsed() });
       if (timings.firstReply === undefined) timings.firstReply = elapsed();
-      log(`${scenario.id}: mentor (${reply.status}, ${elapsed()}s) ← ${String(reply.text ?? "").replace(/\s+/g, " ").slice(0, 120)}`);
+      log(`${scenario.id}: mentor (${providerError ? "provider error" : reply.status}, ${elapsed()}s) ← ${String(reply.text ?? "").replace(/\s+/g, " ").slice(0, 120)}`);
+      if (providerError) {
+        // The provider never ran the turn; a nudge or a judge score would only hide that.
+        failures.push(`provider error: ${providerError}`);
+        stoppedBy = "provider error";
+        break;
+      }
       const state = await stamp(turns.filter((entry) => entry.role === "mentor").length);
       learner.hasCourse = state.courses.length > 0;
       if (reply.status === "needs-you" || reply.status === "failed") { stoppedBy = reply.status; break; }
@@ -286,12 +294,16 @@ async function runScenario(scenario, runDir, meta) {
       message = next.text;
     }
     // The grounding probe, also asked when a cap stopped the run, unless the mentor is stuck.
-    if (scenario.probe && stoppedBy !== "needs-you" && stoppedBy !== "failed") {
+    if (scenario.probe && stoppedBy !== "needs-you" && stoppedBy !== "failed" && stoppedBy !== "provider error") {
       turns.push({ role: "learner", text: scenario.probe, probe: true, at: elapsed() });
       log(`${scenario.id}: probe → ${scenario.probe.slice(0, 90)}`);
       const reply = await turn(mentor, scenario.probe, timeoutSeconds, failures);
-      turns.push({ role: "mentor", text: reply.text ?? "", status: reply.status, probe: true, at: elapsed() });
-      await stamp(turns.filter((entry) => entry.role === "mentor").length);
+      const providerError = providerErrorIn(reply);
+      turns.push({ role: "mentor", text: reply.text ?? "", status: providerError ? "failed" : reply.status, ...(providerError ? { providerError } : {}), probe: true, at: elapsed() });
+      if (providerError) {
+        failures.push(`provider error: ${providerError}`);
+        stoppedBy = "provider error";
+      } else await stamp(turns.filter((entry) => entry.role === "mentor").length);
     }
   } catch (error) {
     failures.push(`run error: ${error.message}`);
@@ -313,7 +325,8 @@ async function runScenario(scenario, runDir, meta) {
   const score = scoreRun(runData, { readFile: readText, roots });
   write("score.json", score);
   let verdict = null;
-  const replied = turns.some((entry) => entry.role === "mentor" && String(entry.text ?? "").trim());
+  // A provider's error is not a reply to judge.
+  const replied = turns.some((entry) => entry.role === "mentor" && String(entry.text ?? "").trim() && !entry.providerError);
   if (judgeProvider !== "none" && !replied) log(`${scenario.id}: no mentor reply to judge`);
   if (judgeProvider !== "none" && replied) {
     log(`${scenario.id}: judging with ${judgeProvider}${judgeModel ? `/${judgeModel}` : ""}`);

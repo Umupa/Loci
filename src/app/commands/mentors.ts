@@ -137,7 +137,9 @@ export function turnState(chat: Session, turn: string) {
   const text = after.filter((block) => block.role === "assistant").map((block) => block.text.trim()).filter(Boolean).join("\n\n");
   // A provider's error is a system block marked as one; status lines are not errors.
   const lastSystem = [...after].reverse().find((block: Block) => block.role === "system" && block.notice === "error")?.text;
-  const base = { sessionId: chat.id, turn, text };
+  // A reply that ran tools is work, even when its text reads like an error.
+  const tools = after.filter((block) => block.role === "tool").length;
+  const base = { sessionId: chat.id, turn, text, tools };
   if (user.draft) return { ...base, status: "queued" as const };
   const finished = user.durationMs != null || next >= 0;
   if (!finished && chat.busy) return { ...base, status: agentState(chat).status === "needs-you" ? "needs-you" as const : "running" as const };

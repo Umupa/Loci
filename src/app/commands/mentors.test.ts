@@ -107,7 +107,9 @@ describe("a turn's state", () => {
     expect(turnState(chat([user({ startedAt: 1 }), { id: "a", role: "assistant", text: "Part" }], { busy: true }), "cli-r1")).toMatchObject({ status: "running", text: "Part" });
     expect(turnState(chat([user({ startedAt: 1 })], { busy: true, pendingQuestion: { title: "Which?", questions: [] } as unknown as Session["pendingQuestion"] }), "cli-r1").status).toBe("needs-you");
     expect(turnState(chat([user({ startedAt: 1, durationMs: 5 }), { id: "a", role: "assistant", text: "One" }, { id: "b", role: "tool", text: "" }, { id: "c", role: "assistant", text: "Two" }, { id: "n", role: "user", text: "Next" }, { id: "d", role: "assistant", text: "Later" }]), "cli-r1"))
-      .toMatchObject({ status: "done", text: "One\n\nTwo" });
+      .toMatchObject({ status: "done", text: "One\n\nTwo", tools: 1 });
+    expect(turnState(chat([user({ startedAt: 1, durationMs: 5 }), { id: "a", role: "assistant", text: "Just words" }]), "cli-r1"))
+      .toMatchObject({ status: "done", text: "Just words", tools: 0 });
   });
   it("reports a turn that ended in an error, and one it cannot find", () => {
     expect(turnState(chat([user({ startedAt: 1, durationMs: 5 }), { id: "t", role: "system", text: "Thinking…", statusKey: "k" }, { id: "s", role: "system", text: "Provider crashed", notice: "error" }]), "cli-r1")).toMatchObject({ status: "failed", error: "Provider crashed" });
