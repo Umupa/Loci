@@ -298,7 +298,7 @@ function CommandLineGroup() {
     };
     if (!access) return null;
     const button = "shrink-0 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 hover:bg-content/10 hover:text-content disabled:opacity-50";
-    return (<Group id="command-line" title={t("Command line")} description={t("`loci` in a terminal can drive this Loci: mentors, courses, sources, notes and the reader. It is how tests and agents outside Loci work with it. Only your user account can use it.")}>
+    return (<Group id="command-line" title={t("Command line")} description={t("Run loci in a terminal to drive this Loci: mentors, courses, sources, notes and the reader. It is how tests and agents outside Loci work with it. Only your user account can use it.")}>
       <Row label={t("Command-line access")} description={access.enabled
           ? t("On for {0}. The token in {1} lets a terminal in; only your account can read it.", access.identifier, access.tokenPath ?? "…")
           : t("Off. Terminals cannot reach this Loci; agents in Loci keep their own access.")}>
@@ -310,7 +310,7 @@ function CommandLineGroup() {
       <Row label={t("loci command")} description={access.installPath
           ? access.installed
             ? t("{0} runs this build. Make sure ~/.local/bin is on your PATH.", access.installPath)
-            : t("Puts a link to this build at {0}, so `loci` talks to this Loci.", access.installPath)
+            : t("Puts a link to this build at {0}, so loci talks to this Loci.", access.installPath)
           : t("Add the folder of {0} to PATH, or call it by its full path.", access.executable ?? "Loci")}>
         {access.installPath ? (<button type="button" className={button} disabled={busy} onClick={() => run(installCli)}>{access.installed ? t("Reinstall") : t("Install")}</button>) : null}
       </Row>
@@ -664,10 +664,10 @@ function AppearancePage({ appearance }: {
 
       <Group id="fonts" title={t("Fonts")} description={t("Omarchy uses one monospace font everywhere. Pick one of its fonts here, or type the name of any font installed on this computer.")}>
         <Row id="code-font" label={t("Code font")} description={t("Code blocks, file paths and anything set in monospace.")}>
-          <FontSelect label={t("Code font")} value={appearance.codeFont} emptyLabel="System monospace" monospaceOnly onChange={appearance.onCodeFont}/>
+          <FontSelect label={t("Code font")} value={appearance.codeFont} emptyLabel={t("System monospace")} monospaceOnly onChange={appearance.onCodeFont}/>
         </Row>
         <Row id="interface-font" label={t("Interface font")} description={t("Chat, menus and notes.")}>
-          <FontSelect label={t("Interface font")} value={appearance.uiFont} emptyLabel="System default" followLabel="Same as code font" onChange={appearance.onUiFont}/>
+          <FontSelect label={t("Interface font")} value={appearance.uiFont} emptyLabel={t("System default")} followLabel={t("Same as code font")} onChange={appearance.onUiFont}/>
         </Row>
       </Group>
 
@@ -913,7 +913,7 @@ function KeybindingsPage() {
     };
     return (<Group id="shortcuts" title={t("Shortcuts")} description={t("Click a shortcut to record new keys. Press Delete while recording to disable it.")} action={<div className="flex items-center gap-3">
           <span className="shrink-0 text-[12px] text-content/40 tabular-nums">
-            {rows.length} {rows.length === 1 ? "binding" : "bindings"}
+            {rows.length === 1 ? t("{0} binding", rows.length) : t("{0} bindings", rows.length)}
           </span>
           <label className="flex h-7 w-44 shrink-0 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
             <Search className="size-3.5 shrink-0" strokeWidth={1.75}/>
