@@ -106,3 +106,20 @@
 .library-mark { display: inline-grid; width: 14px; height: 14px; flex: none; margin-top: 3px; place-items: center; border: 1.5px solid color-mix(in srgb, var(--color-content) 25%, transparent); border-radius: 50%; line-height: 1; }
 .library-mark--learning { border-color: var(--color-mark); background: linear-gradient(90deg, var(--color-mark) 50%, transparent 50%); }
 .library-mark--mastered { border-color: transparent; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
+.library-path { display: flex; flex-direction: column; padding: 4px 4px 8px; border-bottom: 1px solid var(--color-stroke); margin-bottom: 8px; }
+.library-path-head { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.library-path-fold { display: flex; min-width: 0; flex: 1; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px; text-align: left; font-size: 13px; font-weight: 500; color: var(--color-content); }
+.library-path-fold:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); }
+.library-path-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-path-list { margin: 2px 0 0; padding: 0; list-style: none; }
+.library-path-step { display: flex; width: 100%; min-width: 0; align-items: center; gap: 8px; height: 28px; padding: 0 0 0 8px; border-radius: 6px; text-align: left; font-size: 12.5px; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
+.library-path-step:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); color: var(--color-content); }
+.library-path-step[aria-current="true"] { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); font-weight: 500; box-shadow: inset 2px 0 0 var(--color-accent); }
+.library-path-step[data-planned] { color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.library-path-n { flex: none; width: 14px; font-family: var(--font-mono); font-size: 11px; text-align: right; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
+.library-path-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-path-bar { flex: none; width: 36px; height: 3px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--color-content) 10%, transparent); }
+.library-path-bar > i { display: block; height: 100%; background: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.library-path-planned { flex: none; padding-right: 8px; font-size: 11px; font-style: italic; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
+.library-path-after { margin: 0 0 2px 30px; font-size: 11px; line-height: 1.4; color: color-mix(in srgb, var(--color-content) 42%, transparent); }
+.library-path-others { margin: 8px 8px 2px; font-size: 11px; color: color-mix(in srgb, var(--color-content) 42%, transparent); }

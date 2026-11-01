@@ -186,7 +186,7 @@ it("switches course from the menu, landing in it, and asks the mentor for a new 
   await vi.waitFor(() => expect(container.querySelector(".library-switcher")?.textContent).toBe("Kubernetes"));
   await click(".library-switcher");
   const items = () => [...document.querySelectorAll<HTMLElement>('[role="menu"] [role^="menuitem"]')];
-  expect(items().map((item) => item.textContent)).toEqual([expect.stringContaining("Kubernetes"), expect.stringContaining("SDS"), "Ask Ada for a new course"]);
+  expect(items().map((item) => item.textContent)).toEqual([expect.stringContaining("Kubernetes"), expect.stringContaining("SDS"), "Ask Ada for a new course", "Ask Ada to plan a path"]);
   expect(items()[0].getAttribute("aria-checked")).toBe("true");
   await act(async () => items()[1].click());
   // Picking a course opens it at the lesson to continue with: the one begun.
@@ -195,8 +195,44 @@ it("switches course from the menu, landing in it, and asks the mentor for a new 
   await vi.waitFor(() => expect(container.querySelector(".library-switcher")?.textContent).toBe("SDS"));
   await vi.waitFor(() => expect(container.querySelector('[data-library-lesson="pod"] .library-mark--learning')).not.toBeNull());
   await click(".library-switcher");
-  await act(async () => items().at(-1)!.click());
+  await act(async () => items().at(-2)!.click());
   expect(drafts).toEqual(["I'd like a new course on "]);
+});
+
+it("shows the learning path above the chosen course's outline, never locking a course", async () => {
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    const input = args as { agentId?: string; id?: string; courseId?: string };
+    if (command === "course_path_read") return { path: { title: "Sandboxes", courses: [{ id: "kube" }, { id: "sds", after: ["kube"] }, { id: "compare", title: "Three ways", after: ["sds"] }] }, file: "courses/_path.yaml" };
+    if (command === "course_list_all") return [
+      { id: "kube", agentId: agent.id, title: "Kubernetes", engine: "reading", itemCount: 2, masteredCount: 2, updatedAt: 1 },
+      { id: "sds", agentId: agent.id, title: "SDS", engine: "reading", itemCount: 2, masteredCount: 0, updatedAt: 2 },
+      { id: "loose", agentId: agent.id, title: "Loose", engine: "reading", itemCount: 3, masteredCount: 1, updatedAt: 3 },
+    ];
+    if (command === "course_get") return { id: input.id, agentId: input.agentId, title: input.id, updatedAt: 2, engine: "reading", dataJson: courseData };
+    if (command === "course_progress_get") return [];
+    if (command === "agent_documents_list" || command === "notes_list" || command === "canvas_list") return [];
+    throw new Error(`Unexpected command: ${command}`);
+  });
+  await render();
+  await vi.waitFor(() => expect(container.querySelector("[data-library-path]")).not.toBeNull());
+  const steps = () => [...container.querySelectorAll<HTMLButtonElement>(".library-path-step")];
+  expect(container.querySelector(".library-path-title")?.textContent).toBe("Sandboxes");
+  expect(container.querySelector(".library-path-head .library-progress-text")?.textContent).toBe("2/4");
+  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2", "2SDS0/2", "3Three waysplanned", "Loose1/3"]);
+  // The next course on the path not read to the end is the one shown.
+  expect(steps()[1].getAttribute("aria-current")).toBe("true");
+  expect(container.querySelector(".library-switcher")).toBeNull();
+  expect(container.querySelector('[data-library-course="sds"] [data-library-lesson="pod"]')).not.toBeNull();
+  // A prerequisite not read yet is a hint under the course; nothing is disabled.
+  expect([...container.querySelectorAll(".library-path-after")].map((line) => line.textContent)).toEqual(["Best after SDS"]);
+  expect(steps().every((step) => !step.disabled)).toBe(true);
+  await act(async () => steps()[2].click());
+  expect(drafts).toEqual(['Please write the course "Three ways" (id compare) on my learning path.']);
+  await act(async () => steps()[0].click());
+  await vi.waitFor(() => expect(control.stateFor(agent.id).course).toBe("kube"));
+  // Folding keeps only the chosen course.
+  await click(".library-path-fold");
+  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2"]);
 });
 
 it("gives focus back to the course switcher when its menu closes", async () => {
