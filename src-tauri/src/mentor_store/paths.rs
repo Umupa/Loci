@@ -77,6 +77,9 @@ impl Kind {
     fn reads(self, ext: &str) -> bool {
         match self {
             Kind::Course => ext == "yaml" || ext == "yml",
+            // A PDF source is `sources/<id>.pdf` with a `sources/<id>.pdf.yaml`
+            // sidecar; the sidecar is the file that is read and indexed.
+            Kind::Source => ext == "md" || ext == "yaml" || ext == "yml",
             other => ext == other.ext(),
         }
     }
@@ -133,6 +136,52 @@ pub fn content_path(folder: &Path, kind: Kind, id: &str) -> PathBuf {
     folder.join(kind.dir()).join(format!("{id}.{}", kind.ext()))
 }
 
+/// The PDF of a source: `sources/<id>.pdf`.
+pub fn pdf_source_path(folder: &Path, id: &str) -> PathBuf {
+    folder.join(Kind::Source.dir()).join(format!("{id}.pdf"))
+}
+
+/// Its sidecar, which holds the source's front matter: `sources/<id>.pdf.yaml`.
+pub fn pdf_sidecar_path(folder: &Path, id: &str) -> PathBuf {
+    folder
+        .join(Kind::Source.dir())
+        .join(format!("{id}.pdf.yaml"))
+}
+
+/// The sidecar an id already has, under whichever of the two extensions it
+/// was saved (`.yaml` is what the app writes).
+pub fn existing_pdf_sidecar(folder: &Path, id: &str) -> Option<PathBuf> {
+    [".yaml", ".yml"]
+        .into_iter()
+        .map(|ext| {
+            folder
+                .join(Kind::Source.dir())
+                .join(format!("{id}.pdf{ext}"))
+        })
+        .find(|candidate| candidate.is_file())
+}
+
+/// The id a `<id>.pdf` or `<id>.pdf.yaml` file names, when its name is one.
+pub fn pdf_source_id(name: &str) -> Option<&str> {
+    let lower = name.to_ascii_lowercase();
+    let stem = lower
+        .strip_suffix(".pdf.yaml")
+        .or_else(|| lower.strip_suffix(".pdf.yml"))
+        .or_else(|| lower.strip_suffix(".pdf"))?;
+    (!stem.is_empty()).then(|| &name[..stem.len()])
+}
+
+/// Whether this is the sidecar of a PDF source (the file the index reads).
+pub fn is_pdf_sidecar(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|name| {
+            let lower = name.to_ascii_lowercase();
+            (lower.ends_with(".pdf.yaml") || lower.ends_with(".pdf.yml"))
+                && lower.len() > ".pdf.yaml".len()
+        })
+}
+
 /// Temporary, hidden or backup files editors leave beside the real ones.
 pub fn ignored_name(name: &str) -> bool {
     name.starts_with('.')
@@ -165,6 +214,17 @@ pub fn classify(folder: &Path, path: &Path) -> Option<(Kind, String)> {
     if !kind.reads(&ext.to_ascii_lowercase()) {
         return None;
     }
+    // `sources/<id>.pdf.yaml` is the sidecar of a PDF source, named by `<id>`.
+    let stem = if kind == Kind::Source
+        && (ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"))
+    {
+        match stem.rsplit_once('.') {
+            Some((base, pdf)) if pdf.eq_ignore_ascii_case("pdf") => base,
+            _ => return None,
+        }
+    } else {
+        stem
+    };
     let id: String = stem.nfc().collect();
     valid_content_id(&id).then_some((kind, id))
 }
@@ -286,6 +346,35 @@ mod tests {
         assert_eq!(classify(folder, Path::new("/m/x/sources/a.txt")), None);
         assert_eq!(classify(folder, Path::new("/m/x/sources/sub/a.md")), None);
         assert_eq!(classify(folder, Path::new("/m/x/repos/a.md")), None);
+        // A PDF source is read through its sidecar; the PDF alone is not a file to index.
+        assert_eq!(
+            classify(folder, Path::new("/m/x/sources/paper.pdf.yaml")),
+            Some((Kind::Source, "paper".into()))
+        );
+        assert_eq!(
+            classify(folder, Path::new("/m/x/sources/Paper.PDF.yml")),
+            Some((Kind::Source, "Paper".into()))
+        );
+        assert_eq!(classify(folder, Path::new("/m/x/sources/paper.pdf")), None);
+        assert_eq!(classify(folder, Path::new("/m/x/sources/a.yaml")), None);
+        assert_eq!(
+            classify(folder, Path::new("/m/x/sources/.paper.pdf.yaml")),
+            None
+        );
+        assert!(is_pdf_sidecar(Path::new("/m/x/sources/paper.pdf.yaml")));
+        assert!(!is_pdf_sidecar(Path::new("/m/x/sources/paper.pdf")));
+        assert_eq!(pdf_source_id("paper.pdf"), Some("paper"));
+        assert_eq!(pdf_source_id("paper.pdf.yaml"), Some("paper"));
+        assert_eq!(pdf_source_id("paper.pdf.yml"), Some("paper"));
+        assert_eq!(pdf_source_id("paper.md"), None);
+        assert_eq!(
+            pdf_source_path(Path::new("/m/x"), "paper"),
+            PathBuf::from("/m/x/sources/paper.pdf")
+        );
+        assert_eq!(
+            pdf_sidecar_path(Path::new("/m/x"), "paper"),
+            PathBuf::from("/m/x/sources/paper.pdf.yaml")
+        );
         assert_eq!(
             classify(folder, Path::new("/m/x/notes/n.conflict-20261101-1200.md")),
             None

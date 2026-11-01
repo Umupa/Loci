@@ -13,7 +13,8 @@ use serde_json::{json, Value};
 
 use super::format;
 use super::fsio::{sha256, stamp};
-use super::paths::{classify, Kind, KINDS};
+use super::paths::{self, classify, Kind, KINDS};
+use super::pdf;
 use super::MentorCtx;
 use crate::session_store::now_millis;
 
@@ -136,6 +137,65 @@ fn ascii_id(id: &str) -> bool {
         .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
+/// A PDF source's row: its sidecar's front matter, the PDF's text, and its
+/// page count. The PDF is read here so search and `documents.read` have the
+/// words without opening the file again.
+fn parse_pdf_source(id: &str, sidecar: &str, pdf_path: &Path) -> Result<Parsed, String> {
+    let (meta, _) = pdf::parse_sidecar(sidecar)?;
+    let mut warning = if meta.source_url.is_none() {
+        Some("A source needs sourceUrl in its sidecar".to_string())
+    } else {
+        None
+    };
+    let read = if pdf_path.is_file() {
+        match pdf::read_pdf(pdf_path) {
+            Ok(read) => Some(read),
+            Err(error) => {
+                warning = Some(error);
+                None
+            }
+        }
+    } else {
+        warning = Some(format!(
+            "{} is missing; restore it beside the sidecar",
+            pdf_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("The PDF")
+        ));
+        None
+    };
+    let title = meta
+        .title
+        .clone()
+        .or_else(|| {
+            read.as_ref()
+                .and_then(|read| pdf::title_from_text(&read.text))
+        })
+        .or_else(|| Some(id.to_string()));
+    let pages = read.as_ref().map(|read| read.pages).or(meta.pages);
+    if let Some(read) = &read {
+        if warning.is_none() {
+            warning = read.warning.clone();
+        }
+    }
+    Ok(Parsed {
+        title,
+        subject: meta.subject.clone(),
+        meta: json!({
+            "sourceUrl": meta.source_url,
+            "version": meta.version,
+            "fetchedAt": meta.fetched_at,
+            "pdf": true,
+            "pages": pages,
+        }),
+        body: read.map(|read| read.text),
+        created_at: meta.fetched_at,
+        updated_at: None,
+        warning,
+    })
+}
+
 fn parse(kind: Kind, id: &str, text: &str, ctx: &MentorCtx) -> Result<Parsed, String> {
     if matches!(kind, Kind::Course | Kind::Note | Kind::Canvas) && !ascii_id(id) {
         return Err(format!(
@@ -237,6 +297,206 @@ fn rel_path(kind: Kind, path: &Path) -> String {
     )
 }
 
+#[allow(clippy::too_many_arguments)]
+fn write_row(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    kind: Kind,
+    id: &str,
+    rel: &str,
+    hash: &str,
+    size: i64,
+    mtime: i64,
+    now: i64,
+    mtime_ms: i64,
+    parsed: Parsed,
+) -> Result<(), String> {
+    let created = parsed.created_at.unwrap_or(mtime_ms);
+    // An edit that did not bump updatedAt still counts as a change.
+    let updated = parsed.updated_at.map_or(mtime_ms, |at| at.max(mtime_ms));
+    conn.execute(
+        "INSERT INTO mentor_content
+           (agent_id, kind, id, rel_path, title, subject, meta_json, body, hash, size,
+            mtime_ns, error, created_at, updated_at, indexed_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+         ON CONFLICT(agent_id, kind, id) DO UPDATE SET
+           rel_path = excluded.rel_path, title = excluded.title, subject = excluded.subject,
+           meta_json = excluded.meta_json, body = excluded.body, hash = excluded.hash,
+           size = excluded.size, mtime_ns = excluded.mtime_ns, error = excluded.error,
+           created_at = excluded.created_at, updated_at = excluded.updated_at,
+           indexed_at = excluded.indexed_at",
+        params![
+            ctx.agent,
+            kind.as_str(),
+            id,
+            rel,
+            parsed.title.unwrap_or_else(|| id.to_string()),
+            parsed.subject,
+            parsed.meta.to_string(),
+            parsed.body,
+            hash,
+            size,
+            mtime,
+            parsed.warning,
+            created,
+            updated,
+            now
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Keeps the last good parse; only says what is wrong now. A file never read
+/// before is still listed, under its id and whatever could be read of it.
+#[allow(clippy::too_many_arguments)]
+fn write_error(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    kind: Kind,
+    id: &str,
+    rel: &str,
+    hash: &str,
+    size: i64,
+    mtime: i64,
+    now: i64,
+    mtime_ms: i64,
+    error: String,
+) -> Result<(), String> {
+    let updated = conn
+        .execute(
+            "UPDATE mentor_content SET hash = ?3, size = ?4, mtime_ns = ?5, error = ?6, indexed_at = ?7
+             WHERE agent_id = ?1 AND rel_path = ?2",
+            params![ctx.agent, rel, hash, size, mtime, error, now],
+        )
+        .map_err(|e| e.to_string())?;
+    if updated > 0 {
+        return Ok(());
+    }
+    conn.execute(
+        "INSERT INTO mentor_content
+           (agent_id, kind, id, rel_path, title, meta_json, hash, size, mtime_ns, error,
+            created_at, updated_at, indexed_at)
+         VALUES (?1, ?2, ?3, ?4, ?3, '{}', ?5, ?6, ?7, ?8, ?9, ?9, ?10)",
+        params![
+            ctx.agent,
+            kind.as_str(),
+            id,
+            rel,
+            hash,
+            size,
+            mtime,
+            error,
+            mtime_ms,
+            now
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// A PDF source is indexed from its sidecar and the PDF beside it: either
+/// file changing re-reads the pair.
+fn index_pdf_file(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    kind: Kind,
+    id: &str,
+    sidecar: &Path,
+    rel: &str,
+    force: bool,
+) -> Result<Change, String> {
+    let sidecar_meta = match std::fs::metadata(sidecar) {
+        Ok(meta) if meta.is_file() => meta,
+        Ok(_) => return Ok(Change::Unchanged),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return forget_path(conn, &ctx.agent, rel);
+        }
+        Err(e) => return Err(format!("{}: {e}", sidecar.display())),
+    };
+    // The canonical name is `<id>.pdf`; a hand-named pair may differ in case.
+    let pdf_path = pdf::pdf_beside_sidecar(sidecar).unwrap_or_else(|| sidecar.with_extension(""));
+    let pdf_meta = std::fs::metadata(&pdf_path)
+        .ok()
+        .filter(std::fs::Metadata::is_file);
+    let (side_size, side_mtime) = stamp(&sidecar_meta);
+    let (pdf_size, pdf_mtime) = pdf_meta.as_ref().map(stamp).unwrap_or((0, i64::MIN));
+    let size = side_size.saturating_add(pdf_size);
+    let mtime = side_mtime.max(pdf_mtime);
+    let previous = row_stamp(conn, &ctx.agent, rel).map_err(|e| e.to_string())?;
+    if !force
+        && previous
+            .as_ref()
+            .is_some_and(|(s, m, _)| *s == size && *m == mtime)
+    {
+        return Ok(Change::Unchanged);
+    }
+    let now = now_millis();
+    let mtime_ms = mtime / 1_000_000;
+    let bytes = match std::fs::read(sidecar) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            write_error(
+                conn,
+                ctx,
+                kind,
+                id,
+                rel,
+                "",
+                size,
+                mtime,
+                now,
+                mtime_ms,
+                e.to_string(),
+            )?;
+            return Ok(Change::Changed);
+        }
+    };
+    // The PDF's bytes are not hashed twice: its size and time already moved.
+    let mut key = bytes.clone();
+    key.extend_from_slice(&pdf_size.to_le_bytes());
+    key.extend_from_slice(&pdf_mtime.to_le_bytes());
+    let hash = sha256(&key);
+    if previous.as_ref().is_some_and(|(_, _, h)| *h == hash) {
+        conn.execute(
+            "UPDATE mentor_content SET size = ?3, mtime_ns = ?4 WHERE agent_id = ?1 AND rel_path = ?2",
+            params![ctx.agent, rel, size, mtime],
+        )
+        .map_err(|e| e.to_string())?;
+        return Ok(Change::Unchanged);
+    }
+    let text = match String::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(_) => {
+            write_error(
+                conn,
+                ctx,
+                kind,
+                id,
+                rel,
+                &hash,
+                size,
+                mtime,
+                now,
+                mtime_ms,
+                "Not UTF-8 text".into(),
+            )?;
+            return Ok(Change::Changed);
+        }
+    };
+    match parse_pdf_source(id, &text, &pdf_path) {
+        Ok(parsed) => {
+            write_row(
+                conn, ctx, kind, id, rel, &hash, size, mtime, now, mtime_ms, parsed,
+            )?;
+        }
+        Err(error) => write_error(
+            conn, ctx, kind, id, rel, &hash, size, mtime, now, mtime_ms, error,
+        )?,
+    }
+    Ok(Change::Changed)
+}
+
 /// Indexes one file (or forgets it when it is gone). `force` re-reads it
 /// even when its size and time look unchanged.
 pub fn index_file(
@@ -248,6 +508,9 @@ pub fn index_file(
     force: bool,
 ) -> Result<Change, String> {
     let rel = rel_path(kind, path);
+    if paths::is_pdf_sidecar(path) {
+        return index_pdf_file(conn, ctx, kind, id, path, &rel, force);
+    }
     let meta = match std::fs::metadata(path) {
         Ok(meta) if meta.is_file() => meta,
         Ok(_) => return Ok(Change::Unchanged),
@@ -272,101 +535,78 @@ pub fn index_file(
     };
     let now = now_millis();
     let mtime_ms = mtime / 1_000_000;
-    let outcome = if size as u64 > limit {
-        Err((
-            String::new(),
+    if size as u64 > limit {
+        write_error(
+            conn,
+            ctx,
+            kind,
+            id,
+            &rel,
+            "",
+            size,
+            mtime,
+            now,
+            mtime_ms,
             format!("Too large ({} KB); split it", size / 1024),
-        ))
-    } else {
-        match std::fs::read(path) {
-            Ok(bytes) => {
-                let hash = sha256(&bytes);
-                if previous.as_ref().is_some_and(|(_, _, h)| *h == hash) {
-                    conn.execute(
-                        "UPDATE mentor_content SET size = ?3, mtime_ns = ?4 WHERE agent_id = ?1 AND rel_path = ?2",
-                        params![ctx.agent, rel, size, mtime],
-                    )
-                    .map_err(|e| e.to_string())?;
-                    return Ok(Change::Unchanged);
-                }
-                match String::from_utf8(bytes) {
-                    Ok(text) => match parse(kind, id, &text, ctx) {
-                        Ok(parsed) => Ok((hash, parsed)),
-                        Err(error) => Err((hash, error)),
-                    },
-                    Err(_) => Err((hash, "Not UTF-8 text".into())),
-                }
-            }
-            Err(e) => Err((String::new(), e.to_string())),
+        )?;
+        return Ok(Change::Changed);
+    }
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            write_error(
+                conn,
+                ctx,
+                kind,
+                id,
+                &rel,
+                "",
+                size,
+                mtime,
+                now,
+                mtime_ms,
+                e.to_string(),
+            )?;
+            return Ok(Change::Changed);
         }
     };
-    match outcome {
-        Ok((hash, parsed)) => {
-            let created = parsed.created_at.unwrap_or(mtime_ms);
-            // An edit that did not bump updatedAt still counts as a change.
-            let updated = parsed.updated_at.map_or(mtime_ms, |at| at.max(mtime_ms));
-            conn.execute(
-                "INSERT INTO mentor_content
-                   (agent_id, kind, id, rel_path, title, subject, meta_json, body, hash, size,
-                    mtime_ns, error, created_at, updated_at, indexed_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
-                 ON CONFLICT(agent_id, kind, id) DO UPDATE SET
-                   rel_path = excluded.rel_path, title = excluded.title, subject = excluded.subject,
-                   meta_json = excluded.meta_json, body = excluded.body, hash = excluded.hash,
-                   size = excluded.size, mtime_ns = excluded.mtime_ns, error = excluded.error,
-                   created_at = excluded.created_at, updated_at = excluded.updated_at,
-                   indexed_at = excluded.indexed_at",
-                params![
-                    ctx.agent,
-                    kind.as_str(),
-                    id,
-                    rel,
-                    parsed.title.unwrap_or_else(|| id.to_string()),
-                    parsed.subject,
-                    parsed.meta.to_string(),
-                    parsed.body,
-                    hash,
-                    size,
-                    mtime,
-                    parsed.warning,
-                    created,
-                    updated,
-                    now
-                ],
-            )
-            .map_err(|e| e.to_string())?;
+    let hash = sha256(&bytes);
+    if previous.as_ref().is_some_and(|(_, _, h)| *h == hash) {
+        conn.execute(
+            "UPDATE mentor_content SET size = ?3, mtime_ns = ?4 WHERE agent_id = ?1 AND rel_path = ?2",
+            params![ctx.agent, rel, size, mtime],
+        )
+        .map_err(|e| e.to_string())?;
+        return Ok(Change::Unchanged);
+    }
+    let text = match String::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(_) => {
+            write_error(
+                conn,
+                ctx,
+                kind,
+                id,
+                &rel,
+                &hash,
+                size,
+                mtime,
+                now,
+                mtime_ms,
+                "Not UTF-8 text".into(),
+            )?;
+            return Ok(Change::Changed);
         }
-        Err((hash, error)) => {
-            // Keep the last good parse; only say what is wrong now.
-            let updated = conn
-                .execute(
-                    "UPDATE mentor_content SET hash = ?3, size = ?4, mtime_ns = ?5, error = ?6, indexed_at = ?7
-                     WHERE agent_id = ?1 AND rel_path = ?2",
-                    params![ctx.agent, rel, hash, size, mtime, error, now],
-                )
-                .map_err(|e| e.to_string())?;
-            if updated == 0 {
-                conn.execute(
-                    "INSERT INTO mentor_content
-                       (agent_id, kind, id, rel_path, title, meta_json, hash, size, mtime_ns, error,
-                        created_at, updated_at, indexed_at)
-                     VALUES (?1, ?2, ?3, ?4, ?3, '{}', ?5, ?6, ?7, ?8, ?9, ?9, ?10)",
-                    params![
-                        ctx.agent,
-                        kind.as_str(),
-                        id,
-                        rel,
-                        hash,
-                        size,
-                        mtime,
-                        error,
-                        mtime_ms,
-                        now
-                    ],
-                )
-                .map_err(|e| e.to_string())?;
-            }
+    };
+    match parse(kind, id, &text, ctx) {
+        Ok(parsed) => {
+            write_row(
+                conn, ctx, kind, id, &rel, &hash, size, mtime, now, mtime_ms, parsed,
+            )?;
         }
+        Err(error) => write_error(
+            conn, ctx, kind, id, &rel, &hash, size, mtime, now, mtime_ms, error,
+        )?,
     }
     Ok(Change::Changed)
 }
@@ -662,6 +902,73 @@ mod tests {
         let changes = reconcile(&conn, &ctx).unwrap();
         assert!(changes.contains(&(Kind::Guide, "g".into(), Change::Removed)));
         assert!(get(&conn, "a1", Kind::Guide, "g").unwrap().is_none());
+        std::fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn a_pdf_source_is_listed_searched_and_keeps_its_pair_in_step() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let folder = temp();
+        let ctx = ctx(&folder);
+        write(
+            &folder,
+            "sources/firecracker.pdf.yaml",
+            "title: 'Firecracker: Lightweight Virtualization'\nsourceUrl: https://www.usenix.org/system/files/nsdi20-paper-agache.pdf\nversion: NSDI '20\nsubject: Virtualization\npages: 2\n",
+        );
+        std::fs::write(
+            folder.join("sources/firecracker.pdf"),
+            super::pdf::sample_pdf(&["Sandbox page one", "Sandbox page two"]),
+        )
+        .unwrap();
+        reconcile(&conn, &ctx).unwrap();
+        let row = get(&conn, "a1", Kind::Source, "firecracker")
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.title, "Firecracker: Lightweight Virtualization");
+        assert_eq!(row.subject.as_deref(), Some("Virtualization"));
+        assert_eq!(row.meta["pdf"], json!(true));
+        assert_eq!(row.meta["pages"], json!(2));
+        assert_eq!(row.meta["version"], json!("NSDI '20"));
+        assert_eq!(row.rel_path, "sources/firecracker.pdf.yaml");
+        let body = row.body.unwrap();
+        assert!(body.contains("Sandbox page one"));
+        assert!(body.contains("Sandbox page two"));
+        assert_eq!(
+            search(&conn, Some("a1"), "sandbox page two", 10).unwrap()[0].id,
+            "firecracker"
+        );
+
+        // The PDF alone changing is noticed, and its page count follows.
+        std::fs::write(
+            folder.join("sources/firecracker.pdf"),
+            super::pdf::sample_pdf(&["Sandbox page one"]),
+        )
+        .unwrap();
+        let changes = reconcile(&conn, &ctx).unwrap();
+        assert!(changes.contains(&(Kind::Source, "firecracker".into(), Change::Changed)));
+        let row = get(&conn, "a1", Kind::Source, "firecracker")
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.meta["pages"], json!(1));
+        assert!(!row.body.unwrap().contains("Sandbox page two"));
+
+        // A missing PDF leaves the source listed, with what is wrong.
+        std::fs::remove_file(folder.join("sources/firecracker.pdf")).unwrap();
+        reconcile(&conn, &ctx).unwrap();
+        let row = get(&conn, "a1", Kind::Source, "firecracker")
+            .unwrap()
+            .unwrap();
+        assert!(row.error.unwrap().contains("firecracker.pdf is missing"));
+        assert_eq!(row.title, "Firecracker: Lightweight Virtualization");
+        assert_eq!(problems(&conn, "a1").unwrap().len(), 1);
+
+        // The sidecar going away forgets the source; the PDF is left for check.
+        std::fs::remove_file(folder.join("sources/firecracker.pdf.yaml")).unwrap();
+        reconcile(&conn, &ctx).unwrap();
+        assert!(get(&conn, "a1", Kind::Source, "firecracker")
+            .unwrap()
+            .is_none());
         std::fs::remove_dir_all(folder).unwrap();
     }
 

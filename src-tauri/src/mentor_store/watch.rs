@@ -21,7 +21,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use super::commands::{kind_event, CONTENT_CHANGED, MENTORS_CHANGED};
 use super::index::{self, Change};
-use super::paths::{classify, KINDS, MENTOR_FILE};
+use super::paths::{self, classify, Kind, KINDS, MENTOR_FILE};
 use super::{ctx_for, registry, MentorsRoot};
 use crate::session_store::SessionStore;
 
@@ -123,6 +123,38 @@ pub fn apply(conn: &Connection, root: &Path, paths: &HashSet<PathBuf>, rescan: b
                 .content
                 .insert((record.id.clone(), "files".into(), String::new()));
             continue;
+        }
+        // A PDF source's pair: a change to `sources/<id>.pdf` is read through
+        // its sidecar, which is the file the index names.
+        if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
+        {
+            if let Some(id) = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .and_then(paths::pdf_source_id)
+            {
+                let sidecar = [".yaml", ".yml"]
+                    .into_iter()
+                    .map(|ext| {
+                        record
+                            .folder
+                            .join(Kind::Source.dir())
+                            .join(format!("{id}.pdf{ext}"))
+                    })
+                    .find(|candidate| candidate.is_file());
+                if let (Some(sidecar), Ok(Some(ctx))) = (sidecar, ctx_for(conn, &record.id)) {
+                    if index::index_file(conn, &ctx, Kind::Source, id, &sidecar, false).is_ok() {
+                        outcome.content.insert((
+                            record.id.clone(),
+                            "documents".into(),
+                            id.to_string(),
+                        ));
+                    }
+                    continue;
+                }
+            }
         }
         let Some((kind, id)) = classify(&record.folder, path) else {
             continue;
