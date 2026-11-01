@@ -17,6 +17,10 @@
 html.theme-light [data-agent-rail-phase="needs-you"] .mentor-rail-signal { color: hsl(32 85% 40%); }
 [data-agent-rail-phase="updated"] .mentor-rail-signal { color: hsl(211 92% 68%); }
 html.theme-light [data-agent-rail-phase="updated"] .mentor-rail-signal { color: hsl(211 85% 48%); }
+/* The per-mentor menu, on the item's corner while it is hovered or focused. */
+.mentor-rail-more { position: absolute; top: -1px; right: -1px; z-index: 1; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--color-background-base) 88%, transparent); color: color-mix(in srgb, var(--color-content) 55%, transparent); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+.mentor-rail-item:hover .mentor-rail-more, .mentor-rail-item:focus-within .mentor-rail-more, .mentor-rail-more[aria-expanded="true"] { opacity: 1; pointer-events: auto; }
+.mentor-rail-more:hover { background: color-mix(in srgb, var(--color-content) 12%, transparent); color: var(--color-content); }
 .mentor-rail-action { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border-radius: 10px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
 .mentor-rail-action:hover, .mentor-rail-action[aria-pressed="true"] { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
 .mentor-rail-list > .mentor-rail-action { border: 1px dashed color-mix(in srgb, var(--color-content) 18%, transparent); }
