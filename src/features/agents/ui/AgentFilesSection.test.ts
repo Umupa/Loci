@@ -55,7 +55,8 @@ it("lists the mentor's workdir and opens its files through the callback", async 
   const fold = host.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')!;
   expect(fold.textContent).toContain("old-project");
   act(() => fold.click());
-  expect(host.querySelector('[data-tree="/code/old-project"]')).not.toBeNull();
+  // The same filter reaches every folder, which then keeps its own search field away.
+  expect(host.querySelector<HTMLButtonElement>('[data-tree="/code/old-project"]')!.dataset.query).toBe("read");
 });
 
 it("says so when the working folder cannot be opened", async () => {

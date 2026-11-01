@@ -59,8 +59,8 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
         <div className="mt-2 flex flex-col">
           <p className="px-3 pb-1 text-[11px] font-medium text-content/45">Other folders</p>
           {agent.projects.map((path) => (
-            <OtherFolder key={path} path={path} onOpenFile={onOpenFile}
-              onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} />
+            <OtherFolder key={path} path={path} filter={filter} onOpenFile={onOpenFile}
+              onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} onClearQuery={onClearQuery} />
           ))}
         </div>
       ) : null}
@@ -68,7 +68,7 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
   );
 }
 
-function OtherFolder({ path, ...tree }: { path: string } & Omit<Props, "agentId" | "filter">) {
+function OtherFolder({ path, filter, ...tree }: { path: string } & Omit<Props, "agentId">) {
   const [open, setOpen] = useState(false);
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
@@ -78,7 +78,7 @@ function OtherFolder({ path, ...tree }: { path: string } & Omit<Props, "agentId"
         <Chevron className="size-3 shrink-0" />
         <span className="truncate">{projectName(path)}</span>
       </button>
-      {open ? <FileTree cwd={path} rootLabel={projectName(path)} paneActions={false} {...tree} /> : null}
+      {open ? <FileTree cwd={path} rootLabel={projectName(path)} query={filter} paneActions={false} {...tree} /> : null}
     </div>
   );
 }
