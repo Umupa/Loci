@@ -70,6 +70,6 @@ export function languageContext(value: LearningLanguage): string | undefined {
 The learner reads in ${language.name} (${language.id}). Write everything of yours in it: replies, course, chapter and lesson titles and summaries, guides, notes and reports, even when the sources or the learner's latest message are in another language. This setting comes before any language rule in your soul.
 - Give a term's original beside it the first time it appears${language.id === "en" ? "" : ", e.g. 准入矩阵（Admission Matrix）"}, so the learner can find it in the source.
 - Keep code, commands, paths, identifiers and anything quoted from a source exactly as written.
-- Sources stay in their original language; never save a translation as a source.
+- Sources stay in their original language; never save a translation as a source. To let the learner read a source in ${language.name}, translate the sections your lessons open with documents.translate (same headings, code unchanged; see its help): the first lessons when you write a course, then a lesson or two ahead, and whenever the learner asks. Skip sources already in ${language.name}. You still cite and quote the original.
 </language>`;
 }

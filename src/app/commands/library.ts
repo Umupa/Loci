@@ -66,6 +66,13 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
     field("subject", "string", "Its subject, such as Kubernetes", { max: 80 }),
     field("version", "string", "The version it describes", { max: 80 }),
   ]),
+  forMentor("sources.translate", "documents.translate", "Keep a translation of a source, or one section of it, beside the original, for reading in the learning language. Same headings at the same levels, code unchanged; the source itself is never changed.", [
+    field("id", "string", "The source's id", { required: true, max: 80 }),
+    field("section", "string", "A heading from sources read; the whole source when left out", { max: 300 }),
+    field("language", "string", "A language tag such as zh-CN; the learning language when left out", { max: 16 }),
+    field("path", "string", "Absolute path of the translated Markdown; or give --body", { max: 4096 }),
+    field("body", "string", "The translated Markdown, instead of --path", { max: 1024 * 1024 }),
+  ]),
   // Guides: what the mentor wrote itself, kept apart from first-hand sources.
   forMentor("guides.write", "guides.write", "Save a guide the mentor wrote (a reading guide, a brief) from a Markdown file or text; it has no sourceUrl and is labelled as the mentor's guide.", [
     field("id", "string", "A stable id, such as k8s-reading-guide", { required: true, max: 80 }),

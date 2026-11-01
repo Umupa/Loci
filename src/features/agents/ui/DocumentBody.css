@@ -39,3 +39,21 @@
   color: var(--color-accent);
 }
 .document-guide-note { color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+
+/* A source in the learner's language: the switch, then the translation. */
+.translation-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--color-stroke); font-family: var(--font-sans); font-size: 11px; }
+.translation-bar__views { display: inline-flex; padding: 2px; border-radius: 7px; background: color-mix(in srgb, var(--color-content) 6%, transparent); }
+.translation-bar__views > button { height: 22px; padding: 0 9px; border-radius: 5px; font-size: 11.5px; color: color-mix(in srgb, var(--color-content) 60%, transparent); }
+.translation-bar__views > button:hover { color: var(--color-content); }
+.translation-bar__views > button[aria-checked="true"] { background: var(--color-background-base); color: var(--color-content); box-shadow: 0 0 0 1px var(--color-stroke), 0 1px 2px #0001; }
+.translation-bar__status { display: inline-flex; min-width: 0; align-items: center; gap: 5px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.translation-bar__ask { margin-left: auto; padding: 3px 8px; border: 1px solid var(--color-stroke); border-radius: 6px; font-size: 11.5px; color: var(--color-content); }
+.translation-bar__ask:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); }
+.translation-run--original { padding-left: 12px; border-left: 2px dashed color-mix(in srgb, var(--color-content) 15%, transparent); color: color-mix(in srgb, var(--color-content) 70%, transparent); }
+.translation-run + .translation-run { margin-top: 12px; }
+.translation-run__note, .translation-stale { margin: 0 0 6px; font-family: var(--font-sans); font-size: 11px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.translation-stale { color: var(--color-warning); }
+.translation-pair { padding: 4px 0 12px; }
+.translation-pair + .translation-pair { border-top: 1px dashed var(--color-stroke); padding-top: 12px; }
+.translation-pair__original { font-size: .92em; color: color-mix(in srgb, var(--color-content) 58%, transparent); }
+.translation-pair__translated { margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--color-accent); }

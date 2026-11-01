@@ -2655,6 +2655,58 @@
       ]
     },
     {
+      "name": "sources.translate",
+      "summary": "Keep a translation of a source, or one section of it, beside the original, for reading in the learning language. Same headings at the same levels, code unchanged; the source itself is never changed.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "help": "The source's id",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "section",
+          "type": "string",
+          "help": "A heading from sources read; the whole source when left out",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "language",
+          "type": "string",
+          "help": "A language tag such as zh-CN; the learning language when left out",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "help": "Absolute path of the translated Markdown; or give --body",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "help": "The translated Markdown, instead of --path",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "sources.write",
       "summary": "Take a first-hand source into the library: a UTF-8 Markdown file, or a PDF copied in with its sidecar and read in the PDF reader.",
       "callers": [

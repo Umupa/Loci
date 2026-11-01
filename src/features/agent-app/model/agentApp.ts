@@ -1,4 +1,8 @@
-import { agentCanvasScope } from "../../agents/model/agent";
+import { agentCanvasScope, findAgent } from "../../agents/model/agent";
+import { effectiveLearningLanguage, isLearningLanguage } from "../../agents/model/learningLanguage";
+import { readTextFile } from "../../../platform/tauri/fs";
+import { mergeTranslation, sectionUnits, shownUnits, sourceUnits, TranslationShapeError } from "../../learning/model/sourceTranslation";
+import { loadSourceTranslation, saveSourceTranslation } from "../../learning/model/sourceTranslationStore";
 import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
 import { appResourceUrl } from "../../../shared/lib/appResourceLinks";
 import { pathKey, projectName } from "../../../shared/lib/paths";
@@ -258,6 +262,7 @@ const FIELDS = new Map<string, readonly string[]>([
   ["documents.list", []],
   ["documents.read", ["id"]],
   ["documents.write", ["id", "title", "subject", "path", "sourceUrl", "version"]],
+  ["documents.translate", ["id", "section", "language", "path", "body"]],
   ["guides.write", ["id", "title", "subject", "path", "body"]],
   ["courses.list", []],
   ["courses.read", ["id"]],
@@ -522,13 +527,64 @@ async function handleDocuments(
     });
     return savedSummary(saved);
   }
+  // The learner's language, unless the call names another.
+  const languageFor = (value: unknown) => {
+    if (value !== undefined) {
+      if (!isLearningLanguage(value) || value === "auto") throw new Error("language is a language tag such as zh-CN or en");
+      return value;
+    }
+    const language = effectiveLearningLanguage(findAgent(agentId)?.language);
+    return language === "auto" ? undefined : language;
+  };
+  if (action === "documents.translate") {
+    const id = requiredString(input.id, "id", 80);
+    const language = languageFor(input.language);
+    if (!language) throw new Error("The learner has not chosen a learning language; pass language");
+    if ((input.path === undefined) === (input.body === undefined))
+      throw new Error("Give the translation as path (an absolute Markdown file) or body, not both");
+    const found = await host.documents.read(agentId, id);
+    if (!found) throw new Error("No such document");
+    if ((found.kind ?? (found.sourceUrl ? "source" : "guide")) !== "source") throw new Error("Only a source is translated; write a guide in the learner's language instead");
+    if (found.pdf) throw new Error("A PDF source cannot be translated yet");
+    const text = input.body !== undefined
+      ? requiredString(input.body, "body", 1024 * 1024)
+      : await readTextFile(requiredString(input.path, "path", 4096));
+    const section = input.section === undefined ? undefined : requiredString(input.section, "section", 300);
+    const units = sourceUnits(found.body ?? "");
+    const target = sectionUnits(units, section);
+    if (section && target.length === units.length && units.length > 1)
+      throw new Error(`No heading "${section}" in ${id}; copy it from documents.read`);
+    const key = { agentId, id, language };
+    let merged;
+    try {
+      merged = mergeTranslation(target, text, await loadSourceTranslation(key));
+    } catch (error) {
+      if (error instanceof TranslationShapeError) throw new Error(error.message);
+      throw error;
+    }
+    await saveSourceTranslation(key, merged);
+    const shown = shownUnits(units, merged);
+    return { id, language, ...(section ? { section } : {}), saved: true, translated: shown.filter((unit) => unit.translation && !unit.stale).length, of: units.length };
+  }
   const found = await host.documents.read(
     agentId,
     requiredString(input.id, "id", 80),
   );
   if (!found) throw new Error("No such document");
+  // Which sections the learner can already read in their language.
+  const language = found.pdf || !found.sourceUrl ? undefined : languageFor(undefined);
+  let translation: Record<string, unknown> | undefined;
+  if (language) {
+    const shown = shownUnits(sourceUnits(found.body ?? ""), await loadSourceTranslation({ agentId, id: found.id, language }).catch(() => undefined));
+    // Headings, at most 40 to a list: a long specification has hundreds.
+    const headed = (filter: (unit: (typeof shown)[number]) => boolean) => {
+      const all = shown.filter(filter).map((unit) => unit.heading || "(opening text)");
+      return all.length > 40 ? [...all.slice(0, 40), `… ${all.length - 40} more`] : all;
+    };
+    translation = { language, sections: shown.length, translated: headed((unit) => !!unit.translation && !unit.stale), outOfDate: headed((unit) => !!unit.stale), untranslated: headed((unit) => !unit.translation) };
+  }
   // A PDF whose text could not be read (a scan, or a missing file) still has its metadata.
-  return { ...named(found), text: found.body ?? "" };
+  return { ...named(found), ...(translation ? { translation } : {}), text: found.body ?? "" };
 }
 
 async function handleCourses(

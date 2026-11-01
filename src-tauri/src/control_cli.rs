@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 40] = [
+const APP_ACTIONS: [&str; 41] = [
     "models.list",
     "sessions.list",
     "sessions.read",
@@ -40,6 +40,7 @@ const APP_ACTIONS: [&str; 40] = [
     "documents.list",
     "documents.read",
     "documents.write",
+    "documents.translate",
     "guides.write",
     "courses.list",
     "courses.read",
@@ -165,6 +166,17 @@ Only in an agent's own conversation:
                   Markdown, or 100 MB of PDF.
                   Only what someone else published is a source; never save
                   your own summary or notes here.
+  documents.translate {"id":"k8s-pod-lifecycle","section":"Pod phase",
+                  "path":"/abs/path/pod-phase.zh-CN.md"}
+                  Translate a source, or one section of it, into the user's
+                  learning language (or "language"), so they can read it in
+                  that language beside the original. Give the section's whole
+                  Markdown, translated, as path or "body": the same headings at
+                  the same levels, code exactly as it was. The source itself is
+                  never changed and stays what you cite and quote. Without
+                  section, the whole document. Translate the sections your
+                  lessons open, a lesson or two ahead; documents.read shows
+                  which are done and which are out of date.
   guides.write   {"id":"k8s-reading-guide","title":"How to read the scheduler docs",
                   "subject":"Kubernetes","path":"/abs/path/guide.md"}
                   Save a guide you wrote yourself (a reading guide, a brief, a

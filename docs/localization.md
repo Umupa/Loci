@@ -10,7 +10,7 @@ Loci 的工作区保持英文，只有设置页支持简体中文。可在“Set
 
 学习语言与设置页语言是两回事：它决定导师写作用的语言（回复、课程与章节标题、课程简介、导读、笔记、日报），不改变界面文案。在“Settings → 通用 → 学习语言”中选择“跟随我的消息”、简体中文或 English；每位导师可在自己的设置里改成别的语言，或回到“默认”。终端里分别用 `loci settings set learningLanguage zh-CN` 与 `loci mentors update <id> --language en`（`default` 回到设置页的选择）。
 
-选择会写进导师的 `mentor.json`（`language`），并由 `src/features/agents/model/learningLanguage.ts` 在每一轮对话里以 `<language>` 块告诉导师，所以修改立即生效，也会盖过旧导师 Soul 里“用学习者的语言回复”的规则。“跟随我的消息”不发送这个块。一手资料保持原文，导师不得把译文存成资料；资料的译文另行设计。
+选择会写进导师的 `mentor.json`（`language`），并由 `src/features/agents/model/learningLanguage.ts` 在每一轮对话里以 `<language>` 块告诉导师，所以修改立即生效，也会盖过旧导师 Soul 里“用学习者的语言回复”的规则。“跟随我的消息”不发送这个块。一手资料保持原文，导师不得把译文存成资料；资料的译文旁存，见 [learning.md](learning.md) 的“用学习语言读一手资料”。
 
 ## 添加文案
 

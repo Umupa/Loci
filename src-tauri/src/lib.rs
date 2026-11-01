@@ -30,6 +30,7 @@ mod pasteboard;
 mod reset;
 mod session_store;
 mod skills;
+mod source_translations;
 #[cfg(target_os = "macos")]
 mod trackpad_zoom;
 #[cfg(target_os = "windows")]
@@ -391,6 +392,8 @@ pub fn run() {
             agent_documents::agent_documents_upsert,
             agent_documents::agent_documents_import,
             agent_documents::agent_documents_write_guide,
+            source_translations::source_translation_read,
+            source_translations::source_translation_write,
             agent_documents::agent_documents_delete,
             agent_transcript::agent_transcript_append,
             agent_transcript::agent_transcript_page,

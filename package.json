@@ -52,6 +52,7 @@
     "cuelume": "^0.2.2",
     "diff": "^9.0.0",
     "katex": "^0.16.47",
+    "mdast-util-from-markdown": "2.0.3",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

@@ -13,6 +13,7 @@ import { inLesson } from "../../learning/model/annotationCounts";
 import { consumeDocumentPlace, useDocumentPlace } from "../model/documentPlace";
 import { quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
 import { flashRange } from "../../learning/ui/useTextHighlights";
+import { TranslatedText, TranslationBar, useSourceTranslationState, useTranslationView } from "./SourceTranslation";
 import "./DocumentBody.css";
 
 /** A library document as a reader shows it, with where it came from when it is a source. */
@@ -111,8 +112,16 @@ export function DocumentBody({ document, agentId, section, bare, inPlace, marksL
   const placeRequest = useDocumentPlace(agentId, document.id);
   const [notice, setNotice] = useState<{ scope: string; text: string }>();
   const { annotations, select } = marks;
+  // The learner's language: the translation in place of the original, or both.
+  const shownSection = fullDocument ? undefined : requestedSection;
+  const translation = useSourceTranslationState(document, agentId, shownSection);
+  const [chosenView, setChosenView] = useTranslationView();
+  // A quoted passage is found in the original: going to one shows the original.
+  const [originalFor, setOriginalFor] = useState<string>();
+  const readView = !translation?.translated || originalFor === scope ? "original" : chosenView;
   useEffect(() => {
     if (!placeRequest || !agentId) return;
+    if (readView !== "original") { setOriginalFor(scope); return; }
     let timer = 0;
     const show = (tries: number) => {
       const root = bodyRef.current;
@@ -138,7 +147,7 @@ export function DocumentBody({ document, agentId, section, bare, inPlace, marksL
     // After the layout effect has put the document at its start.
     timer = window.setTimeout(() => show(20), 60);
     return () => window.clearTimeout(timer);
-  }, [placeRequest, agentId, document.id, document.body, fullDocument, annotations]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [placeRequest, agentId, document.id, document.body, fullDocument, annotations, readView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { sourceUrl } = document;
   return (
@@ -166,9 +175,15 @@ export function DocumentBody({ document, agentId, section, bare, inPlace, marksL
           <span className="document-guide-note">written by your mentor, not a first-hand source</span>
         </p>
       ) : null}
-      <div ref={bodyRef} className="select-text" data-reading-text>
-        <AgentMarkdown text={document.body} wholeDocument sourceUrl={sourceUrl} section={fullDocument ? undefined : requestedSection} />
+      {translation && agentId ? <TranslationBar state={translation} view={readView} document={document} agentId={agentId} section={shownSection}
+        onView={(next) => { setOriginalFor(undefined); setChosenView(next); }} /> : null}
+      {/* The original stays mounted: highlights and found passages live in it. */}
+      <div ref={bodyRef} className="select-text" data-reading-text hidden={readView !== "original"}>
+        <AgentMarkdown text={document.body} wholeDocument sourceUrl={sourceUrl} section={shownSection} />
       </div>
+      {translation && readView !== "original" ? <div className="select-text" data-translated-text>
+        <TranslatedText units={translation.units} view={readView} sourceUrl={sourceUrl} />
+      </div> : null}
       <ReadingSelectionMenu selection={selection} onDismiss={dismiss} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark}
         resetKey={JSON.stringify([document.id, document.body, document.title, document.sourceUrl, agentId])} />
       {marks.popover}
