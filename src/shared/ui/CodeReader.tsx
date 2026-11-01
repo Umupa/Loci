@@ -63,7 +63,7 @@ export function CodeReader({ text, file, firstLine = 1, preRef, label }: Props) 
       <pre ref={pre} className="code-reader__pre" tabIndex={0} aria-label={label}><code>
         {lines.map((line, index) => <Fragment key={index}>
           {tokens?.[index]?.length
-            ? tokens[index].map((token, at) => <span key={at} style={{ color: scheme === "dark" ? token.htmlStyle?.["--shiki-dark"] ?? token.color : token.color }}>{token.content}</span>)
+            ? tokens[index].map((token, at) => <span key={at} style={{ color: scheme === "dark" ? token.htmlStyle?.["--shiki-dark"] ?? token.htmlStyle?.color ?? token.color : token.htmlStyle?.color ?? token.color }}>{token.content}</span>)
             : line}
           {index < lines.length - 1 ? "\n" : null}
         </Fragment>)}

@@ -10,12 +10,13 @@ import { CodeReader } from "./CodeReader";
 
 const highlighter = vi.hoisted(() => ({
     highlight: vi.fn(({ code }: { code: string }) => ({
-        tokens: code.split("\n").map((line) => [{ content: line, color: "#9ecbff" }]),
+        tokens: code.split("\n").map((line) => [{ content: line, htmlStyle: { color: "#24292e", "--shiki-dark": "#e1e4e8" } }]),
     })),
     getThemes: () => ["github-light", "github-dark"],
 }));
+const scheme = vi.hoisted(() => ({ value: "dark" as "dark" | "light" }));
 vi.mock("../hooks/useCodePlugin", () => ({ useCodePlugin: () => highlighter }));
-vi.mock("../hooks/useColorScheme", () => ({ useColorScheme: () => "dark" }));
+vi.mock("../hooks/useColorScheme", () => ({ useColorScheme: () => scheme.value }));
 
 let container: HTMLDivElement;
 let root: Root;
@@ -79,6 +80,17 @@ it("turns a line link into a caret on that line of the highlighted file", async 
     before.setEnd(caret.startContainer, caret.startOffset);
     expect(linesOf(index.text, before.toString().length, at)).toEqual([12, 12]);
     expect(reader.querySelectorAll(".code-reader__number")[11].textContent).toBe("12");
+});
+
+it("uses the readable half of the Shiki theme pair in each color scheme", async () => {
+    scheme.value = "dark";
+    await act(async () => root.render(createElement(CodeReader, { text: "let x = 1;", file: "a.ts" })));
+    expect(container.querySelector<HTMLElement>("pre code > span")?.style.color).toBe("#e1e4e8");
+
+    scheme.value = "light";
+    await act(async () => root.render(createElement(CodeReader, { text: "let y = 2;", file: "b.ts" })));
+    const light = [...container.querySelectorAll<HTMLElement>("pre code > span")].map((span) => span.style.color);
+    expect(light[0]).toBe("#24292e");
 });
 
 it("shows the text unhighlighted while tokens are on their way", async () => {
