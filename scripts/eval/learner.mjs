@@ -15,7 +15,7 @@ export const TOPICS = [
   ["confirm", /\b(shall i|should i (start|begin|go|proceed)|ready (for me )?to|sound good|does (this|that|the) (plan|route|outline|look)|ok(ay)? (with|to)|confirm|green light|can i (start|begin|go))\b|开始吗|可以开始|确认|是否同意|同意吗|行吗|可以吗/i],
   ["time", /\b(how (much|many) (time|hours)|hours? (a|per) (day|week)|time budget|deadline|by when|how long)\b|多少时间|每天|每周|时间/i],
   ["language", /\b(english|chinese|mandarin|which language (do you|should i) (read|prefer)|translat)/i, /中文|英文|英语|语种|翻译/],
-  ["goal", /\b(goal|target|aim|outcome|walk away with|why (do|are) you|what (do|are) you (want|trying|hoping)|use case|purpose|problem (are you|you're) (solving|facing)|end result|what will you (do|build))\b|目标|为什么|用途|场景|要解决|落地/i],
+  ["goal", /\b(goal|target|aim|outcome|end state|walk away with|be able to do|when (we're|we are|this is) done|why (do|are) you|what (do|are) you (want|trying|hoping)|use case|purpose|problem (are you|you're) (solving|facing)|end result|what will you (do|build))\b|目标|为什么|用途|场景|要解决|落地/i],
   ["scope", /\b(scope|breadth|cover|which (parts|areas|topics)|focus on|skip|exclude|end[- ]to[- ]end|overview)\b|范围|广度|覆盖|跳过|排除|聚焦|全景/i],
   ["depth", /\b(depth|deep|how far|source code|internals|level of detail|vertical)\b|深度|纵深|源码|击穿|细节/i],
   ["level", /\b(level|familiar|experience|already know|comfortable|beginner|new to|have you (used|read|worked|seen))\b|熟悉|经验|掌握|了解|基础|盲区|困惑/i],

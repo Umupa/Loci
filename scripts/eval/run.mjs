@@ -13,7 +13,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { lociCli, LociCliError } from "../e2e/loci.mjs";
-import { DEFAULT_JUDGE_MODEL, judge, probeProvider } from "./judge.mjs";
+import { DEFAULT_JUDGE_MODEL, judge, parseVerdict, probeProvider } from "./judge.mjs";
 import { nextMessage } from "./learner.mjs";
 import { summaryMarkdown } from "./report.mjs";
 import { scoreRun } from "./score.mjs";
@@ -45,6 +45,7 @@ const { values: opts } = parseArgs({
     keep: { type: "boolean", default: false },
     "skip-probe": { type: "boolean", default: false },
     rescore: { type: "string" },
+    rejudge: { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
   },
 });
@@ -52,7 +53,8 @@ const { values: opts } = parseArgs({
 if (opts.help) {
   console.log(`npm run eval -- [--scenario id]... [--app id] [--bin path] [--provider agy] [--model id]
   [--judge agy|grok|claude|codex|none] [--judge-model id] [--max-turns n] [--max-minutes n] [--out dir] [--keep]
-npm run eval -- --rescore eval/results/<timestamp>   # recompute checks and summary from saved artifacts, no app
+npm run eval -- --rescore eval/results/<timestamp> [--rejudge --judge grok]
+  recompute checks and summary from saved artifacts, no app; --rejudge asks the judge again
 
 --app/LOCI_APP_ID names the Loci to drive (a QA build; never com.loci.desktop).
 --bin/LOCI_BIN is its loci executable. --provider is the mentors' agent CLI
@@ -62,12 +64,12 @@ eval/results/<timestamp>/ unless --out. See docs/evaluation.md.`);
 }
 
 if (opts.rescore) {
-  rescore(resolve(opts.rescore));
+  await rescore(resolve(opts.rescore));
   process.exit(0);
 }
 
 /** Recomputes score.json and summary.md of a saved run; the saved judge verdicts are kept. */
-function rescore(runDir) {
+async function rescore(runDir) {
   const meta = JSON.parse(readFileSync(join(runDir, "run.json"), "utf8"));
   const json = (path, fallback) => { try { return JSON.parse(readFileSync(path, "utf8")); } catch { return fallback; } };
   const results = [];
@@ -84,8 +86,18 @@ function rescore(runDir) {
     const run = { scenario, sources, courses, turns, timings: json(join(dir, "timings.json"), {}), failures: previous.failures ?? [], nudges: decisions.filter((entry) => entry.nudge).length };
     const score = scoreRun(run, { readFile: readText, roots: [workdir] });
     writeFileSync(join(dir, "score.json"), `${JSON.stringify(score, null, 2)}\n`);
-    results.push({ scenario, score, judge: json(join(dir, "judge.json"), null), run: { stoppedBy: json(join(dir, "stop.json"), {}).stoppedBy } });
+    let verdict = json(join(dir, "judge.json"), null);
+    if (opts.rejudge && turns.some((entry) => entry.role === "mentor" && String(entry.text ?? "").trim())) {
+      const provider = opts.judge ?? meta.judge?.provider ?? "agy";
+      const model = opts["judge-model"] ?? DEFAULT_JUDGE_MODEL[provider];
+      console.error(`${id}: judging again with ${provider}`);
+      verdict = await judge({ scenario, checks: score, sources, courses, turns }, { provider, model });
+      writeFileSync(join(dir, "judge.json"), `${JSON.stringify(verdict, null, 2)}\n`);
+      meta.judge = { provider, model: model ?? null };
+    } else if (verdict && !verdict.verdict && verdict.raw) verdict = { ...verdict, verdict: parseVerdict(verdict.raw) };
+    results.push({ scenario, score, judge: verdict, run: { stoppedBy: json(join(dir, "stop.json"), {}).stoppedBy } });
   }
+  writeFileSync(join(runDir, "run.json"), `${JSON.stringify(meta, null, 2)}\n`);
   writeFileSync(join(runDir, "summary.md"), summaryMarkdown(meta, results));
   console.error(`rescored ${join(runDir, "summary.md")}`);
 }
@@ -316,7 +328,10 @@ async function main() {
   const harness = (models.harnesses ?? []).find((entry) => entry.id === providerId(opts.provider));
   if (!harness?.available) throw new Error(`${opts.provider} is not available in ${app}: ${JSON.stringify(harness ?? "unknown provider")}`);
   if (!opts["skip-probe"]) {
-    for (const provider of new Set([opts.provider, ...(judgeProvider === "none" ? [] : [judgeProvider])])) {
+    // Only the judge runs a CLI directly. The mentors run through Loci's own adapter,
+    // which can work where print mode does not (agy -p fails its region check where
+    // Loci's Antigravity adapter answers); a mentor that cannot answer shows up as a failed turn.
+    for (const provider of judgeProvider === "none" ? [] : [judgeProvider]) {
       const probe = await probeProvider(provider === "antigravity" ? "agy" : provider);
       if (probe.state !== "ok") {
         const hint = probe.state === "region"

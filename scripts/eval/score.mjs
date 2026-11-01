@@ -242,6 +242,11 @@ export function scoreRun(run, files) {
 
   const lessons = run.courses.flatMap((course) => checkLessons(course, library).map((lesson) => ({ course: course.id, ...lesson })));
   const order = run.courses.flatMap((course) => orderProblems(course, sources));
+  // First-hand files read in place: a cloned repository, a downloaded paper.
+  const fileLessons = lessons.filter((lesson) => lesson.ok && lesson.target?.startsWith("file:")).map((lesson) => lesson.target.slice(5));
+  const inPlace = [...new Set(fileLessons)];
+  const repoFiles = inPlace.filter((path) => /\/repos\//.test(path));
+  const documents = inPlace.filter((path) => /\.(pdf|epub|ps)$/i.test(path));
   const lessonCount = run.courses.reduce((sum, course) => sum + lessonsOf(course).length, 0);
   const mainCourse = run.courses[0];
   const chapters = mainCourse ? ((mainCourse.data ?? mainCourse).chapters ?? []).length : 0;
@@ -261,6 +266,9 @@ export function scoreRun(run, files) {
       firstPartyShare: share(firstParty.length, firstHand.length),
       offDomain: firstHand.filter((source) => !firstParty.includes(source)).map((source) => ({ id: source.id, url: source.sourceUrl })),
       suspectedSummaries: suspicious,
+      filesReadInPlace: inPlace.length,
+      repoFiles: repoFiles.length,
+      downloadedDocuments: documents.length,
     },
     course: {
       courses: run.courses.length,

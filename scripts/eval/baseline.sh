@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# The official mentor evaluation: every scenario, mentors and judge on
-# Antigravity (agy, judge model pinned), against the evaluation's own QA build,
-# cleaned up afterwards. Extra arguments go to the runner (e.g. --scenario sqlite-wal).
+# The official mentor evaluation: every scenario, mentors on Antigravity inside
+# Loci, against the evaluation's own QA build, cleaned up afterwards. The judge
+# is grok until `agy -p` passes Antigravity's region check; then set
+# LOCI_EVAL_JUDGE=agy (model pinned to claude-opus-4-6-thinking).
+# Extra arguments go to the runner (e.g. --scenario sqlite-wal).
 #
 #   scripts/eval/baseline.sh
 set -euo pipefail
@@ -15,4 +17,4 @@ BIN="$("$QA" bin)"
 "$QA" up
 trap '"$QA" down' EXIT
 cd "$ROOT"
-node scripts/eval/run.mjs --app "${LOCI_EVAL_APP_ID:-com.loci.desktop.qa-eval}" --bin "$BIN" --provider agy --judge agy "$@"
+node scripts/eval/run.mjs --app "${LOCI_EVAL_APP_ID:-com.loci.desktop.qa-eval}" --bin "$BIN" --provider agy --judge "${LOCI_EVAL_JUDGE:-grok}" "$@"

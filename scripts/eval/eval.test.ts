@@ -21,6 +21,11 @@ describe("the scripted learner", () => {
     expect(nextMessage("Do you prefer tabs or spaces?", { answers }, state).text).toBe(FALLBACK);
   });
 
+  it("hears a goal question however it is phrased", () => {
+    expect(topicsOf(["End state: What do you need to be able to do when we're done?"])).toEqual(["goal"]);
+    expect(topicsOf(["Goal: When this is done, what do you want to be able to do?"])).toEqual(["goal"]);
+  });
+
   it("reads the Chinese the Mentor template speaks", () => {
     expect(topicsOf(questionsIn("你的真实工程目标是什么？"))).toEqual(["goal"]);
     expect(topicsOf(["方案如上，确认后我就开始收集材料，可以吗？"])).toContain("confirm");
@@ -136,6 +141,7 @@ describe("automatic checks", () => {
       failures: [], nudges: 0,
     }, { readFile: () => null, roots: [] });
     expect(score.sources).toMatchObject({ firstHand: 2, guides: 1, firstParty: 1, firstPartyShare: 50 });
+    expect(score.sources).toMatchObject({ filesReadInPlace: 0, repoFiles: 0 });
     expect(score.course).toMatchObject({ lessons: 2, lessonsResolved: 2, lessonsOnGuides: 1, chapters: 1, withinExpected: true });
     expect(score.citations).toMatchObject({ total: 1, resolved: 1, quoted: 1, probeCited: true });
     expect(score.firstTenMinutes).toMatchObject({ maxQuestionsInOneReply: 2, firstSourceSeconds: 200 });
@@ -150,6 +156,8 @@ describe("the judge and the summary", () => {
     expect(parseVerdict(JSON.stringify({ result: JSON.stringify(verdict) }))).toEqual(verdict);
     expect(parseVerdict(JSON.stringify({ scores: { firstHand: { score: 9 } } }))).toBeNull();
     expect(parseVerdict("no json")).toBeNull();
+    const braces = { ...verdict, scores: { ...verdict.scores, grounding: { score: 2, reason: "cites `fn run() { steal(); }` without a link" } } };
+    expect(parseVerdict(`Verdict: ${JSON.stringify(braces)}`)?.scores.grounding.reason).toContain("{ steal(); }");
   });
 
   it("fills the judge prompt kept in the repo with the evidence", () => {
@@ -174,6 +182,9 @@ describe("the judge and the summary", () => {
     const meta = { startedAt: "2026-11-01T10:00:00.000Z", app: "com.loci.desktop.qa-eval", provider: "grok", mode: "full-access", judge: { provider: "grok" }, templates: { "learning-guide": "abc" } };
     expect(isOfficial(meta)).toBe(false);
     expect(isOfficial({ ...meta, provider: "agy", judge: { provider: "agy" } })).toBe(true);
+    const split = { ...meta, provider: "agy", judge: { provider: "grok" } };
+    expect(isOfficial(split)).toBe(true);
+    expect(summaryMarkdown(split, [])).toContain("rubric judged by `grok`");
     const text = summaryMarkdown(meta, [{ scenario: { id: "sqlite-wal", template: "learning-guide" }, error: "boom" }]);
     expect(text).toContain("Provisional, non-agy");
     expect(text).toContain("sqlite-wal");

@@ -47,9 +47,14 @@ export function parseVerdict(output) {
   for (const candidate of candidates) {
     for (let start = candidate.indexOf("{"); start >= 0; start = candidate.indexOf("{", start + 1)) {
       let depth = 0;
+      let inString = false;
       for (let end = start; end < candidate.length; end++) {
-        if (candidate[end] === "{") depth++;
-        else if (candidate[end] === "}" && --depth === 0) {
+        const char = candidate[end];
+        // Braces inside a JSON string (a reason quoting code) do not count.
+        if (inString) { if (char === "\\") end++; else if (char === '"') inString = false; continue; }
+        if (char === '"') inString = true;
+        else if (char === "{") depth++;
+        else if (char === "}" && --depth === 0) {
           try {
             const parsed = JSON.parse(candidate.slice(start, end + 1));
             if (parsed?.scores && RUBRIC.every((key) => Number.isInteger(parsed.scores[key]?.score) && parsed.scores[key].score >= 1 && parsed.scores[key].score <= 5))
