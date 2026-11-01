@@ -673,6 +673,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   revealOnMount,
   className,
   cwd,
+  imageCwd,
   onOpenFile,
   hardBreaks,
   wholeDocument = false,
@@ -685,6 +686,8 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   revealOnMount?: boolean;
   className?: string;
   cwd?: string;
+  /** Where pictures written as relative paths live, when that is not `cwd` (a note's own folder). */
+  imageCwd?: string;
   onOpenFile?: OpenFileFn;
 
   /** Show a newline inside a block as a line break, as a document does (#591). */
@@ -716,11 +719,11 @@ export const AgentMarkdown = memo(function AgentMarkdown({
     () => [
       ...Object.values(defaultRemarkPlugins),
       [remarkSourceAddresses, { sourceUrl }],
-      [remarkLocalImages, { cwd }],
+      [remarkLocalImages, { cwd: imageCwd ?? cwd }],
       [remarkWorkspaceFileLinks, { cwd }],
       [remarkDocumentSection, { section }],
     ],
-    [cwd, sourceUrl, section],
+    [cwd, imageCwd, sourceUrl, section],
   );
 
   const paced = usePacedText(text, !!streaming, revealOnMount);

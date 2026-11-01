@@ -27,6 +27,8 @@ export type Note = {
   hash?: string;
   /** The disk version kept aside because the file changed while it was open. */
   conflictCopy?: string;
+  /** The `notes/` folder a mentor's note lives in; its pictures are relative to it. */
+  noteFolder?: string;
 };
 
 export type NoteUpsert = {

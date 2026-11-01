@@ -31,6 +31,8 @@ export type MigrationReport = {
   otherFolders: string[];
   deadTables: string[];
   caughtUp: number;
+  /** Notes whose pictures moved into their mentor's folder. */
+  noteImages: number;
 };
 
 type RosterEntry = Record<string, unknown> & { id: string };

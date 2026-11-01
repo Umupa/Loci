@@ -648,6 +648,55 @@ mod tests {
     }
 
     #[test]
+    fn note_pictures_beside_a_note_travel_in_the_zip() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("bundle-images");
+        let folder = root.join("lens");
+        register_test(&conn, "m-1", &folder);
+        let mut identity = registry::read_identity(&folder).unwrap();
+        identity.insert("name".into(), json!("Repo Lens"));
+        identity.insert(
+            "defaults".into(),
+            json!({"provider": "grok", "model": "grok:deepseek-flash", "mode": "full-access"}),
+        );
+        registry::write_identity(&folder, &identity).unwrap();
+        let notes = folder.join("notes");
+        std::fs::create_dir_all(notes.join("assets/n1")).unwrap();
+        std::fs::write(
+            notes.join("n1.md"),
+            "---\ntitle: Sketch\nslug: sketch\n---\n![pic](assets/n1/1-pic.png)\n",
+        )
+        .unwrap();
+        std::fs::write(notes.join("assets/n1/1-pic.png"), b"png bytes").unwrap();
+        let ctx = ctx_for(&conn, "m-1").unwrap().unwrap();
+        index::reconcile(&conn, &ctx).unwrap();
+        let out = root.join("lens.zip");
+        export(&conn, "m-1", &out, false, "0.4.0").unwrap();
+
+        let other = SessionStore::open_in_memory().unwrap();
+        let other_conn = other.lock_conn().unwrap();
+        let other_root = temp_dir("bundle-images-other");
+        let imported = import_zip(&other_conn, &other_root, &out).unwrap();
+        let imported_folder = PathBuf::from(&imported.folder);
+        assert_eq!(
+            std::fs::read(imported_folder.join("notes/assets/n1/1-pic.png")).unwrap(),
+            b"png bytes"
+        );
+        assert!(std::fs::read_to_string(imported_folder.join("notes/n1.md"))
+            .unwrap()
+            .contains("](assets/n1/1-pic.png)"));
+        // The mentor's stored defaults came with it, so its first chat keeps them.
+        assert_eq!(
+            registry::read_identity(&imported_folder).unwrap()["defaults"]["model"],
+            "grok:deepseek-flash"
+        );
+        for dir in [root, other_root] {
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
     fn a_tampered_or_unsafe_archive_is_refused_and_leaves_nothing() {
         let store = SessionStore::open_in_memory().unwrap();
         let conn = store.lock_conn().unwrap();

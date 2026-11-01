@@ -516,7 +516,7 @@ export function NoteEditor({
               }}
             />
           ) : body.trim() ? (
-            <div className="reader-body reader-measure"><AgentMarkdown text={body} cwd={sourceCwd} hardBreaks /></div>
+            <div className="reader-body reader-measure"><AgentMarkdown text={body} cwd={sourceCwd} imageCwd={base.noteFolder} hardBreaks /></div>
           ) : (
             <p className="text-[13px] text-content/45">No description</p>
           )}

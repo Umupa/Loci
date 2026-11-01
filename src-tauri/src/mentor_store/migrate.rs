@@ -85,6 +85,8 @@ pub struct Report {
     pub dead_tables: Vec<String>,
     /// 0.3 rows edited after their mentor moved to files, brought back.
     pub caught_up: usize,
+    /// Notes whose pictures moved from app data into their mentor's folder.
+    pub note_images: usize,
 }
 
 pub struct MigrateEnv {
@@ -737,6 +739,109 @@ fn catch_up(conn: &Connection, report: &mut Report) -> Result<(), String> {
     Ok(())
 }
 
+/// Pictures a mentor's note kept in `<app data>/note-assets/<id>/` move
+/// beside the note, into `notes/assets/<id>/`, and its links become relative,
+/// so they travel with the folder and an export. The app-data copies stay
+/// where they are. A note with a missing picture keeps its links unchanged.
+fn note_images_into_folders(
+    conn: &Connection,
+    env: &MigrateEnv,
+    dry: bool,
+) -> Result<usize, String> {
+    let mut changed = 0;
+    for row in index::all(conn, Kind::Note).map_err(|e| e.to_string())? {
+        let Some(body) = row.body.as_deref() else {
+            continue;
+        };
+        let links = note_asset_links(body);
+        if links.is_empty() {
+            continue;
+        }
+        let Some(ctx) = super::ctx_for(conn, &row.agent_id)? else {
+            continue;
+        };
+        let notes_dir = ctx.folder.join(Kind::Note.dir());
+        let mut available = true;
+        for (note, file) in &links {
+            let source = env.app_data.join("note-assets").join(note).join(file);
+            let target = notes_dir.join("assets").join(note).join(file);
+            if target.is_file() {
+                continue;
+            }
+            if !source.is_file() {
+                available = false;
+                break;
+            }
+            if !dry {
+                if let Some(parent) = target.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                // Atomic, so a crash never leaves a half picture that the next
+                // run takes for a copied one.
+                let bytes =
+                    std::fs::read(&source).map_err(|e| format!("{}: {e}", source.display()))?;
+                write_atomic(&target, &bytes)?;
+            }
+        }
+        if !available {
+            continue;
+        }
+        let path = super::row_path(&ctx, &row);
+        let text =
+            std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let (meta, existing, disk_body) = format::parse_note(&text)?;
+        let mut rewritten = disk_body.clone();
+        for (note, file) in &links {
+            rewritten = rewritten.replace(
+                &format!("/note-assets/{note}/{file}"),
+                &format!("assets/{note}/{file}"),
+            );
+        }
+        if rewritten == disk_body {
+            continue;
+        }
+        if !dry {
+            write_atomic(
+                &path,
+                format::render_note(Some(existing), &meta, &rewritten)?.as_bytes(),
+            )?;
+            index::index_file(conn, &ctx, Kind::Note, &row.id, &path, true)?;
+        }
+        changed += 1;
+    }
+    Ok(changed)
+}
+
+/// An image path a note wrote before its pictures moved into its folder.
+fn valid_note_asset_file(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 200
+        && name != "."
+        && name != ".."
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+fn note_asset_links(body: &str) -> Vec<(String, String)> {
+    const PREFIX: &str = "/note-assets/";
+    let mut found = Vec::new();
+    let mut rest = body;
+    while let Some(at) = rest.find(PREFIX) {
+        let after = &rest[at + PREFIX.len()..];
+        let end = after
+            .find([')', '"', '\'', '>', '<', ' ', '\t', '\n', '\r'])
+            .unwrap_or(after.len());
+        if let Some((id, file)) = after[..end].split_once('/') {
+            if paths::valid_content_id(id) && valid_note_asset_file(file) {
+                found.push((id.to_string(), file.to_string()));
+            }
+        }
+        rest = &after[end..];
+    }
+    found
+}
+
 /// Runs (or, with `dry_run`, describes) the migration of the roster given.
 pub fn run(conn: &Connection, env: &MigrateEnv, input: &MigrateInput) -> Result<Report, String> {
     let dry = input.dry_run;
@@ -793,6 +898,7 @@ pub fn run(conn: &Connection, env: &MigrateEnv, input: &MigrateInput) -> Result<
     if !dry {
         catch_up(conn, &mut report)?;
     }
+    report.note_images = note_images_into_folders(conn, env, dry)?;
     report.done = report.mentors.iter().all(|m| m.error.is_none());
     if report.done && !dry {
         conn.execute(
@@ -884,7 +990,7 @@ fn describe_leftovers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mentor_store::testing::temp_dir;
+    use crate::mentor_store::testing::{register, temp_dir};
     use crate::session_store::SessionStore;
 
     /// A 0.3 database with every kind of row, one mentor in a default workdir
@@ -1005,6 +1111,56 @@ mod tests {
         for dir in [root, app, custom] {
             std::fs::remove_dir_all(dir).unwrap();
         }
+    }
+
+    #[test]
+    fn a_notes_pictures_move_beside_it_and_its_links_become_relative() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let folder = temp_dir("note-images");
+        let app = temp_dir("note-images-app");
+        register(&conn, "m1", &folder);
+        let ctx = crate::mentor_store::ctx_for(&conn, "m1").unwrap().unwrap();
+        let note = "---\ntitle: KVM\nslug: kvm\nlicense: kept\n---\nOne\n\n![pic](/note-assets/n1/123-pic.png)\n";
+        crate::mentor_store::write_content(&conn, &ctx, Kind::Note, "n1", note).unwrap();
+        // A second note names a picture that is not there: it keeps its links.
+        crate::mentor_store::write_content(
+            &conn,
+            &ctx,
+            Kind::Note,
+            "n2",
+            "---\ntitle: Two\n---\n![gone](/note-assets/n2/missing.png)\n",
+        )
+        .unwrap();
+        let source = app.join("note-assets/n1/123-pic.png");
+        std::fs::create_dir_all(source.parent().unwrap()).unwrap();
+        std::fs::write(&source, b"png bytes").unwrap();
+        let env = MigrateEnv {
+            root: temp_dir("note-images-root"),
+            app_data: app.clone(),
+        };
+        assert_eq!(note_images_into_folders(&conn, &env, true).unwrap(), 1);
+        assert!(!folder.join("notes/assets/n1/123-pic.png").exists());
+        assert_eq!(note_images_into_folders(&conn, &env, false).unwrap(), 1);
+        let target = folder.join("notes/assets/n1/123-pic.png");
+        assert_eq!(std::fs::read(&target).unwrap(), b"png bytes");
+        // Copy, don't move: the app-data picture is still there.
+        assert!(source.is_file());
+        let text = std::fs::read_to_string(folder.join("notes/n1.md")).unwrap();
+        assert!(text.contains("](assets/n1/123-pic.png)"));
+        assert!(text.contains("license: kept"));
+        assert!(index::get(&conn, "m1", Kind::Note, "n1")
+            .unwrap()
+            .unwrap()
+            .body
+            .unwrap()
+            .contains("](assets/n1/123-pic.png)"));
+        let missing = std::fs::read_to_string(folder.join("notes/n2.md")).unwrap();
+        assert!(missing.contains("/note-assets/n2/missing.png"));
+        // Running again finds nothing to do.
+        assert_eq!(note_images_into_folders(&conn, &env, false).unwrap(), 0);
+        std::fs::remove_dir_all(folder).unwrap();
+        std::fs::remove_dir_all(app).unwrap();
     }
 
     #[test]

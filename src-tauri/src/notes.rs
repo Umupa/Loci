@@ -43,6 +43,10 @@ pub struct Note {
     /// version was kept beside it as this file before the save went through.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conflict_copy: Option<String>,
+    /// The `notes/` folder a file note lives in, so its pictures are read
+    /// beside it. Absent for a note with no mentor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note_folder: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -129,7 +133,7 @@ pub fn ensure_notes_table(conn: &Connection) -> rusqlite::Result<()> {
 // Notes a mentor keeps in its folder: notes/<id>.md. Notes with no mentor,
 // and notes of mentors not migrated yet, stay in the notes table.
 
-fn note_from_row(row: index::Row) -> Note {
+fn note_from_row(row: index::Row, notes_dir: Option<&Path>) -> Note {
     let meta = &row.meta;
     let text = |key: &str| meta.get(key).and_then(|v| v.as_str()).map(str::to_string);
     Note {
@@ -157,7 +161,13 @@ fn note_from_row(row: index::Row) -> Note {
         updated_at: row.updated_at,
         hash: Some(row.hash),
         conflict_copy: None,
+        note_folder: notes_dir.map(|dir| dir.to_string_lossy().into_owned()),
     }
+}
+
+/// Where a file note's pictures are: `notes/assets/<id>/`, beside its file.
+fn note_assets_in_notes_dir(notes_dir: &Path, note_id: &str) -> PathBuf {
+    notes_dir.join("assets").join(note_id)
 }
 
 /// A file note by id, read fresh, with its mentor's context.
@@ -168,16 +178,19 @@ fn file_note(conn: &Connection, id: &str) -> Result<Option<(MentorCtx, Note)>, S
     let Some(ctx) = mentor_store::ctx_for(conn, &row.agent_id)? else {
         return Ok(None);
     };
-    Ok(mentor_store::current(conn, &ctx, Kind::Note, id)?.map(|row| (ctx, note_from_row(row))))
+    let notes_dir = ctx.folder.join(Kind::Note.dir());
+    Ok(mentor_store::current(conn, &ctx, Kind::Note, id)?
+        .map(|row| (ctx, note_from_row(row, Some(&notes_dir)))))
 }
 
 fn file_notes(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<Note>, String> {
+    let notes_dir = ctx.folder.join(Kind::Note.dir());
     let mut out = Vec::new();
     for row in index::list(conn, &ctx.agent, &[Kind::Note]).map_err(|e| e.to_string())? {
         if let Some(full) =
             index::get(conn, &ctx.agent, Kind::Note, &row.id).map_err(|e| e.to_string())?
         {
-            out.push(note_from_row(full));
+            out.push(note_from_row(full, Some(&notes_dir)));
         }
     }
     Ok(out)
@@ -224,7 +237,7 @@ fn write_file_note(
         }
     }
     let row = mentor_store::write_content(conn, ctx, Kind::Note, &note.id, &render(note)?)?;
-    let mut saved = note_from_row(row);
+    let mut saved = note_from_row(row, Some(&ctx.folder.join(Kind::Note.dir())));
     saved.conflict_copy = conflict_copy;
     Ok(saved)
 }
@@ -285,6 +298,7 @@ fn file_upsert_note(
             updated_at: now,
             hash: None,
             conflict_copy: None,
+            note_folder: None,
         },
     };
     write_file_note(conn, ctx, &next, note.expected_hash.as_deref())
@@ -319,7 +333,9 @@ pub fn notes_list(
         }
     }
     for row in index::all(&conn, Kind::Note).map_err(|e| e.to_string())? {
-        notes.push(note_from_row(row));
+        let folder = mentor_store::ctx_for(&conn, &row.agent_id)?
+            .map(|ctx| ctx.folder.join(Kind::Note.dir()));
+        notes.push(note_from_row(row, folder.as_deref()));
     }
     notes.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then(a.id.cmp(&b.id)));
     Ok(notes)
@@ -415,12 +431,35 @@ pub fn notes_delete(
 #[tauri::command]
 pub async fn notes_save_image(
     app: AppHandle,
+    store: State<'_, SessionStore>,
     note_id: String,
     source_path: String,
 ) -> Result<NoteImageAsset, String> {
-    tauri::async_runtime::spawn_blocking(move || save_note_image_sync(&app, &note_id, &source_path))
-        .await
-        .map_err(|e| e.to_string())?
+    validate_id(&note_id, "note")?;
+    // A mentor's note keeps its pictures in its folder, beside the note file,
+    // and links them relatively, so they travel with an export. A note with
+    // no mentor keeps them in app data as before.
+    let notes_dir = {
+        let conn = store.lock_conn()?;
+        file_note(&conn, &note_id)?.map(|(ctx, _)| ctx.folder.join(Kind::Note.dir()))
+    };
+    tauri::async_runtime::spawn_blocking(move || match notes_dir {
+        Some(notes_dir) => save_note_image_in(
+            &source_path,
+            &note_assets_in_notes_dir(&notes_dir, &note_id),
+            &format!("assets/{note_id}"),
+        ),
+        None => {
+            let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+            save_note_image_in(
+                &source_path,
+                &app_data.join(NOTE_ASSET_DIR).join(&note_id),
+                &format!("/{NOTE_ASSET_DIR}/{note_id}"),
+            )
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command(async)]
@@ -447,11 +486,10 @@ fn note_assets_dir(app: &AppHandle, note_id: &str) -> Result<PathBuf, String> {
         .join(note_id))
 }
 
-fn save_note_image_sync(
-    app: &AppHandle,
-    note_id: &str,
-    source_path: &str,
-) -> Result<NoteImageAsset, String> {
+/// Copies an image into `dir` and says how a note links it. `link` is the
+/// folder's path as the note writes it: relative beside a mentor's note,
+/// `/note-assets/<id>` for a note with no mentor.
+fn save_note_image_in(source_path: &str, dir: &Path, link: &str) -> Result<NoteImageAsset, String> {
     let source = expand_home(source_path);
     let meta = std::fs::metadata(&source).map_err(|e| format!("{}: {e}", source.display()))?;
     if !meta.is_file() {
@@ -465,8 +503,7 @@ fn save_note_image_sync(
     }
 
     let (display_name, safe_name) = note_image_names(&source)?;
-    let dir = note_assets_dir(app, note_id)?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -477,7 +514,7 @@ fn save_note_image_sync(
 
     Ok(NoteImageAsset {
         name: display_name,
-        markdown_path: format!("/{NOTE_ASSET_DIR}/{note_id}/{stored_name}"),
+        markdown_path: format!("{link}/{stored_name}"),
     })
 }
 
@@ -643,6 +680,7 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
             updated_at,
             hash: None,
             conflict_copy: None,
+            note_folder: None,
         })
     } else {
         // Explicit titles such as "Untitled" own their slug; only blank input is pending.
@@ -681,6 +719,7 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
             updated_at: now,
             hash: None,
             conflict_copy: None,
+            note_folder: None,
         })
     }
 }
@@ -727,6 +766,7 @@ fn read_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         agent_id: row.get(10)?,
         hash: None,
         conflict_copy: None,
+        note_folder: None,
     })
 }
 
@@ -1354,6 +1394,28 @@ mod tests {
     }
 
     #[test]
+    fn a_mentors_note_image_is_stored_beside_the_note_with_a_relative_link() {
+        use crate::mentor_store::testing::temp_dir;
+        let dir = temp_dir("note-image");
+        let source = dir.join("Architecture draft [2].PNG");
+        std::fs::write(&source, b"png").unwrap();
+        let asset = save_note_image_in(
+            &source.to_string_lossy(),
+            &dir.join("notes/assets/n1"),
+            "assets/n1",
+        )
+        .unwrap();
+        assert_eq!(asset.name, "Architecture draft [2].PNG");
+        assert!(asset.markdown_path.starts_with("assets/n1/"));
+        assert!(asset.markdown_path.ends_with("-Architecture-draft--2.png"));
+        let stored = dir
+            .join("notes/assets/n1")
+            .join(asset.markdown_path.rsplit('/').next().unwrap());
+        assert_eq!(std::fs::read(&stored).unwrap(), b"png");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn note_asset_paths_cannot_escape_app_data() {
         assert_eq!(
             validate_note_asset_path("/note-assets/note-1/123-image.png").unwrap(),
@@ -1408,6 +1470,10 @@ mod tests {
         assert!(text.contains("slug: kvm-2") && text.ends_with("---\none"));
         let (_, found) = file_note(&conn, "n1").unwrap().unwrap();
         assert_eq!(found.hash, first.hash);
+        assert_eq!(
+            found.note_folder.as_deref(),
+            Some(folder.join("notes").to_string_lossy().as_ref())
+        );
 
         // Edited on disk while the editor was open: the editor's save goes
         // through and the disk version is kept beside it.
