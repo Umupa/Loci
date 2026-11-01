@@ -116,7 +116,7 @@ export function McpServerPicker({
             }
           }}
           className="min-w-0 flex-1 bg-transparent text-[13px] text-content outline-none placeholder:text-content/40"
-          placeholder="Search MCP servers…"
+          placeholder="Search servers"
         />
         <button
           type="button"

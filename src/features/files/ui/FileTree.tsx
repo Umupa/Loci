@@ -1070,7 +1070,7 @@ export const FileTree = memo(function FileTree({
             <input
               type="text"
               value={query}
-              placeholder="Search files..."
+              placeholder="Filter files"
               aria-label="Search files by name or path"
               spellCheck={false}
               autoComplete="off"

@@ -640,7 +640,7 @@ function NoteTagsEditor({
             }
           }}
           aria-label="Add note tag"
-          placeholder="Add tag…"
+          placeholder="Add tag"
           spellCheck={false}
           autoComplete="off"
           className="h-6 min-w-20 flex-1 border-0 bg-transparent px-1 text-[11px] text-content outline-none placeholder:text-content/35"

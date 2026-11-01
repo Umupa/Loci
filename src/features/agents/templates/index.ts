@@ -18,7 +18,7 @@ export type AgentTemplate = {
 export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   {
     id: "learning-guide", name: "Mentor", role: "Domain guide", avatar: "nova", soul: learningGuide,
-    summary: "Agrees on a goal one question at a time, gathers primary sources and arranges them into a course, then tests your understanding as you read.",
+    summary: "Agrees on a goal one question at a time, gathers primary sources and arranges them into a course, then reads along with you.",
   },
   {
     id: "repo-lens", name: "Lens", role: "Open-source reader", avatar: "tide", soul: repoLens,
