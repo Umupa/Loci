@@ -1,6 +1,6 @@
 # The Loci command line
 
-`loci` drives a running Loci from any terminal: mentors, their courses, sources, notes, canvases and files, the reader, and the settings tests need. End-to-end tests and the mentor evaluation use it, and so can an agent outside Loci (Claude Code, Codex, Antigravity, ...) acting as a mentor.
+`loci` drives a running Loci from any terminal: mentors, their courses, sources, notes, canvases and files, the reader, and the settings tests need. End-to-end tests and the [mentor evaluation](evaluation.md) use it, and so can an agent outside Loci (Claude Code, Codex, Antigravity, ...) acting as a mentor.
 
 It is the same executable as the app. `loci <command> <verb>` runs a command and exits; it never starts the app.
 
