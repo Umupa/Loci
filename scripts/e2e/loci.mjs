@@ -59,6 +59,8 @@ export function lociCli(options = {}) {
         }
         resolve({ ...envelope, exitCode, lines: lines.length > 1 ? lines.map((line) => JSON.parse(line)) : undefined });
       });
+      // A command that never reads stdin may exit first; its output still decides the result.
+      child.stdin.on("error", () => {});
       child.stdin.end(stdin ?? "");
     });
   }
