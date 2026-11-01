@@ -66,6 +66,23 @@ describe("mentors create and update", () => {
     expect(ctx.submission.changeModel).toHaveBeenCalledWith(chatOf("a1").id, "grok", "grok:custom");
   });
 
+  it("changes the conversation that is open after a probe released the empty one", async () => {
+    const mentors = [agent("a1", "Kern")];
+    const { ctx, chatOf } = testContext(mentors);
+    const before = chatOf("a1");
+    let live = true;
+    const after = { ...before, id: "chat-after-probe" };
+    ctx.liveSession = (id) => (live && id === before.id ? before : undefined);
+    ctx.agentChat = vi.fn(async () => (live ? before : after));
+    ctx.refreshModels = vi.fn(async ([harness]) => {
+      // The model arrives after the empty conversation was released.
+      setHarnessModels(harness, [{ id: `${harness}:custom`, harness, name: "Custom" }]);
+      live = false;
+    });
+    await runCommand(ctx, "mentors.update", { mentor: "a1", provider: "grok", model: "grok:custom" }, external);
+    expect(ctx.submission.changeModel).toHaveBeenCalledWith("chat-after-probe", "grok", "grok:custom");
+  });
+
   it("refuse unknown templates and settings before creating anything", async () => {
     const { ctx } = testContext([]);
     await expect(runCommand(ctx, "mentors.create", { template: "nope" }, external)).rejects.toMatchObject({ code: "usage" });

@@ -58,11 +58,15 @@ async function applySettings(ctx: CommandContext, agent: Agent, settings: Settin
     try { await setAgentWorkdir(agent.id, settings.workdir); } catch (error) { throw new CommandError(`workdir: ${error instanceof Error ? error.message : String(error)}`); }
   }
   if (!harness && !settings.model && !settings.effort && !mode) return;
-  const chat = await ctx.agentChat(agent.id);
+  let chat = await ctx.agentChat(agent.id);
   if (chat.busy) throw new CommandError("The mentor is busy; change its model or permissions when it is idle", "busy");
   if (harness || settings.model) {
+    await refreshModelsFor(ctx, harness ?? chat.harness, settings.model);
+    // A catalog probe can outlast the empty conversation nobody is looking
+    // at, which is then released. Change the one opened after it, or the
+    // choices would be dropped and the mentor would keep its old defaults.
+    if (!ctx.liveSession(chat.id)) chat = await ctx.agentChat(agent.id);
     const target = harness ?? chat.harness;
-    await refreshModelsFor(ctx, target, settings.model);
     const model = settings.model
       ? modelsFor(target).find((entry) => entry.id === settings.model)
       : resolveModel(target, target === chat.harness ? chat.model : preferredModelId(target));
