@@ -49,5 +49,5 @@ export function MentorReader({ agent, page, request, canvases, onClose, onLesson
       : <p role="status" className="mentor-reader-empty">This drawing is no longer available. <button type="button" className="underline" onClick={onClose}>Close</button></p>;
   }
   return <Suspense fallback={null}><FilePane key={page.path} path={page.path} cwd="" preview={false} focused onFocus={noop} onPin={noop}
-    onClose={onClose} onOpenFile={onOpenFile} /></Suspense>;
+    onClose={onClose} onOpenFile={onOpenFile} onBeforeLeave={onBeforeLeave} /></Suspense>;
 }

@@ -51,6 +51,8 @@ type Props = {
   onClose: () => void;
   onOpenFile: OpenFileFn;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
+  /** Shown as the window's one reader: leaving the page waits for unsaved edits. */
+  onBeforeLeave?: (save: (() => Promise<boolean>) | null) => void;
 };
 
 type Content =
@@ -63,7 +65,7 @@ type Content =
 
 const REVEAL_LABEL = IS_MAC ? "Reveal in Finder" : "Open containing folder";
 
-function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart }: Props) {
+function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart, onBeforeLeave }: Props) {
   const name = basename(path);
   const kind = fileKind(name);
   const [content, setContent] = useState<Content>({ status: "loading" });
@@ -237,6 +239,20 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
     setDraft(null);
     onClose();
   };
+  // Leaving by Esc, ⌘W, the library or another mentor asks as the pane's ✕ does.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const canLeave = useCallback(async () => {
+    if (!draftRef.current) return true;
+    if (!window.confirm(`Leave “${name}” and discard its unsaved changes?`)) return false;
+    setFileDraft(path, null);
+    setDraftState(null);
+    return true;
+  }, [name, path]);
+  useEffect(() => {
+    onBeforeLeave?.(canLeave);
+    return () => onBeforeLeave?.(null);
+  }, [canLeave, onBeforeLeave]);
 
   // A new path starts blank; a reload of the same file keeps what is shown
   // until the new content is ready, so an agent's edit does not flash.
