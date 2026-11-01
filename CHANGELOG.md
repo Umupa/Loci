@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-01
+
 ### Added
 
 - **Each mentor is a folder.** A mentor lives in `~/Loci/<mentor>/`: `mentor.json`, `SOUL.md`, memory, `sources/`, `guides/`, `courses/`, `notes/`, `canvases/`, beside its `repos/`. You and the mentor can edit the files, and changes show up in Loci live. 0.3 data moves in automatically at the first start, after a backup in `<app data>/backups/`; nothing old is changed or deleted. Mentor settings show the folder with Reveal and **Export…** (a .zip), and the gallery has **Import a mentor…**. Deleting a mentor keeps its folder, so it can be brought back.
@@ -160,7 +162,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Umupa/Loci/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Umupa/Loci/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Umupa/Loci/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Umupa/Loci/compare/v0.1.0...v0.1.1
