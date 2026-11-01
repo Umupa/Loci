@@ -41,6 +41,33 @@ it("lists mentors at first, filters as you type and opens the chosen result with
   expect(onClose).toHaveBeenCalledOnce();
 });
 
+it("is a combobox in a modal palette that announces its results and keeps Tab inside", async () => {
+  const onPick = vi.fn();
+  const onClose = vi.fn();
+  await act(async () => root.render(createElement(MentorSearch, { sources, onPick, onClose })));
+  const dialog = container.querySelector<HTMLElement>('[role="dialog"]')!;
+  expect(dialog.getAttribute("aria-modal")).toBe("true");
+  const input = () => container.querySelector<HTMLInputElement>('input[aria-label="Search"]')!;
+  const status = () => dialog.querySelector<HTMLElement>('[role="status"]')!;
+  expect(input().getAttribute("role")).toBe("combobox");
+  expect(input().getAttribute("aria-autocomplete")).toBe("list");
+  expect(input().getAttribute("aria-expanded")).toBe("true");
+  expect(status().textContent).toBe("1 result");
+  const option = container.querySelector<HTMLElement>('[role="option"]')!;
+  option.focus();
+  key(option, { key: "Tab" });
+  expect(document.activeElement).toBe(input());
+  key(input(), { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(option);
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setter.call(input(), "nothing here");
+    input().dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  expect(status().textContent).toBe("Nothing matches.");
+  expect(input().getAttribute("aria-expanded")).toBe("false");
+});
+
 it("closes on Escape without opening anything", async () => {
   const onPick = vi.fn();
   const onClose = vi.fn();
