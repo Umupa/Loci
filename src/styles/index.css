@@ -2698,9 +2698,9 @@ html.theme-light .btw-burst {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 11px;
-  border: 1px solid color-mix(in srgb, #f87171 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-diff-del) 24%, transparent);
   border-radius: 10px;
-  background: color-mix(in srgb, #f87171 7%, transparent);
+  background: color-mix(in srgb, var(--color-diff-del) 7%, transparent);
 }
 
 /* The selected project mascot turns banked resets into a tiny status scene. */
