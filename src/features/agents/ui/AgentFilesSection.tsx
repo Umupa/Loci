@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronRight } from "../../../shared/ui/icons";
 import { prettyCwd, projectName } from "../../../shared/lib/paths";
 import { FileTree, type OpenFileFn } from "../../files/ui/FileTree";
-import { agentsSnapshot, findAgent, subscribeAgents } from "../model/agent";
+import { agentLook, agentsSnapshot, findAgent, subscribeAgents } from "../model/agent";
 import { ensureAgentWorkdir } from "../model/agentWorkdir";
 
 type Props = {
@@ -41,11 +41,12 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
   }, [agentId, saved]);
 
   if (!agent) return null;
+  const empty = `No files yet — ask ${agentLook(agent).name} to write one.`;
   return (
     <section className="flex min-h-0 min-w-0 flex-col" aria-label="Files">
       {workdir.path ? (
         <FileTree key={workdir.path} cwd={workdir.path} rootLabel={projectName(workdir.path)} query={filter} onClearQuery={onClearQuery}
-          paneActions={false}
+          paneActions={false} empty={empty}
           header={<p className="truncate text-[11px] text-content/45" title={workdir.path}>{prettyCwd(workdir.path)}</p>}
           onOpenFile={onOpenFile} onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} />
       ) : workdir.error ? (
@@ -59,7 +60,7 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
         <div className="mt-2 flex flex-col">
           <p className="px-3 pb-1 text-[11px] font-medium text-content/45">Other folders</p>
           {agent.projects.map((path) => (
-            <OtherFolder key={path} path={path} filter={filter} onOpenFile={onOpenFile}
+            <OtherFolder key={path} path={path} filter={filter} empty={empty} onOpenFile={onOpenFile}
               onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} onClearQuery={onClearQuery} />
           ))}
         </div>
@@ -68,7 +69,7 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
   );
 }
 
-function OtherFolder({ path, filter, ...tree }: { path: string } & Omit<Props, "agentId">) {
+function OtherFolder({ path, filter, empty, ...tree }: { path: string; empty: string } & Omit<Props, "agentId">) {
   const [open, setOpen] = useState(false);
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
@@ -78,7 +79,7 @@ function OtherFolder({ path, filter, ...tree }: { path: string } & Omit<Props, "
         <Chevron className="size-3 shrink-0" />
         <span className="truncate">{projectName(path)}</span>
       </button>
-      {open ? <FileTree cwd={path} rootLabel={projectName(path)} query={filter} paneActions={false} {...tree} /> : null}
+      {open ? <FileTree cwd={path} rootLabel={projectName(path)} query={filter} paneActions={false} empty={empty} {...tree} /> : null}
     </div>
   );
 }

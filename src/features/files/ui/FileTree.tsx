@@ -88,6 +88,8 @@ type Props = {
   onClearQuery?: () => void;
   /** Whether the menu offers opening a file in a pane of its own. */
   paneActions?: boolean;
+  /** One line shown when this folder has no files. */
+  empty?: ReactNode;
   /** Shown ahead of the actions button, such as the folder's path. */
   header?: ReactNode;
 };
@@ -274,6 +276,7 @@ export const FileTree = memo(function FileTree({
   query: outerQuery,
   onClearQuery,
   paneActions = true,
+  empty,
   header,
 }: Props) {
   const [expanded, setExpanded] = useState(() => loadExpanded(cwd));
@@ -1140,6 +1143,7 @@ export const FileTree = memo(function FileTree({
                 entries={children}
                 loading={children === null && !error}
                 error={error}
+                empty={empty}
               />
             </div>
           ) : null}
@@ -1183,12 +1187,14 @@ function TreeChildren({
   entries,
   loading,
   error,
+  empty,
 }: {
   parent: string;
   depth: number;
   entries: FsEntry[] | null;
   loading: boolean;
   error: string | null;
+  empty?: ReactNode;
 }) {
   const ctx = useTree();
   const creating = ctx.creating;
@@ -1210,6 +1216,7 @@ function TreeChildren({
   const folders = visible?.filter((e) => e.isDir) ?? [];
   const files = visible?.filter((e) => !e.isDir) ?? [];
   const pad = { paddingLeft: 28 + depth * 12 };
+  const saysEmpty = depth === 0 && !loading && !error && !show && visible?.length === 0;
 
   return (
     <>
@@ -1217,6 +1224,9 @@ function TreeChildren({
         <p className="truncate pr-2 text-[12px] text-content/50" style={pad}>
           {error}
         </p>
+      ) : null}
+      {saysEmpty && empty ? (
+        <p className="px-3 py-2 text-[12px] leading-5 text-content/50">{empty}</p>
       ) : null}
       {show && ctx.creating?.isDir ? row : null}
       {loading && !error ? (

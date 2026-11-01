@@ -6,8 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
 vi.mock("../../files/ui/FileTree", () => ({
-  FileTree: ({ cwd, onOpenFile, query }: { cwd: string; onOpenFile: (path: string) => void; query?: string }) =>
-    createElement("button", { "data-tree": cwd, "data-query": query ?? "", onClick: () => onOpenFile(`${cwd}/README.md`) }, `tree ${cwd}`),
+  FileTree: ({ cwd, onOpenFile, query, empty }: { cwd: string; onOpenFile: (path: string) => void; query?: string; empty?: string }) =>
+    createElement("button", { "data-tree": cwd, "data-query": query ?? "", "data-empty": empty ?? "", onClick: () => onOpenFile(`${cwd}/README.md`) }, `tree ${cwd}`),
 }));
 
 import { createAgent } from "../model/agent";
@@ -46,6 +46,8 @@ it("lists the mentor's workdir and opens its files through the callback", async 
   expect(tree).not.toBeNull();
   // The library's filter reaches the working folder's tree.
   expect(tree!.dataset.query).toBe("read");
+  // An empty folder says what to do, in the mentor's name.
+  expect(tree!.dataset.empty).toContain("ask Lens to write one");
   act(() => tree!.click());
   expect(onOpenFile).toHaveBeenCalledWith("/home/me/Loci/lens/README.md");
 

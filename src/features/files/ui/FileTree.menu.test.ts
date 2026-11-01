@@ -27,7 +27,7 @@ beforeEach(() => {
   fs.listDir.mockReset().mockImplementation(async (path: string) =>
     path === "/w/repos"
       ? [{ name: "main.c", path: "/w/repos/main.c", isDir: false, hidden: false }]
-      : entries);
+      : path === "/empty" ? [] : entries);
   fs.listProjectFiles.mockReset().mockResolvedValue([
     { name: "repos", path: "/w/repos", relative: "repos", isDir: true },
     { name: "notes.md", path: "/w/notes.md", relative: "notes.md" },
@@ -79,6 +79,14 @@ it("filters with a query from outside, without a search field of its own", async
   expect(host.querySelector('input[aria-label="Search files by name or path"]')).toBeNull();
   expect(host.textContent).toContain("main.c");
   expect(host.querySelector('[role="tree"]')).toBeNull();
+});
+
+it("says in one line when the folder has no files", async () => {
+  await act(async () => root.render(createElement(FileTree, {
+    cwd: "/empty", onOpenFile: vi.fn(), empty: "No files yet — ask Ada to write one.",
+  })));
+  await settle();
+  expect(host.textContent).toContain("No files yet — ask Ada to write one.");
 });
 
 it("leaves the pane-only action out where files open in one reader", async () => {
