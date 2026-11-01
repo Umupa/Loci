@@ -277,7 +277,7 @@ function GeneralPage({}: {}) {
       <Group title={t("About")}>
         <VersionRow />
       </Group>
-      <Group title={t("Reset workspace")}>
+      <Group id="reset-workspace" title={t("Reset workspace")}>
         <ResetWorkspace />
       </Group>
     </>);
@@ -304,7 +304,7 @@ function CommandLineGroup() {
           : t("Off. Terminals cannot reach this Loci; agents in Loci keep their own access.")}>
         <Toggle label={t("Command-line access")} on={access.enabled} disabled={busy} onChange={(on) => run(() => setCliAccess(on))}/>
       </Row>
-      {access.enabled ? (<Row label={t("Token")} description={note ?? t("A new token stops the old one at once, for anything that copied it.")}>
+      {access.enabled ? (<Row id="token" label={t("Token")} description={note ?? t("A new token stops the old one at once, for anything that copied it.")}>
           <button type="button" className={button} disabled={busy} onClick={() => run(rotateCliToken, t("A new token is in place."))}>{t("Rotate token")}</button>
         </Row>) : null}
       <Row label={t("loci command")} description={access.installPath
@@ -662,7 +662,7 @@ function AppearancePage({ appearance }: {
         </Row>
       </Group>
 
-      <Group title={t("Fonts")} description={t("Omarchy uses one monospace font everywhere. Pick one of its fonts here, or type the name of any font installed on this computer.")}>
+      <Group id="fonts" title={t("Fonts")} description={t("Omarchy uses one monospace font everywhere. Pick one of its fonts here, or type the name of any font installed on this computer.")}>
         <Row id="code-font" label={t("Code font")} description={t("Code blocks, file paths and anything set in monospace.")}>
           <FontSelect label={t("Code font")} value={appearance.codeFont} emptyLabel="System monospace" monospaceOnly onChange={appearance.onCodeFont}/>
         </Row>
@@ -770,18 +770,19 @@ function shortcutModifier(event: KeyboardEvent): ShortcutModifier | null {
         return "shiftKey";
     return null;
 }
-function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onReset, }: {
+function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onReset, onError, }: {
     name: string;
     display: string | null;
     resetVisible: boolean;
     onApply: (shortcut: string) => void | Promise<void>;
     onDisable: () => void | Promise<void>;
     onReset: () => void | Promise<void>;
+    /** Shown by the page as an alert that can wrap, so no card edge clips it. */
+    onError: (message: string | null) => void;
 }) {
   useLocale();
     const [recording, setRecording] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [preview, setPreview] = useState("");
     const held = useRef({
         metaKey: false,
@@ -792,12 +793,12 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
     const run = async (action: () => void | Promise<void>) => {
         setRecording(false);
         setBusy(true);
-        setError(null);
+        onError(null);
         try {
             await action();
         }
         catch (reason) {
-            setError(String(reason));
+            onError(String(reason));
         }
         finally {
             setBusy(false);
@@ -811,7 +812,7 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
             shiftKey: false,
         };
         setPreview("");
-        setError(null);
+        onError(null);
         setRecording(true);
     };
     useEffect(() => {
@@ -828,7 +829,7 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
             event.stopImmediatePropagation();
             if (event.code === "Escape") {
                 setRecording(false);
-                setError(null);
+                onError(null);
                 return;
             }
             // Delete disables, but only on its own so Cmd+Delete still records.
@@ -874,7 +875,7 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
             window.removeEventListener("keydown", onKeyDown, true);
             window.removeEventListener("keyup", onKeyUp, true);
         };
-    }, [onApply, onDisable, recording]);
+    }, [onApply, onDisable, onError, recording]);
     return (<div className="relative w-40 shrink-0">
       <div className="flex items-center gap-0.5">
         <input type="text" readOnly aria-label={t("Change {0} shortcut", name)} data-shortcut-recorder-active={recording ? "true" : undefined} aria-busy={busy || undefined} value={recording || busy ? preview || t("Record…") : (display ?? t("Disabled"))} onFocus={beginRecording} onClick={beginRecording} onBlur={() => setRecording(false)} className={`h-6 w-28 shrink-0 truncate rounded-md border bg-transparent px-1.5 py-0 font-mono text-[11px] leading-none outline-none focus:border-accent ${busy ? "opacity-50" : ""} ${display === null
@@ -886,24 +887,23 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
       </div>
       {recording ? (<p className="pointer-events-none absolute top-1/2 right-full z-40 mr-3 -translate-y-1/2 text-[10px] whitespace-nowrap text-content/50" aria-live="polite">
           {t("Del disables · Esc cancels")}</p>) : null}
-      {error ? (<p role="alert" className="absolute top-full left-0 z-40 mt-1.5 w-max max-w-64 rounded-md border border-content/10 bg-background-base/95 px-2 py-1 text-[11px] whitespace-nowrap text-red-400 shadow-lg">
-          {error}
-        </p>) : null}
     </div>);
 }
-function KeybindingShortcutEditor({ command, display, modified, onSave, }: {
+function KeybindingShortcutEditor({ command, display, modified, onSave, onError, }: {
     command: string;
     display: string | null;
     modified: boolean;
     onSave: (command: string, override: KeybindingOverride) => void | Promise<void>;
+    onError: (message: string | null) => void;
 }) {
   useLocale();
-    return (<ShortcutEditor name={t(command)} display={display} resetVisible={modified} onApply={(shortcut) => onSave(command, { shortcut })} onDisable={() => onSave(command, { disabled: true })} onReset={() => onSave(command, {})}/>);
+    return (<ShortcutEditor name={t(command)} display={display} resetVisible={modified} onApply={(shortcut) => onSave(command, { shortcut })} onDisable={() => onSave(command, { disabled: true })} onReset={() => onSave(command, {})} onError={onError}/>);
 }
 function KeybindingsPage() {
   useLocale();
     const [query, setQuery] = useState("");
     const [overrides, setOverrides] = useState(loadKeybindingOverrides);
+    const [error, setError] = useState<string | null>(null);
     useEffect(() => subscribeKeybindings(() => setOverrides(loadKeybindingOverrides())), []);
     const rows = useMemo(() => filterKeybindings(currentKeybindings(), query), [getLocale(), query, overrides]);
     const save = async (command: string, override: KeybindingOverride) => {
@@ -911,7 +911,7 @@ function KeybindingsPage() {
         if (IS_MAC)
             await invoke("keybindings_set_overrides", { overrides: next });
     };
-    return (<Group title={t("Shortcuts")} description={t("Click a shortcut to record new keys. Press Delete while recording to disable it.")} action={<div className="flex items-center gap-3">
+    return (<Group id="shortcuts" title={t("Shortcuts")} description={t("Click a shortcut to record new keys. Press Delete while recording to disable it.")} action={<div className="flex items-center gap-3">
           <span className="shrink-0 text-[12px] text-content/40 tabular-nums">
             {rows.length} {rows.length === 1 ? "binding" : "bindings"}
           </span>
@@ -925,6 +925,9 @@ function KeybindingsPage() {
         <span className="w-40 shrink-0">{t("Keybinding")}</span>
         <span className="w-28 shrink-0">{t("When")}</span>
       </div>
+      {error ? (<p role="alert" className="border-b border-content/5 px-4 py-2 text-[12px] leading-relaxed text-red-400 break-words">
+          {error}
+        </p>) : null}
       {rows.length === 0 ? (<p className="px-4 py-3 text-[12px] text-content/45">
           {t("No matching bindings")}</p>) : (rows.map((row) => {
             const override = overrides[row.command];
@@ -933,7 +936,7 @@ function KeybindingsPage() {
               <span className={`min-w-0 flex-1 truncate ${disabled ? "text-content/45" : ""}`}>
                 {t(row.command)}
               </span>
-              {(<KeybindingShortcutEditor command={row.command} display={disabled ? null : row.keys} modified={Boolean(override)} onSave={save}/>)}
+              {(<KeybindingShortcutEditor command={row.command} display={disabled ? null : row.keys} modified={Boolean(override)} onSave={save} onError={setError}/>)}
               <span className="w-28 shrink-0 font-mono text-[11px] text-content/40">
                 {t(row.when)}
               </span>

@@ -404,6 +404,11 @@ describe("settings search", () => {
             cancelable: true,
         })));
         expect(container.textContent).toContain("Could not save shortcuts");
+        // The message sits inside the card as a wrapping line, so the last
+        // row's recorder cannot clip it.
+        const alert = container.querySelector('[role="alert"]')!;
+        expect(alert.className).toContain("break-words");
+        expect(alert.closest(".overflow-hidden")).not.toBeNull();
     });
     it("records an Alt shortcut on a keybinding row", async () => {
         await render("keybindings");
@@ -443,6 +448,31 @@ describe("settings search", () => {
         expect(onSelectSection).not.toHaveBeenCalled();
         const row = container.querySelector('[data-setting-id="sounds"]')!;
         expect(row.className).toContain("bg-accent/10");
+    });
+    it.each([
+        ["fonts", "Fonts", "appearance"],
+        ["shortcuts", "Shortcuts", "keybindings"],
+        ["themes", "Color theme", "appearance"],
+        ["token", "Token", "general"],
+        ["reset workspace", "Reset workspace", "general"],
+    ])("finds %s through search", async (query, label, section) => {
+        await render("general");
+        await type(query);
+        const match = options().find((node) => node.textContent?.includes(label));
+        expect(match, query).toBeTruthy();
+        await act(async () => match!.click());
+        if (section === "general") {
+            const id = query === "token" ? "token" : "reset-workspace";
+            const revealed = container.querySelector(`[data-setting-id="${id}"]`)!;
+            // A row flashes its background; a card outline flashes its border.
+            if (id === "reset-workspace")
+                expect(revealed.innerHTML).toContain("border-accent/60");
+            else
+                expect(revealed.className).toContain("bg-accent/10");
+        }
+        else {
+            expect(onSelectSection).toHaveBeenCalledWith(section);
+        }
     });
 });
 describe("mentor rows and global providers", () => {
