@@ -8,7 +8,7 @@ import { modelEffortSetting, modelsFor, preferredModelId, resolveModel } from ".
 import { HARNESSES, RUNTIME_MODES, type Block, type HarnessId, type RuntimeMode, type Session } from "../../features/sessions/model/session";
 import { RELEASE_IDENTIFIER } from "../../features/updates/model/updates";
 import type { CommandContext } from "./context";
-import { mentorField, resolveMentor } from "./mentor";
+import { mentorField, refreshModelsFor, resolveMentor } from "./mentor";
 import { CommandError, field, type CommandDefinition, type CommandMeta } from "./registry";
 
 /** Names people use for a provider, beside Loci's own ids. */
@@ -61,6 +61,7 @@ async function applySettings(ctx: CommandContext, agent: Agent, settings: Settin
   if (chat.busy) throw new CommandError("The mentor is busy; change its model or permissions when it is idle", "busy");
   if (harness || settings.model) {
     const target = harness ?? chat.harness;
+    await refreshModelsFor(ctx, target, settings.model);
     const model = settings.model
       ? modelsFor(target).find((entry) => entry.id === settings.model)
       : resolveModel(target, target === chat.harness ? chat.model : preferredModelId(target));
@@ -134,7 +135,9 @@ export function turnState(chat: Session, turn: string) {
   const text = after.filter((block) => block.role === "assistant").map((block) => block.text.trim()).filter(Boolean).join("\n\n");
   // A provider's error is a system block marked as one; status lines are not errors.
   const lastSystem = [...after].reverse().find((block: Block) => block.role === "system" && block.notice === "error")?.text;
-  const base = { sessionId: chat.id, turn, text };
+  // A reply that ran tools is work, even when its text reads like an error.
+  const tools = after.filter((block) => block.role === "tool").length;
+  const base = { sessionId: chat.id, turn, text, tools };
   if (user.draft) return { ...base, status: "queued" as const };
   const finished = user.durationMs != null || next >= 0;
   if (!finished && chat.busy) return { ...base, status: agentState(chat).status === "needs-you" ? "needs-you" as const : "running" as const };

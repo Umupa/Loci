@@ -88,6 +88,14 @@ opens the source in the reader, scrolls to the place and flashes it.
 File links take the same passage after their lines:
 `loci://file/<id>#L12-40&quote=fn%20main`.
 
+A Markdown link to a local path opens the file in the reader, at the place
+its fragment names: lines `#L12-40` (or `#L12-L40`), or a PDF page `#p7`.
+
+```text
+[worker.rs:571-646](/abs/path/worker.rs#L571-646)
+[page 7 of the paper](/abs/path/paper.pdf#p7)
+```
+
 ## Checklist
 
 ```loci-todo

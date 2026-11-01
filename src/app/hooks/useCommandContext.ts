@@ -3,11 +3,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { handleAgentApp } from "../../features/agent-app/model/agentApp";
 import { listAgents } from "../../features/agents/model/agent";
 import type { MentorPage } from "../../features/mentor/model/mentorPage";
+import { refreshHarnessCatalogs } from "../../integrations/harness/core/registry";
 import type { CommandContext } from "../commands/context";
 import { CommandError } from "../commands/registry";
 import { agentAppHost, type AgentAppDeps } from "./agentAppHost";
 import type { useAgents } from "./useAgents";
 import type { MentorView } from "./useMentorView";
+
+/** A CLI call should not wait on a slow provider probe; the catalog lands later. */
+const CATALOG_WAIT_MS = 5_000;
 
 type Options = AgentAppDeps & {
   agents: () => ReturnType<typeof useAgents> | null;
@@ -49,6 +53,8 @@ export function useCommandContext(options: Options): CommandContext {
       if (!session) throw new CommandError("The mentor's conversation could not be opened");
       return session;
     },
+    refreshModels: (harnesses, options) =>
+      refreshHarnessCatalogs(harnesses, options?.patient ? {} : { timeoutMs: CATALOG_WAIT_MS }),
     liveSession: (id) => latest.current.runtime.sessionsRef.current.find((session) => session.id === id),
     get submission() { return latest.current.submission; },
     flushPersistence: () => latest.current.runtime.flushPersistence(),

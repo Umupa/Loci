@@ -269,7 +269,12 @@ type MarkdownLinkProps = ComponentProps<"a"> & { node?: unknown };
 
 /** Keep source positions through ordinary links, inline paths and code citations. */
 function openFileReference(file: NonNullable<ReturnType<typeof resolveWorkspaceFileReference>>, open: OpenFileFn) {
-  const { line, endLine } = file.navigation ?? {};
+  const navigation = file.navigation;
+  if (navigation && "page" in navigation) {
+    open(file.path, { page: navigation.page });
+    return;
+  }
+  const { line, endLine } = navigation ?? {};
   if (line !== undefined && Number.isSafeInteger(line) && line > 0) {
     open(file.path, { lines: [line, endLine !== undefined && Number.isSafeInteger(endLine) && endLine >= line ? endLine : line] });
   } else open(file.path);
@@ -1122,7 +1127,7 @@ function inlineFileName(value: string): string | undefined {
   if (!text || text.length > 240 || /\s/.test(text)) return undefined;
 
   const withoutLocation = text.replace(
-    /(?::\d+(?::\d+)?|#L\d+(?:-L\d+)?)$/,
+    /(?::\d+(?::\d+)?|#L\d+(?:-L?\d+)?|#p[1-9]\d{0,5})$/,
     "",
   );
   const fileName = withoutLocation.split(/[/\\]/).filter(Boolean).pop();

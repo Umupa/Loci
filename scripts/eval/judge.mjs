@@ -1,7 +1,7 @@
 // The rubric judge: one prompt per scenario (judge-prompt.md), run through an
 // agent CLI in print mode from an empty folder, so it sees only the evidence.
-// The official judge is Antigravity (agy) with a pinned model; others exist so
-// the harness can be checked when agy cannot run, and are labelled as such.
+// Grok is the official judge here; Antigravity (agy, with a pinned model) and
+// the other CLIs stay available where they answer.
 import { spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +10,8 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const RUBRIC = ["firstHand", "courseStructure", "grounding", "firstTenMinutes"];
-export const DEFAULT_JUDGE_MODEL = { agy: "claude-opus-4-6-thinking" };
+/** Pinned per judge, in the CLI's own model spelling, so a run's rubric has one model. */
+export const DEFAULT_JUDGE_MODEL = { agy: "claude-opus-4-6-thinking", grok: "deepseek-flash" };
 const LIMITS = { reply: 4000, source: 1500, transcript: 60_000, courses: 12_000 };
 
 const clip = (text, max) => (text.length > max ? `${text.slice(0, max)}\n…[${text.length - max} more characters]` : text);

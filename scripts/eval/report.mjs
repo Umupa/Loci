@@ -7,25 +7,34 @@ const dash = (value) => (value === null || value === undefined ? "—" : String(
 const seconds = (value) => (value === null || value === undefined ? "—" : value < 120 ? `${value}s` : `${Math.round(value / 6) / 10}m`);
 const ratio = (part, whole) => (whole ? `${part}/${whole}` : "—");
 
-const isAgy = (id) => id === "agy" || id === "antigravity";
-
 /**
- * Whether a run counts as official: the mentors ran on Antigravity inside Loci.
- * The judge may be another CLI while `agy -p` fails its region check; the summary says which.
+ * The setup a run used. Two runs are comparable only when all of it matches:
+ * a different provider, model or judge measures something else.
  */
-export function isOfficial(meta) {
-  return isAgy(meta.provider);
+export function runSetup(meta) {
+  return {
+    provider: meta.provider,
+    model: meta.model ?? null,
+    judge: meta.judge?.provider && meta.judge.provider !== "none" ? meta.judge.provider : null,
+    judgeModel: meta.judge?.model ?? null,
+  };
+}
+
+/** The judge, with the model it ran on; an unpinned judge uses the CLI's configured default. */
+function judgeLabel(meta) {
+  const { judge, judgeModel } = runSetup(meta);
+  if (!judge) return "no rubric judge";
+  return judgeModel ? `\`${judge}\` / \`${judgeModel}\`` : `\`${judge}\` (its configured default model)`;
 }
 
 /** Markdown summary of a run. `results` are { scenario, score, judge, error } per scenario. */
 export function summaryMarkdown(meta, results) {
   const lines = [];
-  const official = isOfficial(meta);
-  const hasJudge = meta.judge?.provider && meta.judge.provider !== "none";
   lines.push(`# Mentor evaluation — ${meta.startedAt.slice(0, 16).replace("T", " ")}`);
   lines.push("");
-  if (!official) lines.push(`> **Provisional, non-agy.** Mentors ran on \`${meta.provider}\`${hasJudge ? `, judged by \`${meta.judge.provider}\`` : ", no rubric judge"}. Not the baseline: the baseline runs the mentors on Antigravity.`, "");
-  else if (hasJudge && !isAgy(meta.judge.provider)) lines.push(`> Mentors on Antigravity inside Loci; rubric judged by \`${meta.judge.provider}\` because \`agy -p\` (print mode) fails Antigravity's region check here. Compare rubric scores only with runs judged the same way.`, "");
+  // The official run is grok mentors on grok:deepseek-flash, judged by grok; a run
+  // with another setup is still a real measurement, but only comparable to its own.
+  lines.push(`> Mentors on \`${meta.provider}\`${meta.model ? ` / \`${meta.model}\`` : ""}, judged by ${judgeLabel(meta)}. Compare this run only with runs whose provider, model and judge match.`, "");
   lines.push(`- App: \`${meta.app}\` ${dash(meta.appVersion)} · commit \`${dash(meta.commit)}\``);
   lines.push(`- Mentors: \`${meta.provider}\`${meta.model ? ` / \`${meta.model}\`` : ""}, mode \`${meta.mode}\``);
   lines.push(`- Judge: ${meta.judge?.provider && meta.judge.provider !== "none" ? `\`${meta.judge.provider}\`${meta.judge.model ? ` / \`${meta.judge.model}\`` : ""}` : "none"}`);

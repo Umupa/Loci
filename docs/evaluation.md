@@ -2,7 +2,7 @@
 
 How good a mentor is sets how fast someone learns in Loci. `npm run eval` measures it the same way every time, so a template change is judged against the last run instead of by feel. It drives real mentors through the [`loci` command line](cli.md) of a QA build, plays a scripted learner, collects what the mentor made and scores it in two layers: automatic checks and a rubric judged by a model.
 
-Mentors run on **Antigravity (`agy`)** through Loci's own adapter, so runs stay comparable and Claude quota stays free. The judge is meant to be agy too, with a pinned model (`claude-opus-4-6-thinking`). For now `agy -p` (print mode, which the judge needs) fails Antigravity's region check on this machine, although Loci's Antigravity adapter answers. So the **recommended official run is mentors on agy, judge on grok** (`--provider agy --judge grok`) until `agy -p` works. Compare rubric scores only between runs that used the same judge.
+The official setup here is **Grok Build for both**: mentors on `grok:deepseek-flash` and the judge on `grok`, pinned to `deepseek-flash` (the same model, in the CLI's own spelling). Antigravity is region-blocked on this account, and Grok is the provider the user settled on, so it is no longer the default; `--provider agy --judge agy` and the other CLIs stay available for a machine where they answer. A run is comparable only with one that used the same provider, model and judge, and every summary names all three.
 
 ## The official run (one command)
 
@@ -10,9 +10,9 @@ Mentors run on **Antigravity (`agy`)** through Loci's own adapter, so runs stay 
 scripts/eval/baseline.sh
 ```
 
-It builds the evaluation's QA bundle when missing (`Loci Eval QA`, identifier `com.loci.desktop.qa-eval`, never the installed app or another QA app), starts it, runs every scenario with the mentors on agy and the judge on grok (`LOCI_EVAL_JUDGE=agy scripts/eval/baseline.sh` once `agy -p` works), writes `eval/results/<timestamp>/summary.md`, then quits the app and deletes its data. Paste the summary into [Baseline](#baseline) below when it is meant to be the new reference.
+It builds the evaluation's QA bundle when missing (`Loci Eval QA`, identifier `com.loci.desktop.qa-eval`, never the installed app or another QA app), starts it, runs every scenario with the mentors on `grok:deepseek-flash` and the judge on `grok`, writes `eval/results/<timestamp>/summary.md`, then quits the app and deletes its data. `LOCI_EVAL_PROVIDER`, `LOCI_EVAL_MODEL` and `LOCI_EVAL_JUDGE` choose another setup, for example agy where its region check passes. Paste the summary into [Baseline](#baseline) below when it is meant to be the new reference.
 
-Before it creates a mentor, the runner checks that the provider is available in that Loci (`models list`) and that the judge's CLI can answer in print mode. The mentors' own CLI is not probed directly: Loci's adapter can work where print mode does not, and a mentor that cannot answer shows up as a failed turn. When the judge's CLI refuses (Antigravity's `not currently available in your location`, not signed in, missing), the runner stops and says why: sign in (run the CLI once, interactively), use a proxy exit in a supported region system-wide, or pick another `--judge`.
+Before it creates a mentor, the runner checks that the provider is available in that Loci (`models list`) and that the judge's CLI can answer in print mode. The mentors' own CLI is not probed directly: Loci's adapter can answer where print mode does not, and a mentor that cannot answer shows up as a failed turn. When the judge's CLI refuses (missing, not signed in, or a location/eligibility check such as Antigravity's), the runner stops and says why: sign in (run the CLI once, interactively), use a proxy exit in a supported region system-wide, or name another `--judge`.
 
 ## Running it by hand
 
@@ -28,25 +28,25 @@ scripts/eval/qa-app.sh down       # quit it, delete its data dirs and the empty 
 | `--scenario ID` (repeatable) | all | one or more of `scripts/eval/scenarios/*.json` |
 | `--app ID` / `LOCI_APP_ID` | — | the Loci to drive; `com.loci.desktop` is refused, another worker's QA app only when named with `--app` |
 | `--bin PATH` / `LOCI_BIN` | `loci` | that build's `loci` executable |
-| `--provider ID` | `agy` | the mentors' agent CLI |
-| `--model ID` | the provider's default | the mentors' model (`grok:deepseek-flash`, ...) |
-| `--judge ID` | same as `--provider` | `agy`, `grok`, `claude`, `codex` or `none`; `grok` uses grok's configured default model |
-| `--judge-model ID` | `claude-opus-4-6-thinking` on agy | |
+| `--provider ID` | `grok` | the mentors' agent CLI; `agy`, `claude`, `codex`, ... where they answer |
+| `--model ID` | `grok:deepseek-flash` on grok, the provider's own default elsewhere | the mentors' model |
+| `--judge ID` | same as `--provider` | `grok`, `agy`, `claude`, `codex` or `none` |
+| `--judge-model ID` | `claude-opus-4-6-thinking` on agy, `deepseek-flash` on grok | in the judge CLI's own spelling |
 | `--judge-timeout MIN` | 11 | per judge call |
 | `--max-turns N`, `--max-minutes N` | per scenario (8, 18) | caps on the scripted conversation |
 | `--out DIR` | `eval/results/<timestamp>` | git-ignored |
 | `--keep` | off | keep the mentors instead of deleting them |
 
-**Mentors on grok.** A fresh QA app lists only grok's built-in models until a grok conversation is on screen, so `--model grok:deepseek-flash` fails with "Unknown model". Warm it up once after `up`: `"$BIN" mentors create --name warm --provider grok --workdir "$(mktemp -d)" --switch`, wait until `models list` shows `grok:deepseek-flash`, then `mentors delete warm --yes`.
+**No warm-up needed.** A fresh QA app has read no provider catalog yet, and grok's custom models are not in the built-in list. `loci models list`, `mentors create/update` and `sessions start` now read the catalog they need first: up to five seconds, and a named model still missing after that waits for the probe to finish. So `--model grok:deepseek-flash` works against a fresh app without opening a grok conversation or creating a warm-up mentor.
 
-**Antigravity's region check.** Later on 2026-11-01, Antigravity also started refusing this location inside Loci's adapter ("User location is not supported for the API use"). The runner records that reply as a finished turn, so check the conversation before trusting an agy run.
+**Antigravity's region check.** Later on 2026-11-01, Antigravity also started refusing this location inside Loci's adapter ("User location is not supported for the API use"). A turn whose whole reply is such a provider error (and which called no tools) now stops the scenario with `provider error: …` and is not judged, so a blocked provider fails visibly instead of scoring an empty conversation.
 
-A run whose mentors are not on agy is labelled **Provisional, non-agy** in its summary; a run with agy mentors and another judge says which judge. It checks the harness and gives early findings; it is not the baseline. Node 22.18 or later is needed: the scorer imports the reader's TypeScript directly.
+Each summary names the provider, model and judge it ran with and says to compare it only with runs that match; Node 22.18 or later is needed, because the scorer imports the reader's TypeScript directly.
 
 ## What one scenario does
 
-1. Creates a mentor from the scenario's template (`learning-guide` is Mentor, `repo-lens` is Lens) with `--provider agy --mode full-access` and a temporary working folder.
-2. Sends the opening message and plays the **scripted learner** (`scripts/eval/learner.mjs`): each scenario has the learner's background and one- or two-sentence answers to what a mentor typically asks (goal, level, background, time, scope, depth, language, confirming a plan). The learner matches the mentor's questions by keyword (English and Chinese) and answers at most three topics per message; anything not covered gets "Your call — go ahead." When the mentor asks nothing and no course exists yet, it nudges once ("Go ahead and prepare the reading."). It stops when the mentor asks nothing and a course exists, or at the turn or time cap.
+1. Creates a mentor from the scenario's template (`learning-guide` is Mentor, `repo-lens` is Lens) with the run's provider and model (`--provider grok --model grok:deepseek-flash` by default), `--mode full-access` and a temporary working folder.
+2. Sends the opening message and plays the **scripted learner** (`scripts/eval/learner.mjs`): each scenario has the learner's background and one- or two-sentence answers to what a mentor typically asks (goal, level, background, time, scope, depth, language, confirming a plan). The learner matches the mentor's questions by keyword (English and Chinese) and answers at most three topics per message; anything not covered gets "Your call — go ahead." When the mentor asks nothing and no course exists yet, it nudges once ("Go ahead and prepare the reading."). It stops when the mentor asks nothing and a course exists, at the turn or time cap, or when a turn is only the provider's error (no tool calls, text such as "User location is not supported", "Agent connection was lost", "Unauthorized" or "Internal error").
 3. Asks one **probe**: a concrete question about the material, to test grounding and citations.
 4. Collects through the CLI: the conversation (`mentors read`, and every full reply), sources and guides with their text and `sourceUrl` (`sources list/read`), courses (`courses list/read`), notes, the working folder's file list, and timings (first reply, first first-hand source, first course).
 5. Scores it, asks the judge, deletes the mentor.
@@ -90,15 +90,15 @@ Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyD
 
 ## Baseline
 
-No full official run yet. The full run below has mentors on grok, so it is **provisional**: it checks the harness and records findings for the template rewrite. One scenario, `k8s-scheduling`, was run the recommended official way (mentors on agy inside Loci, judge on grok) to show that route works. Run `scripts/eval/baseline.sh` for the full official baseline and replace this section with its summary.
+A baseline is one run of the official setup: mentors on `grok:deepseek-flash`, judge on `grok`. No full run of that setup exists yet. The runs below were made before two learner fixes and before Grok became the default, so they record findings for the template rewrite rather than serving as the reference. One scenario, `k8s-scheduling`, also ran with mentors on agy inside Loci (judge on grok) to show that route. Run `scripts/eval/baseline.sh` and replace this section with its summary once the setup is settled.
 
-Read the rubric scores with care. Grok's default model on this machine (`deepseek-flash`) is the only judge that ran, and it is lenient: it gave firecracker 5/5 for grounding although no reply has a clickable citation. Trust the automatic columns more than the rubric until the pinned agy judge runs.
+Read the rubric scores with care. The judge here is grok's `deepseek-flash`, and it is lenient: it gave firecracker 5/5 for grounding although no reply has a clickable citation. Trust the automatic columns more than the rubric, and compare rubric scores only with runs whose provider, model and judge match; each summary records all three.
 
 ### Template rewrite, before and after (2026-11-01)
 
 The Mentor and Lens templates were rewritten from the findings below (English templates; at most one scoping question, then reading; verbatim sources pinned to a commit or version, own writing via `guides.write`; clickable anchors copied from the text; 6–12 lessons; Lens sends the course first and saves the project's own prose as sources; no quizzing unless asked). Templates after: `learning-guide` dc365f9635, `repo-lens` c2b43b3c5a.
 
-**Provisional, non-agy.** The run was meant to have mentors on agy, but Antigravity now refuses this location in Loci's adapter too ("User location is not supported for the API use"), so both turns failed. The after run therefore has mentors on `grok:deepseek-flash` and grok as judge, the same setup as the provisional run below, which is the like-for-like "before". The k8s agy run is listed for reference only. The old tokio template was not re-run on agy.
+**The agy run is reference only.** The run was meant to have mentors on agy, but Antigravity now refuses this location in Loci's adapter too ("User location is not supported for the API use"), so both turns failed. The after run therefore has mentors on `grok:deepseek-flash` and grok as judge, the official setup, the same as the grok "before" run below; those two compare. The k8s agy run used a different provider and is listed for reference only. The old tokio template was not re-run on agy.
 
 | Scenario | Run | Questions before reading | First source | Course | Lessons | Citations ok (quoted ok) | Reply language | Sources (first-hand) | First-hand | Course | Grounding | First 10 min |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -120,7 +120,7 @@ What changed, read from the artifacts:
 
 ### Mentors on agy, judge on grok, one scenario (2026-11-01)
 
-> Mentors on Antigravity inside Loci; rubric judged by `grok` because `agy -p` (print mode) fails Antigravity's region check here. Compare rubric scores only with runs judged the same way.
+> Mentors on Antigravity inside Loci; rubric judged by `grok`. Recorded before Grok became the official setup; compare only with runs using the same provider, model and judge.
 
 - App: `com.loci.desktop.qa-eval` 0.2.0 · commit `54a6b9a`
 - Mentors: `agy` / `antigravity:gemini-3.8-flash-high`, mode `full-access`
@@ -147,11 +147,11 @@ What changed, read from the artifacts:
 - First 10 min 2/5 — Reading started at 642 seconds after five mentor turns and five questions, two of which repeated the opening profile, and the learner had to say 'your call' and 'go ahead' before the course appeared.
 - **Biggest fix:** Replace the three-round intake with one scoping question and ship the KEP-624 source and first code lesson in the opening reply, so the learner is reading within two minutes.
 
-### Provisional, non-agy, all scenarios (2026-11-01)
+### All scenarios (2026-11-01)
 
-Mentors on grok (`grok:deepseek-flash`, the only grok model this account can use), judge on grok. Run before two learner fixes. sqlite-wal's goal question went unanswered because the goal pattern did not match "What do you need to be able to do when we're done?". The rubric was re-judged after the first-hand rule was changed to count files read in place.
+Mentors on grok (`grok:deepseek-flash`), judge on grok: the setup that became official. Run before two learner fixes. sqlite-wal's goal question went unanswered because the goal pattern did not match "What do you need to be able to do when we're done?". The rubric was re-judged after the first-hand rule was changed to count files read in place.
 
-> **Provisional, non-agy.** Mentors ran on `grok`, judged by `grok`. Not the baseline: the baseline runs the mentors on Antigravity.
+> Mentors on `grok` / `grok:deepseek-flash`, judged by `grok`. Compare only with runs whose provider, model and judge match.
 
 - App: `com.loci.desktop.qa-eval` 0.2.0 · commit `54a6b9a`
 - Mentors: `grok` / `grok:deepseek-flash`, mode `full-access`

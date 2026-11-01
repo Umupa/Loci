@@ -1,4 +1,6 @@
 import { agentLook, type Agent } from "../../features/agents/model/agent";
+import { modelsFor } from "../../features/sessions/model/models";
+import type { HarnessId } from "../../features/sessions/model/session";
 import type { CommandContext } from "./context";
 import { CommandError, field, type CommandMeta } from "./registry";
 
@@ -31,4 +33,20 @@ export function resolveMentor(ctx: CommandContext, ref: unknown, meta: CommandMe
 /** The mentor's conversation, the session its own actions run as. */
 export async function mentorChat(ctx: CommandContext, agent: Agent) {
   return ctx.agentChat(agent.id);
+}
+
+/**
+ * Read a provider's catalog so a model only its CLI knows (grok's custom
+ * models, say) resolves in a fresh window, as opening the model picker does.
+ * A model still missing after the short wait gets the probe's full time; a
+ * catalog that loaded without it means the provider has no such model.
+ */
+export async function refreshModelsFor(
+  ctx: CommandContext,
+  harness: HarnessId,
+  modelId: unknown,
+): Promise<void> {
+  await ctx.refreshModels([harness]);
+  if (typeof modelId !== "string" || modelsFor(harness).some((model) => model.id === modelId)) return;
+  await ctx.refreshModels([harness], { patient: true });
 }

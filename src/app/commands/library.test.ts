@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { HARNESSES } from "../../features/sessions/model/session";
 import { runCommand } from "./dispatch";
 import { resolveMentor } from "./mentor";
 import { commandFailure } from "./registry";
@@ -44,8 +45,23 @@ describe("library commands", () => {
     const { ctx, chatOf } = testContext([agent("a1")]);
     await runCommand(ctx, "sessions.start", { mentor: "a1", prompt: "Build it" }, external);
     expect(ctx.agentApp).toHaveBeenLastCalledWith(chatOf("a1"), "r1", "sessions.start", { prompt: "Build it", notifyOnComplete: false });
+    expect(ctx.refreshModels).not.toHaveBeenCalled();
     await runCommand(ctx, "sessions.start", { mentor: "a1", prompt: "Build it", notifyOnComplete: true }, external);
     expect(ctx.agentApp).toHaveBeenLastCalledWith(chatOf("a1"), "r1", "sessions.start", { prompt: "Build it", notifyOnComplete: true });
+  });
+
+  it("read the provider's catalog before starting a session on one of its models", async () => {
+    const { ctx } = testContext([agent("a1")]);
+    await runCommand(ctx, "sessions.start", { mentor: "a1", prompt: "Build it", harness: "grok", model: "grok:custom" }, external);
+    expect(ctx.refreshModels).toHaveBeenCalledWith(["grok"]);
+  });
+
+  it("waits for a slow catalog before starting on a model it has not seen yet", async () => {
+    const { ctx } = testContext([agent("a1")]);
+    ctx.refreshModels = vi.fn(async () => undefined);
+    await runCommand(ctx, "sessions.start", { mentor: "a1", prompt: "Build it", harness: "grok", model: "grok:custom" }, external);
+    expect(ctx.refreshModels).toHaveBeenNthCalledWith(1, ["grok"]);
+    expect(ctx.refreshModels).toHaveBeenNthCalledWith(2, ["grok"], { patient: true });
   });
 
   it("are refused to callers they are not for, and validate fields", async () => {
@@ -77,6 +93,8 @@ describe("library commands", () => {
     const { ctx } = testContext();
     const models = await runCommand(ctx, "models.list", {}, external) as { harnesses: { id: string }[] };
     expect(models.harnesses.map((harness) => harness.id)).toContain("antigravity");
+    // A fresh window has read no catalog yet; the CLI asks for them first.
+    expect(ctx.refreshModels).toHaveBeenCalledWith(HARNESSES);
   });
 });
 

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetHarnessModelOverlays, setHarnessModels } from "../../features/sessions/model/models";
 import { newSession, type Block, type Session } from "../../features/sessions/model/session";
 import { runCommand } from "./dispatch";
 import { providerId, turnState } from "./mentors";
@@ -11,6 +12,7 @@ vi.mock("../../features/agents/model/agentWorkdir", () => ({ setAgentWorkdir: vi
 
 const external = { requestId: "r1", caller: "external" as const };
 beforeEach(() => localStorage.clear());
+afterEach(() => resetHarnessModelOverlays());
 
 describe("providers", () => {
   it("accept Loci's ids and the names people use", () => {
@@ -32,6 +34,34 @@ describe("mentors create and update", () => {
     expect(ctx.submission.changeRuntimeMode).toHaveBeenCalledWith(chatOf("new").id, "full-access");
     expect(ctx.switchAgent).not.toHaveBeenCalled();
     expect(created).toMatchObject({ id: "new", created: true });
+  });
+
+  it("read the target provider's catalog before checking a model the CLI names", async () => {
+    const mentors = [agent("a1", "Kern")];
+    const { ctx, chatOf } = testContext(mentors);
+    ctx.createAgent = vi.fn(async () => { mentors.push(agent("new", "Mentor")); return "new"; });
+    ctx.refreshModels = vi.fn(async ([harness]) => {
+      setHarnessModels(harness, [{ id: `${harness}:custom`, harness, name: "Custom" }]);
+    });
+    await runCommand(ctx, "mentors.create", { provider: "grok", model: "grok:custom" }, external);
+    expect(ctx.refreshModels).toHaveBeenCalledWith(["grok"]);
+    expect(ctx.submission.changeModel).toHaveBeenCalledWith(chatOf("new").id, "grok", "grok:custom");
+    await runCommand(ctx, "mentors.update", { mentor: "a1", model: "claude:custom" }, external);
+    expect(ctx.refreshModels).toHaveBeenLastCalledWith(["claude"]);
+    expect(ctx.submission.changeModel).toHaveBeenLastCalledWith(chatOf("a1").id, "claude", "claude:custom");
+  });
+
+  it("waits for a slow catalog before refusing a model it has not seen yet", async () => {
+    const mentors = [agent("a1", "Kern")];
+    const { ctx, chatOf } = testContext(mentors);
+    // A cold provider probe outlasts the CLI's short wait; its model arrives late.
+    ctx.refreshModels = vi.fn(async ([harness], options) => {
+      if (options?.patient) setHarnessModels(harness, [{ id: `${harness}:custom`, harness, name: "Custom" }]);
+    });
+    await runCommand(ctx, "mentors.update", { mentor: "a1", provider: "grok", model: "grok:custom" }, external);
+    expect(ctx.refreshModels).toHaveBeenNthCalledWith(1, ["grok"]);
+    expect(ctx.refreshModels).toHaveBeenNthCalledWith(2, ["grok"], { patient: true });
+    expect(ctx.submission.changeModel).toHaveBeenCalledWith(chatOf("a1").id, "grok", "grok:custom");
   });
 
   it("refuse unknown templates and settings before creating anything", async () => {
@@ -90,7 +120,9 @@ describe("a turn's state", () => {
     expect(turnState(chat([user({ startedAt: 1 }), { id: "a", role: "assistant", text: "Part" }], { busy: true }), "cli-r1")).toMatchObject({ status: "running", text: "Part" });
     expect(turnState(chat([user({ startedAt: 1 })], { busy: true, pendingQuestion: { title: "Which?", questions: [] } as unknown as Session["pendingQuestion"] }), "cli-r1").status).toBe("needs-you");
     expect(turnState(chat([user({ startedAt: 1, durationMs: 5 }), { id: "a", role: "assistant", text: "One" }, { id: "b", role: "tool", text: "" }, { id: "c", role: "assistant", text: "Two" }, { id: "n", role: "user", text: "Next" }, { id: "d", role: "assistant", text: "Later" }]), "cli-r1"))
-      .toMatchObject({ status: "done", text: "One\n\nTwo" });
+      .toMatchObject({ status: "done", text: "One\n\nTwo", tools: 1 });
+    expect(turnState(chat([user({ startedAt: 1, durationMs: 5 }), { id: "a", role: "assistant", text: "Just words" }]), "cli-r1"))
+      .toMatchObject({ status: "done", text: "Just words", tools: 0 });
   });
   it("reports a turn that ended in an error, and one it cannot find", () => {
     expect(turnState(chat([user({ startedAt: 1, durationMs: 5 }), { id: "t", role: "system", text: "Thinking…", statusKey: "k" }, { id: "s", role: "system", text: "Provider crashed", notice: "error" }]), "cli-r1")).toMatchObject({ status: "failed", error: "Provider crashed" });
