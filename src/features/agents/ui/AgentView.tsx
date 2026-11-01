@@ -1,10 +1,13 @@
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import { createContext, useContext, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Settings } from "../../../shared/ui/icons";
 import { PaneHeader, PaneHeaderChrome } from "../../../shared/ui/PaneHeader";
 import { agentLook, type Agent, type AgentState } from "../model/agent";
 import { AgentAvatar } from "./AgentAvatar";
 import { AgentStatus } from "./AgentStatus";
 import "./AgentSurface.css";
+
+/** Controls a surface adds after the conversation header's own, such as hiding the conversation. */
+export const AgentHeaderExtra = createContext<ReactNode>(null);
 
 type Props = {
   agent: Agent;
@@ -25,6 +28,7 @@ type Props = {
 /** An agent's conversation and details, with the workspace's pane controls. */
 export function AgentView({ agent, state, detailsOpen, focused, onFocus, onPaneDragStart, onToggleDetails, onLoadEarlier, children, details }: Props) {
   const look = agentLook(agent);
+  const extra = useContext(AgentHeaderExtra);
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col text-content" aria-label={look.name} data-agent-view={agent.id} data-focused={focused}
       onPointerDown={() => { if (!focused) onFocus(); }}>
@@ -39,6 +43,7 @@ export function AgentView({ agent, state, detailsOpen, focused, onFocus, onPaneD
             className={`grid size-7 place-items-center rounded-md hover:bg-content/8 hover:text-content ${detailsOpen ? "bg-content/8 text-content" : "text-content/50"}`}>
             <Settings className="size-4" strokeWidth={1.5} />
           </button>
+          {extra}
         </div>
       </PaneHeader>
       {/* Embedded readers and settings have toolbars below the window titlebar. */}

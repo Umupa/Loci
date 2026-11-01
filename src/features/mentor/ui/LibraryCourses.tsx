@@ -34,8 +34,8 @@ type Props = {
 
 /**
  * The Courses segment: which course (a switcher, ending with asking the
- * mentor for another), how far through it is, the lesson to continue with,
- * and its outline.
+ * mentor for another), how far through it is, and its outline. The outline's
+ * current lesson and the reader's own next/previous are where to continue.
  */
 export function LibraryCourses({ agent, courses: listed, selected, page, lesson, onOpen, onSelect, onDraft, badge, error, onRetry }: Props) {
   const name = agentLook(agent).name;
@@ -97,7 +97,6 @@ function CourseView({ agent, name, courses, current, activeId, onOpen, onSelect,
 
   const progress = course ? courseProgress(course) : { read: current.masteredCount, total: current.itemCount };
   const reading = (course?.data.engine ?? current.engine) === "reading";
-  const next = course ? nextLesson(course, activeId) : undefined;
   return <div className="library-course" data-library-course={current.id}>
     <div className="library-course-head">
       <button type="button" className="library-switcher" aria-haspopup="menu" aria-expanded={menu ? true : undefined}
@@ -107,18 +106,12 @@ function CourseView({ agent, name, courses, current, activeId, onOpen, onSelect,
         <ChevronDown aria-hidden className="size-3 shrink-0 opacity-60" />
       </button>
       {badge?.(current.id)}
-      <span className="library-progress-text">{progress.read} / {progress.total} {reading ? "read" : "done"}</span>
+      <span className="library-progress-text" title={`${progress.read} of ${progress.total} ${reading ? "read" : "done"}`}>{progress.read}/{progress.total}</span>
     </div>
     <div className="library-progress" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.read}>
       <i style={{ width: progress.total ? `${(progress.read / progress.total) * 100}%` : 0 }} />
     </div>
     {error ? <p role="alert" className="mentor-library-empty">{error}</p> : null}
-    {course && progress.total && !next ? <p className="mentor-library-empty">All {progress.total} {reading ? "read" : "done"}.</p> : null}
-    {course && next && next.id !== activeId ? <div className="library-continue" data-library-continue={next.id}>
-      <p className="library-continue-label">Continue reading</p>
-      <p className="library-continue-title" title={next.title}>{next.title}</p>
-      <button type="button" className="library-continue-button" onClick={() => openLesson(current.id, course.title, next.id)}>Continue</button>
-    </div> : null}
     {course ? <LibraryOutline course={course} activeId={activeId} onSelect={(itemId) => openLesson(current.id, course.title, itemId)}
       badge={badge ? (lessonId) => badge(current.id, lessonId) : undefined} /> : null}
     {menu ? <ContextMenu anchor={menu} ariaLabel="Courses" items={items} onClose={() => setMenu(null)}

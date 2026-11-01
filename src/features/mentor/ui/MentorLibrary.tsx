@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
-import { File, Palette, PenLine, Plus, Search, StickyNote, X } from "../../../shared/ui/icons";
+import { File, Folder, Mortarboard, Palette, PenLine, Plus, Search, StickyNote, X, type IconComponent } from "../../../shared/ui/icons";
 import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import type { CourseSummary } from "../../learning/model/course";
@@ -18,9 +18,14 @@ export type LibraryData = { courses?: CourseSummary[]; documents?: StoredDocumen
 export type LibraryChange = { segment?: LibrarySegment; course?: string; filter?: string };
 
 const LABELS: Record<LibrarySegment, string> = { courses: "Courses", sources: "Sources", notes: "Notes", files: "Files" };
+const ICONS: Record<LibrarySegment, IconComponent> = { courses: Mortarboard, sources: File, notes: StickyNote, files: Folder };
 
 type Props = {
   agent: Agent;
+  /** Ahead of the header's segments, when the library is the window's left edge. */
+  headerLeading?: ReactNode;
+  /** At the end of the header, such as folding the library away. */
+  headerEnd?: ReactNode;
   data: LibraryData;
   errors: Partial<Record<keyof LibraryData | "habits", string>>;
   onRetry: () => void;
@@ -63,7 +68,7 @@ export function defaultSegment(page?: MentorPage): LibrarySegment {
  * shows the course being learned and where to continue; Sources, Notes (with
  * drawings) and Files are one list each, with a filter for that list.
  */
-export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, onFileMoved, onFileDeleted, segment: chosen, course, filter, onChange, onDraft, courseBadge }: Props) {
+export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, onFileMoved, onFileDeleted, segment: chosen, course, filter, onChange, onDraft, courseBadge }: Props) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
   const segment = chosen ?? defaultSegment(page);
@@ -139,13 +144,26 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
   }
 
   return <nav className="mentor-library" aria-label={`${agent.name || "Mentor"} library`} data-mentor-library={agent.id} data-library-segment={segment}>
-    <div role="tablist" aria-label="Library" className="mentor-library-segments" onKeyDown={tabKeys}>
-      {LIBRARY_SEGMENTS.map((entry) => <button key={entry} type="button" role="tab" id={`${id}-${entry}`} data-segment={entry}
-        aria-selected={entry === segment} aria-controls={`${id}-panel`} tabIndex={entry === segment ? 0 : -1}
-        className="mentor-library-segment" onClick={() => onChange({ segment: entry })}>
-        <span>{LABELS[entry]}</span>{counts[entry] ? <span className="mentor-library-count">{counts[entry]}</span> : null}
-      </button>)}
-    </div>
+    <header className="mentor-library-header" data-tauri-drag-region="deep">
+      {headerLeading}
+      <div role="tablist" aria-label="Library" className="mentor-library-segments" onKeyDown={tabKeys}>
+        {LIBRARY_SEGMENTS.map((entry) => {
+          const Icon = ICONS[entry];
+          const selected = entry === segment;
+          const label = counts[entry] ? `${LABELS[entry]}, ${counts[entry]}` : LABELS[entry];
+          // The chosen segment opens into a labelled pill; the others stay a single icon.
+          return <button key={entry} type="button" role="tab" id={`${id}-${entry}`} data-segment={entry} data-tauri-drag-region="false"
+            aria-selected={selected} aria-controls={`${id}-panel`} aria-label={label} title={selected ? undefined : label} tabIndex={selected ? 0 : -1}
+            className="mentor-library-segment" onClick={() => onChange({ segment: entry })}>
+            <Icon aria-hidden className="size-4 shrink-0" />
+            {selected ? <span className="mentor-library-segment-label">{LABELS[entry]}</span> : null}
+            {selected && counts[entry] ? <span className="mentor-library-count">{counts[entry]}</span> : null}
+          </button>;
+        })}
+      </div>
+      <div className="min-w-0 flex-1" data-tauri-drag-region="deep" />
+      {headerEnd}
+    </header>
     {segment === "courses" ? null : <div className="mentor-library-filter">
       <label className="mentor-library-filter-box">
         <Search aria-hidden className="size-3 shrink-0 opacity-50" />
