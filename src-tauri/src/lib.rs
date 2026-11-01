@@ -235,6 +235,7 @@ pub fn run() {
             harness::reap_orphaned_harness_processes();
             session_store::init(app.handle())?;
             mentor_store::commands::init(app.handle())?;
+            mentor_store::watch::start(app.handle());
             control::init(app.handle())?;
             menu::install(app.handle())?;
             #[cfg(target_os = "windows")]

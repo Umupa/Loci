@@ -23,6 +23,7 @@ pub mod index;
 pub mod migrate;
 pub mod paths;
 pub mod registry;
+pub mod watch;
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;

@@ -5,7 +5,7 @@ const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke: (...args: unknown[]) => invoke(...args) }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => undefined) }));
 
-import { hydrateMentors, mergeRoster, queueMentorRemoval, queueRosterSync, resetMentorStoreForTests, rosterSettled } from "./mentorStore";
+import { contentChangeEvents, hydrateMentors, mergeRoster, queueMentorRemoval, queueRosterSync, resetMentorStoreForTests, rosterSettled } from "./mentorStore";
 
 const ROSTER = "loci:agent-roster";
 
@@ -85,5 +85,15 @@ describe("mentorStore", () => {
     queueMentorRemoval("m1");
     await rosterSettled();
     expect(invoke).toHaveBeenCalledWith("mentors_remove", { id: "m1" });
+  });
+
+  it("turns a changed file into the refresh event the window already uses", () => {
+    expect(contentChangeEvents({ agentId: "m", kind: "documents", id: "g" }).map((e) => e.type)).toEqual(["loci:agent-documents-changed"]);
+    const [course] = contentChangeEvents({ agentId: "m", kind: "courses", id: "c" }) as CustomEvent[];
+    expect([course.type, course.detail]).toEqual(["loci:courses-changed", { agentId: "m", courseId: "c" }]);
+    expect(contentChangeEvents({ agentId: "m", kind: "notes" })[0].type).toBe("loci:notes-changed");
+    expect(contentChangeEvents({ agentId: "m", kind: "canvases" })[0].type).toBe("loci-canvases-changed");
+    expect(contentChangeEvents({ agentId: "m", kind: "files" })[0].type).toBe("loci:agent-files-changed");
+    expect(contentChangeEvents({ agentId: null })).toHaveLength(4);
   });
 });

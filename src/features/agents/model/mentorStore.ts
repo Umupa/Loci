@@ -125,6 +125,9 @@ export async function hydrateMentors(): Promise<MigrationReport | undefined> {
       void listen(MENTORS_CHANGED, () => {
         void reload().catch(() => undefined);
       });
+      void listen<ContentChange>(MENTOR_CONTENT_CHANGED, (event) => {
+        for (const change of contentChangeEvents(event.payload ?? {})) window.dispatchEvent(change);
+      });
     }
     return report;
   } catch (error) {
@@ -161,6 +164,37 @@ export function queueMentorRemoval(id: string): void {
     .then(() => invoke<void>("mentors_remove", { id }))
     .catch((error: unknown) => console.warn("Could not forget the mentor's folder.", error))
     .finally(() => removing.delete(id));
+}
+
+export type ContentChange = { agentId?: string | null; kind?: string; id?: string | null };
+
+/**
+ * A file changed in a mentor's folder (the watcher, or a reindex): the
+ * events the window already refreshes on, as if the app had saved it.
+ */
+export function contentChangeEvents(change: ContentChange): Event[] {
+  const agentId = change.agentId ?? undefined;
+  switch (change.kind) {
+    case "documents":
+      return [new CustomEvent("loci:agent-documents-changed")];
+    case "courses":
+      return agentId ? [new CustomEvent("loci:courses-changed", { detail: { agentId, ...(change.id ? { courseId: change.id } : {}) } })] : [];
+    case "notes":
+      return [new Event("loci:notes-changed")];
+    case "canvases":
+      return [new Event("loci-canvases-changed")];
+    case "files":
+      return [new CustomEvent("loci:agent-files-changed")];
+    default:
+      // A reindex of everything.
+      return [
+        new CustomEvent("loci:agent-documents-changed"),
+        ...(agentId ? [new CustomEvent("loci:courses-changed", { detail: { agentId } })] : []),
+        new Event("loci:notes-changed"),
+        new Event("loci-canvases-changed"),
+        new CustomEvent("loci:agent-files-changed"),
+      ];
+  }
 }
 
 let viewTimer: ReturnType<typeof setTimeout> | undefined;
