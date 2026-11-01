@@ -208,7 +208,8 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
         }}>
         <MentorReader agent={agent} page={state.page} request={state.request} canvases={canvases}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
-          onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} renderSession={renderSession} />
+          onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} renderSession={renderSession}
+          sessionTitle={sessionTitle} />
       </main>
       <aside ref={conversation.setPaneRef} className="mentor-chat-column" hidden={!state.chat} aria-label={`Conversation with ${name}`}>
         <div role="separator" aria-label="Resize conversation" aria-orientation="vertical" tabIndex={0} className="mentor-resize mentor-resize--left"

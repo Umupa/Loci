@@ -299,12 +299,15 @@ it("filters only the segment it was typed in, and moves through a list with the 
   expect(document.activeElement?.getAttribute("data-segment")).toBe("files");
 });
 
-it("shows a conversation as the reader without remembering it", async () => {
+it("shows a conversation as the reader without remembering it, with a header that closes it", async () => {
   await render();
   await act(async () => control.show(agent.id, { kind: "session", id: "delegated" }));
   expect(reader().querySelector('[data-test-session="delegated"]')).not.toBeNull();
   expect(crumbs()).toEqual(["Ada", "Delegated work"]);
+  expect(reader().querySelector("[data-resource-header]")?.textContent).toContain("Delegated work");
   expect(JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!)[agent.id].page).toBeUndefined();
+  await click('[data-resource-header] [aria-label="Close"]');
+  expect(reader().dataset.mentorReader).toBe("empty");
 });
 
 it("keeps the reader 360px when a column saved on a bigger window is dragged wider", async () => {

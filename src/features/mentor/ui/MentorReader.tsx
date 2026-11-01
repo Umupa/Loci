@@ -6,6 +6,7 @@ import { NotePane } from "../../notes/ui/NotePane";
 import type { Agent } from "../../agents/model/agent";
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { AgentDocumentReader } from "../../agents/ui/AgentDocumentReader";
+import { ResourceHeader } from "../../../shared/ui/ResourceHeader";
 import type { MentorLesson, MentorPage } from "../model/mentorPage";
 
 const CanvasPane = lazy(() => import("../../canvas/ui/CanvasPane").then((m) => ({ default: m.CanvasPane })));
@@ -25,12 +26,14 @@ type Props = {
   onOpenFile: OpenFileFn;
   /** A conversation shown as the reader, with the app's session wiring. */
   renderSession: (id: string) => ReactNode;
+  /** A conversation's title, for its reader header. */
+  sessionTitle: (id: string) => string;
 };
 
 const noop = () => {};
 
 /** The one reader in the middle of a mentor's workspace. Whatever opens replaces it. */
-export function MentorReader({ agent, page, request, canvases, onClose, onLessonChange, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession }: Props) {
+export function MentorReader({ agent, page, request, canvases, onClose, onLessonChange, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle }: Props) {
   if (!page) return <div className="mentor-reader-empty" data-tauri-drag-region="deep">
     <p>Open a lesson, a source, a note or a canvas from the library, or ask {agent.name || "your mentor"} to prepare one.</p>
   </div>;
@@ -40,7 +43,10 @@ export function MentorReader({ agent, page, request, canvases, onClose, onLesson
     reader focused onFocus={noop} onClose={onClose} />;
   if (page.kind === "note") return <NotePane key={page.id} noteId={page.id} agentId={agent.id}
     reader focused onFocus={noop} onClose={onClose} onBeforeLeave={onBeforeLeave} />;
-  if (page.kind === "session") return renderSession(page.id);
+  if (page.kind === "session") return <>
+    <ResourceHeader title={sessionTitle(page.id)} onClose={onClose} />
+    {renderSession(page.id)}
+  </>;
   if (page.kind === "canvas") {
     const canvas = canvases.find((entry) => entry.id === page.id);
     return canvas ? <Suspense fallback={null}><CanvasPane key={canvas.id} canvas={canvas} focused onFocus={noop} onClose={onClose}
