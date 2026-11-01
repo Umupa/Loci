@@ -323,12 +323,12 @@ export function forgetAgentContext(sessionId: string): void {
 }
 
 /** Version of the app data carried by an agent turn. */
-export const AGENT_PROMPT_VERSION = 9;
+export const AGENT_PROMPT_VERSION = 10;
 
 /** Discoverable app capabilities; teaching style and standing behavior belong to the Soul. */
 const AGENT_TOOLS = `<tools>
 The local app CLI is available in this conversation; its command and help entry point are in <loci_app>. Run its --help for arguments and reply formats.
-- Courses: courses.list/read/write/delete manage this agent's courses. A reading course arranges chapters and lessons referencing saved document IDs (optionally a heading) or absolute file paths (optionally PDF pages, or source lines shown in place). Keep lesson IDs stable when revising so reading progress survives. Save with courses.write, then show a loci-course fence containing only id and title front matter. The course appears in the overview and opens beside this chat; discuss it in this conversation.
+- Courses: courses.list/read/write/delete manage this agent's courses. A reading course arranges chapters and lessons referencing saved document IDs (optionally a heading) or absolute file paths (optionally PDF pages, or source lines shown in place); a comparison lesson lists 2–4 such places in compare, each with a short label. Keep lesson IDs stable when revising so reading progress survives. Save with courses.write, then show a loci-course fence containing only id and title front matter. The course appears in the overview and opens beside this chat; discuss it in this conversation.
 - Documents: documents.list/read find saved material; each is a source or a guide. documents.write imports an existing local file someone else published, with its sourceUrl, preserving the original text: a first-hand source. A document you write yourself (a reading guide, a brief) is a guide: save it with guides.write (path or body) or a loci-document fence with id, title, optional subject, and Markdown; it is shown as your guide, apart from sources. Never save your own summary as a source. Reuse an ID to revise; a guide and a source never share an ID. These are separate from the user's notes.
 - Notes: notes.list/read/write manage editable personal notes. Notes created here belong to this agent and also appear in Notes. Link a saved note with its returned loci:// URL.
 - Drawings: use the available canvas tools to create or revise diagrams; canvas.list/get locate existing drawings. A course can reference its canvasId.

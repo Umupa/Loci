@@ -29,6 +29,8 @@ Loci 的阅读区可以显示资料库文档、课程的课文、Markdown 与源
 
 **钉住版本的代码导览课。** 代码课的文件写成 `repos/<owner>/<repo>@<commit>:path#L40-88`：Loci 用 `git show` 读出那个 commit 时的文件，课文标题下显示 `@3f2a9c1`。仓库之后 pull 了新提交、这个文件也改了，标题下会说明，并提供 **Open current**（打开现在的文件，标明 HEAD；改动没碰这几行时自动换算到新行号）和 **Show pinned**（回到钉住的版本）。只是 HEAD 前进而文件没变时，只有一行灰字说明。clone 里没有这个 commit（浅克隆）或文件不在 git 仓库里时，显示现在的文件并说明原因。导师用 `code.pins` 能看到哪些课已经过期。
 
+**对比课。** 同一个机制在几个项目里各有实现时（例如 CubeSandbox、SPACE、E2B 各自怎么创建或恢复沙箱），一课可以把 2–4 段原文上下排在同一页：每段是一个文件的几行（可以钉住 commit，提示和代码导览课一样）或一份资料的某一节。每段有一个紧凑的标题行：名字 · `repo@sha` · `path:行号`，以及 **Open whole file**；点名字可以折叠这一段。页顶一排小按钮跳到某一段。导师可以给每段写一两句 **Mentor's note**（导读，标明是导师写的，不是原文）。高亮、批注、选中即问、Definition / References 在每一段里都照常可用，问的时候带上这一段的文件和 commit；读到页底算读完。导师的阅读上下文里有这课的各段，以及你正在看哪一段。
+
 **代码阅读器。** Go、Rust、C、TypeScript/TSX、JavaScript、Python 文件在阅读区打开时（课文里点 **Open whole file**，或者文件链接），标题栏多一个 **Symbols** 按钮：本文件的定义大纲，可筛选，点一下滚到那一行。
 
 - **⌘ 点击**（Windows/Linux 为 Ctrl 点击）一个名字，跳到它的定义；
