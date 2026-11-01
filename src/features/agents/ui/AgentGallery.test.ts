@@ -32,6 +32,8 @@ it("offers each ready-made mentor with its Soul, and a blank one", async () => {
   const lens = cards[1];
   await act(async () => [...lens.querySelectorAll("button")].find((button) => button.textContent === "Read Soul")!.click());
   expect(lens.querySelector("pre")?.textContent).toContain("Repo Lens");
+  // The gallery's filled action follows the app's primary treatment, not a fixed accent fill.
+  expect(lens.querySelector<HTMLElement>('[aria-label="Add Lens"]')!.className).toContain("primary-action");
   await act(async () => lens.querySelector<HTMLButtonElement>('[aria-label="Add Lens"]')!.click());
   expect(onPick).toHaveBeenCalledWith(AGENT_TEMPLATES[1]);
   expect(onClose).toHaveBeenCalledOnce();

@@ -162,7 +162,7 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
         <SlidersHorizontal className="size-3.5 shrink-0" strokeWidth={1.75} />Settings
       </button>
       <button type="button" role="menuitem" onClick={() => { dismissMenu(true); onDelete(menu.id); }}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-red-400 hover:bg-content/8">
+        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-danger hover:bg-content/8">
         <Trash2 className="size-3.5 shrink-0" strokeWidth={1.75} />Delete mentor…
       </button>
     </Popover> : null}

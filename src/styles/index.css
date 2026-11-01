@@ -98,6 +98,9 @@
     var(--color-diff-del) 25%,
     transparent
   );
+  /* Danger and warning text, readable on the theme's own background. */
+  --color-danger: hsl(0 72% 60%);
+  --color-warning: hsl(38 80% 60%);
 }
 
 :root {
@@ -150,6 +153,8 @@ html.theme-light {
   --selection-emphasis-strength: 14%;
   --color-diff-add-fg: #047857;
   --color-diff-del-fg: #be123c;
+  --color-danger: hsl(0 72% 42%);
+  --color-warning: hsl(32 85% 32%);
   color-scheme: light;
 }
 
