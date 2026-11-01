@@ -242,6 +242,15 @@ fn file_courses(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<Course>, Strin
     Ok(out)
 }
 
+#[cfg(test)]
+pub(crate) mod tests_support {
+    /// The courses a folder mentor has, as the app lists them.
+    pub fn courses_of(conn: &rusqlite::Connection, agent: &str) -> Vec<super::Course> {
+        let ctx = crate::mentor_store::ctx_for(conn, agent).unwrap().unwrap();
+        super::file_courses(conn, &ctx).unwrap()
+    }
+}
+
 fn file_course(conn: &Connection, ctx: &MentorCtx, id: &str) -> Result<Option<Course>, String> {
     Ok(mentor_store::current(conn, ctx, Kind::Course, id)?.and_then(course_from_row))
 }
@@ -419,6 +428,9 @@ pub fn course_upsert(
     course: CourseUpsert,
 ) -> Result<Course, String> {
     validate_id(&course.agent_id, "agent")?;
+    if course.id == crate::course_path::PATH_ID {
+        return Err("_path is the learning path's file; give the course another id".into());
+    }
     let ctx = mentor_store::ctx_for(&*store.lock_conn()?, &course.agent_id)?;
     // Lesson files relative to the mentor's folder, or pinned as
     // repos/<repo>@<sha>:path, become absolute with full commit ids. Git

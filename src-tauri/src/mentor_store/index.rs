@@ -185,6 +185,23 @@ fn parse(kind: Kind, id: &str, text: &str, ctx: &MentorCtx) -> Result<Parsed, St
                 warning: None,
             })
         }
+        // The learning path shares the courses folder under a reserved id.
+        Kind::Course if id == crate::course_path::PATH_ID => {
+            let path = crate::course_path::parse(text)?;
+            Ok(Parsed {
+                title: path
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .or_else(|| Some("Learning path".into())),
+                subject: None,
+                meta: json!({ "path": true }),
+                body: Some(path.to_string()),
+                created_at: None,
+                updated_at: None,
+                warning: None,
+            })
+        }
         Kind::Course => {
             let resolve = |path: &str| ctx.resolve_lesson_file(path);
             let course = format::parse_course(text, &resolve)?;
