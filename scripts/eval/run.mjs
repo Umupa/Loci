@@ -46,13 +46,14 @@ const { values: opts } = parseArgs({
     "skip-probe": { type: "boolean", default: false },
     rescore: { type: "string" },
     rejudge: { type: "boolean", default: false },
+    "judge-timeout": { type: "string" },
     help: { type: "boolean", short: "h", default: false },
   },
 });
 
 if (opts.help) {
   console.log(`npm run eval -- [--scenario id]... [--app id] [--bin path] [--provider agy] [--model id]
-  [--judge agy|grok|claude|codex|none] [--judge-model id] [--max-turns n] [--max-minutes n] [--out dir] [--keep]
+  [--judge agy|grok|claude|codex|none] [--judge-model id] [--judge-timeout min] [--max-turns n] [--max-minutes n] [--out dir] [--keep]
 npm run eval -- --rescore eval/results/<timestamp> [--rejudge --judge grok]
   recompute checks and summary from saved artifacts, no app; --rejudge asks the judge again
 
@@ -61,6 +62,11 @@ npm run eval -- --rescore eval/results/<timestamp> [--rejudge --judge grok]
 (default agy); --judge defaults to the same provider. Results go to
 eval/results/<timestamp>/ unless --out. See docs/evaluation.md.`);
   process.exit(0);
+}
+
+/** --judge-timeout in minutes (default 11). */
+function judgeTimeout() {
+  return opts["judge-timeout"] ? { timeoutMs: Number(opts["judge-timeout"]) * 60_000 } : {};
 }
 
 if (opts.rescore) {
@@ -87,11 +93,11 @@ async function rescore(runDir) {
     const score = scoreRun(run, { readFile: readText, roots: [workdir] });
     writeFileSync(join(dir, "score.json"), `${JSON.stringify(score, null, 2)}\n`);
     let verdict = json(join(dir, "judge.json"), null);
-    if (opts.rejudge && turns.some((entry) => entry.role === "mentor" && String(entry.text ?? "").trim())) {
+    if (opts.rejudge && (!opts.scenario?.length || opts.scenario.includes(id)) && turns.some((entry) => entry.role === "mentor" && String(entry.text ?? "").trim())) {
       const provider = opts.judge ?? meta.judge?.provider ?? "agy";
       const model = opts["judge-model"] ?? DEFAULT_JUDGE_MODEL[provider];
       console.error(`${id}: judging again with ${provider}`);
-      verdict = await judge({ scenario, checks: score, sources, courses, turns }, { provider, model });
+      verdict = await judge({ scenario, checks: score, sources, courses, turns }, { provider, model, ...judgeTimeout() });
       writeFileSync(join(dir, "judge.json"), `${JSON.stringify(verdict, null, 2)}\n`);
       meta.judge = { provider, model: model ?? null };
     } else if (verdict && !verdict.verdict && verdict.raw) verdict = { ...verdict, verdict: parseVerdict(verdict.raw) };
@@ -311,7 +317,7 @@ async function runScenario(scenario, runDir, meta) {
   if (judgeProvider !== "none" && !replied) log(`${scenario.id}: no mentor reply to judge`);
   if (judgeProvider !== "none" && replied) {
     log(`${scenario.id}: judging with ${judgeProvider}${judgeModel ? `/${judgeModel}` : ""}`);
-    verdict = await judge({ scenario, checks: score, sources: collected.sources, courses: collected.courses, turns }, { provider: judgeProvider, model: judgeModel });
+    verdict = await judge({ scenario, checks: score, sources: collected.sources, courses: collected.courses, turns }, { provider: judgeProvider, model: judgeModel, ...judgeTimeout() });
     write("judge.json", verdict);
     if (!verdict.verdict) log(`${scenario.id}: judge gave no verdict: ${String(verdict.error).split("\n")[0]}`);
   }

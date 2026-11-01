@@ -50,12 +50,12 @@ case "${1:-}" in
     done
     if [[ -f "$STATE/loci-dev-before" && -d "$HOME/Loci-Dev" ]]; then
       # Other Loci Dev/QA builds share ~/Loci-Dev: remove a new folder only when
-      # it is empty (a mentor's default workdir before --workdir moved it);
+      # it holds no files (a mentor's default workdir, made with an empty repos/ before --workdir moved it);
       # name anything else so it can be checked by hand.
       while IFS= read -r entry; do
         grep -qxF "$entry" "$STATE/loci-dev-before" && continue
         dir="$HOME/Loci-Dev/$entry"
-        if [[ -d "$dir" && -z "$(find "$dir" -mindepth 1 ! -name .DS_Store -print -quit)" ]]; then
+        if [[ -d "$dir" && -z "$(find "$dir" -type f ! -name .DS_Store -print -quit)" ]]; then
           echo "removing empty ~/Loci-Dev/$entry" >&2; rm -rf "$dir"
         else
           echo "left ~/Loci-Dev/$entry (not empty; check whether this run made it)" >&2
