@@ -32,7 +32,7 @@ export function AgentGallery({ onPick, onClose }: Props) {
           <button type="button" aria-expanded={shown === template.id} onClick={() => setShown((current) => current === template.id ? null : template.id)}
             className="rounded-md px-2 py-1 text-[12px] text-content/55 hover:bg-content/8 hover:text-content">{shown === template.id ? "Hide Soul" : "Read Soul"}</button>
           <button type="button" aria-label={`Add ${template.name}`} onClick={() => pick(template)}
-            className="rounded-md bg-accent px-2.5 py-1 text-[12px] font-medium text-white hover:opacity-90">Add</button>
+            className="primary-action rounded-md px-2.5 py-1 text-[12px] font-medium">Add</button>
         </div>
       </li>)}
       <li className="flex min-w-0">

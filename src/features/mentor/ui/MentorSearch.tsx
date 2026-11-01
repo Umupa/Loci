@@ -50,6 +50,7 @@ export function MentorSearch({ onPick, onClose, sources }: Props) {
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     input.current?.focus();
     if (sources) return;
@@ -71,23 +72,39 @@ export function MentorSearch({ onPick, onClose, sources }: Props) {
     const Icon = item.kind === "note" ? StickyNote : item.kind === "canvas" ? Palette : item.kind === "source" ? File : Mortarboard;
     return <Icon className="size-3.5" strokeWidth={1.75} />;
   };
+  const status = error ? error
+    : !loaded ? "Loading…"
+      : results.length ? `${results.length} ${results.length === 1 ? "result" : "results"}`
+        : query.trim() ? "Nothing matches." : "No mentors yet.";
   return <div className="mentor-search-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <div role="dialog" aria-label="Search mentors" className="mentor-search" data-app-search
+    <div ref={panel} role="dialog" aria-modal="true" aria-label="Search mentors" className="mentor-search" data-app-search
       onKeyDown={(event) => {
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
         else if (event.key === "ArrowDown") { event.preventDefault(); setActive((index) => Math.min(index + 1, results.length - 1)); }
         else if (event.key === "ArrowUp") { event.preventDefault(); setActive((index) => Math.max(index - 1, 0)); }
         else if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); pick(results[active]); }
+        else if (event.key === "Tab") {
+          // Tab stays inside the palette, so the dimmed app behind it never takes focus.
+          const focusable = [...(panel.current?.querySelectorAll<HTMLElement>("input, button") ?? [])].filter((element) => !element.hasAttribute("disabled"));
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (!first || !last) return;
+          const current = document.activeElement;
+          if (event.shiftKey && (current === first || !focusable.includes(current as HTMLElement))) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && current === last) { event.preventDefault(); first.focus(); }
+        }
       }}>
       <label className="mentor-search-field">
         <Search className="size-4 shrink-0 text-content/45" strokeWidth={1.75} />
         <input ref={input} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search mentors, courses, lessons, sources, notes and canvases"
+          role="combobox" aria-autocomplete="list" aria-expanded={results.length > 0}
           aria-label="Search" aria-controls="mentor-search-results" aria-activedescendant={results[active] ? `mentor-search-${active}` : undefined} />
       </label>
+      <p className="sr-only" role="status" aria-live="polite">{status}</p>
       <div ref={list} id="mentor-search-results" role="listbox" aria-label="Results" className="mentor-search-results">
         {error ? <p role="alert" className="mentor-search-empty">{error}</p>
           : !loaded ? <p role="status" className="mentor-search-empty">Loading…</p>
-          : !results.length ? <p className="mentor-search-empty">{query.trim() ? "Nothing matches." : "No mentors yet."}</p>
+          : !results.length ? <p className="mentor-search-empty">{status}</p>
           : results.map((item, index) => <button key={item.id} id={`mentor-search-${index}`} type="button" role="option" aria-selected={index === active}
             data-search-kind={item.kind} className="mentor-search-row" onPointerMove={() => setActive(index)} onClick={() => pick(item)}>
             <span aria-hidden className="mentor-search-icon">{icon(item)}</span>

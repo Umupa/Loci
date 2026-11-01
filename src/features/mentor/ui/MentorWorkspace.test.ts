@@ -313,6 +313,8 @@ it("shows one segment at a time, remembered per mentor, and ignores an old mento
   expect(container.querySelector("[data-mentor-library]")?.getAttribute("data-library-segment")).toBe("sources");
   await click('[aria-label="Hide library"]');
   expect(container.querySelector<HTMLElement>(".mentor-library-column")!.hidden).toBe(true);
+  // The open conversation's toggle shows the ✕ as well as the face.
+  expect(container.querySelector('[aria-label="Hide conversation"]')!.querySelectorAll("svg")).toHaveLength(2);
   await click('[aria-label="Hide conversation"]');
   expect(container.querySelector<HTMLElement>(".mentor-chat-column")!.hidden).toBe(true);
   expect(container.querySelector('[aria-label="Chat with Ada"]')).not.toBeNull();
@@ -324,6 +326,20 @@ it("starts a newly chosen segment at its top", async () => {
   panel().scrollTop = 180;
   await tab("files");
   expect(panel().scrollTop).toBe(0);
+});
+
+it("closes the reader on Escape from anywhere in the workspace, except from a text field", async () => {
+  await render();
+  await tab("sources");
+  await vi.waitFor(() => expect(container.querySelector('[data-resource-kind="document"]')).not.toBeNull());
+  await click('[data-resource-kind="document"]');
+  expect(reader().dataset.mentorReader).toBe("document");
+  const filter = () => container.querySelector<HTMLInputElement>('input[aria-label="Filter sources"]')!;
+  await act(async () => filter().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(reader().dataset.mentorReader).toBe("document");
+  const tabButton = container.querySelector<HTMLElement>('[role="tab"][data-segment="sources"]')!;
+  await act(async () => tabButton.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(reader().dataset.mentorReader).toBe("empty");
 });
 
 it("filters only the segment it was typed in, and moves through a list with the arrow keys", async () => {
@@ -374,12 +390,70 @@ it("keeps the open file's reader and pending edits with it when the file is rena
   expect(getFileDraft(to)).toBeNull();
 });
 
-it("shows a conversation as the reader without remembering it", async () => {
+it("shows a conversation as the reader without remembering it, with a header that closes it", async () => {
   await render();
   await act(async () => control.show(agent.id, { kind: "session", id: "delegated" }));
   expect(reader().querySelector('[data-test-session="delegated"]')).not.toBeNull();
   expect(crumbs()).toEqual(["Ada", "Delegated work"]);
+  expect(reader().querySelector("[data-resource-header]")?.textContent).toContain("Delegated work");
   expect(JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!)[agent.id].page).toBeUndefined();
+  await click('[data-resource-header] [aria-label="Close"]');
+  expect(reader().dataset.mentorReader).toBe("empty");
+});
+
+it("keeps the reader 360px when a column saved on a bigger window is dragged wider", async () => {
+  const inner = Object.getOwnPropertyDescriptor(window, "innerWidth");
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1600 });
+  localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [agent.id]: { libraryWidth: 500, chatWidth: 420 } }));
+  try {
+    await render();
+    const body = container.querySelector<HTMLElement>(".mentor-body")!;
+    Object.defineProperty(body, "clientWidth", { configurable: true, value: 1400 });
+    await act(async () => window.dispatchEvent(new Event("resize")));
+    const handle = container.querySelector<HTMLElement>('[aria-label="Resize library"]')!;
+    for (let step = 0; step < 12; step++) {
+      await act(async () => handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+    }
+    // 1400 − 360 for the reader − the conversation's 420 leaves the library 620.
+    expect(control.stateFor(agent.id).libraryWidth).toBe(620);
+    expect(control.stateFor(agent.id).chatWidth).toBe(420);
+  } finally {
+    if (inner) Object.defineProperty(window, "innerWidth", inner);
+    else delete (window as unknown as Record<string, unknown>).innerWidth;
+  }
+});
+
+it("re-clamps both columns when the window shrinks below their saved widths", async () => {
+  const inner = Object.getOwnPropertyDescriptor(window, "innerWidth");
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: 1600 });
+  localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [agent.id]: { libraryWidth: 620, chatWidth: 420 } }));
+  try {
+    await render();
+    const body = container.querySelector<HTMLElement>(".mentor-body")!;
+    Object.defineProperty(body, "clientWidth", { configurable: true, value: 1000 });
+    await act(async () => window.dispatchEvent(new Event("resize")));
+    expect(control.stateFor(agent.id).libraryWidth).toBe(220);
+    expect(control.stateFor(agent.id).chatWidth).toBe(420);
+    expect(container.querySelector<HTMLElement>(".mentor-library-column")!.style.width).toBe("220px");
+  } finally {
+    if (inner) Object.defineProperty(window, "innerWidth", inner);
+    else delete (window as unknown as Record<string, unknown>).innerWidth;
+  }
+});
+
+it("puts the library away after a choice while it covers the reader", async () => {
+  await render();
+  const body = container.querySelector<HTMLElement>(".mentor-body")!;
+  Object.defineProperty(body, "clientWidth", { configurable: true, value: 800 });
+  await act(async () => window.dispatchEvent(new Event("resize")));
+  expect(container.querySelector(".mentor-library-scrim")).not.toBeNull();
+  await tab("sources");
+  await vi.waitFor(() => expect(container.querySelector('[data-resource-kind="document"]')).not.toBeNull());
+  await click('[data-resource-kind="document"]');
+  expect(control.stateFor(agent.id).library).toBe(false);
+  expect(control.stateFor(agent.id).page).toMatchObject({ kind: "document" });
+  expect(container.querySelector<HTMLElement>(".mentor-library-column")!.hidden).toBe(true);
+  expect(container.querySelector(".mentor-library-scrim")).toBeNull();
 });
 
 it("lists the mentor's working folder under Files and opens a file from it in the reader", async () => {

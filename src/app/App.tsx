@@ -15,7 +15,7 @@ import { readAgentDocument } from "../features/agents/model/agentDocuments";
 import { LessonMarks } from "../features/learning/ui/LessonMarks";
 import { requestDocumentPlace } from "../features/agents/model/documentPlace";
 import type { DiscussionRef } from "../features/learning/model/types";
-import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUpdatePrompt, startUpdateChecks, usePendingUpdateVersion } from "../features/updates/model/updates";
 import { UpdatePrompt } from "../features/updates/ui/UpdatePrompt";
@@ -183,11 +183,29 @@ function Workspace(boot: BootWorkspace) {
   const openingFirst = useRef(false);
   // While a mentor is being created, it is the one that opens, not the first on the rail.
   const creatingMentor = useRef(false);
-  useEffect(() => {
-    if (mentor.current || !agents.agents.length || openingFirst.current || creatingMentor.current) return;
-    const target = agents.agents.find((agent) => agent.id === loadActiveMentorId()) ?? agents.agents[0];
+  /** Which mentor the window opens on, while none is open. */
+  const firstMentor = useMemo(() => agents.agents.find((agent) => agent.id === loadActiveMentorId()) ?? agents.agents[0],
+    [agents.agents]);
+  const [firstMentorFailed, setFirstMentorFailed] = useState(false);
+  const openFirstMentor = useCallback(() => {
+    if (!firstMentor || openingFirst.current || creatingMentor.current) return;
     openingFirst.current = true;
-    void agents.open(target.id).finally(() => { openingFirst.current = false; });
+    setFirstMentorFailed(false);
+    void agentsRef.current!.open(firstMentor.id).finally(() => {
+      openingFirst.current = false;
+      setFirstMentorFailed(mentorRef.current.currentRef.current?.agentId !== firstMentor.id);
+    });
+  }, [firstMentor]);
+  useEffect(() => {
+    if (mentor.current || !firstMentor) return;
+    openFirstMentor();
+  }, [mentor.current, firstMentor]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A mentor deleted in another window (or a creation that failed after it
+  // joined the roster) cannot stay open; the effect above then opens another.
+  useEffect(() => {
+    const current = mentor.current;
+    if (!current || agents.agents.some((agent) => agent.id === current.agentId)) return;
+    mentor.forgetSession(current.sessionId);
   }, [mentor.current, agents.agents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Opens a mentor and waits for its workspace; false when that did not happen. */
@@ -534,7 +552,7 @@ function Workspace(boot: BootWorkspace) {
     onQueuedMessageEditingChange: submission.queuedMessageEditingChange, onSteerQueuedMessage: submission.steerQueuedMessage, onResumeQueue: submission.resumeQueue,
     onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
     onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((entry) => entry.id === id ? { ...entry, noteCard: undefined } : entry)),
-    onNoteSaved: (noteId: string) => setSavedToast({ type: "note", id: noteId }),
+    onNoteSaved: (noteId: string) => setSavedToast({ type: "note", id: noteId, agentId: agentForSession(session.id)?.id }),
     onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
     onOpenFile: openAgentFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
     onBtwStop: submission.btwStop, onBtwModelChange: submission.btwModelChange,
@@ -570,7 +588,8 @@ function Workspace(boot: BootWorkspace) {
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
       {!IS_MAC ? <MenuBar onNewMentor={() => setAgentGalleryOpen(true)} onCloseReader={() => { if (!closeReader()) void closeCurrentWindow(); }}
         onPreviousMentor={() => stepMentor(-1)} onNextMentor={() => stepMentor(1)} onToggleLibrary={toggleLibrary} onToggleChat={toggleChat}
-        onOpenPdf={openPdf} onSearch={() => setSearchOpen(true)} onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
+        onOpenPdf={openPdf} onSearch={() => setSearchOpen(true)} onOpenSettings={() => openSettings()}
+        onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
       <div className="flex min-h-0 min-w-0 flex-1">
         <MentorRail activeId={activeAgent?.id} states={agents.states} unseenIds={unseenAgentIds} settingsOpen={surface === "settings"}
           onOpen={(id) => void showMentor(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void showMentor(id); }}
@@ -605,7 +624,10 @@ function Workspace(boot: BootWorkspace) {
               renderSession={readerSession} sessionTitle={sessionTitle}
               chat={mentorChat(mentor.current.agentId, mentor.current.sessionId)} />
           </section> : null}
-          {surface === "mentor" && !focusedAgent ? <MentorsEmpty hasMentors={agents.agents.length > 0} onCreate={() => setAgentGalleryOpen(true)} /> : null}
+          {surface === "mentor" && !focusedAgent ? <MentorsEmpty hasMentors={agents.agents.length > 0}
+            openingName={firstMentor ? agentLook(firstMentor).name : undefined} failed={firstMentorFailed}
+            onCreate={() => setAgentGalleryOpen(true)} onRetry={openFirstMentor}
+            trailing={IS_MAC ? undefined : <WindowControls />} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor}
             cwd="~" besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection}
             onOpenMentorSettings={(id) => { agents.setDetailsOpenFor(id, true); void showMentor(id); }} /> : null}
@@ -622,7 +644,11 @@ function Workspace(boot: BootWorkspace) {
         <SavedToast
           toast={savedToast}
           onDismiss={() => setSavedToast(null)}
-          onOpen={(t) => { void showInMentor(t.type === "canvas" ? { kind: "canvas", id: t.id } : { kind: "note", id: t.id }).catch(reportError); }}
+          onOpen={(t) => {
+            // A note still belongs to the mentor it was saved in, whichever mentor is open now.
+            const owner = t.type === "note" ? t.agentId : undefined;
+            void showInMentor(t.type === "canvas" ? { kind: "canvas", id: t.id } : { kind: "note", id: t.id }, owner).catch(reportError);
+          }}
         />
       )}
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
@@ -645,13 +671,20 @@ function Workspace(boot: BootWorkspace) {
 }
 
 /** Before the first mentor, or while the last one is opening. */
-function MentorsEmpty({ hasMentors, onCreate }: { hasMentors: boolean; onCreate: () => void }) {
+function MentorsEmpty({ hasMentors, openingName, failed, onCreate, onRetry, trailing }: {
+  hasMentors: boolean; openingName?: string; failed: boolean; onCreate: () => void; onRetry: () => void; trailing?: ReactNode;
+}) {
   return <div className="flex min-h-0 flex-1 flex-col" data-mentors-empty>
-    <div className="h-10 shrink-0" data-tauri-drag-region="deep" />
-    {hasMentors ? null : <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+    <div className="flex h-10 shrink-0 items-center justify-end pr-2" data-tauri-drag-region="deep">{trailing}</div>
+    {hasMentors ? <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+      <p role="status" className="text-sm text-content/60">
+        {failed ? `Couldn't open ${openingName ?? "your mentor"}.` : `Opening ${openingName ?? "your mentor"}…`}
+      </p>
+      {failed ? <button type="button" className="primary-action rounded-lg px-3 py-1.5 text-sm font-medium" onClick={onRetry}>Try again</button> : null}
+    </div> : <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
       <h1 className="text-base font-semibold">Create your first mentor</h1>
       <p className="max-w-sm text-sm text-content/60">A mentor is a resident agent for one topic you are learning. It keeps your courses, sources, notes and drawings, and reads along with you.</p>
-      <button type="button" className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:opacity-90" onClick={onCreate}>Create a mentor</button>
+      <button type="button" className="primary-action rounded-lg px-3 py-1.5 text-sm font-medium" onClick={onCreate}>Create a mentor</button>
     </div>}
   </div>;
 }

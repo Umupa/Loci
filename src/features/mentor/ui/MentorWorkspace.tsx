@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { MentorViewState } from "../../../app/hooks/useMentorView";
 import { useDragResize } from "../../../shared/hooks/useDragResize";
-import { SidebarLeft } from "../../../shared/ui/icons";
+import { SidebarLeft, X } from "../../../shared/ui/icons";
 import { agentLook, type Agent } from "../../agents/model/agent";
 import { readAgentDocument } from "../../agents/model/agentDocuments";
 import type { AgentReading } from "../../agents/model/agentReading";
@@ -24,6 +24,22 @@ const LIBRARY_MIN = 200;
 const CHAT_MIN = 320;
 /** The reader keeps at least this much between the two columns. */
 const READER_MIN = 360;
+/** Below these body widths the side columns lie over the reader; see the CSS. */
+const LIBRARY_OVERLAY_WIDTH = 900;
+const CHAT_OVERLAY_WIDTH = 700;
+
+/** The most the library may take, given the conversation's current width. */
+function libraryLimit(bodyWidth: number, chatWidth: number): number {
+  const room = bodyWidth < LIBRARY_OVERLAY_WIDTH ? bodyWidth - 48 : bodyWidth - READER_MIN - chatWidth;
+  return Math.max(LIBRARY_MIN, room);
+}
+
+/** The most the conversation may take, given the library's current width. */
+function chatLimit(bodyWidth: number, libraryWidth: number): number {
+  if (bodyWidth < CHAT_OVERLAY_WIDTH) return Math.max(CHAT_MIN, bodyWidth - 12);
+  const room = bodyWidth < LIBRARY_OVERLAY_WIDTH ? bodyWidth - READER_MIN : bodyWidth - READER_MIN - libraryWidth;
+  return Math.max(CHAT_MIN, room);
+}
 
 type Props = {
   agent: Agent;
@@ -77,8 +93,13 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
   const { data, errors, reload } = useAgentResources(agent.id);
   const body = useRef<HTMLDivElement>(null);
   const save = useRef<(() => Promise<boolean>) | null>(null);
+  /** The widths the app remembers, so each drag limit counts the other column as it is now. */
+  const widths = useRef({ library: state.libraryWidth, chat: state.chatWidth });
+  widths.current = { library: state.libraryWidth, chat: state.chatWidth };
   const [creating, setCreating] = useState(false);
   const [actionError, setActionError] = useState<string>();
+  /** Narrow enough that the library covers the reader, as the CSS does at the same width. */
+  const [narrowLibrary, setNarrowLibrary] = useState(false);
   const mounted = useRef(true);
   useLayoutEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const registerSave = useCallback((next: (() => Promise<boolean>) | null) => {
@@ -86,7 +107,12 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
     onBeforeLeave?.(agent.id, next);
   }, [agent.id, onBeforeLeave]);
   const leave = async (next: () => void) => { if (!save.current || await save.current()) next(); };
-  const open = (page: MentorPage) => void leave(() => { setActionError(undefined); onOpen(page); });
+  const open = (page: MentorPage) => void leave(() => {
+    setActionError(undefined);
+    onOpen(page);
+    // A narrow window shows the library over the reader as a drawer; a choice puts it away.
+    if (narrowLibrary && state.library) onToggleLibrary();
+  });
   const close = () => void leave(onClose);
 
   const reading = readingOf(state.page, state.lesson);
@@ -136,17 +162,44 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
 
   const library = useDragResize({
     min: LIBRARY_MIN, direction: "right", defaultWidth: 260, initial: state.libraryWidth, onCommit: onResizeLibrary,
-    max: () => Math.max(LIBRARY_MIN, (body.current?.clientWidth ?? window.innerWidth) - READER_MIN - (state.chat ? CHAT_MIN : 0)),
+    max: () => libraryLimit(body.current?.clientWidth || window.innerWidth, state.chat ? widths.current.chat : 0),
   });
   const conversation = useDragResize({
     min: CHAT_MIN, direction: "left", defaultWidth: 420, initial: state.chatWidth, onCommit: onResizeChat,
-    max: () => Math.max(CHAT_MIN, (body.current?.clientWidth ?? window.innerWidth) - READER_MIN - (state.library ? LIBRARY_MIN : 0)),
+    max: () => chatLimit(body.current?.clientWidth || window.innerWidth, state.library ? widths.current.library : 0),
   });
+  // A width saved on a larger window has to give way when this one shrinks.
+  useEffect(() => {
+    const element = body.current;
+    if (!element) return;
+    const fit = () => {
+      const width = element.clientWidth;
+      if (!width) return;
+      setNarrowLibrary(width < LIBRARY_OVERLAY_WIDTH);
+      const libraryWidth = state.library ? library.reclamp(libraryLimit(width, state.chat ? widths.current.chat : 0)) : widths.current.library;
+      widths.current.library = libraryWidth;
+      if (state.chat) widths.current.chat = conversation.reclamp(chatLimit(width, state.library ? libraryWidth : 0));
+    };
+    fit();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    observer?.observe(element);
+    window.addEventListener("resize", fit);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", fit); };
+  }, [state.library, state.chat, library.reclamp, conversation.reclamp]); // eslint-disable-line react-hooks/exhaustive-deps
   const name = agentLook(agent).name;
   const chatLabel = state.chat ? "Hide conversation" : `Chat with ${name}`;
   const libraryLabel = state.library ? "Hide library" : "Show library";
 
-  return <section className="mentor-workspace" data-mentor-workspace={agent.id} aria-label={`${name} workspace`}>
+  return <section className="mentor-workspace" data-mentor-workspace={agent.id} aria-label={`${name} workspace`}
+    onKeyDown={(event) => {
+      if (event.key !== "Escape" || event.defaultPrevented || !state.page) return;
+      const target = event.target;
+      // A field keeps Escape for its own editing, and an open dialog owns it.
+      if (target instanceof Element && target.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      event.preventDefault(); event.stopPropagation();
+      close();
+    }}>
     <header className="mentor-titlebar" data-tauri-drag-region="deep">
       {leading}
       <button type="button" data-tauri-drag-region="false" className="mentor-titlebar-button" aria-label={libraryLabel} title={libraryLabel} aria-pressed={state.library} onClick={onToggleLibrary}>
@@ -157,11 +210,12 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
       <button type="button" data-tauri-drag-region="false" className={`mentor-chat-toggle ${state.chat ? "bg-content/8 text-content" : "text-content/60"}`}
         aria-pressed={state.chat} aria-label={chatLabel} title={chatLabel} onClick={onToggleChat}>
         <AgentAvatar name={agent.avatar} color={agent.color} className="size-3.5 shrink-0" />
-        {state.chat ? null : <span>Chat</span>}
+        {state.chat ? <X className="size-3 shrink-0" strokeWidth={2} /> : <span>Chat</span>}
       </button>
       {trailing}
     </header>
     <div ref={body} className="mentor-body">
+      {narrowLibrary && state.library ? <div className="mentor-library-scrim" aria-hidden="true" onPointerDown={onToggleLibrary} /> : null}
       <aside ref={library.setPaneRef} className="mentor-library-column" hidden={!state.library} aria-label="Outline and library">
         <MentorLibrary agent={agent} data={data} errors={errors} onRetry={reload} page={state.page} lesson={state.lesson}
           onOpen={open} onNewNote={() => void newNote()} creatingNote={creating} onOpenFile={(path) => open({ kind: "file", path })}
@@ -176,15 +230,11 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
             library.setWidth(library.width + (event.key === "ArrowRight" ? 20 : -20));
           }} />
       </aside>
-      <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}
-        onKeyDown={(event) => {
-          if (event.key !== "Escape" || event.defaultPrevented || !state.page) return;
-          event.preventDefault(); event.stopPropagation();
-          close();
-        }}>
+      <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}>
         <MentorReader agent={agent} page={state.page} request={state.request} canvases={canvases}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
-          onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} renderSession={renderSession} />
+          onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} renderSession={renderSession}
+          sessionTitle={sessionTitle} />
       </main>
       <aside ref={conversation.setPaneRef} className="mentor-chat-column" hidden={!state.chat} aria-label={`Conversation with ${name}`}>
         <div role="separator" aria-label="Resize conversation" aria-orientation="vertical" tabIndex={0} className="mentor-resize mentor-resize--left"

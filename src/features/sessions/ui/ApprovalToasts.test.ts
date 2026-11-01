@@ -85,6 +85,17 @@ it("immediately hides an existing question when its notification category is dis
   expect(visibleRequests()).toHaveLength(0);
 });
 
+it("sits below the title bar and keeps its buttons out of the status announcement", async () => {
+  await act(async () => render([notice("work")]));
+  const card = document.querySelector<HTMLElement>(".approval-toast")!;
+  expect(card.getAttribute("role")).toBeNull();
+  expect(card.parentElement!.style.top).toBe("48px");
+  const status = card.querySelector('[role="status"]')!;
+  expect(status.textContent).toBe("Request work");
+  expect(status.querySelector("button")).toBeNull();
+  expect(card.querySelector("button")!.closest('[role="status"]')).toBeNull();
+});
+
 it("does not replay a mounted approval after its path is resumed", async () => {
   let now = 1_800_000_000_000;
   vi.spyOn(Date, "now").mockImplementation(() => now);

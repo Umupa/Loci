@@ -1,3 +1,5 @@
+import { IS_MAC } from "../../platform/tauri/platform";
+
 /**
  * Window keybindings:
  *   New mentor          cmd-t
@@ -13,7 +15,10 @@ export type AppCommand = "new-mentor" | "close-reader" | "next-mentor" | "prev-m
 
 export function appCommand(e: KeyboardEvent): AppCommand | null {
   if (e.isComposing) return null;
-  if (!(e.metaKey || e.ctrlKey) || e.altKey) return null;
+  // On macOS Control belongs to text editing (Ctrl+W deletes a word), so the
+  // window's commands use Command there, and Control elsewhere.
+  const primary = IS_MAC ? e.metaKey && !e.ctrlKey : e.ctrlKey;
+  if (!primary || e.altKey) return null;
   const key = e.key.toLowerCase();
   if (e.shiftKey) {
     if (e.key === "]" || e.key === "}") return "next-mentor";
@@ -21,7 +26,8 @@ export function appCommand(e: KeyboardEvent): AppCommand | null {
     return null;
   }
   if (key === "t" && !e.repeat) return "new-mentor";
-  if (key === "w") return "close-reader";
+  // A held key closes the reader once, never the window that follows it.
+  if (key === "w" && !e.repeat) return "close-reader";
   if (key >= "1" && key <= "9" && key.length === 1) return { activate: Number(key) - 1 };
   return null;
 }

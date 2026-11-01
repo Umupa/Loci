@@ -1,6 +1,6 @@
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useAnimatedReorder } from "../../shared/hooks/useAnimatedReorder";
-import { CircleAlert, CircleDashed, Pencil, Plus, Search, Settings, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
+import { CircleAlert, CircleDashed, MoreHorizontal, Pencil, Plus, Search, Settings, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
 import { Popover, type PopoverAnchor } from "../../shared/ui/Popover";
 import { AgentAvatar } from "../../features/agents/ui/AgentAvatar";
 import { IS_MAC } from "../../platform/tauri/platform";
@@ -71,6 +71,34 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
   const sortable = useAnimatedReorder(agents.map((agent) => agent.id), reorderAgents, "y");
   const [menu, setMenu] = useState<{ id: string; anchor: PopoverAnchor }>();
   const menuAgent = menu ? agents.find((agent) => agent.id === menu.id) : undefined;
+  const buttons = useRef(new Map<string, HTMLButtonElement>());
+  const menuSurface = useRef<HTMLDivElement>(null);
+  const menuTrigger = useRef<HTMLElement | null>(null);
+  // One Tab stop for the rail; the arrow keys move it, as a list's selection would.
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const rovingId = agents.some((agent) => agent.id === focusedId) ? focusedId!
+    : agents.some((agent) => agent.id === activeId) ? activeId
+      : agents[0]?.id;
+  useEffect(() => {
+    if (menu) menuSurface.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [menu]);
+  const openMenu = (id: string, anchor: PopoverAnchor, trigger: HTMLElement | null) => {
+    menuTrigger.current = trigger;
+    setMenu({ id, anchor });
+  };
+  const dismissMenu = (restoreFocus: boolean) => {
+    setMenu(undefined);
+    if (restoreFocus) menuTrigger.current?.focus();
+  };
+  const moveFocus = (fromId: string, to: number | "first" | "last") => {
+    const index = agents.findIndex((agent) => agent.id === fromId);
+    if (index < 0) return;
+    const next = to === "first" ? 0 : to === "last" ? agents.length - 1 : (index + to + agents.length) % agents.length;
+    const id = agents[next]?.id;
+    if (!id) return;
+    setFocusedId(id);
+    buttons.current.get(id)?.focus();
+  };
   return <nav className="mentor-rail" data-mac={IS_MAC || undefined} aria-label="Mentors" data-agent-rail>
     <div className="mentor-rail-top" data-tauri-drag-region="deep" />
     <div className="mentor-rail-list">
@@ -85,12 +113,30 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
         return <div key={agent.id} ref={(el) => sortable.setItemRef(agent.id, el)} className="mentor-rail-item reorder-item"
           data-agent-id={agent.id} data-selected={selected || undefined} data-agent-status={state.status} data-agent-rail-phase={phase}
           onPointerDown={(event) => { if (event.button === 0) sortable.onItemPointerDown(agent.id, event); }}
-          onContextMenu={(event) => { event.preventDefault(); setMenu({ id: agent.id, anchor: { x: event.clientX, y: event.clientY } }); }}>
-          <button type="button" className="mentor-rail-button" aria-label={label} aria-current={selected ? "true" : undefined}
+          onContextMenu={(event) => { event.preventDefault(); openMenu(agent.id, { x: event.clientX, y: event.clientY }, buttons.current.get(agent.id) ?? null); }}>
+          <button type="button" ref={(el) => { if (el) buttons.current.set(agent.id, el); else buttons.current.delete(agent.id); }}
+            className="mentor-rail-button" aria-label={label} aria-current={selected ? "true" : undefined}
+            tabIndex={agent.id === rovingId ? 0 : -1}
+            onFocus={() => setFocusedId(agent.id)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); moveFocus(agent.id, event.key === "ArrowDown" ? 1 : -1); }
+              else if (event.key === "Home") { event.preventDefault(); moveFocus(agent.id, "first"); }
+              else if (event.key === "End") { event.preventDefault(); moveFocus(agent.id, "last"); }
+              else if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                event.preventDefault();
+                openMenu(agent.id, event.currentTarget, event.currentTarget);
+              }
+            }}
             title={[look.role ? `${look.name} · ${look.role}` : look.name, status, look.workdir ? prettyCwd(look.workdir) : undefined, index < 9 ? `${IS_MAC ? "⌘" : "Ctrl+"}${index + 1}` : undefined].filter(Boolean).join("\n")}
             onClick={() => { if (!sortable.consumeClick()) onOpen(agent.id); }}>
             <AgentAvatar name={look.avatar} color={look.color} className="size-8" />
             <RailSignal phase={phase} />
+          </button>
+          <button type="button" className="mentor-rail-more" aria-label={`${look.name} options`} title={`${look.name} options`}
+            aria-haspopup="menu" aria-expanded={menu?.id === agent.id} tabIndex={agent.id === rovingId ? 0 : -1}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => openMenu(agent.id, event.currentTarget, event.currentTarget)}>
+            <MoreHorizontal className="size-3.5" strokeWidth={2} />
           </button>
         </div>;
       })}
@@ -102,22 +148,21 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
       {onSearch ? <button type="button" className="mentor-rail-action" aria-label="Search" title={`Search (${IS_MAC ? "⌘" : "Ctrl+"}K)`} onClick={onSearch}>
         <Search className="size-4" strokeWidth={1.75} />
       </button> : null}
-      <div className="relative">
-        <button type="button" className="mentor-rail-action" aria-label="Settings" title="Settings" aria-pressed={settingsOpen} onClick={onOpenSettings}>
-          <Settings className="size-4" strokeWidth={1.75} />
-        </button>
-        {updateVersion && onViewUpdate ? <UpdateBadge version={updateVersion} onOpen={onViewUpdate} /> : null}
-      </div>
+      <button type="button" className="mentor-rail-action" aria-label="Settings" title="Settings" aria-pressed={settingsOpen} onClick={onOpenSettings}>
+        <Settings className="size-4" strokeWidth={1.75} />
+      </button>
+      {/* Beside the gear rather than on its corner, with a target of its own. */}
+      {updateVersion && onViewUpdate ? <UpdateBadge version={updateVersion} onOpen={onViewUpdate} /> : null}
     </div>
-    {menu && menuAgent ? <Popover anchor={menu.anchor} side="right" align="start" gap={0} width={200} constrainHeight={false}
-      onDismiss={() => setMenu(undefined)} role="menu" aria-label={`${agentLook(menuAgent).name} options`}
+    {menu && menuAgent ? <Popover ref={menuSurface} anchor={menu.anchor} side="right" align="start" gap={0} width={200} constrainHeight={false}
+      onDismiss={(reason) => dismissMenu(reason !== "outside")} role="menu" aria-label={`${agentLook(menuAgent).name} options`}
       onContextMenu={(event) => event.preventDefault()} className="p-1.5">
-      <button type="button" role="menuitem" onClick={() => { setMenu(undefined); onOpenDetails(menu.id); }}
+      <button type="button" role="menuitem" onClick={() => { dismissMenu(true); onOpenDetails(menu.id); }}
         className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-content/85 hover:bg-content/8">
         <SlidersHorizontal className="size-3.5 shrink-0" strokeWidth={1.75} />Settings
       </button>
-      <button type="button" role="menuitem" onClick={() => { setMenu(undefined); onDelete(menu.id); }}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-red-400 hover:bg-content/8">
+      <button type="button" role="menuitem" onClick={() => { dismissMenu(true); onDelete(menu.id); }}
+        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-danger hover:bg-content/8">
         <Trash2 className="size-3.5 shrink-0" strokeWidth={1.75} />Delete mentor…
       </button>
     </Popover> : null}
