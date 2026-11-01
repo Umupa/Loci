@@ -430,17 +430,17 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
       }}>
       {reader ? <ResourceHeader title={name} onClose={close}>
         {draft ? <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-content/60" /> : null}
-        {editable ? <MarkdownModeToggle mode={mode} onChange={setMode} /> : null}
-        {kind === "pdf" || content.status === "text" ? <button type="button" className={RESOURCE_ACTION} aria-label="Highlights & notes" title="Highlights & notes" aria-expanded={annotationsOpen} onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-3.5" /></button> : null}
+        {editable ? <span data-tauri-drag-region="false"><MarkdownModeToggle mode={mode} onChange={setMode} /></span> : null}
+        {kind === "pdf" || content.status === "text" ? <button type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="Highlights & notes" title="Highlights & notes" aria-expanded={annotationsOpen} onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-3.5" /></button> : null}
         {draft ? (
-          <button type="button" disabled={conflict || saving} onClick={() => void save()} title={conflict ? "Resolve the conflict first" : "Save (Ctrl/Cmd+S)"}
+          <button type="button" data-tauri-drag-region="false" disabled={conflict || saving} onClick={() => void save()} title={conflict ? "Resolve the conflict first" : "Save (Ctrl/Cmd+S)"}
             className="h-6 shrink-0 rounded px-2 text-[11px] text-content hover:bg-content/10 disabled:opacity-40">{saving ? "Saving…" : "Save"}</button>
         ) : null}
-        <button type="button" onClick={() => requestAddToChat(fileReference(relative), "plain")} title={chatName ? `Add ${name} to ${chatName}` : "Add file to chat"}
+        <button type="button" data-tauri-drag-region="false" onClick={() => requestAddToChat(fileReference(relative), "plain")} title={chatName ? `Add ${name} to ${chatName}` : "Add file to chat"}
           className="flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs text-content/55 hover:bg-content/8 hover:text-content">
           <MessageSquarePlus className="size-3.5" /><span>{chatName ? `Add to ${chatName}` : "Add to chat"}</span>
         </button>
-        <button ref={fileMenuRef} type="button" className={RESOURCE_ACTION} aria-label="File actions" title="File actions" aria-haspopup="menu" aria-expanded={fileMenu} onClick={() => setFileMenu((open) => !open)}><MoreHorizontal className="size-3.5" /></button>
+        <button ref={fileMenuRef} type="button" data-tauri-drag-region="false" className={RESOURCE_ACTION} aria-label="File actions" title="File actions" aria-haspopup="menu" aria-expanded={fileMenu} onClick={() => setFileMenu((open) => !open)}><MoreHorizontal className="size-3.5" /></button>
       </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}
         onDoubleClick={(event) => {
           if (event.currentTarget.hasAttribute("data-window-titlebar") && !(event.target as HTMLElement).closest("[data-pane-title]")) return;
@@ -464,7 +464,7 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={close}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button>
       </PaneHeader>}
-      {reader && fileMenu ? <Popover anchor={fileMenuRef} side="bottom" align="end" width={210} role="menu" aria-label="File actions" onDismiss={() => setFileMenu(false)} className="p-1 font-sans">
+      {reader && fileMenu ? <Popover anchor={fileMenuRef} side="bottom" align="end" width={210} role="menu" aria-label="File actions" onDismiss={() => setFileMenu(false)} className="p-1 font-sans" data-tauri-drag-region="false">
         <button type="button" role="menuitem" onClick={() => { setFileMenu(false); void openPathWithDefaultApp(path).catch(() => {}); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6"><ExternalLink className="size-3.5" />Open with default app</button>
         <button type="button" role="menuitem" onClick={() => { setFileMenu(false); void revealPath(path).catch(() => {}); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6"><Folder className="size-3.5" />{REVEAL_LABEL}</button>
         <button type="button" role="menuitem" onClick={() => { setFileMenu(false); close(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6"><X className="size-3.5" />Close file</button>

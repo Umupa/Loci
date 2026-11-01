@@ -262,13 +262,13 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
       }} />
   ) : <span className={`block min-w-0 truncate ${reader ? "" : "flex-1 text-xs"}`} title="Double-click to rename" onDoubleClick={() => { setTitleDraft(canvas.title); setEditingTitle(true); }}>{canvas.title}</span>;
   const addButton = (
-    <button type="button" data-no-drag aria-label={`Add drawing to ${chatNameOrTarget}`} title={`Add selected elements or drawing to ${chatNameOrTarget}`} onClick={handleAddToChat}
+    <button type="button" data-no-drag data-tauri-drag-region="false" aria-label={`Add drawing to ${chatNameOrTarget}`} title={`Add selected elements or drawing to ${chatNameOrTarget}`} onClick={handleAddToChat}
       className={`flex shrink-0 items-center gap-1 text-content/55 hover:bg-content/10 hover:text-content ${reader ? "h-6 rounded-md px-1.5 text-xs" : "h-6 rounded px-1.5 text-xs"}`}>
       {chatIcon ?? <MessageSquarePlus className="size-3.5" />}<span>{chatLabel}</span>
     </button>
   );
   const fullscreenButton = (
-    <button type="button" data-no-drag aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={toggleFullscreen}
+    <button type="button" data-no-drag data-tauri-drag-region="false" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={toggleFullscreen}
       className={reader ? RESOURCE_ACTION : "grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"}>
       {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
     </button>
@@ -277,7 +277,7 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
   return (
     <div ref={containerRef} className="loci-canvas flex h-full min-h-0 min-w-0 flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
       {reader && onClose ? <ResourceHeader title={canvas.title} titleContent={titleField} onClose={onClose}>
-        {saveError ? <button type="button" className="text-xs text-red-400" onClick={save}>Retry save</button> : null}
+        {saveError ? <button type="button" data-tauri-drag-region="false" className="text-xs text-red-400" onClick={save}>Retry save</button> : null}
         {addButton}
         {fullscreenButton}
       </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}>
