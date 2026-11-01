@@ -17,7 +17,7 @@ English · [简体中文](README.zh-CN.md)
 
 ---
 
-Loci is a local-first desktop workspace for learning technical subjects with an agent. Each mentor is a long-lived agent for one topic: a Soul (its standing instructions), a memory, and a library of courses, documents, notes and canvases beside one conversation. The mentor gathers primary sources and reads them with you. It runs through the agent CLI you already signed in to — Claude Code or Codex — so there is no model API key to add, and it has no server of its own. Your data stays on your machine, mostly in one local SQLite database.
+Loci is a local-first desktop workspace for learning technical subjects with an agent. Each mentor is a long-lived agent for one topic: a Soul (its standing instructions), a memory, and a library of courses, documents, notes and canvases beside one conversation. The mentor gathers primary sources and reads them with you. It runs through the agent CLI you already signed in to — Claude Code or Codex — so there is no model API key to add, and it has no server of its own. Your data stays on your machine: each mentor's material in a folder of plain files, the rest in one local SQLite database.
 
 > [!NOTE]
 > Loci is early software (v0.1). The interface, the data model and the bundled MCP tools may still change. See [Platform support](#platform-support) for what has and has not been tried on each OS.
@@ -126,7 +126,7 @@ Commands work at the start of a prompt.
 
 ## Data and privacy
 
-- **Where your data is.** Sessions, notes, canvases, source references and PDF annotations are in `loci.db` (SQLite) inside the app data folder `com.loci.desktop`: `~/Library/Application Support/com.loci.desktop` on macOS, `~/.local/share/com.loci.desktop` on Linux, `%APPDATA%\com.loci.desktop` on Windows. Pasted images live beside it. Your project files stay in your own folders. PDF annotations do not rewrite the PDF.
+- **Where your data is.** Each mentor's library, courses, notes, drawings, Soul and memory are files in its own folder, `~/Loci/<mentor>/`; you and the mentor can edit them, and Loci shows the change. Conversations, reading progress, highlights and an index of those folders are in `loci.db` (SQLite) inside the app data folder `com.loci.desktop`: `~/Library/Application Support/com.loci.desktop` on macOS, `~/.local/share/com.loci.desktop` on Linux, `%APPDATA%\com.loci.desktop` on Windows. Pasted images live beside it. Your project files stay in your own folders. PDF annotations do not rewrite the PDF.
 - **What Loci sends over the network.** Loci has no analytics or crash reporting. An installed Loci checks GitHub Releases for updates a little after launch and every six hours, and asks before installing one; a build from source does not update itself. Beyond what the agent CLIs do with their own providers, Loci fetches the title and icon of public links shown in a conversation (loopback and private addresses are refused).
 - **The command line.** `loci` in a terminal can drive Loci while it runs. It needs a token that only your user account can read, and it can be turned off in **Settings → General → Command line**.
 - **What agents can do.** An agent runs with your user's permissions. The permission mode only decides when Loci asks you before the CLI acts, so choose it with the same care as in the CLI itself. **Full access**, what a mentor starts with, allows commands, edits and supported MCP confirmations without prompts.

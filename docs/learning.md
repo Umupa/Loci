@@ -76,7 +76,7 @@ PDF 高亮保存每页的相对矩形，缩放时重新投影。PDF 依赖已有
 
 ## 存储
 
-高亮、笔记和来源保存在本地 `loci.db`，不写回文件或 PDF。`learning_sources` 保存来源；`reading_documents` 保存 PDF 的规范化路径和 PDF.js 指纹；`pdf_annotations` 保存所有阅读器的高亮（v0.3 原地增加了 `target_kind`、`target_key`、`anchor_json` 三列，旧版本只看到其中的 PDF 高亮）。
+高亮、笔记和来源保存在本地 `loci.db`，不写回文件或 PDF。导师文件夹里文件上的高亮以 `mentorFile` `<导师>/<文件夹内路径>` 记录，随文件夹导出、导入或移动；资料库文档的高亮仍是 `<导师>/<文档 id>`，对应 `sources/` 或 `guides/` 里的同名文件。`learning_sources` 保存来源；`reading_documents` 保存 PDF 的规范化路径和 PDF.js 指纹；`pdf_annotations` 保存所有阅读器的高亮（v0.3 原地增加了 `target_kind`、`target_key`、`anchor_json` 三列，旧版本只看到其中的 PDF 高亮）。
 
 PDF 移动后，**Locate file** 通过系统选择器重新定位；指纹不匹配时拒绝迁移，避免把旧高亮套到另一版文档上。
 

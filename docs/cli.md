@@ -71,7 +71,7 @@ Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false
 | --- | --- |
 | `status` | Whether this Loci runs, and its identifier and version |
 | `templates` | `list` |
-| `mentors` | `list`, `show`, `create`, `update`, `delete`, `reset`, `switch`, `send`, `turn`, `read`, `stop` |
+| `mentors` | `list`, `show`, `create`, `update`, `delete`, `reset`, `switch`, `send`, `turn`, `read`, `stop`, `export`, `import`, `relocate` |
 | `sources` | `list`, `read`, `write` (take a Markdown file someone published in as a first-hand source) |
 | `guides` | `write`: save the mentor's own guide (a reading guide, a brief), from `--path` or `--body`/`--body-file`; listed and labelled apart from sources |
 | `courses` | `list`, `read`, `write`, `delete`, `lesson` (mark read, reading or untouched) |
@@ -80,7 +80,8 @@ Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false
 | `files` | `list`, `read`, `write`, in the mentor's working folder and the folders it was given |
 | `reader` | `open`, `show`, `close` (`open --source ID --quote TEXT` shows and flashes a passage) |
 | `annotations` | `list`, `counts`, `add`, `note`, `delete`: the learner's highlights and notes on sources, files and lessons |
-| `library` | `open`, `show`: the mentor's left column (segment, course, filter) |
+| `library` | `open`, `show`: the mentor's left column (segment, course, filter); `check`: files in the mentor's folder Loci could not read; `search`: full-text search of its sources, guides and notes |
+| `storage` | `status`, `migrate` (`--dry-run`, `--redo <mentor id>`), `reindex`: mentors' folders and the move of 0.3 data into them |
 | `sessions` | `list`, `read`, `start`, `send`, `draft`, `stop`, `archive`, `delete` |
 | `soul`, `memory`, `habits` | The mentor's standing instructions, memory and habits |
 | `models` | `list`: providers and their current models (each catalog is read first, waiting up to five seconds), settings and permission modes |
@@ -97,6 +98,9 @@ Notes:
 - `mentors delete` and `mentors reset` ask in Loci, as the rail does. `--yes` skips the question on Loci Dev and QA builds only; the installed app always asks, and `loci` waits for the answer (exit 6 when declined).
 - `updates check` returns `{available, version, current}`: `version` is the newer release (null when there is none) and `current` is the running version. It only reads GitHub Releases; it never opens the update prompt. A build from source reports `available: false` without asking.
 - Library commands run exactly as the mentor's own `loci app` actions do (`sources write` is `documents.write`, `guides write` is `guides.write`, `canvases` is `canvas.*`), with the same rules. `sources list` gives each entry's `kind`: `source` (with `sourceUrl`) or `guide`. A guide cannot take a source's id, nor a source a guide's. Sessions started from a terminal do not report back to the mentor unless `--notify-on-complete`.
+
+- `mentors export <mentor> --out /abs/file.zip [--with-repos]` zips the mentor's folder (library, courses, notes, drawings, Soul, memory, progress, highlights; `repos/` and `lab/` only with `--with-repos`). `mentors import --path file.zip` makes a new mentor from it, with a new id when this Loci already has the same one; `mentors import --folder /abs/folder` brings back a mentor folder where it is (after a reset, or `mentors delete`, which keeps the folder). `mentors relocate <mentor> [--workdir /abs/folder]` points the working folder elsewhere, or back at the mentor folder; nothing is moved.
+- `storage status` reports the mentors root and each mentor's folder and file counts; `storage migrate --dry-run` lists what the move of 0.3 data would write, without writing. `library check` and `library search` work on a mentor's folder; a mentor's own `loci app` has them too, for its own folder.
 
 Mentors inside Loci can also use `reader.open`, `reader.show` and `reader.close`, and `library.open` and `library.show`, through `loci app`, for their own reader and library.
 
