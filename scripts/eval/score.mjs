@@ -10,6 +10,16 @@ import { quoteInText } from "../../src/features/learning/model/textAnchor.ts";
 import { sectionHeadingIndex } from "../../src/shared/lib/markdown/markdownSection.ts";
 import { fileResourcePath, parseAppResourceUrl } from "../../src/shared/lib/appResourceLinks.ts";
 
+/** Inline Markdown (links, emphasis, code, tags) reduced to its text. */
+function flattenInline(text) {
+  return String(text ?? "")
+    .replace(/<\/?[A-Za-z][^>]*>/g, "")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__|\*|~~|`)/g, "")
+    .replace(/\\([\\`*_{}[\]()#+\-.!|])/g, "$1");
+}
+
 /** Markdown reduced to roughly the text the reader renders, for resolving quotes. */
 export function flattenMarkdown(markdown) {
   return String(markdown ?? "")
@@ -42,7 +52,8 @@ export function headingsOf(markdown) {
     }
     if (fence) continue;
     const heading = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/.exec(line);
-    if (heading) titles.push(flattenMarkdown(heading[1]).trim());
+    // Inline only: a numbered heading ("1. Overview") keeps its number, as the reader shows it.
+    if (heading) titles.push(flattenInline(heading[1]).trim());
   }
   return titles;
 }

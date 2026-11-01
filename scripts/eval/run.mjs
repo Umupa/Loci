@@ -44,6 +44,7 @@ const { values: opts } = parseArgs({
     out: { type: "string" },
     keep: { type: "boolean", default: false },
     "skip-probe": { type: "boolean", default: false },
+    rescore: { type: "string" },
     help: { type: "boolean", short: "h", default: false },
   },
 });
@@ -51,12 +52,42 @@ const { values: opts } = parseArgs({
 if (opts.help) {
   console.log(`npm run eval -- [--scenario id]... [--app id] [--bin path] [--provider agy] [--model id]
   [--judge agy|grok|claude|codex|none] [--judge-model id] [--max-turns n] [--max-minutes n] [--out dir] [--keep]
+npm run eval -- --rescore eval/results/<timestamp>   # recompute checks and summary from saved artifacts, no app
 
 --app/LOCI_APP_ID names the Loci to drive (a QA build; never com.loci.desktop).
 --bin/LOCI_BIN is its loci executable. --provider is the mentors' agent CLI
 (default agy); --judge defaults to the same provider. Results go to
 eval/results/<timestamp>/ unless --out. See docs/evaluation.md.`);
   process.exit(0);
+}
+
+if (opts.rescore) {
+  rescore(resolve(opts.rescore));
+  process.exit(0);
+}
+
+/** Recomputes score.json and summary.md of a saved run; the saved judge verdicts are kept. */
+function rescore(runDir) {
+  const meta = JSON.parse(readFileSync(join(runDir, "run.json"), "utf8"));
+  const json = (path, fallback) => { try { return JSON.parse(readFileSync(path, "utf8")); } catch { return fallback; } };
+  const results = [];
+  for (const id of meta.scenarios) {
+    const dir = join(runDir, id);
+    const scenario = json(join(HERE, "scenarios", `${id}.json`), null);
+    if (!scenario || !existsSync(join(dir, "turns.json"))) { results.push({ scenario: scenario ?? { id, template: "?" }, error: "no saved run" }); continue; }
+    const sources = json(join(dir, "sources.json"), []).map((source) => ({ ...source, body: readText(join(dir, "sources", `${source.id}.md`)) ?? "" }));
+    const courses = existsSync(join(dir, "courses")) ? readdirSync(join(dir, "courses")).map((name) => json(join(dir, "courses", name), null)).filter(Boolean) : [];
+    const turns = json(join(dir, "turns.json"), []);
+    const decisions = json(join(dir, "learner.json"), []);
+    const previous = json(join(dir, "score.json"), {});
+    const workdir = join(tmpdir(), "loci-eval", meta.stamp, id);
+    const run = { scenario, sources, courses, turns, timings: json(join(dir, "timings.json"), {}), failures: previous.failures ?? [], nudges: decisions.filter((entry) => entry.nudge).length };
+    const score = scoreRun(run, { readFile: readText, roots: [workdir] });
+    writeFileSync(join(dir, "score.json"), `${JSON.stringify(score, null, 2)}\n`);
+    results.push({ scenario, score, judge: json(join(dir, "judge.json"), null), run: { stoppedBy: json(join(dir, "stop.json"), {}).stoppedBy } });
+  }
+  writeFileSync(join(runDir, "summary.md"), summaryMarkdown(meta, results));
+  console.error(`rescored ${join(runDir, "summary.md")}`);
 }
 
 const app = opts.app ?? process.env.LOCI_APP_ID;
@@ -257,6 +288,7 @@ async function runScenario(scenario, runDir, meta) {
   write("turns.json", turns);
   write("learner.json", decisions);
   write("timings.json", timings);
+  write("stop.json", { stoppedBy });
   write("conversation.md", turns.map((entry) => `## ${entry.role === "mentor" ? "Mentor" : entry.probe ? "Learner (probe)" : "Learner"} · ${entry.at}s${entry.status && entry.status !== "done" ? ` · ${entry.status}` : ""}\n\n${entry.text}\n`).join("\n"));
 
   const runData = { scenario, sources: collected.sources, courses: collected.courses, turns, timings, failures, nudges };

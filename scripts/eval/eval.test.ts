@@ -51,6 +51,7 @@ describe("automatic checks", () => {
   it("flattens Markdown to the text a quote is found in, and lists headings outside code", () => {
     expect(flattenMarkdown("A **bold** [link](x) and `code`.")).toBe("A bold link and code.");
     expect(headingsOf("# One\n```\n# not a heading\n```\n## Two ##\n")).toEqual(["One", "Two"]);
+    expect(headingsOf("# 1. Overview\n## 2.1. **Check**pointing\n")).toEqual(["1. Overview", "2.1. Checkpointing"]);
     expect(quoteResolves(sqliteDoc, "moves frames from the WAL file back into the database")).toBe(true);
     expect(quoteResolves(sqliteDoc, "MOVES   frames from the wal file")).toBe(true);
     expect(quoteResolves(sqliteDoc, "copies pages to the journal")).toBe(false);
