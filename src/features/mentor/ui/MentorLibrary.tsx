@@ -61,7 +61,11 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
   const panel = useRef<HTMLDivElement>(null);
   const segment = chosen ?? defaultSegment(data, page);
   const query = filter?.segment === segment ? filter.text : "";
-  const failure = Object.values(errors).find(Boolean);
+  // Only the segment being shown reports its own load failure.
+  const failure = segment === "courses" ? errors.courses
+    : segment === "sources" ? errors.documents
+      : segment === "notes" ? errors.notes ?? errors.canvases
+        : undefined;
   const notesCount = data.notes || data.canvases ? (data.notes?.length ?? 0) + (data.canvases?.length ?? 0) : undefined;
   const counts: Record<LibrarySegment, number | undefined> = {
     courses: data.courses && data.courses.length > 1 ? data.courses.length : undefined,
@@ -102,18 +106,19 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
   let body: ReactNode;
   if (segment === "courses") {
     body = <LibraryCourses agent={agent} courses={data.courses} selected={course} page={page} lesson={lesson}
-      onOpen={onOpen} onSelect={(courseId) => onChange({ course: courseId })} onDraft={onDraft} badge={courseBadge} />;
+      onOpen={onOpen} onSelect={(courseId) => onChange({ course: courseId })} onDraft={onDraft} badge={courseBadge}
+      error={failure} onRetry={onRetry} />;
   } else if (segment === "files") {
     body = MentorFilesSection ? <MentorFilesSection agentId={agent.id} filter={query} onOpenFile={(path) => onOpenFile(path)}
       onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} onClearQuery={() => onChange({ segment, filter: "" })} /> : null;
   } else {
     const entries = segment === "sources" ? sources : notes;
     body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={onOpen}
+      subject={segment === "sources" ? "sources" : "notes"} error={failure} onRetry={onRetry}
       empty={segment === "sources" ? `Material ${agentLook(agent).name} saves, and documents it writes, appear here.` : "Your notes and drawings appear here."} />;
   }
 
   return <nav className="mentor-library" aria-label={`${agent.name || "Mentor"} library`} data-mentor-library={agent.id} data-library-segment={segment}>
-    {failure ? <div role="alert" className="mentor-library-error"><p>{failure}</p><button type="button" onClick={onRetry}>Retry</button></div> : null}
     <div role="tablist" aria-label="Library" className="mentor-library-segments" onKeyDown={tabKeys}>
       {LIBRARY_SEGMENTS.map((entry) => <button key={entry} type="button" role="tab" id={`${id}-${entry}`} data-segment={entry}
         aria-selected={entry === segment} aria-controls={`${id}-panel`} tabIndex={entry === segment ? 0 : -1}

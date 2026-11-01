@@ -7,6 +7,7 @@ import { useLiveCourse } from "../../learning/ui/CourseOutline";
 import { courseProgress, nextLesson } from "../model/libraryCourse";
 import type { MentorLesson, MentorPage } from "../model/mentorPage";
 import { LibraryOutline } from "./LibraryOutline";
+import { LibraryLoadError } from "./LibraryList";
 
 /** Room after a course's title (no lesson) or a lesson's title, for counts such as highlights. */
 export type CourseBadge = (courseId: string, lessonId?: string) => ReactNode;
@@ -26,6 +27,9 @@ type Props = {
   onSelect: (courseId: string) => void;
   onDraft: (text: string) => void;
   badge?: CourseBadge;
+  /** Why the course listing could not be read, if it could not. */
+  error?: string;
+  onRetry?: () => void;
 };
 
 /**
@@ -33,7 +37,7 @@ type Props = {
  * mentor for another), how far through it is, the lesson to continue with,
  * and its outline.
  */
-export function LibraryCourses({ agent, courses: listed, selected, page, lesson, onOpen, onSelect, onDraft, badge }: Props) {
+export function LibraryCourses({ agent, courses: listed, selected, page, lesson, onOpen, onSelect, onDraft, badge, error, onRetry }: Props) {
   const name = agentLook(agent).name;
   const open = page?.kind === "course" ? page.course : undefined;
   const courses = useMemo(() => {
@@ -47,14 +51,19 @@ export function LibraryCourses({ agent, courses: listed, selected, page, lesson,
     ?? courses.find((entry) => entry.id === open?.courseId)
     ?? [...courses].sort((a, b) => b.updatedAt - a.updatedAt)[0];
 
-  if (listed === undefined && !open) return <p role="status" className="mentor-library-empty">Loading…</p>;
+  if (listed === undefined && !open) return error ? <LibraryLoadError subject="courses" onRetry={onRetry} />
+    : <p role="status" className="mentor-library-empty">Loading…</p>;
   if (!current) return <div className="library-courses-empty">
+    {error ? <LibraryLoadError subject="courses" onRetry={onRetry} /> : null}
     <p className="mentor-library-empty">No course yet.</p>
     <button type="button" className="library-ask" onClick={() => onDraft(NEW_COURSE_PROMPT)}><Plus aria-hidden className="size-3.5" />Ask {name} for a course</button>
   </div>;
-  return <CourseView key={current.id} agent={agent} name={name} courses={courses} current={current}
-    activeId={open?.courseId === current.id ? lesson?.id ?? open.itemId ?? null : null}
-    onOpen={onOpen} onSelect={onSelect} onDraft={onDraft} badge={badge} />;
+  return <>
+    {error ? <LibraryLoadError subject="courses" onRetry={onRetry} /> : null}
+    <CourseView key={current.id} agent={agent} name={name} courses={courses} current={current}
+      activeId={open?.courseId === current.id ? lesson?.id ?? open.itemId ?? null : null}
+      onOpen={onOpen} onSelect={onSelect} onDraft={onDraft} badge={badge} />
+  </>;
 }
 
 function CourseView({ agent, name, courses, current, activeId, onOpen, onSelect, onDraft, badge }: {

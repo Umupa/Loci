@@ -219,6 +219,33 @@ it("offers to ask for a course when the mentor has none", async () => {
   expect(drafts).toEqual(["I'd like a new course on "]);
 });
 
+it("reports a failed list in its own segment, with a retry", async () => {
+  let noteLoads = 0;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    const input = args as { agentId?: string; id?: string };
+    if (command === "course_list_all") return [{ id: "kube", agentId: agent.id, title: "Ada's course", engine: "reading", itemCount: 2, masteredCount: 1, updatedAt: 2 }];
+    if (command === "course_get") return { id: input.id, agentId: input.agentId, title: "Ada's course", updatedAt: 2, engine: "reading", dataJson: courseData };
+    if (command === "course_progress_get") return [];
+    if (command === "agent_documents_list") return documents;
+    if (command === "notes_list") { noteLoads += 1; throw new Error("disk full"); }
+    if (command === "canvas_list") return [];
+    if (command === "agent_read") return { text: "[]", hash: "h" };
+    throw new Error(`Unexpected command: ${command}`);
+  });
+  await render();
+  await vi.waitFor(() => expect(container.textContent).toContain("Ada's course"));
+  expect(container.textContent).not.toContain("Couldn't load notes");
+  await tab("sources");
+  expect(container.querySelector('[data-resource-id="doc"]')).not.toBeNull();
+  expect(container.textContent).not.toContain("Couldn't load notes");
+  await tab("notes");
+  await vi.waitFor(() => expect(container.textContent).toContain("Couldn't load notes."));
+  const retry = [...container.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Retry")!;
+  const before = noteLoads;
+  await act(async () => retry.click());
+  expect(noteLoads).toBeGreaterThan(before);
+});
+
 it("creates an owned note and opens it in the reader", async () => {
   await render();
   await tab("notes");
