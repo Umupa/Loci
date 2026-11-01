@@ -321,6 +321,8 @@ export type AgentLook = {
   color: string;
   /** Its working folder, once it has one. */
   workdir?: string;
+  /** Its folder of files (library, courses, notes, Soul, memory), once it has one. */
+  folder?: string;
   /** Other folders it was given, by their rail labels. */
   projects: AgentProject[];
 };
@@ -333,6 +335,7 @@ export function agentLook(agent: Agent): AgentLook {
     avatar: agent.avatar,
     color: agent.color,
     ...(agent.workdir ? { workdir: agent.workdir } : {}),
+    ...(agent.folder ? { folder: agent.folder } : {}),
     projects: agent.projects.map((path) => ({
       path,
       name: projectName(path),

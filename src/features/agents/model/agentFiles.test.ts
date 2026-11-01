@@ -196,3 +196,13 @@ it("loads topic notes into the memory block and resends it when one changes", ()
   expect(planAgentContext("chat", "native-1", withTopic("t1")).memory).toBe(false);
   expect(planAgentContext("chat", "native-1", withTopic("t2")).memory).toBe(true);
 });
+
+it("names the mentor's folder and says its files may be edited directly", () => {
+  const look = { name: "Kern", avatar: "luna", color: "#fff", workdir: "/home/me/Loci/kern", folder: "/home/me/Loci/kern", projects: [] };
+  const prompt = agentContext(look, files(), { soul: true, memory: true });
+  const blocks = Object.fromEntries([...prompt.matchAll(/<([a-z_]+)>\n([\s\S]*?)\n<\/\1>/g)].map((block) => [block[1], block[2]]));
+  expect(JSON.parse(blocks.agent).folder).toBe("/home/me/Loci/kern");
+  expect(blocks.tools).toContain("<agent>.folder");
+  expect(blocks.tools).toContain("library.check");
+  expect(blocks.tools).toContain("only through soul.* and memory.*");
+});
