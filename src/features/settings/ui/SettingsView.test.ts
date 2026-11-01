@@ -475,6 +475,26 @@ describe("settings search", () => {
         }
     });
 });
+describe("localized Settings copy", () => {
+    it("translates counts, font placeholders and scope names", async () => {
+        setLanguagePreference("zh-CN");
+        try {
+            await render("keybindings");
+            expect(container.textContent).toMatch(/\d+ 个快捷键/);
+            expect(container.textContent).not.toContain("bindings");
+            await render("appearance");
+            // The font dropdown's empty choice follows the catalog.
+            expect(container.querySelector('[aria-label="代码字体: 系统等宽字体"]')).not.toBeNull();
+            expect(container.querySelector('[aria-label="界面字体: 系统默认"]')).not.toBeNull();
+            await render("providers");
+            expect(container.textContent).toMatch(/个模型可用/);
+            expect(container.textContent).not.toContain("models available");
+        }
+        finally {
+            await act(async () => setLanguagePreference("en"));
+        }
+    });
+});
 describe("mentor rows and global providers", () => {
     it("opens a mentor's own settings from its row", async () => {
         localStorage.setItem("loci:agent-roster", JSON.stringify([
