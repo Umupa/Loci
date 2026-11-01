@@ -71,6 +71,32 @@ describe("markdown file navigation", () => {
         await act(async () => container.querySelector<HTMLAnchorElement>("a")!.click());
         expect(onOpenFile).toHaveBeenCalledWith("/repo/docs/My Guide.md", { lines: [7, 9] });
     });
+    it.each([
+        ["[Source](/abs/src/main.rs#L12-40)", "/abs/src/main.rs", { lines: [12, 40] }],
+        ["[Source](src/main.rs#L12-40)", "/repo/src/main.rs", { lines: [12, 40] }],
+        ["[Paper](/abs/paper.pdf#p7)", "/abs/paper.pdf", { page: 7 }],
+    ] as const)("opens %s at its requested place", async (text, path, place) => {
+        await render(text);
+        expect(container.innerHTML).toContain("<a");
+        await act(async () => container.querySelector<HTMLAnchorElement>("a")!.click());
+        expect(onOpenFile).toHaveBeenCalledWith(path, place);
+    });
+    it("opens an inline code path with a compact line range or a PDF page", async () => {
+        await render("`src/main.rs#L12-40` and `paper.pdf#p7`");
+        const links = [...container.querySelectorAll<HTMLElement>('code[role="link"]')];
+        expect(links).toHaveLength(2);
+        await act(async () => links[0].click());
+        await act(async () => links[1].click());
+        expect(onOpenFile.mock.calls).toEqual([
+            ["/repo/src/main.rs", { lines: [12, 40] }],
+            ["/repo/paper.pdf", { page: 7 }],
+        ]);
+    });
+    it("keeps a page-shaped anchor on a Markdown file a heading, not a PDF page", async () => {
+        await render("[Guide](docs/guide.md#p7)");
+        await act(async () => document.querySelector<HTMLAnchorElement>("a")!.click());
+        expect(onOpenFile).toHaveBeenCalledWith("/repo/docs/guide.md");
+    });
     it.each(["`main.ts:12`", "[Source](main.ts:12)"])("opens a bare filename with a line number: %s", async (text) => {
         await render(text);
         const link = container.querySelector<HTMLElement>('code[role="link"], a');

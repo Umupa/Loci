@@ -143,11 +143,16 @@ export function resolveWorkspacePath(
   return parseWorkspaceFileReference(href, cwd, false)?.path;
 }
 
+/** Where a file link asks its reader to go: a page of a PDF, or lines of a text file. */
+export type FileNavigation =
+  | { line: number; column?: number; endLine?: number }
+  | { page: number };
+
 /** Keep source positions while resolving a local Markdown file reference. */
 export function resolveWorkspaceFileReference(
   href: string,
   cwd?: string,
-): { path: string; navigation?: { line: number; column?: number; endLine?: number } } | undefined {
+): { path: string; navigation?: FileNavigation } | undefined {
   return parseWorkspaceFileReference(href, cwd, true);
 }
 
@@ -160,17 +165,24 @@ function parseWorkspaceFileReference(
   if (!value) return undefined;
 
   // Strip heading anchors before decoding, keeping encoded '#' in filenames.
+  // Source positions (`#L12`, `#L12-L40`, `#L12-40`, `#p7`) stay for the
+  // location parser below.
   if (decodeUrl) {
     const hash = value.indexOf("#");
-    if (hash > 0 && !/^L\d+(?:-L\d+)?$/.test(value.slice(hash + 1)))
+    if (hash > 0 && !/^(?:L\d+(?:-L?\d+)?|p[1-9]\d{0,5})$/.test(value.slice(hash + 1)))
       value = value.slice(0, hash);
   }
-  const location = value.match(/(?::(\d+)(?::(\d+))?|#L(\d+)(?:-L(\d+))?)$/);
+  // A page names a place in a PDF; the extension is checked before the file
+  // is opened, so `guide.md#p7` stays an ordinary heading anchor.
+  const isPdf = /\.pdf(?:[?#]|$)/i.test(value);
+  const location = value.match(/(?::(\d+)(?::(\d+))?|#L(\d+)(?:-L?(\d+))?|#p([1-9]\d{0,5}))$/);
+  const page = isPdf && location?.[5] ? Number(location[5]) : undefined;
   const line = Number(location?.[1] ?? location?.[3]);
   const column = location?.[2] ? Number(location[2]) : undefined;
   const endLine = location?.[4] ? Number(location[4]) : undefined;
-  const navigation =
-    Number.isSafeInteger(line) && line > 0
+  const navigation: FileNavigation | undefined = page
+    ? { page }
+    : Number.isSafeInteger(line) && line > 0
       ? { line, ...(column && Number.isSafeInteger(column) ? { column } : {}),
           ...(endLine && Number.isSafeInteger(endLine) && endLine >= line ? { endLine } : {}) }
       : undefined;
