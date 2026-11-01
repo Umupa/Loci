@@ -4,6 +4,7 @@ import type { CommandContext } from "./context";
 import { fileCommands } from "./files";
 import { libraryCommands } from "./library";
 import { mentorCommands } from "./mentors";
+import { pathCommands } from "./path";
 import { readerCommands } from "./reader";
 import { settingsCommands } from "./settings";
 import { sidebarCommands } from "./sidebar";
@@ -22,6 +23,7 @@ export const COMMANDS = defineCommands<CommandContext>([
   ...fileCommands,
   ...settingsCommands,
   ...libraryCommands,
+  ...pathCommands,
   ...annotationCommands,
   ...updateCommands,
   ...storageCommands,

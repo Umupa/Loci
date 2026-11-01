@@ -1984,6 +1984,56 @@
       ]
     },
     {
+      "name": "path.read",
+      "summary": "The mentor's learning path (courses/_path.yaml): its courses in order with prerequisites and how far each is read, and the courses not on it.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "path.write",
+      "summary": "Replace the mentor's learning path: courses in order (3-5 short courses of 6-12 lessons), each { id, after?, title? }; after names earlier courses and is shown, never enforced. A course may be planned before it is written (give it a title). --input path.json works well.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "help": "The path's title",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "courses",
+          "type": "json",
+          "help": "The courses in order: [\"id\", { \"id\": \"…\", \"after\": [\"…\"], \"title\": \"…\" }]",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "reader.close",
       "summary": "Empty a mentor's reader.",
       "callers": [
