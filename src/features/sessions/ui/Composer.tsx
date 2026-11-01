@@ -2088,7 +2088,7 @@ export function Composer({
                   data-composer-plus
                   className="p-1.5"
                 >
-                  <p className="px-2 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-content/40">
+                  <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-content/40">
                     Add to message
                   </p>
                   <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { setPlusOpen(false); setWebSourceOpen(true); }} className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left text-content hover:bg-content/10">

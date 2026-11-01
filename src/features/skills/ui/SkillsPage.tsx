@@ -340,7 +340,7 @@ export function SkillsPage({
                           >
                             {skill.name}
                           </button>
-                          <span className="shrink-0 rounded-full bg-content/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-content/60">
+                          <span className="shrink-0 rounded-full bg-content/10 px-1.5 py-0.5 text-[11px] font-medium text-content/60">
                             {skill.scope === "user"
                               ? t("Personal")
                               : skill.scope === "builtin"

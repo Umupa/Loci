@@ -796,7 +796,7 @@ export function BtwSheet({
             <div className="btw-sheet-body shrink-0 px-5 pb-3">
               <div className="btw-error" role="alert">
                 <div className="min-w-0">
-                  <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-diff-del-fg/75">
+                  <div className="text-[11px] font-medium text-diff-del-fg/75">
                     Couldn’t finish
                   </div>
                   <div className="mt-1 text-[12px] leading-4.5 text-diff-del-fg">

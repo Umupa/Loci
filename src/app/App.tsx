@@ -686,7 +686,7 @@ function MentorsEmpty({ hasMentors, openingName, failed, onCreate, onRetry, trai
       </p>
       {failed ? <button type="button" className="primary-action rounded-lg px-3 py-1.5 text-sm font-medium" onClick={onRetry}>Try again</button> : null}
     </div> : <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-      <h1 className="text-base font-semibold">Create your first mentor</h1>
+      <h1 className="text-[15px] font-medium">Create your first mentor</h1>
       <p className="max-w-sm text-sm text-content/60">A mentor is a resident agent for one topic you are learning. It keeps your courses, sources, notes and drawings, and reads along with you.</p>
       <button type="button" className="primary-action rounded-lg px-3 py-1.5 text-sm font-medium" onClick={onCreate}>Create a mentor</button>
     </div>}

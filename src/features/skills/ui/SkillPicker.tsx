@@ -179,7 +179,7 @@ function SkillList({
               <span className="truncate text-[13px]">
                 /{skill.invocation}
               </span>
-              <span className="shrink-0 text-[10px] uppercase tracking-wide text-content/40">
+              <span className="shrink-0 text-[11px] text-content/40">
                 {scopeLabel(skill)}
               </span>
             </span>

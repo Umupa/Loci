@@ -304,7 +304,7 @@ function MemoryPage({ agentId, files }: { agentId: string; files: AgentFiles }) 
     <div className="-mx-1.5 flex min-h-0 flex-col gap-3 overflow-y-auto">
       <MemoryFacts path="MEMORY.md" text={files.memory} saving={saving} run={run} onError={setError} />
       {topics.map((note) => <section key={note.name} className="flex flex-col gap-px">
-        <h3 className="px-1.5 text-[11px] font-medium uppercase tracking-wide text-content/40">{note.name}</h3>
+        <h3 className="px-1.5 text-[12px] font-medium text-content/40">{note.name}</h3>
         <MemoryFacts path={`memory/${note.name}.md`} text={note.text} saving={saving} run={run} onError={setError} />
       </section>)}
     </div>

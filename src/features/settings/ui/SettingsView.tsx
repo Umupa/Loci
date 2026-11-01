@@ -920,7 +920,7 @@ function KeybindingsPage() {
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Filter")} aria-label={t("Filter keybindings")} spellCheck={false} autoComplete="off" className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"/>
           </label>
         </div>}>
-      <div className="flex items-center border-b border-stroke bg-content/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-content/40">
+      <div className="flex items-center border-b border-stroke bg-content/5 px-4 py-2 text-[12px] font-medium text-content/40">
         <span className="min-w-0 flex-1">{t("Command")}</span>
         <span className="w-40 shrink-0">{t("Keybinding")}</span>
         <span className="w-28 shrink-0">{t("When")}</span>
@@ -1229,7 +1229,7 @@ function ProviderRow({ harness, selectedModel, isDefault, inPicker, onDefault, o
           <HarnessIcon harness={harness} className="size-4 shrink-0"/>
           {HARNESS_TITLE[harness]}
           <ProviderBinaryControl provider={harness}/>
-          {isDefault ? (<span className="rounded-full bg-content/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-content/60">
+          {isDefault ? (<span className="rounded-full bg-content/10 px-1.5 py-0.5 text-[11px] font-medium text-content/60">
               {t("Default")}</span>) : null}
         </span>} description={available
             ? (models.length === 1

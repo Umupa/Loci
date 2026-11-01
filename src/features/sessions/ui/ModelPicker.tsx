@@ -1203,7 +1203,7 @@ function SelectPill({
                 aria-label={grouped ? settingLabel(menuSetting) : undefined}
               >
                 {grouped ? (
-                  <div className="px-2.5 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-content/40">
+                  <div className="px-2.5 pb-1 pt-2 text-[11px] font-medium text-content/40">
                     {settingLabel(menuSetting)}
                   </div>
                 ) : null}
@@ -1458,7 +1458,7 @@ function ModelFlyout({
                 aria-label={group.name}
               >
                 {group.name ? (
-                  <div className="px-2.5 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wide text-content/40">
+                  <div className="px-2.5 pb-1 pt-2 text-[11px] font-medium text-content/40">
                     {group.name}
                   </div>
                 ) : null}

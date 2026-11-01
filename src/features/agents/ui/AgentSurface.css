@@ -32,7 +32,7 @@ button.agent-speaker-pill:hover { background: color-mix(in srgb, var(--color-con
 
 .agent-greeting { display: flex; flex-direction: column; align-items: center; padding: 32px 24px; text-align: center; font-family: var(--font-sans); }
 .agent-greeting-copy { display: flex; flex-direction: column; align-items: center; min-width: 0; }
-.agent-greeting-name { margin-top: -8px; display: flex; align-items: center; height: 32px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--color-content) 14%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--color-content) 6%, transparent); font-size: 13px; font-weight: 600; }
+.agent-greeting-name { margin-top: -8px; display: flex; align-items: center; height: 32px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--color-content) 14%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--color-content) 6%, transparent); font-size: 13px; font-weight: 500; }
 
 .agent-settings-modal .modal-panel > header { top: 6px; right: 8px; }
 .agent-settings-modal .modal-panel > div { overflow: hidden; }

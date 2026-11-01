@@ -22,7 +22,7 @@ export function AgentGallery({ onPick, onClose }: Props) {
         <div className="flex min-w-0 items-center gap-2.5">
           <AgentAvatar name={template.avatar} color={AGENT_COLORS[index % AGENT_COLORS.length]} className="size-8 shrink-0" />
           <div className="min-w-0">
-            <h3 className="truncate text-[13px] font-semibold text-content">{template.name}</h3>
+            <h3 className="truncate text-[13px] font-medium text-content">{template.name}</h3>
             <p className="truncate text-[11px] text-content/50">{template.role}</p>
           </div>
         </div>

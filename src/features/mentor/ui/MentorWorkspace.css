@@ -40,8 +40,8 @@
 .mentor-library-segment { display: flex; min-width: 0; flex: 1; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 4px; border-radius: 5px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 55%, transparent); white-space: nowrap; }
 .mentor-library-segment > span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .mentor-library-segment:hover { color: var(--color-content); }
-.mentor-library-segment[aria-selected="true"] { background: var(--color-selection); color: var(--color-content); font-weight: 600; box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent); }
-.mentor-library-count { font-size: 10.5px; font-variant-numeric: tabular-nums; font-weight: 500; opacity: .6; }
+.mentor-library-segment[aria-selected="true"] { background: var(--color-selection); color: var(--color-content); font-weight: 500; box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent); }
+.mentor-library-count { font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 500; opacity: .6; }
 /* Counts give way before the segment names do; below the narrowest comfortable
    width the four names take two rows rather than ellipses. */
 @container library (max-width: 300px) {
@@ -69,7 +69,7 @@
 .mentor-library-icon { display: grid; flex: none; place-items: center; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
 .mentor-library-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .mentor-library-title, .mentor-library-subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mentor-library-title { font-size: 12px; line-height: 18px; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
+.mentor-library-title { font-size: 13px; line-height: 20px; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
 .mentor-library-subtitle { font-size: 11px; line-height: 15px; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .mentor-library-empty { margin: 4px 8px 8px; font-size: 12px; line-height: 1.5; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .mentor-library-error { margin: 4px 8px; font-size: 12px; overflow-wrap: anywhere; color: color-mix(in srgb, var(--color-content) 65%, transparent); }

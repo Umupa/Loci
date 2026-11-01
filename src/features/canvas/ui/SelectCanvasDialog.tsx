@@ -62,7 +62,7 @@ export function SelectCanvasDialog({ canvases, anchor, onSelect, onCancel }: Pro
               {isFocused && (
                 <span className="absolute left-0 inset-y-1.5 w-[2px] rounded-full bg-accent" />
               )}
-              <span className="min-w-0 truncate text-[13px] font-medium leading-none tracking-[-0.01em]">
+              <span className="min-w-0 truncate text-[13px] font-medium leading-none">
                 {canvas.title}
               </span>
             </button>

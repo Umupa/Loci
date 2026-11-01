@@ -115,7 +115,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   useLocale();
   return (
     <div>
-      <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-content/40">
+      <div className="mb-1.5 text-[12px] font-medium text-content/40">
         {title}
       </div>
       <div className={CARD_GRID}>{children}</div>
