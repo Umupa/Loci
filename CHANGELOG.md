@@ -4,12 +4,35 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **Each mentor is a folder.** A mentor lives in `~/Loci/<mentor>/`: `mentor.json`, `SOUL.md`, memory, `sources/`, `guides/`, `courses/`, `notes/`, `canvases/`, beside its `repos/`. You and the mentor can edit the files, and changes show up in Loci live. 0.3 data moves in automatically at the first start, after a backup in `<app data>/backups/`; nothing old is changed or deleted. Mentor settings show the folder with Reveal and **Export…** (a .zip), and the gallery has **Import a mentor…**. Deleting a mentor keeps its folder, so it can be brought back.
+- **Pinned code tours.** A code lesson can name the commit it was written against (`repos/<owner>/<repo>@<sha>:path#L40-88`), and Loci shows the file as it was then. When the repository moves on and the file changes, a line under the title says so, with **Open current** and **Show pinned**, and the lesson's lines follow the edit when they can.
+- **A code reader for Go, Rust, C, TypeScript, JavaScript and Python.** A **Symbols** outline in the header, ⌘-click to a definition, and **Definition** and **References** in the selection menu. Navigating from a pinned lesson stays at its commit. References match by name; there is no language server.
+- **Back and forward in the reader.** ‹ › appear in the header once there is somewhere to go, and ⌘[ / ⌘] work too. Back returns to the lesson or the line you left, and undoes closing the reader.
+- **Comparison lessons.** One lesson can put the same mechanism from 2–4 places on a page: lines of a file, a section of a source, or pages of a paper. Each part has a compact header, folds, can carry a one-sentence mentor's note, and works like a single lesson inside: highlighting, pin notices, highlights and notes, Ask, Definition and References. The mentor knows which part you are reading.
+- **Learning paths.** A mentor can lay out 3–5 short courses in order, with optional prerequisites, in `courses/_path.yaml`. The Courses segment shows the path first: progress per course, planned courses (a click asks the mentor to write one), and "Best after …" while a prerequisite is unread, never a lock.
+- **Papers as first-hand sources.** A PDF saved as a source is listed with its page count, opens in the PDF reader with highlights and notes, and is searchable. A link such as `loci://source/<id>#p7` opens the page and flashes the quoted passage, and a lesson can read a paper at its pages.
+- **See what a mentor is doing.** A running turn lists its steps under the status line, newest first: saving a source, cloning a repository, fetching a page, writing a course. The conversation header names the newest step. What the turn saves carries a **New** mark in the library until you open it or the turn ends.
+- **Full-text search** of a mentor's sources, guides, notes and papers, in any language.
+- **New `loci` commands**: `storage status|migrate|reindex`, `library check|search`, `mentors export|import|relocate`, `code symbols|definition|references|read|pin|pins`, `path read|write`, and `reader open --at SHA` / `--page N`. `mentors turn` and `mentors send --wait --stream` report a turn's steps.
+
 ### Changed
 
 - Mentors wear hand-drawn ink portraits (Notionists by Zoish, CC0) on a card tinted with their color, in place of the robot faces. Small avatars show the face alone and larger ones the head and shoulders. Mentors keep the face they had: each saved robot name, including its Neutral twin, maps to a portrait.
 - The mentor rail is narrower. One highlight glides to the chosen mentor, faces lift and blink under the pointer, and a working mentor's tile carries a slow ring of light.
 - The library's segments slide: one pill moves to the chosen segment while its label unfolds and the previous one folds away.
 - A new app icon: an elephant in ink on paper, the animal said never to forget, after the memory Loci keeps for each mentor. Loci Dev is the same elephant in paper on ink, so the two are easy to tell apart in the Dock.
+- A mentor keeps its provider, model, effort and permissions: they are saved with the mentor and start every new conversation, including after a reset, an import or a restart.
+- A picture added to a mentor's note is stored beside the note in its folder; pictures older notes kept in the app data folder are copied there at the next start.
+- An open note changed on disk shows **Changed on disk — Reload · Keep mine** when you have unsaved edits, and follows the disk quietly when you don't. An open drawing changed on disk reloads when nothing is unsaved.
+- The Mentor and Lens templates plan paths for broad goals, pin every code lesson, write comparison lessons, and save papers as PDF sources.
+- The app is about 8 MB larger, for the code reader's grammars.
+
+### Fixed
+
+- An unknown `loci` command or option is a usage error (exit 2) instead of starting the app.
+- The first `loci mentors create` or `update` with `--provider` or `--model` after a cold start could stay on the previous provider.
 
 ## [0.3.0] - 2026-11-01
 
