@@ -3,7 +3,7 @@ import { SettingsLanguage } from "../../../shared/i18n/SettingsLanguage";
 import { installCli, loadCliAccess, rotateCliToken, setCliAccess, type CliAccess } from "../model/cliAccess";
 import { t, useLocale, getLocale, useLanguagePreference, setLanguagePreference, type LanguagePreference } from "../../../shared/i18n/locale";
 import { getName, getVersion } from "@tauri-apps/api/app";
-import { checkForUpdate, updatesEnabled } from "../../updates/model/updates";
+import { checkForUpdate, openUpdatePrompt, updatesEnabled, usePendingUpdate } from "../../updates/model/updates";
 import { shortcutPreview, shortcutFromKeyEvent } from "../../../shared/lib/shortcuts";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -1729,9 +1729,16 @@ function VersionRow() {
  const [name,setName] = useState("Loci");
  const [updates,setUpdates] = useState(false);
  const [checking,setChecking] = useState(false);
+ const [note,setNote] = useState<string | null>(null);
+ const pending = usePendingUpdate();
  useEffect(()=>{let cancelled=false;void getVersion().then(next=>{if(!cancelled)setVersion(next)}).catch(()=>{if(!cancelled)setVersion(t("Unavailable"))});void getName().then(next=>{if(!cancelled)setName(next)}).catch(()=>{});void updatesEnabled().then(next=>{if(!cancelled)setUpdates(next)});return ()=>{cancelled=true}},[]);
- const onCheck = () => { setChecking(true); void checkForUpdate({ interactive: true }).finally(() => setChecking(false)); };
+ // An interactive check opens the prompt; the latest-version and failure answers stay in this row.
+ const onCheck = () => { setChecking(true); setNote(null); void checkForUpdate({ interactive: true }).then((result) => { if (result.outcome === "current") setNote(t("You have the latest version.")); else if (result.outcome === "failed") setNote(t("Could not check for updates: {0}", result.error)); }).finally(() => setChecking(false)); };
  return <Row id="version" label={<span className="flex items-baseline gap-2">{t("Version")}<span className="font-mono text-[12px] text-content/45">{version}</span></span>} description={updates ? name : t("{0} is built from source and does not update itself. Its data is kept apart from the installed Loci.", name)}>
-   {updates ? (<button type="button" onClick={onCheck} disabled={checking} className="shrink-0 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 hover:bg-content/10 hover:text-content disabled:opacity-50">{checking ? t("Checking…") : t("Check for Updates")}</button>) : null}
+   <div className="flex flex-col items-end gap-1.5">
+     {updates ? (<button type="button" onClick={onCheck} disabled={checking} className="shrink-0 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 hover:bg-content/10 hover:text-content disabled:opacity-50">{checking ? t("Checking…") : t("Check for Updates")}</button>) : null}
+     {pending ? (<span className="flex flex-wrap items-center justify-end gap-1.5 text-right text-[12px] leading-snug text-content/55"><span role="status">{t("Loci {0} is available.", pending.version)}</span><button type="button" onClick={() => openUpdatePrompt()} className="rounded px-1 py-0.5 font-medium text-accent hover:bg-accent/10">{t("View update")}</button></span>) : null}
+     {note ? (<span role="status" className="text-right text-[12px] leading-snug text-content/45">{note}</span>) : null}
+   </div>
  </Row>;
 }

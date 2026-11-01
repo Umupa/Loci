@@ -33,6 +33,12 @@ type Props = {
   className?: string;
   /** Keep taller dialogs inside the viewport, scrolling their content. */
   fitViewport?: boolean;
+  /** Pinned below the scrolling body, so a long body cannot push it off screen. */
+  footer?: ReactNode;
+  /** Keep the close button from taking focus, when the primary action should have it. */
+  autoFocusClose?: boolean;
+  /** Disable the header's close button while a blocking action runs. */
+  closeDisabled?: boolean;
   children: ReactNode;
 };
 
@@ -44,6 +50,9 @@ export function ModalPanel({
   minimalHeader = false,
   className,
   fitViewport = false,
+  footer,
+  autoFocusClose = true,
+  closeDisabled = false,
   children,
 }: Props) {
   const { t, locale } = useUiText();
@@ -55,8 +64,8 @@ export function ModalPanel({
   const descriptionId = description ? `${uid}-desc` : undefined;
 
   useEffect(() => {
-    if (!minimalHeader) closeRef.current?.focus();
-  }, [minimalHeader]);
+    if (!minimalHeader && autoFocusClose) closeRef.current?.focus();
+  }, [minimalHeader, autoFocusClose]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -125,7 +134,8 @@ export function ModalPanel({
               type="button"
               aria-label={t("Close")}
               onClick={onClose}
-              className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/8 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              disabled={closeDisabled}
+              className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/8 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-content/45"
             >
               <X className="size-3.5" strokeWidth={1.75} />
             </button>
@@ -136,6 +146,7 @@ export function ModalPanel({
           >
             <InDialog.Provider value>{children}</InDialog.Provider>
           </div>
+          {footer ? <div className="shrink-0">{footer}</div> : null}
         </div>
       </div>
     </div>

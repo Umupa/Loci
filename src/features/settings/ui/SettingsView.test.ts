@@ -4,6 +4,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { check } from "@tauri-apps/plugin-updater";
+import { resetUpdatesForTests } from "../../updates/model/updates";
 import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
 import { isHarnessAvailable } from "../../../integrations/harness/core/availability";
 import { hasLiveCatalog, modelsFor, resetHarnessModelOverlays, setHarnessModels } from "../../sessions/model/models";
@@ -29,6 +31,14 @@ vi.mock("../model/cliAccess", () => ({
     installCli: vi.fn(async () => ({ enabled: true, identifier: "com.loci.desktop.test", executable: null, tokenPath: null, installPath: "/home/me/.local/bin/loci", installed: true })),
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ ask: vi.fn(async () => true) }));
+const appInfo = vi.hoisted(() => ({ identifier: "com.loci.desktop", version: "0.2.0", available: null as null | Record<string, unknown> }));
+vi.mock("@tauri-apps/api/app", () => ({
+    getIdentifier: vi.fn(async () => appInfo.identifier),
+    getVersion: vi.fn(async () => appInfo.version),
+    getName: vi.fn(async () => "Loci"),
+}));
+vi.mock("@tauri-apps/plugin-updater", () => ({ check: vi.fn(async () => appInfo.available) }));
+vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: vi.fn(async () => undefined) }));
 vi.mock("../../../integrations/harness/core/availability", () => ({
     isHarnessAvailable: vi.fn((id: string) => id === "claude" || id === "codex"),
     hasProbedHarnessAvailability: () => true,
@@ -76,6 +86,11 @@ beforeEach(() => {
     root = createRoot(container);
     onSelectSection = vi.fn();
     vi.mocked(invoke).mockReset().mockResolvedValue(undefined);
+    resetUpdatesForTests();
+    appInfo.identifier = "com.loci.desktop";
+    appInfo.version = "0.2.0";
+    appInfo.available = null;
+    vi.mocked(check).mockClear();
 });
 afterEach(async () => {
     await act(async () => root.unmount());
@@ -459,5 +474,36 @@ describe("providers scope inheritance", () => {
         // provider back on, so it is locked and explained.
         expect(codexToggle.hasAttribute("disabled")).toBe(true);
         expect(codexToggle.closest(".settings-row")?.textContent).toContain("Hidden globally");
+    });
+});
+describe("updates in About", () => {
+    function buttonByText(label: string) {
+        return [...container.querySelectorAll<HTMLButtonElement>("button")].find((node) => node.textContent?.trim() === label);
+    }
+    it("says the version is current beside it instead of in a dialog", async () => {
+        await render("general");
+        const checkButton = buttonByText("Check for Updates");
+        expect(checkButton).toBeTruthy();
+        await act(async () => { checkButton!.click(); });
+        await act(async () => {});
+        expect(container.textContent).toContain("You have the latest version.");
+        expect(document.querySelector('[role="dialog"]')).toBeNull();
+    });
+    it("shows a check failure beside the version", async () => {
+        vi.mocked(check).mockRejectedValueOnce(new Error("offline"));
+        await render("general");
+        await act(async () => { buttonByText("Check for Updates")!.click(); });
+        await act(async () => {});
+        expect(container.textContent).toContain("Could not check for updates: offline");
+        expect(document.querySelector('[role="dialog"]')).toBeNull();
+    });
+    it("offers a release a quiet check found", async () => {
+        appInfo.available = { version: "0.3.0", currentVersion: "0.2.0", body: "## Added\n\n- A thing.", close: async () => undefined, downloadAndInstall: async () => undefined };
+        await render("general");
+        const { checkForUpdate } = await import("../../updates/model/updates");
+        await act(async () => { await checkForUpdate({ interactive: false }); });
+        expect(container.textContent).toContain("Loci 0.3.0 is available.");
+        expect(buttonByText("View update")).toBeTruthy();
+        expect(document.querySelector('[role="dialog"]')).toBeNull();
     });
 });

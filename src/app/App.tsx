@@ -17,7 +17,8 @@ import { requestDocumentPlace } from "../features/agents/model/documentPlace";
 import type { DiscussionRef } from "../features/learning/model/types";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { startUpdateChecks } from "../features/updates/model/updates";
+import { openUpdatePrompt, startUpdateChecks, usePendingUpdateVersion } from "../features/updates/model/updates";
+import { UpdatePrompt } from "../features/updates/ui/UpdatePrompt";
 import { WindowControls } from "./shell/WindowControls";
 import { MenuBar } from "./shell/MenuBar";
 import { MentorRail } from "./shell/MentorRail";
@@ -101,6 +102,7 @@ function Workspace(boot: BootWorkspace) {
   surfaceRef.current = surface;
   // One window asks about updates, not each of them.
   useEffect(() => (getCurrentWindow().label === "main" ? startUpdateChecks() : undefined), []);
+  const pendingUpdateVersion = usePendingUpdateVersion();
   const [settingsSection, setSettingsSection] = useState(loadSettingsSection);
   const [settingsAnchor, setSettingsAnchor] = useState<string | null>(null);
   const [savedToast, setSavedToast] = useState<SavedToastData | null>(null);
@@ -567,7 +569,8 @@ function Workspace(boot: BootWorkspace) {
         <MentorRail activeId={activeAgent?.id} states={agents.states} unseenIds={unseenAgentIds} settingsOpen={surface === "settings"}
           onOpen={(id) => void showMentor(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void showMentor(id); }}
           onCreate={() => setAgentGalleryOpen(true)} onDelete={(id) => void agents.remove(id)}
-          onSearch={() => setSearchOpen(true)} onOpenSettings={() => surface === "settings" ? closeSettings() : openSettings()} />
+          onSearch={() => setSearchOpen(true)} onOpenSettings={() => surface === "settings" ? closeSettings() : openSettings()}
+          updateVersion={pendingUpdateVersion} onViewUpdate={openUpdatePrompt} />
         {surface === "settings" ? <aside className="flex w-[220px] shrink-0 flex-col border-r border-stroke" aria-label="Settings sections">
           <div className="h-10 shrink-0" data-tauri-drag-region="deep" />
           <SettingsNav section={settingsSection} onSelect={onSelectSettingsSection} onClose={closeSettings} />
@@ -616,6 +619,7 @@ function Workspace(boot: BootWorkspace) {
         />
       )}
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
+      <UpdatePrompt />
       {canvasSelection ? <SelectCanvasDialog anchor={canvasSelection.anchor ?? null} canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new DOMException("Cancelled", "AbortError")); }} /> : null}
       {store.error ? <FileActionError message={store.error} onDismiss={() => store.setError(null)} /> : null}
       {learningTargetRequest ? <Modal title="Choose a mentor" description="Your passage will be added as a draft to the mentor's conversation." onClose={() => setLearningTargetRequest(null)}>

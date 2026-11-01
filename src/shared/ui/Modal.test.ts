@@ -37,4 +37,21 @@ describe("ModalPanel", () => {
     expect(markup).toContain("Authentication required");
     expect(markup).toContain("Provider login");
   });
+
+  it("pins a footer after the scrolling body and can disable closing", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ModalPanel, {
+        title: "Update Loci",
+        onClose: vi.fn(),
+        footer: "Install and Restart",
+        closeDisabled: true,
+        children: "Release notes",
+      }),
+    );
+
+    expect(markup).toContain("Release notes");
+    expect(markup).toContain("Install and Restart");
+    expect(markup.indexOf("Release notes")).toBeLessThan(markup.indexOf("Install and Restart"));
+    expect(markup).toMatch(/aria-label="Close"[^>]*disabled=""/);
+  });
 });

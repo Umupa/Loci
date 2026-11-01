@@ -6,6 +6,7 @@ import { AgentAvatar } from "../../features/agents/ui/AgentAvatar";
 import { IS_MAC } from "../../platform/tauri/platform";
 import { prettyCwd } from "../../shared/lib/paths";
 import { AGENT_STATUS_LABEL, agentLook, agentsSnapshot, listAgents, reorderAgents, subscribeAgents, type AgentState } from "../../features/agents/model/agent";
+import { UpdateBadge } from "../../features/updates/ui/UpdateBadge";
 import "./MentorRail.css";
 
 type Props = {
@@ -23,6 +24,10 @@ type Props = {
   onDelete: (agentId: string) => void;
   onSearch?: () => void;
   onOpenSettings: () => void;
+  /** A release a quiet check found; shown as a dot on Settings. */
+  updateVersion?: string | null;
+  /** Opens the update prompt. */
+  onViewUpdate?: () => void;
 };
 
 const IDLE: AgentState = { status: "idle" };
@@ -59,7 +64,7 @@ function RailSignal({ phase }: { phase: RailPhase }) {
  * The far-left rail: one face per mentor, each a topic of its own, then a
  * way to add one and the settings.
  */
-export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, onOpenDetails, onCreate, onDelete, onSearch, onOpenSettings }: Props) {
+export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, onOpenDetails, onCreate, onDelete, onSearch, onOpenSettings, updateVersion, onViewUpdate }: Props) {
   const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const agents = useMemo(() => listAgents(), [snapshot]);
@@ -97,9 +102,12 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
       {onSearch ? <button type="button" className="mentor-rail-action" aria-label="Search" title={`Search (${IS_MAC ? "⌘" : "Ctrl+"}K)`} onClick={onSearch}>
         <Search className="size-4" strokeWidth={1.75} />
       </button> : null}
-      <button type="button" className="mentor-rail-action" aria-label="Settings" title="Settings" aria-pressed={settingsOpen} onClick={onOpenSettings}>
-        <Settings className="size-4" strokeWidth={1.75} />
-      </button>
+      <div className="relative">
+        <button type="button" className="mentor-rail-action" aria-label="Settings" title="Settings" aria-pressed={settingsOpen} onClick={onOpenSettings}>
+          <Settings className="size-4" strokeWidth={1.75} />
+        </button>
+        {updateVersion && onViewUpdate ? <UpdateBadge version={updateVersion} onOpen={onViewUpdate} /> : null}
+      </div>
     </div>
     {menu && menuAgent ? <Popover anchor={menu.anchor} side="right" align="start" gap={0} width={200} constrainHeight={false}
       onDismiss={() => setMenu(undefined)} role="menu" aria-label={`${agentLook(menuAgent).name} options`}

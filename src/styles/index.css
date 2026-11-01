@@ -1485,6 +1485,25 @@ html.has-theme .agent-markdown :is(h1, h2, h3, h4, h5, h6) {
   color: var(--color-markdown-heading);
 }
 
+/* The update prompt is a dialog, not a page: a changelog's headings should not
+   outrank its own title, and its first line should not push the notes down. */
+[data-update-notes] .agent-markdown {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+[data-update-notes] .agent-markdown :is(h1, h2) {
+  font-size: 15px;
+}
+
+[data-update-notes] .agent-markdown :is(h3, h4, h5, h6) {
+  font-size: 14px;
+}
+
+[data-update-notes] .agent-markdown > :first-child {
+  margin-top: 0;
+}
+
 html.has-theme .agent-markdown .markdown-link:hover,
 html.has-theme .agent-markdown code[role="link"]:hover {
   color: color-mix(in srgb, var(--link-color) 75%, var(--color-content));
