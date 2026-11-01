@@ -41,3 +41,18 @@ export type CodeSymbol = { name: string; kind: string; line: number; column: num
 export function codeSymbols(file: string, commit?: string): Promise<{ language?: string; symbols: CodeSymbol[] }> {
   return invoke("code_symbols", { file, commit: commit ?? null });
 }
+
+/** A place a definition or reference search found. */
+export type CodeHit = { file: string; pathInRepo?: string; line: number; column: number; kind?: string; container?: string; preview: string };
+
+/** Where a search starts: a place in a file (or a name), at a commit or on disk. */
+export type CodeQuery = { file: string; commit?: string; line?: number; column?: number; name?: string; limit?: number };
+
+export function codeDefinition(query: CodeQuery): Promise<{ name: string; commit?: string; definitions: CodeHit[] }> {
+  return invoke("code_definition", { query });
+}
+
+/** Uses of a name, matched by name (not resolved like a compiler would). */
+export function codeReferences(query: CodeQuery): Promise<{ name: string; commit?: string; match: "name"; total: number; truncated: boolean; references: CodeHit[] }> {
+  return invoke("code_references", { query });
+}

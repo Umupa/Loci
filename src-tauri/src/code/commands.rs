@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::git;
 use super::lang::{self, Lang, Symbol};
+use super::nav;
 
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, String> + Send + 'static,
@@ -243,6 +244,55 @@ pub fn symbols(file: &str, commit: Option<&str>) -> Result<Symbols, String> {
 #[tauri::command]
 pub async fn code_symbols(file: String, commit: Option<String>) -> Result<Symbols, String> {
     blocking(move || symbols(&file, commit.as_deref())).await
+}
+
+/// Where a definition or reference search starts: a file and a place in
+/// it, or a name (with a file or a repository folder to search from).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NavQuery {
+    pub file: String,
+    #[serde(default)]
+    pub commit: Option<String>,
+    #[serde(default)]
+    pub line: Option<u32>,
+    #[serde(default)]
+    pub column: Option<u32>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+fn origin_and_name(query: &NavQuery) -> Result<(nav::Origin, String), String> {
+    let origin = nav::Origin::new(Path::new(&query.file), query.commit.as_deref())?;
+    let name = match (&query.name, query.line) {
+        (Some(name), _) if !name.trim().is_empty() => name.trim().to_string(),
+        (_, Some(line)) => origin.name_at(line, query.column.unwrap_or(1))?,
+        _ => return Err("Name a place (line and column) or a name".into()),
+    };
+    if name.len() > 200 {
+        return Err("That name is too long".into());
+    }
+    Ok((origin, name))
+}
+
+#[tauri::command]
+pub async fn code_definition(query: NavQuery) -> Result<nav::Definitions, String> {
+    blocking(move || {
+        let (origin, name) = origin_and_name(&query)?;
+        nav::definitions(&origin, &name)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn code_references(query: NavQuery) -> Result<nav::References, String> {
+    blocking(move || {
+        let (origin, name) = origin_and_name(&query)?;
+        nav::references(&origin, &name, query.limit.unwrap_or(nav::REFERENCES_MAX))
+    })
+    .await
 }
 
 #[cfg(test)]
