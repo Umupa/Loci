@@ -5,6 +5,7 @@ import { Popover } from "../../../shared/ui/Popover";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { upsertNote } from "../../notes";
+import { requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { DocumentBody, shownDocument } from "./DocumentBody";
 import {
@@ -39,6 +40,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
   const [latest, setLatest] = useState<AgentDocument>(document);
   const [stored, setStored] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [savedNoteId, setSavedNoteId] = useState<string>();
   const [error, setError] = useState<string>();
   const [actionError, setActionError] = useState<string>();
   const [reload, setReload] = useState(0);
@@ -52,6 +54,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
     setLatest(document);
     setStored(false);
     setSaved(false);
+    setSavedNoteId(undefined);
     setCopied(false);
     setMenu(false);
     setError(undefined);
@@ -88,7 +91,8 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
 
   const saveAsNote = async () => {
     try {
-      await upsertNote({ id: crypto.randomUUID(), title: latest.title, body: latest.body, tags: latest.subject ? [latest.subject] : [], ...(agentId ? { agentId } : {}) });
+      const note = await upsertNote({ id: crypto.randomUUID(), title: latest.title, body: latest.body, tags: latest.subject ? [latest.subject] : [], ...(agentId ? { agentId } : {}) });
+      setSavedNoteId(note?.id);
       setSaved(true);
     } catch (cause) { setActionError(`Could not save note: ${String(cause)}`); }
   };
@@ -122,6 +126,10 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         <button type="button" role="menuitem" disabled={saved || loading || !!error} onClick={() => { setMenu(false); void saveAsNote(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><StickyNote className="size-3.5" />{saved ? "Saved to Notes" : "Save as a note"}</button>
         {agentId && stored ? <button type="button" role="menuitem" onClick={() => { setMenu(false); removeFromLibrary(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-400 hover:bg-content/6"><Trash2 className="size-3.5" />Remove from the library</button> : null}
       </Popover> : null}
+      {saved && savedNoteId ? <div role="status" className="flex shrink-0 items-center gap-2 border-b border-stroke px-6 py-1.5 text-[12px] text-content/60">
+        <span>Saved to Notes.</span>
+        <button type="button" onClick={() => requestOpenAppResource({ kind: "note", id: savedNoteId })} className="underline hover:text-content">Open</button>
+      </div> : null}
       <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${embedded ? "px-7 py-6" : "px-6 pb-10 pt-2"} text-[14px] leading-relaxed`}>
         {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <DocumentBody document={latest} agentId={agentId} onMarks={setMarks}
           marksList={marksOpen ? { anchor: more, onClose: () => setMarksOpen(false) } : undefined} />}

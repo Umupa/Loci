@@ -35,7 +35,7 @@ beforeEach(() => {
     }
     throw new Error(`Unexpected command: ${command}`);
   });
-  vi.mocked(upsertNote).mockResolvedValue(undefined as never);
+  vi.mocked(upsertNote).mockImplementation(async (note) => ({ title: "Untitled", body: "", tags: [], slug: "note", slugPending: false, createdAt: 1, updatedAt: 2, ...note }));
   vi.stubGlobal("confirm", vi.fn(() => true));
   container = document.createElement("div");
   document.body.append(container);
@@ -114,6 +114,18 @@ it("keeps a library document when removing it is declined", async () => {
   expect(invoke).not.toHaveBeenCalledWith("agent_documents_delete", expect.anything());
   expect(library.has("agent-a:network")).toBe(true);
   expect(props.onClose).not.toHaveBeenCalled();
+});
+
+it("says the document was saved and offers to open the note", async () => {
+  await render();
+  expect(container.querySelector('[role="status"]')).toBeNull();
+  await act(async () => button("Save as a note").click());
+  const status = container.querySelector('[role="status"]')!;
+  expect(status.textContent).toContain("Saved to Notes.");
+  const opened = vi.fn(); window.addEventListener("loci-open-resource", opened);
+  await act(async () => [...status.querySelectorAll<HTMLButtonElement>("button")].find((entry) => entry.textContent === "Open")!.click());
+  expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({ kind: "note", id: expect.any(String) });
+  window.removeEventListener("loci-open-resource", opened);
 });
 
 it("resets its saved state when switched to another document", async () => {
