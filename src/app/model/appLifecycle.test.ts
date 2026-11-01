@@ -1,12 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { forgetHarnessSession } from "../../integrations/harness/core/registry";
 import { killAllChildren } from "../../integrations/harness/core/child";
 import { newSession } from "../../features/sessions/model/session";
+import { setFileDraft } from "../../features/files/model/fileDrafts";
 import {
   askQuitConfirmation,
   closeBusyWindow,
+  confirmDiscardFileDrafts,
   persistAndCloseWindow,
   persistQuitState,
   commitQuit,
@@ -38,6 +40,38 @@ vi.mock("../../integrations/harness/core/registry", () => ({
 vi.mock("../../integrations/harness/core/child", () => ({
   killAllChildren: vi.fn().mockResolvedValue(undefined),
 }));
+
+describe("closing with unsaved file edits", () => {
+  const draft = { text: "edited", base: "saved" };
+  afterEach(() => {
+    setFileDraft("/repo/src/main.rs", null);
+    vi.mocked(ask).mockReset().mockResolvedValue(true);
+  });
+
+  it("closes without asking when nothing is unsaved", async () => {
+    await expect(confirmDiscardFileDrafts(false)).resolves.toBe(true);
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it("keeps edits when the window only hides to the tray", async () => {
+    setFileDraft("/repo/src/main.rs", draft);
+    await expect(confirmDiscardFileDrafts(true)).resolves.toBe(true);
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it("asks once before discarding unsaved edits", async () => {
+    setFileDraft("/repo/src/main.rs", draft);
+    vi.mocked(ask).mockResolvedValueOnce(false);
+    await expect(confirmDiscardFileDrafts(false)).resolves.toBe(false);
+    expect(ask).toHaveBeenCalledWith(
+      "Close Loci and discard unsaved changes to your files?",
+      expect.objectContaining({ kind: "warning", okLabel: "Discard changes", cancelLabel: "Keep editing" }),
+    );
+
+    vi.mocked(ask).mockResolvedValueOnce(true);
+    await expect(confirmDiscardFileDrafts(false)).resolves.toBe(true);
+  });
+});
 
 describe("idle window close persistence", () => {
   beforeEach(() => { vi.mocked(invoke).mockReset().mockResolvedValue(undefined); });

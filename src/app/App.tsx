@@ -64,7 +64,7 @@ import { rebaseProjectData } from "../features/projects/model/projectData";
 import { replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
 import { rebaseProjectSessions } from "../features/sessions/data/sessionStore";
 import { ProjectNotFoundError } from "../features/projects/model/projectLocationError";
-import { closeBusyWindow, closeCurrentWindow, hasInFlightSessions, hideCurrentWindow, isAppQuitting, persistAndCloseWindow, persistLiveTranscripts, persistQuitState, setQuitWorkspace, type BootWorkspace, type WorkspaceSaveMode } from "./model/appLifecycle";
+import { closeBusyWindow, closeCurrentWindow, confirmDiscardFileDrafts, hasInFlightSessions, hideCurrentWindow, isAppQuitting, persistAndCloseWindow, persistLiveTranscripts, persistQuitState, setQuitWorkspace, type BootWorkspace, type WorkspaceSaveMode } from "./model/appLifecycle";
 import { useSessionRuntime } from "./hooks/useSessionRuntime";
 import { useSessionSubmission } from "./hooks/useSessionSubmission";
 import { useIdleSessionDetach } from "./hooks/useIdleSessionDetach";
@@ -523,10 +523,18 @@ function Workspace(boot: BootWorkspace) {
     const release = setQuitWorkspace(() => sessionsRef.current, runtime.flushEvents);
     let stop: (() => void) | undefined;
     let disposed = false;
-    void getCurrentWindow().onCloseRequested((event) => {
+    // A window close asks about unsaved files once, however often it is requested.
+    let askingAboutDrafts = false;
+    void getCurrentWindow().onCloseRequested(async (event) => {
       event.preventDefault();
       runtime.flushEvents();
       const toTray = loadCloseToTray();
+      if (!toTray) {
+        if (askingAboutDrafts) return;
+        askingAboutDrafts = true;
+        const discard = await confirmDiscardFileDrafts(false).finally(() => { askingAboutDrafts = false; });
+        if (!discard) return;
+      }
       if (hasInFlightSessions(sessionsRef.current)) {
         if (!toTray && !IS_MAC) { void closeBusyWindow(); return; }
         void persistLiveTranscripts(sessionsRef.current);

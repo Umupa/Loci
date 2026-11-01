@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { hasFileDrafts } from "../../features/files/model/fileDrafts";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
   bindHarnessSession,
@@ -206,6 +207,20 @@ export async function closeCurrentWindow(): Promise<void> {
 export async function persistAndCloseWindow(persist: () => Promise<void>, toTray: boolean): Promise<void> {
   await persist();
   await (toTray ? hideCurrentWindow() : closeCurrentWindow());
+}
+
+/**
+ * A window close that would discard unsaved file edits asks once, as leaving
+ * a reader does. Hiding to the tray keeps the edits, so it does not ask.
+ */
+export async function confirmDiscardFileDrafts(toTray: boolean): Promise<boolean> {
+  if (toTray || !hasFileDrafts()) return true;
+  return ask("Close Loci and discard unsaved changes to your files?", {
+    title: "Loci",
+    kind: "warning",
+    okLabel: "Discard changes",
+    cancelLabel: "Keep editing",
+  });
 }
 
 export async function persistLiveTranscripts(
