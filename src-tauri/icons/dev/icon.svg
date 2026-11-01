@@ -1,21 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-<defs>
-  <linearGradient id="plate" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#FF8F45"/><stop offset="1" stop-color="#D9481E"/></linearGradient>
-  <linearGradient id="door" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A2D6B"/><stop offset="1" stop-color="#15173A"/></linearGradient>
-  <radialGradient id="glow" cx="0.5" cy="0.62" r="0.5"><stop offset="0" stop-color="#FFF4E6" stop-opacity="0.0"/><stop offset="1" stop-color="#FFF4E6" stop-opacity="0"/></radialGradient>
-  <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
-  <clipPath id="clip"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
-</defs>
-<g clip-path="url(#clip)">
-  <rect x="100" y="100" width="824" height="824" fill="url(#plate)"/>
-  <ellipse cx="512" cy="560" rx="250" ry="230" fill="url(#glow)"/>
-  <path d="M250 760 V498 A262 262 0 0 1 774 498 V760" fill="none" stroke="#FFF4E6" stroke-opacity=".22" stroke-width="34" stroke-linecap="round"/>
-  <path d="M322 760 V526 A190 190 0 0 1 702 526 V760" fill="none" stroke="#FFF4E6" stroke-opacity=".5" stroke-width="34" stroke-linecap="round"/>
-  <path d="M394 760 V558 A118 118 0 0 1 630 558 V760 Z" fill="url(#door)"/>
-  <path d="M394 760 V558 A118 118 0 0 1 630 558 V760" fill="none" stroke="#FFF4E6" stroke-width="34" stroke-linecap="round"/>
-  <line x1="214" y1="760" x2="810" y2="760" stroke="#FFF4E6" stroke-width="34" stroke-linecap="round"/>
-  <text x="512" y="868" text-anchor="middle" font-family="-apple-system, Helvetica Neue, Arial, sans-serif" font-weight="800" font-size="92" letter-spacing="14" fill="#FFF4E6">DEV</text>
-  <rect x="100" y="100" width="824" height="824" fill="url(#sheen)"/>
+<title>Loci Dev</title>
+<defs><clipPath id="plate"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath></defs>
+<g clip-path="url(#plate)">
+  <rect x="100" y="100" width="824" height="824" fill="#1E2124"/>
+  <path d="M1040 330 C 950 268 830 262 762 312 C 722 218 622 178 522 188 C 420 198 340 262 330 372 C 322 460 318 580 288 682 C 276 724 254 742 234 738 C 216 734 208 716 216 702 C 222 690 210 682 198 690 C 176 706 174 750 196 776 C 218 800 254 804 286 792 C 334 778 362 722 372 646 C 378 606 390 580 410 574 C 428 569 441 577 446 590 C 488 592 528 612 548 660 C 570 720 580 800 588 1040 L 1040 1040 Z" fill="#F2EFE6"/>
+  <path d="M598 268 C 700 250 770 335 748 445 C 732 520 690 568 640 600" fill="none" stroke="#1E2124" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="440" cy="322" r="16" fill="#1E2124"/>
 </g>
-<rect x="100.5" y="100.5" width="823" height="823" rx="186" fill="none" stroke="#000" stroke-opacity=".18"/>
+<rect x="100.5" y="100.5" width="823" height="823" rx="186" fill="none" stroke="#000" stroke-opacity=".10"/>
 </svg>

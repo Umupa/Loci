@@ -9,6 +9,7 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 - Mentors wear hand-drawn ink portraits (Notionists by Zoish, CC0) on a card tinted with their color, in place of the robot faces. Small avatars show the face alone and larger ones the head and shoulders. Mentors keep the face they had: each saved robot name, including its Neutral twin, maps to a portrait.
 - The mentor rail is narrower. One highlight glides to the chosen mentor, faces lift and blink under the pointer, and a working mentor's tile carries a slow ring of light.
 - The library's segments slide: one pill moves to the chosen segment while its label unfolds and the previous one folds away.
+- A new app icon: an elephant in ink on paper, the animal said never to forget, after the memory Loci keeps for each mentor. Loci Dev is the same elephant in paper on ink, so the two are easy to tell apart in the Dock.
 
 ## [0.3.0] - 2026-11-01
 
