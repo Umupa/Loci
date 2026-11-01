@@ -216,6 +216,7 @@ function SoulPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
   const [text, setText] = useState(files.soul);
   const opened = useRef({ text: files.soul, hash: files.soulHash });
   const [conflict, setConflict] = useState(false);
+  const [error, setError] = useState<string>();
   // Follow the file while the field is untouched; an unsaved draft is never replaced.
   useEffect(() => {
     if (text === opened.current.text) {
@@ -231,9 +232,11 @@ function SoulPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
       const hash = await saveAgentFile(agentId, "soul", text, opened.current.hash);
       opened.current = { text, hash };
       setConflict(false);
-    } catch (error) {
-      if (!(error instanceof AgentFileConflict)) throw error;
-      setConflict(true);
+      setError(undefined);
+    } catch (saveError) {
+      // The draft stays in the field so nothing typed is lost.
+      if (!(saveError instanceof AgentFileConflict)) setError(String(saveError));
+      else setConflict(true);
     }
   };
   // Leaving the page is leaving the field.
@@ -248,10 +251,11 @@ function SoulPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
       {conflict ? (
         <div className="flex items-center gap-2 text-[11px] text-red-400/90">
           <span className="min-w-0 flex-1">It changed while you were editing.</span>
-          <button type="button" className="underline" onClick={() => { opened.current = { text: files.soul, hash: files.soulHash }; setText(files.soul); setConflict(false); }}>Load theirs</button>
+          <button type="button" className="underline" onClick={() => { opened.current = { text: files.soul, hash: files.soulHash }; setText(files.soul); setConflict(false); setError(undefined); }}>Load theirs</button>
           <button type="button" className="underline" onClick={() => { opened.current = { ...opened.current, hash: files.soulHash }; void save(); }}>Keep mine</button>
         </div>
       ) : null}
+      {error ? <p role="alert" className="text-[11px] text-red-400">Could not save the Soul. {error}</p> : null}
     </div>
   );
 }

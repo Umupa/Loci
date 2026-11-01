@@ -161,3 +161,27 @@ it("retains the memory draft when another writer has replaced the original fact"
   expect(container.querySelector('[role="alert"]')?.textContent).toContain("This memory changed");
   expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Edit memory"]')?.value).toBe("Prefers examples before explanations");
 });
+
+it("keeps the Soul draft and says so when the save fails", async () => {
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === "agent_load") return { id: "agent", soul: "# Soul", soulHash: "s", memory: "", memoryHash: "m", topics: [] };
+    if (command === "agent_save") throw new Error("Permission denied");
+    return original(command, args);
+  });
+  await render();
+  await act(async () => [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((item) => item.textContent === "Soul")!.click());
+  const field = () => container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Soul"]')!;
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field(), "# Changed soul");
+    field().dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => {
+    field().focus();
+    field().blur();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain("Could not save the Soul");
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain("Permission denied");
+  expect(field().value).toBe("# Changed soul");
+});
