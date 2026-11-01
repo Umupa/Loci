@@ -555,7 +555,13 @@ fn annotation_row(conn: &Connection, row: &rusqlite::Row<'_>) -> rusqlite::Resul
     let anchor: Option<String> = row.get(10)?;
     Ok(Annotation {
         id: row.get(0)?,
-        target: AnnotationTarget::from_row(&kind, &target_key, &document_id),
+        target: if kind == MENTOR_FILE_KIND {
+            Some(AnnotationTarget::File {
+                path: resolve_mentor_file(conn, &target_key),
+            })
+        } else {
+            AnnotationTarget::from_row(&kind, &target_key, &document_id)
+        },
         document_id,
         anchor: anchor.map(decode).transpose()?,
         source: found,
@@ -573,14 +579,60 @@ fn annotations(conn: &Connection, document_id: &str) -> rusqlite::Result<Vec<Ann
     let rows = statement.query_map([document_id], |row| annotation_row(conn, row))?;
     rows.collect()
 }
+/// Marks on a file inside a mentor's folder are kept as `mentorFile`
+/// `<agent>/<path in the folder>`, so they follow the folder when it is
+/// exported, imported or moved. Older marks keyed by absolute path still show.
+const MENTOR_FILE_KIND: &str = "mentorFile";
+
+fn mentor_file_key(conn: &Connection, path: &str) -> Option<String> {
+    let path = std::path::Path::new(path);
+    crate::mentor_store::registry::list(conn)
+        .ok()?
+        .into_iter()
+        .filter(|record| record.migrated_at.is_some())
+        .find_map(|record| {
+            let rel = path
+                .strip_prefix(&record.folder)
+                .ok()?
+                .to_str()?
+                .to_string();
+            (!rel.is_empty()).then(|| format!("{}/{rel}", record.id))
+        })
+}
+
+fn resolve_mentor_file(conn: &Connection, key: &str) -> String {
+    key.split_once('/')
+        .and_then(|(agent, rel)| {
+            crate::mentor_store::registry::active_folder(conn, agent)
+                .ok()
+                .flatten()
+                .map(|folder| folder.join(rel).to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| key.to_string())
+}
+
+/// Where a target's marks are stored: its own kind and key, except a file
+/// in a mentor's folder.
+fn storage_key(conn: &Connection, target: &AnnotationTarget) -> (String, String) {
+    if let AnnotationTarget::File { path } = target {
+        if let Some(key) = mentor_file_key(conn, path) {
+            return (MENTOR_FILE_KIND.into(), key);
+        }
+    }
+    (target.kind().into(), target.key())
+}
+
 fn annotations_for(
     conn: &Connection,
     target: &AnnotationTarget,
 ) -> rusqlite::Result<Vec<Annotation>> {
+    let (kind, key) = storage_key(conn, target);
     let mut statement = conn.prepare(&format!(
-        "SELECT {ANNOTATION_COLUMNS} FROM pdf_annotations WHERE target_kind=?1 AND target_key=?2 ORDER BY created_at,id"
+        "SELECT {ANNOTATION_COLUMNS} FROM pdf_annotations
+         WHERE (target_kind=?1 AND target_key=?2) OR (target_kind=?3 AND target_key=?4)
+         ORDER BY created_at,id"
     ))?;
-    let rows = statement.query_map(params![target.kind(), target.key()], |row| {
+    let rows = statement.query_map(params![kind, key, target.kind(), target.key()], |row| {
         annotation_row(conn, row)
     })?;
     rows.collect()
@@ -598,6 +650,15 @@ fn library_document_exists(
     agent_id: &str,
     document_id: &str,
 ) -> Result<bool, String> {
+    if let Some(ctx) = crate::mentor_store::ctx_for(conn, agent_id)? {
+        use crate::mentor_store::paths::Kind;
+        for kind in [Kind::Source, Kind::Guide] {
+            if crate::mentor_store::current(conn, &ctx, kind, document_id)?.is_some() {
+                return Ok(true);
+            }
+        }
+        return Ok(false);
+    }
     conn.query_row(
         "SELECT COUNT(*) FROM agent_documents WHERE agent_id=?1 AND id=?2",
         params![agent_id, document_id],
@@ -677,12 +738,13 @@ fn put_annotation(conn: &Connection, annotation: &Annotation) -> Result<(), Stri
         }
     };
     put_source(conn, &annotation.source)?;
+    let (target_kind, target_key) = storage_key(conn, &target);
     let now = now_millis();
     let anchor = annotation.anchor.as_ref().map(encode).transpose()?;
     conn.execute("INSERT INTO pdf_annotations(id,document_id,source_id,anchors_json,note,discussions_json,created_at,updated_at,target_kind,target_key,anchor_json)
       VALUES(?1,?2,?3,?4,?5,?6,?7,?7,?8,?9,?10) ON CONFLICT(id) DO UPDATE SET note=excluded.note,updated_at=excluded.updated_at,
       anchor_json=COALESCE(excluded.anchor_json,pdf_annotations.anchor_json)",
-      params![annotation.id,document_id,annotation.source.id,encode(&annotation.anchors)?,annotation.note,encode(&annotation.discussions)?,now,target.kind(),target.key(),anchor]).map_err(|e|e.to_string())?;
+      params![annotation.id,document_id,annotation.source.id,encode(&annotation.anchors)?,annotation.note,encode(&annotation.discussions)?,now,target_kind,target_key,anchor]).map_err(|e|e.to_string())?;
     Ok(())
 }
 #[tauri::command(async)]
@@ -976,6 +1038,97 @@ mod tests {
         annotation.anchor = None;
         annotation.id = "no-anchor".into();
         assert!(put_annotation(&conn, &annotation).is_err());
+    }
+    #[test]
+    fn marks_in_a_mentor_folder_follow_the_folder_and_older_marks_still_show() {
+        use crate::mentor_store::testing::{register, temp_dir};
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let folder = temp_dir("marks");
+        register(&conn, "agent", &folder);
+        std::fs::create_dir_all(folder.join("sources")).unwrap();
+        std::fs::write(
+            folder.join("sources/pods.md"),
+            "---\ntitle: Pods\nsourceUrl: https://k.io\n---\nA Pod phase.\n",
+        )
+        .unwrap();
+        let file = folder
+            .join("repos/fc/src/main.rs")
+            .to_string_lossy()
+            .into_owned();
+        let mark = |id: &str, target: AnnotationTarget, location: SourceLocation| Annotation {
+            id: id.into(),
+            document_id: String::new(),
+            target: Some(target),
+            anchor: Some(text_anchor("Pod phase")),
+            source: Source {
+                id: format!("{id}-source"),
+                title: "T".into(),
+                quote: "Pod phase".into(),
+                location,
+            },
+            anchors: vec![],
+            note: String::new(),
+            discussions: vec![],
+            created_at: 0,
+            updated_at: 0,
+        };
+        // A document mark on a source kept as a file.
+        put_annotation(
+            &conn,
+            &mark(
+                "doc",
+                AnnotationTarget::Document {
+                    agent_id: "agent".into(),
+                    document_id: "pods".into(),
+                },
+                SourceLocation::Document {
+                    agent_id: "agent".into(),
+                    document_id: "pods".into(),
+                    url: None,
+                    section: None,
+                    anchor: None,
+                    annotation_id: None,
+                },
+            ),
+        )
+        .unwrap();
+        // A file mark inside the folder is stored relative to it.
+        let target = AnnotationTarget::File { path: file.clone() };
+        put_annotation(
+            &conn,
+            &mark(
+                "new",
+                target.clone(),
+                SourceLocation::File {
+                    path: file.clone(),
+                    lines: None,
+                    anchor: None,
+                    annotation_id: None,
+                },
+            ),
+        )
+        .unwrap();
+        let (kind, key): (String, String) = conn
+            .query_row(
+                "SELECT target_kind, target_key FROM pdf_annotations WHERE id='new'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            (kind.as_str(), key.as_str()),
+            ("mentorFile", "agent/repos/fc/src/main.rs")
+        );
+        // A 0.3 mark on the same file by absolute path.
+        conn.execute("INSERT INTO pdf_annotations(id,document_id,source_id,anchors_json,note,discussions_json,created_at,updated_at,target_kind,target_key,anchor_json) VALUES('old','', 'new-source','[]','', '[]',0,0,'file',?1,NULL)", [&file]).unwrap();
+        let found = annotations_for(&conn, &target).unwrap();
+        assert_eq!(
+            found.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
+            vec!["old", "new"]
+        );
+        assert!(found.iter().all(|a| a.target == Some(target.clone())));
+        std::fs::remove_dir_all(folder).unwrap();
     }
     #[test]
     fn older_annotation_json_without_a_target_still_parses() {
