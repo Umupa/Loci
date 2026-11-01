@@ -212,6 +212,39 @@ export async function importMentor(from: { path: string } | { folder: string }):
   return summary;
 }
 
+export type StorageStatus = { ready: boolean; root: string; mentors: { id: string; name?: string; folder: string; folderPresent: boolean; migrated: boolean; files: Record<string, number>; problems: number }[] };
+export type LibraryProblem = { path: string; kind: string; id: string; error: string };
+export type LibraryHit = { agentId: string; kind: string; id: string; title: string; snippet: string };
+
+/** Where mentors' folders are, and what each holds. */
+export function storageStatus(): Promise<StorageStatus> {
+  return invoke<StorageStatus>("storage_status");
+}
+
+/** Runs (or with `dryRun` only describes) the 0.3 → 0.4 migration of this window's roster. */
+export async function migrateStorage(options: { dryRun?: boolean; redo?: string } = {}): Promise<MigrationReport> {
+  const report = await invoke<MigrationReport>("storage_migrate", {
+    input: { roster: readArray(ROSTER_KEY), overviews: readObject(VIEW_KEY) ?? null, dryRun: !!options.dryRun, ...(options.redo ? { redo: options.redo } : {}) },
+  });
+  if (!options.dryRun) await reload();
+  return report;
+}
+
+/** Re-reads mentors' folders (one, or all) into the index. */
+export function reindexMentors(agentId?: string): Promise<{ id: string; changed: number }[]> {
+  return invoke("storage_reindex", { agent: agentId ?? null });
+}
+
+/** Files in a mentor's folder that Loci could not read, or read with a warning. */
+export function checkLibrary(agentId: string): Promise<LibraryProblem[]> {
+  return invoke<LibraryProblem[]>("library_check", { agent: agentId });
+}
+
+/** Full-text search over mentors' titles, sources, guides and notes. */
+export function searchLibrary(query: string, agentId?: string, limit?: number): Promise<LibraryHit[]> {
+  return invoke<LibraryHit[]>("library_search", { query, agent: agentId ?? null, limit: limit ?? null });
+}
+
 let viewTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** Mirrors each mentor's view state into SQLite, a moment after it settles. */

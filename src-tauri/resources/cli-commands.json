@@ -873,6 +873,24 @@
       ]
     },
     {
+      "name": "library.check",
+      "summary": "Files in the mentor's folder that Loci could not read (bad front-matter or YAML, a missing sourceUrl, a file too large), with the reason. Run it after editing files directly.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "library.open",
       "summary": "Show a mentor's library at one segment (courses, sources, notes, files), a course in its Courses segment, or a filter.",
       "callers": [
@@ -913,6 +931,38 @@
           "name": "switch",
           "type": "boolean",
           "help": "Also bring the mentor on screen",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "library.search",
+      "summary": "Full-text search of the mentor's sources, guides and notes (titles of courses and drawings too). Any language; three or more characters search the text.",
+      "callers": [
+        "external",
+        "agent"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "query",
+          "type": "string",
+          "help": "What to look for",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name (a mentor's own turn: itself)",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "help": "At most this many hits (default 20)",
           "required": false,
           "positional": false
         }
@@ -1217,6 +1267,61 @@
       ]
     },
     {
+      "name": "mentors.export",
+      "summary": "Zip a mentor's folder (library, courses, notes, drawings, Soul, memory, progress and highlights) to a file another Loci can import. repos/ and lab/ stay out unless --with-repos.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "help": "Absolute path of the .zip to write",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "withRepos",
+          "type": "boolean",
+          "help": "Include repos/ and lab/",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "mentors.import",
+      "summary": "Import a mentor from an exported .zip (--path), or bring back a mentor folder where it is (--folder), such as one kept after a reset or removal.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "help": "Absolute path of the .zip",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "folder",
+          "type": "string",
+          "help": "Absolute path of a mentor folder (it holds mentor.json or mentor.removed.json)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "mentors.list",
       "summary": "Every mentor, in rail order.",
       "callers": [
@@ -1258,6 +1363,30 @@
           "name": "maxChars",
           "type": "integer",
           "help": "Characters per message (200-6000)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "mentors.relocate",
+      "summary": "Point a mentor's working folder somewhere else (--workdir), or back at its own mentor folder (no --workdir). Nothing is moved; a running chat keeps its folder until it is reset.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": true
+        },
+        {
+          "name": "workdir",
+          "type": "string",
+          "help": "Absolute path of the folder to work in",
           "required": false,
           "positional": false
         }
@@ -2264,6 +2393,56 @@
           "positional": false
         }
       ]
+    },
+    {
+      "name": "storage.migrate",
+      "summary": "Move 0.3 data into mentors' folders (Loci does this at start). Never changes the old data; a backup is made first. --dry-run only reports.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "dryRun",
+          "type": "boolean",
+          "help": "Report what would be written, and write nothing",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "redo",
+          "type": "string",
+          "help": "Run one mentor again, by id (its files that exist are kept)",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "storage.reindex",
+      "summary": "Re-read mentors' folders (one, or all) after changes Loci did not see.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "Only this mentor, by id or name",
+          "required": false,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "storage.status",
+      "summary": "Where mentors' folders are (the mentors root), whether 0.3 data has moved into them, and how many files of each kind each mentor has.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": []
     },
     {
       "name": "templates.list",
