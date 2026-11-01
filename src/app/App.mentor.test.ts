@@ -214,13 +214,41 @@ it("starts on the mentor workspace's empty state when there is no mentor, and of
   await settle(() => expect(container.querySelector("[data-mentors-empty]")).not.toBeNull());
   expect(container.querySelector("[data-app-settings]")).toBeNull();
   expect(workspace()).toBeNull();
-  const create = container.querySelector<HTMLButtonElement>('[data-mentors-empty] button')!;
+  const create = container.querySelector<HTMLButtonElement>("[data-mentors-empty] button.primary-action")!;
   expect(create.textContent).toBe("Create a mentor");
   await click(create);
   const gallery = () => document.querySelector<HTMLElement>('[role="dialog"]');
   await settle(() => expect(gallery()?.textContent).toContain("New mentor"));
   expect([...document.querySelectorAll<HTMLElement>("[data-agent-template]")].map((card) => card.dataset.agentTemplate)).toEqual(["learning-guide", "repo-lens"]);
   expect(gallery()!.textContent).toContain("Blank mentor");
+});
+
+it("keeps the window's buttons while no mentor is open", async () => {
+  localStorage.setItem("loci:agent-roster", "[]");
+  await renderApp();
+  await settle(() => expect(container.querySelector("[data-mentors-empty]")).not.toBeNull());
+  expect(container.querySelector('[data-mentors-empty] [aria-label="Minimize window"]')).not.toBeNull();
+  expect(container.querySelector('[data-mentors-empty] [aria-label="Close window"]')).not.toBeNull();
+});
+
+it("says which mentor is opening before its workspace arrives", async () => {
+  await act(async () => {
+    const original = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = async (command: string, args: unknown, options: unknown) => {
+      if (command === "session_get") await new Promise((resolve) => setTimeout(resolve, 150));
+      return original(command, args, options);
+    };
+  });
+  await renderApp();
+  await settle(() => expect(container.querySelector("[data-mentors-empty] [role=status]")?.textContent).toBe("Opening Ada…"), 2000);
+  await settle(() => expect(workspace()?.dataset.mentorWorkspace).toBe("agent-a"));
+});
+
+it("opens another mentor when the open one is removed in another window", async () => {
+  await renderMentor("Ada");
+  localStorage.setItem("loci:agent-roster", JSON.stringify(agents.slice(1)));
+  await act(async () => { window.dispatchEvent(new StorageEvent("storage", { key: "loci:agent-roster" })); });
+  await settle(() => expect(workspace()?.dataset.mentorWorkspace).toBe("agent-b"));
 });
 
 it("opens a course in its owning mentor's reader", async () => {
@@ -472,4 +500,23 @@ it("shows a mentor another window created on the rail at once", async () => {
   await act(async () => { window.dispatchEvent(new StorageEvent("storage", { key: "loci:agent-roster" })); });
   expect(container.querySelectorAll("[data-agent-rail] [data-agent-id]")).toHaveLength(3);
   expect(railButton("Cy")).not.toBeNull();
+});
+
+it("offers to try again when the first mentor cannot be opened", async () => {
+  let fail = true;
+  await act(async () => {
+    const original = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = async (command: string, args: unknown, options: unknown) => {
+      if (fail && (command === "agent_workdir_create" || command === "home_dir")) throw new Error("disk unavailable");
+      if (fail && command === "session_get") return null;
+      return original(command, args, options);
+    };
+  });
+  await renderApp();
+  await settle(() => expect(container.querySelector("[data-mentors-empty] [role=status]")?.textContent).toBe("Couldn't open Ada."), 3000);
+  fail = false;
+  const retry = [...container.querySelectorAll<HTMLButtonElement>("[data-mentors-empty] button")].find((button) => button.textContent === "Try again")!;
+  expect(retry).toBeDefined();
+  await click(retry);
+  await settle(() => expect(workspace()?.dataset.mentorWorkspace).toBe("agent-a"));
 });
