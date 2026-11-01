@@ -86,6 +86,8 @@ type Props = {
   query?: string;
   /** Clears that outside filter, as choosing a folder from the matches does. */
   onClearQuery?: () => void;
+  /** Whether the menu offers opening a file in a pane of its own. */
+  paneActions?: boolean;
   /** Shown ahead of the actions button, such as the folder's path. */
   header?: ReactNode;
 };
@@ -110,6 +112,7 @@ type TreeCtxValue = {
   dragOverPath: string | null;
   epoch: number;
   showHidden: boolean;
+  paneActions: boolean;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
   onEntryPointerDown: (
@@ -166,7 +169,7 @@ function shortcutLetter(e: ReactKeyboardEvent): string {
   return /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : key;
 }
 
-function treeMenuItems(target: MenuTarget, clip: Clip | null): ContextMenuItem[] {
+function treeMenuItems(target: MenuTarget, clip: Clip | null, paneActions: boolean): ContextMenuItem[] {
   const pasteParent = target.isDir ? target.path : parentPath(target.path);
   const pasteBlocked =
     !!clip?.isDir &&
@@ -176,7 +179,7 @@ function treeMenuItems(target: MenuTarget, clip: Clip | null): ContextMenuItem[]
       ? []
       : [
           { kind: "item" as const, id: "open", label: "Open" },
-          { kind: "item" as const, id: "open-pinned", label: "Open in Its Own Pane" },
+          ...(paneActions ? [{ kind: "item" as const, id: "open-pinned", label: "Open in Its Own Pane" }] : []),
           { kind: "item" as const, id: "open-default", label: "Open with Default App" },
           { kind: "sep" as const },
         ]),
@@ -270,6 +273,7 @@ export const FileTree = memo(function FileTree({
   onFileDeleted,
   query: outerQuery,
   onClearQuery,
+  paneActions = true,
   header,
 }: Props) {
   const [expanded, setExpanded] = useState(() => loadExpanded(cwd));
@@ -1010,6 +1014,7 @@ export const FileTree = memo(function FileTree({
         dragOverPath,
         epoch,
         showHidden,
+        paneActions,
         onToggle: toggle,
         onSelect,
         onEntryPointerDown,
@@ -1114,6 +1119,7 @@ export const FileTree = memo(function FileTree({
             onActive={setActiveMatch}
             onOpen={openMatch}
             onContextMenu={onItemContextMenu}
+            paneActions={paneActions}
           />
         ) : (
         <>
@@ -1158,7 +1164,7 @@ export const FileTree = memo(function FileTree({
           x={menu.x}
           y={menu.y}
           ariaLabel="File actions"
-          items={treeMenuItems(menu.target, clip)}
+          items={treeMenuItems(menu.target, clip, paneActions)}
           onPick={(id) => {
             const target = menu.target;
             setMenu(null);
@@ -1237,6 +1243,7 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
     cutPath,
     dragOverPath,
     epoch,
+    paneActions,
     onToggle,
     onSelect,
     onEntryPointerDown,
@@ -1313,7 +1320,7 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
           aria-expanded={entry.isDir ? open : undefined}
           onClick={onClick}
           onDoubleClick={() => {
-            if (!entry.isDir) onOpenFile(entry.path, true);
+            if (!entry.isDir) onOpenFile(entry.path, paneActions);
           }}
           onPointerDown={(event) => onEntryPointerDown(entry, event)}
           onContextMenu={(e) => onItemContextMenu(entry, e)}
@@ -1368,6 +1375,7 @@ function FileMatches({
   onActive,
   onOpen,
   onContextMenu,
+  paneActions,
 }: {
   matches: FileMatch[];
   loading: boolean;
@@ -1376,6 +1384,7 @@ function FileMatches({
   onActive: (index: number) => void;
   onOpen: (match: FileMatch, pin?: boolean) => void;
   onContextMenu: TreeCtxValue["onItemContextMenu"];
+  paneActions: boolean;
 }) {
   return (
     <div
@@ -1403,7 +1412,7 @@ function FileMatches({
             ref={index === active ? scrollIntoViewIfNeeded : undefined}
             onMouseMove={() => onActive(index)}
             onClick={() => onOpen(match)}
-            onDoubleClick={() => onOpen(match, true)}
+            onDoubleClick={() => onOpen(match, paneActions)}
             onContextMenu={(e) =>
               onContextMenu({ path: file.path, isDir: !!file.isDir }, e)
             }

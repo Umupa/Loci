@@ -81,6 +81,16 @@ it("filters with a query from outside, without a search field of its own", async
   expect(host.querySelector('[role="tree"]')).toBeNull();
 });
 
+it("leaves the pane-only action out where files open in one reader", async () => {
+  await act(async () => root.render(createElement(FileTree, { cwd: "/w", onOpenFile: vi.fn(), paneActions: false })));
+  await settle();
+  const file = host.querySelector<HTMLButtonElement>('[role="treeitem"][title="/w/notes.md"]')!;
+  await act(async () => file.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 40, clientY: 40 })));
+  const labels = menuItems().map((item) => item.textContent);
+  expect(labels).toEqual(expect.arrayContaining([expect.stringContaining("Open"), expect.stringContaining("Open with Default App")]));
+  expect(labels.some((label) => label?.includes("Its Own Pane"))).toBe(false);
+});
+
 it("asks the outside filter to clear when a folder match is chosen, then shows the folder", async () => {
   const onClearQuery = vi.fn();
   const tree = (query: string) => createElement(FileTree, { cwd: "/w", onOpenFile: vi.fn(), query, onClearQuery });

@@ -45,6 +45,7 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
     <section className="flex min-h-0 min-w-0 flex-col" aria-label="Files">
       {workdir.path ? (
         <FileTree key={workdir.path} cwd={workdir.path} rootLabel={projectName(workdir.path)} query={filter} onClearQuery={onClearQuery}
+          paneActions={false}
           header={<p className="truncate text-[11px] text-content/45" title={workdir.path}>{prettyCwd(workdir.path)}</p>}
           onOpenFile={onOpenFile} onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} />
       ) : workdir.error ? (
@@ -77,7 +78,7 @@ function OtherFolder({ path, ...tree }: { path: string } & Omit<Props, "agentId"
         <Chevron className="size-3 shrink-0" />
         <span className="truncate">{projectName(path)}</span>
       </button>
-      {open ? <FileTree cwd={path} rootLabel={projectName(path)} {...tree} /> : null}
+      {open ? <FileTree cwd={path} rootLabel={projectName(path)} paneActions={false} {...tree} /> : null}
     </div>
   );
 }
