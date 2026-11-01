@@ -1,7 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { open as chooseFile } from "@tauri-apps/plugin-dialog";
-import { CircleAlert, ExternalLink, Folder, MessageSquarePlus, Pencil, Pin, X } from "../../../shared/ui/icons";
+import { CircleAlert, ExternalLink, Folder, MessageSquarePlus, MoreHorizontal, Pencil, Pin, X } from "../../../shared/ui/icons";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
+import { Popover } from "../../../shared/ui/Popover";
+import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { basename, openPathWithDefaultApp, readBinaryFile, readDocumentFile, readTextFile, revealPath, writeTextFile } from "../../../platform/tauri/fs";
 import { IS_MAC } from "../../../platform/tauri/platform";
@@ -55,6 +57,10 @@ type Props = {
   onBeforeLeave?: (save: (() => Promise<boolean>) | null) => void;
   /** "Ask Kern": the mentor beside the reader, for both text and PDF passages. */
   askLabel?: string;
+  /** The mentor beside the reader: "Add to Kern". */
+  chatName?: string;
+  /** Shown as the window's one reader: a reader header with Close, no pane chrome. */
+  reader?: boolean;
 };
 
 type Content =
@@ -67,7 +73,7 @@ type Content =
 
 const REVEAL_LABEL = IS_MAC ? "Reveal in Finder" : "Open containing folder";
 
-function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart, onBeforeLeave, askLabel = "Ask" }: Props) {
+function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart, onBeforeLeave, askLabel = "Ask", chatName, reader = false }: Props) {
   const name = basename(path);
   const kind = fileKind(name);
   const [content, setContent] = useState<Content>({ status: "loading" });
@@ -83,6 +89,8 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
   const [annotationError, setAnnotationError] = useState<string | null>(null);
   const [openAnnotation, setOpenAnnotation] = useState<{ id: string; rect: DOMRect; note?: boolean } | null>(null);
   const [relocating, setRelocating] = useState(false);
+  const [fileMenu, setFileMenu] = useState(false);
+  const fileMenuRef = useRef<HTMLButtonElement>(null);
   const currentPath = useRef(path);
   currentPath.current = path;
   const setDraft = (next: FileDraft | null) => {
@@ -420,7 +428,20 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         event.preventDefault();
         void save();
       }}>
-      <PaneHeader onPaneDragStart={onPaneDragStart}
+      {reader ? <ResourceHeader title={name} onClose={close}>
+        {draft ? <span aria-label="Unsaved changes" title="Unsaved changes" className="size-1.5 shrink-0 rounded-full bg-content/60" /> : null}
+        {editable ? <MarkdownModeToggle mode={mode} onChange={setMode} /> : null}
+        {kind === "pdf" || content.status === "text" ? <button type="button" className={RESOURCE_ACTION} aria-label="Highlights & notes" title="Highlights & notes" aria-expanded={annotationsOpen} onClick={() => setAnnotationsOpen((value) => !value)}><Pencil className="size-3.5" /></button> : null}
+        {draft ? (
+          <button type="button" disabled={conflict || saving} onClick={() => void save()} title={conflict ? "Resolve the conflict first" : "Save (Ctrl/Cmd+S)"}
+            className="h-6 shrink-0 rounded px-2 text-[11px] text-content hover:bg-content/10 disabled:opacity-40">{saving ? "Saving…" : "Save"}</button>
+        ) : null}
+        <button type="button" onClick={() => requestAddToChat(fileReference(relative), "plain")} title={chatName ? `Add ${name} to ${chatName}` : "Add file to chat"}
+          className="flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs text-content/55 hover:bg-content/8 hover:text-content">
+          <MessageSquarePlus className="size-3.5" /><span>{chatName ? `Add to ${chatName}` : "Add to chat"}</span>
+        </button>
+        <button ref={fileMenuRef} type="button" className={RESOURCE_ACTION} aria-label="File actions" title="File actions" aria-haspopup="menu" aria-expanded={fileMenu} onClick={() => setFileMenu((open) => !open)}><MoreHorizontal className="size-3.5" /></button>
+      </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}
         onDoubleClick={(event) => {
           if (event.currentTarget.hasAttribute("data-window-titlebar") && !(event.target as HTMLElement).closest("[data-pane-title]")) return;
           if (preview && !(event.target as HTMLElement).closest("[data-no-drag]")) onPin();
@@ -437,12 +458,17 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
             className="h-6 shrink-0 rounded px-2 text-[11px] text-content hover:bg-content/10 disabled:opacity-40">{saving ? "Saving…" : "Save"}</button>
         ) : null}
         {preview ? <PaneButton label="Keep open" onClick={onPin}><Pin className="size-3.5" /></PaneButton> : null}
-        <PaneButton label="Add file to chat" onClick={() => requestAddToChat(fileReference(relative), "plain")}><MessageSquarePlus className="size-3.5" /></PaneButton>
+        <PaneButton label={chatName ? `Add to ${chatName}` : "Add file to chat"} onClick={() => requestAddToChat(fileReference(relative), "plain")}><MessageSquarePlus className="size-3.5" /></PaneButton>
         <PaneButton label="Open with default app" onClick={() => void openPathWithDefaultApp(path).catch(() => {})}><ExternalLink className="size-3.5" /></PaneButton>
         <PaneButton label={REVEAL_LABEL} onClick={() => void revealPath(path).catch(() => {})}><Folder className="size-3.5" /></PaneButton>
         <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={close}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button>
-      </PaneHeader>
+      </PaneHeader>}
+      {reader && fileMenu ? <Popover anchor={fileMenuRef} side="bottom" align="end" width={210} role="menu" aria-label="File actions" onDismiss={() => setFileMenu(false)} className="p-1 font-sans">
+        <button type="button" role="menuitem" onClick={() => { setFileMenu(false); void openPathWithDefaultApp(path).catch(() => {}); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6"><ExternalLink className="size-3.5" />Open with default app</button>
+        <button type="button" role="menuitem" onClick={() => { setFileMenu(false); void revealPath(path).catch(() => {}); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6"><Folder className="size-3.5" />{REVEAL_LABEL}</button>
+        <button type="button" role="menuitem" onClick={() => { setFileMenu(false); close(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6"><X className="size-3.5" />Close file</button>
+      </Popover> : null}
       {conflict && draft ? (
         <Banner tone="warn" message="This file changed on disk while you were editing.">
           <BannerButton onClick={() => setDraft({ ...draft, base: diskText ?? draft.base })}>Keep my version</BannerButton>

@@ -395,7 +395,7 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
   }, [file, inline]);
   const where = lesson.pages ? ` · ${lesson.pages[0] === lesson.pages[1] ? `page ${lesson.pages[0]}` : `pages ${lesson.pages[0]}–${lesson.pages[1]}`}`
     : lesson.lines ? ` · lines ${lesson.lines[0]}–${lesson.lines[1]}` : "";
-  const open = <button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>{inline ? "Open in a pane" : "Open to read"}</button>;
+  const open = <button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button>;
   if (!inline) return <article className="course-pane__content" key={lesson.id}><h2>{lesson.title}</h2><p className="course-pane__summary" title={file}>{name}{where}</p>{open}</article>;
   const shown = loaded?.file === file ? loaded : undefined;
   return <article className="course-pane__content course-pane__reading" key={lesson.id}>

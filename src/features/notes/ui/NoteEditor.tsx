@@ -88,6 +88,7 @@ export function NoteEditor({
   onDelete,
   onActions,
   onAddToChat,
+  chatLabel = "Add to chat",
   compact = false,
 }: {
   compact?: boolean;
@@ -96,6 +97,8 @@ export function NoteEditor({
   onDelete: (id: string) => void | Promise<void>;
   onActions: (actions: NoteEditorActions | null) => void;
   onAddToChat: (note: Note) => void;
+  /** "Add to Ada": the mentor beside the reader, when there is one. */
+  chatLabel?: string;
 }) {
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const blank = !note.body.trim() && note.title === "Untitled";
@@ -417,7 +420,7 @@ export function NoteEditor({
               onClick={() => onAddToChat(draft)}
               className="inline-flex items-center gap-1 rounded-md bg-content px-3 h-6.5 text-[12px] text-background-base hover:bg-content/80 disabled:cursor-default disabled:opacity-40"
             >
-              Add to chat
+              {chatLabel}
             </button>
             <button
               type="button"

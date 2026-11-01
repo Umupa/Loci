@@ -5,10 +5,11 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { readTextFile } from "../../../platform/tauri/fs";
 import { getFileDraft } from "../model/fileDrafts";
 import { FilePane } from "./FilePane";
+import { openPathWithDefaultApp } from "../../../platform/tauri/fs";
 
 vi.mock("../../../platform/tauri/fs", () => ({
   basename: (path: string) => path.split("/").pop(), readTextFile: vi.fn(), writeTextFile: vi.fn(),
-  readBinaryFile: vi.fn(), readDocumentFile: vi.fn(), openPathWithDefaultApp: vi.fn(), revealPath: vi.fn(),
+  readBinaryFile: vi.fn(), readDocumentFile: vi.fn(), openPathWithDefaultApp: vi.fn(async () => undefined), revealPath: vi.fn(async () => undefined),
 }));
 vi.mock("../model/fileWatch", () => ({ watchFile: () => () => {}, syncWatchedMtime: vi.fn() }));
 vi.mock("../../learning/model/learningStore", () => ({
@@ -73,6 +74,27 @@ it("registers a leave guard that asks before discarding unsaved edits", async ()
   confirm.mockReturnValueOnce(true);
   expect(await leave()).toBe(true);
   expect(getFileDraft(path)).toBeNull();
+});
+
+it("reads in the reader's own header: one Close, a file menu, and the mentor's name on the chat action", async () => {
+  await show();
+  await act(async () => root.render(createElement(FilePane, {
+    path, cwd: "/", preview: false, focused: true, onFocus: vi.fn(), onPin: vi.fn(), onClose: vi.fn(), onOpenFile: vi.fn(),
+    reader: true, chatName: "Ada",
+  })));
+  expect(host.querySelector("[data-resource-header]")).not.toBeNull();
+  expect(host.querySelectorAll('button[aria-label="Close"]')).toHaveLength(1);
+  expect(host.querySelector('button[aria-label="Close pane"]')).toBeNull();
+  const chat = host.querySelector<HTMLButtonElement>('button[title="Add plan.md to Ada"]')!;
+  expect(chat.textContent).toBe("Add to Ada");
+  await act(async () => chat.click());
+  await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="File actions"]')!.click());
+  const items = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')].map((item) => item.textContent);
+  expect(items).toContain("Open with default app");
+  expect(items).toContain("Close file");
+  await act(async () => document.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
+  expect(openPathWithDefaultApp).toHaveBeenCalledWith(path);
+  expect(document.querySelector('[role="menu"]')).toBeNull();
 });
 
 it("leaves without asking when nothing was edited, and unregisters on unmount", async () => {
