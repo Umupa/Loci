@@ -46,6 +46,7 @@ Each summary names the provider, model and judge it ran with and says to compare
 ## What one scenario does
 
 1. Creates a mentor from the scenario's template (`learning-guide` is Mentor, `repo-lens` is Lens) with the run's provider and model (`--provider grok --model grok:deepseek-flash` by default), `--mode full-access` and a temporary working folder.
+   A scenario with `seed.repos` then clones those checkouts from `~/Loci/repos` into the mentor's own `repos/` with `git clone --local` (the shared checkouts are read-only; the runner verifies their HEAD and working tree did not change), and points the mentor's working folder at its own folder so `<workdir>/repos` is that seeded copy. The sandbox scenarios therefore need no network clone and no `~/Loci/repos` write access.
 2. Sends the opening message and plays the **scripted learner** (`scripts/eval/learner.mjs`): each scenario has the learner's background and one- or two-sentence answers to what a mentor typically asks (goal, level, background, time, scope, depth, language, confirming a plan). The learner matches the mentor's questions by keyword (English and Chinese) and answers at most three topics per message; anything not covered gets "Your call — go ahead." When the mentor asks nothing and no course exists yet, it nudges once ("Go ahead and prepare the reading."). It stops when the mentor asks nothing and a course exists, at the turn or time cap, or when a turn is only the provider's error (no tool calls, text such as "User location is not supported", "Agent connection was lost", "Unauthorized" or "Internal error").
 3. Asks one **probe**: a concrete question about the material, to test grounding and citations.
 4. Collects through the CLI: the conversation (`mentors read`, and every full reply), sources and guides with their text and `sourceUrl` (`sources list/read`), courses (`courses list/read`), notes, the working folder's file list, and timings (first reply, first first-hand source, first course).
@@ -62,8 +63,10 @@ Everything lands in `eval/results/<timestamp>/<scenario>/` (`conversation.md`, `
 | `firecracker-paper` | Mentor | to read the Firecracker NSDI'20 paper | usenix.org, arxiv.org, the Firecracker repo and site, amazon.science |
 | `tokio-scheduler` | Lens | Tokio's multi-thread scheduler | github.com/tokio-rs, docs.rs/tokio, tokio.rs |
 | `cubesandbox-snapshot` | Lens | CubeSandbox's snapshot/restore path | github.com/TencentCloud |
+| `sandbox-path` | Mentor | agent sandboxes from the kernel to CubeSandbox, SPACE and E2B runtime, with the three checkouts seeded locally | the three repositories, kernel.org, docs.oasis-open.org, e2b.dev, arxiv.org, usenix.org |
+| `cube-snapshot` | Lens | CubeSandbox's snapshot and restore path, from a seeded checkout | github.com/TencentCloud |
 
-Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyDomains` (a host suffix, or host and path prefix), `probe`, `expect.minLessons/maxLessons`, `maxTurns`, `maxMinutes` and `turnTimeoutSeconds`.
+Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyDomains` (a host suffix, or host and path prefix), `probe`, `expect`, `maxTurns`, `maxMinutes`, `turnTimeoutSeconds`, and optionally `seed.repos` (owner/repo names under `~/Loci/repos`) and the v0.4 `acceptance` and `rubric` keys. `expect` holds the lesson range (`minLessons`/`maxLessons`), and for the sandbox scenarios the path shape, first-hand minimum and first-source deadline described below.
 
 ## Scoring
 
@@ -80,6 +83,7 @@ Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyD
 | Citations | `loci://source/…#section/quote`, `loci://file/…#L` and absolute-path links in replies: the target exists, the section is a heading, the quote is found, the lines are inside; whether the probe answer cites anything |
 | First ten minutes | seconds to first reply, first first-hand source and first course; mentor turns before the first source; question marks per reply; nudges |
 | Failures | timeouts, failed turns, a mentor asking for permission in full access |
+| Sandbox acceptance (v0.4) | learning path shape, pinned code tours and their pins/ranges, first-hand sources with address and version, time to first source, comparison lessons when present, and `library check` problems; only for scenarios with `"acceptance": "v0.4"` (see below) |
 
 **Rubric** (`scripts/eval/judge-prompt.md`, filled with the checks, sources, courses and transcript, run in print mode from an empty folder). 1–5 each with a one-line reason, plus the single change that would help most:
 
@@ -87,6 +91,72 @@ Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyD
 - **courseStructure**: a progressive, complete path with precise anchors, not an overview.
 - **grounding**: answers quote and link the sources, separate source from inference, are correct (probe weighted most).
 - **firstTenMinutes**: reading quickly, few questions at a time.
+
+## Sandbox acceptance (v0.4)
+
+v0.4 is accepted on the sandbox topic: a broad goal at kernel level, a learning path of short courses, pinned code tours and first-hand sources. Two scenarios encode it; the coordinator runs them on the release candidate.
+
+| Scenario | What it measures |
+| --- | --- |
+| `sandbox-path` | Mentor with the broad goal ("from the kernel up to CubeSandbox, SPACE and E2B runtime"), a learning path of 3–5 courses, at least 10 first-hand sources, code tours in every course |
+| `cube-snapshot` | Lens on CubeSandbox with only the repository seeded: 6–12 lessons, a pinned code tour along snapshot/restore |
+
+### Repositories on this machine
+
+`seed.repos` names `owner/repo` checkouts under `~/Loci/repos` (`LOCI_EVAL_REPOS` names another root). Before the opening message the runner:
+
+1. finds the mentor's own folder with `storage status`;
+2. runs `git clone --local` for each checkout into `<mentor folder>/repos/<owner>/<repo>`;
+3. points the mentor's working folder at its own folder (`mentors update --workdir`), so the template's `<workdir>/repos` path is the seeded copy.
+
+The shared checkouts are read-only: the seeder records HEAD and `git status --porcelain` before and after and fails the run if either changed. It never writes to `~/Loci/repos`. After the run the mentor and its folder are deleted, unless `--keep`; `qa-app.sh down` also removes `~/Loci-Dev-qa-eval`, the QA app's own mentors root.
+
+The dry check needs no app or model and no full scenario:
+
+```sh
+npm run eval -- --seed-check
+```
+
+It loads every scenario and seeds the sandbox checkouts into a temporary mentor folder, then removes it. It prints each repository's HEAD and file count.
+
+### Automatic checks
+
+`score.json` gains a `sandbox` section for scenarios with `"acceptance": "v0.4"`. Every check is a problem string in `sandbox.problems`; `sandbox.ok` is true when there are none.
+
+| Check | What passes |
+| --- | --- |
+| Learning path | `path read` returns a path; 3–5 courses (`expect.pathCourses`); each course is written and has 6–12 lessons (`expect.lessonsPerCourse`); each `after` names an earlier course |
+| Code tours | every code lesson (a file lesson with lines, a pin or a `repos/` path; PDFs excluded) has `commit`; `code pins` lists it with state `current` or `moved` (`changed`, `missing-commit`, `missing-file` and `no-repo` fail) |
+| Pinned ranges | each pinned lesson's `lines` are inside the file at that commit, read with `git show <commit>:<path>`; lessons without lines are reported separately |
+| First-hand sources | at least `expect.minFirstHand` saved sources (10 for `sandbox-path`, 2 for `cube-snapshot`); each has `sourceUrl` and `version` |
+| Time to first source | the first saved source arrives within `expect.firstSourceWithinSeconds` (300 s, the roadmap's five minutes) |
+| Comparison lessons | lessons whose `compare` array has two or more parts are counted; while `expect.tolerateMissingCompare` is true, a build without the compare feature is not failed |
+| Mentor folder | `library check` reports no problems: every source, guide and course is a file Loci could read |
+
+Artifacts per scenario: `path.json`, `pins.json`, `library.json`, `seed.json` (mentor folder and repositories) and `code-tours.json` (each code lesson's file at its commit, pin state and first lines, also given to the judge). `summary.md` adds a **Sandbox acceptance (v0.4)** table and a `- Path`, `- Code`, `- First-hand`, `- Compare` and `- Library` line per scenario.
+
+### Rubric
+
+A scenario may add `"rubric": ["codeTours", "path"]`. The judge then scores two extra items and returns them with the base four:
+
+- **codeTours** — the code tours show the real call path, are pinned to a commit, and each line range is accurate for what the lesson says.
+- **path** — 3–5 short courses build on each other, with no overlap and prerequisites that name earlier courses.
+
+The prompt keeps the extra items and output shape in one place (`scripts/eval/judge-prompt.md` with `{{rubricExtra}}` and `{{outputShape}}`), filled by `rubricFor(scenario)`; old scenarios keep the four-item verdict, so their scores stay comparable.
+
+### Running the acceptance
+
+```sh
+scripts/eval/qa-app.sh build
+scripts/eval/qa-app.sh up
+npm run eval -- --app com.loci.desktop.qa-eval --bin "$(scripts/eval/qa-app.sh bin)" \
+  --scenario sandbox-path --scenario cube-snapshot
+scripts/eval/qa-app.sh down
+```
+
+Mentors use `--provider grok --model grok:deepseek-flash` and the judge `grok` by default, the official setup. `scripts/eval/baseline.sh` runs every scenario, sandbox ones included. Compare a run only with runs whose provider, model and judge match.
+
+When v0.4's comparison lessons merge, remove `tolerateMissingCompare` from `sandbox-path.json`; `expect.compareLessons` then requires at least one lesson with two or more parts in the path.
 
 ## Baseline
 
