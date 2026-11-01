@@ -445,35 +445,28 @@ describe("settings search", () => {
         expect(row.className).toContain("bg-accent/10");
     });
 });
-describe("providers scope inheritance", () => {
-    async function selectScope(label: string) {
-        const trigger = container.querySelector<HTMLButtonElement>('[aria-label^="Provider defaults scope"]')!;
-        await act(async () => trigger.click());
-        const option = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((node) => node.textContent?.trim() === label);
-        expect(option).toBeTruthy();
-        await act(async () => option!.click());
-    }
-    it("inherits the global default provider and picker visibility in project scope", async () => {
-        localStorage.setItem("loci.lastModel", JSON.stringify({ harness: "claude", model: "claude:opus-5" }));
-        localStorage.setItem("loci.hiddenPickerProviders", JSON.stringify(["codex"]));
+describe("mentor rows and global providers", () => {
+    it("opens a mentor's own settings from its row", async () => {
+        localStorage.setItem("loci:agent-roster", JSON.stringify([
+            { id: "ada", name: "Ada", avatar: "ember", color: "#fff", projects: [] },
+        ]));
+        const onOpenMentorSettings = vi.fn();
+        await render("agents", { onOpenMentorSettings });
+        // The page points at the settings that exist and stops promising habits.
+        expect(container.textContent).not.toContain("habits");
+        const open = container.querySelector<HTMLButtonElement>('[aria-label="Open Ada settings"]')!;
+        expect(open).not.toBeNull();
+        await act(async () => open.click());
+        expect(onOpenMentorSettings).toHaveBeenCalledWith("ada");
+    });
+    it("offers global provider defaults with no project scope", async () => {
         await render("providers");
-        await selectScope("repo");
-        // A project with no overrides shows the inherited global default provider.
-        const claudeRow = container
-            .querySelector('[aria-label^="Claude Code model"]')!
-            .closest(".settings-row")!;
-        const claudeDefault = Array.from(claudeRow.querySelectorAll<HTMLButtonElement>("button")).find((node) => node.textContent?.trim() === "Default");
-        expect(claudeDefault).toBeTruthy();
-        // Picker visibility also inherits the global setting.
-        expect(container
-            .querySelector<HTMLButtonElement>('[aria-label="Show Claude Code in the model picker"]')!
-            .getAttribute("aria-checked")).toBe("true");
+        expect(container.querySelector('[aria-label^="Provider defaults scope"]')).toBeNull();
+        expect(container.textContent).not.toContain("this project");
         const codexToggle = container.querySelector<HTMLButtonElement>('[aria-label="Show Codex in the model picker"]')!;
+        await act(async () => codexToggle.click());
+        expect(JSON.parse(localStorage.getItem("loci.hiddenPickerProviders")!)).toEqual(["codex"]);
         expect(codexToggle.getAttribute("aria-checked")).toBe("false");
-        // Global precedence: the project toggle cannot turn a globally hidden
-        // provider back on, so it is locked and explained.
-        expect(codexToggle.hasAttribute("disabled")).toBe(true);
-        expect(codexToggle.closest(".settings-row")?.textContent).toContain("Hidden globally");
     });
 });
 describe("updates in About", () => {

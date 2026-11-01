@@ -48,8 +48,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         id: "agents",
         group: "agents",
         get label() { return t("Your mentors"); },
-        get description() { return t("Long-lived agents on the project rail: whether they are shown, and the ones you have."); },
-        keywords: "agent persistent memory soul habits schedule rail reset",
+        get description() { return t("The permissions a new mentor starts with, and the mentors you have. Each opens its own settings."); },
+        keywords: "agent persistent memory soul habits schedule rail reset mentor",
     },
     {
         id: "chat",
@@ -76,8 +76,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         id: "skills",
         group: "agents",
         get label() { return t("Skills"); },
-        get description() { return t("Discover and manage file skills from project, personal, and harness folders."); },
-        keywords: "skill instructions prompt",
+        get description() { return t("Discover and manage the skills in your own folders and your harness folders."); },
+        keywords: "skill instructions prompt skills",
     },
 ];
 export function settingsSectionsByGroup(): {

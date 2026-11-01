@@ -3,6 +3,7 @@ import { act, createElement, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { McpSettings } from "./McpSettings";
+import { setLanguagePreference } from "../../../shared/i18n/locale";
 import { clearMcpSettingsCache } from "../model/mcpSettingsCache";
 import { CANVAS_MCP_ENABLED_KEY } from "../model/builtinMcp";
 
@@ -63,20 +64,10 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function selectProject(path: string) {
+async function openAddServer() {
   await act(async () =>
     container
-      .querySelector<HTMLButtonElement>('[aria-label^="Switch project"]')!
-      .click(),
-  );
-  expect(
-    document.querySelector('input[placeholder="Search projects..."]'),
-  ).not.toBeNull();
-  await act(async () =>
-    document
-      .querySelector<HTMLButtonElement>(
-        `[role="dialog"] button[title="${path}"]`,
-      )!
+      .querySelector<HTMLButtonElement>('[aria-label="Add MCP server"]')!
       .click(),
   );
 }
@@ -199,21 +190,9 @@ it("shows configured rows while Claude health is still pending", async () => {
   expect(container.textContent).toContain("Needs authentication");
 });
 
-it("adds a standard mcpServers entry to the selected provider and project", async () => {
-  await act(async () =>
-    root.render(
-      createElement(McpSettings, {
-        cwd: "/repo",
-        recents: [{ path: "/other", openedAt: 1 }],
-      }),
-    ),
-  );
-  await selectProject("/other");
-  await act(async () =>
-    container
-      .querySelector<HTMLButtonElement>('[aria-label="Add MCP server"]')!
-      .click(),
-  );
+it("adds a standard mcpServers entry to the chosen provider", async () => {
+  await act(async () => root.render(createElement(McpSettings, { cwd: "/repo" })));
+  await openAddServer();
   expect(document.body.textContent).toContain("Add MCP server");
   const provider = document.body.querySelector<HTMLButtonElement>(
     '[aria-label="Provider: Claude Code"]',
@@ -239,13 +218,13 @@ it("adds a standard mcpServers entry to the selected provider and project", asyn
       .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
   );
   expect(invoke).toHaveBeenCalledWith("mcp_add", {
-    cwd: "/other",
+    cwd: "/repo",
     provider: "claude",
     name: "",
     config: json,
     scope: "local",
   });
-  expect(invoke).toHaveBeenLastCalledWith("claude_mcp_list", { cwd: "/other" });
+  expect(invoke).toHaveBeenLastCalledWith("claude_mcp_list", { cwd: "/repo" });
 });
 
 it("navigates provider choices with arrow keys", async () => {
@@ -490,14 +469,101 @@ it("retries discovery failures when reopened and still supports explicit Refresh
   expect(connectionCalls()).toHaveLength(5);
 });
 
-it("uses the shared project picker and caches each project's list", async () => {
+it("picks the removal scope with the themed picker, not a native select", async () => {
+  invoke.mockImplementation(async (command: string) =>
+    command === "mcp_discover"
+      ? [
+          {
+            provider: "claude",
+            name: "plain",
+            scope: "local",
+            configPath: "",
+            transport: "stdio",
+          },
+        ]
+      : "",
+  );
+  await act(async () => root.render(createElement(McpSettings, { cwd: "/repo" })));
+  expect(container.querySelector("select")).toBeNull();
+  const trigger = container.querySelector<HTMLButtonElement>(
+    '[aria-label="Scope to remove plain from: Local"]',
+  )!;
+  expect(trigger.tagName).toBe("BUTTON");
+  expect(trigger.getAttribute("aria-haspopup")).toBe("listbox");
+  await act(async () => trigger.click());
+  const project = [
+    ...document.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+  ].find((button) => button.textContent === "Project")!;
+  await act(async () => project.click());
+  const remove = [...container.querySelectorAll("button")].find(
+    (button) => button.textContent === "Remove",
+  )!;
+  await act(async () => remove.click());
+  expect(ask).toHaveBeenCalledWith("Remove plain from Project scope?", {
+    title: "Remove MCP server",
+  });
+  expect(invoke).toHaveBeenCalledWith("claude_mcp_remove", {
+    cwd: "/repo",
+    name: "plain",
+    scope: "project",
+  });
+});
+
+it("names the removal scope in Chinese instead of interpolating the wire value", async () => {
+  setLanguagePreference("zh-CN");
+  try {
+    invoke.mockImplementation(async (command: string) =>
+      command === "mcp_discover"
+        ? [
+            {
+              provider: "claude",
+              name: "plain",
+              scope: "local",
+              configPath: "",
+              transport: "stdio",
+            },
+          ]
+        : "",
+    );
+    await act(async () => root.render(createElement(McpSettings, { cwd: "/repo" })));
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[aria-label="选择从哪个范围移除 plain: 本地"]',
+    )!;
+    expect(trigger).not.toBeNull();
+    const remove = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === "移除",
+    )!;
+    await act(async () => remove.click());
+    expect(ask).toHaveBeenCalledWith("从本地范围移除 plain？", {
+      title: "移除 MCP 服务",
+    });
+  } finally {
+    await act(async () => setLanguagePreference("en"));
+  }
+});
+
+it("is global and offers no project picker", async () => {
+  await act(async () =>
+    root.render(createElement(McpSettings, { cwd: "~" })),
+  );
+  expect(container.textContent).toContain("Configured servers for Loci.");
+  expect(container.textContent).not.toContain("selected project");
+  expect(container.querySelector('[aria-label^="Switch project"]')).toBeNull();
+  expect(invoke).toHaveBeenCalledWith("mcp_discover", { cwd: "~" });
+  expect(invoke).toHaveBeenCalledWith("claude_mcp_list", { cwd: "~" });
+  // The built-in card is global too, so it no longer talks about projects.
+  expect(container.textContent).toContain("apply everywhere in Loci");
+  expect(container.textContent).not.toContain("this project's Loci canvases");
+});
+
+it("caches the loaded list per cwd and reloads on Refresh", async () => {
   invoke.mockImplementation(async (command: string, args: { cwd: string }) =>
     command === "mcp_discover"
       ? [
           {
             provider: "claude",
             name: `${args.cwd.slice(1)}-server`,
-            scope: "project",
+            scope: "user",
             configPath: `${args.cwd}/.claude/mcp.json`,
             transport: "stdio",
           },
@@ -505,29 +571,19 @@ it("uses the shared project picker and caches each project's list", async () => 
       : "",
   );
   await act(async () =>
-    root.render(
-      createElement(McpSettings, {
-        cwd: "/repo",
-        recents: [{ path: "/other", openedAt: 1 }],
-      }),
-    ),
+    root.render(createElement(McpSettings, { cwd: "/repo" })),
   );
   expect(container.textContent).toContain("repo-server");
-  await selectProject("/other");
-  expect(container.textContent).toContain("other-server");
-  expect(container.textContent).not.toContain("repo-server");
-  expect(invoke).toHaveBeenCalledWith("mcp_discover", { cwd: "/other" });
-  expect(invoke).toHaveBeenCalledWith("claude_mcp_list", { cwd: "/other" });
-  expect(connectionCalls()).toHaveLength(4);
-  await selectProject("/repo");
+  expect(connectionCalls()).toHaveLength(2);
+  await act(async () => root.render(null));
+  await act(() => root.render(createElement(McpSettings, { cwd: "/repo" })));
   expect(container.textContent).toContain("repo-server");
   expect(container.textContent).not.toContain("Checking servers…");
-  expect(connectionCalls()).toHaveLength(4);
-  await selectProject("/other");
+  expect(connectionCalls()).toHaveLength(2);
   const refresh = [...container.querySelectorAll("button")].find(
     (button) => button.textContent === "Refresh",
   )!;
   await act(async () => refresh.click());
-  expect(connectionCalls()).toHaveLength(6);
-  expect(invoke).toHaveBeenLastCalledWith("claude_mcp_list", { cwd: "/other" });
+  expect(connectionCalls()).toHaveLength(4);
+  expect(invoke).toHaveBeenLastCalledWith("claude_mcp_list", { cwd: "/repo" });
 });

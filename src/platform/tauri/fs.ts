@@ -53,10 +53,12 @@ export type DiscoveredSkill = {
 export function listSkills(
   cwd: string,
   disabledPaths?: readonly string[] | null,
+  userOnly?: boolean,
 ): Promise<DiscoveredSkill[]> {
   return invoke<DiscoveredSkill[]>("list_skills", {
     cwd,
     disabledPaths: disabledPaths ?? null,
+    ...(userOnly ? { userOnly: true } : {}),
   });
 }
 

@@ -81,10 +81,15 @@ fn normalize_path_for_compare(path: &str) -> String {
 /// harness folders. Same name: earlier roots win.
 /// Excludes disabled paths before deduplication so lower-priority enabled
 /// same-name files can fall through.
+///
+/// `user_only` skips every project root. Settings has no open project, so it
+/// asks for this: a learner's own skills keep the `user` scope instead of
+/// being labelled with a project that is not there.
 #[tauri::command(async)]
 pub fn list_skills(
     cwd: String,
     disabled_paths: Option<Vec<String>>,
+    user_only: Option<bool>,
 ) -> Result<Vec<DiscoveredSkill>, String> {
     let project = expand_home(&cwd);
     let home = dirs_home().map(PathBuf::from);
@@ -92,6 +97,7 @@ pub fn list_skills(
         &project,
         home.as_deref(),
         disabled_paths.as_deref(),
+        user_only.unwrap_or(false),
     ))
 }
 
@@ -99,6 +105,7 @@ pub(crate) fn list_skills_from(
     project: &Path,
     home: Option<&Path>,
     disabled_paths: Option<&[String]>,
+    user_only: bool,
 ) -> Vec<DiscoveredSkill> {
     let disabled_filter = DisabledFilter::new(disabled_paths);
     let mut by_name: HashMap<String, DiscoveredSkill> = HashMap::new();
@@ -127,19 +134,26 @@ pub(crate) fn list_skills_from(
     };
 
     // Highest priority first so later roots cannot replace a name.
-    add_root(project.join(".agents/skills"), "project", "agents");
+    if !user_only {
+        add_root(project.join(".agents/skills"), "project", "agents");
+    }
     if let Some(home) = home {
         add_root(home.join(".agents/skills"), "user", "agents");
     }
 
     for (dir, source) in [(".claude/skills", "claude"), (".codex/skills", "codex")] {
-        add_root(project.join(dir), "project", source);
+        if !user_only {
+            add_root(project.join(dir), "project", source);
+        }
         if let Some(home) = home {
             add_root(home.join(dir), "user", source);
         }
     }
     if let Some(home) = home {
         for (root, scope, namespace) in claude_plugin_skill_roots(home, project) {
+            if user_only && scope == "project" {
+                continue;
+            }
             add_namespaced_root(
                 &mut by_name,
                 root,
@@ -624,7 +638,7 @@ mod tests {
         )
         .unwrap();
 
-        let skills = list_skills_from(&project.0, Some(&home.0), None);
+        let skills = list_skills_from(&project.0, Some(&home.0), None, false);
         let skill = skills
             .iter()
             .find(|skill| skill.name == "workflow-kit:quick-plan")
@@ -671,14 +685,14 @@ mod tests {
 
         let nested = project.0.join("src");
         std::fs::create_dir_all(&nested).unwrap();
-        let matching = list_skills_from(&nested, Some(&home.0), None);
+        let matching = list_skills_from(&nested, Some(&home.0), None, false);
         let skill = matching
             .iter()
             .find(|skill| skill.name == "workflow-kit:feature-delivery")
             .unwrap();
         assert_eq!(skill.scope, "project");
 
-        let unrelated = list_skills_from(&other.0, Some(&home.0), None);
+        let unrelated = list_skills_from(&other.0, Some(&home.0), None, false);
         assert!(!unrelated
             .iter()
             .any(|skill| skill.name == "workflow-kit:feature-delivery"));
@@ -704,7 +718,7 @@ mod tests {
         .unwrap();
         write_plugin_setting(&home.0, "settings.json", "workflow-kit@community", false);
 
-        let skills = list_skills_from(&project.0, Some(&home.0), None);
+        let skills = list_skills_from(&project.0, Some(&home.0), None, false);
         assert!(!skills
             .iter()
             .any(|skill| skill.name == "workflow-kit:quick-plan"));
@@ -796,7 +810,7 @@ mod tests {
         )
         .unwrap();
 
-        let skills = list_skills_from(&project.0, Some(&home.0), None);
+        let skills = list_skills_from(&project.0, Some(&home.0), None, false);
         assert!(!skills.iter().any(|skill| skill.name == "stale-skill"));
     }
 
@@ -804,7 +818,7 @@ mod tests {
     fn skips_dirs_without_skill_md() {
         let project = tmp("empty");
         std::fs::create_dir_all(project.0.join(".agents/skills/nope")).unwrap();
-        let skills = list_skills_from(&project.0, None, None);
+        let skills = list_skills_from(&project.0, None, None, false);
         assert!(skills.is_empty());
     }
     #[test]
@@ -828,7 +842,7 @@ mod tests {
             crate::fs::path_to_js(&home.0.join(".agents/skills/review/SKILL.md"));
 
         // 1. When neither is disabled, project skill wins.
-        let enabled_skills = list_skills_from(&project.0, Some(&home.0), None);
+        let enabled_skills = list_skills_from(&project.0, Some(&home.0), None, false);
         let review = enabled_skills.iter().find(|s| s.name == "review").unwrap();
         assert_eq!(review.description, "Project review");
         assert_eq!(review.path, project_skill_path);
@@ -839,6 +853,7 @@ mod tests {
             &project.0,
             Some(&home.0),
             Some(std::slice::from_ref(&project_skill_path)),
+            false,
         );
         let review = fallback_skills.iter().find(|s| s.name == "review").unwrap();
         assert_eq!(review.description, "Personal review");
@@ -846,7 +861,7 @@ mod tests {
         assert_eq!(review.scope, "user");
 
         // 3. When project skill is re-enabled, project skill wins again.
-        let restored_skills = list_skills_from(&project.0, Some(&home.0), Some(&[]));
+        let restored_skills = list_skills_from(&project.0, Some(&home.0), Some(&[]), false);
         let review = restored_skills.iter().find(|s| s.name == "review").unwrap();
         assert_eq!(review.description, "Project review");
         assert_eq!(review.path, project_skill_path);
@@ -856,6 +871,7 @@ mod tests {
             &project.0,
             Some(&home.0),
             Some(&[project_skill_path.clone(), personal_skill_path.clone()]),
+            false,
         );
         assert!(none_skills.iter().all(|s| s.name != "review"));
 
@@ -864,6 +880,7 @@ mod tests {
             &project.0,
             Some(&home.0),
             Some(std::slice::from_ref(&personal_skill_path)),
+            false,
         );
         let review = winner_skills.iter().find(|s| s.name == "review").unwrap();
         assert_eq!(review.description, "Project review");
@@ -893,7 +910,7 @@ mod tests {
             .to_string_lossy()
             .replace('/', "\\")
             .to_uppercase();
-        let skills = list_skills_from(&project.0, Some(&home.0), Some(&[raw_project_path]));
+        let skills = list_skills_from(&project.0, Some(&home.0), Some(&[raw_project_path]), false);
         let fmt = skills.iter().find(|s| s.name == "fmt").unwrap();
         assert_eq!(fmt.description, "Personal fmt");
         assert_eq!(fmt.scope, "user");
@@ -921,7 +938,7 @@ mod tests {
         assert!(nested_file.exists());
 
         let nested_path = crate::fs::path_to_js(&nested_file);
-        let skills = list_skills_from(&project.0, None, Some(&[nested_path]));
+        let skills = list_skills_from(&project.0, None, Some(&[nested_path]), false);
         let slash_skill = skills.iter().find(|s| s.name == "slash-skill");
         assert!(
             slash_skill.is_some(),
@@ -954,7 +971,7 @@ mod tests {
             "---\nname: codex-only\ndescription: Codex native\n---\n",
         );
 
-        let skills = list_skills_from(&project.0, Some(&home.0), None);
+        let skills = list_skills_from(&project.0, Some(&home.0), None, false);
         let ship = skills.iter().find(|s| s.name == "ship").unwrap();
         assert_eq!(ship.description, "Loci ship");
         assert_eq!(ship.source, "agents");
@@ -967,5 +984,34 @@ mod tests {
         let native = skills.iter().find(|s| s.name == "codex-only").unwrap();
         assert_eq!(native.source, "codex");
         assert_eq!(native.scope, "project");
+    }
+
+    #[test]
+    fn user_only_scope_keeps_home_skills_personal() {
+        // Settings opens with cwd "~", so the project root would be the home
+        // folder and every skill in it would otherwise be labelled a project's.
+        let home = tmp("home-user-only");
+        write_skill(
+            &home.0.join(".agents/skills"),
+            "greet",
+            "---\nname: greet\ndescription: Hello\n---\n",
+        );
+        write_skill(
+            &home.0.join(".claude/skills"),
+            "plan",
+            "---\nname: plan\ndescription: Plan\n---\n",
+        );
+
+        let skills = list_skills_from(&home.0, Some(&home.0), None, true);
+        assert!(!skills.is_empty());
+        for skill in &skills {
+            assert_eq!(
+                skill.scope, "user",
+                "{} came back as a project skill",
+                skill.name
+            );
+        }
+        let greet = skills.iter().find(|s| s.name == "greet").unwrap();
+        assert_eq!(greet.source, "agents");
     }
 }

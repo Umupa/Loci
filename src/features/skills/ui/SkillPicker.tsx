@@ -263,14 +263,17 @@ export function CreateSkillForm({
         className={`mb-2 w-full rounded-md bg-content/10 px-2 py-1.5 text-[13px] text-content outline-none placeholder:text-content/40 ${monospace ? "font-mono" : "font-sans"}`}
       />
       <div className="mb-2 flex gap-1">
-        <ScopeButton
-          label={t("Project")}
-          hint=".agents/skills"
-          monospace={monospace}
-          selected={scope === "project"}
-          disabled={!project || busy}
-          onClick={() => setScope("project")}
-        />
+        {/* Settings has no project, so it offers only the personal folder. */}
+        {project ? (
+          <ScopeButton
+            label={t("Project")}
+            hint=".agents/skills"
+            monospace={monospace}
+            selected={scope === "project"}
+            disabled={busy}
+            onClick={() => setScope("project")}
+          />
+        ) : null}
         <ScopeButton
           label={t("Personal")}
           hint="~/.agents/skills"

@@ -601,7 +601,8 @@ function Workspace(boot: BootWorkspace) {
           </section> : null}
           {surface === "mentor" && !focusedAgent ? <MentorsEmpty hasMentors={agents.agents.length > 0} onCreate={() => setAgentGalleryOpen(true)} /> : null}
           {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor}
-            recents={store.recents} cwd="~" besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection} /> : null}
+            cwd="~" besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection}
+            onOpenMentorSettings={(id) => { agents.setDetailsOpenFor(id, true); void showMentor(id); }} /> : null}
         </div>
       </div>
       <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, shownIds)} onFocusSession={(id) => void showSession(id).catch(reportError)} onApproval={submission.approve} />
