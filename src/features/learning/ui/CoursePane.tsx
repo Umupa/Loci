@@ -12,6 +12,7 @@ import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, setLessonStatus, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
+import { inLesson } from "../model/annotationCounts";
 import { DiffCard } from "./DiffCard";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
 import { linesOf } from "../model/textAnchor";
@@ -46,6 +47,8 @@ export { PROGRESS_EVENT };
 const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
 /** How close to the end of a lesson counts as having reached it. */
 const READ_END_SLACK = 48;
+/** A lesson that just replaced another scrolls; its own events settle first. */
+const READ_SWITCH_SETTLE_MS = 250;
 /** A lesson that fits without scrolling counts as read after this long open. */
 const SHORT_LESSON_DWELL_MS = 8000;
 
@@ -231,8 +234,13 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     setActionError(null);
     onDiscussed?.();
   };
-  // Opening a lesson is starting to read it.
+  // Opening a lesson is starting to read it, at its own beginning.
+  const switchedAt = useRef(0);
   const select = (id: string) => {
+    if (id !== activeId) {
+      switchedAt.current = Date.now();
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    }
     setActiveId(id);
     if (course?.data.engine === "reading" && (course.progress.get(id) ?? "untouched") === "untouched") void markStatus(id, "learning");
   };
@@ -248,6 +256,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   const readThrough = () => {
     const main = scrollRef.current;
     if (!reading || !activeId || activeStatus === "mastered" || !main) return;
+    // The old lesson's offset being clamped to the new one's length is not reading it.
+    if (Date.now() - switchedAt.current < READ_SWITCH_SETTLE_MS) return;
     if (main.scrollTop + main.clientHeight >= main.scrollHeight - READ_END_SLACK) void markStatus(activeId, "mastered");
   };
   useEffect(() => {
@@ -369,7 +379,10 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
     lines: (range) => fenced ? excerptLines(range, first) : undefined,
   }), [file, first, fenced]);
   const marks = useReadingMarks(excerptRef, spec, { agentId });
-  const count = marks.annotations.length;
+  // A code-tour lesson reads part of a file: its menu counts and lists that part, as its outline does.
+  const shownMarks = useMemo(() => lesson.lines ? marks.annotations.filter((annotation) => inLesson(lesson, annotation)) : marks.annotations,
+    [marks.annotations, lesson]);
+  const count = shownMarks.length;
   useEffect(() => { onMarks?.(count); }, [onMarks, count]);
   const name = file.split(/[\\/]/).pop() || file;
   const inline = !lesson.pages && isReadableSource(name);
@@ -382,7 +395,7 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
   }, [file, inline]);
   const where = lesson.pages ? ` · ${lesson.pages[0] === lesson.pages[1] ? `page ${lesson.pages[0]}` : `pages ${lesson.pages[0]}–${lesson.pages[1]}`}`
     : lesson.lines ? ` · lines ${lesson.lines[0]}–${lesson.lines[1]}` : "";
-  const open = <button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>{inline ? "Open in a pane" : "Open to read"}</button>;
+  const open = <button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button>;
   if (!inline) return <article className="course-pane__content" key={lesson.id}><h2>{lesson.title}</h2><p className="course-pane__summary" title={file}>{name}{where}</p>{open}</article>;
   const shown = loaded?.file === file ? loaded : undefined;
   return <article className="course-pane__content course-pane__reading" key={lesson.id}>
@@ -393,7 +406,7 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
       : <div ref={excerptRef} className="select-text" data-reading-text {...(fenced ? { "data-reading-lines-from": first } : {})}><AgentMarkdown text={sourceExcerpt(shown.text!, name, lesson.lines)} wholeDocument /></div>}
     <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} />
     {marks.popover}
-    {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title) : null}
+    {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) : null}
   </article>;
 }
 

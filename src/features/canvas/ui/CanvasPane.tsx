@@ -4,6 +4,7 @@ import type { ExcalidrawImperativeAPI, ExcalidrawProps } from "@excalidraw/excal
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { MessageSquarePlus, ExcalidrawIcon, X, Maximize2, Minimize2 } from "../../../shared/ui/icons";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
+import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import type { Canvas, CanvasSceneReplacement } from "../canvas";
 import { CANVAS_SCENE_ACCESS_EVENT, CANVAS_SCENE_REPLACED_EVENT, canvasSceneDrafts as sceneDrafts, canvasElementsToText, updateCanvas } from "../canvas";
 import { registerCanvasRenderer } from "../renderScheduling";
@@ -35,11 +36,15 @@ type Props = {
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   onAddToChat: (text: string) => void;
   chatTarget?: "chat" | "agent";
+  /** The mentor the drawing goes to, when it is read beside one: "Add to Ada". */
+  chatName?: string;
   chatIcon?: ReactNode;
   onTitleChange: (id: string, title: string) => void;
+  /** Shown as the window's one reader: a reader header with Close, no pane chrome. */
+  reader?: boolean;
 };
 
-function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStart, onAddToChat, chatTarget = "chat", chatIcon, onTitleChange }: Props) {
+function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStart, onAddToChat, chatTarget = "chat", chatName, chatIcon, onTitleChange, reader = false }: Props) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const pointerUpRef = useRef<Parameters<NonNullable<ExcalidrawProps["onPointerUp"]>>[1] | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -246,31 +251,45 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
     const title = titleDraft.trim() || "Untitled drawing";
     if (title !== canvas.title) { save(); onTitleChange(canvas.id, title); }
   };
+  const chatNameOrTarget = chatName ?? chatTarget;
+  const chatLabel = chatName ? `Add to ${chatName}` : chatTarget === "agent" ? "Add to agent" : "Add to chat";
+  const titleField = editingTitle ? (
+    <input autoFocus aria-label="Drawing title" className={reader ? "w-full min-w-0 bg-transparent text-[13px] font-medium text-content outline-none" : "min-w-0 flex-1 bg-transparent text-xs text-content outline-none"} value={titleDraft}
+      onChange={(event) => setTitleDraft(event.target.value)} onBlur={commitTitle}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Escape") { event.preventDefault(); setEditingTitle(false); }
+      }} />
+  ) : <span className={`block min-w-0 truncate ${reader ? "" : "flex-1 text-xs"}`} title="Double-click to rename" onDoubleClick={() => { setTitleDraft(canvas.title); setEditingTitle(true); }}>{canvas.title}</span>;
+  const addButton = (
+    <button type="button" data-no-drag data-tauri-drag-region="false" aria-label={`Add drawing to ${chatNameOrTarget}`} title={`Add selected elements or drawing to ${chatNameOrTarget}`} onClick={handleAddToChat}
+      className={`flex shrink-0 items-center gap-1 text-content/55 hover:bg-content/10 hover:text-content ${reader ? "h-6 rounded-md px-1.5 text-xs" : "h-6 rounded px-1.5 text-xs"}`}>
+      {chatIcon ?? <MessageSquarePlus className="size-3.5" />}<span>{chatLabel}</span>
+    </button>
+  );
+  const fullscreenButton = (
+    <button type="button" data-no-drag data-tauri-drag-region="false" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={toggleFullscreen}
+      className={reader ? RESOURCE_ACTION : "grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"}>
+      {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+    </button>
+  );
 
   return (
     <div ref={containerRef} className="loci-canvas flex h-full min-h-0 min-w-0 flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
-      <PaneHeader onPaneDragStart={onPaneDragStart}>
+      {reader && onClose ? <ResourceHeader title={canvas.title} titleContent={titleField} onClose={onClose}>
+        {saveError ? <button type="button" data-tauri-drag-region="false" className="text-xs text-red-400" onClick={save}>Retry save</button> : null}
+        {addButton}
+        {fullscreenButton}
+      </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}>
         {!onPaneDragStart ? <ExcalidrawIcon className="size-3.5 shrink-0 text-content/45" /> : null}
         <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} />
-        {editingTitle ? (
-          <input data-no-drag autoFocus aria-label="Drawing title" className="min-w-0 flex-1 bg-transparent text-xs text-content outline-none" value={titleDraft}
-            onChange={(event) => setTitleDraft(event.target.value)} onBlur={commitTitle}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") event.currentTarget.blur();
-              if (event.key === "Escape") { event.preventDefault(); setEditingTitle(false); }
-            }} />
-        ) : <span className="min-w-0 flex-1 truncate text-xs" title="Double-click to rename" onDoubleClick={() => { setTitleDraft(canvas.title); setEditingTitle(true); }}>{canvas.title}</span>}
+        {titleField}
         {saveError ? <button data-no-drag className="text-xs text-red-400" onClick={save}>Retry save</button> : null}
-        <button type="button" data-no-drag aria-label={`Add drawing to ${chatTarget}`} title={`Add selected elements or drawing to ${chatTarget}`} onClick={handleAddToChat}
-          className="flex h-6 shrink-0 items-center gap-1 rounded px-1.5 text-xs text-content/55 hover:bg-content/10 hover:text-content">
-          {chatIcon ?? <MessageSquarePlus className="size-3.5" />}<span>{chatTarget === "agent" ? "Add to agent" : "Add to chat"}</span>
-        </button>
-        <button type="button" data-no-drag aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"} onClick={toggleFullscreen} className="grid size-6 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content">
-          {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-        </button>
+        {addButton}
+        {fullscreenButton}
         {onClose ? <button type="button" data-no-drag aria-label="Close pane" title="Close pane" onClick={onClose}
           className="grid size-5 shrink-0 place-items-center rounded text-content/50 hover:bg-content/10 hover:text-content"><X className="size-3" /></button> : null}
-      </PaneHeader>
+      </PaneHeader>}
       <div className="relative min-h-0 min-w-0 flex-1" onPointerDownCapture={() => { pointerUpRef.current = null; }} onDoubleClickCapture={navigateConcept}>
         <Excalidraw excalidrawAPI={registerApi} initialData={initialData} onChange={handleChange} onLinkOpen={openLink} theme={isDark ? "dark" : "light"}
           onPointerUp={rememberPointerUp}

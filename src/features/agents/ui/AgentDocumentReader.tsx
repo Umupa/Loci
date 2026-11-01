@@ -5,6 +5,7 @@ import { Popover } from "../../../shared/ui/Popover";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { upsertNote } from "../../notes";
+import { requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 import type { AgentDocument } from "../../sessions/model/cards";
 import { DocumentBody, shownDocument } from "./DocumentBody";
 import {
@@ -39,6 +40,9 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
   const [latest, setLatest] = useState<AgentDocument>(document);
   const [stored, setStored] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [savedNoteId, setSavedNoteId] = useState<string>();
+  /** The library no longer has it; the copy the conversation handed over still reads. */
+  const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string>();
   const [actionError, setActionError] = useState<string>();
   const [reload, setReload] = useState(0);
@@ -52,8 +56,10 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
     setLatest(document);
     setStored(false);
     setSaved(false);
+    setSavedNoteId(undefined);
     setCopied(false);
     setMenu(false);
+    setMissing(false);
     setError(undefined);
     setActionError(undefined);
     setLoading(!!agentId);
@@ -66,7 +72,9 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         if (!current || turn !== request) return;
         setStored(!!found);
         setLoading(false);
-        setError(found?.body != null ? undefined : "This document is no longer in the library.");
+        // A reply's copy is still worth reading when the library no longer has its document.
+        setMissing(!found);
+        setError(undefined);
         if (found?.body != null) setLatest(shownDocument({ ...found, body: found.body }));
       }, (cause) => {
         if (current && turn === request) { setLoading(false); setError(String(cause)); }
@@ -80,9 +88,16 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
     };
   }, [agentId, document, reload]);
 
+  /** Gone for good, with the highlights and notes written in it: ask first. */
+  const removeFromLibrary = () => {
+    if (!agentId || !window.confirm(`Remove “${latest.title}” from the library? Its highlights and notes will no longer be reachable.`)) return;
+    void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause)));
+  };
+
   const saveAsNote = async () => {
     try {
-      await upsertNote({ id: crypto.randomUUID(), title: latest.title, body: latest.body, tags: latest.subject ? [latest.subject] : [], ...(agentId ? { agentId } : {}) });
+      const note = await upsertNote({ id: crypto.randomUUID(), title: latest.title, body: latest.body, tags: latest.subject ? [latest.subject] : [], ...(agentId ? { agentId } : {}) });
+      setSavedNoteId(note?.id);
       setSaved(true);
     } catch (cause) { setActionError(`Could not save note: ${String(cause)}`); }
   };
@@ -102,7 +117,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         </button>
         {agentId && stored ? (
           <button type="button" data-no-drag title="Remove from the library" aria-label="Remove from the library" className={iconButton}
-            onClick={() => void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause)))}>
+            onClick={removeFromLibrary}>
             <Trash2 className="size-3.5" strokeWidth={1.75} />
           </button>
         ) : null}
@@ -114,11 +129,18 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); void copyMessage(latest.body).then(() => { setCopied(true); setActionError(undefined); }, (cause) => setActionError(`Could not copy document: ${String(cause)}`)); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40">{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? "Copied" : "Copy document"}</button>
         {agentId ? <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); setMarksOpen(true); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><Pencil className="size-3.5" />Highlights &amp; notes{marks ? ` (${marks})` : ""}</button> : null}
         <button type="button" role="menuitem" disabled={saved || loading || !!error} onClick={() => { setMenu(false); void saveAsNote(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><StickyNote className="size-3.5" />{saved ? "Saved to Notes" : "Save as a note"}</button>
-        {agentId && stored ? <button type="button" role="menuitem" onClick={() => { setMenu(false); void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause))); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-400 hover:bg-content/6"><Trash2 className="size-3.5" />Remove from the library</button> : null}
+        {agentId && stored ? <button type="button" role="menuitem" onClick={() => { setMenu(false); removeFromLibrary(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-400 hover:bg-content/6"><Trash2 className="size-3.5" />Remove from the library</button> : null}
       </Popover> : null}
+      {saved && savedNoteId ? <div role="status" className="flex shrink-0 items-center gap-2 border-b border-stroke px-6 py-1.5 text-[12px] text-content/60">
+        <span>Saved to Notes.</span>
+        <button type="button" onClick={() => requestOpenAppResource({ kind: "note", id: savedNoteId })} className="underline hover:text-content">Open</button>
+      </div> : null}
       <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${embedded ? "px-7 py-6" : "px-6 pb-10 pt-2"} text-[14px] leading-relaxed`}>
-        {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <DocumentBody document={latest} agentId={agentId} onMarks={setMarks}
-          marksList={marksOpen ? { anchor: more, onClose: () => setMarksOpen(false) } : undefined} />}
+        {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <>
+          {missing ? <p role="status" className="document-section-notice">This document is no longer in the library. Showing the copy from this conversation.</p> : null}
+          <DocumentBody document={latest} agentId={agentId} onMarks={setMarks}
+            marksList={marksOpen ? { anchor: more, onClose: () => setMarksOpen(false) } : undefined} />
+        </>}
         {actionError ? <p role="alert" className="mt-3 text-xs text-red-400">{actionError}</p> : null}
       </div>
     </aside>

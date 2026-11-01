@@ -51,6 +51,16 @@ it("adds only the selected drawing elements using the agent action", () => {
   expect(canvasElementsToText).toHaveBeenCalledWith(canvas.title, JSON.stringify([elements[0]], null, 2), canvas.id);
   expect(onAddToChat).toHaveBeenCalledExactlyOnceWith("Selected drawing context");
 });
+it("reads in the reader's own header, naming the mentor the drawing goes to", () => {
+  act(() => root.render(createElement(CanvasPane, { ...props, reader: true, chatTarget: "agent", chatName: "Ada" })));
+  expect(container.querySelector("[data-resource-header]")).not.toBeNull();
+  expect(container.querySelectorAll('button[aria-label="Close"]')).toHaveLength(1);
+  expect(container.querySelector('button[aria-label="Close pane"]')).toBeNull();
+  const chat = container.querySelector<HTMLButtonElement>('button[aria-label="Add drawing to Ada"]')!;
+  expect(chat.textContent).toBe("Add to Ada");
+  expect(chat.title).toBe("Add selected elements or drawing to Ada");
+});
+
 it("retains edits while moving to another pane before the save debounce fires", () => {
   act(() => root.render(createElement(CanvasPane, props)));
   const changed = [{ id: "rectangle", type: "rectangle", x: 12, y: 30 }];

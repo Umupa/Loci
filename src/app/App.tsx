@@ -345,6 +345,10 @@ function Workspace(boot: BootWorkspace) {
   }, [openLearningFile, reportError]);
   useEffect(() => {
     const queued = (request: AddToChatRequest, id: string) => {
+      // The draft waits in the composer. Its mentor's conversation is unfolded
+      // so the learner sees where the passage went, as the library's drafts do.
+      const owner = agentForSession(id);
+      if (owner && !mentorViewRef.current.viewFor(owner.id).chat) mentorViewRef.current.toggleChat(owner.id);
       queueLearningDraft(id, { ...request, targetSessionId: id });
       void revealLearningConversation(id).catch(reportError);
     };

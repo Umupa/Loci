@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Popover } from "../../../shared/ui/Popover";
 import { ChevronRight, Pencil, MessageSquare, MessageSquarePlus, Trash2, X } from "../../../shared/ui/icons";
-import type { FileSelection } from "../../files/hooks/useFileSelection";
 import { openLearningDiscussion } from "../model/navigation";
 import type { Annotation } from "../model/types";
 import { annotationPlace } from "../model/annotationPlace";
@@ -35,15 +34,11 @@ export function AnnotationList({ annotations, selectedId, orphans, title = "High
   return <aside aria-label={title} className="pdf-annotations">
     <header className="pdf-annotations__header">
       <h2>{title}</h2>
-      <span className="pdf-annotations__count">{annotations.length}</span>
+      {annotations.length ? <span className="pdf-annotations__count">{annotations.length}</span> : null}
       <button type="button" title="Close annotations" aria-label="Close annotations" onClick={onClose} className="pdf-annotations__icon-button"><X className="size-3.5" /></button>
     </header>
     <div className="pdf-annotations__list">
-      {annotations.length === 0 ? <div className="pdf-annotations__empty">
-        <span className="pdf-annotations__empty-icon"><Pencil className="size-4" /></span>
-        <p className="pdf-annotations__empty-title">No highlights yet</p>
-        <p>Select text and choose Highlight or Note to keep a passage here.</p>
-      </div> : null}
+      {annotations.length === 0 ? <p className="pdf-annotations__empty">Select text to highlight it</p> : null}
       {ordered.map((annotation) => <button key={annotation.id} type="button" onClick={() => onSelect(annotation)}
         aria-pressed={selectedId === annotation.id} className="pdf-annotations__entry">
         <span className="pdf-annotations__entry-meta">
@@ -56,28 +51,6 @@ export function AnnotationList({ annotations, selectedId, orphans, title = "High
       </button>)}
     </div>
   </aside>;
-}
-
-export function PdfSelectionMenu({ selection, onAsk, onHighlight, onDismiss }: {
-  selection: FileSelection; onAsk: () => Promise<void>; onHighlight: () => Promise<void>; onDismiss: () => void;
-}) {
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const run = async (action: () => Promise<void>) => {
-    setPending(true); setError(null);
-    try { await action(); window.getSelection()?.removeAllRanges(); onDismiss(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setPending(false); }
-  };
-  return <Popover bare anchor={selection.rect} side="top" align="center" onDismiss={onDismiss} role="toolbar" aria-label="Selected PDF text actions" className="pdf-selection-menu">
-    <div className="pdf-selection-menu__actions">
-      <button type="button" disabled={pending} onMouseDown={(event) => event.preventDefault()} onClick={() => void run(onAsk)}
-        className="pdf-selection-menu__action"><MessageSquarePlus className="size-3.5" />Ask agent</button>
-      <button type="button" disabled={pending} onMouseDown={(event) => event.preventDefault()} onClick={() => void run(onHighlight)}
-        className="pdf-selection-menu__action"><Pencil className="pdf-annotations__highlight-icon size-3.5" />Highlight</button>
-    </div>
-    {error ? <p role="alert" className="pdf-annotations__error">{error}</p> : null}
-  </Popover>;
 }
 
 /** One mark: its passage, the note on it, the conversations about it, and Ask. */
@@ -96,14 +69,20 @@ export function AnnotationPopover({ annotation, anchor, onDismiss, onAsk, onSave
     try { await action(); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setPending(false); }
   };
-  return <Popover bare anchor={anchor} side="right" width={320} onDismiss={onDismiss} role="dialog" aria-label="Highlight" className="pdf-annotation-popover">
+  // Text written into the note is worth keeping: dismissing or asking saves it.
+  const savePending = async () => {
+    if (note === annotation.note) return;
+    await onSave(annotation, note);
+  };
+  const saveAndDismiss = async () => { await savePending(); onDismiss(); };
+  return <Popover bare anchor={anchor} side="right" width={320} onDismiss={() => void run(saveAndDismiss)} role="dialog" aria-label="Highlight" className="pdf-annotation-popover">
     <header className="pdf-annotation-popover__header">
       <span className="pdf-annotation-popover__badge"><Pencil className="size-3.5" /></span>
       <div className="pdf-annotation-popover__heading">
         <h2>Highlight</h2>
         <p>{annotationPlace(annotation)}</p>
       </div>
-      <button type="button" title="Close annotation" aria-label="Close annotation" onClick={onDismiss} className="pdf-annotations__icon-button"><X className="size-3.5" /></button>
+      <button type="button" title="Close annotation" aria-label="Close annotation" disabled={pending} onClick={() => void run(saveAndDismiss)} className="pdf-annotations__icon-button"><X className="size-3.5" /></button>
     </header>
     <div className="pdf-annotation-popover__body">
       <blockquote className="pdf-annotation-popover__quote">{annotation.source.quote}</blockquote>
@@ -124,13 +103,11 @@ export function AnnotationPopover({ annotation, anchor, onDismiss, onAsk, onSave
       {error ? <p role="alert" className="pdf-annotations__error">{error}</p> : null}
     </div>
     <footer className="pdf-annotation-popover__footer">
-      <button type="button" onClick={() => onAsk(annotation)} className="pdf-annotation-popover__ask"><MessageSquarePlus className="size-3.5" />{askLabel}</button>
-      <button type="button" title="Delete annotation" aria-label="Delete annotation" disabled={pending} onClick={() => void run(async () => { await onDelete(annotation); onDismiss(); })}
+      <button type="button" disabled={pending} onClick={() => void run(async () => { await savePending(); onAsk({ ...annotation, note }); })} className="pdf-annotation-popover__ask"><MessageSquarePlus className="size-3.5" />{askLabel}</button>
+      <button type="button" title="Delete annotation" aria-label="Delete annotation" disabled={pending} onClick={() => {
+        if (window.confirm("Delete this highlight and its note?")) void run(async () => { await onDelete(annotation); onDismiss(); });
+      }}
         className="pdf-annotations__icon-button pdf-annotations__delete"><Trash2 className="size-3.5" /></button>
     </footer>
   </Popover>;
 }
-
-/** The names PDF code has always used. */
-export const PdfAnnotationsList = AnnotationList;
-export const PdfAnnotationPopover = AnnotationPopover;

@@ -88,6 +88,7 @@ export function NoteEditor({
   onDelete,
   onActions,
   onAddToChat,
+  chatLabel = "Add to chat",
   compact = false,
 }: {
   compact?: boolean;
@@ -96,6 +97,8 @@ export function NoteEditor({
   onDelete: (id: string) => void | Promise<void>;
   onActions: (actions: NoteEditorActions | null) => void;
   onAddToChat: (note: Note) => void;
+  /** "Add to Ada": the mentor beside the reader, when there is one. */
+  chatLabel?: string;
 }) {
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const blank = !note.body.trim() && note.title === "Untitled";
@@ -417,11 +420,13 @@ export function NoteEditor({
               onClick={() => onAddToChat(draft)}
               className="inline-flex items-center gap-1 rounded-md bg-content px-3 h-6.5 text-[12px] text-background-base hover:bg-content/80 disabled:cursor-default disabled:opacity-40"
             >
-              Add to chat
+              {chatLabel}
             </button>
             <button
               type="button"
-              onClick={() => { void remove(); }}
+              onClick={() => {
+                if (window.confirm(`Delete “${title.trim() || "Untitled"}”?`)) void remove();
+              }}
               className="inline-flex items-center gap-1.5 rounded-md px-3 h-7 text-[12px] text-content/70 hover:bg-content/10 hover:text-red-400"
             >
               <Trash2 className="size-3.5" strokeWidth={1.75} />

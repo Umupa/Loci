@@ -1429,7 +1429,7 @@
       "callers": [
         "external"
       ],
-      "destructive": false,
+      "destructive": true,
       "fields": [
         {
           "name": "mentor",
@@ -1444,6 +1444,13 @@
           "help": "Its id",
           "required": true,
           "positional": true
+        },
+        {
+          "name": "yes",
+          "type": "boolean",
+          "help": "Do not ask (Loci Dev and QA builds only)",
+          "required": false,
+          "positional": false
         }
       ]
     },

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { StickyNote, X } from "../../../shared/ui/icons";
 import { ResourceHeader } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
-import { findAgent } from "../../agents/model/agent";
+import { agentLook, findAgent } from "../../agents/model/agent";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { deleteNote, getNote, NOTES_CHANGED_EVENT, type Note } from "../notes";
 import { NoteEditor, type NoteEditorActions } from "./NoteEditor";
@@ -56,6 +56,7 @@ export function NotePane({ noteId, agentId, focused, onFocus, onClose, onPaneDra
     return () => { live = false; window.removeEventListener(NOTES_CHANGED_EVENT, load); };
   }, [noteId, agentId, scope, reload]);
   const leave = async (next: () => void) => { if (await save()) next(); };
+  const owner = agentId ? findAgent(agentId) : undefined;
   return (
     <section aria-label={note?.title ?? "Note"} className="flex h-full min-h-0 min-w-0 flex-1 flex-col" onPointerDown={() => { if (!focused) onFocus(); }}>
       {embedded ? <ResourceHeader title={note?.title ?? "Note"} backLabel="Back to notes" onBack={onBack ? () => void leave(onBack) : undefined} onClose={() => void leave(onClose)} /> : <PaneHeader onPaneDragStart={onPaneDragStart}>
@@ -68,8 +69,9 @@ export function NotePane({ noteId, agentId, focused, onFocus, onClose, onPaneDra
         : note === null ? <p role="status" className="p-4 text-xs text-content/50">This note is no longer available.</p>
         : <NoteEditor key={note.id} note={note} compact={embedded} onActions={register} onSaved={(saved) => setLoaded((current) => current?.scope === scope ? { scope, note: saved } : current)}
             onDelete={async (id) => { await deleteNote(id); (onBack ?? onClose)(); }}
+            {...(owner ? { chatLabel: `Add to ${agentLook(owner).name}` } : {})}
             onAddToChat={(draft) => {
-              const targetSessionId = agentId ? findAgent(agentId)?.sessionId : undefined;
+              const targetSessionId = owner?.sessionId;
               requestAddToChat(`${draft.title}\n\n${draft.body}`, "quote", { targetSessionId });
             }} />}
     </section>

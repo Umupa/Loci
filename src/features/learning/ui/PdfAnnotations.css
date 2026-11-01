@@ -135,38 +135,15 @@
 }
 
 .pdf-annotations__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 32px 16px;
+  padding: 10px 8px;
   color: color-mix(in srgb, var(--color-content) 50%, transparent);
   font-size: 12px;
   line-height: 20px;
-  text-align: center;
-}
-
-.pdf-annotations__empty-icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  margin-bottom: 4px;
-  place-items: center;
-  border-radius: 12px;
-  background: var(--color-selection-subtle);
-  color: color-mix(in srgb, var(--color-content) 65%, transparent);
-}
-
-.pdf-annotations__empty-title {
-  color: color-mix(in srgb, var(--color-content) 82%, transparent);
-  font-size: 13px;
-  font-weight: 500;
 }
 
 /* Paper is always white. An opaque theme surface keeps the annotation's ink
    readable when it floats over a PDF in either application theme. */
-.pdf-annotation-popover,
-.pdf-selection-menu {
+.pdf-annotation-popover {
   overflow: auto;
   border: 1px solid color-mix(in srgb, var(--color-content) 14%, transparent);
   border-radius: 12px;
@@ -345,36 +322,6 @@
   background: var(--color-selection);
 }
 
-.pdf-selection-menu {
-  padding: 4px;
-  border-radius: 10px;
-}
-
-.pdf-selection-menu__actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.pdf-selection-menu__action {
-  display: flex;
-  height: 32px;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.pdf-selection-menu__action:enabled:hover {
-  background: var(--color-selection-subtle);
-}
-
-.pdf-annotations__highlight-icon {
-  color: var(--color-skill);
-}
-
 .pdf-annotations__delete:enabled:hover {
   background: color-mix(in srgb, var(--color-diff-del) 10%, transparent);
   color: var(--color-diff-del-fg);
@@ -392,14 +339,12 @@
 }
 
 .pdf-annotations button:focus-visible,
-.pdf-annotation-popover button:focus-visible,
-.pdf-selection-menu button:focus-visible {
+.pdf-annotation-popover button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--color-accent) 60%, transparent);
   outline-offset: 2px;
 }
 
-.pdf-annotation-popover button:disabled,
-.pdf-selection-menu button:disabled {
+.pdf-annotation-popover button:disabled {
   cursor: default;
   opacity: 0.35;
 }
