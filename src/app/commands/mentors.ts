@@ -6,6 +6,7 @@ import { AGENT_TEMPLATES } from "../../features/agents/templates";
 import { isHarnessAvailable } from "../../integrations/harness/core/availability";
 import { modelEffortSetting, modelsFor, preferredModelId, resolveModel } from "../../features/sessions/model/models";
 import { HARNESSES, RUNTIME_MODES, type Block, type HarnessId, type RuntimeMode, type Session } from "../../features/sessions/model/session";
+import { turnActivity } from "../../features/sessions/model/turnProgress";
 import { RELEASE_IDENTIFIER } from "../../features/updates/model/updates";
 import type { CommandContext } from "./context";
 import { mentorField, refreshModelsFor, resolveMentor } from "./mentor";
@@ -137,7 +138,17 @@ export function turnState(chat: Session, turn: string) {
   const lastSystem = [...after].reverse().find((block: Block) => block.role === "system" && block.notice === "error")?.text;
   // A reply that ran tools is work, even when its text reads like an error.
   const tools = after.filter((block) => block.role === "tool").length;
-  const base = { sessionId: chat.id, turn, text, tools };
+  // Newest first, so a terminal can read the latest line without walking the
+  // turn; each entry carries its own type for `--stream` consumers.
+  const activity = turnActivity(after).map(({ id, kind, text, status, saved }) => ({
+    type: "activity" as const,
+    id,
+    kind,
+    text,
+    status,
+    ...(saved ? { saved } : {}),
+  }));
+  const base = { sessionId: chat.id, turn, text, tools, activity };
   if (user.draft) return { ...base, status: "queued" as const };
   const finished = user.durationMs != null || next >= 0;
   if (!finished && chat.busy) return { ...base, status: agentState(chat).status === "needs-you" ? "needs-you" as const : "running" as const };
@@ -261,7 +272,7 @@ export const mentorCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "mentors.turn",
-    summary: "Where a turn started by `mentors send` is: queued, running, needs-you, done or failed, with the reply so far.",
+    summary: "Where a turn started by `mentors send` is: queued, running, needs-you, done or failed, with the reply so far, its tool count and its activity lines.",
     fields: [mentorField(true), field("turn", "string", "The turn id `mentors send` returned", { required: true, positional: true })],
     callers: ["external"],
     run: async (ctx, input, meta) => {

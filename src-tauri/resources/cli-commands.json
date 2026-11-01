@@ -1364,7 +1364,7 @@
     },
     {
       "name": "mentors.turn",
-      "summary": "Where a turn started by `mentors send` is: queued, running, needs-you, done or failed, with the reply so far.",
+      "summary": "Where a turn started by `mentors send` is: queued, running, needs-you, done or failed, with the reply so far, its tool count and its activity lines.",
       "callers": [
         "external"
       ],

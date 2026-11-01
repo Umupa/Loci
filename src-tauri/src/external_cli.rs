@@ -7,7 +7,7 @@
 //! the JSON answer. Every build has its own identifier and data folder:
 //! `--app` chooses which Loci to talk to, and the default is the build this
 //! executable is.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{BufRead, BufReader, IsTerminal, Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::Path;
@@ -489,7 +489,7 @@ fn command_help(spec: &CommandSpec) -> String {
     }
     if spec.name == "mentors.send" {
         out.push_str(
-            "  --wait                   Wait for the reply and print it.\n  --stream                 With --wait, print the reply as it grows (one JSON line each).\n  --timeout <seconds>      How long --wait waits (default 900).\n",
+            "  --wait                   Wait for the reply and print it.\n  --stream                 With --wait, print each new activity line and reply change as one JSON line.\n  --timeout <seconds>      How long --wait waits (default 900).\n",
         );
     }
     if spec.destructive {
@@ -634,6 +634,7 @@ fn wait_for_turn(
     };
     let started = Instant::now();
     let mut shown = String::new();
+    let mut activity_shown = HashMap::new();
     loop {
         let value = call(
             identifier,
@@ -646,6 +647,9 @@ fn wait_for_turn(
         }
         let state = &value["result"];
         if wait.stream {
+            for line in new_activity(&mut activity_shown, state) {
+                emit(&line);
+            }
             let text = state["text"].as_str().unwrap_or_default();
             if text != shown {
                 if let Some(delta) = text.strip_prefix(shown.as_str()) {
@@ -671,6 +675,31 @@ fn wait_for_turn(
         }
         std::thread::sleep(POLL_EVERY);
     }
+}
+
+/// Activity entries this poll added or changed, oldest first, so a stream reads
+/// in the order the mentor did the work. The turn reports them newest first.
+fn new_activity(shown: &mut HashMap<String, String>, state: &Value) -> Vec<Value> {
+    let Some(entries) = state["activity"].as_array() else {
+        return Vec::new();
+    };
+    let mut added = Vec::new();
+    for entry in entries.iter().rev() {
+        let Some(id) = entry["id"].as_str().filter(|id| !id.is_empty()) else {
+            continue;
+        };
+        let encoded = entry.to_string();
+        if shown.get(id).is_some_and(|seen| seen == &encoded) {
+            continue;
+        }
+        shown.insert(id.to_string(), encoded);
+        let mut line = entry.clone();
+        if let Value::Object(fields) = &mut line {
+            fields.insert("type".into(), json!("activity"));
+        }
+        added.push(line);
+    }
+    added
 }
 
 pub fn run(args: Vec<String>) -> i32 {
@@ -900,6 +929,41 @@ mod tests {
             })
         );
         assert_eq!(call.input, json!({"mentor": "m", "text": "hi"}));
+    }
+
+    #[test]
+    fn stream_reports_each_activity_line_once_oldest_first() {
+        let state = json!({
+            "activity": [
+                {"id": "save", "kind": "source", "text": "Saved source: Virtio 1.2", "status": "done"},
+                {"id": "clone", "kind": "clone", "text": "Cloning tokio-rs/tokio", "status": "running"}
+            ]
+        });
+        let mut shown = HashMap::new();
+        assert_eq!(
+            new_activity(&mut shown, &state),
+            vec![
+                json!({"type": "activity", "id": "clone", "kind": "clone", "text": "Cloning tokio-rs/tokio", "status": "running"}),
+                json!({"type": "activity", "id": "save", "kind": "source", "text": "Saved source: Virtio 1.2", "status": "done"})
+            ]
+        );
+        // The same state again says nothing new, so a poll never repeats a line.
+        assert!(new_activity(&mut shown, &state).is_empty());
+        // A call settling renames its line; a stream consumer can update by id.
+        let settled = json!({
+            "activity": [
+                {"id": "save", "kind": "source", "text": "Saved source: Virtio 1.2", "status": "done"},
+                {"id": "clone", "kind": "clone", "text": "Cloned tokio-rs/tokio", "status": "done"}
+            ]
+        });
+        assert_eq!(
+            new_activity(&mut shown, &settled),
+            vec![
+                json!({"type": "activity", "id": "clone", "kind": "clone", "text": "Cloned tokio-rs/tokio", "status": "done"})
+            ]
+        );
+        // A turn with no activity is the spinner case, not an error.
+        assert!(new_activity(&mut HashMap::new(), &json!({"status": "running"})).is_empty());
     }
 
     #[test]

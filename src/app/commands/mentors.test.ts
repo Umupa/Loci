@@ -128,4 +128,43 @@ describe("a turn's state", () => {
     expect(turnState(chat([user({ startedAt: 1, durationMs: 5 }), { id: "t", role: "system", text: "Thinking…", statusKey: "k" }, { id: "s", role: "system", text: "Provider crashed", notice: "error" }]), "cli-r1")).toMatchObject({ status: "failed", error: "Provider crashed" });
     expect(() => turnState(chat([]), "cli-r1")).toThrow(/No such turn/);
   });
+  it("carries the running turn's activity, newest first, for a terminal", () => {
+    const saved = turnState(chat([
+      user({ startedAt: 1 }),
+      {
+        id: "clone",
+        role: "tool",
+        text: "git clone https://github.com/tokio-rs/tokio.git",
+        tool: { kind: "execute", title: "git clone https://github.com/tokio-rs/tokio.git", status: "in_progress" },
+      },
+      {
+        id: "source",
+        role: "tool",
+        text: "/Applications/Loci.app/Contents/MacOS/loci app documents.write --id virtio --title 'Virtio 1.2 — Virtqueues' --path /tmp/v.md --source-url https://example.com",
+        tool: {
+          kind: "execute",
+          title: "/Applications/Loci.app/Contents/MacOS/loci app documents.write --id virtio --title 'Virtio 1.2 — Virtqueues' --path /tmp/v.md --source-url https://example.com",
+          status: "completed",
+          detail: '{"id":"virtio","title":"Virtio 1.2 — Virtqueues","saved":true}',
+        },
+      },
+    ], { busy: true }), "cli-r1");
+    expect(saved.activity).toEqual([
+      {
+        type: "activity",
+        id: "source",
+        kind: "source",
+        status: "done",
+        text: "Saved source: Virtio 1.2 — Virtqueues",
+        saved: { kind: "source", id: "virtio", title: "Virtio 1.2 — Virtqueues" },
+      },
+      {
+        type: "activity",
+        id: "clone",
+        kind: "clone",
+        status: "running",
+        text: "Cloning tokio-rs/tokio",
+      },
+    ]);
+  });
 });
