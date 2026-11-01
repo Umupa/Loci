@@ -1479,7 +1479,7 @@ function Segmented<T extends string>({ label, value, options, onChange, optionId
         }}>
       {options.map((option) => (<button id={optionIdPrefix
                 ? `${optionIdPrefix}-${option.value.toLowerCase()}`
-                : undefined} key={option.value} type="button" role="radio" aria-checked={value === option.value} disabled={disabled} onClick={() => onChange(option.value)} className={`min-w-0 rounded-[5px] px-2.5 py-1 disabled:cursor-not-allowed ${value === option.value
+                : undefined} key={option.value} type="button" role="radio" aria-checked={value === option.value} disabled={disabled} onClick={() => onChange(option.value)} className={`min-w-0 rounded-[4px] px-2.5 py-1 disabled:cursor-not-allowed ${value === option.value
                 ? "bg-selection text-content"
                 : "text-content/50 hover:text-content"}`}>
           {option.label}
