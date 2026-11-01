@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-01
+
 ### Added
 
 - **Read with your mentor.** Selecting text in any reader (lessons, sources, notes, Markdown and code files, PDFs) offers **Ask (your mentor) · Highlight · Note**. Highlights and notes work in every reader, follow small edits to the text, and are listed under "Highlights & notes"; a passage whose words are gone is kept and marked as changed. Your mentor knows the heading and paragraph you are reading and what you selected, and its replies link to the exact passage, which opens in the reader and flashes.
@@ -128,7 +130,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Umupa/Loci/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Umupa/Loci/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/Umupa/Loci/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Umupa/Loci/releases/tag/v0.1.0
