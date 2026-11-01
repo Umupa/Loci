@@ -10,7 +10,7 @@ type Props = {
   className?: string;
 };
 
-function AvatarGraphic({ name, color, className, ref }: Props & { ref?: Ref<SVGSVGElement> }) {
+function AvatarGraphic({ name, color, className, bust, ref }: Props & { bust?: boolean; ref?: Ref<SVGSVGElement> }) {
   const avatar = agentAvatar(name);
   const instanceId = `loci-avatar-${useId().replace(/:/g, "")}`;
   // Masks and clip paths cannot share IDs, even for the same face in two colors.
@@ -19,12 +19,12 @@ function AvatarGraphic({ name, color, className, ref }: Props & { ref?: Ref<SVGS
     [avatar.markup, instanceId],
   );
   return (
-    <svg ref={ref} aria-hidden data-agent-avatar={avatar.name} viewBox={avatar.viewBox} className={className}
+    <svg ref={ref} aria-hidden data-agent-avatar={avatar.name} viewBox={bust ? avatar.viewBox : avatar.faceViewBox} className={`agent-avatar ${className ?? ""}`}
       style={{ color }} dangerouslySetInnerHTML={{ __html: markup }} />
   );
 }
 
-/** Small avatars are local SVGs with no timers or visibility observers. */
+/** Small avatars show the face alone: local SVGs with no timers or visibility observers. */
 export function AgentAvatar({ name, color, className = "size-5 shrink-0" }: Props) {
   return <AvatarGraphic name={name} color={color} className={className} />;
 }
@@ -104,6 +104,6 @@ export function AgentAvatarPreview({ name, color, className = "size-16" }: Props
   }, [name, avatar.canBlink]);
 
   return (
-    <AvatarGraphic ref={rootRef} name={name} color={color} className={`agent-avatar-preview ${className}`} />
+    <AvatarGraphic ref={rootRef} name={name} color={color} bust className={`agent-avatar-preview ${className}`} />
   );
 }

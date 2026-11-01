@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Regenerates the fixed Bottts and Bottts Neutral catalog without bundling DiceBear.
+// Regenerates the fixed Notionists avatar catalog without bundling DiceBear.
 // Install the pinned generator packages outside the repository, then run:
 //   npm install --prefix /tmp/loci-dicebear @dicebear/core@10.6.0 @dicebear/styles@10.6.0
 //   node scripts/generate-agent-avatars.mjs /tmp/loci-dicebear/node_modules
@@ -10,7 +10,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { Window } from "happy-dom";
 
 const VERSION = "10.6.0";
-const COLOR_MARKER = "#ff00fe";
 const ID_PREFIX = "__LOCI_AVATAR_ID__";
 const packages = process.argv[2];
 if (!packages) {
@@ -24,51 +23,42 @@ for (const name of ["core", "styles"]) {
 const require = createRequire(import.meta.url);
 const resolution = { paths: [dirname(packageRoot)] };
 const { Style, Avatar } = await import(pathToFileURL(require.resolve("@dicebear/core", resolution)).href);
-const original = JSON.parse(readFileSync(require.resolve("@dicebear/styles/bottts.json", resolution), "utf8"));
-const neutralOriginal = JSON.parse(readFileSync(require.resolve("@dicebear/styles/bottts-neutral.json", resolution), "utf8"));
+const original = JSON.parse(readFileSync(require.resolve("@dicebear/styles/notionists.json", resolution), "utf8"));
 
-// These are the artist's original component variants. Fixed combinations keep
-// existing saved avatar names stable and make every face recognizably different.
+// The artist's own parts, combined by hand: plain tops, no props or gestures,
+// so every face reads as a portrait at 16px. The first ten keep the names
+// agents saved with the earlier robot faces.
 const presets = [
-  { name: "ember", head: "round02", eyes: "happy", mouth: "grill03", top: "lights", sides: "square" },
-  { name: "wisp", head: "square01", eyes: "robocop", mouth: "square01", top: "bulb01", sides: "cables01", texture: "dots" },
-  { name: "dew", head: "square02", eyes: "frame1", mouth: "square02", top: "radar", sides: "round", texture: "camo01" },
-  { name: "moss", head: "square01", eyes: "glow", mouth: "grill02", top: "antennaCrooked", sides: "round", texture: "camo02" },
-  { name: "nimbus", head: "square04", eyes: "hearts", mouth: "diagram", top: "radar", sides: "cables02", texture: "circuits" },
-  { name: "pebble", head: "square03", eyes: "sensor", mouth: "smile01", top: "pyramid", sides: "squareAssymetric", texture: "dirty01" },
-  { name: "luna", head: "round01", eyes: "roundFrame01", mouth: "grill01", top: "radar", sides: "antenna02" },
-  { name: "nova", head: "round01", eyes: "eva", mouth: "bite", top: "horns", sides: "cables01" },
-  { name: "flint", head: "square02", eyes: "bulging", mouth: "smile02", top: "antenna", sides: "antenna01", texture: "grunge02" },
-  { name: "tide", head: "round02", eyes: "roundFrame02", mouth: "grill03", top: "bulb01", sides: "square" },
+  { name: "ember", hair: "variant20", glasses: "variant11", clothes: "variant08", mouth: "variant23" },
+  { name: "wisp", hair: "variant41", clothes: "variant02", mouth: "variant22" },
+  { name: "dew", hair: "variant05", beard: "variant02", glasses: "variant03", clothes: "variant04" },
+  { name: "moss", hair: "variant48", clothes: "variant17", mouth: "variant21" },
+  { name: "nimbus", hair: "variant42", glasses: "variant08", clothes: "variant06", mouth: "variant24" },
+  { name: "pebble", hair: "variant60", beard: "variant09", clothes: "variant08", eyebrows: "variant05" },
+  { name: "luna", hair: "variant46", glasses: "variant11", clothes: "variant02", mouth: "variant23" },
+  { name: "nova", hair: "variant37", clothes: "variant04", mouth: "variant14" },
+  { name: "flint", hair: "variant44", beard: "variant12", glasses: "variant01", clothes: "variant06" },
+  { name: "tide", hair: "variant28", clothes: "variant17", mouth: "variant22" },
+  { name: "juniper", hair: "variant09", glasses: "variant04", clothes: "variant10", mouth: "variant20" },
+  { name: "wren", hair: "variant58", clothes: "variant08", mouth: "variant21" },
+  { name: "ash", hair: "variant54", beard: "variant07", clothes: "variant02", mouth: "variant22" },
+  { name: "quill", hair: "variant23", glasses: "variant09", clothes: "variant04", mouth: "variant20" },
 ];
 
-// Only the actual eye lights or eyeballs move. Their visors, frames, and
-// reflections stay still; already smiling eyes and camera lenses stay static.
-const blinkingElements = {
-  frame1: [1, 2],
-  glow: [4, 5, 6, 7],
-  hearts: [0],
-  roundFrame01: [1, 2],
-  eva: [1],
-  bulging: [2, 3, 4, 5],
-  roundFrame02: [1, 2, 3, 4],
-};
+const SIZE = original.canvas?.width ?? 1744;
+// Head and shoulders for large avatars; the face alone where an avatar is small.
+const BUST = "320 190 1110 1110";
+const FACE = "470 330 800 800";
+// A light card tinted with the agent's color, and the reference's pink cheeks.
+const TILE = `<rect width="${SIZE}" height="${SIZE}" fill="#ececec"></rect><rect width="${SIZE}" height="${SIZE}" fill="currentColor" opacity="0.32"></rect>`;
+const BLUSH = `<g fill="#f4a3a8" opacity="0.55" style="mix-blend-mode:multiply"><ellipse cx="848" cy="928" rx="50" ry="30"></ellipse><ellipse cx="1046" cy="918" rx="26" ry="24"></ellipse></g>`;
+
+// Every eyes variant is wrapped in one group so CSS can blink it.
 const definition = structuredClone(original);
-const neutralDefinition = structuredClone(neutralOriginal);
-for (const avatarDefinition of [definition, neutralDefinition]) {
-  for (const [variant, indices] of Object.entries(blinkingElements)) {
-    const elements = avatarDefinition.components.eyes.variants[variant].elements;
-    const first = indices[0];
-    elements.splice(first, indices.length, {
-      type: "element",
-      name: "g",
-      attributes: { class: "agent-avatar-eyes" },
-      children: indices.map((index) => elements[index]),
-    });
-  }
+for (const variant of Object.values(definition.components.eyes.variants)) {
+  variant.elements = [{ type: "element", name: "g", attributes: { class: "agent-avatar-eyes" }, children: variant.elements }];
 }
 const style = new Style(definition);
-const neutralStyle = new Style(neutralDefinition);
 const dom = new Window();
 const parser = new dom.DOMParser();
 
@@ -111,7 +101,7 @@ function avatarMarkup(svg, name) {
   let markup = inlineComponents(svg, name)
     .replace(/<!--[^]*?-->/g, "")
     .replace(/<metadata\b[^]*?<\/metadata>/g, "")
-    .replaceAll(COLOR_MARKER, "currentColor");
+    .replace(/<defs><\/defs>/g, "");
   const ids = new Set([...markup.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
   for (const id of ids) {
     const instanceId = `${ID_PREFIX}-${name}-${id}`;
@@ -120,76 +110,62 @@ function avatarMarkup(svg, name) {
       .replaceAll(`url(#${id})`, `url(#${instanceId})`)
       .replaceAll(`href="#${id}"`, `href="#${instanceId}"`);
   }
-  markup = `<g fill="none">${markup}</g>`;
+  markup = `<g fill="none">${TILE}${markup}${BLUSH}</g>`;
   // Inline markup is a checked-in asset, never content supplied by a user.
   // Fail regeneration if upstream starts emitting active or external content.
   if (/<(?:script|foreignObject|filter|image|a|animate|animateTransform)\b|\bon\w+=|\bhref="(?!#)/i.test(markup)) {
     throw new Error(`${name}: unexpected active or external SVG content`);
   }
-  if (!markup.includes("currentColor") || markup.includes(COLOR_MARKER)) {
-    throw new Error(`${name}: the agent color was not preserved`);
-  }
+  if (!markup.includes('class="agent-avatar-eyes"')) throw new Error(`${name}: the eyes cannot blink`);
   return markup;
 }
 
 const avatars = presets.map((preset) => {
-  const options = { seed: `loci-${preset.name}`, baseColor: COLOR_MARKER, idRandomization: false };
-  for (const part of ["head", "eyes", "mouth", "top", "sides", "texture"]) {
+  const options = {
+    seed: `loci-${preset.name}`,
+    idRandomization: false,
+    gestureProbability: 0,
+    clothesGraphicProbability: 0,
+    beardProbability: preset.beard ? 100 : 0,
+    glassesProbability: preset.glasses ? 100 : 0,
+    eyesVariant: "variant01",
+    eyebrowsVariant: preset.eyebrows ?? "variant01",
+    noseVariant: "variant01",
+    mouthVariant: preset.mouth ?? "variant20",
+  };
+  for (const part of ["hair", "clothes", "beard", "glasses"]) {
     if (preset[part]) options[`${part}Variant`] = preset[part];
   }
-  options.textureProbability = preset.texture ? 100 : 0;
   return {
     name: preset.name,
-    style: "bottts",
-    viewBox: `0 0 ${original.canvas.width} ${original.canvas.height}`,
+    style: "notionists",
+    viewBox: BUST,
+    faceViewBox: FACE,
     markup: avatarMarkup(new Avatar(style, options).toString(), preset.name),
-    canBlink: Boolean(blinkingElements[preset.eyes]),
+    canBlink: true,
   };
 });
 
-for (const preset of presets) {
-  const name = `neutral-${preset.name}`;
-  const options = {
-    seed: `loci-${name}`,
-    backgroundColor: COLOR_MARKER,
-    borderRadius: 12,
-    idRandomization: false,
-    eyesVariant: preset.eyes,
-    mouthVariant: preset.mouth,
-    // Neutral keeps the artist's face on a solid square at every avatar size.
-    textureProbability: 0,
-  };
-  avatars.push({
-    name,
-    style: "bottts-neutral",
-    viewBox: `0 0 ${neutralOriginal.canvas.width} ${neutralOriginal.canvas.height}`,
-    markup: avatarMarkup(new Avatar(neutralStyle, options).toString(), name),
-    canBlink: Boolean(blinkingElements[preset.eyes]),
-  });
-}
-
 const source = {
   version: VERSION,
+  name: original.meta.source.name,
+  url: original.meta.source.url,
   creator: original.meta.creator.name,
   license: original.meta.license.name,
   licenseUrl: original.meta.license.url,
-  styles: [
-    { name: "Bottts", url: "https://www.dicebear.com/styles/bottts/" },
-    { name: "Bottts Neutral", url: "https://www.dicebear.com/styles/bottts-neutral/" },
-  ],
+  style: "https://www.dicebear.com/styles/notionists/",
 };
 const totalBytes = avatars.reduce((sum, avatar) => sum + Buffer.byteLength(avatar.markup), 0);
-if (totalBytes >= 100_000) throw new Error(`Avatar SVG catalog exceeds 100 KB (${totalBytes} bytes)`);
+if (totalBytes >= 400_000) throw new Error(`Avatar SVG catalog exceeds 400 KB (${totalBytes} bytes)`);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const output = `// Generated by scripts/generate-agent-avatars.mjs. Do not edit by hand.
-// Bottts and Bottts Neutral by Pablo Stanley, via DiceBear ${VERSION}.
-// Artwork: free for personal and commercial use, https://bottts.com/.
-// Adapted with a CSS-driven base color, directly painted eye animation groups,
-// and instance ID placeholders. See NOTICE for source and license information.
+// Notionists by Zoish (CC0 1.0), via DiceBear ${VERSION}.
+// Adapted with a card tinted by the agent's color, cheeks, a blinkable eyes
+// group, and instance ID placeholders. See NOTICE for source and license information.
 
-export const BOTTTS_SOURCE = ${JSON.stringify(source, null, 2)} as const;
+export const NOTIONISTS_SOURCE = ${JSON.stringify(source, null, 2)} as const;
 
-export const BOTTTS_AVATARS = ${JSON.stringify(avatars, null, 2)} as const;
+export const NOTIONISTS_AVATARS = ${JSON.stringify(avatars, null, 2)} as const;
 `;
-writeFileSync(join(root, "src/features/agents/model/bottts.generated.ts"), output);
-console.log(`Generated ${avatars.length} Bottts avatars, ${totalBytes} SVG bytes, from DiceBear ${VERSION}.`);
+writeFileSync(join(root, "src/features/agents/model/notionists.generated.ts"), output);
+console.log(`Generated ${avatars.length} Notionists avatars, ${totalBytes} SVG bytes, from DiceBear ${VERSION}.`);

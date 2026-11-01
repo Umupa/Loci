@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import { File, Folder, Mortarboard, Palette, Pencil, PenLine, Plus, Search, StickyNote, X, type IconComponent } from "../../../shared/ui/icons";
 import type { Canvas } from "../../canvas/canvas";
@@ -77,6 +77,8 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
   // A new segment starts at its first row, not at the old list's offset.
   useLayoutEffect(() => { if (panel.current) panel.current.scrollTop = 0; }, [segment]);
   const query = filter?.segment === segment ? filter.text : "";
+  const tabs = useRef<HTMLDivElement>(null);
+  const pill = useSegmentPill(tabs, segment);
   // Only the segment being shown reports its own load failure.
   const failure = segment === "courses" ? errors.courses
     : segment === "sources" ? errors.documents
@@ -150,18 +152,22 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
   return <nav className="mentor-library" aria-label={`${agent.name || "Mentor"} library`} data-mentor-library={agent.id} data-library-segment={segment}>
     <header className="mentor-library-header" data-tauri-drag-region="deep">
       {headerLeading}
-      <div role="tablist" aria-label="Library" className="mentor-library-segments" onKeyDown={tabKeys}>
+      <div ref={tabs} role="tablist" aria-label="Library" className="mentor-library-segments" onKeyDown={tabKeys}>
+        <span ref={pill} aria-hidden className="mentor-library-pill" />
         {LIBRARY_SEGMENTS.map((entry) => {
           const Icon = ICONS[entry];
           const selected = entry === segment;
           const label = counts[entry] ? `${LABELS[entry]}, ${counts[entry]}` : LABELS[entry];
           // The chosen segment opens into a labelled pill; the others stay a single icon.
+          // Every label is kept so it can fold away rather than vanish.
           return <button key={entry} type="button" role="tab" id={`${id}-${entry}`} data-segment={entry} data-tauri-drag-region="false"
             aria-selected={selected} aria-controls={`${id}-panel`} aria-label={label} title={selected ? undefined : label} tabIndex={selected ? 0 : -1}
             className="mentor-library-segment" onClick={() => onChange({ segment: entry })}>
             <Icon aria-hidden className="size-4 shrink-0" />
-            {selected ? <span className="mentor-library-segment-label">{LABELS[entry]}</span> : null}
-            {selected && counts[entry] ? <span className="mentor-library-count">{counts[entry]}</span> : null}
+            <span className="mentor-library-segment-text" aria-hidden data-open={selected || undefined}><span className="mentor-library-segment-inner">
+              <span className="mentor-library-segment-label">{LABELS[entry]}</span>
+              {counts[entry] ? <span className="mentor-library-count">{counts[entry]}</span> : null}
+            </span></span>
           </button>;
         })}
       </div>
@@ -187,6 +193,50 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
       {body}
     </div>
   </nav>;
+}
+
+const PILL_GLIDE_MS = 340;
+const easeOut = (t: number) => 1 - Math.pow(1 - t, 4);
+
+/**
+ * One pill behind the segments that glides to the chosen one. The chosen
+ * segment widens as its label unfolds, so the pill follows the segment's live
+ * box each frame rather than a box measured once.
+ */
+function useSegmentPill(tabs: RefObject<HTMLDivElement | null>, segment: LibrarySegment) {
+  const pill = useRef<HTMLSpanElement>(null);
+  const at = useRef<{ x: number; w: number } | null>(null);
+  useLayoutEffect(() => {
+    const list = tabs.current;
+    const mark = pill.current;
+    if (!list || !mark) return;
+    const target = list.querySelector<HTMLElement>(`[data-segment="${segment}"]`);
+    if (!target) return;
+    const place = (x: number, w: number) => {
+      at.current = { x, w };
+      mark.style.transform = `translate3d(${x}px, 0, 0)`;
+      mark.style.width = `${w}px`;
+    };
+    const from = at.current;
+    const still = !from || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    let frame = 0;
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = still ? 1 : Math.min(1, (now - start) / PILL_GLIDE_MS);
+      const e = easeOut(t);
+      const x = target.offsetLeft, w = target.offsetWidth;
+      place(from && t < 1 ? from.x + (x - from.x) * e : x, from && t < 1 ? from.w + (w - from.w) * e : w);
+      frame = t < 1 ? requestAnimationFrame(step) : 0;
+    };
+    step(start);
+    // A count arriving or a narrow column resizes the segment after the glide.
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      if (!frame) place(target.offsetLeft, target.offsetWidth);
+    });
+    observer?.observe(target);
+    return () => { cancelAnimationFrame(frame); observer?.disconnect(); };
+  }, [tabs, segment]);
+  return pill;
 }
 
 function sourceName(url: string | null | undefined): string {

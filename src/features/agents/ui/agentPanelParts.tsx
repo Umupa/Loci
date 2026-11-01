@@ -1,36 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { projectKey, projectName } from "../../../shared/lib/paths";
 import { Folder, FolderOpen, Plus, X } from "../../../shared/ui/icons";
 import { Popover } from "../../../shared/ui/Popover";
 import type { RecentProject } from "../../projects/model/recents";
 import { AGENT_COLORS } from "../model/agent";
-import { AGENT_AVATARS, agentAvatar, defaultAgentName, type AgentAvatarStyle } from "../model/agentAvatars";
+import { AGENT_AVATARS, agentAvatar, defaultAgentName } from "../model/agentAvatars";
 import { AgentAvatar } from "./AgentAvatar";
 
-/** The faces an agent can wear, in its color; the chosen one is ringed. */
+/** The faces an agent can wear, each on a card in its color; the chosen one is ringed. */
 export function FacePicker({ current, color, onPick }: { current: string; color: string; onPick: (avatar: string) => void }) {
-  const selectedStyle = agentAvatar(current).style;
-  const [style, setStyle] = useState<AgentAvatarStyle>(selectedStyle);
-  useEffect(() => setStyle(selectedStyle), [current, selectedStyle]);
+  // A face saved under an older name still shows as chosen.
+  const chosen = agentAvatar(current).name;
   return (
-    <div className="flex w-full flex-col items-center gap-2">
-      <div role="group" aria-label="Avatar style" className="flex items-center gap-0.5 rounded-lg bg-content/5 p-0.5">
-        {(["bottts", "bottts-neutral"] as const).map((value) => (
-          <button key={value} type="button" aria-pressed={style === value} onClick={() => setStyle(value)}
-            className={`h-6.5 rounded-md px-2.5 text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content/60 ${style === value ? "bg-content/12 text-content" : "text-content/50 hover:text-content"}`}>
-            {value === "bottts" ? "Bottts" : "Bottts Neutral"}
-          </button>
-        ))}
-      </div>
-      <div role="radiogroup" aria-label="Face" className="grid w-full max-w-[244px] grid-cols-[repeat(auto-fit,2.75rem)] justify-center gap-1.5">
-        {AGENT_AVATARS.filter((avatar) => avatar.style === style).map((avatar) => (
-          <button key={avatar.name} type="button" role="radio" aria-checked={avatar.name === current}
-            title={defaultAgentName(avatar.name)} aria-label={defaultAgentName(avatar.name)} onClick={() => onPick(avatar.name)}
-            className={`agent-face-option grid size-11 place-items-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content/60 ${avatar.name === current ? "bg-content/12 ring-1 ring-content/20" : "hover:bg-content/8"}`}>
-            <AgentAvatar name={avatar.name} color={color} className="size-9" />
-          </button>
-        ))}
-      </div>
+    <div role="radiogroup" aria-label="Face" className="grid w-full max-w-[280px] grid-cols-[repeat(auto-fit,2.75rem)] justify-center gap-1.5">
+      {AGENT_AVATARS.map((avatar) => (
+        <button key={avatar.name} type="button" role="radio" aria-checked={avatar.name === chosen}
+          title={defaultAgentName(avatar.name)} aria-label={defaultAgentName(avatar.name)} onClick={() => onPick(avatar.name)}
+          className={`agent-face-option grid size-11 place-items-center rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content/60 ${avatar.name === chosen ? "bg-content/12 ring-1 ring-content/25" : "hover:bg-content/8"}`}>
+          <AgentAvatar name={avatar.name} color={color} className="size-9" />
+        </button>
+      ))}
     </div>
   );
 }

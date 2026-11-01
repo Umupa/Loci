@@ -110,7 +110,7 @@ it("lays out library, reader and conversation, listing only this mentor's things
   expect(container.querySelector('[data-test-chat="agent-a"]')).not.toBeNull();
   // The chosen segment is a labelled pill; the others are icons named for assistive tech.
   expect([...container.querySelectorAll('[role="tab"]')].map((entry) => entry.getAttribute("aria-label"))).toEqual(["Courses", "Sources, 1", "Notes, 1", "Files"]);
-  expect([...container.querySelectorAll('[role="tab"]')].map((entry) => entry.textContent)).toEqual(["Courses", "", "", ""]);
+  expect([...container.querySelectorAll('[role="tab"] [data-open]')].map((entry) => entry.textContent)).toEqual(["Courses"]);
   // No title bar of its own: the library's header is the window's top row.
   expect(container.querySelector(".mentor-titlebar")).toBeNull();
   expect(container.querySelector(".mentor-library-header [aria-label='Hide library']")).not.toBeNull();

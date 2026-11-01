@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useAnimatedReorder } from "../../shared/hooks/useAnimatedReorder";
 import { CircleAlert, CircleDashed, MoreHorizontal, Pencil, Plus, Search, Settings, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
 import { Popover, type PopoverAnchor } from "../../shared/ui/Popover";
@@ -79,6 +79,25 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
   const rovingId = agents.some((agent) => agent.id === focusedId) ? focusedId!
     : agents.some((agent) => agent.id === activeId) ? activeId
       : agents[0]?.id;
+  // One highlight glides between faces instead of each face lighting its own.
+  const list = useRef<HTMLDivElement>(null);
+  const highlight = useRef<HTMLSpanElement>(null);
+  const selectedId = settingsOpen ? undefined : agents.find((agent) => agent.id === activeId)?.id;
+  const order = agents.map((agent) => agent.id).join("\0");
+  useLayoutEffect(() => {
+    const mark = highlight.current;
+    const item = selectedId ? list.current?.querySelector<HTMLElement>(`[data-agent-id="${CSS.escape(selectedId)}"]`) : null;
+    if (!mark) return;
+    if (!item) { mark.removeAttribute("data-shown"); return; }
+    mark.style.setProperty("--rail-highlight-y", `${item.offsetTop}px`);
+    mark.style.setProperty("--rail-highlight-h", `${item.offsetHeight}px`);
+    // The first placement lands without gliding in from the top.
+    if (!mark.hasAttribute("data-shown")) {
+      mark.removeAttribute("data-ready");
+      mark.setAttribute("data-shown", "");
+      requestAnimationFrame(() => requestAnimationFrame(() => mark.setAttribute("data-ready", "")));
+    }
+  }, [selectedId, order]);
   useEffect(() => {
     if (menu) menuSurface.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [menu]);
@@ -101,7 +120,8 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
   };
   return <nav className="mentor-rail" data-mac={IS_MAC || undefined} aria-label="Mentors" data-agent-rail>
     <div className="mentor-rail-top" data-tauri-drag-region="deep" />
-    <div className="mentor-rail-list">
+    <div ref={list} className="mentor-rail-list">
+      <span ref={highlight} aria-hidden className="mentor-rail-highlight" />
       {agents.map((agent, index) => {
         const look = agentLook(agent);
         const state = states.get(agent.id) ?? IDLE;
@@ -110,7 +130,7 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
         const phase = railPhase(state, unseen);
         const status = [AGENT_STATUS_LABEL[state.status], state.activity].filter(Boolean).join(" · ");
         const label = [look.name, status, unseen ? "New update" : undefined].filter(Boolean).join(", ");
-        return <div key={agent.id} ref={(el) => sortable.setItemRef(agent.id, el)} className="mentor-rail-item reorder-item"
+        return <div key={agent.id} ref={(el) => sortable.setItemRef(agent.id, el)} className="mentor-rail-item reorder-item" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
           data-agent-id={agent.id} data-selected={selected || undefined} data-agent-status={state.status} data-agent-rail-phase={phase}
           onPointerDown={(event) => { if (event.button === 0) sortable.onItemPointerDown(agent.id, event); }}
           onContextMenu={(event) => { event.preventDefault(); openMenu(agent.id, { x: event.clientX, y: event.clientY }, buttons.current.get(agent.id) ?? null); }}>
@@ -129,7 +149,7 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
             }}
             title={[look.role ? `${look.name} · ${look.role}` : look.name, status, look.workdir ? prettyCwd(look.workdir) : undefined, index < 9 ? `${IS_MAC ? "⌘" : "Ctrl+"}${index + 1}` : undefined].filter(Boolean).join("\n")}
             onClick={() => { if (!sortable.consumeClick()) onOpen(agent.id); }}>
-            <AgentAvatar name={look.avatar} color={look.color} className="size-8" />
+            <AgentAvatar name={look.avatar} color={look.color} className="mentor-rail-avatar size-6.5" />
             <RailSignal phase={phase} />
           </button>
           <button type="button" className="mentor-rail-more" aria-label={`${look.name} options`} title={`${look.name} options`}
@@ -141,7 +161,7 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
         </div>;
       })}
       <button type="button" className="mentor-rail-action" aria-label="New mentor" title="New mentor" onClick={onCreate}>
-        <Plus className="size-4" strokeWidth={1.5} />
+        <Plus className="mentor-rail-plus size-4" strokeWidth={1.5} />
       </button>
     </div>
     <div className="mentor-rail-bottom">
@@ -149,7 +169,7 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
         <Search className="size-4" strokeWidth={1.5} />
       </button> : null}
       <button type="button" className="mentor-rail-action" aria-label="Settings" title="Settings" aria-pressed={settingsOpen} onClick={onOpenSettings}>
-        <Settings className="size-4" strokeWidth={1.5} />
+        <Settings className="mentor-rail-gear size-4" strokeWidth={1.5} />
       </button>
       {/* Beside the gear rather than on its corner, with a target of its own. */}
       {updateVersion && onViewUpdate ? <UpdateBadge version={updateVersion} onOpen={onViewUpdate} /> : null}

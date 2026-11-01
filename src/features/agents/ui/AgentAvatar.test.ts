@@ -2,7 +2,7 @@
 import { act, createElement, Fragment, Profiler, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AGENT_AVATARS } from "../model/agentAvatars";
+import { AGENT_AVATARS, agentAvatar } from "../model/agentAvatars";
 import { AgentAvatar, AgentAvatarPreview } from "./AgentAvatar";
 
 let root: Root;
@@ -147,14 +147,15 @@ describe("AgentAvatar", () => {
   });
 
   it.each([
-    ["dew", "0 0 180 180"],
-    ["neutral-dew", "0 0 120 120"],
-  ])("updates %s's chosen color while preserving its native canvas, eye colors, and artwork", (name, viewBox) => {
+    ["dew", "dew"],
+    ["neutral-dew", "dew"],
+  ])("updates %s's chosen color while preserving its face crop, eye colors, and artwork", (name, face) => {
     act(() => root.render(createElement(AgentAvatar, {
       name,
       color: "hsl(45 90% 55%)",
     })));
-    expect(svg().getAttribute("viewBox")).toBe(viewBox);
+    expect(svg().dataset.agentAvatar).toBe(face);
+    expect(svg().getAttribute("viewBox")).toBe(agentAvatar(face).faceViewBox);
     expect(svg().getAttribute("shape-rendering")).not.toBe("crispEdges");
     expect(svg().style.color).toBe("hsl(45 90% 55%)");
     expect(svg().querySelector('[fill="currentColor"]')).not.toBeNull();
@@ -170,15 +171,6 @@ describe("AgentAvatar", () => {
 });
 
 describe("AgentAvatarPreview", () => {
-  it.each(["ember", "wisp", "pebble", "neutral-ember", "neutral-wisp", "neutral-pebble"])("keeps %s's fixed eye expression free of blink timers", (name) => {
-    preview(name);
-    intersect(true);
-    expect(vi.getTimerCount()).toBe(0);
-    advance(30_000);
-    expect(isBlinking()).toBe(false);
-    expect(vi.getTimerCount()).toBe(0);
-  });
-
   it("blinks once when it appears, then stays still until the pointer is over it", () => {
     preview();
     expect(vi.getTimerCount()).toBe(0);
@@ -200,19 +192,11 @@ describe("AgentAvatarPreview", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("stops blinking for a fixed expression and blinks when selecting an animated face", () => {
+  it("blinks again when another face is chosen, without a new observer", () => {
     preview();
     intersect(true);
-    expect(isBlinking()).toBe(true);
+    advance(160);
     const observerCount = observers.length;
-
-    preview("wisp");
-    expect(isBlinking()).toBe(false);
-    expect(vi.getTimerCount()).toBe(0);
-    advance(20_000);
-    expect(isBlinking()).toBe(false);
-    expect(vi.getTimerCount()).toBe(0);
-
     preview("moss");
     expect(observers).toHaveLength(observerCount);
     expect(isBlinking()).toBe(true);
@@ -280,36 +264,10 @@ describe("AgentAvatarPreview", () => {
     expect(svg().innerHTML).toBe(artwork);
   });
 
-  it("switches series without adding animation resources or losing the chosen color", () => {
-    preview();
-    intersect(true);
-    advance(160);
-    const originalArtwork = svg().innerHTML;
-    const observerCount = observers.length;
-    const mediaCount = matchMedia.mock.calls.length;
-
-    preview("neutral-dew");
-    expect(svg().dataset.agentAvatar).toBe("neutral-dew");
-    expect(svg().getAttribute("viewBox")).toBe("0 0 120 120");
-    expect(svg().style.color).toBe("#428fff");
-    expect(svg().innerHTML).not.toBe(originalArtwork);
-    expect(observers).toHaveLength(observerCount);
-    expect(matchMedia).toHaveBeenCalledTimes(mediaCount);
-    expect(isBlinking()).toBe(true);
-    expect(vi.getTimerCount()).toBe(1);
-    advance(160);
-    expect(isBlinking()).toBe(false);
-
-    preview("neutral-wisp");
-    expect(isBlinking()).toBe(false);
-    expect(vi.getTimerCount()).toBe(0);
-
+  it("shows head and shoulders where a small avatar shows only the face", () => {
     preview("dew");
-    expect(svg().getAttribute("viewBox")).toBe("0 0 180 180");
-    expect(svg().style.color).toBe("#428fff");
-    expect(observers).toHaveLength(observerCount);
-    expect(isBlinking()).toBe(true);
-    expect(vi.getTimerCount()).toBe(1);
+    expect(svg().getAttribute("viewBox")).toBe(agentAvatar("dew").viewBox);
+    expect(agentAvatar("dew").viewBox).not.toBe(agentAvatar("dew").faceViewBox);
   });
 
   it("does no scheduled work outside the viewport and blinks once on re-entering", () => {

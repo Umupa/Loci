@@ -1,3 +1,8 @@
+/* Each face is drawn on its own tinted card; this rounds the card's corners. */
+.agent-avatar {
+  clip-path: inset(0 round 26%);
+}
+
 .agent-avatar-preview[data-blinking] .agent-avatar-eyes {
   transform-box: fill-box;
   transform-origin: center;
