@@ -3031,15 +3031,18 @@ html.theme-light .btw-burst {
   transition-property: transform, box-shadow, background-color, border-color, opacity;
 }
 
-/* A chat keeps a reply's actions out of the way until the pointer is on it. */
-[data-agent-view] [data-transcript-turn] [data-turn-actions] {
-  opacity: 0;
-  transition: opacity 150ms;
-}
+/* A chat keeps a reply's actions out of the way until the pointer is on it.
+   Touch layouts have no hover, so the row stays in view there. */
+@media (hover: hover) and (pointer: fine) {
+  [data-agent-view] [data-transcript-turn] [data-turn-actions] {
+    opacity: 0;
+    transition: opacity 150ms;
+  }
 
-[data-agent-view] [data-transcript-turn]:hover [data-turn-actions],
-[data-agent-view] [data-transcript-turn]:focus-within [data-turn-actions] {
-  opacity: 1;
+  [data-agent-view] [data-transcript-turn]:hover [data-turn-actions],
+  [data-agent-view] [data-transcript-turn]:focus-within [data-turn-actions] {
+    opacity: 1;
+  }
 }
 
 /* A fixed mark and baseline keep the status still as work becomes a receipt. */
