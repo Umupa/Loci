@@ -15,6 +15,8 @@ Template: {{template}}
 3. **grounding** — Do the mentor's answers quote and link the sources, separate what the source says from the mentor's own inference, and stay technically correct? Weigh the probe answer most, and use the automatic citation results (a citation whose quote does not resolve is a broken link for the learner). 1 = unsupported or wrong claims; 3 = mostly right, few or broken citations; 5 = every claim anchored, citations resolve.
 4. **firstTenMinutes** — Did the learner get to read quickly? Few questions at a time, questions that change what the mentor does, something first-hand to read (a source or a file lesson) and a course early. 1 = an interrogation or a long wait with nothing to read; 3 = reading within the session but after many rounds or many questions per message; 5 = reading within a few minutes after one or two sharp questions.
 
+{{rubricExtra}}
+
 Also give **worst**: the single change to the mentor that would most improve this run, in one sentence.
 
 ## Evidence
@@ -32,8 +34,11 @@ Also give **worst**: the single change to the mentor that would most improve thi
 {{courses}}
 ```
 
+### Code tours (lesson, file at commit, how the pin stands, first lines shown)
+{{codeTours}}
+
 ### Conversation (learner messages are scripted; the probe is the last learner question)
 {{transcript}}
 
 Return only one JSON object, no prose around it:
-{"scores":{"firstHand":{"score":1,"reason":"..."},"courseStructure":{"score":1,"reason":"..."},"grounding":{"score":1,"reason":"..."},"firstTenMinutes":{"score":1,"reason":"..."}},"worst":"..."}
+{{outputShape}}

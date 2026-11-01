@@ -10,18 +10,43 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const RUBRIC = ["firstHand", "courseStructure", "grounding", "firstTenMinutes"];
+/** Rubric items a scenario opts into; code tours and a learning path are the v0.4 sandbox additions. */
+export const RUBRIC_EXTENSIONS = {
+  codeTours: "Do the code-tour lessons show the real call path, are they pinned to a commit (`commit` or `repos/<repo>@<sha>:path`), and is each line range accurate for what the lesson says? 1 = no code tours, unpinned lessons, or ranges that do not show the claim; 3 = some tours pinned and mostly accurate, but the path skips entry points or jumps between unrelated files; 5 = every code lesson pinned, its lines accurate, and the lessons follow the call path in reading order.",
+  path: "Is the learning path progressive: 3–5 short courses in an order where each builds on the last, with no overlap and with prerequisites that name earlier courses? 1 = no path, or one course dressed up as a path; 3 = a path exists but courses overlap or repeat material, or the order does not build; 5 = a clear progression from one distinct focus to the next, prerequisites shown, no repeated lessons.",
+};
+/** The rubric keys one scenario asks for. */
+export function rubricFor(scenario) {
+  const extra = Array.isArray(scenario?.rubric) ? scenario.rubric.filter((key) => Object.hasOwn(RUBRIC_EXTENSIONS, key)) : [];
+  return [...RUBRIC, ...extra];
+}
 /** Pinned per judge, in the CLI's own model spelling, so a run's rubric has one model. */
 export const DEFAULT_JUDGE_MODEL = { agy: "claude-opus-4-6-thinking", grok: "deepseek-flash" };
-const LIMITS = { reply: 4000, source: 1500, transcript: 60_000, courses: 12_000 };
+const LIMITS = { reply: 4000, source: 1500, transcript: 60_000, courses: 12_000, tours: 8000 };
 
 const clip = (text, max) => (text.length > max ? `${text.slice(0, max)}\n…[${text.length - max} more characters]` : text);
 
+/** The code-tour evidence the judge reads: what each lesson shows, and how its pin stands. */
+export function codeToursEvidence(tours) {
+  if (!Array.isArray(tours) || !tours.length) return "(no code-tour lessons)";
+  return tours.map((tour) => {
+    const place = `${tour.file}${tour.lines ? `#L${tour.lines[0]}-${tour.lines[1]}` : ""}${tour.commit ? ` @ ${String(tour.commit).slice(0, 12)}` : " (unpinned)"}`;
+    const state = tour.state ? ` · pin ${tour.state}` : "";
+    const excerpt = String(tour.excerpt ?? "").trim();
+    return `- **${tour.course}/${tour.lesson}** — ${tour.title} · ${place}${state}${excerpt ? `\n\n  \`\`\`\n${clip(excerpt, 900).replace(/\n/g, "\n  ")}\n  \`\`\`` : ""}`;
+  }).join("\n");
+}
+
 /** The judge prompt for one scenario run, filled from the template in the repo. */
-export function judgePrompt({ scenario, checks, sources, courses, turns }, template = readFileSync(join(HERE, "judge-prompt.md"), "utf8")) {
+export function judgePrompt({ scenario, checks, sources, courses, turns, codeTours = [] }, template = readFileSync(join(HERE, "judge-prompt.md"), "utf8")) {
   const transcript = turns.map((turn) => `#### ${turn.role === "mentor" ? "Mentor" : turn.probe ? "Learner (probe)" : "Learner"}\n${clip(String(turn.text ?? ""), LIMITS.reply)}`).join("\n\n");
   const sourceList = sources.length
     ? sources.map((source) => `- **${source.title}** (${source.id}, ${source.kind ?? (source.sourceUrl ? "source" : "guide")}${source.sourceUrl ? `, ${source.sourceUrl}` : ""})\n\n  ${clip(String(source.body ?? "").replace(/\n+/g, " "), LIMITS.source)}`).join("\n")
     : "(none saved)";
+  const keys = rubricFor(scenario);
+  const extra = keys.slice(RUBRIC.length);
+  const rubricExtra = extra.map((key, index) => `${RUBRIC.length + index + 1}. **${key}** — ${RUBRIC_EXTENSIONS[key]}`).join("\n\n");
+  const outputShape = `{"scores":{${keys.map((key) => `"${key}":{"score":1,"reason":"..."}`).join(",")}},"worst":"..."}`;
   const fill = {
     persona: scenario.learner?.background ?? "",
     opening: scenario.opening,
@@ -29,13 +54,16 @@ export function judgePrompt({ scenario, checks, sources, courses, turns }, templ
     checks: JSON.stringify(checks, null, 1),
     sources: sourceList,
     courses: clip(JSON.stringify(courses.map((course) => ({ id: course.id, title: course.title, chapters: (course.data ?? course).chapters ?? [] })), null, 1), LIMITS.courses),
+    codeTours: clip(codeToursEvidence(codeTours), LIMITS.tours),
     transcript: clip(transcript, LIMITS.transcript),
+    rubricExtra,
+    outputShape,
   };
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => fill[key] ?? "");
 }
 
-/** The verdict in a judge's output: the first JSON object with all rubric scores, or null. */
-export function parseVerdict(output) {
+/** The verdict in a judge's output: the first JSON object with all the scenario's rubric scores, or null. */
+export function parseVerdict(output, keys = RUBRIC) {
   const text = String(output ?? "");
   const candidates = [];
   // A CLI's JSON envelope may carry the reply as a string.
@@ -58,8 +86,8 @@ export function parseVerdict(output) {
         else if (char === "}" && --depth === 0) {
           try {
             const parsed = JSON.parse(candidate.slice(start, end + 1));
-            if (parsed?.scores && RUBRIC.every((key) => Number.isInteger(parsed.scores[key]?.score) && parsed.scores[key].score >= 1 && parsed.scores[key].score <= 5))
-              return { scores: Object.fromEntries(RUBRIC.map((key) => [key, { score: parsed.scores[key].score, reason: String(parsed.scores[key].reason ?? "").trim() }])), worst: String(parsed.worst ?? "").trim() };
+            if (parsed?.scores && keys.every((key) => Number.isInteger(parsed.scores[key]?.score) && parsed.scores[key].score >= 1 && parsed.scores[key].score <= 5))
+              return { scores: Object.fromEntries(keys.map((key) => [key, { score: parsed.scores[key].score, reason: String(parsed.scores[key].reason ?? "").trim() }])), worst: String(parsed.worst ?? "").trim() };
           } catch { /* keep looking */ }
           break;
         }
@@ -96,6 +124,7 @@ function exec(command, args, { cwd, timeoutMs }) {
 
 /** Runs the judge once; never throws, so a failed judge leaves the automatic checks standing. */
 export async function judge(evidence, { provider, model, timeoutMs = 11 * 60_000 }) {
+  const keys = rubricFor(evidence.scenario);
   const prompt = judgePrompt(evidence);
   const cwd = mkdtempSync(join(tmpdir(), "loci-eval-judge-"));
   const promptFile = join(cwd, "prompt.md");
@@ -104,7 +133,7 @@ export async function judge(evidence, { provider, model, timeoutMs = 11 * 60_000
     const [command, args] = judgeCommand(provider, model, promptFile, prompt);
     const started = Date.now();
     const result = await exec(command, args, { cwd, timeoutMs });
-    const verdict = parseVerdict(result.out);
+    const verdict = parseVerdict(result.out, keys);
     return { provider, model: model ?? null, seconds: Math.round((Date.now() - started) / 1000), prompt, raw: result.out.slice(-20_000), error: verdict ? null : (result.err || result.out).trim().slice(-2000) || `exit ${result.code}`, verdict };
   } finally {
     rmSync(cwd, { recursive: true, force: true });

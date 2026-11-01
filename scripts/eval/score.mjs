@@ -119,14 +119,27 @@ export function lessonsOf(course) {
   return (data?.chapters ?? []).flatMap((chapter, at) => (chapter.lessons ?? []).map((lesson) => ({ ...lesson, chapter: chapter.title ?? `#${at + 1}` })));
 }
 
+/** A lesson file's text: an absolute path, else a path inside one of the mentor's folders. */
+export function lessonFileText(library, file) {
+  if (!file) return null;
+  if (file.startsWith("/") || /^[A-Za-z]:[\\/]/.test(file)) return library.readFile(file);
+  for (const root of library.roots ?? []) {
+    const text = library.readFile(`${root.replace(/\/+$/, "")}/${file}`);
+    if (text != null) return text;
+  }
+  return library.readFile(file);
+}
+
 /**
  * Whether each lesson points at something real: a document in the library and
- * its section, or an existing file and a line range inside it.
- * @param {{ sources: Map<string, {body: string, kind?: string}>, readFile: (path: string) => string | null }} library
+ * its section, or an existing file and a line range inside it. A pinned code
+ * lesson is read at its commit through `readPinned` when the caller has it, so
+ * the range is checked against the file as the lesson shows it.
+ * @param {{ sources: Map<string, {body: string, kind?: string}>, readFile: (path: string) => string | null, roots?: string[], readPinned?: (path: string, commit: string) => string | null }} library
  */
 export function checkLessons(course, library) {
   return lessonsOf(course).map((lesson) => {
-    const result = { id: lesson.id, title: lesson.title, chapter: lesson.chapter, ok: true, problems: [] };
+    const result = { id: lesson.id, title: lesson.title, chapter: lesson.chapter, ok: true, problems: [], commit: lesson.commit ?? null, lines: lesson.lines ?? null };
     if (lesson.document) {
       const document = library.sources.get(lesson.document);
       result.target = `source:${lesson.document}`;
@@ -135,9 +148,11 @@ export function checkLessons(course, library) {
       else if (lesson.section && !sectionResolves(document.body, lesson.section)) { result.ok = false; result.problems.push(`section "${lesson.section}" not found`); }
     } else if (lesson.file) {
       result.target = `file:${lesson.file}`;
-      const text = library.readFile(lesson.file);
-      if (text == null) { result.ok = false; result.problems.push(`no file ${lesson.file}`); }
-      else if (lesson.lines) {
+      const text = lesson.commit && library.readPinned ? library.readPinned(lesson.file, lesson.commit) : lessonFileText(library, lesson.file);
+      if (text == null) {
+        result.ok = false;
+        result.problems.push(lesson.commit ? `no file ${lesson.file} at commit ${lesson.commit}` : `no file ${lesson.file}`);
+      } else if (lesson.lines) {
         const count = text.split("\n").length;
         const [first, last] = lesson.lines;
         if (!(first >= 1 && last >= first && last <= count)) { result.ok = false; result.problems.push(`lines ${first}-${last} outside 1-${count}`); }
@@ -226,15 +241,177 @@ export function checkCitation(citation, library) {
 
 const share = (part, whole) => (whole ? Math.round((part / whole) * 100) : null);
 
+/** A lesson that reads code or a repository file: not a PDF, and either a line range, a pin, or a path under repos/. */
+export function isCodeLesson(lesson) {
+  if (!lesson?.file || lesson.pages) return false;
+  if (/\.(pdf|epub|ps)$/i.test(lesson.file)) return false;
+  return !!lesson.lines || !!lesson.commit || /(^|\/)repos\//.test(lesson.file);
+}
+
+/** How many parts a comparison lesson names; the course format has no such field until v0.4's compare lessons merge. */
+function compareParts(lesson) {
+  if (!Array.isArray(lesson?.compare)) return null;
+  return lesson.compare.filter((part) => part && (part.file || part.document)).length;
+}
+
+/**
+ * The v0.4 acceptance checks over one run: a learning path of 3–5 short
+ * courses, pinned code tours whose ranges resolve at their commit, first-hand
+ * sources with an address and a version, comparison lessons when the format
+ * has them, and a mentor folder `library check` could read without problems.
+ * @param {object} run collected run: { scenario, sources, courses, path, pins, libraryProblems, timings }
+ * @param {{ readFile: (path: string) => string | null, roots: string[], readPinned?: (path: string, commit: string) => string | null }} files
+ */
+export function checkSandbox(run, files) {
+  const scenario = run.scenario ?? {};
+  const expect = scenario.expect ?? {};
+  const problems = [];
+  const library = { sources: new Map(run.sources.map((source) => [source.id, source])), readFile: files.readFile, roots: files.roots ?? [], readPinned: files.readPinned };
+
+  // The learning path and the length of each course on it.
+  const read = run.path ?? null;
+  const path = read?.path ?? null;
+  const pathCourses = Array.isArray(path?.courses) ? path.courses : [];
+  const pathConfigured = Array.isArray(expect.pathCourses);
+  const [minCourses, maxCourses] = expect.pathCourses ?? [3, 5];
+  const [minLessons, maxLessons] = expect.lessonsPerCourse ?? [6, 12];
+  const courseById = new Map(run.courses.map((course) => [course.id, course]));
+  const pathRows = pathCourses.map((entry, index) => {
+    const course = courseById.get(entry.id);
+    const lessons = course ? lessonsOf(course).length : 0;
+    const after = Array.isArray(entry.after) ? entry.after : [];
+    const afterProblems = after.filter((before) => !pathCourses.slice(0, index).some((earlier) => earlier.id === before));
+    return {
+      id: entry.id, title: entry.title ?? course?.title ?? null, planned: entry.planned === true || !course,
+      lessons, withinRange: lessons >= minLessons && lessons <= maxLessons, after, afterProblems,
+    };
+  });
+  const pathExists = !!path && pathCourses.length > 0;
+  const pathWithinRange = pathCourses.length >= minCourses && pathCourses.length <= maxCourses;
+  if (read?.error) problems.push(`path read failed: ${read.error}`);
+  if (pathConfigured && !pathExists) problems.push("no learning path (path read returns none)");
+  if (pathConfigured && pathExists && !pathWithinRange) problems.push(`the path has ${pathCourses.length} courses; expected ${minCourses}–${maxCourses}`);
+  for (const row of pathRows) {
+    if (row.planned) problems.push(`${row.id} is on the path but has not been written`);
+    else if (!row.withinRange) problems.push(`${row.id} has ${row.lessons} lessons; expected ${minLessons}–${maxLessons}`);
+    for (const before of row.afterProblems) problems.push(`${row.id} lists ${before} after it in the path`);
+  }
+  // Without a path, a single course still has a length to meet.
+  const courseLessons = run.courses.map((course) => {
+    const count = lessonsOf(course).length;
+    const low = expect.minLessons ?? 1;
+    const high = expect.maxLessons ?? Infinity;
+    return { id: course.id, title: course.title, lessons: count, withinRange: count >= low && count <= high };
+  });
+  if (!pathConfigured) for (const course of courseLessons) if (!course.withinRange) problems.push(`${course.id} has ${course.lessons} lessons; expected ${expect.minLessons ?? 1}–${expect.maxLessons ?? "∞"}`);
+
+  // Code tours: every code lesson pinned, each pin current or moved, each range inside the pinned file.
+  const checked = new Map();
+  for (const course of run.courses) for (const lesson of checkLessons(course, library)) checked.set(`${course.id}\u0000${lesson.id}`, lesson);
+  const codeLessons = run.courses.flatMap((course) => lessonsOf(course).filter(isCodeLesson).map((lesson) => ({ course: course.id, ...lesson })));
+  const pins = run.pins && Array.isArray(run.pins.pins) ? run.pins.pins : null;
+  const pinByLesson = new Map((pins ?? []).map((pin) => [`${pin.course}\u0000${pin.lesson}`, pin]));
+  const codeRows = codeLessons.map((lesson) => {
+    const key = `${lesson.course}\u0000${lesson.id}`;
+    const result = checked.get(key);
+    const pin = pinByLesson.get(key);
+    return {
+      course: lesson.course, lesson: lesson.id, title: lesson.title, file: lesson.file, commit: lesson.commit ?? null,
+      lines: lesson.lines ?? null, pinned: !!lesson.commit, state: pin?.state ?? null,
+      lineOk: lesson.lines ? !!result?.ok : null, problems: result?.problems ?? [],
+    };
+  });
+  const unpinned = codeRows.filter((row) => !row.pinned);
+  if (pins === null && codeRows.length) problems.push("code pins did not run");
+  for (const row of unpinned) problems.push(`${row.course}/${row.lesson} is a code lesson without a commit`);
+  for (const row of codeRows.filter((entry) => entry.pinned)) {
+    if (row.state === null) problems.push(`${row.course}/${row.lesson} is pinned but code pins does not list it`);
+    else if (row.state !== "current" && row.state !== "moved") problems.push(`${row.course}/${row.lesson} pin is ${row.state}`);
+    for (const problem of row.problems) problems.push(`${row.course}/${row.lesson}: ${problem}`);
+  }
+  const pinsByState = Object.fromEntries(["current", "moved", "changed", "missing-commit", "missing-file", "no-repo", "error"].map((state) => [state, codeRows.filter((row) => row.state === state).length]));
+  const pinnedLines = codeRows.filter((row) => row.pinned && row.lines);
+  const minCode = expect.minCodeLessonsPerCourse ?? 0;
+  const codePerCourse = run.courses.map((course) => {
+    const own = codeRows.filter((row) => row.course === course.id);
+    return { id: course.id, codeLessons: own.length, pinned: own.filter((row) => row.pinned).length, withinRange: own.length >= minCode };
+  });
+  const requiredCourses = pathConfigured ? new Set(pathCourses.map((entry) => entry.id)) : new Set(run.courses.map((course) => course.id));
+  if (minCode > 0) for (const course of codePerCourse) if (requiredCourses.has(course.id) && !course.withinRange) problems.push(`${course.id} has ${course.codeLessons} code lessons; expected at least ${minCode}`);
+
+  // First-hand sources: enough of them, each with an address and a version, early enough.
+  const firstHand = run.sources.filter((source) => (source.kind ?? (source.sourceUrl ? "source" : "guide")) === "source");
+  const minFirstHand = expect.minFirstHand ?? (scenario.id === "sandbox-path" ? 10 : 0);
+  const missingAddress = firstHand.filter((source) => !source.sourceUrl).map((source) => source.id);
+  const missingVersion = firstHand.filter((source) => !String(source.version ?? "").trim()).map((source) => source.id);
+  const firstSourceSeconds = run.timings?.firstSource ?? null;
+  const firstSourceWithin = expect.firstSourceWithinSeconds ?? null;
+  if (firstHand.length < minFirstHand) problems.push(`${firstHand.length} first-hand sources; expected at least ${minFirstHand}`);
+  for (const id of missingAddress) problems.push(`source ${id} has no sourceUrl`);
+  for (const id of missingVersion) problems.push(`source ${id} has no version`);
+  if (firstSourceWithin !== null && (firstSourceSeconds === null || firstSourceSeconds > firstSourceWithin))
+    problems.push(firstSourceSeconds === null ? `no first-hand source within ${firstSourceWithin}s` : `first source after ${firstSourceSeconds}s; expected within ${firstSourceWithin}s`);
+
+  // Comparison lessons, when this build's course format has them.
+  const compareRows = run.courses.flatMap((course) => lessonsOf(course).map((lesson) => ({ course: course.id, lesson: lesson.id, title: lesson.title, parts: compareParts(lesson) })).filter((row) => row.parts !== null));
+  const compareLessons = compareRows.filter((row) => row.parts >= 2);
+  const compareExpected = expect.compareLessons ?? 0;
+  const compareTolerated = compareExpected > 0 && compareRows.length === 0 && expect.tolerateMissingCompare === true;
+  for (const row of compareRows.filter((entry) => entry.parts < 2)) problems.push(`${row.course}/${row.lesson} compares fewer than two parts`);
+  if (compareExpected > 0 && compareLessons.length < compareExpected && !compareTolerated)
+    problems.push(`${compareLessons.length} comparison lessons; expected at least ${compareExpected}`);
+
+  // The library on disk: every source, guide and course is a file Loci could read.
+  const libraryProblems = run.libraryProblems;
+  if (!Array.isArray(libraryProblems)) problems.push("library check did not run");
+  for (const problem of (libraryProblems ?? []).slice(0, 20)) problems.push(`library: ${problem.kind}/${problem.id}: ${problem.error}`);
+
+  return {
+    ok: problems.length === 0,
+    problems,
+    path: {
+      checked: pathConfigured, exists: pathExists, file: read?.file ?? null,
+      count: pathCourses.length, withinRange: pathWithinRange, expected: expect.pathCourses ?? null,
+      title: path?.title ?? null, courses: pathRows,
+      otherCourses: Array.isArray(read?.otherCourses) ? read.otherCourses.map((entry) => entry.id) : [],
+    },
+    courseLessons,
+    code: {
+      lessons: codeRows.length, pinned: codeRows.filter((row) => row.pinned).length, unpinned: unpinned.map((row) => `${row.course}/${row.lesson}`),
+      pins: { listed: pins?.length ?? null, stale: run.pins?.stale ?? null, byState: pinsByState },
+      lines: {
+        checked: pinnedLines.length, resolved: pinnedLines.filter((row) => row.lineOk).length,
+        withoutLines: codeRows.filter((row) => row.pinned && !row.lines).map((row) => `${row.course}/${row.lesson}`),
+        problems: pinnedLines.filter((row) => !row.lineOk).map((row) => `${row.course}/${row.lesson}: ${row.problems.join("; ")}`),
+      },
+      perCourse: codePerCourse,
+    },
+    firstHand: {
+      count: firstHand.length, min: minFirstHand, ok: firstHand.length >= minFirstHand,
+      missingAddress, missingVersion,
+      firstSourceSeconds, withinSeconds: firstSourceWithin,
+    },
+    compare: {
+      lessons: compareLessons.map((row) => `${row.course}/${row.lesson}`), count: compareLessons.length,
+      present: compareRows.length, expected: compareExpected, tolerated: compareTolerated,
+      rows: compareRows,
+    },
+    library: {
+      checked: Array.isArray(libraryProblems), problems: Array.isArray(libraryProblems) ? libraryProblems.length : null,
+      list: (libraryProblems ?? []).slice(0, 20).map((problem) => `${problem.kind}/${problem.id}: ${problem.error}`),
+    },
+  };
+}
+
 /**
  * All automatic checks for one scenario.
- * @param {object} run what the runner collected: { scenario, sources: [{id,title,kind,sourceUrl,body}], courses: [{id,title,data}], turns: [{role,text,at}], timings, failures, nudges }
- * @param {{ readFile: (path: string) => string | null, roots: string[] }} files
+ * @param {object} run what the runner collected: { scenario, sources: [{id,title,kind,sourceUrl,body}], courses: [{id,title,data}], turns: [{role,text,at}], timings, failures, nudges, path, pins, libraryProblems }
+ * @param {{ readFile: (path: string) => string | null, roots: string[], readPinned?: (path: string, commit: string) => string | null }} files
  */
 export function scoreRun(run, files) {
   const { scenario } = run;
   const sources = new Map(run.sources.map((source) => [source.id, source]));
-  const library = { sources, readFile: files.readFile, roots: files.roots };
+  const library = { sources, readFile: files.readFile, roots: files.roots, readPinned: files.readPinned };
   const firstHand = run.sources.filter((source) => (source.kind ?? (source.sourceUrl ? "source" : "guide")) === "source");
   const guides = run.sources.filter((source) => !firstHand.includes(source));
   const firstParty = firstHand.filter((source) => isFirstParty(source.sourceUrl, scenario.firstPartyDomains));
@@ -302,5 +479,6 @@ export function scoreRun(run, files) {
       nudges: run.nudges ?? 0,
     },
     failures: run.failures ?? [],
+    ...(scenario.acceptance === "v0.4" ? { sandbox: checkSandbox(run, files) } : {}),
   };
 }
