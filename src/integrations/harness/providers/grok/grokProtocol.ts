@@ -167,10 +167,46 @@ export function grokAuthMethodId(init: unknown): string | null {
   return first ?? null;
 }
 
+/** The provider's own explanation, preferring JSON-RPC error `data.message`. */
+export function grokErrorDetail(error: unknown): string {
+  const record =
+    error != null && typeof error === "object"
+      ? (error as Record<string, unknown>)
+      : null;
+  const rawData = record?.data;
+  const data = asRecord(rawData);
+  const nested =
+    typeof rawData === "string"
+      ? rawData
+      : (stringField(data ?? {}, "message") ??
+        stringField(data ?? {}, "error"));
+  const fallback = error instanceof Error ? error.message : String(error);
+  return (nested?.trim() || fallback.trim()) || "Grok Build turn failed.";
+}
+
+/** A 401 naming the selected model means the account cannot use that model. */
+function modelAuthorizationFailure(detail: string): boolean {
+  return /unauthorized \(401\)/i.test(detail) && /\bmodel:/i.test(detail);
+}
+
+/**
+ * Text for the session's error notice. A model the account is not authorised
+ * for is not a login problem: `grok login` cannot fix it, and appending the
+ * login help would replace the CLI's model list with a sign-in prompt.
+ */
+export function grokErrorMessage(error: unknown): string {
+  const detail = grokErrorDetail(error);
+  if (modelAuthorizationFailure(detail)) return detail;
+  return /auth|login|credential|api key|XAI_API_KEY/i.test(detail)
+    ? `${detail}\n\n${AUTH_HELP}`
+    : detail;
+}
+
 export function grokAuthError(error: unknown): Error {
-  const detail = error instanceof Error ? error.message : String(error);
+  const detail = grokErrorDetail(error);
+  if (modelAuthorizationFailure(detail)) return new Error(detail);
   if (/auth|login|credential|api key|XAI_API_KEY/i.test(detail)) {
-    return new Error(`${detail.trim()}\n\n${AUTH_HELP}`);
+    return new Error(`${detail}\n\n${AUTH_HELP}`);
   }
   if (/timed out/i.test(detail)) {
     return new Error(`Grok Build did not start. ${AUTH_HELP}`);
@@ -467,17 +503,48 @@ export function modelsFromSessionNew(result: unknown): AgentModel[] {
   );
 }
 
-export function modelsFromGrokModelsOutput(stdout: string): AgentModel[] {
+export type GrokCliCatalog = {
+  models: AgentModel[];
+  /** Native id after `Default model:` (or the `(default)` list marker). */
+  defaultModelId?: string;
+};
+
+/**
+ * Parse `grok models`. Real output starts with an optional notice, then
+ * `Default model: …`, then an `Available models:` list whose default entry is
+ * marked with `*` and `(default)`.
+ */
+export function catalogFromGrokModelsOutput(stdout: string): GrokCliCatalog {
   const models: AgentModel[] = [];
+  let defaultModelId: string | undefined;
+  let inAvailable = !/^\s*Available models?:/im.test(stdout);
   for (const raw of stdout.split(/\r?\n/)) {
     const line = raw.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").trim();
-    const match = /^[*+\-]\s+(\S+)/.exec(line);
+    if (!line) continue;
+    const declared = /^Default model:\s*(\S+)/i.exec(line);
+    if (declared) {
+      defaultModelId = declared[1].trim();
+      continue;
+    }
+    if (/^Available models?:/i.test(line)) {
+      inAvailable = true;
+      continue;
+    }
+    if (!inAvailable) continue;
+    const match = /^[*+\-]\s+(.+?)(?:\s+\(default\))?\s*$/.exec(line);
     if (!match) continue;
     const nativeId = match[1].trim();
     if (!nativeId) continue;
     models.push(modelFromNative(nativeId, displayName(nativeId)));
+    if (defaultModelId == null && /\(default\)\s*$/i.test(line)) {
+      defaultModelId = nativeId;
+    }
   }
-  return uniqueGrokModels(models);
+  return { models: uniqueGrokModels(models), defaultModelId };
+}
+
+export function modelsFromGrokModelsOutput(stdout: string): AgentModel[] {
+  return catalogFromGrokModelsOutput(stdout).models;
 }
 
 export function fallbackGrokModels(): AgentModel[] {

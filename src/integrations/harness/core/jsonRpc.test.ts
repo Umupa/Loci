@@ -9,11 +9,40 @@ vi.mock("./child", () => ({
     transport.onWrite(sessionId, line),
 }));
 
-import { JsonRpcClient } from "./jsonRpc";
+import { JsonRpcClient, JsonRpcError } from "./jsonRpc";
 
 describe("JsonRpcClient", () => {
   beforeEach(() => {
     transport.onWrite = async () => {};
+  });
+
+  it("keeps a provider error's data beside its short message", async () => {
+    let client!: JsonRpcClient;
+    transport.onWrite = async (_sessionId, line) => {
+      const outbound = JSON.parse(line) as { id: number };
+      client.pushLine(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: outbound.id,
+          error: {
+            code: -32603,
+            message: "Internal error",
+            data: { message: "Unauthorized (401) from the model proxy" },
+          },
+        }),
+      );
+    };
+    client = new JsonRpcClient("provider", {});
+
+    const error = (await client
+      .request("session/prompt")
+      .catch((e: unknown) => e)) as JsonRpcError;
+    expect(error).toBeInstanceOf(JsonRpcError);
+    expect(error.message).toBe("Internal error");
+    expect(error.data).toEqual({
+      message: "Unauthorized (401) from the model proxy",
+    });
+    expect(error.code).toBe(-32603);
   });
 
   it("accepts a response delivered before the write resolves", async () => {

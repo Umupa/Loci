@@ -16,6 +16,22 @@ export type JsonRpcMessage = {
   error?: { code?: number; message?: string; data?: unknown };
 };
 
+/**
+ * A provider error response. The message alone is often a bare "Internal
+ * error"; adapters read `data` for the provider's own explanation.
+ */
+export class JsonRpcError extends Error {
+  readonly code?: number;
+  readonly data?: unknown;
+
+  constructor(message: string, detail?: { code?: number; data?: unknown }) {
+    super(message);
+    this.name = "JsonRpcError";
+    this.code = detail?.code;
+    this.data = detail?.data;
+  }
+}
+
 // A child wedged hard enough to block stdin writes is unrecoverable; the
 // write deadline fails the request so the caller can recycle the generation.
 const WRITE_TIMEOUT_MS = 15_000;
@@ -199,8 +215,9 @@ export class JsonRpcClient {
       this.pending.delete(key);
       if (msg.error) {
         pending.reject(
-          new Error(
+          new JsonRpcError(
             msg.error.message || `${this.label} error ${msg.error.code ?? ""}`,
+            { code: msg.error.code, data: msg.error.data },
           ),
         );
         return;

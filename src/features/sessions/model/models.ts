@@ -269,12 +269,21 @@ export function getModelSnapshot(): number {
   return catalogVersion;
 }
 
-export function setHarnessModels(harness: HarnessId, models: AgentModel[]) {
+export function setHarnessModels(
+  harness: HarnessId,
+  models: AgentModel[],
+  options?: {
+    /** Default the CLI reports, as a full model id or a native id. */
+    defaultId?: string;
+  },
+) {
   if (models.length === 0) return;
   overlays = { ...overlays, [harness]: models };
   overlayDefaults = {
     ...overlayDefaults,
-    [harness]: pickDefaultId(harness, models),
+    [harness]:
+      catalogDefaultId(models, options?.defaultId) ??
+      pickDefaultId(harness, models),
   };
   emit();
 }
@@ -931,6 +940,21 @@ function nativeIdFrom(id: string): string {
 /** Match Claude ids with and without the provider prefix. */
 function comparableNativeId(harness: HarnessId, id: string): string {
   return harness === "claude" ? id.replace(/^claude-/, "") : id;
+}
+
+/** Match the CLI's reported default to a live catalog entry. */
+function catalogDefaultId(
+  models: AgentModel[],
+  requested?: string,
+): string | undefined {
+  const wanted = requested?.trim();
+  if (!wanted) return undefined;
+  const exact = models.find((model) => model.id === wanted);
+  if (exact) return exact.id;
+  const slug = nativeIdFrom(wanted);
+  return models.find(
+    (model) => (model.nativeId ?? nativeIdFrom(model.id)) === slug,
+  )?.id;
 }
 
 function pickDefaultId(harness: HarnessId, models: AgentModel[]): string {
