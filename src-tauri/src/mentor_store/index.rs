@@ -303,7 +303,8 @@ pub fn index_file(
     match outcome {
         Ok((hash, parsed)) => {
             let created = parsed.created_at.unwrap_or(mtime_ms);
-            let updated = parsed.updated_at.map_or(mtime_ms, |at| at.max(0));
+            // An edit that did not bump updatedAt still counts as a change.
+            let updated = parsed.updated_at.map_or(mtime_ms, |at| at.max(mtime_ms));
             conn.execute(
                 "INSERT INTO mentor_content
                    (agent_id, kind, id, rel_path, title, subject, meta_json, body, hash, size,

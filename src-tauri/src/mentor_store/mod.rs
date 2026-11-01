@@ -96,6 +96,23 @@ pub fn ctx_for(conn: &Connection, agent: &str) -> Result<Option<MentorCtx>, Stri
     }))
 }
 
+/// Whether a 0.3 row of this agent is still read from its table: always for
+/// rows with no mentor or a mentor not migrated, and for rows changed after
+/// the mentor's migration (they come into the folder on the next start).
+pub fn legacy_visible(
+    conn: &Connection,
+    agent: Option<&str>,
+    updated_at: i64,
+) -> Result<bool, String> {
+    let Some(agent) = agent else { return Ok(true) };
+    Ok(
+        match registry::get(conn, agent).map_err(|e| e.to_string())? {
+            Some(record) => record.migrated_at.is_none_or(|at| updated_at > at),
+            None => true,
+        },
+    )
+}
+
 /// Where a row's file is (it may be `.yml`, not the `.yaml` the app writes).
 pub fn row_path(ctx: &MentorCtx, row: &Row) -> PathBuf {
     ctx.folder.join(&row.rel_path)

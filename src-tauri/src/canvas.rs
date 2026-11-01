@@ -4,6 +4,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::mentor_store::{self, format, index, paths::Kind, MentorCtx};
 use crate::session_store::{validate_id, SessionStore};
 
 const TITLE_MAX: usize = 200;
@@ -90,17 +91,137 @@ pub fn ensure_canvases_table(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
+// ---------------------------------------------------------------------------
+// Canvases a mentor drew into its library (`loci-agent://<id>`) are files in
+// its folder: canvases/<id>.excalidraw. Checkpoints stay in SQLite. Project
+// canvases, and those of mentors not migrated yet, stay in the table.
+
+const AGENT_SCOPE: &str = "loci-agent://";
+
+fn canvas_from_row(row: index::Row) -> Canvas {
+    Canvas {
+        tags: row
+            .meta
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|tags| {
+                tags.iter()
+                    .filter_map(|t| t.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        cwd: Some(format!("{AGENT_SCOPE}{}", row.agent_id)),
+        title: row.title,
+        data_json: row.body.unwrap_or_else(|| "{}".into()),
+        id: row.id,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+fn file_canvas(conn: &Connection, id: &str) -> Result<Option<(MentorCtx, Canvas)>, String> {
+    let Some(row) = index::find(conn, Kind::Canvas, id).map_err(|e| e.to_string())? else {
+        return Ok(None);
+    };
+    let Some(ctx) = mentor_store::ctx_for(conn, &row.agent_id)? else {
+        return Ok(None);
+    };
+    Ok(mentor_store::current(conn, &ctx, Kind::Canvas, id)?.map(|row| (ctx, canvas_from_row(row))))
+}
+
+/// The mentor whose folder a canvas with this scope goes to, if it has one.
+fn scope_ctx(conn: &Connection, cwd: Option<&str>) -> Result<Option<MentorCtx>, String> {
+    match cwd.and_then(|cwd| cwd.trim().strip_prefix(AGENT_SCOPE)) {
+        Some(agent) => mentor_store::ctx_for(conn, agent),
+        None => Ok(None),
+    }
+}
+
+fn file_save_canvas(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    existing: Option<Canvas>,
+    canvas: &CanvasUpsert,
+) -> Result<Canvas, String> {
+    if let Some(expected) = canvas.expected_updated_at {
+        if existing.as_ref().map(|c| c.updated_at) != Some(expected) {
+            return Err(REVISION_CONFLICT.into());
+        }
+    }
+    if let Some(checkpoint) = &canvas.checkpoint {
+        let owner: Option<String> = conn
+            .query_row(
+                "SELECT canvas_id FROM canvas_checkpoints WHERE checkpoint_id = ?1",
+                params![checkpoint.id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if owner.is_some_and(|owner| owner != canvas.id) {
+            return Err("Checkpoint already belongs to another drawing".into());
+        }
+    }
+    let now = now_millis();
+    let (created_at, updated_at) = match &existing {
+        Some(ex) => (
+            ex.created_at,
+            now.max(
+                ex.updated_at
+                    .checked_add(1)
+                    .ok_or("Canvas timestamp overflow")?,
+            ),
+        ),
+        None => (now, now),
+    };
+    let meta = format::CanvasMeta {
+        title: Some(canvas.title.trim().chars().take(TITLE_MAX).collect()),
+        tags: normalize_tags(&canvas.tags),
+        created_at: Some(created_at),
+        updated_at: Some(updated_at),
+    };
+    let text = format::render_canvas(&meta, &canvas.data_json)?;
+    let row = mentor_store::write_content(conn, ctx, Kind::Canvas, &canvas.id, &text)?;
+    if let Some(checkpoint) = &canvas.checkpoint {
+        bind_checkpoint(conn, &canvas.id, checkpoint).map_err(|e| e.to_string())?;
+    }
+    Ok(canvas_from_row(row))
+}
+
+fn legacy_visible(conn: &Connection, canvas: &Canvas) -> Result<bool, String> {
+    let agent = canvas
+        .cwd
+        .as_deref()
+        .and_then(|cwd| cwd.strip_prefix(AGENT_SCOPE));
+    mentor_store::legacy_visible(conn, agent, canvas.updated_at)
+}
+
 #[tauri::command(async)]
 pub fn canvas_list(store: State<'_, SessionStore>) -> Result<Vec<Canvas>, String> {
     let conn = store.lock_conn()?;
-    list_canvases(&conn).map_err(|e| e.to_string())
+    let mut canvases = Vec::new();
+    for canvas in list_canvases(&conn).map_err(|e| e.to_string())? {
+        if legacy_visible(&conn, &canvas)? {
+            canvases.push(canvas);
+        }
+    }
+    for row in index::all(&conn, Kind::Canvas).map_err(|e| e.to_string())? {
+        canvases.push(canvas_from_row(row));
+    }
+    canvases.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then(a.id.cmp(&b.id)));
+    Ok(canvases)
 }
 
 #[tauri::command(async)]
 pub fn canvas_get(store: State<'_, SessionStore>, id: String) -> Result<Option<Canvas>, String> {
     validate_id(&id, "canvas")?;
     let conn = store.lock_conn()?;
-    get_canvas(&conn, &id).map_err(|e| e.to_string())
+    if let Some((_, canvas)) = file_canvas(&conn, &id)? {
+        return Ok(Some(canvas));
+    }
+    match get_canvas(&conn, &id).map_err(|e| e.to_string())? {
+        Some(canvas) if legacy_visible(&conn, &canvas)? => Ok(Some(canvas)),
+        _ => Ok(None),
+    }
 }
 
 #[tauri::command(async)]
@@ -122,6 +243,20 @@ pub fn canvas_upsert(
         }
     }
     let conn = store.lock_conn()?;
+    if let Some((ctx, existing)) = file_canvas(&conn, &canvas.id)? {
+        return file_save_canvas(&conn, &ctx, Some(existing), &canvas);
+    }
+    let legacy = get_canvas(&conn, &canvas.id).map_err(|e| e.to_string())?;
+    let scope = legacy
+        .as_ref()
+        .and_then(|c| c.cwd.clone())
+        .or_else(|| canvas.cwd.clone());
+    if let Some(ctx) = scope_ctx(&conn, scope.as_deref())? {
+        if canvas.expected_updated_at.is_some() && legacy.is_none() {
+            return Err(REVISION_CONFLICT.into());
+        }
+        return file_save_canvas(&conn, &ctx, None, &canvas);
+    }
     save_canvas(&conn, &canvas)
 }
 
@@ -129,6 +264,15 @@ pub fn canvas_upsert(
 pub fn canvas_delete(store: State<'_, SessionStore>, id: String) -> Result<(), String> {
     validate_id(&id, "canvas")?;
     let conn = store.lock_conn()?;
+    if let Some((ctx, _)) = file_canvas(&conn, &id)? {
+        mentor_store::remove_content(&conn, &ctx, Kind::Canvas, &id)?;
+        conn.execute(
+            "DELETE FROM canvas_checkpoints WHERE canvas_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
     delete_canvas(&conn, &id).map_err(|e| e.to_string())
 }
 
@@ -279,12 +423,17 @@ fn checkpoint_canvas(conn: &Connection, checkpoint_id: &str) -> rusqlite::Result
     if bound.is_some() {
         return Ok(bound);
     }
-    conn.query_row(
-        "SELECT id FROM canvases WHERE id = ?1",
-        params![checkpoint_id],
-        |row| row.get(0),
-    )
-    .optional()
+    let legacy: Option<String> = conn
+        .query_row(
+            "SELECT id FROM canvases WHERE id = ?1",
+            params![checkpoint_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if legacy.is_some() {
+        return Ok(legacy);
+    }
+    Ok(index::find(conn, Kind::Canvas, checkpoint_id)?.map(|row| row.id))
 }
 
 fn latest_checkpoint(
@@ -571,5 +720,80 @@ mod tests {
             checkpoint_canvas(&conn, "kept").unwrap().as_deref(),
             Some("other")
         );
+    }
+
+    #[test]
+    fn a_mentors_canvases_are_excalidraw_files_with_guarded_revisions() {
+        use crate::mentor_store::testing::{register, temp_dir};
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let folder = temp_dir("canvases");
+        register(&conn, "agent", &folder);
+        let ctx = scope_ctx(&conn, Some("loci-agent://agent"))
+            .unwrap()
+            .unwrap();
+        assert!(scope_ctx(&conn, Some("/repo")).unwrap().is_none());
+        let upsert = |data: &str, expected: Option<i64>, checkpoint: Option<&str>| CanvasUpsert {
+            id: "k1".into(),
+            title: "Overview".into(),
+            data_json: data.into(),
+            tags: vec!["KVM".into()],
+            cwd: Some("loci-agent://agent".into()),
+            expected_updated_at: expected,
+            checkpoint: checkpoint.map(|id| CheckpointBind {
+                id: id.into(),
+                baseline_json: "{}".into(),
+            }),
+        };
+        let first = file_save_canvas(
+            &conn,
+            &ctx,
+            None,
+            &upsert(
+                r#"{"elements":[],"appState":{},"files":{}}"#,
+                None,
+                Some("cp1"),
+            ),
+        )
+        .unwrap();
+        assert_eq!(first.cwd.as_deref(), Some("loci-agent://agent"));
+        let file: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(folder.join("canvases/k1.excalidraw")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(file["type"], "excalidraw");
+        assert_eq!(file["loci"]["title"], "Overview");
+        assert_eq!(
+            checkpoint_canvas(&conn, "cp1").unwrap().as_deref(),
+            Some("k1")
+        );
+        assert_eq!(
+            checkpoint_canvas(&conn, "k1").unwrap().as_deref(),
+            Some("k1")
+        );
+
+        let (_, read) = file_canvas(&conn, "k1").unwrap().unwrap();
+        assert_eq!(read.updated_at, first.updated_at);
+        let second = file_save_canvas(
+            &conn,
+            &ctx,
+            Some(read.clone()),
+            &upsert(r#"{"elements":[{"id":"a"}]}"#, Some(read.updated_at), None),
+        )
+        .unwrap();
+        assert!(second.updated_at > first.updated_at);
+        // A stale revision is refused.
+        let (_, now) = file_canvas(&conn, "k1").unwrap().unwrap();
+        assert_eq!(
+            file_save_canvas(
+                &conn,
+                &ctx,
+                Some(now),
+                &upsert("{}", Some(first.updated_at), None)
+            )
+            .unwrap_err(),
+            REVISION_CONFLICT
+        );
+        std::fs::remove_dir_all(folder).unwrap();
     }
 }

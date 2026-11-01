@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { rosterSettled } from "../agents/model/mentorStore";
 import { fuzzyMatch } from "../../shared/lib/fuzzy";
 import type { ProjectFile } from "../../platform/tauri/fs";
 import type { RankedFile } from "./noteMentions";
@@ -22,6 +23,10 @@ export type Note = {
   slugPending: boolean;
   createdAt: number;
   updatedAt: number;
+  /** The hash of its file, for a note kept in a mentor's folder. */
+  hash?: string;
+  /** The disk version kept aside because the file changed while it was open. */
+  conflictCopy?: string;
 };
 
 export type NoteUpsert = {
@@ -36,7 +41,20 @@ export type NoteUpsert = {
   sourceCwd?: string;
   /** Finalize a pending slug on title blur or editor close. */
   finalizeSlug?: boolean;
+  /** Filled in by `upsertNote` from the version this window last read. */
+  expectedHash?: string;
 };
+
+/**
+ * The file hash of each note as this window last read or saved it. A save
+ * names it, so a note edited on disk meanwhile is kept beside it rather than
+ * overwritten (see `notes.rs`).
+ */
+const readHashes = new Map<string, string>();
+
+function remember(note: Note | null): void {
+  if (note?.hash) readHashes.set(note.id, note.hash);
+}
 
 /** Note chip shown in the composer and on the user turn in the thread. */
 export type NoteCardMeta = {
@@ -106,11 +124,17 @@ export function listAgentNotes(agentId: string): Promise<Note[]> {
 
 export async function getNote(id: string): Promise<Note | null> {
   const note = await invoke<Note | null>("notes_get", { id });
+  remember(note);
   return note;
 }
 
 export async function upsertNote(note: NoteUpsert): Promise<Note> {
-  const saved = await invoke<Note>("notes_upsert", { note });
+  // A new mentor must have its folder before its first note is saved.
+  if (note.agentId) await rosterSettled();
+  const expectedHash = note.expectedHash ?? readHashes.get(note.id);
+  const saved = await invoke<Note>("notes_upsert", { note: expectedHash ? { ...note, expectedHash } : note });
+  remember(saved);
+  if (saved.conflictCopy) console.warn(`The note changed on disk while it was open; that version is kept at ${saved.conflictCopy}`);
   cache = null;
   window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
   return saved;
@@ -119,6 +143,7 @@ export async function upsertNote(note: NoteUpsert): Promise<Note> {
 /** Finalize only the slug of an unchanged editor, preserving concurrent edits/deletion. */
 export async function finalizeNoteSlug(id: string, title: string): Promise<Note | null> {
   const saved = await invoke<Note | null>("notes_finalize_slug", { id, title });
+  remember(saved);
   cache = null;
   window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
   return saved;
