@@ -95,20 +95,25 @@ fn external_commands(manifest: &Manifest) -> BTreeMap<String, Vec<&CommandSpec>>
     nouns
 }
 
-/// Whether these arguments are meant for this command line rather than the app.
+/// Whether the app was opened rather than given a command line: the bare
+/// executable, or the process serial number macOS used to pass along.
+fn opened_by_macos(args: &[String]) -> bool {
+    args.is_empty() || args.iter().all(|arg| arg.starts_with("-psn_"))
+}
+
+/// Whether these arguments are meant for this command line rather than the
+/// app. Anything that is not an app launch is a command line, so an unknown
+/// command or option fails with a usage error instead of leaving the CLI and
+/// starting the window. The namespaces the desktop executable reserves for
+/// agents (`app`, `canvas`) are left to `main`.
 pub fn handles(args: &[String]) -> bool {
-    let mut rest = args.iter();
-    while let Some(arg) = rest.next() {
-        match arg.as_str() {
-            "--app" => {
-                rest.next();
-            }
-            value if value.starts_with("--app=") => {}
-            "help" | "--help" | "-h" => return true,
-            first => return external_commands(&manifest()).contains_key(first),
-        }
+    if opened_by_macos(args) {
+        return false;
     }
-    false
+    !matches!(
+        args.first().map(String::as_str),
+        Some("app") | Some("canvas")
+    )
 }
 
 /// What the user asked for.
@@ -805,6 +810,39 @@ mod tests {
         assert!(!handles(&args(&["app", "notes.list"])));
         assert!(!handles(&args(&["canvas", "create_view"])));
         assert!(!handles(&args(&[])));
+        // What macOS passes when it opens the app is a launch, not a command.
+        assert!(!handles(&args(&["-psn_0_12345"])));
+        // Anything else is a command line, known or not: the app must not
+        // start over a typo and leave the user with a window and no answer.
+        assert!(handles(&args(&["nonsense"])));
+        assert!(handles(&args(&["--nonsense"])));
+        assert!(handles(&args(&["status", "--nonsense"])));
+        assert!(handles(&args(&["--app", "com.loci.desktop.qa"])));
+        assert!(handles(&args(&["-h"])));
+    }
+
+    #[test]
+    fn an_unknown_command_or_option_never_starts_the_app() {
+        // `handles` sends these to `run`, whose usage failures exit 2.
+        assert!(handles(&args(&["nonsense"])));
+        assert!(handles(&args(&["things", "make", "m", "--nope"])));
+        assert_eq!(
+            match parse(&test_manifest(), &args(&["nonsense"])) {
+                Err(failure) => (failure.code, exit_code(Some(failure.code))),
+                _ => panic!("expected a usage error"),
+            },
+            ("usage", 2)
+        );
+        assert_eq!(
+            match parse(&test_manifest(), &args(&["status", "--nope"])) {
+                Err(failure) => (failure.code, exit_code(Some(failure.code))),
+                _ => panic!("expected a usage error"),
+            },
+            ("usage", 2)
+        );
+        // The app is started for its own launch arguments only.
+        assert!(!handles(&args(&[])));
+        assert!(!handles(&args(&["-psn_0_42"])));
     }
 
     #[test]
