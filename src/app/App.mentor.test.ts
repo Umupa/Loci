@@ -395,7 +395,7 @@ it("reads one thing at a time beside the mentor: each opened item replaces the l
   expect(panes()).toHaveLength(1);
 
   // Cmd-W closes what the reader shows, not the conversation.
-  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW", ctrlKey: true, metaKey: true, bubbles: true, cancelable: true })); });
+  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "w", code: "KeyW", ctrlKey: true, bubbles: true, cancelable: true })); });
   await settle(() => expect(reader().dataset.mentorReader).toBe("empty"));
   expect(pane("chat-a")).not.toBeNull();
 }, 15000);
@@ -452,7 +452,7 @@ it("finds a lesson with Cmd-K and opens it in its mentor's reader", async () => 
       : original(command, args, options);
   });
   await renderMentor("Bea");
-  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true, metaKey: true, bubbles: true, cancelable: true })); });
+  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true, bubbles: true, cancelable: true })); });
   const input = () => container.querySelector<HTMLInputElement>('[data-app-search] input')!;
   await settle(() => expect(input()).not.toBeNull());
   await settle(() => expect(container.querySelector('[data-app-search] [data-search-kind="mentor"]')).not.toBeNull());
@@ -480,7 +480,7 @@ it("creates a mentor from the gallery while Settings is open and switches to its
   await settle(() => expect(container.querySelector("[data-mentors-empty]")).not.toBeNull());
   await click(container.querySelector<HTMLButtonElement>('[data-agent-rail] button[aria-label="Settings"]')!);
   await settle(() => expect(container.querySelector("[data-app-settings]")).not.toBeNull());
-  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "t", code: "KeyT", ctrlKey: true, metaKey: true, bubbles: true, cancelable: true })); });
+  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "t", code: "KeyT", ctrlKey: true, bubbles: true, cancelable: true })); });
   await settle(() => expect(document.querySelector("[data-agent-template]")).not.toBeNull());
   await click(document.querySelector<HTMLButtonElement>('[data-agent-template="learning-guide"] button[aria-label^="Add"]')!);
   // The rail and the surface change at once, before the new mentor's conversation is ready.

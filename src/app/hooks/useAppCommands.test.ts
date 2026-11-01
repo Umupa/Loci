@@ -8,6 +8,11 @@ import { useAppCommands } from "./useAppCommands";
 import { IMAGE_ZOOM_EVENT } from "../../shared/lib/imageZoomCommands";
 import { loadUiScale } from "../../features/settings/model/uiScale";
 
+const platform = vi.hoisted(() => ({ mac: true }));
+vi.mock("../../platform/tauri/platform", async (original) => ({
+  ...(await original<typeof import("../../platform/tauri/platform")>()),
+  get IS_MAC() { return platform.mac; },
+}));
 const native = vi.hoisted(() => ({
   handlers: new Map<string, Set<(event: { payload: unknown }) => void>>(),
   invoke: vi.fn(async () => undefined),
@@ -79,6 +84,7 @@ const later = () => act(async () => { await new Promise((resolve) => setTimeout(
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  platform.mac = true;
   localStorage.clear();
   roots = [];
   now = 100;
@@ -160,6 +166,44 @@ describe("application command routing", () => {
     value.closeReader.mockReturnValue(false);
     emit("close_reader");
     expect(value.closeWindow).toHaveBeenCalledOnce();
+  });
+
+  it("closes the reader once for a held key, and leaves the keyboard to an open dialog", async () => {
+    const value = options();
+    await mount(value);
+    key({ key: "w", code: "KeyW", metaKey: true, repeat: true });
+    expect(value.closeReader).not.toHaveBeenCalled();
+    key({ key: "w", code: "KeyW", metaKey: true });
+    expect(value.closeReader).toHaveBeenCalledOnce();
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    document.body.append(dialog);
+    key({ key: "w", code: "KeyW", metaKey: true });
+    key({ key: "1", code: "Digit1", metaKey: true });
+    expect(value.closeReader).toHaveBeenCalledOnce();
+    expect(value.openMentor).not.toHaveBeenCalled();
+    // A sheet that is closed but kept mounted for its animation is inert, not open.
+    dialog.setAttribute("inert", "");
+    now += 81;
+    key({ key: "w", code: "KeyW", metaKey: true });
+    expect(value.closeReader).toHaveBeenCalledTimes(2);
+    dialog.remove();
+  });
+
+  it("uses Command on macOS and Control elsewhere, so text editing keeps Control", async () => {
+    const value = options();
+    await mount(value);
+    key({ key: "w", code: "KeyW", ctrlKey: true });
+    key({ key: "t", code: "KeyT", ctrlKey: true });
+    expect(value.closeReader).not.toHaveBeenCalled();
+    expect(value.newMentor).not.toHaveBeenCalled();
+    platform.mac = false;
+    key({ key: "w", code: "KeyW", metaKey: true });
+    expect(value.closeReader).not.toHaveBeenCalled();
+    key({ key: "w", code: "KeyW", ctrlKey: true });
+    expect(value.closeReader).toHaveBeenCalledOnce();
+    key({ key: "t", code: "KeyT", ctrlKey: true });
+    expect(value.newMentor).toHaveBeenCalledOnce();
   });
 
   it("moves between mentors by number and in rail order, wrapping around", async () => {

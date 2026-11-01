@@ -33,6 +33,10 @@ type Options = {
   reload: () => void;
 };
 
+function openDialog(): Element | null {
+  return [...document.querySelectorAll('[role="dialog"]')].find((element) => !element.closest("[inert]")) ?? null;
+}
+
 /** The keyboard and native menu share one dispatch and duplicate-event guard. */
 export function useAppCommands(options: Options) {
   const latest = useRef(options);
@@ -99,6 +103,9 @@ export function useAppCommands(options: Options) {
       if (zoomCommand) {
         event.preventDefault(); event.stopPropagation(); zoom(zoomCommand); return;
       }
+      // A dialog or the palette owns the keyboard while it is open (a closed
+      // sheet kept for its animation is inert); its own Escape and keys apply.
+      if (openDialog()) return;
       const custom = matchCustomKeybinding(event);
       const command = custom ? appCommandForKeybinding(custom, event) : appCommand(event);
       if (command && keybindingPressed(appCommandKeybinding(command), event, !custom)) {
