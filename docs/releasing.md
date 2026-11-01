@@ -46,7 +46,7 @@ Use semantic versions. While the major version is 0, a minor release may include
 
 ## Updates
 
-An installed Loci asks `https://github.com/Umupa/Loci/releases/latest/download/latest.json` a little after launch and every six hours, shows the new version's notes and, once you agree, installs it and restarts. Only the main window asks. Updates are signed with the update key; Loci accepts only updates whose signature matches the public key in `plugins.updater.pubkey` of `src-tauri/tauri.conf.json`. Losing the private key strands every installed copy, so back it up.
+An installed Loci asks `https://github.com/Umupa/Loci/releases/latest/download/latest.json` a little after launch and every six hours. A check you start in Settings → General → About opens an in-app prompt at once; an automatic check only puts a dot on the Settings button in the rail, so it never interrupts reading. The prompt renders the release notes as Markdown in a scrolling area, keeps Later, Install and Restart and the GitHub link below it, and shows download progress and any error in place. Once you install, the app restarts into the new version. Only the main window asks. Updates are signed with the update key; Loci accepts only updates whose signature matches the public key in `plugins.updater.pubkey` of `src-tauri/tauri.conf.json`. Losing the private key strands every installed copy, so back it up.
 
 The repository must be public for installed copies to reach `latest.json`.
 
