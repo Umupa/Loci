@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { rosterSettled } from "./mentorStore";
 import type { AgentDocument } from "../../sessions/model/cards";
 
 export type DocumentKind = "source" | "guide";
@@ -63,6 +64,8 @@ export async function saveAgentDocuments(
   const refused: unknown[] = [];
   for (const document of documents) {
     try {
+      // A new mentor must have its folder before its first document is saved.
+      await rosterSettled();
       await invoke("agent_documents_upsert", {
         agent: agentId,
         document: {
@@ -85,6 +88,7 @@ export async function writeAgentGuide(
   agentId: string,
   guide: { id: string; title: string; subject?: string; path?: string; body?: string },
 ): Promise<StoredDocument> {
+  await rosterSettled();
   const saved = await invoke<StoredDocument>("agent_documents_write_guide", {
     agent: agentId,
     guide: { id: guide.id, title: guide.title, subject: guide.subject ?? null, path: guide.path ?? null, body: guide.body ?? null },
@@ -98,6 +102,7 @@ export async function importAgentSource(
   agentId: string,
   source: { id: string; title: string; subject?: string; path: string; sourceUrl: string; version?: string },
 ): Promise<StoredDocument> {
+  await rosterSettled();
   const saved = await invoke<StoredDocument>("agent_documents_import", {
     agent: agentId,
     source: { ...source, subject: source.subject ?? null, version: source.version ?? null },

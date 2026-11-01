@@ -16,6 +16,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::mentor_store::{self, format, index, paths::Kind, MentorCtx};
 use crate::session_store::{now_millis, SessionStore};
 
 const BODY_MAX: usize = 1024 * 1024;
@@ -328,6 +329,151 @@ fn check(agent: &str, id: Option<&str>) -> Result<(), String> {
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// A mentor whose library is in its folder: sources/<id>.md and guides/<id>.md.
+
+fn doc_from_row(row: index::Row) -> AgentDocument {
+    let kind = if row.kind == "source" {
+        "source"
+    } else {
+        "guide"
+    };
+    let text = |key: &str| {
+        row.meta
+            .get(key)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    };
+    AgentDocument {
+        id: row.id.clone(),
+        title: row.title.clone(),
+        subject: row.subject.clone(),
+        kind,
+        body: row.body.clone(),
+        source_url: text("sourceUrl").filter(|_| kind == "source"),
+        source_version: text("version").filter(|_| kind == "source"),
+        fetched_at: row.meta.get("fetchedAt").and_then(|v| v.as_i64()),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
+}
+
+fn file_list(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<AgentDocument>, String> {
+    Ok(index::list(conn, &ctx.agent, &[Kind::Source, Kind::Guide])
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(doc_from_row)
+        .collect())
+}
+
+/// The document with this id, sources first, read fresh from its file.
+fn file_get(conn: &Connection, ctx: &MentorCtx, id: &str) -> Result<Option<AgentDocument>, String> {
+    for kind in [Kind::Source, Kind::Guide] {
+        if let Some(row) = mentor_store::current(conn, ctx, kind, id)? {
+            return Ok(Some(doc_from_row(row)));
+        }
+    }
+    Ok(None)
+}
+
+fn file_kind(conn: &Connection, ctx: &MentorCtx, id: &str) -> Result<Option<Kind>, String> {
+    for kind in [Kind::Source, Kind::Guide] {
+        if mentor_store::current(conn, ctx, kind, id)?.is_some() {
+            return Ok(Some(kind));
+        }
+    }
+    Ok(None)
+}
+
+/// The front-matter of a file as it is, so a rewrite keeps keys it does not set.
+fn existing_front_matter(ctx: &MentorCtx, kind: Kind, id: &str) -> Option<serde_yaml_ng::Mapping> {
+    let text = std::fs::read_to_string(ctx.path(kind, id)).ok()?;
+    format::parse_doc(&text).ok().map(|(_, map, _)| map)
+}
+
+fn file_upsert(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    document: &AgentDocumentUpsert,
+) -> Result<(), String> {
+    if file_kind(conn, ctx, &document.id)? == Some(Kind::Source) {
+        return Err(format!(
+            "{} is a first-hand source; a guide cannot replace it. Give the guide another id",
+            document.id
+        ));
+    }
+    let existing = mentor_store::current(conn, ctx, Kind::Guide, &document.id)?;
+    if let Some(row) = &existing {
+        if row.error.is_none()
+            && row.title == document.title
+            && row.subject == document.subject
+            && row.body.as_deref() == Some(document.body.as_str())
+        {
+            return Ok(());
+        }
+    }
+    let meta = format::DocMeta {
+        title: Some(document.title.clone()),
+        subject: document.subject.clone(),
+        created_at: Some(
+            existing
+                .as_ref()
+                .map_or_else(now_millis, |row| row.created_at),
+        ),
+        ..Default::default()
+    };
+    let text = format::render_doc(
+        existing_front_matter(ctx, Kind::Guide, &document.id),
+        &meta,
+        &document.body,
+    )?;
+    mentor_store::write_content(conn, ctx, Kind::Guide, &document.id, &text)?;
+    Ok(())
+}
+
+fn file_import(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    source: &AgentDocumentImport,
+    body: &str,
+) -> Result<(), String> {
+    if file_kind(conn, ctx, &source.id)? == Some(Kind::Guide) {
+        return Err(format!(
+            "{} is the mentor's guide; a source cannot replace it. Give the source another id",
+            source.id
+        ));
+    }
+    let now = now_millis();
+    let created = mentor_store::current(conn, ctx, Kind::Source, &source.id)?
+        .map_or(now, |row| row.created_at);
+    let meta = format::DocMeta {
+        title: Some(source.title.trim().to_string()),
+        subject: source.subject.clone(),
+        source_url: Some(source.source_url.clone()),
+        version: source.version.clone(),
+        fetched_at: Some(now),
+        created_at: Some(created),
+    };
+    let text = format::render_doc(
+        existing_front_matter(ctx, Kind::Source, &source.id),
+        &meta,
+        body,
+    )?;
+    mentor_store::write_content(conn, ctx, Kind::Source, &source.id, &text)?;
+    Ok(())
+}
+
+fn file_delete(conn: &Connection, ctx: &MentorCtx, id: Option<&str>) -> Result<(), String> {
+    // Without an id the whole library is meant (the mentor is being deleted):
+    // its folder stays on disk, so nothing is removed here.
+    if let Some(id) = id {
+        for kind in [Kind::Source, Kind::Guide] {
+            mentor_store::remove_content(conn, ctx, kind, id)?;
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command(async)]
 pub fn agent_documents_list(
     store: State<'_, SessionStore>,
@@ -335,6 +481,9 @@ pub fn agent_documents_list(
 ) -> Result<Vec<AgentDocument>, String> {
     check(&agent, None)?;
     let conn = store.lock_conn()?;
+    if let Some(ctx) = mentor_store::ctx_for(&conn, &agent)? {
+        return file_list(&conn, &ctx);
+    }
     list(&conn, &agent).map_err(|e| e.to_string())
 }
 
@@ -346,6 +495,9 @@ pub fn agent_documents_get(
 ) -> Result<Option<AgentDocument>, String> {
     check(&agent, Some(&id))?;
     let conn = store.lock_conn()?;
+    if let Some(ctx) = mentor_store::ctx_for(&conn, &agent)? {
+        return file_get(&conn, &ctx, &id);
+    }
     get(&conn, &agent, &id).map_err(|e| e.to_string())
 }
 
@@ -361,6 +513,9 @@ pub fn agent_documents_upsert(
     }
     check_title(&document.title)?;
     let conn = store.lock_conn()?;
+    if let Some(ctx) = mentor_store::ctx_for(&conn, &agent)? {
+        return file_upsert(&conn, &ctx, &document);
+    }
     upsert(&conn, &agent, &document, now_millis())
 }
 
@@ -392,10 +547,14 @@ fn write_guide(
         subject: guide.subject.clone(),
         body,
     };
-    upsert(conn, agent, &document, now)?;
-    let mut saved = get(conn, agent, &guide.id)
-        .map_err(|e| e.to_string())?
-        .ok_or("The saved guide is missing")?;
+    let mut saved = if let Some(ctx) = mentor_store::ctx_for(conn, agent)? {
+        file_upsert(conn, &ctx, &document)?;
+        file_get(conn, &ctx, &guide.id)?
+    } else {
+        upsert(conn, agent, &document, now)?;
+        get(conn, agent, &guide.id).map_err(|e| e.to_string())?
+    }
+    .ok_or("The saved guide is missing")?;
     saved.body = None;
     Ok(saved)
 }
@@ -423,10 +582,14 @@ pub fn agent_documents_import(
     check_source(&source)?;
     let body = source_text(&source.path)?;
     let conn = store.lock_conn()?;
-    import(&conn, &agent, &source, &body, now_millis())?;
-    let mut saved = get(&conn, &agent, &source.id)
-        .map_err(|e| e.to_string())?
-        .ok_or("The saved document is missing")?;
+    let mut saved = if let Some(ctx) = mentor_store::ctx_for(&conn, &agent)? {
+        file_import(&conn, &ctx, &source, &body)?;
+        file_get(&conn, &ctx, &source.id)?
+    } else {
+        import(&conn, &agent, &source, &body, now_millis())?;
+        get(&conn, &agent, &source.id).map_err(|e| e.to_string())?
+    }
+    .ok_or("The saved document is missing")?;
     saved.body = None;
     Ok(saved)
 }
@@ -440,6 +603,9 @@ pub fn agent_documents_delete(
 ) -> Result<(), String> {
     check(&agent, id.as_deref())?;
     let conn = store.lock_conn()?;
+    if let Some(ctx) = mentor_store::ctx_for(&conn, &agent)? {
+        return file_delete(&conn, &ctx, id.as_deref());
+    }
     delete(&conn, &agent, id.as_deref()).map_err(|e| e.to_string())
 }
 
@@ -699,5 +865,85 @@ mod tests {
             assert!(check("agent", Some(id)).is_err(), "{id}");
         }
         assert!(check("../agent", None).is_err());
+    }
+
+    #[test]
+    fn a_mentor_with_a_folder_keeps_its_library_as_files() {
+        use crate::mentor_store::testing::{register, temp_dir};
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let folder = temp_dir("library");
+        register(&conn, "agent", &folder);
+        let ctx = mentor_store::ctx_for(&conn, "agent").unwrap().unwrap();
+
+        let saved_file = folder.join("saved.md");
+        std::fs::write(&saved_file, "# Pod lifecycle\n\nPhases.\n").unwrap();
+        file_import(
+            &conn,
+            &ctx,
+            &source("pods", saved_file.to_str().unwrap()),
+            "# Pod lifecycle\n\nPhases.\n",
+        )
+        .unwrap();
+        let written = std::fs::read_to_string(folder.join("sources/pods.md")).unwrap();
+        assert!(written.contains(
+            "sourceUrl: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+        ));
+        assert!(written.ends_with("---\n# Pod lifecycle\n\nPhases.\n"));
+
+        let guide = write_guide(
+            &conn,
+            "agent",
+            &guide("pods-guide", Some("Read this first."), None),
+            1,
+        )
+        .unwrap();
+        assert_eq!(guide.kind, "guide");
+        assert_eq!(guide.title, "Reading guide");
+        assert!(folder.join("guides/pods-guide.md").is_file());
+        // A guide cannot take a source's id, nor a source a guide's.
+        assert!(file_upsert(&conn, &ctx, &document("pods", "X", "y")).is_err());
+        assert!(file_import(
+            &conn,
+            &ctx,
+            &source("pods-guide", saved_file.to_str().unwrap()),
+            "x"
+        )
+        .is_err());
+
+        let listed = file_list(&conn, &ctx).unwrap();
+        assert_eq!(listed.len(), 2);
+        assert!(listed.iter().all(|d| d.body.is_none()));
+        let pods = file_get(&conn, &ctx, "pods").unwrap().unwrap();
+        assert_eq!(pods.kind, "source");
+        assert_eq!(pods.source_version.as_deref(), Some("v1.34"));
+        assert_eq!(pods.body.as_deref(), Some("# Pod lifecycle\n\nPhases.\n"));
+
+        // An edit made outside the app is what the next read shows, and the
+        // app's own rewrite keeps keys it does not know.
+        std::fs::write(
+            folder.join("guides/pods-guide.md"),
+            "---\ntitle: Edited\nreviewer: me\n---\nNew text.\n",
+        )
+        .unwrap();
+        let edited = file_get(&conn, &ctx, "pods-guide").unwrap().unwrap();
+        assert_eq!(edited.title, "Edited");
+        assert_eq!(edited.body.as_deref(), Some("New text.\n"));
+        file_upsert(&conn, &ctx, &document("pods-guide", "Again", "Text 2")).unwrap();
+        let rewritten = std::fs::read_to_string(folder.join("guides/pods-guide.md")).unwrap();
+        assert!(rewritten.contains("reviewer: me"));
+        assert!(rewritten.contains("title: Again"));
+
+        // Deleting one removes its file; deleting "all" leaves the folder.
+        file_delete(&conn, &ctx, Some("pods-guide")).unwrap();
+        assert!(!folder.join("guides/pods-guide.md").exists());
+        file_delete(&conn, &ctx, None).unwrap();
+        assert!(folder.join("sources/pods.md").is_file());
+        // The old table was not written.
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM agent_documents", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(rows, 0);
+        std::fs::remove_dir_all(folder).unwrap();
     }
 }
