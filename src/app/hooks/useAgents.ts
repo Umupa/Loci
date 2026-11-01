@@ -245,9 +245,10 @@ export function useAgents(options: Options) {
    * does not run a model. `show: false` (a command) prepares it without
    * switching the window to it, and reports a failure instead of showing it.
    */
-  const create = useCallback(async (template?: AgentTemplate, options: { show?: boolean } = {}): Promise<string> => {
+  const create = useCallback(async (template?: AgentTemplate, options: { show?: boolean; look?: { name?: string; role?: string; avatar?: string; color?: string } } = {}): Promise<string> => {
     const show = options.show ?? true;
-    const agent = createAgent([], template ? { name: template.name, role: template.role, avatar: template.avatar } : {});
+    // A name given up front also names its folder, which is made before its first conversation.
+    const agent = createAgent([], { ...(template ? { name: template.name, role: template.role, avatar: template.avatar } : {}), ...options.look });
     const turn = show ? ++request.current : request.current;
     try {
       // Its Soul is in place before its first turn reads it.
