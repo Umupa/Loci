@@ -123,3 +123,5 @@
 .library-path-planned { flex: none; padding-right: 8px; font-size: 11px; font-style: italic; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .library-path-after { margin: 0 0 2px 30px; font-size: 11px; line-height: 1.4; color: color-mix(in srgb, var(--color-content) 42%, transparent); }
 .library-path-others { margin: 8px 8px 2px; font-size: 11px; color: color-mix(in srgb, var(--color-content) 42%, transparent); }
+.mentor-history { display: flex; flex: none; align-items: center; gap: 0; }
+.mentor-history .mentor-bar-button:disabled { opacity: .35; pointer-events: none; }
