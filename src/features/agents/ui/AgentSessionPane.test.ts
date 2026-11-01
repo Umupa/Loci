@@ -103,7 +103,7 @@ it("keeps the agent's settings and actions associated with its conversation", ()
 it("keeps the empty introduction free of profile and model controls", () => {
   act(() => render());
   const intro = container.querySelector("[data-agent-intro]")!;
-  expect(intro.textContent).toContain("A sentence is enough.");
+  expect(intro.textContent).toContain("Name a topic and what you already know.");
   expect(intro.querySelector("button, input, select, textarea")).toBeNull();
   expect(container.querySelector("[aria-label='Agent settings']")).not.toBeNull();
 });
