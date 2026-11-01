@@ -41,11 +41,18 @@
 .mentor-library-segment[aria-selected="true"] { min-width: 0; flex: 0 1 auto; padding: 0 6px 0 10px; color: var(--color-content); font-weight: 500; }
 .mentor-library-segment[aria-selected="true"] > svg { animation: segment-pop 420ms cubic-bezier(0.34, 1.5, 0.64, 1); }
 @keyframes segment-pop { 0% { transform: scale(0.8) rotate(-8deg); } 100% { transform: none; } }
-/* The label folds in a grid track, so its width animates from nothing to its own. */
-.mentor-library-segment-text { display: grid; min-width: 0; grid-template-columns: 0fr; opacity: 0; transition: grid-template-columns 340ms var(--segment-ease), opacity 160ms var(--segment-ease); }
-.mentor-library-segment-text[data-open] { grid-template-columns: 1fr; opacity: 1; transition: grid-template-columns 340ms var(--segment-ease), opacity 240ms var(--segment-ease) 80ms; }
-.mentor-library-segment-inner { display: flex; min-width: 0; align-items: center; gap: 6px; overflow: hidden; padding: 0 6px 0 6px; }
+/* The label unfolds by its max-width. (An animated 0fr→1fr grid track is
+   neater, but WebKit sizes it short of its content and cut the label off.) */
+.mentor-library-segment-text { display: flex; min-width: 0; max-width: 0; overflow: hidden; opacity: 0; transition: max-width 340ms var(--segment-ease), opacity 160ms var(--segment-ease); }
+.mentor-library-segment-text[data-open] { max-width: 9em; opacity: 1; transition: max-width 340ms var(--segment-ease), opacity 240ms var(--segment-ease) 80ms; }
+.mentor-library-segment-inner { display: flex; flex: none; align-items: center; gap: 6px; padding: 0 6px; }
 .mentor-library-segment-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A narrow library can't fit four segments, the open label and its count:
+   the list below shows the items, so the count goes and the gaps close up. */
+@container library (max-width: 300px) {
+  .mentor-library-segments { gap: 2px; }
+  .mentor-library-segment .mentor-library-count { display: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   .mentor-library-segment, .mentor-library-segment > svg, .mentor-library-segment-text { transition: none; animation: none; }
 }
