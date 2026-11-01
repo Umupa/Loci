@@ -6,11 +6,13 @@ import { FALLBACK, NUDGE, asksSomething, nextMessage, questionCount, topicsOf, q
 // @ts-expect-error plain ESM without types
 import { checkCitation, checkLessons, citationsIn, flattenMarkdown, headingsOf, isFirstParty, orderProblems, quoteResolves, scoreRun, summarySignals } from "./score.mjs";
 // @ts-expect-error plain ESM without types
-import { judgeCommand, judgePrompt, parseVerdict } from "./judge.mjs";
+import { DEFAULT_JUDGE_MODEL, judgeCommand, judgePrompt, parseVerdict } from "./judge.mjs";
 // @ts-expect-error plain ESM without types
 import { providerErrorIn } from "./providerErrors.mjs";
 // @ts-expect-error plain ESM without types
-import { isOfficial, summaryMarkdown } from "./report.mjs";
+import { runSetup, summaryMarkdown } from "./report.mjs";
+// @ts-expect-error plain ESM without types
+import { DEFAULT_PROVIDER, defaultMentorModel } from "./defaults.mjs";
 
 const answers = { goal: "Fix SQLITE_BUSY.", level: "Comfortable with Go.", time: "An hour a day.", confirm: "Yes, go ahead.", scope: "WAL only.", depth: "Deep.", language: "English.", background: "Go and Linux." };
 
@@ -195,22 +197,45 @@ describe("the judge and the summary", () => {
     expect(prompt).not.toMatch(/\{\{\w+\}\}/);
   });
 
-  it("runs the pinned agy model by default and other judges only when named", () => {
+  it("pins each judge's model and runs other judges only when named", () => {
     expect(judgeCommand("agy", "claude-opus-4-6-thinking", "/p", "prompt")).toEqual(["agy", ["-p", "prompt", "--print-timeout", "600s", "--model", "claude-opus-4-6-thinking"]]);
-    expect(judgeCommand("grok", undefined, "/p", "prompt")[1]).toContain("--prompt-file");
+    expect(DEFAULT_JUDGE_MODEL).toMatchObject({ agy: "claude-opus-4-6-thinking", grok: "deepseek-flash" });
+    expect(judgeCommand("grok", DEFAULT_JUDGE_MODEL.grok, "/p", "prompt")).toEqual(["grok", ["--prompt-file", "/p", "--disable-web-search", "--no-subagents", "--model", "deepseek-flash"]]);
     expect(() => judgeCommand("pi", undefined, "/p", "x")).toThrow(/No judge/);
   });
 
-  it("labels a run that is not on Antigravity as provisional", () => {
-    const meta = { startedAt: "2026-11-01T10:00:00.000Z", app: "com.loci.desktop.qa-eval", provider: "grok", mode: "full-access", judge: { provider: "grok" }, templates: { "learning-guide": "abc" } };
-    expect(isOfficial(meta)).toBe(false);
-    expect(isOfficial({ ...meta, provider: "agy", judge: { provider: "agy" } })).toBe(true);
-    const split = { ...meta, provider: "agy", judge: { provider: "grok" } };
-    expect(isOfficial(split)).toBe(true);
-    expect(summaryMarkdown(split, [])).toContain("rubric judged by `grok`");
-    const text = summaryMarkdown(meta, [{ scenario: { id: "sqlite-wal", template: "learning-guide" }, error: "boom" }]);
-    expect(text).toContain("Provisional, non-agy");
+  it("names the provider, model and judge a run used, and that only matching runs compare", () => {
+    const meta = {
+      startedAt: "2026-11-01T10:00:00.000Z", app: "com.loci.desktop.qa-eval", provider: "grok", model: "grok:deepseek-flash",
+      mode: "full-access", judge: { provider: "grok", model: null }, templates: { "learning-guide": "abc" },
+    };
+    const pinned = { ...meta, judge: { provider: "grok", model: "deepseek-flash" } };
+    const text = summaryMarkdown(pinned, [{ scenario: { id: "sqlite-wal", template: "learning-guide" }, error: "boom" }]);
+    expect(text).toContain("Mentors on `grok` / `grok:deepseek-flash`, judged by `grok` / `deepseek-flash`");
+    expect(text).toContain("Compare this run only with runs whose provider, model and judge match");
+    expect(text).not.toMatch(/provisional/i);
     expect(text).toContain("sqlite-wal");
+    expect(runSetup(pinned)).toEqual({ provider: "grok", model: "grok:deepseek-flash", judge: "grok", judgeModel: "deepseek-flash" });
+    expect(runSetup({ ...meta, judge: { provider: "none" } }).judge).toBeNull();
+    expect(summaryMarkdown(meta, [])).toContain("`grok` (its configured default model)");
+    expect(summaryMarkdown({ ...meta, judge: { provider: "none" } }, [])).toContain("no rubric judge");
+  });
+});
+
+describe("the runner's defaults", () => {
+  it("runs mentors and judge on grok unless another provider is named", () => {
+    expect(DEFAULT_PROVIDER).toBe("grok");
+    expect(defaultMentorModel("grok")).toBe("grok:deepseek-flash");
+    expect(defaultMentorModel("agy")).toBeUndefined();
+  });
+
+  it("baseline.sh runs the official grok setup, with the other providers as options", () => {
+    const script = readFileSync(join(__dirname, "baseline.sh"), "utf8");
+    expect(script).toContain('PROVIDER="${LOCI_EVAL_PROVIDER:-grok}"');
+    expect(script).toContain('MODEL="grok:deepseek-flash"');
+    expect(script).toContain('--judge "${LOCI_EVAL_JUDGE:-grok}"');
+    expect(script).toContain("--provider \"$PROVIDER\"");
+    expect(script).not.toContain("--provider agy");
   });
 });
 

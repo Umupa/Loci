@@ -4,7 +4,7 @@
 // and writes eval/results/<timestamp>/. See docs/evaluation.md.
 //
 //   npm run eval -- --app com.loci.desktop.qa-eval --bin "/path/Loci Eval QA.app/Contents/MacOS/loci"
-//   npm run eval -- --scenario sqlite-wal --provider grok --judge grok
+//   npm run eval -- --scenario sqlite-wal --provider agy
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -13,6 +13,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { lociCli, LociCliError } from "../e2e/loci.mjs";
+import { DEFAULT_PROVIDER, defaultMentorModel } from "./defaults.mjs";
 import { DEFAULT_JUDGE_MODEL, judge, parseVerdict, probeProvider } from "./judge.mjs";
 import { nextMessage } from "./learner.mjs";
 import { providerErrorIn } from "./providerErrors.mjs";
@@ -35,7 +36,7 @@ const { values: opts } = parseArgs({
     scenario: { type: "string", multiple: true },
     app: { type: "string" },
     bin: { type: "string" },
-    provider: { type: "string", default: "agy" },
+    provider: { type: "string", default: DEFAULT_PROVIDER },
     model: { type: "string" },
     mode: { type: "string", default: "full-access" },
     judge: { type: "string" },
@@ -52,16 +53,19 @@ const { values: opts } = parseArgs({
   },
 });
 
+// Grok mentors start on the evaluation's pinned model; another provider keeps its own default.
+opts.model ??= defaultMentorModel(opts.provider);
+
 if (opts.help) {
-  console.log(`npm run eval -- [--scenario id]... [--app id] [--bin path] [--provider agy] [--model id]
-  [--judge agy|grok|claude|codex|none] [--judge-model id] [--judge-timeout min] [--max-turns n] [--max-minutes n] [--out dir] [--keep]
+  console.log(`npm run eval -- [--scenario id]... [--app id] [--bin path] [--provider grok] [--model id]
+  [--judge grok|agy|claude|codex|none] [--judge-model id] [--judge-timeout min] [--max-turns n] [--max-minutes n] [--out dir] [--keep]
 npm run eval -- --rescore eval/results/<timestamp> [--rejudge --judge grok]
   recompute checks and summary from saved artifacts, no app; --rejudge asks the judge again
 
 --app/LOCI_APP_ID names the Loci to drive (a QA build; never com.loci.desktop).
 --bin/LOCI_BIN is its loci executable. --provider is the mentors' agent CLI
-(default agy); --judge defaults to the same provider. Results go to
-eval/results/<timestamp>/ unless --out. See docs/evaluation.md.`);
+(default grok, grok:deepseek-flash); --judge defaults to the same provider.
+Results go to eval/results/<timestamp>/ unless --out. See docs/evaluation.md.`);
   process.exit(0);
 }
 
@@ -95,7 +99,7 @@ async function rescore(runDir) {
     writeFileSync(join(dir, "score.json"), `${JSON.stringify(score, null, 2)}\n`);
     let verdict = json(join(dir, "judge.json"), null);
     if (opts.rejudge && (!opts.scenario?.length || opts.scenario.includes(id)) && turns.some((entry) => entry.role === "mentor" && String(entry.text ?? "").trim())) {
-      const provider = opts.judge ?? meta.judge?.provider ?? "agy";
+      const provider = opts.judge ?? meta.judge?.provider ?? DEFAULT_PROVIDER;
       const model = opts["judge-model"] ?? DEFAULT_JUDGE_MODEL[provider];
       console.error(`${id}: judging again with ${provider}`);
       verdict = await judge({ scenario, checks: score, sources, courses, turns }, { provider, model, ...judgeTimeout() });
@@ -348,13 +352,13 @@ async function main() {
   if (!harness?.available) throw new Error(`${opts.provider} is not available in ${app}: ${JSON.stringify(harness ?? "unknown provider")}`);
   if (!opts["skip-probe"]) {
     // Only the judge runs a CLI directly. The mentors run through Loci's own adapter,
-    // which can work where print mode does not (agy -p fails its region check where
-    // Loci's Antigravity adapter answers); a mentor that cannot answer shows up as a failed turn.
+    // which can answer where print mode does not (Antigravity, for one); a mentor
+    // that cannot answer shows up as a failed turn.
     for (const provider of judgeProvider === "none" ? [] : [judgeProvider]) {
       const probe = await probeProvider(provider === "antigravity" ? "agy" : provider);
       if (probe.state !== "ok") {
         const hint = probe.state === "region"
-          ? "Antigravity refuses this account's region. Use a proxy exit in a supported region (system-wide, so Loci's adapter inherits it; restart the QA app), or sign in with an eligible account, then rerun."
+          ? `${provider} refuses this account's location. Use a proxy exit in a supported region (system-wide, so Loci's adapter inherits it; restart the QA app), sign in with an eligible account, or judge with --judge grok, then rerun.`
           : probe.state === "not-signed-in" ? `Sign in first (run \`${provider}\` once interactively), then rerun.`
           : probe.state === "missing" ? `Install the ${provider} CLI.` : "Run it by hand to see why.";
         throw new Error(`${provider} cannot run a turn (${probe.state}): ${probe.said.split("\n").slice(-2).join(" ")}\n${hint}`);
