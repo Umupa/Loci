@@ -125,7 +125,9 @@ export function AnnotationPopover({ annotation, anchor, onDismiss, onAsk, onSave
     </div>
     <footer className="pdf-annotation-popover__footer">
       <button type="button" onClick={() => onAsk(annotation)} className="pdf-annotation-popover__ask"><MessageSquarePlus className="size-3.5" />{askLabel}</button>
-      <button type="button" title="Delete annotation" aria-label="Delete annotation" disabled={pending} onClick={() => void run(async () => { await onDelete(annotation); onDismiss(); })}
+      <button type="button" title="Delete annotation" aria-label="Delete annotation" disabled={pending} onClick={() => {
+        if (window.confirm("Delete this highlight and its note?")) void run(async () => { await onDelete(annotation); onDismiss(); });
+      }}
         className="pdf-annotations__icon-button pdf-annotations__delete"><Trash2 className="size-3.5" /></button>
     </footer>
   </Popover>;

@@ -1,12 +1,20 @@
 import { appModels } from "../../features/agent-app/model/agentApp";
 import { courseItems, loadCourse, setLessonStatus, type LearningStatus } from "../../features/learning/model/course";
 import { deleteNote, getNote, NOTES_CHANGED_EVENT } from "../../features/notes";
+import { RELEASE_IDENTIFIER } from "../../features/updates/model/updates";
 import type { CommandContext } from "./context";
 import { mentorField, resolveMentor } from "./mentor";
 import { CommandError, field, type CommandDefinition, type CommandField } from "./registry";
 
 const id = (help = "Its id") => field("id", "string", help, { required: true, positional: true, max: 256 });
 const project = field("project", "string", "One of the mentor's folders, by path or name");
+const yes = field("yes", "boolean", "Do not ask (Loci Dev and QA builds only)");
+
+/** --yes is honoured away from the installed app; there Loci still asks. */
+async function confirmed(ctx: CommandContext, input: Record<string, unknown>, question: string): Promise<boolean> {
+  if (input.yes === true && (await ctx.identifier()) !== RELEASE_IDENTIFIER) return true;
+  return typeof window !== "undefined" && typeof window.confirm === "function" && window.confirm(question);
+}
 
 /** What a terminal calls a lesson's status; Loci stores "read" as mastered, with no test behind it. */
 const LESSON_STATUS: Record<string, LearningStatus> = { read: "mastered", reading: "learning", learning: "learning", untouched: "untouched", unread: "untouched" };
@@ -97,12 +105,14 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
   {
     name: "notes.delete",
     summary: "Delete one of the mentor's notes.",
-    fields: [mentorField(), id()],
+    fields: [mentorField(), id(), yes],
     callers: ["external"],
+    destructive: true,
     run: async (ctx, input, meta) => {
       const agent = resolveMentor(ctx, input.mentor, meta);
       const note = await getNote(input.id as string);
       if (!note || note.agentId !== agent.id) throw new CommandError("No such note for this mentor", "not_found");
+      if (!await confirmed(ctx, input, `Delete the note “${note.title || "Untitled"}”?`)) throw new CommandError("Not deleted: the question was declined", "declined");
       await deleteNote(note.id);
       window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
       return { id: note.id, deleted: true };

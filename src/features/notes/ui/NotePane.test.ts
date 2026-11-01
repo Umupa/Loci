@@ -24,6 +24,7 @@ beforeEach(() => {
       if (failSave) throw new Error("Disk unavailable");
       stored = { ...stored, ...args!.note!, updatedAt: 2 }; return stored;
     }
+    if (command === "notes_delete") return;
     throw new Error(command);
   });
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
@@ -60,6 +61,21 @@ it("keeps the editor and draft visible when saving fails before Back", async () 
   expect(host.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Revised thoughts");
   failSave = false;
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Back to notes"]')!.click());
+  expect(back).toHaveBeenCalledOnce();
+});
+
+it("asks before deleting a note and keeps it when the answer is no", async () => {
+  const confirm = vi.fn(() => false);
+  vi.stubGlobal("confirm", confirm);
+  await mount();
+  const deleting = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === "Delete")!;
+  await act(async () => deleting().click());
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Thoughts"));
+  expect(invoke).not.toHaveBeenCalledWith("notes_delete", expect.anything());
+  expect(back).not.toHaveBeenCalled();
+  confirm.mockReturnValueOnce(true);
+  await act(async () => deleting().click());
+  expect(invoke).toHaveBeenCalledWith("notes_delete", { id: "note-a" });
   expect(back).toHaveBeenCalledOnce();
 });
 

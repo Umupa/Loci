@@ -421,7 +421,9 @@ export function NoteEditor({
             </button>
             <button
               type="button"
-              onClick={() => { void remove(); }}
+              onClick={() => {
+                if (window.confirm(`Delete “${title.trim() || "Untitled"}”?`)) void remove();
+              }}
               className="inline-flex items-center gap-1.5 rounded-md px-3 h-7 text-[12px] text-content/70 hover:bg-content/10 hover:text-red-400"
             >
               <Trash2 className="size-3.5" strokeWidth={1.75} />

@@ -5,6 +5,11 @@ import { commandFailure } from "./registry";
 import { agent, testContext } from "./testContext";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => undefined) }));
+vi.mock("../../features/notes", async (load) => ({
+  ...await load<typeof import("../../features/notes")>(),
+  getNote: vi.fn(async (id: string) => ({ id, agentId: "a1", title: "Thoughts" })),
+  deleteNote: vi.fn(async () => undefined),
+}));
 
 const external = { requestId: "r1", caller: "external" as const };
 
@@ -46,6 +51,24 @@ describe("library commands", () => {
     await expect(runCommand(ctx, "courses.list", { mentor: "a1" }, { requestId: "r", caller: "agent", agentId: "a1" })).rejects.toMatchObject({ code: "usage" });
     await expect(runCommand(ctx, "courses.read", { mentor: "a1" }, external)).rejects.toMatchObject({ code: "usage", message: "id is required" });
     await expect(runCommand(ctx, "nothing.here", {}, external)).rejects.toMatchObject({ code: "usage" });
+  });
+
+  it("asks before deleting a note, and is marked destructive", async () => {
+    const { deleteNote } = await import("../../features/notes");
+    const { COMMANDS } = await import("./index");
+    expect(COMMANDS.get("notes.delete")?.destructive).toBe(true);
+    const confirm = vi.fn(() => false);
+    const dispatch = vi.fn();
+    vi.stubGlobal("window", { confirm, dispatchEvent: dispatch });
+    const { ctx } = testContext([agent("a1")]);
+    await expect(runCommand(ctx, "notes.delete", { mentor: "a1", id: "n1" }, external)).rejects.toMatchObject({ code: "declined" });
+    expect(confirm).toHaveBeenCalledWith("Delete the note “Thoughts”?");
+    expect(deleteNote).not.toHaveBeenCalled();
+    confirm.mockReturnValueOnce(true);
+    expect(await runCommand(ctx, "notes.delete", { mentor: "a1", id: "n1" }, external)).toEqual({ id: "n1", deleted: true });
+    expect(deleteNote).toHaveBeenCalledWith("n1");
+    expect(dispatch).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
   });
 
   it("list models without a mentor", async () => {

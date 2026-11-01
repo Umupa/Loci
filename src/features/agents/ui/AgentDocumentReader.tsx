@@ -80,6 +80,12 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
     };
   }, [agentId, document, reload]);
 
+  /** Gone for good, with the highlights and notes written in it: ask first. */
+  const removeFromLibrary = () => {
+    if (!agentId || !window.confirm(`Remove “${latest.title}” from the library? Its highlights and notes will no longer be reachable.`)) return;
+    void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause)));
+  };
+
   const saveAsNote = async () => {
     try {
       await upsertNote({ id: crypto.randomUUID(), title: latest.title, body: latest.body, tags: latest.subject ? [latest.subject] : [], ...(agentId ? { agentId } : {}) });
@@ -102,7 +108,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         </button>
         {agentId && stored ? (
           <button type="button" data-no-drag title="Remove from the library" aria-label="Remove from the library" className={iconButton}
-            onClick={() => void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause)))}>
+            onClick={removeFromLibrary}>
             <Trash2 className="size-3.5" strokeWidth={1.75} />
           </button>
         ) : null}
@@ -114,7 +120,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); void copyMessage(latest.body).then(() => { setCopied(true); setActionError(undefined); }, (cause) => setActionError(`Could not copy document: ${String(cause)}`)); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40">{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied ? "Copied" : "Copy document"}</button>
         {agentId ? <button type="button" role="menuitem" disabled={loading || !!error} onClick={() => { setMenu(false); setMarksOpen(true); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><Pencil className="size-3.5" />Highlights &amp; notes{marks ? ` (${marks})` : ""}</button> : null}
         <button type="button" role="menuitem" disabled={saved || loading || !!error} onClick={() => { setMenu(false); void saveAsNote(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-content/6 disabled:opacity-40"><StickyNote className="size-3.5" />{saved ? "Saved to Notes" : "Save as a note"}</button>
-        {agentId && stored ? <button type="button" role="menuitem" onClick={() => { setMenu(false); void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause))); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-400 hover:bg-content/6"><Trash2 className="size-3.5" />Remove from the library</button> : null}
+        {agentId && stored ? <button type="button" role="menuitem" onClick={() => { setMenu(false); removeFromLibrary(); }} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs text-red-400 hover:bg-content/6"><Trash2 className="size-3.5" />Remove from the library</button> : null}
       </Popover> : null}
       <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${embedded ? "px-7 py-6" : "px-6 pb-10 pt-2"} text-[14px] leading-relaxed`}>
         {loading ? <p role="status" className="py-4 text-xs text-content/50">Opening document…</p> : error ? <div role="alert" className="py-4 text-xs text-content/60"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : <DocumentBody document={latest} agentId={agentId} onMarks={setMarks}

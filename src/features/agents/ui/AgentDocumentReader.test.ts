@@ -36,6 +36,7 @@ beforeEach(() => {
     throw new Error(`Unexpected command: ${command}`);
   });
   vi.mocked(upsertNote).mockResolvedValue(undefined as never);
+  vi.stubGlobal("confirm", vi.fn(() => true));
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -100,6 +101,19 @@ it("follows revisions from its own library and saves the revised document", asyn
   expect(library.has("agent-a:network")).toBe(false);
   expect(library.has("agent-b:network")).toBe(true);
   expect(props.onClose).toHaveBeenCalledOnce();
+});
+
+it("keeps a library document when removing it is declined", async () => {
+  library.set("agent-a:network", { ...reading, createdAt: 1, updatedAt: 1 });
+  const confirm = vi.mocked(window.confirm);
+  confirm.mockReturnValueOnce(false);
+  props = { ...props, agentId: "agent-a" };
+  await render();
+  await act(async () => button("Remove from the library").click());
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Network strategy"));
+  expect(invoke).not.toHaveBeenCalledWith("agent_documents_delete", expect.anything());
+  expect(library.has("agent-a:network")).toBe(true);
+  expect(props.onClose).not.toHaveBeenCalled();
 });
 
 it("resets its saved state when switched to another document", async () => {

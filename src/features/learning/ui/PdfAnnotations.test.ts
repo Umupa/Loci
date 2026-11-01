@@ -56,13 +56,24 @@ describe("reading notes and discussions", () => {
 
   it("reopens the linked discussion and removes a mark through its visible controls", async () => {
     const onDelete = vi.fn(async () => {}); const onDismiss = vi.fn();
+    const confirm = vi.fn(() => true); vi.stubGlobal("confirm", confirm);
     const receive = vi.fn(); window.addEventListener(OPEN_LEARNING_DISCUSSION_EVENT, receive);
     await act(async () => root.render(createElement(PdfAnnotationPopover, { annotation, anchor: new DOMRect(100, 100, 10, 10), onAsk: vi.fn(), onSave: vi.fn(async () => {}), onDelete, onDismiss })));
     const discussion = [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Open discussion 1")!;
     await act(async () => discussion.click());
     expect((receive.mock.calls[0][0] as CustomEvent).detail).toEqual({ sessionId: "session", blockId: "block" });
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Delete annotation"]')!.click());
+    expect(confirm).toHaveBeenCalledWith("Delete this highlight and its note?");
     expect(onDelete).toHaveBeenCalledWith(annotation); expect(onDismiss).toHaveBeenCalledOnce();
     window.removeEventListener(OPEN_LEARNING_DISCUSSION_EVENT, receive);
+  });
+
+  it("keeps a highlight when deleting it is declined", async () => {
+    const onDelete = vi.fn(async () => {}); const onDismiss = vi.fn();
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    await act(async () => root.render(createElement(PdfAnnotationPopover, { annotation, anchor: new DOMRect(100, 100, 10, 10), onAsk: vi.fn(), onSave: vi.fn(async () => {}), onDelete, onDismiss })));
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Delete annotation"]')!.click());
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
   });
 });
