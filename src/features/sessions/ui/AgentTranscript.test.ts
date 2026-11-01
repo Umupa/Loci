@@ -54,6 +54,20 @@ describe("AgentTranscript turn status", () => {
         expect(switching).not.toContain("data-work-animated");
     });
 
+    it("names the provider a finished handoff continued with", () => {
+        const markup = render([
+            prompt,
+            {
+                id: "status-handoff", role: "handoff", text: "",
+                handoff: { from: "codex", to: "claude", status: "done" },
+            },
+            { id: "status-answer", role: "assistant", text: "Continuing here." },
+        ]);
+        const divider = markup.slice(markup.indexOf('role="separator"'));
+        expect(divider).toContain("Claude Code");
+        expect(divider).toContain('aria-label="Continued with Claude Code"');
+    });
+
     it("keeps hidden unfinished work live without declaring completion or playing motion", () => {
         const markup = renderToStaticMarkup(createElement(AgentTranscript, {
             blocks: [prompt], busy: true, visible: false,

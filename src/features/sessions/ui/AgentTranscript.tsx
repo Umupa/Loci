@@ -3735,6 +3735,7 @@ function HandoffDivider({ block }: { block: Block }) {
           ) : (
             <>
               <HarnessIcon harness={meta.to} className="size-3.5 shrink-0" />
+              <span className="min-w-0 truncate">{label}</span>
             </>
           )}
         </div>
