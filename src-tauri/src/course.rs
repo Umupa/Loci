@@ -128,7 +128,65 @@ struct Lesson {
         skip_serializing_if = "Option::is_none"
     )]
     commit: Option<String>,
+    /// A comparison lesson: the same mechanism read in 2–4 places, shown
+    /// one under another. It names no document or file of its own.
+    #[serde(
+        default,
+        deserialize_with = "compare_parts",
+        skip_serializing_if = "Option::is_none"
+    )]
+    compare: Option<Vec<ComparePart>>,
 }
+
+/// One place a comparison lesson reads: a file's lines (optionally pinned
+/// to a commit) or a library document's section, with a short label and an
+/// optional guide note by the mentor.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ComparePart {
+    label: String,
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    document: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    section: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    file: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "page_range",
+        skip_serializing_if = "Option::is_none"
+    )]
+    lines: Option<[u32; 2]>,
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    commit: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    note: Option<String>,
+}
+
+/// How many places a comparison reads, and how long its labels and notes are.
+pub(crate) const COMPARE_PARTS: std::ops::RangeInclusive<usize> = 2..=4;
+const COMPARE_LABEL_MAX: usize = 60;
+const COMPARE_NOTE_MAX: usize = 2000;
 
 #[derive(Serialize, Deserialize)]
 struct Chapter {
@@ -154,6 +212,12 @@ fn optional_text<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<String>, D::Error> {
     String::deserialize(deserializer).map(Some)
+}
+
+fn compare_parts<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Vec<ComparePart>>, D::Error> {
+    Vec::<ComparePart>::deserialize(deserializer).map(Some)
 }
 
 fn page_range<'de, D: serde::Deserializer<'de>>(
@@ -532,6 +596,81 @@ fn validate_id_text(id: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// A comparison lesson reads only its parts; each part is a file's lines or
+/// a document's section, as a lesson of its own would name them.
+fn validate_compare(lesson: &Lesson, parts: &[ComparePart]) -> Result<(), String> {
+    let id = &lesson.id;
+    if lesson.document.is_some()
+        || lesson.file.is_some()
+        || lesson.section.is_some()
+        || lesson.lines.is_some()
+        || lesson.pages.is_some()
+        || lesson.commit.is_some()
+    {
+        return Err(format!(
+            "Lesson {id}: a comparison names its places in compare, not document or file"
+        ));
+    }
+    if !COMPARE_PARTS.contains(&parts.len()) {
+        return Err(format!(
+            "Lesson {id}: a comparison has 2 to 4 parts, not {}",
+            parts.len()
+        ));
+    }
+    let mut labels = HashSet::new();
+    for (index, part) in parts.iter().enumerate() {
+        let at = format!("Lesson {id} part {}", index + 1);
+        let label = part.label.trim();
+        if label.is_empty() || label.chars().count() > COMPARE_LABEL_MAX {
+            return Err(format!(
+                "{at}: label must be 1 to {COMPARE_LABEL_MAX} characters"
+            ));
+        }
+        if !labels.insert(label.to_lowercase()) {
+            return Err(format!("{at}: label {label} is used twice"));
+        }
+        if part
+            .note
+            .as_ref()
+            .is_some_and(|note| note.trim().is_empty() || note.chars().count() > COMPARE_NOTE_MAX)
+        {
+            return Err(format!(
+                "{at}: note must be 1 to {COMPARE_NOTE_MAX} characters"
+            ));
+        }
+        match (&part.document, &part.file) {
+            (Some(document), None) => {
+                validate_id_text(document)?;
+                if part.lines.is_some() || part.commit.is_some() {
+                    return Err(format!("{at}: lines and commit belong to a file"));
+                }
+            }
+            (None, Some(file)) => {
+                if !std::path::Path::new(file).is_absolute() {
+                    return Err(format!("{at}: file must be an absolute path"));
+                }
+                if part.section.is_some() {
+                    return Err(format!("{at}: section belongs to a document"));
+                }
+            }
+            _ => return Err(format!("{at} must name exactly one of document or file")),
+        }
+        if part.lines.is_some_and(|[from, to]| from == 0 || to < from) {
+            return Err(format!("{at}: lines must be [first, last]"));
+        }
+        if part
+            .commit
+            .as_deref()
+            .is_some_and(|commit| !is_commit(commit))
+        {
+            return Err(format!(
+                "{at}: commit must be a commit id (7 to 40 hex digits)"
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn require_object_items(value: &serde_json::Value, field: &str) -> Result<(), String> {
     let items = value[field]
         .as_array()
@@ -595,6 +734,10 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
             }
             for lesson in lessons() {
                 require_text(&lesson.title, "lesson title")?;
+                if let Some(parts) = &lesson.compare {
+                    validate_compare(lesson, parts)?;
+                    continue;
+                }
                 match (&lesson.document, &lesson.file) {
                     (Some(document), None) => {
                         validate_id_text(document)?;
@@ -940,6 +1083,74 @@ mod tests {
             })
             .to_string(),
             ..build(agent, &["s01"])
+        }
+    }
+
+    #[test]
+    fn a_comparison_lesson_is_saved_and_its_mistakes_are_refused() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let sha = "3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e";
+        let lesson = json!({"id": "restore", "title": "Restoring", "compare": [
+            {"label": "E2B", "file": "/m/repos/e2b/restore.go", "lines": [40, 88], "commit": sha,
+             "note": "Reads the snapshot first."},
+            {"label": "Cube", "file": "/m/repos/cube/restore.rs", "lines": [3, 9]},
+            {"label": "Spec", "document": "virtio", "section": "Virtqueues"}
+        ]});
+        let with = |lesson: serde_json::Value| {
+            let mut course = reading("agent-a");
+            course.data_json =
+                json!({"chapters": [{"title": "C", "lessons": [lesson]}]}).to_string();
+            course
+        };
+        let saved = save_course(&conn, &with(lesson.clone())).unwrap();
+        let data: serde_json::Value = serde_json::from_str(&saved.data_json).unwrap();
+        assert_eq!(data["chapters"][0]["lessons"][0], lesson);
+        assert_eq!(item_count("reading", &saved.data_json), 1);
+        let part = |index: usize, field: &str, value: serde_json::Value| {
+            let mut changed = lesson.clone();
+            changed["compare"][index][field] = value;
+            changed
+        };
+        let mut one = lesson.clone();
+        one["compare"].as_array_mut().unwrap().truncate(1);
+        let mut five = lesson.clone();
+        for _ in 0..2 {
+            let extra = json!({"label": format!("X{}", five["compare"].as_array().unwrap().len()), "document": "d"});
+            five["compare"].as_array_mut().unwrap().push(extra);
+        }
+        let mut with_file = lesson.clone();
+        with_file["file"] = json!("/m/x.go");
+        let mut unnamed = lesson.clone();
+        unnamed["compare"][2]
+            .as_object_mut()
+            .unwrap()
+            .remove("document");
+        for (case, bad) in [
+            ("one part", one),
+            ("five parts", five),
+            ("a lesson file too", with_file),
+            ("no place", unnamed),
+            ("empty label", part(0, "label", json!(" "))),
+            ("same label", part(1, "label", json!("e2b"))),
+            ("long label", part(1, "label", json!("x".repeat(61)))),
+            ("empty note", part(1, "note", json!(""))),
+            (
+                "relative file",
+                part(1, "file", json!("repos/cube/restore.rs")),
+            ),
+            ("bad commit", part(0, "commit", json!("xyz"))),
+            ("bad lines", part(1, "lines", json!([9, 3]))),
+            ("document and file", part(2, "file", json!("/m/a.go"))),
+            ("section on a file", part(0, "section", json!("Intro"))),
+            ("lines on a document", part(2, "lines", json!([1, 2]))),
+            ("bad document", part(2, "document", json!("../x"))),
+            (
+                "not a list",
+                json!({"id": "restore", "title": "R", "compare": {"label": "A"}}),
+            ),
+        ] {
+            assert!(save_course(&conn, &with(bad)).is_err(), "{case}");
         }
     }
 

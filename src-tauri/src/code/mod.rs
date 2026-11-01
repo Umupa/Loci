@@ -21,7 +21,24 @@ pub fn expand_pins(data_json: &str) -> Result<String, String> {
         .flatten()
         .filter_map(|chapter| chapter.get_mut("lessons").and_then(Value::as_array_mut))
         .flatten();
+    // A comparison's parts are pinned as lessons are; their errors name the lesson.
+    let mut places: Vec<(String, &mut Value)> = Vec::new();
     for lesson in lessons {
+        let id = lesson
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("?")
+            .to_string();
+        if lesson.get("compare").is_some_and(Value::is_array) {
+            let parts = lesson["compare"].as_array_mut().into_iter().flatten();
+            for (index, part) in parts.enumerate() {
+                places.push((format!("{id} part {}", index + 1), part));
+            }
+        } else {
+            places.push((id, lesson));
+        }
+    }
+    for (id, lesson) in places {
         let (Some(file), Some(commit)) = (
             lesson
                 .get("file")
@@ -34,11 +51,6 @@ pub fn expand_pins(data_json: &str) -> Result<String, String> {
         ) else {
             continue;
         };
-        let id = lesson
-            .get("id")
-            .and_then(Value::as_str)
-            .unwrap_or("?")
-            .to_string();
         let Some(root) = git::repo_root(std::path::Path::new(&file)) else {
             return Err(format!(
                 "Lesson {id}: {file} is not in a git repository, so it cannot be pinned"
@@ -85,6 +97,31 @@ mod tests {
         assert!(super::expand_pins(&course("abcdef0"))
             .unwrap_err()
             .contains("fetch"));
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn comparison_parts_are_pinned_like_lessons() {
+        let dir = repo("expand-compare");
+        let sha = commit(&dir, &[("a.go", "package a\n")]);
+        let file = dir.join("a.go").to_string_lossy().into_owned();
+        let course = |commit: &str| {
+            serde_json::json!({"chapters": [{"title": "C", "lessons": [
+                {"id": "cmp", "title": "A", "compare": [
+                    {"label": "One", "file": file, "commit": commit},
+                    {"label": "Two", "document": "d"}
+                ]}
+            ]}]})
+            .to_string()
+        };
+        let expanded: serde_json::Value =
+            serde_json::from_str(&super::expand_pins(&course(&sha[..7])).unwrap()).unwrap();
+        assert_eq!(
+            expanded["chapters"][0]["lessons"][0]["compare"][0]["commit"],
+            sha.as_str()
+        );
+        let error = super::expand_pins(&course("abcdef0")).unwrap_err();
+        assert!(error.contains("cmp part 1"), "{error}");
         std::fs::remove_dir_all(dir).ok();
     }
 }
