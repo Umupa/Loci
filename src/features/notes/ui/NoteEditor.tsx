@@ -105,19 +105,32 @@ export function NoteEditor({
   const [mode, setMode] = useMarkdownMode(note.id);
   type Edits = Partial<Pick<Note, "title" | "body" | "tags">>;
   const [edits, setEdits] = useState<Edits>({});
-  const title = edits.title ?? note.title;
-  const body = edits.body ?? note.body;
-  const tags = edits.tags ?? note.tags;
+  // The version this editor is working on. It follows the disk while nothing
+  // is unsaved, and stays put while the conflict bar is waiting for an answer.
+  const [base, setBase] = useState(note);
+  const title = edits.title ?? base.title;
+  const body = edits.body ?? base.body;
+  const tags = edits.tags ?? base.tags;
   // Notes are no longer moved between projects; a note keeps the folder it was written in.
   const [projectChange] = useState<{ path: string } | null>(null);
-  const sourceCwd = projectChange?.path ?? note.sourceCwd;
+  const sourceCwd = projectChange?.path ?? base.sourceCwd;
   const [saveError, setSaveError] = useState<string | null>(null);
   const [imageDrag, setImageDrag] = useState(false);
   const [imageBusy, setImageBusy] = useState(false);
+  // The version on disk changed while this editor had unsaved edits: the
+  // editor keeps its own text until the user picks one.
+  const [diskChange, setDiskChange] = useState<Note | null>(null);
+  const diskChangeRef = useRef<Note | null>(null);
+  // The hash this editor last read or saved. A save names it, so a file
+  // changed on disk meanwhile is kept beside it as the conflict copy.
+  const expectedHash = useRef(note.hash);
+  // Bumped by Reload, so a save that was already on its way cannot put the
+  // editor's version back after the user chose the disk's.
+  const saveEpoch = useRef(0);
   const editsRef = useRef(edits);
   const bodyRef = useRef(body);
   const projectChangeRef = useRef(projectChange);
-  const noteRef = useRef(note);
+  const noteRef = useRef(base);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const sourceFieldRef = useRef<HTMLTextAreaElement>(null);
   const lastDropAt = useRef(0);
@@ -129,15 +142,38 @@ export function NoteEditor({
   const onDeleteRef = useRef(onDelete);
   onDeleteRef.current = onDelete;
   bodyRef.current = body;
-  noteRef.current = note;
+  noteRef.current = base;
   onSavedRef.current = onSaved;
-  const time = formatRelativeTime(new Date(note.updatedAt).toISOString());
+  const time = formatRelativeTime(new Date(base.updatedAt).toISOString());
 
   useEffect(() => {
     if (blank) setMode("source");
     // New untitled notes open in source so typing isn't behind the preview.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The open note changed on disk (another window, the mentor, an editor):
+  // with unsaved edits the user chooses which version to keep; without them
+  // the editor follows the disk silently.
+  useEffect(() => {
+    if (!note.hash || note.hash === expectedHash.current) return;
+    const pending = Object.keys(editsRef.current).length > 0 || projectChangeRef.current !== null;
+    if (!pending) {
+      expectedHash.current = note.hash;
+      noteRef.current = note;
+      setBase(note);
+      diskChangeRef.current = null;
+      setDiskChange(null);
+      return;
+    }
+    // Hold the debounced save until the bar is answered.
+    if (saveTimer.current != null) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    diskChangeRef.current = note;
+    setDiskChange(note);
+  }, [note]);
 
   const editNote = useCallback((change: Edits) => {
     if (change.title !== undefined) finalizeRef.current = null;
@@ -149,6 +185,7 @@ export function NoteEditor({
 
   const persist = useCallback(async (latest?: Note) => {
     if (skipSave.current) return;
+    const epoch = saveEpoch.current;
     const current = latest ?? noteRef.current;
     const changes = editsRef.current;
     const nextBody = changes.body ?? current.body;
@@ -157,7 +194,13 @@ export function NoteEditor({
     const nextTags = changes.tags ?? current.tags;
     const nextProject = projectChangeRef.current;
     const acceptSaved = (saved: Note) => {
+      // The user reloaded while this save was on its way.
+      if (epoch !== saveEpoch.current) return;
       noteRef.current = saved;
+      setBase(saved);
+      expectedHash.current = saved.hash;
+      diskChangeRef.current = null;
+      setDiskChange(null);
       // A completed save only clears the edits included in that request.
       const remaining = { ...editsRef.current };
       if (remaining.title === changes.title) delete remaining.title;
@@ -169,6 +212,9 @@ export function NoteEditor({
       if (projectChangeRef.current === nextProject) projectChangeRef.current = null;
       setSaveError(null);
     };
+    // The version this editor read; when the file changed on disk since,
+    // Rust keeps that version beside this one instead of losing it.
+    const expected = expectedHash.current;
     const finalizeRequest = finalizeRef.current;
     const finalizeSlug = finalizeRequest?.title === nextTitle;
     const unchanged =
@@ -190,12 +236,16 @@ export function NoteEditor({
             tags: nextTags,
             ...(finalizeSlug ? { finalizeSlug } : {}),
             ...(nextProject ? { sourceCwd: nextProject.path } : {}),
+            ...(expected ? { expectedHash: expected } : {}),
           });
       if (finalizeSlug && finalizeRef.current === finalizeRequest) {
         finalizeRef.current = null;
       }
       if (!saved) return;
       acceptSaved(saved);
+      // A Reload during this save already showed the disk version; do not
+      // report this one back as the note that is open.
+      if (epoch !== saveEpoch.current) return current;
       onSavedRef.current(saved);
       return saved;
     } catch (err: unknown) {
@@ -234,11 +284,40 @@ export function NoteEditor({
   }, [note.id, onActions, editNote, saveNow, remove]);
 
   const scheduleSave = useCallback(() => {
+    // The disk version is waiting for Reload or Keep mine.
+    if (diskChangeRef.current) return;
     if (saveTimer.current != null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
       saveTimer.current = null;
       void saveNow();
     }, 400);
+  }, [saveNow]);
+
+  /** Take the disk version, dropping this editor's unsaved edits. */
+  const reloadFromDisk = useCallback(() => {
+    const disk = diskChangeRef.current;
+    if (!disk) return;
+    if (saveTimer.current != null) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    saveEpoch.current += 1;
+    editsRef.current = {};
+    bodyRef.current = disk.body;
+    noteRef.current = disk;
+    expectedHash.current = disk.hash;
+    diskChangeRef.current = null;
+    setBase(disk);
+    setEdits({});
+    setSaveError(null);
+    setDiskChange(null);
+  }, []);
+
+  /** Write this editor's text; the disk version is kept beside it as a conflict copy. */
+  const keepMine = useCallback(() => {
+    diskChangeRef.current = null;
+    setDiskChange(null);
+    void saveNow();
   }, [saveNow]);
 
   const insertionRange = useCallback(() => {
@@ -364,7 +443,7 @@ export function NoteEditor({
 
   const canAddToChat = Boolean(body.trim());
   const draft: Note = {
-    ...note,
+    ...base,
     title: title.trim() || noteTitle(body),
     body,
     tags,
@@ -452,6 +531,29 @@ export function NoteEditor({
             </div>
           ) : null}
         </header>
+        {diskChange ? (
+          <div
+            role="alert"
+            className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-stroke bg-background-base pb-1.5 text-[12px] text-amber-400"
+          >
+            <span className="shrink-0">Changed on disk —</span>
+            <button
+              type="button"
+              onClick={reloadFromDisk}
+              className="h-6 shrink-0 rounded-md bg-content/10 px-2 text-[11px] text-content hover:bg-content/15"
+            >
+              Reload
+            </button>
+            <span aria-hidden className="text-content/35">·</span>
+            <button
+              type="button"
+              onClick={keepMine}
+              className="h-6 shrink-0 rounded-md bg-content/10 px-2 text-[11px] text-content hover:bg-content/15"
+            >
+              Keep mine
+            </button>
+          </div>
+        ) : null}
         <div
           role="tablist"
           aria-label="Note sections"

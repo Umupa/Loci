@@ -16,7 +16,7 @@ let failSave: boolean;
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); localStorage.clear(); vi.clearAllMocks();
-  stored = { id: "note-a", agentId: "agent-a", title: "Thoughts", slug: "thoughts", body: "Old idea", tags: [], slugPending: false, createdAt: 1, updatedAt: 1 };
+  stored = { id: "note-a", agentId: "agent-a", title: "Thoughts", slug: "thoughts", body: "Old idea", tags: [], slugPending: false, createdAt: 1, updatedAt: 1, hash: "h1" };
   failSave = false;
   invoke.mockImplementation(async (command: string, args?: { id?: string; note?: NoteUpsert }) => {
     if (command === "notes_get") return stored;
@@ -92,6 +92,60 @@ it("does not open another agent's note by ID", async () => {
   expect(host.textContent).toContain("This note is no longer available.");
 });
 
+
+async function diskChanges(change: Partial<Note>) {
+  stored = { ...stored, ...change };
+  await act(async () => window.dispatchEvent(new Event(NOTES_CHANGED_EVENT)));
+}
+
+function barAction(label: string) {
+  return [...host.querySelectorAll<HTMLButtonElement>('[role="alert"] button')]
+    .find((button) => button.textContent?.trim() === label);
+}
+
+it("offers Reload and Keep mine when the note changed on disk with unsaved edits", async () => {
+  await mount();
+  await editTitle();
+  await diskChanges({ title: "Disk thoughts", body: "Disk idea", hash: "h2", updatedAt: 2 });
+  const alert = host.querySelector('[role="alert"]');
+  expect(alert?.textContent).toContain("Changed on disk —");
+  expect(barAction("Reload")).toBeDefined();
+  expect(barAction("Keep mine")).toBeDefined();
+  // The user's text stays on screen until they choose.
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Revised thoughts");
+
+  await act(async () => barAction("Keep mine")!.click());
+  await act(async () => undefined);
+  // Yours went through naming the version this editor read, so Rust keeps the
+  // disk version beside it as the conflict copy.
+  expect(invoke).toHaveBeenCalledWith("notes_upsert", {
+    note: expect.objectContaining({ title: "Revised thoughts", expectedHash: "h1" }),
+  });
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(stored.title).toBe("Revised thoughts");
+});
+
+it("takes the disk version on Reload and drops the editor's edits", async () => {
+  await mount();
+  await editTitle();
+  await diskChanges({ title: "Disk thoughts", body: "Disk idea", hash: "h2", updatedAt: 2 });
+  await act(async () => barAction("Reload")!.click());
+  expect(host.querySelector('[aria-label="Note title"]')).toHaveProperty("value", "Disk thoughts");
+  expect(host.textContent).toContain("Disk idea");
+  expect(host.textContent).not.toContain("Revised thoughts");
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(invoke).not.toHaveBeenCalledWith("notes_upsert", expect.objectContaining({
+    note: expect.objectContaining({ title: "Revised thoughts" }),
+  }));
+});
+
+it("reloads silently when an open note changes on disk and nothing is unsaved", async () => {
+  await mount();
+  await diskChanges({ title: "Disk thoughts", body: "Disk idea", hash: "h2", updatedAt: 2 });
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Note title"]')?.value).toBe("Disk thoughts");
+  expect(host.textContent).toContain("Disk idea");
+});
 
 it("keeps an unsaved draft mounted when a background refresh cannot read the note", async () => {
   await mount(); await editTitle();
