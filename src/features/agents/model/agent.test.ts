@@ -13,6 +13,7 @@ import {
   removeAgent,
   removeAgentProject,
   reorderAgents,
+  saveAgentDefaults,
   saveAgentSessionId,
   updateAgent,
 } from "./agent";
@@ -53,6 +54,34 @@ it("goes by the user's name once it has one, and back when it is cleared", () =>
   updateAgent(id, (agent) => ({ ...agent, name: "  " }));
   expect(findAgent(id)?.name).toBeUndefined();
   expect(agentLook(findAgent(id)!).name).toBe("Ember");
+});
+
+it("keeps the defaults a mentor's next conversation starts with", () => {
+  const { id } = createAgent();
+  saveAgentDefaults(id, {
+    provider: "grok",
+    model: "grok:deepseek-flash",
+    mode: "full-access",
+    effort: "high",
+    modelSettings: { effort: "high" },
+  });
+  expect(findAgent(id)?.defaults).toEqual({
+    provider: "grok",
+    model: "grok:deepseek-flash",
+    mode: "full-access",
+    effort: "high",
+    modelSettings: { effort: "high" },
+  });
+  // Saying the same thing again does not rewrite the roster for every turn.
+  const written = localStorage.getItem("loci:agent-roster");
+  saveAgentDefaults(id, { ...findAgent(id)!.defaults! });
+  expect(localStorage.getItem("loci:agent-roster")).toBe(written);
+  // An unknown provider or permission mode is not read back.
+  localStorage.setItem("loci:agent-roster", JSON.stringify([
+    { id: "bad", avatar: "ember", color: "#000", projects: [], defaults: { provider: "nope", model: "x", mode: "full-access" } },
+    { id: "bad-mode", avatar: "dew", color: "#000", projects: [], defaults: { provider: "grok", model: "x", mode: "yolo" } },
+  ]));
+  expect(listAgents().map((agent) => agent.defaults)).toEqual([undefined, undefined]);
 });
 
 it("carries its one main job beside its name, and drops an empty one", () => {

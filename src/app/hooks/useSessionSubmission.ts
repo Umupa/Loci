@@ -57,6 +57,7 @@ import { isNativeCommandPrompt } from "../../features/skills/model/skills";
 import { loadFollowUpBehavior, type FollowUpBehavior } from "../../features/settings/model/settings";
 import { loadCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { agentForSession } from "../../features/agents/model/agent";
+import { saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
 import { agentTurn } from "../../features/agents/model/agentFiles";
 import { prepareAppTurn } from "../../features/agents/model/agentTurnContext";
 import { questionReplyText } from "../../features/sessions/model/standingQuestion";
@@ -1093,6 +1094,8 @@ export function useSessionSubmission(options: SubmissionOptions) {
     saveRecentModelChoice(resolved.harness, resolved.id);
     saveLastModelSettings(current.modelSettings, "fill");
     const settings = preferredModelSettings(resolved, current.modelSettings);
+    // A mentor's choice outlives this chat, also when it is empty and released.
+    saveSessionDefaults({ ...current, harness, model: resolved.id, modelSettings: settings });
     const plan = planComposerSwitch(current, harness);
     if (plan.kind === "empty") void forgetHarnessSession(plan.forget, sessionId);
     setSessions((previous) => previous.map((session) => {
@@ -1108,11 +1111,15 @@ export function useSessionSubmission(options: SubmissionOptions) {
 
   const changeModelSettings = useCallback((sessionId: string, modelSettings: Record<string, string>) => {
     saveLastModelSettings(modelSettings);
+    const current = sessionsRef.current.find((session) => session.id === sessionId);
+    if (current) saveSessionDefaults({ ...current, modelSettings });
     setSessions((previous) => previous.map((session) => session.id === sessionId ? { ...session, modelSettings } : session));
-  }, [setSessions]);
+  }, [sessionsRef, setSessions]);
   const changeRuntimeMode = useCallback((sessionId: string, runtimeMode: RuntimeMode) => {
+    const current = sessionsRef.current.find((session) => session.id === sessionId);
+    if (current) saveSessionDefaults({ ...current, runtimeMode });
     setSessions((previous) => previous.map((session) => session.id === sessionId ? { ...session, runtimeMode } : session));
-  }, [setSessions]);
+  }, [sessionsRef, setSessions]);
 
   const saveDraft = useCallback((sessionId: string, text: string, attachments: Attachment[] = [], appRequestIdOrContext?: string | LearningMessageContext) => {
     const appRequestId = typeof appRequestIdOrContext === "string" ? appRequestIdOrContext : undefined;

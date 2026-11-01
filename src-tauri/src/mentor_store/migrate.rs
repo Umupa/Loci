@@ -293,6 +293,18 @@ fn session_defaults(conn: &Connection, session: &str) -> rusqlite::Result<Option
             if let Some(effort) = settings.get("effort").filter(|e| e.is_string()) {
                 defaults["effort"] = effort.clone();
             }
+            // Every setting, so a catalog that has not loaded yet still seeds
+            // the conversation the 0.3 session ran with.
+            if let Some(settings) = settings.as_object() {
+                let settings: Map<String, Value> = settings
+                    .iter()
+                    .filter(|(_, value)| value.as_str().is_some_and(|v| !v.is_empty()))
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect();
+                if !settings.is_empty() {
+                    defaults["modelSettings"] = Value::Object(settings);
+                }
+            }
             Ok(defaults)
         },
     )
@@ -1027,6 +1039,8 @@ mod tests {
         assert_eq!(identity["folders"], json!(["/p"]));
         assert_eq!(identity["defaults"]["provider"], "claude");
         assert_eq!(identity["defaults"]["effort"], "high");
+        assert_eq!(identity["defaults"]["modelSettings"]["effort"], "high");
+        assert_eq!(identity["defaults"]["mode"], "full-access");
         assert_eq!(
             std::fs::read_to_string(lens.join("SOUL.md")).unwrap(),
             "soul"

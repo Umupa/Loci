@@ -16,7 +16,7 @@ import { editAgentFile, forgetAgentContext } from "../../features/agents/model/a
 import type { AgentTemplate } from "../../features/agents/templates";
 import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
-import { ensureAgentSession, resetAgentSession } from "../../features/agents/model/agentWorkspace";
+import { ensureAgentSession, resetAgentSession, saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
 import { ensureAgentWorkdir } from "../../features/agents/model/agentWorkdir";
 import { archiveOlderTurns, canArchive, loadTranscriptPage, planArchive, type TranscriptPage } from "../../features/agents/model/agentTranscript";
 import type { SessionRuntime } from "./useSessionRuntime";
@@ -203,6 +203,15 @@ export function useAgents(options: Options) {
     for (const agent of agents) {
       const chat = agent.sessionId ? sessions.find((session) => session.id === agent.sessionId) : undefined;
       if (chat && !chat.busy) saveAgentPreview(agent.id, agentPreview(chat));
+    }
+  }, [agents, sessions]);
+
+  // A chat opened from an older install (or changed elsewhere) also sets its
+  // mentor's stored defaults, so the next conversation keeps them.
+  useEffect(() => {
+    for (const agent of agents) {
+      const chat = agent.sessionId ? sessions.find((session) => session.id === agent.sessionId) : undefined;
+      if (chat) saveSessionDefaults(chat);
     }
   }, [agents, sessions]);
 

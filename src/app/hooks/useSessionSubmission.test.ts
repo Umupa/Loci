@@ -3,7 +3,8 @@ import { act,createElement,useRef,useState } from "react";
 import { createRoot,type Root } from "react-dom/client";
 import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 import { newSession,type Session } from "../../features/sessions/model/session";
-import { createAgent, saveAgentSessionId } from "../../features/agents/model/agent";
+import { createAgent, findAgent, saveAgentSessionId } from "../../features/agents/model/agent";
+import { resetHarnessModelOverlays, setHarnessModels } from "../../features/sessions/model/models";
 import { saveCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { saveFollowUpBehavior } from "../../features/settings/model/settings";
 import { registerHarness,resetHarnessIdlePark,type HarnessAdapter } from "../../integrations/harness/core/registry";
@@ -100,6 +101,7 @@ afterEach(async () => {
   await act(async () => root?.unmount());
   host?.remove();
   resetHarnessIdlePark();
+  resetHarnessModelOverlays();
 });
 
 describe("source-backed learning submissions", () => {
@@ -884,5 +886,36 @@ describe("agents that reach the built-in tools through the app's CLI", () => {
       expect(session().pendingQuestion).toBeUndefined();
       expect(pending).toHaveLength(1);
     });
+  });
+});
+
+describe("a mentor's chat keeps the choices its next conversation starts with", () => {
+  it("records provider, model, effort and permissions as they change", async () => {
+    setHarnessModels("grok", [
+      { id: "grok:deepseek-flash", harness: "grok", name: "DeepSeek Flash", nativeId: "deepseek-flash",
+        settings: [{ id: "effort", label: "Reasoning", kind: "select", value: "high",
+          options: [{ value: "high", label: "High" }, { value: "low", label: "Low" }] }] },
+    ]);
+    const mentor = createAgent();
+    const initial = { ...newSession("codex", "/x"), id: "mentor-chat" };
+    saveAgentSessionId(mentor.id, initial.id);
+    await mount(initial);
+    await act(async () => actions.changeModel(initial.id, "grok", "grok:deepseek-flash"));
+    expect(session()).toMatchObject({ harness: "grok", model: "grok:deepseek-flash" });
+    await act(async () => actions.changeModelSettings(initial.id, { effort: "low" }));
+    await act(async () => actions.changeRuntimeMode(initial.id, "auto"));
+    expect(findAgent(mentor.id)?.defaults).toEqual({
+      provider: "grok",
+      model: "grok:deepseek-flash",
+      mode: "auto",
+      effort: "low",
+      modelSettings: { effort: "low" },
+    });
+  });
+
+  it("leaves a chat that is not a mentor's alone", async () => {
+    await mount({ ...newSession("codex", "/x"), id: "plain-chat" });
+    await act(async () => actions.changeModel("plain-chat", "codex", "codex:other"));
+    expect(localStorage.getItem("loci:agent-roster")).toBeNull();
   });
 });

@@ -1,5 +1,13 @@
+import { modelEffortSetting, resolveModel } from "../../sessions/model/models";
 import { newSession, type Session } from "../../sessions/model/session";
-import { agentForSession, findAgent, saveAgentSessionId, type Agent } from "./agent";
+import {
+  agentForSession,
+  findAgent,
+  saveAgentDefaults,
+  saveAgentSessionId,
+  type Agent,
+  type MentorDefaults,
+} from "./agent";
 import {
   AGENT_ACCESS_MIGRATION,
   loadNewAgentAccess,
@@ -9,6 +17,62 @@ import { forgetAgentContext } from "./agentFiles";
 import { forgetAgentRotation } from "./agentRotation";
 
 const openingAgents = new Map<string, Promise<Session | undefined>>();
+
+/**
+ * The provider, model, effort and permission mode a chat runs with, as the
+ * mentor's `mentor.json` `defaults` keep them.
+ */
+export function defaultsFromSession(
+  session: Pick<Session, "harness" | "model" | "modelSettings" | "runtimeMode">,
+): MentorDefaults {
+  const setting = modelEffortSetting(resolveModel(session.harness, session.model));
+  const effort = setting ? session.modelSettings[setting.id] : undefined;
+  return {
+    provider: session.harness,
+    model: session.model,
+    mode: session.runtimeMode,
+    ...(effort ? { effort } : {}),
+    ...(Object.keys(session.modelSettings).length
+      ? { modelSettings: { ...session.modelSettings } }
+      : {}),
+  };
+}
+
+/**
+ * A fresh conversation that starts as the mentor's stored defaults say. The
+ * stored model and effort win over what the last one chosen anywhere or the
+ * catalogs (which may not have loaded yet) would pick.
+ */
+export function sessionFromDefaults(cwd: string, defaults: MentorDefaults): Session {
+  const storedModel = defaults.model.trim();
+  const created = newSession(defaults.provider, cwd, storedModel, defaults.mode);
+  // A catalog that has not loaded yet does not know a stored custom model;
+  // `newSession` would resolve it to the provider's default. Keep the id the
+  // provider accepted before.
+  const session: Session = storedModel && created.model !== storedModel
+    ? { ...created, model: storedModel }
+    : created;
+  if (defaults.modelSettings && Object.keys(defaults.modelSettings).length) {
+    return { ...session, modelSettings: { ...session.modelSettings, ...defaults.modelSettings } };
+  }
+  const setting = defaults.effort
+    ? modelEffortSetting(resolveModel(session.harness, session.model))
+    : undefined;
+  if (!setting || !setting.options.some((option) => option.value === defaults.effort))
+    return session;
+  return {
+    ...session,
+    modelSettings: { ...session.modelSettings, [setting.id]: defaults.effort! },
+  };
+}
+
+/** Keeps a mentor's stored defaults with its chat; other chats are left alone. */
+export function saveSessionDefaults(
+  session: Pick<Session, "id" | "harness" | "model" | "modelSettings" | "runtimeMode">,
+): void {
+  const agent = agentForSession(session.id);
+  if (agent) saveAgentDefaults(agent.id, defaultsFromSession(session));
+}
 
 /**
  * Load the agent's conversation without opening or replacing a workspace tab.
@@ -54,14 +118,16 @@ async function loadAgentSession(
   }
   const cwd = await host.workdir(agentId).catch(() => host.home());
   // Removed while its folder was looked up.
-  if (!findAgent(agentId)) return undefined;
-  const session: Session = {
-    ...host.create(cwd),
-    runtimeMode: loadNewAgentAccess(),
-  };
+  const updated = findAgent(agentId);
+  if (!updated) return undefined;
+  const session: Session = updated.defaults
+    ? sessionFromDefaults(cwd, updated.defaults)
+    : { ...host.create(cwd), runtimeMode: loadNewAgentAccess() };
   saveAgentSessionId(agentId, session.id);
   // A mentor created now took the current default; reopening it is not a migration.
   markAgentAccessMigrated(agentId);
+  // Held in `mentor.json`, so an empty chat that is released comes back the same.
+  saveAgentDefaults(agentId, defaultsFromSession(session));
   host.add(session);
   return session;
 }
@@ -73,9 +139,11 @@ async function loadAgentSession(
 function migrateAgentAccess(agent: Agent, session: Session): Session {
   if (agent.accessMigrated) return session;
   markAgentAccessMigrated(agent.id);
-  return session.runtimeMode === AGENT_ACCESS_MIGRATION
+  const migrated = session.runtimeMode === AGENT_ACCESS_MIGRATION
     ? session
     : { ...session, runtimeMode: AGENT_ACCESS_MIGRATION };
+  saveAgentDefaults(agent.id, defaultsFromSession(migrated));
+  return migrated;
 }
 
 /**
@@ -95,17 +163,20 @@ export async function resetAgentSession(
   },
 ): Promise<Session> {
   const agentId = agentForSession(current.id)?.id;
+  const agent = agentId ? findAgent(agentId) : undefined;
   const cwd = agentId && host.workdir
     ? await host.workdir(agentId).catch(() => current.cwd)
     : current.cwd;
   await host.stop(current.id);
-  const fresh = newSession(
-    current.harness,
-    cwd,
-    current.model,
-    current.runtimeMode,
-    current.modelSettings,
-  );
+  const fresh = agent?.defaults
+    ? sessionFromDefaults(cwd, agent.defaults)
+    : newSession(
+        current.harness,
+        cwd,
+        current.model,
+        current.runtimeMode,
+        current.modelSettings,
+      );
   // A failed deletion must leave the original conversation selected.
   await host.remove(current);
   forgetAgentContext(current.id);

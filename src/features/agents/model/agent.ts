@@ -1,7 +1,11 @@
 import { projectKey, projectName } from "../../../shared/lib/paths";
 import {
+  HARNESSES,
+  RUNTIME_MODES,
   hasPendingApproval,
   type Block,
+  type HarnessId,
+  type RuntimeMode,
   type Session,
 } from "../../sessions/model/session";
 import { turnActivity } from "../../sessions/model/turnProgress";
@@ -20,6 +24,20 @@ export const AGENT_COLORS = [
   "hsl(25 85% 58%)",
   "hsl(245 75% 65%)",
 ] as const;
+
+/**
+ * What a new conversation of a mentor starts with, kept in its `mentor.json`
+ * so a reset, an import or a released empty chat comes back the same way.
+ */
+export type MentorDefaults = {
+  provider: HarnessId;
+  model: string;
+  /** The model's effort setting, when it has one. */
+  effort?: string;
+  mode: RuntimeMode;
+  /** Every model setting the chat used (effort among them), for a catalog that has not loaded yet. */
+  modelSettings?: Record<string, string>;
+};
 
 /**
  * An agent is long-lived and its own: a name, a face and a color, one
@@ -60,6 +78,8 @@ export type Agent = {
    * also its workdir.
    */
   folder?: string;
+  /** Who its next conversation starts as: provider, model, effort, permissions. */
+  defaults?: MentorDefaults;
 };
 
 const ROSTER_KEY = "loci:agent-roster";
@@ -86,6 +106,27 @@ function newAgentId(): string {
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** A mentor's stored defaults, when they name a provider and permission mode this Loci knows. */
+function parseDefaults(value: unknown): MentorDefaults | undefined {
+  const entry = record(value);
+  const provider = entry.provider;
+  const model = entry.model;
+  const mode = entry.mode;
+  if (typeof provider !== "string" || typeof model !== "string" || typeof mode !== "string") return undefined;
+  if (!HARNESSES.includes(provider as HarnessId) || !RUNTIME_MODES.includes(mode as RuntimeMode)) return undefined;
+  const settings = record(entry.modelSettings);
+  const modelSettings = Object.fromEntries(
+    Object.entries(settings).filter((pair): pair is [string, string] => typeof pair[1] === "string" && !!pair[1]),
+  );
+  return {
+    provider: provider as HarnessId,
+    model,
+    mode: mode as RuntimeMode,
+    ...(typeof entry.effort === "string" && entry.effort ? { effort: entry.effort } : {}),
+    ...(Object.keys(modelSettings).length ? { modelSettings } : {}),
+  };
+}
+
 function parseAgent(value: unknown): Agent | undefined {
   const entry = record(value);
   if (typeof entry.id !== "string" || !/^[A-Za-z0-9-]+$/.test(entry.id))
@@ -96,6 +137,7 @@ function parseAgent(value: unknown): Agent | undefined {
   const name = text("name");
   const role = text("role");
   const workdir = text("workdir");
+  const defaults = parseDefaults(entry.defaults);
   return {
     id: entry.id,
     ...(sessionId ? { sessionId } : {}),
@@ -115,6 +157,7 @@ function parseAgent(value: unknown): Agent | undefined {
     ...(entry.useSidebarFolders === true ? { useSidebarFolders: true } : {}),
     ...(entry.accessMigrated === true ? { accessMigrated: true } : {}),
     ...(typeof entry.folder === "string" && entry.folder ? { folder: entry.folder } : {}),
+    ...(defaults ? { defaults } : {}),
   };
 }
 
@@ -217,6 +260,31 @@ function uniqueProjects(paths: readonly string[]): string[] {
     seen.add(key);
     return true;
   });
+}
+
+function sameSettings(left: Record<string, string> | undefined, right: Record<string, string> | undefined): boolean {
+  const keys = new Set([...Object.keys(left ?? {}), ...Object.keys(right ?? {})]);
+  for (const key of keys) if ((left ?? {})[key] !== (right ?? {})[key]) return false;
+  return true;
+}
+
+function sameDefaults(left: MentorDefaults | undefined, right: MentorDefaults): boolean {
+  return left?.provider === right.provider
+    && left.model === right.model
+    && left.mode === right.mode
+    && left.effort === right.effort
+    && sameSettings(left.modelSettings, right.modelSettings);
+}
+
+/**
+ * Records what the mentor's chat is set to now, so its next conversation
+ * (after a reset, an import, or the release of an empty one) starts the same.
+ * `mentor.json` is written by the roster sync.
+ */
+export function saveAgentDefaults(agentId: string, defaults: MentorDefaults): void {
+  const agent = findAgent(agentId);
+  if (!agent || sameDefaults(agent.defaults, defaults)) return;
+  updateAgent(agentId, (current) => ({ ...current, defaults }));
 }
 
 export function updateAgent(

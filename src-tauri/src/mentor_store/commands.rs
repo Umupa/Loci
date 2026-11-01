@@ -70,6 +70,9 @@ fn agent_json(record: &MentorRecord, identity: &Map<String, Value>) -> Value {
             .cloned()
             .unwrap_or_else(|| json!([])),
     );
+    if let Some(defaults) = identity.get("defaults") {
+        agent.insert("defaults".into(), defaults.clone());
+    }
     for key in LOCAL_FLAGS {
         if let Some(flag) = record.local.get(key) {
             agent.insert(key.into(), flag.clone());
@@ -77,6 +80,38 @@ fn agent_json(record: &MentorRecord, identity: &Map<String, Value>) -> Value {
     }
     agent.insert("folder".into(), json!(record.folder.to_string_lossy()));
     Value::Object(agent)
+}
+
+/// `defaults` from a roster entry, as `mentor.json` keeps them: the provider,
+/// model, permission mode and (when the model has one) the effort. An entry
+/// from an older window that does not carry them leaves the file's as they are.
+fn roster_defaults(entry: &Map<String, Value>) -> Option<Value> {
+    let defaults = entry.get("defaults")?.as_object()?;
+    let mut clean = Map::new();
+    for key in ["provider", "model", "mode", "effort"] {
+        if let Some(value) = defaults
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            clean.insert(key.into(), json!(value));
+        }
+    }
+    if let Some(settings) = defaults.get("modelSettings").and_then(Value::as_object) {
+        let settings: Map<String, Value> = settings
+            .iter()
+            .filter(|(_, value)| value.as_str().is_some_and(|v| !v.is_empty()))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+        if !settings.is_empty() {
+            clean.insert("modelSettings".into(), Value::Object(settings));
+        }
+    }
+    let complete = ["provider", "model", "mode"]
+        .iter()
+        .all(|key| clean.contains_key(*key));
+    complete.then_some(Value::Object(clean))
 }
 
 /// Folders in the root that hold a `mentor.json` this install does not know
@@ -236,6 +271,11 @@ pub fn sync(conn: &Connection, root: &Path, roster: &[Value]) -> Result<bool, St
             _ => {
                 identity.remove("folders");
             }
+        }
+        // Who its next conversation starts as, so a reset, an import or a
+        // released empty chat keeps the mentor's provider and permissions.
+        if let Some(defaults) = roster_defaults(entry) {
+            identity.insert("defaults".into(), defaults);
         }
         // A mentor named after it was made (the CLI names it in a second
         // step) moves to a folder of its name while nothing points at the old one.
@@ -731,6 +771,52 @@ mod tests {
         remove(&conn, "m-1").unwrap();
         assert!(load(&conn, &root).unwrap().is_empty());
         assert!(folder.join(REMOVED_MENTOR_FILE).is_file());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_mentors_defaults_are_written_to_mentor_json_and_read_back() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("defaults");
+        ready(&conn);
+        let roster = vec![json!({
+            "id": "m-1", "avatar": "ember", "name": "E2B Reader",
+            "defaults": {"provider": "grok", "model": "grok:deepseek-flash", "mode": "full-access",
+                         "effort": "high", "modelSettings": {"effort": "high"}}
+        })];
+        sync(&conn, &root, &roster).unwrap();
+        let folder = root.join("e2b-reader");
+        let identity = registry::read_identity(&folder).unwrap();
+        assert_eq!(identity["defaults"]["provider"], "grok");
+        assert_eq!(identity["defaults"]["model"], "grok:deepseek-flash");
+        assert_eq!(identity["defaults"]["mode"], "full-access");
+        assert_eq!(identity["defaults"]["effort"], "high");
+        assert_eq!(identity["defaults"]["modelSettings"]["effort"], "high");
+        // The window sees them, so a new chat can start from them.
+        let agents = load(&conn, &root).unwrap();
+        assert_eq!(agents[0]["defaults"], identity["defaults"]);
+        // A later change of model is written, and an entry without defaults
+        // (an older window) leaves the file's.
+        let changed = vec![json!({
+            "id": "m-1", "avatar": "ember", "name": "E2B Reader",
+            "defaults": {"provider": "grok", "model": "grok:other", "mode": "supervised"}
+        })];
+        assert!(sync(&conn, &root, &changed).unwrap());
+        let identity = registry::read_identity(&folder).unwrap();
+        assert_eq!(identity["defaults"]["model"], "grok:other");
+        assert_eq!(identity["defaults"]["mode"], "supervised");
+        assert!(identity["defaults"].get("effort").is_none());
+        sync(
+            &conn,
+            &root,
+            &[json!({"id": "m-1", "avatar": "ember", "name": "E2B Reader"})],
+        )
+        .unwrap();
+        assert_eq!(
+            registry::read_identity(&folder).unwrap()["defaults"]["model"],
+            "grok:other"
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 

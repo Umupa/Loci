@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { newSession, type Session } from "../../sessions/model/session";
-import { createAgent, findAgent, removeAgent, saveAgentSessionId } from "./agent";
+import { createAgent, findAgent, removeAgent, saveAgentDefaults, saveAgentSessionId } from "./agent";
 import { loadNewAgentAccess, markAgentAccessMigrated, saveNewAgentAccess } from "./agentAccess";
 import { planAgentContext, recordAgentContext } from "./agentFiles";
-import { ensureAgentSession, resetAgentSession } from "./agentWorkspace";
+import { defaultsFromSession, ensureAgentSession, resetAgentSession, sessionFromDefaults } from "./agentWorkspace";
 
 beforeEach(() => {
   const stored = new Map<string, string>();
@@ -109,6 +109,64 @@ it("moves a chat into the workdir when it is reset", async () => {
   expect(kept.cwd).toBe("/home/me/Loci/ember");
 });
 
+it("starts a new chat from the mentor's stored defaults, even when the catalog does not know the model yet", async () => {
+  const { id } = createAgent();
+  saveAgentDefaults(id, {
+    provider: "grok",
+    model: "grok:deepseek-flash",
+    mode: "full-access",
+    effort: "high",
+    modelSettings: { effort: "high" },
+  });
+  // The empty conversation a create makes is released, so `load` finds nothing.
+  const fresh = (await ensureAgentSession(id, host()))!;
+  expect(fresh).toMatchObject({
+    harness: "grok",
+    model: "grok:deepseek-flash",
+    runtimeMode: "full-access",
+    modelSettings: { effort: "high" },
+  });
+  // The conversation that is opened keeps the saved defaults on the mentor.
+  expect(findAgent(id)?.defaults?.model).toBe("grok:deepseek-flash");
+  // A saved chat is resumed as it is, without being re-seeded.
+  const again = host([fresh]);
+  expect(await ensureAgentSession(id, again)).toBe(fresh);
+});
+
+it("resets a mentor's chat to its stored defaults, and to the chat's own settings without them", async () => {
+  const withDefaults = createAgent();
+  saveAgentDefaults(withDefaults.id, {
+    provider: "codex", model: "codex:test", mode: "auto", effort: "high", modelSettings: { effort: "high" },
+  });
+  const chat = (await ensureAgentSession(withDefaults.id, host()))!;
+  expect(defaultsFromSession(chat).modelSettings).toEqual({ effort: "high" });
+  const fresh = await resetAgentSession(chat, {
+    stop: async () => undefined,
+    remove: async () => undefined,
+    replace: () => undefined,
+  });
+  expect(fresh).toMatchObject({ harness: "codex", model: "codex:test", runtimeMode: "auto" });
+
+  const plain = createAgent();
+  const own = (await ensureAgentSession(plain.id, host()))!;
+  const kept = await resetAgentSession(own, {
+    stop: async () => undefined,
+    remove: async () => undefined,
+    replace: () => undefined,
+  });
+  expect(kept).toMatchObject({ harness: own.harness, model: own.model, runtimeMode: own.runtimeMode });
+});
+
+it("builds a session from defaults without a catalog entry", () => {
+  const session = sessionFromDefaults("/home/me", {
+    provider: "grok",
+    model: "grok:magpie/custom-model",
+    mode: "supervised",
+    modelSettings: { effort: "low" },
+  });
+  expect(session).toMatchObject({ harness: "grok", model: "grok:magpie/custom-model", runtimeMode: "supervised", modelSettings: { effort: "low" } });
+});
+
 it("comes back to the same conversation, and starts over only when it is gone", async () => {
   const { id } = createAgent();
   const session = (await ensureAgentSession(id, host()))!;
@@ -141,6 +199,9 @@ it("resets the chat alone: a fresh conversation that is told who it is again", a
     model: "codex:other",
     modelSettings: { effort: "high" },
   };
+  saveAgentDefaults(id, {
+    provider: "codex", model: "codex:other", mode: "full-access", effort: "high", modelSettings: { effort: "high" },
+  });
   const files = { soulHash: "s", memoryHash: "m" };
   recordAgentContext(session.id, "thread-1", files);
   expect(planAgentContext(session.id, "thread-1", files).soul).toBe(false);
