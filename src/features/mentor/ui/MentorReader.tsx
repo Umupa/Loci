@@ -3,7 +3,7 @@ import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import { CoursePane } from "../../learning/ui/CoursePane";
 import { NotePane } from "../../notes/ui/NotePane";
-import type { Agent } from "../../agents/model/agent";
+import { agentLook, type Agent } from "../../agents/model/agent";
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { AgentDocumentReader } from "../../agents/ui/AgentDocumentReader";
 import type { MentorLesson, MentorPage } from "../model/mentorPage";
@@ -49,5 +49,5 @@ export function MentorReader({ agent, page, request, canvases, onClose, onLesson
       : <p role="status" className="mentor-reader-empty">This drawing is no longer available. <button type="button" className="underline" onClick={onClose}>Close</button></p>;
   }
   return <Suspense fallback={null}><FilePane key={page.path} path={page.path} cwd="" preview={false} focused onFocus={noop} onPin={noop}
-    onClose={onClose} onOpenFile={onOpenFile} onBeforeLeave={onBeforeLeave} /></Suspense>;
+    onClose={onClose} onOpenFile={onOpenFile} onBeforeLeave={onBeforeLeave} askLabel={`Ask ${agentLook(agent).name}`} /></Suspense>;
 }

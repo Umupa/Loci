@@ -71,6 +71,14 @@ describe("PDF passage workflows", () => {
     window.removeEventListener(ADD_TO_CHAT_EVENT, receive);
   });
 
+  it("names the mentor in the PDF selection menu, as reading its text does", async () => {
+    const onOpenFile = vi.fn();
+    await act(async () => root.render(createElement(FilePane, { path: "/book.pdf", cwd: "/", preview: false, focused: true, onFocus: vi.fn(), onPin: vi.fn(), onClose: vi.fn(), onOpenFile, askLabel: "Ask Ada" })));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    await selectPassage();
+    expect(button("Ask Ada")).toBeDefined();
+  });
+
   it("keeps a selected passage and opens its editable annotation", async () => {
     await show(); await selectPassage();
     await act(async () => button("Highlight").click());

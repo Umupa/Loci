@@ -53,6 +53,8 @@ type Props = {
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
   /** Shown as the window's one reader: leaving the page waits for unsaved edits. */
   onBeforeLeave?: (save: (() => Promise<boolean>) | null) => void;
+  /** "Ask Kern": the mentor beside the reader, for both text and PDF passages. */
+  askLabel?: string;
 };
 
 type Content =
@@ -65,7 +67,7 @@ type Content =
 
 const REVEAL_LABEL = IS_MAC ? "Reveal in Finder" : "Open containing folder";
 
-function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart, onBeforeLeave }: Props) {
+function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart, onBeforeLeave, askLabel = "Ask" }: Props) {
   const name = basename(path);
   const kind = fileKind(name);
   const [content, setContent] = useState<Content>({ status: "loading" });
@@ -457,8 +459,8 @@ function FilePaneComponent({ path, cwd, preview, focused, onFocus, onPin, onClos
         {annotationsOpen ? marks.list(() => setAnnotationsOpen(false)) : null}
       </div> : <div ref={bodyRef} className="min-h-0 min-w-0 flex-1" {...(content.status === "pdf" ? { "data-reading-text": "" } : {})}>{body}</div>}
       {content.status === "pdf"
-        ? <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`pdf:${path}`} toChat={pdfToChat} onMark={highlightPdfSelection} />
-        : <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`text:${path}:${diskText?.length ?? 0}`} askLabel={marks.askLabel}
+        ? <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`pdf:${path}`} askLabel={askLabel} toChat={pdfToChat} onMark={highlightPdfSelection} />
+        : <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`text:${path}:${diskText?.length ?? 0}`} askLabel={askLabel}
           toChat={marks.toChat} onMark={editing ? undefined : marks.onMark} />}
       {content.status === "text" ? marks.popover : null}
       {content.status === "pdf" && openAnnotation && annotations.find((annotation) => annotation.id === openAnnotation.id) ?
