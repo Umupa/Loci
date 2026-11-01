@@ -25,6 +25,9 @@ enum SourceLocation {
     File {
         path: String,
         lines: Option<[u32; 2]>,
+        /// The commit the passage was read at, for a pinned code lesson.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        commit: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         anchor: Option<TextAnchor>,
         #[serde(
@@ -323,11 +326,18 @@ fn check_source(source: &Source) -> Result<(), String> {
         SourceLocation::File {
             path,
             lines,
+            commit,
             anchor,
             annotation_id,
         } => {
             if !std::path::Path::new(path).is_absolute() {
                 return Err("Source files need an absolute path".into());
+            }
+            if commit
+                .as_deref()
+                .is_some_and(|c| !crate::course::is_commit(c))
+            {
+                return Err("Invalid source commit".into());
             }
             if lines.is_some_and(|[first, last]| first == 0 || last < first) {
                 return Err("Invalid source lines".into());
@@ -1020,6 +1030,7 @@ mod tests {
         annotation.source.location = SourceLocation::File {
             path: "/src/main.rs".into(),
             lines: Some([3, 4]),
+            commit: Some("0123abc".into()),
             anchor: None,
             annotation_id: Some("file-mark".into()),
         };
@@ -1103,6 +1114,7 @@ mod tests {
                 SourceLocation::File {
                     path: file.clone(),
                     lines: None,
+                    commit: None,
                     anchor: None,
                     annotation_id: None,
                 },

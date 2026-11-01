@@ -1,5 +1,6 @@
 import type { LearningMessageContext, LearningSource, TextAnchor } from "./types";
 import { registerLearningSource, linkAnnotationDiscussion } from "./learningStore";
+import { isCommit } from "./codeRef";
 
 export function mergeLearningContext(current: LearningMessageContext, incoming: LearningMessageContext): LearningMessageContext {
   const sources = [...(current.sources ?? [])];
@@ -13,7 +14,7 @@ export function mergeLearningContext(current: LearningMessageContext, incoming: 
 
 export function learningSourceLabel(source: LearningSource): string {
   if (source.kind === "pdf") return `${source.title} · p. ${source.anchors.map((anchor) => anchor.page).join(", ")}`;
-  if (source.kind === "file" && source.lines) return `${source.title} · L${source.lines[0]}–${source.lines[1]}`;
+  if (source.kind === "file" && source.lines) return `${source.title} · L${source.lines[0]}–${source.lines[1]}${source.commit ? ` @${source.commit.slice(0, 7)}` : ""}`;
   if (source.kind === "document" && source.section) return `${source.title} · ${source.section}`;
   return source.title;
 }
@@ -75,7 +76,8 @@ export function sanitizeLearningContext(value: unknown): LearningMessageContext 
     if (source.kind === "conversation" && typeof source.sessionId === "string" && typeof source.blockId === "string") return [{ ...base, kind: "conversation", sessionId: source.sessionId, blockId: source.blockId }];
     if (source.kind === "file" && typeof source.path === "string") {
       const lines = source.lines;
-      return [{ ...base, kind: "file", path: source.path, ...(Array.isArray(lines) && lines.length === 2 && lines.every((line) => Number.isInteger(line) && line > 0) ? { lines: lines as [number, number] } : {}), ...extra(source) }];
+      return [{ ...base, kind: "file", path: source.path, ...(Array.isArray(lines) && lines.length === 2 && lines.every((line) => Number.isInteger(line) && line > 0) ? { lines: lines as [number, number] } : {}),
+        ...(typeof source.commit === "string" && isCommit(source.commit) ? { commit: source.commit } : {}), ...extra(source) }];
     }
     if (source.kind === "document" && typeof source.agentId === "string" && ID.test(source.agentId) && typeof source.documentId === "string" && ID.test(source.documentId)) {
       let url: string | undefined;
