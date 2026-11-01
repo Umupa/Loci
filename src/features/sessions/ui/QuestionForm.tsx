@@ -362,7 +362,7 @@ function QuestionFields({
                     setHighlighted(optionIndex);
                     onSelect(option.id);
                   }}
-                  className={`flex w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
+                  className={`flex w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring ${
                     active
                       ? "border-content/35 bg-selection"
                       : "border-content/10 hover:bg-content/5"

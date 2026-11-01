@@ -224,7 +224,7 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
               event.currentTarget.blur();
             }
           }}
-          className="h-5 w-10 rounded bg-content/10 px-1 text-center tabular-nums text-content outline-none focus:ring-1 focus:ring-accent"
+          className="h-5 w-10 rounded bg-content/10 px-1 text-center tabular-nums text-content outline-none focus:ring-1 focus:ring-accent-ring"
         />
         <span className="tabular-nums">/ {doc?.numPages ?? "—"}</span>
         <span className="flex-1" />

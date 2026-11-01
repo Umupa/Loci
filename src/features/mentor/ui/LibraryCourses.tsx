@@ -117,7 +117,7 @@ function CourseView({ agent, name, courses, current, activeId, onOpen, onSelect,
     {course && next && next.id !== activeId ? <div className="library-continue" data-library-continue={next.id}>
       <p className="library-continue-label">Continue reading</p>
       <p className="library-continue-title" title={next.title}>{next.title}</p>
-      <button type="button" className="library-continue-button primary-action" onClick={() => openLesson(current.id, course.title, next.id)}>Continue →</button>
+      <button type="button" className="library-continue-button" onClick={() => openLesson(current.id, course.title, next.id)}>Continue</button>
     </div> : null}
     {course ? <LibraryOutline course={course} activeId={activeId} onSelect={(itemId) => openLesson(current.id, course.title, itemId)}
       badge={badge ? (lessonId) => badge(current.id, lessonId) : undefined} /> : null}

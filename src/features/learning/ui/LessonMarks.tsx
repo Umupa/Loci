@@ -68,6 +68,7 @@ export function LessonMarks({ agentId, courseId, lessonId }: { agentId: string; 
   if (!count?.highlights) return null;
   const label = markLabel(count);
   return <span className="lesson-marks" title={label} data-lesson-marks={count.highlights}>
+    <i aria-hidden className="lesson-marks__dot" />
     <span aria-hidden="true">{count.highlights}</span>
     {count.notes ? <i aria-hidden className="lesson-marks__note" /> : null}
     <span className="sr-only">{label}</span>

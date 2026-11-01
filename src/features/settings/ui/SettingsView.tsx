@@ -878,7 +878,7 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
     }, [onApply, onDisable, onError, recording]);
     return (<div className="relative w-40 shrink-0">
       <div className="flex items-center gap-0.5">
-        <input type="text" readOnly aria-label={t("Change {0} shortcut", name)} data-shortcut-recorder-active={recording ? "true" : undefined} aria-busy={busy || undefined} value={recording || busy ? preview || t("Record…") : (display ?? t("Disabled"))} onFocus={beginRecording} onClick={beginRecording} onBlur={() => setRecording(false)} className={`h-6 w-28 shrink-0 truncate rounded-md border bg-transparent px-1.5 py-0 font-mono text-[11px] leading-none outline-none focus:border-accent ${busy ? "opacity-50" : ""} ${display === null
+        <input type="text" readOnly aria-label={t("Change {0} shortcut", name)} data-shortcut-recorder-active={recording ? "true" : undefined} aria-busy={busy || undefined} value={recording || busy ? preview || t("Record…") : (display ?? t("Disabled"))} onFocus={beginRecording} onClick={beginRecording} onBlur={() => setRecording(false)} className={`h-6 w-28 shrink-0 truncate rounded-md border bg-transparent px-1.5 py-0 font-mono text-[11px] leading-none outline-none focus:border-accent-ring ${busy ? "opacity-50" : ""} ${display === null
             ? "border-dashed border-content/15 text-content/35"
             : "border-content/15 text-content/80 hover:bg-content/10"}`}/>
         {resetVisible ? (<button type="button" aria-label={t("Reset {0} shortcut", name)} disabled={busy} onClick={() => void run(onReset)} className="rounded-md px-1 py-1 text-content/35 hover:bg-content/10 hover:text-content disabled:opacity-50">
@@ -1053,7 +1053,7 @@ function ProviderBinaryControl({ provider, }: {
             }
             setOpen((value) => !value);
             setEditing(false);
-        }} className={`grid size-6 place-items-center rounded hover:bg-content/10 focus-visible:outline-2 focus-visible:outline-accent ${restartRequired ? "text-amber-300" : "text-content/35 hover:text-content"}`}>
+        }} className={`grid size-6 place-items-center rounded hover:bg-content/10 focus-visible:outline-2 focus-visible:outline-accent-ring ${restartRequired ? "text-amber-300" : "text-content/35 hover:text-content"}`}>
         <FolderOpen className="size-3.5" strokeWidth={1.75}/>
       </button>
       {open ? (<Popover id={`${provider}-binary-popover`} role="dialog" aria-label={t("{0} CLI details", title)} aria-busy={working} tabIndex={-1} anchor={root} side="bottom" align="start" width={440} className="p-3" autoFocus onKeyDown={(event) => {
@@ -1094,7 +1094,7 @@ function ProviderBinaryControl({ provider, }: {
           {editing ? (<form className="mt-2" onSubmit={submit}>
               <label htmlFor={`${provider}-binary-path`} className="text-[11px] text-content/50">
                 {t("CLI path")}</label>
-              <input id={`${provider}-binary-path`} ref={editInput} type="text" value={draft} placeholder={inspection?.path ?? t("Auto-detected path")} disabled={working} autoFocus onChange={(event) => setDraft(event.target.value)} className="mt-1.5 h-8 w-full rounded-md border border-content/10 bg-content/[0.04] px-2 font-mono text-[11px] text-content outline-none placeholder:font-sans placeholder:text-content/35 focus:border-accent/45 disabled:opacity-50"/>
+              <input id={`${provider}-binary-path`} ref={editInput} type="text" value={draft} placeholder={inspection?.path ?? t("Auto-detected path")} disabled={working} autoFocus onChange={(event) => setDraft(event.target.value)} className="mt-1.5 h-8 w-full rounded-md border border-content/10 bg-content/[0.04] px-2 font-mono text-[11px] text-content outline-none placeholder:font-sans placeholder:text-content/35 focus:border-accent-ring/45 disabled:opacity-50"/>
               <p className="mt-1.5 text-[10px] text-content/40">
                 {t("Enter the absolute path to the CLI executable. Changes apply after restarting Loci.")}
               </p>
@@ -1618,7 +1618,7 @@ function Select({ label, value, options, onChange, }: {
         }
     };
     return (<div ref={root} className="relative max-w-52">
-      <button type="button" ref={trigger} aria-label={`${label}: ${selected?.label ?? value}`} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((prev) => !prev)} className="flex w-full items-center justify-between gap-2 rounded-md border border-content/10 bg-content/5 px-2 py-1 text-left text-[12px] text-content outline-none hover:border-content/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
+      <button type="button" ref={trigger} aria-label={`${label}: ${selected?.label ?? value}`} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((prev) => !prev)} className="flex w-full items-center justify-between gap-2 rounded-md border border-content/10 bg-content/5 px-2 py-1 text-left text-[12px] text-content outline-none hover:border-content/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring">
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
           {selected?.icon ? (<span className="grid size-4 shrink-0 place-items-center">
               {selected.icon}
@@ -1665,7 +1665,7 @@ function VersionRow() {
  return <Row id="version" label={<span className="flex items-baseline gap-2">{t("Version")}<span className="font-mono text-[12px] text-content/45">{version}</span></span>} description={updates ? name : t("{0} is built from source and does not update itself. Its data is kept apart from the installed Loci.", name)}>
    <div className="flex flex-col items-end gap-1.5">
      {updates ? (<button type="button" onClick={onCheck} disabled={checking} className="shrink-0 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 hover:bg-content/10 hover:text-content disabled:opacity-50">{checking ? t("Checking…") : t("Check for Updates")}</button>) : null}
-     {pending ? (<span className="flex flex-wrap items-center justify-end gap-1.5 text-right text-[12px] leading-snug text-content/55"><span role="status">{t("Loci {0} is available.", pending.version)}</span><button type="button" onClick={() => openUpdatePrompt()} className="rounded px-1 py-0.5 font-medium text-accent hover:bg-accent/10">{t("View update")}</button></span>) : null}
+     {pending ? (<span className="flex flex-wrap items-center justify-end gap-1.5 text-right text-[12px] leading-snug text-content/55"><span role="status">{t("Loci {0} is available.", pending.version)}</span><button type="button" onClick={() => openUpdatePrompt()} className="rounded px-1 py-0.5 font-medium text-accent-text hover:bg-accent/10">{t("View update")}</button></span>) : null}
      {note ? (<span role="status" className="text-right text-[12px] leading-snug text-content/45">{note}</span>) : null}
    </div>
  </Row>;

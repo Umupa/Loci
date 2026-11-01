@@ -2,20 +2,25 @@
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   margin-left: auto;
-  margin-top: 1px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: rgb(253 224 71 / 0.16);
+  margin-top: 2px;
   color: color-mix(in srgb, var(--color-content) 55%, transparent);
-  font-size: 10px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   line-height: 16px;
+}
+.lesson-marks__dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-mark);
 }
 .lesson-marks__note {
   width: 4px;
   height: 4px;
+  flex: none;
   border-radius: 999px;
-  background: rgb(217 119 6 / 0.85);
+  background: color-mix(in srgb, var(--color-mark) 75%, transparent);
 }

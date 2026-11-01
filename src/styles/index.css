@@ -64,7 +64,13 @@
     var(--color-content) var(--selection-emphasis-strength),
     transparent
   );
-  --color-accent: hsl(211 92% 62%);
+  /* The accent is a fill first: white text on it passes 4.5:1. `-ring` is the
+     brighter hue for focus outlines, `-text` the readable form as text. */
+  --color-accent: hsl(211 70% 44%);
+  --color-accent-ring: hsl(211 92% 62%);
+  --color-accent-text: hsl(211 92% 68%);
+  /* The learner's highlighter: only things they marked carry this hue. */
+  --color-mark: hsl(48 90% 62%);
   --color-skill: #e8c547;
   --color-mention: #38bdf8;
   /* Settings > Appearance > Fonts sets --font-*-user in front of the system stack. */
@@ -143,6 +149,7 @@ html.theme-light {
   --background-lightness: 97%;
   --content-lightness: 18%;
   --link-color: hsl(211 92% 40%);
+  --color-accent-text: hsl(211 92% 36%);
   --color-skill: #a07c10;
   --color-mention: #0284c7;
   --color-markdown-heading: #be185d;
@@ -1310,7 +1317,7 @@ header[data-tauri-drag-region] button {
 }
 
 .sidebar-opacity-slider:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--color-accent-ring);
   outline-offset: 4px;
 }
 
@@ -3131,7 +3138,7 @@ html.theme-light [data-work-check] {
 }
 
 [data-work-fold]:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent) 70%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent-ring) 70%, transparent);
   outline-offset: 2px;
 }
 

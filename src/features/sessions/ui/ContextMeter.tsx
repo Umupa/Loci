@@ -71,7 +71,7 @@ export function ContextMeter({
           aria-label={`${headline}, ${detail}. Open context actions`}
           aria-expanded={actionsOpen}
           onClick={() => setOpen((value) => !value)}
-          className="-m-1 flex items-center gap-1.5 rounded-sm p-1 outline-none focus-visible:ring-1 focus-visible:ring-accent"
+          className="-m-1 flex items-center gap-1.5 rounded-sm p-1 outline-none focus-visible:ring-1 focus-visible:ring-accent-ring"
         >
           {ratio === null ? null : <MeterRing ratio={ratio} />}
           {detailed ? <MeterText usage={usage} ratio={ratio} /> : null}

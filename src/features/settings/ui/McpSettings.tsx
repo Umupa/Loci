@@ -92,7 +92,7 @@ function McpPicker<T extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="mt-1 flex h-8 w-full items-center gap-2 rounded-md border border-content/10 bg-content/5 px-2 text-left text-[12px] text-content outline-none hover:border-content/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+        className="mt-1 flex h-8 w-full items-center gap-2 rounded-md border border-content/10 bg-content/5 px-2 text-left text-[12px] text-content outline-none hover:border-content/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring"
       >
         {selected?.icon}
         <span className="min-w-0 flex-1 truncate">
@@ -150,7 +150,7 @@ function McpPicker<T extends string>({
                 setOpen(false);
                 trigger.current?.focus();
               }}
-              className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] focus-visible:outline-2 focus-visible:outline-accent ${value === option.value ? "bg-selection text-content" : "text-content hover:bg-content/5"}`}
+              className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] focus-visible:outline-2 focus-visible:outline-accent-ring ${value === option.value ? "bg-selection text-content" : "text-content hover:bg-content/5"}`}
             >
               {option.icon}
               <span className="min-w-0 flex-1 truncate">{option.label}</span>

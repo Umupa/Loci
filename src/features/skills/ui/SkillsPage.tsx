@@ -331,7 +331,7 @@ export function SkillsPage({
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            className="mr-auto min-w-0 truncate rounded text-left font-sans text-[12px] text-content hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            className="mr-auto min-w-0 truncate rounded text-left font-sans text-[12px] text-content hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring"
                             title={t("Preview {0}", skill.name)}
                             ref={registerPreviewButton(`name:${skill.path}`)}
                             aria-controls={previewOpen ? previewId : undefined}
@@ -386,7 +386,7 @@ export function SkillsPage({
                             aria-controls={previewOpen ? previewId : undefined}
                             aria-expanded={previewSkill?.path === skill.path}
                             onClick={() => onPreview(skill, "icon")}
-                            className="grid size-5 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            className="grid size-5 shrink-0 place-items-center rounded text-content/40 hover:bg-content/10 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring"
                           >
                             <Eye
                               className="size-3"
@@ -443,7 +443,7 @@ export function SkillsPage({
                 aria-label={t("Close skill preview")}
                 title={t("Close preview (Escape)")}
                 onClick={() => setPreviewSkill(null)}
-                className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="grid size-6 shrink-0 place-items-center rounded-md text-content/45 hover:bg-content/10 hover:text-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring"
               >
                 <X className="size-3.5" strokeWidth={1.75} />
               </button>

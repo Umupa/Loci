@@ -29,7 +29,7 @@ html.theme-light [data-agent-rail-phase="updated"] .mentor-rail-signal { color: 
 .mentor-rail-update { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 999px; color: var(--color-accent); }
 .mentor-rail-update:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); }
 .mentor-rail-update-dot { width: 8px; height: 8px; border-radius: 999px; background: currentColor; box-shadow: 0 0 0 2px var(--color-background-base); }
-.mentor-rail button:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-accent) 65%, transparent); outline-offset: 1px; }
+.mentor-rail button:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-accent-ring) 65%, transparent); outline-offset: 1px; }
 
 [data-agent-rail-dots] > span { width: 2px; height: 2px; border-radius: 50%; background-color: currentColor; animation: agent-rail-think 1.6s ease-in-out infinite; }
 [data-agent-rail-dots] > span:nth-child(2) { animation-delay: 160ms; }

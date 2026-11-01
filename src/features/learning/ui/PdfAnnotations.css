@@ -340,7 +340,7 @@
 
 .pdf-annotations button:focus-visible,
 .pdf-annotation-popover button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent) 60%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent-ring) 60%, transparent);
   outline-offset: 2px;
 }
 
@@ -350,8 +350,8 @@
 }
 
 /* Text highlights are painted with the CSS Custom Highlight API: the text itself is never wrapped or changed. */
-::highlight(loci-mark) { background-color: rgb(253 224 71 / 0.42); }
-::highlight(loci-mark-selected) { background-color: rgb(251 191 36 / 0.55); }
+::highlight(loci-mark) { background-color: color-mix(in srgb, var(--color-mark) 42%, transparent); }
+::highlight(loci-mark-selected) { background-color: color-mix(in srgb, var(--color-mark) 58%, transparent); }
 ::highlight(loci-flash) { background-color: rgb(96 165 250 / 0.4); }
 
 /* The list dropping from a reader's menu, rather than beside a PDF. */

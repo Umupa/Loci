@@ -1260,7 +1260,7 @@ function TurnMetricsBadge({
         tabIndex={0}
         aria-label={`Turn metrics: ${label}`}
         title="Turn metrics"
-        className="grid rounded-md p-1 text-content/40 outline-none hover:bg-content/8 hover:text-content/70 focus-visible:ring-1 focus-visible:ring-accent"
+        className="grid rounded-md p-1 text-content/40 outline-none hover:bg-content/8 hover:text-content/70 focus-visible:ring-1 focus-visible:ring-accent-ring"
       >
         <ChartBreakoutSquare className="size-3.5" strokeWidth={1.75} />
       </span>
@@ -1525,7 +1525,7 @@ function EditLastTurnButton({
         event.stopPropagation();
         onEdit();
       }}
-      className={`rounded-md p-1 transition-[background-color,color] duration-150 focus-visible:ring-1 focus-visible:ring-accent ${
+      className={`rounded-md p-1 transition-[background-color,color] duration-150 focus-visible:ring-1 focus-visible:ring-accent-ring ${
         editing
           ? "edit-last-turn-button"
           : "text-content/40 hover:bg-content/8 hover:text-content/70"

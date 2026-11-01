@@ -685,7 +685,7 @@ export function ModelPicker({
           </span>
         ) : null}
         {fastModeEnabled ? (
-          <Zap className="size-3.5 shrink-0 text-accent" strokeWidth={1.75} />
+          <Zap className="size-3.5 shrink-0 text-accent-text" strokeWidth={1.75} />
         ) : null}
         <ChevronDown
           className={`size-3 shrink-0 text-content/50 ${open ? "rotate-180" : ""}`}

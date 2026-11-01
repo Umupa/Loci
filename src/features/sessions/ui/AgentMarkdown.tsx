@@ -523,7 +523,7 @@ function PreviewableImage({ src, alt = "", onLoad, onError, onClick, onKeyDown, 
       tabIndex={enabled ? 0 : props.tabIndex}
       aria-label={enabled ? `Preview image${alt ? `: ${alt}` : ""}` : props["aria-label"]}
       aria-haspopup={enabled ? "dialog" : undefined}
-      className={`${props.className ?? ""}${enabled ? " cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" : ""}`}
+      className={`${props.className ?? ""}${enabled ? " cursor-zoom-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-ring" : ""}`}
       onLoad={(event) => { setLoadedSrc(event.currentTarget.naturalWidth > 0 && typeof src === "string" ? src : undefined); onLoad?.(event); }}
       onError={(event) => { setLoadedSrc(undefined); setPreview(undefined); onError?.(event); }}
       onClick={(event) => { onClick?.(event); if (!event.defaultPrevented) open(event.currentTarget); }}
@@ -980,7 +980,7 @@ function MermaidBlock({
       tabIndex={0}
       aria-label="Open Mermaid diagram full screen"
       title="Open Mermaid diagram full screen"
-      className="mermaid-block cursor-zoom-in overflow-x-auto rounded-[10px] border border-content/10 bg-content/6 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="mermaid-block cursor-zoom-in overflow-x-auto rounded-[10px] border border-content/10 bg-content/6 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring"
       data-streamdown="mermaid-block"
       dir="ltr"
       onClick={(event) => {

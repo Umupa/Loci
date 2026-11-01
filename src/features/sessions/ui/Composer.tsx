@@ -2138,7 +2138,7 @@ export function Composer({
                         </span>
                       </span>
                       {draftActive ? (
-                        <Check className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                        <Check className="mt-0.5 size-3.5 shrink-0 text-accent-text" />
                       ) : null}
                     </button>
                   ) : null}
@@ -2225,7 +2225,7 @@ export function Composer({
                 aria-label="Stop editing last message"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={exitEditMode}
-                className="edit-last-turn-button flex h-6.5 shrink-0 items-center gap-1 rounded-md border border-current/20 px-2 text-[11px] font-medium transition-[background-color,color,border-color] hover:border-current/35 hover:bg-content/15 hover:text-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                className="edit-last-turn-button flex h-6.5 shrink-0 items-center gap-1 rounded-md border border-current/20 px-2 text-[11px] font-medium transition-[background-color,color,border-color] hover:border-current/35 hover:bg-content/15 hover:text-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-ring"
               >
                 <X className="size-3" strokeWidth={1.8} />
                 <span>Cancel edit</span>
