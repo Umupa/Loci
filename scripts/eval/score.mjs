@@ -9,6 +9,7 @@
 import { quoteInText } from "../../src/features/learning/model/textAnchor.ts";
 import { sectionHeadingIndex } from "../../src/shared/lib/markdown/markdownSection.ts";
 import { fileResourcePath, parseAppResourceUrl } from "../../src/shared/lib/appResourceLinks.ts";
+import { questionCount } from "./learner.mjs";
 
 /** Inline Markdown (links, emphasis, code, tags) reduced to its text. */
 function flattenInline(text) {
@@ -250,7 +251,7 @@ export function scoreRun(run, files) {
   const quoted = citations.filter((citation) => citation.quoted);
   const probe = replies.find((turn) => turn.probe);
   const probeCitations = citations.filter((citation) => citation.probe);
-  const questionCounts = replies.filter((turn) => !turn.probe).map((turn) => (String(turn.text).replace(/```[\s\S]*?```/g, "").match(/[?？]/g) ?? []).length);
+  const questionCounts = replies.filter((turn) => !turn.probe).map((turn) => questionCount(turn.text));
 
   return {
     sources: {

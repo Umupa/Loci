@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM without types
-import { FALLBACK, NUDGE, asksSomething, nextMessage, topicsOf, questionsIn } from "./learner.mjs";
+import { FALLBACK, NUDGE, asksSomething, nextMessage, questionCount, topicsOf, questionsIn } from "./learner.mjs";
 // @ts-expect-error plain ESM without types
 import { checkCitation, checkLessons, citationsIn, flattenMarkdown, headingsOf, isFirstParty, orderProblems, quoteResolves, scoreRun, summarySignals } from "./score.mjs";
 // @ts-expect-error plain ESM without types
@@ -38,6 +38,14 @@ describe("the scripted learner", () => {
     const state = { used: {}, hasCourse: false, nudged: false };
     expect(nextMessage("I'll look for material.", { answers }, state)).toMatchObject({ text: NUDGE, nudge: true });
     expect(nextMessage("Still looking.", { answers }, state).done).toBe(true);
+  });
+
+  it("reads questions asked as a loci-question card, which is a code fence", () => {
+    const card = 'WAL has several paths.\n\n```loci-question\n{"questions":[{"id":"target","header":"Learning target","question":"What is the real target behind properly?","options":[{"label":"Mechanism mastery (Recommended)"}]}]}\n```\n\nMy read: mechanism first.';
+    expect(asksSomething(card)).toBe(true);
+    expect(questionsIn(card)).toEqual(["Learning target: What is the real target behind properly?"]);
+    expect(questionCount(card)).toBe(1);
+    expect(nextMessage(card, { answers }, { used: {}, hasCourse: false, nudged: false })).toMatchObject({ text: "Fix SQLITE_BUSY.", topics: ["goal"] });
   });
 
   it("ignores question marks inside code", () => {
