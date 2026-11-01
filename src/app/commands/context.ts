@@ -27,9 +27,9 @@ export type CommandContext = {
   agentChat(id: string): Promise<Session>;
   /**
    * Reads these providers' model catalogs now, as opening the model picker
-   * does, waiting only a few seconds for slow CLIs.
+   * does. It waits a few seconds by default; `patient` waits for the probe.
    */
-  refreshModels(harnesses: readonly HarnessId[]): Promise<void>;
+  refreshModels(harnesses: readonly HarnessId[], options?: { patient?: boolean }): Promise<void>;
   /** A session the window holds in memory. */
   liveSession(id: string): Session | undefined;
   submission: Pick<SessionSubmission, "submit" | "stopSessionWork" | "changeModel" | "changeModelSettings" | "changeRuntimeMode">;

@@ -53,7 +53,8 @@ export function useCommandContext(options: Options): CommandContext {
       if (!session) throw new CommandError("The mentor's conversation could not be opened");
       return session;
     },
-    refreshModels: (harnesses) => refreshHarnessCatalogs(harnesses, { timeoutMs: CATALOG_WAIT_MS }),
+    refreshModels: (harnesses, options) =>
+      refreshHarnessCatalogs(harnesses, options?.patient ? {} : { timeoutMs: CATALOG_WAIT_MS }),
     liveSession: (id) => latest.current.runtime.sessionsRef.current.find((session) => session.id === id),
     get submission() { return latest.current.submission; },
     flushPersistence: () => latest.current.runtime.flushPersistence(),

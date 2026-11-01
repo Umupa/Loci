@@ -4,7 +4,7 @@ import { deleteNote, getNote, NOTES_CHANGED_EVENT } from "../../features/notes";
 import { HARNESSES } from "../../features/sessions/model/session";
 import { RELEASE_IDENTIFIER } from "../../features/updates/model/updates";
 import type { CommandContext } from "./context";
-import { mentorField, resolveMentor } from "./mentor";
+import { mentorField, refreshModelsFor, resolveMentor } from "./mentor";
 import { providerId } from "./mentors";
 import { CommandError, field, type CommandDefinition, type CommandField } from "./registry";
 
@@ -47,7 +47,7 @@ function forMentor(
       // has been read, as opening the model picker would have done.
       if (options.refreshModelCatalog && (rest.harness !== undefined || rest.model !== undefined || rest.effort !== undefined)) {
         const harness = rest.harness !== undefined ? providerId(String(rest.harness)) : chat.harness;
-        await ctx.refreshModels([harness]);
+        await refreshModelsFor(ctx, harness, rest.model);
       }
       return ctx.agentApp(chat, meta.requestId, action, { ...defaults, ...rest });
     },

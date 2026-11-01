@@ -56,6 +56,14 @@ describe("library commands", () => {
     expect(ctx.refreshModels).toHaveBeenCalledWith(["grok"]);
   });
 
+  it("waits for a slow catalog before starting on a model it has not seen yet", async () => {
+    const { ctx } = testContext([agent("a1")]);
+    ctx.refreshModels = vi.fn(async () => undefined);
+    await runCommand(ctx, "sessions.start", { mentor: "a1", prompt: "Build it", harness: "grok", model: "grok:custom" }, external);
+    expect(ctx.refreshModels).toHaveBeenNthCalledWith(1, ["grok"]);
+    expect(ctx.refreshModels).toHaveBeenNthCalledWith(2, ["grok"], { patient: true });
+  });
+
   it("are refused to callers they are not for, and validate fields", async () => {
     const { ctx } = testContext([agent("a1")]);
     await expect(runCommand(ctx, "courses.list", { mentor: "a1" }, { requestId: "r", caller: "agent", agentId: "a1" })).rejects.toMatchObject({ code: "usage" });

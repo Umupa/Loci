@@ -51,6 +51,19 @@ describe("mentors create and update", () => {
     expect(ctx.submission.changeModel).toHaveBeenLastCalledWith(chatOf("a1").id, "claude", "claude:custom");
   });
 
+  it("waits for a slow catalog before refusing a model it has not seen yet", async () => {
+    const mentors = [agent("a1", "Kern")];
+    const { ctx, chatOf } = testContext(mentors);
+    // A cold provider probe outlasts the CLI's short wait; its model arrives late.
+    ctx.refreshModels = vi.fn(async ([harness], options) => {
+      if (options?.patient) setHarnessModels(harness, [{ id: `${harness}:custom`, harness, name: "Custom" }]);
+    });
+    await runCommand(ctx, "mentors.update", { mentor: "a1", provider: "grok", model: "grok:custom" }, external);
+    expect(ctx.refreshModels).toHaveBeenNthCalledWith(1, ["grok"]);
+    expect(ctx.refreshModels).toHaveBeenNthCalledWith(2, ["grok"], { patient: true });
+    expect(ctx.submission.changeModel).toHaveBeenCalledWith(chatOf("a1").id, "grok", "grok:custom");
+  });
+
   it("refuse unknown templates and settings before creating anything", async () => {
     const { ctx } = testContext([]);
     await expect(runCommand(ctx, "mentors.create", { template: "nope" }, external)).rejects.toMatchObject({ code: "usage" });

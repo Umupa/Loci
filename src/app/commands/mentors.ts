@@ -8,7 +8,7 @@ import { modelEffortSetting, modelsFor, preferredModelId, resolveModel } from ".
 import { HARNESSES, RUNTIME_MODES, type Block, type HarnessId, type RuntimeMode, type Session } from "../../features/sessions/model/session";
 import { RELEASE_IDENTIFIER } from "../../features/updates/model/updates";
 import type { CommandContext } from "./context";
-import { mentorField, resolveMentor } from "./mentor";
+import { mentorField, refreshModelsFor, resolveMentor } from "./mentor";
 import { CommandError, field, type CommandDefinition, type CommandMeta } from "./registry";
 
 /** Names people use for a provider, beside Loci's own ids. */
@@ -61,9 +61,7 @@ async function applySettings(ctx: CommandContext, agent: Agent, settings: Settin
   if (chat.busy) throw new CommandError("The mentor is busy; change its model or permissions when it is idle", "busy");
   if (harness || settings.model) {
     const target = harness ?? chat.harness;
-    // A CLI-only model name (grok's custom models, say) is known once the
-    // provider's catalog has been read; the picker would have done this on open.
-    await ctx.refreshModels([target]);
+    await refreshModelsFor(ctx, target, settings.model);
     const model = settings.model
       ? modelsFor(target).find((entry) => entry.id === settings.model)
       : resolveModel(target, target === chat.harness ? chat.model : preferredModelId(target));
