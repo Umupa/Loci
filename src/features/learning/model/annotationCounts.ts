@@ -1,4 +1,4 @@
-import { lessonPlaces, type CourseLesson, type CourseWithProgress } from "./course";
+import type { CourseLesson, CourseWithProgress } from "./course";
 import { getReadingDocumentByPath, queryAnnotations } from "./learningStore";
 import type { Annotation, AnnotationTarget } from "./types";
 
@@ -52,7 +52,7 @@ export async function lessonAnnotations(course: Pick<CourseWithProgress, "agentI
   if (course.data.engine !== "reading") return result;
   const lessons = course.data.chapters.flatMap((chapter) => chapter.lessons);
   // A comparison's marks are those of each of its parts.
-  const places = lessons.flatMap((lesson) => lessonPlaces(lesson).map((place) => ({ lesson: lesson.id, place })));
+  const places = lessons.flatMap((lesson) => (lesson.compare ?? [lesson]).map((place) => ({ lesson: lesson.id, place })));
   const targets = await Promise.all(places.map(({ place }) => lessonTarget(course.agentId, place)));
   const unique = targets.filter((target, index): target is AnnotationTarget => !!target && targets.findIndex((other) => other && sameTarget(other, target)) === index);
   const marks = await queryAnnotations(unique);
