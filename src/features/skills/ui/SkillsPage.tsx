@@ -30,9 +30,15 @@ import {
 /** Inspect and manage file skills without modifying provider-owned catalogs. */
 export function SkillsPage({
   cwd,
+  userOnly = false,
   header,
 }: {
   cwd: string;
+  /**
+   * Settings has no open project: scan the user's own folders only, so their
+   * skills keep the personal scope and the page does not promise a project.
+   */
+  userOnly?: boolean;
   header?: ReactNode;
 }): ReactNode {
   useLocale();
@@ -128,7 +134,7 @@ export function SkillsPage({
     let cancelled = false;
     setSkills(null);
     setError(null);
-    listSkills(cwd)
+    listSkills(cwd, undefined, userOnly)
       .then((next) => {
         if (cancelled) return;
         setSkills(next);
@@ -141,7 +147,7 @@ export function SkillsPage({
     return () => {
       cancelled = true;
     };
-  }, [cwd, reload]);
+  }, [cwd, reload, userOnly]);
 
   useEffect(() => {
     const onChange = (): void => setDisabledPaths(loadDisabledSkillPaths());
@@ -223,7 +229,9 @@ export function SkillsPage({
                 <span className="shrink-0 text-[12px] text-content/40 tabular-nums">
                   {skills == null
                     ? "…"
-                    : `${filtered.length} ${filtered.length === 1 ? "skill" : "skills"}`}
+                    : filtered.length === 1
+                      ? t("{0} skill", filtered.length)
+                      : t("{0} skills", filtered.length)}
                 </span>
                 <label className="flex h-7 w-52 min-w-0 flex-1 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
                   <Search className="size-3.5 shrink-0" strokeWidth={1.75} />
@@ -413,7 +421,9 @@ export function SkillsPage({
             )}
 
             <p className="pt-3 text-[12px] text-content/40">
-              {t("Hidden skills stay on disk and are excluded from Loci's file-skill catalog. Provider-managed skills and native commands are unaffected. Skills live in .agents/skills for this project and ~/.agents/skills for you personally; harness folders are also picked up.")}
+              {userOnly
+                ? t("Hidden skills stay on disk and are excluded from Loci's file-skill catalog. Provider-managed skills and native commands are unaffected. Your skills live in ~/.agents/skills; harness folders are also picked up.")
+                : t("Hidden skills stay on disk and are excluded from Loci's file-skill catalog. Provider-managed skills and native commands are unaffected. Skills live in .agents/skills for this project and ~/.agents/skills for you personally; harness folders are also picked up.")}
             </p>
           </div>
         </div>

@@ -48,8 +48,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         id: "agents",
         group: "agents",
         get label() { return t("Your mentors"); },
-        get description() { return t("Long-lived agents on the project rail: whether they are shown, and the ones you have."); },
-        keywords: "agent persistent memory soul habits schedule rail reset",
+        get description() { return t("The permissions a new mentor starts with, and the mentors you have. Each opens its own settings."); },
+        keywords: "agent persistent memory soul habits schedule rail reset mentor",
     },
     {
         id: "chat",
@@ -76,8 +76,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         id: "skills",
         group: "agents",
         get label() { return t("Skills"); },
-        get description() { return t("Discover and manage file skills from project, personal, and harness folders."); },
-        keywords: "skill instructions prompt",
+        get description() { return t("Discover and manage the skills in your own folders and your harness folders."); },
+        keywords: "skill instructions prompt skills",
     },
 ];
 export function settingsSectionsByGroup(): {
@@ -127,6 +127,18 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "loci cli terminal token access tests external agent path install",
     },
     {
+        id: "token",
+        section: "general",
+        get label() { return t("Token"); },
+        keywords: "rotate secret credential command line cli access",
+    },
+    {
+        id: "reset-workspace",
+        section: "general",
+        get label() { return t("Reset workspace"); },
+        keywords: "delete clear wipe erase fresh start mentors conversations courses data",
+    },
+    {
         id: "sounds",
         section: "general",
         get label() { return t("Sounds"); },
@@ -164,7 +176,7 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         id: "color-theme",
         section: "appearance",
         get label() { return t("Color theme"); },
-        keywords: "omarchy palette wallpaper catppuccin gruvbox tokyo night nord rose pine everforest kanagawa matte black white dark light colors",
+        keywords: "omarchy palette wallpaper catppuccin gruvbox tokyo night nord rose pine everforest kanagawa matte black white dark light colors themes",
     },
     {
         id: "theme",
@@ -207,6 +219,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         section: "appearance",
         get label() { return t("Interface font"); },
         keywords: "typeface sans system font ui text",
+    },
+    {
+        id: "fonts",
+        section: "appearance",
+        get label() { return t("Fonts"); },
+        keywords: "font typeface family omarchy code interface monospace fonts",
     },
     {
         id: "sidebar-opacity",
@@ -280,6 +298,12 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         get label() { return t("Claude Code hooks"); },
         keywords: "pretooluse settings.json block command notification",
     },
+    {
+        id: "shortcuts",
+        section: "keybindings",
+        get label() { return t("Shortcuts"); },
+        keywords: "shortcut hotkey keyboard binding keybinding keys shortcuts",
+    },
 ];
 export type SettingsSearchResult = {
     section: SettingsSectionId;
@@ -288,14 +312,22 @@ export type SettingsSearchResult = {
     settingId: string | null;
     label: string;
 };
+/** Splits a label or keyword list into words, keeping CJK runs whole. */
+function words(text: string): string[] {
+    return text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+}
+/** True when a word starts with the needle, so "font" reaches "Fonts". */
+function startsAWord(text: string, needle: string): boolean {
+    return words(text).some((word) => word.startsWith(needle));
+}
 /** Ranks a label/keyword pair against a lowercased needle; `null` means no match. */
 function matchScore(needle: string, label: string, keywords?: string): number | null {
     const lower = label.toLowerCase();
     if (lower.startsWith(needle))
         return 0;
-    if (lower.includes(needle))
+    if (lower.includes(needle) || startsAWord(lower, needle))
         return 1;
-    if (keywords?.toLowerCase().includes(needle))
+    if (keywords?.toLowerCase().includes(needle) || (keywords != null && startsAWord(keywords, needle)))
         return 2;
     return null;
 }

@@ -522,3 +522,40 @@ describe("Settings skill preview", () => {
     expect(button("Reveal Personal guide in file explorer")).toBeDefined();
   });
 });
+
+describe("Settings scans only the user's skills", () => {
+  it("asks for user skills and describes the personal folders", async () => {
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "list_skills") return skills.filter((skill) => skill.scope === "user");
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    await act(async () =>
+      root.render(createElement(SkillsPage, { cwd: "~", userOnly: true })),
+    );
+    expect(invoke).toHaveBeenCalledWith("list_skills", {
+      cwd: "~",
+      disabledPaths: null,
+      userOnly: true,
+    });
+    expect(container.textContent).toContain("2 skills");
+    expect(container.textContent).toContain("Your skills live in ~/.agents/skills");
+    expect(container.textContent).not.toContain("for this project");
+    // The user's own skill keeps the personal badge that Settings shows.
+    expect(container.textContent).toContain("Personal");
+  });
+
+  it("creates into the personal folder without offering a project scope", async () => {
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "list_skills") return [];
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    await act(async () =>
+      root.render(createElement(SkillsPage, { cwd: "~", userOnly: true })),
+    );
+    await click("Add skill");
+    const scopeButtons = [...container.querySelectorAll("button")].filter(
+      (item) => item.textContent?.startsWith("Project") || item.textContent?.startsWith("Personal"),
+    );
+    expect(scopeButtons.map((item) => item.firstElementChild?.textContent)).toEqual(["Personal"]);
+  });
+});

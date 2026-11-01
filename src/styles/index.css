@@ -1304,6 +1304,11 @@ header[data-tauri-drag-region] button {
   outline: none;
 }
 
+.sidebar-opacity-slider:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+}
+
 .sidebar-opacity-slider::-webkit-slider-thumb {
   appearance: none;
   width: 12px;
@@ -1311,6 +1316,14 @@ header[data-tauri-drag-region] button {
   border-radius: 999px;
   background: var(--color-content);
   cursor: pointer;
+}
+
+.sidebar-opacity-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.sidebar-opacity-slider:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 
 .agent-markdown [data-streamdown="code-block"],

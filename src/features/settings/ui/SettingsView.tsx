@@ -7,7 +7,7 @@ import { checkForUpdate, openUpdatePrompt, updatesEnabled, usePendingUpdate } fr
 import { shortcutPreview, shortcutFromKeyEvent } from "../../../shared/lib/shortcuts";
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { Check, ChevronDown, ExternalLink, Folder, FolderOpen, Globe, ImagePlus, Loader, Pencil, RefreshCw, RotateCcw, Search, X } from "../../../shared/ui/icons";
+import { Check, ChevronDown, ExternalLink, FolderOpen, ImagePlus, Loader, Pencil, RefreshCw, RotateCcw, Search, X } from "../../../shared/ui/icons";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
 import { AccessPicker } from "../../sessions/ui/AccessPicker";
@@ -35,13 +35,11 @@ import { getHarnessAvailabilitySnapshot, harnessUnavailableHint, isHarnessAvaila
 import { inspectHarnessBinary, type HarnessBinaryInspection } from "../../../integrations/harness/core/child";
 import { loadProviderBinaryPath, providerBinaryPathChangePending, saveProviderBinaryPath, type ConfigurableBinaryProvider } from "../../providers/model/providerBinaryPaths";
 import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
-import { defaultModelId, firstEnabledHarness, getModelSnapshot, hasLiveCatalog, loadDefaultModels, loadHiddenPickerProviders, loadLastModelChoice, modelsFor, resolveModel, saveDefaultModel, saveLastModelChoice, savePickerProviderVisible, subscribeModels } from "../../sessions/model/models";
-import { pathKey, prettyCwd, projectName } from "../../../shared/lib/paths";
+import { defaultModelId, getModelSnapshot, hasLiveCatalog, loadDefaultModels, loadHiddenPickerProviders, loadLastModelChoice, modelsFor, resolveModel, saveDefaultModel, saveLastModelChoice, savePickerProviderVisible, subscribeModels } from "../../sessions/model/models";
+import { prettyCwd } from "../../../shared/lib/paths";
 import { revealPath } from "../../../platform/tauri/fs";
 import { IS_LINUX, IS_MAC, IS_WIN } from "../../../platform/tauri/platform";
-import {  looksLikeProject, type RecentProject } from "../../projects/model/recents";
 import { HARNESSES, HARNESS_TITLE, type HarnessId } from "../../sessions/model/session";
-import { loadProjectProviderSettings, projectProvidersRevision, setProjectDefaultModel, setProjectDefaultProvider, setProjectProviderHidden, subscribeProjectProviders } from "../../sessions/model/projectProviders";
 import type {} from "../../sessions/data/sessionStore";
 import {  filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadFollowUpBehavior, loadModelControls, loadKeybindingOverrides, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveFollowUpBehavior, saveModelControls, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, searchSettings, settingsSectionDescription, settingsSectionLabel, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId } from "../model/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
@@ -60,17 +58,19 @@ type Props = {
     section: SettingsSectionId;
     /** Card to scroll to; the General page is too long to land at the top. */
     anchor?: SettingsAnchor | null;
-    recents?: RecentProject[];
+    /** Folder the Skills page scans; MCP reads user-level configurations. */
     cwd: string;
     besideRail?: boolean;
     onClose: () => void;
     /** Lets search jump to a setting that lives on another page. */
     onSelectSection?: (section: SettingsSectionId) => void;
+    /** Opens a mentor's own settings, which is where its model, folders, soul and memory live. */
+    onOpenMentorSettings?: (agentId: string) => void;
 };
 export function SettingsView(props: Props) {
     return <SettingsLanguage><SettingsViewContent {...props}/></SettingsLanguage>;
 }
-function SettingsViewContent({ section, anchor = null, recents, cwd, besideRail = false, onClose, onSelectSection, }: Props) {
+function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, onClose, onSelectSection, onOpenMentorSettings, }: Props) {
   useLocale();
     const lockOverscroll = useLockOverscroll<HTMLDivElement>();
     const [revealed, setRevealed] = useState<string | null>(anchor);
@@ -127,18 +127,18 @@ function SettingsViewContent({ section, anchor = null, recents, cwd, besideRail 
         {IS_MAC ? null : <WindowControls />}
       </div>
 
-      {section === "skills" ? (<SkillsPage key={cwd} cwd={cwd} header={<PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)}/>}/>) : (<RevealedSetting.Provider value={revealed}>
+      {section === "skills" ? (<SkillsPage key={cwd} cwd={cwd} userOnly header={<PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)}/>}/>) : (<RevealedSetting.Provider value={revealed}>
           <div ref={lockOverscroll} className="@container/settings min-h-0 flex-1 overflow-y-auto overscroll-none">
             <div className="mx-auto w-full max-w-5xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
               <PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)}/>
               {section === "general" ? (<GeneralPage />) : null}
 
               {section === "appearance" ? (<AppearancePage appearance={appearance}/>) : null}
-              {section === "agents" ? <AgentsPage /> : null}
+              {section === "agents" ? <AgentsPage onOpenMentorSettings={onOpenMentorSettings}/> : null}
               {section === "chat" ? <ChatPage /> : null}
               {section === "keybindings" ? <KeybindingsPage /> : null}
-              {section === "mcp" ? (<McpSettings cwd={cwd} recents={recents}/>) : null}
-              {section === "providers" ? (<ProvidersPage cwd={cwd} recents={recents}/>) : null}
+              {section === "mcp" ? (<McpSettings cwd={cwd}/>) : null}
+              {section === "providers" ? (<ProvidersPage />) : null}
 
 
             </div>
@@ -277,7 +277,7 @@ function GeneralPage({}: {}) {
       <Group title={t("About")}>
         <VersionRow />
       </Group>
-      <Group title={t("Reset workspace")}>
+      <Group id="reset-workspace" title={t("Reset workspace")}>
         <ResetWorkspace />
       </Group>
     </>);
@@ -298,19 +298,19 @@ function CommandLineGroup() {
     };
     if (!access) return null;
     const button = "shrink-0 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 hover:bg-content/10 hover:text-content disabled:opacity-50";
-    return (<Group id="command-line" title={t("Command line")} description={t("`loci` in a terminal can drive this Loci: mentors, courses, sources, notes and the reader. It is how tests and agents outside Loci work with it. Only your user account can use it.")}>
+    return (<Group id="command-line" title={t("Command line")} description={t("Run loci in a terminal to drive this Loci: mentors, courses, sources, notes and the reader. It is how tests and agents outside Loci work with it. Only your user account can use it.")}>
       <Row label={t("Command-line access")} description={access.enabled
           ? t("On for {0}. The token in {1} lets a terminal in; only your account can read it.", access.identifier, access.tokenPath ?? "…")
           : t("Off. Terminals cannot reach this Loci; agents in Loci keep their own access.")}>
         <Toggle label={t("Command-line access")} on={access.enabled} disabled={busy} onChange={(on) => run(() => setCliAccess(on))}/>
       </Row>
-      {access.enabled ? (<Row label={t("Token")} description={note ?? t("A new token stops the old one at once, for anything that copied it.")}>
+      {access.enabled ? (<Row id="token" label={t("Token")} description={note ?? t("A new token stops the old one at once, for anything that copied it.")}>
           <button type="button" className={button} disabled={busy} onClick={() => run(rotateCliToken, t("A new token is in place."))}>{t("Rotate token")}</button>
         </Row>) : null}
       <Row label={t("loci command")} description={access.installPath
           ? access.installed
             ? t("{0} runs this build. Make sure ~/.local/bin is on your PATH.", access.installPath)
-            : t("Puts a link to this build at {0}, so `loci` talks to this Loci.", access.installPath)
+            : t("Puts a link to this build at {0}, so loci talks to this Loci.", access.installPath)
           : t("Add the folder of {0} to PATH, or call it by its full path.", access.executable ?? "Loci")}>
         {access.installPath ? (<button type="button" className={button} disabled={busy} onClick={() => run(installCli)}>{access.installed ? t("Reinstall") : t("Install")}</button>) : null}
       </Row>
@@ -662,12 +662,12 @@ function AppearancePage({ appearance }: {
         </Row>
       </Group>
 
-      <Group title={t("Fonts")} description={t("Omarchy uses one monospace font everywhere. Pick one of its fonts here, or type the name of any font installed on this computer.")}>
+      <Group id="fonts" title={t("Fonts")} description={t("Omarchy uses one monospace font everywhere. Pick one of its fonts here, or type the name of any font installed on this computer.")}>
         <Row id="code-font" label={t("Code font")} description={t("Code blocks, file paths and anything set in monospace.")}>
-          <FontSelect label={t("Code font")} value={appearance.codeFont} emptyLabel="System monospace" monospaceOnly onChange={appearance.onCodeFont}/>
+          <FontSelect label={t("Code font")} value={appearance.codeFont} emptyLabel={t("System monospace")} monospaceOnly onChange={appearance.onCodeFont}/>
         </Row>
         <Row id="interface-font" label={t("Interface font")} description={t("Chat, menus and notes.")}>
-          <FontSelect label={t("Interface font")} value={appearance.uiFont} emptyLabel="System default" followLabel="Same as code font" onChange={appearance.onUiFont}/>
+          <FontSelect label={t("Interface font")} value={appearance.uiFont} emptyLabel={t("System default")} followLabel={t("Same as code font")} onChange={appearance.onUiFont}/>
         </Row>
       </Group>
 
@@ -770,18 +770,19 @@ function shortcutModifier(event: KeyboardEvent): ShortcutModifier | null {
         return "shiftKey";
     return null;
 }
-function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onReset, }: {
+function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onReset, onError, }: {
     name: string;
     display: string | null;
     resetVisible: boolean;
     onApply: (shortcut: string) => void | Promise<void>;
     onDisable: () => void | Promise<void>;
     onReset: () => void | Promise<void>;
+    /** Shown by the page as an alert that can wrap, so no card edge clips it. */
+    onError: (message: string | null) => void;
 }) {
   useLocale();
     const [recording, setRecording] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [preview, setPreview] = useState("");
     const held = useRef({
         metaKey: false,
@@ -792,12 +793,12 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
     const run = async (action: () => void | Promise<void>) => {
         setRecording(false);
         setBusy(true);
-        setError(null);
+        onError(null);
         try {
             await action();
         }
         catch (reason) {
-            setError(String(reason));
+            onError(String(reason));
         }
         finally {
             setBusy(false);
@@ -811,7 +812,7 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
             shiftKey: false,
         };
         setPreview("");
-        setError(null);
+        onError(null);
         setRecording(true);
     };
     useEffect(() => {
@@ -828,7 +829,7 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
             event.stopImmediatePropagation();
             if (event.code === "Escape") {
                 setRecording(false);
-                setError(null);
+                onError(null);
                 return;
             }
             // Delete disables, but only on its own so Cmd+Delete still records.
@@ -874,7 +875,7 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
             window.removeEventListener("keydown", onKeyDown, true);
             window.removeEventListener("keyup", onKeyUp, true);
         };
-    }, [onApply, onDisable, recording]);
+    }, [onApply, onDisable, onError, recording]);
     return (<div className="relative w-40 shrink-0">
       <div className="flex items-center gap-0.5">
         <input type="text" readOnly aria-label={t("Change {0} shortcut", name)} data-shortcut-recorder-active={recording ? "true" : undefined} aria-busy={busy || undefined} value={recording || busy ? preview || t("Record…") : (display ?? t("Disabled"))} onFocus={beginRecording} onClick={beginRecording} onBlur={() => setRecording(false)} className={`h-6 w-28 shrink-0 truncate rounded-md border bg-transparent px-1.5 py-0 font-mono text-[11px] leading-none outline-none focus:border-accent ${busy ? "opacity-50" : ""} ${display === null
@@ -886,24 +887,23 @@ function ShortcutEditor({ name, display, resetVisible, onApply, onDisable, onRes
       </div>
       {recording ? (<p className="pointer-events-none absolute top-1/2 right-full z-40 mr-3 -translate-y-1/2 text-[10px] whitespace-nowrap text-content/50" aria-live="polite">
           {t("Del disables · Esc cancels")}</p>) : null}
-      {error ? (<p role="alert" className="absolute top-full left-0 z-40 mt-1.5 w-max max-w-64 rounded-md border border-content/10 bg-background-base/95 px-2 py-1 text-[11px] whitespace-nowrap text-red-400 shadow-lg">
-          {error}
-        </p>) : null}
     </div>);
 }
-function KeybindingShortcutEditor({ command, display, modified, onSave, }: {
+function KeybindingShortcutEditor({ command, display, modified, onSave, onError, }: {
     command: string;
     display: string | null;
     modified: boolean;
     onSave: (command: string, override: KeybindingOverride) => void | Promise<void>;
+    onError: (message: string | null) => void;
 }) {
   useLocale();
-    return (<ShortcutEditor name={t(command)} display={display} resetVisible={modified} onApply={(shortcut) => onSave(command, { shortcut })} onDisable={() => onSave(command, { disabled: true })} onReset={() => onSave(command, {})}/>);
+    return (<ShortcutEditor name={t(command)} display={display} resetVisible={modified} onApply={(shortcut) => onSave(command, { shortcut })} onDisable={() => onSave(command, { disabled: true })} onReset={() => onSave(command, {})} onError={onError}/>);
 }
 function KeybindingsPage() {
   useLocale();
     const [query, setQuery] = useState("");
     const [overrides, setOverrides] = useState(loadKeybindingOverrides);
+    const [error, setError] = useState<string | null>(null);
     useEffect(() => subscribeKeybindings(() => setOverrides(loadKeybindingOverrides())), []);
     const rows = useMemo(() => filterKeybindings(currentKeybindings(), query), [getLocale(), query, overrides]);
     const save = async (command: string, override: KeybindingOverride) => {
@@ -911,9 +911,9 @@ function KeybindingsPage() {
         if (IS_MAC)
             await invoke("keybindings_set_overrides", { overrides: next });
     };
-    return (<Group title={t("Shortcuts")} description={t("Click a shortcut to record new keys. Press Delete while recording to disable it.")} action={<div className="flex items-center gap-3">
+    return (<Group id="shortcuts" title={t("Shortcuts")} description={t("Click a shortcut to record new keys. Press Delete while recording to disable it.")} action={<div className="flex items-center gap-3">
           <span className="shrink-0 text-[12px] text-content/40 tabular-nums">
-            {rows.length} {rows.length === 1 ? "binding" : "bindings"}
+            {rows.length === 1 ? t("{0} binding", rows.length) : t("{0} bindings", rows.length)}
           </span>
           <label className="flex h-7 w-44 shrink-0 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
             <Search className="size-3.5 shrink-0" strokeWidth={1.75}/>
@@ -925,6 +925,9 @@ function KeybindingsPage() {
         <span className="w-40 shrink-0">{t("Keybinding")}</span>
         <span className="w-28 shrink-0">{t("When")}</span>
       </div>
+      {error ? (<p role="alert" className="border-b border-content/5 px-4 py-2 text-[12px] leading-relaxed text-red-400 break-words">
+          {error}
+        </p>) : null}
       {rows.length === 0 ? (<p className="px-4 py-3 text-[12px] text-content/45">
           {t("No matching bindings")}</p>) : (rows.map((row) => {
             const override = overrides[row.command];
@@ -933,7 +936,7 @@ function KeybindingsPage() {
               <span className={`min-w-0 flex-1 truncate ${disabled ? "text-content/45" : ""}`}>
                 {t(row.command)}
               </span>
-              {(<KeybindingShortcutEditor command={row.command} display={disabled ? null : row.keys} modified={Boolean(override)} onSave={save}/>)}
+              {(<KeybindingShortcutEditor command={row.command} display={disabled ? null : row.keys} modified={Boolean(override)} onSave={save} onError={setError}/>)}
               <span className="w-28 shrink-0 font-mono text-[11px] text-content/40">
                 {t(row.when)}
               </span>
@@ -941,7 +944,6 @@ function KeybindingsPage() {
         }))}
     </Group>);
 }
-const GLOBAL_PROVIDER_SCOPE = "global";
 function binaryInspectionError(provider: ConfigurableBinaryProvider, inspection: HarnessBinaryInspection): string | null {
     if (inspection.error)
         return inspection.error;
@@ -1045,7 +1047,7 @@ function ProviderBinaryControl({ provider, }: {
     return (<span ref={root} className="inline-flex align-middle">
       <button ref={trigger} type="button" aria-label={restartRequired
             ? t("Show {0} CLI details, restart required", title)
-            : t("Show {0} CLI details", title)} aria-expanded={open} aria-controls={`${provider}-binary-popover`} aria-haspopup="dialog" title={t("{0} CLI path{1}", title, restartRequired ? " — restart required" : "")} onClick={() => {
+            : t("Show {0} CLI details", title)} aria-expanded={open} aria-controls={`${provider}-binary-popover`} aria-haspopup="dialog" title={t("{0} CLI path{1}", title, restartRequired ? t(" — restart required") : "")} onClick={() => {
             if (!open && !inspection && !working && !error) {
                 void inspect(loadProviderBinaryPath(provider));
             }
@@ -1150,72 +1152,22 @@ function ProviderBinaryControl({ provider, }: {
         </Popover>) : null}
     </span>);
 }
-function ProvidersPage({ cwd, recents, }: {
-    cwd?: string;
-    recents?: RecentProject[];
-}) {
+function ProvidersPage() {
   useLocale();
     useSyncExternalStore(subscribeModels, getModelSnapshot, getModelSnapshot);
     useSyncExternalStore(subscribeHarnessAvailability, getHarnessAvailabilitySnapshot, getHarnessAvailabilitySnapshot);
-    const providersRevision = useSyncExternalStore(subscribeProjectProviders, projectProvidersRevision, projectProvidersRevision);
-    void providersRevision;
     const [choice, setChoice] = useState(loadLastModelChoice);
     const [defaultModels, setDefaultModels] = useState(loadDefaultModels);
     const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
-    const [scope, setScope] = useState<string>(GLOBAL_PROVIDER_SCOPE);
     const [hiddenGlobally, setHiddenGlobally] = useState(loadHiddenPickerProviders);
-    const scopeOptions = useMemo(() => {
-        const options: {
-            value: string;
-            label: string;
-            icon?: ReactNode;
-        }[] = [
-            {
-                value: GLOBAL_PROVIDER_SCOPE,
-                label: t("Global"),
-                icon: (<Globe className="size-3.5 shrink-0 text-content/60" strokeWidth={1.75}/>),
-            },
-        ];
-        const seen = new Set<string>();
-        for (const path of [cwd, ...(recents ?? []).map((entry) => entry.path)]) {
-            if (!path || !looksLikeProject(path))
-                continue;
-            const key = pathKey(path);
-            if (seen.has(key))
-                continue;
-            seen.add(key);
-            options.push({
-                value: path,
-                label: projectName(path),
-                icon: <ProjectScopeIcon path={path}/>,
-            });
-        }
-        return options;
-    }, [getLocale(), cwd, recents]);
-    const project = scope === GLOBAL_PROVIDER_SCOPE ? null : scope;
-    const projectSettings = project ? loadProjectProviderSettings(project) : {};
-    // A project without overrides inherits the global default provider, the same
-    // way `defaultSessionChoice` resolves it for new conversations.
-    const effectiveDefaultHarness = project
-        ? firstEnabledHarness(project, projectSettings.defaultHarness ?? choice?.harness ?? "claude")
-        : (choice?.harness ?? null);
     useEffect(() => {
         void probeHarnessAvailability();
     }, []);
-    useEffect(() => {
-        if (!scopeOptions.some((option) => option.value === scope)) {
-            setScope(GLOBAL_PROVIDER_SCOPE);
-        }
-    }, [scope, scopeOptions]);
     const onClaudeHooks = (next: boolean) => {
         saveClaudeHooks(next);
         setClaudeHooks(next);
     };
     const onModelChange = (harness: HarnessId, model: string) => {
-        if (project) {
-            setProjectDefaultModel(project, harness, model);
-            return;
-        }
         saveDefaultModel(harness, model);
         setDefaultModels((prev) => ({ ...prev, [harness]: model }));
         if (choice?.harness === harness) {
@@ -1224,53 +1176,26 @@ function ProvidersPage({ cwd, recents, }: {
         }
     };
     const onDefault = (harness: HarnessId, model: string) => {
-        if (project) {
-            setProjectDefaultProvider(project, harness, model);
-            return;
-        }
         saveLastModelChoice(harness, model);
         setDefaultModels((prev) => ({ ...prev, [harness]: model }));
         setChoice({ harness, model });
     };
     const onPickerVisible = (harness: HarnessId, visible: boolean) => {
-        if (project) {
-            setProjectProviderHidden(project, harness, !visible);
-            return;
-        }
         savePickerProviderVisible(harness, visible);
         setHiddenGlobally((prev) => visible
             ? prev.filter((id) => id !== harness)
             : [...new Set([...prev, harness])]);
     };
     return (<>
-      <Group id="agent-clis" title={t("Agent CLIs")} action={<Select label={t("Provider defaults scope")} value={scope} options={scopeOptions} onChange={setScope}/>} description={project
-            ? t("These defaults apply to {0} only. A provider with Show in picker off is also kept out of new conversations started in this project. CLI paths remain global for Loci.", projectName(project))
-            : "A provider is listed as installed once its CLI is found on your PATH. Uninstalled CLIs stay listed but are left out of the model picker, as are installed ones with Show in picker off. The model beside a provider is what its new conversations start with; Use by default picks the provider itself. CLI paths are global for Loci and apply to every project."}>
+      <Group id="agent-clis" title={t("Agent CLIs")} description={t("A provider is listed as installed once its CLI is found on your PATH. Uninstalled CLIs stay listed but are left out of the model picker, as are installed ones with Show in picker off. The model beside a provider is what its new conversations start with; Use by default picks the provider itself. CLI paths are global for Loci.")}>
         {HARNESSES.map((harness) => {
-            const inPicker = project
-                ? !(projectSettings.hidden ?? []).includes(harness) &&
-                    !hiddenGlobally.includes(harness)
-                : !hiddenGlobally.includes(harness);
-            // A globally hidden provider stays out of every project's picker, so
-            // the project toggle is shown locked rather than appearing to work.
-            const pickerLocked = project != null && hiddenGlobally.includes(harness);
-            const selectedModel = project
-                ? (projectSettings.models?.[harness] ??
-                    (projectSettings.defaultHarness === harness
-                        ? projectSettings.defaultModel
-                        : undefined) ??
-                    defaultModels[harness] ??
-                    (choice?.harness === harness
-                        ? choice.model
-                        : defaultModelId(harness)))
-                : (defaultModels[harness] ??
-                    (choice?.harness === harness
-                        ? choice.model
-                        : defaultModelId(harness)));
-            const isDefault = project
-                ? effectiveDefaultHarness === harness
-                : choice?.harness === harness;
-            return (<ProviderRow key={harness} harness={harness} selectedModel={selectedModel} isDefault={isDefault} inPicker={inPicker} pickerLocked={pickerLocked} onDefault={onDefault} onModelChange={onModelChange} onPickerVisible={(visible) => onPickerVisible(harness, visible)}/>);
+            const inPicker = !hiddenGlobally.includes(harness);
+            const selectedModel = defaultModels[harness] ??
+                (choice?.harness === harness
+                    ? choice.model
+                    : defaultModelId(harness));
+            const isDefault = choice?.harness === harness;
+            return (<ProviderRow key={harness} harness={harness} selectedModel={selectedModel} isDefault={isDefault} inPicker={inPicker} onDefault={onDefault} onModelChange={onModelChange} onPickerVisible={(visible) => onPickerVisible(harness, visible)}/>);
         })}
       </Group>
 
@@ -1281,17 +1206,12 @@ function ProvidersPage({ cwd, recents, }: {
       </Group>
     </>);
 }
-/** A folder scope's icon. */
-function ProjectScopeIcon(_: { path: string }) {
-    return <Folder className="size-3.5" strokeWidth={1.75}/>;
-}
-function ProviderRow({ harness, selectedModel, isDefault, inPicker, pickerLocked = false, onDefault, onModelChange, onPickerVisible, }: {
+/** One provider: its model, whether new conversations start with it, and its picker switch. */
+function ProviderRow({ harness, selectedModel, isDefault, inPicker, onDefault, onModelChange, onPickerVisible, }: {
     harness: HarnessId;
     selectedModel: string;
     isDefault: boolean;
     inPicker: boolean;
-    /** Globally hidden providers cannot be turned on per project. */
-    pickerLocked?: boolean;
     onDefault: (harness: HarnessId, model: string) => void;
     onModelChange: (harness: HarnessId, model: string) => void;
     onPickerVisible: (visible: boolean) => void;
@@ -1312,7 +1232,9 @@ function ProviderRow({ harness, selectedModel, isDefault, inPicker, pickerLocked
           {isDefault ? (<span className="rounded-full bg-content/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-content/60">
               {t("Default")}</span>) : null}
         </span>} description={available
-            ? t("{0} {1} available.", models.length, models.length === 1 ? "model" : "models")
+            ? (models.length === 1
+                ? t("{0} model available.", models.length)
+                : t("{0} models available.", models.length))
             : harnessUnavailableHint(harness)}>
       {current ? (<Select label={t("{0} model", HARNESS_TITLE[harness])} value={current.id} onChange={(next) => onModelChange(harness, next)} options={models.map((item) => ({
                 value: item.id,
@@ -1323,9 +1245,9 @@ function ProviderRow({ harness, selectedModel, isDefault, inPicker, pickerLocked
       </SecondaryButton>
       {available ? (<div className="flex items-center gap-2">
           <span className="text-[12px] text-content/50">
-            {pickerLocked ? t("Hidden globally") : t("Show in picker")}
+            {t("Show in picker")}
           </span>
-          <Toggle label={t("Show {0} in the model picker", HARNESS_TITLE[harness])} on={inPicker} onChange={onPickerVisible} disabled={pickerLocked}/>
+          <Toggle label={t("Show {0} in the model picker", HARNESS_TITLE[harness])} on={inPicker} onChange={onPickerVisible}/>
         </div>) : null}
     </Row>);
 }
@@ -1347,8 +1269,10 @@ function PageHeader({ title, description, }: {
  * A titled card of related settings. Everything on a page lives in one, so a
  * page reads as a handful of topics instead of one long list of switches.
  */
-/** The agents the user has, and whether the app shows them at all. */
-function AgentsPage() {
+/** The agents the user has, and how to reach each one's own settings. */
+function AgentsPage({ onOpenMentorSettings }: {
+    onOpenMentorSettings?: (agentId: string) => void;
+}) {
     useLocale();
     const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
     const newAccess = useSyncExternalStore(subscribeNewAgentAccess, loadNewAgentAccess, () => NEW_AGENT_ACCESS);
@@ -1360,17 +1284,20 @@ function AgentsPage() {
           <AccessPicker value={newAccess} onChange={saveNewAgentAccess}/>
         </Row>
       </Group>
-      <Group id="agent-list" title={t("Your mentors")} description={t("Add a mentor with the plus on the mentor rail. Its model, folders, soul, habits and memory are set in its settings.")}>
-        {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No mentors yet.")}</p>)}
+      <Group id="agent-list" title={t("Your mentors")} description={t("Add a mentor with the plus on the mentor rail. Open one here to choose its model, permissions and folders, or to edit its soul and memory.")}>
+        {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent} onOpenSettings={onOpenMentorSettings}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No mentors yet.")}</p>)}
       </Group>
     </>);
 }
-function AgentRow({ agent }: { agent: Agent }) {
+function AgentRow({ agent, onOpenSettings }: {
+    agent: Agent;
+    onOpenSettings?: (agentId: string) => void;
+}) {
     useLocale();
     const look = agentLook(agent);
     const [error, setError] = useState<string>();
     const reset = async () => {
-        if (!await ask(t("Its soul goes back to the default and its name to {0}. Changes to its soul can't be recovered. Its conversation, files, memory and habits are kept.", defaultAgentName(look.avatar)), { title: t("Reset {0} to its defaults?", look.name), kind: "warning", okLabel: t("Reset"), cancelLabel: t("Cancel") }))
+        if (!await ask(t("Its soul goes back to the default and its name to {0}. Changes to its soul can't be recovered. Its conversation, files and memory are kept.", defaultAgentName(look.avatar)), { title: t("Reset {0} to its defaults?", look.name), kind: "warning", okLabel: t("Reset"), cancelLabel: t("Cancel") }))
             return;
         await resetAgentDefaults(agent.id).then(() => setError(undefined), (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
     };
@@ -1378,6 +1305,7 @@ function AgentRow({ agent }: { agent: Agent }) {
           <AgentAvatar name={look.avatar} color={look.color} className="size-4 shrink-0"/>
           <span className="truncate">{look.name}</span>
         </span>} description={error ?? (look.workdir ? prettyCwd(look.workdir) : look.role)}>
+      {onOpenSettings ? (<SecondaryButton onClick={() => onOpenSettings(agent.id)} aria-label={t("Open {0} settings", look.name)}>{t("Settings")}</SecondaryButton>) : null}
       <SecondaryButton onClick={() => void reset()}>{t("Reset")}</SecondaryButton>
     </Row>);
 }
@@ -1690,7 +1618,7 @@ function Select({ label, value, options, onChange, }: {
         }
     };
     return (<div ref={root} className="relative max-w-52">
-      <button type="button" ref={trigger} aria-label={`${label}: ${selected?.label ?? value}`} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((prev) => !prev)} className="flex w-full items-center justify-between gap-2 rounded-md border border-content/10 bg-content/5 px-2 py-1 text-left text-[12px] text-content outline-none hover:border-content/20">
+      <button type="button" ref={trigger} aria-label={`${label}: ${selected?.label ?? value}`} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((prev) => !prev)} className="flex w-full items-center justify-between gap-2 rounded-md border border-content/10 bg-content/5 px-2 py-1 text-left text-[12px] text-content outline-none hover:border-content/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent">
         <span className="flex min-w-0 flex-1 items-center gap-1.5">
           {selected?.icon ? (<span className="grid size-4 shrink-0 place-items-center">
               {selected.icon}

@@ -14,8 +14,6 @@ import { revealPath } from "../../../platform/tauri/fs";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
 import { BUILTIN_CLI_HARNESSES } from "../../sessions/model/builtinCli";
 import { HARNESS_TITLE, type HarnessId } from "../../sessions/model/session";
-import { SearchableProjectPicker } from "../../projects/ui/SearchableProjectPicker";
-import type { RecentProject } from "../../projects/model/recents";
 import { Modal } from "../../../shared/ui/Modal";
 import { Popover } from "../../../shared/ui/Popover";
 import { LAYER } from "../../../shared/lib/layers";
@@ -52,6 +50,11 @@ const SCOPES: Record<Provider, Scope[]> = {
   codex: ["user"],
 };
 const BUILTIN_PROVIDERS: readonly HarnessId[] = [...PROVIDERS, ...BUILTIN_CLI_HARNESSES];
+
+/** A scope's translated name, for labels and confirmations. */
+function scopeLabel(scope: Scope): string {
+  return scope === "local" ? t("Local") : scope === "project" ? t("Project") : t("User");
+}
 
 function ProviderIcon({ provider }: { provider: Provider }) {
   useLocale();
@@ -233,7 +236,7 @@ function AddServerModal({
             value={scope}
             options={SCOPES[provider].map((option) => ({
               value: option,
-              label: option[0].toUpperCase() + option.slice(1),
+              label: scopeLabel(option),
             }))}
             onChange={setScope}
           />
@@ -295,35 +298,12 @@ function AddServerModal({
   );
 }
 
-export function McpSettings({
-  cwd,
-  recents = [],
-}: {
-  cwd: string;
-  recents?: RecentProject[];
-}) {
+export function McpSettings({ cwd }: { cwd: string }) {
   useLocale();
-  const [selection, setSelection] = useState({ initialCwd: cwd, project: cwd });
-  const project = selection.initialCwd === cwd ? selection.project : cwd;
   return (
     <div className="space-y-8">
       <BuiltinCanvasMcp />
-      <McpConnections
-        key={project}
-        cwd={project}
-        projectPicker={
-          <SearchableProjectPicker
-            cwd={project}
-            railCwd={cwd}
-            recents={recents}
-            className="w-fit max-w-full shrink-0"
-            buttonClassName="h-7.5 max-w-full gap-2 bg-content/5 px-2.5 text-[13px] hover:bg-content/12 active:scale-[0.98]"
-            onSelectProject={(path) =>
-              setSelection({ initialCwd: cwd, project: path })
-            }
-          />
-        }
-      />
+      <McpConnections key={cwd} cwd={cwd} />
     </div>
   );
 }
@@ -359,7 +339,7 @@ function BuiltinCanvasMcp() {
     <div id="setting-builtin-excalidraw" data-setting-id="builtin-excalidraw" className="space-y-3">
       <div>
         <h2 className="text-sm font-semibold">{t("Built-in MCP")}</h2>
-        <p className="mt-1 text-xs text-content/55">{t("Servers provided by Loci. These settings apply to all projects.")}</p>
+        <p className="mt-1 text-xs text-content/55">{t("Servers provided by Loci. These settings apply everywhere in Loci.")}</p>
       </div>
       <div className="rounded-xl border border-content/10 bg-content/3 px-4 py-3.5">
         <div className="flex items-start gap-3">
@@ -373,7 +353,7 @@ function BuiltinCanvasMcp() {
             </div>
             <p className="text-[12px] text-content/45">{CANVAS_MCP_NAME}{" "}{t("· Local ·")}{" "}{status}</p>
             <p id="builtin-excalidraw-description" className="text-[12px] leading-relaxed text-content/65">
-              {t("Let agents read and edit this project's Loci canvases. Drawings are saved locally.")}</p>
+              {t("Let agents read and edit Loci canvases. Drawings are saved locally.")}</p>
             <BuiltinProviders />
           </div>
           <button
@@ -403,10 +383,8 @@ function BuiltinCanvasMcp() {
 
 function McpConnections({
   cwd,
-  projectPicker,
 }: {
   cwd: string;
-  projectPicker: ReactNode;
 }) {
   useLocale();
   const cached = getCachedMcpSettings(cwd);
@@ -497,7 +475,7 @@ function McpConnections({
       ? server.scope
       : (removeScopes[server.name] ?? "local");
     if (
-      !(await ask(t("Remove {0} from {1} scope?", server.name, selectedScope), {
+      !(await ask(t("Remove {0} from {1} scope?", server.name, scopeLabel(selectedScope)), {
         title: t("Remove MCP server"),
       }))
     )
@@ -528,10 +506,9 @@ function McpConnections({
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-sm font-semibold">{t("MCP connections")}</h2>
-            {projectPicker}
           </div>
           <p className="mt-1 text-xs text-content/55">
-            {t("Configured servers for the selected project.")}</p>
+            {t("Configured servers for Loci.")}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -631,7 +608,7 @@ function McpConnections({
                   {server.name}
                 </div>
                 <div className="mt-1 text-[12px] leading-relaxed text-content/45">
-                  {MCP_PROVIDER_LABELS[server.provider]} · {server.scope} ·{" "}
+                  {MCP_PROVIDER_LABELS[server.provider]} · {scopeLabel(server.scope)} ·{" "}
                   {server.transport || "MCP"} · {server.status}
                 </div>
                 {server.configPath ? (
@@ -656,24 +633,24 @@ function McpConnections({
               {server.provider === "claude" ? (
                 <>
                   {!server.configPath ? (
-                    <label className="text-xs text-content/55">
-                      {t("Scope")}{" "}
-                      <select
-                        aria-label={t("Scope to remove {0} from", server.name)}
+                    <div className="w-36">
+                      <McpPicker
+                        label={t("Scope to remove {0} from", server.name)}
                         value={removeScopes[server.name] ?? "local"}
-                        onChange={(event) =>
+                        options={(["local", "project", "user"] as const).map(
+                          (option) => ({
+                            value: option,
+                            label: scopeLabel(option),
+                          }),
+                        )}
+                        onChange={(next) =>
                           setRemoveScopes((current) => ({
                             ...current,
-                            [server.name]: event.target.value as Scope,
+                            [server.name]: next,
                           }))
                         }
-                        className="rounded border border-stroke bg-background-base px-1 py-1 text-content"
-                      >
-                        <option value="local">{t("Local")}</option>
-                        <option value="project">{t("Project")}</option>
-                        <option value="user">{t("User")}</option>
-                      </select>
-                    </label>
+                      />
+                    </div>
                   ) : null}
                   <button
                     type="button"

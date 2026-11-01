@@ -404,6 +404,11 @@ describe("settings search", () => {
             cancelable: true,
         })));
         expect(container.textContent).toContain("Could not save shortcuts");
+        // The message sits inside the card as a wrapping line, so the last
+        // row's recorder cannot clip it.
+        const alert = container.querySelector('[role="alert"]')!;
+        expect(alert.className).toContain("break-words");
+        expect(alert.closest(".overflow-hidden")).not.toBeNull();
     });
     it("records an Alt shortcut on a keybinding row", async () => {
         await render("keybindings");
@@ -444,36 +449,74 @@ describe("settings search", () => {
         const row = container.querySelector('[data-setting-id="sounds"]')!;
         expect(row.className).toContain("bg-accent/10");
     });
+    it.each([
+        ["fonts", "Fonts", "appearance"],
+        ["shortcuts", "Shortcuts", "keybindings"],
+        ["themes", "Color theme", "appearance"],
+        ["token", "Token", "general"],
+        ["reset workspace", "Reset workspace", "general"],
+    ])("finds %s through search", async (query, label, section) => {
+        await render("general");
+        await type(query);
+        const match = options().find((node) => node.textContent?.includes(label));
+        expect(match, query).toBeTruthy();
+        await act(async () => match!.click());
+        if (section === "general") {
+            const id = query === "token" ? "token" : "reset-workspace";
+            const revealed = container.querySelector(`[data-setting-id="${id}"]`)!;
+            // A row flashes its background; a card outline flashes its border.
+            if (id === "reset-workspace")
+                expect(revealed.innerHTML).toContain("border-accent/60");
+            else
+                expect(revealed.className).toContain("bg-accent/10");
+        }
+        else {
+            expect(onSelectSection).toHaveBeenCalledWith(section);
+        }
+    });
 });
-describe("providers scope inheritance", () => {
-    async function selectScope(label: string) {
-        const trigger = container.querySelector<HTMLButtonElement>('[aria-label^="Provider defaults scope"]')!;
-        await act(async () => trigger.click());
-        const option = Array.from(document.querySelectorAll<HTMLButtonElement>('[role="option"]')).find((node) => node.textContent?.trim() === label);
-        expect(option).toBeTruthy();
-        await act(async () => option!.click());
-    }
-    it("inherits the global default provider and picker visibility in project scope", async () => {
-        localStorage.setItem("loci.lastModel", JSON.stringify({ harness: "claude", model: "claude:opus-5" }));
-        localStorage.setItem("loci.hiddenPickerProviders", JSON.stringify(["codex"]));
+describe("localized Settings copy", () => {
+    it("translates counts, font placeholders and scope names", async () => {
+        setLanguagePreference("zh-CN");
+        try {
+            await render("keybindings");
+            expect(container.textContent).toMatch(/\d+ 个快捷键/);
+            expect(container.textContent).not.toContain("bindings");
+            await render("appearance");
+            // The font dropdown's empty choice follows the catalog.
+            expect(container.querySelector('[aria-label="代码字体: 系统等宽字体"]')).not.toBeNull();
+            expect(container.querySelector('[aria-label="界面字体: 系统默认"]')).not.toBeNull();
+            await render("providers");
+            expect(container.textContent).toMatch(/个模型可用/);
+            expect(container.textContent).not.toContain("models available");
+        }
+        finally {
+            await act(async () => setLanguagePreference("en"));
+        }
+    });
+});
+describe("mentor rows and global providers", () => {
+    it("opens a mentor's own settings from its row", async () => {
+        localStorage.setItem("loci:agent-roster", JSON.stringify([
+            { id: "ada", name: "Ada", avatar: "ember", color: "#fff", projects: [] },
+        ]));
+        const onOpenMentorSettings = vi.fn();
+        await render("agents", { onOpenMentorSettings });
+        // The page points at the settings that exist and stops promising habits.
+        expect(container.textContent).not.toContain("habits");
+        const open = container.querySelector<HTMLButtonElement>('[aria-label="Open Ada settings"]')!;
+        expect(open).not.toBeNull();
+        await act(async () => open.click());
+        expect(onOpenMentorSettings).toHaveBeenCalledWith("ada");
+    });
+    it("offers global provider defaults with no project scope", async () => {
         await render("providers");
-        await selectScope("repo");
-        // A project with no overrides shows the inherited global default provider.
-        const claudeRow = container
-            .querySelector('[aria-label^="Claude Code model"]')!
-            .closest(".settings-row")!;
-        const claudeDefault = Array.from(claudeRow.querySelectorAll<HTMLButtonElement>("button")).find((node) => node.textContent?.trim() === "Default");
-        expect(claudeDefault).toBeTruthy();
-        // Picker visibility also inherits the global setting.
-        expect(container
-            .querySelector<HTMLButtonElement>('[aria-label="Show Claude Code in the model picker"]')!
-            .getAttribute("aria-checked")).toBe("true");
+        expect(container.querySelector('[aria-label^="Provider defaults scope"]')).toBeNull();
+        expect(container.textContent).not.toContain("this project");
         const codexToggle = container.querySelector<HTMLButtonElement>('[aria-label="Show Codex in the model picker"]')!;
+        await act(async () => codexToggle.click());
+        expect(JSON.parse(localStorage.getItem("loci.hiddenPickerProviders")!)).toEqual(["codex"]);
         expect(codexToggle.getAttribute("aria-checked")).toBe("false");
-        // Global precedence: the project toggle cannot turn a globally hidden
-        // provider back on, so it is locked and explained.
-        expect(codexToggle.hasAttribute("disabled")).toBe(true);
-        expect(codexToggle.closest(".settings-row")?.textContent).toContain("Hidden globally");
     });
 });
 describe("updates in About", () => {

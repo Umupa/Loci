@@ -43,6 +43,15 @@ describe("listSkills", () => {
             disabledPaths: null,
         });
     });
+    it("asks for the user's own skills only for Settings", async () => {
+        vi.mocked(invoke).mockResolvedValueOnce([]);
+        await listSkills("~", null, true);
+        expect(invoke).toHaveBeenCalledWith("list_skills", {
+            cwd: "~",
+            disabledPaths: null,
+            userOnly: true,
+        });
+    });
 });
 describe("resolveProjectLocation", () => {
     it("passes the saved filesystem identity to the backend", async () => {
