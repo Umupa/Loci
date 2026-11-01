@@ -6,9 +6,10 @@ import { createPdfAnnotation } from "../../learning/model/pdfAnnotations";
 import { PdfView } from "./PdfView";
 
 const pdf = vi.hoisted(() => {
-  const page = { getViewport: ({ scale }: { scale: number }) => ({ width: 100 * scale, height: 100 * scale }), render: () => ({ promise: Promise.resolve(), cancel: vi.fn() }), streamTextContent: () => "Readable PDF text" };
+  const text = { value: "Readable PDF text" };
+  const page = { getViewport: ({ scale }: { scale: number }) => ({ width: 100 * scale, height: 100 * scale }), render: () => ({ promise: Promise.resolve(), cancel: vi.fn() }), streamTextContent: () => text.value };
   const document = { numPages: 2, fingerprints: ["same-document", null], getPage: vi.fn(async () => page) };
-  return { document, destroy: vi.fn(async () => {}), page };
+  return { document, destroy: vi.fn(async () => {}), page, text };
 });
 vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
   PDFWorker: class { destroy = vi.fn(); },
@@ -35,7 +36,7 @@ describe("PDF reading with annotations", () => {
       disconnect() {}
     });
     host = document.createElement("div"); document.body.append(host); root = createRoot(host);
-    pdf.document.getPage.mockClear(); pdf.destroy.mockClear();
+    pdf.document.getPage.mockClear(); pdf.destroy.mockClear(); pdf.text.value = "Readable PDF text";
   });
   afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
@@ -68,6 +69,26 @@ describe("PDF reading with annotations", () => {
     expect(host.querySelector(".loci-pdf")!.scrollTop).toBe(284);
     expect(onPlaced).toHaveBeenCalledOnce();
     expect(onPlaced).toHaveBeenCalledWith({ page: 2, token: 1 }, expect.any(DOMRect));
+  });
+
+  it("flashes a quoted passage on the page a link names", async () => {
+    const set = vi.fn();
+    vi.stubGlobal("CSS", { highlights: { set, delete: vi.fn() } });
+    vi.stubGlobal("Highlight", class { constructor(..._ranges: Range[]) {} });
+    vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function (this: HTMLElement) { return this.dataset.pageNumber === "2" ? 300 : 0; });
+    await act(async () => root.render(createElement(PdfView, { bytes: new Uint8Array([1]), onError: vi.fn(), place: { page: 2, token: 1, quote: "Readable PDF" } })));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 120)); });
+    expect(set).toHaveBeenCalledWith("loci-flash", expect.anything());
+  });
+
+  it("finds a quote whose word was hyphenated across lines in the PDF", async () => {
+    const set = vi.fn();
+    vi.stubGlobal("CSS", { highlights: { set, delete: vi.fn() } });
+    vi.stubGlobal("Highlight", class { constructor(..._ranges: Range[]) {} });
+    pdf.text.value = "Firecracker's jailer implements an additional level of protec-\ntion against unwanted VMM behavior";
+    await act(async () => root.render(createElement(PdfView, { bytes: new Uint8Array([1]), onError: vi.fn(), place: { page: 1, token: 1, quote: "level of protection against unwanted" } })));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 120)); });
+    expect(set).toHaveBeenCalledWith("loci-flash", expect.anything());
   });
 
   it("opens a saved mark at its passage rather than leaving it below the viewport", async () => {

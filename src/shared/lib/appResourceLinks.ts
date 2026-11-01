@@ -1,5 +1,5 @@
 /** Where in a file a link points, when it points inside one; `quote` is the passage to show there. */
-export type FilePlace = { page: number; annotationId?: string } | { lines: [number, number]; quote?: string };
+export type FilePlace = { page: number; quote?: string; annotationId?: string } | { lines: [number, number]; quote?: string };
 /** Where in a source a link points: a heading, a quoted passage, a page or lines. */
 export type SourcePlace = { section?: string; quote?: string; page?: number; lines?: [number, number] };
 export type AppResource =

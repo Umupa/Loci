@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import { File, Folder, Mortarboard, Palette, Pencil, PenLine, Plus, Search, StickyNote, X, type IconComponent } from "../../../shared/ui/icons";
+import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import type { CourseSummary } from "../../learning/model/course";
@@ -96,11 +97,17 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
     const both = data.documents.some(isGuide) && data.documents.some((document) => !isGuide(document));
     const entry = (document: StoredDocument): LibraryEntry => {
       const guide = isGuide(document);
+      const pdf = guide ? undefined : document.pdf;
+      const pdfLabel = pdf ? `PDF${pdf.pages ? ` · ${pdf.pages} pages` : ""}` : undefined;
       return {
         kind: "document", id: document.id, title: document.title,
-        icon: guide ? <PenLine className="size-3.5" /> : <File className="size-3.5" />,
-        subtitle: (guide ? [document.subject, "Mentor's guide"] : [document.subject, sourceName(document.sourceUrl)]).filter(Boolean).join(" · "),
-        target: { kind: "document", document: { id: document.id, title: document.title, body: "", ...(document.subject ? { subject: document.subject } : {}) } },
+        // A source kept as a PDF shows the PDF's own icon, as the Files tree does.
+        icon: guide ? <PenLine className="size-3.5" /> : pdf ? <FileTypeIcon name={pdf.path} isDir={false} size={14} /> : <File className="size-3.5" />,
+        subtitle: (guide ? [document.subject, "Mentor's guide"] : [document.subject, pdfLabel, sourceName(document.sourceUrl)]).filter(Boolean).join(" · "),
+        // The PDF opens in the reader in place, with highlights and notes as any other PDF.
+        target: pdf
+          ? { kind: "file", path: pdf.path }
+          : { kind: "document", document: { id: document.id, title: document.title, body: "", ...(document.subject ? { subject: document.subject } : {}) } },
         ...(both ? { group: guide ? "Mentor's guides" : "Sources" } : {}),
       };
     };
@@ -141,7 +148,10 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
       onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} onClearQuery={() => onChange({ segment, filter: "" })} /> : null;
   } else {
     const entries = segment === "sources" ? sources : notes;
-    body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={onOpen}
+    // A PDF source opens as a file page; the Sources segment stays chosen
+    // instead of falling back to Files for the kind of page now showing.
+    const open = segment === "sources" ? (target: MentorPage) => { onChange({ segment: "sources" }); onOpen(target); } : onOpen;
+    body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={open}
       isNew={(entry) => isNew?.(entry.kind, entry.id) ?? false}
       subject={segment === "sources" ? "sources" : "notes"} error={failure} onRetry={onRetry}
       empty={segment === "sources" ? `First-hand material ${agentLook(agent).name} saves, and guides it writes, appear here.` : "Your notes and drawings appear here."} />;

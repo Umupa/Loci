@@ -45,8 +45,11 @@ export function mentorSearchItems({ agents, courses, documents, notes, canvases 
   for (const [agentId, list] of documents) {
     const mentor = names.get(agentId);
     if (!mentor) continue;
-    for (const document of list) items.push({ id: `source:${agentId}:${document.id}`, kind: "source", title: document.title, context: mentor, agentId,
-      page: { kind: "document", document: { id: document.id, title: document.title, body: "", ...(document.subject ? { subject: document.subject } : {}) } } });
+    for (const document of list) items.push({ id: `source:${agentId}:${document.id}`, kind: "source", title: document.title,
+      context: document.pdf ? `${mentor} · PDF` : mentor, agentId,
+      page: document.pdf
+        ? { kind: "file", path: document.pdf.path }
+        : { kind: "document", document: { id: document.id, title: document.title, body: "", ...(document.subject ? { subject: document.subject } : {}) } } });
   }
   for (const note of notes) {
     const owner = note.agentId && names.has(note.agentId) ? note.agentId : undefined;
