@@ -12,7 +12,7 @@ import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { CodeReader } from "../../../shared/ui/CodeReader";
-import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, setLessonStatus, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
+import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, setLessonStatus, type ComparePart, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
 import { inLesson } from "../model/annotationCounts";
 import { DiffCard } from "./DiffCard";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
@@ -21,6 +21,7 @@ import { ReadingSelectionMenu } from "./ReadingSelectionMenu";
 import { useReadingMarks, type MarkSpec, type MarksListRequest } from "./useReadingMarks";
 import { CourseToc } from "./CourseToc";
 import { PinNotice, usePinnedCode } from "./usePinnedCode";
+import { CompareLesson, PartHeader, partWhere, type PartChrome } from "./CompareLesson";
 import { useCodeNavigation } from "../../files/ui/useCodeNavigation";
 import { CourseOutline, PROGRESS_EVENT, type ProgressDetail } from "./CourseOutline";
 import "./CoursePane.css";
@@ -38,7 +39,7 @@ type Props = {
   /** After a discussion draft is queued, show the conversation it went to. */
   onDiscussed?: () => void;
   /** The lesson on screen, so the conversation beside it knows what is being read. */
-  onLessonChange?: (lesson: { id: string; title: string } | null) => void;
+  onLessonChange?: (lesson: { id: string; title: string; compare?: ComparePart[] } | null) => void;
   /**
    * Shown as the window's one reader: its outline lives outside, so the pane
    * has no sidebar and no Back, only Close.
@@ -271,7 +272,12 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, activeStatus, reading]);
   const activeTitle = items[currentIndex]?.title;
-  useEffect(() => { onLessonChange?.(activeId && activeTitle ? { id: activeId, title: activeTitle } : null); }, [activeId, activeTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A comparison tells the conversation which places it puts side by side.
+  const activeCompare = reading && currentIndex >= 0 ? (items[currentIndex] as CourseLesson).compare : undefined;
+  const compareKey = activeCompare ? JSON.stringify(activeCompare.map(({ note: _note, ...place }) => place)) : "";
+  useEffect(() => {
+    onLessonChange?.(activeId && activeTitle ? { id: activeId, title: activeTitle, ...(compareKey ? { compare: JSON.parse(compareKey) as ComparePart[] } : {}) } : null);
+  }, [activeId, activeTitle, compareKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const iconButton = embedded ? RESOURCE_ACTION : "course-pane__close";
   const controls = course ? <>
     <button type="button" data-no-drag className={iconButton} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-4" /><span className="sr-only">Previous</span></button>
@@ -363,12 +369,39 @@ function CourseContent({ course, activeId, marksList, onMarks }: { course: Cours
   }
   const lesson = course.data.chapters.flatMap((chapter) => chapter.lessons).find((item) => item.id === activeId);
   if (!lesson) return null;
+  if (lesson.compare) return <CompareContent course={course} lesson={lesson} marksList={marksList} onMarks={onMarks} />;
   return lesson.file !== undefined ? <LessonFile agentId={course.agentId} lesson={lesson} marksList={marksList} onMarks={onMarks} />
     : <LessonDocument agentId={course.agentId} lesson={lesson} marksList={marksList} onMarks={onMarks} />;
 }
 
+/**
+ * A comparison: each part is read as its own lesson would be, framed as a
+ * part. The lesson's marks are its parts' marks; the list shows the first
+ * part that has any.
+ */
+function CompareContent({ course, lesson, marksList, onMarks }: { course: CourseWithProgress; lesson: CourseLesson } & MarksProps) {
+  const [counts, setCounts] = useState<{ lesson: string; counts: number[] }>({ lesson: lesson.id, counts: [] });
+  const shown = counts.lesson === lesson.id ? counts.counts : [];
+  const total = shown.reduce((sum, count) => sum + (count ?? 0), 0);
+  useEffect(() => { onMarks?.(total); }, [onMarks, total]);
+  const listed = Math.max(0, shown.findIndex((count) => count > 0));
+  const counter = useMemo(() => (lesson.compare ?? []).map((_, index) => (count: number) => setCounts((before) => {
+    const next = before.lesson === lesson.id ? [...before.counts] : [];
+    if (next[index] === count) return before;
+    next[index] = count;
+    return { lesson: lesson.id, counts: next };
+  })), [lesson.id, lesson.compare]);
+  return <CompareLesson agentId={course.agentId} courseId={course.id} lesson={lesson} renderPart={(part, chrome) => {
+    const place: CourseLesson = { id: `${lesson.id}:${chrome.index}`, title: part.label,
+      ...(part.document ? { document: part.document, ...(part.section ? { section: part.section } : {}) } : { file: part.file!, ...(part.lines ? { lines: part.lines } : {}), ...(part.commit ? { commit: part.commit } : {}) }) };
+    const list = marksList && chrome.index === listed ? { ...marksList, title: `Highlights & notes in ${part.label}` } : undefined;
+    return part.document ? <LessonDocument agentId={course.agentId} lesson={place} part={chrome} marksList={list} onMarks={counter[chrome.index]} />
+      : <LessonFile agentId={course.agentId} lesson={place} part={chrome} marksList={list} onMarks={counter[chrome.index]} />;
+  }} />;
+}
+
 /** A lesson read from a file. Source and text files are shown in place; a PDF or other document opens in its own pane, where it can be highlighted. */
-function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; lesson: CourseLesson } & MarksProps) {
+function LessonFile({ agentId, lesson, marksList, onMarks, part }: { agentId: string; lesson: CourseLesson; part?: PartChrome } & MarksProps) {
   const file = lesson.file!;
   const excerptRef = useRef<HTMLDivElement>(null);
   const { selection, dismiss } = useFileSelection(excerptRef, true);
@@ -381,10 +414,10 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
   const fenced = !!lesson.lines || !/\.(md|markdown)$/i.test(file);
   const spec = useMemo((): MarkSpec => ({
     target: { kind: "file", path: file },
-    source: (anchor, quote, annotationId) => ({ id: crypto.randomUUID(), kind: "file", path: file, title: file.split(/[\\/]/).pop() || file, quote,
+    source: (anchor, quote, annotationId) => ({ id: crypto.randomUUID(), kind: "file", path: file, title: `${part ? `${part.label}: ` : ""}${file.split(/[\\/]/).pop() || file}`, quote,
       ...(anchor.lines ? { lines: anchor.lines } : {}), ...(pin.commit ? { commit: pin.commit } : {}), anchor, ...(annotationId ? { annotationId } : {}) }),
     lines: (range) => fenced ? excerptLines(range, first) : undefined,
-  }), [file, first, fenced, pin.commit]);
+  }), [file, first, fenced, pin.commit, part?.label]);
   const marks = useReadingMarks(excerptRef, spec, { agentId });
   const preRef = useRef<HTMLPreElement>(null);
   const nav = useCodeNavigation({
@@ -400,6 +433,28 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
   const where = lesson.pages ? ` · ${lesson.pages[0] === lesson.pages[1] ? `page ${lesson.pages[0]}` : `pages ${lesson.pages[0]}–${lesson.pages[1]}`}`
     : shownLines ? ` · lines ${shownLines[0]}–${shownLines[1]}` : "";
   const open = <button type="button" className="course-button" onClick={() => requestOpenFile(file, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button>;
+  const reportShown = part?.onShown;
+  const shownKey = JSON.stringify([file, pin.commit, shownLines, pin.status?.state, pin.loaded?.error]);
+  useEffect(() => {
+    reportShown?.({ file, ...(pin.commit ? { commit: pin.commit } : {}), ...(shownLines ? { lines: shownLines } : {}), ...(pin.status ? { pin: pin.status.state } : {}), ...(pin.loaded?.error ? { error: pin.loaded.error } : {}) });
+  }, [shownKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (part) return <LessonFilePart part={part} file={file} name={name} lesson={lesson} pin={pin} inline={inline} open={open}
+    openWhole={nav.active ? () => requestOpenFile(file, shownLines ? { lines: shownLines } : undefined, pin.commit ? { commit: pin.commit } : {}) : undefined}>
+    {!pin.loaded ? <p className="course-pane__relations">Opening…</p>
+      : pin.loaded.error ? <><p className="course-error" role="alert">Could not read {name}: {pin.loaded.error}</p>{open}</>
+      : fenced ? (() => {
+        const excerpt = codeExcerpt(pin.loaded.text!, shownLines);
+        return <div ref={excerptRef} className="select-text" data-reading-text data-reading-lines-from={first} onClick={nav.onClick}>
+          <CodeReader text={excerpt.code} file={name} firstLine={first} preRef={preRef} label={`${part.label}: ${name}, lines ${first}–${first + excerpt.code.split("\n").length - 1}`} />
+          {excerpt.shown < excerpt.total ? <p className="course-pane__relations">Showing the first {excerpt.shown} of {excerpt.total} lines.</p> : null}
+        </div>;
+      })()
+      : <div ref={excerptRef} className="select-text" data-reading-text><AgentMarkdown text={pin.loaded.text!} wholeDocument /></div>}
+    <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${pin.view}:${pin.loaded?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} actions={nav.selectionActions} />
+    {marks.popover}
+    {nav.results}
+    {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) : null}
+  </LessonFilePart>;
   if (!inline) return <article className="course-pane__content" key={lesson.id}><h2>{lesson.title}</h2><p className="course-pane__summary" title={file}>{name}{where}</p>{open}</article>;
   const shown = pin.loaded;
   return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id} data-pin-view={lesson.commit ? pin.view : undefined}>
@@ -423,6 +478,27 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
     {nav.results}
     {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) : null}
   </article>;
+}
+
+/** One file part of a comparison: its compact header, its pin notice, and its text, foldable. */
+function LessonFilePart({ part, file, name, lesson, pin, inline, open, openWhole, children }: {
+  part: PartChrome; file: string; name: string; lesson: CourseLesson; pin: ReturnType<typeof usePinnedCode>; inline: boolean;
+  open: ReactNode; openWhole?: () => void; children: ReactNode;
+}) {
+  const bodyId = `${part.id}-body`;
+  const pinned = lesson.commit && pin.view === "pinned" ? pin.commit ?? lesson.commit : undefined;
+  // The repository is learnt from a read at the commit; it stays named in the current view.
+  const known = useRef<{ file: string; place: NonNullable<typeof pin.place> } | undefined>(undefined);
+  if (pin.place) known.current = { file, place: pin.place };
+  const where = partWhere(file, pin.place ?? (known.current?.file === file ? known.current.place : undefined), pinned, pin.lines ?? lesson.lines);
+  const actions = !inline ? open : openWhole ? <button type="button" className="course-button course-button--quiet course-pane__pin-action" title="Open the whole file in the reader, with its symbols" onClick={openWhole}>Open whole file</button> : null;
+  return <section id={part.id} className="course-compare__part" data-compare-part={part.label} data-collapsed={part.collapsed ? "" : undefined} data-pin-view={lesson.commit ? pin.view : undefined}>
+    <PartHeader chrome={part} where={where} title={pinned ? `${file} at ${pinned}` : file} actions={actions} bodyId={bodyId} />
+    <div id={bodyId} hidden={part.collapsed}>
+      {lesson.commit ? <PinNotice name={name} commit={lesson.commit} pin={pin} /> : null}
+      {inline ? children : null}
+    </div>
+  </section>;
 }
 
 /** The file lines a selection in a lesson's code excerpt covers; none outside code (a Markdown file shown as itself). */
@@ -462,7 +538,7 @@ export function sourceExcerpt(text: string, name: string, lines?: [number, numbe
 }
 
 /** A lesson read from the agent's library: the document itself, from the lesson's heading. */
-function LessonDocument({ agentId, lesson, marksList, onMarks }: { agentId: string; lesson: CourseLesson } & MarksProps) {
+function LessonDocument({ agentId, lesson, marksList, onMarks, part }: { agentId: string; lesson: CourseLesson; part?: PartChrome } & MarksProps) {
   const id = lesson.document!;
   const [loaded, setLoaded] = useState<{ id: string; document?: AgentDocument; error?: string }>();
   useEffect(() => {
@@ -475,6 +551,22 @@ function LessonDocument({ agentId, lesson, marksList, onMarks }: { agentId: stri
     return () => { current = false; stop(); };
   }, [agentId, id]);
   const shown = loaded?.id === id ? loaded : undefined;
+  const reportShown = part?.onShown;
+  const shownKey = JSON.stringify([id, lesson.section, shown?.error, !!shown && !shown.document]);
+  useEffect(() => {
+    if (shown) reportShown?.({ document: id, ...(lesson.section ? { section: lesson.section } : {}), ...(shown.error || !shown.document ? { error: shown.error ?? "not in the library" } : {}) });
+  }, [shownKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (part) {
+    const bodyId = `${part.id}-body`;
+    return <section id={part.id} className="course-compare__part" data-compare-part={part.label} data-collapsed={part.collapsed ? "" : undefined}>
+      <PartHeader chrome={part} where={{ path: shown?.document?.title ?? id, ...(lesson.section ? { section: lesson.section } : {}) }} title={`${id}${lesson.section ? `#${lesson.section}` : ""}`} bodyId={bodyId} />
+      <div id={bodyId} hidden={part.collapsed}>
+        {!shown ? <p className="course-pane__relations">Opening…</p>
+          : !shown.document ? <p className="course-error" role="alert">{shown.error ? `Could not open ${id}: ${shown.error}` : `${id} is not in the library. Ask the agent to save it again.`}</p>
+          : <DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare inPlace marksList={marksList} onMarks={onMarks} />}
+      </div>
+    </section>;
+  }
   if (!shown) return <p className="course-pane__relations">Opening…</p>;
   if (!shown.document) return <article className="course-pane__content"><h2>{lesson.title}</h2><p className="course-error" role="alert">{shown.error ? `Could not open this lesson's document: ${shown.error}` : `This lesson's document (${id}) is not in the library. Ask the agent to save it again.`}</p></article>;
   return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare marksList={marksList} onMarks={onMarks} /></article>;

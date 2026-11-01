@@ -50,6 +50,11 @@ type Props = {
    * read this way; its course already says where the reader is.
    */
   bare?: boolean;
+  /**
+   * Read in place among other texts (a part of a comparison): opening it
+   * leaves the page's scroll alone.
+   */
+  inPlace?: boolean;
   /** Show the list of highlights and notes, dropping from this anchor. */
   marksList?: MarksListRequest;
   /** How many highlights the document has, for a menu to say. */
@@ -61,7 +66,7 @@ type Props = {
  * shows that page's pictures. Selecting text offers to ask about, highlight or
  * note the passage; its highlights are painted on the text.
  */
-export function DocumentBody({ document, agentId, section, bare, marksList, onMarks }: Props) {
+export function DocumentBody({ document, agentId, section, bare, inPlace, marksList, onMarks }: Props) {
   const requestedSection = section?.trim() || undefined;
   const scope = JSON.stringify([document.id, requestedSection]);
   const [view, setView] = useState({ scope, full: false });
@@ -78,7 +83,7 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
   const marks = useReadingMarks(bodyRef, spec, { agentId });
   // A lesson reading one section lists and counts that section's marks, as its outline does.
   const shownMarks = useMemo(() => bare && requestedSection
-    ? marks.annotations.filter((annotation) => inLesson({ id: "", title: "", document: document.id, section: requestedSection }, annotation))
+    ? marks.annotations.filter((annotation) => inLesson({ document: document.id, section: requestedSection }, annotation))
     : marks.annotations, [marks.annotations, bare, requestedSection, document.id]);
   const count = shownMarks.length;
   useEffect(() => { onMarks?.(count); }, [onMarks, count]);
@@ -94,7 +99,7 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
     const frame = requestAnimationFrame(() => {
       if (fullDocument && heading) {
         heading.scrollIntoView?.({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
-      } else topRef.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
+      } else if (!inPlace) topRef.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
     });
     return () => { cancelAnimationFrame(frame); heading?.removeAttribute("data-section-target"); };
   }, [document.id, document.body, requestedSection, fullDocument]);
