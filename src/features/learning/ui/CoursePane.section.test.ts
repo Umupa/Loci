@@ -31,6 +31,7 @@ const lessons = [
 let host: HTMLDivElement, root: Root;
 let frames: Map<number, FrameRequestCallback>, frameId: number;
 let scroll: ReturnType<typeof vi.spyOn>;
+let progressWrites: Array<{ itemId: string; status: string }>;
 const flushFrames = () => act(() => { const pending = [...frames.values()]; frames.clear(); pending.forEach((callback) => callback(0)); });
 const headings = () => [...host.querySelectorAll(".course-pane__reading .agent-markdown :is(h1,h2,h3)")].filter((el) => !el.closest("[data-footnotes]")).map((el) => el.textContent);
 const click = async (selector: string) => { await act(async () => host.querySelector<HTMLButtonElement>(selector)!.click()); flushFrames(); };
@@ -42,11 +43,12 @@ beforeEach(() => {
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.set(++frameId, callback); return frameId; });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
   scroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {});
+  progressWrites = [];
   vi.mocked(readAgentDocument).mockResolvedValue(doc);
-  vi.mocked(invoke).mockImplementation(async (command) => {
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
     if (command === "course_get") return { id: "architecture", agentId: "owner", title: "Architecture", updatedAt: 1, engine: "reading", dataJson: JSON.stringify({ engine: "reading", chapters: [{ title: "Architecture", lessons }] }) };
     if (command === "course_progress_get") return [];
-    if (command === "course_progress_set") return;
+    if (command === "course_progress_set") { progressWrites.push(args as { itemId: string; status: string }); return; }
     throw new Error(`Unexpected command: ${command}`);
   });
   host = document.createElement("div"); document.body.append(host); root = createRoot(host);
@@ -82,6 +84,16 @@ it("opens an empty or unmatched section at the document top", async () => {
   await click('[aria-label^="Missing section,"]');
   expect(headings()[0]).toBe("Kubernetes architecture");
   expect(host.querySelector(".document-section-toggle")).toBeNull();
+});
+
+it("opens a chosen lesson at its start, not at the last lesson's offset, and ignores its settling scroll", async () => {
+  await mount();
+  const main = host.querySelector<HTMLElement>(".course-pane__main")!;
+  main.scrollTop = 900;
+  await click('[aria-label^="etcd lesson,"]');
+  expect(main.scrollTop).toBe(0);
+  await act(async () => { main.dispatchEvent(new Event("scroll")); });
+  expect(progressWrites).toEqual([expect.objectContaining({ itemId: "etcd", status: "learning" })]);
 });
 
 it("uses parsed headings, preferring exact formatted/Setext titles and ending at higher-level headings", () => {

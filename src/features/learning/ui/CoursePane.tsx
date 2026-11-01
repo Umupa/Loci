@@ -46,6 +46,8 @@ export { PROGRESS_EVENT };
 const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
 /** How close to the end of a lesson counts as having reached it. */
 const READ_END_SLACK = 48;
+/** A lesson that just replaced another scrolls; its own events settle first. */
+const READ_SWITCH_SETTLE_MS = 250;
 /** A lesson that fits without scrolling counts as read after this long open. */
 const SHORT_LESSON_DWELL_MS = 8000;
 
@@ -231,8 +233,13 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     setActionError(null);
     onDiscussed?.();
   };
-  // Opening a lesson is starting to read it.
+  // Opening a lesson is starting to read it, at its own beginning.
+  const switchedAt = useRef(0);
   const select = (id: string) => {
+    if (id !== activeId) {
+      switchedAt.current = Date.now();
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    }
     setActiveId(id);
     if (course?.data.engine === "reading" && (course.progress.get(id) ?? "untouched") === "untouched") void markStatus(id, "learning");
   };
@@ -248,6 +255,8 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   const readThrough = () => {
     const main = scrollRef.current;
     if (!reading || !activeId || activeStatus === "mastered" || !main) return;
+    // The old lesson's offset being clamped to the new one's length is not reading it.
+    if (Date.now() - switchedAt.current < READ_SWITCH_SETTLE_MS) return;
     if (main.scrollTop + main.clientHeight >= main.scrollHeight - READ_END_SLACK) void markStatus(activeId, "mastered");
   };
   useEffect(() => {
