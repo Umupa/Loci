@@ -103,7 +103,7 @@ export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
   };
 
   return (
-    <div data-question-card className="mx-4 my-1.5 flex w-fit min-w-[min(100%,20rem)] max-w-[min(100%,36rem)] flex-col gap-2.5 rounded-[1.25rem] bg-content/6 p-3.5 font-sans">
+    <div data-question-card className="mx-4 my-1.5 flex w-fit min-w-0 max-w-[min(100%,36rem)] flex-col gap-2.5 rounded-[1.25rem] bg-content/6 p-3.5 font-sans">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[14px] leading-snug text-content">{question.prompt}</p>
