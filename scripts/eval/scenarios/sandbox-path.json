@@ -1,0 +1,56 @@
+{
+  "id": "sandbox-path",
+  "template": "learning-guide",
+  "acceptance": "v0.4",
+  "rubric": ["codeTours", "path"],
+  "seed": {
+    "repos": [
+      "TencentCloud/CubeSandbox",
+      "perplexityai/SPACE",
+      "e2b-dev/runtime"
+    ]
+  },
+  "opening": "I want to understand agent sandboxes from the kernel up to CubeSandbox, SPACE and E2B runtime. I know Go, Rust and C, and E2B's API; I don't know KVM or virtio. The three checkouts are already in your repos/ — use those copies, don't clone them again.",
+  "learner": {
+    "background": "Systems engineer, eight years of Go, Rust and C in production; comfortable with Linux processes, namespaces, cgroups and containers. I have used E2B's API from a client but never read its runtime, and I know neither KVM nor virtio beyond the names.",
+    "answers": {
+      "goal": "I need to design our own agent sandbox: boot untrusted code fast, snapshot and restore it, and know which layer does what across CubeSandbox, SPACE and E2B runtime.",
+      "level": "Go, Rust and C are fine; KVM, virtio and the guest kernel side are new to me.",
+      "background": "Eight years of systems work in Go, Rust and C; I know Linux processes, namespaces, cgroups and containers. I have called E2B's API but not read its runtime. KVM and virtio are just names to me.",
+      "time": "An hour a day for a week; I want to be reading something first-hand within the first few minutes.",
+      "language": "English is fine; keep the original terms.",
+      "confirm": "Yes, go ahead.",
+      "scope": "From the kernel boundary up: KVM and virtio, microVM boot, then how CubeSandbox, SPACE and E2B runtime snapshot and restore. Skip the web consoles and billing.",
+      "depth": "Follow the call paths through the code and pin the lines; I want to read the specs where the code relies on them."
+    }
+  },
+  "firstPartyDomains": [
+    "github.com/TencentCloud",
+    "github.com/perplexityai",
+    "github.com/e2b-dev",
+    "github.com/torvalds",
+    "kernel.org",
+    "docs.kernel.org",
+    "git.kernel.org",
+    "docs.oasis-open.org",
+    "e2b.dev",
+    "perplexity.ai",
+    "arxiv.org",
+    "usenix.org",
+    "firecracker-microvm.github.io",
+    "qemu.org"
+  ],
+  "probe": "Where does CubeSandbox actually enter the guest kernel during a launch, and what does the KVM side do there? Point me at the code or the spec line.",
+  "expect": {
+    "pathCourses": [3, 5],
+    "lessonsPerCourse": [6, 12],
+    "minCodeLessonsPerCourse": 1,
+    "minFirstHand": 10,
+    "firstSourceWithinSeconds": 300,
+    "compareLessons": 1,
+    "tolerateMissingCompare": true
+  },
+  "maxTurns": 10,
+  "maxMinutes": 20,
+  "turnTimeoutSeconds": 600
+}

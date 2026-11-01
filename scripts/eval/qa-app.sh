@@ -48,6 +48,15 @@ case "${1:-}" in
                "$HOME/Library/Preferences/$ID.plist" "$HOME/Library/Saved Application State/$ID.savedState" "$HOME/Library/HTTPStorages/$ID"; do
       [[ -e "$dir" ]] && rm -rf "$dir"
     done
+    # A QA build's mentors root is ~/Loci-Dev-<last identifier segment> (see
+    # mentor_store::paths); it holds the mentors, their sources and their cloned
+    # repos, and belongs to this app alone. The installed Loci's ~/Loci is never touched.
+    case "$ID" in
+      com.loci.desktop.qa-*)
+        QA_ROOT="$HOME/Loci-Dev-${ID##*.}"
+        if [[ "$QA_ROOT" != "$HOME/Loci-Dev-" && -d "$QA_ROOT" ]]; then rm -rf "$QA_ROOT"; echo "removed $QA_ROOT" >&2; fi
+        ;;
+    esac
     if [[ -f "$STATE/loci-dev-before" && -d "$HOME/Loci-Dev" ]]; then
       # Other Loci Dev/QA builds share ~/Loci-Dev: remove a new folder only when
       # it holds no files (a mentor's default workdir, made with an empty repos/ before --workdir moved it);
