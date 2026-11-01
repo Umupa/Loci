@@ -6,6 +6,7 @@ import { mentorCommands } from "./mentors";
 import { readerCommands } from "./reader";
 import { settingsCommands } from "./settings";
 import { sidebarCommands } from "./sidebar";
+import { updateCommands } from "./updates";
 import { defineCommands } from "./registry";
 import { templateCommands } from "./templates";
 
@@ -19,4 +20,5 @@ export const COMMANDS = defineCommands<CommandContext>([
   ...settingsCommands,
   ...libraryCommands,
   ...annotationCommands,
+  ...updateCommands,
 ]);

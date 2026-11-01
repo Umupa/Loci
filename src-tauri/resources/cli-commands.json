@@ -2214,6 +2214,15 @@
       ],
       "destructive": false,
       "fields": []
+    },
+    {
+      "name": "updates.check",
+      "summary": "Ask GitHub Releases whether a newer Loci is available: {available, version, current}.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": []
     }
   ]
 }
