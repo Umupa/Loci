@@ -12,6 +12,7 @@ import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, setLessonStatus, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
+import { inLesson } from "../model/annotationCounts";
 import { DiffCard } from "./DiffCard";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
 import { linesOf } from "../model/textAnchor";
@@ -378,7 +379,10 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
     lines: (range) => fenced ? excerptLines(range, first) : undefined,
   }), [file, first, fenced]);
   const marks = useReadingMarks(excerptRef, spec, { agentId });
-  const count = marks.annotations.length;
+  // A code-tour lesson reads part of a file: its menu counts and lists that part, as its outline does.
+  const shownMarks = useMemo(() => lesson.lines ? marks.annotations.filter((annotation) => inLesson(lesson, annotation)) : marks.annotations,
+    [marks.annotations, lesson]);
+  const count = shownMarks.length;
   useEffect(() => { onMarks?.(count); }, [onMarks, count]);
   const name = file.split(/[\\/]/).pop() || file;
   const inline = !lesson.pages && isReadableSource(name);
@@ -402,7 +406,7 @@ function LessonFile({ agentId, lesson, marksList, onMarks }: { agentId: string; 
       : <div ref={excerptRef} className="select-text" data-reading-text {...(fenced ? { "data-reading-lines-from": first } : {})}><AgentMarkdown text={sourceExcerpt(shown.text!, name, lesson.lines)} wholeDocument /></div>}
     <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} />
     {marks.popover}
-    {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title) : null}
+    {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) : null}
   </article>;
 }
 
