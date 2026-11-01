@@ -308,6 +308,16 @@ const cases: {
     },
   },
   {
+    name: "falls back to a plain command when the adapter reports no argv",
+    block: tool("bare", {
+      text: "Run Terminal Command",
+      kind: "execute",
+      title: "Run Terminal Command",
+      status: "in_progress",
+    }),
+    expect: { id: "bare", kind: "run", status: "running", text: "Running a command" },
+  },
+  {
     name: "a web search says what it looks for",
     block: tool("web", {
       text: "WebSearch",

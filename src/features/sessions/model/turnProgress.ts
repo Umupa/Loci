@@ -569,7 +569,7 @@ function fileActivity(
   // still a command, and its own words say so.
   if (isExecuteTool(kind, title)) {
     const command = toolCommand(block);
-    const script = command ? unwrapShellCommand(command) : label;
+    const script = command ? unwrapShellCommand(command) : "";
     const target = downloadTarget(script);
     if (target) {
       return {
@@ -584,7 +584,11 @@ function fileActivity(
               : `Fetched ${target}`,
       };
     }
-    const short = shorten(script, 80);
+    const fallback =
+      label && !isWeakToolTitle(label) && !/^(?:run\s+)?terminal(?:\s+command)?$/i.test(label)
+        ? label
+        : "";
+    const short = shorten(script || fallback, 80);
     return {
       id,
       kind: "run",
