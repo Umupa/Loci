@@ -190,6 +190,16 @@ it("switches course from the menu, landing in it, and asks the mentor for a new 
   expect(drafts).toEqual(["I'd like a new course on "]);
 });
 
+it("gives focus back to the course switcher when its menu closes", async () => {
+  await render();
+  await vi.waitFor(() => expect(container.querySelector(".library-switcher")).not.toBeNull());
+  const switcher = container.querySelector<HTMLButtonElement>(".library-switcher")!;
+  await act(async () => { switcher.focus(); switcher.click(); });
+  expect(document.activeElement).not.toBe(switcher);
+  await act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  expect(document.activeElement).toBe(switcher);
+});
+
 it("filters the segment a mentor opens on before any segment was chosen", async () => {
   vi.mocked(invoke).mockImplementation(async (command) => {
     if (command === "course_list_all" || command === "notes_list" || command === "canvas_list") return [];

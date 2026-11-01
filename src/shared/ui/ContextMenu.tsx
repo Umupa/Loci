@@ -280,6 +280,7 @@ export function ContextMenu({
         data-menu-owner={ownerId}
         width={width}
         autoFocus
+        returnFocus
         onDismiss={(reason) => {
           if (reason === "escape" && submenu) closeSubmenu();
           else onClose();
@@ -331,6 +332,7 @@ export function ContextMenu({
           width={MENU_WIDTH}
           layer={LAYER.submenu}
           autoFocus
+          returnFocus
           role="menu"
           tabIndex={-1}
           aria-label={submenuItem.label}

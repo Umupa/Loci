@@ -53,6 +53,8 @@ type Props = Omit<ComponentPropsWithoutRef<"div">, "style"> & {
   bare?: boolean;
   style?: CSSProperties;
   autoFocus?: boolean;
+  /** Gives focus back to the trigger when a surface that took it closes. */
+  returnFocus?: boolean;
   /** Wiring this in hands Popover the outside-click and Escape handling. */
   onDismiss?: (reason: PopoverDismissReason) => void;
   dismissOnEscape?: boolean;
@@ -114,6 +116,38 @@ function anchorKey(anchor: PopoverAnchor): unknown {
   return `${anchor.x}:${anchor.y}`;
 }
 
+/**
+ * A surface that took focus from its trigger gives it back when it closes,
+ * unless the close moved focus somewhere else on purpose.
+ */
+function useReturnFocus(
+  surface: { current: HTMLDivElement | null },
+  anchor: PopoverAnchor,
+  enabled: boolean,
+) {
+  const opener = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const active = document.activeElement;
+    opener.current =
+      anchorElement(anchor) ??
+      (active instanceof HTMLElement && active !== document.body ? active : null);
+    return () => {
+      const target = opener.current;
+      opener.current = null;
+      if (!target?.isConnected) return;
+      const current = document.activeElement;
+      const insideSurface = !!surface.current?.contains(current);
+      const dropped =
+        !current || current === document.body || !current.isConnected || insideSurface;
+      if (!dropped) return;
+      target.focus({ preventScroll: true });
+    };
+    // The trigger is read once, when the surface opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+}
+
 function samePosition(a: PopoverPosition | null, b: PopoverPosition): boolean {
   return (
     a != null &&
@@ -151,10 +185,12 @@ function NativePopover({
   ref,
   style,
   autoFocus,
+  returnFocus = false,
   dismissOnEscape = true,
   ...props
 }: Props & { host: HTMLElement }) {
   const surface = useRef<HTMLDivElement | null>(null);
+  useReturnFocus(surface, props.anchor, !!autoFocus && returnFocus);
   useEffect(() => {
     if (autoFocus) surface.current?.focus({ preventScroll: true });
   }, [autoFocus]);
@@ -229,6 +265,7 @@ function WebPopover({
   className,
   style,
   autoFocus = false,
+  returnFocus = false,
   onDismiss,
   dismissOnEscape = true,
   ignore,
@@ -242,6 +279,7 @@ function WebPopover({
     : requestedLayer;
   const frame = useRef<HTMLDivElement | null>(null);
   const surface = useRef<HTMLDivElement | null>(null);
+  useReturnFocus(surface, anchor, autoFocus && returnFocus);
   const [position, setPosition] = useState<PopoverPosition | null>(null);
   const anchorRef = useRef(anchor);
   anchorRef.current = anchor;
