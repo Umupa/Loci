@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
 import { Pencil, Plus, Settings, Sparkles, StickyNote, X } from "../../../shared/ui/icons";
 import type { RecentProject } from "../../projects/model/recents";
@@ -86,15 +86,32 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
   const [page, setPage] = useState<Page>("general");
   useEffect(() => setPage("general"), [agent.id]);
   const icons = { general: Settings, soul: Sparkles, memory: StickyNote };
+  const pages = Object.keys(PAGE_TITLE) as Page[];
+  const tabId = useId();
+  const tabDomId = (id: Page) => `${tabId}-${id}`;
+  // A tablist promises arrows and one tab stop; the panel is named by the tab that opened it.
+  const onTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const index = pages.indexOf(page);
+    const next = event.key === "ArrowDown" || event.key === "ArrowRight" ? pages[(index + 1) % pages.length]
+      : event.key === "ArrowUp" || event.key === "ArrowLeft" ? pages[(index - 1 + pages.length) % pages.length]
+        : event.key === "Home" ? pages[0]
+          : event.key === "End" ? pages[pages.length - 1]
+            : undefined;
+    if (!next) return;
+    event.preventDefault();
+    setPage(next);
+    document.getElementById(tabDomId(next))?.focus();
+  };
   return <div aria-label={`${look.name} settings`} className="agent-settings-layout">
     <nav role="tablist" aria-label="Agent settings" aria-orientation="vertical" className="agent-settings-nav">
       <p>Settings</p>
-      {(Object.keys(PAGE_TITLE) as Page[]).map((id) => {
+      {pages.map((id) => {
         const Icon = icons[id];
-        return <button key={id} type="button" role="tab" aria-selected={page === id} onClick={() => setPage(id)}><Icon className="size-3.5 shrink-0" strokeWidth={1.75} />{PAGE_TITLE[id]}</button>;
+        return <button key={id} id={tabDomId(id)} type="button" role="tab" aria-selected={page === id} tabIndex={page === id ? 0 : -1}
+          aria-controls={`${tabId}-panel`} onKeyDown={onTabKeyDown} onClick={() => setPage(id)}><Icon className="size-3.5 shrink-0" strokeWidth={1.75} />{PAGE_TITLE[id]}</button>;
       })}
     </nav>
-    <div className="agent-settings-content" role="tabpanel" aria-label={PAGE_TITLE[page]}>
+    <div id={`${tabId}-panel`} className="agent-settings-content" role="tabpanel" aria-labelledby={tabDomId(page)}>
       {page === "general" ? <div className="agent-settings-general">
         <h3>General</h3>
         <div className="agent-settings-identity">
