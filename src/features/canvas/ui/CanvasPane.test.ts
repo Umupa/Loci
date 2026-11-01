@@ -11,7 +11,7 @@ vi.mock("@excalidraw/excalidraw", () => ({
   Excalidraw: (props: ExcalidrawProps) => { scene.props = props; return createElement("canvas", { onDoubleClick: () => normalDoubleClick() }); },
   convertToExcalidrawElements: vi.fn(),
   restore: (data: object) => data,
-  CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY" },
+  CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER" },
   getSceneVersion: (elements: { version?: number }[]) => elements.reduce((sum, el) => sum + (el.version ?? 0), 0),
   hashElementsVersion: (elements: { versionNonce?: number }[]) => elements.reduce((hash, el) => ((hash << 5) + hash + (el.versionNonce ?? 0)) >>> 0, 5381),
 }));
@@ -240,6 +240,32 @@ it("applies an operator replacement and files without saving the old draft over 
   change([{ ...elements[0], version: 3 }], appState, files);
   act(() => vi.advanceTimersByTime(1500));
   expect(updateCanvas).toHaveBeenCalledTimes(1);
+});
+
+it("follows a scene changed on disk when it has no local change", () => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const api = { addFiles: vi.fn(), getFiles: () => ({}), updateScene: vi.fn(), scrollToContent: vi.fn() };
+  act(() => scene.props!.excalidrawAPI!(api as unknown as ExcalidrawImperativeAPI));
+  const elements = [{ id: "from-disk", type: "rectangle", version: 1, versionNonce: 7 }];
+  const changed = { ...canvas, dataJson: JSON.stringify({ elements, appState, files: {} }) };
+  act(() => root.render(createElement(CanvasPane, { ...props, canvas: changed })));
+  expect(api.updateScene).toHaveBeenCalledWith({ elements, appState, captureUpdate: "NEVER" });
+  // The reload is not an edit: nothing is saved.
+  act(() => vi.advanceTimersByTime(2000));
+  expect(updateCanvas).not.toHaveBeenCalled();
+});
+
+it("keeps a local edit when the scene changes on disk", () => {
+  act(() => root.render(createElement(CanvasPane, props)));
+  const api = { addFiles: vi.fn(), getFiles: () => ({}), updateScene: vi.fn(), scrollToContent: vi.fn() };
+  act(() => scene.props!.excalidrawAPI!(api as unknown as ExcalidrawImperativeAPI));
+  const local = [{ id: "local", type: "rectangle", version: 2, versionNonce: 11 }];
+  change(local);
+  const changed = { ...canvas, dataJson: JSON.stringify({ elements: [{ id: "from-disk", version: 1 }], appState, files: {} }) };
+  act(() => root.render(createElement(CanvasPane, { ...props, canvas: changed })));
+  expect(api.updateScene).not.toHaveBeenCalled();
+  act(() => vi.advanceTimersByTime(1500));
+  expect(JSON.parse(vi.mocked(updateCanvas).mock.calls[0][1].dataJson!).elements[0].id).toBe("local");
 });
 
 type PointerState = Parameters<NonNullable<ExcalidrawProps["onPointerUp"]>>[1];

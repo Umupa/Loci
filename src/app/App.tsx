@@ -514,10 +514,13 @@ function Workspace(boot: BootWorkspace) {
   }, [active]);
   useEffect(() => { if (providerSignIn && providerSignIn.sessionId !== active?.id) setProviderSignIn(null); }, [active?.id, providerSignIn]);
   useEffect(() => {
-    const refresh = () => { void loadCanvases().then(setCanvases).catch(reportError); };
-    refresh();
-    window.addEventListener(CANVASES_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(CANVASES_CHANGED_EVENT, refresh);
+    const refresh = (fresh: boolean) => { void loadCanvases(fresh).then(setCanvases).catch(reportError); };
+    const changed = () => refresh(true);
+    refresh(false);
+    // A changed drawing may have been edited outside Loci; the open pane
+    // follows it when it has nothing unsaved.
+    window.addEventListener(CANVASES_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(CANVASES_CHANGED_EVENT, changed);
   }, [reportError]);
   useEffect(() => {
     const release = setQuitWorkspace(() => sessionsRef.current, runtime.flushEvents);

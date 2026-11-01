@@ -145,6 +145,34 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
     saveTimerRef.current = setTimeout(save, SAVE_DEBOUNCE_MS);
   }, [save, initialData]);
 
+  /** Show a saved scene in the editor, dropping this pane's draft for it. */
+  const applyScene = useCallback((saved: CanvasSceneReplacement) => {
+    const api = apiRef.current;
+    if (!api) { pendingReplacementRef.current = saved; return; }
+    const data = restore(JSON.parse(saved.dataJson), null, null);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    latestDataRef.current = null;
+    savedDataRef.current = saved.dataJson;
+    sceneDrafts.delete(saved.id);
+    applyingSceneRef.current = true;
+    try {
+      api.addFiles(Object.values(data.files));
+      const documentState = {
+        viewBackgroundColor: data.appState.viewBackgroundColor,
+        currentItemFontFamily: data.appState.currentItemFontFamily,
+      };
+      api.updateScene({ elements: data.elements, appState: documentState, captureUpdate: saved.silent ? CaptureUpdateAction.NEVER : CaptureUpdateAction.IMMEDIATELY });
+      revisionRef.current = {
+        version: getSceneVersion(data.elements), hash: hashElementsVersion(data.elements), count: data.elements.length,
+        background: documentState.viewBackgroundColor, font: documentState.currentItemFontFamily, files: api.getFiles(),
+      };
+      setSaveError(false);
+    } finally { applyingSceneRef.current = false; }
+    // Follow the agent's last camera, as the official Excalidraw widget does.
+    if (saved.viewport) api.scrollToContent(convertToExcalidrawElements([{ type: "rectangle", ...saved.viewport }]),
+      { fitToViewport: true, viewportZoomFactor: 1, maxZoom: 1, animate: true, duration: 300 });
+  }, []);
+
   useEffect(() => () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     save();
@@ -158,31 +186,8 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
     };
     const replace = (event: Event) => {
       const saved = (event as CustomEvent<CanvasSceneReplacement>).detail;
-      const api = apiRef.current;
       if (saved.id !== canvas.id) return;
-      if (!api) { pendingReplacementRef.current = saved; return; }
-      const data = restore(JSON.parse(saved.dataJson), null, null);
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      latestDataRef.current = null;
-      savedDataRef.current = saved.dataJson;
-      sceneDrafts.delete(canvas.id);
-      applyingSceneRef.current = true;
-      try {
-        api.addFiles(Object.values(data.files));
-        const documentState = {
-          viewBackgroundColor: data.appState.viewBackgroundColor,
-          currentItemFontFamily: data.appState.currentItemFontFamily,
-        };
-        api.updateScene({ elements: data.elements, appState: documentState, captureUpdate: saved.silent ? CaptureUpdateAction.NEVER : CaptureUpdateAction.IMMEDIATELY });
-        revisionRef.current = {
-          version: getSceneVersion(data.elements), hash: hashElementsVersion(data.elements), count: data.elements.length,
-          background: documentState.viewBackgroundColor, font: documentState.currentItemFontFamily, files: api.getFiles(),
-        };
-        setSaveError(false);
-      } finally { applyingSceneRef.current = false; }
-      // Follow the agent's last camera, as the official Excalidraw widget does.
-      if (saved.viewport) api.scrollToContent(convertToExcalidrawElements([{ type: "rectangle", ...saved.viewport }]),
-        { fitToViewport: true, viewportZoomFactor: 1, maxZoom: 1, animate: true, duration: 300 });
+      applyScene(saved);
     };
     window.addEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
     window.addEventListener(CANVAS_SCENE_REPLACED_EVENT, replace);
@@ -190,7 +195,29 @@ function CanvasPaneComponent({ canvas, focused, onFocus, onClose, onPaneDragStar
       window.removeEventListener(CANVAS_SCENE_ACCESS_EVENT, flush);
       window.removeEventListener(CANVAS_SCENE_REPLACED_EVENT, replace);
     };
-  }, [canvas.id, save]);
+  }, [canvas.id, save, applyScene]);
+
+  // The drawing changed on disk (edited by the mentor or another window).
+  // Follow it when this pane has nothing unsaved: no draft, no pending save,
+  // and no local change. A local edit keeps its draft, and its save is
+  // refused by the guarded revision as before.
+  useEffect(() => {
+    if (canvas.dataJson === savedDataRef.current) return;
+    if (!apiRef.current || latestDataRef.current || saveTimerRef.current != null || sceneDrafts.has(canvas.id)) return;
+    let data: ReturnType<typeof restore>;
+    try { data = restore(JSON.parse(canvas.dataJson), null, null); }
+    catch { return; }
+    const current = revisionRef.current;
+    const same = !!current
+      && current.hash === hashElementsVersion(data.elements)
+      && current.count === data.elements.length
+      && current.background === data.appState?.viewBackgroundColor
+      && current.font === data.appState?.currentItemFontFamily
+      && Object.keys(current.files ?? {}).length === Object.keys(data.files ?? {}).length;
+    savedDataRef.current = canvas.dataJson;
+    if (same) return;
+    applyScene({ ...canvas, silent: true });
+  }, [canvas, applyScene]);
 
   const registerApi = useCallback((api: ExcalidrawImperativeAPI) => {
     apiRef.current = api;
