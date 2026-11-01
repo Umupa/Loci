@@ -46,6 +46,50 @@ describe("ComposerAction", () => {
         expect(typed).toContain('aria-label="Stop"');
         expect(typed).not.toContain('aria-label="Send"');
     });
+
+    it("gives Stop the same theme-aware face as Send", () => {
+        const stop = renderAction(true, false);
+        expect(stop).toContain("primary-action");
+        expect(stop).not.toContain("bg-white");
+    });
+
+    it("names the chat field from the mentor it writes to", async () => {
+        vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+        const host = document.createElement("div");
+        document.body.append(host);
+        const root = createRoot(host);
+        try {
+            await act(async () => root.render(createElement(Composer, {
+                focused: false, harness: "claude", model: "claude-sonnet", runtimeMode: "supervised",
+                executionCwd: "/repo", placeholder: "Message Nova", hideProjectPicker: true,
+                onFocus: () => { }, onCwdChange: () => { }, onModelChange: () => { },
+                onRuntimeModeChange: () => { }, onSubmit: () => { },
+            })));
+            expect(host.querySelector("textarea")?.getAttribute("aria-label")).toBe("Message Nova");
+        } finally {
+            act(() => root.unmount());
+            host.remove();
+        }
+    });
+
+    it("keeps a name on a field without a placeholder", async () => {
+        vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+        const host = document.createElement("div");
+        document.body.append(host);
+        const root = createRoot(host);
+        try {
+            await act(async () => root.render(createElement(Composer, {
+                focused: false, harness: "claude", model: "claude-sonnet", runtimeMode: "supervised",
+                executionCwd: "/repo", hideProjectPicker: true,
+                onFocus: () => { }, onCwdChange: () => { }, onModelChange: () => { },
+                onRuntimeModeChange: () => { }, onSubmit: () => { },
+            })));
+            expect(host.querySelector("textarea")?.getAttribute("aria-label")).toBe("Message");
+        } finally {
+            act(() => root.unmount());
+            host.remove();
+        }
+    });
 });
 describe("Composer question focus", () => {
     let container: HTMLDivElement;

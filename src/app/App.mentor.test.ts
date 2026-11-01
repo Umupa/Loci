@@ -465,6 +465,13 @@ it("creates a mentor from the gallery while Settings is open and switches to its
   expect(railButton("Mentor").getAttribute("aria-current")).toBe("true");
 });
 
+it("opens Settings on MCP when the composer asks to manage servers", async () => {
+  await renderMentor();
+  await act(async () => { window.dispatchEvent(new Event("loci:open-mcp-settings")); });
+  await settle(() => expect(container.querySelector("[data-app-settings]")).not.toBeNull());
+  expect(localStorage.getItem("loci.settingsSection")).toBe("mcp");
+});
+
 it("shows a mentor another window created on the rail at once", async () => {
   await renderMentor();
   const roster = JSON.parse(localStorage.getItem("loci:agent-roster")!);

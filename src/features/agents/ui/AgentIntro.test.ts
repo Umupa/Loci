@@ -22,19 +22,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("starts a blank agent from a sentence without asking the user to configure it", () => {
+it("starts every mentor with the learning greeting and no setup controls", () => {
   act(() => root.render(createElement(AgentIntro, { agent })));
-  expect(host.textContent).toContain("What would you like help with?");
-  expect(host.textContent).toContain("A sentence is enough.");
+  expect(host.textContent).toContain("What do you want to learn?");
+  expect(host.textContent).toContain("Name a topic and what you already know.");
   expect(host.querySelector("button, input, select, textarea")).toBeNull();
 });
 
-it("lets Tutor start from a topic without presenting folders as projects", () => {
+it("keeps the greeting when the agent's free-text role says tutor", () => {
   act(() => root.render(createElement(AgentIntro, {
     agent: { ...agent, role: "tutor", projects: ["/projects/Study"] },
   })));
-  expect(host.textContent).toContain("What would you like to learn?");
-  expect(host.textContent).toContain("A topic is enough.");
-  expect(host.textContent).not.toContain("Works on");
+  expect(host.textContent).toContain("What do you want to learn?");
+  expect(host.textContent).toContain("set up a course with you.");
   expect(host.querySelector("button, input, select, textarea")).toBeNull();
 });

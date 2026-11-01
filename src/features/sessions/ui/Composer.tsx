@@ -2033,7 +2033,7 @@ export function Composer({
               spellCheck={false}
               defaultValue={initialDraft}
               placeholder={noteCard ? "Add a message, or send…" : (placeholder ?? "Ask, / for commands, @ for files, notes, drawings…")}
-              aria-label={inputAriaLabel}
+              aria-label={inputAriaLabel ?? placeholder ?? "Message"}
               disabled={disabled}
               className={`composer-field scrollbar-none relative max-h-52 w-full resize-none overflow-x-hidden whitespace-pre-wrap wrap-break-word bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${fieldPadding}`}
               onFocus={onFocus}
@@ -2402,7 +2402,7 @@ export function ComposerAction({
         title="Stop"
         aria-label="Stop"
         onClick={onStop}
-        className="grid size-6.5 place-items-center rounded-md bg-white text-black hover:bg-white/90"
+        className="primary-action grid size-6.5 place-items-center rounded-md"
       >
         <Square className="size-2.5 fill-current" strokeWidth={0} />
       </button>

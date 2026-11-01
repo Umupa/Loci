@@ -161,3 +161,55 @@ it("retains the memory draft when another writer has replaced the original fact"
   expect(container.querySelector('[role="alert"]')?.textContent).toContain("This memory changed");
   expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Edit memory"]')?.value).toBe("Prefers examples before explanations");
 });
+
+it("moves between settings pages with the arrow keys and one tab stop", async () => {
+  await render();
+  const tabs = () => [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+  expect(tabs().map((tab) => tab.tabIndex)).toEqual([0, -1, -1]);
+  expect(container.querySelector('[role="tabpanel"]')?.getAttribute("aria-labelledby")).toBe(tabs()[0].id);
+
+  act(() => {
+    tabs()[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+  });
+  expect(tabs()[1].getAttribute("aria-selected")).toBe("true");
+  expect(document.activeElement).toBe(tabs()[1]);
+  expect(tabs().map((tab) => tab.tabIndex)).toEqual([-1, 0, -1]);
+  expect(container.querySelector('[role="tabpanel"]')?.getAttribute("aria-labelledby")).toBe(tabs()[1].id);
+
+  act(() => {
+    tabs()[1].dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true, cancelable: true }));
+  });
+  expect(tabs()[2].getAttribute("aria-selected")).toBe("true");
+  act(() => {
+    tabs()[2].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+  });
+  expect(tabs()[0].getAttribute("aria-selected")).toBe("true");
+  act(() => {
+    tabs()[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }));
+  });
+  expect(tabs()[2].getAttribute("aria-selected")).toBe("true");
+});
+
+it("keeps the Soul draft and says so when the save fails", async () => {
+  const original = vi.mocked(invoke).getMockImplementation()!;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    if (command === "agent_load") return { id: "agent", soul: "# Soul", soulHash: "s", memory: "", memoryHash: "m", topics: [] };
+    if (command === "agent_save") throw new Error("Permission denied");
+    return original(command, args);
+  });
+  await render();
+  await act(async () => [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((item) => item.textContent === "Soul")!.click());
+  const field = () => container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Soul"]')!;
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field(), "# Changed soul");
+    field().dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => {
+    field().focus();
+    field().blur();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain("Could not save the Soul");
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain("Permission denied");
+  expect(field().value).toBe("# Changed soul");
+});

@@ -160,6 +160,38 @@ describe("QuestionCard selections", () => {
     });
   });
 
+  it("skips only the question whose ✕ was pressed", () => {
+    const currentPrompt = prompt();
+    currentPrompt.questions.push({
+      id: "size", prompt: "Which size?", multiSelect: false, allowCustom: false,
+      options: [{ id: "small", label: "Small" }, { id: "large", label: "Large" }],
+    });
+    const { onReply } = render(currentPrompt);
+    click(container.querySelector<HTMLButtonElement>('button[aria-label="Skip this question"]')!);
+    expect(onReply).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("2 of 2");
+    click(option("Large"));
+    expect(onReply).toHaveBeenCalledWith(7, { kind: "answered", answers: { size: ["large"] } });
+  });
+
+  it("keeps earlier answers when the last question is skipped", () => {
+    const currentPrompt = prompt();
+    currentPrompt.questions.push({
+      id: "size", prompt: "Which size?", multiSelect: false, allowCustom: false,
+      options: [{ id: "small", label: "Small" }, { id: "large", label: "Large" }],
+    });
+    const { onReply } = render(currentPrompt);
+    click(option("Red"));
+    click(container.querySelector<HTMLButtonElement>('button[aria-label="Skip this question"]')!);
+    expect(onReply).toHaveBeenCalledWith(7, { kind: "answered", answers: { colour: ["red"] } });
+  });
+
+  it("sends a skipped reply when the only question is skipped", () => {
+    const { onReply } = render();
+    click(container.querySelector<HTMLButtonElement>('button[aria-label="Skip this question"]')!);
+    expect(onReply).toHaveBeenCalledWith(7, { kind: "skipped" });
+  });
+
   it("resets the mode and choices for a new request and treats toggling as interaction", () => {
     const currentPrompt = { ...prompt(), autoResolveAt: Date.now() + 30_000 };
     const { onReply, onInteraction } = render(currentPrompt);

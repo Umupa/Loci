@@ -405,6 +405,12 @@ function Workspace(boot: BootWorkspace) {
     startTransition(() => setSurface("settings"));
   }, []);
   const closeSettings = useCallback(() => setSurface("mentor"), []);
+  // The composer's MCP picker hands its settings link to the app rather than the pane.
+  useEffect(() => {
+    const openMcp = () => openSettings("mcp");
+    window.addEventListener("loci:open-mcp-settings", openMcp);
+    return () => window.removeEventListener("loci:open-mcp-settings", openMcp);
+  }, [openSettings]);
   const onSelectSettingsSection = useCallback((section: SettingsSectionId) => {
     setSettingsSection(section); saveSettingsSection(section); setSettingsAnchor(null);
   }, []);

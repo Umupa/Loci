@@ -62,6 +62,25 @@ describe("TranscriptSelectionMenu", () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
+  it("names the action that failed", async () => {
+    const onAddToChat = vi.fn(() => Promise.reject(new Error("No session")));
+    act(() =>
+      root.render(
+        createElement(TranscriptSelectionMenu, {
+          selection: { text: "A useful link", rect: new DOMRect(10, 20, 100, 20) },
+          onAddToChat,
+          onDismiss: vi.fn(),
+        }),
+      ),
+    );
+    const button = document.querySelector<HTMLButtonElement>('[role="toolbar"] button')!;
+    await act(async () => button.click());
+    const alert = document.querySelector('[role="alert"]')?.textContent;
+    expect(alert).toContain("Could not add to chat");
+    expect(alert).not.toContain("note");
+    expect(alert).toContain("No session");
+  });
+
   it("offers the selected text to both chat and notes", () => {
     const onAddToChat = vi.fn();
     const onAddToNotes = vi.fn();

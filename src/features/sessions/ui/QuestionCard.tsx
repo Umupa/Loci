@@ -88,9 +88,22 @@ export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
     advance(nextAnswers, custom);
   };
   const ready = questionIsComplete(question, answers, custom);
+  // Skipping one question leaves the others: the form advances, as the label promises.
+  const skip = () => {
+    interact();
+    if (!last) {
+      setStep(index + 1);
+      return;
+    }
+    const nextAnswers = { ...answers };
+    const nextCustom = { ...custom };
+    delete nextAnswers[question.id];
+    delete nextCustom[question.id];
+    onReply(prompt.requestId, buildQuestionReply(questions, nextAnswers, nextCustom));
+  };
 
   return (
-    <div data-question-card className="mx-4 my-1.5 flex w-fit min-w-[min(100%,20rem)] max-w-[min(100%,36rem)] flex-col gap-2.5 rounded-[1.25rem] bg-content/6 p-3.5 font-sans">
+    <div data-question-card className="mx-4 my-1.5 flex w-fit min-w-0 max-w-[min(100%,36rem)] flex-col gap-2.5 rounded-[1.25rem] bg-content/6 p-3.5 font-sans">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[14px] leading-snug text-content">{question.prompt}</p>
@@ -109,7 +122,7 @@ export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
             ) : null}
           </div>
         </div>
-        <button type="button" title="Skip" aria-label="Skip this question" onClick={() => onReply(prompt.requestId, { kind: "skipped" })}
+        <button type="button" title="Skip" aria-label="Skip this question" onClick={skip}
           className="grid size-6 shrink-0 place-items-center rounded-md text-content/40 hover:bg-content/8 hover:text-content">
           <X className="size-3.5" strokeWidth={1.75} />
         </button>

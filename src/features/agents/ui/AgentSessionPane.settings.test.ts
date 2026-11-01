@@ -155,7 +155,7 @@ it("keeps follow-up submission and queue actions connected to the agent session"
 it("lets an empty split pane start from one ordinary sentence without setup controls", async () => {
   await render({ busy: false, blocks: [] });
   const intro = host.querySelector("[data-agent-intro]")!;
-  expect(intro.textContent).toContain("A sentence is enough.");
+  expect(intro.textContent).toContain("Name a topic and what you already know.");
   expect(intro.querySelector("button, input, select, textarea")).toBeNull();
   const textarea = host.querySelector<HTMLTextAreaElement>("textarea")!;
   expect(textarea.value).toBe("");

@@ -51,6 +51,7 @@ export function TranscriptSelectionMenu({
         {onAddToChat ? (
           <SelectionAction
             label="Add to chat"
+            errorLabel="Could not add to chat."
             onSelect={() => onAddToChat(selection.text, selection.blockId)}
             onDismiss={onDismiss}
           >
@@ -64,6 +65,7 @@ export function TranscriptSelectionMenu({
         {onAddToNotes ? (
           <SelectionAction
             label="Add to notes"
+            errorLabel="Could not save note."
             onSelect={() => onAddToNotes(selection.text)}
             onDismiss={onDismiss}
           >
@@ -81,11 +83,14 @@ export function TranscriptSelectionMenu({
 
 function SelectionAction({
   label,
+  errorLabel,
   children,
   onSelect,
   onDismiss,
 }: {
   label: string;
+  /** What failed, so a chat failure is not reported as a note. */
+  errorLabel: string;
   children: ReactNode;
   onSelect: () => void | Promise<void>;
   onDismiss: () => void;
@@ -122,7 +127,7 @@ function SelectionAction({
           role="alert"
           className="max-w-xs px-2.5 py-1 text-xs text-content/70"
         >
-          Could not save note. {error}
+          {errorLabel} {error}
         </span>
       )}
     </>
