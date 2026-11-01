@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-01
+
 ### Added
 
 - **A learning language.** Settings → General → Learning language (Follow my messages, 简体中文 or English) fixes what mentors write in: replies, course and lesson titles, guides, notes and reports, whatever language their sources are in. A term's original is given the first time it appears. Each mentor can choose its own in its settings. From a terminal: `loci settings set learningLanguage zh-CN` and `loci mentors update <mentor> --language en`.
@@ -181,7 +183,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Umupa/Loci/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Umupa/Loci/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Umupa/Loci/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Umupa/Loci/compare/v0.1.1...v0.2.0

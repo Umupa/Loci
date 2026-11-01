@@ -1,7 +1,7 @@
 {
   "name": "loci-desktop",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Loci — an AI-native learning workspace for engineers",
   "license": "MIT",
   "repository": {
