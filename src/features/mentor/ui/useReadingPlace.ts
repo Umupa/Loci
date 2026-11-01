@@ -34,12 +34,26 @@ function caretAt(x: number, y: number): { node: Node; offset: number } | null {
   return range ? { node: range.startContainer, offset: range.startOffset } : null;
 }
 
-/** The page, lines, section and paragraph at the top of what the reader shows. */
-export function measurePlace(root: HTMLElement): Pick<ReadingPlace, "page" | "lines" | "section" | "paragraph"> {
+type Measured = Pick<ReadingPlace, "part" | "page" | "lines" | "section" | "paragraph">;
+
+/**
+ * The page, lines, section and paragraph at the top of what the reader
+ * shows. In a comparison (parts marked `data-compare-part`) they are read
+ * in the part at the top of the view, which is named.
+ */
+export function measurePlace(root: HTMLElement): Measured {
   const view = root.getBoundingClientRect();
   const top = Math.max(view.top, 0);
   const bottom = Math.min(view.bottom, window.innerHeight || view.bottom);
-  const place: Pick<ReadingPlace, "page" | "lines" | "section" | "paragraph"> = {};
+  const place: Measured = {};
+  const part = [...root.querySelectorAll<HTMLElement>("[data-compare-part]")].find((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.bottom > top + 24 && rect.top < bottom;
+  });
+  if (part) {
+    place.part = part.dataset.comparePart;
+    root = part;
+  }
 
   let best = 0;
   for (const page of root.querySelectorAll<HTMLElement>("[data-page-number]")) {
@@ -110,7 +124,7 @@ export function useReadingPlace(root: RefObject<HTMLElement | null>, agentId: st
     const measure = () => {
       timer = 0;
       const place = measurePlace(element);
-      setAgentReadingPlace(agentId, { page: place.page, lines: place.lines, section: place.section, paragraph: place.paragraph });
+      setAgentReadingPlace(agentId, { part: place.part, page: place.page, lines: place.lines, section: place.section, paragraph: place.paragraph });
     };
     const later = (delay = 300) => { window.clearTimeout(timer); timer = window.setTimeout(measure, delay); };
     const scroll = (event: Event) => { if (event.target instanceof Node && element.contains(event.target)) later(); };

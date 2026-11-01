@@ -3,12 +3,16 @@
  * it; each turn the agent is told, so "this lesson" needs no explaining.
  */
 export type AgentReading =
-  | { kind: "course"; courseId: string; title: string; lessonId?: string; lessonTitle?: string }
+  /** `compare`: a comparison lesson's parts, the same mechanism in several places. */
+  | { kind: "course"; courseId: string; title: string; lessonId?: string; lessonTitle?: string; compare?: ReadingPart[] }
   | { kind: "document"; id: string; title: string }
   | { kind: "note"; id: string }
   | { kind: "canvas"; id: string }
   /** `commit`: code read as it was at that commit, not as it is on disk. */
   | { kind: "file"; path: string; commit?: string };
+
+/** One part of a comparison lesson: a file's lines (maybe at a commit) or a document's section. */
+export type ReadingPart = { label: string; file?: string; lines?: [number, number]; commit?: string; document?: string; section?: string };
 
 /**
  * Where in it the reader is: the headings above the visible paragraph, the
@@ -16,6 +20,8 @@ export type AgentReading =
  * (kept while focus moves to the composer). It makes "this" and "here" resolve.
  */
 export type ReadingPlace = {
+  /** In a comparison lesson: the label of the part at the top of the view. */
+  part?: string;
   section?: string[];
   paragraph?: string;
   page?: number;
@@ -67,6 +73,7 @@ const same = (a: string, b: string) => a.replace(/\s+/g, " ").trim() === b.repla
 /** The place within budget. A selection already attached to the message as a source is not repeated. */
 export function budgetPlace(place: ReadingPlace, attached: readonly string[] = []): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+  if (place.part) out.part = clip(place.part, PLACE_LIMITS.heading);
   if (place.section?.length) out.section = place.section.slice(-PLACE_LIMITS.headings).map((heading) => clip(heading, PLACE_LIMITS.heading));
   if (place.page) out.page = place.page;
   if (place.lines) out.lines = place.lines;

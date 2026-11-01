@@ -152,7 +152,8 @@ export function useMentorView() {
   }, [update]); // eslint-disable-line react-hooks/exhaustive-deps
   const setLesson = useCallback((id: string, lesson: MentorLesson | null) => update(id, (state) => {
     if (state.page?.kind !== "course") return state;
-    if ((state.lesson?.id ?? null) === (lesson?.id ?? null) && state.lesson?.title === lesson?.title) return state;
+    if ((state.lesson?.id ?? null) === (lesson?.id ?? null) && state.lesson?.title === lesson?.title
+      && JSON.stringify(state.lesson?.compare ?? null) === JSON.stringify(lesson?.compare ?? null)) return state;
     return { ...state, lesson: lesson ?? undefined };
   }), [update]);
   const confirmRestored = useCallback((id: string, page: MentorPage, exists: boolean) => update(id, (state) => {

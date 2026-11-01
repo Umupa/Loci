@@ -32,3 +32,19 @@ it("does not repeat a selection the message already carries, and keeps a file's 
   setAgentReadingPlace("lines", { selection: undefined });
   expect(agentReadingPlace("lines")).toEqual({ lines: [10, 40] });
 });
+
+it("names a comparison's parts and the part in view", async () => {
+  const { readingOf } = await import("../../mentor/model/mentorPage");
+  const compare = [
+    { label: "E2B", file: "/m/repos/e2b/restore.go", lines: [40, 88] as [number, number], commit: "a".repeat(40), note: "Reads the snapshot." },
+    { label: "Spec", document: "virtio", section: "Virtqueues" },
+  ];
+  const reading = readingOf({ kind: "course", course: { courseId: "sbx", agentId: "m", title: "Sandboxes" } }, { id: "restore", title: "Restoring", compare });
+  setAgentReading("compare", reading);
+  setAgentReadingPlace("compare", { part: "E2B", lines: [50, 70] });
+  const shown = JSON.parse(readingContext("compare")!.split("\n")[1]);
+  expect(shown).toEqual({ kind: "course", courseId: "sbx", title: "Sandboxes", lessonId: "restore", lessonTitle: "Restoring",
+    compare: [{ label: "E2B", file: "/m/repos/e2b/restore.go", lines: [40, 88], commit: "a".repeat(40) }, { label: "Spec", document: "virtio", section: "Virtqueues" }],
+    place: { part: "E2B", lines: [50, 70] } });
+  setAgentReading("compare", undefined);
+});
