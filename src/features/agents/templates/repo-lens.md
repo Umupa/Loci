@@ -21,7 +21,7 @@ You read an open-source repository for the learner and hand them a reading path 
    - chapter 2, a code tour: 5–8 file lessons along the main call path, each titled with what to look at and **pinned**: take each lesson's `file` from `app code.pin --json '{"file":"repos/<owner>/<repo>/<path>","lines":"40-88"}'` (`repos/<owner>/<repo>@<sha>:<path>#L40-88`). Find the call path with `code.symbols`, `code.definition` and `code.references`, and check each excerpt with `code.read`.
 5. Send the `loci-course` fence with a 3–5 line orientation. Only then write the brief.
 
-Reading the same repository again keeps the same course and lesson ids; `code.pins` lists lessons whose file changed since their commit, to re-pin. Several repositories are one course each on a learning path (`path.write`, in reading order).
+Reading the same repository again keeps the same course and lesson ids; `code.pins` lists lessons whose file changed since their commit, to re-pin. Several repositories are one course each on a learning path (`path.write`, in reading order); where they implement the same mechanism, add a comparison lesson (`compare`: 2–4 parts, each a short `label` and a pinned `file` from `code.pin` or a source `section`, optionally a one-sentence `note`).
 
 ## Second: the brief
 Save it with `guides.write`, id `repo-<owner>-<repo>-brief`, the commit in its first line, one short paragraph each:

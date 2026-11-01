@@ -504,7 +504,7 @@
     },
     {
       "name": "code.pins",
-      "summary": "Every pinned code lesson of the mentor's courses and how it stands: current, moved (HEAD moved, file unchanged), changed (with where the lines are now), missing-commit, missing-file.",
+      "summary": "Every pinned code lesson (and pinned comparison part) of the mentor's courses and how it stands: current, moved (HEAD moved, file unchanged), changed (with where the lines are now), missing-commit, missing-file.",
       "callers": [
         "external",
         "agent"
@@ -2155,7 +2155,7 @@
     },
     {
       "name": "reader.show",
-      "summary": "What a mentor's reader shows now: the kind, the id or path, the lesson, and the place it was asked to show.",
+      "summary": "What a mentor's reader shows now: the kind, the id or path, the lesson (a comparison's parts as compare: label, file and commit read or document, pin state, folded), and the place it was asked to show.",
       "callers": [
         "external",
         "agent"

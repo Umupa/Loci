@@ -4,6 +4,7 @@ import { getCanvas } from "../../features/canvas/canvas";
 import { requestFilePlace } from "../../features/files/model/filePlace";
 import { courseItems, isCommit, loadCourse } from "../../features/learning/model/course";
 import { samePage, type MentorPage } from "../../features/mentor/model/mentorPage";
+import { compareView } from "../../features/learning/model/compareView";
 import { getNote } from "../../features/notes";
 import type { FilePlace } from "../../shared/lib/appResourceLinks";
 import type { CommandContext } from "./context";
@@ -108,7 +109,7 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "reader.show",
-    summary: "What a mentor's reader shows now: the kind, the id or path, the lesson, and the place it was asked to show.",
+    summary: "What a mentor's reader shows now: the kind, the id or path, the lesson (a comparison's parts as compare: label, file and commit read or document, pin state, folded), and the place it was asked to show.",
     fields: [mentor],
     callers: ["external", "agent"],
     run: async (ctx, input, meta) => {
@@ -116,7 +117,10 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
       const current = ctx.reader.current(agent.id);
       const remembered = focuses.get(agent.id);
       const focus = remembered && samePage(remembered.page, current.page) ? { focus: remembered.focus } : {};
-      return { mentor: agent.id, active: ctx.activeAgentId() === agent.id, ...readingView(current), ...focus };
+      // A comparison on screen says what each part shows: the commit read, the pin's state, folded or not.
+      const view = compareView(agent.id);
+      const shown = view && current.page?.kind === "course" && current.page.course.courseId === view.courseId && current.lesson?.id === view.lessonId ? { compare: view.parts } : {};
+      return { mentor: agent.id, active: ctx.activeAgentId() === agent.id, ...readingView(current), ...shown, ...focus };
     },
   },
   {

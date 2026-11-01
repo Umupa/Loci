@@ -12,8 +12,11 @@ export function countMarks(annotations: readonly Annotation[]): MarkCount {
 const key = (text: string) => text.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 const sameTarget = (a: AnnotationTarget, b: AnnotationTarget) => JSON.stringify(a) === JSON.stringify(b);
 
+/** The place a lesson (or one part of a comparison) reads. */
+type Place = Pick<CourseLesson, "document" | "section" | "file" | "pages" | "lines">;
+
 /** What a lesson's highlights are kept on: its library document, its PDF, or its file. Null for a PDF never opened. */
-export async function lessonTarget(agentId: string, lesson: CourseLesson): Promise<AnnotationTarget | null> {
+export async function lessonTarget(agentId: string, lesson: Place): Promise<AnnotationTarget | null> {
   if (lesson.document) return { kind: "document", agentId, documentId: lesson.document };
   if (!lesson.file) return null;
   if (/\.pdf$/i.test(lesson.file)) {
@@ -24,7 +27,7 @@ export async function lessonTarget(agentId: string, lesson: CourseLesson): Promi
 }
 
 /** Whether a mark on a lesson's target lies in the part the lesson reads: its section, pages or lines. */
-export function inLesson(lesson: CourseLesson, annotation: Annotation): boolean {
+export function inLesson(lesson: Place, annotation: Annotation): boolean {
   if (lesson.document) {
     const section = lesson.section?.trim();
     if (!section) return true;
@@ -48,12 +51,17 @@ export async function lessonAnnotations(course: Pick<CourseWithProgress, "agentI
   const result = new Map<string, Annotation[]>();
   if (course.data.engine !== "reading") return result;
   const lessons = course.data.chapters.flatMap((chapter) => chapter.lessons);
-  const targets = await Promise.all(lessons.map((lesson) => lessonTarget(course.agentId, lesson)));
+  // A comparison's marks are those of each of its parts.
+  const places = lessons.flatMap((lesson) => (lesson.compare ?? [lesson]).map((place) => ({ lesson: lesson.id, place })));
+  const targets = await Promise.all(places.map(({ place }) => lessonTarget(course.agentId, place)));
   const unique = targets.filter((target, index): target is AnnotationTarget => !!target && targets.findIndex((other) => other && sameTarget(other, target)) === index);
   const marks = await queryAnnotations(unique);
-  lessons.forEach((lesson, index) => {
+  for (const lesson of lessons) result.set(lesson.id, []);
+  places.forEach(({ lesson, place }, index) => {
     const target = targets[index];
-    result.set(lesson.id, target ? marks.filter((mark) => sameTarget(mark.target, target) && inLesson(lesson, mark)) : []);
+    if (!target) return;
+    const list = result.get(lesson)!;
+    for (const mark of marks) if (sameTarget(mark.target, target) && inLesson(place, mark) && !list.includes(mark)) list.push(mark);
   });
   return result;
 }

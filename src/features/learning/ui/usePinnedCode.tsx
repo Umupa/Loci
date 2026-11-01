@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { readTextFile } from "../../../platform/tauri/fs";
-import { codePinStatus, readCode, shortCommit, type PinStatus } from "../../../platform/tauri/code";
+import { codePinStatus, readCode, shortCommit, type PinStatus, type RepoPlace } from "../../../platform/tauri/code";
 
 /** Which text a pinned lesson shows: the file at its commit, or as it is now. */
 export type PinView = "pinned" | "current";
@@ -18,6 +18,8 @@ export type PinnedCode = {
   lines?: [number, number];
   /** The commit the shown text is at, when it is the pinned version. */
   commit?: string;
+  /** Where the file is in its repository, once read at a commit. */
+  place?: RepoPlace;
 };
 
 const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
@@ -30,7 +32,7 @@ export function usePinnedCode(file: string, commit: string | undefined, lines: [
   const key = `${file}\u0000${commit ?? ""}\u0000${lines?.join("-") ?? ""}`;
   const [status, setStatus] = useState<{ key: string; status?: PinStatus }>();
   const [chosen, setChosen] = useState<{ key: string; view: PinView }>();
-  const [loaded, setLoaded] = useState<{ key: string; view: PinView; text?: string; error?: string }>();
+  const [loaded, setLoaded] = useState<{ key: string; view: PinView; text?: string; error?: string; place?: RepoPlace }>();
 
   useEffect(() => {
     if (!enabled || !commit) return;
@@ -49,9 +51,9 @@ export function usePinnedCode(file: string, commit: string | undefined, lines: [
   useEffect(() => {
     if (!enabled || !statusKnown) return;
     let live = true;
-    const read = view === "pinned" && commit ? readCode(file, commit).then((found) => found.text) : readTextFile(file);
+    const read = view === "pinned" && commit ? readCode(file, commit) : readTextFile(file).then((text) => ({ text, repoRoot: undefined, pathInRepo: undefined }));
     void read.then(
-      (text) => { if (live) setLoaded({ key, view, text }); },
+      ({ text, repoRoot, pathInRepo }) => { if (live) setLoaded({ key, view, text, ...(repoRoot && pathInRepo ? { place: { repoRoot, pathInRepo } } : {}) }); },
       (cause: unknown) => { if (live) setLoaded({ key, view, error: message(cause) }); });
     return () => { live = false; };
   }, [enabled, statusKnown, view, file, commit, key]);
@@ -65,6 +67,7 @@ export function usePinnedCode(file: string, commit: string | undefined, lines: [
     setView: (next) => setChosen({ key, view: next }),
     ...(moved ? { lines: current.currentLines } : lines ? { lines } : {}),
     ...(view === "pinned" && commit ? { commit: current?.commit ?? commit } : {}),
+    ...(shown?.place ? { place: shown.place } : {}),
   };
 }
 

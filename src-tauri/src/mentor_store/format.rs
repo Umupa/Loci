@@ -308,7 +308,7 @@ pub fn resolve_lesson_files(
             .flatten()
         {
             if let Value::Object(lesson) = lesson {
-                if lesson.contains_key("file") {
+                if lesson.contains_key("file") || lesson.contains_key("compare") {
                     read_lesson(lesson, resolve)?;
                 }
             }
@@ -319,8 +319,23 @@ pub fn resolve_lesson_files(
 
 /// Lesson shorthands: `document: id#section`, `file: path#L12-40` or `#p7-9`,
 /// and `file: repos/<repo>@<sha>:path`, a file pinned to a commit (the
-/// lesson gains `commit`; `file` is the path in the working tree).
+/// lesson gains `commit`; `file` is the path in the working tree). A
+/// comparison's parts take the same shorthands.
 fn read_lesson(
+    lesson: &mut Map<String, Value>,
+    resolve: &dyn Fn(&str) -> Result<String, String>,
+) -> Result<(), String> {
+    if let Some(Value::Array(parts)) = lesson.get_mut("compare") {
+        for part in parts {
+            if let Value::Object(part) = part {
+                read_place(part, resolve)?;
+            }
+        }
+    }
+    read_place(lesson, resolve)
+}
+
+fn read_place(
     lesson: &mut Map<String, Value>,
     resolve: &dyn Fn(&str) -> Result<String, String>,
 ) -> Result<(), String> {
@@ -414,8 +429,11 @@ const COURSE_KEYS: [&str; 6] = [
     "chapters",
     "steps",
 ];
-const LESSON_KEYS: [&str; 8] = [
-    "id", "title", "document", "section", "file", "lines", "pages", "commit",
+const LESSON_KEYS: [&str; 9] = [
+    "id", "title", "document", "section", "file", "lines", "pages", "commit", "compare",
+];
+const PART_KEYS: [&str; 7] = [
+    "label", "file", "document", "section", "lines", "commit", "note",
 ];
 const STEP_KEYS: [&str; 8] = [
     "id",
@@ -459,22 +477,12 @@ pub fn render_course(
                                 chapter.get_mut("lessons").and_then(Value::as_array_mut)
                             {
                                 for lesson in lessons.iter_mut() {
-                                    if let Some(Value::String(file)) = lesson.get("file").cloned() {
-                                        let commit = lesson
-                                            .get("commit")
-                                            .and_then(Value::as_str)
-                                            .map(str::to_string);
-                                        let short = commit.as_deref().and_then(|commit| {
-                                            pin_shorthand(&file, commit, relativize)
-                                        });
-                                        match short {
-                                            Some(short) => {
-                                                lesson["file"] = json!(short);
-                                                if let Value::Object(lesson) = lesson {
-                                                    lesson.remove("commit");
-                                                }
-                                            }
-                                            None => lesson["file"] = json!(relativize(&file)),
+                                    write_place(lesson, relativize);
+                                    if let Some(parts) =
+                                        lesson.get_mut("compare").and_then(Value::as_array_mut)
+                                    {
+                                        for part in parts {
+                                            write_place(part, relativize);
                                         }
                                     }
                                 }
@@ -492,6 +500,30 @@ pub fn render_course(
     }
     let yaml = ordered(&Value::Object(root), &COURSE_KEYS);
     serde_yaml_ng::to_string(&yaml).map_err(|e| e.to_string())
+}
+
+/// A lesson's or part's file as the course file names it: the pin shorthand
+/// when it is pinned, else relative to the mentor's folder when inside it.
+fn write_place(place: &mut Value, relativize: &dyn Fn(&str) -> String) {
+    let Some(Value::String(file)) = place.get("file").cloned() else {
+        return;
+    };
+    let commit = place
+        .get("commit")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let short = commit
+        .as_deref()
+        .and_then(|commit| pin_shorthand(&file, commit, relativize));
+    match short {
+        Some(short) => {
+            place["file"] = json!(short);
+            if let Value::Object(place) = place {
+                place.remove("commit");
+            }
+        }
+        None => place["file"] = json!(relativize(&file)),
+    }
 }
 
 /// JSON → YAML with the keys in reading order instead of alphabetical.
@@ -514,6 +546,7 @@ fn ordered(value: &Value, keys: &[&str]) -> Yaml {
                 let child_keys: &[&str] = match key.as_str() {
                     "chapters" => &["title", "lessons"],
                     "lessons" => &LESSON_KEYS,
+                    "compare" => &PART_KEYS,
                     "steps" => &STEP_KEYS,
                     _ => &[],
                 };
@@ -787,6 +820,69 @@ mod tests {
         let again = parse_course(&written, &resolve).unwrap();
         let normalized = |raw: &str| serde_json::from_str::<Value>(raw).unwrap();
         assert_eq!(normalized(&again.data_json), normalized(&course.data_json));
+        std::fs::remove_dir_all(folder).ok();
+    }
+
+    #[test]
+    fn a_comparison_lesson_round_trips_with_its_parts() {
+        let folder = crate::mentor_store::testing::temp_dir("compare");
+        std::fs::create_dir_all(folder.join("repos/e2b-dev/runtime/.git")).unwrap();
+        let base = format!("{}/", folder.display());
+        let resolve = |path: &str| Ok(format!("{base}{path}"));
+        let sha = "3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e";
+        let yaml = format!("title: T\nchapters:\n  - title: C\n    lessons:\n      - id: restore\n        title: Restoring a sandbox\n        compare:\n          - label: E2B\n            file: repos/e2b-dev/runtime@{sha}:packages/orchestrator/restore.go#L40-88\n            note: Starts from a snapshot file.\n          - label: Cube\n            file: repos/cube/src/restore.rs#L3-9\n          - label: Spec\n            document: 'virtio#2.6 Virtqueues'\n");
+        let course = parse_course(&yaml, &resolve).unwrap();
+        crate::course::validate_data(&course.engine, &course.data_json).unwrap();
+        let data: Value = serde_json::from_str(&course.data_json).unwrap();
+        let parts = &data["chapters"][0]["lessons"][0]["compare"];
+        assert_eq!(
+            parts[0]["file"],
+            json!(format!(
+                "{base}repos/e2b-dev/runtime/packages/orchestrator/restore.go"
+            ))
+        );
+        assert_eq!(parts[0]["commit"], sha);
+        assert_eq!(parts[0]["lines"], json!([40, 88]));
+        assert_eq!(parts[0]["note"], "Starts from a snapshot file.");
+        assert_eq!(
+            parts[1]["file"],
+            json!(format!("{base}repos/cube/src/restore.rs"))
+        );
+        assert_eq!(parts[1].get("commit"), None);
+        assert_eq!(parts[2]["document"], "virtio");
+        assert_eq!(parts[2]["section"], "2.6 Virtqueues");
+
+        let relativize = |path: &str| path.strip_prefix(&base).unwrap_or(path).to_string();
+        let written = render_course("T", "reading", &course.data_json, &relativize).unwrap();
+        assert!(
+            written.contains(&format!(
+                "    compare:\n    - label: E2B\n      file: repos/e2b-dev/runtime@{sha}:packages/orchestrator/restore.go\n      lines:\n"
+            )),
+            "{written}"
+        );
+        assert!(written.contains("    - label: Cube\n      file: repos/cube/src/restore.rs\n"));
+        assert!(written.contains(
+            "    - label: Spec\n      document: virtio\n      section: 2.6 Virtqueues\n"
+        ));
+        let again = parse_course(&written, &resolve).unwrap();
+        let normalized = |raw: &str| serde_json::from_str::<Value>(raw).unwrap();
+        assert_eq!(normalized(&again.data_json), normalized(&course.data_json));
+        // Course JSON from courses.write resolves parts the same way.
+        let raw =
+            json!({"chapters": [{"title": "C", "lessons": [{"id": "x", "title": "X", "compare": [
+                {"label": "A", "file": format!("repos/e2b-dev/runtime@{}:a.go#L1-2", &sha[..7])},
+                {"label": "B", "document": "d#Intro"}
+            ]}]}]})
+            .to_string();
+        let data: Value =
+            serde_json::from_str(&resolve_lesson_files(&raw, &resolve).unwrap()).unwrap();
+        let parts = &data["chapters"][0]["lessons"][0]["compare"];
+        assert_eq!(
+            parts[0]["file"],
+            json!(format!("{base}repos/e2b-dev/runtime/a.go"))
+        );
+        assert_eq!(parts[0]["commit"], &sha[..7]);
+        assert_eq!(parts[1]["section"], "Intro");
         std::fs::remove_dir_all(folder).ok();
     }
 

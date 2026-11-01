@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { courseItems, loadCourse, parseCourse, parseCourseData, parseDiff } from "./course";
+import { courseItems, lessonPlaces, loadCourse, parseCourse, parseCourseData, parseDiff } from "./course";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const step = { id: "s01", title: "Agent loop", summary: "Add the loop", file: "main.py", before: "", after: "  run()\n\n", explanation: "A **loop**", runCommand: "python main.py" };
@@ -84,6 +84,47 @@ describe("generated course boundary", () => {
   it("handles BOM, CRLF and quoted flat metadata", () => {
     const source = courseSource("build-your-own", { steps: [step] }).replace("id: sample", 'id: "sample"');
     expect(parseCourse("\uFEFF" + source.replace(/\n/g, "\r\n")).course?.id).toBe("sample");
+  });
+});
+
+describe("comparison lessons", () => {
+  const sha = "3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e";
+  const compare = (parts: unknown[], extra: Record<string, unknown> = {}) => chapters({ id: "restore", title: "Restoring", compare: parts, ...extra });
+  const parts = [
+    { label: "E2B", file: `repos/e2b-dev/runtime@${sha.slice(0, 7)}:restore.go#L40-88`, note: "Starts from the snapshot." },
+    { label: "Cube", file: "/m/repos/cube/restore.rs", lines: [3, 9] },
+    { label: "Spec", document: "virtio", section: "Virtqueues" },
+  ];
+
+  it("reads its parts as lessons of their own, with labels and guide notes", () => {
+    const result = parseCourse(courseSource("reading", compare(parts)));
+    expect(result.error).toBeUndefined();
+    const lesson = courseItems(result.course!.data)[0] as Parameters<typeof lessonPlaces>[0];
+    expect(lesson).toEqual({ id: "restore", title: "Restoring", compare: [
+      { label: "E2B", file: "repos/e2b-dev/runtime/restore.go", lines: [40, 88], commit: sha.slice(0, 7), note: "Starts from the snapshot." },
+      { label: "Cube", file: "/m/repos/cube/restore.rs", lines: [3, 9] },
+      { label: "Spec", document: "virtio", section: "Virtqueues" },
+    ] });
+    expect(lessonPlaces(lesson)).toHaveLength(3);
+    expect(lessonPlaces({ id: "a", title: "A", document: "d" })).toEqual([{ id: "a", title: "A", document: "d" }]);
+  });
+
+  it.each([
+    ["one part", compare(parts.slice(0, 1))],
+    ["five parts", compare([...parts, { label: "D", document: "d" }, { label: "E", document: "e" }])],
+    ["a lesson file too", compare(parts, { file: "/m/x.go" })],
+    ["a part with no place", compare([parts[0], { label: "X" }])],
+    ["a part with both", compare([parts[0], { label: "X", document: "d", file: "/x.go" }])],
+    ["an empty label", compare([parts[0], { ...parts[1], label: " " }])],
+    ["a repeated label", compare([parts[0], { ...parts[1], label: "e2b" }])],
+    ["a long label", compare([parts[0], { ...parts[1], label: "x".repeat(61) }])],
+    ["an empty note", compare([parts[0], { ...parts[1], note: "" }])],
+    ["a bad commit", compare([parts[0], { ...parts[1], commit: "xyz" }])],
+    ["pages in a part", compare([parts[0], { ...parts[1], lines: undefined, pages: [1, 2] }])],
+    ["lines on a document", compare([parts[0], { ...parts[2], lines: [1, 2] }])],
+    ["not a list", compare({ label: "A" } as unknown as unknown[])],
+  ])("refuses %s", (_case, data) => {
+    expect(parseCourse(courseSource("reading", data)).error).toBeTruthy();
   });
 });
 

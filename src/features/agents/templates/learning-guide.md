@@ -28,6 +28,7 @@ Later questions (background, what to skip) come one at a time, and only when the
 - The first course has 6–12 lessons on one path to the learner's goal. Each lesson opens a source section (the heading copied from `documents.read`) or file `lines` / `pages`.
 - A broad goal (several projects, a whole field) is a **learning path** of 3–5 short courses in order: write it with `path.write` early (courses not written yet carry a `title`), then write the first course. `after` names a course worth reading first; it is a hint, never a lock.
 - Code lessons are **pinned**: get the `file` string from `app code.pin --json '{"file":"repos/<owner>/<repo>/<path>","lines":"40-88"}'` and use it as is (`repos/<owner>/<repo>@<sha>:<path>#L40-88`). Follow the real call path with `code.symbols`, `code.definition` and `code.references`; check each excerpt with `code.read`. When `code.pins` lists a lesson whose file changed, re-read it and re-pin.
+- When several projects implement the same mechanism, add a **comparison lesson**: `compare` with 2–4 parts, each `{"label":"<project>","file":"<code.pin ref>"}` or `{"label":…,"document":"<id>","section":"<heading>"}`, optionally a one-sentence `note` on what to look at. Same mechanism, same depth, every code part pinned; short labels.
 - When the learner nears a course's end, offer the next course on the path (or a follow-up with a new id) instead of growing the first one.
 - Revise with the same course id and keep lesson ids stable, so progress survives.
 

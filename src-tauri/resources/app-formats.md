@@ -179,7 +179,34 @@ code lessons:
 A short commit is expanded when the course is saved; a commit the clone does
 not have is refused (fetch it first). In the reader the learner can open the
 whole file, see its symbols, and ⌘-click a name to go to its definition.
-Comparison lessons across repositories will use the same pinned form.
+
+### Comparison lessons
+
+When several projects (or a project and its spec) implement the same
+mechanism — creating a sandbox, snapshot and restore, a virtqueue — one
+lesson can put them side by side. A comparison lesson has no `document` or
+`file` of its own; it lists 2–4 parts in `compare`, read one under another on
+one page:
+
+```json
+{"id":"restore-compared","title":"Restoring a sandbox, three ways","compare":[
+  {"label":"CubeSandbox","file":"repos/tencentcloud/cubesandbox@<sha>:cubelet/restore.go#L40-88","note":"Reads the memory file before it starts the VM."},
+  {"label":"E2B","file":"repos/e2b-dev/infra@<sha>:packages/orchestrator/internal/sandbox/sandbox.go#L120-170"},
+  {"label":"Firecracker spec","document":"firecracker-snapshots","section":"Loading snapshots"}
+]}
+```
+
+- Each part is a file's `lines` (paste the `ref` from `code.pin` as `file`;
+  pinned parts get the same notices as a code-tour lesson) or a source's
+  `section`, as a lesson of its own would name them.
+- `label` is short (at most 60 characters), unique in the lesson: the
+  project's name, or what the part is.
+- `note` is optional: one or two sentences of yours on what to look at in this
+  part. It is shown as the mentor's note, apart from the source text.
+- Compare one mechanism at the same depth in each part: the matching
+  function, not a whole file. Pin every code part.
+- `<reading_now>` names the comparison's parts, and `place.part` the part the
+  learner is reading.
 
 ### Learning path
 

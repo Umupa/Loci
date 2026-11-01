@@ -21,6 +21,10 @@ vi.mock("../../features/learning/model/course", async (load) => ({
     data: { engine: "reading", chapters: [{ title: "C", lessons: [
       { id: "envd", title: "envd", file: "/home/me/Loci/kern/repos/e2b/envd/main.go", lines: [40, 88], commit: "a".repeat(40) },
       { id: "doc", title: "Doc", document: "readme" },
+      { id: "cmp", title: "Restore", compare: [
+        { label: "E2B", file: "/home/me/Loci/kern/repos/e2b/envd/restore.go", lines: [3, 9], commit: "d".repeat(40) },
+        { label: "Spec", document: "readme" },
+      ] },
     ] }] },
   })),
 }));
@@ -73,10 +77,13 @@ describe("code commands", () => {
   it("list pinned lessons and how they stand", async () => {
     const { ctx } = testContext([kern]);
     expect(await runCommand(ctx, "code.pins", { mentor: "Kern" }, external)).toEqual({
-      stale: 1,
-      pins: [{ course: "tour", lesson: "envd", title: "envd", file: "repos/e2b/envd/main.go", pin: "a".repeat(40), lines: [40, 88], state: "changed", currentLines: [41, 89], exact: true }],
+      stale: 2,
+      pins: [
+        { course: "tour", lesson: "envd", title: "envd", file: "repos/e2b/envd/main.go", pin: "a".repeat(40), lines: [40, 88], state: "changed", currentLines: [41, 89], exact: true },
+        { course: "tour", lesson: "cmp", title: "Restore", part: "E2B", file: "repos/e2b/envd/restore.go", pin: "d".repeat(40), lines: [3, 9], state: "changed", currentLines: [41, 89], exact: true },
+      ],
     });
-    expect(codePinStatus).toHaveBeenCalledTimes(1);
+    expect(codePinStatus).toHaveBeenCalledTimes(2);
     await expect(runCommand(ctx, "code.pins", { mentor: "Kern", course: "nope" }, external)).rejects.toMatchObject({ code: "not_found" });
   });
 });
