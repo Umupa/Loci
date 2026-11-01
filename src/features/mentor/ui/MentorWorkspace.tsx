@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { MentorViewState } from "../../../app/hooks/useMentorView";
 import { useDragResize } from "../../../shared/hooks/useDragResize";
-import { MessageSquare, SidebarLeft, X } from "../../../shared/ui/icons";
+import { ChevronLeft, ChevronRight, MessageSquare, SidebarLeft, X } from "../../../shared/ui/icons";
+import { IS_MAC } from "../../../platform/tauri/platform";
 import { PaneHeaderChrome } from "../../../shared/ui/PaneHeader";
 import { ResourceHeaderExtra, ResourceHeaderLeading } from "../../../shared/ui/ResourceHeader";
 import { agentLook, type Agent } from "../../agents/model/agent";
@@ -78,6 +79,10 @@ type Props = {
   onOpenFile: OpenFileFn;
   renderSession: (id: string) => ReactNode;
   sessionTitle: (id: string) => string;
+  /** How many pages the reader can go back and forward to, and going there. */
+  history?: { back: number; forward: number };
+  onBack?: () => void;
+  onForward?: () => void;
 };
 
 /** The conversation's header is the window's top row, like the other columns'. */
@@ -97,7 +102,7 @@ export async function restoredPageExists(agentId: string, page: MentorPage): Pro
  * the middle and the conversation on the right. Opening anything replaces
  * what the reader showed; nothing opens beside it.
  */
-export function MentorWorkspace({ agent, state, chat, busy = false, leading, trailing, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onLibraryChange, onDraft, courseBadge, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle }: Props) {
+export function MentorWorkspace({ agent, state, chat, busy = false, leading, trailing, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onLibraryChange, onDraft, courseBadge, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle, history, onBack, onForward }: Props) {
   const { data, errors, reload } = useAgentResources(agent.id);
   // Every listing has to be readable before the first of them can serve as the
   // turn's baseline; otherwise a slow one looks like a batch of new items.
@@ -219,7 +224,12 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
   // header, or a Chat button at the end of the reader's once it is folded.
   const libraryToggle = <button type="button" data-tauri-drag-region="false" className="mentor-bar-button" aria-label={libraryLabel} title={libraryLabel}
     aria-pressed={state.library} onClick={onToggleLibrary}><SidebarLeft className="size-4" /></button>;
-  const readerLeading = state.library ? null : <>{leading}{libraryToggle}</>;
+  // Back and forward show once there is somewhere to go (⌘[ and ⌘]).
+  const travel = history && (history.back || history.forward) ? <span className="mentor-history" data-tauri-drag-region="false">
+    <button type="button" className="mentor-bar-button" aria-label="Back" title={`Back (${IS_MAC ? "⌘[" : "Ctrl+["})`} disabled={!history.back} onClick={onBack}><ChevronLeft className="size-4" /></button>
+    <button type="button" className="mentor-bar-button" aria-label="Forward" title={`Forward (${IS_MAC ? "⌘]" : "Ctrl+]"})`} disabled={!history.forward} onClick={onForward}><ChevronRight className="size-4" /></button>
+  </span> : null;
+  const readerLeading = state.library ? travel : <>{leading}{libraryToggle}{travel}</>;
   const readerExtra = state.chat ? null : <>
     <button type="button" data-tauri-drag-region="false" className="mentor-chat-show" aria-pressed={false} aria-label={`Chat with ${name}`} title={`Chat with ${name}`} onClick={onToggleChat}>
       <MessageSquare className="size-4 shrink-0" /><span>Chat</span>

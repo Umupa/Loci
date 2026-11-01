@@ -8,6 +8,8 @@ type MenuKey = "file" | "view";
 type Props = {
     onNewMentor: () => void;
     onCloseReader: () => void;
+    onReaderBack?: () => void;
+    onReaderForward?: () => void;
     onPreviousMentor: () => void;
     onNextMentor: () => void;
     onToggleLibrary: () => void;
@@ -20,7 +22,7 @@ type Props = {
     onZoomReset: () => void;
 };
 /** The window menu where the system has none (Windows and Linux), shown with a tap of Alt. */
-export function MenuBar({ onNewMentor, onCloseReader, onPreviousMentor, onNextMentor, onToggleLibrary, onToggleChat, onOpenPdf, onSearch, onOpenSettings, onZoomIn, onZoomOut, onZoomReset }: Props) {
+export function MenuBar({ onNewMentor, onCloseReader, onReaderBack, onReaderForward, onPreviousMentor, onNextMentor, onToggleLibrary, onToggleChat, onOpenPdf, onSearch, onOpenSettings, onZoomIn, onZoomOut, onZoomReset }: Props) {
     const [open, setOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<{
@@ -126,6 +128,8 @@ export function MenuBar({ onNewMentor, onCloseReader, onPreviousMentor, onNextMe
         open_pdf: onOpenPdf,
         open_search: onSearch,
         close_reader: onCloseReader,
+        ...(onReaderBack ? { reader_back: onReaderBack } : {}),
+        ...(onReaderForward ? { reader_forward: onReaderForward } : {}),
         prev_mentor: onPreviousMentor,
         next_mentor: onNextMentor,
         toggle_library: onToggleLibrary,
@@ -149,6 +153,8 @@ export function MenuBar({ onNewMentor, onCloseReader, onPreviousMentor, onNextMe
         ...(onSearch ? [{ kind: "item" as const, id: "open_search", label: "Search…", shortcut: shortcut("App: Search", `${MOD}K`) }] : []),
         { kind: "sep" },
         { kind: "item", id: "close_reader", label: "Close", shortcut: shortcut("Reader: Close", `${MOD}W`) },
+        { kind: "item", id: "reader_back", label: "Back", shortcut: shortcut("Reader: Back", `${MOD}[`) },
+        { kind: "item", id: "reader_forward", label: "Forward", shortcut: shortcut("Reader: Forward", `${MOD}]`) },
         { kind: "sep" },
         { kind: "item", id: "prev_mentor", label: "Previous Mentor", shortcut: shortcut("Mentor: Previous", `${MOD}${SHIFT}[`) },
         { kind: "item", id: "next_mentor", label: "Next Mentor", shortcut: shortcut("Mentor: Next", `${MOD}${SHIFT}]`) },

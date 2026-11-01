@@ -3,7 +3,7 @@ import { MentorSearch } from "../features/mentor/ui/MentorSearch";
 import type { MentorPage } from "../features/mentor/model/mentorPage";
 import { AgentGallery } from "../features/agents/ui/AgentGallery";
 import { setAgentReading } from "../features/agents/model/agentReading";
-import { useMentorView } from "./hooks/useMentorView";
+import { useMentorView, type ShowOptions } from "./hooks/useMentorView";
 import { open as pickFile } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { Modal } from "../shared/ui/Modal";
@@ -227,11 +227,11 @@ function Workspace(boot: BootWorkspace) {
     finally { creatingMentor.current = false; }
   }, [reportError, showMentor]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Reads something in the open mentor's reader, in place of what was there. */
-  const showInMentor = useCallback(async (page: MentorPage, agentId = mentorRef.current.currentRef.current?.agentId) => {
+  const showInMentor = useCallback(async (page: MentorPage, agentId = mentorRef.current.currentRef.current?.agentId, options?: ShowOptions) => {
     if (!agentId) throw new Error("Open a mentor first.");
     if (!await leaveReader(agentId)) return;
     if (!await showMentor(agentId)) return;
-    mentorViewRef.current.show(agentId, page);
+    mentorViewRef.current.show(agentId, page, options);
   }, [leaveReader, showMentor]);
   /** A mentor's own conversation opens the mentor; any other opens in the reader. */
   const showSession = useCallback(async (id: string) => {
@@ -338,7 +338,7 @@ function Workspace(boot: BootWorkspace) {
     await showSessionRef.current(id);
   }, []);
   const openLearningFile = useCallback((path: string, options: OpenFileOptions = {}) => {
-    void showInMentor({ kind: "file", path, ...(options.commit ? { commit: options.commit } : {}) }).catch(reportError);
+    void showInMentor({ kind: "file", path, ...(options.commit ? { commit: options.commit } : {}) }, undefined, { fromLine: options.fromLine }).catch(reportError);
   }, [reportError, showInMentor]);
   const openPdf = useCallback(() => {
     void pickFile({ multiple: false, directory: false, filters: [{ name: "PDF", extensions: ["pdf"] }] })
@@ -469,6 +469,15 @@ function Workspace(boot: BootWorkspace) {
     void leaveReader(id).then((saved) => { if (saved) mentorViewRef.current.close(id); });
     return true;
   };
+  /** Back (-1) or forward (1) in the open mentor's reader; false when there is nowhere to go. */
+  const readerHistory = (direction: -1 | 1) => {
+    if (surfaceRef.current !== "mentor") return false;
+    const id = mentorRef.current.currentRef.current?.agentId;
+    const counts = id ? mentorViewRef.current.historyFor(id) : undefined;
+    if (!id || !counts || !(direction < 0 ? counts.back : counts.forward)) return false;
+    void leaveReader(id).then((saved) => { if (saved) mentorViewRef.current[direction < 0 ? "back" : "forward"](id); });
+    return true;
+  };
   const stepMentor = (delta: number) => {
     const roster = listAgents();
     const index = roster.findIndex((agent) => agent.id === mentorRef.current.currentRef.current?.agentId);
@@ -486,6 +495,7 @@ function Workspace(boot: BootWorkspace) {
     openMentor: (id) => { void showMentor(id); },
     newMentor: () => setAgentGalleryOpen(true),
     closeReader, closeWindow: () => { void closeCurrentWindow(); },
+    readerBack: () => readerHistory(-1), readerForward: () => readerHistory(1),
     toggleLibrary, toggleChat,
     openSearch: () => setSearchOpen((open) => !open),
     openSettings: () => openSettings(),
@@ -552,7 +562,7 @@ function Workspace(boot: BootWorkspace) {
 
   const openAgentFile = useCallback<OpenFileFn>((path, place, options) => {
     if (place) requestFilePlace(path, place);
-    void showInMentor({ kind: "file", path, ...(options?.commit ? { commit: options.commit } : {}) }).catch(reportError);
+    void showInMentor({ kind: "file", path, ...(options?.commit ? { commit: options.commit } : {}) }, undefined, { fromLine: options?.fromLine }).catch(reportError);
   }, [reportError, showInMentor]);
 
   const paneProps = (session: Session, focused: boolean): ComponentProps<typeof SessionPane> => ({
@@ -601,6 +611,7 @@ function Workspace(boot: BootWorkspace) {
   return <>
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
       {!IS_MAC ? <MenuBar onNewMentor={() => setAgentGalleryOpen(true)} onCloseReader={() => { if (!closeReader()) void closeCurrentWindow(); }}
+        onReaderBack={() => readerHistory(-1)} onReaderForward={() => readerHistory(1)}
         onPreviousMentor={() => stepMentor(-1)} onNextMentor={() => stepMentor(1)} onToggleLibrary={toggleLibrary} onToggleChat={toggleChat}
         onOpenPdf={openPdf} onSearch={() => setSearchOpen(true)} onOpenSettings={() => openSettings()}
         onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
@@ -622,6 +633,7 @@ function Workspace(boot: BootWorkspace) {
               trailing={IS_MAC ? undefined : <WindowControls />}
               canvases={canvases}
               onOpen={(page) => mentorView.show(focusedAgent.id, page)} onClose={() => mentorView.close(focusedAgent.id)}
+              history={mentorView.historyFor(focusedAgent.id)} onBack={() => readerHistory(-1)} onForward={() => readerHistory(1)}
               onLessonChange={(lesson) => mentorView.setLesson(focusedAgent.id, lesson)}
               onRestoredChecked={(page, exists) => mentorView.confirmRestored(focusedAgent.id, page, exists)}
               onToggleLibrary={() => mentorView.toggleLibrary(focusedAgent.id)}
