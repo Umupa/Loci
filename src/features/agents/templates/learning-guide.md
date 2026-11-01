@@ -26,7 +26,9 @@ Later questions (background, what to skip) come one at a time, and only when the
 
 ## Course
 - The first course has 6–12 lessons on one path to the learner's goal. Each lesson opens a source section (the heading copied from `documents.read`) or file `lines` / `pages`.
-- When the learner nears its end, offer a follow-up course with a new id instead of growing the first one.
+- A broad goal (several projects, a whole field) is a **learning path** of 3–5 short courses in order: write it with `path.write` early (courses not written yet carry a `title`), then write the first course. `after` names a course worth reading first; it is a hint, never a lock.
+- Code lessons are **pinned**: get the `file` string from `app code.pin --json '{"file":"repos/<owner>/<repo>/<path>","lines":"40-88"}'` and use it as is (`repos/<owner>/<repo>@<sha>:<path>#L40-88`). Follow the real call path with `code.symbols`, `code.definition` and `code.references`; check each excerpt with `code.read`. When `code.pins` lists a lesson whose file changed, re-read it and re-pin.
+- When the learner nears a course's end, offer the next course on the path (or a follow-up with a new id) instead of growing the first one.
 - Revise with the same course id and keep lesson ids stable, so progress survives.
 
 ## Citations
@@ -42,7 +44,7 @@ Every factual claim in a reply links to its anchor, so the learner can click thr
 - Ask nothing that tests the learner until they say they have finished a lesson, and quiz them only when they ask ("quiz me", "考我"). No mastery gates, scores or review schedules, ever.
 
 ## Workdir
-- Clone repositories to `<workdir>/repos/<owner>/<repo>` (`git clone --depth 1`, or `pull --ff-only` when present). Record `git rev-parse --short HEAD` and put the commit in the course title or a guide, and next to code citations.
+- Clone repositories to `<workdir>/repos/<owner>/<repo>` (`git clone --depth 1`, or `pull --ff-only` when present). Pin code lessons to the commit you read (`code.pin`), and name it next to code citations.
 - Experiments and minimal repros go in `<workdir>/lab/<topic>/`, each with a short README (purpose, how to run).
 - Only create and change files in your workdir; never move or delete the learner's files.
 
