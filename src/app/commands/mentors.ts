@@ -1,3 +1,4 @@
+import { effectiveLearningLanguage, isLearningLanguage, LEARNING_LANGUAGES } from "../../features/agents/model/learningLanguage";
 import { agentLook, agentState, AGENT_COLORS, updateAgent, type Agent } from "../../features/agents/model/agent";
 import { markAgentAccessMigrated } from "../../features/agents/model/agentAccess";
 import { AGENT_AVATARS } from "../../features/agents/model/agentAvatars";
@@ -32,9 +33,10 @@ const settingsFields = [
   field("model", "string", "A model id from `loci models list`"),
   field("effort", "string", "The model's effort setting"),
   field("mode", "string", `Permissions: ${RUNTIME_MODES.join(", ")}`),
+  field("language", "string", `What it writes in: default (Settings' learning language), auto (the learner's messages), ${LEARNING_LANGUAGES.map((language) => language.id).join(", ")}`),
 ];
 
-type Settings = Partial<Record<"name" | "role" | "avatar" | "color" | "workdir" | "provider" | "model" | "effort" | "mode", string>>;
+type Settings = Partial<Record<"name" | "role" | "avatar" | "color" | "workdir" | "provider" | "model" | "effort" | "mode" | "language", string>>;
 
 /** Applies settings through the functions the mentor's settings and composer use. */
 async function applySettings(ctx: CommandContext, agent: Agent, settings: Settings): Promise<void> {
@@ -44,6 +46,9 @@ async function applySettings(ctx: CommandContext, agent: Agent, settings: Settin
   if (color && !AGENT_COLORS.includes(color as (typeof AGENT_COLORS)[number])) throw new CommandError(`color must be one of: ${AGENT_COLORS.join(", ")}`, "usage");
   const mode = settings.mode?.trim();
   if (mode && !RUNTIME_MODES.includes(mode as RuntimeMode)) throw new CommandError(`mode must be one of: ${RUNTIME_MODES.join(", ")}`, "usage");
+  const language = settings.language?.trim();
+  if (language && language !== "default" && !isLearningLanguage(language))
+    throw new CommandError(`language must be one of: default, auto, ${LEARNING_LANGUAGES.map((entry) => entry.id).join(", ")}`, "usage");
   const harness = settings.provider ? providerId(settings.provider) : undefined;
   if (harness && !isHarnessAvailable(harness)) throw new CommandError(`${harness} is not installed or not found by Loci`);
 
@@ -54,6 +59,11 @@ async function applySettings(ctx: CommandContext, agent: Agent, settings: Settin
     ...(color ? { color } : {}),
   };
   if (Object.keys(look).length) updateAgent(agent.id, (current) => ({ ...current, ...look }));
+  if (language) updateAgent(agent.id, (current) => {
+    const next = { ...current };
+    if (isLearningLanguage(language)) next.language = language; else delete next.language;
+    return next;
+  });
   if (settings.workdir !== undefined) {
     try { await setAgentWorkdir(agent.id, settings.workdir); } catch (error) { throw new CommandError(`workdir: ${error instanceof Error ? error.message : String(error)}`); }
   }
@@ -100,6 +110,8 @@ function mentorView(ctx: CommandContext, agent: Agent, chat?: Session) {
     ...(agent.role ? { role: agent.role } : {}),
     avatar: agent.avatar,
     color: agent.color,
+    language: agent.language ?? "default",
+    learningLanguage: effectiveLearningLanguage(agent.language),
     ...(agent.workdir ? { workdir: agent.workdir } : {}),
     folders: agent.projects,
     active: ctx.activeAgentId() === agent.id,
@@ -216,7 +228,7 @@ export const mentorCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "mentors.update",
-    summary: "Change a mentor's name, role, face, working folder, provider, model, effort or permissions.",
+    summary: "Change a mentor's name, role, face, working folder, provider, model, effort, permissions or learning language.",
     fields: [mentorField(true), ...settingsFields],
     callers: ["external"],
     run: async (ctx, input, meta) => {

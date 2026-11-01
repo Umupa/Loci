@@ -196,3 +196,11 @@ it("keeps the workdir and lists it before the other folders", async () => {
   expect(findAgent(id)).not.toHaveProperty("workdir");
   expect(agentFolders(findAgent(id)!)).toEqual(["/code/app"]);
 });
+
+it("keeps a mentor's own learning language, and only a known one", () => {
+  localStorage.setItem(
+    "loci:agent-roster",
+    JSON.stringify([{ id: "a-1", language: "zh-CN" }, { id: "a-2", language: "klingon" }, { id: "a-3", language: "auto" }]),
+  );
+  expect(listAgents().map((agent) => agent.language)).toEqual(["zh-CN", undefined, "auto"]);
+});

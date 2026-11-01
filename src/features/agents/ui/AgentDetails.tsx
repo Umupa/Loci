@@ -24,6 +24,7 @@ import {
 } from "../model/agentFiles";
 import { addMemoryEntry, memoryDate, memoryEntry, memoryLines, withLineEdited, withoutLine } from "../model/agentMemory";
 import { AgentAvatarPreview } from "./AgentAvatar";
+import { LanguagePicker } from "./LanguagePicker";
 import { ColorPicker, FacePicker, ProjectsField } from "./agentPanelParts";
 import { Popover } from "../../../shared/ui/Popover";
 import { ask } from "@tauri-apps/plugin-dialog";
@@ -127,6 +128,16 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
           <ModelSettingRows harness={session.harness} model={session.model} values={session.modelSettings} onSettingsChange={onModelSettingsChange}
             row={(label, control) => <SettingRow label={label}>{control}</SettingRow>} />
           <SettingRow label="Permissions" description="What it may do without asking."><AccessPicker value={session.runtimeMode} busy={!!session.busy} onChange={onRuntimeModeChange} /></SettingRow>
+        </div>
+        <h4 className="agent-setting-group-title">Language</h4>
+        <div className="agent-setting-group">
+          <SettingRow label="Language" description="What it writes in: replies, courses, guides and notes, whatever language its sources are in.">
+            <LanguagePicker value={agent.language} onChange={(language) => updateAgent(agent.id, (current) => {
+              const next = { ...current };
+              if (language) next.language = language; else delete next.language;
+              return next;
+            })} />
+          </SettingRow>
         </div>
         <h4 className="agent-setting-group-title">Files</h4>
         <div className="agent-setting-group">

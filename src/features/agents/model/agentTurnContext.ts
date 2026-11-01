@@ -10,6 +10,7 @@ import {
   recordAppContext,
 } from "./agentFiles";
 import { readingContext } from "./agentReading";
+import { effectiveLearningLanguage, languageContext } from "./learningLanguage";
 import { ensureAgentWorkdir } from "./agentWorkdir";
 import {
   loadAgentRotation,
@@ -97,6 +98,10 @@ export async function prepareAppTurn(
   }
   if (files && look && plan && (plan.soul || plan.memory))
     context.push(agentContext(look, files, plan));
+  // The learning language goes every turn: a change applies at once, and it
+  // outranks the "reply in the learner's language" of an older Soul.
+  const language = agent ? languageContext(effectiveLearningLanguage(agent.language)) : undefined;
+  if (language) context.push(language);
   // What is open beside the chat changes from turn to turn, so it goes every time.
   // A selection the message already carries as a source is not sent twice.
   const lastUser = [...session.blocks].reverse().find((block) => block.role === "user");

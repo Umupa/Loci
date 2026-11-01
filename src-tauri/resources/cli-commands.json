@@ -1482,6 +1482,13 @@
           "positional": false
         },
         {
+          "name": "language",
+          "type": "string",
+          "help": "What it writes in: default (Settings' learning language), auto (the learner's messages), zh-CN, en",
+          "required": false,
+          "positional": false
+        },
+        {
           "name": "switch",
           "type": "boolean",
           "help": "Show it in the window",
@@ -1765,7 +1772,7 @@
     },
     {
       "name": "mentors.update",
-      "summary": "Change a mentor's name, role, face, working folder, provider, model, effort or permissions.",
+      "summary": "Change a mentor's name, role, face, working folder, provider, model, effort, permissions or learning language.",
       "callers": [
         "external"
       ],
@@ -1838,6 +1845,13 @@
           "name": "mode",
           "type": "string",
           "help": "Permissions: supervised, auto-accept-edits, auto, full-access",
+          "required": false,
+          "positional": false
+        },
+        {
+          "name": "language",
+          "type": "string",
+          "help": "What it writes in: default (Settings' learning language), auto (the learner's messages), zh-CN, en",
           "required": false,
           "positional": false
         }
@@ -2512,7 +2526,7 @@
     },
     {
       "name": "settings.get",
-      "summary": "App settings a terminal may read: defaultProvider, defaultModel, defaultMentorAccess, canvasTools.",
+      "summary": "App settings a terminal may read: defaultProvider, defaultModel, defaultMentorAccess, learningLanguage, canvasTools.",
       "callers": [
         "external"
       ],
@@ -2538,7 +2552,7 @@
         {
           "name": "key",
           "type": "string",
-          "help": "defaultProvider: The provider new conversations start with; defaultModel: The model new conversations start with, for the default provider; defaultMentorAccess: The permissions a new mentor starts with: supervised, auto-accept-edits, auto, full-access; canvasTools: Whether agents get the built-in Excalidraw tools (true or false)",
+          "help": "defaultProvider: The provider new conversations start with; defaultModel: The model new conversations start with, for the default provider; defaultMentorAccess: The permissions a new mentor starts with: supervised, auto-accept-edits, auto, full-access; learningLanguage: What mentors write in, whatever their sources' language: auto (follow the learner's messages), zh-CN, en; canvasTools: Whether agents get the built-in Excalidraw tools (true or false)",
           "required": true,
           "positional": true
         },

@@ -55,7 +55,7 @@ fn agent_json(record: &MentorRecord, identity: &Map<String, Value>) -> Value {
     if let Some(session) = &record.session_id {
         agent.insert("sessionId".into(), json!(session));
     }
-    for key in ["name", "role", "avatar", "color"] {
+    for key in ["name", "role", "avatar", "color", "language"] {
         if let Some(value) = text(identity, key) {
             agent.insert(key.into(), json!(value));
         }
@@ -240,7 +240,7 @@ pub fn sync(conn: &Connection, root: &Path, roster: &[Value]) -> Result<bool, St
             }
         };
         let before_identity = identity.clone();
-        for key in ["name", "role", "avatar", "color"] {
+        for key in ["name", "role", "avatar", "color", "language"] {
             match text(entry, key) {
                 Some(value) => {
                     identity.insert(key.into(), json!(value));
@@ -792,6 +792,25 @@ mod tests {
         remove(&conn, "m-1").unwrap();
         assert!(load(&conn, &root).unwrap().is_empty());
         assert!(folder.join(REMOVED_MENTOR_FILE).is_file());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_mentors_learning_language_is_kept_in_mentor_json_and_cleared() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("language");
+        ready(&conn);
+        let entry = json!({"id":"m-1","name":"Kern","avatar":"nova","color":"red","language":"zh-CN"});
+        sync(&conn, &root, &[entry.clone()]).unwrap();
+        let folder = root.join("kern");
+        assert_eq!(registry::read_identity(&folder).unwrap()["language"], "zh-CN");
+        assert_eq!(load(&conn, &root).unwrap()[0]["language"], "zh-CN");
+        // Back to Settings' choice: the key goes.
+        let mut cleared = entry;
+        cleared.as_object_mut().unwrap().remove("language");
+        sync(&conn, &root, &[cleared]).unwrap();
+        assert!(registry::read_identity(&folder).unwrap().get("language").is_none());
         std::fs::remove_dir_all(root).unwrap();
     }
 

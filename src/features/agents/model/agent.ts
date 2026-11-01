@@ -1,4 +1,5 @@
 import { projectKey, projectName } from "../../../shared/lib/paths";
+import { isLearningLanguage, type LearningLanguage } from "./learningLanguage";
 import {
   HARNESSES,
   RUNTIME_MODES,
@@ -63,6 +64,11 @@ export type Agent = {
    * were given these as "projects"; the key keeps that name for their data.
    */
   projects: string[];
+  /**
+   * What it writes in, when it differs from Settings > Learning language;
+   * "auto" follows the learner's messages. Absent: the setting's choice.
+   */
+  language?: LearningLanguage;
   /** New sessions appear in the project sidebar unless explicitly disabled. */
   showStartedSessionsInSidebar?: boolean;
   /** Files the sessions it starts into a sidebar folder named after it. */
@@ -145,6 +151,7 @@ function parseAgent(value: unknown): Agent | undefined {
     ...(role ? { role } : {}),
     avatar: text("avatar") ?? AGENT_AVATARS[0].name,
     color: text("color") ?? AGENT_COLORS[0],
+    ...(isLearningLanguage(entry.language) ? { language: entry.language } : {}),
     ...(workdir ? { workdir } : {}),
     projects: Array.isArray(entry.projects)
       ? entry.projects.filter(

@@ -2,6 +2,7 @@ import { loadNewAgentAccess, saveNewAgentAccess } from "../../features/agents/mo
 import { RUNTIME_MODES, type RuntimeMode } from "../../features/sessions/model/session";
 import { loadCanvasMcpEnabled, saveCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { defaultSessionChoice, loadLastModelChoice, modelsFor, preferredModelId, saveLastModelChoice } from "../../features/sessions/model/models";
+import { isLearningLanguage, LEARNING_LANGUAGES, loadLearningLanguage, saveLearningLanguage } from "../../features/agents/model/learningLanguage";
 import type { CommandContext } from "./context";
 import { providerId } from "./mentors";
 import { CommandError, field, type CommandDefinition } from "./registry";
@@ -32,6 +33,15 @@ const SETTINGS: Record<string, Setting> = {
     set: (value) => {
       if (!RUNTIME_MODES.includes(value as RuntimeMode)) throw new CommandError(`defaultMentorAccess is one of: ${RUNTIME_MODES.join(", ")}`, "usage");
       saveNewAgentAccess(value as RuntimeMode);
+    },
+  },
+  learningLanguage: {
+    help: `What mentors write in, whatever their sources' language: auto (follow the learner's messages), ${LEARNING_LANGUAGES.map((language) => language.id).join(", ")}`,
+    get: () => loadLearningLanguage(),
+    // As Settings → General → Learning language does.
+    set: (value) => {
+      if (!isLearningLanguage(value)) throw new CommandError(`learningLanguage is one of: auto, ${LEARNING_LANGUAGES.map((language) => language.id).join(", ")}`, "usage");
+      saveLearningLanguage(value);
     },
   },
   canvasTools: {

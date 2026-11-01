@@ -652,13 +652,14 @@ pub fn render_canvas(meta: &CanvasMeta, data_json: &str) -> Result<String, Strin
 // ---------------------------------------------------------------------------
 // mentor.json
 
-const MENTOR_KEYS: [&str; 10] = [
+const MENTOR_KEYS: [&str; 11] = [
     "schemaVersion",
     "id",
     "name",
     "role",
     "avatar",
     "color",
+    "language",
     "workdir",
     "folders",
     "defaults",

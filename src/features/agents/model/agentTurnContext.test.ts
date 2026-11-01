@@ -348,3 +348,18 @@ it("still sends the turn when the workdir cannot be made", async () => {
   const prepared = await prepareAppTurn({ ...agent, workdir: "/gone" }, { id: "chat", blocks: [] }, { canRotate: false });
   expect(prepared.context[0]).toContain('"workdir": "/gone"');
 });
+
+const languageBlock = async (who: Agent) => {
+  const turn = await prepareAppTurn(who, { id: "s-lang", blocks: [] }, { canRotate: false });
+  return turn.context.find((part) => part.startsWith("<language>"));
+};
+
+it("tells every turn the learning language from Settings, and a mentor's own choice over it", async () => {
+  expect(await languageBlock(agent)).toBeUndefined();
+  localStorage.setItem("loci.learningLanguage", "zh-CN");
+  expect(await languageBlock(agent)).toContain("Simplified Chinese (zh-CN)");
+  expect(await languageBlock(agent)).toContain("comes before any language rule in your soul");
+  expect(await languageBlock({ ...agent, language: "en" })).toContain("reads in English (en)");
+  // "Follow my messages" for this mentor sends nothing, whatever Settings says.
+  expect(await languageBlock({ ...agent, language: "auto" })).toBeUndefined();
+});

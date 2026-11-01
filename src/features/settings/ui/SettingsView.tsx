@@ -1,6 +1,7 @@
 import { ResetWorkspace } from "./ResetWorkspace";
 import { SettingsLanguage } from "../../../shared/i18n/SettingsLanguage";
 import { installCli, loadCliAccess, rotateCliToken, setCliAccess, type CliAccess } from "../model/cliAccess";
+import { LEARNING_LANGUAGES, useLearningLanguage, type LearningLanguage } from "../../agents/model/learningLanguage";
 import { t, useLocale, getLocale, useLanguagePreference, setLanguagePreference, type LanguagePreference } from "../../../shared/i18n/locale";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { checkForUpdate, openUpdatePrompt, updatesEnabled, usePendingUpdate } from "../../updates/model/updates";
@@ -213,6 +214,7 @@ function SettingsSearch({ onReveal, }: {
 function GeneralPage({}: {}) {
   useLocale();
     const language = useLanguagePreference();
+    const [learningLanguage, setLearningLanguage] = useLearningLanguage();
     const [soundsEnabled, setSoundsEnabled] = useState(loadSoundsEnabled);
     const [notificationsEnabled, setNotificationsEnabled] = useState(loadNotificationsEnabled);
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(cachedNotificationPermission);
@@ -251,6 +253,12 @@ function GeneralPage({}: {}) {
             { value: "system", label: t("Follow system") },
             { value: "zh-CN", label: "简体中文" },
             { value: "en", label: "English" },
+          ]}/>
+        </Row>
+        <Row id="learning-language" label={t("Learning language")} description={t("What mentors write in: replies, courses, guides and notes, even when their sources are in another language. A mentor can choose its own in its settings.")}>
+          <Select label={t("Learning language")} value={learningLanguage} onChange={(value) => setLearningLanguage(value as LearningLanguage)} options={[
+            { value: "auto", label: t("Follow my messages") },
+            ...LEARNING_LANGUAGES.map((entry) => ({ value: entry.id, label: entry.label })),
           ]}/>
         </Row>
       </Group>

@@ -30,4 +30,12 @@ describe("settings commands", () => {
     await expect(runCommand(ctx, "settings.set", { key: "canvasTools", value: "maybe" }, external)).rejects.toMatchObject({ code: "usage" });
     await expect(runCommand(ctx, "settings.set", { key: "defaultModel", value: "no-such-model" }, external)).rejects.toMatchObject({ code: "usage" });
   });
+
+  it("set the learning language mentors write in", async () => {
+    const { ctx } = testContext();
+    expect(await runCommand(ctx, "settings.get", { key: "learningLanguage" }, external)).toEqual({ learningLanguage: "auto" });
+    await runCommand(ctx, "settings.set", { key: "learningLanguage", value: "zh-CN" }, external);
+    expect(localStorage.getItem("loci.learningLanguage")).toBe("zh-CN");
+    await expect(runCommand(ctx, "settings.set", { key: "learningLanguage", value: "fr" }, external)).rejects.toMatchObject({ code: "usage" });
+  });
 });

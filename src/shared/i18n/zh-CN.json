@@ -498,5 +498,8 @@
   "Allow commands, edits, and supported MCP confirmations in non-plan turns without prompts.": "在非计划轮次中无需询问即可执行命令、修改文件，并确认受支持的 MCP 请求。",
   "Access": "访问权限",
   "Changes apply to the next turn.": "更改从下一轮开始生效。",
-  "Access changes apply to the next turn. Stop and resend to apply them now.": "权限更改从下一轮开始生效。停止并重新发送可立即生效。"
+  "Access changes apply to the next turn. Stop and resend to apply them now.": "权限更改从下一轮开始生效。停止并重新发送可立即生效。",
+  "Learning language": "学习语言",
+  "What mentors write in: replies, courses, guides and notes, even when their sources are in another language. A mentor can choose its own in its settings.": "导师写作使用的语言：回复、课程、导读和笔记，即使一手资料是其他语言也一样。每位导师可在自己的设置中单独选择。",
+  "Follow my messages": "跟随我的消息"
 }
