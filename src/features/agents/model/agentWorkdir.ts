@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import { findAgent, updateAgent, type Agent } from "./agent";
-import { defaultAgentName } from "./agentAvatars";
+import { findAgent, updateAgent } from "./agent";
+import { rosterSettled } from "./mentorStore";
 import { pathKey } from "../../../shared/lib/paths";
 
 /**
@@ -12,25 +12,8 @@ import { pathKey } from "../../../shared/lib/paths";
  * `src-tauri/src/agent.rs`).
  */
 
-const SLUG_MAX = 40;
-
-/**
- * The default folder name for a mentor: its name in lowercase ASCII words
- * joined by dashes, "Repo Lens" → "repo-lens". A name with nothing of that
- * left, such as one written in Chinese, falls back to `mentor-<id>`.
- */
-export function workdirSlug(agent: Pick<Agent, "id" | "name" | "avatar">): string {
-  const name = agent.name?.trim() || defaultAgentName(agent.avatar);
-  const slug = name
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .slice(0, SLUG_MAX)
-    .replace(/^-+|-+$/g, "");
-  if (slug && slug !== "repos") return slug;
-  return `mentor-${agent.id.replace(/[^A-Za-z0-9]/g, "").slice(0, 8).toLowerCase()}`;
-}
+export { workdirSlug } from "./mentorSlug";
+import { workdirSlug } from "./mentorSlug";
 
 const ensuring = new Map<string, Promise<string>>();
 
@@ -47,6 +30,9 @@ export function ensureAgentWorkdir(agentId: string): Promise<string> {
 }
 
 async function resolveWorkdir(agentId: string): Promise<string> {
+  // Rust gives a new mentor its folder (its workdir), and may still move it
+  // to a folder of its name: use the workdir only once the roster is saved.
+  await rosterSettled();
   const agent = findAgent(agentId);
   if (!agent) throw new Error("No such agent");
   if (agent.workdir) return invoke<string>("agent_workdir_ensure", { path: agent.workdir });

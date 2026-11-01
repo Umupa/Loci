@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { rosterSettled } from "../../agents/model/mentorStore";
 
 export const COURSE_FENCE = "loci-course";
 export const DIFF_FENCE = "loci-diff";
@@ -230,6 +231,8 @@ function coursesChanged(detail: CourseChangedDetail) {
 }
 
 export async function saveCourse(agentId: string, course: ParsedCourse): Promise<void> {
+  // A new mentor must have its folder before its first course is saved.
+  await rosterSettled();
   await invoke("course_upsert", { course: { id: course.id, agentId, engine: course.engine, title: course.title, dataJson: JSON.stringify(course.data) } });
   coursesChanged({ agentId, courseId: course.id });
 }

@@ -191,3 +191,66 @@ title: System overview
 The block links to an existing canvas. It does not create or change a scene.
 Canvas creation and editing are available through the canvas tools and app
 CLI actions listed above.
+
+# Your folder
+
+A mentor's library is a folder of files (`<agent>.folder`, such as
+`~/Loci/kubernetes-guide/`). Saving through the commands above writes these
+files; you may also create or edit them directly, and Loci shows the change.
+Run `library check` afterwards to see any file it could not read.
+
+```text
+mentor.json               who you are; leave it to Loci
+SOUL.md  MEMORY.md  memory/   change only with soul.* and memory.*
+sources/<id>.md           first-hand text, verbatim, with front-matter
+guides/<id>.md            what you wrote: reading guides, briefs
+courses/<id>.yaml         courses
+notes/<id>.md             notes
+canvases/<id>.excalidraw  drawings (Excalidraw files)
+repos/  lab/              cloned source and experiments; not indexed
+```
+
+An `<id>` uses letters, digits, `-` and `_` (courses, notes and drawings:
+ASCII only). A source and a guide never share an id. Files whose names
+start with a dot or end in `~`, `.tmp` or `.swp` are ignored.
+
+A source starts with YAML front-matter; the text after it is kept byte for
+byte:
+
+```markdown
+---
+title: Virtio 1.2 — Virtqueues
+sourceUrl: https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html
+version: "1.2"
+fetchedAt: 2026-11-01T09:12:00Z
+subject: virtio
+---
+```
+
+`title` and `sourceUrl` are required for a source; `version` (a release or a
+commit), `fetchedAt` and `subject` are optional. A guide has `title` and an
+optional `subject`, never `sourceUrl`. Without a title, the first `# Heading`
+is used.
+
+A course file is the `courses.write` object as YAML, without its `id` (the
+file name is the id). A lesson's `file` may be relative to your folder, and
+`document: id#section`, `file: path#L12-40` and `file: path#p7-9` are
+shorthands for `section`, `lines` and `pages`:
+
+```yaml
+schemaVersion: 1
+title: Sandboxes from the kernel up
+engine: reading
+chapters:
+  - title: KVM
+    lessons:
+      - id: kvm-api
+        title: The KVM API
+        document: kvm-api#4.1 KVM_CREATE_VM
+      - id: vmm-loop
+        title: The VMM loop in Firecracker
+        file: repos/firecracker-microvm/firecracker/src/vmm/src/lib.rs#L120-188
+```
+
+A note has front-matter `title`, optional `tags: [a, b]`, and its Markdown.
+

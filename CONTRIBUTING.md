@@ -60,7 +60,8 @@ While working, `npm run test:watch` and `cargo test <name>` are faster. Test fil
 - **Agents and cards (`src/features/agents`, `src/features/sessions/model/cards.ts`).** What an agent does, including teaching, is its prompt at work (`model/agentFiles.ts`), on purpose: improve behaviour there and not with app code, and say which agent CLI and model you ran it with. App code is for what the agent cannot do itself, such as drawing a card or keeping a document.
 - **The vendored Excalidraw MCP server (`src-tauri/resources/excalidraw-mcp/official`).** It is shipped unmodified and its hashes are recorded in `SOURCE`. Never edit it by hand; update it with `node scripts/vendor-excalidraw-mcp.mjs`.
 - **The control channel and permissions.** A new namespace, a new bridge, or a new place a token is passed widens what an agent can reach. Treat it as a security change and describe the reasoning in the pull request.
-- **SQLite tables.** There is no migration framework, and for many people the database is the only copy of their notes and canvases. A change to an existing table must keep reading databases written by older versions.
+- **SQLite tables.** There is no migration framework. A change to an existing table must keep reading databases written by older versions; the 0.3 content tables stay as they were, as the copy an older Loci reads after a downgrade.
+- **Mentor folders.** The files in `~/Loci/<mentor>/` are the user's: edited by hand, by the mentor, synced or committed. Keep reading what older versions wrote, keep keys you do not know when rewriting a file, and bump `schemaVersion` (in `mentor_store/format.rs`) for a change an older Loci cannot read. See [Storage](docs/architecture.md#storage).
 - **New agent CLIs.** Copy the shape of an existing adapter (see [Agent CLIs](docs/architecture.md#agent-clis)) and say which CLI version you tried it with.
 
 ## Dependencies

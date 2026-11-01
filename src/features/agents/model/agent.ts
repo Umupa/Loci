@@ -6,6 +6,7 @@ import {
 } from "../../sessions/model/session";
 import { turnActivity } from "../../sessions/model/turnProgress";
 import { AGENT_AVATARS, defaultAgentName } from "./agentAvatars";
+import { queueMentorRemoval, queueRosterSync } from "./mentorStore";
 
 /** The colors an agent's avatar can take. */
 export const AGENT_COLORS = [
@@ -53,6 +54,12 @@ export type Agent = {
    * permission mode the user picks from now on is kept.
    */
   accessMigrated?: true;
+  /**
+   * Its folder of files (`~/Loci/<slug>`): sources, guides, courses, notes,
+   * canvases, Soul and memory. Set by Rust once the mentor has one; usually
+   * also its workdir.
+   */
+  folder?: string;
 };
 
 const ROSTER_KEY = "loci:agent-roster";
@@ -107,6 +114,7 @@ function parseAgent(value: unknown): Agent | undefined {
       : {}),
     ...(entry.useSidebarFolders === true ? { useSidebarFolders: true } : {}),
     ...(entry.accessMigrated === true ? { accessMigrated: true } : {}),
+    ...(typeof entry.folder === "string" && entry.folder ? { folder: entry.folder } : {}),
   };
 }
 
@@ -124,6 +132,7 @@ function saveRoster(roster: readonly Agent[]): void {
     return;
   }
   window.dispatchEvent(new CustomEvent(AGENTS_CHANGED));
+  queueRosterSync(roster);
 }
 
 export function findAgent(id: string): Agent | undefined {
@@ -229,6 +238,7 @@ export function updateAgent(
 
 /** Forgets the agent. Its folder of files stays on disk. */
 export function removeAgent(id: string): void {
+  queueMentorRemoval(id);
   saveRoster(listAgents().filter((agent) => agent.id !== id));
 }
 
@@ -312,6 +322,8 @@ export type AgentLook = {
   color: string;
   /** Its working folder, once it has one. */
   workdir?: string;
+  /** Its folder of files (library, courses, notes, Soul, memory), once it has one. */
+  folder?: string;
   /** Other folders it was given, by their rail labels. */
   projects: AgentProject[];
 };
@@ -324,6 +336,7 @@ export function agentLook(agent: Agent): AgentLook {
     avatar: agent.avatar,
     color: agent.color,
     ...(agent.workdir ? { workdir: agent.workdir } : {}),
+    ...(agent.folder ? { folder: agent.folder } : {}),
     projects: agent.projects.map((path) => ({
       path,
       name: projectName(path),

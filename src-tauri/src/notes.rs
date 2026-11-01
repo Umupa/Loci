@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
 use crate::fs::expand_home;
+use crate::mentor_store::{self, format, index, paths::Kind, MentorCtx};
 use crate::session_store::{now_millis, validate_id, SessionStore};
 
 const TITLE_MAX: usize = 200;
@@ -35,6 +36,13 @@ pub struct Note {
     pub slug_pending: bool,
     pub created_at: i64,
     pub updated_at: i64,
+    /// The hash of the note's file, for a note kept in a mentor's folder.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+    /// Set when the file had changed on disk since it was read: the disk
+    /// version was kept beside it as this file before the save went through.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conflict_copy: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -54,6 +62,9 @@ pub struct NoteUpsert {
     /// Finalize a pending slug on title blur or editor close, not a debounced save.
     #[serde(default)]
     pub finalize_slug: bool,
+    /// The file hash the editor last saw, for a note kept in a mentor's folder.
+    #[serde(default)]
+    pub expected_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -114,6 +125,178 @@ pub fn ensure_notes_table(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Notes a mentor keeps in its folder: notes/<id>.md. Notes with no mentor,
+// and notes of mentors not migrated yet, stay in the notes table.
+
+fn note_from_row(row: index::Row) -> Note {
+    let meta = &row.meta;
+    let text = |key: &str| meta.get(key).and_then(|v| v.as_str()).map(str::to_string);
+    Note {
+        slug: text("slug").unwrap_or_else(|| row.id.clone()),
+        tags: meta
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|tags| {
+                tags.iter()
+                    .filter_map(|t| t.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        source_session_id: text("sourceSession"),
+        source_cwd: text("sourceCwd"),
+        slug_pending: meta
+            .get("slugPending")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        agent_id: Some(row.agent_id.clone()),
+        title: row.title,
+        body: row.body.unwrap_or_default(),
+        id: row.id,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        hash: Some(row.hash),
+        conflict_copy: None,
+    }
+}
+
+/// A file note by id, read fresh, with its mentor's context.
+fn file_note(conn: &Connection, id: &str) -> Result<Option<(MentorCtx, Note)>, String> {
+    let Some(row) = index::find(conn, Kind::Note, id).map_err(|e| e.to_string())? else {
+        return Ok(None);
+    };
+    let Some(ctx) = mentor_store::ctx_for(conn, &row.agent_id)? else {
+        return Ok(None);
+    };
+    Ok(mentor_store::current(conn, &ctx, Kind::Note, id)?.map(|row| (ctx, note_from_row(row))))
+}
+
+fn file_notes(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<Note>, String> {
+    let mut out = Vec::new();
+    for row in index::list(conn, &ctx.agent, &[Kind::Note]).map_err(|e| e.to_string())? {
+        if let Some(full) =
+            index::get(conn, &ctx.agent, Kind::Note, &row.id).map_err(|e| e.to_string())?
+        {
+            out.push(note_from_row(full));
+        }
+    }
+    Ok(out)
+}
+
+fn render(note: &Note) -> Result<String, String> {
+    format::render_note(
+        None,
+        &format::NoteMeta {
+            title: Some(note.title.clone()),
+            slug: Some(note.slug.clone()),
+            slug_pending: note.slug_pending,
+            tags: note.tags.clone(),
+            created_at: Some(note.created_at),
+            updated_at: Some(note.updated_at),
+            source_session: note.source_session_id.clone(),
+            source_cwd: note.source_cwd.clone(),
+        },
+        &note.body,
+    )
+}
+
+/// Writes the note's file. When it changed on disk since the editor read it,
+/// the disk version is kept as `notes/<id>.conflict-<time>.md` first.
+fn write_file_note(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    note: &Note,
+    expected: Option<&str>,
+) -> Result<Note, String> {
+    let path = ctx.path(Kind::Note, &note.id);
+    let mut conflict_copy = None;
+    if let Some(expected) = expected {
+        if let Ok(current) = std::fs::read(&path) {
+            if mentor_store::fsio::sha256(&current) != expected {
+                let copy = path.with_file_name(format!(
+                    "{}.conflict-{}.md",
+                    note.id,
+                    mentor_store::stamp_now()
+                ));
+                mentor_store::fsio::write_atomic(&copy, &current)?;
+                conflict_copy = Some(copy.to_string_lossy().into_owned());
+            }
+        }
+    }
+    let row = mentor_store::write_content(conn, ctx, Kind::Note, &note.id, &render(note)?)?;
+    let mut saved = note_from_row(row);
+    saved.conflict_copy = conflict_copy;
+    Ok(saved)
+}
+
+fn file_upsert_note(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    existing: Option<Note>,
+    note: &NoteUpsert,
+) -> Result<Note, String> {
+    let title = normalize_title(&note.title);
+    let body = note.body.replace("\r\n", "\n").replace('\r', "\n");
+    let tags = normalize_tags(&note.tags);
+    let trimmed = |value: &Option<String>| {
+        value
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(str::to_string)
+    };
+    let now = now_millis();
+    let next = match existing {
+        Some(existing) => {
+            let unchanged =
+                title == existing.title && body == existing.body && tags == existing.tags;
+            let (slug, slug_pending) =
+                if note.finalize_slug && existing.slug_pending && !is_placeholder_title(&title) {
+                    (unique_slug(conn, &title).map_err(|e| e.to_string())?, false)
+                } else {
+                    (existing.slug.clone(), existing.slug_pending)
+                };
+            let source_cwd = trimmed(&note.source_cwd).or(existing.source_cwd.clone());
+            if unchanged && slug == existing.slug && source_cwd == existing.source_cwd {
+                return Ok(existing);
+            }
+            Note {
+                updated_at: if unchanged { existing.updated_at } else { now },
+                title,
+                body,
+                tags,
+                slug,
+                slug_pending,
+                source_cwd,
+                ..existing
+            }
+        }
+        None => Note {
+            id: note.id.clone(),
+            slug_pending: note.title.trim().is_empty(),
+            slug: unique_slug(conn, &title).map_err(|e| e.to_string())?,
+            title,
+            body,
+            tags,
+            source_session_id: trimmed(&note.source_session_id),
+            source_cwd: trimmed(&note.source_cwd),
+            agent_id: Some(ctx.agent.clone()),
+            created_at: now,
+            updated_at: now,
+            hash: None,
+            conflict_copy: None,
+        },
+    };
+    write_file_note(conn, ctx, &next, note.expected_hash.as_deref())
+}
+
+/// 0.3 rows a mentor's migration turned into files are not shown again; a
+/// row written after that (an older Loci after a downgrade) still is, until
+/// the next start brings it into the folder.
+fn legacy_visible(conn: &Connection, note: &Note) -> Result<bool, String> {
+    mentor_store::legacy_visible(conn, note.agent_id.as_deref(), note.updated_at)
+}
+
 #[tauri::command(async)]
 pub fn notes_list(
     store: State<'_, SessionStore>,
@@ -123,14 +306,36 @@ pub fn notes_list(
         validate_id(id, "agent")?;
     }
     let conn = store.lock_conn()?;
-    list_notes(&conn, agent_id.as_deref()).map_err(|e| e.to_string())
+    if let Some(agent) = agent_id.as_deref() {
+        if let Some(ctx) = mentor_store::ctx_for(&conn, agent)? {
+            return file_notes(&conn, &ctx);
+        }
+        return list_notes(&conn, Some(agent)).map_err(|e| e.to_string());
+    }
+    let mut notes = Vec::new();
+    for note in list_notes(&conn, None).map_err(|e| e.to_string())? {
+        if legacy_visible(&conn, &note)? {
+            notes.push(note);
+        }
+    }
+    for row in index::all(&conn, Kind::Note).map_err(|e| e.to_string())? {
+        notes.push(note_from_row(row));
+    }
+    notes.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then(a.id.cmp(&b.id)));
+    Ok(notes)
 }
 
 #[tauri::command(async)]
 pub fn notes_get(store: State<'_, SessionStore>, id: String) -> Result<Option<Note>, String> {
     validate_id(&id, "note")?;
     let conn = store.lock_conn()?;
-    get_note(&conn, &id).map_err(|e| e.to_string())
+    if let Some((_, note)) = file_note(&conn, &id)? {
+        return Ok(Some(note));
+    }
+    match get_note(&conn, &id).map_err(|e| e.to_string())? {
+        Some(note) if legacy_visible(&conn, &note)? => Ok(Some(note)),
+        _ => Ok(None),
+    }
 }
 
 #[tauri::command(async)]
@@ -148,6 +353,20 @@ pub fn notes_upsert(store: State<'_, SessionStore>, note: NoteUpsert) -> Result<
         return Err("Note is too large".into());
     }
     let conn = store.lock_conn()?;
+    if let Some((ctx, existing)) = file_note(&conn, &note.id)? {
+        return file_upsert_note(&conn, &ctx, Some(existing), &note);
+    }
+    let legacy = get_note(&conn, &note.id).map_err(|e| e.to_string())?;
+    let owner = legacy
+        .as_ref()
+        .map_or(note.agent_id.clone(), |existing| existing.agent_id.clone());
+    if let Some(agent) = owner.as_deref() {
+        if let Some(ctx) = mentor_store::ctx_for(&conn, agent)? {
+            // A new note of a mentor with a folder, or its 0.3 row edited
+            // again after the file was removed: either way it is a file now.
+            return file_upsert_note(&conn, &ctx, None, &note);
+        }
+    }
     upsert_note(&conn, &note).map_err(|e| e.to_string())
 }
 
@@ -159,6 +378,17 @@ pub fn notes_finalize_slug(
 ) -> Result<Option<Note>, String> {
     validate_id(&id, "note")?;
     let conn = store.lock_conn()?;
+    if let Some((ctx, mut note)) = file_note(&conn, &id)? {
+        if note.slug_pending
+            && note.title == normalize_title(&title)
+            && !is_placeholder_title(&note.title)
+        {
+            note.slug = unique_slug(&conn, &note.title).map_err(|e| e.to_string())?;
+            note.slug_pending = false;
+            return write_file_note(&conn, &ctx, &note, None).map(Some);
+        }
+        return Ok(Some(note));
+    }
     finalize_note_slug(&conn, &id, &title).map_err(|e| e.to_string())
 }
 
@@ -170,6 +400,10 @@ pub fn notes_delete(
 ) -> Result<(), String> {
     validate_id(&id, "note")?;
     let conn = store.lock_conn()?;
+    if let Some((ctx, _)) = file_note(&conn, &id)? {
+        mentor_store::remove_content(&conn, &ctx, Kind::Note, &id)?;
+        return Ok(());
+    }
     delete_note(&conn, &id).map_err(|e| e.to_string())?;
     drop(conn);
     // The note deletion is authoritative. A cleanup failure should not leave a
@@ -407,6 +641,8 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
             slug_pending,
             created_at: existing.created_at,
             updated_at,
+            hash: None,
+            conflict_copy: None,
         })
     } else {
         // Explicit titles such as "Untitled" own their slug; only blank input is pending.
@@ -443,6 +679,8 @@ fn upsert_note(conn: &Connection, note: &NoteUpsert) -> rusqlite::Result<Note> {
             slug_pending,
             created_at: now,
             updated_at: now,
+            hash: None,
+            conflict_copy: None,
         })
     }
 }
@@ -487,6 +725,8 @@ fn read_note(row: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
         updated_at: row.get(8)?,
         slug_pending: row.get(9)?,
         agent_id: row.get(10)?,
+        hash: None,
+        conflict_copy: None,
     })
 }
 
@@ -572,7 +812,8 @@ fn unique_slug(conn: &Connection, title: &str) -> rusqlite::Result<String> {
             format!("{base}-{}", index + 1)
         };
         let taken: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM notes WHERE slug = ?1",
+            "SELECT (SELECT COUNT(*) FROM notes WHERE slug = ?1)
+                  + (SELECT COUNT(*) FROM mentor_content WHERE kind = 'note' AND json_extract(meta_json, '$.slug') = ?1)",
             params![candidate],
             |row| row.get(0),
         )?;
@@ -601,6 +842,7 @@ mod tests {
                 agent_id: None,
                 source_cwd: None,
                 finalize_slug: true,
+                expected_hash: None,
             },
         )
         .unwrap()
@@ -641,6 +883,7 @@ mod tests {
             source_cwd: None,
             agent_id: Some("agent-a".into()),
             finalize_slug: false,
+            expected_hash: None,
         };
         upsert_note(&conn, &input).unwrap();
         // Global Notes edits omit the association and must preserve it.
@@ -770,6 +1013,7 @@ mod tests {
                 agent_id: None,
                 source_cwd: Some("/tmp/a".into()),
                 finalize_slug: false,
+                expected_hash: None,
             },
         )
         .unwrap();
@@ -809,6 +1053,7 @@ mod tests {
             agent_id: None,
             source_cwd: Some("/work/Edefyn".into()),
             finalize_slug: false,
+            expected_hash: None,
         };
         let original = upsert_note(&conn, &input).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(5));
@@ -823,6 +1068,7 @@ mod tests {
                 agent_id: None,
                 source_cwd: None,
                 finalize_slug: true,
+                expected_hash: None,
             },
         )
         .unwrap();
@@ -871,6 +1117,7 @@ mod tests {
                 agent_id: None,
                 source_cwd: None,
                 finalize_slug,
+                expected_hash: None,
             },
         )
         .unwrap()
@@ -1000,6 +1247,7 @@ mod tests {
                         agent_id: None,
                         source_cwd: None,
                         finalize_slug,
+                        expected_hash: None,
                     },
                 )
                 .unwrap();
@@ -1130,5 +1378,61 @@ mod tests {
         assert_eq!(slugify("Hello, World!"), "hello-world");
         assert_eq!(slugify("***"), "note");
         assert_eq!(slugify("Ä"), "note");
+    }
+
+    #[test]
+    fn a_mentors_notes_are_files_and_a_stale_editor_never_loses_the_disk_version() {
+        use crate::mentor_store::testing::{register, temp_dir};
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let folder = temp_dir("notes");
+        register(&conn, "agent", &folder);
+        let ctx = mentor_store::ctx_for(&conn, "agent").unwrap().unwrap();
+        // A 0.3 note with the slug "kvm" keeps that slug taken.
+        conn.execute("INSERT INTO notes (id, slug, title, created_at, updated_at) VALUES ('old', 'kvm', 'KVM', 1, 1)", []).unwrap();
+        let input = |title: &str, body: &str, expected: Option<String>| NoteUpsert {
+            id: "n1".into(),
+            title: title.into(),
+            body: body.into(),
+            tags: vec!["Virt".into()],
+            source_session_id: None,
+            source_cwd: None,
+            agent_id: Some("agent".into()),
+            finalize_slug: true,
+            expected_hash: expected,
+        };
+        let first = file_upsert_note(&conn, &ctx, None, &input("KVM", "one", None)).unwrap();
+        assert_eq!(first.slug, "kvm-2");
+        assert_eq!(first.tags, vec!["virt"]);
+        let text = std::fs::read_to_string(folder.join("notes/n1.md")).unwrap();
+        assert!(text.contains("slug: kvm-2") && text.ends_with("---\none"));
+        let (_, found) = file_note(&conn, "n1").unwrap().unwrap();
+        assert_eq!(found.hash, first.hash);
+
+        // Edited on disk while the editor was open: the editor's save goes
+        // through and the disk version is kept beside it.
+        std::fs::write(
+            folder.join("notes/n1.md"),
+            "---\ntitle: KVM\nslug: kvm-2\n---\nedited in vim",
+        )
+        .unwrap();
+        let (_, current) = file_note(&conn, "n1").unwrap().unwrap();
+        let saved = file_upsert_note(
+            &conn,
+            &ctx,
+            Some(current),
+            &input("KVM", "from the editor", first.hash.clone()),
+        )
+        .unwrap();
+        let copy = saved.conflict_copy.expect("a conflict copy");
+        assert!(std::fs::read_to_string(&copy)
+            .unwrap()
+            .contains("edited in vim"));
+        assert!(std::fs::read_to_string(folder.join("notes/n1.md"))
+            .unwrap()
+            .ends_with("from the editor"));
+        // The copy is not a note of its own.
+        assert_eq!(file_notes(&conn, &ctx).unwrap().len(), 1);
+        std::fs::remove_dir_all(folder).unwrap();
     }
 }

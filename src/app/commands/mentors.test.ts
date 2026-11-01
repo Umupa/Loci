@@ -29,7 +29,7 @@ describe("mentors create and update", () => {
     const { ctx, chatOf } = testContext(mentors, {});
     ctx.createAgent = vi.fn(async () => { mentors.push(agent("new", "Mentor")); return "new"; });
     const created = await runCommand(ctx, "mentors.create", { template: "learning-guide", provider: "agy", mode: "full-access" }, external) as Record<string, unknown>;
-    expect(ctx.createAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "learning-guide" }));
+    expect(ctx.createAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "learning-guide" }), undefined);
     expect(ctx.submission.changeModel).toHaveBeenCalledWith(chatOf("new").id, "antigravity", expect.any(String));
     expect(ctx.submission.changeRuntimeMode).toHaveBeenCalledWith(chatOf("new").id, "full-access");
     expect(ctx.switchAgent).not.toHaveBeenCalled();
@@ -43,7 +43,9 @@ describe("mentors create and update", () => {
     ctx.refreshModels = vi.fn(async ([harness]) => {
       setHarnessModels(harness, [{ id: `${harness}:custom`, harness, name: "Custom" }]);
     });
-    await runCommand(ctx, "mentors.create", { provider: "grok", model: "grok:custom" }, external);
+    await runCommand(ctx, "mentors.create", { provider: "grok", model: "grok:custom", name: "  E2B   Reader ", role: "Sources" }, external);
+    // The name comes with it from the start: it also names the mentor's folder.
+    expect(ctx.createAgent).toHaveBeenCalledWith(undefined, { name: "E2B Reader", role: "Sources" });
     expect(ctx.refreshModels).toHaveBeenCalledWith(["grok"]);
     expect(ctx.submission.changeModel).toHaveBeenCalledWith(chatOf("new").id, "grok", "grok:custom");
     await runCommand(ctx, "mentors.update", { mentor: "a1", model: "claude:custom" }, external);

@@ -323,7 +323,7 @@ export function forgetAgentContext(sessionId: string): void {
 }
 
 /** Version of the app data carried by an agent turn. */
-export const AGENT_PROMPT_VERSION = 7;
+export const AGENT_PROMPT_VERSION = 8;
 
 /** Discoverable app capabilities; teaching style and standing behavior belong to the Soul. */
 const AGENT_TOOLS = `<tools>
@@ -334,6 +334,7 @@ The local app CLI is available in this conversation; its command and help entry 
 - Drawings: use the available canvas tools to create or revise diagrams; canvas.list/get locate existing drawings. A course can reference its canvasId.
 - Memory: memory.read/search find facts and topic notes; memory.add/replace/remove update long-term facts through the CLI. Soul: soul.read/update read or edit standing instructions using the returned hash.
 - Habits: habits.list/add/update/run/remove manage recurring tasks and their schedules. Habits run only while Loci is open, and their reports appear here.
+- Folder: <agent>.folder holds your library as files: sources/<id>.md, guides/<id>.md, courses/<id>.yaml, notes/<id>.md, canvases/<id>.excalidraw, beside SOUL.md and memory/. You may create or edit those files directly; Loci picks the change up. Run library.check after editing files directly to see any it could not read, and library.search to find text in your library. Change SOUL.md and memory only through soul.* and memory.*. The help has the file formats.
 - Workdir: <agent>.workdir is your own folder, which the user can browse beside this chat. Clone source code into repos/<owner>/<repo> and keep experiments in lab/; create these when needed. Link a file there by its absolute path to open it beside this chat. <agent>.folders are other folders the user gave you. Never move or delete files you did not create.
 - Reading: <reading_now> names the course lesson, document or note open beside this chat, when there is one. "This", "here" and "the passage" usually mean it.
 - Reply formats: loci-question presents choices, loci-todo a checklist, and loci-mindmap or mermaid a diagram. The help includes the exact formats.
@@ -352,6 +353,7 @@ function agentIdentity(look: AgentLook, id: string) {
     name: look.name,
     role: look.role ?? null,
     workdir: look.workdir ?? null,
+    ...(look.folder ? { folder: look.folder } : {}),
     folders: look.projects.map((project) => project.path),
   };
 }

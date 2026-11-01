@@ -11,6 +11,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::mentor_store::{self, index, paths::Kind, MentorCtx};
 use crate::session_store::{now_millis, validate_id, SessionStore};
 
 const TITLE_MAX: usize = 200;
@@ -205,6 +206,143 @@ pub fn ensure_courses_table(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
+// ---------------------------------------------------------------------------
+// A mentor whose courses are in its folder: courses/<id>.yaml, with progress
+// in lesson_progress (which outlives a file's brief absence).
+
+fn course_from_row(row: index::Row) -> Option<Course> {
+    Some(Course {
+        engine: row.meta.get("engine")?.as_str()?.to_string(),
+        data_json: row.body?,
+        id: row.id,
+        agent_id: row.agent_id,
+        title: row.title,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    })
+}
+
+fn file_courses(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<Course>, String> {
+    let mut out = Vec::new();
+    for row in index::list(conn, &ctx.agent, &[Kind::Course]).map_err(|e| e.to_string())? {
+        if let Some(full) =
+            index::get(conn, &ctx.agent, Kind::Course, &row.id).map_err(|e| e.to_string())?
+        {
+            out.extend(course_from_row(full));
+        }
+    }
+    Ok(out)
+}
+
+fn file_course(conn: &Connection, ctx: &MentorCtx, id: &str) -> Result<Option<Course>, String> {
+    Ok(mentor_store::current(conn, ctx, Kind::Course, id)?.and_then(course_from_row))
+}
+
+fn file_progress(
+    conn: &Connection,
+    agent_id: &str,
+    course_id: &str,
+) -> rusqlite::Result<Vec<CourseProgressItem>> {
+    let mut statement = conn.prepare(
+        "SELECT item_id, status FROM lesson_progress WHERE agent_id = ?1 AND course_id = ?2 ORDER BY item_id",
+    )?;
+    let rows = statement.query_map(params![agent_id, course_id], |row| {
+        Ok(CourseProgressItem {
+            item_id: row.get(0)?,
+            status: row.get(1)?,
+        })
+    })?;
+    rows.collect()
+}
+
+fn file_save_course(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    course: &CourseUpsert,
+) -> Result<Course, String> {
+    validate_id(&course.id, "course")?;
+    require_text(&course.title, "title")?;
+    if course.title.chars().count() > TITLE_MAX {
+        return Err("A course title must be at most 200 characters".into());
+    }
+    let (data_json, ids) = validate_data(&course.engine, &course.data_json)?;
+    let title = course.title.trim();
+    let existing = file_course(conn, ctx, &course.id)?;
+    if let Some(saved) = &existing {
+        if saved.engine == course.engine && saved.title == title && saved.data_json == data_json {
+            return Ok(saved.clone());
+        }
+    }
+    let relativize = |path: &str| ctx.relativize(path);
+    let text =
+        crate::mentor_store::format::render_course(title, &course.engine, &data_json, &relativize)?;
+    let row = mentor_store::write_content(conn, ctx, Kind::Course, &course.id, &text)?;
+    // Progress of lessons the revision removed goes, as it always has.
+    let engine_changed = existing
+        .as_ref()
+        .is_some_and(|saved| saved.engine != course.engine);
+    for progress in file_progress(conn, &ctx.agent, &course.id).map_err(|e| e.to_string())? {
+        if engine_changed || !ids.contains(&progress.item_id) {
+            conn.execute(
+                "DELETE FROM lesson_progress WHERE agent_id = ?1 AND course_id = ?2 AND item_id = ?3",
+                params![ctx.agent, course.id, progress.item_id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+    course_from_row(row).ok_or_else(|| "The saved course could not be read back".into())
+}
+
+fn file_set_progress(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    course_id: &str,
+    item_id: &str,
+    status: &str,
+) -> Result<(), String> {
+    let course = file_course(conn, ctx, course_id)?.ok_or("Course not found")?;
+    let (_, ids) = validate_data(&course.engine, &course.data_json)?;
+    if !ids.contains(item_id) {
+        return Err(format!("Course item not found: {item_id}"));
+    }
+    conn.execute(
+        "INSERT INTO lesson_progress (agent_id, course_id, item_id, status, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(agent_id, course_id, item_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at",
+        params![ctx.agent, course_id, item_id, status, now_millis()],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Every course in a mentor's folder, as the cross-mentor list shows them.
+fn file_summaries(conn: &Connection) -> Result<Vec<CourseSummary>, String> {
+    let mut out = Vec::new();
+    for row in index::all(conn, Kind::Course).map_err(|e| e.to_string())? {
+        let Some(course) = course_from_row(row) else {
+            continue;
+        };
+        let ids = validate_data(&course.engine, &course.data_json)
+            .map(|(_, ids)| ids)
+            .unwrap_or_default();
+        let mastered = file_progress(conn, &course.agent_id, &course.id)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter(|p| p.status == "mastered" && ids.contains(&p.item_id))
+            .count();
+        out.push(CourseSummary {
+            item_count: item_count(&course.engine, &course.data_json),
+            mastered_count: mastered,
+            id: course.id,
+            agent_id: course.agent_id,
+            engine: course.engine,
+            title: course.title,
+            updated_at: course.updated_at,
+        });
+    }
+    Ok(out)
+}
+
 #[tauri::command(async)]
 pub fn course_list(
     store: State<'_, SessionStore>,
@@ -212,6 +350,9 @@ pub fn course_list(
 ) -> Result<Vec<Course>, String> {
     validate_id(&agent_id, "agent")?;
     let conn = store.lock_conn()?;
+    if let Some(ctx) = mentor_store::ctx_for(&conn, &agent_id)? {
+        return file_courses(&conn, &ctx);
+    }
     list_courses(&conn, &agent_id).map_err(|e| e.to_string())
 }
 
@@ -220,7 +361,10 @@ pub fn course_list(
 #[tauri::command(async)]
 pub fn course_list_all(store: State<'_, SessionStore>) -> Result<Vec<CourseSummary>, String> {
     let conn = store.lock_conn()?;
-    list_summaries(&conn).map_err(|e| e.to_string())
+    let mut all = list_summaries(&conn).map_err(|e| e.to_string())?;
+    all.extend(file_summaries(&conn)?);
+    all.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then(a.id.cmp(&b.id)));
+    Ok(all)
 }
 
 /// Removes one course, or with no id every course the agent owns. Progress
@@ -236,6 +380,13 @@ pub fn course_delete(
         validate_id(id, "course")?;
     }
     let conn = store.lock_conn()?;
+    if let Some(ctx) = mentor_store::ctx_for(&conn, &agent_id)? {
+        // Without an id the mentor is being deleted: its folder stays.
+        if let Some(id) = &id {
+            mentor_store::remove_content(&conn, &ctx, Kind::Course, id)?;
+        }
+        return Ok(());
+    }
     delete_courses(&conn, &agent_id, id.as_deref()).map_err(|e| e.to_string())
 }
 
@@ -248,6 +399,9 @@ pub fn course_get(
     validate_id(&agent_id, "agent")?;
     validate_id(&id, "course")?;
     let conn = store.lock_conn()?;
+    if let Some(ctx) = mentor_store::ctx_for(&conn, &agent_id)? {
+        return file_course(&conn, &ctx, &id);
+    }
     get_course(&conn, &agent_id, &id).map_err(|e| e.to_string())
 }
 
@@ -256,7 +410,11 @@ pub fn course_upsert(
     store: State<'_, SessionStore>,
     course: CourseUpsert,
 ) -> Result<Course, String> {
+    validate_id(&course.agent_id, "agent")?;
     let conn = store.lock_conn()?;
+    if let Some(ctx) = mentor_store::ctx_for(&conn, &course.agent_id)? {
+        return file_save_course(&conn, &ctx, &course);
+    }
     save_course(&conn, &course)
 }
 
@@ -269,6 +427,9 @@ pub fn course_progress_get(
     validate_id(&agent_id, "agent")?;
     validate_id(&course_id, "course")?;
     let conn = store.lock_conn()?;
+    if mentor_store::ctx_for(&conn, &agent_id)?.is_some() {
+        return file_progress(&conn, &agent_id, &course_id).map_err(|e| e.to_string());
+    }
     get_progress(&conn, &agent_id, &course_id).map_err(|e| e.to_string())
 }
 
@@ -281,6 +442,14 @@ pub fn course_progress_set(
     status: String,
 ) -> Result<(), String> {
     let conn = store.lock_conn()?;
+    if let Some(ctx) = mentor_store::ctx_for(&conn, &agent_id)? {
+        validate_id(&course_id, "course")?;
+        validate_id(&item_id, "course item")?;
+        if !matches!(status.as_str(), "untouched" | "learning" | "mastered") {
+            return Err(format!("Unknown learning status: {status}"));
+        }
+        return file_set_progress(&conn, &ctx, &course_id, &item_id, &status);
+    }
     set_progress(&conn, &agent_id, &course_id, &item_id, &status)
 }
 
@@ -331,7 +500,7 @@ fn require_object_items(value: &serde_json::Value, field: &str) -> Result<(), St
 
 /// Typed deserialization keeps progress and other unknown fields out of the
 /// stored structure. Item ids are the contract used to preserve progress.
-fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<String>), String> {
+pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<String>), String> {
     if raw.len() > DATA_MAX {
         return Err("Course data is too large".into());
     }
@@ -458,7 +627,9 @@ fn list_summaries(conn: &Connection) -> rusqlite::Result<Vec<CourseSummary>> {
         "SELECT c.id, c.agent_id, c.engine, c.title, c.data_json, c.updated_at,
                 (SELECT COUNT(*) FROM course_progress p
                   WHERE p.agent_id = c.agent_id AND p.course_id = c.id AND p.status = 'mastered')
-         FROM courses c ORDER BY c.updated_at DESC, c.id",
+         FROM courses c
+         WHERE NOT EXISTS (SELECT 1 FROM mentors m WHERE m.id = c.agent_id AND m.migrated_at IS NOT NULL)
+         ORDER BY c.updated_at DESC, c.id",
     )?;
     let rows = statement.query_map([], |row| {
         let engine: String = row.get(2)?;
@@ -651,6 +822,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
         ensure_courses_table(&conn).unwrap();
+        crate::mentor_store::index::ensure_tables(&conn).unwrap();
         save_course(&conn, &reading("agent-a")).unwrap();
         save_course(&conn, &build("agent-b", &["one", "two", "three"])).unwrap();
         set_progress(&conn, "agent-a", "agent-loop", "pod", "mastered").unwrap();
@@ -960,7 +1132,9 @@ mod tests {
         )
         .unwrap();
         ensure_courses_table(&conn).unwrap();
+        crate::mentor_store::index::ensure_tables(&conn).unwrap();
         ensure_courses_table(&conn).unwrap();
+        crate::mentor_store::index::ensure_tables(&conn).unwrap();
         assert_eq!(
             get_progress(&conn, "agent-a", "old").unwrap()[0].status,
             "mastered"
@@ -1058,5 +1232,64 @@ mod tests {
             .unwrap(),
             json!({"itemId": "s01", "status": "mastered"})
         );
+    }
+
+    #[test]
+    fn a_mentor_with_a_folder_keeps_its_courses_as_yaml_and_progress_outlives_the_file() {
+        use crate::mentor_store::testing::{register, temp_dir};
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let folder = temp_dir("courses");
+        register(&conn, "agent", &folder);
+        let ctx = mentor_store::ctx_for(&conn, "agent").unwrap().unwrap();
+        let code = folder.join("repos/fc/src/lib.rs");
+        std::fs::create_dir_all(code.parent().unwrap()).unwrap();
+        std::fs::write(&code, "fn main() {}\n").unwrap();
+        let data = serde_json::json!({"chapters":[{"title":"One","lessons":[
+            {"id":"a","title":"A","document":"virtio","section":"Rings"},
+            {"id":"b","title":"B","file": code.to_string_lossy(),"lines":[1,1]}]}]});
+        let upsert = |data: &serde_json::Value, title: &str| CourseUpsert {
+            id: "c1".into(),
+            agent_id: "agent".into(),
+            engine: "reading".into(),
+            title: title.into(),
+            data_json: data.to_string(),
+        };
+        let saved = file_save_course(&conn, &ctx, &upsert(&data, "Sandbox")).unwrap();
+        assert_eq!(saved.title, "Sandbox");
+        let yaml = std::fs::read_to_string(folder.join("courses/c1.yaml")).unwrap();
+        assert!(yaml.contains("file: repos/fc/src/lib.rs"), "{yaml}");
+        assert_eq!(file_courses(&conn, &ctx).unwrap().len(), 1);
+        let read: serde_json::Value =
+            serde_json::from_str(&file_course(&conn, &ctx, "c1").unwrap().unwrap().data_json)
+                .unwrap();
+        assert_eq!(
+            read["chapters"][0]["lessons"][1]["file"],
+            code.to_string_lossy().as_ref()
+        );
+
+        file_set_progress(&conn, &ctx, "c1", "a", "mastered").unwrap();
+        file_set_progress(&conn, &ctx, "c1", "b", "learning").unwrap();
+        assert!(file_set_progress(&conn, &ctx, "c1", "zz", "learning").is_err());
+        let summaries = file_summaries(&conn).unwrap();
+        assert_eq!(
+            (summaries[0].item_count, summaries[0].mastered_count),
+            (2, 1)
+        );
+
+        // A revision that drops a lesson drops its progress.
+        let fewer = serde_json::json!({"chapters":[{"title":"One","lessons":[{"id":"a","title":"A","document":"virtio"}]}]});
+        file_save_course(&conn, &ctx, &upsert(&fewer, "Sandbox")).unwrap();
+        assert_eq!(file_progress(&conn, "agent", "c1").unwrap().len(), 1);
+
+        // The file briefly gone (an editor's save, a checkout) keeps progress.
+        std::fs::remove_file(folder.join("courses/c1.yaml")).unwrap();
+        assert!(file_course(&conn, &ctx, "c1").unwrap().is_none());
+        assert_eq!(file_progress(&conn, "agent", "c1").unwrap().len(), 1);
+        std::fs::write(folder.join("courses/c1.yaml"), "title: Edited by hand\nchapters:\n  - title: One\n    lessons:\n      - id: a\n        title: A\n        document: virtio#Rings\n").unwrap();
+        let edited = file_course(&conn, &ctx, "c1").unwrap().unwrap();
+        assert_eq!(edited.title, "Edited by hand");
+        assert_eq!(file_summaries(&conn).unwrap()[0].mastered_count, 1);
+        std::fs::remove_dir_all(folder).unwrap();
     }
 }

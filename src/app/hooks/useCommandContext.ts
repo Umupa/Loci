@@ -44,7 +44,7 @@ export function useCommandContext(options: Options): CommandContext {
     identifier: () => identifier ??= invoke<{ identifier: string }>("cli_access_status").then((status) => status.identifier),
     agents: () => listAgents(),
     activeAgentId: () => latest.current.activeAgentId(),
-    createAgent: (template) => agents().create(template, { show: false }),
+    createAgent: (template, look) => agents().create(template, { show: false, ...(look ? { look } : {}) }),
     removeAgent: (id, confirmed) => agents().remove(id, { confirmed, rethrow: true }),
     resetAgent: (id, confirmed) => agents().reset(id, { confirmed, rethrow: true }),
     switchAgent: (id) => latest.current.showMentor(id),

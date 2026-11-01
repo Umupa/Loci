@@ -194,7 +194,9 @@ export const mentorCommands: CommandDefinition<CommandContext>[] = [
       if (input.template !== undefined && !template)
         throw new CommandError(`Unknown template ${String(input.template)}. Templates: ${AGENT_TEMPLATES.map((entry) => entry.id).join(", ")}`, "usage");
       if (input.provider !== undefined) providerId(input.provider as string);
-      const id = await ctx.createAgent(template);
+      const text = (value: unknown) => typeof value === "string" && value.trim() ? value.replace(/\s+/g, " ").trim() : undefined;
+      const look = Object.fromEntries(Object.entries({ name: text(input.name), role: text(input.role) }).filter(([, value]) => value !== undefined));
+      const id = await ctx.createAgent(template, Object.keys(look).length ? look : undefined);
       const { template: _template, switch: show, ...settings } = input;
       const agent = resolveMentor(ctx, id, meta);
       await applySettings(ctx, agent, settings as Settings);

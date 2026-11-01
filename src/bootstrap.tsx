@@ -17,6 +17,7 @@ import {
 import { homeDir } from "./platform/tauri/fs";
 import { setHomeDir } from "./shared/lib/paths";
 import { initializeProviderBinaryPaths } from "./features/providers/model/providerBinaryPaths";
+import { hydrateMentors } from "./features/agents/model/mentorStore";
 import "./styles/index.css";
 
 performance.mark("loci:bootstrap");
@@ -34,6 +35,8 @@ const homeDirPrimed = homeDir()
 const providerBinaryPathsPrimed = initializeProviderBinaryPaths().catch(
   () => undefined,
 );
+// Mentors' folders: migrate 0.3 data once, then load the roster from them.
+const mentorsHydrated = hydrateMentors().catch(() => undefined);
 
 function dismissBootSplash() {
   const splash = document.getElementById("boot-splash");
@@ -87,10 +90,12 @@ void listen("quit_aborted", () => {
 void Promise.all([
   homeDirPrimed,
   providerBinaryPathsPrimed,
+  mentorsHydrated,
   loadBootWorkspace(),
   appLoaded,
 ]).then(
   ([
+    ,
     ,
     ,
     { resumed },

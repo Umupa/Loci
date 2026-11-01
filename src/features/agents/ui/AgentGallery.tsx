@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Modal } from "../../../shared/ui/Modal";
 import { Plus } from "../../../shared/ui/icons";
 import { AGENT_COLORS } from "../model/agent";
+import { importMentor } from "../model/mentorStore";
+import { pickFile } from "../../../platform/tauri/fs";
 import { AGENT_TEMPLATES, type AgentTemplate } from "../templates";
 import { AgentAvatar } from "./AgentAvatar";
 
@@ -14,7 +16,19 @@ type Props = {
 /** Where a new mentor starts: a ready-made one for a kind of work, or a blank one. */
 export function AgentGallery({ onPick, onClose }: Props) {
   const [shown, setShown] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string>();
   const pick = (template: AgentTemplate | null) => { onClose(); onPick(template); };
+  // A mentor exported from Loci (a .zip of its folder) comes back with its
+  // library, courses, Soul, memory, progress and highlights.
+  const importZip = () => void pickFile("Import a mentor", ["zip"]).then(async (path) => {
+    if (!path) return;
+    try {
+      await importMentor({ path });
+      onClose();
+    } catch (reason) {
+      setImportError(String(reason));
+    }
+  });
   return <Modal title="New mentor" description="Start from a mentor made for a kind of work, or from a blank one. You can change its Soul any time in its settings." size="lg" fitViewport onClose={onClose}>
     <ul className="grid gap-2 p-4 pt-1 sm:grid-cols-2" aria-label="Mentor templates">
       {AGENT_TEMPLATES.map((template, index) => <li key={template.id} data-agent-template={template.id}
@@ -40,6 +54,10 @@ export function AgentGallery({ onPick, onClose }: Props) {
           className="flex min-h-28 w-full flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-stroke p-3 text-[12px] text-content/55 hover:bg-content/5 hover:text-content">
           <Plus className="size-4" /> Blank mentor
         </button>
+      </li>
+      <li className="flex min-w-0 flex-col items-stretch justify-center gap-1 sm:col-span-2">
+        <button type="button" onClick={importZip} className="self-end rounded-md px-2 py-1 text-[12px] text-content/55 hover:bg-content/8 hover:text-content">Import a mentor…</button>
+        {importError ? <p role="alert" className="self-end text-[11px] text-red-400/90">{importError}</p> : null}
       </li>
     </ul>
   </Modal>;

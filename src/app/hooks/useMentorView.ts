@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { isLibrarySegment, type LibrarySegment } from "../../features/mentor/model/libraryCourse";
 import { parseStoredPage, storedPage, type MentorLesson, type MentorPage } from "../../features/mentor/model/mentorPage";
+import { mirrorViewState } from "../../features/agents/model/mentorStore";
 
 export type MentorViewState = {
   /** What the reader shows; nothing leaves it empty. */
@@ -54,13 +55,16 @@ function read(): Record<string, MentorViewState> {
 }
 
 function write(states: Record<string, MentorViewState>) {
+  const stored = Object.fromEntries(Object.entries(states).map(([id, state]) => [id, {
+    library: state.library, libraryWidth: state.libraryWidth, chat: state.chat, width: state.chatWidth,
+    ...(state.segment ? { segment: state.segment } : {}),
+    ...(state.course ? { course: state.course } : {}),
+    ...(state.page ? { page: storedPage(state.page, state.lesson) } : {}),
+  }]));
+  // Also kept in SQLite (mentor_state), where it outlives this WebView's storage.
+  mirrorViewState(stored);
   try {
-    localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify(Object.fromEntries(Object.entries(states).map(([id, state]) => [id, {
-      library: state.library, libraryWidth: state.libraryWidth, chat: state.chat, width: state.chatWidth,
-      ...(state.segment ? { segment: state.segment } : {}),
-      ...(state.course ? { course: state.course } : {}),
-      ...(state.page ? { page: storedPage(state.page, state.lesson) } : {}),
-    }]))));
+    localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify(stored));
   } catch { /* This window keeps its view even when storage is unavailable. */ }
 }
 

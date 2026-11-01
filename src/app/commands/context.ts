@@ -16,7 +16,8 @@ export type CommandContext = {
   agents(): readonly Agent[];
   activeAgentId(): string | null;
   /** Adds a mentor, from a template or blank, without switching to it. */
-  createAgent(template?: AgentTemplate): Promise<string>;
+  /** `look` is the name, role and face it starts with (they also name its folder). */
+  createAgent(template?: AgentTemplate, look?: { name?: string; role?: string; avatar?: string; color?: string }): Promise<string>;
   /** Removes a mentor as the rail does; `confirmed` skips the dialog. False when the user declined. */
   removeAgent(id: string, confirmed: boolean): Promise<boolean>;
   /** Clears a mentor's conversation; `confirmed` skips the dialog. False when the user declined. */
