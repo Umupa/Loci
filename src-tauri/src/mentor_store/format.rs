@@ -288,7 +288,8 @@ pub fn parse_course(
 }
 
 /// Lesson shorthands: `document: id#section`, `file: path#L12-40` or `#p7-9`,
-/// and `file: repos/<repo>@<sha>:path` (the pin is read past; §2 owns it).
+/// and `file: repos/<repo>@<sha>:path`, a file pinned to a commit (the
+/// lesson gains `commit`; `file` is the path in the working tree).
 fn read_lesson(
     lesson: &mut Map<String, Value>,
     resolve: &dyn Fn(&str) -> Result<String, String>,
@@ -327,7 +328,13 @@ fn read_lesson(
                 lesson.insert(key.into(), json!([from, to]));
             }
         }
-        let path = unpin(&path);
+        let path = match pinned(&path) {
+            Some((path, commit)) => {
+                lesson.entry("commit").or_insert(json!(commit));
+                path
+            }
+            None => path,
+        };
         let absolute = if std::path::Path::new(&path).is_absolute() {
             path
         } else {
@@ -338,16 +345,35 @@ fn read_lesson(
     Ok(())
 }
 
-/// `repos/<repo>@<sha>:path/in/repo` → `repos/<repo>/path/in/repo`.
-fn unpin(path: &str) -> String {
-    if let Some((repo, rest)) = path.split_once('@') {
-        if let Some((sha, inner)) = rest.split_once(':') {
-            if !sha.is_empty() && sha.chars().all(|c| c.is_ascii_hexdigit()) {
-                return format!("{repo}/{inner}");
-            }
-        }
+/// `repos/<repo>@<sha>:path/in/repo` → (`repos/<repo>/path/in/repo`, sha).
+pub fn pinned(path: &str) -> Option<(String, String)> {
+    let (repo, rest) = path.split_once('@')?;
+    let (sha, inner) = rest.split_once(':')?;
+    if repo.is_empty() || inner.is_empty() || !crate::course::is_commit(sha) {
+        return None;
     }
-    path.to_string()
+    Some((
+        format!(
+            "{}/{}",
+            repo.trim_end_matches('/'),
+            inner.trim_start_matches('/')
+        ),
+        sha.to_ascii_lowercase(),
+    ))
+}
+
+/// The pin shorthand for a lesson file in a git checkout: `<repo>@<sha>:<path
+/// in repo>`, with `<repo>` as `relativize` writes it. None when the file is
+/// in no repository Loci can see.
+fn pin_shorthand(file: &str, commit: &str, relativize: &dyn Fn(&str) -> String) -> Option<String> {
+    let path = std::path::Path::new(file);
+    let root = path
+        .ancestors()
+        .skip(1)
+        .find(|dir| dir.join(".git").exists())?;
+    let inner = path.strip_prefix(root).ok()?.to_str()?.replace('\\', "/");
+    let repo = relativize(root.to_str()?);
+    Some(format!("{repo}@{commit}:{inner}"))
 }
 
 const COURSE_KEYS: [&str; 6] = [
@@ -358,8 +384,8 @@ const COURSE_KEYS: [&str; 6] = [
     "chapters",
     "steps",
 ];
-const LESSON_KEYS: [&str; 7] = [
-    "id", "title", "document", "section", "file", "lines", "pages",
+const LESSON_KEYS: [&str; 8] = [
+    "id", "title", "document", "section", "file", "lines", "pages", "commit",
 ];
 const STEP_KEYS: [&str; 8] = [
     "id",
@@ -404,7 +430,22 @@ pub fn render_course(
                             {
                                 for lesson in lessons.iter_mut() {
                                     if let Some(Value::String(file)) = lesson.get("file").cloned() {
-                                        lesson["file"] = json!(relativize(&file));
+                                        let commit = lesson
+                                            .get("commit")
+                                            .and_then(Value::as_str)
+                                            .map(str::to_string);
+                                        let short = commit.as_deref().and_then(|commit| {
+                                            pin_shorthand(&file, commit, relativize)
+                                        });
+                                        match short {
+                                            Some(short) => {
+                                                lesson["file"] = json!(short);
+                                                if let Value::Object(lesson) = lesson {
+                                                    lesson.remove("commit");
+                                                }
+                                            }
+                                            None => lesson["file"] = json!(relativize(&file)),
+                                        }
                                     }
                                 }
                             }
@@ -666,6 +707,8 @@ mod tests {
         assert_eq!(lessons[2]["file"], "/abs/paper.pdf");
         assert_eq!(lessons[2]["pages"], json!([7, 7]));
         assert_eq!(lessons[3]["file"], "/m/x/repos/fc/src/vmm.rs");
+        assert_eq!(lessons[3]["commit"], "0123abc");
+        assert_eq!(lessons[1].get("commit"), None);
         crate::course::validate_data(&course.engine, &course.data_json).unwrap();
 
         let relativize = |path: &str| path.strip_prefix("/m/x/").unwrap_or(path).to_string();
@@ -683,6 +726,56 @@ mod tests {
         let again = parse_course(&written, &resolve).unwrap();
         let normalized = |raw: &str| serde_json::from_str::<Value>(raw).unwrap();
         assert_eq!(normalized(&again.data_json), normalized(&course.data_json));
+    }
+
+    #[test]
+    fn a_pinned_lesson_writes_back_as_the_pin_shorthand() {
+        let folder = crate::mentor_store::testing::temp_dir("pin");
+        std::fs::create_dir_all(folder.join("repos/e2b-dev/runtime/.git")).unwrap();
+        let base = format!("{}/", folder.display());
+        let resolve = |path: &str| Ok(format!("{base}{path}"));
+        let sha = "3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e";
+        let yaml = format!("title: T\nchapters:\n  - title: C\n    lessons:\n      - id: a\n        title: Main\n        file: repos/e2b-dev/runtime@{sha}:packages/envd/main.go#L40-88\n      - id: b\n        title: Loose\n        file: notes.go\n        commit: abcdef0\n");
+        let course = parse_course(&yaml, &resolve).unwrap();
+        crate::course::validate_data(&course.engine, &course.data_json).unwrap();
+        let data: Value = serde_json::from_str(&course.data_json).unwrap();
+        let lesson = &data["chapters"][0]["lessons"][0];
+        assert_eq!(
+            lesson["file"],
+            json!(format!("{base}repos/e2b-dev/runtime/packages/envd/main.go"))
+        );
+        assert_eq!(lesson["commit"], sha);
+        assert_eq!(lesson["lines"], json!([40, 88]));
+
+        let relativize = |path: &str| path.strip_prefix(&base).unwrap_or(path).to_string();
+        let written = render_course("T", "reading", &course.data_json, &relativize).unwrap();
+        assert!(written.contains(&format!(
+            "file: repos/e2b-dev/runtime@{sha}:packages/envd/main.go\n"
+        )));
+        // A file in no repository keeps its commit as a key of its own.
+        assert!(written.contains("file: notes.go\n    commit: abcdef0\n"));
+        let again = parse_course(&written, &resolve).unwrap();
+        let normalized = |raw: &str| serde_json::from_str::<Value>(raw).unwrap();
+        assert_eq!(normalized(&again.data_json), normalized(&course.data_json));
+        std::fs::remove_dir_all(folder).ok();
+    }
+
+    #[test]
+    fn a_pin_is_a_commit_id_on_a_file() {
+        let bad = |lesson: &str| {
+            let raw = format!(r#"{{"chapters":[{{"title":"C","lessons":[{lesson}]}}]}}"#);
+            crate::course::validate_data("reading", &raw).unwrap_err()
+        };
+        assert!(bad(r#"{"id":"a","title":"A","file":"/x.go","commit":"xyz"}"#).contains("commit"));
+        assert!(bad(r#"{"id":"a","title":"A","file":"/x.go","commit":"abc"}"#).contains("commit"));
+        assert!(
+            bad(r#"{"id":"a","title":"A","document":"d","commit":"abcdef0"}"#).contains("commit")
+        );
+        assert_eq!(pinned("repos/x@nothex:a.go"), None);
+        assert_eq!(
+            pinned("repos/x@ABCDEF0:a.go"),
+            Some(("repos/x/a.go".into(), "abcdef0".into()))
+        );
     }
 
     #[test]

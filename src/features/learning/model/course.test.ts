@@ -28,6 +28,13 @@ describe("generated course boundary", () => {
     expect(courseItems(result.course!.data).map((item) => item.id)).toEqual(["pod", "probe", "borg", "omega"]);
   });
 
+  it("keeps a code lesson's pin and refuses one that is not a commit id", () => {
+    const pinned = { id: "envd", title: "envd", file: "/m/repos/e2b/main.go", lines: [40, 88], commit: "3F2A9C1" };
+    expect(parseCourse(courseSource("reading", chapters(pinned))).course?.data).toMatchObject({ chapters: [{ lessons: [{ ...pinned, commit: "3f2a9c1" }] }] });
+    expect(parseCourse(courseSource("reading", chapters({ ...pinned, commit: "main" }))).error).toMatch(/commit/);
+    expect(parseCourse(courseSource("reading", chapters({ ...read("pod"), commit: "3f2a9c1" }))).error).toMatch(/commit belongs to a file/);
+  });
+
   it.each([null, [], { steps: [] }, { steps: [null] }, { steps: [{ ...step, id: "../step" }] }, { steps: [{ ...step, before: null }] }, { steps: [{ ...step, file: "" }] }, { steps: [step, step] }])("rejects malformed build data without throwing from the parser: %j", (data) => {
     expect(parseCourse(courseSource("build-your-own", data)).error).toBeTruthy();
   });

@@ -120,6 +120,14 @@ struct Lesson {
         skip_serializing_if = "Option::is_none"
     )]
     lines: Option<[u32; 2]>,
+    /// For a file in a git repository: the commit the lesson was written
+    /// against, so it is read as it was then.
+    #[serde(
+        default,
+        deserialize_with = "optional_text",
+        skip_serializing_if = "Option::is_none"
+    )]
+    commit: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -476,6 +484,11 @@ fn item_ids<'a>(ids: impl Iterator<Item = &'a str>) -> Result<HashSet<String>, S
 
 /// A document id as the library accepts it: letters of any script, digits,
 /// hyphens and underscores.
+/// A commit id as a lesson pins it: 7 to 40 hexadecimal digits.
+pub(crate) fn is_commit(text: &str) -> bool {
+    (7..=40).contains(&text.len()) && text.chars().all(|c| c.is_ascii_hexdigit())
+}
+
 fn validate_id_text(id: &str) -> Result<(), String> {
     if id.is_empty()
         || id.chars().count() > 80
@@ -554,6 +567,9 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                 match (&lesson.document, &lesson.file) {
                     (Some(document), None) => {
                         validate_id_text(document)?;
+                        if lesson.commit.is_some() {
+                            return Err(format!("Lesson {}: commit belongs to a file", lesson.id));
+                        }
                         if lesson.pages.is_some() || lesson.lines.is_some() {
                             return Err(format!(
                                 "Lesson {}: pages and lines belong to a file",
@@ -599,6 +615,14 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                         "Lesson {}: name pages or lines, not both",
                         lesson.id
                     ));
+                }
+                if let Some(commit) = &lesson.commit {
+                    if !is_commit(commit) {
+                        return Err(format!(
+                            "Lesson {}: commit must be a commit id (7 to 40 hex digits)",
+                            lesson.id
+                        ));
+                    }
                 }
             }
             Ok((
