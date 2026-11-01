@@ -2362,8 +2362,6 @@ html.theme-light .btw-burst {
   line-height: 1;
   text-align: center;
   text-shadow: 0 0 6px var(--burst-glow);
-  transform-origin: 50% 80%;
-  animation: btw-mark-wobble var(--duration) var(--delay) ease-in-out both;
 }
 
 .btw-burst-ember {
@@ -2383,27 +2381,6 @@ html.theme-light .btw-burst {
   }
 }
 
-@keyframes btw-mark-wobble {
-  0% {
-    opacity: 0;
-    transform: scale(0.3) rotate(0deg);
-  }
-  15% {
-    opacity: 1;
-    transform: scale(1.15) rotate(var(--tilt));
-  }
-  45% {
-    transform: scale(0.9) rotate(calc(var(--tilt) * -0.6));
-  }
-  70% {
-    opacity: 0.9;
-    transform: scale(1) rotate(calc(var(--tilt) * 0.4));
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.6) rotate(0deg);
-  }
-}
 
 @keyframes btw-burst-halo {
   0% {

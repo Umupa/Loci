@@ -29,7 +29,11 @@ export function AgentAvatar({ name, color, className = "size-5 shrink-0" }: Prop
   return <AvatarGraphic name={name} color={color} className={className} />;
 }
 
-/** Only the visible Details preview animates the eyes; fixed expressions stay still. */
+/**
+ * The Details preview animates the eyes when it first appears and when the
+ * pointer is over it; fixed expressions stay still. It never runs a timer for
+ * an idle blink.
+ */
 export function AgentAvatarPreview({ name, color, className = "size-16" }: Props) {
   const avatar = agentAvatar(name);
   const rootRef = useRef<SVGSVGElement>(null);
@@ -50,11 +54,8 @@ export function AgentAvatarPreview({ name, color, className = "size-16" }: Props
       timer = undefined;
       root.removeAttribute("data-blinking");
     };
-    const schedule = (delay: number) => {
-      timer = window.setTimeout(blink, delay);
-    };
-    const idleDelay = () => 6000 + Math.random() * 3000;
     function blink() {
+      window.clearTimeout(timer);
       timer = undefined;
       if (!allowed()) return;
       root.setAttribute("data-blinking", "true");
@@ -62,34 +63,37 @@ export function AgentAvatarPreview({ name, color, className = "size-16" }: Props
       timer = window.setTimeout(() => {
         root.removeAttribute("data-blinking");
         timer = undefined;
-        if (allowed()) schedule(idleDelay());
       }, 160);
     }
-    const sync = () => {
-      stop();
-      if (allowed()) schedule(idleDelay());
+    // Losing the viewport, the window or the motion preference cuts a blink short.
+    const settle = () => {
+      if (!allowed()) stop();
     };
     selectionBlinkRef.current = (canBlink) => {
       blinkable = canBlink;
       stop();
-      if (allowed()) schedule(180);
+      blink();
     };
     const observer = new IntersectionObserver(([entry]) => {
       if (disposed) return;
       if (entry.isIntersecting === visible) return;
       visible = entry.isIntersecting;
-      sync();
+      if (visible) blink();
+      else stop();
     });
     observer.observe(root);
-    document.addEventListener("visibilitychange", sync);
-    reducedMotion.addEventListener("change", sync);
+    const onPointerEnter = () => blink();
+    root.addEventListener("pointerenter", onPointerEnter);
+    document.addEventListener("visibilitychange", settle);
+    reducedMotion.addEventListener("change", settle);
     return () => {
       disposed = true;
       selectionBlinkRef.current = null;
       stop();
       observer.disconnect();
-      document.removeEventListener("visibilitychange", sync);
-      reducedMotion.removeEventListener("change", sync);
+      root.removeEventListener("pointerenter", onPointerEnter);
+      document.removeEventListener("visibilitychange", settle);
+      reducedMotion.removeEventListener("change", settle);
     };
   }, []);
 

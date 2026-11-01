@@ -5,10 +5,10 @@
 .mentor-rail[data-mac] .mentor-rail-top { height: 40px; }
 .mentor-rail-list { display: flex; min-height: 0; flex: 1; flex-direction: column; align-items: center; gap: 6px; overflow-y: auto; padding: 4px 0 8px; width: 100%; scrollbar-width: none; }
 .mentor-rail-item { position: relative; display: flex; width: 100%; justify-content: center; touch-action: none; }
-.mentor-rail-item::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 0; border-radius: 0 3px 3px 0; background: var(--color-content); transform: translateY(-50%); transition: height 160ms ease; }
+.mentor-rail-item::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 0; border-radius: 0 3px 3px 0; background: var(--color-content); transform: translateY(-50%); transition: height 160ms var(--motion-ease-out); }
 .mentor-rail-item[data-selected]::before { height: 24px; }
 .mentor-rail-item[data-agent-rail-phase="updated"]:not([data-selected])::before { height: 8px; }
-.mentor-rail-button { position: relative; display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; opacity: .7; transition: opacity 160ms ease, background-color 160ms ease; }
+.mentor-rail-button { position: relative; display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; opacity: .7; transition: opacity 160ms var(--motion-ease-out), background-color 160ms var(--motion-ease-out); }
 .mentor-rail-button:hover, .mentor-rail-item[data-selected] .mentor-rail-button, .mentor-rail-item[data-agent-status="working"] .mentor-rail-button { opacity: 1; }
 .mentor-rail-item[data-selected] .mentor-rail-button { background: color-mix(in srgb, var(--color-content) 9%, transparent); }
 .mentor-rail-button:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); }
@@ -18,7 +18,7 @@ html.theme-light [data-agent-rail-phase="needs-you"] .mentor-rail-signal { color
 [data-agent-rail-phase="updated"] .mentor-rail-signal { color: hsl(211 92% 68%); }
 html.theme-light [data-agent-rail-phase="updated"] .mentor-rail-signal { color: hsl(211 85% 48%); }
 /* The per-mentor menu, on the item's corner while it is hovered or focused. */
-.mentor-rail-more { position: absolute; top: -1px; right: -1px; z-index: 1; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--color-background-base) 88%, transparent); color: color-mix(in srgb, var(--color-content) 55%, transparent); opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
+.mentor-rail-more { position: absolute; top: -1px; right: -1px; z-index: 1; display: grid; width: 24px; height: 24px; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--color-background-base) 88%, transparent); color: color-mix(in srgb, var(--color-content) 55%, transparent); opacity: 0; pointer-events: none; transition: opacity 120ms var(--motion-ease-out); }
 .mentor-rail-item:hover .mentor-rail-more, .mentor-rail-item:focus-within .mentor-rail-more, .mentor-rail-more[aria-expanded="true"] { opacity: 1; pointer-events: auto; }
 .mentor-rail-more:hover { background: color-mix(in srgb, var(--color-content) 12%, transparent); color: var(--color-content); }
 .mentor-rail-action { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border-radius: 10px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }

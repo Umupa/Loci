@@ -49,13 +49,13 @@
 .course-toc__list { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--color-content) 15%, transparent) transparent; margin: 0; padding: 0; list-style: none; }
 .course-toc__list::-webkit-scrollbar { width: 3px; }
 .course-toc__list::-webkit-scrollbar-thumb { border-radius: 2px; background: color-mix(in srgb, var(--color-content) 15%, transparent); }
-.course-toc__item { display: block; width: 100%; min-height: 24px; padding: 4px 8px; border-radius: 4px; color: color-mix(in srgb, var(--color-content) 65%, transparent); text-align: left; font-size: 12px; line-height: 18px; transition: background 100ms, color 100ms; }
+.course-toc__item { display: block; width: 100%; min-height: 24px; padding: 4px 8px; border-radius: 4px; color: color-mix(in srgb, var(--color-content) 65%, transparent); text-align: left; font-size: 12px; line-height: 18px; transition: background 100ms var(--motion-ease-out), color 100ms var(--motion-ease-out); }
 .course-toc__item > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .course-toc__item:hover { color: var(--color-content); background: var(--color-selection-subtle); }
 .course-toc__item[aria-current] { color: var(--link-color); }
 .course-toc__toggle { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; gap: 4px; width: 28px; min-height: 36px; padding: 8px 4px; cursor: pointer; }
 .course-toc--expanded .course-toc__toggle { display: none; }
-.course-toc__line { display: block; height: 2px; flex-shrink: 0; border-radius: 1px; background: color-mix(in srgb, var(--color-content) 20%, transparent); transition: background 100ms; }
+.course-toc__line { display: block; height: 2px; flex-shrink: 0; border-radius: 1px; background: color-mix(in srgb, var(--color-content) 20%, transparent); transition: background 100ms var(--motion-ease-out); }
 .course-toc__line[data-current] { background: color-mix(in srgb, var(--color-content) 65%, transparent); }
 .course-toc__toggle:focus-visible { outline: 2px solid var(--color-accent-ring); outline-offset: 2px; }
 .course-toc__item:focus-visible { outline: 2px solid var(--color-accent-ring); outline-offset: -2px; }
