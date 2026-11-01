@@ -38,6 +38,8 @@ export type AgentDocument = {
   /** Where a source was published. With one, the text is someone else's and is shown as saved. */
   sourceUrl?: string;
   sourceVersion?: string;
+  /** A source kept as a PDF: its file, which reads in the PDF reader. */
+  pdf?: { path: string; pages?: number };
   fetchedAt?: number;
 };
 

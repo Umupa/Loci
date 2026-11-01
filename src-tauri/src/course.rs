@@ -169,6 +169,13 @@ struct ComparePart {
         skip_serializing_if = "Option::is_none"
     )]
     lines: Option<[u32; 2]>,
+    /// Pages of a PDF: a PDF source named by `document`, or a PDF `file`.
+    #[serde(
+        default,
+        deserialize_with = "page_range",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pages: Option<[u32; 2]>,
     #[serde(
         default,
         deserialize_with = "optional_text",
@@ -644,6 +651,9 @@ fn validate_compare(lesson: &Lesson, parts: &[ComparePart]) -> Result<(), String
                 if part.lines.is_some() || part.commit.is_some() {
                     return Err(format!("{at}: lines and commit belong to a file"));
                 }
+                if part.section.is_some() && part.pages.is_some() {
+                    return Err(format!("{at}: name a section or pages, not both"));
+                }
             }
             (None, Some(file)) => {
                 if !std::path::Path::new(file).is_absolute() {
@@ -657,6 +667,12 @@ fn validate_compare(lesson: &Lesson, parts: &[ComparePart]) -> Result<(), String
         }
         if part.lines.is_some_and(|[from, to]| from == 0 || to < from) {
             return Err(format!("{at}: lines must be [first, last]"));
+        }
+        if part.pages.is_some_and(|[from, to]| from == 0 || to < from) {
+            return Err(format!("{at}: pages must be [first, last]"));
+        }
+        if part.pages.is_some() && part.lines.is_some() {
+            return Err(format!("{at}: name pages or lines, not both"));
         }
         if part
             .commit
@@ -744,9 +760,13 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                         if lesson.commit.is_some() {
                             return Err(format!("Lesson {}: commit belongs to a file", lesson.id));
                         }
-                        if lesson.pages.is_some() || lesson.lines.is_some() {
+                        if lesson.lines.is_some() {
+                            return Err(format!("Lesson {}: lines belong to a file", lesson.id));
+                        }
+                        // A document kept as a PDF opens at its pages.
+                        if lesson.section.is_some() && lesson.pages.is_some() {
                             return Err(format!(
-                                "Lesson {}: pages and lines belong to a file",
+                                "Lesson {}: name a section or pages, not both",
                                 lesson.id
                             ));
                         }
@@ -1155,6 +1175,40 @@ mod tests {
     }
 
     #[test]
+    fn a_comparison_part_can_read_a_pdf_source_at_its_pages() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let lesson = json!({"id": "jail", "title": "Jailing a VMM", "compare": [
+            {"label": "Paper", "document": "firecracker-nsdi20", "pages": [7, 9]},
+            {"label": "Code", "file": "/m/repos/fc/src/jailer.rs", "lines": [3, 9]},
+            {"label": "Slides", "file": "/m/talk.pdf", "pages": [2, 2]}
+        ]});
+        let with = |lesson: serde_json::Value| {
+            let mut course = reading("agent-a");
+            course.data_json =
+                json!({"chapters": [{"title": "C", "lessons": [lesson]}]}).to_string();
+            course
+        };
+        let saved = save_course(&conn, &with(lesson.clone())).unwrap();
+        let data: serde_json::Value = serde_json::from_str(&saved.data_json).unwrap();
+        assert_eq!(data["chapters"][0]["lessons"][0], lesson);
+        let part = |index: usize, field: &str, value: serde_json::Value| {
+            let mut changed = lesson.clone();
+            changed["compare"][index][field] = value;
+            changed
+        };
+        for (case, bad) in [
+            ("pages and a section", part(0, "section", json!("3.4"))),
+            ("bad pages", part(0, "pages", json!([9, 7]))),
+            ("page zero", part(0, "pages", json!([0, 1]))),
+            ("pages and lines", part(2, "lines", json!([1, 2]))),
+            ("commit on a document", part(0, "commit", json!("abcdef0"))),
+        ] {
+            assert!(save_course(&conn, &with(bad)).is_err(), "{case}");
+        }
+    }
+
+    #[test]
     fn structure_and_progress_survive_reopening_the_store_in_both_engines() {
         let dir = std::env::temp_dir().join(format!("loci-course-{}", uuid::Uuid::new_v4()));
         let path = dir.join("loci.db");
@@ -1331,7 +1385,6 @@ mod tests {
             (0, "document", json!(null)),
             (0, "document", json!("../notes")),
             (0, "file", json!("/home/u/also.pdf")),
-            (0, "pages", json!([1, 2])),
             (0, "lines", json!([1, 2])),
             (0, "section", json!(42)),
             (1, "file", json!("borg.pdf")),
@@ -1346,6 +1399,13 @@ mod tests {
             course.data_json = data.to_string();
             assert!(save_course(&conn, &course).is_err(), "{field}");
         }
+        // A document kept as a PDF opens at its pages; pages and a section
+        // never name the same place.
+        let mut paged = base.clone();
+        paged["chapters"][0]["lessons"][0]["pages"] = json!([7, 9]);
+        crate::course::validate_data("reading", &paged.to_string()).unwrap();
+        paged["chapters"][0]["lessons"][0]["section"] = json!("Intro");
+        assert!(crate::course::validate_data("reading", &paged.to_string()).is_err());
         let mut neither = base.clone();
         neither["chapters"][0]["lessons"][0]
             .as_object_mut()

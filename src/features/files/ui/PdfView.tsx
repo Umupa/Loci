@@ -7,6 +7,8 @@ import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { FooterButton } from "./FileCard";
 import type { PdfAnnotation } from "../../learning/model/types";
 import { pdfAnnotationAt } from "../../learning/model/pdfAnnotations";
+import { quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
+import { flashRange } from "../../learning/ui/useTextHighlights";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 5;
@@ -24,12 +26,55 @@ function assetUrl(dir: string): string {
 
 type PageSize = { w: number; h: number };
 export type LoadedPdf = { document: PDFDocumentProxy; fingerprint: string };
-type PdfPlace = { page: number; token: number; annotationId?: string };
+/** A link's place: a page, a saved mark on it, or words to find and flash. */
+type PdfPlace = { page: number; token: number; annotationId?: string; quote?: string };
 
 function documentFingerprint(document: PDFDocumentProxy): string {
   const fingerprint = document.fingerprints[0];
   if (!fingerprint) throw new Error("This PDF has no readable document fingerprint.");
   return fingerprint;
+}
+
+/**
+ * A PDF's text layer keeps a hyphen where a word broke across lines
+ * ("protec-\ntion"). A quote copied from the paper has the word whole, so a
+ * passage is also looked for with those breaks closed up.
+ */
+function dehyphenated(text: string): { text: string; map: number[] } {
+  let out = "";
+  const map: number[] = [];
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (/\s/.test(character)) {
+      if (out.endsWith("-")) {
+        out = out.slice(0, -1);
+        map.pop();
+      } else if (!out.endsWith(" ")) {
+        out += " ";
+        map.push(index);
+      }
+      continue;
+    }
+    out += character.toLocaleLowerCase();
+    map.push(index);
+  }
+  return { text: out, map };
+}
+
+/** The words of a quote in a page's text layer, as a range to flash; null when they are not there. */
+function quoteRange(layer: HTMLElement, quote: string): Range | null {
+  const index = textIndex(layer);
+  const exact = quoteInText(index.text, quote);
+  if (exact) return rangeAt(index, exact.start, exact.end);
+  const page = dehyphenated(index.text);
+  const words = dehyphenated(quote).text.trim();
+  if (!words) return null;
+  const at = page.text.indexOf(words);
+  if (at < 0) return null;
+  const start = page.map[at];
+  const end = page.map[at + words.length - 1] + 1;
+  if (start === undefined || end === undefined) return null;
+  return rangeAt(index, start, end);
 }
 
 export async function readPdfFingerprint(bytes: Uint8Array): Promise<string> {
@@ -172,6 +217,33 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc, baseSize, placePage, placeToken, placeAnnotationId, placeAnchor]);
+
+  // A link to a page can quote a passage in it: the page's text is only laid
+  // out once it is near the viewport, so look again for a moment.
+  const placeQuote = place?.quote;
+  useEffect(() => {
+    if (!doc || !baseSize || placePage === undefined || !placeQuote) return;
+    let cancelled = false;
+    let timer = 0;
+    const show = (tries: number) => {
+      if (cancelled) return;
+      const node = pageElement(placePage);
+      const layer = node?.querySelector<HTMLElement>(".textLayer");
+      if (!layer?.textContent?.trim()) {
+        if (tries > 0) timer = window.setTimeout(() => show(tries - 1), 50);
+        return;
+      }
+      const range = quoteRange(layer, placeQuote);
+      if (!range) {
+        if (tries > 0) timer = window.setTimeout(() => show(tries - 1), 50);
+        return;
+      }
+      flashRange(range);
+    };
+    show(40);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc, baseSize, placePage, placeQuote, placeToken]);
 
   // Zooming keeps the page being read in view rather than the scroll offset.
   const zoomTo = (next: number | "fit") => {

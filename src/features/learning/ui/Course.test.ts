@@ -129,6 +129,21 @@ it("does not open a previous card's course after its source changes during persi
   } finally { window.removeEventListener(OPEN_COURSE_EVENT, opened); }
 });
 
+it("opens a document kept as a PDF in the PDF reader at the lesson's first page", async () => {
+  const papers: ParsedCourse = { id: "papers", title: "Papers", engine: "reading", data: { engine: "reading", chapters: [
+    { title: "Papers", lessons: [{ id: "firecracker", title: "Firecracker", document: "paper-firecracker", pages: [7, 9] }] },
+  ] } };
+  courses.set(key("owner", "papers"), stored(papers));
+  vi.mocked(readAgentDocument).mockImplementation(async (_agent, id) => id === "paper-firecracker"
+    ? { id, title: "Firecracker", body: "extracted text", pdf: { path: "/papers/firecracker.pdf", pages: 15 }, createdAt: 1, updatedAt: 1 }
+    : undefined);
+  await act(async () => root.render(pane("papers")));
+  expect(container.textContent).toContain("firecracker.pdf");
+  expect(container.textContent).toContain("pages 7–9");
+  await act(async () => button("Open to read").click());
+  expect(requestOpenFile).toHaveBeenCalledWith("/papers/firecracker.pdf", { page: 7 });
+});
+
 it("opens the first unmastered step, saves progress, and recovers it after remounting", async () => {
   progress.set(key("owner", "build"), new Map([["s01", "mastered"]]));
   await act(async () => root.render(pane())); expect(nav("Step s02").getAttribute("aria-current")).toBe("step"); expect(container.textContent).toContain("Explanation s02");

@@ -590,6 +590,48 @@ mod tests {
     }
 
     #[test]
+    fn export_and_import_carry_a_pdf_and_its_sidecar() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("bundle-pdf");
+        let folder = root.join("paper-reader");
+        register_test(&conn, "m-pdf", &folder);
+        std::fs::create_dir_all(folder.join("sources")).unwrap();
+        std::fs::write(
+            folder.join("sources/firecracker.pdf"),
+            crate::mentor_store::pdf::sample_pdf(&["Sandbox page one"]),
+        )
+        .unwrap();
+        std::fs::write(
+            folder.join("sources/firecracker.pdf.yaml"),
+            "title: Firecracker\nsourceUrl: https://www.usenix.org/system/files/nsdi20-paper-agache.pdf\npages: 1\n",
+        )
+        .unwrap();
+        let out = root.join("paper-reader.zip");
+        let summary = export(&conn, "m-pdf", &out, false, "0.4.0").unwrap();
+        assert!(summary.files >= 3);
+
+        let other = SessionStore::open_in_memory().unwrap();
+        let other_conn = other.lock_conn().unwrap();
+        let other_root = temp_dir("bundle-pdf-other");
+        let imported = import_zip(&other_conn, &other_root, &out).unwrap();
+        let imported_pdf = Path::new(&imported.folder).join("sources/firecracker.pdf");
+        assert!(imported_pdf.is_file());
+        assert!(Path::new(&imported.folder)
+            .join("sources/firecracker.pdf.yaml")
+            .is_file());
+        let row = index::get(&other_conn, "m-pdf", paths::Kind::Source, "firecracker")
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.meta["pdf"], json!(true));
+        assert_eq!(row.meta["pages"], json!(1));
+        assert!(row.body.unwrap().contains("Sandbox page one"));
+        for dir in [root, other_root] {
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
     fn a_mentor_round_trips_through_a_zip_with_its_progress_and_marks() {
         let store = SessionStore::open_in_memory().unwrap();
         let conn = store.lock_conn().unwrap();

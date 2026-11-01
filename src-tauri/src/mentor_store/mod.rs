@@ -20,6 +20,7 @@ pub mod fsio;
 pub mod index;
 pub mod migrate;
 pub mod paths;
+pub mod pdf;
 pub mod registry;
 pub mod watch;
 
@@ -157,6 +158,56 @@ pub fn write_content(
         return Err(error.clone());
     }
     Ok(row)
+}
+
+/// Takes a PDF in as `sources/<id>.pdf` with its sidecar, and indexes the
+/// pair. The PDF's text is read here, so the write reports what the index has.
+pub fn write_pdf_source(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    id: &str,
+    bytes: &[u8],
+    meta: &pdf::PdfMeta,
+) -> Result<Row, String> {
+    let pdf_path = paths::pdf_source_path(&ctx.folder, id);
+    let sidecar = paths::existing_pdf_sidecar(&ctx.folder, id)
+        .unwrap_or_else(|| paths::pdf_sidecar_path(&ctx.folder, id));
+    fsio::write_atomic(&pdf_path, bytes)?;
+    let existing = std::fs::read_to_string(&sidecar)
+        .ok()
+        .and_then(|text| pdf::parse_sidecar(&text).ok().map(|(_, map)| map));
+    let mut meta = meta.clone();
+    if meta.pages.is_none() {
+        meta.pages = pdf::page_count(&pdf_path).ok().filter(|pages| *pages > 0);
+    }
+    let text = pdf::render_sidecar(existing, &meta)?;
+    fsio::write_atomic(&sidecar, text.as_bytes())?;
+    index::index_file(conn, ctx, Kind::Source, id, &sidecar, true)?;
+    index::get(conn, &ctx.agent, Kind::Source, id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "The saved source is missing from the index".to_string())
+}
+
+/// Removes a PDF source's two files. The index forgets the row with the sidecar.
+pub fn remove_pdf_source(conn: &Connection, ctx: &MentorCtx, id: &str) -> Result<bool, String> {
+    let sidecar = index::get(conn, &ctx.agent, Kind::Source, id)
+        .map_err(|e| e.to_string())?
+        .map(|row| row_path(ctx, &row))
+        .unwrap_or_else(|| paths::pdf_sidecar_path(&ctx.folder, id));
+    let mut existed = false;
+    for path in [
+        sidecar.clone(),
+        pdf::pdf_beside_sidecar(&sidecar)
+            .unwrap_or_else(|| paths::pdf_source_path(&ctx.folder, id)),
+    ] {
+        match std::fs::remove_file(&path) {
+            Ok(()) => existed = true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", path.display())),
+        }
+    }
+    index::index_file(conn, ctx, Kind::Source, id, &sidecar, true)?;
+    Ok(existed)
 }
 
 /// Removes a content file the user or the mentor asked to delete.

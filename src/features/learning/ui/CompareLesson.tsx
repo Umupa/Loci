@@ -48,7 +48,7 @@ export function CompareLesson({ agentId, courseId, lesson, renderPart }: Props) 
   }), [lesson.id]);
   const views = parts.map((part, index): ComparePartView => ({
     label: part.label, collapsed: folded.has(index),
-    ...(shown.lesson === lesson.id ? shown.parts.get(index) : undefined) ?? (part.document ? { document: part.document, ...(part.section ? { section: part.section } : {}) } : { file: part.file! }),
+    ...(shown.lesson === lesson.id ? shown.parts.get(index) : undefined) ?? (part.document ? { document: part.document, ...(part.section ? { section: part.section } : {}), ...(part.pages ? { pages: part.pages } : {}) } : { file: part.file! }),
   }));
   const viewsKey = JSON.stringify(views);
   useEffect(() => {

@@ -21,6 +21,10 @@ export type StoredDocument = {
   /** Where a source was published. A document with one is someone else's text, kept as saved. */
   sourceUrl?: string | null;
   sourceVersion?: string | null;
+  /** A source taken in as a PDF: its file, which opens in the PDF reader. */
+  pdf?: { path: string; pages?: number };
+  /** A PDF's extracted text page by page, when one document is read. */
+  pageText?: string[];
   fetchedAt?: number | null;
   createdAt: number;
   updatedAt: number;

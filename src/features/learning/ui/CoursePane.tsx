@@ -393,7 +393,8 @@ function CompareContent({ course, lesson, marksList, onMarks }: { course: Course
   })), [lesson.id, lesson.compare]);
   return <CompareLesson agentId={course.agentId} courseId={course.id} lesson={lesson} renderPart={(part, chrome) => {
     const place: CourseLesson = { id: `${lesson.id}:${chrome.index}`, title: part.label,
-      ...(part.document ? { document: part.document, ...(part.section ? { section: part.section } : {}) } : { file: part.file!, ...(part.lines ? { lines: part.lines } : {}), ...(part.commit ? { commit: part.commit } : {}) }) };
+      ...(part.document ? { document: part.document, ...(part.section ? { section: part.section } : {}) } : { file: part.file!, ...(part.lines ? { lines: part.lines } : {}), ...(part.commit ? { commit: part.commit } : {}) }),
+      ...(part.pages ? { pages: part.pages } : {}) };
     const list = marksList && chrome.index === listed ? { ...marksList, title: `Highlights & notes in ${part.label}` } : undefined;
     return part.document ? <LessonDocument agentId={course.agentId} lesson={place} part={chrome} marksList={list} onMarks={counter[chrome.index]} />
       : <LessonFile agentId={course.agentId} lesson={place} part={chrome} marksList={list} onMarks={counter[chrome.index]} />;
@@ -554,20 +555,35 @@ function LessonDocument({ agentId, lesson, marksList, onMarks, part }: { agentId
   const reportShown = part?.onShown;
   const shownKey = JSON.stringify([id, lesson.section, shown?.error, !!shown && !shown.document]);
   useEffect(() => {
-    if (shown) reportShown?.({ document: id, ...(lesson.section ? { section: lesson.section } : {}), ...(shown.error || !shown.document ? { error: shown.error ?? "not in the library" } : {}) });
+    if (shown) reportShown?.({ document: id, ...(lesson.section ? { section: lesson.section } : {}), ...(lesson.pages ? { pages: lesson.pages } : {}), ...(shown.error || !shown.document ? { error: shown.error ?? "not in the library" } : {}) });
   }, [shownKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pages = lesson.pages ? (lesson.pages[0] === lesson.pages[1] ? `page ${lesson.pages[0]}` : `pages ${lesson.pages[0]}–${lesson.pages[1]}`) : undefined;
   if (part) {
     const bodyId = `${part.id}-body`;
+    const pdf = shown?.document?.pdf;
     return <section id={part.id} className="course-compare__part" data-compare-part={part.label} data-collapsed={part.collapsed ? "" : undefined}>
-      <PartHeader chrome={part} where={{ path: shown?.document?.title ?? id, ...(lesson.section ? { section: lesson.section } : {}) }} title={`${id}${lesson.section ? `#${lesson.section}` : ""}`} bodyId={bodyId} />
+      <PartHeader chrome={part} where={{ path: shown?.document?.title ?? id, ...(lesson.section ? { section: lesson.section } : {}), ...(pages ? { lines: pages } : {}) }} title={`${id}${lesson.section ? `#${lesson.section}` : lesson.pages ? `#p${lesson.pages[0]}${lesson.pages[1] !== lesson.pages[0] ? `-${lesson.pages[1]}` : ""}` : ""}`} bodyId={bodyId} />
       <div id={bodyId} hidden={part.collapsed}>
         {!shown ? <p className="course-pane__relations">Opening…</p>
           : !shown.document ? <p className="course-error" role="alert">{shown.error ? `Could not open ${id}: ${shown.error}` : `${id} is not in the library. Ask the agent to save it again.`}</p>
+          // A PDF source is read in the PDF reader, at the part's first page.
+          : pdf ? <p className="course-pane__summary" title={pdf.path}>{pdf.path.split(/[\\/]/).pop() || pdf.path}{pages ? ` · ${pages}` : ""} <button type="button" className="course-button" onClick={() => requestOpenFile(pdf.path, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button></p>
           : <DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare inPlace marksList={marksList} onMarks={onMarks} />}
       </div>
     </section>;
   }
   if (!shown) return <p className="course-pane__relations">Opening…</p>;
   if (!shown.document) return <article className="course-pane__content"><h2>{lesson.title}</h2><p className="course-error" role="alert">{shown.error ? `Could not open this lesson's document: ${shown.error}` : `This lesson's document (${id}) is not in the library. Ask the agent to save it again.`}</p></article>;
+  // A source kept as a PDF is read in the PDF reader, where it can be highlighted.
+  if (shown.document.pdf) {
+    const pdf = shown.document.pdf;
+    const name = pdf.path.split(/[\\/]/).pop() || pdf.path;
+    const where = pages ? ` · ${pages}` : "";
+    return <article className="course-pane__content" key={lesson.id}>
+      <h2>{lesson.title}</h2>
+      <p className="course-pane__summary" title={pdf.path}>{name}{where}</p>
+      <button type="button" className="course-button" onClick={() => requestOpenFile(pdf.path, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button>
+    </article>;
+  }
   return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare marksList={marksList} onMarks={onMarks} /></article>;
 }

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
-/** Where in a library document a reader is asked to go: a heading, a quoted passage, a highlight. */
-export type DocumentPlace = { section?: string; quote?: string; annotationId?: string };
+/** Where in a library document a reader is asked to go: a heading, a quoted passage, a highlight or (a PDF) a page. */
+export type DocumentPlace = { section?: string; quote?: string; annotationId?: string; page?: number };
 /** `token` tells two requests for the same place apart. */
 export type DocumentPlaceRequest = DocumentPlace & { token: number };
 

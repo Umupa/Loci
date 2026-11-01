@@ -54,7 +54,8 @@ describe("generated course boundary", () => {
     chapters({ id: "pod", title: "Pod" }),
     chapters({ ...read("pod"), file: "/books/pod.pdf" }),
     chapters({ ...read("pod"), document: "../notes" }),
-    chapters({ ...read("pod"), pages: [1, 2] }),
+    chapters({ ...read("pod"), lines: [1, 2] }),
+    chapters({ ...read("pod"), pages: [1, 2], section: "Pod phase" }),
     chapters({ ...read("pod"), section: 42 }),
     chapters({ id: "borg", title: "Borg", file: "../borg.pdf" }),
     chapters({ id: "borg", title: "Borg", file: "repos//x.go" }),
@@ -64,6 +65,20 @@ describe("generated course boundary", () => {
     chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: "3-9" }),
   ])("rejects malformed chapters or lessons: %j", (data) => {
     expect(parseCourse(courseSource("reading", data)).error).toBeTruthy();
+  });
+
+  it("opens a document kept as a PDF at its pages, by pages or the #p shorthand", () => {
+    const result = parseCourse(courseSource("reading", chapters(
+      { id: "paper", title: "Paper", document: "firecracker", pages: [7, 9] },
+      { id: "paper-again", title: "Paper again", document: "firecracker#p7" },
+      { id: "kvm", title: "KVM", document: "kvm#4.1 KVM_CREATE_VM" },
+    )));
+    expect(result.error).toBeUndefined();
+    expect(result.course?.data).toMatchObject({ chapters: [{ lessons: [
+      { document: "firecracker", pages: [7, 9] },
+      { document: "firecracker", pages: [7, 7] },
+      { document: "kvm", section: "4.1 KVM_CREATE_VM" },
+    ] }] });
   });
 
   it.each(["", "  ", undefined])("treats an empty section as a whole-document lesson: %j", (section) => {
@@ -109,6 +124,21 @@ describe("comparison lessons", () => {
     expect(lessonPlaces({ id: "a", title: "A", document: "d" })).toEqual([{ id: "a", title: "A", document: "d" }]);
   });
 
+  it("reads a PDF source's pages in a part, by pages or the #p shorthand", () => {
+    const result = parseCourse(courseSource("reading", compare([
+      parts[0],
+      { label: "Paper", document: "firecracker-nsdi20", pages: [7, 9] },
+      { label: "Paper again", document: "firecracker-nsdi20#p3" },
+      { label: "Slides", file: "/m/talk.pdf", pages: [2, 2] },
+    ])));
+    expect(result.error).toBeUndefined();
+    expect((courseItems(result.course!.data)[0] as Parameters<typeof lessonPlaces>[0]).compare?.slice(1)).toEqual([
+      { label: "Paper", document: "firecracker-nsdi20", pages: [7, 9] },
+      { label: "Paper again", document: "firecracker-nsdi20", pages: [3, 3] },
+      { label: "Slides", file: "/m/talk.pdf", pages: [2, 2] },
+    ]);
+  });
+
   it.each([
     ["one part", compare(parts.slice(0, 1))],
     ["five parts", compare([...parts, { label: "D", document: "d" }, { label: "E", document: "e" }])],
@@ -120,7 +150,10 @@ describe("comparison lessons", () => {
     ["a long label", compare([parts[0], { ...parts[1], label: "x".repeat(61) }])],
     ["an empty note", compare([parts[0], { ...parts[1], note: "" }])],
     ["a bad commit", compare([parts[0], { ...parts[1], commit: "xyz" }])],
-    ["pages in a part", compare([parts[0], { ...parts[1], lines: undefined, pages: [1, 2] }])],
+    ["pages and lines in a part", compare([parts[0], { ...parts[1], pages: [1, 2] }])],
+    ["pages and a section in a part", compare([parts[0], { ...parts[2], pages: [1, 2] }])],
+    ["bad pages in a part", compare([parts[0], { label: "Paper", document: "firecracker", pages: [9, 7] }])],
+    ["a commit on a document part", compare([parts[0], { label: "Paper", document: "firecracker", commit: sha }])],
     ["lines on a document", compare([parts[0], { ...parts[2], lines: [1, 2] }])],
     ["not a list", compare({ label: "A" } as unknown as unknown[])],
   ])("refuses %s", (_case, data) => {

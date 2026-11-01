@@ -14,10 +14,12 @@ import type { LearningSource } from "../../features/learning/model/types";
 
 /** The place a source link asks for, over the place its registered passage remembers. */
 export function documentPlaceOf(source: Extract<LearningSource, { kind: "document" }> | undefined, link?: SourcePlace): DocumentPlace | undefined {
-  const section = link?.section ?? (link?.quote ? undefined : source?.section);
-  const quote = link?.quote ?? (link?.section ? undefined : source?.anchor?.exact ?? source?.quote);
+  const section = link?.section ?? (link?.quote || link?.page ? undefined : source?.section);
+  const quote = link?.quote ?? (link?.section || link?.page ? undefined : source?.anchor?.exact ?? source?.quote);
   const annotationId = link ? undefined : source?.annotationId;
-  const place = { ...(section ? { section } : {}), ...(quote ? { quote } : {}), ...(annotationId ? { annotationId } : {}) };
+  // A link to a PDF source names its page; the reader flashes the quote there.
+  const page = link?.page;
+  const place = { ...(section ? { section } : {}), ...(quote ? { quote } : {}), ...(annotationId ? { annotationId } : {}), ...(page ? { page } : {}) };
   return Object.keys(place).length ? place : undefined;
 }
 

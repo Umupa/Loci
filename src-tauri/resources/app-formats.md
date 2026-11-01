@@ -41,7 +41,9 @@ A library holds two kinds, and `documents.list` reports each one's `kind`:
 
 - **source**: text someone else published (docs, a spec, a paper, a README),
   taken in verbatim from a saved file with `documents.write` and its
-  `sourceUrl`. A source changes only by taking its file in again.
+  `sourceUrl`. A source changes only by taking its file in again. A PDF is a
+  source too: `documents.write` copies it in, reads its text for search and
+  quotes, and the learner reads it in the PDF reader.
 - **guide**: what the agent wrote itself (a reading guide, a brief, a map of
   the material), saved with `guides.write` (`path` to a Markdown file, or
   `body`) or a `loci-document` block. It has no `sourceUrl` and the user sees
@@ -73,10 +75,14 @@ opens the source in the reader, scrolls to the place and flashes it.
 [Pod phase](loci://source/k8s-pod-lifecycle#section=Pod%20phase)
 [the Pending state](loci://source/k8s-pod-lifecycle#section=Pod%20phase&quote=The%20Pod%20has%20been%20accepted)
 [page 7](loci://source/<id>#p7)        [lines 12-40](loci://source/<id>#L12-40)
+[the VM exit path](loci://source/firecracker-nsdi20#p7&quote=Every%20function%20call)
 ```
 
 - The id is a document ID from the library (the same one `reader.open` takes
   as `source`), or a source ID from `<loci_learning_context>`.
+- A source kept as a PDF uses `p7` (and `p7-9` in `documents.read`), and may
+  quote words on that page too: the PDF reader opens there and flashes the
+  passage it finds.
 - `section` is a heading's visible title. `quote` is a short passage of at
   most 200 characters, copied verbatim from the source; it is found even if
   white space or case differ. Percent-encode both (a space is `%20`).
@@ -137,17 +143,19 @@ title: Kubernetes reading
 The `courses.write` input is one object:
 
 ```json
-{"id":"kubernetes-reading","title":"Kubernetes reading","engine":"reading","chapters":[{"title":"Workloads","lessons":[{"id":"pod-lifecycle","title":"Pod Lifecycle","document":"k8s-pod-lifecycle","section":"Pod phase"},{"id":"borg","title":"Borg","file":"/absolute/path/borg.pdf","pages":[1,12]}]}]}
+{"id":"kubernetes-reading","title":"Kubernetes reading","engine":"reading","chapters":[{"title":"Workloads","lessons":[{"id":"pod-lifecycle","title":"Pod Lifecycle","document":"k8s-pod-lifecycle","section":"Pod phase"},{"id":"firecracker-vmexit","title":"The VM exit path","document":"firecracker-nsdi20","pages":[7,9]},{"id":"borg","title":"Borg","file":"/absolute/path/borg.pdf","pages":[1,12]}]}]}
 ```
 
 `id` and `title` are required; `engine` defaults to `reading`.
 Chapters and lessons are non-empty arrays. Each lesson has a unique `id`,
 `title`, and exactly one of `document` (an imported document ID) or `file`
-(an absolute path, or a path in your folder such as `repos/…`). `section` belongs to a document; `pages: [first, last]`
-belongs to a file and uses positive, inclusive page numbers. A source or text
-file is shown in place, highlighted; `lines: [first, last]` (inclusive) shows
-only that range, which suits a code tour through a cloned repository. Name
-`pages` or `lines`, not both. Use a Markdown
+(an absolute path, or a path in your folder such as `repos/…`). `section`
+belongs to a text document; `pages: [first, last]` belongs to a file or to a
+PDF source's document, and uses positive, inclusive page numbers. A source or
+text file is shown in place, highlighted; a PDF source opens in the PDF reader
+at its first page. `lines: [first, last]` (inclusive) shows only that range of
+a file, which suits a code tour through a cloned repository. Name `pages` or
+`lines`, not both, and a section or pages, not both. Use a Markdown
 heading's visible title for `section`: the reader focuses on that heading and
 its descendants, stopping before the next heading of the same or higher level.
 Omit `section` or leave it blank to
@@ -197,8 +205,10 @@ one page:
 ```
 
 - Each part is a file's `lines` (paste the `ref` from `code.pin` as `file`;
-  pinned parts get the same notices as a code-tour lesson) or a source's
-  `section`, as a lesson of its own would name them.
+  pinned parts get the same notices as a code-tour lesson), a source's
+  `section`, or a PDF source's `pages` (`"document":"firecracker-nsdi20",
+  "pages":[7,9]`), as a lesson of its own would name them. A PDF part opens in
+  the PDF reader at its first page.
 - `label` is short (at most 60 characters), unique in the lesson: the
   project's name, or what the part is.
 - `note` is optional: one or two sentences of yours on what to look at in this
@@ -270,6 +280,8 @@ Run `library check` afterwards to see any file it could not read.
 mentor.json               who you are; leave it to Loci
 SOUL.md  MEMORY.md  memory/   change only with soul.* and memory.*
 sources/<id>.md           first-hand text, verbatim, with front-matter
+sources/<id>.pdf          a first-hand PDF (a paper), from documents.write
+sources/<id>.pdf.yaml     the PDF's sidecar: title, sourceUrl, version, pages
 guides/<id>.md            what you wrote: reading guides, briefs
 courses/<id>.yaml         courses
 courses/_path.yaml        the learning path (path.write)
@@ -300,10 +312,29 @@ commit), `fetchedAt` and `subject` are optional. A guide has `title` and an
 optional `subject`, never `sourceUrl`. Without a title, the first `# Heading`
 is used.
 
+A PDF source is two files: the paper itself and a sidecar with the same keys,
+plus `pages` (how many pages it has). `documents.write --path paper.pdf` writes
+both, and `library check` reports a PDF without a sidecar or a sidecar without
+its PDF. A hand-written sidecar is plain YAML:
+
+```yaml
+title: Firecracker: Lightweight Virtualization for Serverless Applications
+sourceUrl: https://www.usenix.org/system/files/nsdi20-paper-agache.pdf
+version: NSDI '20
+fetchedAt: 2026-11-01T09:12:00Z
+subject: Virtualization
+pages: 15
+```
+
+The PDF's text is read locally for library search and `documents.read`, which
+returns a PDF source with `pdf: { pages, path }` and `pages: [{ page, text }]`
+so a citation can name a real page and quote its words. A scanned page still
+opens and can be highlighted.
+
 A course file is the `courses.write` object as YAML, without its `id` (the
 file name is the id). A lesson's `file` may be relative to your folder, and
-`document: id#section`, `file: path#L12-40` and `file: path#p7-9` are
-shorthands for `section`, `lines` and `pages`:
+`document: id#section`, `document: id#p7`, `file: path#L12-40` and
+`file: path#p7-9` are shorthands for `section`, `pages`, `lines` and `pages`:
 
 ```yaml
 schemaVersion: 1
@@ -318,6 +349,9 @@ chapters:
       - id: vmm-loop
         title: The VMM loop in Firecracker
         file: repos/firecracker-microvm/firecracker@3f2a9c1e5b7d4e6f8a9b0c1d2e3f4a5b6c7d8e9f:src/vmm/src/lib.rs#L120-188
+      - id: vm-exit
+        title: Exiting a microVM
+        document: firecracker-nsdi20#p7
 ```
 
 `repos/<repo>@<sha>:path` pins a code lesson to a commit (see Code-tour

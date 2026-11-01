@@ -10,8 +10,8 @@ export type ComparePartView = {
   file?: string; commit?: string; lines?: [number, number];
   /** How the pin stands: current, moved, changed, missing-commit, … */
   pin?: string;
-  /** A document part. */
-  document?: string; section?: string;
+  /** A document part; `pages` for a PDF source (also on a PDF file part). */
+  document?: string; section?: string; pages?: [number, number];
   /** The text could not be read. */
   error?: string;
 };

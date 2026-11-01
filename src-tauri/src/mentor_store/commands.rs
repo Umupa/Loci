@@ -560,20 +560,41 @@ pub fn check(conn: &Connection, agent: &str) -> Result<Vec<Problem>, String> {
         return Err("This mentor's content is not in a folder yet".into());
     };
     index::reconcile(conn, &ctx)?;
-    Ok(index::problems(conn, agent)
+    let mut problems: std::collections::BTreeMap<String, Problem> = index::problems(conn, agent)
         .map_err(|e| e.to_string())?
         .into_iter()
-        .map(|row: Row| Problem {
-            path: ctx
+        .map(|row: Row| {
+            let path = ctx
                 .folder
                 .join(&row.rel_path)
                 .to_string_lossy()
-                .into_owned(),
-            kind: row.kind,
-            id: row.id,
-            error: row.error.unwrap_or_default(),
+                .into_owned();
+            (
+                path.clone(),
+                Problem {
+                    path,
+                    kind: row.kind,
+                    id: row.id,
+                    error: row.error.unwrap_or_default(),
+                },
+            )
         })
-        .collect())
+        .collect();
+    // A PDF without its sidecar is not in the library yet; a sidecar without
+    // its PDF says so in the pair's own words.
+    for (path, id, error) in super::pdf::pair_problems(&ctx.folder.join(Kind::Source.dir())) {
+        let path = path.to_string_lossy().into_owned();
+        problems.insert(
+            path.clone(),
+            Problem {
+                path,
+                kind: "source".into(),
+                id,
+                error,
+            },
+        );
+    }
+    Ok(problems.into_values().collect())
 }
 
 #[tauri::command(async)]
@@ -868,6 +889,47 @@ mod tests {
         let root = temp_dir("roster");
         assert!(!sync(&conn, &root, &[json!({"id":"m-1","name":"A"})]).unwrap());
         assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn check_reports_a_pdf_without_its_sidecar_or_a_sidecar_without_its_pdf() {
+        use crate::mentor_store::testing::{register, temp_dir};
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("check-pdf");
+        let folder = root.join("paper-reader");
+        register(&conn, "m-1", &folder);
+        std::fs::create_dir_all(folder.join("sources")).unwrap();
+        std::fs::write(
+            folder.join("sources/lone.pdf"),
+            crate::mentor_store::pdf::sample_pdf(&["Text"]),
+        )
+        .unwrap();
+        std::fs::write(folder.join("sources/orphan.pdf.yaml"), "title: O\n").unwrap();
+        let problems = check(&conn, "m-1").unwrap();
+        assert_eq!(problems.len(), 2);
+        assert!(problems
+            .iter()
+            .any(|problem| problem.path.ends_with("lone.pdf")
+                && problem.error.contains("no sidecar")));
+        assert!(problems
+            .iter()
+            .any(|problem| problem.path.ends_with("orphan.pdf.yaml")
+                && problem.error.contains("orphan.pdf is missing")));
+        // A complete pair is not a problem.
+        std::fs::write(
+            folder.join("sources/paper.pdf"),
+            crate::mentor_store::pdf::sample_pdf(&["Text"]),
+        )
+        .unwrap();
+        std::fs::write(
+            folder.join("sources/paper.pdf.yaml"),
+            "title: P\nsourceUrl: https://x.org/p.pdf\n",
+        )
+        .unwrap();
+        let problems = check(&conn, "m-1").unwrap();
+        assert!(!problems.iter().any(|problem| problem.id == "paper"));
         std::fs::remove_dir_all(root).unwrap();
     }
 

@@ -143,8 +143,11 @@ Only in an agent's own conversation:
                   the archive. since is a date or a span like 24h, 7d, 2w.
   documents.list {}  The documents in its library, newest first, each with its
                   kind: "source" (first-hand, lists its sourceUrl) or "guide"
-                  (one it wrote itself).
+                  (one it wrote itself). A PDF source also lists its pdf path
+                  and page count.
   documents.read {"id":"pods"}  One of them, in full, to revise or build on.
+                  A PDF source comes back with pages: [{page,text}], so a
+                  claim can cite a real page.
   documents.write {"id":"k8s-pod-lifecycle","title":"Pod Lifecycle",
                   "subject":"Kubernetes","path":"/abs/path/pod-lifecycle.md",
                   "sourceUrl":"https://kubernetes.io/docs/...","version":"v1.34"}
@@ -153,8 +156,13 @@ Only in an agent's own conversation:
                   as saved, so it never passes through a reply. sourceUrl is
                   where it was published; subject and version are optional.
                   Absolute https image URLs are rendered directly.
+                  A PDF (a paper, a spec) is taken in the same way: give its
+                  path and Loci copies it in, reads its text for search, and
+                  the user reads it in the PDF reader. Cite it by page,
+                  loci://source/<id>#p7 (quote is optional).
                   A source cannot be revised by a document block; the
-                  same id here takes the file in again. At most 1 MB a file.
+                  same id here takes the file in again. At most 1 MB of
+                  Markdown, or 100 MB of PDF.
                   Only what someone else published is a source; never save
                   your own summary or notes here.
   guides.write   {"id":"k8s-reading-guide","title":"How to read the scheduler docs",

@@ -288,7 +288,8 @@ pub fn parse_course(
 }
 
 /// A course JSON whose lesson files may be relative to the mentor's folder
-/// or use the shorthands below, with every file made absolute.
+/// or use the shorthands below (`document: id#p7` too), with every file made
+/// absolute.
 pub fn resolve_lesson_files(
     data_json: &str,
     resolve: &dyn Fn(&str) -> Result<String, String>,
@@ -308,7 +309,10 @@ pub fn resolve_lesson_files(
             .flatten()
         {
             if let Value::Object(lesson) = lesson {
-                if lesson.contains_key("file") || lesson.contains_key("compare") {
+                if ["file", "document", "compare"]
+                    .iter()
+                    .any(|key| lesson.contains_key(*key))
+                {
                     read_lesson(lesson, resolve)?;
                 }
             }
@@ -340,10 +344,18 @@ fn read_place(
     resolve: &dyn Fn(&str) -> Result<String, String>,
 ) -> Result<(), String> {
     if let Some(Value::String(document)) = lesson.get("document").cloned() {
-        if let Some((id, section)) = document.split_once('#') {
+        if let Some((id, fragment)) = document.split_once('#') {
             lesson.insert("document".into(), json!(id.trim()));
-            if !lesson.contains_key("section") && !section.trim().is_empty() {
-                lesson.insert("section".into(), json!(section.trim()));
+            let fragment = fragment.trim();
+            if !fragment.is_empty() {
+                // A PDF source names a page or a page range: `document: paper#p7`.
+                if let Some([from, to]) = page_span(fragment) {
+                    if !lesson.contains_key("pages") && !lesson.contains_key("section") {
+                        lesson.insert("pages".into(), json!([from, to]));
+                    }
+                } else if !lesson.contains_key("section") {
+                    lesson.insert("section".into(), json!(fragment));
+                }
             }
         }
     }
@@ -354,22 +366,14 @@ fn read_place(
         };
         if let Some(fragment) = fragment {
             let (key, range) = if let Some(range) = fragment.strip_prefix('L') {
-                ("lines", range)
-            } else if let Some(range) = fragment.strip_prefix('p') {
-                ("pages", range)
+                ("lines", place_span(range))
+            } else if fragment.starts_with('p') {
+                ("pages", page_span(&fragment))
             } else {
                 return Err(format!("Not a place in a file: #{fragment}"));
             };
+            let [from, to] = range.ok_or_else(|| format!("Not a range: #{fragment}"))?;
             if !lesson.contains_key(key) {
-                let (from, to) = range.split_once('-').unwrap_or((range, range));
-                let from: u32 = from
-                    .trim_start_matches('L')
-                    .parse()
-                    .map_err(|_| format!("Not a range: #{fragment}"))?;
-                let to: u32 = to
-                    .trim_start_matches('L')
-                    .parse()
-                    .map_err(|_| format!("Not a range: #{fragment}"))?;
                 lesson.insert(key.into(), json!([from, to]));
             }
         }
@@ -388,6 +392,19 @@ fn read_place(
         lesson.insert("file".into(), json!(absolute));
     }
     Ok(())
+}
+
+/// `12-40` → `[12, 40]`, `7` → `[7, 7]`; a range counts up from 1.
+fn place_span(range: &str) -> Option<[u32; 2]> {
+    let (from, to) = range.split_once('-').unwrap_or((range, range));
+    let from: u32 = from.trim().parse().ok()?;
+    let to: u32 = to.trim().parse().ok()?;
+    (from > 0 && to >= from).then_some([from, to])
+}
+
+/// `p7` → `[7, 7]`, `p7-9` → `[7, 9]`.
+fn page_span(fragment: &str) -> Option<[u32; 2]> {
+    place_span(fragment.strip_prefix('p')?)
 }
 
 /// `repos/<repo>@<sha>:path/in/repo` → (`repos/<repo>/path/in/repo`, sha).
@@ -432,8 +449,8 @@ const COURSE_KEYS: [&str; 6] = [
 const LESSON_KEYS: [&str; 9] = [
     "id", "title", "document", "section", "file", "lines", "pages", "commit", "compare",
 ];
-const PART_KEYS: [&str; 7] = [
-    "label", "file", "document", "section", "lines", "commit", "note",
+const PART_KEYS: [&str; 8] = [
+    "label", "file", "document", "section", "lines", "pages", "commit", "note",
 ];
 const STEP_KEYS: [&str; 8] = [
     "id",
@@ -915,6 +932,98 @@ mod tests {
             pinned("repos/x@ABCDEF0:a.go"),
             Some(("repos/x/a.go".into(), "abcdef0".into()))
         );
+    }
+
+    #[test]
+    fn a_document_lesson_can_name_a_pdf_page() {
+        let yaml = "title: Papers\nchapters:\n  - title: VM\n    lessons:\n      - id: a\n        title: A\n        document: firecracker#p7\n      - id: b\n        title: B\n        document: firecracker#p7-9\n      - id: c\n        title: C\n        document: kvm#4.1 KVM_CREATE_VM\n      - id: d\n        title: D\n        document: firecracker#p7\n        pages: [11, 12]\n";
+        let course = parse_course(yaml, &resolve).unwrap();
+        let data: Value = serde_json::from_str(&course.data_json).unwrap();
+        let lessons = &data["chapters"][0]["lessons"];
+        assert_eq!(lessons[0]["pages"], json!([7, 7]));
+        assert_eq!(lessons[1]["pages"], json!([7, 9]));
+        assert!(lessons[1].get("section").is_none());
+        assert_eq!(lessons[2]["section"], "4.1 KVM_CREATE_VM");
+        assert!(lessons[2].get("pages").is_none());
+        // An explicit range wins over the shorthand.
+        assert_eq!(lessons[3]["pages"], json!([11, 12]));
+        crate::course::validate_data(&course.engine, &course.data_json).unwrap();
+        let written = render_course(&course.title, &course.engine, &course.data_json, &|p| {
+            p.to_string()
+        })
+        .unwrap();
+        let again = parse_course(&written, &resolve).unwrap();
+        let normalized = |raw: &str| serde_json::from_str::<Value>(raw).unwrap();
+        assert_eq!(normalized(&again.data_json), normalized(&course.data_json));
+    }
+
+    #[test]
+    fn one_course_mixes_a_pinned_lesson_a_pdf_page_and_a_comparison_with_a_paper() {
+        let folder = crate::mentor_store::testing::temp_dir("mixed");
+        std::fs::create_dir_all(folder.join("repos/fc/.git")).unwrap();
+        let base = format!("{}/", folder.display());
+        let resolve = |path: &str| Ok(format!("{base}{path}"));
+        let sha = "3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e";
+        let yaml = format!("title: T\nchapters:\n  - title: C\n    lessons:\n      - id: code\n        title: The VMM loop\n        file: repos/fc@{sha}:src/vmm.rs#L120-188\n      - id: paper\n        title: Exiting a microVM\n        document: firecracker-nsdi20#p7-9\n      - id: jail\n        title: Jailing the VMM\n        compare:\n          - label: Paper\n            document: firecracker-nsdi20#p7\n            note: The design.\n          - label: Code\n            file: repos/fc@{sha}:src/jailer.rs#L3-9\n");
+        let course = parse_course(&yaml, &resolve).unwrap();
+        crate::course::validate_data(&course.engine, &course.data_json).unwrap();
+        let data: Value = serde_json::from_str(&course.data_json).unwrap();
+        let lessons = &data["chapters"][0]["lessons"];
+        assert_eq!(
+            lessons[0]["file"],
+            json!(format!("{base}repos/fc/src/vmm.rs"))
+        );
+        assert_eq!(lessons[0]["commit"], sha);
+        assert_eq!(lessons[0]["lines"], json!([120, 188]));
+        assert_eq!(lessons[1]["document"], "firecracker-nsdi20");
+        assert_eq!(lessons[1]["pages"], json!([7, 9]));
+        assert!(lessons[1].get("section").is_none());
+        let parts = &lessons[2]["compare"];
+        assert_eq!(parts[0]["document"], "firecracker-nsdi20");
+        assert_eq!(parts[0]["pages"], json!([7, 7]));
+        assert_eq!(parts[0]["note"], "The design.");
+        assert_eq!(
+            parts[1]["file"],
+            json!(format!("{base}repos/fc/src/jailer.rs"))
+        );
+        assert_eq!(parts[1]["commit"], sha);
+
+        // YAML → JSON → YAML → JSON is stable, and pins are written back as pins.
+        let relativize = |path: &str| path.strip_prefix(&base).unwrap_or(path).to_string();
+        let written = render_course("T", "reading", &course.data_json, &relativize).unwrap();
+        assert!(
+            written.contains(&format!("file: repos/fc@{sha}:src/vmm.rs\n")),
+            "{written}"
+        );
+        assert!(
+            written
+                .contains("    - label: Paper\n      document: firecracker-nsdi20\n      pages:\n"),
+            "{written}"
+        );
+        let again = parse_course(&written, &resolve).unwrap();
+        let normalized = |raw: &str| serde_json::from_str::<Value>(raw).unwrap();
+        assert_eq!(normalized(&again.data_json), normalized(&course.data_json));
+        // The same course as courses.write JSON resolves to the same data.
+        let raw = json!({"chapters": [{"title": "C", "lessons": [
+            {"id": "code", "title": "The VMM loop", "file": format!("repos/fc@{sha}:src/vmm.rs#L120-188")},
+            {"id": "paper", "title": "Exiting a microVM", "document": "firecracker-nsdi20#p7-9"},
+            {"id": "jail", "title": "Jailing the VMM", "compare": [
+                {"label": "Paper", "document": "firecracker-nsdi20", "pages": [7, 7], "note": "The design."},
+                {"label": "Code", "file": format!("repos/fc@{sha}:src/jailer.rs#L3-9")}
+            ]}
+        ]}]})
+        .to_string();
+        let resolved = resolve_lesson_files(&raw, &resolve).unwrap();
+        crate::course::validate_data("reading", &resolved).unwrap();
+        let mut from_json = normalized(&resolved);
+        let mut from_yaml = normalized(&course.data_json);
+        for value in [&mut from_json, &mut from_yaml] {
+            if let Value::Object(map) = value {
+                map.retain(|key, _| key == "chapters");
+            }
+        }
+        assert_eq!(from_json, from_yaml);
+        std::fs::remove_dir_all(folder).ok();
     }
 
     #[test]

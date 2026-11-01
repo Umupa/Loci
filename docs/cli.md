@@ -72,7 +72,7 @@ Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false
 | `status` | Whether this Loci runs, and its identifier and version |
 | `templates` | `list` |
 | `mentors` | `list`, `show`, `create`, `update`, `delete`, `reset`, `switch`, `send`, `turn`, `read`, `stop`, `export`, `import`, `relocate` |
-| `sources` | `list`, `read`, `write` (take a Markdown file someone published in as a first-hand source) |
+| `sources` | `list`, `read`, `write` (take a Markdown file or a PDF someone published in as a first-hand source) |
 | `guides` | `write`: save the mentor's own guide (a reading guide, a brief), from `--path` or `--body`/`--body-file`; listed and labelled apart from sources |
 | `courses` | `list`, `read`, `write`, `delete`, `lesson` (mark read, reading or untouched) |
 | `path` | `read`, `write`: the mentor's learning path, its courses in order with prerequisites (`courses/_path.yaml`) |
@@ -82,7 +82,7 @@ Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false
 | `files` | `list`, `read`, `write`, in the mentor's working folder and the folders it was given |
 | `reader` | `open`, `show`, `close` (`open --source ID --quote TEXT` shows and flashes a passage) |
 | `annotations` | `list`, `counts`, `add`, `note`, `delete`: the learner's highlights and notes on sources, files and lessons |
-| `library` | `open`, `show`: the mentor's left column (segment, course, filter); `check`: files in the mentor's folder Loci could not read; `search`: full-text search of its sources, guides and notes |
+| `library` | `open`, `show`: the mentor's left column (segment, course, filter); `check`: files in the mentor's folder Loci could not read, including a PDF without its sidecar or a sidecar without its PDF; `search`: full-text search of its sources, guides and notes (a PDF's text included) |
 | `storage` | `status`, `migrate` (`--dry-run`, `--redo <mentor id>`), `reindex`: mentors' folders and the move of 0.3 data into them |
 | `sessions` | `list`, `read`, `start`, `send`, `draft`, `stop`, `archive`, `delete` |
 | `soul`, `memory`, `habits` | The mentor's standing instructions, memory and habits |
@@ -143,6 +143,7 @@ You prepare reading for the user in Loci, through the `loci` command line (run `
 - Work for one mentor: `loci mentors list`, or `loci mentors create --template learning-guide --name "<topic>"`.
 - Save what you fetched as a Markdown file, then take it in:
   `loci sources write --mentor <id> --id <slug> --title "<title>" --path /abs/file.md --source-url <where it was published>`.
+  A paper is the same command with a PDF: `--path /abs/paper.pdf` copies it in as `sources/<slug>.pdf` with a sidecar, reads its text for `library search`, and opens it in the PDF reader; `loci reader open --source <slug> --page 7` shows a page.
 - Arrange sources into a course: `loci courses write --mentor <id> --input course.json`
   (the format is in `loci app --help`, "Reading course").
 - Show the user where to read: `loci reader open --mentor <id> --course <course> --lesson <lesson>`,

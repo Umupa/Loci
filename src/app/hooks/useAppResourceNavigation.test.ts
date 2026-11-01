@@ -123,6 +123,12 @@ it("opens a source link to a library document of the mentor on screen, at the se
   await act(async () => requestOpenAppResource({ kind: "source", id: "missing" }));
   expect(view.onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("no longer available") }));
 });
+it("carries a PDF source link's page and quote through to the document", async () => {
+  mocks.getLearningSource.mockResolvedValue(null);
+  await act(async () => requestOpenAppResource({ kind: "source", id: "firecracker", place: { page: 7, quote: "Sandbox page one" } }));
+  expect(view.openDocument).toHaveBeenCalledWith("agent-a", "firecracker", { page: 7, quote: "Sandbox page one" });
+});
+
 it("opens a registered document passage at its highlight, and a file passage at its lines with its words", async () => {
   mocks.getLearningSource.mockResolvedValueOnce({ id: "s", kind: "document", agentId: "agent-a", documentId: "pods", title: "Pods", quote: "Pending",
     section: "Pod phase", anchor: { exact: "Pending", prefix: "", suffix: "", start: 0, end: 7 }, annotationId: "mark" });

@@ -24,6 +24,7 @@ export function shownDocument(stored: StoredDocument & { body: string }): AgentD
     ...(stored.subject ? { subject: stored.subject } : {}),
     ...(stored.sourceUrl ? { sourceUrl: stored.sourceUrl } : {}),
     ...(stored.sourceVersion ? { sourceVersion: stored.sourceVersion } : {}),
+    ...(stored.pdf ? { pdf: stored.pdf } : {}),
     ...(stored.fetchedAt ? { fetchedAt: stored.fetchedAt } : {}),
   };
 }

@@ -401,6 +401,12 @@ function Workspace(boot: BootWorkspace) {
     mentorBase: () => mentorRef.current.currentRef.current?.agentId,
     openDocument: async (agentId, documentId, place) => {
       const found = await readAgentDocument(agentId, documentId);
+      if (found?.pdf) {
+        // A source kept as a PDF opens in the PDF reader, at the page a link names.
+        if (place?.page) requestFilePlace(found.pdf.path, { page: place.page, ...(place.quote ? { quote: place.quote } : {}) });
+        await showInMentor({ kind: "file", path: found.pdf.path }, agentId);
+        return true;
+      }
       if (found?.body == null) return false;
       // A lesson already showing this document keeps the reader; the passage is shown in the lesson.
       const state = mentorViewRef.current.stateFor(agentId);

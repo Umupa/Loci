@@ -58,10 +58,10 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
   // Sources: what others published, taken into the mentor's library.
   forMentor("sources.list", "documents.list", "The mentor's library, newest first: first-hand sources (kind source, with sourceUrl) and its own guides (kind guide).", []),
   forMentor("sources.read", "documents.read", "One source or guide in full.", [id()]),
-  forMentor("sources.write", "documents.write", "Take a UTF-8 Markdown file into the library as a source.", [
+  forMentor("sources.write", "documents.write", "Take a first-hand source into the library: a UTF-8 Markdown file, or a PDF copied in with its sidecar and read in the PDF reader.", [
     field("id", "string", "A stable id, such as k8s-pod-lifecycle", { required: true, max: 80 }),
     field("title", "string", "Its title", { required: true, max: 200 }),
-    field("path", "string", "Absolute path of the Markdown file (at most 1 MB)", { required: true, max: 4096 }),
+    field("path", "string", "Absolute path of the Markdown file (at most 1 MB) or PDF (at most 100 MB)", { required: true, max: 4096 }),
     field("sourceUrl", "string", "Where it was published", { required: true, max: 2000 }),
     field("subject", "string", "Its subject, such as Kubernetes", { max: 80 }),
     field("version", "string", "The version it describes", { max: 80 }),

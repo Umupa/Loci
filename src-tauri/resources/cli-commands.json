@@ -1122,7 +1122,7 @@
     },
     {
       "name": "library.check",
-      "summary": "Files in the mentor's folder that Loci could not read (bad front-matter or YAML, a missing sourceUrl, a file too large), with the reason. Run it after editing files directly.",
+      "summary": "Files in the mentor's folder that Loci could not read (bad front-matter or YAML, a missing sourceUrl, a file too large), a PDF without its sidecar or a sidecar without its PDF, with the reason. Run it after editing files directly.",
       "callers": [
         "external",
         "agent"
@@ -2642,7 +2642,7 @@
     },
     {
       "name": "sources.write",
-      "summary": "Take a UTF-8 Markdown file into the library as a source.",
+      "summary": "Take a first-hand source into the library: a UTF-8 Markdown file, or a PDF copied in with its sidecar and read in the PDF reader.",
       "callers": [
         "external"
       ],
@@ -2672,7 +2672,7 @@
         {
           "name": "path",
           "type": "string",
-          "help": "Absolute path of the Markdown file (at most 1 MB)",
+          "help": "Absolute path of the Markdown file (at most 1 MB) or PDF (at most 100 MB)",
           "required": true,
           "positional": false
         },

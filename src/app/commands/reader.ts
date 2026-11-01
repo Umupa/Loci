@@ -62,7 +62,9 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
       if (input.section !== undefined && kind !== "source") throw new CommandError("--section goes with --source", "usage");
       if (input.quote !== undefined && kind !== "source" && !(kind === "file" && input.lines !== undefined))
         throw new CommandError("--quote goes with --source, or with --file and --lines", "usage");
-      if ((input.lines !== undefined || input.page !== undefined) && kind !== "file") throw new CommandError("--lines and --page go with --file", "usage");
+      if (input.lines !== undefined && kind !== "file") throw new CommandError("--lines goes with --file", "usage");
+      if (input.page !== undefined && kind !== "file" && kind !== "source")
+        throw new CommandError("--page goes with --file, or with a PDF --source", "usage");
       if (input.lines !== undefined && input.page !== undefined) throw new CommandError("Choose --lines or --page", "usage");
       if (input.at !== undefined && (kind !== "file" || !isCommit(input.at as string))) throw new CommandError("--at is a commit id (7 to 40 hex digits) and goes with --file", "usage");
       const focus: ReaderFocus = {};
@@ -76,11 +78,22 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
         page = { kind: "course", course: { courseId: course.id, agentId: agent.id, title: course.title, ...(lesson ? { itemId: lesson } : {}) } };
       } else if (kind === "source") {
         const found = await readAgentDocument(agent.id, value);
-        if (found?.body == null) throw new CommandError(`No source ${value} in this mentor's library`, "not_found");
-        page = { kind: "document", document: { id: found.id, title: found.title, body: found.body, ...(found.subject ? { subject: found.subject } : {}) } };
-        if (input.section !== undefined) focus.section = input.section as string;
-        if (input.quote !== undefined) focus.quote = input.quote as string;
-        if (focus.section || focus.quote) requestDocumentPlace(agent.id, found.id, { ...(focus.section ? { section: focus.section } : {}), ...(focus.quote ? { quote: focus.quote } : {}) });
+        if (found?.pdf) {
+          if (input.section !== undefined || input.quote !== undefined)
+            throw new CommandError("A PDF source opens at --page; section and quote belong to text sources", "usage");
+          const at = typeof input.page === "number" ? input.page : 1;
+          if (at < 1) throw new CommandError("page starts at 1", "usage");
+          page = { kind: "file", path: found.pdf.path };
+          focus.page = at;
+          requestFilePlace(found.pdf.path, { page: at });
+        } else {
+          if (found?.body == null) throw new CommandError(`No source ${value} in this mentor's library`, "not_found");
+          if (input.page !== undefined) throw new CommandError(`${value} is not a PDF; --page needs a PDF source`, "usage");
+          page = { kind: "document", document: { id: found.id, title: found.title, body: found.body, ...(found.subject ? { subject: found.subject } : {}) } };
+          if (input.section !== undefined) focus.section = input.section as string;
+          if (input.quote !== undefined) focus.quote = input.quote as string;
+          if (focus.section || focus.quote) requestDocumentPlace(agent.id, found.id, { ...(focus.section ? { section: focus.section } : {}), ...(focus.quote ? { quote: focus.quote } : {}) });
+        }
       } else if (kind === "note") {
         if (!await getNote(value)) throw new CommandError(`No note ${value}`, "not_found");
         page = { kind: "note", id: value };
