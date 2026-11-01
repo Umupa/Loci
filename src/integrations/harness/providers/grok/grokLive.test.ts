@@ -33,6 +33,9 @@ import type { HarnessEvent } from "../../core/types";
 function reply(id: number, result: unknown) {
   onLine!(JSON.stringify({ jsonrpc: "2.0", id, result }));
 }
+function errorReply(id: number, error: unknown) {
+  onLine!(JSON.stringify({ jsonrpc: "2.0", id, error }));
+}
 const parse = () => sent.map((s) => JSON.parse(s));
 const waitFor = async (pred: () => boolean, label: string) => {
   for (let i = 0; i < 200; i++) {
@@ -131,6 +134,43 @@ describe("grok live turn sequence", () => {
     expect(events.some((e) => e.type === "session.providerBound")).toBe(true);
     expect(parse().some((m) => m.method === "authenticate")).toBe(true);
     await stopGrokSession("t1");
+  });
+
+  it("surfaces the provider's error text instead of the JSON-RPC summary", async () => {
+    const events: HarnessEvent[] = [];
+    const turn = sendGrokTurn({
+      sessionId: "t5",
+      cwd: "/repo",
+      model: "grok:grok-4.6",
+      runtimeMode: "supervised",
+      text: "hey",
+      attachments: [],
+      onEvent: (e) => events.push(e),
+    });
+    await handshake();
+    await waitFor(
+      () => parse().some((m) => m.method === "session/prompt"),
+      "prompt",
+    );
+    const promptId = parse().find((m) => m.method === "session/prompt")!.id;
+    errorReply(promptId, {
+      code: -32603,
+      message: "Internal error",
+      data: {
+        message:
+          "Unauthorized (401) from https://cli-chat-proxy.grok.com/v1/responses: Invalid or expired credentials\n\n  Model:     grok-4.6",
+        http_status: 401,
+      },
+    });
+    await turn.catch(() => undefined);
+
+    const notice = events.find(
+      (event): event is Extract<HarnessEvent, { type: "session.error" }> =>
+        event.type === "session.error",
+    );
+    expect(notice?.message).toContain("Unauthorized (401)");
+    expect(notice?.message).not.toBe("Internal error");
+    await stopGrokSession("t5");
   });
 
   it("surfaces a supervised permission request instead of auto-approving", async () => {

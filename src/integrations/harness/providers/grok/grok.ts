@@ -20,6 +20,7 @@ import {
   grokAuthError,
   grokAuthMethodId,
   grokEffort,
+  grokErrorMessage,
   grokPromptBlocks,
   grokSessionNewParams,
   grokSpawnArgs,
@@ -470,12 +471,9 @@ async function prompt(live: Live, input: SendTurnInput): Promise<void> {
     live.onEvent({ type: "reasoning.completed" });
   } catch (error) {
     if (live.cancelled) return;
-    const detail = error instanceof Error ? error.message : String(error);
     live.onEvent({
       type: "session.error",
-      message: /auth|login|credential|api key|XAI_API_KEY/i.test(detail)
-        ? `${detail.trim()}\n\n${AUTH_HELP}`
-        : detail,
+      message: grokErrorMessage(error),
     });
     throw error;
   }

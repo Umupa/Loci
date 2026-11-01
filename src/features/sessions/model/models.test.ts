@@ -372,6 +372,48 @@ describe("live catalog overlays", () => {
     expect(hasLiveCatalog("claude")).toBe(false);
   });
 
+  it("takes the default model a live catalog reports", () => {
+    setHarnessModels(
+      "grok",
+      [
+        {
+          id: "grok:grok-4.6",
+          harness: "grok",
+          name: "Grok 4.6",
+          nativeId: "grok-4.6",
+        },
+        {
+          id: "grok:magpie/sub2api/deepseek-flash",
+          harness: "grok",
+          name: "deepseek-flash[1M] · Sub2API",
+          nativeId: "magpie/sub2api/deepseek-flash",
+        },
+      ],
+      { defaultId: "magpie/sub2api/deepseek-flash" },
+    );
+
+    expect(defaultModelId("grok")).toBe(
+      "grok:magpie/sub2api/deepseek-flash",
+    );
+    expect(resolveModel("grok").id).toBe("grok:magpie/sub2api/deepseek-flash");
+    expect(nativeModelId(defaultModelId("grok"))).toBe(
+      "magpie/sub2api/deepseek-flash",
+    );
+  });
+
+  it("keeps the bundled default when a live catalog reports none", () => {
+    setHarnessModels("grok", [
+      {
+        id: "grok:grok-4.6",
+        harness: "grok",
+        name: "Grok 4.6",
+        nativeId: "grok-4.6",
+      },
+    ]);
+
+    expect(defaultModelId("grok")).toBe("grok:grok-4.6");
+  });
+
   it("keeps saved Claude versions distinct from a live alias", () => {
     const live = [
       {

@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUTH_HELP,
   askQuestionResponse,
   askQuestionsFromAcp,
+  catalogFromGrokModelsOutput,
   eventsFromAcpUpdate,
   fallbackGrokModels,
   grokAuthMethodId,
   grokEffort,
+  grokErrorMessage,
   grokPromptBlocks,
   grokSessionNewParams,
   grokSpawnArgs,
@@ -20,6 +23,8 @@ import {
   sessionIdFromResult,
 } from "./grokProtocol";
 import { harnessSupportsAttachments } from "../../../../features/sessions/model/session";
+import { isHarnessAuthError } from "../../core/authSupport";
+import grokModelsOutput from "./fixtures/grok-models.txt?raw";
 
 describe("grok protocol", () => {
   it("supports attachments despite Grok's stale advertised capability", () => {
@@ -305,14 +310,65 @@ describe("grok protocol", () => {
     ).toEqual(["grok-4.5"]);
   });
 
-  it("parses grok models text output", () => {
-    const models = modelsFromGrokModelsOutput(
-      "You are not authenticated.\n\nDefault model: grok-4.6\n\nAvailable models:\n  * grok-4.6 (default)\n  - grok-4.5\n",
-    );
-    expect(models.map((model) => model.nativeId)).toEqual([
+  it("parses the real grok models output and takes its default", () => {
+    // Fixture captured from `grok models` on 2026-11-01 (grok 1.0.70).
+    const catalog = catalogFromGrokModelsOutput(grokModelsOutput);
+    expect(catalog.defaultModelId).toBe("magpie/sub2api/deepseek-flash");
+    expect(catalog.models.map((model) => model.nativeId)).toEqual([
       "grok-4.6",
       "grok-4.5",
+      "deepseek-flash",
+      "gpt-6.1-sol",
+      "gpt-6-astra",
+      "gpt-6-sol",
+      "gpt-6-luna",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "magpie/sub2api/deepseek-flash",
+      "magpie/deepseek/deepseek-v4-flash",
+      "magpie/gemini/gemini-3.1-pro-preview",
+      "magpie/gemini/gemini-3-pro-preview",
+      "magpie/gemini/gemini-3-flash-preview",
+      "magpie/gemini/gemini-3.8-flash",
+      "magpie/gemini/gemini-3.5-flash",
+      "magpie/gemini/gemini-3.5-flash-lite",
+      "magpie/gemini/gemini-3.1-flash-lite",
+      "magpie/gemini/gemini-2.5-pro",
+      "magpie/gemini/gemini-2.5-flash",
+      "magpie/gemini/gemini-2.5-flash-lite",
     ]);
+    expect(catalog.models[0]?.id).toBe("grok:grok-4.6");
+    expect(modelsFromGrokModelsOutput(grokModelsOutput)).toHaveLength(22);
+  });
+
+  it("takes the default from the (default) marker when no line declares it", () => {
+    const catalog = catalogFromGrokModelsOutput(
+      "Available models:\n  * grok-4.6 (default)\n  - grok-4.5\n",
+    );
+    expect(catalog.defaultModelId).toBe("grok-4.6");
+  });
+
+  it("passes the provider's own turn error through", () => {
+    const failure = Object.assign(new Error("Internal error"), {
+      data: {
+        message:
+          "Unauthorized (401) from https://cli-chat-proxy.grok.com/v1/responses: Invalid or expired credentials\n\n  Model:     grok-4.6\n  Available: grok-4.6, magpie/sub2api/deepseek-flash",
+        http_status: 401,
+      },
+    });
+    const message = grokErrorMessage(failure);
+    expect(message).toContain("Unauthorized (401)");
+    expect(message).toContain("Model:     grok-4.6");
+    // A 401 for one model is not a login problem: keep the CLI's model list
+    // visible instead of replacing it with the sign-in prompt.
+    expect(message).not.toContain(AUTH_HELP);
+    expect(isHarnessAuthError(message)).toBe(false);
+
+    expect(grokErrorMessage(new Error("Invalid or expired credentials"))).toBe(
+      `Invalid or expired credentials\n\n${AUTH_HELP}`,
+    );
+    expect(grokErrorMessage(new Error("boom"))).toBe("boom");
   });
 
   it("ships a grok-4.6 fallback catalog", () => {
