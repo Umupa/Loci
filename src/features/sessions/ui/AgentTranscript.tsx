@@ -1204,7 +1204,7 @@ function TurnDuration({
             ) : null}
           </>
         ) : (
-          <Check className="size-3.5" strokeWidth={1.5} />
+          <Check className="size-3.5" />
         )}
 
 
@@ -1289,7 +1289,7 @@ function TurnMetricsBadge({
         title="Turn metrics"
         className="grid rounded-md p-1 text-content/40 outline-none hover:bg-content/8 hover:text-content/70 focus-visible:ring-1 focus-visible:ring-accent-ring"
       >
-        <ChartBreakoutSquare className="size-3.5" strokeWidth={1.5} />
+        <ChartBreakoutSquare className="size-3.5" />
       </span>
       {hovered ? (
         <Popover
@@ -1399,9 +1399,9 @@ function CopyTurnButton({
         }}
       >
         {copied ? (
-          <Check className="size-3.5" strokeWidth={1.5} />
+          <Check className="size-3.5" />
         ) : (
-          <Copy className="size-3.5" strokeWidth={1.5} />
+          <Copy className="size-3.5" />
         )}
       </button>
       {error && (
@@ -1459,9 +1459,9 @@ function SaveNoteButton({
         }}
       >
         {saved ? (
-          <Check className="size-3.5" strokeWidth={1.5} />
+          <Check className="size-3.5" />
         ) : (
-          <FilePlusCorner className="size-3.5" strokeWidth={1.5} />
+          <FilePlusCorner className="size-3.5" />
         )}
       </button>
       {error && (
@@ -1520,9 +1520,9 @@ function SaveToCanvasButton({
         }}
       >
         {saved ? (
-          <Check className="size-3.5" strokeWidth={1.5} />
+          <Check className="size-3.5" />
         ) : (
-          <ExcalidrawIcon className="size-3.5" strokeWidth={1.5} />
+          <ExcalidrawIcon className="size-3.5" />
         )}
       </button>
       {error && (
@@ -1558,7 +1558,7 @@ function EditLastTurnButton({
           : "text-content/40 hover:bg-content/8 hover:text-content/70"
       }`}
     >
-      <Pencil className="size-3.5" strokeWidth={1.5} />
+      <Pencil className="size-3.5" />
     </button>
   );
 }
@@ -1918,7 +1918,7 @@ function UserMessageBlock({
           {block.draft ? (
             <div className="mt-2 flex items-center justify-between gap-4 border-t border-dashed border-content/20 pt-2">
               <span className="flex items-center gap-1.5 text-xs text-content/50">
-                <CircleDashed className="size-3.5" strokeWidth={1.5} />
+                <CircleDashed className="size-3.5" />
                 Draft
               </span>
               <span className="flex items-center gap-1">
@@ -1929,7 +1929,7 @@ function UserMessageBlock({
                   onClick={() => onRemoveDraft?.(block)}
                   className="flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-content/55 hover:bg-content/10 hover:text-content"
                 >
-                  <Trash2 className="size-3.5" strokeWidth={1.5} />
+                  <Trash2 className="size-3.5" />
                   Remove
                 </button>
                 <button
@@ -2356,7 +2356,6 @@ function ActivityPhaseGroup({
           ) : canvasPhase ? (
             <ExcalidrawIcon
               className="size-3.5 text-content/50 group-hover:opacity-0"
-              strokeWidth={1.5}
             />
           ) : (
             <ActivityPhaseIcon
@@ -2368,7 +2367,6 @@ function ActivityPhaseGroup({
             className={`absolute size-3.5 text-content/45 opacity-0 transition-transform duration-200 group-hover:opacity-100 ${
               open ? "rotate-90" : ""
             }`}
-            strokeWidth={1.5}
           />
         </span>
         {label}
@@ -2689,7 +2687,6 @@ function SubagentPanel({
           className={`size-3.5 shrink-0 text-content/35 transition-transform duration-200 group-hover:text-content/60 ${
             open ? "rotate-90" : ""
           }`}
-          strokeWidth={1.5}
         />
       </button>
       <div className="zen-phase-body" data-open={open}>
@@ -2944,7 +2941,6 @@ function ActivityThinkingRow({
   const icon = bare ? null : (
     <Minus
       className={`size-3.5 shrink-0 text-content/40 ${pulse}`}
-      strokeWidth={1.5}
     />
   );
   const label = (
@@ -3021,7 +3017,7 @@ function ActivityNoteRow({
   const [open, setOpen] = useState(false);
   const text = proseSummary(block.text);
   const icon = bare ? null : (
-    <Minus className="size-3.5 shrink-0 text-content/50" strokeWidth={1.5} />
+    <Minus className="size-3.5 shrink-0 text-content/50" />
   );
 
   if (!expandable) {
@@ -3133,7 +3129,6 @@ function ActivityToolRow({
           >
             <ChevronRight
               className={`size-3.5 text-red-400/60 transition-transform ${errorOpen ? "rotate-90" : ""}`}
-              strokeWidth={1.5}
             />
           </button>
         </div>
@@ -3205,7 +3200,6 @@ function LociCallRow({
       {hasError ? (
         <ChevronRight
           className={`size-3.5 shrink-0 text-red-400/60 transition-transform ${errorOpen ? "rotate-90" : ""}`}
-          strokeWidth={1.5}
         />
       ) : null}
     </>
@@ -3264,7 +3258,6 @@ function CanvasCallRow({
     <>
       <ExcalidrawIcon
         className={`size-3.5 shrink-0 ${state === "rejected" ? "text-red-400" : "text-content/50"}`}
-        strokeWidth={1.5}
       />
       <span
         className={`min-w-0 truncate font-sans text-sm ${state === "rejected" ? "text-red-400" : "text-content/50"}`}
@@ -3275,7 +3268,6 @@ function CanvasCallRow({
       {hasError ? (
         <ChevronRight
           className={`size-3.5 shrink-0 text-red-400/60 transition-transform ${errorOpen ? "rotate-90" : ""}`}
-          strokeWidth={1.5}
         />
       ) : null}
     </>
@@ -3334,13 +3326,12 @@ function ActivityToolIcon({
     return (
       <CircleDashed
         className={`size-3.5 shrink-0 text-content/40 ${live ? "zen-tool-spin" : ""}`}
-        strokeWidth={1.5}
       />
     );
   }
 
   return (
-    <Minus className="size-3.5 shrink-0 text-content/50" strokeWidth={1.5} />
+    <Minus className="size-3.5 shrink-0 text-content/50" />
   );
 }
 
@@ -3511,7 +3502,6 @@ function ToolCall({
           />
           <ChevronRight
             className={`size-3.5 shrink-0 text-content/35 transition-transform ${open ? "rotate-90" : ""}`}
-            strokeWidth={1.5}
           />
         </button>
       ) : (
@@ -3607,7 +3597,7 @@ function ToolCallSummary({
             cwd={cwd}
             onOpen={openFile && filePath ? () => openFile(filePath) : undefined}
             onOpenFile={onOpenFile}
-            className={`-my-0.5 flex min-w-0 cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:text-sky-300 ${
+            className={`-my-0.5 flex min-w-0 cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:text-content ${
               chip
                 ? `max-w-full bg-content/6 hover:bg-content/10 ${targetTone}`
                 : `flex-1 hover:bg-content/6 ${targetTone}`
@@ -3619,7 +3609,7 @@ function ToolCallSummary({
         ) : canOpen ? (
           <button
             type="button"
-            className={`-my-0.5 flex min-w-0 cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:text-sky-300 ${
+            className={`-my-0.5 flex min-w-0 cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-left hover:text-content ${
               chip
                 ? `max-w-full bg-content/6 hover:bg-content/10 ${targetTone}`
                 : `flex-1 hover:underline ${targetTone}`
@@ -3666,7 +3656,6 @@ function ToolCallIcon({ state }: { state: ToolCallState }) {
     return (
       <CircleDashed
         className="size-3.5 shrink-0 text-content/40"
-        strokeWidth={1.5}
       />
     );
   }

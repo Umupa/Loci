@@ -750,7 +750,7 @@ export function BtwSheet({
                         selected ? "" : "opacity-0 group-hover:opacity-100"
                       }`}
                     >
-                      <X className="size-3" strokeWidth={1.5} />
+                      <X className="size-3" />
                     </button>
                   </div>
                 );
@@ -764,7 +764,7 @@ export function BtwSheet({
                 onClick={btw.startDraft}
                 className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring"
               >
-                <Plus className="size-3.5" strokeWidth={1.5} />
+                <Plus className="size-3.5" />
               </button>
             ) : null}
             <button
@@ -774,7 +774,7 @@ export function BtwSheet({
               onClick={btw.close}
               className="grid size-7 shrink-0 place-items-center rounded-md text-content/45 transition-colors hover:bg-content/8 hover:text-content focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-ring"
             >
-              <ChevronDown className="size-4" strokeWidth={1.5} />
+              <ChevronDown className="size-4" />
             </button>
           </div>
 
@@ -809,7 +809,7 @@ export function BtwSheet({
                   onClick={btw.retry}
                   className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-diff-del-fg transition-colors hover:bg-diff-del/10 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-diff-del-fg/60"
                 >
-                  <RefreshCw className="size-3" strokeWidth={1.5} />
+                  <RefreshCw className="size-3" />
                   Retry
                 </button>
               </div>

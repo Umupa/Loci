@@ -187,7 +187,7 @@ export function SearchableProjectPicker({
               : "text-content/50 hover:bg-content/5 hover:text-content"
         }${buttonClassName ? ` ${buttonClassName}` : ""}`}
       >
-        {inProject ? <Folder className={`${compact ? "size-3.5" : "size-3"} shrink-0`} strokeWidth={1.5} /> : null}
+        {inProject ? <Folder className={`${compact ? "size-3.5" : "size-3"} shrink-0`} /> : null}
         {compact ? null : (
           <>
             <span className="min-w-0 truncate font-medium text-content/90">
@@ -197,7 +197,6 @@ export function SearchableProjectPicker({
               className={`size-3 shrink-0 text-content/45 transition-transform ${
                 open ? "rotate-180" : ""
               }`}
-              strokeWidth={1.5}
             />
           </>
         )}
@@ -217,7 +216,7 @@ export function SearchableProjectPicker({
           className="flex flex-col overflow-hidden"
         >
           <label className="flex h-11 shrink-0 items-center gap-2.5 border-b border-stroke px-3 text-content/45 focus-within:text-content/70">
-            <Search className="size-4 shrink-0" strokeWidth={1.5} />
+            <Search className="size-4 shrink-0" />
             <span className="sr-only">{t("Search projects")}</span>
             <input
               ref={searchRef}
@@ -269,7 +268,7 @@ export function SearchableProjectPicker({
                       {current ? (
                         <Check className="size-3.5" strokeWidth={2} />
                       ) : (
-                        <Folder className="size-3.5" strokeWidth={1.5} />
+                        <Folder className="size-3.5" />
                       )}
                     </span>
                     <span className="min-w-0 max-w-[calc(100%_-_36px)] shrink-0 truncate text-[13px] font-medium">
@@ -296,7 +295,7 @@ export function SearchableProjectPicker({
                 }}
                 className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] text-content/75 hover:bg-content/8 hover:text-content"
               >
-                <Plus className="size-4 shrink-0" strokeWidth={1.5} />
+                <Plus className="size-4 shrink-0" />
                 <span>{t("New project")}</span>
               </button>
             </div>

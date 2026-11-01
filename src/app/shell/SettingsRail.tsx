@@ -49,7 +49,7 @@ function NavRow({ label, icon: Icon, active = false, onClick, }: {
     return (<button type="button" onClick={onClick} aria-current={active ? "true" : undefined} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left ${active
             ? "bg-selection text-content"
             : "text-content/50 hover:bg-content/5 hover:text-content"}`}>
-      <Icon className="size-4 shrink-0 opacity-70" strokeWidth={1.5}/>
+      <Icon className="size-4 shrink-0 opacity-70"/>
       <span className="min-w-0 flex-1 truncate text-sm font-medium leading-tight">
         {label}
       </span>

@@ -29,7 +29,7 @@ type Props = {
   reader?: boolean;
 };
 
-const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content disabled:opacity-40";
+const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/65 hover:bg-content/8 hover:text-content disabled:opacity-40";
 
 /**
  * A workspace document pane. It shows the library's copy, so a revision the

@@ -124,7 +124,7 @@ export function QuestionCard({ prompt, onReply, onInteraction }: Props) {
         </div>
         <button type="button" title="Skip" aria-label="Skip this question" onClick={skip}
           className="grid size-6 shrink-0 place-items-center rounded-md text-content/40 hover:bg-content/8 hover:text-content">
-          <X className="size-3.5" strokeWidth={1.5} />
+          <X className="size-3.5" />
         </button>
       </div>
 

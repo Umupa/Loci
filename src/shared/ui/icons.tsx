@@ -101,8 +101,13 @@ import { forwardRef, type Ref } from "react";
 /** Props shared by every chrome icon. `icon` is filled in by the named wrappers. */
 export type IconProps = Omit<HugeiconsIconProps, "icon">;
 export type IconComponent = ReturnType<typeof wrap>;
+/**
+ * One line weight for every icon, drawn like the ink in the mentors' portraits
+ * and Loci's own icon; a tick may ask for a heavier stroke, nothing lighter.
+ */
+export const ICON_STROKE = 2;
 function wrap(icon: IconSvgElement, name: string) {
-    const Component = forwardRef(function Icon({ strokeWidth = 1.5, ...props }: IconProps, ref: Ref<SVGSVGElement>) {
+    const Component = forwardRef(function Icon({ strokeWidth = ICON_STROKE, ...props }: IconProps, ref: Ref<SVGSVGElement>) {
         return (<HugeiconsIcon ref={ref} icon={icon} strokeWidth={strokeWidth} {...props}/>);
     });
     Component.displayName = name;
@@ -112,7 +117,7 @@ const stroke = {
     stroke: "currentColor",
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    strokeWidth: "1.5",
+    strokeWidth: "2",
 } as const;
 /** Catalog FoldVertical/UnfoldVertical use filled chevrons; keep these stroke-only. */
 const foldDashes: IconSvgElement = [

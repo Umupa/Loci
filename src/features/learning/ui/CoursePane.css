@@ -36,9 +36,9 @@
 .course-pane__chapter-title { display: flex; align-items: center; gap: 8px; margin: 0; padding: 4px 8px; font-size: 12px; font-weight: 500; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
 .course-pane__chapter-dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: color-mix(in srgb, var(--color-content) 30%, transparent); }
 .course-pane__step-number { margin-right: 8px; font-family: var(--font-mono); font-size: 11px; opacity: .5; }
-.course-status { display: inline-grid; place-items: center; width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; border: 1px solid color-mix(in srgb, var(--color-content) 30%, transparent); border-radius: 50%; }
-.course-status--learning { border-color: var(--color-mark); background: linear-gradient(90deg, var(--color-mark) 50%, transparent 50%); }
-.course-status--mastered { border-color: color-mix(in srgb, var(--color-content) 62%, transparent); background: color-mix(in srgb, var(--color-content) 62%, transparent); color: var(--color-background-base); }
+.course-status { display: inline-grid; place-items: center; width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; border: 1.5px solid color-mix(in srgb, var(--color-content) 28%, transparent); border-radius: 50%; }
+.course-status--learning { border-color: color-mix(in srgb, var(--color-content) 75%, transparent); background: linear-gradient(90deg, var(--color-accent) 50%, transparent 50%); }
+.course-status--mastered { border-color: color-mix(in srgb, var(--color-content) 75%, transparent); background: color-mix(in srgb, var(--color-content) 75%, transparent); color: var(--color-background-base); }
 .course-pane__main { min-width: 0; flex: 1; overflow: auto; padding: 24px 28px 16px; }
 .course-pane__content { max-width: 850px; margin: 0 auto; }
 .course-toc { position: absolute; z-index: 2; top: 24px; right: 20px; display: flex; flex-direction: column; width: 28px; max-width: calc(100% - 40px); max-height: min(280px, calc(100% - 48px)); color: var(--color-content); }

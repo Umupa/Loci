@@ -80,7 +80,7 @@ function useAgentFiles(agentId: string, refreshKey: unknown) {
 
 const fieldClass =
   "w-full rounded-lg border border-stroke bg-content/5 px-2.5 py-1.5 text-[13px] text-content outline-none placeholder:text-content/35 focus:border-content/30";
-const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/50 hover:bg-content/8 hover:text-content";
+const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/65 hover:bg-content/8 hover:text-content";
 
 /** Settings use the same left navigation and grouped properties as Monos. */
 export function AgentDetails({ agent, session, onModelChange, onModelSettingsChange, onRuntimeModeChange, recents, refreshKey, onPickFolders, onReset, onDelete }: Props) {

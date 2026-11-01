@@ -33,7 +33,7 @@ function SourceChip({ source, onRemove, onError }: {
     <div className={`learning-source-chip${expanded ? " learning-source-chip--expanded" : ""}`}>
       <div className="learning-source-chip__row">
         <button type="button" onClick={() => void open()} title={label} aria-label={`Open source ${label}`} className="learning-source-chip__open">
-          <Icon aria-hidden className="size-3.5 shrink-0" strokeWidth={1.5} />
+          <Icon aria-hidden className="size-3.5 shrink-0" />
           <span className="learning-source-chip__title">{source.title}</span>
           {location ? <span className="learning-source-chip__location">{location}</span> : null}
         </button>
@@ -41,12 +41,12 @@ function SourceChip({ source, onRemove, onError }: {
           <button type="button" aria-label={`Quoted passage from ${source.title}`} aria-expanded={expanded} aria-controls={passageId}
             title={expanded ? "Hide passage" : "Show passage"} onClick={() => setExpanded((value) => !value)}
             className="learning-source-chip__action learning-source-chip__disclosure">
-            <ChevronDown aria-hidden className="size-3" strokeWidth={1.5} />
+            <ChevronDown aria-hidden className="size-3" />
           </button>
         ) : null}
         {onRemove ? (
           <button type="button" aria-label={`Remove source ${source.title}`} title="Remove source" onClick={() => onRemove(source.id)} className="learning-source-chip__action learning-source-chip__remove">
-            <X aria-hidden className="size-3" strokeWidth={1.5} />
+            <X aria-hidden className="size-3" />
           </button>
         ) : null}
       </div>

@@ -55,7 +55,6 @@ export function AgentStatus({
         <CircleDashed
           aria-hidden
           className="size-3 shrink-0 motion-safe:animate-spin [animation-duration:2.4s]"
-          strokeWidth={1.5}
         />
         <span className="min-w-0 truncate">{state.activity}</span>
       </span>

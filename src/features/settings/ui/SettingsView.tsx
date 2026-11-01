@@ -120,7 +120,7 @@ function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, 
         </div>
         <div className="flex shrink-0 items-center gap-1.5 pr-2" data-tauri-drag-region="false">
           {section === "appearance" ? (<button type="button" onClick={appearance.restoreDefaults} className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-content/50 hover:bg-content/10 hover:text-content">
-              <RotateCcw className="size-3.5" strokeWidth={1.5}/>
+              <RotateCcw className="size-3.5"/>
               {t("Restore defaults")}</button>) : null}
           <SettingsSearch onReveal={onReveal}/>
         </div>
@@ -184,7 +184,7 @@ function SettingsSearch({ onReveal, }: {
     };
     return (<div ref={root} className="relative shrink-0">
       <label className="flex h-7 w-48 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
-        <Search className="size-3.5 shrink-0" strokeWidth={1.5}/>
+        <Search className="size-3.5 shrink-0"/>
         <input ref={input} role="combobox" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={onKeyDown} placeholder={t("Search settings")} aria-label={t("Search settings")} aria-expanded={open} aria-controls={listId} spellCheck={false} autoComplete="off" className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"/>
         {query ? (<button type="button" aria-label={t("Clear settings search")} onMouseDown={(event) => event.preventDefault()} onClick={() => {
                 setQuery("");
@@ -931,7 +931,7 @@ function KeybindingsPage() {
             {rows.length === 1 ? t("{0} binding", rows.length) : t("{0} bindings", rows.length)}
           </span>
           <label className="flex h-7 w-44 shrink-0 items-center gap-2 rounded-md border border-content/10 px-2 text-content/45 focus-within:border-content/20">
-            <Search className="size-3.5 shrink-0" strokeWidth={1.5}/>
+            <Search className="size-3.5 shrink-0"/>
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("Filter")} aria-label={t("Filter keybindings")} spellCheck={false} autoComplete="off" className="min-w-0 flex-1 bg-transparent text-[12px] text-content outline-none placeholder:text-content/35"/>
           </label>
         </div>}>
@@ -1069,7 +1069,7 @@ function ProviderBinaryControl({ provider, }: {
             setOpen((value) => !value);
             setEditing(false);
         }} className={`grid size-6 place-items-center rounded hover:bg-content/10 focus-visible:outline-2 focus-visible:outline-accent-ring ${restartRequired ? "text-amber-300" : "text-content/35 hover:text-content"}`}>
-        <FolderOpen className="size-3.5" strokeWidth={1.5}/>
+        <FolderOpen className="size-3.5"/>
       </button>
       {open ? (<Popover id={`${provider}-binary-popover`} role="dialog" aria-label={t("{0} CLI details", title)} aria-busy={working} tabIndex={-1} anchor={root} side="bottom" align="start" width={440} className="p-3" autoFocus onKeyDown={(event) => {
                 if (event.key !== "Tab")
@@ -1147,7 +1147,7 @@ function ProviderBinaryControl({ provider, }: {
                  </span>) : null}
                <div className="mt-3 flex justify-end gap-2">
                 {error ? (<SecondaryButton disabled={working} aria-label={t("Retry {0} {1}", title, overridden ? "configured path" : "auto-detect")} onClick={() => void inspect(overridden ? draft.trim() || null : null)}>
-                    <RefreshCw className="size-3.5" strokeWidth={1.5}/>
+                    <RefreshCw className="size-3.5"/>
                     {overridden ? t("Retry configured path") : t("Retry auto-detect")}
                   </SecondaryButton>) : null}
                 <SecondaryButton aria-label={t("Open {0} CLI location", title)} disabled={!inspection} onClick={() => {
@@ -1157,10 +1157,10 @@ function ProviderBinaryControl({ provider, }: {
                         });
                     }
                 }}>
-                  <ExternalLink className="size-3.5" strokeWidth={1.5}/>
+                  <ExternalLink className="size-3.5"/>
                   {t("Open location")}</SecondaryButton>
                 <SecondaryButton aria-label={t("Edit {0} CLI path", title)} disabled={working} onClick={() => setEditing(true)}>
-                  <Pencil className="size-3.5" strokeWidth={1.5}/>
+                  <Pencil className="size-3.5"/>
                   {t("Edit path")}</SecondaryButton>
               </div>
             </>)}
@@ -1642,7 +1642,7 @@ function Select({ label, value, options, onChange, }: {
             {selected ? selected.label : value}
           </span>
         </span>
-        <ChevronDown className={`size-3.5 shrink-0 text-content/50 transition-transform ${open ? "rotate-180" : ""}`} strokeWidth={1.5}/>
+        <ChevronDown className={`size-3.5 shrink-0 text-content/50 transition-transform ${open ? "rotate-180" : ""}`}/>
       </button>
       {open ? (<Popover anchor={root} side="bottom" align="end" width={280} maxHeight={320} autoFocus onDismiss={(reason) => {
                 setOpen(false);

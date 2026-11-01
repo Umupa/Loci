@@ -102,7 +102,7 @@ export function FilePreview({
         {filePath && onOpenFile ? (
           <button
             type="button"
-            className="min-w-0 flex-1 truncate text-left font-mono text-[12px] font-medium text-content/85 hover:text-sky-300 hover:underline"
+            className="min-w-0 flex-1 truncate text-left font-mono text-[12px] font-medium text-content/85 hover:text-content hover:underline"
             title={path}
             onClick={() => onOpenFile(filePath)}
           >
@@ -223,7 +223,6 @@ function StatusIcon({ status }: { status: Status }) {
     return (
       <CircleDashed
         className="size-3.5 shrink-0 text-content/40"
-        strokeWidth={1.5}
       />
     );
   }

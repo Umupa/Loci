@@ -2076,7 +2076,7 @@ export function Composer({
                 active={plusOpen}
                 onClick={() => setPlusOpen((open) => !open)}
               >
-                <Plus className="size-3.5" strokeWidth={1.5} />
+                <Plus className="size-3.5" />
               </ToolButton>
               {plusOpen ? (
                 <Popover
@@ -2227,7 +2227,7 @@ export function Composer({
                 onClick={exitEditMode}
                 className="edit-last-turn-button flex h-6.5 shrink-0 items-center gap-1 rounded-md border border-current/20 px-2 text-[11px] font-medium transition-[background-color,color,border-color] hover:border-current/35 hover:bg-content/15 hover:text-content focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-ring"
               >
-                <X className="size-3" strokeWidth={1.8} />
+                <X className="size-3" />
                 <span>Cancel edit</span>
               </button>
             ) : null}
@@ -2333,9 +2333,9 @@ function FileMentionRuns({
                   colour back. */}
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 indent-0 text-mention">
                 {mentionKind(part.file.path) === "note" ? (
-                  <StickyNote className="size-3.5" strokeWidth={1.5} />
+                  <StickyNote className="size-3.5" />
                 ) : mentionKind(part.file.path) === "canvas" ? (
-                  <ExcalidrawIcon className="size-3.5" strokeWidth={1.5} />
+                  <ExcalidrawIcon className="size-3.5" />
                 ) : (
                   <FileTypeIcon
                     name={part.file.name}

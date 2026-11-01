@@ -64,11 +64,19 @@
     var(--color-content) var(--selection-emphasis-strength),
     transparent
   );
-  /* The accent is a fill first: white text on it passes 4.5:1. `-ring` is the
-     brighter hue for focus outlines, `-text` the readable form as text. */
-  --color-accent: hsl(211 70% 44%);
-  --color-accent-ring: hsl(211 92% 62%);
-  --color-accent-text: hsl(211 92% 68%);
+  /* The one accent is the open mentor's own colour (`--mentor-color`, set by
+     the app; the pink of Loci's icon before any mentor is open), the same hue
+     that tints its portrait. Everything else is ink on paper. `-ring` is the
+     focus outline, `-text` the hue mixed into ink so it reads as text, and
+     `tint` the pale wash behind what is selected. */
+  --color-accent: var(--mentor-color, hsl(330 70% 62%));
+  --color-accent-ring: var(--mentor-color, hsl(330 70% 62%));
+  --color-accent-text: color-mix(in srgb, var(--mentor-color, hsl(330 70% 62%)) 55%, var(--color-content));
+  --color-tint: color-mix(in srgb, var(--mentor-color, hsl(330 70% 62%)) 16%, transparent);
+  /* Three corners: 6px controls (rounded-md), 10px menus and cards
+     (rounded-lg / rounded-xl), and the portrait plate's own curve. */
+  --radius-lg: 10px;
+  --radius-xl: 10px;
   /* The learner's highlighter: only things they marked carry this hue. */
   --color-mark: hsl(48 90% 62%);
   --color-skill: #e8c547;
@@ -138,10 +146,10 @@
   --selection-emphasis-strength: 20%;
   --background-lightness: var(--theme-dark-lightness);
   --content-lightness: 92%;
-  --link-color: #7dd3fc;
+  --link-color: var(--color-content);
   --color-skill: #e8c547;
   --color-mention: #38bdf8;
-  --color-markdown-heading: #f9a8c9;
+  --color-markdown-heading: var(--color-content);
 }
 
 html {
@@ -151,11 +159,10 @@ html {
 html.theme-light {
   --background-lightness: 97%;
   --content-lightness: 18%;
-  --link-color: hsl(211 92% 40%);
-  --color-accent-text: hsl(211 92% 36%);
+  --link-color: var(--color-content);
   --color-skill: #a07c10;
   --color-mention: #0284c7;
-  --color-markdown-heading: #be185d;
+  --color-markdown-heading: var(--color-content);
   --selection-subtle-strength: 5%;
   --selection-strength: 6%;
   --selection-strong-strength: 7%;

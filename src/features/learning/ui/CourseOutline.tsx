@@ -15,7 +15,7 @@ export function statusLabel(status: LearningStatus, reading: boolean): string {
 }
 
 export function StatusMark({ status }: { status: LearningStatus }) {
-  return <span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? <Check className="size-2.5" strokeWidth={2.5} /> : null}</span>;
+  return <span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? <Check className="size-2.5" strokeWidth={3} /> : null}</span>;
 }
 
 /** Chapters and lessons with their read marks; selecting one opens it in the reader. */

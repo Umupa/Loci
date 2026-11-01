@@ -176,6 +176,13 @@ function Workspace(boot: BootWorkspace) {
   agentsRef.current = agents;
   const activeAgent = mentor.current ? agents.agents.find((agent) => agent.id === mentor.current!.agentId) : undefined;
   const focusedAgent = surface === "mentor" ? activeAgent : undefined;
+  // The interface takes the open mentor's colour as its one accent (index.css).
+  const mentorColor = activeAgent?.color;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (mentorColor) root.style.setProperty("--mentor-color", mentorColor);
+    else root.style.removeProperty("--mentor-color");
+  }, [mentorColor]);
   const selectAgent = agents.select;
   useEffect(() => selectAgent(focusedAgent?.id), [focusedAgent?.id, selectAgent]);
   // The window opens on the mentor it showed last, or the first one; removing

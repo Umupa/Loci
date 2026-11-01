@@ -23,16 +23,16 @@ export function FileCard({ path, cwd, title, detail, icon, onRetry }: {
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           {onRetry ? (
             <CardButton onClick={onRetry}>
-              <RotateCcw className="size-3" strokeWidth={1.5} />
+              <RotateCcw className="size-3" />
               Retry
             </CardButton>
           ) : null}
           <CardButton onClick={() => void openPathWithDefaultApp(path).catch(() => {})}>
-            <ExternalLink className="size-3" strokeWidth={1.5} />
+            <ExternalLink className="size-3" />
             Open with default app
           </CardButton>
           <CardButton onClick={() => void revealPath(path).catch(() => {})}>
-            <Folder className="size-3" strokeWidth={1.5} />
+            <Folder className="size-3" />
             Reveal
           </CardButton>
           <CardButton onClick={() => void copyText(path).catch(() => {})}>Copy path</CardButton>

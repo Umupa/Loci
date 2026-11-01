@@ -70,7 +70,7 @@ export function MentorSearch({ onPick, onClose, sources }: Props) {
       return agent ? <AgentAvatar name={agent.avatar} color={agent.color} className="size-4" /> : null;
     }
     const Icon = item.kind === "note" ? StickyNote : item.kind === "canvas" ? Palette : item.kind === "source" ? File : Mortarboard;
-    return <Icon className="size-3.5" strokeWidth={1.5} />;
+    return <Icon className="size-3.5" />;
   };
   const status = error ? error
     : !loaded ? "Loading…"
@@ -95,7 +95,7 @@ export function MentorSearch({ onPick, onClose, sources }: Props) {
         }
       }}>
       <label className="mentor-search-field">
-        <Search className="size-4 shrink-0 text-content/45" strokeWidth={1.5} />
+        <Search className="size-4 shrink-0 text-content/45" />
         <input ref={input} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search"
           role="combobox" aria-autocomplete="list" aria-expanded={results.length > 0}
           aria-label="Search" aria-controls="mentor-search-results" aria-activedescendant={results[active] ? `mentor-search-${active}` : undefined} />

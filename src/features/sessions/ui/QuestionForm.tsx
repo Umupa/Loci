@@ -132,7 +132,6 @@ export function QuestionForm({ prompt, onReply, onInteraction }: Props) {
         <div className="flex items-center gap-1.5">
           <MessageSquare
             className="size-3.5 shrink-0 text-content/45"
-            strokeWidth={1.5}
           />
           <span className="min-w-0 flex-1 truncate text-[11px] text-content/50">
             {title}

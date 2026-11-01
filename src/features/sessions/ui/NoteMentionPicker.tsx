@@ -103,9 +103,9 @@ export function NoteMentionPicker({
               >
                 <span className="shrink-0">
                   {kind === "note" ? (
-                    <StickyNote className="size-3.5" strokeWidth={1.5} />
+                    <StickyNote className="size-3.5" />
                   ) : kind === "canvas" ? (
-                    <ExcalidrawIcon className="size-3.5" strokeWidth={1.5} />
+                    <ExcalidrawIcon className="size-3.5" />
                   ) : (
                     <FileTypeIcon
                       name={file.name}

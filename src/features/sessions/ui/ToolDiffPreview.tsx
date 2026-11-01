@@ -82,7 +82,7 @@ export function ToolDiffPreview({
       <button
         ref={trigger}
         type="button"
-        className={`${className ?? ""} focus-visible:outline-2 focus-visible:outline-sky-400/60`}
+        className={`${className ?? ""} focus-visible:outline-2 focus-visible:outline-accent-ring`}
         aria-label={
           onOpen
             ? `Open ${label}`

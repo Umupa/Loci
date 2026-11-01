@@ -51,7 +51,6 @@ export function TurnProgress({
             <ChevronRight
               aria-hidden
               className={`size-3 transition-transform ${expanded ? "rotate-90" : ""}`}
-              strokeWidth={1.5}
             />
           </button>
         ) : null}

@@ -56,9 +56,9 @@ export function PlanPreview({
       <div className="flex items-start gap-2.5 px-3 py-2.5">
         <span data-plan-icon aria-hidden className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center text-content/40">
           {streaming ? (
-            <CircleDashed className="size-4" strokeWidth={1.5} />
+            <CircleDashed className="size-4" />
           ) : (
-            <AiIdea className="size-4" strokeWidth={1.5} />
+            <AiIdea className="size-4" />
           )}
         </span>
         <div className="min-w-0 flex-1">

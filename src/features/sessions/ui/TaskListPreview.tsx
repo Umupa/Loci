@@ -16,7 +16,6 @@ export function TaskListPreview({ items, explanation }: Props) {
       <div className="flex items-start gap-2 border-b border-stroke px-2.5 py-2">
         <ListEnd
           className="mt-0.5 size-4 shrink-0 text-content/45"
-          strokeWidth={1.5}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-3">
@@ -76,7 +75,7 @@ function TaskState({ status }: { status: TaskListItemStatus }) {
     return (
       <span
         aria-label="In progress"
-        className="mt-px grid size-4 shrink-0 place-items-center text-sky-300"
+        className="mt-px grid size-4 shrink-0 place-items-center text-accent-text"
       >
         <Loader
           className="size-4 motion-safe:animate-spin"
