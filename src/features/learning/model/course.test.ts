@@ -40,7 +40,8 @@ describe("generated course boundary", () => {
     chapters({ id: "pod", title: "Pod" }),
     chapters({ ...read("pod"), file: "/books/pod.pdf" }),
     chapters({ ...read("pod"), document: "../notes" }),
-    chapters({ ...read("pod"), pages: [1, 2] }),
+    chapters({ ...read("pod"), lines: [1, 2] }),
+    chapters({ ...read("pod"), pages: [1, 2], section: "Pod phase" }),
     chapters({ ...read("pod"), section: 42 }),
     chapters({ id: "borg", title: "Borg", file: "borg.pdf" }),
     chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", section: "Intro" }),
@@ -49,6 +50,20 @@ describe("generated course boundary", () => {
     chapters({ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: "3-9" }),
   ])("rejects malformed chapters or lessons: %j", (data) => {
     expect(parseCourse(courseSource("reading", data)).error).toBeTruthy();
+  });
+
+  it("opens a document kept as a PDF at its pages, by pages or the #p shorthand", () => {
+    const result = parseCourse(courseSource("reading", chapters(
+      { id: "paper", title: "Paper", document: "firecracker", pages: [7, 9] },
+      { id: "paper-again", title: "Paper again", document: "firecracker#p7" },
+      { id: "kvm", title: "KVM", document: "kvm#4.1 KVM_CREATE_VM" },
+    )));
+    expect(result.error).toBeUndefined();
+    expect(result.course?.data).toMatchObject({ chapters: [{ lessons: [
+      { document: "firecracker", pages: [7, 9] },
+      { document: "firecracker", pages: [7, 7] },
+      { document: "kvm", section: "4.1 KVM_CREATE_VM" },
+    ] }] });
   });
 
   it.each(["", "  ", undefined])("treats an empty section as a whole-document lesson: %j", (section) => {

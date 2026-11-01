@@ -470,5 +470,16 @@ function LessonDocument({ agentId, lesson, marksList, onMarks }: { agentId: stri
   const shown = loaded?.id === id ? loaded : undefined;
   if (!shown) return <p className="course-pane__relations">Opening…</p>;
   if (!shown.document) return <article className="course-pane__content"><h2>{lesson.title}</h2><p className="course-error" role="alert">{shown.error ? `Could not open this lesson's document: ${shown.error}` : `This lesson's document (${id}) is not in the library. Ask the agent to save it again.`}</p></article>;
+  // A source kept as a PDF is read in the PDF reader, where it can be highlighted.
+  if (shown.document.pdf) {
+    const pdf = shown.document.pdf;
+    const name = pdf.path.split(/[\\/]/).pop() || pdf.path;
+    const where = lesson.pages ? ` · ${lesson.pages[0] === lesson.pages[1] ? `page ${lesson.pages[0]}` : `pages ${lesson.pages[0]}–${lesson.pages[1]}`}` : "";
+    return <article className="course-pane__content" key={lesson.id}>
+      <h2>{lesson.title}</h2>
+      <p className="course-pane__summary" title={pdf.path}>{name}{where}</p>
+      <button type="button" className="course-button" onClick={() => requestOpenFile(pdf.path, lesson.pages ? { page: lesson.pages[0] } : undefined)}>Open to read</button>
+    </article>;
+  }
   return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id}><DocumentBody document={shown.document} agentId={agentId} section={lesson.section} bare marksList={marksList} onMarks={onMarks} /></article>;
 }

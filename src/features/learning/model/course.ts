@@ -110,19 +110,29 @@ function lesson(value: unknown, label: string): CourseLesson {
   const document = optionalString(raw.document, `${label} document`);
   const file = optionalString(raw.file, `${label} file`);
   if ((document === undefined) === (file === undefined)) throw new Error(`${label} must name exactly one of document or file.`);
-  if (document !== undefined) {
-    if (!/^[\p{L}\p{N}_-]{1,80}$/u.test(document)) throw new Error(`${label} document must be a document id.`);
-    if (raw.pages !== undefined || raw.lines !== undefined) throw new Error(`${label}: pages and lines belong to a file.`);
-    const section = typeof raw.section === "string" ? raw.section.trim() || undefined : optionalString(raw.section, `${label} section`);
-    return { ...base, document, ...(section ? { section } : {}) };
-  }
-  if (raw.section !== undefined) throw new Error(`${label}: section belongs to a document.`);
-  if (!/^(?:\/|[A-Za-z]:[\\/])/.test(file!)) throw new Error(`${label} file must be an absolute path.`);
-  if (raw.pages !== undefined && raw.lines !== undefined) throw new Error(`${label}: name pages or lines, not both.`);
   const range = (value: unknown, name: string): [number, number] => {
     if (!Array.isArray(value) || value.length !== 2 || !value.every((n) => Number.isSafeInteger(n) && n > 0) || value[1] < value[0]) throw new Error(`${label} ${name} must be [first, last].`);
     return [value[0], value[1]];
   };
+  if (document !== undefined) {
+    // A PDF source names a page (`document: paper#p7` or `pages: [7, 9]`); any other
+    // fragment is a heading, as `document: kvm#4.1 KVM_CREATE_VM` always was.
+    const hash = document.indexOf("#");
+    const documentId = (hash < 0 ? document : document.slice(0, hash)).trim();
+    const fragment = hash < 0 ? undefined : document.slice(hash + 1).trim();
+    if (!/^[\p{L}\p{N}_-]{1,80}$/u.test(documentId)) throw new Error(`${label} document must be a document id.`);
+    if (raw.lines !== undefined) throw new Error(`${label}: lines belong to a file.`);
+    const shorthand = fragment ? /^p([1-9]\d{0,5})(?:-([1-9]\d{0,5}))?$/.exec(fragment) : null;
+    const explicit = raw.pages === undefined ? undefined : range(raw.pages, "pages");
+    const pages = explicit ?? (shorthand ? [Number(shorthand[1]), shorthand[2] ? Number(shorthand[2]) : Number(shorthand[1])] as [number, number] : undefined);
+    const section = typeof raw.section === "string" ? raw.section.trim() || undefined : optionalString(raw.section, `${label} section`);
+    const heading = section ?? (fragment && !shorthand ? fragment : undefined);
+    if (heading && pages) throw new Error(`${label}: name a section or pages, not both.`);
+    return { ...base, document: documentId, ...(heading ? { section: heading } : {}), ...(pages ? { pages } : {}) };
+  }
+  if (raw.section !== undefined) throw new Error(`${label}: section belongs to a document.`);
+  if (!/^(?:\/|[A-Za-z]:[\\/])/.test(file!)) throw new Error(`${label} file must be an absolute path.`);
+  if (raw.pages !== undefined && raw.lines !== undefined) throw new Error(`${label}: name pages or lines, not both.`);
   if (raw.lines !== undefined) return { ...base, file, lines: range(raw.lines, "lines") };
   if (raw.pages === undefined) return { ...base, file };
   return { ...base, file, pages: range(raw.pages, "pages") };

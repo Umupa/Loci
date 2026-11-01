@@ -294,10 +294,18 @@ fn read_lesson(
     resolve: &dyn Fn(&str) -> Result<String, String>,
 ) -> Result<(), String> {
     if let Some(Value::String(document)) = lesson.get("document").cloned() {
-        if let Some((id, section)) = document.split_once('#') {
+        if let Some((id, fragment)) = document.split_once('#') {
             lesson.insert("document".into(), json!(id.trim()));
-            if !lesson.contains_key("section") && !section.trim().is_empty() {
-                lesson.insert("section".into(), json!(section.trim()));
+            let fragment = fragment.trim();
+            if !fragment.is_empty() {
+                // A PDF source names a page or a page range: `document: paper#p7`.
+                if let Some([from, to]) = page_span(fragment) {
+                    if !lesson.contains_key("pages") && !lesson.contains_key("section") {
+                        lesson.insert("pages".into(), json!([from, to]));
+                    }
+                } else if !lesson.contains_key("section") {
+                    lesson.insert("section".into(), json!(fragment));
+                }
             }
         }
     }
@@ -308,22 +316,14 @@ fn read_lesson(
         };
         if let Some(fragment) = fragment {
             let (key, range) = if let Some(range) = fragment.strip_prefix('L') {
-                ("lines", range)
-            } else if let Some(range) = fragment.strip_prefix('p') {
-                ("pages", range)
+                ("lines", place_span(range))
+            } else if fragment.starts_with('p') {
+                ("pages", page_span(&fragment))
             } else {
                 return Err(format!("Not a place in a file: #{fragment}"));
             };
+            let [from, to] = range.ok_or_else(|| format!("Not a range: #{fragment}"))?;
             if !lesson.contains_key(key) {
-                let (from, to) = range.split_once('-').unwrap_or((range, range));
-                let from: u32 = from
-                    .trim_start_matches('L')
-                    .parse()
-                    .map_err(|_| format!("Not a range: #{fragment}"))?;
-                let to: u32 = to
-                    .trim_start_matches('L')
-                    .parse()
-                    .map_err(|_| format!("Not a range: #{fragment}"))?;
                 lesson.insert(key.into(), json!([from, to]));
             }
         }
@@ -336,6 +336,19 @@ fn read_lesson(
         lesson.insert("file".into(), json!(absolute));
     }
     Ok(())
+}
+
+/// `12-40` → `[12, 40]`, `7` → `[7, 7]`; a range counts up from 1.
+fn place_span(range: &str) -> Option<[u32; 2]> {
+    let (from, to) = range.split_once('-').unwrap_or((range, range));
+    let from: u32 = from.trim().parse().ok()?;
+    let to: u32 = to.trim().parse().ok()?;
+    (from > 0 && to >= from).then_some([from, to])
+}
+
+/// `p7` → `[7, 7]`, `p7-9` → `[7, 9]`.
+fn page_span(fragment: &str) -> Option<[u32; 2]> {
+    place_span(fragment.strip_prefix('p')?)
 }
 
 /// `repos/<repo>@<sha>:path/in/repo` → `repos/<repo>/path/in/repo`.
@@ -680,6 +693,29 @@ mod tests {
             .starts_with("schemaVersion: 1\ntitle: Sandbox\nengine: reading\ncanvas: overview\n"));
         assert!(written.contains("file: repos/fc/src/lib.rs"));
         assert!(written.contains("  - id: a\n    title: API\n    document: kvm-api\n"));
+        let again = parse_course(&written, &resolve).unwrap();
+        let normalized = |raw: &str| serde_json::from_str::<Value>(raw).unwrap();
+        assert_eq!(normalized(&again.data_json), normalized(&course.data_json));
+    }
+
+    #[test]
+    fn a_document_lesson_can_name_a_pdf_page() {
+        let yaml = "title: Papers\nchapters:\n  - title: VM\n    lessons:\n      - id: a\n        title: A\n        document: firecracker#p7\n      - id: b\n        title: B\n        document: firecracker#p7-9\n      - id: c\n        title: C\n        document: kvm#4.1 KVM_CREATE_VM\n      - id: d\n        title: D\n        document: firecracker#p7\n        pages: [11, 12]\n";
+        let course = parse_course(yaml, &resolve).unwrap();
+        let data: Value = serde_json::from_str(&course.data_json).unwrap();
+        let lessons = &data["chapters"][0]["lessons"];
+        assert_eq!(lessons[0]["pages"], json!([7, 7]));
+        assert_eq!(lessons[1]["pages"], json!([7, 9]));
+        assert!(lessons[1].get("section").is_none());
+        assert_eq!(lessons[2]["section"], "4.1 KVM_CREATE_VM");
+        assert!(lessons[2].get("pages").is_none());
+        // An explicit range wins over the shorthand.
+        assert_eq!(lessons[3]["pages"], json!([11, 12]));
+        crate::course::validate_data(&course.engine, &course.data_json).unwrap();
+        let written = render_course(&course.title, &course.engine, &course.data_json, &|p| {
+            p.to_string()
+        })
+        .unwrap();
         let again = parse_course(&written, &resolve).unwrap();
         let normalized = |raw: &str| serde_json::from_str::<Value>(raw).unwrap();
         assert_eq!(normalized(&again.data_json), normalized(&course.data_json));

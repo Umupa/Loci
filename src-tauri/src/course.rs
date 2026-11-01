@@ -554,9 +554,13 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                 match (&lesson.document, &lesson.file) {
                     (Some(document), None) => {
                         validate_id_text(document)?;
-                        if lesson.pages.is_some() || lesson.lines.is_some() {
+                        if lesson.lines.is_some() {
+                            return Err(format!("Lesson {}: lines belong to a file", lesson.id));
+                        }
+                        // A document kept as a PDF opens at its pages.
+                        if lesson.section.is_some() && lesson.pages.is_some() {
                             return Err(format!(
-                                "Lesson {}: pages and lines belong to a file",
+                                "Lesson {}: name a section or pages, not both",
                                 lesson.id
                             ));
                         }
@@ -1065,7 +1069,6 @@ mod tests {
             (0, "document", json!(null)),
             (0, "document", json!("../notes")),
             (0, "file", json!("/home/u/also.pdf")),
-            (0, "pages", json!([1, 2])),
             (0, "lines", json!([1, 2])),
             (0, "section", json!(42)),
             (1, "file", json!("borg.pdf")),
@@ -1080,6 +1083,13 @@ mod tests {
             course.data_json = data.to_string();
             assert!(save_course(&conn, &course).is_err(), "{field}");
         }
+        // A document kept as a PDF opens at its pages; pages and a section
+        // never name the same place.
+        let mut paged = base.clone();
+        paged["chapters"][0]["lessons"][0]["pages"] = json!([7, 9]);
+        crate::course::validate_data("reading", &paged.to_string()).unwrap();
+        paged["chapters"][0]["lessons"][0]["section"] = json!("Intro");
+        assert!(crate::course::validate_data("reading", &paged.to_string()).is_err());
         let mut neither = base.clone();
         neither["chapters"][0]["lessons"][0]
             .as_object_mut()
