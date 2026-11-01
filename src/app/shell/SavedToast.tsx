@@ -4,7 +4,8 @@ import { LAYER } from "../../shared/lib/layers";
 
 export type SavedToastData =
   | { type: "canvas"; id: string; title: string }
-  | { type: "note"; id: string };
+  /** The mentor that owns the note, so Open still finds it after a mentor switch. */
+  | { type: "note"; id: string; agentId?: string };
 
 type Props = {
   toast: SavedToastData;

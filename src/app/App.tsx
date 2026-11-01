@@ -546,7 +546,7 @@ function Workspace(boot: BootWorkspace) {
     onQueuedMessageEditingChange: submission.queuedMessageEditingChange, onSteerQueuedMessage: submission.steerQueuedMessage, onResumeQueue: submission.resumeQueue,
     onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
     onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((entry) => entry.id === id ? { ...entry, noteCard: undefined } : entry)),
-    onNoteSaved: (noteId: string) => setSavedToast({ type: "note", id: noteId }),
+    onNoteSaved: (noteId: string) => setSavedToast({ type: "note", id: noteId, agentId: agentForSession(session.id)?.id }),
     onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
     onOpenFile: openAgentFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
     onBtwStop: submission.btwStop, onBtwModelChange: submission.btwModelChange,
@@ -636,7 +636,11 @@ function Workspace(boot: BootWorkspace) {
         <SavedToast
           toast={savedToast}
           onDismiss={() => setSavedToast(null)}
-          onOpen={(t) => { void showInMentor(t.type === "canvas" ? { kind: "canvas", id: t.id } : { kind: "note", id: t.id }).catch(reportError); }}
+          onOpen={(t) => {
+            // A note still belongs to the mentor it was saved in, whichever mentor is open now.
+            const owner = t.type === "note" ? t.agentId : undefined;
+            void showInMentor(t.type === "canvas" ? { kind: "canvas", id: t.id } : { kind: "note", id: t.id }, owner).catch(reportError);
+          }}
         />
       )}
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}

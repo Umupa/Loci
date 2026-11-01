@@ -102,6 +102,11 @@ beforeEach(async () => {
     if (command === "course_list_all") return [];
     if (command === "notes_list") return notes.filter((note) => !input.agentId || note.agentId === input.agentId);
     if (command === "notes_get") return notes.find((note) => note.id === input.id) ?? null;
+    if (command === "notes_upsert") {
+      const saved = { ...(args as { note: Note }).note, slug: "note", slugPending: true, createdAt: 1, updatedAt: 2 };
+      notes.push(saved);
+      return saved;
+    }
     if (command === "canvas_list") return [canvas];
     if (command === "canvas_get") return input.id === canvas.id ? canvas : null;
     if (command === "course_get") return { id: input.id, agentId: input.agentId, title: "Kubernetes",
@@ -427,6 +432,20 @@ it("shows a session a mentor started in the reader, and never on its own", async
   await settle(() => expect(reader().querySelector('[data-pane-id="delegated"]')?.textContent).toContain("The jailer chroots first."));
   expect(workspace().querySelector(".mentor-breadcrumb")?.textContent).toBe("AdaDelegated work");
   expect(pane("chat-a")).not.toBeNull();
+});
+
+it("opens a saved note in the mentor that owns it after switching mentors", async () => {
+  sessions[0] = { ...sessions[0], blocks: sessions[0].blocks.map((block) => block.role === "user" ? { ...block, durationMs: 1000 } : block) };
+  await renderMentor("Ada");
+  await settle(() => expect(pane("chat-a").querySelector('button[aria-label="Save as note"]')).not.toBeNull(), 10000);
+  await act(async () => pane("chat-a").querySelector<HTMLButtonElement>('button[aria-label="Save as note"]')!.click());
+  const openToast = () => [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Open");
+  await settle(() => expect(openToast()).toBeDefined(), 3000);
+  await click(railButton("Bea"));
+  await settle(() => expect(workspace().dataset.mentorWorkspace).toBe("agent-b"));
+  await click(openToast()!);
+  await settle(() => expect(workspace().dataset.mentorWorkspace).toBe("agent-a"));
+  await settle(() => expect(reader().querySelector("[data-test-note]")).not.toBeNull());
 });
 
 it("opens links in a mentor's reply in its reader, once, at the linked lines", async () => {
