@@ -7,8 +7,10 @@ export type MentorFilesSectionProps = {
   onOpenFile: (path: string) => void;
   onFileMoved?: (from: string, to: string) => void;
   onFileDeleted?: (path: string) => void;
-  /** The library's filter, applied to the working folder. */
+  /** The library's filter, applied to every folder. */
   filter?: string;
+  /** Clears that filter, as choosing a folder from its matches does. */
+  onClearQuery?: () => void;
 };
 
 /** The mentor's working folder (and any other folders it was given) in the library. */
