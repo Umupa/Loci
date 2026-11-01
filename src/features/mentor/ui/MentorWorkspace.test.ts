@@ -307,6 +307,14 @@ it("shows one segment at a time, remembered per mentor, and ignores an old mento
   expect(container.querySelector('[aria-label="Chat with Ada"]')).not.toBeNull();
 });
 
+it("starts a newly chosen segment at its top", async () => {
+  await render();
+  const panel = () => container.querySelector<HTMLElement>(".mentor-library-panel")!;
+  panel().scrollTop = 180;
+  await tab("files");
+  expect(panel().scrollTop).toBe(0);
+});
+
 it("filters only the segment it was typed in, and moves through a list with the arrow keys", async () => {
   notes = [{ id: "n1", slug: "n1", title: "Pods by hand", body: "", tags: [], agentId: agent.id, createdAt: 1, updatedAt: 5 } as Note];
   await render();

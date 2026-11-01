@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
 import { File, Palette, Plus, Search, StickyNote, X } from "../../../shared/ui/icons";
 import type { Canvas } from "../../canvas/canvas";
@@ -60,6 +60,8 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
   const segment = chosen ?? defaultSegment(data, page);
+  // A new segment starts at its first row, not at the old list's offset.
+  useLayoutEffect(() => { if (panel.current) panel.current.scrollTop = 0; }, [segment]);
   const query = filter?.segment === segment ? filter.text : "";
   // Only the segment being shown reports its own load failure.
   const failure = segment === "courses" ? errors.courses
