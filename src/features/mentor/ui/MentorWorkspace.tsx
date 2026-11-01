@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { MentorViewState } from "../../../app/hooks/useMentorView";
 import { useDragResize } from "../../../shared/hooks/useDragResize";
 import { MessageSquare, SidebarLeft, X } from "../../../shared/ui/icons";
@@ -15,7 +15,9 @@ import { moveFileDrafts, setFileDraft } from "../../files/model/fileDrafts";
 import { loadCourse } from "../../learning/model/course";
 import { createNote, getNote } from "../../notes";
 import { readingOf, type MentorLesson, type MentorPage } from "../model/mentorPage";
+import { noveltyKey, pageNoveltyKey } from "../model/libraryNovelty";
 import type { CourseBadge } from "./LibraryCourses";
+import { useLibraryNovelty } from "./useLibraryNovelty";
 import { useReadingPlace } from "./useReadingPlace";
 import { MentorLibrary, type LibraryChange } from "./MentorLibrary";
 import { MentorReader } from "./MentorReader";
@@ -47,6 +49,8 @@ type Props = {
   state: MentorViewState;
   /** The conversation, rendered by the app with its session wiring. */
   chat: ReactNode;
+  /** Whether the mentor's current turn is running; a new library item is marked while it is. */
+  busy?: boolean;
   /** Ahead of the leftmost column's header, when the workspace is the window's left edge. */
   leading?: ReactNode;
   /** At the end of the rightmost column's header, such as the window's buttons. */
@@ -93,8 +97,25 @@ export async function restoredPageExists(agentId: string, page: MentorPage): Pro
  * the middle and the conversation on the right. Opening anything replaces
  * what the reader showed; nothing opens beside it.
  */
-export function MentorWorkspace({ agent, state, chat, leading, trailing, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onLibraryChange, onDraft, courseBadge, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle }: Props) {
+export function MentorWorkspace({ agent, state, chat, busy = false, leading, trailing, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onLibraryChange, onDraft, courseBadge, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle }: Props) {
   const { data, errors, reload } = useAgentResources(agent.id);
+  // Every listing has to be readable before the first of them can serve as the
+  // turn's baseline; otherwise a slow one looks like a batch of new items.
+  const noveltyKeys = useMemo(() => {
+    if (!data.documents || !data.courses || !data.notes) return undefined;
+    return [
+      ...data.documents.map((document) => noveltyKey("document", document.id)),
+      ...data.courses.map((course) => noveltyKey("course", course.id)),
+      ...data.notes.map((note) => noveltyKey("note", note.id)),
+    ];
+  }, [data.documents, data.courses, data.notes]);
+  const novelty = useLibraryNovelty(busy, noveltyKeys);
+  const visiblePageKey = pageNoveltyKey(state.page);
+  useEffect(() => {
+    if (visiblePageKey) novelty.markOpened(visiblePageKey);
+  }, [visiblePageKey, novelty.markOpened]); // eslint-disable-line react-hooks/exhaustive-deps
+  const isNew = (kind: "document" | "course" | "note" | "canvas", id: string) =>
+    novelty.isNew(noveltyKey(kind, id));
   const body = useRef<HTMLDivElement>(null);
   const save = useRef<(() => Promise<boolean>) | null>(null);
   /** The widths the app remembers, so each drag limit counts the other column as it is now. */
@@ -224,6 +245,7 @@ export function MentorWorkspace({ agent, state, chat, leading, trailing, canvase
       {narrowLibrary && state.library ? <div className="mentor-library-scrim" aria-hidden="true" onPointerDown={onToggleLibrary} /> : null}
       <aside ref={library.setPaneRef} className="mentor-library-column" hidden={!state.library} aria-label="Outline and library">
         <MentorLibrary agent={agent} headerLeading={leading} headerEnd={libraryToggle} data={data} errors={errors} onRetry={reload} page={state.page} lesson={state.lesson}
+          isNew={isNew}
           onOpen={open} onNewNote={() => void newNote()} creatingNote={creating} onOpenFile={(path) => open({ kind: "file", path })}
           onFileMoved={fileMoved} onFileDeleted={fileDeleted}
           segment={state.segment} course={state.course} filter={state.filter} onChange={onLibraryChange} onDraft={onDraft} courseBadge={courseBadge} />

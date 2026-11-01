@@ -49,6 +49,8 @@ type Props = {
   onDraft: (text: string) => void;
   /** Room after a course's or a lesson's title, for counts such as highlights. */
   courseBadge?: CourseBadge;
+  /** A source, guide, course or note saved by the turn that is running now. */
+  isNew?: (kind: "document" | "course" | "note" | "canvas", id: string) => boolean;
 };
 
 /**
@@ -68,7 +70,7 @@ export function defaultSegment(page?: MentorPage): LibrarySegment {
  * shows the course being learned and where to continue; Sources, Notes (with
  * drawings) and Files are one list each, with a filter for that list.
  */
-export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, onFileMoved, onFileDeleted, segment: chosen, course, filter, onChange, onDraft, courseBadge }: Props) {
+export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, onFileMoved, onFileDeleted, segment: chosen, course, filter, onChange, onDraft, courseBadge, isNew }: Props) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
   const segment = chosen ?? defaultSegment(page);
@@ -132,6 +134,7 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
   if (segment === "courses") {
     body = <LibraryCourses agent={agent} courses={data.courses} selected={course} page={page} lesson={lesson}
       onOpen={onOpen} onSelect={(courseId) => onChange({ course: courseId })} onDraft={onDraft} badge={courseBadge}
+      isNew={(courseId) => isNew?.("course", courseId) ?? false}
       error={failure} onRetry={onRetry} />;
   } else if (segment === "files") {
     body = MentorFilesSection ? <MentorFilesSection agentId={agent.id} filter={query} onOpenFile={(path) => onOpenFile(path)}
@@ -139,6 +142,7 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
   } else {
     const entries = segment === "sources" ? sources : notes;
     body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={onOpen}
+      isNew={(entry) => isNew?.(entry.kind, entry.id) ?? false}
       subject={segment === "sources" ? "sources" : "notes"} error={failure} onRetry={onRetry}
       empty={segment === "sources" ? `First-hand material ${agentLook(agent).name} saves, and guides it writes, appear here.` : "Your notes and drawings appear here."} />;
   }

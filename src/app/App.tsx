@@ -615,6 +615,7 @@ function Workspace(boot: BootWorkspace) {
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
           {surface === "mentor" && mentor.current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
             <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)}
+              busy={!!sessions.find((entry) => entry.id === mentor.current?.sessionId)?.busy}
               courseBadge={(courseId, lessonId) => <LessonMarks agentId={focusedAgent.id} courseId={courseId} lessonId={lessonId} />}
               trailing={IS_MAC ? undefined : <WindowControls />}
               canvases={canvases}

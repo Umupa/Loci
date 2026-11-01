@@ -3,7 +3,12 @@ import type { MentorPage } from "../model/mentorPage";
 import { listKeyDown } from "./listKeys";
 
 export type LibraryEntry = {
-  kind: string; id: string; icon: ReactNode; title: string; subtitle: string; target: MentorPage;
+  kind: "document" | "note" | "canvas" | "course";
+  id: string;
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  target: MentorPage;
   /** A heading the row is listed under; rows of one group are kept together, in the order given. */
   group?: string;
 };
@@ -27,6 +32,8 @@ type Props = {
   /** Why this list could not be read, if it could not. */
   error?: string;
   onRetry?: () => void;
+  /** A row saved by the turn that is running now. */
+  isNew?: (entry: LibraryEntry) => boolean;
 };
 
 /** A list that failed to load, said in the panel that wanted it. */
@@ -38,7 +45,7 @@ export function LibraryLoadError({ subject, onRetry }: { subject: string; onRetr
 }
 
 /** One kind of thing the mentor keeps, filtered; ↑/↓ move between rows. */
-export function LibraryList({ entries, query, isCurrent, onOpen, empty, subject, error, onRetry }: Props) {
+export function LibraryList({ entries, query, isCurrent, onOpen, empty, subject, error, onRetry, isNew }: Props) {
   if (entries === undefined && error) return <LibraryLoadError subject={subject} onRetry={onRetry} />;
   if (entries === undefined) return <p role="status" className="mentor-library-empty">Loading…</p>;
   if (!entries.length) return <>
@@ -52,11 +59,12 @@ export function LibraryList({ entries, query, isCurrent, onOpen, empty, subject,
     {shown.map((entry, at) => <Fragment key={`${entry.kind}:${entry.id}`}>
       {entry.group && entry.group !== shown[at - 1]?.group ? <p className="mentor-library-group" data-library-group={entry.group}>{entry.group}</p> : null}
       <button type="button" className="mentor-library-row" data-library-item
-      data-resource-kind={entry.kind} data-resource-id={entry.id} aria-label={`${entry.kind}: ${entry.title}`}
+      data-resource-kind={entry.kind} data-resource-id={entry.id} data-library-new={isNew?.(entry) || undefined}
+      aria-label={`${entry.kind}: ${entry.title}${isNew?.(entry) ? " (new)" : ""}`}
       aria-current={isCurrent(entry.target) || undefined} title={entry.subtitle ? `${entry.title}\n${entry.subtitle}` : entry.title}
       onClick={() => onOpen(entry.target)}>
       <span aria-hidden className="mentor-library-icon">{entry.icon}</span>
-      <span className="mentor-library-copy"><span className="mentor-library-title">{entry.title}</span>{entry.subtitle ? <span className="mentor-library-subtitle">{entry.subtitle}</span> : null}</span>
+      <span className="mentor-library-copy"><span className="mentor-library-title"><span className="mentor-library-title-text">{entry.title}</span>{isNew?.(entry) ? <span className="mentor-library-new">New</span> : null}</span>{entry.subtitle ? <span className="mentor-library-subtitle">{entry.subtitle}</span> : null}</span>
     </button></Fragment>)}
   </div>;
 }

@@ -59,10 +59,10 @@ const agent: Agent = { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: 
 const other: Agent = { ...agent, id: "agent-b", sessionId: "chat-b", name: "Bea" };
 const courseData = JSON.stringify({ engine: "reading", chapters: [{ title: "Workloads", lessons: [{ id: "pod", title: "Pod", document: "doc" }, { id: "service", title: "Service", document: "doc" }] }] });
 
-function Host({ owner = agent }: { owner?: Agent }) {
+function Host({ owner = agent, busy = false }: { owner?: Agent; busy?: boolean }) {
   control = useMentorView();
   return createElement(MentorWorkspace, {
-    key: owner.id, agent: owner, state: control.stateFor(owner.id), chat: createElement(TestChat, { id: owner.id }), canvases: drawings,
+    key: owner.id, agent: owner, state: control.stateFor(owner.id), chat: createElement(TestChat, { id: owner.id }), canvases: drawings, busy,
     onOpen: (page) => control.show(owner.id, page), onClose: () => control.close(owner.id),
     onLessonChange: (lesson) => control.setLesson(owner.id, lesson), onRestoredChecked: (page, exists) => control.confirmRestored(owner.id, page, exists),
     onToggleLibrary: () => control.toggleLibrary(owner.id), onLibraryChange: (change) => control.openLibrary(owner.id, change), onDraft: (text) => drafts.push(text), onToggleChat: () => control.toggleChat(owner.id),
@@ -71,7 +71,7 @@ function Host({ owner = agent }: { owner?: Agent }) {
     renderSession: (id) => createElement("section", { "data-test-session": id }), sessionTitle: () => "Delegated work",
   });
 }
-async function render(owner = agent) { await act(async () => root.render(createElement(Host, { owner }))); }
+async function render(owner = agent, busy = false) { await act(async () => root.render(createElement(Host, { owner, busy }))); }
 async function click(selector: string) { await act(async () => container.querySelector<HTMLButtonElement>(selector)!.click()); }
 const tab = (segment: string) => click(`[role="tab"][data-segment="${segment}"]`);
 const reader = () => container.querySelector<HTMLElement>("[data-mentor-reader]")!;
@@ -479,4 +479,28 @@ it("lists the mentor's working folder under Files and opens a file from it in th
   await render(other);
   await tab("files");
   expect(container.querySelector('[data-test-files="agent-b"]')).not.toBeNull();
+});
+
+it("marks a source the running turn just saved until it is opened", async () => {
+  await render();
+  await tab("sources");
+  await vi.waitFor(() => expect(container.querySelector('[data-resource-id="doc"]')).not.toBeNull());
+  expect(container.querySelector('[data-resource-id="doc"]')!.hasAttribute("data-library-new")).toBe(false);
+
+  await render(agent, true);
+  documents = [
+    ...documents,
+    { id: "virtio", title: "Virtio 1.2 — Virtqueues", subject: "Virtualization", sourceUrl: "https://docs.oasis-open.org/virtio", updatedAt: 3, createdAt: 3 },
+  ];
+  await act(async () => window.dispatchEvent(new CustomEvent("loci:agent-documents-changed")));
+  await vi.waitFor(() => expect(container.querySelector('[data-resource-id="virtio"]')).not.toBeNull());
+  const row = container.querySelector<HTMLElement>('[data-resource-id="virtio"]')!;
+  expect(row.hasAttribute("data-library-new")).toBe(true);
+  expect(row.querySelector(".mentor-library-new")?.textContent).toBe("New");
+
+  await click('[data-resource-id="virtio"]');
+  expect(container.querySelector('[data-resource-id="virtio"]')!.hasAttribute("data-library-new")).toBe(false);
+
+  await render(agent, false);
+  expect(container.querySelector('[data-resource-id="virtio"]')!.hasAttribute("data-library-new")).toBe(false);
 });

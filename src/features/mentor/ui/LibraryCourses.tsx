@@ -30,6 +30,8 @@ type Props = {
   /** Why the course listing could not be read, if it could not. */
   error?: string;
   onRetry?: () => void;
+  /** A course saved by the turn that is running now. */
+  isNew?: (courseId: string) => boolean;
 };
 
 /**
@@ -37,7 +39,7 @@ type Props = {
  * mentor for another), how far through it is, and its outline. The outline's
  * current lesson and the reader's own next/previous are where to continue.
  */
-export function LibraryCourses({ agent, courses: listed, selected, page, lesson, onOpen, onSelect, onDraft, badge, error, onRetry }: Props) {
+export function LibraryCourses({ agent, courses: listed, selected, page, lesson, onOpen, onSelect, onDraft, badge, error, onRetry, isNew }: Props) {
   const name = agentLook(agent).name;
   const open = page?.kind === "course" ? page.course : undefined;
   const courses = useMemo(() => {
@@ -62,13 +64,13 @@ export function LibraryCourses({ agent, courses: listed, selected, page, lesson,
     {error ? <LibraryLoadError subject="courses" onRetry={onRetry} /> : null}
     <CourseView key={current.id} agent={agent} name={name} courses={courses} current={current}
       activeId={open?.courseId === current.id ? lesson?.id ?? open.itemId ?? null : null}
-      onOpen={onOpen} onSelect={onSelect} onDraft={onDraft} badge={badge} />
+      onOpen={onOpen} onSelect={onSelect} onDraft={onDraft} badge={badge} isNew={isNew?.(current.id) ?? false} />
   </>;
 }
 
-function CourseView({ agent, name, courses, current, activeId, onOpen, onSelect, onDraft, badge }: {
+function CourseView({ agent, name, courses, current, activeId, onOpen, onSelect, onDraft, badge, isNew }: {
   agent: Agent; name: string; courses: CourseSummary[]; current: CourseSummary; activeId: string | null;
-  onOpen: Props["onOpen"]; onSelect: Props["onSelect"]; onDraft: Props["onDraft"]; badge?: CourseBadge;
+  onOpen: Props["onOpen"]; onSelect: Props["onSelect"]; onDraft: Props["onDraft"]; badge?: CourseBadge; isNew?: boolean;
 }) {
   const { course, error } = useLiveCourse(current.id, agent.id);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
@@ -97,12 +99,13 @@ function CourseView({ agent, name, courses, current, activeId, onOpen, onSelect,
 
   const progress = course ? courseProgress(course) : { read: current.masteredCount, total: current.itemCount };
   const reading = (course?.data.engine ?? current.engine) === "reading";
-  return <div className="library-course" data-library-course={current.id}>
+  return <div className="library-course" data-library-course={current.id} data-library-new={isNew || undefined}>
     <div className="library-course-head">
       <button type="button" className="library-switcher" aria-haspopup="menu" aria-expanded={menu ? true : undefined}
-        aria-label={`Course: ${current.title}. Switch course`} title={current.title}
+        aria-label={`Course: ${current.title}. Switch course${isNew ? " (new)" : ""}`} title={current.title}
         onClick={(event) => { const anchor = event.currentTarget; setMenu((shown) => shown ? null : anchor); }}>
         <span className="library-switcher-title">{course?.title ?? current.title}</span>
+        {isNew ? <span className="mentor-library-new">New</span> : null}
         <ChevronDown aria-hidden className="size-3 shrink-0 opacity-60" />
       </button>
       {badge?.(current.id)}

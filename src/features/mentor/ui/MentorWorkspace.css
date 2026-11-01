@@ -55,7 +55,9 @@
 .mentor-library-icon { display: grid; flex: none; place-items: center; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
 .mentor-library-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .mentor-library-title, .mentor-library-subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mentor-library-title { font-size: 13px; line-height: 20px; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
+.mentor-library-title { display: flex; min-width: 0; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
+.mentor-library-title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mentor-library-new { flex: none; padding: 1px 4px; border-radius: 999px; font-size: 9px; font-weight: 600; line-height: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-accent-text); background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
 .mentor-library-subtitle { font-size: 11px; line-height: 15px; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .mentor-library-group { margin: 8px 8px 2px; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .mentor-library-group:first-child { margin-top: 2px; }
