@@ -19,6 +19,7 @@
 pub mod format;
 pub mod fsio;
 pub mod index;
+pub mod migrate;
 pub mod paths;
 pub mod registry;
 
