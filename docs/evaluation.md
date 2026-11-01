@@ -37,6 +37,10 @@ scripts/eval/qa-app.sh down       # quit it, delete its data dirs and the empty 
 | `--out DIR` | `eval/results/<timestamp>` | git-ignored |
 | `--keep` | off | keep the mentors instead of deleting them |
 
+**Mentors on grok.** A fresh QA app lists only grok's built-in models until a grok conversation is on screen, so `--model grok:deepseek-flash` fails with "Unknown model". Warm it up once after `up`: `"$BIN" mentors create --name warm --provider grok --workdir "$(mktemp -d)" --switch`, wait until `models list` shows `grok:deepseek-flash`, then `mentors delete warm --yes`.
+
+**Antigravity's region check.** Since 2026-11-01 (later that day) Antigravity also refuses this location inside Loci's adapter ("User location is not supported for the API use"). The runner records that reply as a finished turn, so check the conversation before trusting an agy run.
+
 A run whose mentors are not on agy is labelled **Provisional, non-agy** in its summary; a run with agy mentors and another judge says which judge. It checks the harness and gives early findings; it is not the baseline. Node 22.18 or later is needed: the scorer imports the reader's TypeScript directly.
 
 ## What one scenario does
@@ -89,6 +93,30 @@ Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyD
 No full official run yet. The full run below has mentors on grok, so it is **provisional**: it checks the harness and records findings for the template rewrite. One scenario, `k8s-scheduling`, was run the recommended official way (mentors on agy inside Loci, judge on grok) to show that route works. Run `scripts/eval/baseline.sh` for the full official baseline and replace this section with its summary.
 
 Read the rubric scores with care. Grok's default model on this machine (`deepseek-flash`) is the only judge that ran, and it is lenient: it gave firecracker 5/5 for grounding although no reply has a clickable citation. Trust the automatic columns more than the rubric until the pinned agy judge runs.
+
+### Template rewrite, before and after (2026-11-01)
+
+The Mentor and Lens templates were rewritten from the findings below (English templates; at most one scoping question, then reading; verbatim sources pinned to a commit or version, own writing via `guides.write`; clickable anchors copied from the text; 6–12 lessons; Lens sends the course first and saves the project's own prose as sources; no quizzing unless asked). Templates after: `learning-guide` dc365f9635, `repo-lens` c2b43b3c5a.
+
+**Provisional, non-agy.** The run was meant to have mentors on agy, but Antigravity now refuses this location in Loci's adapter too ("User location is not supported for the API use"), so both turns failed. The after run therefore has mentors on `grok:deepseek-flash` and grok as judge, the same setup as the provisional run below, which is the like-for-like "before". The k8s agy run is listed for reference only. The old tokio template was not re-run on agy.
+
+| Scenario | Run | Questions before reading | First source | Course | Lessons | Citations ok (quoted ok) | Reply language | Sources (first-hand) | First-hand | Course | Grounding | First 10 min |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| k8s-scheduling | before, agy (ref.) | 5 over 3 turns + nudge | 10.7m | 10.7m | 9 | 12/13 (2/3) | English | 1 | 4 | 4 | 4 | 2 |
+| k8s-scheduling | before, grok | 2 | 5.8m | 5.8m | 21 | 2/2 (1/1) | English | 7 | 5 | 5 | 4 | 5 |
+| k8s-scheduling | **after, grok** | **0** | **3.6m** | **3.6m** | **12** | **15/15 (3/3)** | English | 5, pinned to commits | 5 | 4 | **5** | 5 |
+| tokio-scheduler | before, grok | 1 | — (no source) | 5.2m | 9 | 58/58 (—) | **Chinese** | 0 | 4 | 4 | 4 | 5 |
+| tokio-scheduler | **after, grok** | **0** | **4.7m** | **4.7m** | **12** | 24/24 (—) | **English** | **3 (README, runtime and worker docs) at b499257** | 4 | **5** | 4 | 5 |
+
+What changed, read from the artifacts:
+
+- **Reading first.** k8s asked nothing (the opening was clear enough) and the first reply carried 5 sources, the course and four opened file lessons. Lens answered in one turn with sources and course.
+- **Language.** All four replies are English (0 CJK characters); before, tokio and cubesandbox replied in Chinese.
+- **Citations.** k8s: 15 links in both replies, 3 quoted, all resolve (before: 2 links). The probe answer quotes the KEP's Filter and PreFilter definitions and marks its tie-break claim as inference. Lens still cites code by line only (no `quote=`), all resolving.
+- **Pinned.** Every source has a commit-pinned `sourceUrl` and a `version` (`b499257`, `docs dev-1.37, commit aebe074`, `k/enhancements commit a904b50, fetched 2026-11-01`); the Lens course is titled `tokio @ b499257`.
+- **Course length.** 12 and 12 (before: 21 and 9). One order note in k8s (the extension-points lesson after PostFilter).
+- **Lens course first.** The course and the brief arrive in the same turn, so "first reply" still includes the brief; the judge now asks to replace the brief lesson with a first-hand one.
+- No summaries flagged as sources, no quiz before reading, no failures.
 
 ### Mentors on agy, judge on grok, one scenario (2026-11-01)
 
