@@ -4,6 +4,25 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **A learning language.** Settings → General → Learning language (Follow my messages, 简体中文 or English) fixes what mentors write in: replies, course and lesson titles, guides, notes and reports, whatever language their sources are in. A term's original is given the first time it appears. Each mentor can choose its own in its settings. From a terminal: `loci settings set learningLanguage zh-CN` and `loci mentors update <mentor> --language en`.
+- **Read a source in your language, beside the original.** Mentors translate the sections your lessons open (`documents.translate`; `loci sources translate` from a terminal), keeping the headings and leaving code untouched. The reader switches between the translation, the Original and Both, part by part; untranslated parts show in the original, out-of-date ones are marked, and **Ask … to translate** puts the request to your mentor. The original is never changed and stays what is cited, quoted and highlighted. PDF sources are not translated yet.
+- **Edit notes as they read.** Notes open in an Edit view where Markdown takes shape as you type (headings, lists, tasks, quotes, code, tables, links and pictures); Source is one tab away. A note you only open is never rewritten.
+- **Choose where "Add to notes" goes.** The first time, pick a new note or one you already have; after that the button names where it goes last, with a chevron to change it. Remembered per mentor.
+- **Full-width text** in the ··· menu of lessons and documents lets the text run the width of its column.
+
+### Changed
+
+- A new app icon: Dew, a mentor's ink portrait, on pink. Loci Dev wears it on blue.
+- One accent, taken from the open mentor's color: the selected lesson, the progress bar, reading marks, switches and focus rings follow whoever you are reading with. Links are ink with an underline in that color, and headings are ink.
+- Reading status is one ink ring: empty, half filled while reading, solid with a tick once read.
+- Icons are drawn at one, slightly heavier line weight, and corners come in three sizes.
+- The lesson menu no longer offers "Mark as read" for readings (reaching the end marks them); it shows the highlight count as a badge and full-width text as a ticked setting.
+- The mentor rail is narrower (60px on macOS); the window buttons sit a little closer together to fit.
+- A mentor's **Other folders** lines up with the rows above it, with an Add folder button and each folder's path.
+- The mentor settings button has its own icon, apart from the app's Settings.
+
 ## [0.4.0] - 2026-11-01
 
 ### Added
