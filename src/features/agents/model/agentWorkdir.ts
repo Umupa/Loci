@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { findAgent, updateAgent, type Agent } from "./agent";
+import { rosterSettled } from "./mentorStore";
 import { defaultAgentName } from "./agentAvatars";
 import { pathKey } from "../../../shared/lib/paths";
 
@@ -47,6 +48,8 @@ export function ensureAgentWorkdir(agentId: string): Promise<string> {
 }
 
 async function resolveWorkdir(agentId: string): Promise<string> {
+  // A new mentor is given its folder (and with it its workdir) by Rust.
+  if (!findAgent(agentId)?.workdir) await rosterSettled();
   const agent = findAgent(agentId);
   if (!agent) throw new Error("No such agent");
   if (agent.workdir) return invoke<string>("agent_workdir_ensure", { path: agent.workdir });

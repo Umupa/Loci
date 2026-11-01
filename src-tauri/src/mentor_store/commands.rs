@@ -1,0 +1,645 @@
+//! The Tauri commands of mentors' folders: the roster, the migration, the
+//! index and search. The window keeps a copy of the roster in localStorage
+//! (so its synchronous reads keep working, and so an older Loci still finds
+//! it after a downgrade); the registry and `mentor.json` are the truth.
+
+use std::path::{Path, PathBuf};
+
+use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Map, Value};
+use tauri::{AppHandle, Emitter, Manager, State};
+
+use super::index::{self, Row};
+use super::migrate::{self, MigrateEnv, MigrateInput, Report};
+use super::paths::{self, Kind, MENTOR_FILE, REMOVED_MENTOR_FILE, SHARED_REPOS};
+use super::registry::{self, MentorRecord};
+use super::{ctx_for, MentorCtx, MentorsRoot};
+use crate::session_store::{now_millis, SessionStore};
+
+pub const MENTORS_CHANGED: &str = "loci:mentors-changed";
+pub const CONTENT_CHANGED: &str = "loci:mentor-content-changed";
+
+const LOCAL_FLAGS: [&str; 3] = [
+    "accessMigrated",
+    "showStartedSessionsInSidebar",
+    "useSidebarFolders",
+];
+
+/// Sets the mentors root for this build. Debug builds and QA bundles take
+/// `LOCI_MENTORS_ROOT`; the installed app always uses `~/Loci`.
+pub fn init(app: &AppHandle) -> Result<(), String> {
+    let home = crate::dirs_home().ok_or("No home folder")?;
+    let root = paths::mentors_root_for(
+        &app.config().identifier,
+        Path::new(&home),
+        std::env::var("LOCI_MENTORS_ROOT").ok().as_deref(),
+    );
+    app.manage(MentorsRoot(std::sync::Mutex::new(root)));
+    Ok(())
+}
+
+fn text(entry: &Map<String, Value>, key: &str) -> Option<String> {
+    entry
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+}
+
+/// A roster entry as the window's `Agent` type has it.
+fn agent_json(record: &MentorRecord, identity: &Map<String, Value>) -> Value {
+    let mut agent = Map::new();
+    agent.insert("id".into(), json!(record.id));
+    if let Some(session) = &record.session_id {
+        agent.insert("sessionId".into(), json!(session));
+    }
+    for key in ["name", "role", "avatar", "color"] {
+        if let Some(value) = text(identity, key) {
+            agent.insert(key.into(), json!(value));
+        }
+    }
+    let workdir =
+        registry::custom_workdir(&record.folder, identity).unwrap_or_else(|| record.folder.clone());
+    agent.insert("workdir".into(), json!(workdir.to_string_lossy()));
+    agent.insert(
+        "projects".into(),
+        identity
+            .get("folders")
+            .cloned()
+            .unwrap_or_else(|| json!([])),
+    );
+    for key in LOCAL_FLAGS {
+        if let Some(flag) = record.local.get(key) {
+            agent.insert(key.into(), flag.clone());
+        }
+    }
+    agent.insert("folder".into(), json!(record.folder.to_string_lossy()));
+    Value::Object(agent)
+}
+
+/// Folders in the root that hold a `mentor.json` this install does not know
+/// yet (copied in, or kept after a reset) become mentors.
+fn adopt(conn: &Connection, root: &Path) -> Result<bool, String> {
+    if !migrate::marker_set(conn).map_err(|e| e.to_string())? {
+        return Ok(false);
+    }
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return Ok(false);
+    };
+    let known = registry::list(conn).map_err(|e| e.to_string())?;
+    let mut position = known.iter().map(|r| r.position).max().unwrap_or(-1);
+    let mut adopted = false;
+    let mut dirs: Vec<PathBuf> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.join(MENTOR_FILE).is_file())
+        .filter(|p| p.file_name().and_then(|n| n.to_str()) != Some(SHARED_REPOS))
+        .collect();
+    dirs.sort();
+    for folder in dirs {
+        let Ok(identity) = registry::read_identity(&folder) else {
+            continue;
+        };
+        let Some(id) = identity.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        if known.iter().any(|r| r.id == id || r.folder == folder) {
+            continue;
+        }
+        position += 1;
+        let record = MentorRecord {
+            id: id.to_string(),
+            folder: folder.clone(),
+            session_id: None,
+            position,
+            local: Map::new(),
+            migrated_at: Some(now_millis()),
+            added_at: now_millis(),
+        };
+        registry::upsert(conn, &record).map_err(|e| e.to_string())?;
+        let workdir = registry::custom_workdir(&folder, &identity);
+        index::reconcile(
+            conn,
+            &MentorCtx {
+                agent: id.to_string(),
+                folder,
+                workdir,
+            },
+        )?;
+        adopted = true;
+    }
+    Ok(adopted)
+}
+
+pub fn load(conn: &Connection, root: &Path) -> Result<Vec<Value>, String> {
+    adopt(conn, root)?;
+    let mut agents = Vec::new();
+    for record in registry::list(conn).map_err(|e| e.to_string())? {
+        if record.migrated_at.is_none() {
+            continue;
+        }
+        // A folder that is gone (an unplugged disk) is left registered and
+        // comes back with it.
+        let Ok(identity) = registry::read_identity(&record.folder) else {
+            continue;
+        };
+        agents.push(agent_json(&record, &identity));
+    }
+    Ok(agents)
+}
+
+/// Brings `mentor.json` and the registry in line with the window's roster,
+/// in its order. A new entry gets a folder of its own. Entries missing from
+/// the roster are not removed here; only `mentors_remove` removes.
+pub fn sync(conn: &Connection, root: &Path, roster: &[Value]) -> Result<bool, String> {
+    let ready = migrate::marker_set(conn).map_err(|e| e.to_string())?;
+    let mut changed = false;
+    for (position, entry) in roster.iter().enumerate() {
+        let Some(entry) = entry.as_object() else {
+            continue;
+        };
+        let Some(id) = text(entry, "id")
+            .filter(|id| id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+        else {
+            continue;
+        };
+        let existing = registry::get(conn, &id).map_err(|e| e.to_string())?;
+        let (mut record, mut identity) = match existing {
+            Some(record) if record.migrated_at.is_some() => {
+                let identity = registry::read_identity(&record.folder).unwrap_or_else(|_| {
+                    let mut identity = Map::new();
+                    identity.insert("schemaVersion".into(), json!(super::format::SCHEMA_VERSION));
+                    identity.insert("id".into(), json!(id));
+                    identity
+                });
+                (record, identity)
+            }
+            Some(_) => continue,
+            None if !ready => continue,
+            None => {
+                let slug = paths::mentor_slug(
+                    text(entry, "name").as_deref(),
+                    text(entry, "role").as_deref(),
+                    &id,
+                );
+                let folder = paths::create_folder(root, &slug)?;
+                std::fs::create_dir_all(folder.join(SHARED_REPOS))
+                    .map_err(|e| format!("{}: {e}", folder.display()))?;
+                let mut identity = Map::new();
+                identity.insert("schemaVersion".into(), json!(super::format::SCHEMA_VERSION));
+                identity.insert("id".into(), json!(id));
+                identity.insert(
+                    "createdAt".into(),
+                    json!(super::fsio::iso_from_millis(now_millis())),
+                );
+                changed = true;
+                (
+                    MentorRecord {
+                        id: id.clone(),
+                        folder,
+                        session_id: None,
+                        position: position as i64,
+                        local: Map::new(),
+                        migrated_at: Some(now_millis()),
+                        added_at: now_millis(),
+                    },
+                    identity,
+                )
+            }
+        };
+        let before_identity = identity.clone();
+        for key in ["name", "role", "avatar", "color"] {
+            match text(entry, key) {
+                Some(value) => {
+                    identity.insert(key.into(), json!(value));
+                }
+                None => {
+                    identity.remove(key);
+                }
+            }
+        }
+        match text(entry, "workdir").map(|w| crate::fs::expand_home(&w)) {
+            Some(workdir) if workdir != record.folder && workdir.is_absolute() => {
+                identity.insert("workdir".into(), json!(workdir.to_string_lossy()));
+            }
+            _ => {
+                identity.remove("workdir");
+            }
+        }
+        match entry.get("projects").and_then(Value::as_array) {
+            Some(projects) if !projects.is_empty() => {
+                identity.insert("folders".into(), Value::Array(projects.clone()));
+            }
+            _ => {
+                identity.remove("folders");
+            }
+        }
+        if identity != before_identity && registry::write_identity(&record.folder, &identity)? {
+            changed = true;
+        }
+        let before = record.clone();
+        record.position = position as i64;
+        record.session_id = text(entry, "sessionId");
+        for key in LOCAL_FLAGS {
+            match entry.get(key).filter(|v| v.is_boolean()) {
+                Some(flag) => {
+                    record.local.insert(key.into(), flag.clone());
+                }
+                None => {
+                    record.local.remove(key);
+                }
+            }
+        }
+        if record != before || changed {
+            registry::upsert(conn, &record).map_err(|e| e.to_string())?;
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
+/// Forgets a mentor. Its folder stays, with `mentor.json` renamed so it is
+/// not adopted again; renaming it back (or `loci mentors import --folder`)
+/// brings the mentor back.
+pub fn remove(conn: &Connection, id: &str) -> Result<(), String> {
+    let Some(record) = registry::get(conn, id).map_err(|e| e.to_string())? else {
+        return Ok(());
+    };
+    let file = record.folder.join(MENTOR_FILE);
+    if file.is_file() {
+        std::fs::rename(&file, record.folder.join(REMOVED_MENTOR_FILE))
+            .map_err(|e| format!("{}: {e}", file.display()))?;
+    }
+    registry::remove(conn, id).map_err(|e| e.to_string())?;
+    index::forget_mentor(conn, id).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn app_data(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path().app_data_dir().map_err(|e| e.to_string())
+}
+
+fn notify_mentors(app: &AppHandle) {
+    let _ = app.emit(MENTORS_CHANGED, ());
+}
+
+#[tauri::command(async)]
+pub fn mentors_load(
+    store: State<'_, SessionStore>,
+    root: State<'_, MentorsRoot>,
+) -> Result<Vec<Value>, String> {
+    let conn = store.lock_conn()?;
+    load(&conn, &root.path())
+}
+
+/// Saves the window's roster; returns it as the registry now has it (a new
+/// mentor comes back with its folder as its workdir).
+#[tauri::command(async)]
+pub fn mentors_sync(
+    app: AppHandle,
+    store: State<'_, SessionStore>,
+    root: State<'_, MentorsRoot>,
+    roster: Vec<Value>,
+) -> Result<Vec<Value>, String> {
+    let conn = store.lock_conn()?;
+    let changed = sync(&conn, &root.path(), &roster)?;
+    let agents = load(&conn, &root.path())?;
+    drop(conn);
+    if changed {
+        notify_mentors(&app);
+    }
+    Ok(agents)
+}
+
+#[tauri::command(async)]
+pub fn mentors_remove(
+    app: AppHandle,
+    store: State<'_, SessionStore>,
+    id: String,
+) -> Result<(), String> {
+    crate::session_store::validate_id(&id, "agent")?;
+    let conn = store.lock_conn()?;
+    remove(&conn, &id)?;
+    drop(conn);
+    notify_mentors(&app);
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageStatus {
+    /// Whether the 0.3 roster is in folders; until then the window's roster is the truth.
+    pub ready: bool,
+    pub root: String,
+    pub mentors: Vec<Value>,
+}
+
+pub fn status(conn: &Connection, root: &Path) -> Result<StorageStatus, String> {
+    let mut mentors = Vec::new();
+    for record in registry::list(conn).map_err(|e| e.to_string())? {
+        let counts: Vec<(String, i64, i64)> = {
+            let mut statement = conn
+                .prepare(
+                    "SELECT kind, COUNT(*), SUM(error IS NOT NULL) FROM mentor_content WHERE agent_id = ?1 GROUP BY kind",
+                )
+                .map_err(|e| e.to_string())?;
+            let rows = statement
+                .query_map([&record.id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                })
+                .map_err(|e| e.to_string())?;
+            rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
+        };
+        let mut files = Map::new();
+        let mut problems = 0;
+        for (kind, count, errors) in counts {
+            files.insert(kind, json!(count));
+            problems += errors;
+        }
+        let identity = registry::read_identity(&record.folder).ok();
+        mentors.push(json!({
+            "id": record.id,
+            "name": identity.as_ref().and_then(|i| text(i, "name")),
+            "folder": record.folder.to_string_lossy(),
+            "folderPresent": record.folder.join(MENTOR_FILE).is_file(),
+            "migrated": record.migrated_at.is_some(),
+            "files": files,
+            "problems": problems,
+        }));
+    }
+    Ok(StorageStatus {
+        ready: migrate::marker_set(conn).map_err(|e| e.to_string())?,
+        root: root.to_string_lossy().into_owned(),
+        mentors,
+    })
+}
+
+#[tauri::command(async)]
+pub fn storage_status(
+    store: State<'_, SessionStore>,
+    root: State<'_, MentorsRoot>,
+) -> Result<StorageStatus, String> {
+    let conn = store.lock_conn()?;
+    status(&conn, &root.path())
+}
+
+#[tauri::command(async)]
+pub fn storage_migrate(
+    app: AppHandle,
+    store: State<'_, SessionStore>,
+    root: State<'_, MentorsRoot>,
+    input: MigrateInput,
+) -> Result<Report, String> {
+    let env = MigrateEnv {
+        root: root.path(),
+        app_data: app_data(&app)?,
+    };
+    let conn = store.lock_conn()?;
+    let report = migrate::run(&conn, &env, &input)?;
+    drop(conn);
+    if !input.dry_run && (!report.mentors.is_empty() || report.caught_up > 0) {
+        notify_mentors(&app);
+    }
+    Ok(report)
+}
+
+/// Re-reads mentors' folders (one, or all) and reports what changed.
+pub fn reindex(conn: &Connection, agent: Option<&str>) -> Result<Value, String> {
+    let mut out = Vec::new();
+    for record in registry::list(conn).map_err(|e| e.to_string())? {
+        if agent.is_some_and(|a| a != record.id) {
+            continue;
+        }
+        let Some(ctx) = ctx_for(conn, &record.id)? else {
+            continue;
+        };
+        let changes = index::reconcile(conn, &ctx)?;
+        out.push(json!({ "id": record.id, "changed": changes.len() }));
+    }
+    Ok(Value::Array(out))
+}
+
+#[tauri::command(async)]
+pub fn storage_reindex(
+    app: AppHandle,
+    store: State<'_, SessionStore>,
+    agent: Option<String>,
+) -> Result<Value, String> {
+    let conn = store.lock_conn()?;
+    let result = reindex(&conn, agent.as_deref())?;
+    drop(conn);
+    let _ = app.emit(CONTENT_CHANGED, json!({ "agentId": agent }));
+    Ok(result)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Problem {
+    pub path: String,
+    pub kind: String,
+    pub id: String,
+    pub error: String,
+}
+
+pub fn check(conn: &Connection, agent: &str) -> Result<Vec<Problem>, String> {
+    let Some(ctx) = ctx_for(conn, agent)? else {
+        return Err("This mentor's content is not in a folder yet".into());
+    };
+    index::reconcile(conn, &ctx)?;
+    Ok(index::problems(conn, agent)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|row: Row| Problem {
+            path: ctx
+                .folder
+                .join(&row.rel_path)
+                .to_string_lossy()
+                .into_owned(),
+            kind: row.kind,
+            id: row.id,
+            error: row.error.unwrap_or_default(),
+        })
+        .collect())
+}
+
+#[tauri::command(async)]
+pub fn library_check(
+    store: State<'_, SessionStore>,
+    agent: String,
+) -> Result<Vec<Problem>, String> {
+    crate::session_store::validate_id(&agent, "agent")?;
+    let conn = store.lock_conn()?;
+    check(&conn, &agent)
+}
+
+#[tauri::command(async)]
+pub fn library_search(
+    store: State<'_, SessionStore>,
+    agent: Option<String>,
+    query: String,
+    limit: Option<usize>,
+) -> Result<Vec<index::Hit>, String> {
+    if query.chars().count() > 200 {
+        return Err("The query is too long".into());
+    }
+    let conn = store.lock_conn()?;
+    index::search(&conn, agent.as_deref(), &query, limit.unwrap_or(20)).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StateWrite {
+    agent: String,
+    key: String,
+    /// `null` forgets it.
+    value: Value,
+}
+
+/// Every mentor's state under `key`, as `{agentId: value}`.
+#[tauri::command(async)]
+pub fn mentor_state_all(store: State<'_, SessionStore>, key: String) -> Result<Value, String> {
+    let conn = store.lock_conn()?;
+    let mut statement = conn
+        .prepare("SELECT agent_id, json FROM mentor_state WHERE key = ?1")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map([&key], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = Map::new();
+    for row in rows {
+        let (agent, raw) = row.map_err(|e| e.to_string())?;
+        out.insert(agent, serde_json::from_str(&raw).unwrap_or(Value::Null));
+    }
+    Ok(Value::Object(out))
+}
+
+#[tauri::command(async)]
+pub fn mentor_state_set(
+    store: State<'_, SessionStore>,
+    writes: Vec<StateWrite>,
+) -> Result<(), String> {
+    let conn = store.lock_conn()?;
+    for write in writes {
+        if write.key.len() > 64 || write.agent.len() > 64 {
+            return Err("Not a mentor state key".into());
+        }
+        if write.value.is_null() {
+            conn.execute(
+                "DELETE FROM mentor_state WHERE agent_id = ?1 AND key = ?2",
+                params![write.agent, write.key],
+            )
+        } else {
+            conn.execute(
+                "INSERT INTO mentor_state (agent_id, key, json, updated_at) VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(agent_id, key) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at",
+                params![write.agent, write.key, write.value.to_string(), now_millis()],
+            )
+        }
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// The kinds a window refreshes on, by the event it already listens to.
+pub fn kind_event(kind: Kind) -> &'static str {
+    match kind {
+        Kind::Source | Kind::Guide => "documents",
+        Kind::Course => "courses",
+        Kind::Note => "notes",
+        Kind::Canvas => "canvases",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mentor_store::testing::temp_dir;
+
+    fn ready(conn: &Connection) {
+        conn.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, 1)",
+            [migrate::MARKER_VERSION],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn a_new_mentor_gets_a_folder_and_the_roster_round_trips() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("roster");
+        ready(&conn);
+        let roster = vec![
+            json!({"id":"m-1","name":"Repo Lens","avatar":"nova","color":"red","projects":["/p"],"accessMigrated":true}),
+        ];
+        assert!(sync(&conn, &root, &roster).unwrap());
+        let agents = load(&conn, &root).unwrap();
+        assert_eq!(agents.len(), 1);
+        let folder = root.join("repo-lens");
+        assert_eq!(agents[0]["workdir"], folder.to_string_lossy().as_ref());
+        assert_eq!(agents[0]["projects"], json!(["/p"]));
+        assert_eq!(agents[0]["accessMigrated"], true);
+        assert!(folder.join("repos").is_dir());
+        let identity = registry::read_identity(&folder).unwrap();
+        assert_eq!(identity["name"], "Repo Lens");
+        assert!(identity.get("workdir").is_none());
+
+        // Renaming keeps the folder; a custom workdir is recorded; same roster is no change.
+        let mut renamed = agents[0].clone();
+        renamed["name"] = json!("Lens");
+        renamed["workdir"] = json!("/Users/x/study");
+        renamed["sessionId"] = json!("s-9");
+        assert!(sync(&conn, &root, &[renamed.clone()]).unwrap());
+        assert!(!sync(&conn, &root, &[renamed]).unwrap());
+        let agents = load(&conn, &root).unwrap();
+        assert_eq!(agents[0]["name"], "Lens");
+        assert_eq!(agents[0]["workdir"], "/Users/x/study");
+        assert_eq!(agents[0]["sessionId"], "s-9");
+        assert_eq!(agents[0]["folder"], folder.to_string_lossy().as_ref());
+
+        // Removing keeps the folder and does not adopt it again.
+        remove(&conn, "m-1").unwrap();
+        assert!(load(&conn, &root).unwrap().is_empty());
+        assert!(folder.join(REMOVED_MENTOR_FILE).is_file());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn nothing_is_created_before_the_migration_has_run() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("roster");
+        assert!(!sync(&conn, &root, &[json!({"id":"m-1","name":"A"})]).unwrap());
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_mentor_folder_copied_into_the_root_is_adopted() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("adopt");
+        ready(&conn);
+        let folder = root.join("copied");
+        std::fs::create_dir_all(folder.join("guides")).unwrap();
+        std::fs::write(
+            folder.join(MENTOR_FILE),
+            r#"{"schemaVersion":1,"id":"m-7","name":"Copied"}"#,
+        )
+        .unwrap();
+        std::fs::write(folder.join("guides/g.md"), "# G").unwrap();
+        std::fs::create_dir_all(root.join("ember/repos")).unwrap();
+        let agents = load(&conn, &root).unwrap();
+        assert_eq!(agents.len(), 1);
+        assert_eq!(agents[0]["name"], "Copied");
+        assert_eq!(index::list(&conn, "m-7", &[Kind::Guide]).unwrap().len(), 1);
+        let status = status(&conn, &root).unwrap();
+        assert!(status.ready);
+        assert_eq!(status.mentors[0]["files"]["guide"], 1);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

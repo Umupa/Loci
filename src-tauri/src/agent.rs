@@ -283,20 +283,13 @@ pub async fn agent_save(
 }
 
 /// The folder every default workdir goes into, by flavor.
-const WORKDIR_ROOT: &str = "Loci";
-const DEV_WORKDIR_ROOT: &str = "Loci-Dev";
 const REPOS_DIR: &str = "repos";
 /// How many `<slug>-N` names to try before giving up.
 const SLUG_TRIES: usize = 99;
 
 fn workdir_root(app: &AppHandle) -> Result<PathBuf, String> {
-    let home = crate::dirs_home().ok_or("No home folder")?;
-    let name = if app.config().identifier == crate::flavor::RELEASE_IDENTIFIER {
-        WORKDIR_ROOT
-    } else {
-        DEV_WORKDIR_ROOT
-    };
-    Ok(PathBuf::from(home).join(name))
+    // The same root as mentors' folders, by build (see mentor_store::paths).
+    Ok(app.state::<crate::mentor_store::MentorsRoot>().path())
 }
 
 fn valid_slug(slug: &str) -> bool {

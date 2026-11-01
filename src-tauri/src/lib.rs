@@ -234,6 +234,7 @@ pub fn run() {
             }
             harness::reap_orphaned_harness_processes();
             session_store::init(app.handle())?;
+            mentor_store::commands::init(app.handle())?;
             control::init(app.handle())?;
             menu::install(app.handle())?;
             #[cfg(target_os = "windows")]
@@ -362,6 +363,16 @@ pub fn run() {
             agent::agent_save,
             agent::agent_workdir_create,
             agent::agent_workdir_ensure,
+            mentor_store::commands::mentors_load,
+            mentor_store::commands::mentors_sync,
+            mentor_store::commands::mentors_remove,
+            mentor_store::commands::storage_status,
+            mentor_store::commands::storage_migrate,
+            mentor_store::commands::storage_reindex,
+            mentor_store::commands::library_check,
+            mentor_store::commands::library_search,
+            mentor_store::commands::mentor_state_all,
+            mentor_store::commands::mentor_state_set,
             agent_documents::agent_documents_list,
             agent_documents::agent_documents_get,
             agent_documents::agent_documents_upsert,

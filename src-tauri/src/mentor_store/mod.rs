@@ -16,6 +16,7 @@
 // Wired into the commands in the commits that follow.
 #![allow(dead_code)]
 
+pub mod commands;
 pub mod format;
 pub mod fsio;
 pub mod index;
