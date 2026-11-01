@@ -96,4 +96,39 @@ describe("mentorStore", () => {
     expect(contentChangeEvents({ agentId: "m", kind: "files" })[0].type).toBe("loci:agent-files-changed");
     expect(contentChangeEvents({ agentId: null })).toHaveLength(4);
   });
+
+  it("never lets a reload overtake a roster change still on its way", async () => {
+    let registry: { id: string; sessionId?: string; workdir: string }[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    invoke.mockImplementation(async (command: string, args: { roster?: { id: string; sessionId?: string }[] }) => {
+      if (command === "storage_migrate") return { mentors: [], done: true };
+      if (command === "storage_status") return { ready: true };
+      if (command === "mentor_state_all") return {};
+      if (command === "mentors_load") {
+        // Reads the registry now, answers late.
+        const snapshot = registry;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return snapshot;
+      }
+      if (command === "mentors_sync") {
+        await held;
+        registry = args.roster!.map((entry) => ({ ...entry, workdir: `/L/${entry.id}` }));
+        return registry;
+      }
+      return undefined;
+    });
+    await hydrateMentors();
+    localStorage.setItem(ROSTER, JSON.stringify([{ id: "n1", sessionId: "s1", workdir: "/L/n1" }]));
+    queueRosterSync([{ id: "n1", sessionId: "s1", workdir: "/L/n1" }]);
+    // Another change event arrives while the sync is held up.
+    const { listen } = await import("@tauri-apps/api/event");
+    const onChange = vi.mocked(listen).mock.calls.find(([name]) => name === "loci:mentors-changed")![1] as () => void;
+    onChange();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    release();
+    await rosterSettled();
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(JSON.parse(localStorage.getItem(ROSTER)!)[0].sessionId).toBe("s1");
+  });
 });

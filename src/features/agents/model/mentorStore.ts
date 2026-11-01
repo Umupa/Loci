@@ -97,7 +97,18 @@ function writeCopy(roster: readonly RosterEntry[]): void {
   window.dispatchEvent(new CustomEvent(AGENTS_CHANGED));
 }
 
-async function reload(): Promise<void> {
+/**
+ * Loads the registry's roster into this window's copy, after every roster
+ * change this window has sent: a reload that overtook a sync still in flight
+ * would put back an older roster (and lose, say, a new conversation id).
+ */
+function reload(): Promise<void> {
+  const run = chain.then(reloadNow);
+  chain = run.catch(() => undefined);
+  return run;
+}
+
+async function reloadNow(): Promise<void> {
   const status = await invoke<{ ready: boolean }>("storage_status");
   registryReady = status.ready;
   if (!registryReady) return;
