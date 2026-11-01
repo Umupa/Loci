@@ -84,6 +84,8 @@ type Props = {
   onFileDeleted?: (path: string) => void;
   /** A filter typed outside the tree; given, the tree shows no search field of its own. */
   query?: string;
+  /** Clears that outside filter, as choosing a folder from the matches does. */
+  onClearQuery?: () => void;
   /** Shown ahead of the actions button, such as the folder's path. */
   header?: ReactNode;
 };
@@ -267,6 +269,7 @@ export const FileTree = memo(function FileTree({
   onFileMoved,
   onFileDeleted,
   query: outerQuery,
+  onClearQuery,
   header,
 }: Props) {
   const [expanded, setExpanded] = useState(() => loadExpanded(cwd));
@@ -503,7 +506,9 @@ export const FileTree = memo(function FileTree({
     const open = [cwd, file.path];
     for (let dir = parentPath(file.path); dir.length > cwd.length; dir = parentPath(dir)) open.push(dir);
     expandDirs(open);
-    setQuery("");
+    // The library owns the filter it shows, so ask it to clear that one.
+    if (outerQuery === undefined) setQuery("");
+    else onClearQuery?.();
   };
 
   const consumeFileClick = () =>
@@ -1303,6 +1308,7 @@ function TreeNode({ entry, depth }: { entry: FsEntry; depth: number }) {
         <button
           type="button"
           role="treeitem"
+          data-library-item
           title={entry.path}
           aria-expanded={entry.isDir ? open : undefined}
           onClick={onClick}
@@ -1391,6 +1397,7 @@ function FileMatches({
             key={file.path}
             type="button"
             role="option"
+            data-library-item
             aria-selected={index === active}
             title={file.path}
             ref={index === active ? scrollIntoViewIfNeeded : undefined}

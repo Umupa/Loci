@@ -105,7 +105,7 @@ export function MentorLibrary({ agent, data, errors, onRetry, page, lesson, onOp
       onOpen={onOpen} onSelect={(courseId) => onChange({ course: courseId })} onDraft={onDraft} badge={courseBadge} />;
   } else if (segment === "files") {
     body = MentorFilesSection ? <MentorFilesSection agentId={agent.id} filter={query} onOpenFile={(path) => onOpenFile(path)}
-      onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} /> : null;
+      onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} onClearQuery={() => onChange({ segment, filter: "" })} /> : null;
   } else {
     const entries = segment === "sources" ? sources : notes;
     body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={onOpen}

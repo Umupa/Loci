@@ -24,8 +24,12 @@ const entries = [
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   localStorage.clear();
-  fs.listDir.mockReset().mockResolvedValue(entries);
+  fs.listDir.mockReset().mockImplementation(async (path: string) =>
+    path === "/w/repos"
+      ? [{ name: "main.c", path: "/w/repos/main.c", isDir: false, hidden: false }]
+      : entries);
   fs.listProjectFiles.mockReset().mockResolvedValue([
+    { name: "repos", path: "/w/repos", relative: "repos", isDir: true },
     { name: "notes.md", path: "/w/notes.md", relative: "notes.md" },
     { name: "main.c", path: "/w/repos/main.c", relative: "repos/main.c" },
   ]);
@@ -75,4 +79,19 @@ it("filters with a query from outside, without a search field of its own", async
   expect(host.querySelector('input[aria-label="Search files by name or path"]')).toBeNull();
   expect(host.textContent).toContain("main.c");
   expect(host.querySelector('[role="tree"]')).toBeNull();
+});
+
+it("asks the outside filter to clear when a folder match is chosen, then shows the folder", async () => {
+  const onClearQuery = vi.fn();
+  const tree = (query: string) => createElement(FileTree, { cwd: "/w", onOpenFile: vi.fn(), query, onClearQuery });
+  await act(async () => root.render(tree("repos")));
+  await settle();
+  const folder = [...host.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((row) => row.textContent?.includes("repos"))!;
+  expect(folder.hasAttribute("data-library-item")).toBe(true);
+  await act(async () => folder.click());
+  expect(onClearQuery).toHaveBeenCalledOnce();
+  // With the filter cleared, the chosen folder is open in the tree.
+  await act(async () => root.render(tree("")));
+  await settle();
+  expect(host.querySelector('[role="treeitem"][title="/w/repos"]')?.getAttribute("aria-expanded")).toBe("true");
 });
