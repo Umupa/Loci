@@ -40,6 +40,7 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "@hugeicons/core-free-icons": "^4.3.0",
     "@hugeicons/react": "^1.1.10",
+    "@milkdown/kit": "7.22.3",
     "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.3",
     "@streamdown/mermaid": "^1.0.2",
