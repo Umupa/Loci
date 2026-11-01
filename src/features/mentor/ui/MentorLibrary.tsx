@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { formatRelativeTime } from "../../../shared/lib/relativeTime";
-import { File, Folder, Mortarboard, Palette, PenLine, Plus, Search, StickyNote, X, type IconComponent } from "../../../shared/ui/icons";
+import { File, Folder, Mortarboard, Palette, Pencil, PenLine, Plus, Search, StickyNote, X, type IconComponent } from "../../../shared/ui/icons";
 import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import type { CourseSummary } from "../../learning/model/course";
@@ -18,7 +18,7 @@ export type LibraryData = { courses?: CourseSummary[]; documents?: StoredDocumen
 export type LibraryChange = { segment?: LibrarySegment; course?: string; filter?: string };
 
 const LABELS: Record<LibrarySegment, string> = { courses: "Courses", sources: "Sources", notes: "Notes", files: "Files" };
-const ICONS: Record<LibrarySegment, IconComponent> = { courses: Mortarboard, sources: File, notes: StickyNote, files: Folder };
+const ICONS: Record<LibrarySegment, IconComponent> = { courses: Mortarboard, sources: File, notes: Pencil, files: Folder };
 
 type Props = {
   agent: Agent;
