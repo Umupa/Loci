@@ -66,7 +66,10 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
   const [view, setView] = useState({ scope, full: false });
   if (view.scope !== scope) setView({ scope, full: false });
   const fullDocument = view.scope === scope && view.full;
-  const [matchedTitle, setMatchedTitle] = useState<string>();
+  // A lesson names a heading; the source may have been revised since the course was written.
+  const [match, setMatch] = useState<{ scope: string; title?: string; found: boolean }>({ scope: "", found: false });
+  const matched = match.scope === scope ? match : undefined;
+  const matchedTitle = matched?.title;
   const topRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { selection, dismiss } = useFileSelection(bodyRef, true);
@@ -84,7 +87,8 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
     if (!root) return;
     // Saved documents render synchronously in Streamdown's static mode.
     const heading = requestedSection ? findSection(root, requestedSection) : undefined;
-    setMatchedTitle(heading?.textContent ?? undefined);
+    const title = heading?.textContent ?? undefined;
+    setMatch((current) => current.scope === scope && current.title === title && current.found === !!heading ? current : { scope, title, found: !!heading });
     if (heading) heading.setAttribute("data-section-target", "");
     const frame = requestAnimationFrame(() => {
       if (fullDocument && heading) {
@@ -137,6 +141,7 @@ export function DocumentBody({ document, agentId, section, bare, marksList, onMa
         {matchedTitle ? <button type="button" className="document-section-toggle" onClick={() => { dismiss(); setView({ scope, full: !fullDocument }); }}>{fullDocument ? "Only this section" : "View full document"}</button> : null}
       </div> : null}
       {requestedSection && !matchedTitle && !bare ? <p role="status" className="document-section-notice">Section “{requestedSection}” was not found. Showing the full document.</p> : null}
+      {requestedSection && matched && !matched.found && bare ? <p role="status" className="document-section-notice">Section “{requestedSection}” is no longer in this document. Showing the whole document.</p> : null}
       {notice?.scope === scope ? <p role="status" className="document-section-notice">{notice.text}</p> : null}
       {sourceUrl && !bare ? (
         <p data-document-source className="mb-3 flex flex-wrap items-baseline gap-x-2 border-b border-stroke pb-2 text-[11px] text-content/50">

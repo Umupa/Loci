@@ -84,6 +84,8 @@ it("opens an empty or unmatched section at the document top", async () => {
   await click('[aria-label^="Missing section,"]');
   expect(headings()[0]).toBe("Kubernetes architecture");
   expect(host.querySelector(".document-section-toggle")).toBeNull();
+  // A revised source that lost the lesson's heading says so, rather than quietly widening.
+  expect(host.querySelector(".document-section-notice")?.textContent).toBe("Section “Unknown chapter” is no longer in this document. Showing the whole document.");
 });
 
 it("opens a chosen lesson at its start, not at the last lesson's offset, and ignores its settling scroll", async () => {
