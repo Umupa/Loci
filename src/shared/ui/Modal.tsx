@@ -2,13 +2,23 @@ import { useUiText } from "../i18n/SettingsLanguage";
 import { NativePopupHost } from "./NativePopupHost";
 import { InDialog } from "./DialogContext";
 import { X } from "./icons";
-import { useContext, useEffect, useId, useRef, type ReactNode } from "react";
+import { useContext, useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLockOverscroll } from "../hooks/useLockOverscroll";
 import { LAYER } from "../lib/layers";
 import { GlassBackdrop } from "../../app/shell/GlassBackdrop";
 
 export type ModalSize = "sm" | "md" | "lg";
+
+const TABBABLE =
+  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Controls a keyboard user can reach, in document order. */
+function tabbableIn(panel: HTMLElement): HTMLElement[] {
+  return Array.from(panel.querySelectorAll<HTMLElement>(TABBABLE)).filter(
+    (element) => !element.closest('[hidden], [aria-hidden="true"]'),
+  );
+}
 
 const WIDTH: Record<ModalSize, string> = {
   sm: "w-[min(420px,calc(100vw-24px))]",
@@ -57,6 +67,7 @@ export function ModalPanel({
 }: Props) {
   const { t, locale } = useUiText();
   const popupHost = useContext(NativePopupHost);
+  const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const lockOverscroll = useLockOverscroll<HTMLDivElement>();
   const uid = useId();
@@ -64,8 +75,46 @@ export function ModalPanel({
   const descriptionId = description ? `${uid}-desc` : undefined;
 
   useEffect(() => {
-    if (!minimalHeader && autoFocusClose) closeRef.current?.focus();
+    // Where focus was before the dialog opened; closing puts it back.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const panel = panelRef.current;
+    // A child with its own autoFocus has already taken it; do not pull it back.
+    const inside = !!panel && panel.contains(document.activeElement);
+    if (minimalHeader) {
+      if (panel && !inside) panel.focus();
+    } else if (autoFocusClose) closeRef.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
   }, [minimalHeader, autoFocusClose]);
+
+  // aria-modal promises Tab stays in the dialog, so loop it at both ends.
+  const trapTab = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return;
+    // A dialog opened on top of this one keeps its own loop.
+    if (event.target instanceof Element && event.target.closest('[role="dialog"]') !== event.currentTarget) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const controls = tabbableIn(panel);
+    if (!controls.length) {
+      event.preventDefault();
+      panel.focus();
+      return;
+    }
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    const active = document.activeElement;
+    const outside = !panel.contains(active);
+    const atStart = active === panel || active === first;
+    const atEnd = active === last;
+    if (event.shiftKey && (atStart || outside)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (atEnd || outside)) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -95,12 +144,15 @@ export function ModalPanel({
       }
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
+        tabIndex={-1}
+        onKeyDown={trapTab}
         onMouseDown={(event) => event.stopPropagation()}
-        className={`relative isolate flex flex-col overflow-hidden rounded-2xl border border-content/7 shadow-2xl ${fitViewport ? "max-h-[calc(100dvh-32px)]" : ""} ${className ?? ""}`}
+        className={`relative isolate flex flex-col overflow-hidden rounded-2xl border border-content/7 shadow-2xl outline-none ${fitViewport ? "max-h-[calc(100dvh-32px)]" : ""} ${className ?? ""}`}
       >
         <GlassBackdrop className="bg-background-base/55" />
         <div className="modal-panel relative z-[1] flex min-h-0 flex-1 flex-col">
