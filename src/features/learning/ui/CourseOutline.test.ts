@@ -3,8 +3,8 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import type { LearningStatus } from "../model/course";
-import { LiveCourseOutline, PROGRESS_EVENT } from "./CourseOutline";
+import type { CourseWithProgress, LearningStatus } from "../model/course";
+import { CourseOutline, LiveCourseOutline, PROGRESS_EVENT } from "./CourseOutline";
 import { CoursePane } from "./CoursePane";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -46,6 +46,17 @@ it("shows the saved read marks and follows progress made elsewhere", async () =>
   expect(rows()[1].getAttribute("aria-label")).toBe("service, Reading");
   act(() => rows()[0].click());
   expect(onSelect).toHaveBeenCalledWith("pod");
+});
+
+it("names build-your-own statuses in product words in the reader's outline too", async () => {
+  const build: CourseWithProgress = {
+    id: "own", agentId: "owner", title: "Own", updatedAt: 1, progress: new Map([["one", "learning"]]),
+    data: { engine: "build-your-own", steps: [
+      { id: "one", title: "One", summary: "", file: "", before: "", after: "", explanation: "" },
+    ] },
+  };
+  await act(async () => root.render(createElement(CourseOutline, { course: build, activeId: null, onSelect: vi.fn() })));
+  expect(rows()[0].getAttribute("aria-label")).toBe("One, Working");
 });
 
 it("as the reader, has no sidebar and no Back, and opening a lesson from outside starts reading it", async () => {
