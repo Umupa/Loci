@@ -1,11 +1,9 @@
 import { createContext, useContext, useMemo, useRef, useState } from "react";
-import { requestOpenAppResource } from "../../../../shared/lib/appResourceLinks";
-import { Check, ChevronRight, File, Palette } from "../../../../shared/ui/icons";
+import { Check, ChevronRight, File } from "../../../../shared/ui/icons";
 import { CourseHostContext } from "../../../learning/model/courseContext";
 import { agentForSession } from "../../../agents/model/agent";
 import {
   openDocument,
-  parseCanvasLink,
   parseDocument,
   parseMindmap,
   parseTodo,
@@ -56,27 +54,6 @@ export function DocumentCard({ source, incomplete }: { source: string; incomplet
         </span>
       </span>
       {incomplete ? null : <ChevronRight className="size-3.5 shrink-0 text-content/35" />}
-    </button>
-  );
-}
-
-/** A canvas the agent made or changed: its name in the chat, the canvas itself on a click. */
-export function CanvasCard({ source }: { source: string }) {
-  const host = useContext(CourseHostContext);
-  const link = useMemo(() => parseCanvasLink(source), [source]);
-  if (!link) return null;
-  if (host?.agentId) return <button type="button" data-card="canvas" className="agent-resource-chip" aria-label={`Open canvas ${link.title ?? "Canvas"}`} onClick={() => requestOpenAppResource({ kind: "canvas", id: link.id })}><Palette /><span>{link.title ?? "Canvas"}</span></button>;
-  return (
-    <button type="button" data-card="canvas" onClick={() => requestOpenAppResource({ kind: "canvas", id: link.id })}
-      className={`${shell} flex items-center gap-3 px-3.5 py-3 text-left hover:bg-content/6`}>
-      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-content/8 text-content/60">
-        <Palette className="size-4" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[13px] font-medium text-content">{link.title ?? "Canvas"}</span>
-        <span className="truncate text-xs text-content/45">Canvas · Open</span>
-      </span>
-      <ChevronRight className="size-3.5 shrink-0 text-content/35" />
     </button>
   );
 }

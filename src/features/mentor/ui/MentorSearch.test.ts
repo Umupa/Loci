@@ -8,7 +8,7 @@ import { MentorSearch } from "./MentorSearch";
 
 const agents: Agent[] = [{ id: "sandbox", sessionId: "chat-s", name: "Sandbox", avatar: "loci", color: "#123456", projects: [] }];
 const sources = {
-  agents, courses: [], documents: new Map(), canvases: [],
+  agents, courses: [], documents: new Map(),
   notes: [{ id: "n1", title: "Jailer notes", agentId: "sandbox", body: "", tags: [] } as unknown as Note],
 };
 let root: Root;

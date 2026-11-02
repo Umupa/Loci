@@ -21,9 +21,11 @@ describe("generated course boundary", () => {
       { title: "Workloads", lessons: [read("pod"), { ...read("probe"), section: "Readiness probe", status: "mastered" }] },
       { title: "Papers", lessons: [{ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [3, 9] }, { id: "omega", title: "Omega", file: "C:\\books\\omega.pdf" }] },
     ] };
-    const result = parseCourse(`---\nid: sample\ntitle: Sample course\ncanvas-id: canvas-a\n---\n${JSON.stringify(data)}\n`);
-    expect(result.course).toMatchObject({ engine: "reading", canvasId: "canvas-a" });
-    expect(result.course?.data).toMatchObject({ canvasId: "canvas-a", chapters: [{ lessons: [{ document: "k8s-pod" }, { document: "k8s-probe", section: "Readiness probe" }] }, { lessons: [{ file: "/books/borg.pdf", pages: [3, 9] }, { file: "C:\\books\\omega.pdf" }] }] });
+    const result = parseCourse(`---\nid: sample\ntitle: Sample course\n---\n${JSON.stringify({ ...data, canvasId: "left-from-0.5" })}\n`);
+    expect(result.course).toMatchObject({ engine: "reading" });
+    // A course written before canvases were removed still reads; its canvasId is dropped.
+    expect(result.course?.data).not.toHaveProperty("canvasId");
+    expect(result.course?.data).toMatchObject({ chapters: [{ lessons: [{ document: "k8s-pod" }, { document: "k8s-probe", section: "Readiness probe" }] }, { lessons: [{ file: "/books/borg.pdf", pages: [3, 9] }, { file: "C:\\books\\omega.pdf" }] }] });
     expect(JSON.stringify(result.course?.data)).not.toContain("status");
     expect(courseItems(result.course!.data).map((item) => item.id)).toEqual(["pod", "probe", "borg", "omega"]);
   });
@@ -87,11 +89,10 @@ describe("generated course boundary", () => {
     expect(courseItems(result.course!.data)[0]).not.toHaveProperty("section");
   });
 
-  it("rejects duplicate metadata, broken JSON, unknown engines and contradictory scopes", () => {
+  it("rejects duplicate metadata, broken JSON and unknown engines", () => {
     expect(parseCourse(courseSource("build-your-own", { steps: [step] }, "id: duplicate\n")).error).toContain("duplicate metadata");
     expect(parseCourse("---\nid: sample\ntitle: Sample\nengine: build-your-own\n---\n{").error).toContain("valid JSON");
     expect(parseCourse(courseSource("other", {})).error).toContain("Unknown");
-    expect(parseCourse(courseSource("reading", { ...chapters(read("pod")), canvasId: "canvas-b" }, "canvas-id: canvas-a\n")).error).toContain("does not match");
     expect(() => parseCourseData("build-your-own", { engine: "reading", steps: [step] })).toThrow("engine does not match");
     expect(parseCourse(courseSource("domain-navigation", { concepts: [], learningPath: [] })).error).toContain("earlier format");
   });

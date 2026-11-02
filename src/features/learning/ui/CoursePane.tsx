@@ -13,7 +13,7 @@ import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { CodeReader } from "../../../shared/ui/CodeReader";
-import { COURSES_CHANGED_EVENT, courseItems, loadCourse, NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, setLessonStatus, type ComparePart, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type NavigateConceptDetail, type OpenCourseDetail } from "../model/course";
+import { COURSES_CHANGED_EVENT, courseItems, loadCourse, OPEN_COURSE_EVENT, setLessonStatus, type ComparePart, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type OpenCourseDetail } from "../model/course";
 import { inLesson } from "../model/annotationCounts";
 import { DiffCard } from "./DiffCard";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
@@ -47,7 +47,6 @@ type Props = {
    */
   reader?: boolean;
 };
-type SyncFailure = { itemId: string; status: LearningStatus; message: string };
 export { PROGRESS_EVENT };
 const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
 /** How close to the end of a lesson counts as having reached it. */
@@ -67,15 +66,12 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   const sidebarId = useId();
   const [saving, setSaving] = useState<Set<string>>(new Set());
   const [actionError, setActionError] = useState<string | null>(null);
-  const [syncFailures, setSyncFailures] = useState<Map<string, SyncFailure>>(new Map());
   const pendingWrites = useRef(new Map<string, { scope: string; itemId: string }>());
   const scrollRef = useRef<HTMLElement>(null);
   const lessonMenu = useRef<HTMLButtonElement>(null);
   const [marksOpen, setMarksOpen] = useState(false);
   const [marks, setMarks] = useState(0);
-  const pendingConcept = useRef<NavigateConceptDetail | null>(null);
   const pendingProgress = useRef<{ scope: string; items: Map<string, LearningStatus> }>({ scope, items: new Map() });
-  const courseLoad = useRef<{ scope: string; promise: Promise<CourseWithProgress | null> } | null>(null);
   const generation = useRef(0);
   const selected = useRef<{ scope: string; id: string | null }>({ scope, id: null });
   const latest = useRef({ scope, course: loaded.course, mounted: true });
@@ -105,8 +101,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     setLoaded({ scope, course: null, error: null });
     setActionError(null);
     setSaving(new Set([...pendingWrites.current.values()].filter((write) => write.scope === scope).map((write) => write.itemId)));
-    setSyncFailures(new Map());
-    const promise = loadCourse(courseId, agentId).then((found) => {
+    void loadCourse(courseId, agentId).then((found) => {
       if (!current) return null;
       if (!found) { setLoaded({ scope, course: null, error: "This course is no longer available." }); return null; }
       const items = courseItems(found.data);
@@ -115,27 +110,15 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
         pendingProgress.current.items.clear();
       }
       setLoaded({ scope, course: found, error: null });
-      const pending = pendingConcept.current;
-      const navigable = pending?.courseId === found.id && (!pending.agentId || pending.agentId === found.agentId) && found.data.engine === "reading" && (!pending.canvasId || pending.canvasId === found.data.canvasId) && items.some((item) => item.id === pending.conceptId);
-      pendingConcept.current = null;
       const previousSelection = selected.current.scope === scope && items.some((item) => item.id === selected.current.id) ? selected.current.id : null;
-      setActiveId(navigable ? pending!.conceptId : (pendingItem.current && items.some((item) => item.id === pendingItem.current) ? pendingItem.current : previousSelection) ?? items.find((item) => found.progress.get(item.id) !== "mastered")?.id ?? items[0].id);
+      setActiveId((pendingItem.current && items.some((item) => item.id === pendingItem.current) ? pendingItem.current : previousSelection) ?? items.find((item) => found.progress.get(item.id) !== "mastered")?.id ?? items[0].id);
       pendingItem.current = undefined;
       return found;
     }).catch((cause: unknown) => { if (current) setLoaded({ scope, course: null, error: `Could not load course: ${message(cause)}` }); return null; });
-    courseLoad.current = { scope, promise };
     return () => { current = false; };
   }, [scope, reload]);
 
   useEffect(() => {
-    const navigate = (event: Event) => {
-      const detail = (event as CustomEvent<NavigateConceptDetail>).detail;
-      if (!detail || detail.courseId !== courseId || (detail.agentId && detail.agentId !== agentId) || typeof detail.conceptId !== "string") return;
-      const found = latest.current.course;
-      if (!found) { pendingConcept.current = detail; return; }
-      if (found.data.engine !== "reading" || (detail.canvasId && detail.canvasId !== found.data.canvasId)) return;
-      if (courseItems(found.data).some((lesson) => lesson.id === detail.conceptId)) setActiveId(detail.conceptId);
-    };
     const opened = (event: Event) => {
       const detail = (event as CustomEvent<OpenCourseDetail>).detail;
       if (detail?.courseId === courseId && detail.agentId === agentId) setReload((value) => value + 1);
@@ -156,46 +139,14 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
         return { ...previous, course: { ...previous.course, progress } };
       });
     };
-    window.addEventListener(NAVIGATE_CONCEPT_EVENT, navigate);
     window.addEventListener(OPEN_COURSE_EVENT, opened);
     window.addEventListener(COURSES_CHANGED_EVENT, changed);
     window.addEventListener(PROGRESS_EVENT, progressed);
-    return () => { window.removeEventListener(NAVIGATE_CONCEPT_EVENT, navigate); window.removeEventListener(OPEN_COURSE_EVENT, opened); window.removeEventListener(COURSES_CHANGED_EVENT, changed); window.removeEventListener(PROGRESS_EVENT, progressed); };
+    return () => { window.removeEventListener(OPEN_COURSE_EVENT, opened); window.removeEventListener(COURSES_CHANGED_EVENT, changed); window.removeEventListener(PROGRESS_EVENT, progressed); };
   }, [scope]);
 
   const isScopeCurrent = () => latest.current.mounted && latest.current.scope === scope;
   const isCurrent = () => isScopeCurrent() && generation.current === renderGeneration;
-  const syncConcept = async (itemId: string, status: LearningStatus) => {
-    // A committed save can outlive a course reload. Reconcile again if another
-    // revision arrives while its canvas write is queued or in progress.
-    const currentLoad = () => isScopeCurrent() && courseLoad.current?.scope === scope ? courseLoad.current : null;
-    while (true) {
-      const request = currentLoad();
-      let found: CourseWithProgress | null;
-      try {
-        // Closing or navigating away must not cancel the saved progress's map
-        // update. Its detached operation reads the original course from storage.
-        found = request ? await request.promise : await loadCourse(courseId, agentId);
-      } catch { return; }
-      if (currentLoad() !== request) continue;
-      if (!found || found.data.engine !== "reading" || !found.data.canvasId || !courseItems(found.data).some((lesson) => lesson.id === itemId)) return;
-      let failure: SyncFailure | undefined;
-      try {
-        const { setConceptStatus } = await import("../../canvas/concepts");
-        if (currentLoad() !== request) continue;
-        await setConceptStatus(found.data.canvasId, found.id, itemId, status, agentId);
-      } catch (cause) {
-        failure = { itemId, status, message: message(cause) };
-      }
-      if (currentLoad() !== request) continue;
-      if (isScopeCurrent()) setSyncFailures((previous) => {
-        const next = new Map(previous);
-        if (failure) next.set(itemId, failure); else next.delete(itemId);
-        return next;
-      });
-      return;
-    }
-  };
   const markStatus = async (itemId: string, status: LearningStatus) => {
     if (!course) return;
     const writeKey = JSON.stringify([scope, itemId]);
@@ -203,9 +154,6 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     pendingWrites.current.set(writeKey, { scope, itemId }); setSaving((previous) => new Set(previous).add(itemId)); setActionError(null);
     try {
       await setLessonStatus(courseId, agentId, itemId, status);
-      // Progress is already committed. A drawing failure is shown separately and
-      // retrying the drawing must never undo or duplicate that native write.
-      await syncConcept(itemId, status);
     } catch (cause) {
       if (isCurrent()) setActionError(`Could not save progress: ${message(cause)}`);
     } finally {
@@ -213,17 +161,6 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       // This item remains locked across a same-course reload until its IPC
       // operation settles. Only the lock is released across generations.
       if (latest.current.mounted && latest.current.scope === scope) setSaving((previous) => { const next = new Set(previous); next.delete(itemId); return next; });
-    }
-  };
-  const retrySync = async (failure: SyncFailure) => {
-    const writeKey = JSON.stringify([scope, failure.itemId]);
-    if (pendingWrites.current.has(writeKey)) return;
-    pendingWrites.current.set(writeKey, { scope, itemId: failure.itemId });
-    setSaving((previous) => new Set(previous).add(failure.itemId));
-    try { await syncConcept(failure.itemId, course?.progress.get(failure.itemId) ?? failure.status); }
-    finally {
-      pendingWrites.current.delete(writeKey);
-      if (latest.current.mounted && latest.current.scope === scope) setSaving((previous) => { const next = new Set(previous); next.delete(failure.itemId); return next; });
     }
   };
   const discuss = () => {
@@ -301,7 +238,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       { label: "Full-width text", icon: <ArrowHorizontal />, checked: readingWide, separated: true, onSelect: () => setReadingWide(!readingWide) },
     ]} />
   </> : null;
-  const alerts = actionError || syncFailures.size ? <div className="course-pane__alerts">{actionError ? <p role="alert" className="course-error">{actionError}</p> : null}{[...syncFailures.values()].map((failure) => <div key={failure.itemId} role="alert" className="course-error">Progress saved for {items.find((item) => item.id === failure.itemId)?.title ?? failure.itemId}, but the concept map could not update: {failure.message}<button type="button" className="course-button course-button--quiet" disabled={saving.has(failure.itemId)} onClick={() => void retrySync(failure)}>Retry map update</button></div>)}</div> : null;
+  const alerts = actionError ? <div className="course-pane__alerts"><p role="alert" className="course-error">{actionError}</p></div> : null;
 
   return <aside aria-label={course?.title ?? title ?? "Course"} className={`course-pane${embedded ? " course-pane--overview" : ""}`} onPointerDown={() => { if (!focused) onFocus(); }}>
     {embedded ? <ResourceHeader title={course?.title ?? title ?? "Course"} titleContent={course ? <CourseContentsDropdown course={course} activeId={activeId} onSelect={select} /> : undefined} backLabel="Back to courses" onBack={onBack} onClose={onClose}>
@@ -314,7 +251,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     </PaneHeader>
     </>}
     {course ? <>
-      <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough}><CourseContent course={course} activeId={activeId} onMarks={setMarks}
+      <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough} data-reading-scroll><CourseContent course={course} activeId={activeId} onMarks={setMarks}
         marksList={marksOpen ? { anchor: lessonMenu, onClose: () => setMarksOpen(false), title: "Highlights & notes in this lesson" } : undefined} /></main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div>{alerts}</div></div>
     </> : <div className="course-pane__empty" role={loaded.scope === scope && loaded.error ? "alert" : undefined}><p>{loaded.scope === scope ? loaded.error ?? "Opening course…" : "Opening course…"}</p>{loaded.scope === scope && loaded.error ? <button type="button" className="course-button" onClick={() => setReload((value) => value + 1)}>Retry</button> : null}</div>}
   </aside>;

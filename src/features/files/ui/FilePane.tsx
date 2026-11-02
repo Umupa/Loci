@@ -430,7 +430,7 @@ function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin
     );
   } else {
     body = (
-      <div ref={codeScrollRef} className="h-full overflow-auto overscroll-none">
+      <div ref={codeScrollRef} className="h-full overflow-auto overscroll-none" data-reading-scroll>
         <div data-reading-text data-reading-lines-from="1" className="select-text" onClick={nav.onClick}>
           <CodeReader text={content.text} file={name} preRef={textRef} label={name} />
         </div>

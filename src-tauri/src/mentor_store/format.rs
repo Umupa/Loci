@@ -4,7 +4,6 @@
 //!   after the front-matter is kept byte for byte.
 //! - YAML for courses, mapping one to one onto the course JSON the app has
 //!   always validated (`course::validate_data` stays the judge).
-//! - Excalidraw JSON for canvases, with a `loci` key Excalidraw ignores.
 //! - `mentor.json` for who the mentor is.
 //!
 //! Keys the app does not know are kept when it rewrites a file.
@@ -260,9 +259,6 @@ pub fn parse_course(
         None => "reading".into(),
         Some(_) => return Err("engine must be reading or build-your-own".into()),
     };
-    if let Some(canvas) = root.remove("canvas") {
-        root.entry("canvasId").or_insert(canvas);
-    }
     if engine == "reading" {
         let chapters = root
             .get_mut("chapters")
@@ -438,14 +434,7 @@ fn pin_shorthand(file: &str, commit: &str, relativize: &dyn Fn(&str) -> String) 
     Some(format!("{repo}@{commit}:{inner}"))
 }
 
-const COURSE_KEYS: [&str; 6] = [
-    "schemaVersion",
-    "title",
-    "engine",
-    "canvas",
-    "chapters",
-    "steps",
-];
+const COURSE_KEYS: [&str; 5] = ["schemaVersion", "title", "engine", "chapters", "steps"];
 const LESSON_KEYS: [&str; 9] = [
     "id", "title", "document", "section", "file", "lines", "pages", "commit", "compare",
 ];
@@ -480,9 +469,6 @@ pub fn render_course(
         for (key, value) in object {
             match key.as_str() {
                 "engine" => {}
-                "canvasId" => {
-                    root.insert("canvas".into(), value);
-                }
                 "chapters" => {
                     let chapters = value
                         .as_array()
@@ -577,76 +563,6 @@ fn ordered(value: &Value, keys: &[&str]) -> Yaml {
         Value::Array(items) => Yaml::Sequence(items.iter().map(|i| ordered(i, keys)).collect()),
         other => serde_yaml_ng::to_value(other).unwrap_or(Yaml::Null),
     }
-}
-
-// ---------------------------------------------------------------------------
-// Canvases
-
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct CanvasMeta {
-    pub title: Option<String>,
-    pub tags: Vec<String>,
-    pub created_at: Option<i64>,
-    pub updated_at: Option<i64>,
-}
-
-/// An `.excalidraw` file: the scene, plus a `loci` key with its title.
-pub fn parse_canvas(text: &str) -> Result<(CanvasMeta, String), String> {
-    let value: Value = serde_json::from_str(text).map_err(|e| format!("Not valid JSON: {e}"))?;
-    let Value::Object(mut scene) = value else {
-        return Err("An .excalidraw file is a JSON object".into());
-    };
-    let loci = scene.remove("loci").unwrap_or(Value::Null);
-    for key in ["type", "version", "source"] {
-        scene.remove(key);
-    }
-    let meta = CanvasMeta {
-        title: loci["title"].as_str().map(str::to_string),
-        tags: loci["tags"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|t| t.as_str().map(str::to_string))
-            .collect(),
-        created_at: loci["createdAt"]
-            .as_str()
-            .and_then(millis_from_iso)
-            .or_else(|| loci["createdAt"].as_i64()),
-        updated_at: loci["updatedAt"].as_i64(),
-    };
-    let data = serde_json::to_string(&Value::Object(scene)).map_err(|e| e.to_string())?;
-    Ok((meta, data))
-}
-
-pub fn render_canvas(meta: &CanvasMeta, data_json: &str) -> Result<String, String> {
-    let value: Value =
-        serde_json::from_str(data_json).map_err(|e| format!("Canvas data is not JSON: {e}"))?;
-    let Value::Object(scene) = value else {
-        return Err("Canvas data must be a JSON object".into());
-    };
-    let mut file = Map::new();
-    file.insert("type".into(), json!("excalidraw"));
-    file.insert("version".into(), json!(2));
-    file.insert("source".into(), json!("loci"));
-    for (key, value) in scene {
-        if !matches!(key.as_str(), "type" | "version" | "source" | "loci") {
-            file.insert(key, value);
-        }
-    }
-    let mut loci = Map::new();
-    if let Some(title) = &meta.title {
-        loci.insert("title".into(), json!(title));
-    }
-    loci.insert("tags".into(), json!(meta.tags));
-    if let Some(created) = meta.created_at {
-        loci.insert("createdAt".into(), json!(iso_from_millis(created)));
-    }
-    if let Some(updated) = meta.updated_at {
-        // A number: it is also the revision a guarded write compares.
-        loci.insert("updatedAt".into(), json!(updated));
-    }
-    file.insert("loci".into(), Value::Object(loci));
-    serde_json::to_string(&Value::Object(file)).map_err(|e| e.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -774,12 +690,11 @@ mod tests {
 
     #[test]
     fn a_course_yaml_reads_as_the_course_json_and_writes_back() {
-        let yaml = "schemaVersion: 1\ntitle: Sandbox\nengine: reading\ncanvas: overview\nchapters:\n  - title: KVM\n    lessons:\n      - id: a\n        title: API\n        document: 'kvm-api#4.1 KVM_CREATE_VM'\n      - id: b\n        title: Loop\n        file: repos/fc/src/lib.rs#L120-188\n      - id: c\n        title: Paper\n        file: /abs/paper.pdf#p7\n      - id: d\n        title: Pinned\n        file: repos/fc@0123abc:src/vmm.rs\n";
+        let yaml = "schemaVersion: 1\ntitle: Sandbox\nengine: reading\nchapters:\n  - title: KVM\n    lessons:\n      - id: a\n        title: API\n        document: 'kvm-api#4.1 KVM_CREATE_VM'\n      - id: b\n        title: Loop\n        file: repos/fc/src/lib.rs#L120-188\n      - id: c\n        title: Paper\n        file: /abs/paper.pdf#p7\n      - id: d\n        title: Pinned\n        file: repos/fc@0123abc:src/vmm.rs\n";
         let course = parse_course(yaml, &resolve).unwrap();
         assert_eq!(course.title, "Sandbox");
         assert_eq!(course.engine, "reading");
         let data: Value = serde_json::from_str(&course.data_json).unwrap();
-        assert_eq!(data["canvasId"], "overview");
         let lessons = &data["chapters"][0]["lessons"];
         assert_eq!(lessons[0]["document"], "kvm-api");
         assert_eq!(lessons[0]["section"], "4.1 KVM_CREATE_VM");
@@ -800,8 +715,9 @@ mod tests {
             &relativize,
         )
         .unwrap();
-        assert!(written
-            .starts_with("schemaVersion: 1\ntitle: Sandbox\nengine: reading\ncanvas: overview\n"));
+        assert!(
+            written.starts_with("schemaVersion: 1\ntitle: Sandbox\nengine: reading\nchapters:\n")
+        );
         assert!(written.contains("file: repos/fc/src/lib.rs"));
         assert!(written.contains("  - id: a\n    title: API\n    document: kvm-api\n"));
         let again = parse_course(&written, &resolve).unwrap();
@@ -1045,27 +961,6 @@ mod tests {
             &resolve
         )
         .is_err());
-    }
-
-    #[test]
-    fn a_canvas_is_an_excalidraw_file_with_loci_metadata() {
-        let data = r#"{"elements":[{"id":"e"}],"appState":{},"files":{}}"#;
-        let meta = CanvasMeta {
-            title: Some("Overview".into()),
-            tags: vec!["kvm".into()],
-            created_at: Some(1_793_491_200_000),
-            updated_at: Some(5),
-        };
-        let text = render_canvas(&meta, data).unwrap();
-        let file: Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(file["type"], "excalidraw");
-        assert_eq!(file["loci"]["title"], "Overview");
-        let (read, read_data) = parse_canvas(&text).unwrap();
-        assert_eq!(read, meta);
-        assert_eq!(
-            serde_json::from_str::<Value>(&read_data).unwrap(),
-            serde_json::from_str::<Value>(data).unwrap()
-        );
     }
 
     #[test]

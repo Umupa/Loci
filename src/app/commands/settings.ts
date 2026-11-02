@@ -1,6 +1,5 @@
 import { loadNewAgentAccess, saveNewAgentAccess } from "../../features/agents/model/agentAccess";
 import { RUNTIME_MODES, type RuntimeMode } from "../../features/sessions/model/session";
-import { loadCanvasMcpEnabled, saveCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { defaultSessionChoice, loadLastModelChoice, modelsFor, preferredModelId, saveLastModelChoice } from "../../features/sessions/model/models";
 import { isLearningLanguage, LEARNING_LANGUAGES, loadLearningLanguage, saveLearningLanguage } from "../../features/agents/model/learningLanguage";
 import type { CommandContext } from "./context";
@@ -42,14 +41,6 @@ const SETTINGS: Record<string, Setting> = {
     set: (value) => {
       if (!isLearningLanguage(value)) throw new CommandError(`learningLanguage is one of: auto, ${LEARNING_LANGUAGES.map((language) => language.id).join(", ")}`, "usage");
       saveLearningLanguage(value);
-    },
-  },
-  canvasTools: {
-    help: "Whether agents get the built-in Excalidraw tools (true or false)",
-    get: () => loadCanvasMcpEnabled(),
-    set: (value) => {
-      if (value !== "true" && value !== "false") throw new CommandError("canvasTools is true or false", "usage");
-      saveCanvasMcpEnabled(value === "true");
     },
   },
 };

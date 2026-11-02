@@ -6,9 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { copyText } from "../../../platform/tauri/clipboard";
 import { findAgent } from "../../agents/model/agent";
-import { setConceptStatus } from "../../canvas/concepts";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
-import { NAVIGATE_CONCEPT_EVENT, OPEN_COURSE_EVENT, openCourse, type LearningStatus, type ParsedCourse } from "../model/course";
+import { OPEN_COURSE_EVENT, openCourse, type LearningStatus, type ParsedCourse } from "../model/course";
 import { readAgentDocument } from "../../agents/model/agentDocuments";
 import { requestOpenFile } from "../../files/model/filePlace";
 import { CourseHostContext } from "../model/courseContext";
@@ -19,7 +18,6 @@ import { computeLineDiff, DiffCard } from "./DiffCard";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("../../../platform/tauri/clipboard", () => ({ copyText: vi.fn() }));
 vi.mock("../../agents/model/agent", () => ({ findAgent: vi.fn() }));
-vi.mock("../../canvas/concepts", () => ({ setConceptStatus: vi.fn() }));
 vi.mock("../../sessions/model/quoteDraft", () => ({ requestAddToChat: vi.fn() }));
 vi.mock("../../sessions/ui/AgentMarkdown", () => ({ AgentMarkdown: ({ text }: { text: string }) => createElement("div", { "data-markdown": true }, text) }));
 const highlighter = vi.hoisted(() => ({ highlight: vi.fn(() => null), getThemes: () => ["github-light", "github-dark"], supportsLanguage: () => false }));
@@ -34,11 +32,11 @@ vi.mock("../../agents/ui/DocumentBody", () => ({
 
 const makeStep = (id: string) => ({ id, title: `Step ${id}`, summary: `Build ${id}`, file: "main.py", before: "", after: "run()\n\n", explanation: `Explanation ${id}`, runCommand: "python main.py" });
 const build: ParsedCourse = { id: "build", title: "Build an Agent", engine: "build-your-own", data: { engine: "build-your-own", steps: [makeStep("s01"), makeStep("s02"), makeStep("s03")] } };
-const domain: ParsedCourse = { id: "domain", title: "Kubernetes", engine: "reading", canvasId: "canvas-a", data: { engine: "reading", canvasId: "canvas-a", chapters: [
+const domain: ParsedCourse = { id: "domain", title: "Kubernetes", engine: "reading", data: { engine: "reading", chapters: [
   { title: "Workloads", lessons: [{ id: "container", title: "Container", document: "doc-container" }, { id: "pod", title: "Pod", document: "doc-pod", section: "Pod phase" }] },
   { title: "Papers", lessons: [{ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [3, 9] }] },
 ] } };
-const source = (course: ParsedCourse) => `---\nid: ${course.id}\ntitle: ${course.title}\nengine: ${course.engine}\n${course.canvasId ? `canvas-id: ${course.canvasId}\n` : ""}---\n${JSON.stringify(course.data)}\n`;
+const source = (course: ParsedCourse) => `---\nid: ${course.id}\ntitle: ${course.title}\nengine: ${course.engine}\n---\n${JSON.stringify(course.data)}\n`;
 const key = (owner: string, id: string) => JSON.stringify([owner, id]);
 const courses = new Map<string, unknown>();
 const progress = new Map<string, Map<string, LearningStatus>>();
@@ -62,14 +60,12 @@ const command = async (name: string, args: any): Promise<any> => {
 const pane = (courseId = "build", agentId = "owner") => createElement(CoursePane, { courseId, agentId, sourceSessionId: "original-chat", focused: true, onFocus: vi.fn(), onClose: vi.fn() });
 const button = (label: string) => [...container.querySelectorAll<HTMLButtonElement>("button")].find((item) => item.textContent === label || (label === "Open Course" && item.getAttribute("aria-label")?.startsWith("Open course ")))!;
 const nav = (title: string) => [...container.querySelectorAll<HTMLButtonElement>("nav button")].find((item) => item.textContent?.endsWith(title))!;
-const navigate = (detail: object) => act(() => window.dispatchEvent(new CustomEvent(NAVIGATE_CONCEPT_EVENT, { detail })));
 
 beforeEach(() => {
   vi.clearAllMocks(); courses.clear(); progress.clear();
   courses.set(key("owner", "build"), stored(build)); courses.set(key("owner", "domain"), stored(domain));
   vi.mocked(invoke).mockImplementation(command);
   vi.mocked(copyText).mockResolvedValue(undefined);
-  vi.mocked(setConceptStatus).mockResolvedValue(undefined);
   vi.mocked(findAgent).mockReturnValue(undefined);
   vi.mocked(readAgentDocument).mockImplementation(async (_agent, id) => id === "doc-missing" ? undefined : { id, title: id, body: `${id} text`, sourceUrl: `https://kubernetes.io/${id}`, createdAt: 1, updatedAt: 1 });
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); vi.stubGlobal("crypto", webcrypto);
@@ -153,29 +149,10 @@ it("opens the first unmastered step, saves progress, and recovers it after remou
   act(() => root.unmount()); root = createRoot(container); await act(async () => root.render(pane())); expect(nav("Step s03").getAttribute("aria-current")).toBe("step");
 });
 
-it("keeps stored progress on map failure, exposes recovery, and retries only the map", async () => {
-  vi.mocked(setConceptStatus).mockRejectedValueOnce(new Error("drawing conflict"));
-  await act(async () => root.render(pane("domain"))); await act(async () => button("Mark as read").click());
-  expect(nav("Container").getAttribute("aria-label")).toBe("Container, Read"); expect(container.textContent).toContain("Progress saved for Container");
-  expect(setConceptStatus).toHaveBeenCalledWith("canvas-a", "domain", "container", "mastered", "owner");
-  const writes = vi.mocked(invoke).mock.calls.filter(([name]) => name === "course_progress_set").length;
-  await act(async () => button("Retry map update").click()); expect(container.textContent).not.toContain("drawing conflict");
-  expect(vi.mocked(invoke).mock.calls.filter(([name]) => name === "course_progress_set")).toHaveLength(writes);
-});
-
 it("does not claim mastery when native progress saving fails", async () => {
   vi.mocked(invoke).mockImplementation(async (name, args) => { if (name === "course_progress_set") throw new Error("database locked"); return command(name, args); });
   await act(async () => root.render(pane("domain"))); await act(async () => button("Mark as read").click());
-  expect(nav("Container").getAttribute("aria-label")).toBe("Container, Not started"); expect(container.querySelector('[role="alert"]')?.textContent).toContain("database locked"); expect(setConceptStatus).not.toHaveBeenCalled();
-});
-
-it("scopes concept navigation and retains a valid target arriving before initial load finishes", async () => {
-  const read = deferred<unknown>(); vi.mocked(invoke).mockImplementation(async (name, args) => name === "course_get" ? read.promise : command(name, args));
-  await act(async () => root.render(pane("domain"))); navigate({ courseId: "domain", conceptId: "borg", canvasId: "canvas-a", agentId: "owner" });
-  await act(async () => read.resolve(stored(domain))); expect(nav("Borg").getAttribute("aria-current")).toBe("step");
-  for (const wrong of [{ courseId: "build", conceptId: "pod" }, { courseId: "domain", conceptId: "pod", canvasId: "other" }, { courseId: "domain", conceptId: "pod", agentId: "other" }, { courseId: "domain", conceptId: "missing" }]) navigate(wrong);
-  expect(nav("Borg").getAttribute("aria-current")).toBe("step");
-  await act(async () => navigate({ courseId: "domain", conceptId: "pod", canvasId: "canvas-a" })); expect(container.textContent).toContain("doc-pod text"); expect(nav("Container")).toBeTruthy();
+  expect(nav("Container").getAttribute("aria-label")).toBe("Container, Not started"); expect(container.querySelector('[role="alert"]')?.textContent).toContain("database locked");
 });
 
 it("refreshes same-id updated courses without losing a still-valid selection", async () => {

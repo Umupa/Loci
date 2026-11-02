@@ -43,8 +43,8 @@ export const COMPARE_PARTS = { min: 2, max: 4, label: 60, note: 2000 } as const;
 export type CourseChapter = { title: string; lessons: CourseLesson[] };
 export type CourseData =
   | { engine: "build-your-own"; steps: CourseStep[] }
-  | { engine: "reading"; chapters: CourseChapter[]; canvasId?: string };
-export type ParsedCourse = { id: string; title: string; engine: CourseEngine; canvasId?: string; data: CourseData };
+  | { engine: "reading"; chapters: CourseChapter[] };
+export type ParsedCourse = { id: string; title: string; engine: CourseEngine; data: CourseData };
 export type CourseWithProgress = { id: string; agentId: string; title: string; updatedAt: number; data: CourseData; progress: Map<string, LearningStatus> };
 export type CourseParseResult = { course: ParsedCourse; error?: never } | { course?: never; error: string };
 export type DiffSpec = { id: string; title: string; file: string; before: string; after: string; runCommand?: string };
@@ -85,7 +85,7 @@ function frontMatter(source: string, fence: string) {
 }
 
 /** Validate both generated JSON and stored JSON at their shared trust boundary. */
-export function parseCourseData(engine: unknown, value: unknown, canvasId?: string): CourseData {
+export function parseCourseData(engine: unknown, value: unknown): CourseData {
   const raw = object(value, "Course body");
   if (raw.engine !== undefined && raw.engine !== engine) throw new Error("Course body engine does not match metadata.");
   if (engine === "build-your-own") {
@@ -115,10 +115,7 @@ export function parseCourseData(engine: unknown, value: unknown, canvasId?: stri
   });
   const lessonIds = chapters.flatMap((chapter) => chapter.lessons.map((entry) => entry.id));
   if (new Set(lessonIds).size !== lessonIds.length) throw new Error("Course lessons contain duplicate ids.");
-  const storedCanvas = optionalString(raw.canvasId, "canvasId");
-  if (canvasId && storedCanvas && canvasId !== storedCanvas) throw new Error("canvas-id does not match the course body's canvasId.");
-  const canvas = canvasId ?? storedCanvas;
-  return { engine, chapters, ...(canvas ? { canvasId: canvas } : {}) };
+  return { engine, chapters };
 }
 
 function lesson(value: unknown, label: string): CourseLesson {
@@ -202,13 +199,12 @@ export function parseCourse(source: string): CourseParseResult {
     const courseId = id(fields.id, "Course id");
     const title = string(fields.title, "Course title");
     if ([...title].length > 200) throw new Error("Course title must be at most 200 characters.");
-    const canvasId = optionalString(fields["canvas-id"], "canvas-id");
     let json: unknown;
     try { json = JSON.parse(body.replace(/\n---[ \t]*\n?$/, "").trim()); }
     catch { throw new Error("loci-course body must be valid JSON."); }
     // Chapters of things to read is what a course is; only code steps say otherwise.
-    const data = parseCourseData(fields.engine ?? "reading", json, canvasId);
-    return { course: { id: courseId, title, engine: data.engine, data, ...(data.engine === "reading" && data.canvasId ? { canvasId: data.canvasId } : {}) } };
+    const data = parseCourseData(fields.engine ?? "reading", json);
+    return { course: { id: courseId, title, engine: data.engine, data } };
   } catch (cause) { return { error: errorText(cause) }; }
 }
 
@@ -231,7 +227,7 @@ export function parseCourseInput(input: Record<string, unknown>): ParsedCourse {
   if ([...title].length > 200) throw new Error("title must be at most 200 characters.");
   const { id: _id, title: _title, engine, ...body } = input;
   const data = parseCourseData(engine ?? "reading", body);
-  return { id: courseId, title, engine: data.engine, data, ...(data.engine === "reading" && data.canvasId ? { canvasId: data.canvasId } : {}) };
+  return { id: courseId, title, engine: data.engine, data };
 }
 
 /** Delimiter lines are structural; every byte inside the code sections is kept. */
@@ -331,5 +327,3 @@ export type OpenCourseDetail = { courseId: string; agentId: string; title: strin
 export function openCourse(detail: OpenCourseDetail) {
   window.dispatchEvent(new CustomEvent<OpenCourseDetail>(OPEN_COURSE_EVENT, { detail }));
 }
-export const NAVIGATE_CONCEPT_EVENT = "loci:navigate-concept";
-export type NavigateConceptDetail = { courseId: string; conceptId: string; canvasId?: string; agentId?: string };

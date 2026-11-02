@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { agentCanvasScope, type Agent } from "../../agents/model/agent";
+import type { Agent } from "../../agents/model/agent";
 import type { CourseWithProgress } from "../../learning/model/course";
 import type { Note } from "../../notes";
 import { mentorSearchItems, searchMentorItems, type MentorSearchSources } from "./mentorSearch";
@@ -20,10 +20,6 @@ const sources: MentorSearchSources = {
     { id: "n1", title: "Namespaces recap", agentId: "kernel", body: "", tags: [] } as unknown as Note,
     { id: "n2", title: "Loose thoughts", body: "", tags: [] } as unknown as Note,
   ],
-  canvases: [
-    { id: "c1", title: "Jail map", cwd: agentCanvasScope("sandbox"), dataJson: "{}", tags: [], createdAt: 1, updatedAt: 1 },
-    { id: "c2", title: "Project drawing", cwd: "/repo", dataJson: "{}", tags: [], createdAt: 1, updatedAt: 1 },
-  ],
 };
 
 it("indexes mentors and what they keep, with the page each opens", () => {
@@ -33,7 +29,6 @@ it("indexes mentors and what they keep, with the page each opens", () => {
     "course:sandbox:jailer", "lesson:sandbox:jailer:6-02",
     "source:sandbox:jailer-md",
     "note:n1", "note:n2",
-    "canvas:c1",
   ]);
   expect(items.find((item) => item.kind === "lesson")).toMatchObject({ context: "Sandbox › Firecracker isolation", agentId: "sandbox",
     page: { kind: "course", course: { courseId: "jailer", agentId: "sandbox", itemId: "6-02" } } });
@@ -44,8 +39,8 @@ it("indexes mentors and what they keep, with the page each opens", () => {
 
 it("ranks whole and prefix matches before matches inside words, and mentors first on ties", () => {
   const items = mentorSearchItems(sources);
-  // Equal matches keep the order mentor, course, lesson, source, note, canvas.
-  expect(searchMentorItems(items, "jail").map((item) => item.id)).toEqual(["lesson:sandbox:jailer:6-02", "source:sandbox:jailer-md", "canvas:c1"]);
+  // Equal matches keep the order mentor, course, lesson, source, note.
+  expect(searchMentorItems(items, "jail").map((item) => item.id)).toEqual(["lesson:sandbox:jailer:6-02", "source:sandbox:jailer-md"]);
   // A match at the start of a later word beats one inside a word.
   expect(searchMentorItems(items, "cgroup").map((item) => item.id)).toEqual(["lesson:sandbox:jailer:6-02"]);
   // A title match comes before one in the course a lesson belongs to.

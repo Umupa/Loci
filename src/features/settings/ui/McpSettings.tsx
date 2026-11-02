@@ -12,8 +12,6 @@ import {
 } from "react";
 import { revealPath } from "../../../platform/tauri/fs";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
-import { BUILTIN_CLI_HARNESSES } from "../../sessions/model/builtinCli";
-import { HARNESS_TITLE, type HarnessId } from "../../sessions/model/session";
 import { Modal } from "../../../shared/ui/Modal";
 import { Popover } from "../../../shared/ui/Popover";
 import { LAYER } from "../../../shared/lib/layers";
@@ -24,10 +22,7 @@ import {
   ChevronDown,
   ListFilter,
   Check,
-  ExcalidrawIcon,
 } from "../../../shared/ui/icons";
-import { CANVAS_MCP_NAME, canvasMcpProblem } from "../../canvas/mcpServer";
-import { saveCanvasMcpEnabled, useCanvasMcpEnabled } from "../model/builtinMcp";
 import { MCP_PROVIDER_LABELS, type McpConnection } from "../model/mcp";
 import {
   getCachedMcpSettings,
@@ -49,7 +44,6 @@ const SCOPES: Record<Provider, Scope[]> = {
   claude: ["local", "project", "user"],
   codex: ["user"],
 };
-const BUILTIN_PROVIDERS: readonly HarnessId[] = [...PROVIDERS, ...BUILTIN_CLI_HARNESSES];
 
 /** A scope's translated name, for labels and confirmations. */
 function scopeLabel(scope: Scope): string {
@@ -299,85 +293,7 @@ function AddServerModal({
 
 export function McpSettings({ cwd }: { cwd: string }) {
   useLocale();
-  return (
-    <div className="space-y-8">
-      <BuiltinCanvasMcp />
-      <McpConnections key={cwd} cwd={cwd} />
-    </div>
-  );
-}
-
-/** Who can use the built-in servers: the first two are given them over MCP, the others call them through Loci's CLI. */
-function BuiltinProviders() {
-  useLocale();
-  return (
-    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-content/50">
-      {BUILTIN_PROVIDERS.map((harness) => (
-        <span key={harness} className="inline-flex items-center gap-1.5">
-          <HarnessIcon harness={harness} className="size-3.5 shrink-0" />{HARNESS_TITLE[harness]}
-        </span>
-      ))}
-    </p>
-  );
-}
-
-function BuiltinCanvasMcp() {
-  useLocale();
-  const enabled = useCanvasMcpEnabled();
-  const [problem, setProblem] = useState<string | null | undefined>(undefined);
-  const [check, setCheck] = useState(0);
-  useEffect(() => {
-    let current = true;
-    setProblem(undefined);
-    void canvasMcpProblem().then((result) => { if (current) setProblem(result); });
-    return () => { current = false; };
-  }, [enabled, check]);
-  const status = !enabled ? t("Disabled") : problem === undefined ? t("Checking…") : problem ? t("Unavailable") : t("Enabled");
-
-  return (
-    <div id="setting-builtin-excalidraw" data-setting-id="builtin-excalidraw" className="space-y-3">
-      <div>
-        <h2 className="text-sm font-semibold">{t("Built-in MCP")}</h2>
-        <p className="mt-1 text-xs text-content/55">{t("Servers provided by Loci. These settings apply everywhere in Loci.")}</p>
-      </div>
-      <div className="rounded-xl border border-content/10 bg-content/3 px-4 py-3.5">
-        <div className="flex items-start gap-3">
-          <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-content/[0.05] ring-1 ring-inset ring-content/[0.06]">
-            <ExcalidrawIcon className="size-4" />
-          </span>
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-content">
-              Excalidraw
-              <span className="rounded bg-content/5 px-1.5 py-0.5 text-[10px] font-normal text-content/55">{t("Built-in")}</span>
-            </div>
-            <p className="text-[12px] text-content/45">{CANVAS_MCP_NAME}{" "}{t("· Local ·")}{" "}{status}</p>
-            <p id="builtin-excalidraw-description" className="text-[12px] leading-relaxed text-content/65">
-              {t("Let agents read and edit Loci canvases. Drawings are saved locally.")}</p>
-            <BuiltinProviders />
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-label={t("Enable built-in Excalidraw MCP")}
-            aria-checked={enabled}
-            aria-describedby="builtin-excalidraw-description builtin-excalidraw-timing"
-            onClick={() => saveCanvasMcpEnabled(!enabled)}
-            className={`relative mt-1 h-5 w-9 shrink-0 rounded-full transition-colors ${enabled ? "bg-accent" : "bg-content/20"}`}
-          >
-            <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-[left] ${enabled ? "left-4.5" : "left-0.5"}`} />
-          </button>
-        </div>
-        <p id="builtin-excalidraw-timing" className="mt-3 text-[11px] leading-relaxed text-content/45">
-          {t("Changes apply from each session's next turn. A turn already in progress can finish.")}</p>
-        {enabled && problem ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <p role="status" className="min-w-0 flex-1 text-amber-400">{problem}</p>
-            <button type="button" onClick={() => setCheck((value) => value + 1)} className="rounded-md border border-stroke px-2 py-1 hover:bg-content/5">{t("Check again")}</button>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <McpConnections key={cwd} cwd={cwd} />;
 }
 
 function McpConnections({

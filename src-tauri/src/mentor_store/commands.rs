@@ -727,7 +727,6 @@ pub fn kind_event(kind: Kind) -> &'static str {
         Kind::Source | Kind::Guide => "documents",
         Kind::Course => "courses",
         Kind::Note => "notes",
-        Kind::Canvas => "canvases",
     }
 }
 

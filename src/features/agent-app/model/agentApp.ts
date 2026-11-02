@@ -1,4 +1,4 @@
-import { agentCanvasScope, findAgent } from "../../agents/model/agent";
+import { findAgent } from "../../agents/model/agent";
 import { effectiveLearningLanguage, isLearningLanguage } from "../../agents/model/learningLanguage";
 import { readTextFile } from "../../../platform/tauri/fs";
 import { mergeTranslation, sectionUnits, shownUnits, sourceUnits, TranslationShapeError } from "../../learning/model/sourceTranslation";
@@ -34,18 +34,7 @@ import {
   nextHabitRunAt,
   type Habit,
 } from "../../agents/model/agentHabits";
-import { looksLikeProject, sameProjectPath } from "../../projects/model/recents";
-import {
-  createEmptyCanvas,
-  deleteCanvas,
-  getCanvas,
-  loadCanvases,
-  readCanvasScene,
-  updateCanvas,
-  upsertCanvas,
-  writeCanvasScene,
-  type Canvas,
-} from "../../canvas/canvas";
+import { looksLikeProject } from "../../projects/model/recents";
 import {
   mergeModelSettings,
   modelEffortSetting,
@@ -266,20 +255,13 @@ const FIELDS = new Map<string, readonly string[]>([
   ["guides.write", ["id", "title", "subject", "path", "body"]],
   ["courses.list", []],
   ["courses.read", ["id"]],
-  ["courses.write", ["id", "title", "engine", "chapters", "canvasId", "steps"]],
+  ["courses.write", ["id", "title", "engine", "chapters", "steps"]],
   ["courses.delete", ["id"]],
   ["habits.list", []],
   ["habits.add", ["name", "instructions", "schedule", "access"]],
   ["habits.update", ["id", "name", "instructions", "schedule", "enabled", "access"]],
   ["habits.run", ["id"]],
   ["habits.remove", ["id"]],
-  ["canvas.list", ["project"]],
-  ["canvas.get", ["id", "project"]],
-  ["canvas.create", ["title", "project"]],
-  ["canvas.rename", ["id", "title", "project"]],
-  ["canvas.delete", ["id", "project"]],
-  ["canvas.read-data", ["id", "project"]],
-  ["canvas.write-data", ["id", "dataJson", "project"]],
 ]);
 
 function fields(action: string, input: Record<string, unknown>) {
@@ -395,20 +377,6 @@ function requireProject(
   throw new Error(`Pass "project" to choose one. Yours: ${choices()}`);
 }
 
-/**
- * Where a canvas action works. An agent's canvases are in its library, in
- * no project, and that is where it draws unless it names one of its projects.
- */
-function canvasPlace(
-  source: Session,
-  input: Record<string, unknown>,
-  host: AgentAppHost,
-): string {
-  const agent = host.agentOf?.(source.id);
-  if (agent && input.project === undefined) return agentCanvasScope(agent.id);
-  return requireProject(source, input, host);
-}
-
 /** An agent's chat lives outside its projects; project access follows its roster. */
 export function canAccessAgentAppProject(
   source: Session,
@@ -420,25 +388,8 @@ export function canAccessAgentAppProject(
   );
 }
 
-function canvasMetadata({ id, title, cwd, createdAt, updatedAt }: Canvas) {
-  return { id, title, cwd, createdAt, updatedAt, url: appResourceUrl("canvas", id) };
-}
-
 function savedNote(note: Note) {
   return { ...note, url: appResourceUrl("note", note.id), saved: true };
-}
-
-async function projectCanvas(
-  source: Session,
-  id: string,
-  input: Record<string, unknown>,
-  host: AgentAppHost,
-): Promise<Canvas> {
-  const cwd = canvasPlace(source, input, host);
-  const canvas = await getCanvas(id);
-  if (!canvas) throw new Error("Canvas was not found");
-  if (!canvas.cwd || !sameProjectPath(canvas.cwd, cwd)) throw new Error("Canvas was not found in this project");
-  return canvas;
 }
 
 async function projectSession(
@@ -1230,77 +1181,6 @@ export async function handleAgentApp(
         draft: !!launch.draft,
         ...(notify ? { notifyOnComplete: true } : {}),
       };
-    }
-    case "canvas.list": {
-      const cwd = canvasPlace(source, input, host);
-      const canvases = await loadCanvases(true);
-      return {
-        cwd,
-        canvases: canvases
-          .filter((canvas) => !!canvas.cwd && sameProjectPath(canvas.cwd, cwd))
-          .sort((a, b) => b.updatedAt - a.updatedAt)
-          .map(canvasMetadata),
-      };
-    }
-    case "canvas.get": {
-      const id = requiredString(input.id, "id", 256);
-      const canvas = await projectCanvas(source, id, input, host);
-      return canvasMetadata(canvas);
-    }
-    case "canvas.create": {
-      const cwd = canvasPlace(source, input, host);
-      const title = optionalString(input.title, "title", 200);
-      if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId)) throw new Error("Invalid request ID");
-      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([source.id, requestId])));
-      const id = `app-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-      const existing = await getCanvas(id);
-      if (existing) {
-        if (!existing.cwd || !sameProjectPath(existing.cwd, cwd) || existing.title !== (title ?? "Untitled drawing"))
-          throw new Error("Request ID was already used for another drawing");
-        return { id: existing.id, title: existing.title, url: appResourceUrl("canvas", existing.id), saved: true };
-      }
-      const canvas = await upsertCanvas({
-        ...createEmptyCanvas(cwd),
-        id,
-        ...(title === undefined ? {} : { title }),
-      });
-      return { id: canvas.id, title: canvas.title, url: appResourceUrl("canvas", canvas.id), saved: true };
-    }
-    case "canvas.rename": {
-      const id = requiredString(input.id, "id", 256);
-      const title = requiredString(input.title, "title", 200);
-      await projectCanvas(source, id, input, host);
-      const canvas = await updateCanvas(id, { title });
-      return { title: canvas.title, url: appResourceUrl("canvas", canvas.id), saved: true };
-    }
-    case "canvas.delete": {
-      const id = requiredString(input.id, "id", 256);
-      await projectCanvas(source, id, input, host);
-      await deleteCanvas(id);
-      return { deleted: true };
-    }
-    case "canvas.read-data": {
-      const cwd = canvasPlace(source, input, host);
-      const id = requiredString(input.id, "id", 256);
-      const canvas = await getCanvas(id);
-      if (!canvas) throw new Error("Canvas was not found");
-      if (!canvas.cwd || !sameProjectPath(canvas.cwd, cwd)) throw new Error("Canvas was not found in this project");
-      const saved = await readCanvasScene(id);
-      if (!saved) throw new Error("Canvas was not found");
-      return { id: saved.id, title: saved.title, dataJson: saved.dataJson, url: appResourceUrl("canvas", saved.id) };
-    }
-    case "canvas.write-data": {
-      const cwd = canvasPlace(source, input, host);
-      const id = requiredString(input.id, "id", 256);
-      const dataJson = requiredString(input.dataJson, "dataJson", 250_000);
-      if (new TextEncoder().encode(dataJson).length > 250_000) throw new Error("dataJson must be under 250000 UTF-8 bytes");
-      const { normalizeCanvasScene, canonicalizeCanvasImages } = await import("../../canvas/scene");
-      const scene = await canonicalizeCanvasImages(normalizeCanvasScene(dataJson));
-      const existing = await getCanvas(id);
-      if (!existing) throw new Error("Canvas was not found");
-      if (!existing.cwd || !sameProjectPath(existing.cwd, cwd)) throw new Error("Canvas was not found in this project");
-      await writeCanvasScene(id, scene);
-      return { updated: true, url: appResourceUrl("canvas", id), saved: true };
     }
     case "notes.list": {
       const limit = input.limit ?? 30;

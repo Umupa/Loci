@@ -20,8 +20,6 @@ export type AppControlWorkspace = {
   addSession: (session: Session, options?: { reveal?: boolean }) => unknown;
   archiveSession: (id: string, archived: boolean) => Promise<boolean>;
   removeSession: (id: string) => Promise<boolean>;
-  isCanvasOpen: (id: string) => boolean;
-  revealCanvas: (id: string, sessionId: string) => void;
 };
 
 export type AgentAppDeps = { workspace: AppControlWorkspace; runtime: SessionRuntime; submission: SessionSubmission; delegation?: AgentDelegation };

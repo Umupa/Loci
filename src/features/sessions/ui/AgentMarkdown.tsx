@@ -1,5 +1,5 @@
 import { CARD_FENCE } from "../model/cards";
-import { CanvasCard, DocumentCard, MindmapCard, TodoCard } from "./cards/Cards";
+import { DocumentCard, MindmapCard, TodoCard } from "./cards/Cards";
 import { CourseCard } from "../../learning/ui/CourseCard";
 import { DiffCardFromSource } from "../../learning/ui/DiffCard";
 import { convertFileSrc,invoke } from "@tauri-apps/api/core";
@@ -46,7 +46,6 @@ import { ContextMenu,type ContextMenuItem } from "../../../shared/ui/ContextMenu
 import { FileActionError } from "../../../shared/ui/FileActionError";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { ImageLightbox } from "../../../shared/ui/ImageLightbox";
-import { ExcalidrawIcon } from "../../../shared/ui/ExcalidrawIcon";
 import { File, MessageSquare } from "../../../shared/ui/icons";
 import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 
@@ -296,7 +295,7 @@ function MarkdownLink({
   // A source's own links go where its page's links went, never to a local file.
   const file = href && !sourceUrl ? resolveWorkspaceFileReference(href, cwd) : undefined;
   if (href?.startsWith("loci:") && !resource) return <span dir={dir ?? "auto"}>{children}</span>;
-  const ResourceIcon = resource?.kind === "canvas" ? ExcalidrawIcon : resource?.kind === "session" ? MessageSquare : File;
+  const ResourceIcon = resource?.kind === "session" ? MessageSquare : File;
   return (
     <a
       href={href}
@@ -414,8 +413,6 @@ function MarkdownCode({
   if (card === CARD_FENCE.mindmap)
     return incomplete ? null : <MindmapCard source={textContent(children)} />;
   // The form is drawn where the conversation continues, not here.
-  if (card === CARD_FENCE.canvas)
-    return incomplete ? null : <CanvasCard source={textContent(children)} />;
   if (card === CARD_FENCE.question) return null;
   const iconName =
     fence.fileName ??
@@ -840,6 +837,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
       tabIndex={0}
       role="region"
       aria-label="Markdown preview"
+      data-reading-scroll
       className="markdown-preview h-full overflow-y-auto overscroll-none [overflow-anchor:none]"
     >
       <div className="px-6 py-8">

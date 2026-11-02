@@ -1,8 +1,6 @@
-import { canvasScopeAgentId } from "../../features/agents/model/agent";
 import { useEffect, useRef } from "react";
 import { APP_RESOURCE_OPEN_EVENT, fileResourcePath, parseAppResourceUrl, resourceUrl, type AppResource, type SourcePlace } from "../../shared/lib/appResourceLinks";
 import { requestFilePlace } from "../../features/files/model/filePlace";
-import { CANVAS_OPEN_CHECKPOINT_EVENT, checkpointCanvasId, getCanvas, type Canvas } from "../../features/canvas/canvas";
 import { getLearningSource, getReadingDocument } from "../../features/learning/model/learningStore";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { requestTranscriptJump } from "../../features/sessions/model/transcriptJump";
@@ -32,21 +30,19 @@ type Options = {
   mentorBase(): string | undefined;
   /** Show a library document, at a place in it, in its mentor's reader. False when it is not in that library. */
   openDocument(agentId: string, documentId: string, place?: DocumentPlace): Promise<boolean>;
-  /** `owner` is the agent that keeps the drawing, when one does. */
-  openCanvas(canvas: Canvas, owner?: string): Promise<void>;
   /** `owner` is the agent that keeps the note, when one does. */
   openNote(id: string, owner?: string): Promise<void>;
   onOpenConversation?: (id: string, blockId?: string, isCurrent?: () => boolean) => Promise<void>;
   onError(error: unknown): void;
 };
 
-/** Replies and old checkpoint buttons share the current window's navigation. */
+/** Links in replies share the current window's navigation. */
 export function useAppResourceNavigation(options: Options) {
   const latest = useRef(options);
   latest.current = options;
   useEffect(() => {
     let request = 0;
-    const navigate = async (resource: AppResource, checkpoint = false) => {
+    const navigate = async (resource: AppResource) => {
       const current = ++request;
       try {
         if (resource.kind === "note") {
@@ -108,15 +104,7 @@ export function useAppResourceNavigation(options: Options) {
           const path = joinPath(cwd, relative);
           if (resource.place) requestFilePlace(path, resource.place);
           latest.current.openFile(path);
-          return;
         }
-        const id = checkpoint ? await checkpointCanvasId(resource.id) : resource.id;
-        if (!id) throw new Error("This drawing no longer exists.");
-        const canvas = await getCanvas(id);
-        if (current !== request) return;
-        if (!canvas) throw new Error("This drawing no longer exists.");
-        const owner = canvasScopeAgentId(canvas.cwd);
-        await latest.current.openCanvas(canvas, owner && findAgent(owner) ? owner : undefined);
       } catch (error) {
         if (current === request) latest.current.onError(error);
       }
@@ -127,16 +115,10 @@ export function useAppResourceNavigation(options: Options) {
       const parsed = parseAppResourceUrl(resourceUrl(resource));
       if (parsed) void navigate(parsed);
     };
-    const openCheckpoint = (event: Event) => {
-      const id = (event as CustomEvent<string>).detail;
-      if (typeof id === "string") void navigate({ kind: "canvas", id }, true);
-    };
     window.addEventListener(APP_RESOURCE_OPEN_EVENT, open);
-    window.addEventListener(CANVAS_OPEN_CHECKPOINT_EVENT, openCheckpoint);
     return () => {
       request++;
       window.removeEventListener(APP_RESOURCE_OPEN_EVENT, open);
-      window.removeEventListener(CANVAS_OPEN_CHECKPOINT_EVENT, openCheckpoint);
     };
   }, []);
 }

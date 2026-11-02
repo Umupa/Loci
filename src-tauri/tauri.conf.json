@@ -62,9 +62,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
-      "resources/excalidraw-mcp/**/*"
-    ],
     "macOS": {
       "entitlements": "Entitlements.plist",
       "signingIdentity": "-"

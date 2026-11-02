@@ -105,15 +105,12 @@ fn opened_by_macos(args: &[String]) -> bool {
 /// app. Anything that is not an app launch is a command line, so an unknown
 /// command or option fails with a usage error instead of leaving the CLI and
 /// starting the window. The namespaces the desktop executable reserves for
-/// agents (`app`, `canvas`) are left to `main`.
+/// agents (`app`) is left to `main`.
 pub fn handles(args: &[String]) -> bool {
     if opened_by_macos(args) {
         return false;
     }
-    !matches!(
-        args.first().map(String::as_str),
-        Some("app") | Some("canvas")
-    )
+    args.first().map(String::as_str) != Some("app")
 }
 
 /// What the user asked for.
@@ -808,7 +805,6 @@ mod tests {
         assert!(handles(&args(&["--help"])));
         // The agents' own command lines and the app's start are left alone.
         assert!(!handles(&args(&["app", "notes.list"])));
-        assert!(!handles(&args(&["canvas", "create_view"])));
         assert!(!handles(&args(&[])));
         // What macOS passes when it opens the app is a launch, not a command.
         assert!(!handles(&args(&["-psn_0_12345"])));

@@ -1,14 +1,12 @@
 // @vitest-environment happy-dom
-import { act, createElement, type ComponentProps } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { clearMocks, mockConvertFileSrc, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import App from "./App";
 import { ACTIVE_MENTOR_KEY } from "./hooks/useActiveMentor";
-import { agentCanvasScope, type Agent } from "../features/agents/model/agent";
+import type { Agent } from "../features/agents/model/agent";
 import { saveAgentDocuments, type StoredDocument } from "../features/agents/model/agentDocuments";
-import { canvasElementsToText, type Canvas } from "../features/canvas/canvas";
-import type { CanvasPane } from "../features/canvas/ui/CanvasPane";
 import type { Note } from "../features/notes";
 import { clearComposerDraft, getComposerDraft, setComposerDraft } from "../features/sessions/model/draftCache";
 import { ADD_TO_CHAT_EVENT } from "../features/sessions/model/quoteDraft";
@@ -26,31 +24,19 @@ vi.mock("../platform/tauri/platform", async (original) => ({
   get IS_MAC() { return platform.mac; },
 }));
 
-// Catalog discovery needs signed-in CLIs; the editor itself is covered by CanvasPane tests.
+// Catalog discovery needs signed-in CLIs.
 vi.mock("../integrations/harness/core/registry", async (original) => ({
   ...(await original<typeof import("../integrations/harness/core/registry")>()),
   refreshHarnessCatalogs: vi.fn(),
 }));
 vi.mock("./model/preloadNavigation", () => ({ preloadNavigationWhenIdle: () => () => undefined }));
 vi.mock("../features/notes/ui/NoteEditor", () => ({ NoteEditor: ({ note }: { note: Note }) => createElement("article", { "data-test-note": true }, note.title) }));
-vi.mock("../features/canvas/ui/CanvasPane", () => ({
-  CanvasPane: ({ canvas, focused, onFocus, onAddToChat, chatTarget = "chat" }: ComponentProps<typeof CanvasPane>) => createElement("section", {
-    "data-test-canvas": canvas.id,
-    "data-focused": focused,
-    onPointerDown: onFocus,
-  }, createElement("header", null, canvas.title,
-    createElement("button", {
-      "aria-label": `Add drawing to ${chatTarget}`,
-      onClick: () => onAddToChat(canvasElementsToText(canvas.title, JSON.stringify(JSON.parse(canvas.dataJson).elements, null, 2), canvas.id)),
-    }, chatTarget === "agent" ? "Add to agent" : "Add to chat"))),
-}));
 
 const reading = { id: "network", title: "Network strategy", subject: "Sandbox", body: "# Network strategy\n\nStored network strategy." };
 const agents: Agent[] = [
   { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#cc66aa", projects: [] },
   { id: "agent-b", sessionId: "chat-b", name: "Bea", avatar: "loci", color: "#66aacc", projects: [] },
 ];
-const canvas: Canvas = { id: "library-drawing", title: "Network map", cwd: agentCanvasScope("agent-a"), dataJson: '{"elements":[]}', tags: [], createdAt: 1, updatedAt: 1 };
 const library = new Map<string, StoredDocument>();
 let root: Root;
 let container: HTMLDivElement;
@@ -108,8 +94,6 @@ beforeEach(async () => {
       notes.push(saved);
       return saved;
     }
-    if (command === "canvas_list") return [canvas];
-    if (command === "canvas_get") return input.id === canvas.id ? canvas : null;
     if (command === "course_get") return { id: input.id, agentId: input.agentId, title: "Kubernetes",
       updatedAt: 2, engine: "reading", dataJson: JSON.stringify({ chapters: [{ title: "Workloads", lessons: [{ id: "pod", title: "Pod", file: "/books/course-content.pdf" }] }] }) };
     if (command === "course_progress_get" || command === "course_progress_set") return [];
@@ -141,7 +125,6 @@ beforeEach(async () => {
   document.body.append(container);
   root = createRoot(container);
   await import("../features/agents/ui/AgentDocumentReader");
-  await import("../features/canvas/ui/CanvasPane");
 });
 
 afterEach(async () => {
@@ -348,38 +331,8 @@ it("retries a pending transcript jump when manual archive loading adds its targe
   }, 2000);
 });
 
-it("offers Save to canvas for completed mentor responses", async () => {
-  sessions[0] = { ...sessions[0], blocks: sessions[0].blocks.map((block) => block.role === "user" ? { ...block, durationMs: 1000 } : block) };
-  await renderMentor();
-  await settle(() => expect(pane("chat-a").querySelector('[data-turn-actions] button[aria-label="Save to canvas"]')).not.toBeNull(), 10000);
-  expect(pane("chat-a").querySelector<HTMLButtonElement>('button[aria-label="Save to canvas"]')!.disabled).toBe(false);
-}, 15000);
-
-it("adds a library canvas to the mentor's draft without starting a turn", async () => {
-  const sendTurn = vi.spyOn(harnessRegistry, "sendHarnessTurn");
-  const agentDraft = "Explain this map.";
-  setComposerDraft("chat-a", agentDraft);
-  await renderMentor();
-  await settle(() => expect(pane("chat-a")?.querySelector("textarea")).toBeTruthy());
-  await segment("notes");
-  await settle(() => expect(container.querySelector('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')).not.toBeNull());
-  await click(container.querySelector<HTMLButtonElement>('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')!);
-  await settle(() => expect(reader().querySelector("[data-test-canvas]")).not.toBeNull());
-  const addToAgent = reader().querySelector<HTMLButtonElement>('button[aria-label="Add drawing to agent"]')!;
-  const input = pane("chat-a").querySelector<HTMLTextAreaElement>("textarea")!;
-  expect(input.value).toBe(agentDraft);
-  await click(addToAgent);
-  const canvasText = canvasElementsToText(canvas.title, "[]", canvas.id);
-  await settle(() => {
-    expect(input.value).toBe(`${agentDraft}\n\n${canvasText}\n\n`);
-    expect(getComposerDraft("chat-a")).toBe(input.value);
-  });
-  expect(panes()).toHaveLength(1);
-  expect(getComposerDraft("chat-b")).toBeUndefined();
-  expect(sendTurn).not.toHaveBeenCalled();
-}, 15000);
-
 it("reads one thing at a time beside the mentor: each opened item replaces the last", async () => {
+  notes = [{ id: "ada-note", title: "Network notes", body: "", tags: [], slug: "network", agentId: "agent-a", createdAt: 1, updatedAt: 1 } as Note];
   await renderMentor();
   expect(workspace().querySelector("[data-agent-view] header h1")?.textContent).toBe("Ada");
   const body = workspace().querySelector(".mentor-body")!;
@@ -396,9 +349,9 @@ it("reads one thing at a time beside the mentor: each opened item replaces the l
   await settle(() => expect(reader().textContent).toContain("Live revision from Ada."));
 
   await segment("notes");
-  await settle(() => expect(workspace().querySelector('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')).not.toBeNull());
-  await click(workspace().querySelector<HTMLButtonElement>('[data-resource-kind="canvas"][data-resource-id="library-drawing"]')!);
-  await settle(() => expect(reader().querySelector("[data-test-canvas]")).not.toBeNull());
+  await settle(() => expect(workspace().querySelector('[data-resource-kind="note"][data-resource-id="ada-note"]')).not.toBeNull());
+  await click(workspace().querySelector<HTMLButtonElement>('[data-resource-kind="note"][data-resource-id="ada-note"]')!);
+  await settle(() => expect(reader().querySelector("[data-test-note]")).not.toBeNull());
   expect(reader().textContent).not.toContain("Live revision from Ada.");
   expect(panes()).toHaveLength(1);
 

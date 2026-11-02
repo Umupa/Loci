@@ -205,12 +205,6 @@ struct Chapter {
 #[serde(rename_all = "camelCase")]
 struct ReadingCourse {
     chapters: Vec<Chapter>,
-    #[serde(
-        default,
-        deserialize_with = "optional_text",
-        skip_serializing_if = "Option::is_none"
-    )]
-    canvas_id: Option<String>,
 }
 
 // A missing optional field is fine; a supplied null or non-string is not a
@@ -739,9 +733,6 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                 .map_err(|e| format!("Invalid reading course: {e}"))?;
             let lessons = || data.chapters.iter().flat_map(|chapter| &chapter.lessons);
             let ids = item_ids(lessons().map(|lesson| lesson.id.as_str()))?;
-            if let Some(canvas) = &data.canvas_id {
-                require_text(canvas, "canvas id")?;
-            }
             for chapter in &data.chapters {
                 require_text(&chapter.title, "chapter title")?;
                 if chapter.lessons.is_empty() {
@@ -1088,7 +1079,6 @@ mod tests {
         CourseUpsert {
             engine: "reading".into(),
             data_json: json!({
-                "canvasId": "map-1",
                 "chapters": [
                     {"title": "Workloads", "lessons": [
                         {"id": "s01", "title": "Containers", "document": "k8s-containers"},
@@ -1368,8 +1358,6 @@ mod tests {
             json!({"chapters": [{"title": "Empty", "lessons": []}]}),
             json!({"chapters": [{"title": " ", "lessons": [
                 {"id": "a", "title": "A", "document": "a"}]}]}),
-            json!({"canvasId": null}),
-            json!({"canvasId": " "}),
             json!({"engine": "build-your-own"}),
         ] {
             let mut data = base.clone();

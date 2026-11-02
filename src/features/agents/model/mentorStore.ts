@@ -197,8 +197,6 @@ export function contentChangeEvents(change: ContentChange): Event[] {
       return agentId ? [new CustomEvent("loci:courses-changed", { detail: { agentId, ...(change.id ? { courseId: change.id } : {}) } })] : [];
     case "notes":
       return [new Event("loci:notes-changed")];
-    case "canvases":
-      return [new Event("loci-canvases-changed")];
     case "files":
       return [new CustomEvent("loci:agent-files-changed")];
     default:
@@ -207,7 +205,6 @@ export function contentChangeEvents(change: ContentChange): Event[] {
         new CustomEvent("loci:agent-documents-changed"),
         ...(agentId ? [new CustomEvent("loci:courses-changed", { detail: { agentId } })] : []),
         new Event("loci:notes-changed"),
-        new Event("loci-canvases-changed"),
         new CustomEvent("loci:agent-files-changed"),
       ];
   }

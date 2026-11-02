@@ -202,8 +202,8 @@ function WorkdirRow({ agent, chatCwd }: { agent: Agent; chatCwd?: string }) {
 }
 
 /**
- * The mentor's folder: its sources, guides, courses, notes, drawings, Soul
- * and memory as files. Export zips it so it can be imported elsewhere.
+ * The mentor's folder: its sources, guides, courses, notes, Soul and
+ * memory as files. Export zips it so it can be imported elsewhere.
  */
 function FolderRow({ agent, folder }: { agent: Agent; folder: string }) {
   const [status, setStatus] = useState<string>();

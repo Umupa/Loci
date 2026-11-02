@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectFile } from "../../../platform/tauri/fs";
-import type { Canvas } from "../../canvas/canvas";
 import type { Note } from "../../notes";
 
 const files: ProjectFile[] = [
@@ -10,81 +9,42 @@ const files: ProjectFile[] = [
   { name: "plan.md", path: "/p/plan.md", relative: "plan.md" },
 ];
 
-function canvas(id: string, title: string, extra: Partial<Canvas> = {}): Canvas {
-  return {
-    id,
-    title,
-    dataJson: JSON.stringify({ elements: [{ id: "a", type: "rectangle", isDeleted: false }, { id: "b", isDeleted: true }] }),
-    tags: [],
-    cwd: "/p",
-    createdAt: 1,
-    updatedAt: 1,
-    ...extra,
-  };
-}
-
 function note(slug: string, title: string, updatedAt = 1): Note {
   return { id: `id-${slug}`, slug, title, body: "body", tags: [], createdAt: 1, updatedAt };
 }
 
-const canvases = [canvas("aaaa1111", "System sketch"), canvas("bbbb2222", "System sketch", { createdAt: 2 }), canvas("cccc3333", "Elsewhere", { cwd: "/other" })];
-
 vi.mock("../../files/model/fileIndex", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../files/model/fileIndex")>()),
   loadProjectFiles: () => Promise.resolve(files),
-}));
-vi.mock("../../canvas/canvas", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../canvas/canvas")>()),
-  loadCanvases: () => Promise.resolve(canvases),
 }));
 vi.mock("../../projects/model/recents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../projects/model/recents")>()),
   looksLikeProject: (cwd: string) => cwd.startsWith("/"),
 }));
 
-const { applyMentionsToTurn, buildMentionSources, canvasMentionLabels, mentionKind, projectCanvases, rankMentions } = await import("./mentionSources");
-
-describe("canvas labels", () => {
-  it("slugifies titles and tells apart drawings that share one, oldest keeping the plain label", () => {
-    const labels = canvasMentionLabels(canvases.slice(0, 2));
-    expect([...labels].map(([label, c]) => [label, c.id])).toEqual([
-      ["canvas/system-sketch", "aaaa1111"],
-      ["canvas/system-sketch-bbbb", "bbbb2222"],
-    ]);
-    expect([...canvasMentionLabels([canvas("x", "架构 图")]).keys()]).toEqual(["canvas/架构-图"]);
-    expect([...canvasMentionLabels([canvas("y", "???")]).keys()]).toEqual(["canvas/drawing"]);
-  });
-
-  it("only offers a project's own drawings", () => {
-    expect(projectCanvases(canvases, "/p").map((c) => c.id)).toEqual(["aaaa1111", "bbbb2222"]);
-  });
-});
+const { applyMentionsToTurn, buildMentionSources, mentionKind, rankMentions } = await import("./mentionSources");
 
 describe("rankMentions", () => {
-  const sources = { notes: [note("plan-q3", "Quarterly plan")], canvases: projectCanvases(canvases, "/p"), files };
+  const sources = { notes: [note("plan-q3", "Quarterly plan")], files };
 
-  it("offers the project's top level, then notes and drawings, for a bare @", () => {
+  it("offers the project's top level, then notes, for a bare @", () => {
     const kinds = rankMentions(sources, "").map((hit) => [mentionKind(hit.path), hit.relative]);
     expect(kinds).toEqual([
       ["file", "papers"],
       ["file", "plan.md"],
       ["note", "note/plan-q3"],
-      ["canvas", "canvas/system-sketch"],
-      ["canvas", "canvas/system-sketch-bbbb"],
     ]);
   });
 
-  it("mixes files, notes and drawings by match quality", () => {
+  it("mixes files and notes by match quality", () => {
     const hits = rankMentions(sources, "plan").map((hit) => hit.relative);
     expect(hits).toContain("plan.md");
     expect(hits).toContain("note/plan-q3");
-    expect(rankMentions(sources, "sketch").map((hit) => mentionKind(hit.path))).toEqual(["canvas", "canvas"]);
   });
 
-  it("narrows to one kind after a note/ or canvas/ prefix", () => {
-    expect(rankMentions(sources, "canvas/").every((hit) => mentionKind(hit.path) === "canvas")).toBe(true);
+  it("narrows to notes after a note/ prefix", () => {
     expect(rankMentions(sources, "note/qu").map((hit) => hit.relative)).toEqual(["note/plan-q3"]);
-    expect(rankMentions(sources, "canvas/sys")).toHaveLength(2);
+    expect(rankMentions(sources, "note/").every((hit) => mentionKind(hit.path) === "note")).toBe(true);
   });
 
   it("highlights a file match across its whole path", () => {
@@ -95,9 +55,9 @@ describe("rankMentions", () => {
 });
 
 describe("buildMentionSources", () => {
-  it("recognises all three kinds in typed text", () => {
-    const index = buildMentionSources({ notes: [note("plan-q3", "Quarterly plan")], canvases: projectCanvases(canvases, "/p"), files });
-    expect([...index.labels.keys()].sort()).toEqual(expect.arrayContaining(["note/plan-q3", "canvas/system-sketch", "survey.pdf", "papers/survey.pdf"]));
+  it("recognises notes and files in typed text", () => {
+    const index = buildMentionSources({ notes: [note("plan-q3", "Quarterly plan")], files });
+    expect([...index.labels.keys()].sort()).toEqual(expect.arrayContaining(["note/plan-q3", "survey.pdf", "papers/survey.pdf"]));
   });
 });
 
@@ -112,17 +72,9 @@ describe("applyMentionsToTurn", () => {
     expect(await applyMentionsToTurn("see @docs/read-me.md", "/p")).toBe("see `docs/read me.md`");
   });
 
-  it("attaches a mentioned drawing's live elements and checkpoint id", async () => {
-    const out = await applyMentionsToTurn("extend @canvas/system-sketch please", "/p");
-    expect(out).toContain("extend @canvas/system-sketch please");
-    expect(out).toContain('Referenced drawing "System sketch":');
-    expect(out).toContain('Excalidraw checkpoint id: "aaaa1111"');
-    expect(out).toContain('"id": "a"');
-    expect(out).not.toContain('"id": "b"');
-  });
-
   it("leaves text alone when nothing resolves, outside a project, or inside a quote", async () => {
     expect(await applyMentionsToTurn("mail me@example.com or @nothing", "/p")).toBe("mail me@example.com or @nothing");
+    expect(await applyMentionsToTurn("extend @canvas/system-sketch", "/p")).toBe("extend @canvas/system-sketch");
     expect(await applyMentionsToTurn("@plan.md", "~")).toBe("@plan.md");
     expect(await applyMentionsToTurn("> quoted @survey.pdf", "/p")).toBe("> quoted @survey.pdf");
   });

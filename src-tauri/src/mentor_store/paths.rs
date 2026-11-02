@@ -27,16 +27,9 @@ pub enum Kind {
     Guide,
     Course,
     Note,
-    Canvas,
 }
 
-pub const KINDS: [Kind; 5] = [
-    Kind::Source,
-    Kind::Guide,
-    Kind::Course,
-    Kind::Note,
-    Kind::Canvas,
-];
+pub const KINDS: [Kind; 4] = [Kind::Source, Kind::Guide, Kind::Course, Kind::Note];
 
 impl Kind {
     pub fn as_str(self) -> &'static str {
@@ -45,7 +38,6 @@ impl Kind {
             Kind::Guide => "guide",
             Kind::Course => "course",
             Kind::Note => "note",
-            Kind::Canvas => "canvas",
         }
     }
 
@@ -60,7 +52,6 @@ impl Kind {
             Kind::Guide => "guides",
             Kind::Course => "courses",
             Kind::Note => "notes",
-            Kind::Canvas => "canvases",
         }
     }
 
@@ -69,7 +60,6 @@ impl Kind {
         match self {
             Kind::Source | Kind::Guide | Kind::Note => "md",
             Kind::Course => "yaml",
-            Kind::Canvas => "excalidraw",
         }
     }
 

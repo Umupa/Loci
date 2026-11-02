@@ -21,7 +21,6 @@ vi.mock("../../features/sessions/data/sessionStore", async (original) => ({ ...(
 vi.mock("../../features/agents/model/agentTranscript", async (original) => ({
   ...(await original<object>()), archiveOlderTurns: mocks.archive, loadTranscriptPage: mocks.page,
 }));
-vi.mock("../../features/canvas/canvas", () => ({ loadCanvases: vi.fn(async () => []), deleteCanvas: vi.fn() }));
 vi.mock("../../features/agents/model/agentDocuments", () => ({ saveAgentDocuments: vi.fn(), deleteAgentDocument: vi.fn(async () => undefined) }));
 vi.mock("../../features/agents/model/agentFiles", () => ({
   forgetAgentContext: vi.fn(), loadAgentFiles: mocks.loadFiles, saveAgentFile: mocks.saveFile, editAgentFile: mocks.editFile,

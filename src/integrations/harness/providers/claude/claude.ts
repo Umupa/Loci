@@ -6,7 +6,6 @@ import type {
   TaskListMeta,
 } from "../../../../features/sessions/model/session";
 import { loadClaudeHooks } from "../../../../features/settings/model/settings";
-import { loadCanvasMcpEnabled } from "../../../../features/settings/model/builtinMcp";
 import {
   killChild,
   resolveClaudeBinary,
@@ -74,12 +73,6 @@ import {
 import { isAgentToolName } from "../../core/preview";
 import { joinStreamText, snapshotRemainder } from "../../core/streamText";
 import {
-  canvasMcpServer,
-  canvasMcpTool,
-  canvasToolAutoAllowed,
-  claudeCanvasMcpConfig,
-} from "../../../../features/canvas/mcpServer";
-import {
   questionPromptTitle,
   questionsFromUnknown,
   type UserQuestionReply,
@@ -134,7 +127,6 @@ type BackgroundTask = {
 
 type Live = {
   cwd: string;
-  canvasMcpEnabled: boolean;
   claudeSessionId: string;
   providerAccountId?: string;
   runtimeMode: RuntimeMode;
@@ -430,14 +422,12 @@ export function restoreClaudeTaskLists(
 
 async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   const settingsKey = settingsKeyFor(input);
-  const canvasMcpEnabled = loadCanvasMcpEnabled();
   const planning = input.intent === "plan";
   const existing = liveByThread.get(input.sessionId);
   if (
     existing &&
     existing.cwd === input.cwd &&
     existing.settingsKey === settingsKey &&
-    existing.canvasMcpEnabled === canvasMcpEnabled &&
     existing.planning === planning
   ) {
     existing.onEvent = input.onEvent;
@@ -465,8 +455,6 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
     resumeByThread.delete(input.sessionId);
   }
   const { path } = await resolveClaudeBinaryImpl();
-  const canvasMcp = await canvasMcpServer(canvasMcpEnabled);
-  const mcpConfig = canvasMcp ? claudeCanvasMcpConfig(canvasMcp) : undefined;
   const liveRef: { current: Live | null } = { current: null };
   const claudeSessionId =
     canResume && resume ? resume.sessionId : crypto.randomUUID();
@@ -487,7 +475,6 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
 
   const live: Live = {
     cwd: input.cwd,
-    canvasMcpEnabled,
     claudeSessionId,
     providerAccountId: input.providerAccountId,
     runtimeMode: input.runtimeMode,
@@ -553,10 +540,7 @@ async function ensureLive(input: HarnessSessionInput): Promise<Live> {
   await spawnChild(
     input.sessionId,
     path,
-    buildClaudeSpawnArgs({
-      ...launch,
-      ...(mcpConfig ? { mcpConfig } : {}),
-    }),
+    buildClaudeSpawnArgs(launch),
     input.cwd,
     { provider: "claude", id: input.providerAccountId ?? "default" },
     "claude",
@@ -1106,11 +1090,7 @@ async function handleControlRequest(
     return;
   }
 
-  const canvasTool = canvasMcpTool(toolName);
-  if (
-    live.runtimeMode === "full-access" ||
-    (canvasTool && canvasToolAutoAllowed(canvasTool, live.runtimeMode))
-  ) {
+  if (live.runtimeMode === "full-access") {
     await writeJson(
       sessionId,
       buildControlResponse(

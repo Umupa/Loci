@@ -26,7 +26,6 @@ import {
 import { titleFromPrompt, type AgentSessionCompletion } from "../../features/sessions/model/session";
 import { displayAttachments, prepareAttachments } from "../../features/sessions/model/attachments";
 import { preparePrompt } from "../../features/sessions/model/promptPreparation";
-import { canvasCliPrompt, usesBuiltinCli } from "../../features/sessions/model/builtinCli";
 import {
   appendPreparingHandoff, buildDeterministicHandoff, chooseHandoffBrief,
   completeHandoff, consumeHandoff, isPreparingHandoff, pendingHandoff,
@@ -55,7 +54,6 @@ import { composeNoteMessage, noteCardMeta, type NoteComposerCard } from "../../f
 import { looksLikeProject } from "../../features/projects/model/recents";
 import { isNativeCommandPrompt } from "../../features/skills/model/skills";
 import { loadFollowUpBehavior, type FollowUpBehavior } from "../../features/settings/model/settings";
-import { loadCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { agentForSession } from "../../features/agents/model/agent";
 import { saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
 import { agentTurn } from "../../features/agents/model/agentFiles";
@@ -191,13 +189,6 @@ export function useSessionSubmission(options: SubmissionOptions) {
       ...((options?.appRequestId ?? draft?.appRequestId)
         ? { appRequestId: options?.appRequestId ?? draft?.appRequestId } : {}),
     };
-    // An agent without the MCP server learns of the project's canvases from a note on a turn,
-    // once per provider conversation. Turning the switch on later sends it with the next turn.
-    const cliTools = usesBuiltinCli(current.harness);
-    const canvasAvailable = cliTools && !rawCommand && (looksLikeProject(current.cwd) || !!agent) && loadCanvasMcpEnabled();
-    const canvasNote = canvasAvailable &&
-      (!current.providerSessionId || !current.blocks.some((block) => block.role === "user" && !block.draft && block.canvasCli));
-    let canvasNoteSent = false;
     if (current.busy && !pendingSwitch) {
       const followUp = current.backgroundTasks?.length ? "steer" : options?.followUpBehavior ?? loadFollowUpBehavior();
       if (followUp === "queue") {
@@ -319,7 +310,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       if (edited) next = edited.replace(next);
       if (options?.queuedMessageId) next = dequeueQueuedMessage(next, options.queuedMessageId);
       if (pendingSwitch) next = appendPreparingHandoff(stopStreaming({ ...next, pendingSwitch: undefined }), pendingSwitch.from, next.harness);
-      return appendUser(next, text, visible, canvasNoteSent ? { ...cards, canvasCli: true } : cards);
+      return appendUser(next, text, visible, cards);
     }));
     if (edited) editedResends.start(sessionId);
     else commitSubmittedTurn();
@@ -397,16 +388,6 @@ export function useSessionSubmission(options: SubmissionOptions) {
         const appTurnContext = !rawCommand
           ? await prepareAppTurn(agent, current, { canRotate: !pendingSwitch && !edited && !current.ephemeral }) : undefined;
         if (!isCurrent()) return;
-        if (canvasAvailable && (canvasNote || appTurnContext?.rotates || appTurnContext?.recovering)) {
-          // A fresh provider also needs the tool entry point previously sent to its predecessor.
-          const note = await appCli().then(canvasCliPrompt, () => "");
-          if (!isCurrent()) return;
-          sendText += note;
-          canvasNoteSent = !!note;
-          if (canvasNoteSent && !edited) setSessions((previous) => previous.map((session) => session.id === sessionId
-            ? { ...session, blocks: session.blocks.map((block) => block.id === submittedBlockId ? { ...block, canvasCli: true } : block) }
-            : session));
-        }
         if (appTurnContext) {
           if (appTurnContext.rotates) {
             await forgetHarnessSession(current.harness, sessionId);

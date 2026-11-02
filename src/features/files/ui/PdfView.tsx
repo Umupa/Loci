@@ -9,6 +9,7 @@ import type { PdfAnnotation } from "../../learning/model/types";
 import { pdfAnnotationAt } from "../../learning/model/pdfAnnotations";
 import { quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
 import { flashRange } from "../../learning/ui/useTextHighlights";
+import { attachTextLayer, detachTextLayer } from "./pdfTextLayer";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 5;
@@ -263,6 +264,7 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
       <div
         ref={(el) => { scrollRef.current = el; lockOverscroll(el); }}
         onScroll={onScroll}
+        data-reading-scroll
         className="loci-pdf relative min-h-0 flex-1 overflow-auto overscroll-none bg-content/[0.04]"
       >
         {doc && baseSize ? (
@@ -351,6 +353,8 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
     let cancelled = false;
     let renderTask: RenderTask | null = null;
     let textLayer: pdfjs.TextLayer | null = null;
+    const layer = document.createElement("div");
+    layer.className = "textLayer";
 
     void doc.getPage(number).then(async (page) => {
       if (cancelled) return;
@@ -370,11 +374,10 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
       // Swap the finished bitmap in, so a re-render never blanks the page.
       canvasHost.replaceChildren(canvas);
 
-      const layer = document.createElement("div");
-      layer.className = "textLayer";
       textLayer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container: layer, viewport });
       await textLayer.render();
       if (cancelled) return;
+      attachTextLayer(layer);
       textHost.replaceChildren(layer);
       onTextAvailable(number, !!layer.textContent?.trim());
     }).catch(() => {
@@ -385,6 +388,7 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
       cancelled = true;
       renderTask?.cancel();
       textLayer?.cancel();
+      detachTextLayer(layer);
     };
   }, [doc, number, near, renderScale, onSize, onTextAvailable]);
 

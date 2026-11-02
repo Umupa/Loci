@@ -1,4 +1,3 @@
-import { deleteCanvas, loadCanvases } from "../../features/canvas/canvas";
 import { deleteAgentDocument, saveAgentDocuments } from "../../features/agents/model/agentDocuments";
 import { documentsInText } from "../../features/sessions/model/cards";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type SetStateAction } from "react";
@@ -9,7 +8,7 @@ import { deleteSession } from "../../features/sessions/data/sessionStore";
 import { sessionChildHarnesses } from "../../features/sessions/model/handoff";
 import { newDefaultSession, type Block, type Session } from "../../features/sessions/model/session";
 import {
-  agentCanvasScope, agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
+  agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
 } from "../../features/agents/model/agent";
 import { editAgentFile, forgetAgentContext } from "../../features/agents/model/agentFiles";
@@ -356,8 +355,6 @@ export function useAgents(options: Options) {
       });
       void deleteAgentDocument(agentId).catch(() => undefined);
       void import("../../features/learning/model/course").then(({ deleteCourse }) => deleteCourse(agentId)).catch(() => undefined);
-      // Its library goes with it, canvases included.
-      void loadCanvases(true).then((all) => Promise.all(all.filter((canvas) => canvas.cwd === agentCanvasScope(agentId)).map((canvas) => deleteCanvas(canvas.id)))).catch(() => undefined);
       saveAgentPreview(agentId, undefined);
       return true;
     } catch (error) {

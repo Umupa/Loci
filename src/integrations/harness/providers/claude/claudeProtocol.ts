@@ -1,4 +1,3 @@
-import { canvasMcpTool, isCanvasWriteTool } from "../../../../features/canvas/mcpServer";
 import type {
   Attachment,
   RuntimeMode,
@@ -251,8 +250,6 @@ export function buildClaudeSpawnArgs(input: {
   includePartialMessages?: boolean;
   maxTurns?: number;
   isolated?: boolean;
-  /** Extra `--mcp-config` JSON for an interactive session, e.g. Loci's canvas server. */
-  mcpConfig?: string;
 }): string[] {
   const args = [
     "--output-format",
@@ -282,7 +279,6 @@ export function buildClaudeSpawnArgs(input: {
   } else {
     args.push(`--setting-sources=${CLAUDE_SETTING_SOURCES}`);
     args.push("--settings", JSON.stringify(settings));
-    if (input.mcpConfig) args.push("--mcp-config", input.mcpConfig);
   }
   if (input.model) args.push("--model", input.model);
   if (input.effort) args.push("--effort", input.effort);
@@ -1003,8 +999,6 @@ export function applyClaudeTaskTool(
 
 export function toolKindFromName(toolName: string): string {
   const normalized = toolName.toLowerCase();
-  const canvasTool = canvasMcpTool(toolName);
-  if (canvasTool) return isCanvasWriteTool(canvasTool) ? "edit" : "read";
   if (isTodoTool(toolName) || isClaudeTaskTool(toolName)) return "tasks";
   if (
     normalized.includes("bash") ||

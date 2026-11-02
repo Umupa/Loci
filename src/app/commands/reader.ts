@@ -1,6 +1,5 @@
 import { readAgentDocument } from "../../features/agents/model/agentDocuments";
 import { requestDocumentPlace } from "../../features/agents/model/documentPlace";
-import { getCanvas } from "../../features/canvas/canvas";
 import { requestFilePlace } from "../../features/files/model/filePlace";
 import { courseItems, isCommit, loadCourse } from "../../features/learning/model/course";
 import { samePage, type MentorPage } from "../../features/mentor/model/mentorPage";
@@ -35,14 +34,13 @@ function isAbsolute(path: string): boolean {
 export const readerCommands: CommandDefinition<CommandContext>[] = [
   {
     name: "reader.open",
-    summary: "Open a lesson, source, note, canvas or file in a mentor's reader, in place of what it showed.",
+    summary: "Open a lesson, source, note or file in a mentor's reader, in place of what it showed.",
     fields: [
       mentor,
       field("course", "string", "A course id"),
       field("lesson", "string", "A lesson id in that course"),
       field("source", "string", "A source or document id from the library"),
       field("note", "string", "A note id"),
-      field("canvas", "string", "A canvas id"),
       field("file", "string", "An absolute file path", { max: 4096 }),
       field("section", "string", "A heading to scroll to, in a source", { max: 300 }),
       field("quote", "string", "A passage to show and flash, verbatim from the text (with --source, or --file and --lines)", { max: 500 }),
@@ -54,8 +52,8 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
     callers: ["external", "agent"],
     run: async (ctx, input, meta) => {
       const agent = resolveMentor(ctx, input.mentor, meta);
-      const chosen = (["course", "source", "note", "canvas", "file"] as const).filter((kind) => input[kind] !== undefined);
-      if (chosen.length !== 1) throw new CommandError("Name exactly one of --course, --source, --note, --canvas or --file", "usage");
+      const chosen = (["course", "source", "note", "file"] as const).filter((kind) => input[kind] !== undefined);
+      if (chosen.length !== 1) throw new CommandError("Name exactly one of --course, --source, --note or --file", "usage");
       const kind = chosen[0];
       const value = input[kind] as string;
       if (input.lesson !== undefined && kind !== "course") throw new CommandError("--lesson goes with --course", "usage");
@@ -97,9 +95,6 @@ export const readerCommands: CommandDefinition<CommandContext>[] = [
       } else if (kind === "note") {
         if (!await getNote(value)) throw new CommandError(`No note ${value}`, "not_found");
         page = { kind: "note", id: value };
-      } else if (kind === "canvas") {
-        if (!await getCanvas(value)) throw new CommandError(`No canvas ${value}`, "not_found");
-        page = { kind: "canvas", id: value };
       } else {
         if (!isAbsolute(value)) throw new CommandError("--file takes an absolute path", "usage");
         page = { kind: "file", path: value, ...(input.at !== undefined ? { commit: (input.at as string).toLowerCase() } : {}) };

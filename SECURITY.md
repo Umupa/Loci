@@ -24,12 +24,12 @@ These are in scope:
 
 - Using the local control channel without a grant for an active turn or the command-line token, or reaching a namespace or a project the grant does not cover (see [The control channel](docs/architecture.md#the-control-channel)).
 - Another user account on the same machine driving Loci through the command line, or the command-line token being readable by one.
-- Bypassing a rule Loci enforces itself, such as the learning map rules, canvas ownership, or the loopback-only restrictions.
-- Script execution in the app window from agent output, notes, canvases or links, including a Content Security Policy bypass.
+- Bypassing a rule Loci enforces itself, such as the learning map rules or the loopback-only restrictions.
+- Script execution in the app window from agent output, notes or links, including a Content Security Policy bypass.
 - Reading or writing files outside what a feature is meant to reach, through app commands or `loci://` links.
 - Link previews reaching a non-public address.
 - Leaking a token, such as the Claude Code token used for the usage meter or a control grant, anywhere it is not documented to go.
-- Tampering with the bundled MCP servers or with release artifacts.
+- Tampering with release artifacts.
 
 These are out of scope:
 

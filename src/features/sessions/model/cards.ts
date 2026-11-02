@@ -18,8 +18,6 @@ export const CARD_FENCE = {
   todo: "loci-todo",
   /** An outline drawn as a tree that folds. */
   mindmap: "loci-mindmap",
-  /** A canvas that already exists, named so the user can open it. */
-  canvas: "loci-canvas",
   /** A generated HTML/SVG/JS explanation, isolated from the application. */
   /** A persisted course with steps or connected concepts. */
   course: "loci-course",
@@ -118,7 +116,6 @@ const KEPT_FENCES: readonly string[] = [
   CARD_FENCE.document,
   CARD_FENCE.todo,
   CARD_FENCE.mindmap,
-  CARD_FENCE.canvas,
   CARD_FENCE.course,
   CARD_FENCE.diff,
 ];
@@ -211,22 +208,6 @@ export function parseMindmap(source: string): MindmapNode | undefined {
     stack.push({ depth, node });
   }
   return roots.length === 1 ? roots[0] : { text: "", children: roots };
-}
-
-export type CanvasLink = { id: string; title?: string };
-
-/** A canvas card's source: `id: <canvas id>` and, optionally, `title: ...`. A bare id works too. */
-export function parseCanvasLink(source: string): CanvasLink | undefined {
-  const fields: Record<string, string> = {};
-  const lines = source.replace(/\r\n/g, "\n").split("\n").map((line) => line.trim()).filter(Boolean);
-  for (const line of lines) {
-    const field = line.match(/^([A-Za-z]+)\s*:\s*(.+)$/);
-    if (field) fields[field[1].toLowerCase()] = field[2].replace(/^(["'])(.*)\1$/, "$2");
-  }
-  const id = fields.id ?? (lines.length === 1 && !/\s/.test(lines[0]) ? lines[0] : undefined);
-  if (!id) return undefined;
-  const title = fields.title?.slice(0, 200);
-  return { id, ...(title ? { title } : {}) };
 }
 
 /** Bubbles from a card to the conversation it is in: send this as the user's message. */

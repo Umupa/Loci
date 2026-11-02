@@ -57,8 +57,6 @@ import { announceSessionFinished } from "../features/notifications/model/notific
 import { hiddenApprovalNotices } from "../features/notifications/model/approvalToast";
 import { syncDockBadge } from "../features/notifications/model/dockBadge";
 import { useInputNotifications } from "../features/notifications/hooks/useInputNotifications";
-import { CANVASES_CHANGED_EVENT, loadCanvases, updateCanvas, type Canvas } from "../features/canvas/canvas";
-import { SelectCanvasDialog } from "../features/canvas/ui/SelectCanvasDialog";
 import { synchronizeProjectLocation } from "../features/projects/model/projectLocation";
 import { rebaseProjectData } from "../features/projects/model/projectData";
 import { replaceProjectPath, sameProjectPath } from "../features/projects/model/recents";
@@ -72,7 +70,6 @@ import { useAppCommands } from "./hooks/useAppCommands";
 import { useAppControl, type AppControlWorkspace } from "./hooks/useAppControl";
 import { useCommandContext } from "./hooks/useCommandContext";
 import { useAppResourceNavigation } from "./hooks/useAppResourceNavigation";
-import { useSaveToCanvas } from "./hooks/useSaveToCanvas";
 
 const SettingsView = lazySurface(async () => ({ default: (await import("../features/settings/ui/SettingsView")).SettingsView }), { suspense: false });
 
@@ -107,7 +104,6 @@ function Workspace(boot: BootWorkspace) {
   const [settingsAnchor, setSettingsAnchor] = useState<string | null>(null);
   const [savedToast, setSavedToast] = useState<SavedToastData | null>(null);
   const [transcriptPool] = useState(() => new TranscriptPool());
-  const [canvases, setCanvases] = useState<Canvas[]>([]);
   const [agentGalleryOpen, setAgentGalleryOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
@@ -266,12 +262,6 @@ function Workspace(boot: BootWorkspace) {
     return () => window.removeEventListener(OPEN_DOCUMENT_EVENT, open);
   }, [reportError, showInMentor]);
 
-  const { saveToCanvas: _saveToCanvas, selection: canvasSelection } = useSaveToCanvas({ canvases });
-  const saveToCanvas = async (agentId: string, text: string, anchor?: HTMLElement | null) => {
-    const id = await _saveToCanvas(text, agentId, anchor);
-    const title = canvases.find((c) => c.id === id)?.title ?? "";
-    setSavedToast({ type: "canvas", id, title });
-  };
   const agentHabits = useAgentHabits({ runtime, submission,
     loadSession: (id) => storeRef.current!.loadSession(id),
     onPosted: (chat, name) => { void announceSessionFinished({ ...chat, title: name }, isForeground(chat.id)); },
@@ -312,16 +302,6 @@ function Workspace(boot: BootWorkspace) {
       if (options?.reveal) void showSessionRef.current(session.id).catch(reportError);
     },
     archiveSession: store.archiveSession, removeSession: store.removeSession,
-    isCanvasOpen: (id) => {
-      const agentId = surfaceRef.current === "mentor" ? mentorRef.current.currentRef.current?.agentId : undefined;
-      const page = agentId ? mentorViewRef.current.readingFor(agentId) : undefined;
-      return page?.kind === "canvas" && page.id === id;
-    },
-    // An agent's drawing shows in its own reader; any other in the open mentor's.
-    revealCanvas: (id, sessionId) => {
-      const owner = agentForSession(sessionId)?.id ?? mentorRef.current.currentRef.current?.agentId;
-      if (owner) mentorViewRef.current.show(owner, { kind: "canvas", id });
-    },
   };
   const commands = useCommandContext({ workspace: controlWorkspace, runtime, submission, delegation,
     agents: () => agentsRef.current,
@@ -428,8 +408,6 @@ function Workspace(boot: BootWorkspace) {
       await showInMentor({ kind: "document", document: { id: found.id, title: found.title, body: found.body, ...(found.subject ? { subject: found.subject } : {}) } }, agentId);
       return true;
     },
-    // A drawing an agent keeps opens in that agent's reader; any other in the open mentor's.
-    openCanvas: (canvas, owner) => showInMentor({ kind: "canvas", id: canvas.id }, owner),
     // A note an agent owns opens in its reader; any other opens in the open mentor's, still unowned.
     openNote: (id, owner) => showInMentor({ kind: "note", id }, owner),
     onOpenConversation: revealLearningConversation,
@@ -451,13 +429,6 @@ function Workspace(boot: BootWorkspace) {
   const onSelectSettingsSection = useCallback((section: SettingsSectionId) => {
     setSettingsSection(section); saveSettingsSection(section); setSettingsAnchor(null);
   }, []);
-  const renameCanvas = (id: string, title: string) => {
-    void updateCanvas(id, { title }).catch(reportError);
-  };
-  const canvasAddToAgent = (text: string) => {
-    const current = mentorRef.current.currentRef.current;
-    if (current) requestAddToChat(text, "plain", { targetSessionId: current.sessionId });
-  };
   const persistWindow = useCallback(async (mode: WorkspaceSaveMode = "transition") => {
     runtime.flushEvents();
     await runtime.flushPersistence();
@@ -539,15 +510,6 @@ function Workspace(boot: BootWorkspace) {
   }, [active]);
   useEffect(() => { if (providerSignIn && providerSignIn.sessionId !== active?.id) setProviderSignIn(null); }, [active?.id, providerSignIn]);
   useEffect(() => {
-    const refresh = (fresh: boolean) => { void loadCanvases(fresh).then(setCanvases).catch(reportError); };
-    const changed = () => refresh(true);
-    refresh(false);
-    // A changed drawing may have been edited outside Loci; the open pane
-    // follows it when it has nothing unsaved.
-    window.addEventListener(CANVASES_CHANGED_EVENT, changed);
-    return () => window.removeEventListener(CANVASES_CHANGED_EVENT, changed);
-  }, [reportError]);
-  useEffect(() => {
     const release = setQuitWorkspace(() => sessionsRef.current, runtime.flushEvents);
     let stop: (() => void) | undefined;
     let disposed = false;
@@ -605,8 +567,7 @@ function Workspace(boot: BootWorkspace) {
     const session = earlier?.length ? { ...live, blocks: [...earlier, ...live.blocks] } : live;
     return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-pane-id={sessionId}>
       <AgentSessionPane agent={agent} state={agents.states.get(agent.id) ?? { status: "idle" }}
-        sessionPaneProps={{ ...paneProps(session, true), onApproval: agentHabits.approve,
-          onSaveToCanvas: (text, anchor) => saveToCanvas(agent.id, text, anchor) }}
+        sessionPaneProps={{ ...paneProps(session, true), onApproval: agentHabits.approve }}
         detailsOpen={agents.isDetailsOpen(agent.id)} onToggleDetails={() => agents.setDetailsOpenFor(agent.id, (open) => !open)}
         onReset={() => void agents.reset(agent.id)} onDelete={() => void agents.remove(agent.id)}
         onPickFolders={() => pickFolders("Choose folders")}
@@ -647,7 +608,6 @@ function Workspace(boot: BootWorkspace) {
               busy={!!sessions.find((entry) => entry.id === mentor.current?.sessionId)?.busy}
               courseBadge={(courseId, lessonId) => <LessonMarks agentId={focusedAgent.id} courseId={courseId} lessonId={lessonId} />}
               trailing={IS_MAC ? undefined : <WindowControls />}
-              canvases={canvases}
               onOpen={(page) => mentorView.show(focusedAgent.id, page)} onClose={() => mentorView.close(focusedAgent.id)}
               history={mentorView.historyFor(focusedAgent.id)} onBack={() => readerHistory(-1)} onForward={() => readerHistory(1)}
               onLessonChange={(lesson) => mentorView.setLesson(focusedAgent.id, lesson)}
@@ -663,7 +623,7 @@ function Workspace(boot: BootWorkspace) {
               onToggleChat={() => mentorView.toggleChat(focusedAgent.id)}
               onResizeLibrary={(width) => mentorView.resizeLibrary(focusedAgent.id, width)} onResizeChat={(width) => mentorView.resizeChat(focusedAgent.id, width)}
               onBeforeLeave={readerGuard} onReading={(reading) => setAgentReading(focusedAgent.id, reading)}
-              onCanvasAddToChat={canvasAddToAgent} onCanvasTitleChange={renameCanvas} onOpenFile={openAgentFile}
+              onOpenFile={openAgentFile}
               renderSession={readerSession} sessionTitle={sessionTitle}
               chat={mentorChat(mentor.current.agentId, mentor.current.sessionId)} />
           </section> : null}
@@ -689,14 +649,12 @@ function Workspace(boot: BootWorkspace) {
           onDismiss={() => setSavedToast(null)}
           onOpen={(t) => {
             // A note still belongs to the mentor it was saved in, whichever mentor is open now.
-            const owner = t.type === "note" ? t.agentId : undefined;
-            void showInMentor(t.type === "canvas" ? { kind: "canvas", id: t.id } : { kind: "note", id: t.id }, owner).catch(reportError);
+            void showInMentor({ kind: "note", id: t.id }, t.agentId).catch(reportError);
           }}
         />
       )}
       {providerSignIn ? <ProviderSignInDialog key={providerSignIn.key} harness={providerSignIn.harness} onClose={() => setProviderSignIn(null)} /> : null}
       <UpdatePrompt />
-      {canvasSelection ? <SelectCanvasDialog anchor={canvasSelection.anchor ?? null} canvases={canvasSelection.canvases} onSelect={canvasSelection.resolver} onCancel={() => { canvasSelection.rejecter(new DOMException("Cancelled", "AbortError")); }} /> : null}
       {store.error ? <FileActionError message={store.error} onDismiss={() => store.setError(null)} /> : null}
       {learningTargetRequest ? <Modal title="Choose a mentor" description="Your passage will be added as a draft to the mentor's conversation." onClose={() => setLearningTargetRequest(null)}>
         <div className="flex max-h-80 flex-col gap-1 overflow-auto p-3">
@@ -726,7 +684,7 @@ function MentorsEmpty({ hasMentors, openingName, failed, onCreate, onRetry, trai
       {failed ? <button type="button" className="primary-action rounded-md px-3 py-1.5 text-sm font-medium" onClick={onRetry}>Try again</button> : null}
     </div> : <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
       <h1 className="text-[15px] font-medium">Create your first mentor</h1>
-      <p className="max-w-sm text-sm text-content/60">A mentor is a resident agent for one topic you are learning. It keeps your courses, sources, notes and drawings, and reads along with you.</p>
+      <p className="max-w-sm text-sm text-content/60">A mentor is a resident agent for one topic you are learning. It keeps your courses, sources and notes, and reads along with you.</p>
       <button type="button" className="primary-action rounded-md px-3 py-1.5 text-sm font-medium" onClick={onCreate}>Create a mentor</button>
     </div>}
   </div>;

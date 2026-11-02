@@ -4,8 +4,6 @@ use tauri::Manager;
 mod agent;
 mod agent_documents;
 mod agent_transcript;
-mod canvas;
-mod canvas_mcp;
 mod chat_background;
 pub mod cli_access;
 mod code;
@@ -348,12 +346,6 @@ pub fn run() {
             mcp::mcp_discover,
             #[cfg(target_os = "macos")]
             menu::keybindings_set_overrides,
-            canvas::canvas_list,
-            canvas::canvas_get,
-            canvas::canvas_upsert,
-            canvas::canvas_delete,
-            canvas::canvas_checkpoint_canvas,
-            canvas::canvas_checkpoint_latest,
             course::course_list,
             course::course_list_all,
             course::course_delete,
@@ -361,7 +353,6 @@ pub fn run() {
             course::course_upsert,
             course::course_progress_get,
             course::course_progress_set,
-            canvas_mcp::canvas_mcp_server,
             agent::agent_load,
             agent::agent_read,
             agent::agent_save,

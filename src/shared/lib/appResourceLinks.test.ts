@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { appResourceUrl, fileResourcePath, fileResourceUrl, parseAppResourceUrl, resourceUrl } from "./appResourceLinks";
 
 describe("Loci resource addresses", () => {
-  it.each(["canvas", "note", "session"] as const)("round trips stable %s IDs", (kind) => {
+  it.each(["note", "session"] as const)("round trips stable %s IDs", (kind) => {
     const id = "app-5bed7012-c8bc-445d-b95d-ead0f88e36a7-create-1";
     expect(parseAppResourceUrl(appResourceUrl(kind, id))).toEqual({ kind, id });
   });
@@ -10,7 +10,7 @@ describe("Loci resource addresses", () => {
     "loci://project/id", "loci://note/", "loci://note/../id", "loci://note/%69d",
     "loci://note/id#fragment", "loci://note/id?x=1", "loci://note/id/extra",
     "loci://user@note/id", "loci://note:1/id", "https://note/id", "note:id",
-    "loci://NOTE/id",
+    "loci://NOTE/id", "loci://canvas/id",
   ])("rejects a noncanonical address: %s", (url) => {
     expect(parseAppResourceUrl(url)).toBeUndefined();
   });

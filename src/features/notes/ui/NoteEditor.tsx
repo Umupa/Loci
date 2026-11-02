@@ -457,6 +457,7 @@ export function NoteEditor({
     <div
       ref={lockOverscroll}
       data-note-editor-compact={compact || undefined}
+      data-reading-scroll
       className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-none"
     >
       <div className={`mx-auto flex w-full max-w-5xl flex-col ${compact ? "gap-4 px-4 py-4" : "gap-5 px-8 py-8"}`}>

@@ -5,7 +5,6 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { McpSettings } from "./McpSettings";
 import { setLanguagePreference } from "../../../shared/i18n/locale";
 import { clearMcpSettingsCache } from "../model/mcpSettingsCache";
-import { CANVAS_MCP_ENABLED_KEY } from "../model/builtinMcp";
 
 const invoke = vi.fn();
 const connectionCalls = () => invoke.mock.calls.filter(([command]) => command === "mcp_discover" || command === "claude_mcp_list");
@@ -71,63 +70,6 @@ async function openAddServer() {
       .click(),
   );
 }
-
-it("shows the app-owned canvas server and preserves its off switch across settings and projects", async () => {
-  await act(async () => root.render(createElement(McpSettings, { cwd: "/repo" })));
-  const builtin = () => container.querySelector('[data-setting-id="builtin-excalidraw"]')!;
-  const toggle = () => builtin().querySelector<HTMLButtonElement>('[role="switch"]')!;
-  expect(builtin().textContent).toContain("Built-in MCP");
-  expect(builtin().textContent).toContain("loci_excalidraw · Local · Enabled");
-  expect(builtin().textContent).toContain("Claude Code");
-  expect(builtin().textContent).toContain("Codex");
-  // Agents that call the built-in servers through Loci's CLI are listed with those that attach them.
-  for (const id of ["builtin-excalidraw"]) {
-    const card = container.querySelector(`[data-setting-id="${id}"]`)!;
-    for (const name of ["Claude Code", "Codex", "Antigravity", "Pi"]) expect(card.textContent).toContain(name);
-    expect(card.textContent).not.toContain("Cursor");
-  }
-  expect(builtin().textContent).toContain("next turn");
-  expect(toggle().getAttribute("aria-checked")).toBe("true");
-  await act(async () => toggle().click());
-  expect(toggle().getAttribute("aria-checked")).toBe("false");
-  expect(builtin().textContent).toContain("Disabled");
-  expect(localStorage.getItem(CANVAS_MCP_ENABLED_KEY)).toBe("0");
-  expect(container.textContent).toContain("docs");
-  expect(invoke.mock.calls.map(([command]) => command)).not.toContain("mcp_add");
-  expect(invoke.mock.calls.map(([command]) => command)).not.toContain("claude_mcp_remove");
-  await act(async () => root.unmount());
-  root = createRoot(container);
-  await act(async () => root.render(createElement(McpSettings, { cwd: "/another-project" })));
-  expect(toggle().getAttribute("aria-checked")).toBe("false");
-  await act(async () => toggle().click());
-  expect(builtin().textContent).toContain("Enabled");
-  expect(localStorage.getItem(CANVAS_MCP_ENABLED_KEY)).toBe("1");
-});
-
-it("explains a missing runtime and can retry after it is installed", async () => {
-  const original = invoke.getMockImplementation()!;
-  let available = false;
-  invoke.mockImplementation((command: string, args: unknown) => command === "canvas_mcp_server"
-    ? available ? Promise.resolve({ command: "node", args: ["bridge.mjs"] }) : Promise.reject("Excalidraw drawing tools need Node.js 20.11 or newer (or Bun) on your PATH.")
-    : original(command, args));
-  await act(async () => root.render(createElement(McpSettings, { cwd: "/repo" })));
-  const builtin = container.querySelector('[data-setting-id="builtin-excalidraw"]')!;
-  expect(builtin.textContent).toContain("Unavailable");
-  expect(builtin.querySelector('[role="status"]')?.textContent).toContain("Node.js 20.11");
-  available = true;
-  await act(async () => builtin.querySelector<HTMLButtonElement>('button:not([role="switch"])')!.click());
-  expect(builtin.textContent).toContain("Enabled");
-  expect(builtin.querySelector('[role="status"]')).toBeNull();
-});
-
-it("updates the built-in switch when another window changes it", async () => {
-  await act(async () => root.render(createElement(McpSettings, { cwd: "/repo" })));
-  await act(async () => {
-    localStorage.setItem(CANVAS_MCP_ENABLED_KEY, "0");
-    window.dispatchEvent(new StorageEvent("storage", { key: CANVAS_MCP_ENABLED_KEY }));
-  });
-  expect(container.querySelector('[role="switch"]')?.getAttribute("aria-checked")).toBe("false");
-});
 
 it("lists servers and routes sign in through Claude MCP", async () => {
   await act(async () =>
@@ -551,9 +493,6 @@ it("is global and offers no project picker", async () => {
   expect(container.querySelector('[aria-label^="Switch project"]')).toBeNull();
   expect(invoke).toHaveBeenCalledWith("mcp_discover", { cwd: "~" });
   expect(invoke).toHaveBeenCalledWith("claude_mcp_list", { cwd: "~" });
-  // The built-in card is global too, so it no longer talks about projects.
-  expect(container.textContent).toContain("apply everywhere in Loci");
-  expect(container.textContent).not.toContain("this project's Loci canvases");
 });
 
 it("caches the loaded list per cwd and reloads on Refresh", async () => {

@@ -5,7 +5,6 @@ import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 import { newSession,type Session } from "../../features/sessions/model/session";
 import { createAgent, findAgent, saveAgentSessionId } from "../../features/agents/model/agent";
 import { resetHarnessModelOverlays, setHarnessModels } from "../../features/sessions/model/models";
-import { saveCanvasMcpEnabled } from "../../features/settings/model/builtinMcp";
 import { saveFollowUpBehavior } from "../../features/settings/model/settings";
 import { registerHarness,resetHarnessIdlePark,type HarnessAdapter } from "../../integrations/harness/core/registry";
 import { TurnNotReadyError, type SendTurnInput } from "../../integrations/harness/core/types";
@@ -51,7 +50,6 @@ async function mount(initial: Session) {
   await act(async () => root.render(createElement(Harness)));
 }
 
-const CLI = "'/Applications/Loci.app/Contents/MacOS/loci'";
 function session() { return runtime.sessionsRef.current[0]; }
 async function settle(run: Pending) {
   await act(async () => {
@@ -245,7 +243,7 @@ describe("session submission", () => {
     await settle(run);
     expect(session().busy).toBe(false);
     await runtime.flushPersistence();
-    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: true });
+    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false });
     expect(mocks.invoke).toHaveBeenCalledWith("control_turn_finished", { sessionId: session().id });
   });
 
@@ -490,135 +488,19 @@ describe("session submission", () => {
 
 });
 
-describe("agents that reach the built-in tools through the app's CLI", () => {
-  const users = () => session().blocks.filter((block) => block.role === "user");
-  const bind = (run: Pending, providerSessionId: string) => act(async () => { run.input.onEvent({ type: "session.providerBound", providerSessionId }); });
+describe("agents without an MCP server of Loci's, and runs", () => {
   beforeEach(() => {
     registerHarness({ ...adapter, id: "pi" });
     registerHarness({ ...adapter, id: "antigravity" });
   });
-  afterEach(() => saveCanvasMcpEnabled(true));
-
-  it("tells a Pi agent about the project's canvases once per provider conversation", async () => {
-    await mount(newSession("pi", "/project"));
-    await act(async () => { expect(actions.onSubmit(session().id, "Draw the architecture")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text.startsWith("Draw the architecture\n\n<loci_canvas>\n")).toBe(true);
-    expect(pending[0].input.text).toContain(`\`${CLI} canvas TOOL --json '<arguments>'\``);
-    // The note is Loci's: the transcript keeps what the user typed, and remembers that it was sent.
-    expect(users()[0]).toMatchObject({ text: "Draw the architecture", canvasCli: true });
-    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: true });
-    await bind(pending[0], "pi-conversation-1");
-    await settle(pending[0]);
-    await act(async () => { expect(actions.onSubmit(session().id, "Add a cache")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input.text).toBe("Add a cache");
-    expect(users().map((block) => block.canvasCli)).toEqual([true, undefined]);
-  });
-
-  it("says it again when the provider conversation is a new one", async () => {
-    const initial = newSession("antigravity", "/project");
-    // An earlier conversation was told; this thread has since lost its provider session.
-    await mount({ ...initial, blocks: [{ id: "earlier", role: "user", text: "Earlier", canvasCli: true }, { id: "answer", role: "assistant", text: "Done" }] });
-    await act(async () => { expect(actions.onSubmit(session().id, "Continue")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text).toContain("<loci_canvas>");
-    expect(pending[0].input.text).toContain(`${CLI} canvas --help`);
-  });
-
-  it("introduces canvas tools again when a legacy provider is replaced", async () => {
-    saveCanvasMcpEnabled(true);
-    const initial = newSession("pi", "/project");
-    await mount({
-      ...initial, providerSessionId: "legacy-pi",
-      blocks: [
-        { id: "earlier", role: "user", text: "Draw the architecture", canvasCli: true },
-        { id: "reply", role: "assistant", text: "The drawing has a gateway and a cache." },
-      ],
-    });
-    await act(async () => { actions.onSubmit(session().id, "Add the worker"); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(adapter.forgetSession).toHaveBeenCalledWith(initial.id);
-    expect(pending[0].input.appAccess).toBe(false);
-    expect(pending[0].input.text).toContain("<loci_canvas>");
-    expect(pending[0].input.text).toContain(`${CLI} canvas --help`);
-    expect(users().at(-1)?.canvasCli).toBe(true);
-    await bind(pending[0], "clean-pi");
-    await settle(pending[0]);
-    await act(async () => { actions.onSubmit(session().id, "Move the cache"); });
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input.text).toBe("Move the cache");
-    expect(adapter.forgetSession).toHaveBeenCalledOnce();
-    await settle(pending[1]);
-  });
-
-  it("restores the canvas tool entry point after a bound provider rejects its first prompt", async () => {
-    const harness = "pi";
-    const entryPoint = "loci_canvas";
-    saveCanvasMcpEnabled(true);
-    const initial = newSession(harness, "/project");
-    await mount({
-      ...initial, providerSessionId: "legacy-provider",
-      blocks: [
-        { id: "earlier", role: "user", text: "Use the local tools", canvasCli: true },
-        { id: "reply", role: "assistant", text: "The local tools are available." },
-      ],
-    });
-    await act(async () => { actions.onSubmit(session().id, "Apply the requested change"); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text).toContain(`<${entryPoint}>`);
-    await bind(pending[0], "clean-provider");
-    await act(async () => {
-      pending[0].input.onEvent({ type: "session.error", message: "The provider rejected the prompt." });
-      runtime.flushEvents();
-    });
-    await settle(pending[0]);
-    await act(async () => { actions.onSubmit(session().id, "Retry"); });
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(adapter.forgetSession).toHaveBeenCalledOnce();
-    expect(pending[1].input.text).toContain(`<${entryPoint}>`);
-    expect(pending[1].input.text).toContain("Apply the requested change");
-    await settle(pending[1]);
-    await act(async () => { actions.onSubmit(session().id, "Next"); });
-    await vi.waitFor(() => expect(pending).toHaveLength(3));
-    expect(pending[2].input.text).toBe("Next");
-    await settle(pending[2]);
-  });
-
-  it("follows the Excalidraw switch: no note and no access while it is off, the note on the first turn after it is turned on", async () => {
-    saveCanvasMcpEnabled(false);
+  it("sends a Pi or Antigravity turn as typed, with no note about canvases", async () => {
     await mount(newSession("pi", "/project"));
     await act(async () => { expect(actions.onSubmit(session().id, "Draw the architecture")).toBe(true); });
     await vi.waitFor(() => expect(pending).toHaveLength(1));
     expect(pending[0].input.text).toBe("Draw the architecture");
-    expect(users()[0].canvasCli).toBeUndefined();
-    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: false });
-    await bind(pending[0], "pi-conversation-1");
+    expect(mocks.invoke).toHaveBeenCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false });
     await settle(pending[0]);
-    saveCanvasMcpEnabled(true);
-    await act(async () => { expect(actions.onSubmit(session().id, "Now draw it")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(2));
-    expect(pending[1].input.text.startsWith("Now draw it\n\n<loci_canvas>")).toBe(true);
-    expect(mocks.invoke).toHaveBeenLastCalledWith("control_authorize_turn", { sessionId: session().id, cwd: "/project", appAccess: false, canvasAccess: true });
-    expect(users().map((block) => block.canvasCli)).toEqual([undefined, true]);
   });
-
-  it("sends no note outside a project, where there are no canvases to reach", async () => {
-    await mount(newSession("pi", "~"));
-    await act(async () => { expect(actions.onSubmit(session().id, "Hello")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text).toBe("Hello");
-  });
-
-  it("leaves the agents that are given the MCP server alone", async () => {
-    await mount(newSession("codex", "/project", "codex:test"));
-    await act(async () => { expect(actions.onSubmit(session().id, "Draw the architecture")).toBe(true); });
-    await vi.waitFor(() => expect(pending).toHaveLength(1));
-    expect(pending[0].input.text).toBe("Draw the architecture");
-    expect(users()[0].canvasCli).toBeUndefined();
-    expect(mocks.invoke).not.toHaveBeenCalledWith("app_cli_path");
-  });
-
 
   it("resolves a run with the turn's answer once it has ended", async () => {
     await mount(newSession("codex", "/project", "codex:test"));

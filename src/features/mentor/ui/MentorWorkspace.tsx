@@ -10,7 +10,6 @@ import { readAgentDocument } from "../../agents/model/agentDocuments";
 import type { AgentReading } from "../../agents/model/agentReading";
 import { AgentHeaderExtra } from "../../agents/ui/AgentView";
 import { useAgentResources } from "../../agents/ui/useAgentResources";
-import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import { moveFileDrafts, setFileDraft } from "../../files/model/fileDrafts";
 import { loadCourse } from "../../learning/model/course";
@@ -20,6 +19,7 @@ import { noveltyKey, pageNoveltyKey } from "../model/libraryNovelty";
 import type { CourseBadge } from "./LibraryCourses";
 import { useLibraryNovelty } from "./useLibraryNovelty";
 import { useReadingPlace } from "./useReadingPlace";
+import { useReadingPosition } from "./useReadingPosition";
 import { MentorLibrary, type LibraryChange } from "./MentorLibrary";
 import { MentorReader } from "./MentorReader";
 import "./MentorWorkspace.css";
@@ -56,7 +56,6 @@ type Props = {
   leading?: ReactNode;
   /** At the end of the rightmost column's header, such as the window's buttons. */
   trailing?: ReactNode;
-  canvases: readonly Canvas[];
   onOpen: (page: MentorPage) => void;
   onClose: () => void;
   onLessonChange: (lesson: MentorLesson | null) => void;
@@ -74,8 +73,6 @@ type Props = {
   /** The lesson or page being read, for the conversation to know about. */
   onReading?: (reading: AgentReading | undefined) => void;
   onBeforeLeave?: (agentId: string, save: (() => Promise<boolean>) | null) => void;
-  onCanvasAddToChat: (text: string) => void;
-  onCanvasTitleChange: (id: string, title: string) => void;
   onOpenFile: OpenFileFn;
   renderSession: (id: string) => ReactNode;
   sessionTitle: (id: string) => string;
@@ -93,7 +90,7 @@ export async function restoredPageExists(agentId: string, page: MentorPage): Pro
   if (page.kind === "course") return !!await loadCourse(page.course.courseId, agentId);
   if (page.kind === "document") return !!await readAgentDocument(agentId, page.document.id);
   if (page.kind === "note") return !!await getNote(page.id);
-  // Drawings and files say for themselves when they are gone.
+  // Files say for themselves when they are gone.
   return true;
 }
 
@@ -102,7 +99,7 @@ export async function restoredPageExists(agentId: string, page: MentorPage): Pro
  * the middle and the conversation on the right. Opening anything replaces
  * what the reader showed; nothing opens beside it.
  */
-export function MentorWorkspace({ agent, state, chat, busy = false, leading, trailing, canvases, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onLibraryChange, onDraft, courseBadge, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onCanvasAddToChat, onCanvasTitleChange, onOpenFile, renderSession, sessionTitle, history, onBack, onForward }: Props) {
+export function MentorWorkspace({ agent, state, chat, busy = false, leading, trailing, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onLibraryChange, onDraft, courseBadge, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onOpenFile, renderSession, sessionTitle, history, onBack, onForward }: Props) {
   const { data, errors, reload } = useAgentResources(agent.id);
   // Every listing has to be readable before the first of them can serve as the
   // turn's baseline; otherwise a slow one looks like a batch of new items.
@@ -119,7 +116,7 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
   useEffect(() => {
     if (visiblePageKey) novelty.markOpened(visiblePageKey);
   }, [visiblePageKey, novelty.markOpened]); // eslint-disable-line react-hooks/exhaustive-deps
-  const isNew = (kind: "document" | "course" | "note" | "canvas", id: string) =>
+  const isNew = (kind: "document" | "course" | "note", id: string) =>
     novelty.isNew(noveltyKey(kind, id));
   const body = useRef<HTMLDivElement>(null);
   const save = useRef<(() => Promise<boolean>) | null>(null);
@@ -151,6 +148,7 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
   useEffect(() => () => onReading?.(undefined), []); // eslint-disable-line react-hooks/exhaustive-deps
   const readerRef = useRef<HTMLElement>(null);
   useReadingPlace(readerRef, agent.id, readingKey);
+  useReadingPosition(readerRef, agent.id, state.page, state.lesson);
 
   // A page remembered from the last visit may have been removed since.
   const restored = state.restored ? state.page : undefined;
@@ -270,9 +268,9 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
       </aside>
       <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}>
         <ResourceHeaderLeading.Provider value={readerLeading}><ResourceHeaderExtra.Provider value={readerExtra}>
-        <MentorReader agent={agent} page={state.page} request={state.request} canvases={canvases}
+        <MentorReader agent={agent} page={state.page} request={state.request}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
-          onCanvasAddToChat={onCanvasAddToChat} onCanvasTitleChange={onCanvasTitleChange} onOpenFile={onOpenFile} renderSession={renderSession}
+          onOpenFile={onOpenFile} renderSession={renderSession}
           sessionTitle={sessionTitle} />
         </ResourceHeaderExtra.Provider></ResourceHeaderLeading.Provider>
       </main>

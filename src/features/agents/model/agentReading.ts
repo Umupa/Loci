@@ -7,7 +7,6 @@ export type AgentReading =
   | { kind: "course"; courseId: string; title: string; lessonId?: string; lessonTitle?: string; compare?: ReadingPart[] }
   | { kind: "document"; id: string; title: string }
   | { kind: "note"; id: string }
-  | { kind: "canvas"; id: string }
   /** `commit`: code read as it was at that commit, not as it is on disk. */
   | { kind: "file"; path: string; commit?: string };
 

@@ -1,7 +1,7 @@
 import { useEffect,useRef,type MouseEvent as ReactMouseEvent } from "react";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
-import { ExcalidrawIcon, StickyNote } from "../../../shared/ui/icons";
+import { StickyNote } from "../../../shared/ui/icons";
 import { MatchText } from "../../../shared/ui/MatchText";
 import { mentionKind } from "../model/mentionSources";
 import type { RankedFile } from "../../notes/noteMentions";
@@ -104,8 +104,6 @@ export function NoteMentionPicker({
                 <span className="shrink-0">
                   {kind === "note" ? (
                     <StickyNote className="size-3.5" />
-                  ) : kind === "canvas" ? (
-                    <ExcalidrawIcon className="size-3.5" />
                   ) : (
                     <FileTypeIcon
                       name={file.name}
@@ -128,7 +126,7 @@ export function NoteMentionPicker({
                 </span>
                 {note ? (
                   <span className="shrink-0 font-mono text-[11px] text-content/40">
-                    {kind === "canvas" ? "Drawing" : "Note"}
+                    Note
                   </span>
                 ) : dir ? (
                   <span className="min-w-0 max-w-[45%] truncate font-mono text-[11px] text-content/40">

@@ -6,6 +6,8 @@ export type DocumentPlace = { section?: string; quote?: string; annotationId?: s
 export type DocumentPlaceRequest = DocumentPlace & { token: number };
 
 const requests = new Map<string, DocumentPlaceRequest>();
+/** When each document was last asked for a place, kept after the reader consumed it. */
+const requestedAt = new Map<string, number>();
 const listeners = new Set<() => void>();
 let counter = 0;
 
@@ -15,7 +17,13 @@ function notify() { for (const listener of listeners) listener(); }
 /** Ask the reader showing this document, now or once it opens, to show a place in it. */
 export function requestDocumentPlace(agentId: string, documentId: string, place: DocumentPlace): void {
   requests.set(key(agentId, documentId), { ...place, token: ++counter });
+  requestedAt.set(key(agentId, documentId), Date.now());
   notify();
+}
+
+/** Whether a place in the document was asked for and is still to be shown, or was asked for since `since` (ms). */
+export function documentPlaceRequested(agentId: string, documentId: string, since: number): boolean {
+  return requests.has(key(agentId, documentId)) || (requestedAt.get(key(agentId, documentId)) ?? -Infinity) >= since;
 }
 
 /** The reader has shown the place; the request does not outlive the opening that made it. */

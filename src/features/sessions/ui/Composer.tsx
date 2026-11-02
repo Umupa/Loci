@@ -33,7 +33,6 @@ Pencil,
 Play,
 Plus,
 Square,
-ExcalidrawIcon,
 StickyNote,
 Trash2,
 X
@@ -52,9 +51,8 @@ import { dragPointToClient } from "../../../shared/lib/dragPoint";
 import type { ContextUsage } from "../model/contextUsage";
 
 import type { ProjectFile } from "../../../platform/tauri/fs";
-import { CANVASES_CHANGED_EVENT, loadCanvases, peekCanvases, type Canvas } from "../../canvas/canvas";
 import { loadProjectFiles } from "../../files/model/fileIndex";
-import { buildMentionSources, mentionKind, projectCanvases, rankMentions } from "../model/mentionSources";
+import { buildMentionSources, mentionKind, rankMentions } from "../model/mentionSources";
 import {
 fileMentionParts,
 mentionLabel,
@@ -605,7 +603,6 @@ export function Composer({
   );
   const controlsBeside = chat || modelControls === "beside";
   const [notes, setNotes] = useState<Note[]>(() => peekNotes() ?? []);
-  const [canvases, setCanvases] = useState<Canvas[]>(() => peekCanvases() ?? []);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionActive, setMentionActive] = useState(0);
@@ -660,9 +657,8 @@ export function Composer({
   const inProject = looksLikeProject(cwd);
   const mentionSources = useMemo(() => ({
     notes: notesEnabled ? notes : [],
-    canvases: inProject ? projectCanvases(canvases, cwd) : [],
     files: inProject ? projectFiles : [],
-  }), [notesEnabled, notes, inProject, canvases, cwd, projectFiles]);
+  }), [notesEnabled, notes, inProject, projectFiles]);
   const mentionIndex = useMemo(() => buildMentionSources(mentionSources), [mentionSources]);
   const mentionIndexRef = useRef<MentionIndex>(mentionIndex);
   mentionIndexRef.current = mentionIndex;
@@ -896,22 +892,6 @@ export function Composer({
     };
   }, [mentionsWanted, notesEnabled]);
 
-  useEffect(() => {
-    if (!mentionsWanted || !inProject) return;
-    let cancelled = false;
-    const refresh = () => {
-      void loadCanvases().then((next) => {
-        if (!cancelled) setCanvases(next);
-      }).catch(() => undefined);
-    };
-    refresh();
-    window.addEventListener(CANVASES_CHANGED_EVENT, refresh);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(CANVASES_CHANGED_EVENT, refresh);
-    };
-  }, [mentionsWanted, inProject]);
-
   // The listing is cached per project and dropped when the folder changes, so
   // asking again each time the picker opens is cheap and never stale.
   useEffect(() => {
@@ -1135,7 +1115,7 @@ export function Composer({
         setMention(null);
         return;
       }
-      // Notes and drawings are always written with their `note/` or `canvas/` label.
+      // Notes are always written with their `note/` label.
       const label = mentionKind(file.path) === "file"
         ? mentionLabel(file, mentionIndexRef.current)
         : file.relative;
@@ -2032,7 +2012,7 @@ export function Composer({
               rows={chat ? 1 : 2}
               spellCheck={false}
               defaultValue={initialDraft}
-              placeholder={noteCard ? "Add a message, or send…" : (placeholder ?? "Ask, / for commands, @ for files, notes, drawings…")}
+              placeholder={noteCard ? "Add a message, or send…" : (placeholder ?? "Ask, / for commands, @ for files and notes…")}
               aria-label={inputAriaLabel ?? placeholder ?? "Message"}
               disabled={disabled}
               className={`composer-field scrollbar-none relative max-h-52 w-full resize-none overflow-x-hidden whitespace-pre-wrap wrap-break-word bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${fieldPadding}`}
@@ -2334,8 +2314,6 @@ function FileMentionRuns({
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 indent-0 text-mention">
                 {mentionKind(part.file.path) === "note" ? (
                   <StickyNote className="size-3.5" />
-                ) : mentionKind(part.file.path) === "canvas" ? (
-                  <ExcalidrawIcon className="size-3.5" />
                 ) : (
                   <FileTypeIcon
                     name={part.file.name}

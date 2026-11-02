@@ -92,9 +92,8 @@ describe("mentorStore", () => {
     const [course] = contentChangeEvents({ agentId: "m", kind: "courses", id: "c" }) as CustomEvent[];
     expect([course.type, course.detail]).toEqual(["loci:courses-changed", { agentId: "m", courseId: "c" }]);
     expect(contentChangeEvents({ agentId: "m", kind: "notes" })[0].type).toBe("loci:notes-changed");
-    expect(contentChangeEvents({ agentId: "m", kind: "canvases" })[0].type).toBe("loci-canvases-changed");
     expect(contentChangeEvents({ agentId: "m", kind: "files" })[0].type).toBe("loci:agent-files-changed");
-    expect(contentChangeEvents({ agentId: null })).toHaveLength(4);
+    expect(contentChangeEvents({ agentId: null })).toHaveLength(3);
   });
 
   it("never lets a reload overtake a roster change still on its way", async () => {

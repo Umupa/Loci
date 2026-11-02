@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { handleAgentApp } from "../../features/agent-app/model/agentApp";
-import { handleCanvasBridge } from "../../features/canvas/checkpoints";
 import { agentForSession } from "../../features/agents/model/agent";
 import type { CommandContext } from "../commands/context";
 import { isAgentCommand, runCommand } from "../commands/dispatch";
@@ -48,11 +47,6 @@ export function useAppControl(options: Options) {
             runCommand(commands, payload.action, payload.input, { requestId: payload.requestId, caller: "external" }));
         }
         const source = runtime.sessionsRef.current.find((session) => session.id === payload.sessionId);
-        // The built-in Excalidraw MCP server reaches canvases here; it needs no app access grant.
-        if (payload.namespace === "canvas") {
-          if (!source) throw new Error("This session cannot draw on Loci canvases");
-          return handleCanvasBridge(source, payload.action, payload.input, { isOpen: workspace.isCanvasOpen, reveal: workspace.revealCanvas });
-        }
         if (payload.namespace !== "app") throw new Error("Unknown CLI namespace");
         if (!source) throw new Error("This session cannot use the Loci app CLI");
         return remember(`${source.id}:${payload.requestId}`, payload, () => {

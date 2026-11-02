@@ -4,6 +4,18 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **The reader keeps your place.** Each mentor remembers where you were in each page: the page of a PDF, the paragraph of a source, guide, lesson or note, the line of a code file. Switching to another page or mentor and back, or restarting Loci, opens it there again. A link or `reader.open` that names a place still goes to that place. The last 50 pages per mentor are kept.
+
+### Fixed
+
+- Selecting text in a PDF no longer jumps when the pointer crosses the blank space between lines or columns, and a finished selection grows to the whole words it touches.
+
+### Removed
+
+- **Canvases.** The Excalidraw canvas is gone, with everything around it: the drawing pane and its library entries, Save to canvas, drawings in the `@` picker, `loci-canvas` cards and `loci://canvas` links, the built-in `loci_excalidraw` MCP server and its switch in Settings → MCP, the `canvas.*` app actions, `loci canvases …` and `loci reader open --canvas`, the `canvasTools` setting and a course's `canvasId`. On the first start, Loci deletes the canvas tables and each mentor's `canvases/` folder; nothing else in the folder is touched. Loci no longer looks for Node.js or Bun.
+
 ## [0.5.0] - 2026-11-01
 
 ### Added

@@ -14,6 +14,8 @@ export type OpenFileFn = (path: string, place?: FilePlace, options?: OpenFileOpt
 export type FilePlaceRequest = { place: FilePlace; token: number };
 
 const requests = new Map<string, FilePlaceRequest>();
+/** When each path was last asked for a place, kept after the pane consumed it. */
+const requestedAt = new Map<string, number>();
 const listeners = new Set<() => void>();
 let counter = 0;
 
@@ -24,7 +26,16 @@ function notify() {
 /** Ask the pane showing `path`, now or once it opens, to scroll to a page or a line. */
 export function requestFilePlace(path: string, place: FilePlace): void {
   requests.set(path, { place, token: ++counter });
+  requestedAt.set(path, Date.now());
   notify();
+}
+
+/**
+ * Whether a link asked for a place in `path` that is still to be shown, or
+ * since `since` (ms). A remembered reading position gives way to it.
+ */
+export function filePlaceRequested(path: string, since: number): boolean {
+  return requests.has(path) || (requestedAt.get(path) ?? -Infinity) >= since;
 }
 
 /** Fired on `window`: open this file in a pane, wherever the user is working. */
