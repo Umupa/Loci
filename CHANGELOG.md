@@ -8,6 +8,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 - **The reader keeps your place.** Each mentor remembers where you were in each page: the page of a PDF, the paragraph of a source, guide, lesson or note, the line of a code file. Switching to another page or mentor and back, or restarting Loci, opens it there again. A link or `reader.open` that names a place still goes to that place. The last 50 pages per mentor are kept.
 
+### Changed
+
+- **Lens answers a repository question in minutes.** Given a repository, Lens now reads it and writes a one-page brief — what it is and who it is for, the one data flow that explains it, 2–4 design decisions with links to the code, and the three files to read first — without saving the project's prose or building a course. Ask to go deeper ("深入读" or "带我读这个仓库") and it builds the 6–12 lesson course as before, with the brief as the last lesson of chapter 1.
+
 ### Fixed
 
 - Selecting text in a PDF no longer jumps when the pointer crosses the blank space between lines or columns, and a finished selection grows to the whole words it touches.

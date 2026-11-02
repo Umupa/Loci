@@ -8,7 +8,7 @@
       "TencentCloud/CubeSandbox"
     ]
   },
-  "opening": "How does CubeSandbox snapshot and restore a sandbox? The checkout is already in your repos/ (TencentCloud/CubeSandbox) — use that copy, don't clone it again.",
+  "opening": "How does CubeSandbox snapshot and restore a sandbox? The checkout is already in your repos/ (TencentCloud/CubeSandbox) — use that copy, don't clone it again. I want to read it deeply: build me a course.",
   "learner": {
     "background": "Backend/infrastructure engineer, six years of Go and Linux in production, comfortable with Docker, containers and basic networking; reads English technical docs fluently.",
     "answers": {

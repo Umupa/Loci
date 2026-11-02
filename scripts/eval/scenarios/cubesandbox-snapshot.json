@@ -1,7 +1,7 @@
 {
   "id": "cubesandbox-snapshot",
   "template": "repo-lens",
-  "opening": "Help me read CubeSandbox's snapshot and restore path: https://github.com/TencentCloud/CubeSandbox",
+  "opening": "Help me read CubeSandbox's snapshot and restore path deeply: https://github.com/TencentCloud/CubeSandbox. Build me a course.",
   "learner": {
     "background": "Backend/infrastructure engineer, six years of Go and Linux in production, comfortable with Docker, containers and basic networking; reads English technical docs fluently.",
     "answers": {
