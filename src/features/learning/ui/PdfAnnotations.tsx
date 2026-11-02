@@ -5,7 +5,8 @@ import { Popover } from "../../../shared/ui/Popover";
 import { ChevronRight, Copy, MessageSquare, MessageSquarePlus, PenLine, Trash2, X } from "../../../shared/ui/icons";
 import { registerLearningSource } from "../model/learningStore";
 import { openLearningDiscussion } from "../model/navigation";
-import { quoteMarkdown, saveQuoteToNote } from "../model/quoteNote";
+import { quoteMarkdown, savePictureQuoteToNote, saveQuoteToNote } from "../model/quoteNote";
+import { blockLabel } from "../model/blockAnchor";
 import { ToolbarButton, ToolbarDivider, useSaveToNote, type NoteShelf } from "./ReadingToolbar";
 import type { Annotation } from "../model/types";
 import { annotationPlace } from "../model/annotationPlace";
@@ -50,7 +51,7 @@ export function AnnotationList({ annotations, selectedId, orphans, title = "High
           <span className="pdf-annotations__page"><span className="pdf-annotations__marker" />{annotationPlace(annotation, orphans?.has(annotation.id))}</span>
           <ChevronRight className="size-3" />
         </span>
-        <span className="pdf-annotations__entry-quote line-clamp-3">{annotation.source.quote}</span>
+        <span className="pdf-annotations__entry-quote line-clamp-3">{annotation.source.quote || (annotation.anchor?.block ? blockLabel(annotation.anchor.block.kind) : "")}</span>
         {annotation.note ? <span className="pdf-annotations__entry-note line-clamp-2">{annotation.note}</span> : null}
         {annotation.discussions.length ? <span className="pdf-annotations__entry-discussions"><MessageSquare className="size-3" />{annotation.discussions.length} discussion{annotation.discussions.length === 1 ? "" : "s"}</span> : null}
       </button>)}
@@ -63,8 +64,10 @@ export function AnnotationList({ annotations, selectedId, orphans, title = "High
  * which opens a small field for a note on it, and Delete. A note already
  * written shows as a line under the bar.
  */
-export function AnnotationToolbar({ annotation, anchor, onDismiss, onAsk, onSave, onDelete, askLabel = "Ask", notes }: Actions & {
+export function AnnotationToolbar({ annotation, anchor, onDismiss, onAsk, onSave, onDelete, askLabel = "Ask", notes, picture }: Actions & {
   annotation: Annotation; anchor: DOMRect; onDismiss: () => void;
+  /** A picture of what is marked (an area of a PDF page), kept with the note above the passage. */
+  picture?: () => Promise<File | null>;
   /** "Ask Kern": the mentor the question goes to. */
   askLabel?: string;
   /** Where Save to note puts the passage. */
@@ -80,7 +83,10 @@ export function AnnotationToolbar({ annotation, anchor, onDismiss, onAsk, onSave
     await registerLearningSource(annotation.source);
     return quoteMarkdown(annotation.source.quote, annotation.source, noteRef.current);
   };
-  const saving = useSaveToNote(notes, async (target) => saveQuoteToNote(await markdown(), annotation.source.quote, target, notes?.agentId));
+  const title = annotation.source.quote || (annotation.anchor?.block ? `${blockLabel(annotation.anchor.block.kind)} · ${annotation.source.title}` : annotation.source.title);
+  const saving = useSaveToNote(notes, async (target) => picture
+    ? savePictureQuoteToNote(await picture(), await markdown(), title, target, notes?.agentId)
+    : saveQuoteToNote(await markdown(), title, target, notes?.agentId));
   const run = async (action: () => Promise<unknown>) => {
     setPending(true); setError(null);
     try { await action(); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }

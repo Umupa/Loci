@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { BLOCK_SELECTOR, readingBlocks, resolveBlock } from "../model/blockAnchor";
 import { resolveAnchor, textIndex } from "../model/textAnchor";
 import type { Annotation } from "../model/types";
 
@@ -6,7 +7,8 @@ import type { Annotation } from "../model/types";
  * Painting text highlights. Readers render Markdown, code and plain text with
  * React and Streamdown, so the DOM is never touched: the marks are ranges given
  * to the CSS Custom Highlight API. Where it is missing nothing is painted, and
- * the list, Ask and jumps still work.
+ * the list, Ask and jumps still work. A whole block (a table, a diagram) is
+ * marked by an attribute on its element, which its stylesheet washes.
  */
 
 type HighlightCtor = new (...ranges: Range[]) => unknown;
@@ -27,6 +29,11 @@ function repaint() {
   const selected = [...owners.values()].flatMap((entry) => entry.selected);
   api.highlights.set("loci-mark", new api.Highlight(...marks));
   api.highlights.set("loci-mark-selected", new api.Highlight(...selected));
+}
+
+/** The element a block's wash is drawn on: a table's framed wrapper rather than the bare table. */
+function painted(block: Element): Element {
+  return block.tagName === "TABLE" ? block.closest('[data-streamdown="table-wrapper"]') ?? block : block;
 }
 
 let flashTimer = 0;
@@ -91,6 +98,7 @@ type Options = {
 export function useTextHighlights(root: RefObject<HTMLElement | null>, annotations: readonly Annotation[], { selectedId, onOpen, enabled = true }: Options = {}) {
   const [orphans, setOrphans] = useState<ReadonlySet<string>>(() => new Set());
   const ranges = useRef(new Map<string, Range>());
+  const blocks = useRef(new Map<Element, string>());
   const owner = useRef(Symbol("reader"));
   const latest = useRef({ annotations, onOpen, selectedId });
   latest.current = { annotations, onOpen, selectedId };
@@ -98,8 +106,13 @@ export function useTextHighlights(root: RefObject<HTMLElement | null>, annotatio
   useEffect(() => {
     const element = root.current;
     const me = owner.current;
+    const unmarkBlocks = () => {
+      for (const block of blocks.current.keys()) painted(block).removeAttribute("data-block-mark");
+      blocks.current = new Map();
+    };
     if (!element || !enabled) {
       ranges.current = new Map();
+      unmarkBlocks();
       owners.delete(me);
       repaint();
       setOrphans((current) => current.size ? new Set() : current);
@@ -111,14 +124,31 @@ export function useTextHighlights(root: RefObject<HTMLElement | null>, annotatio
       const index = textIndex(element);
       const next = new Map<string, Range>();
       const gone = new Set<string>();
+      const shown = latest.current.annotations.some((annotation) => annotation.anchor?.block) ? readingBlocks(element) : [];
+      const marked = new Map<Element, string>();
       for (const annotation of latest.current.annotations) {
-        if (!annotation.anchor) continue;
-        const range = resolveAnchor(element, annotation.anchor, index);
+        const anchor = annotation.anchor;
+        if (!anchor) continue;
+        if (anchor.block) {
+          const block = resolveBlock(shown, anchor);
+          if (!block) { gone.add(annotation.id); continue; }
+          // A range over the block, so a jump to the mark scrolls to and flashes it like a passage.
+          const range = element.ownerDocument.createRange();
+          if (block.element.childNodes.length) range.selectNodeContents(block.element); else range.selectNode(block.element);
+          next.set(annotation.id, range);
+          marked.set(block.element, annotation.id);
+          continue;
+        }
+        const range = resolveAnchor(element, anchor, index);
         if (range) next.set(annotation.id, range); else gone.add(annotation.id);
       }
       ranges.current = next;
       const selected = latest.current.selectedId;
-      owners.set(me, { marks: [...next].filter(([id]) => id !== selected).map(([, range]) => range), selected: selected && next.get(selected) ? [next.get(selected)!] : [] });
+      unmarkBlocks();
+      for (const [block, id] of marked) painted(block).setAttribute("data-block-mark", id === selected ? "selected" : "");
+      blocks.current = marked;
+      const passages = [...next].filter(([id]) => ![...marked.values()].includes(id));
+      owners.set(me, { marks: passages.filter(([id]) => id !== selected).map(([, range]) => range), selected: selected && passages.some(([id]) => id === selected) ? [next.get(selected)!] : [] });
       repaint();
       setOrphans((current) => current.size === gone.size && [...gone].every((id) => current.has(id)) ? current : gone);
     };
@@ -130,7 +160,13 @@ export function useTextHighlights(root: RefObject<HTMLElement | null>, annotatio
     observer.observe(element, { childList: true, subtree: true, characterData: true });
     const click = (event: MouseEvent) => {
       if (!window.getSelection()?.isCollapsed) return;
-      const id = markAt(ranges.current, event.clientX, event.clientY);
+      // A marked block opens from anywhere in it, except its own controls (a picture's preview, a link).
+      const target = event.target instanceof Element ? event.target : null;
+      const block = target?.closest("[data-block-mark]");
+      const interactive = target?.closest("a, button, input, textarea, [role=button]");
+      const id = block && element.contains(block) ? interactive && block.contains(interactive) ? undefined
+        : blocks.current.get(block.matches(BLOCK_SELECTOR) ? block : block.querySelector(BLOCK_SELECTOR) ?? block)
+        : markAt(ranges.current, event.clientX, event.clientY);
       const annotation = id ? latest.current.annotations.find((entry) => entry.id === id) : undefined;
       if (annotation) latest.current.onOpen?.(annotation, new DOMRect(event.clientX, event.clientY, 1, 1));
     };
@@ -139,10 +175,16 @@ export function useTextHighlights(root: RefObject<HTMLElement | null>, annotatio
       observer.disconnect();
       window.clearTimeout(timer);
       element.removeEventListener("click", click);
+      unmarkBlocks();
       owners.delete(me);
       repaint();
     };
   }, [root, annotations, selectedId, enabled]);
 
-  return { orphans, rangeOf: (id: string) => ranges.current.get(id) };
+  return {
+    orphans,
+    rangeOf: (id: string) => ranges.current.get(id),
+    /** The mark kept on a whole block, when the block has one. */
+    blockMark: (block: Element) => blocks.current.get(block),
+  };
 }

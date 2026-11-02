@@ -35,4 +35,18 @@ describe("a passage saved to a note", () => {
     expect(quoteMarkdown("fn run()", { ...code, title: "[draft] main.rs" })).toBe("> fn run()\n>\n> — [\\[draft\\] main.rs · L12–14](loci://source/s-code#L12-14&quote=fn%20run())");
     expect(quoteMarkdown("Just words")).toBe("> Just words");
   });
+
+  it("keeps a whole block as its Markdown, linked by the words a reader sees at its start", () => {
+    const table = "| Phase | Meaning |\n| --- | --- |\n| Pending | accepted |";
+    const block: LearningSource = { ...lesson, quote: table,
+      anchor: { exact: table, prefix: "", suffix: "", start: 40, end: 40, headings: ["Pod phase"], block: { kind: "table", index: 0, lead: "PhaseMeaning" } } };
+    expect(quoteLink(block)).toBe("loci://source/s-doc#section=Pod%20phase&quote=PhaseMeaning");
+    expect(quoteMarkdown(table, block)).toBe(
+      "> | Phase | Meaning |\n> | --- | --- |\n> | Pending | accepted |\n>\n> — [Pods · Pod phase](loci://source/s-doc#section=Pod%20phase&quote=PhaseMeaning)");
+    // A diagram or a picture shows no words: the link names only its section.
+    const diagram: LearningSource = { ...block, quote: "```mermaid\ngraph TD; A-->B\n```",
+      anchor: { ...block.anchor!, exact: "```mermaid\ngraph TD; A-->B\n```", block: { kind: "mermaid", index: 0 } } } as LearningSource;
+    expect(quoteLink(diagram)).toBe("loci://source/s-doc#section=Pod%20phase");
+    expect(quoteMarkdown(diagram.quote, diagram).split("\n").slice(0, 3)).toEqual(["> ```mermaid", "> graph TD; A-->B", "> ```"]);
+  });
 });

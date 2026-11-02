@@ -2679,6 +2679,27 @@ html.theme-light .btw-burst {
   height: 100%;
 }
 
+/* With ⌥ held the pointer draws an area: the text layer stops taking it, so
+   no text is selected underneath, and the page shows a crosshair. */
+.loci-pdf[data-area-select] .textLayer,
+.loci-pdf[data-area-select] .textLayer :is(span, br) {
+  pointer-events: none;
+}
+
+.loci-pdf[data-area-select] .loci-pdf-page {
+  cursor: crosshair;
+}
+
+/* The area being drawn, and the one whose bar is open. */
+.loci-pdf-area {
+  position: absolute;
+  z-index: 2;
+  border: 1.5px dashed color-mix(in srgb, var(--color-mark) 80%, black);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-mark) 10%, transparent);
+  pointer-events: none;
+}
+
 .loci-pdf .textLayer {
   color-scheme: only light;
 

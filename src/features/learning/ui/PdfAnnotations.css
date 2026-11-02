@@ -149,6 +149,43 @@
 ::highlight(loci-mark-selected) { background-color: var(--color-mark-wash-strong); }
 ::highlight(loci-flash) { background-color: var(--color-mark-wash-strong); }
 
+/* A whole block kept as a mark (a table, a diagram, a code block): a paler
+   wash than a passage's, laid over the block's own surface so it shows on any
+   of them, with a thin bar in the mentor's colour down its left side. */
+[data-block-mark]:not(img) {
+  position: relative;
+}
+[data-block-mark]:not(img)::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: -4px -6px -4px -10px;
+  border-left: 2px solid var(--color-mark);
+  border-radius: 2px 8px 8px 2px;
+  background: color-mix(in srgb, var(--color-mark) 12%, transparent);
+  pointer-events: none;
+}
+/* A table's frame clips what overflows it: the wash sits inside, the bar outside as a shadow. */
+[data-streamdown="table-wrapper"][data-block-mark]::after {
+  inset: 0;
+  border-left: 0;
+  border-radius: inherit;
+}
+[data-streamdown="table-wrapper"][data-block-mark] {
+  box-shadow: -10px 0 0 -8px var(--color-mark);
+}
+[data-block-mark="selected"]:not(img)::after {
+  background: var(--color-mark-wash);
+}
+img[data-block-mark] {
+  outline: 4px solid var(--color-mark-wash);
+  outline-offset: 2px;
+  box-shadow: -12px 0 0 -10px var(--color-mark);
+}
+img[data-block-mark="selected"] {
+  outline-color: var(--color-mark-wash-strong);
+}
+
 /* The list dropping from a reader's menu, rather than beside a PDF. */
 .pdf-annotations--floating {
   overflow: hidden;

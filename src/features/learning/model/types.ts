@@ -3,6 +3,13 @@ export type PdfRect = { x: number; y: number; width: number; height: number };
 export type PdfAnchor = { page: number; rects: PdfRect[] };
 
 /**
+ * A whole block of a rendered text (a table, a diagram, a code block, a
+ * picture) or an area drawn on a PDF page: what kind, which of its kind it
+ * was, and, for a link, the opening words of its rendered text.
+ */
+export type BlockRef = { kind: string; index: number; lead?: string };
+
+/**
  * A passage of text found again by its words, so it survives small edits: the
  * quote with a little context either side, where it was last (only a hint),
  * the headings above it and, in a text file, its lines.
@@ -12,6 +19,8 @@ export type TextAnchor = {
   start: number; end: number;
   headings?: string[];
   lines?: [number, number];
+  /** A whole block, whose Markdown source is `exact`. */
+  block?: BlockRef;
 };
 
 type SourceBase = { id: string; title: string; quote: string };

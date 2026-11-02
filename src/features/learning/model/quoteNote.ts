@@ -1,6 +1,7 @@
 import { parseAppResourceUrl } from "../../../shared/lib/appResourceLinks";
-import { createNote, noteTitle, type Note } from "../../notes/notes";
-import { appendToNote, type NoteTarget } from "../../notes/noteTarget";
+import { createNote, getNote, noteTitle, type Note } from "../../notes/notes";
+import { noteImageMarkdown, saveNoteImagesFromFiles } from "../../notes/noteImages";
+import { appendToNote, MissingNoteError, type NoteTarget } from "../../notes/noteTarget";
 import { learningSourceLabel } from "./learningContext";
 import type { LearningSource } from "./types";
 
@@ -17,7 +18,9 @@ const LINK_QUOTE = 120;
 export function quoteLink(source: LearningSource): string {
   if (source.kind === "web") return source.url;
   const base = `loci://source/${source.id}`;
-  const words = Array.from(source.quote?.replace(/\s+/g, " ").trim() ?? "");
+  // A whole block's quote is its Markdown; the words a reader sees are its rendered opening (none for a picture).
+  const block = "anchor" in source ? source.anchor?.block : undefined;
+  const words = Array.from((block ? block.lead : source.quote)?.replace(/\s+/g, " ").trim() ?? "");
   const quote = words.length > LINK_QUOTE ? words.slice(0, LINK_QUOTE).join("").trimEnd() : words.join("");
   const lines = source.kind === "file" ? source.lines ?? source.anchor?.lines : undefined;
   const place = source.kind === "pdf" ? [`p${source.anchors[0]?.page ?? 1}`]
@@ -37,9 +40,11 @@ export function quoteLink(source: LearningSource): string {
  * as a link back (when it has a source), then `note`, what the reader wrote on it.
  */
 export function quoteMarkdown(quote: string, source?: LearningSource, note = ""): string {
-  const lines = quote.replace(/\r\n?/g, "\n").trim().split("\n").map((line) => line.trimEnd() ? `> ${line.trimEnd()}` : ">");
-  // Brackets in a title would close the link text early.
-  if (source) lines.push(">", `> — [${learningSourceLabel(source).replace(/([[\]\\])/g, "\\$1")}](${quoteLink(source)})`);
+  const words = quote.replace(/\r\n?/g, "\n").trim();
+  const lines = words ? words.split("\n").map((line) => line.trimEnd() ? `> ${line.trimEnd()}` : ">") : [];
+  // Brackets in a title would close the link text early. A passage with no words
+  // (a picture of a figure) is only its link.
+  if (source) lines.push(...(lines.length ? [">"] : []), `> — [${learningSourceLabel(source).replace(/([[\]\\])/g, "\\$1")}](${quoteLink(source)})`);
   const own = note.replace(/\r\n?/g, "\n").trim();
   return `${lines.join("\n")}${own ? `\n\n${own}` : ""}`;
 }
@@ -48,4 +53,19 @@ export function quoteMarkdown(quote: string, source?: LearningSource, note = "")
 export function saveQuoteToNote(markdown: string, quote: string, target: NoteTarget, agentId?: string): Promise<Note> {
   if (target.kind === "note") return appendToNote(target.id, markdown);
   return createNote({ title: noteTitle(quote), body: markdown, ...(agentId ? { agentId } : {}) });
+}
+
+/**
+ * A passage with a picture of it (an area of a PDF page): the picture is kept
+ * with the note, among its own pictures, and shown above the passage.
+ */
+export async function savePictureQuoteToNote(picture: File | null, markdown: string, title: string, target: NoteTarget, agentId?: string): Promise<Note> {
+  let id: string;
+  if (target.kind === "note") {
+    // Before the picture is copied anywhere: a note that is gone takes nothing.
+    if (!await getNote(target.id)) throw new MissingNoteError();
+    id = target.id;
+  } else id = (await createNote({ title, body: "", ...(agentId ? { agentId } : {}) })).id;
+  const pictures = picture ? await saveNoteImagesFromFiles(id, [picture]) : [];
+  return appendToNote(id, [...pictures.map(noteImageMarkdown), markdown].filter(Boolean).join("\n\n"));
 }

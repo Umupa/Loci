@@ -5,11 +5,12 @@ import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs?worker";
 import { Minus, Plus } from "../../../shared/ui/icons";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { FooterButton } from "./FileCard";
-import type { PdfAnnotation } from "../../learning/model/types";
-import { pdfAnnotationAt } from "../../learning/model/pdfAnnotations";
+import type { PdfAnnotation, PdfRect } from "../../learning/model/types";
+import { normalizePdfRect, pdfAnnotationAt, pdfAreaPicture, textInPdfRect, type PdfTextItem } from "../../learning/model/pdfAnnotations";
 import { quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
 import { flashRange } from "../../learning/ui/useTextHighlights";
 import { attachTextLayer, detachTextLayer } from "./pdfTextLayer";
+import { IS_MAC } from "../../../platform/tauri/platform";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 5;
@@ -29,6 +30,10 @@ type PageSize = { w: number; h: number };
 export type LoadedPdf = { document: PDFDocumentProxy; fingerprint: string };
 /** A link's place: a page, a saved mark on it, or words to find and flash. */
 type PdfPlace = { page: number; token: number; annotationId?: string; quote?: string };
+/** An area drawn on a page with ⌥: where it is, the words inside it, a picture of it, and where on screen it ended. */
+export type PdfArea = { page: number; rect: PdfRect; text: string; picture: File | null; at: DOMRect };
+/** An area smaller than this on screen, in pixels, was a click rather than a drag. */
+const AREA_MIN = 8;
 
 function documentFingerprint(document: PDFDocumentProxy): string {
   const fingerprint = document.fingerprints[0];
@@ -92,11 +97,17 @@ export async function readPdfFingerprint(bytes: Uint8Array): Promise<string> {
  * rasterised while they are near the viewport, so a long document costs what
  * is on screen.
  */
-export function PdfView({ bytes, onError, onDocument, annotations = [], selectedAnnotationId, onAnnotationClick, place, onPlaced }: {
+export function PdfView({ bytes, onError, onDocument, annotations = [], selectedAnnotationId, onAnnotationClick, place, onPlaced, onArea, area, name = "page" }: {
   bytes: Uint8Array; onError: (message: string) => void; onDocument?: (loaded: LoadedPdf) => void;
   annotations?: PdfAnnotation[]; selectedAnnotationId?: string;
   onAnnotationClick?: (annotation: PdfAnnotation, rect: DOMRect) => void;
   place?: PdfPlace; onPlaced?: (place: PdfPlace, pageRect: DOMRect) => void;
+  /** An area was drawn with ⌥-drag. Without it, ⌥ does nothing. */
+  onArea?: (area: PdfArea) => void;
+  /** The area whose bar is open, outlined until it closes. */
+  area?: { page: number; rect: PdfRect };
+  /** The document's name, for a picture of an area. */
+  name?: string;
 }) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [baseSize, setBaseSize] = useState<PageSize | null>(null);
@@ -114,6 +125,20 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
   onDocumentRef.current = onDocument;
   const onPlacedRef = useRef(onPlaced);
   onPlacedRef.current = onPlaced;
+  const onAreaRef = useRef(onArea);
+  onAreaRef.current = onArea;
+  // ⌥ held: the pointer draws an area instead of selecting text.
+  const [areaKey, setAreaKey] = useState(false);
+  const canDrawArea = !!onArea;
+  useEffect(() => {
+    if (!canDrawArea) return;
+    const key = (event: KeyboardEvent) => setAreaKey(event.altKey && !event.metaKey && !event.ctrlKey);
+    const off = () => setAreaKey(false);
+    window.addEventListener("keydown", key);
+    window.addEventListener("keyup", key);
+    window.addEventListener("blur", off);
+    return () => { window.removeEventListener("keydown", key); window.removeEventListener("keyup", key); window.removeEventListener("blur", off); };
+  }, [canDrawArea]);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,6 +205,22 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
 
   const pageElement = (number: number) =>
     scrollRef.current?.querySelector<HTMLElement>(`[data-page-number="${number}"]`) ?? null;
+
+  const nameRef = useRef(name);
+  nameRef.current = name;
+  const onAreaDrawn = useCallback(async (number: number, rect: PdfRect, at: DOMRect) => {
+    if (!doc) return;
+    // The picture first, from the page as drawn now, before a scroll can release it.
+    const picture = scrollRef.current ? await pdfAreaPicture(scrollRef.current, number, rect, `${nameRef.current.replace(/\.pdf$/i, "")} p${number}.png`).catch(() => null) : null;
+    let text = "";
+    try {
+      const page = await doc.getPage(number);
+      const viewport = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      text = textInPdfRect(content.items.flatMap((item): PdfTextItem[] => "str" in item ? [item] : []), viewport, rect);
+    } catch { /* an area of a page whose text cannot be read is still a picture */ }
+    onAreaRef.current?.({ page: number, rect, text, picture, at });
+  }, [doc]);
 
   const onScroll = () => {
     const el = scrollRef.current;
@@ -265,6 +306,7 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
         ref={(el) => { scrollRef.current = el; lockOverscroll(el); }}
         onScroll={onScroll}
         data-reading-scroll
+        data-area-select={areaKey ? "" : undefined}
         className="loci-pdf relative min-h-0 flex-1 overflow-auto overscroll-none bg-content/[0.04]"
       >
         {doc && baseSize ? (
@@ -272,7 +314,8 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
             {Array.from({ length: doc.numPages }, (_, index) => (
               <PdfPage key={index + 1} doc={doc} number={index + 1} size={sizes.get(index + 1) ?? baseSize}
                 scale={scale} renderScale={renderScale} root={scrollRef} onSize={onSize}
-                annotations={annotations} selectedAnnotationId={selectedAnnotationId} onAnnotationClick={onAnnotationClick} onTextAvailable={onTextAvailable} />
+                annotations={annotations} selectedAnnotationId={selectedAnnotationId} onAnnotationClick={onAnnotationClick} onTextAvailable={onTextAvailable}
+                onArea={canDrawArea ? onAreaDrawn : undefined} area={area?.page === index + 1 ? area.rect : undefined} />
             ))}
           </div>
         ) : (
@@ -302,6 +345,7 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
         />
         <span className="tabular-nums">/ {doc?.numPages ?? "—"}</span>
         <span className="flex-1" />
+        {canDrawArea && doc ? <span className="hidden truncate text-content/40 sm:inline" title="Hold ⌥ (Option) and drag over a figure or a table to highlight, ask about or save it as a whole">{IS_MAC ? "⌥" : "Alt"}-drag to select an area</span> : null}
         <FooterButton label="Zoom out" disabled={!doc} onClick={() => zoomTo(clampZoom(scale / ZOOM_STEP))}>
           <Minus className="size-3" />
         </FooterButton>
@@ -317,7 +361,7 @@ export function PdfView({ bytes, onError, onDocument, annotations = [], selected
   );
 }
 
-const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, root, onSize, annotations, selectedAnnotationId, onAnnotationClick, onTextAvailable }: {
+const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, root, onSize, annotations, selectedAnnotationId, onAnnotationClick, onTextAvailable, onArea, area }: {
   doc: PDFDocumentProxy;
   number: number;
   size: PageSize;
@@ -329,8 +373,13 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
   selectedAnnotationId?: string;
   onAnnotationClick?: (annotation: PdfAnnotation, rect: DOMRect) => void;
   onTextAvailable: (number: number, available: boolean) => void;
+  onArea?: (number: number, rect: PdfRect, at: DOMRect) => void;
+  area?: PdfRect;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // An area being drawn, in client pixels; `drew` keeps the click that ends a drag from opening a mark.
+  const [drawing, setDrawing] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const drew = useRef(false);
   const canvasSlot = useRef<HTMLDivElement>(null);
   const textSlot = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState(false);
@@ -403,7 +452,32 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
     <div
       ref={ref}
       data-page-number={number}
+      onPointerDown={(event) => {
+        drew.current = false;
+        if (!onArea || !event.altKey || event.button !== 0) return;
+        // ⌥-drag draws an area; nothing underneath is selected.
+        event.preventDefault();
+        window.getSelection()?.removeAllRanges();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        setDrawing({ x0: event.clientX, y0: event.clientY, x1: event.clientX, y1: event.clientY });
+      }}
+      onMouseDown={(event) => { if (onArea && event.altKey) event.preventDefault(); }}
+      onPointerMove={(event) => {
+        if (drawing) setDrawing({ ...drawing, x1: event.clientX, y1: event.clientY });
+      }}
+      onPointerUp={(event) => {
+        if (!drawing) return;
+        setDrawing(null);
+        const left = Math.min(drawing.x0, event.clientX), right = Math.max(drawing.x0, event.clientX);
+        const top = Math.min(drawing.y0, event.clientY), bottom = Math.max(drawing.y0, event.clientY);
+        if (right - left < AREA_MIN || bottom - top < AREA_MIN) return;
+        drew.current = true;
+        const rect = normalizePdfRect({ left, top, right, bottom, width: right - left, height: bottom - top }, event.currentTarget.getBoundingClientRect());
+        if (rect) onArea?.(number, rect, new DOMRect(left, top, right - left, bottom - top));
+      }}
+      onPointerCancel={() => setDrawing(null)}
       onClick={(event) => {
+        if (drew.current) { drew.current = false; return; }
         // Marks never intercept pointer events: dragging across a highlight
         // still selects the native PDF text. A collapsed click opens its note.
         if (window.getSelection()?.toString().trim()) return;
@@ -430,9 +504,22 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
             style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }} />)))}
       </div>
       <div ref={textSlot} className="absolute inset-0" />
+      {drawing || area ? <PdfAreaOutline page={ref.current} drawing={drawing} area={area} /> : null}
     </div>
   );
 });
+
+/** The dashed outline of an area: the one being drawn, else the one whose bar is open. */
+function PdfAreaOutline({ page, drawing, area }: { page: HTMLElement | null; drawing: { x0: number; y0: number; x1: number; y1: number } | null; area?: PdfRect }) {
+  let box = area;
+  if (drawing && page) {
+    const bounds = page.getBoundingClientRect();
+    box = normalizePdfRect({ left: Math.min(drawing.x0, drawing.x1), top: Math.min(drawing.y0, drawing.y1), right: Math.max(drawing.x0, drawing.x1), bottom: Math.max(drawing.y0, drawing.y1),
+      width: Math.abs(drawing.x1 - drawing.x0), height: Math.abs(drawing.y1 - drawing.y0) }, bounds) ?? undefined;
+  }
+  if (!box) return null;
+  return <div aria-hidden="true" className="loci-pdf-area" style={{ left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.width * 100}%`, height: `${box.height * 100}%` }} />;
+}
 
 function clampZoom(value: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));

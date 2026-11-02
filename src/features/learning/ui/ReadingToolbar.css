@@ -203,3 +203,36 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+/* The handle a block (a table, a diagram, a code block, a picture) shows
+   while the pointer is on it; it opens the block's bar. */
+.block-handle {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
+  border-radius: 6px;
+  background: var(--color-background-base);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+  color: color-mix(in srgb, var(--color-content) 55%, transparent);
+}
+
+.block-handle:hover,
+.block-handle:focus-visible {
+  color: var(--color-content);
+}
+
+.block-handle:focus-visible {
+  outline: 2px solid var(--color-accent-ring);
+  outline-offset: 1px;
+}
+
+/* On a block already highlighted, the handle wears the highlight's colour. */
+.block-handle[data-marked] {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-mark) 24%, var(--color-background-base));
+  color: var(--color-content);
+}

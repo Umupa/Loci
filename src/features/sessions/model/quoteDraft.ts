@@ -3,19 +3,22 @@ export const ADD_TO_CHAT_EVENT = "loci:add-to-chat";
 /** A quoted selection, a plain block, or the start of a sentence for the user to finish. */
 export type AddToChatMode = "quote" | "plain" | "prompt";
 
-export type AddToChatRequest = LearningMessageContext & {
+/** Files the passage brings along, such as a picture of an area of a PDF page; the composer attaches them. */
+type PassageFiles = { attachments?: Attachment[] };
+
+export type AddToChatRequest = LearningMessageContext & PassageFiles & {
   text: string;
   mode: AddToChatMode;
   targetSessionId?: string;
 };
 
-export type QuoteRequest = LearningMessageContext & {
+export type QuoteRequest = LearningMessageContext & PassageFiles & {
   id: number;
   text: string;
   mode?: AddToChatMode;
 };
 
-export function requestAddToChat(text: string, mode: AddToChatMode = "quote", context?: LearningMessageContext & { targetSessionId?: string }) {
+export function requestAddToChat(text: string, mode: AddToChatMode = "quote", context?: LearningMessageContext & PassageFiles & { targetSessionId?: string }) {
   if (typeof window === "undefined") return;
   const normalized = text.replace(/\r\n?/g, "\n");
   // A prompt keeps its trailing space, so typing carries on after it.
@@ -121,3 +124,4 @@ function joinComposerInsert(draft: string, block: string): string {
   return `${draft}${separator}${block}\n\n`;
 }
 import type { LearningMessageContext } from "../../learning/model/types";
+import type { Attachment } from "./session";

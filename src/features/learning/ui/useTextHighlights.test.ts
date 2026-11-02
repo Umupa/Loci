@@ -52,3 +52,32 @@ it("opens the mark under a click", async () => {
   expect(onOpen).toHaveBeenCalledOnce();
   expect(onOpen.mock.calls[0][0].id).toBe("a");
 });
+
+const TABLE = "| a | b |\n|---|---|\n| 1 | 2 |";
+function blockMark(id: string, source: string): Annotation {
+  return { ...mark(id, "phases"), anchor: { exact: source, prefix: "", suffix: "", start: 0, end: 0, block: { kind: "table", index: 0 } },
+    source: { id: `s-${id}`, kind: "file", path: "/a.md", title: "a.md", quote: source } };
+}
+function BlockReader({ annotations, onOpen, selectedId }: { annotations: Annotation[]; onOpen?: (annotation: Annotation) => void; selectedId?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  seen.orphans = useTextHighlights(ref, annotations, { onOpen, selectedId }).orphans;
+  return createElement("div", { ref }, createElement("p", null, TEXT),
+    createElement("div", { "data-streamdown": "table-wrapper" },
+      createElement("table", { "data-block-kind": "table", "data-block-source": TABLE }, createElement("tbody", null, createElement("tr", null, createElement("td", null, "1"))))));
+}
+
+it("marks a whole block on its frame rather than its words, and opens it from a click anywhere in it", async () => {
+  const onOpen = vi.fn();
+  await act(async () => root.render(createElement(BlockReader, { annotations: [blockMark("t", TABLE), blockMark("gone", "| z |\n|---|")], onOpen })));
+  const wrapper = host.querySelector('[data-streamdown="table-wrapper"]')!;
+  expect(wrapper.getAttribute("data-block-mark")).toBe("");
+  expect(painted.get("loci-mark")).toEqual([]);
+  expect([...seen.orphans!]).toEqual(["gone"]);
+  await act(async () => host.querySelector("td")!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  expect(onOpen.mock.calls[0][0].id).toBe("t");
+
+  await act(async () => root.render(createElement(BlockReader, { annotations: [blockMark("t", TABLE)], selectedId: "t" })));
+  expect(wrapper.getAttribute("data-block-mark")).toBe("selected");
+  await act(async () => root.render(createElement(BlockReader, { annotations: [] })));
+  expect(wrapper.hasAttribute("data-block-mark")).toBe(false);
+});

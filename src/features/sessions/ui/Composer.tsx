@@ -1046,6 +1046,8 @@ export function Composer({
     );
     consumedQuoteId.current = result.consumedId;
     replaceLearningContext(mergeLearningContext(learningRef.current, quoteRequest));
+    // A passage's picture (an area of a PDF page) joins the draft's attachments.
+    if (quoteRequest.attachments?.length) addAttachments(quoteRequest.attachments);
     if (result.changed) {
       el.value = result.draft;
       resizeComposer(el);
@@ -1059,7 +1061,7 @@ export function Composer({
       el.focus();
     }
     onQuoteRequestConsumed?.(quoteRequest.id);
-  }, [onQuoteRequestConsumed, quoteRequest, syncHasValue, replaceLearningContext]);
+  }, [onQuoteRequestConsumed, quoteRequest, syncHasValue, replaceLearningContext, addAttachments]);
 
   // `/btw ` opens the side conversation as soon as it is typed, carrying any
   // text after it over as the unsent side question.

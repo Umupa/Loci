@@ -106,6 +106,20 @@ pub struct TextAnchor {
     headings: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     lines: Option<[u32; 2]>,
+    /// A whole block (a table, a diagram, a code block, a picture, an area of
+    /// a PDF page), whose Markdown source is `exact`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    block: Option<BlockRef>,
+}
+/// Which block a mark is on: its kind, which of that kind it was, and the
+/// opening words of its rendered text, for a link to find it by.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct BlockRef {
+    kind: String,
+    #[serde(default)]
+    index: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    lead: Option<String>,
 }
 /// What an annotation marks.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -248,8 +262,19 @@ pub(crate) fn ensure_table(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 fn anchor_valid(anchor: &TextAnchor) -> Result<(), String> {
+    // A block keeps its whole source (a table, a diagram), so it may be longer than a passage.
+    let max = if anchor.block.is_some() {
+        64 * 1024
+    } else {
+        8 * 1024
+    };
     if anchor.exact.trim().is_empty()
-        || anchor.exact.len() > 8 * 1024
+        || anchor.exact.len() > max
+        || anchor.block.as_ref().is_some_and(|block| {
+            block.kind.is_empty()
+                || block.kind.len() > 32
+                || block.lead.as_ref().is_some_and(|lead| lead.len() > 1024)
+        })
         || anchor.prefix.len() > 1024
         || anchor.suffix.len() > 1024
         || anchor.end < anchor.start
@@ -950,7 +975,36 @@ mod tests {
             end: exact.len() as u64,
             headings: Some(vec!["Pod phase".into()]),
             lines: None,
+            block: None,
         }
+    }
+    #[test]
+    fn a_block_mark_keeps_its_whole_source_and_where_it_was() {
+        let table = format!("| a | b |\n|---|---|\n{}", "| 1 | 2 |\n".repeat(1200));
+        let block = TextAnchor {
+            block: Some(BlockRef {
+                kind: "table".into(),
+                index: 2,
+                lead: Some("a b".into()),
+            }),
+            ..text_anchor(&table)
+        };
+        assert!(table.len() > 8 * 1024);
+        assert!(anchor_valid(&block).is_ok());
+        // A passage of text keeps its old limit.
+        assert!(anchor_valid(&text_anchor(&table)).is_err());
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(json.contains("\"block\":{\"kind\":\"table\",\"index\":2,\"lead\":\"a b\"}"));
+        assert_eq!(serde_json::from_str::<TextAnchor>(&json).unwrap(), block);
+        let unnamed = TextAnchor {
+            block: Some(BlockRef {
+                kind: String::new(),
+                index: 0,
+                lead: None,
+            }),
+            ..text_anchor("x")
+        };
+        assert!(anchor_valid(&unnamed).is_err());
     }
     #[test]
     fn a_pdf_table_from_an_older_build_is_widened_without_losing_rows() {
