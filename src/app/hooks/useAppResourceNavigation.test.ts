@@ -5,7 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { requestOpenAppResource } from "../../shared/lib/appResourceLinks";
 import { useAppResourceNavigation } from "./useAppResourceNavigation";
 
-const mocks = vi.hoisted(() => ({ getLearningSource: vi.fn(), getReadingDocument: vi.fn(), getNote: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getLearningSource: vi.fn(), getReadingDocument: vi.fn(), getNote: vi.fn(), requestFilePlace: vi.fn() }));
+vi.mock("../../features/files/model/filePlace", () => ({ requestFilePlace: mocks.requestFilePlace }));
 vi.mock("../../features/learning/model/learningStore", () => ({ getLearningSource: mocks.getLearningSource, getReadingDocument: mocks.getReadingDocument }));
 vi.mock("../../features/notes", () => ({ getNote: mocks.getNote }));
 vi.mock("../../features/agents/model/agent", () => ({
@@ -116,4 +117,16 @@ it("opens a registered document passage at its highlight, and a file passage at 
   await act(async () => requestOpenAppResource({ kind: "source", id: "f" }));
   expect(view.openFile).toHaveBeenCalledWith("/src/main.rs");
   window.removeEventListener("loci:open-file", place);
+});
+
+it("flashes the words a note's link names, on the PDF page and in a Markdown file without lines", async () => {
+  mocks.getLearningSource.mockResolvedValueOnce({ id: "p", kind: "pdf", title: "Book", quote: "Selectable passage", documentId: "book", path: "/book.pdf",
+    anchors: [{ page: 3, rects: [] }], annotationId: "mark" });
+  mocks.getReadingDocument.mockResolvedValue({ id: "book", path: "/book.pdf" });
+  await act(async () => requestOpenAppResource({ kind: "source", id: "p", place: { page: 3, quote: "Selectable passage" } }));
+  expect(mocks.requestFilePlace).toHaveBeenLastCalledWith("/book.pdf", { page: 3, quote: "Selectable passage" });
+  mocks.getLearningSource.mockResolvedValueOnce({ id: "m", kind: "file", path: "/notes/guide.md", title: "guide.md", quote: "Read slowly" });
+  await act(async () => requestOpenAppResource({ kind: "source", id: "m", place: { quote: "Read slowly" } }));
+  expect(mocks.requestFilePlace).toHaveBeenLastCalledWith("/notes/guide.md", { lines: [1, 1], quote: "Read slowly" });
+  expect(view.openFile).toHaveBeenLastCalledWith("/notes/guide.md");
 });

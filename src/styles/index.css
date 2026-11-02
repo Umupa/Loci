@@ -77,8 +77,11 @@
      (rounded-lg / rounded-xl), and the portrait plate's own curve. */
   --radius-lg: 10px;
   --radius-xl: 10px;
-  /* The learner's highlighter: only things they marked carry this hue. */
-  --color-mark: hsl(48 90% 62%);
+  /* The learner's highlighter is the mentor's hue too: a pale wash under
+     what they marked, deeper on the mark that is open. Never an outline. */
+  --color-mark: var(--color-accent);
+  --color-mark-wash: color-mix(in srgb, var(--color-mark) 24%, transparent);
+  --color-mark-wash-strong: color-mix(in srgb, var(--color-mark) 40%, transparent);
   --color-skill: #e8c547;
   --color-mention: #38bdf8;
   /* Settings > Appearance > Fonts sets --font-*-user in front of the system stack. */

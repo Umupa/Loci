@@ -52,5 +52,5 @@ export function MentorReader({ agent, page, request, onClose, onLessonChange, on
     {renderSession(page.id)}
   </>;
   return <Suspense fallback={<ReaderLoading label={`Opening ${basename(page.path)}…`} />}><FilePane key={`${page.path}@${page.commit ?? ""}`} path={page.path} commit={page.commit} cwd="" preview={false} focused onFocus={noop} onPin={noop}
-    onClose={onClose} onOpenFile={onOpenFile} onBeforeLeave={onBeforeLeave} askLabel={`Ask ${mentorName}`} chatName={mentorName} reader /></Suspense>;
+    onClose={onClose} onOpenFile={onOpenFile} onBeforeLeave={onBeforeLeave} askLabel={`Ask ${mentorName}`} chatName={mentorName} agentId={agent.id} reader /></Suspense>;
 }

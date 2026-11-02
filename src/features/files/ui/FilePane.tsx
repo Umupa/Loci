@@ -14,7 +14,8 @@ import { lazySurface } from "../../../shared/ui/lazySurface";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { fileReference, selectionLines, type SelectionPlace } from "../model/fileReference";
 import { ReadingSelectionMenu, type ChatIntent } from "../../learning/ui/ReadingSelectionMenu";
-import { chatDraft, useReadingMarks, type MarkSpec } from "../../learning/ui/useReadingMarks";
+import { askDraft, chatDraft, useReadingMarks, type MarkSpec } from "../../learning/ui/useReadingMarks";
+import { quoteMarkdown } from "../../learning/model/quoteNote";
 import { describeRange, quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
 import { flashRange } from "../../learning/ui/useTextHighlights";
 import { readCode, shortCommit } from "../../../platform/tauri/code";
@@ -40,7 +41,7 @@ import type { LoadedPdf } from "./PdfView";
 import type { PdfAnnotation, ReadingDocument } from "../../learning/model/types";
 import { createPdfAnnotation, pdfSelectionAnchors, pdfSelectionSource } from "../../learning/model/pdfAnnotations";
 import { deletePdfAnnotation, getReadingDocumentByPath, listPdfAnnotations, registerLearningSource, registerReadingDocument, relocateReadingDocument, subscribeLearningChanges, upsertPdfAnnotation } from "../../learning/model/learningStore";
-import { AnnotationList, AnnotationPopover } from "../../learning/ui/PdfAnnotations";
+import { AnnotationList, AnnotationToolbar } from "../../learning/ui/PdfAnnotations";
 
 // pdf.js is large and only needed once a PDF is actually opened.
 const PdfView = lazySurface(async () => ({ default: (await import("./PdfView")).PdfView }));
@@ -64,6 +65,8 @@ type Props = {
   askLabel?: string;
   /** The mentor beside the reader: "Add to Kern". */
   chatName?: string;
+  /** That mentor: its notes are where Save to note goes, and its chat where Ask does. */
+  agentId?: string;
   /** Shown as the window's one reader: a reader header with Close, no pane chrome. */
   reader?: boolean;
 };
@@ -78,7 +81,7 @@ type Content =
 
 const REVEAL_LABEL = IS_MAC ? "Reveal in Finder" : "Open containing folder";
 
-function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart, onBeforeLeave, askLabel = "Ask", chatName, reader = false }: Props) {
+function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin, onClose, onOpenFile, onPaneDragStart, onBeforeLeave, askLabel = "Ask", chatName, agentId, reader = false }: Props) {
   const name = basename(path);
   const kind = fileKind(name);
   const [content, setContent] = useState<Content>({ status: "loading" });
@@ -94,7 +97,7 @@ function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin
   const [annotationsLoaded, setAnnotationsLoaded] = useState(false);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [annotationError, setAnnotationError] = useState<string | null>(null);
-  const [openAnnotation, setOpenAnnotation] = useState<{ id: string; rect: DOMRect; note?: boolean } | null>(null);
+  const [openAnnotation, setOpenAnnotation] = useState<{ id: string; rect: DOMRect } | null>(null);
   const [relocating, setRelocating] = useState(false);
   const [fileMenu, setFileMenu] = useState(false);
   const fileMenuRef = useRef<HTMLButtonElement>(null);
@@ -125,7 +128,7 @@ function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin
       ...(anchor.lines ? { lines: anchor.lines } : {}), ...(commit ? { commit } : {}), anchor, ...(annotationId ? { annotationId } : {}) }),
     lines: (range) => { const place = placeOfRef.current(range); return place && "lines" in place ? place.lines : undefined; },
   }), [path, name, commit]);
-  const marks = useReadingMarks(kind === "markdown" ? markdownRef : textRef, textMarks, { enabled: content.status === "text" && !editing });
+  const marks = useReadingMarks(kind === "markdown" ? markdownRef : textRef, textMarks, { agentId, enabled: content.status === "text" && !editing });
 
   useEffect(() => {
     setReadingDocument(null); setAnnotations([]); setAnnotationsLoaded(false); setOpenAnnotation(null); setAnnotationError(null);
@@ -163,26 +166,31 @@ function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin
     if (!anchors.length) throw new Error("This selection has no readable PDF text. Image-only pages aren’t supported yet.");
     return { document: readingDocument, quote: selection.text, anchors };
   };
-  const pdfToChat = async (passage: FileSelection, intent: ChatIntent, current: () => boolean) => {
+  const pdfSource = async () => {
     const details = selectionDetails();
     const source = pdfSelectionSource(details.document, details.quote, details.anchors);
     await registerLearningSource(source);
-    if (!current()) return;
-    const [text] = chatDraft(intent, passage.text, source);
-    requestAddToChat(text, "plain", { sources: [source] });
+    return source;
   };
-  const highlightPdfSelection = async (passage: FileSelection, note: boolean) => {
+  const pdfToChat = async (passage: FileSelection, intent: ChatIntent, current: () => boolean) => {
+    const source = await pdfSource();
+    if (!current()) return;
+    const [text, mode] = chatDraft(intent, passage.text, source);
+    requestAddToChat(text, mode, { sources: [source], ...marks.chatTarget });
+  };
+  const pdfQuote = async (passage: FileSelection) => quoteMarkdown(passage.text, await pdfSource());
+  const highlightPdfSelection = async (passage: FileSelection) => {
     const details = selectionDetails();
     // The words too, so the mark can be found by them as well as by its rectangles.
     const anchor = bodyRef.current ? describeRange(bodyRef.current, passage.range) : null;
     const created = createPdfAnnotation(details.document, details.quote, details.anchors);
     const annotation = await upsertPdfAnnotation(anchor ? { ...created, anchor } : created);
     setAnnotations((current) => [...current.filter((entry) => entry.id !== annotation.id), annotation]);
-    setOpenAnnotation({ id: annotation.id, rect: passage.rect, note });
+    setOpenAnnotation({ id: annotation.id, rect: passage.rect });
     onPin();
   };
   const askAnnotation = (annotation: PdfAnnotation) => {
-    requestAddToChat(annotation.note ? `Explain this passage.\n\nMy note: ${annotation.note}` : "Explain this passage.", "plain", { sources: [annotation.source] });
+    requestAddToChat(askDraft(annotation.source.quote, annotation.note), "prompt", { sources: [annotation.source], ...marks.chatTarget });
     setOpenAnnotation(null);
   };
   const saveAnnotation = async (annotation: PdfAnnotation, note: string) => {
@@ -505,14 +513,14 @@ function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin
         {annotationsOpen ? marks.list(() => setAnnotationsOpen(false)) : null}
       </div> : <div ref={bodyRef} className="min-h-0 min-w-0 flex-1" {...(content.status === "pdf" ? { "data-reading-text": "" } : {})}>{body}</div>}
       {content.status === "pdf"
-        ? <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`pdf:${path}`} askLabel={askLabel} toChat={pdfToChat} onMark={highlightPdfSelection} />
+        ? <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`pdf:${path}`} askLabel={askLabel} toChat={pdfToChat} onMark={highlightPdfSelection} quote={pdfQuote} notes={marks.notes} />
         : <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`text:${path}:${diskText?.length ?? 0}`} askLabel={askLabel}
-          toChat={marks.toChat} onMark={editing ? undefined : marks.onMark} actions={nav.selectionActions} />}
+          toChat={marks.toChat} onMark={editing ? undefined : marks.onMark} quote={marks.quote} notes={marks.notes} actions={nav.selectionActions} />}
       {nav.results}
       {content.status === "text" ? marks.popover : null}
       {content.status === "pdf" && openAnnotation && annotations.find((annotation) => annotation.id === openAnnotation.id) ?
-        <AnnotationPopover key={openAnnotation.id} annotation={annotations.find((annotation) => annotation.id === openAnnotation.id)!} anchor={openAnnotation.rect} focusNote={openAnnotation.note}
-          onDismiss={() => setOpenAnnotation(null)} onAsk={askAnnotation} onSave={saveAnnotation} onDelete={removeAnnotation} /> : null}
+        <AnnotationToolbar key={openAnnotation.id} annotation={annotations.find((annotation) => annotation.id === openAnnotation.id)!} anchor={openAnnotation.rect}
+          askLabel={askLabel} notes={marks.notes} onDismiss={() => setOpenAnnotation(null)} onAsk={askAnnotation} onSave={saveAnnotation} onDelete={removeAnnotation} /> : null}
     </div>
   );
 }

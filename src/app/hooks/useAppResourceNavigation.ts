@@ -87,11 +87,14 @@ export function useAppResourceNavigation(options: Options) {
             if (current !== request) return;
             if (!document) throw new Error("This PDF is no longer registered.");
             path = document.path;
-            requestFilePlace(path, { page: link?.page ?? source.anchors[0]?.page ?? 1, ...(source.annotationId && !link?.page ? { annotationId: source.annotationId } : {}) });
+            // A link that names its page flashes its words there, as a note's quote does.
+            requestFilePlace(path, { page: link?.page ?? source.anchors[0]?.page ?? 1, ...(source.annotationId && !link?.page ? { annotationId: source.annotationId } : {}),
+              ...(link?.page && link.quote ? { quote: link.quote } : {}) });
           } else {
             const lines = link?.lines ?? source.lines ?? source.anchor?.lines;
             const quote = link?.quote ?? (link?.lines ? undefined : source.anchor?.exact ?? source.quote);
-            if (lines) requestFilePlace(path, { lines, ...(quote ? { quote } : {}) });
+            // A Markdown file has no lines: the reader finds the quote from the top.
+            if (lines || quote) requestFilePlace(path, { lines: lines ?? [1, 1], ...(quote ? { quote } : {}) });
           }
           latest.current.openFile(path);
           return;

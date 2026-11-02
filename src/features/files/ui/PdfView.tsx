@@ -426,7 +426,7 @@ const PdfPage = memo(function PdfPage({ doc, number, size, scale, renderScale, r
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         {annotations.flatMap((annotation) => annotation.anchors.filter((anchor) => anchor.page === number).flatMap((anchor) =>
           anchor.rects.map((rect, index) => <div key={`${annotation.id}:${index}`} data-pdf-annotation={annotation.id}
-            className={`absolute rounded-[2px] ${selectedAnnotationId === annotation.id ? "bg-amber-400/45 ring-1 ring-amber-500/70" : "bg-yellow-300/45"}`}
+            className={`absolute rounded-[2px] mix-blend-multiply ${selectedAnnotationId === annotation.id ? "bg-(--color-mark-wash-strong)" : "bg-(--color-mark-wash)"}`}
             style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }} />)))}
       </div>
       <div ref={textSlot} className="absolute inset-0" />

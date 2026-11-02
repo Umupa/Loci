@@ -43,3 +43,19 @@ it("reports an edit as markdown at once", async () => {
   expect(onChange).toHaveBeenCalledTimes(1);
   expect(onChange.mock.calls[0]![0]).toContain("**bold**");
 });
+
+it("follows a Loci link in a note, such as a saved passage, inside the app", async () => {
+  const { followNoteLink } = await import("./NoteWysiwyg");
+  const { APP_RESOURCE_OPEN_EVENT } = await import("../../../shared/lib/appResourceLinks");
+  const opened = vi.fn();
+  window.addEventListener(APP_RESOURCE_OPEN_EVENT, opened);
+  expect(followNoteLink("loci://source/s-pdf#p7&quote=A%20microVM")).toBe(true);
+  expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({ kind: "source", id: "s-pdf", place: { page: 7, quote: "A microVM" } });
+  expect(followNoteLink("loci://elsewhere/x")).toBe(false);
+  window.removeEventListener(APP_RESOURCE_OPEN_EVENT, opened);
+  await render("> A microVM\n>\n> — [Firecracker · p. 7](loci://source/s-pdf#p7&quote=A%20microVM)");
+  expect(host.querySelector("a")?.textContent).toBe("Firecracker · p. 7");
+  // The editor keeps the link's address for ⌘-click and writes it back as it was.
+  await act(async () => handle.current!.insertMarkdown("Next"));
+  expect(onChange.mock.calls[0]![0]).toContain("[Firecracker · p. 7](loci://source/s-pdf#p7\\&quote=A%20microVM)");
+});

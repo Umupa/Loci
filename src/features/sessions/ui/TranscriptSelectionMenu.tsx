@@ -122,7 +122,7 @@ export function TranscriptSelectionMenu({
 }
 
 /** The first time, and whenever asked: a new note, or one already written. */
-function NotePicker({ listNotes, error, onBack, onPick }: {
+export function NotePicker({ listNotes, error, onBack, onPick }: {
   listNotes?: () => Promise<Note[]>;
   error: string | null;
   onBack: () => void;

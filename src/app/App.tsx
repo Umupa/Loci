@@ -49,6 +49,7 @@ import { sessionDisplayTitle, type HarnessId, type Session } from "../features/s
 import { requestTranscriptJump } from "../features/sessions/model/transcriptJump";
 import { useUnseenFinishedSessions } from "../features/sessions/hooks/useUnseenFinishedSessions";
 import { SavedToast, type SavedToastData } from "./shell/SavedToast";
+import { NOTE_SAVED_EVENT, type Note } from "../features/notes";
 import { requestImageZoom } from "../shared/lib/imageZoomCommands";
 import { watchSystemColorScheme } from "../features/settings/model/appearance";
 import { loadCloseToTray, loadSettingsSection, saveSettingsSection, type SettingsSectionId } from "../features/settings/model/settings";
@@ -179,6 +180,15 @@ function Workspace(boot: BootWorkspace) {
     if (mentorColor) root.style.setProperty("--mentor-color", mentorColor);
     else root.style.removeProperty("--mentor-color");
   }, [mentorColor]);
+  // A passage a reader saved to a note: say where it went, one click from opening it.
+  useEffect(() => {
+    const saved = (event: Event) => {
+      const note = (event as CustomEvent<Note>).detail;
+      if (note?.id) setSavedToast({ type: "note", id: note.id, agentId: note.agentId, title: note.title });
+    };
+    window.addEventListener(NOTE_SAVED_EVENT, saved);
+    return () => window.removeEventListener(NOTE_SAVED_EVENT, saved);
+  }, []);
   const selectAgent = agents.select;
   useEffect(() => selectAgent(focusedAgent?.id), [focusedAgent?.id, selectAgent]);
   // The window opens on the mentor it showed last, or the first one; removing

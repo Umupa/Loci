@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { LAYER } from "../../shared/lib/layers";
 
 /** `agentId`: the mentor that owns the note, so Open still finds it after a mentor switch. */
-export type SavedToastData = { type: "note"; id: string; agentId?: string };
+export type SavedToastData = { type: "note"; id: string; agentId?: string; title?: string };
 
 type Props = {
   toast: SavedToastData;
@@ -27,7 +27,7 @@ export function SavedToast({ toast, onOpen, onDismiss }: Props) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const label = "Saved to Notes";
+  const label = toast.title ? `Saved to “${toast.title}”` : "Saved to Notes";
 
   return createPortal(
     <div

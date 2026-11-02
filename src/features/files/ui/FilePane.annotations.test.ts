@@ -66,7 +66,7 @@ describe("PDF passage workflows", () => {
     await act(async () => button("Ask").click());
     expect(learning.registerReadingDocument).toHaveBeenCalledWith("/book.pdf", "document-fingerprint", "book.pdf");
     expect(requests).toHaveLength(1);
-    expect(requests[0]).toMatchObject({ text: "Explain this passage.", mode: "plain", sources: [{ kind: "pdf", documentId: "document", quote: "Selectable passage", anchors: [{ page: 1, rects: [{ x: 0.1, y: 0.2, width: 0.4, height: 0.1 }] }] }] });
+    expect(requests[0]).toMatchObject({ text: "> Selectable passage\n\n", mode: "prompt", sources: [{ kind: "pdf", documentId: "document", quote: "Selectable passage", anchors: [{ page: 1, rects: [{ x: 0.1, y: 0.2, width: 0.4, height: 0.1 }] }] }] });
     expect(learning.registerLearningSource).toHaveBeenCalledOnce();
     expect(learning.upsertPdfAnnotation).not.toHaveBeenCalled();
     window.removeEventListener(ADD_TO_CHAT_EVENT, receive);
@@ -80,13 +80,16 @@ describe("PDF passage workflows", () => {
     expect(button("Ask Ada")).toBeDefined();
   });
 
-  it("keeps a selected passage and opens its editable annotation", async () => {
+  it("keeps a selected passage and opens its own bar on it", async () => {
     await show(); await selectPassage();
     await act(async () => button("Highlight").click());
     expect(learning.upsertPdfAnnotation).toHaveBeenCalledOnce();
     const mark = vi.mocked(learning.upsertPdfAnnotation).mock.calls[0][0];
     expect(mark.source).toMatchObject({ annotationId: mark.id, documentId: "document", quote: "Selectable passage" });
-    expect(document.querySelector('[aria-label="Annotation note"]')).not.toBeNull();
+    const bar = document.querySelector('[role="toolbar"][aria-label="Highlight actions"]');
+    expect([...bar!.querySelectorAll("button")].map((entry) => entry.textContent || entry.getAttribute("aria-label")))
+      .toEqual(["Note", "Ask", "Save to note", "Copy quote", "Delete highlight"]);
+    expect(document.querySelector('textarea[aria-label="Note"]')).toBeNull();
     expect(window.getSelection()!.toString()).toBe("");
   });
 

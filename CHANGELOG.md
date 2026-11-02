@@ -15,6 +15,15 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 - **Lens answers a repository question in minutes.** Given a repository, Lens now reads it and writes a one-page brief — what it is and who it is for, the one data flow that explains it, 2–4 design decisions with links to the code, and the three files to read first — without saving the project's prose or building a course. Ask to go deeper ("深入读" or "带我读这个仓库") and it builds the 6–12 lesson course as before, with the brief as the last lesson of chapter 1.
 - **Deleting a mentor deletes it.** Its folder (sources, guides, courses, notes, translations, repos, lab, Soul and memory) moves to the Trash, where you can still get it back: put it back where it was and Loci picks the mentor up again. Its conversation, highlights, lesson progress, reading places and view are deleted. Folders you gave it, a working folder outside its own and the shared `~/Loci/repos` are left alone. Before, the folder stayed on disk with `mentor.json` renamed. The same holds for `loci mentors delete`.
 
+- **Save a passage to a note.** Selecting text, or clicking a highlight, offers **Save to note**: the passage goes to the end of a note as a Markdown quote, with a link back to its page, lines or section and your note on it under the quote. The first time you pick a note or start a new one; after that it goes to the note you used last, per mentor, with a chevron to choose another. A toast says where it went and opens the note. **Copy quote** puts the same Markdown on the clipboard.
+- ⌘-click (Ctrl-click) a Loci link in a note, such as a saved passage, to open it in the app; a passage's link scrolls to its words and flashes them.
+
+### Changed
+
+- **Highlights and their notes, redone.** Selected text and an existing highlight get the same small bar beside the passage, in every reader (PDF, sources, guides, lessons, code): Highlight · Ask · Save to note · Copy, and on a highlight Note and Delete. The large highlight card is gone; a note on a highlight opens as a small field only when you ask for it, and shows as a line under the bar once written.
+- **Ask puts the passage in the chat as a quote** and leaves the cursor after it for your question, instead of prefilling "Explain this passage.".
+- Highlights are a pale wash of the mentor's colour, with no outline, the same on PDF pages and in text. Deleting a highlight asks first only when it has a note.
+
 ### Fixed
 
 - Selecting text in a PDF no longer jumps when the pointer crosses the blank space between lines or columns, and a finished selection grows to the whole words it touches.
