@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-02
+
 ### Added
 
 - **Highlight a table, a diagram or a figure as a whole.** Hover a table, a Mermaid diagram, a code block or a picture in a source, guide, lesson or Markdown file and a small handle appears beside it; it opens the selection's bar: Highlight · Ask · Save to note · Copy. The mentor and your notes get the block as written (the table's Markdown, the diagram's source, the fenced code, `![alt](address)`), not its rendered words. A block's highlight follows it when the text around it changes. In a PDF, hold ⌥ (Option) and drag to draw an area around a figure or a table: highlight it, or ask about it or save it with the words inside the area and a picture of it (attached to the message, kept with the note).
@@ -213,7 +215,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Umupa/Loci/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Umupa/Loci/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Umupa/Loci/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Umupa/Loci/compare/v0.2.0...v0.3.0
