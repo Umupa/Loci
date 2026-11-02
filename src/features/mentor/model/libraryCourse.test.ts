@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CourseData, LearningStatus } from "../../learning/model/course";
-import { courseProgress, isLibrarySegment, nextLesson } from "./libraryCourse";
+import { courseProgress, courseState, isLibrarySegment, lessonKind, nextLesson, withoutOrdinal } from "./libraryCourse";
 
 const data: CourseData = { engine: "reading", chapters: [
   { title: "One", lessons: [{ id: "a", title: "A" }, { id: "b", title: "B" }] },
@@ -41,4 +41,37 @@ it("counts read lessons", () => {
 it("knows the four segments", () => {
   expect(["courses", "sources", "notes", "files"].every(isLibrarySegment)).toBe(true);
   expect(isLibrarySegment("canvases")).toBe(false);
+});
+
+describe("withoutOrdinal", () => {
+  it("drops the number a title starts with, since the path shows the order", () => {
+    expect(withoutOrdinal("一、KVM 第一性原理")).toBe("KVM 第一性原理");
+    expect(withoutOrdinal("十二、收尾")).toBe("收尾");
+    expect(withoutOrdinal("1. Pods")).toBe("Pods");
+    expect(withoutOrdinal("2、调度")).toBe("调度");
+    expect(withoutOrdinal("(3) Services")).toBe("Services");
+  });
+  it("keeps a number that is part of the title, and a title that is only a number", () => {
+    expect(withoutOrdinal("1.5 seconds to boot")).toBe("1.5 seconds to boot");
+    expect(withoutOrdinal("2+2 VMM")).toBe("2+2 VMM");
+    expect(withoutOrdinal("一、")).toBe("一、");
+    expect(withoutOrdinal("Kubernetes")).toBe("Kubernetes");
+  });
+});
+
+describe("lessonKind", () => {
+  it("tells a source from code shown in place and a comparison", () => {
+    expect(lessonKind({})).toBe("source");
+    expect(lessonKind({ file: "/papers/firecracker.pdf" })).toBe("source");
+    expect(lessonKind({ file: "/papers/scan", pages: [1, 3] })).toBe("source");
+    expect(lessonKind({ file: "/repo/src/vcpu.rs" })).toBe("code");
+    expect(lessonKind({ compare: [{ label: "a" }, { label: "b" }] })).toBe("compare");
+  });
+});
+
+it("draws a course as not started, begun or read", () => {
+  expect(courseState(0, 0)).toBe("untouched");
+  expect(courseState(0, 4)).toBe("untouched");
+  expect(courseState(1, 4)).toBe("learning");
+  expect(courseState(4, 4)).toBe("mastered");
 });

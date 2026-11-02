@@ -193,7 +193,6 @@ it("says what deleting a mentor throws away, and forgets what the window kept ab
   localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [id]: { library: true }, [other]: { library: false } }));
   localStorage.setItem(`loci.noteTarget.${id}`, JSON.stringify({ kind: "new" }));
   localStorage.setItem(`loci.noteTarget.${other}`, JSON.stringify({ kind: "new" }));
-  localStorage.setItem(`loci:path-folded:${id}`, "1");
   localStorage.setItem(ACTIVE_MENTOR_KEY, id);
   rememberPosition(id, "document:d", { ratio: 0.5 });
   await mount();
@@ -206,7 +205,6 @@ it("says what deleting a mentor throws away, and forgets what the window kept ab
   expect(Object.keys(JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!))).toEqual([other]);
   expect(localStorage.getItem(`loci.noteTarget.${id}`)).toBeNull();
   expect(localStorage.getItem(`loci.noteTarget.${other}`)).not.toBeNull();
-  expect(localStorage.getItem(`loci:path-folded:${id}`)).toBeNull();
   expect(localStorage.getItem(ACTIVE_MENTOR_KEY)).toBeNull();
   expect(recalledPosition(id, "document:d")).toBeUndefined();
   expect(findAgent(other)).toBeDefined();

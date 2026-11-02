@@ -142,7 +142,9 @@ it("shows the course once, with its progress, and opens lessons from its outline
   await render();
   const panel = () => container.querySelector<HTMLElement>('[data-library-section="courses"]')!;
   await vi.waitFor(() => expect(panel().querySelector('nav[aria-label="Course navigation"]')).not.toBeNull());
-  expect(panel().querySelector(".library-switcher")?.textContent).toBe("Ada's course");
+  // One course: its own head over its outline, no list to choose from.
+  expect(panel().querySelector(".library-course-title")?.textContent).toBe("Ada's course");
+  expect(panel().querySelector("[data-library-step]")).toBeNull();
   expect(panel().textContent).toContain("1/2");
   expect(panel().querySelector("[data-library-continue]")).toBeNull();
   expect(panel().textContent?.match(/Ada's course/g)).toHaveLength(1);
@@ -163,7 +165,7 @@ it("shows the course once, with its progress, and opens lessons from its outline
   expect(lessons()[1].getAttribute("aria-current")).toBe("step");
 });
 
-it("switches course from the menu, landing in it, and asks the mentor for a new one without sending", async () => {
+it("lists courses as rows, opening the chosen one in place at its next lesson, and asks the mentor for a new one without sending", async () => {
   const kubeData = courseData;
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const input = args as { agent?: string; agentId?: string; id?: string; courseId?: string };
@@ -177,28 +179,25 @@ it("switches course from the menu, landing in it, and asks the mentor for a new 
     throw new Error(`Unexpected command: ${command}`);
   });
   await render();
-  await vi.waitFor(() => expect(container.querySelector(".library-switcher")?.textContent).toBe("Kubernetes"));
-  await click(".library-switcher");
-  const items = () => [...document.querySelectorAll<HTMLElement>('[role="menu"] [role^="menuitem"]')];
-  expect(items().map((item) => item.textContent)).toEqual([expect.stringContaining("Kubernetes"), expect.stringContaining("SDS"), "Ask Ada for a new course", "Ask Ada to plan a path"]);
-  expect(items()[0].getAttribute("aria-checked")).toBe("true");
-  await act(async () => items()[1].click());
-  // Picking a course opens it at the lesson to continue with: the one begun.
+  const opened = () => [...container.querySelectorAll<HTMLElement>("[data-library-course]")].map((course) => course.dataset.libraryCourse);
+  await vi.waitFor(() => expect(opened()).toEqual(["kube"]));
+  expect([...container.querySelectorAll(".library-step-title")].map((title) => title.textContent)).toEqual(["Kubernetes", "SDS"]);
+  await click('[data-library-step="sds"] > button');
+  // Choosing a course opens it at the lesson to continue with: the one begun.
   await vi.waitFor(() => expect(container.querySelector<HTMLElement>("[data-test-course]")?.dataset.item).toBe("pod"));
   expect(control.stateFor(agent.id).course).toBe("sds");
-  await vi.waitFor(() => expect(container.querySelector(".library-switcher")?.textContent).toBe("SDS"));
+  await vi.waitFor(() => expect(opened()).toEqual(["sds"]));
   await vi.waitFor(() => expect(container.querySelector('[data-library-lesson="pod"] .library-mark--learning')).not.toBeNull());
-  await click(".library-switcher");
-  await act(async () => items().at(-2)!.click());
+  await click(".library-ask");
   expect(drafts).toEqual(["I'd like a new course on "]);
 });
 
-it("shows the learning path above the chosen course's outline, never locking a course", async () => {
+it("shows the learning path with the chosen course open under it, never locking a course", async () => {
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const input = args as { agentId?: string; id?: string; courseId?: string };
     if (command === "course_path_read") return { path: { title: "Sandboxes", courses: [{ id: "kube" }, { id: "sds", after: ["kube"] }, { id: "compare", title: "Three ways", after: ["sds"] }] }, file: "courses/_path.yaml" };
     if (command === "course_list_all") return [
-      { id: "kube", agentId: agent.id, title: "Kubernetes", engine: "reading", itemCount: 2, masteredCount: 2, updatedAt: 1 },
+      { id: "kube", agentId: agent.id, title: "一、Kubernetes", engine: "reading", itemCount: 2, masteredCount: 2, updatedAt: 1 },
       { id: "sds", agentId: agent.id, title: "SDS", engine: "reading", itemCount: 2, masteredCount: 0, updatedAt: 2 },
       { id: "loose", agentId: agent.id, title: "Loose", engine: "reading", itemCount: 3, masteredCount: 1, updatedAt: 3 },
     ];
@@ -209,34 +208,21 @@ it("shows the learning path above the chosen course's outline, never locking a c
   });
   await render();
   await vi.waitFor(() => expect(container.querySelector("[data-library-path]")).not.toBeNull());
-  const steps = () => [...container.querySelectorAll<HTMLButtonElement>(".library-path-step")];
+  const steps = () => [...container.querySelectorAll<HTMLButtonElement>("[data-library-step] > button")];
   expect(container.querySelector(".library-path-title")?.textContent).toBe("Sandboxes");
-  expect(container.querySelector(".library-path-head .library-progress-text")?.textContent).toBe("2/4");
-  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2", "2SDS0/2", "3Three waysplanned", "Loose1/3"]);
-  // The next course on the path not read to the end is the one shown.
+  expect(container.querySelector(".library-path-head .library-count")?.textContent).toBe("2/4");
+  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2", "2SDS0/2", "3Three waysplannedAfter 2", "Loose1/3"]);
+  // The next course on the path not read to the end is the one shown, open under its row.
   expect(steps()[1].getAttribute("aria-current")).toBe("true");
-  expect(container.querySelector(".library-switcher")).toBeNull();
-  expect(container.querySelector('[data-library-course="sds"] [data-library-lesson="pod"]')).not.toBeNull();
-  // A prerequisite not read yet is a hint under the course; nothing is disabled.
-  expect([...container.querySelectorAll(".library-path-after")].map((line) => line.textContent)).toEqual(["Best after SDS"]);
+  await vi.waitFor(() => expect(container.querySelector('[data-library-course="sds"] [data-library-lesson="pod"]')).not.toBeNull());
+  // A prerequisite not read yet is a hint on the course; nothing is disabled.
+  expect(container.querySelector<HTMLElement>(".library-tag")?.title).toBe("Best after SDS");
   expect(steps().every((step) => !step.disabled)).toBe(true);
   await act(async () => steps()[2].click());
   expect(drafts).toEqual(['Please write the course "Three ways" (id compare) on my learning path.']);
   await act(async () => steps()[0].click());
   await vi.waitFor(() => expect(control.stateFor(agent.id).course).toBe("kube"));
-  // Folding keeps only the chosen course.
-  await click(".library-path-fold");
-  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2"]);
-});
-
-it("gives focus back to the course switcher when its menu closes", async () => {
-  await render();
-  await vi.waitFor(() => expect(container.querySelector(".library-switcher")).not.toBeNull());
-  const switcher = container.querySelector<HTMLButtonElement>(".library-switcher")!;
-  await act(async () => { switcher.focus(); switcher.click(); });
-  expect(document.activeElement).not.toBe(switcher);
-  await act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
-  expect(document.activeElement).toBe(switcher);
+  await vi.waitFor(() => expect([...container.querySelectorAll<HTMLElement>("[data-library-course]")].map((course) => course.dataset.libraryCourse)).toEqual(["kube"]));
 });
 
 it("filters the segment being shown", async () => {
