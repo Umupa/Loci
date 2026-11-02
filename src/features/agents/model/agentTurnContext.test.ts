@@ -363,3 +363,15 @@ it("tells every turn the learning language from Settings, and a mentor's own cho
   // "Follow my messages" for this mentor sends nothing, whatever Settings says.
   expect(await languageBlock({ ...agent, language: "auto" })).toBeUndefined();
 });
+
+it("leaves the open page out of a turn the user dismissed it from, and carries it again on the next", async () => {
+  const { setAgentReading, skipReadingOnce } = await import("./agentReading");
+  setAgentReading("agent", { kind: "document", id: "fc", title: "Firecracker" });
+  const session = { id: "reading", providerSessionId: "native-1", blocks: [] };
+  const reading = (prepared: { context: string[] }) => prepared.context.some((block) => block.startsWith("<reading_now>"));
+  expect(reading(await prepareAppTurn(agent, session, { canRotate: false }))).toBe(true);
+  skipReadingOnce("agent");
+  expect(reading(await prepareAppTurn(agent, session, { canRotate: false }))).toBe(false);
+  expect(reading(await prepareAppTurn(agent, session, { canRotate: false }))).toBe(true);
+  setAgentReading("agent", undefined);
+});

@@ -113,6 +113,13 @@ export function recalledPosition(agentId: string, key: string): ReadingPosition 
   return position;
 }
 
+/** The pages a mentor's reader showed most recently, newest first, by their `positionKey`. */
+export function recentPositionKeys(agentId: string, limit: number): string[] {
+  const pages = positions.get(agentId);
+  if (!pages) return [];
+  return [...pages.entries()].sort((a, b) => b[1].at - a[1].at).slice(0, limit).map(([key]) => key);
+}
+
 /**
  * Reads what earlier runs kept, once. What this window has already recorded
  * is newer and stays. Resolves (to nothing) outside the app or on failure.

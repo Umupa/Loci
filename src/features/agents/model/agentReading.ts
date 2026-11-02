@@ -33,13 +33,37 @@ export const PLACE_LIMITS = { headings: 3, heading: 80, paragraph: 280, selectio
 
 const reading = new Map<string, AgentReading>();
 const places = new Map<string, ReadingPlace>();
+/** Agents whose next turn goes without `<reading_now>`: the user dismissed the composer's reading tag. */
+const skipped = new Set<string>();
+const listeners = new Set<() => void>();
+let version = 0;
+
+function changed(): void {
+  version += 1;
+  for (const listener of listeners) listener();
+}
+
+/** For the composer's reading tag: told whenever any agent's page, place or skip changes. */
+export function subscribeAgentReading(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
+/** Bumped on every change, so a component can re-read the store. */
+export function agentReadingVersion(): number {
+  return version;
+}
 
 export function setAgentReading(agentId: string, next: AgentReading | undefined): void {
   const before = reading.get(agentId);
-  // Another page: the old place and selection no longer mean anything.
-  if (JSON.stringify(before ?? null) !== JSON.stringify(next ?? null)) places.delete(agentId);
+  if (JSON.stringify(before ?? null) === JSON.stringify(next ?? null)) return;
+  // Another page: the old place and selection no longer mean anything, and a
+  // dismissal was about the page the user saw then.
+  places.delete(agentId);
+  skipped.delete(agentId);
   if (next) reading.set(agentId, next);
   else reading.delete(agentId);
+  changed();
 }
 
 export function agentReading(agentId: string): AgentReading | undefined {
@@ -48,14 +72,30 @@ export function agentReading(agentId: string): AgentReading | undefined {
 
 /** The reader reports where it is; `selection: undefined` in the update clears a selection. */
 export function setAgentReadingPlace(agentId: string, update: Partial<ReadingPlace>): void {
-  const next: ReadingPlace = { ...places.get(agentId), ...update };
+  const before = places.get(agentId);
+  const next: ReadingPlace = { ...before, ...update };
   for (const key of Object.keys(next) as (keyof ReadingPlace)[]) if (next[key] === undefined) delete next[key];
+  // The reader reports on every scroll pause; only a real move redraws the tag.
+  if (JSON.stringify(before ?? {}) === JSON.stringify(next)) return;
   if (Object.keys(next).length) places.set(agentId, next);
   else places.delete(agentId);
+  changed();
 }
 
 export function agentReadingPlace(agentId: string): ReadingPlace | undefined {
   return places.get(agentId);
+}
+
+/** Leave `<reading_now>` out of the agent's next turn only; or, with `false`, put it back. */
+export function skipReadingOnce(agentId: string, skip = true): void {
+  if (skip === skipped.has(agentId)) return;
+  if (skip) skipped.add(agentId);
+  else skipped.delete(agentId);
+  changed();
+}
+
+export function readingSkipped(agentId: string): boolean {
+  return skipped.has(agentId);
 }
 
 /** At most `max` characters, cut at a word boundary with an ellipsis. */
@@ -90,6 +130,50 @@ export function budgetPlace(place: ReadingPlace, attached: readonly string[] = [
     out.selection = typeof selection === "string" ? clip(selection, room) : { ...selection, text: clip(selection.text, room) };
   }
   return out;
+}
+
+/**
+ * The context block for the turn being sent: nothing when the agent's main
+ * area is empty or the user dismissed it for this turn. A dismissal lasts one
+ * turn, so the next one carries the page again.
+ */
+export function takeReadingContext(agentId: string, attached: readonly string[] = []): string | undefined {
+  if (skipped.has(agentId)) {
+    skipReadingOnce(agentId, false);
+    return undefined;
+  }
+  return readingContext(agentId, attached);
+}
+
+/** What the composer's tag says is open: the page, and where in it the reader is. */
+export type ReadingTag = {
+  kind: AgentReading["kind"];
+  title: string;
+  /** The course a lesson belongs to, shown before the lesson's title. */
+  parent?: string;
+  page?: number;
+  lines?: [number, number];
+  /** How many lines are selected, when text is. */
+  selected?: number;
+};
+
+export function readingTag(current: AgentReading, place: ReadingPlace | undefined, noteTitle?: string): ReadingTag {
+  const where: Pick<ReadingTag, "page" | "lines" | "selected"> = {};
+  if (place?.page) where.page = place.page;
+  if (place?.lines) where.lines = place.lines;
+  const selection = place?.selection;
+  if (selection?.text.trim()) {
+    where.selected = selection.lines ? selection.lines[1] - selection.lines[0] + 1 : selection.text.trim().split(/\n+/).length;
+    // The selection is what "this" means, so its page or lines are the ones to show.
+    if (selection.page) where.page = selection.page;
+    if (selection.lines) where.lines = selection.lines;
+  }
+  if (current.kind === "course")
+    return current.lessonTitle ? { kind: "course", parent: current.title, title: current.lessonTitle, ...where } : { kind: "course", title: current.title, ...where };
+  if (current.kind === "document") return { kind: "document", title: current.title, ...where };
+  if (current.kind === "note") return { kind: "note", title: noteTitle || "Note", ...where };
+  const name = current.path.split(/[\\/]/).filter(Boolean).pop() ?? current.path;
+  return { kind: "file", title: current.commit ? `${name} @ ${current.commit.slice(0, 7)}` : name, ...where };
 }
 
 /** The context block for a turn, or nothing when the agent's main area is empty. */

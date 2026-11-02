@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { agentReadingPlace, budgetPlace, PLACE_LIMITS, readingContext, setAgentReading, setAgentReadingPlace } from "./agentReading";
+import { agentReadingPlace, agentReadingVersion, budgetPlace, PLACE_LIMITS, readingContext, readingSkipped, readingTag, setAgentReading, setAgentReadingPlace, skipReadingOnce, takeReadingContext } from "./agentReading";
 
 it("tells a turn what is open beside the chat, and nothing once it closes", () => {
   setAgentReading("mentor", { kind: "course", courseId: "k8s", title: "Kubernetes", lessonId: "pods", lessonTitle: "Pods" });
@@ -47,4 +47,46 @@ it("names a comparison's parts and the part in view", async () => {
     compare: [{ label: "E2B", file: "/m/repos/e2b/restore.go", lines: [40, 88], commit: "a".repeat(40) }, { label: "Spec", document: "virtio", section: "Virtqueues" }],
     place: { part: "E2B", lines: [50, 70] } });
   setAgentReading("compare", undefined);
+});
+
+it("names what the composer's tag shows as the reader moves and selects", () => {
+  setAgentReading("tag", { kind: "document", id: "fc", title: "Firecracker" });
+  const tag = () => readingTag({ kind: "document", id: "fc", title: "Firecracker" }, agentReadingPlace("tag"));
+  expect(tag()).toEqual({ kind: "document", title: "Firecracker" });
+  setAgentReadingPlace("tag", { page: 3 });
+  expect(tag()).toEqual({ kind: "document", title: "Firecracker", page: 3 });
+  setAgentReadingPlace("tag", { selection: { text: "first line\nsecond line", page: 4 } });
+  expect(tag()).toEqual({ kind: "document", title: "Firecracker", page: 4, selected: 2 });
+  setAgentReadingPlace("tag", { selection: undefined });
+  expect(tag()).toEqual({ kind: "document", title: "Firecracker", page: 3 });
+  expect(readingTag({ kind: "course", courseId: "k8s", title: "Kubernetes", lessonId: "pods", lessonTitle: "Pods" }, undefined))
+    .toEqual({ kind: "course", parent: "Kubernetes", title: "Pods" });
+  expect(readingTag({ kind: "file", path: "/src/vmm/main.rs" }, { lines: [12, 40] })).toEqual({ kind: "file", title: "main.rs", lines: [12, 40] });
+  expect(readingTag({ kind: "file", path: "/src/vmm/main.rs" }, { lines: [1, 80], selection: { text: "a", lines: [12, 14] } }))
+    .toEqual({ kind: "file", title: "main.rs", lines: [12, 14], selected: 3 });
+  expect(readingTag({ kind: "note", id: "n1" }, undefined, "Plan").title).toBe("Plan");
+});
+
+it("tells subscribers only when the page or place really changes", () => {
+  setAgentReading("ver", { kind: "note", id: "n" });
+  const before = agentReadingVersion();
+  setAgentReading("ver", { kind: "note", id: "n" });
+  setAgentReadingPlace("ver", {});
+  expect(agentReadingVersion()).toBe(before);
+  setAgentReadingPlace("ver", { page: 2 });
+  setAgentReadingPlace("ver", { page: 2 });
+  expect(agentReadingVersion()).toBe(before + 1);
+});
+
+it("drops the page from one turn after a dismissal, then sends it again", () => {
+  setAgentReading("skip", { kind: "document", id: "fc", title: "Firecracker" });
+  skipReadingOnce("skip");
+  expect(readingSkipped("skip")).toBe(true);
+  expect(takeReadingContext("skip")).toBeUndefined();
+  expect(readingSkipped("skip")).toBe(false);
+  expect(takeReadingContext("skip")).toContain("<reading_now>");
+  // Opening another page shows it again: the dismissal was about the old one.
+  skipReadingOnce("skip");
+  setAgentReading("skip", { kind: "document", id: "other", title: "Other" });
+  expect(takeReadingContext("skip")).toContain("Other");
 });

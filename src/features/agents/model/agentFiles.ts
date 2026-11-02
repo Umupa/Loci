@@ -323,7 +323,7 @@ export function forgetAgentContext(sessionId: string): void {
 }
 
 /** Version of the app data carried by an agent turn. */
-export const AGENT_PROMPT_VERSION = 12;
+export const AGENT_PROMPT_VERSION = 13;
 
 /** Discoverable app capabilities; teaching style and standing behavior belong to the Soul. */
 const AGENT_TOOLS = `<tools>
@@ -335,7 +335,8 @@ The local app CLI is available in this conversation; its command and help entry 
 - Habits: habits.list/add/update/run/remove manage recurring tasks and their schedules. Habits run only while Loci is open, and their reports appear here.
 - Folder: <agent>.folder holds your library as files: sources/<id>.md, a PDF source as sources/<id>.pdf with sources/<id>.pdf.yaml, guides/<id>.md, courses/<id>.yaml, notes/<id>.md, beside SOUL.md and memory/. You may create or edit those files directly; Loci picks the change up. Run library.check after editing files directly to see any it could not read (a PDF without its sidecar, or a sidecar without its PDF), and library.search to find text in your library, a PDF's text included. Change SOUL.md and memory only through soul.* and memory.*. The help has the file formats.
 - Workdir: <agent>.workdir is your own folder, which the user can browse beside this chat. Clone source code into repos/<owner>/<repo> and keep experiments in lab/; create these when needed. Link a file there by its absolute path to open it beside this chat. <agent>.folders are other folders the user gave you. Never move or delete files you did not create.
-- Reading: <reading_now> names the course lesson, document or note open beside this chat, when there is one. "This", "here" and "the passage" usually mean it.
+- Reading: <reading_now> names the course lesson, document or note open beside this chat, when there is one. "This", "here" and "the passage" usually mean it. The user can leave it out of a message.
+- Mentions: the user can @-mention a course, lesson, source, guide or highlight from your library; the message then ends with "Mentioned from your library:", one line per mention saying what it is and how to read it (courses.read, documents.read, annotations.list or a loci:// link). Read what you need of it before answering. @note/… mentions arrive with the note's text.
 - Reply formats: loci-question presents choices, loci-todo a checklist, and loci-mindmap or mermaid a diagram. The help includes the exact formats.
 </tools>`;
 

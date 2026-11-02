@@ -488,6 +488,7 @@ export const SessionPane = memo(function SessionPane({
       cwd={session.cwd}
       executionCwd={workCwd}
       sessionId={session.id}
+      agentId={residentAgent?.id}
       compactSupported={canCompactHarnessContext(session.harness)}
       recents={recents}
       hideProjectPicker={

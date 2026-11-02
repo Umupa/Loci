@@ -7,6 +7,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 ### Added
 
 - **The reader keeps your place.** Each mentor remembers where you were in each page: the page of a PDF, the paragraph of a source, guide, lesson or note, the line of a code file. Switching to another page or mentor and back, or restarting Loci, opens it there again. A link or `reader.open` that names a place still goes to that place. The last 50 pages per mentor are kept.
+- **See what your mentor knows you are reading.** A small tag above a mentor's composer names the page open beside the chat and where you are in it: the course and lesson, the PDF page, a file's lines, and how many lines you have selected. It follows you as you scroll and select. Its × leaves the page out of the next message only; the one after carries it again.
+- **`@` reaches your whole library.** The picker groups what it offers into courses, lessons, sources, guides, notes, highlights and files, each row saying where it lives (a lesson's course, a file's folder). With nothing typed it starts with what you opened lately and the lessons of the open course. Type `@资料/` or `@source/` (also `课程/` `course/`, `课/` `lesson/`, `导读/` `guide/`, `笔记/` `note/`, `高亮/` `highlight/`, `文件/` `file/`) to keep one group; Tab jumps from group to group. A mentioned course, lesson, source, guide or highlight reaches the mentor with how to read it.
 
 ### Changed
 

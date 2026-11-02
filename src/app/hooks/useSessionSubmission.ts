@@ -223,7 +223,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
       void (async () => {
         try {
           const prepared = await prepareAttachments(attachments);
-          const prompt = await preparePrompt(await prepareTurnPrompt(), { harness: current.harness, sessionId, cwd: current.cwd });
+          const prompt = await preparePrompt(await prepareTurnPrompt(), { harness: current.harness, sessionId, cwd: current.cwd }, agent?.id);
           await registerSubmittedLearningContext(learningContext, sessionId, submittedBlockId, false);
           const latest = sessionsRef.current.find((session) => session.id === sessionId);
           if (!latest || !sameSession(latest) || latest.editingQueuedMessageId === message.id ||
@@ -361,7 +361,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
           wrap = { from: pendingSwitch.from, to: current.harness, text: brief };
         }
         const prepared = await prepareAttachments(attachments);
-        const prompt = await preparePrompt(await prepareTurnPrompt(), { harness: current.harness, sessionId, cwd: current.cwd });
+        const prompt = await preparePrompt(await prepareTurnPrompt(), { harness: current.harness, sessionId, cwd: current.cwd }, agent?.id);
         await registerSubmittedLearningContext(learningContext, sessionId, submittedBlockId, !edited);
         if (!isCurrent()) return;
         if (edited && canRewindHarnessLastTurn(current.harness)) {

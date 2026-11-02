@@ -33,7 +33,6 @@ Pencil,
 Play,
 Plus,
 Square,
-StickyNote,
 Trash2,
 X
 } from "../../../shared/ui/icons";
@@ -52,7 +51,10 @@ import type { ContextUsage } from "../model/contextUsage";
 
 import type { ProjectFile } from "../../../platform/tauri/fs";
 import { loadProjectFiles } from "../../files/model/fileIndex";
-import { buildMentionSources, mentionKind, rankMentions } from "../model/mentionSources";
+import { buildMentionSources, flatMentions, mentionGroupStep, mentionKind, rankMentions, type LibraryMention } from "../model/mentionSources";
+import { loadLibraryMentions } from "../model/libraryMentions";
+import { agentReading, subscribeAgentReading } from "../../agents/model/agentReading";
+import { loadPositions, recentPositionKeys } from "../../mentor/model/readingPositions";
 import {
 fileMentionParts,
 mentionLabel,
@@ -97,9 +99,9 @@ import { ContextMeter } from "./ContextMeter";
 
 
 
-import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { McpServerPicker } from "./McpServerPicker";
-import { NoteMentionPicker } from "./NoteMentionPicker";
+import { MentionIcon, MentionPicker } from "./MentionPicker";
+import { ReadingTag } from "./ReadingTag";
 
 import { NoteMiniCard } from "../../notes/ui/NoteMiniCard";
 
@@ -171,6 +173,8 @@ type Props = {
   cwd?: string;
   executionCwd: string;
   sessionId?: string;
+  /** The mentor this conversation belongs to: its reading tag, and its library for `@`. */
+  agentId?: string;
 
   recents?: RecentProject[];
   hideProjectPicker?: boolean;
@@ -465,6 +469,7 @@ export function Composer({
   cwd = "~",
   executionCwd,
   sessionId,
+  agentId,
 
 
   chat = false,
@@ -604,6 +609,7 @@ export function Composer({
   const controlsBeside = chat || modelControls === "beside";
   const [notes, setNotes] = useState<Note[]>(() => peekNotes() ?? []);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
+  const [library, setLibrary] = useState<{ agentId: string; entries: LibraryMention[]; recent: string[] }>();
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionActive, setMentionActive] = useState(0);
   const [resendEdited, setResendEdited] = useState(false);
@@ -616,7 +622,13 @@ export function Composer({
   attachmentsRef.current = attachments;
 
   const mentionOpen =
-    mention !== null && (looksLikeProject(cwd) || notesEnabled);
+    mention !== null && (looksLikeProject(cwd) || notesEnabled || !!agentId);
+  // The open course's lessons lead the `@` list. Only the course is watched:
+  // the reading place changes on every scroll and the composer is large.
+  const currentCourse = useSyncExternalStore(subscribeAgentReading, () => {
+    const reading = agentId ? agentReading(agentId) : undefined;
+    return reading?.kind === "course" ? reading.courseId : undefined;
+  });
   const navigationEmpty =
     draft.length === 0 &&
     attachments.length === 0 &&
@@ -655,17 +667,22 @@ export function Composer({
     if (ref.current) resizeComposer(ref.current);
   }, [modeIndent]);
   const inProject = looksLikeProject(cwd);
+  const shownLibrary = library && library.agentId === agentId ? library : undefined;
   const mentionSources = useMemo(() => ({
     notes: notesEnabled ? notes : [],
     files: inProject ? projectFiles : [],
-  }), [notesEnabled, notes, inProject, projectFiles]);
+    library: shownLibrary?.entries ?? [],
+    recent: shownLibrary?.recent ?? [],
+    currentCourse,
+  }), [notesEnabled, notes, inProject, projectFiles, shownLibrary, currentCourse]);
   const mentionIndex = useMemo(() => buildMentionSources(mentionSources), [mentionSources]);
   const mentionIndexRef = useRef<MentionIndex>(mentionIndex);
   mentionIndexRef.current = mentionIndex;
-  const rankedFiles = useMemo(
+  const mentionGroups = useMemo(
     () => mentionOpen ? rankMentions(mentionSources, mention?.query ?? "") : [],
     [mentionOpen, mentionSources, mention?.query],
   );
+  const rankedFiles = useMemo(() => flatMentions(mentionGroups), [mentionGroups]);
 
   const syncHasValue = useCallback(
     (text: string, files: Attachment[]) => {
@@ -906,6 +923,19 @@ export function Composer({
       cancelled = true;
     };
   }, [mentionsWanted, mentionOpen, inProject, cwd]);
+
+  // A mentor's library and what its reader showed lately, asked again each
+  // time `@` opens so a lesson written a moment ago can be mentioned.
+  useEffect(() => {
+    if (!mentionsWanted || !agentId) return;
+    let cancelled = false;
+    void Promise.all([loadLibraryMentions(agentId), loadPositions()]).then(([entries]) => {
+      if (!cancelled) setLibrary({ agentId, entries, recent: recentPositionKeys(agentId, 20) });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mentionsWanted, mentionOpen, agentId]);
 
   useEffect(() => {
     setMentionActive(0);
@@ -1592,6 +1622,11 @@ export function Composer({
       }
       if (e.key === "Tab") {
         e.preventDefault();
+        // Tab moves between groups; with only one group it picks, as it always has.
+        if (mentionGroups.length > 1) {
+          setMentionActive(mentionGroupStep(mentionGroups, mentionActive, e.shiftKey ? -1 : 1));
+          return;
+        }
         const file = rankedFiles[mentionActive];
         if (file) pickMention(file);
         return;
@@ -1920,8 +1955,8 @@ export function Composer({
         ) : null}
         {mentionOpen && !pickerOpen ? (
           <div className="absolute inset-x-0 bottom-full z-30 mb-1">
-            <NoteMentionPicker
-              files={rankedFiles}
+            <MentionPicker
+              groups={mentionGroups}
               query={mention?.query ?? ""}
               active={mentionActive}
 
@@ -1964,6 +1999,7 @@ export function Composer({
             </div>
           ) : null}
 
+          {agentId ? <ReadingTag agentId={agentId} /> : null}
           {learningContext.sources?.length ? <div className="px-3 pt-2">
             <SourceChips {...learningContext}
               onRemoveSource={(id) => { draftRevisionRef.current += 1; replaceLearningContext({ ...learningRef.current, sources: learningRef.current.sources?.filter((source) => source.id !== id) }); }}
@@ -2312,15 +2348,12 @@ function FileMentionRuns({
                   drawn in `currentColor` would inherit that: give it the mention
                   colour back. */}
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 indent-0 text-mention">
-                {mentionKind(part.file.path) === "note" ? (
-                  <StickyNote className="size-3.5" />
-                ) : (
-                  <FileTypeIcon
-                    name={part.file.name}
-                    isDir={Boolean(part.file.isDir)}
-                    size={13}
-                  />
-                )}
+                <MentionIcon
+                  kind={mentionKind(part.file.path)}
+                  name={part.file.name}
+                  isDir={part.file.isDir}
+                  size={13}
+                />
               </span>
             </span>
             {part.text.slice(1)}

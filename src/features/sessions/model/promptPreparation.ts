@@ -1,4 +1,5 @@
 import { applyNotesToTurn } from "../../notes";
+import { applyLibraryMentionsToTurn } from "./libraryMentions";
 import { applyMentionsToTurn } from "./mentionSources";
 import {
   applySkillsToTurn,
@@ -11,12 +12,15 @@ import { nativeCommandPrompt } from "../../../integrations/harness/core/nativeCo
 export async function preparePrompt(
   text: string,
   context: SkillCatalogContext,
+  /** A mentor's turn: its `@lesson/…`, `@source/…` and other library mentions are resolved too. */
+  agentId?: string,
 ): Promise<string> {
   warmNativeSkills(context);
   if (isNativeCommandPrompt(text, context.harness))
     return nativeCommandPrompt(context.harness, text);
   // Mentions first: a note's body is attached afterwards and must not be rescanned.
   const withMentions = text.includes("@") ? await applyMentionsToTurn(text, context.cwd) : text;
-  const withNotes = await applyNotesToTurn(withMentions);
+  const withLibrary = agentId && withMentions.includes("@") ? await applyLibraryMentionsToTurn(withMentions, agentId) : withMentions;
+  const withNotes = await applyNotesToTurn(withLibrary);
   return applySkillsToTurn(withNotes, context);
 }

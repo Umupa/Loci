@@ -9,7 +9,7 @@ import {
   recordAgentContext,
   recordAppContext,
 } from "./agentFiles";
-import { readingContext } from "./agentReading";
+import { takeReadingContext } from "./agentReading";
 import { effectiveLearningLanguage, languageContext } from "./learningLanguage";
 import { ensureAgentWorkdir } from "./agentWorkdir";
 import {
@@ -103,10 +103,11 @@ export async function prepareAppTurn(
   const language = agent ? languageContext(effectiveLearningLanguage(agent.language)) : undefined;
   if (language) context.push(language);
   // What is open beside the chat changes from turn to turn, so it goes every time.
-  // A selection the message already carries as a source is not sent twice.
+  // A selection the message already carries as a source is not sent twice, and
+  // a page the user dismissed from the composer stays out of this turn only.
   const lastUser = [...session.blocks].reverse().find((block) => block.role === "user");
   const attached = lastUser?.sources?.map((source) => source.quote) ?? [];
-  const reading = agent ? readingContext(agent.id, attached) : undefined;
+  const reading = agent ? takeReadingContext(agent.id, attached) : undefined;
   if (reading) context.push(reading);
   return {
     context,
