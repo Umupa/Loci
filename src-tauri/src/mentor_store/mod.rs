@@ -23,6 +23,7 @@ pub mod migrate;
 pub mod paths;
 pub mod pdf;
 pub mod registry;
+pub mod removal;
 pub mod watch;
 
 use std::path::{Path, PathBuf};

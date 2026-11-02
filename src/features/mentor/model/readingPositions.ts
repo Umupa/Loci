@@ -160,6 +160,12 @@ export async function flushPositions(): Promise<void> {
   await invoke("mentor_state_set", { writes }).catch(() => undefined);
 }
 
+/** A deleted mentor's positions, so a pending write does not keep them. */
+export function forgetPositions(agentId: string): void {
+  positions.delete(agentId);
+  dirty.delete(agentId);
+}
+
 /** For tests: forget module state. */
 export function resetPositionsForTests(): void {
   positions.clear();

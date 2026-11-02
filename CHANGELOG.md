@@ -11,6 +11,7 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 ### Changed
 
 - **Lens answers a repository question in minutes.** Given a repository, Lens now reads it and writes a one-page brief — what it is and who it is for, the one data flow that explains it, 2–4 design decisions with links to the code, and the three files to read first — without saving the project's prose or building a course. Ask to go deeper ("深入读" or "带我读这个仓库") and it builds the 6–12 lesson course as before, with the brief as the last lesson of chapter 1.
+- **Deleting a mentor deletes it.** Its folder (sources, guides, courses, notes, translations, repos, lab, Soul and memory) moves to the Trash, where you can still get it back: put it back where it was and Loci picks the mentor up again. Its conversation, highlights, lesson progress, reading places and view are deleted. Folders you gave it, a working folder outside its own and the shared `~/Loci/repos` are left alone. Before, the folder stayed on disk with `mentor.json` renamed. The same holds for `loci mentors delete`.
 
 ### Fixed
 

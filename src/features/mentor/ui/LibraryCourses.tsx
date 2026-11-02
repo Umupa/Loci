@@ -38,7 +38,7 @@ export function useCoursePath(agentId: string): PathRead | undefined {
   return read?.agentId === agentId ? read.read : undefined;
 }
 
-const FOLD_KEY = (agentId: string) => `loci:path-folded:${agentId}`;
+export const FOLD_KEY = (agentId: string) => `loci:path-folded:${agentId}`;
 function readFolded(agentId: string): boolean {
   try { return localStorage.getItem(FOLD_KEY(agentId)) === "1"; } catch { return false; }
 }

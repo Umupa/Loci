@@ -80,11 +80,16 @@ describe("mentorStore", () => {
     expect(JSON.parse(localStorage.getItem(ROSTER)!).map((entry: { workdir: string }) => entry.workdir)).toEqual(["/L/n1", "/L/n2"]);
   });
 
-  it("asks Rust to forget a removed mentor", async () => {
+  it("asks Rust to delete a removed mentor, and passes on why it could not", async () => {
     invoke.mockResolvedValue(undefined);
-    queueMentorRemoval("m1");
-    await rosterSettled();
+    await queueMentorRemoval("m1");
     expect(invoke).toHaveBeenCalledWith("mentors_remove", { id: "m1" });
+    invoke.mockRejectedValueOnce("Could not move it to the Trash");
+    await expect(queueMentorRemoval("m2")).rejects.toBe("Could not move it to the Trash");
+    // A failed removal does not hold up what comes after it.
+    invoke.mockResolvedValue([]);
+    await queueMentorRemoval("m3");
+    expect(invoke).toHaveBeenLastCalledWith("mentors_remove", { id: "m3" });
   });
 
   it("turns a changed file into the refresh event the window already uses", () => {

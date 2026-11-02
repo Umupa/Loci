@@ -1268,7 +1268,7 @@
     },
     {
       "name": "mentors.delete",
-      "summary": "Delete a mentor, its conversation, documents and courses. Its soul and memory files stay on disk.",
+      "summary": "Delete a mentor: its folder (sources, courses, notes, repos, memory) moves to the Trash; its conversation, highlights and progress are deleted. Folders it was given stay.",
       "callers": [
         "external"
       ],
@@ -1323,7 +1323,7 @@
     },
     {
       "name": "mentors.import",
-      "summary": "Import a mentor from an exported .zip (--path), or bring back a mentor folder where it is (--folder), such as one kept after a reset or removal.",
+      "summary": "Import a mentor from an exported .zip (--path), or bring back a mentor folder where it is (--folder), such as one put back from the Trash outside the mentors folder.",
       "callers": [
         "external"
       ],
@@ -1339,7 +1339,7 @@
         {
           "name": "folder",
           "type": "string",
-          "help": "Absolute path of a mentor folder (it holds mentor.json or mentor.removed.json)",
+          "help": "Absolute path of a mentor folder (it holds mentor.json, or mentor.removed.json from a Loci before 0.6)",
           "required": false,
           "positional": false
         }

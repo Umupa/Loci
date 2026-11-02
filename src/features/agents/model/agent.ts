@@ -293,10 +293,11 @@ export function updateAgent(
   return next;
 }
 
-/** Forgets the agent. Its folder of files stays on disk. */
-export function removeAgent(id: string): void {
-  queueMentorRemoval(id);
+/** Deletes the agent; its folder goes to the trash. Resolves when Rust has done so. */
+export function removeAgent(id: string): Promise<void> {
+  const removed = queueMentorRemoval(id);
   saveRoster(listAgents().filter((agent) => agent.id !== id));
+  return removed;
 }
 
 export function reorderAgents(ids: readonly string[]): void {

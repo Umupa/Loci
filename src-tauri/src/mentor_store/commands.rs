@@ -12,8 +12,9 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use super::index::{self, Row};
 use super::migrate::{self, MigrateEnv, MigrateInput, Report};
-use super::paths::{self, Kind, MENTOR_FILE, REMOVED_MENTOR_FILE, SHARED_REPOS};
+use super::paths::{self, Kind, MENTOR_FILE, SHARED_REPOS};
 use super::registry::{self, MentorRecord};
+use super::removal::{self, Places, Removed};
 use super::{ctx_for, MentorCtx, MentorsRoot};
 use crate::session_store::{now_millis, SessionStore};
 
@@ -372,23 +373,6 @@ fn rename_unused(
     Ok(Some(target))
 }
 
-/// Forgets a mentor. Its folder stays, with `mentor.json` renamed so it is
-/// not adopted again; renaming it back (or `loci mentors import --folder`)
-/// brings the mentor back.
-pub fn remove(conn: &Connection, id: &str) -> Result<(), String> {
-    let Some(record) = registry::get(conn, id).map_err(|e| e.to_string())? else {
-        return Ok(());
-    };
-    let file = record.folder.join(MENTOR_FILE);
-    if file.is_file() {
-        std::fs::rename(&file, record.folder.join(REMOVED_MENTOR_FILE))
-            .map_err(|e| format!("{}: {e}", file.display()))?;
-    }
-    registry::remove(conn, id).map_err(|e| e.to_string())?;
-    index::forget_mentor(conn, id).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
 fn app_data(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().app_data_dir().map_err(|e| e.to_string())
 }
@@ -425,18 +409,26 @@ pub fn mentors_sync(
     Ok(agents)
 }
 
+/// Deletes a mentor: its folder to the trash, its rows from SQLite.
 #[tauri::command(async)]
 pub fn mentors_remove(
     app: AppHandle,
     store: State<'_, SessionStore>,
+    root: State<'_, MentorsRoot>,
     id: String,
-) -> Result<(), String> {
-    crate::session_store::validate_id(&id, "agent")?;
+) -> Result<Removed, String> {
+    let agents_dir = app_data(&app)?.join(crate::agent::AGENTS_DIR);
+    let places = Places {
+        root: &root.path(),
+        agents_dir: Some(&agents_dir),
+    };
     let conn = store.lock_conn()?;
-    remove(&conn, &id)?;
+    let removed = removal::remove(&conn, &places, &id, |path| {
+        trash::delete(path).map_err(|e| format!("{}: {e}", path.display()))
+    })?;
     drop(conn);
     notify_mentors(&app);
-    Ok(())
+    Ok(removed)
 }
 
 #[derive(Debug, Serialize)]
@@ -655,10 +647,23 @@ pub fn mentor_state_set(
     store: State<'_, SessionStore>,
     writes: Vec<StateWrite>,
 ) -> Result<(), String> {
-    let conn = store.lock_conn()?;
+    set_state(&*store.lock_conn()?, writes)
+}
+
+fn set_state(conn: &Connection, writes: Vec<StateWrite>) -> Result<(), String> {
+    let ready = migrate::marker_set(conn).map_err(|e| e.to_string())?;
     for write in writes {
         if write.key.len() > 64 || write.agent.len() > 64 {
             return Err("Not a mentor state key".into());
+        }
+        // A window's delayed write (a reading position, the view) can arrive
+        // after its mentor was deleted; it must not bring rows back.
+        if ready
+            && registry::get(conn, &write.agent)
+                .map_err(|e| e.to_string())?
+                .is_none()
+        {
+            continue;
         }
         if write.value.is_null() {
             conn.execute(
@@ -787,10 +792,6 @@ mod tests {
         assert_eq!(agents[0]["sessionId"], "s-9");
         assert_eq!(agents[0]["folder"], folder.to_string_lossy().as_ref());
 
-        // Removing keeps the folder and does not adopt it again.
-        remove(&conn, "m-1").unwrap();
-        assert!(load(&conn, &root).unwrap().is_empty());
-        assert!(folder.join(REMOVED_MENTOR_FILE).is_file());
         std::fs::remove_dir_all(root).unwrap();
     }
 
@@ -981,5 +982,44 @@ mod tests {
         assert!(status.ready);
         assert_eq!(status.mentors[0]["files"]["guide"], 1);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn a_deleted_mentor_that_is_put_back_from_the_trash_comes_back_and_late_state_is_dropped() {
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let root = temp_dir("put-back");
+        let bin = temp_dir("put-back-bin");
+        ready(&conn);
+        sync(&conn, &root, &[json!({"id":"m-1","name":"Lens"})]).unwrap();
+        let folder = root.join("lens");
+        let places = Places {
+            root: &root,
+            agents_dir: None,
+        };
+        removal::remove(&conn, &places, "m-1", |path: &Path| {
+            std::fs::rename(path, bin.join("lens")).map_err(|e| e.to_string())
+        })
+        .unwrap();
+        assert!(!folder.exists());
+        // A reading position written after the deletion does not bring a row back.
+        let late = StateWrite {
+            agent: "m-1".into(),
+            key: "places".into(),
+            value: json!({"document:d": {"ratio": 0.5}}),
+        };
+        set_state(&conn, vec![late]).unwrap();
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM mentor_state", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 0);
+        assert!(load(&conn, &root).unwrap().is_empty());
+        // Put back where it was, the folder still holds mentor.json and is adopted.
+        std::fs::rename(bin.join("lens"), &folder).unwrap();
+        let agents = load(&conn, &root).unwrap();
+        assert_eq!(agents.len(), 1);
+        assert_eq!(agents[0]["name"], "Lens");
+        std::fs::remove_dir_all(root).unwrap();
+        std::fs::remove_dir_all(bin).unwrap();
     }
 }
