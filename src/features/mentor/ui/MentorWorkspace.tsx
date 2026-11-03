@@ -271,7 +271,7 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
         <MentorReader agent={agent} page={state.page} request={state.request}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
           onOpenFile={onOpenFile} renderSession={renderSession}
-          sessionTitle={sessionTitle} />
+          sessionTitle={sessionTitle} onOpen={onOpen} />
         </ResourceHeaderExtra.Provider></ResourceHeaderLeading.Provider>
       </main>
       <aside ref={conversation.setPaneRef} className="mentor-chat-column" hidden={!state.chat} aria-label={`Conversation with ${name}`}>

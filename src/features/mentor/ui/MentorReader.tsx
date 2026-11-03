@@ -7,6 +7,7 @@ import { agentLook, type Agent } from "../../agents/model/agent";
 import { AgentDocumentReader } from "../../agents/ui/AgentDocumentReader";
 import { ResourceBar, ResourceHeader } from "../../../shared/ui/ResourceHeader";
 import type { MentorLesson, MentorPage } from "../model/mentorPage";
+import { LearningMap } from "./LearningMap";
 
 const FilePane = lazy(() => import("../../files/ui/FilePane").then((m) => ({ default: m.FilePane })));
 
@@ -23,6 +24,8 @@ type Props = {
   renderSession: (id: string) => ReactNode;
   /** A conversation's title, for its reader header. */
   sessionTitle: (id: string) => string;
+  /** Opens a page in this reader, as the learning map does with a lesson. */
+  onOpen: (page: MentorPage) => void;
 };
 
 const noop = () => {};
@@ -33,13 +36,11 @@ function ReaderLoading({ label }: { label: string }) {
 }
 
 /** The one reader in the middle of a mentor's workspace. Whatever opens replaces it. */
-export function MentorReader({ agent, page, request, onClose, onLessonChange, onBeforeLeave, onOpenFile, renderSession, sessionTitle }: Props) {
+export function MentorReader({ agent, page, request, onClose, onLessonChange, onBeforeLeave, onOpenFile, renderSession, sessionTitle, onOpen }: Props) {
   const mentorName = agentLook(agent).name;
   if (!page) return <>
     <ResourceBar />
-    <div className="mentor-reader-empty" data-tauri-drag-region="deep">
-      <p>Open a lesson, a source or a note from the library, or ask {agent.name || "your mentor"} to prepare one.</p>
-    </div>
+    <LearningMap agent={agent} onOpen={onOpen} />
   </>;
   if (page.kind === "course") return <CoursePane key={`${agent.id}/${page.course.courseId}`} {...page.course} openRequest={request}
     sourceSessionId={agent.sessionId} reader focused onFocus={noop} onClose={onClose} onLessonChange={onLessonChange} />;

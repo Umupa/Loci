@@ -1,0 +1,79 @@
+/* The learning map: ink on the page's own paper. Read plots are solid ink,
+   the one being read is drawn in contour lines, unread ones are stone, and a
+   course not written yet is a dotted outline. */
+.learning-map {
+  --map-ink: var(--color-content);
+  --map-stone: color-mix(in srgb, var(--color-content) 13%, var(--color-background-base));
+  --map-stone-hover: color-mix(in srgb, var(--color-content) 22%, var(--color-background-base));
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px 28px 20px;
+  font-family: var(--font-sans);
+}
+
+.learning-map__head { display: flex; min-width: 0; align-items: flex-end; gap: 18px; }
+.learning-map__count {
+  margin: 0;
+  flex: none;
+  font-size: 64px;
+  font-weight: 300;
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--map-ink);
+}
+.learning-map__count small { margin-left: 6px; font-size: 22px; letter-spacing: 0; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.learning-map__title {
+  margin: 0 0 4px;
+  min-width: 0;
+  font-family: var(--font-reading);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--map-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.learning-map__frame { position: relative; min-height: 220px; flex: 1; }
+.learning-map__svg { position: absolute; inset: 0; overflow: visible; }
+
+.learning-map__plot { cursor: pointer; outline: none; }
+.learning-map__ground { fill: var(--map-stone); transition: fill 140ms ease-out, opacity 140ms ease-out; }
+.learning-map__plot:hover .learning-map__ground { fill: var(--map-stone-hover); }
+.learning-map__plot[data-status="mastered"] .learning-map__ground { fill: var(--map-ink); }
+.learning-map__plot[data-status="mastered"]:hover .learning-map__ground { opacity: 0.82; }
+.learning-map__plot[data-status="learning"] .learning-map__ground { fill: var(--color-background-base); stroke: var(--map-ink); stroke-width: 1.6; }
+.learning-map__contour { fill: none; stroke: var(--map-ink); stroke-width: 0.7; opacity: 0.7; pointer-events: none; }
+/* Where to go on: the mentor's colour, the one accent on the page. */
+.learning-map__plot[data-next] .learning-map__ground { stroke: var(--color-accent); stroke-width: 2.5; }
+.learning-map__plot:focus-visible .learning-map__ground { stroke: var(--color-accent-ring); stroke-width: 2.5; }
+
+.learning-map__planned { fill: none; stroke: color-mix(in srgb, var(--color-content) 45%, transparent); stroke-width: 1.1; stroke-dasharray: 2.5 3; }
+
+.learning-map__label { pointer-events: none; }
+.learning-map__label text {
+  text-anchor: middle;
+  font-size: 13.5px;
+  font-weight: 600;
+  fill: var(--map-ink);
+  paint-order: stroke fill;
+  stroke: var(--color-background-base);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.learning-map__label .learning-map__label-count { font-size: 11.5px; font-weight: 400; fill: color-mix(in srgb, var(--color-content) 60%, transparent); }
+
+.learning-map__legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11.5px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.learning-map__legend span { display: inline-flex; align-items: center; gap: 6px; }
+.learning-map__legend span::before { content: ""; width: 16px; height: 10px; border-radius: 3px; background: var(--map-stone); }
+.learning-map__legend [data-status="mastered"]::before { background: var(--map-ink); }
+.learning-map__legend [data-status="learning"]::before { background: var(--color-background-base); box-shadow: inset 0 0 0 1.3px var(--map-ink), inset 0 0 0 3.5px var(--color-background-base), inset 0 0 0 4.2px var(--map-ink); }
+.learning-map__legend [data-status="planned"]::before { background: none; border: 1px dashed color-mix(in srgb, var(--color-content) 45%, transparent); }
+
+@media (prefers-reduced-motion: reduce) { .learning-map__ground { transition: none; } }
