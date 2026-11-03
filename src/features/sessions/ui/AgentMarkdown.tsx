@@ -46,8 +46,8 @@ import { ContextMenu,type ContextMenuItem } from "../../../shared/ui/ContextMenu
 import { FileActionError } from "../../../shared/ui/FileActionError";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { ImageLightbox } from "../../../shared/ui/ImageLightbox";
-import { File, MessageSquare } from "../../../shared/ui/icons";
 import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
+import { MessageSquare, StickyNote } from "../../../shared/ui/icons";
 
 import { copyText } from "../../../platform/tauri/clipboard";
 import type { OpenFileFn } from "../../files/model/filePlace";
@@ -323,11 +323,16 @@ function MarkdownLink({
   // A source's own links go where its page's links went, never to a local file.
   const file = href && !sourceUrl ? resolveWorkspaceFileReference(href, cwd) : undefined;
   if (href?.startsWith("loci:") && !resource) return <span dir={dir ?? "auto"}>{children}</span>;
-  const ResourceIcon = resource?.kind === "session" ? MessageSquare : File;
+  // A citation reads as part of the sentence: a dotted underline, the passage it quotes on hover.
+  // A note or a conversation is a thing to open, and keeps its small icon.
+  const cited = resource && "place" in resource ? resource.place?.quote : undefined;
+  const ObjectIcon = resource?.kind === "session" ? MessageSquare : resource?.kind === "note" ? StickyNote : undefined;
   return (
     <a
       href={href}
-      className={`${resource ? "inline-flex max-w-full items-baseline gap-1 rounded bg-content/8 px-1.5 text-content hover:bg-content/12 hover:underline" : "markdown-link text-content underline decoration-accent/55 decoration-1 underline-offset-[3px] hover:decoration-accent"} ${className ?? ""}`}
+      className={`${resource ? "markdown-citation text-content underline decoration-dotted decoration-content/45 decoration-1 underline-offset-[3px] hover:decoration-content" : "markdown-link text-content underline decoration-accent/55 decoration-1 underline-offset-[3px] hover:decoration-accent"} ${className ?? ""}`}
+      title={props.title ?? (cited ? `“${cited}”` : undefined)}
+      data-app-resource={resource?.kind}
       {...props}
       dir={dir ?? "auto"}
       onClick={(event) => {
@@ -356,7 +361,7 @@ function MarkdownLink({
         onFileContextMenu(event, file.path);
       }}
     >
-      {resource ? <ResourceIcon className="size-3.5 shrink-0 self-center" aria-hidden="true" /> : null}
+      {ObjectIcon ? <ObjectIcon className="mr-0.5 inline size-3.5 -translate-y-px" aria-hidden="true" /> : null}
       {children}
     </a>
   );

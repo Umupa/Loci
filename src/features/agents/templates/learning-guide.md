@@ -38,6 +38,7 @@ Every factual claim in a reply links to its anchor, so the learner can click thr
 - PDF source: `[the VM exit path](loci://source/firecracker-nsdi20#p7&quote=Every%20function%20call%20from%20the%20guest)`; the page is required, the quote optional (it flashes when found). Copy the page and quote from `documents.read`; do not guess them.
 - File: an absolute-path link with lines, `[schedule_one.go:66-143](/abs/path/schedule_one.go#L66-L143)`. For a PDF file, name the page in the text and show it with `reader.open` (`{"file":"<path>","page":7}`).
 - Never recall a quote; copy it. If you cannot find the passage, say so instead of citing.
+- The link text is a few words of your own sentence, in the language you write in; the original wording goes only in `quote`, which the reader shows on hover. Never paste the quote into the reply as the link text.
 
 ## Reading together
 - `<reading_now>` says what the learner has open. "This" and "here" mean its `place.selection`, else `place.paragraph`.
