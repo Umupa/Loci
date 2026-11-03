@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- **Connecting to another computer no longer crashes Loci.** Pairing with a code, or opening the last computer at launch, quit Loci as soon as its window appeared, and from then on Loci quit at every launch. ([#43](https://github.com/Umupa/Loci/issues/43))
+
 ## [0.8.4] - 2026-11-03
 
 ### Fixed
