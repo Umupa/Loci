@@ -4,6 +4,7 @@ import {
   NOTIFICATIONS_DEFAULT,
   notificationText,
   pendingInputNotifications,
+  plainText,
   saveNotificationsEnabled,
   shouldNotify,
 } from "./notifications";
@@ -177,6 +178,25 @@ describe("notificationText", () => {
       subtitle: "Fix the sidebar",
       body: "Done. Sidebar fixed.",
     });
+  });
+
+  it("heads a mentor's banner with its name and its reply in plain text", () => {
+    localStorage.setItem("loci:agent-roster", JSON.stringify([{ id: "a", name: "Kern", folder: "/m/kern", sessionId: "s-mentor" }]));
+    const session = chat({
+      id: "s-mentor",
+      blocks: [{ id: "a1", role: "assistant", text: "以下为第 5 页 ([`firecracker-nsdi20#p5`](loci://source/firecracker-nsdi20#p5)) 的**逐段**翻译。" }],
+    });
+    expect(notificationText(session, "finished")).toEqual({
+      title: "Kern",
+      subtitle: "",
+      body: "以下为第 5 页 (firecracker-nsdi20#p5) 的逐段翻译。",
+    });
+    localStorage.removeItem("loci:agent-roster");
+  });
+
+  it("reads Markdown as plain text", () => {
+    expect(plainText("## Done\n\n- **one** and *two*\n- see [the doc](https://x.dev) and <https://y.dev>\n\n```ts\nconst a = 1;\n```"))
+      .toBe("Done\n\none and two\nsee the doc and https://y.dev\n\nconst a = 1;\n");
   });
 
   it("falls back to a generic body without a reply", () => {

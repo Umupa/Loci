@@ -1,4 +1,5 @@
 import { transport } from "../../../platform/transport";
+import { agentForSession, agentLook } from "../../agents/model/agent";
 import { HARNESS_TITLE, sessionDisplayTitle, type Session } from "../../sessions/model/session";
 import { loadSoundsEnabled, playCue } from "../../settings/model/sounds";
 import {
@@ -156,7 +157,12 @@ export function pendingInputNotifications(
   return pending;
 }
 
-/** App name, then the session title, then the reply itself. */
+/**
+ * Who is speaking, then what about, then the reply itself: a mentor's
+ * banner is headed by its name and needs no subtitle (its conversation's
+ * title is only the first thing said in it); any other session is headed by
+ * Loci and its title.
+ */
 export type NotificationText = {
   title: string;
   subtitle: string;
@@ -169,8 +175,9 @@ export function notificationText(
   session: Session,
   event: NotificationEvent,
 ): NotificationText {
-  const title = "Loci";
-  const subtitle = sessionDisplayTitle(session.title, session.harness);
+  const agent = agentForSession(session.id);
+  const title = agent ? agentLook(agent).name : "Loci";
+  const subtitle = agent ? "" : sessionDisplayTitle(session.title, session.harness);
   const harness = HARNESS_TITLE[session.harness];
   if (event !== "finished") {
     if (event.kind === "question") {
@@ -207,10 +214,27 @@ export function notificationText(
   };
 }
 
-/** First paragraph, whitespace collapsed; macOS wraps and truncates the rest. */
+/**
+ * A reply's Markdown as it reads aloud: links are their text, code and
+ * emphasis lose their marks, headings, list and quote markers go.
+ */
+export function plainText(markdown: string): string {
+  return markdown
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/<((?:https?|loci):[^>]+)>/g, "$1")
+    .replace(/```[^\n]*\n?/g, "")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/(^|[^\w*])\*([^*\n]+)\*(?!\w)/g, "$1$2")
+    .replace(/^[ \t]{0,3}(#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, "")
+    .replace(/\(\s*\)/g, "");
+}
+
+/** First paragraph in plain text, whitespace collapsed; macOS wraps and truncates the rest. */
 function clip(text: string): string {
   const paragraph =
-    text
+    plainText(text)
       .split(/\n\s*\n/)
       .map((part) => part.replace(/\s+/g, " ").trim())
       .find((part) => part.length > 0) ?? "";
