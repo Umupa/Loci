@@ -476,6 +476,10 @@ pub fn run() {
             remote::setup::remote_device_remove,
             remote::setup::remote_settings_get,
             remote::setup::remote_settings_set,
+            remote::setup::remote_pairing_status,
+            remote::setup::remote_pairing_start,
+            remote::setup::remote_pairing_cancel,
+            remote::setup::remote_pairing_redeem,
         ]))
         .build(context)
         .expect("error while building Loci");

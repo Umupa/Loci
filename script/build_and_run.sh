@@ -37,6 +37,14 @@ for task_pid in $(pgrep -x loci || true); do
   esac
 done
 
+# The relay and registry remote access uses (docs/releasing.md), from a file
+# git ignores.
+if [[ -f src-tauri/remote.env ]]; then
+  set -a
+  source src-tauri/remote.env
+  set +a
+fi
+
 npm run tauri -- build --bundles app --config src-tauri/tauri.dev.conf.json
 
 case "$MODE" in

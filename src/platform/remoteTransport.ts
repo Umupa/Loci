@@ -17,6 +17,7 @@ export const CLIENT_LOCAL_COMMANDS: ReadonlySet<string> = new Set([
   "remote_client_cache_put", "remote_client_cache_get",
   "remote_group_status", "remote_group_create", "remote_group_join", "remote_group_leave",
   "remote_devices_list", "remote_device_remove", "remote_settings_get", "remote_settings_set",
+  "remote_pairing_status", "remote_pairing_start", "remote_pairing_cancel", "remote_pairing_redeem",
 ]);
 
 /**

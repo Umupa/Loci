@@ -236,6 +236,10 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("remote_device_remove", ClientLocal),
     ("remote_settings_get", ClientLocal),
     ("remote_settings_set", ClientLocal),
+    ("remote_pairing_status", ClientLocal),
+    ("remote_pairing_start", ClientLocal),
+    ("remote_pairing_cancel", ClientLocal),
+    ("remote_pairing_redeem", ClientLocal),
 ];
 
 pub fn class_of(name: &str) -> Option<CommandClass> {

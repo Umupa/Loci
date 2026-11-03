@@ -68,4 +68,21 @@ It runs, each doing nothing when done already:
 - `scripts/update-key.sh` creates the update key pair, keeps the private key and its password in the login keychain ("Loci update key") and writes the public key to `tauri.conf.json`. Commit that change.
 - `scripts/ci-secrets.sh` copies both into the repository's Actions secrets: `MACOS_SIGNING_IDENTITY`, `MACOS_SIGNING_PASSWORD`, `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
+### Remote access services
+
+Remote access works out of the box when a build carries a relay and a device registry (see [remote-deploy.md](remote-deploy.md) for deploying them). The release workflow reads four more Actions secrets and builds them into the app; add them once:
+
+| Secret | Value |
+| --- | --- |
+| `LOCI_RELAY_URL` | The relay, `wss://alma-relay.<subdomain>.workers.dev` |
+| `LOCI_RELAY_KEY` | The relay's `RELAY_REGISTRATION_KEY` |
+| `LOCI_REGISTRY_URL` | The registry, `https://loci-device-registry.<subdomain>.workers.dev` |
+| `LOCI_REGISTRY_KEY` | The registry's `REGISTRY_KEY` |
+
+```sh
+gh secret set LOCI_RELAY_URL      # and the other three
+```
+
+Without them the release still builds, and Settings → Remote access asks for the services under Advanced. Local builds (`scripts/install-local.sh`, `script/build_and_run.sh`) read the same four from `src-tauri/remote.env`, one `NAME=value` per line, which git ignores. Anything built in can be read out of the public app: the keys only keep strangers from using the services; devices are protected by end-to-end encryption and the device group.
+
 Back up the keychain items "Loci update key", "Loci update key password", "Loci signing identity" and "Loci signing identity password", for example in a password manager.

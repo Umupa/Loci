@@ -903,6 +903,7 @@ dependencies = [
  "curve25519-dalek-derive",
  "digest 0.10.7",
  "fiat-crypto",
+ "rand_core 0.6.4",
  "rustc_version",
  "subtle",
  "zeroize",
@@ -2682,6 +2683,7 @@ dependencies = [
  "ed25519-dalek",
  "futures-util",
  "hkdf 0.12.4",
+ "hmac 0.12.1",
  "keyring",
  "libc",
  "notify",
@@ -2700,6 +2702,7 @@ dependencies = [
  "serde_json",
  "serde_yaml_ng",
  "sha2 0.10.9",
+ "spake2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -4565,6 +4568,18 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
+]
+
+[[package]]
+name = "spake2"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5482afe85a0b6ce956c945401598dbc527593c77ba51d0a87a586938b1b893a"
+dependencies = [
+ "curve25519-dalek",
+ "hkdf 0.12.4",
+ "rand_core 0.6.4",
+ "sha2 0.10.9",
 ]
 
 [[package]]

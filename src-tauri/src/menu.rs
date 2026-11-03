@@ -3,10 +3,15 @@ use serde::Deserialize;
 #[cfg(target_os = "macos")]
 use std::collections::HashMap;
 #[cfg(target_os = "macos")]
-use tauri::menu::{AboutMetadata, Menu, MenuItem, MenuItemBuilder, SubmenuBuilder};
+use tauri::menu::{AboutMetadata, Menu, MenuItem, MenuItemBuilder, Submenu, SubmenuBuilder};
 #[cfg(target_os = "macos")]
 use tauri::Wry;
 use tauri::{AppHandle, Emitter};
+
+/// The group members File → Connect To offers, as `(deviceId, name)`.
+static HOSTS: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+const CONNECT_TO: &str = "connect_to";
+const CONNECT_HOST: &str = "connect_host:";
 
 #[cfg(target_os = "macos")]
 #[derive(Deserialize)]
@@ -96,7 +101,61 @@ fn menu_item(
     builder.build(app)
 }
 
+/// Shows `hosts` under File → Connect To.
+pub fn set_hosts(app: &AppHandle, hosts: Vec<(String, String)>) {
+    {
+        // Not held below: menu changes wait for the main thread, which takes
+        // this lock when it builds the menu.
+        let mut shown = HOSTS.lock().unwrap();
+        if *shown == hosts {
+            return;
+        }
+        shown.clone_from(&hosts);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let submenu = app
+            .menu()
+            .and_then(|menu| menu.get("file"))
+            .and_then(|file| file.as_submenu()?.get(CONNECT_TO))
+            .and_then(|item| item.as_submenu().cloned());
+        if let Some(submenu) = submenu {
+            let _ = fill_hosts(app, &submenu, &hosts);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+#[cfg(target_os = "macos")]
+fn fill_hosts(
+    app: &AppHandle,
+    submenu: &Submenu<Wry>,
+    hosts: &[(String, String)],
+) -> tauri::Result<()> {
+    for item in submenu.items()? {
+        submenu.remove(&item)?;
+    }
+    if hosts.is_empty() {
+        let none = MenuItemBuilder::new("No Computers Online")
+            .enabled(false)
+            .build(app)?;
+        return submenu.append(&none);
+    }
+    for (device_id, name) in hosts {
+        let item =
+            MenuItemBuilder::with_id(format!("{CONNECT_HOST}{device_id}"), name).build(app)?;
+        submenu.append(&item)?;
+    }
+    Ok(())
+}
+
 pub fn dispatch(app: &AppHandle, id: &str) {
+    if let Some(device_id) = id.strip_prefix(CONNECT_HOST) {
+        let page = crate::remote::host_page(device_id);
+        let _ = crate::window::open_new_window(app, Some(&page));
+        return;
+    }
     match id {
         "new_window" => {
             let _ = crate::window::open_new_window(app, None);
@@ -262,11 +321,15 @@ fn build(
     let loopback_window =
         MenuItemBuilder::with_id("new_loopback_client_window", "New Loopback Client Window")
             .build(app)?;
+    let connect_to = SubmenuBuilder::with_id(app, CONNECT_TO, "Connect To").build()?;
+    let hosts = HOSTS.lock().unwrap().clone();
+    fill_hosts(app, &connect_to, &hosts)?;
     let mut file = SubmenuBuilder::with_id(app, "file", "File").item(&new_window);
     if cfg!(debug_assertions) {
         file = file.item(&loopback_window);
     }
     let file = file
+        .item(&connect_to)
         .item(&new_mentor)
         .item(&open_pdf)
         .item(&open_search)

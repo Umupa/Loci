@@ -442,6 +442,10 @@ pub async fn remote_client_connect(window: WebviewWindow, target: Target) -> Res
     let label = window.label().to_owned();
     // Before connecting, so a window that cannot reach its host still reads what was kept for it.
     let host = target.host();
+    let member = match &target {
+        Target::Device { device_id } => Some(device_id.clone()),
+        _ => None,
+    };
     app.state::<RemoteClients>()
         .hosts
         .lock()
@@ -482,6 +486,12 @@ pub async fn remote_client_connect(window: WebviewWindow, target: Target) -> Res
         .insert(label.clone(), (generation, Arc::new(client)));
     drop(replaced);
     emit_status(&app, &label, "connected", None);
+    if let Some(device_id) = member {
+        let group = app.state::<RemoteHost>().identity(&app)?.1;
+        if let Some(device) = group.and_then(|group| group.find(&device_id)) {
+            super::remember_host(&app, &device_id, &device.name);
+        }
+    }
     Ok(json!({ "hostKey": host_key }))
 }
 
@@ -1013,5 +1023,139 @@ mod tests {
         // Removal is permanent: the same key cannot join again.
         let rejoining = b.clone();
         assert!(blocking(move || rejoining.join("Mac mini")).await.is_err());
+    }
+
+    /// Pairing end to end, against a real registry and relay (same setup as
+    /// above): `cargo test -p loci pairs_with_a_code -- --ignored --nocapture`
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn a_device_pairs_with_a_code_and_connects_at_once() {
+        use crate::remote::alma_relay::AlmaRelayTunnel;
+        use crate::remote::device_group::{decode32, Identity, Registry, Route};
+        use crate::remote::pairing::{self, PairingCode};
+        use crate::remote::tunnel::TunnelStatus;
+        use rand_core::{OsRng, RngCore};
+
+        async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
+            tokio::task::spawn_blocking(work).await.unwrap()
+        }
+        async fn online(tunnel: &AlmaRelayTunnel) -> crate::remote::tunnel::Listener {
+            let mut listener = tunnel.listen();
+            tokio::time::timeout(
+                Duration::from_secs(10),
+                listener.status.wait_for(|s| *s == TunnelStatus::Online),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            listener
+        }
+
+        let registry = Registry {
+            url: std::env::var("LOCI_TEST_REGISTRY").expect("LOCI_TEST_REGISTRY"),
+            key: std::env::var("LOCI_TEST_REGISTRY_KEY").ok(),
+        };
+        let relay = std::env::var("LOCI_TEST_RELAY").expect("LOCI_TEST_RELAY");
+        let tunnel = |code| AlmaRelayTunnel {
+            relay: relay.clone(),
+            code,
+            name: "Laptop".into(),
+            registration_key: std::env::var("LOCI_TEST_RELAY_KEY").ok(),
+        };
+
+        // A has a group and hosts on the relay.
+        let mut secret = [0; 32];
+        OsRng.fill_bytes(&mut secret);
+        let a_key = device();
+        let a = Arc::new(DeviceGroup::new(secret, a_key.clone(), registry.clone()));
+        let joining = a.clone();
+        blocking(move || joining.join("Laptop")).await.unwrap();
+        let code = a.connect_code(&a.device_id);
+        let (master, _) = recording(FEED_BUFFER_BYTES);
+        let gateway = Arc::new(Gateway {
+            master,
+            invoke: Box::new(|cmd, _| {
+                Box::pin(async move { Ok(Reply::Json(json!({ "ran": cmd }))) })
+            }),
+            save_upload: Box::new(|_, _| {
+                Box::pin(async { Ok(Reply::Json(json!("/host/upload"))) })
+            }),
+            code: code.clone(),
+            device_key: a_key,
+            trusted: Box::new(a.clone()),
+        });
+        let listener = online(&tunnel(code.clone())).await;
+        tokio::spawn(gateway.run(listener));
+        let route = Route {
+            relay: relay.clone(),
+            token: code.routing_token(),
+        };
+        let beating = a.clone();
+        blocking(move || beating.heartbeat(Some(&route)))
+            .await
+            .unwrap();
+
+        // A shows a pairing code and waits for it on the relay.
+        let pairing_code = PairingCode::generate();
+        let rendezvous = tunnel(pairing_code.rendezvous());
+        let listener = online(&rendezvous).await;
+        let (hosting, refreshing) = (pairing_code.clone(), a.clone());
+        let invitation = a.invitation("Laptop");
+        let hosted = tokio::spawn(async move {
+            pairing::host(
+                listener,
+                &hosting,
+                &invitation,
+                pairing::LIFETIME,
+                |_| async move {
+                    blocking(move || refreshing.refresh()).await.unwrap();
+                },
+            )
+            .await
+        });
+
+        // B types it in, joins with what it gets, and connects to A.
+        let typed = PairingCode::parse(&pairing_code.to_text().to_lowercase()).unwrap();
+        let conn = rendezvous.dial().await.unwrap();
+        let (invitation, redeemed) = pairing::redeem(conn, &typed).await.unwrap();
+        assert_eq!(invitation.host, a.device_id);
+        let b_key = device();
+        let b = Arc::new(DeviceGroup::new(
+            decode32(&invitation.secret).unwrap(),
+            b_key.clone(),
+            Registry {
+                url: invitation.registry,
+                key: invitation.registry_key,
+            },
+        ));
+        assert_eq!(b.group_id, a.group_id);
+        let joining = b.clone();
+        blocking(move || {
+            joining.join("Mac mini")?;
+            joining.refresh()
+        })
+        .await
+        .unwrap();
+        redeemed.joined(Ok(&b.device_id)).await.unwrap();
+        assert_eq!(hosted.await.unwrap().unwrap(), b.device_id);
+
+        // A read the list before answering, so the first attempt gets in.
+        let started = std::time::Instant::now();
+        let channel = connect_to_member(b.clone(), &b_key, &invitation.host)
+            .await
+            .unwrap();
+        println!("B connected to A in {:?}", started.elapsed());
+        assert!(
+            started.elapsed() < MEMBER_RETRY,
+            "connected without the retry"
+        );
+        let client = Client::start(channel, |_| {});
+        let Reply::Json(value) = client.call("notes_list", json!({}), None).await.unwrap() else {
+            panic!("expected JSON");
+        };
+        assert_eq!(value, json!({ "ran": "notes_list" }));
+
+        // The code is spent: nobody waits on it any more.
+        assert!(rendezvous.dial().await.is_err());
     }
 }

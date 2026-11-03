@@ -62,7 +62,24 @@ struct QuitConfirm {
 }
 
 /// `page` replaces the start page, query included (`index.html?remote=loopback`).
+/// A window already showing that page, such as one connected to the same
+/// host, comes to the front instead of a second one opening.
 pub fn open_new_window(app: &AppHandle, page: Option<&str>) -> Result<(), String> {
+    if let Some(query) = page
+        .and_then(|page| page.split_once('?'))
+        .map(|(_, query)| query)
+    {
+        let open = app
+            .webview_windows()
+            .into_values()
+            .find(|window| window.url().is_ok_and(|url| url.query() == Some(query)));
+        if let Some(window) = open {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+            return Ok(());
+        }
+    }
     let mut config = app
         .config()
         .app

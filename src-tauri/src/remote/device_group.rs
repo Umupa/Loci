@@ -24,6 +24,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::sync::watch;
 
+use super::pairing::Invitation;
 use super::secure_channel::{ConnectCode, TrustedDevices};
 
 const PROTOCOL: &str = "loci-registry-v1";
@@ -115,6 +116,18 @@ impl DeviceGroup {
             "{INVITE_PREFIX}{}?registry={registry}",
             b64url(&self.secret)
         )
+    }
+
+    /// What a device that paired with this one needs to join: the group
+    /// secret and the registry, sent only inside the pairing exchange.
+    pub fn invitation(&self, name: &str) -> Invitation {
+        Invitation {
+            secret: b64url(&self.secret),
+            registry: self.registry.url.clone(),
+            registry_key: self.registry.key.clone(),
+            host: self.device_id.clone(),
+            name: name.into(),
+        }
     }
 
     /// The connection code of the member `device_id` when it hosts.

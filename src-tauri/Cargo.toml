@@ -55,6 +55,9 @@ hkdf = "0.12"
 aes-gcm = "0.10"
 rand_core = { version = "0.6", features = ["getrandom"] }
 keyring = "4"
+# Pairing: a short code becomes a strong key without the relay learning it.
+spake2 = "0.4"
+hmac = "0.12"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

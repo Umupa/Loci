@@ -8,7 +8,7 @@ const invoke = vi.fn();
 const ask = vi.fn(async () => true);
 const copy = vi.fn(async () => {});
 const eventListeners = vi.hoisted(
-  () => new Map<string, Array<(event: { event: string; payload: { enabled: boolean } }) => void>>(),
+  () => new Map<string, Array<(event: { event: string; payload: unknown }) => void>>(),
 );
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -18,7 +18,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("@tauri-apps/api/event", () => ({
   listen: async (
     event: string,
-    handler: (event: { event: string; payload: { enabled: boolean } }) => void,
+    handler: (event: { event: string; payload: unknown }) => void,
   ) => {
     const listeners = eventListeners.get(event) ?? [];
     listeners.push(handler);
@@ -44,6 +44,9 @@ type RemoteSettings = {
   registry: string | null;
   registryKey: string | null;
   name: string | null;
+  autoConnect?: boolean | null;
+  builtIn?: { relay: boolean; registry: boolean };
+  defaultName?: string;
 };
 
 type GroupStatus = {
@@ -73,6 +76,8 @@ let settings: RemoteSettings;
 let group: GroupStatus;
 let devices: Device[];
 let connectFails: boolean;
+let pairing: { code: string; expiresAt: number } | null;
+let redeemFails: string | null;
 
 function stored(): void {
   const data = new Map<string, string>();
@@ -90,6 +95,8 @@ beforeEach(() => {
   ask.mockReset().mockResolvedValue(true);
   copy.mockReset().mockResolvedValue(undefined);
   connectFails = false;
+  pairing = null;
+  redeemFails = null;
   settings = {
     enabled: false,
     relay: "wss://relay.example",
@@ -166,6 +173,21 @@ beforeEach(() => {
       case "open_new_window":
         if (connectFails) throw new Error("Remote windows are not available yet");
         return undefined;
+      case "remote_pairing_status":
+        return pairing;
+      case "remote_pairing_start":
+        pairing = { code: "K7QM-2XPA", expiresAt: Date.now() + 600_000 };
+        group = { ...group, group: { groupId: "group", invite: INVITE } };
+        settings = { ...settings, enabled: true };
+        return pairing;
+      case "remote_pairing_cancel":
+        pairing = null;
+        return undefined;
+      case "remote_pairing_redeem":
+        if (redeemFails) throw new Error(redeemFails);
+        group = { ...group, group: { groupId: "group", invite: INVITE } };
+        settings = { ...settings, autoConnect: true };
+        return { deviceId: "mini", name: "Mac mini" };
       default:
         return undefined;
     }
@@ -215,7 +237,13 @@ function input(label: string): HTMLInputElement {
 }
 
 function toggle(): HTMLButtonElement {
-  return container.querySelector<HTMLButtonElement>('[role="switch"][aria-label="Remote access"]')!;
+  return toggleNamed("Remote access");
+}
+
+function toggleNamed(label: string): HTMLButtonElement {
+  const found = container.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`);
+  if (!found) throw new Error(`No switch ${label}`);
+  return found;
 }
 
 function buttonByLabel(label: string): HTMLButtonElement {
@@ -231,17 +259,48 @@ async function type(target: HTMLInputElement, value: string): Promise<void> {
   });
 }
 
+async function emit(event: string, payload: unknown): Promise<void> {
+  await act(async () => {
+    for (const handler of eventListeners.get(event) ?? []) handler({ event, payload });
+  });
+}
+
 async function blur(target: HTMLInputElement): Promise<void> {
   await act(async () => {
     target.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
   });
 }
 
+it("keeps Advanced folded in a build with its own services", async () => {
+  settings = { ...settings, relay: null, registry: null, builtIn: { relay: true, registry: true } };
+  await render();
+  expect(toggle()).not.toBeNull();
+  expect(button("Add device")).not.toBeNull();
+  expect(input("Pairing code")).not.toBeNull();
+  expect(text()).toContain("Devices");
+  expect(container.querySelector('input[aria-label="Relay address"]')).toBeNull();
+  expect(container.querySelector('input[aria-label="Group key"]')).toBeNull();
+
+  await act(async () => button("Advanced").click());
+  expect(input("Relay address").value).toBe("");
+  expect(input("Relay address").placeholder).toBe("Loci's relay");
+  expect(text()).toContain("Loci's own relay and registry are used");
+  expect(text()).not.toContain("wss://");
+});
+
+it("opens Advanced and asks for services in a build without them", async () => {
+  await render();
+  expect(button("Advanced").getAttribute("aria-expanded")).toBe("true");
+  expect(text()).toContain("has no relay or registry built in");
+  await act(async () => button("Advanced").click());
+  expect(container.querySelector('input[aria-label="Relay address"]')).toBeNull();
+});
+
 it("offers to create or join a group when this device is not in one", async () => {
   await render();
   expect(text()).toContain("Create device group");
-  expect(text()).toContain("Join a device group");
-  expect(text()).toContain("Join a device group to see its devices.");
+  expect(text()).toContain("Join with a group key");
+  expect(text()).toContain("Add a device, or connect to another computer, to see devices here.");
   expect(input("Group key")).not.toBeNull();
   expect(toggle().getAttribute("aria-checked")).toBe("false");
   expect(input("Relay address").value).toBe("wss://relay.example");
@@ -261,12 +320,77 @@ it("turns remote access on and off through remote_settings_set", async () => {
 
 it("follows remote-status-changed from another window", async () => {
   await render();
-  await act(async () => {
-    for (const handler of eventListeners.get("remote-status-changed") ?? []) {
-      handler({ event: "remote-status-changed", payload: { enabled: true } });
-    }
-  });
+  await emit("remote-status-changed", { enabled: true });
   expect(toggle().getAttribute("aria-checked")).toBe("true");
+});
+
+it("shows a pairing code with its time left, and takes it back on Cancel", async () => {
+  await render();
+  await act(async () => button("Add device").click());
+  expect(invoke).toHaveBeenCalledWith("remote_pairing_start");
+  expect(text()).toContain("K7QM-2XPA");
+  expect(text()).toMatch(/It expires in (10:00|9:59)\./);
+  // Adding a device made the group and turned remote access on.
+  expect(toggle().getAttribute("aria-checked")).toBe("true");
+  expect(button("Leave device group")).not.toBeNull();
+
+  await act(async () => button("Cancel").click());
+  expect(invoke).toHaveBeenCalledWith("remote_pairing_cancel");
+  expect(text()).not.toContain("K7QM-2XPA");
+  expect(button("Add device")).not.toBeNull();
+});
+
+it("shows a code that is already on show when Settings opens", async () => {
+  pairing = { code: "ABCD-EFGH", expiresAt: Date.now() + 60_000 };
+  await render();
+  expect(text()).toContain("ABCD-EFGH");
+});
+
+it("says how a pairing ended", async () => {
+  await render();
+  await act(async () => button("Add device").click());
+  await emit("remote-pairing-changed", { state: "paired", deviceId: "mini", name: "Mac mini" });
+  expect(text()).not.toContain("K7QM-2XPA");
+  expect(text()).toContain("Mac mini was added. It is connecting now.");
+
+  await act(async () => button("Add device").click());
+  await emit("remote-pairing-changed", { state: "expired" });
+  expect(text()).toContain("The code expired.");
+
+  await act(async () => button("Add device").click());
+  await emit("remote-pairing-changed", {
+    state: "failed",
+    error: "The other device entered a wrong pairing code",
+  });
+  expect(text()).toContain("Pairing failed: The other device entered a wrong pairing code");
+});
+
+it("connects to another computer with its pairing code", async () => {
+  await render();
+  await type(input("Pairing code"), " k7qm-2xpa ");
+  await act(async () => button("Connect").click());
+  expect(invoke).toHaveBeenCalledWith("remote_pairing_redeem", { code: "k7qm-2xpa" });
+  expect(text()).toContain("Connected to Mac mini. Its window is open.");
+  expect(input("Pairing code").value).toBe("");
+  expect(toggleNamed("Open the last computer at startup").getAttribute("aria-checked")).toBe("true");
+});
+
+it("shows why a pairing code did not work", async () => {
+  redeemFails = "The pairing code is wrong or was already used";
+  await render();
+  await type(input("Pairing code"), "K7QM-2XPB");
+  await act(async () => button("Connect").click());
+  expect(text()).toContain("Could not connect: The pairing code is wrong or was already used");
+  expect(input("Pairing code").value).toBe("K7QM-2XPB");
+});
+
+it("turns opening the last computer at startup on and off", async () => {
+  await render();
+  const autoConnect = toggleNamed("Open the last computer at startup");
+  expect(autoConnect.getAttribute("aria-checked")).toBe("false");
+  await act(async () => autoConnect.click());
+  expect(invoke).toHaveBeenCalledWith("remote_settings_set", { settings: { autoConnect: true } });
+  expect(autoConnect.getAttribute("aria-checked")).toBe("true");
 });
 
 it("saves an address when its field loses focus", async () => {
@@ -394,7 +518,8 @@ it("lists online, offline, local and connectable devices", async () => {
   expect(text()).toContain("Online");
   expect(text()).toContain("Offline");
   expect(text()).toContain("This device");
-  expect(buttons("Connect")).toHaveLength(1);
+  // One beside the pairing code, one for the connectable device.
+  expect(buttons("Connect")).toHaveLength(2);
   expect(buttons("Remove")).toHaveLength(2);
 });
 
@@ -444,7 +569,7 @@ it("does not leave the group when the confirmation is dismissed", async () => {
 it("opens a remote window for a connectable device", async () => {
   group = { ...group, group: { groupId: "group", invite: INVITE } };
   await render();
-  await act(async () => button("Connect").click());
+  await act(async () => buttons("Connect")[1]!.click());
   expect(invoke).toHaveBeenCalledWith("open_new_window", { remote: "device:mini" });
 });
 
@@ -452,7 +577,7 @@ it("shows the error when a remote window cannot be opened", async () => {
   group = { ...group, group: { groupId: "group", invite: INVITE } };
   connectFails = true;
   await render();
-  await act(async () => button("Connect").click());
+  await act(async () => buttons("Connect")[1]!.click());
   expect(text()).toContain("Could not connect to Mac mini: Remote windows are not available yet");
 });
 

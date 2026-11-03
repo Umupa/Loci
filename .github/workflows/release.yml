@@ -189,6 +189,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The relay and registry remote access uses unless a user names their own.
+          LOCI_RELAY_URL: ${{ secrets.LOCI_RELAY_URL }}
+          LOCI_RELAY_KEY: ${{ secrets.LOCI_RELAY_KEY }}
+          LOCI_REGISTRY_URL: ${{ secrets.LOCI_REGISTRY_URL }}
+          LOCI_REGISTRY_KEY: ${{ secrets.LOCI_REGISTRY_KEY }}
         with:
           releaseId: ${{ needs.prepare.outputs.release-id }}
           releaseBody: ${{ needs.prepare.outputs.notes }}

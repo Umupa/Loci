@@ -373,7 +373,7 @@ fn verify_identity(opened: &[u8], signed: &[&[u8]]) -> Result<VerifyingKey, Stri
     Ok(key)
 }
 
-fn derive(salt: Option<&[u8]>, ikm: &[u8], info: &[&[u8]]) -> [u8; 32] {
+pub(super) fn derive(salt: Option<&[u8]>, ikm: &[u8], info: &[&[u8]]) -> [u8; 32] {
     let mut out = [0; 32];
     Hkdf::<Sha256>::new(salt, ikm)
         .expand_multi_info(info, &mut out)
@@ -381,7 +381,7 @@ fn derive(salt: Option<&[u8]>, ikm: &[u8], info: &[&[u8]]) -> [u8; 32] {
     out
 }
 
-fn hash(parts: &[&[u8]]) -> [u8; 32] {
+pub(super) fn hash(parts: &[&[u8]]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     for part in parts {
         hasher.update(part);
@@ -389,7 +389,7 @@ fn hash(parts: &[&[u8]]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-fn nonce(counter: u64) -> Nonce<aes_gcm::aead::consts::U12> {
+pub(super) fn nonce(counter: u64) -> Nonce<aes_gcm::aead::consts::U12> {
     let mut bytes = [0; 12];
     bytes[4..].copy_from_slice(&counter.to_be_bytes());
     bytes.into()

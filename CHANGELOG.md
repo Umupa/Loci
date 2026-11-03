@@ -7,11 +7,14 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 ### Added
 
 - **Remote access.** Settings → Remote access lets your other devices use this computer's workspace. Mentors, courses, conversations, notes, PDFs and highlights stay here and are read and written here; the other device sends what you do and shows what comes back. It is off until you turn it on.
-- **Device groups.** Create a group on the host and share its `loci-group:…` key. Another installation joins by pasting the key, without an approval step. The device list shows every member, whether it is online and when it was last active; **Connect** opens a device and **Remove** revokes one for good.
+- **Pair with a code.** On the host, **Add device** shows a one-time code like `K7QM-2XPA` for 10 minutes; type it on the other Mac under **Connect to another computer** and its window opens. Nothing to set up: releases come with Loci's own relay and device registry. The code goes through a password-authenticated key exchange (SPAKE2), so the relay cannot learn the code or the group key, and a wrong guess spends the code.
+- **Device groups.** Pairing puts both computers in one group. The device list shows every member, whether it is online and when it was last active; **Connect** opens a device and **Remove** revokes one for good. Under Advanced, the group's `loci-group:…` key can still be copied and pasted to join without a code.
+- **Connect again in one click.** **File → Connect To** lists the computers that are online. Loci remembers the last one and, after the first pairing, opens it at launch when it is online; a window already open to that computer comes to the front instead of a second one.
 - **A window connected to another device.** It looks like the host's own window: open a mentor, ask, answer approvals, take notes, highlight a PDF, and change the mentor's model and permissions from its settings dialog. A bar at the top names the host and says whether the connection is up.
 - **Files on the host.** Choosing a file in a connected window browses the host's disk. Files and pictures dragged in or copied from this device are uploaded to the host first and keep their names.
 - **Offline reading.** When the host cannot be reached, the window keeps showing what it read before and turns read-only: changes and new messages are refused rather than queued. Reconnecting catches up with the host.
 - **The host stays awake.** While remote access is on and the host is plugged in, Loci prevents idle sleep. It still sleeps on battery or with the lid closed.
+- **Your own services.** Under Advanced, name your own relay and registry instead of Loci's; a build without built-in services opens that section and asks for them. A device is named after the computer unless you name it.
 
 ### Changed
 

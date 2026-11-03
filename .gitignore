@@ -1,5 +1,6 @@
 .env
 .env.*
+src-tauri/remote.env
 *.key
 *.key.pub
 *.pem

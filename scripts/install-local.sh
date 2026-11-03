@@ -9,6 +9,14 @@ set -euo pipefail
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 [[ "$(uname)" == Darwin ]] || { echo "install-local.sh is for macOS." >&2; exit 1; }
 
+# The relay and registry remote access uses (docs/releasing.md), from a file
+# git ignores.
+if [[ -f src-tauri/remote.env ]]; then
+	set -a
+	source src-tauri/remote.env
+	set +a
+fi
+
 args=(build --bundles app)
 if security find-identity -v -p codesigning | grep -q '"Loci Signing"'; then
 	args+=(--config '{"bundle":{"macOS":{"signingIdentity":"Loci Signing"}}}')
