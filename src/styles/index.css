@@ -297,6 +297,33 @@ html:not(.is-mac) ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
+/* macOS set to always show scroll bars (or with a mouse) draws a wide bar in
+   a track beside every column. Loci draws a thin, faint ink thumb instead,
+   with no track, darker under the pointer. Overlay scroll bars (the
+   trackpad default) stay native. */
+html.has-legacy-scrollbars ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html.has-legacy-scrollbars ::-webkit-scrollbar-track,
+html.has-legacy-scrollbars ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html.has-legacy-scrollbars ::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-clip: padding-box;
+  background-color: color-mix(in srgb, var(--color-content) 16%, transparent);
+}
+
+html.has-legacy-scrollbars ::-webkit-scrollbar-thumb:hover,
+html.has-legacy-scrollbars ::-webkit-scrollbar-thumb:active {
+  border-width: 2px;
+  background-color: color-mix(in srgb, var(--color-content) 34%, transparent);
+}
+
 /* Tint-less transparent rather than `transparent`, which browsers interpolate
    through black and would dim the page on the way in and out of glass. */
 html.has-native-glass:not(.theme-light),

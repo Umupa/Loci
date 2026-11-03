@@ -292,8 +292,33 @@ export function applyThemeTint(hue: number, saturation: number) {
   return { hue: nextHue, saturation: nextSaturation };
 }
 
+/**
+ * Whether scroll bars take room beside what they scroll (macOS "Show scroll
+ * bars: Always", or a mouse attached), measured as the page lays one out.
+ */
+export function usesLegacyScrollbars(): boolean {
+  if (typeof document === "undefined" || !document.body) return false;
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;top:-200px;width:100px;height:100px;overflow:scroll;visibility:hidden";
+  document.body.append(probe);
+  const width = probe.offsetWidth - probe.clientWidth;
+  probe.remove();
+  return width > 0;
+}
+
+/** On macOS, Loci's thin scroll bars stand in for the wide ones; overlay scroll bars stay native. */
+export function applyScrollbarStyle() {
+  const root = document.documentElement;
+  // Measured as the system draws them: Loci's own always take room.
+  root.classList.remove("has-legacy-scrollbars");
+  root.classList.toggle("has-legacy-scrollbars", IS_MAC && usesLegacyScrollbars());
+}
+
 export function initAppearance() {
   document.documentElement.classList.toggle("is-mac", IS_MAC);
+  applyScrollbarStyle();
+  // Plugging in a mouse or changing the setting switches the style; macOS resizes nothing, but focus comes back.
+  if (typeof window !== "undefined") window.addEventListener("focus", applyScrollbarStyle);
   applyFonts();
   // The page channels come first: the native window reads them below.
   applyThemeColors();
