@@ -60,8 +60,8 @@ it("marks read and begun lessons, folds a chapter wholly read, and follows the o
   // Each lesson has room for a count, such as its highlights.
   expect(host.querySelector('[data-library-lesson="room"] [data-badge="room"]')).not.toBeNull();
   expect(chapters().map((chapter) => chapter.getAttribute("aria-expanded"))).toEqual(["true", "true", "false"]);
-  // Each chapter says how much of it is read; lessons carry no numbers, only what kind of reading they are.
-  expect(chapters().map((chapter) => chapter.textContent)).toEqual(["Layout1/2", "Growth0/1", "Review1/1"]);
+  // Chapters and lessons carry no numbers; lessons say only what kind of reading they are.
+  expect(chapters().map((chapter) => chapter.textContent)).toEqual(["Layout", "Growth", "Review"]);
   expect(host.querySelector('[data-library-lesson="flags"]')!.textContent).toBe("Flags");
   expect([...host.querySelectorAll<HTMLElement>("[data-lesson-kind]")].map((kind) => [kind.dataset.lessonKind, kind.title]))
     .toEqual([["source", "Source"], ["source", "Source"], ["code", "Code tour"]]);

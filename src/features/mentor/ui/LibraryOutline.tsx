@@ -73,7 +73,7 @@ export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
             aria-current={current ? "step" : undefined} aria-label={`${lesson.title}, ${statusLabel(state, reading)}`}
             aria-describedby={marks ? `${marksId}-${lesson.id}` : undefined}
             title={lesson.title} onClick={() => onSelect(lesson.id)}>
-            <span aria-hidden className={`library-mark library-mark--${state}`}>{state === "mastered" ? <Check className="size-2.5" strokeWidth={3} /> : null}</span>
+            <span aria-hidden className={`library-mark library-mark--${state}`}>{state === "mastered" ? <Check className="size-2" strokeWidth={3.5} /> : null}</span>
             <span className="library-lesson-title"><span>{lesson.title}</span></span>
             {kind ? <span className="library-lesson-kind" title={kind.label} data-lesson-kind={lessonKind(lesson)}><kind.Icon aria-hidden className="size-3.5" /></span> : null}
             {marks ? <span id={`${marksId}-${lesson.id}`} className="library-lesson-marks">{marks}</span> : null}
@@ -81,13 +81,11 @@ export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
         </li>;
       })}</ol> : null;
       if (chapter.title === null) return <div key={chapter.key}>{lessons}</div>;
-      const read = chapter.lessons.filter((lesson) => status(lesson.id) === "mastered").length;
       return <section key={chapter.key} className="library-chapter" aria-label={chapter.title}>
         <button type="button" data-library-item className="library-chapter-title" aria-expanded={open} title={chapter.title}
           onClick={() => setOpen(chapter.key, !open)} onKeyDown={chapterKeys(chapter, open)}>
-          <ChevronDown aria-hidden className="library-chevron size-3 shrink-0" />
           <span className="library-chapter-name">{chapter.title}</span>
-          <span className="library-count" aria-label={`${read} of ${chapter.lessons.length} ${reading ? "read" : "done"}`}>{read}/{chapter.lessons.length}</span>
+          <ChevronDown aria-hidden className="library-chevron size-3 shrink-0" />
         </button>
         {lessons}
       </section>;

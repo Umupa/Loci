@@ -146,7 +146,7 @@ export function LibraryCourses({ agent, courses: listed, selected, page, lesson,
     {plan && steps ? <div className="library-path" data-library-path>
       <div className="library-head">
         <p className="library-path-title">{path?.title ?? "Learning path"}</p>
-        <span className="library-head-count" title={`${read} of ${total} lessons read`}>{read}<small>/{total}</small></span>
+        <ReadLine read={read} total={total} />
       </div>
       {pathRead?.error ? <p role="alert" className="mentor-library-empty">The path file has a problem: {pathRead.error}</p> : null}
       <ol className="library-steps" aria-label="Courses on the path">{steps.map(row)}</ol>
@@ -221,7 +221,7 @@ function CourseRow({ agent, row, positions, current, expanded, activeId, isNew, 
       <span className="library-step-text">
         <span className="library-step-title">{title}{isNew ? <span className="mentor-library-new">New</span> : null}</span>
         <span className="library-step-meta">
-          {row.planned ? <span className="library-step-planned">planned</span> : <span className="library-count">{progress.read}/{progress.total}</span>}
+          {row.planned ? <span className="library-step-planned">planned</span> : null}
           {pending.length ? <span className="library-tag" title={`Best after ${pending.map((item) => withoutOrdinal(item.title)).join(", ")}`}>
             After {pending.map((item) => positions.get(item.id) ?? withoutOrdinal(item.title)).join(", ")}
           </span> : null}
@@ -254,17 +254,25 @@ function SingleCourse({ agent, current, activeId, onOpen, badge, isNew }: {
   return <div className="library-course" data-library-course={current.id} data-library-new={isNew || undefined}>
     <div className="library-head" onContextMenu={menu.openAt}>
       <p className="library-course-title" title={title}>{title}{isNew ? <span className="mentor-library-new">New</span> : null}</p>
-      <span className="library-head-count" title={`${progress.read} of ${progress.total} ${reading ? "read" : "done"}`}>{progress.read}<small>/{progress.total}</small></span>
       <button type="button" className="library-head-more" aria-label="Course options" title="Course options" aria-haspopup="menu" onClick={menu.openFrom}>
         <MoreHorizontal aria-hidden className="size-3.5" />
       </button>
       {menu.popover}
+      <ReadLine read={progress.read} total={progress.total} done={!reading} />
     </div>
     {error ? <p role="alert" className="mentor-library-empty">{error}</p> : null}
     {course ? <LibraryOutline course={course} activeId={activeId} onSelect={(itemId) => openLesson(agent.id, onOpen, current.id, course.title, itemId)}
       badge={badge ? (lessonId) => badge(current.id, lessonId) : undefined} /> : null}
     {course ? <HighlightsLink agentId={agent.id} courseId={current.id} title={course.title} onOpen={onOpen} /> : null}
   </div>;
+}
+
+/** How far a course or path is read, as the line under its head fills: no numbers to read, only ink. */
+function ReadLine({ read, total, done }: { read: number; total: number; done?: boolean }) {
+  const share = total ? Math.min(1, read / total) : 0;
+  return <span className="library-readline" role="img" aria-label={`${read} of ${total} ${done ? "done" : "read"}`} title={`${read} of ${total} ${done ? "done" : "read"}`}>
+    <span style={{ width: `${(share * 100).toFixed(1)}%` }} />
+  </span>;
 }
 
 /** Under a course's outline once it has any: its highlights, which are its notes, on one page. */

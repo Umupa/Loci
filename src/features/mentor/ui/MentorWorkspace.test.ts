@@ -114,7 +114,7 @@ it("lays out library, reader and conversation, listing only this mentor's things
   expect(container.querySelector('[role="tab"][aria-selected="true"]')?.getAttribute("data-segment")).toBe("courses");
   expect(container.textContent).toContain("Ada's course");
   expect(container.textContent).not.toContain("Bea's course");
-  expect(container.textContent).toContain("1/2");
+  expect(container.querySelector(".library-readline")?.getAttribute("aria-label")).toBe("1 of 2 read");
   await tab("notes");
   expect(container.textContent).toContain("Ada's note");
   expect(container.textContent).not.toContain("Bea's note");
@@ -145,7 +145,7 @@ it("shows the course once, with its progress, and opens lessons from its outline
   // One course: its own head over its outline, no list to choose from.
   expect(panel().querySelector(".library-course-title")?.textContent).toBe("Ada's course");
   expect(panel().querySelector("[data-library-step]")).toBeNull();
-  expect(panel().textContent).toContain("1/2");
+  expect(panel().querySelector(".library-readline")?.getAttribute("aria-label")).toBe("1 of 2 read");
   expect(panel().querySelector("[data-library-continue]")).toBeNull();
   expect(panel().textContent?.match(/Ada's course/g)).toHaveLength(1);
   const lessons = () => [...panel().querySelectorAll<HTMLButtonElement>("[data-library-lesson]")];
@@ -210,9 +210,9 @@ it("shows the learning path with the chosen course open under it, never locking 
   await vi.waitFor(() => expect(container.querySelector("[data-library-path]")).not.toBeNull());
   const steps = () => [...container.querySelectorAll<HTMLButtonElement>("[data-library-step] > button")];
   expect(container.querySelector(".library-path-title")?.textContent).toBe("Sandboxes");
-  expect(container.querySelector(".library-head .library-head-count")?.textContent).toBe("2/4");
+  expect(container.querySelector(".library-head .library-readline")?.getAttribute("aria-label")).toBe("2 of 4 read");
   expect(container.querySelector(".library-bar, [role=\"progressbar\"]")).toBeNull();
-  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2", "2SDS0/2", "3Three waysplannedAfter 2", "Loose1/3"]);
+  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes", "2SDS", "3Three waysplannedAfter 2", "Loose"]);
   // The next course on the path not read to the end is the one shown, open under its row.
   expect(steps()[1].getAttribute("aria-current")).toBe("true");
   await vi.waitFor(() => expect(container.querySelector('[data-library-course="sds"] [data-library-lesson="pod"]')).not.toBeNull());
