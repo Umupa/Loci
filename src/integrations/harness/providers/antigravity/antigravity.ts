@@ -15,6 +15,7 @@ import {
   asRecord,
   eventsFromAcpUpdate,
   extractModelConfigId,
+  antigravityError,
   antigravityModeId,
   antigravityPromptBlocks,
   antigravitySpawnCwd,
@@ -88,15 +89,6 @@ const PROMPT_TIMEOUT_MS = 30 * 60_000;
 // is ambiguous — a long quiet tool call is legitimate — so past this point we
 // surface a status note instead of killing the turn.
 const STALL_NOTIFY_MS = 120_000;
-
-const AUTH_HELP = "Use Sign in to Antigravity in Loci to authenticate the ACP server.";
-
-function antigravityError(error: unknown): Error {
-  const detail = error instanceof Error ? error.message : String(error);
-  if (detail.includes(AUTH_HELP)) return new Error(detail);
-  return new Error(/auth|login|sign.in|credential|api.key/i.test(detail)
-    ? `${detail.trim()}\n\n${AUTH_HELP}` : detail);
-}
 
 function isTimeout(error: unknown): boolean {
   return error instanceof Error && error.message.endsWith("timed out");

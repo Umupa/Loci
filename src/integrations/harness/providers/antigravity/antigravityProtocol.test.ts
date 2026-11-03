@@ -38,6 +38,49 @@ describe.each(providers)("$id ACP protocol", ({ id, protocol, mode, blocks, mode
     }
   });
 
+  it("surfaces the provider detail behind a bare ACP internal error", () => {
+    const failure = (data: unknown) =>
+      Object.assign(new Error("Internal error"), { data });
+
+    expect(
+      protocol.antigravityErrorMessage(failure({ details: "Session not found: s1" })),
+    ).toBe("Session not found: s1");
+    expect(
+      protocol.antigravityErrorMessage(failure({
+        error: { message: "Quota exhausted for this account." },
+      })),
+    ).toBe("Quota exhausted for this account.");
+    expect(
+      protocol.antigravityErrorMessage(failure({
+        errors: [{ loc: ["prompt", 0], msg: "Input tag 'nope' is not valid" }],
+      })),
+    ).toBe("prompt.0: Input tag 'nope' is not valid");
+    expect(
+      protocol.antigravityErrorMessage(failure("raw provider detail")),
+    ).toBe("raw provider detail");
+    // An invalid model already names the failure; that is a model picker
+    // problem, so the sign-in hint must not replace it.
+    expect(
+      protocol.antigravityErrorMessage(
+        new Error("Model 'm9' is not available for the current authentication method."),
+      ),
+    ).toBe("Model 'm9' is not available for the current authentication method.");
+    expect(protocol.antigravityErrorMessage(new Error("Internal error"))).toBe(
+      "Internal error",
+    );
+  });
+
+  it("adds the sign-in hint only when the provider detail names credentials", () => {
+    const failure = (details: string) =>
+      Object.assign(new Error("Internal error"), { data: { details } });
+    expect(
+      protocol.antigravityErrorMessage(failure("Invalid or expired credentials")),
+    ).toBe(`Invalid or expired credentials\n\n${protocol.ANTIGRAVITY_AUTH_HELP}`);
+    expect(
+      protocol.antigravityErrorMessage(failure("Session not found: s1")),
+    ).not.toContain(protocol.ANTIGRAVITY_AUTH_HELP);
+  });
+
   it("resolves config IDs by category without selecting the provider", () => {
     const options = protocol.readConfigOptions([
       null, {}, { id: "provider", category: "model" },

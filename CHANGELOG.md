@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- **Gemini errors say what went wrong.** A failed turn through Antigravity used to show only `Internal error`. It now shows the ACP server's own explanation — a conversation it no longer has, an exhausted quota, a rejected request, or an expired sign-in — and offers the sign-in route only when credentials are the cause.
+
 ## [0.6.0] - 2026-11-02
 
 ### Added

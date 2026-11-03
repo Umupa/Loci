@@ -187,6 +187,22 @@ describe.each(providers)("$id offline ACP transport", (provider) => {
     await turn;
   });
 
+  it("shows the provider detail behind a bare ACP internal error", async () => {
+    const turn = provider.send(input);
+    await waitPrompt();
+    const prompt = mock.sent.findLast((message) => message.method === "session/prompt")!;
+    childListener()(JSON.stringify({ jsonrpc: "2.0", id: prompt.id, error: {
+      code: -32603,
+      message: "Internal error",
+      data: { details: "Quota exhausted for this account." },
+    } }));
+    await turn.catch(() => undefined);
+    expect(events).toContainEqual({
+      type: "session.error",
+      message: "Quota exhausted for this account.",
+    });
+  });
+
   it.each([
     { runtimeMode: "supervised", kind: "other" },
     { runtimeMode: "full-access", intent: "plan", kind: "read" },
