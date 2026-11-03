@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-03
+
 ### Fixed
 
 - **Gemini errors say what went wrong.** A failed turn through Antigravity used to show only `Internal error`. It now shows the ACP server's own explanation — a conversation it no longer has, an exhausted quota, a rejected request, or an expired sign-in — and offers the sign-in route only when credentials are the cause.
@@ -219,7 +221,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/Umupa/Loci/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Umupa/Loci/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Umupa/Loci/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Umupa/Loci/compare/v0.3.0...v0.4.0
