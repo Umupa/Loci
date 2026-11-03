@@ -53,7 +53,8 @@ it("shows the translation in place of the original, the original, or both", asyn
   await render("Pod phase");
   expect(text("[data-reading-text]")?.hidden).toBe(true);
   expect(text("[data-translated-text]")?.textContent).toContain("Pod 的阶段是一个简单的高层概要");
-  expect(text("[data-translation-bar]")?.textContent).toContain("Translated by Kern, not the original");
+  expect(text("[data-translation-bar]")?.textContent).not.toContain("Translated by");
+  expect(text('[data-translation-bar] [role="radiogroup"]')?.getAttribute("title")).toBe("Translated by Kern, not the original");
   await act(async () => text('[role="radio"][aria-checked="false"]:nth-child(2)')!.click());
   expect(text("[data-reading-text]")?.hidden).toBe(false);
   expect(text("[data-translated-text]")).toBeNull();

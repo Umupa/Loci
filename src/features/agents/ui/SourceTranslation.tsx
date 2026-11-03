@@ -1,5 +1,4 @@
 import { useMemo, useSyncExternalStore } from "react";
-import { Languages } from "../../../shared/ui/icons";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { agentLook, findAgent } from "../model/agent";
@@ -85,17 +84,14 @@ export function TranslationBar({ state, view, onView, document, agentId, section
       agent?.sessionId ? { targetSessionId: agent.sessionId } : undefined);
   };
   const views: [TranslationView, string][] = [["translated", language.label], ["original", "Original"], ["both", "Both"]];
+  // Whose words these are is said on hover; only what is still to do shows.
+  const provenance = `Translated by ${mentor}, not the original`;
+  const todo = [missing ? `${missing} of ${units.length} parts untranslated` : "", stale ? `${stale} out of date` : ""].filter(Boolean).join(", ");
   return <div data-translation-bar className="translation-bar">
-    {translated ? <div role="radiogroup" aria-label="Read in" className="translation-bar__views">
+    {translated ? <div role="radiogroup" aria-label="Read in" title={provenance} className="translation-bar__views">
       {views.map(([value, label]) => <button key={value} type="button" role="radio" aria-checked={view === value} onClick={() => onView(value)}>{label}</button>)}
-    </div> : null}
-    <span className="translation-bar__status">
-      <Languages aria-hidden className="size-3.5 shrink-0" />
-      {translated
-        ? <>Translated by {mentor}, not the original{missing || stale ? <> · {missing ? `${missing} of ${units.length} parts untranslated` : ""}{missing && stale ? ", " : ""}{stale ? `${stale} out of date` : ""}</> : null}</>
-        : <>Not translated into {language.label} yet</>}
-    </span>
-    {missing || stale ? <button type="button" className="translation-bar__ask" onClick={ask}>Ask {mentor} to translate</button> : null}
+    </div> : <span className="translation-bar__status">Not translated into {language.label} yet</span>}
+    {missing || stale ? <button type="button" className="translation-bar__ask" title={todo} onClick={ask}>Ask {mentor} to translate</button> : null}
   </div>;
 }
 

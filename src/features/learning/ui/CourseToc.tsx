@@ -98,7 +98,8 @@ export function CourseToc({ scrollRef }: { scrollRef: RefObject<HTMLElement | nu
     return () => document.removeEventListener("pointerdown", dismiss, true);
   }, [expanded]);
 
-  if (!headings.length) return null;
+  // Two headings need no outline, and its rail of two lines reads as an equals sign.
+  if (headings.length < 3) return null;
   const baseLevel = Math.min(...headings.map((heading) => heading.level));
   const collapse = () => { pendingFocus.current = "rail"; setExpanded(false); };
   const railStart = Math.max(0, Math.min(headings.findIndex((heading) => heading.element === active) - 5, headings.length - 12));

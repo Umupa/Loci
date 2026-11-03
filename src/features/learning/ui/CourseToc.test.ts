@@ -146,9 +146,9 @@ it("follows an initial section position, scroll events, and a short final sectio
 it("collects asynchronous documents and revisions, retaining the explicit visibility choice", async () => {
   await mount("Opening…");
   expect(host.querySelector(".course-toc")).toBeNull();
-  scroll.innerHTML = reading("<h2>Original</h2><h3>Details</h3>");
+  scroll.innerHTML = reading("<h2>Original</h2><h3>Details</h3><h3>More</h3>");
   await settle();
-  expect(items().map((button) => button.textContent)).toEqual(["Original", "Details"]);
+  expect(items().map((button) => button.textContent)).toEqual(["Original", "Details", "More"]);
   expect(panel().hidden).toBe(true);
   act(() => toggle().click());
   escape();
@@ -158,9 +158,9 @@ it("collects asynchronous documents and revisions, retaining the explicit visibi
   expect(items()[1].textContent).toBe("Revised details");
   expect(panel().hidden).toBe(true);
 
-  scroll.innerHTML = reading("<h2>Another document</h2>");
+  scroll.innerHTML = reading("<h2>Another document</h2><h2>Its second part</h2><h2>Its third</h2>");
   await settle();
-  expect(items().map((button) => button.textContent)).toEqual(["Another document"]);
+  expect(items().map((button) => button.textContent)).toEqual(["Another document", "Its second part", "Its third"]);
   expect(toggle().getAttribute("aria-expanded")).toBe("false");
   expect(observers[0].unobserve).toHaveBeenCalled();
 
@@ -168,9 +168,9 @@ it("collects asynchronous documents and revisions, retaining the explicit visibi
   scroll.innerHTML = reading("<p>The revised document has no headings.</p>");
   await settle();
   expect(host.querySelector(".course-toc")).toBeNull();
-  scroll.innerHTML = reading("<h2>Restored heading</h2>");
+  scroll.innerHTML = reading("<h2>Restored heading</h2><h2>Two</h2><h2>Three</h2>");
   await settle();
-  expect(items().map((button) => button.textContent)).toEqual(["Restored heading"]);
+  expect(items().map((button) => button.textContent)).toEqual(["Restored heading", "Two", "Three"]);
   expect(panel().hidden).toBe(true);
 
   scroll.innerHTML = "<article><h2>File lesson</h2><button>Open to read</button></article>";
@@ -179,7 +179,7 @@ it("collects asynchronous documents and revisions, retaining the explicit visibi
 });
 
 it("stays collapsed across width changes and keeps keyboard dismissal reachable", async () => {
-  await mount(reading("<h2>First</h2><h2>Second</h2>"));
+  await mount(reading("<h2>First</h2><h2>Second</h2><h2>Third</h2>"));
   expect(toggle().getAttribute("aria-expanded")).toBe("false");
   expect(panel().hidden).toBe(true);
   for (const nextWidth of [500, 1100, 500]) {
@@ -205,7 +205,7 @@ it("stays collapsed across width changes and keeps keyboard dismissal reachable"
 
 it.each([500, 1100])("uses an instant jump for reduced motion and closes after selection at width %i", async (paneWidth) => {
   width = paneWidth; reducedMotion = true;
-  await mount(reading("<h2>First</h2><h2>Second</h2>"));
+  await mount(reading("<h2>First</h2><h2>Second</h2><h2>Third</h2>"));
   positionHeadings([20, 500]);
   act(() => toggle().click());
   act(() => items()[1].click());
@@ -215,8 +215,8 @@ it.each([500, 1100])("uses an instant jump for reduced motion and closes after s
 });
 
 it("remeasures section positions after layout changes and releases observers when closed", async () => {
-  await mount(reading("<h2>First</h2><h2>Second</h2>"));
-  const headings = positionHeadings([20, 500]);
+  await mount(reading("<h2>First</h2><h2>Second</h2><h2>Third</h2>"));
+  const headings = positionHeadings([20, 500, 1200]);
   trackScroll(520);
   expect(active()).toBe("Second");
   vi.mocked(headings[1].getBoundingClientRect).mockImplementation(() => new DOMRect(0, 700 - scroll.scrollTop, 300, 30));
@@ -232,7 +232,7 @@ it("remeasures section positions after layout changes and releases observers whe
 });
 
 it("opens on mouse hover, stays open across its panel, and closes after leaving or selecting", async () => {
-  await mount(reading("<h2>First</h2><h2>Second</h2>"));
+  await mount(reading("<h2>First</h2><h2>Second</h2><h2>Third</h2>"));
   const outline = host.querySelector<HTMLElement>(".course-toc")!;
   pointer("pointerover", toggle());
   expect(panel().hidden).toBe(false);
@@ -250,7 +250,7 @@ it("opens on mouse hover, stays open across its panel, and closes after leaving 
 });
 
 it("keeps hover open when hiding a focused rail triggers a native blur", async () => {
-  await mount(reading("<h2>First</h2><h2>Second</h2>"));
+  await mount(reading("<h2>First</h2><h2>Second</h2><h2>Third</h2>"));
   const outline = host.querySelector<HTMLElement>(".course-toc")!;
   act(() => toggle().focus());
   pointer("pointerover", toggle());
@@ -264,7 +264,7 @@ it("keeps hover open when hiding a focused rail triggers a native blur", async (
 
 it("opens touch users by click and holds keyboard focus until it leaves the popup", async () => {
   width = 500;
-  await mount(reading("<h2>First</h2><h2>Second</h2>"));
+  await mount(reading("<h2>First</h2><h2>Second</h2><h2>Third</h2>"));
   const outline = host.querySelector<HTMLElement>(".course-toc")!;
   pointer("pointerover", toggle(), "touch");
   expect(panel().hidden).toBe(true);
@@ -287,7 +287,7 @@ it("opens touch users by click and holds keyboard focus until it leaves the popu
 });
 
 it("dismisses an outside pointer press without stealing the outside control's focus", async () => {
-  await mount(reading("<h2>First</h2><h2>Second</h2>"));
+  await mount(reading("<h2>First</h2><h2>Second</h2><h2>Third</h2>"));
   const outside = document.createElement("button"); container.append(outside);
   act(() => toggle().click());
   expect(document.activeElement).toBe(activeItem());
