@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { basename } from "../../../platform/tauri/fs";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import { CoursePane } from "../../learning/ui/CoursePane";
+import { CourseHighlights } from "../../learning/ui/CourseHighlights";
 import { NotePane } from "../../notes/ui/NotePane";
 import { agentLook, type Agent } from "../../agents/model/agent";
 import { AgentDocumentReader } from "../../agents/ui/AgentDocumentReader";
@@ -48,6 +49,8 @@ export function MentorReader({ agent, page, request, onClose, onLessonChange, on
     reader focused onFocus={noop} onClose={onClose} />;
   if (page.kind === "note") return <NotePane key={page.id} noteId={page.id} agentId={agent.id}
     reader focused onFocus={noop} onClose={onClose} onBeforeLeave={onBeforeLeave} />;
+  if (page.kind === "highlights") return <CourseHighlights key={`${agent.id}/highlights/${page.courseId}`} agentId={agent.id} courseId={page.courseId} title={page.title}
+    onClose={onClose} onOpenLesson={(itemId) => onOpen({ kind: "course", course: { courseId: page.courseId, agentId: agent.id, title: page.title, itemId } })} />;
   if (page.kind === "session") return <>
     <ResourceHeader title={sessionTitle(page.id)} onClose={onClose} />
     {renderSession(page.id)}

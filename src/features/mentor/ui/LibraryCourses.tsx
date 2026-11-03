@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Plus } from "../../../shared/ui/icons";
+import { Highlighter, Plus } from "../../../shared/ui/icons";
+import { useCourseMarks } from "../../learning/ui/LessonMarks";
 import { agentLook, type Agent } from "../../agents/model/agent";
 import { COURSES_CHANGED_EVENT, loadCourse, type CourseChangedDetail, type CourseSummary } from "../../learning/model/course";
 import { loadCoursePath, pathSteps, type PathRead, type PathStep } from "../../learning/model/coursePath";
@@ -213,6 +214,7 @@ function CourseRow({ agent, row, positions, current, expanded, activeId, isNew, 
       {error ? <p role="alert" className="mentor-library-empty">{error}</p> : null}
       {course ? <LibraryOutline course={course} activeId={activeId} onSelect={(itemId) => openLesson(agent.id, onOpen, row.id, course.title, itemId)}
         badge={badge ? (lessonId) => badge(row.id, lessonId) : undefined} /> : null}
+      {course ? <HighlightsLink agentId={agent.id} courseId={row.id} title={course.title} onOpen={onOpen} /> : null}
     </div> : null}
   </li>;
 }
@@ -241,5 +243,16 @@ function SingleCourse({ agent, current, activeId, onOpen, badge, isNew }: {
     {error ? <p role="alert" className="mentor-library-empty">{error}</p> : null}
     {course ? <LibraryOutline course={course} activeId={activeId} onSelect={(itemId) => openLesson(agent.id, onOpen, current.id, course.title, itemId)}
       badge={badge ? (lessonId) => badge(current.id, lessonId) : undefined} /> : null}
+    {course ? <HighlightsLink agentId={agent.id} courseId={current.id} title={course.title} onOpen={onOpen} /> : null}
   </div>;
+}
+
+/** Under a course's outline once it has any: its highlights, which are its notes, on one page. */
+function HighlightsLink({ agentId, courseId, title, onOpen }: { agentId: string; courseId: string; title: string; onOpen: Props["onOpen"] }) {
+  const counts = useCourseMarks(agentId, courseId);
+  const total = counts ? [...counts.values()].reduce((sum, count) => sum + count.highlights, 0) : 0;
+  if (!total) return null;
+  return <button type="button" data-library-item className="library-ask library-highlights" onClick={() => onOpen({ kind: "highlights", courseId, agentId, title })}>
+    <Highlighter aria-hidden className="size-3.5" />{total === 1 ? "1 highlight" : `${total} highlights`}
+  </button>;
 }

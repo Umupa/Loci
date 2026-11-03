@@ -114,6 +114,7 @@
 .library-others { margin: 12px 8px 2px; font-size: 11px; line-height: 16px; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .library-asks { display: flex; flex-direction: column; align-items: flex-start; margin-top: 10px; }
 .library-ask { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px; font-size: 13px; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
+.library-highlights { margin: 6px 0 0 -4px; }
 .library-ask:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); color: var(--color-content); }
 
 /* Courses as steps: a dot each (numbered on the path), joined by a hairline

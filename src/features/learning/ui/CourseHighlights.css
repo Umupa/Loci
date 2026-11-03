@@ -1,0 +1,14 @@
+/* A course's highlights: the passages in the reading face, each with the
+   highlighter's edge, the reader's own thought under it in the interface face. */
+.course-highlights { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.course-highlights__body { padding: 32px 40px 64px; }
+.course-highlights__empty { margin: 40px 0; text-align: center; font-family: var(--font-sans); font-size: 13px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.course-highlights__lesson + .course-highlights__lesson { margin-top: 28px; }
+.course-highlights__lesson > h2 { margin: 0 0 8px; font-family: var(--font-sans); font-size: 12.5px; font-weight: 500; line-height: 18px; }
+.course-highlights__lesson > h2 > button { color: color-mix(in srgb, var(--color-content) 55%, transparent); text-align: left; }
+.course-highlights__lesson > h2 > button:hover { color: var(--color-content); }
+.course-highlights__entry { display: flex; width: 100%; flex-direction: column; gap: 6px; margin: 0 0 6px -12px; padding: 8px 12px; border-radius: 8px; text-align: left; color: var(--color-content); }
+.course-highlights__entry:hover { background: color-mix(in srgb, var(--color-content) 4%, transparent); }
+.course-highlights__entry:focus-visible { outline: 2px solid var(--color-accent-ring); outline-offset: -2px; }
+.course-highlights__quote { padding-left: 12px; border-left: 2px solid var(--color-mark-wash-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
+.course-highlights__note { padding-left: 14px; font-family: var(--font-sans); font-size: 13px; line-height: 20px; color: color-mix(in srgb, var(--color-content) 70%, transparent); white-space: pre-wrap; overflow-wrap: anywhere; }

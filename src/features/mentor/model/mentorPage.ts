@@ -10,7 +10,9 @@ export type MentorPage =
   /** `commit`: source code read as it was at that commit (read-only). */
   | { kind: "file"; path: string; commit?: string }
   /** A session a mentor started, or any conversation a link points to. Never remembered. */
-  | { kind: "session"; id: string };
+  | { kind: "session"; id: string }
+  /** A course's highlights and the notes on them, in reading order. */
+  | { kind: "highlights"; courseId: string; agentId: string; title: string };
 
 /** The lesson on screen; a comparison also names its parts (without the notes). */
 export type MentorLesson = { id: string; title: string; compare?: ComparePart[] };
@@ -49,6 +51,8 @@ export function parseStoredPage(value: unknown): MentorPage | undefined {
       ...(text(document.subject) ? { subject: document.subject } : {}) } };
   }
   if (page.kind === "note" && text(page.id)) return { kind: "note", id: page.id };
+  if (page.kind === "highlights" && text(page.courseId) && text(page.agentId))
+    return { kind: "highlights", courseId: page.courseId, agentId: page.agentId, title: typeof page.title === "string" ? page.title : page.courseId };
   if (page.kind === "file" && text(page.path)) return { kind: "file", path: page.path, ...(text(page.commit) && /^[0-9a-f]{7,40}$/i.test(page.commit) ? { commit: page.commit } : {}) };
   return undefined;
 }
@@ -61,6 +65,7 @@ export function readingOf(page: MentorPage | undefined, lesson: MentorLesson | u
   if (page?.kind === "document") return { kind: "document", id: page.document.id, title: page.document.title };
   if (page?.kind === "note") return { kind: "note", id: page.id };
   if (page?.kind === "file") return { kind: "file", path: page.path, ...(page.commit ? { commit: page.commit } : {}) };
+  if (page?.kind === "highlights") return { kind: "course", courseId: page.courseId, title: page.title };
   return undefined;
 }
 
@@ -70,6 +75,7 @@ export function samePage(a: MentorPage | undefined, b: MentorPage | undefined): 
   if (a.kind === "course") return a.course.courseId === (b as typeof a).course.courseId;
   if (a.kind === "document") return a.document.id === (b as typeof a).document.id;
   if (a.kind === "file") return a.path === (b as typeof a).path && a.commit === (b as typeof a).commit;
+  if (a.kind === "highlights") return a.courseId === (b as typeof a).courseId;
   return a.id === (b as typeof a).id;
 }
 

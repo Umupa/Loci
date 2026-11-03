@@ -29,3 +29,12 @@ it("tells the conversation what is read and compares pages by what they show", (
   expect(samePage({ kind: "file", path: "/a.go", commit: "abcdef0" }, { kind: "file", path: "/a.go" })).toBe(false);
   expect(readingOf({ kind: "file", path: "/a.go", commit: "abcdef0" }, undefined)).toEqual({ kind: "file", path: "/a.go", commit: "abcdef0" });
 });
+
+it("remembers a course's highlights page, tells the conversation its course, and compares it by course", () => {
+  const page = { kind: "highlights" as const, courseId: "kvm", agentId: "kern", title: "KVM" };
+  expect(parseStoredPage(JSON.parse(JSON.stringify(storedPage(page))))).toEqual(page);
+  expect(parseStoredPage({ kind: "highlights", courseId: "kvm" })).toBeUndefined();
+  expect(readingOf(page, undefined)).toEqual({ kind: "course", courseId: "kvm", title: "KVM" });
+  expect(samePage(page, { ...page, title: "Renamed" })).toBe(true);
+  expect(samePage(page, { ...page, courseId: "other" })).toBe(false);
+});
