@@ -8,18 +8,35 @@
 button.agent-speaker-pill:hover { color: var(--color-content); }
 .agent-speaker-pill svg { width: 14px; height: 14px; flex: none; }
 
-[data-composer-box][data-composer-chat] { border: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
-[data-composer-chat] .agent-composer-input { border: 1px solid color-mix(in srgb, var(--color-content) 20%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--color-content) 3%, transparent); }
+/*
+ * The chat composer: one rounded field with a round send button at its end,
+ * shown once there is something to send. Under it a single row holds +, the
+ * reading tag and the model, so nothing stacks above the field.
+ */
+[data-composer-box][data-composer-chat] { display: grid; grid-template-columns: auto minmax(0, 1fr) max-content; align-items: center; column-gap: 4px; row-gap: 4px; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+[data-composer-box][data-composer-chat] > * { grid-column: 1 / -1; order: 0; }
+[data-composer-chat] .agent-composer-input { order: 2; border: 1px solid color-mix(in srgb, var(--color-content) 16%, transparent); border-radius: 18px; background: color-mix(in srgb, var(--color-content) 3%, transparent); transition: border-color 160ms; }
 [data-composer-chat] .agent-composer-input:focus-within { border-color: color-mix(in srgb, var(--color-content) 30%, transparent); }
-[data-composer-chat] .composer-field, [data-composer-chat] .composer-highlight { padding: 10px 44px 10px 10px; font-size: 14px; line-height: 20px; }
-[data-composer-chat] [data-composer-send] { position: absolute; right: 6px; bottom: 6px; }
-[data-composer-chat] .composer-send { width: 28px; height: 28px; }
-[data-composer-chat] .agent-composer-controls { min-height: 30px; padding: 4px 5px 0 4px; gap: 2px; flex-wrap: nowrap; }
-[data-composer-chat] .composer-toolbar { display: flex; justify-content: flex-end; overflow-x: auto; scrollbar-width: none; }
-[data-composer-chat] .composer-toolbar > div > button { background: transparent; color: color-mix(in srgb, var(--color-content) 60%, transparent); }
-[data-composer-chat] .composer-toolbar > div > button:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); color: var(--color-content); }
-[data-composer-chat] [data-composer-plus-slot] > button { background: transparent; }
+[data-composer-chat] .composer-field, [data-composer-chat] .composer-highlight { padding: 8px 40px 8px 14px; font-size: 14px; line-height: 20px; }
+[data-composer-chat] .composer-field { display: block; min-height: 36px; }
+[data-composer-chat] [data-composer-send] { position: absolute; right: 4px; bottom: 4px; }
+[data-composer-chat] [data-composer-send] button { width: 28px; height: 28px; border-radius: 999px; transition: opacity 140ms, transform 140ms; }
+[data-composer-chat] [data-composer-send] .composer-send svg { width: 16px; height: 16px; }
+[data-composer-chat] .composer-send:disabled { opacity: 0; transform: scale(.6); pointer-events: none; }
+[data-composer-chat] .agent-composer-controls { display: contents; }
+[data-composer-chat] .agent-composer-controls > * { grid-column: 1 / -1; order: 6; }
+[data-composer-chat] [data-composer-plus-slot] { grid-column: 1; order: 3; display: flex; height: 28px; align-items: center; }
+[data-composer-chat] [data-composer-plus-slot] > button { width: 28px; height: 28px; border-radius: 999px; background: transparent; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
+[data-composer-chat] [data-composer-plus-slot] > button:hover { background: color-mix(in srgb, var(--color-content) 7%, transparent); color: var(--color-content); }
 [data-composer-chat] [data-composer-plus-slot] > button > svg { width: 17px; height: 17px; }
+[data-composer-chat] [data-reading-tag] { grid-column: 2; order: 4; height: 28px; align-items: center; padding: 0; }
+[data-composer-chat] [data-reading-tag] > * { height: 24px; border-radius: 999px; padding-inline: 8px 2px; font-size: 11.5px; }
+[data-composer-chat] .agent-composer-controls > .composer-toolbar { grid-column: 3; order: 5; }
+[data-composer-chat] .composer-toolbar { container-type: normal; display: flex; height: 28px; align-items: center; justify-content: flex-end; overflow: visible; }
+[data-composer-chat] .composer-toolbar > div > button { background: transparent; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
+[data-composer-chat] .composer-toolbar > div > button:hover { background: color-mix(in srgb, var(--color-content) 6%, transparent); color: var(--color-content); }
+[data-composer-chat] > .px-3:not([data-reading-tag]) { padding: 0 0 2px; }
+[data-composer-chat] .learning-source-chip:not(.learning-source-chip--expanded) { border-radius: 14px; }
 
 .agent-resource-chip { display: inline-flex; width: fit-content; max-width: min(24rem, 100%); min-width: 0; min-height: 38px; align-items: center; gap: 10px; margin: 6px 0; padding: 8px 14px 8px 12px; border: 1px solid color-mix(in srgb, var(--color-content) 10%, transparent); border-radius: 10px; text-align: left; font-family: var(--font-sans); font-size: 13px; color: var(--color-content); transition: background-color 160ms, border-color 160ms; }
 .agent-resource-chip:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); border-color: color-mix(in srgb, var(--color-content) 20%, transparent); }
@@ -59,5 +76,4 @@ button.agent-speaker-pill:hover { color: var(--color-content); }
 .agent-setting-value > button > span:first-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 [data-agent-view][data-focused="false"] .agent-chat-header h1 { color: color-mix(in srgb, var(--color-content) 75%, transparent); }
 
-[data-composer-chat] .composer-field { display: block; min-height: 40px; }
 @media (prefers-reduced-motion: reduce) { .agent-resource-chip { transition: none; } }
