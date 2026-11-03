@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- **Bold text in Chinese.** `**…**` next to Chinese punctuation such as “ or （ showed its asterisks and threw off the bold after it; it now bolds what was meant, and strikethrough does the same.
+
 ## [0.8.2] - 2026-11-03
 
 ### Fixed
