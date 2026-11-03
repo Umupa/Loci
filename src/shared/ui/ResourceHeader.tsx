@@ -6,6 +6,12 @@ export const RESOURCE_ACTION = "grid size-6 shrink-0 place-items-center rounded-
 /** Controls every resource page in a surface shares, such as showing its conversation. */
 export const ResourceHeaderExtra = createContext<ReactNode>(null);
 
+/**
+ * Room in a reader's header for what the page inside it adds, such as a
+ * document's translation switch: the page portals its control here.
+ */
+export const ReaderHeaderSlot = createContext<HTMLElement | null>(null);
+
 /** What a surface puts ahead of every resource header, such as room for the window's buttons. */
 export const ResourceHeaderLeading = createContext<ReactNode>(null);
 

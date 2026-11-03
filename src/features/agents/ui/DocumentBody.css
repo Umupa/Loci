@@ -41,6 +41,12 @@
 .document-guide-note { color: color-mix(in srgb, var(--color-content) 45%, transparent); }
 
 /* A source in the learner's language: the switch, then the translation. */
+/* The translation switch in a reader's header: pale untranslated, a dot while some is still to do, ink when done. */
+.translation-button { position: relative; }
+.translation-button[data-phase="none"] { color: color-mix(in srgb, var(--color-content) 40%, transparent); }
+.translation-button[data-phase="done"], .translation-button[data-phase="partial"] { color: var(--color-content); }
+.translation-button[data-phase="partial"]::after { content: ""; position: absolute; right: 2px; bottom: 3px; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 1.5px var(--color-background-base); }
+
 .translation-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--color-stroke); font-family: var(--font-sans); font-size: 11px; }
 .translation-bar__views { display: inline-flex; padding: 2px; border-radius: 7px; background: color-mix(in srgb, var(--color-content) 6%, transparent); }
 .translation-bar__views > button { height: 22px; padding: 0 9px; border-radius: 5px; font-size: 11.5px; color: color-mix(in srgb, var(--color-content) 60%, transparent); }

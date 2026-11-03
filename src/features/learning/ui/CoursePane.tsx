@@ -1,6 +1,6 @@
 import { cloneElement, Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode } from "react";
 import { ArrowHorizontal, ChatQuestion, Check, Highlighter, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
-import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
+import { ReaderHeaderSlot, ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";
 import { useReadingWide } from "../../../shared/lib/readingWidth";
@@ -238,22 +238,25 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       { label: "Full-width text", icon: <ArrowHorizontal />, checked: readingWide, separated: true, onSelect: () => setReadingWide(!readingWide) },
     ]} />
   </> : null;
+  // Where a lesson's page puts its own header control (a source's translation switch).
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const alerts = actionError ? <div className="course-pane__alerts"><p role="alert" className="course-error">{actionError}</p></div> : null;
 
   return <aside aria-label={course?.title ?? title ?? "Course"} className={`course-pane${embedded ? " course-pane--overview" : ""}`} onPointerDown={() => { if (!focused) onFocus(); }}>
     {embedded ? <ResourceHeader title={course?.title ?? title ?? "Course"} titleContent={course ? <CourseContentsDropdown course={course} activeId={activeId} onSelect={select} /> : undefined} backLabel="Back to courses" onBack={onBack} onClose={onClose}>
+      <span ref={setHeaderSlot} className="contents" />
       {overviewControls}
       {actions}
     </ResourceHeader> : <>
     <PaneHeader className="course-pane__header" onPaneDragStart={onPaneDragStart}>
       {course ? <button type="button" data-no-drag aria-label={sidebarLabel} title={sidebarLabel} aria-expanded={sidebarOpen} aria-controls={sidebarId} className="course-pane__sidebar-toggle" onClick={() => setSidebarOpen((open) => !open)}><SidebarLeft className="size-4" /></button> : null}
-      <Mortarboard className={`size-4 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span>{controls ? <span data-no-drag className="flex shrink-0 items-center gap-0.5">{controls}</span> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-4" /></button>
+      <Mortarboard className={`size-4 shrink-0 ${focused ? "text-content/70" : "text-content/40"}`} /><span className="course-pane__title">{course?.title ?? title ?? "Course"}</span><span ref={setHeaderSlot} data-no-drag className="contents" />{controls ? <span data-no-drag className="flex shrink-0 items-center gap-0.5">{controls}</span> : null}{actions ? <span data-no-drag className="flex shrink-0 items-center gap-1">{actions}</span> : null}<button type="button" data-no-drag aria-label="Close course" className="course-pane__close" onClick={onClose}><X className="size-4" /></button>
     </PaneHeader>
     </>}
-    {course ? <>
+    {course ? <ReaderHeaderSlot.Provider value={headerSlot}>
       <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough} data-reading-scroll><CourseContent course={course} activeId={activeId} onMarks={setMarks}
         marksList={marksOpen ? { anchor: lessonMenu, onClose: () => setMarksOpen(false), title: "Highlights & notes in this lesson" } : undefined} /></main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div>{alerts}</div></div>
-    </> : <div className="course-pane__empty" role={loaded.scope === scope && loaded.error ? "alert" : undefined}><p>{loaded.scope === scope ? loaded.error ?? "Opening course…" : "Opening course…"}</p>{loaded.scope === scope && loaded.error ? <button type="button" className="course-button" onClick={() => setReload((value) => value + 1)}>Retry</button> : null}</div>}
+    </ReaderHeaderSlot.Provider> : <div className="course-pane__empty" role={loaded.scope === scope && loaded.error ? "alert" : undefined}><p>{loaded.scope === scope ? loaded.error ?? "Opening course…" : "Opening course…"}</p>{loaded.scope === scope && loaded.error ? <button type="button" className="course-button" onClick={() => setReload((value) => value + 1)}>Retry</button> : null}</div>}
   </aside>;
 }
 

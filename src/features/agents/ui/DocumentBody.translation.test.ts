@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { mergeTranslation, sourceUnits, serializeTranslation } from "../../learning/model/sourceTranslation";
+import { ReaderHeaderSlot } from "../../../shared/ui/ResourceHeader";
 import { DocumentBody, shownDocument } from "./DocumentBody";
 
 const disk = vi.hoisted(() => ({ text: null as string | null }));
@@ -62,4 +63,39 @@ it("shows the translation in place of the original, the original, or both", asyn
   expect(text(".translation-pair__original")?.textContent).toContain("high-level summary");
   expect(text(".translation-pair__translated")?.textContent).toContain("高层概要");
   expect(localStorage.getItem("loci.translationView")).toBe("both");
+});
+
+/** The document in a reader whose header has room for its switch. */
+const renderInHeader = (slot: HTMLElement, section?: string) => act(async () => {
+  root.render(createElement(ReaderHeaderSlot.Provider, { value: slot }, createElement(DocumentBody, { document: source, agentId: "a", section, bare: true })));
+});
+
+it("puts the switch in the reader's header as one icon, and flips with ⌥T", async () => {
+  const slot = document.createElement("div");
+  document.body.append(slot);
+  // Nothing translated: a pale icon whose menu asks the mentor.
+  await renderInHeader(slot);
+  expect(text("[data-translation-bar]")).toBeNull();
+  const button = () => slot.querySelector<HTMLButtonElement>("[data-translation-button]")!;
+  expect(button().dataset.phase).toBe("none");
+  await act(async () => button().click());
+  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === "Ask Kern to translate")!.click());
+  expect(requestAddToChat).toHaveBeenCalledWith(expect.stringContaining("into Simplified Chinese"), "plain", { targetSessionId: "chat" });
+
+  // Part translated: ink with a dot; the menu chooses what to read and asks for the rest.
+  const units = sourceUnits(BODY);
+  disk.text = serializeTranslation("pods", mergeTranslation(units.slice(1), "## Pod 阶段\n\nPod 的阶段是一个简单的高层概要。\n", { language: "zh-CN", units: [] }));
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await renderInHeader(slot);
+  expect(button().dataset.phase).toBe("partial");
+  await act(async () => button().click());
+  expect([...document.querySelectorAll('[role="menuitemradio"]')].map((item) => item.textContent)).toEqual(["简体中文", "Original", "Both"]);
+  expect([...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual(["Ask Kern for the rest"]);
+  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((item) => item.textContent === "Original")!.click());
+  expect(text("[data-reading-text]")?.hidden).toBe(false);
+  await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyT", key: "†", altKey: true })); });
+  expect(text("[data-reading-text]")?.hidden).toBe(true);
+  expect(text("[data-translated-text]")?.textContent).toContain("高层概要");
+  slot.remove();
 });

@@ -1,4 +1,8 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useMemo, useSyncExternalStore } from "react";
+import { Check, Languages, MessageSquarePlus } from "../../../shared/ui/icons";
+import { Popover } from "../../../shared/ui/Popover";
+import { RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
+import { isImeComposition } from "../../../shared/lib/keyboard";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { agentLook, findAgent } from "../model/agent";
@@ -65,15 +69,8 @@ export function useSourceTranslationState(document: AgentDocument, agentId: stri
   }, [eligible, language, translation, units, document.body]);
 }
 
-/** The switch between the two languages, and what is still to translate. */
-export function TranslationBar({ state, view, onView, document, agentId, section }: {
-  state: SourceTranslationState;
-  view: TranslationView;
-  onView: (view: TranslationView) => void;
-  document: AgentDocument;
-  agentId: string;
-  section?: string;
-}) {
+/** What is left to translate, and the request that asks the mentor for it. */
+function translationAsk(state: SourceTranslationState, document: AgentDocument, agentId: string, section?: string) {
   const { language, units, translated, stale } = state;
   const missing = units.length - translated;
   const agent = findAgent(agentId);
@@ -83,16 +80,85 @@ export function TranslationBar({ state, view, onView, document, agentId, section
     requestAddToChat(`Please translate ${part} "${document.title}" (${document.id}) into ${language.name} with documents.translate${stale ? ", including the parts that are out of date" : ""}.`, "plain",
       agent?.sessionId ? { targetSessionId: agent.sessionId } : undefined);
   };
+  const todo = [missing ? `${missing} of ${units.length} parts untranslated` : "", stale ? `${stale} out of date` : ""].filter(Boolean).join(", ");
+  return { missing, mentor, ask, todo };
+}
+
+/** The switch between the two languages, and what is still to translate, as a bar over the text. */
+export function TranslationBar({ state, view, onView, document, agentId, section }: {
+  state: SourceTranslationState;
+  view: TranslationView;
+  onView: (view: TranslationView) => void;
+  document: AgentDocument;
+  agentId: string;
+  section?: string;
+}) {
+  const { language, translated, stale } = state;
+  const { missing, mentor, ask, todo } = translationAsk(state, document, agentId, section);
   const views: [TranslationView, string][] = [["translated", language.label], ["original", "Original"], ["both", "Both"]];
   // Whose words these are is said on hover; only what is still to do shows.
   const provenance = `Translated by ${mentor}, not the original`;
-  const todo = [missing ? `${missing} of ${units.length} parts untranslated` : "", stale ? `${stale} out of date` : ""].filter(Boolean).join(", ");
   return <div data-translation-bar className="translation-bar">
     {translated ? <div role="radiogroup" aria-label="Read in" title={provenance} className="translation-bar__views">
       {views.map(([value, label]) => <button key={value} type="button" role="radio" aria-checked={view === value} onClick={() => onView(value)}>{label}</button>)}
     </div> : <span className="translation-bar__status">Not translated into {language.label} yet</span>}
     {missing || stale ? <button type="button" className="translation-bar__ask" title={todo} onClick={ask}>Ask {mentor} to translate</button> : null}
   </div>;
+}
+
+/**
+ * The same switch as one icon in the reader's header: pale while nothing is
+ * translated, with a dot while some is still to do, ink once there is a
+ * translation. Its menu reads in the learner's language, the original or
+ * both, and asks the mentor for the rest. ⌥T flips translation and original.
+ */
+export function TranslationButton({ state, view, onView, document, agentId, section }: {
+  state: SourceTranslationState;
+  view: TranslationView;
+  onView: (view: TranslationView) => void;
+  document: AgentDocument;
+  agentId: string;
+  section?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const { language, translated, stale } = state;
+  const { missing, mentor, ask, todo } = translationAsk(state, document, agentId, section);
+  const phase = !translated ? "none" : missing || stale ? "partial" : "done";
+  const label = !translated ? `Translate into ${language.label}` : view === "original" ? "Reading the original" : `Reading in ${language.label}`;
+  useEffect(() => {
+    if (!translated) return;
+    const flip = (event: KeyboardEvent) => {
+      if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || event.code !== "KeyT" || isImeComposition(event)) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest("input, textarea, select, [contenteditable='true']")) return;
+      event.preventDefault();
+      onView(view === "original" ? "translated" : "original");
+    };
+    window.addEventListener("keydown", flip);
+    return () => window.removeEventListener("keydown", flip);
+  }, [translated, view, onView]);
+  const views: [TranslationView, string][] = [["translated", language.label], ["original", "Original"], ["both", "Both"]];
+  return <>
+    <button ref={trigger} type="button" data-translation-button data-phase={phase} data-tauri-drag-region="false"
+      className={`${RESOURCE_ACTION} translation-button`} aria-label={label} title={translated ? `${label} · ⌥T` : label}
+      aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <Languages className="size-4" />
+    </button>
+    {open ? <Popover anchor={trigger} side="bottom" align="end" width={224} role="menu" aria-label="Translation" onDismiss={() => setOpen(false)} className="lesson-menu p-1 font-sans">
+      {translated ? views.map(([value, text]) => <button key={value} type="button" role="menuitemradio" aria-checked={view === value}
+        title={value === "original" ? undefined : `Translated by ${mentor}, not the original`}
+        onClick={() => { setOpen(false); onView(value); }} className="lesson-menu__item">
+        <span className="lesson-menu__label">{text}</span>
+        {view === value ? <Check className="lesson-menu__check" strokeWidth={2} /> : null}
+      </button>) : null}
+      {translated && (missing || stale) ? <div role="separator" className="lesson-menu__rule" /> : null}
+      {missing || stale ? <button type="button" role="menuitem" title={todo} onClick={() => { setOpen(false); ask(); }} className="lesson-menu__item">
+        <MessageSquarePlus className="lesson-menu__icon" />
+        <span className="lesson-menu__label">{translated ? `Ask ${mentor} for the rest` : `Ask ${mentor} to translate`}</span>
+      </button> : null}
+    </Popover> : null}
+  </>;
 }
 
 /** The translated text, or both texts unit by unit; untranslated parts stay in the original. */

@@ -1,4 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { ReaderHeaderSlot } from "../../../shared/ui/ResourceHeader";
 import { openUrl } from "../../../platform/native";
 import { PenLine } from "../../../shared/ui/icons";
 import { sectionHeadingIndex } from "../../../shared/lib/markdown/markdownSection";
@@ -13,7 +15,7 @@ import { inLesson } from "../../learning/model/annotationCounts";
 import { consumeDocumentPlace, useDocumentPlace } from "../model/documentPlace";
 import { quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
 import { flashRange } from "../../learning/ui/useTextHighlights";
-import { TranslatedText, TranslationBar, useSourceTranslationState, useTranslationView } from "./SourceTranslation";
+import { TranslatedText, TranslationBar, TranslationButton, useSourceTranslationState, useTranslationView, type TranslationView } from "./SourceTranslation";
 import "./DocumentBody.css";
 
 /** A library document as a reader shows it, with where it came from when it is a source. */
@@ -119,6 +121,8 @@ export function DocumentBody({ document, agentId, section, bare, inPlace, marksL
   // A quoted passage is found in the original: going to one shows the original.
   const [originalFor, setOriginalFor] = useState<string>();
   const readView = !translation?.translated || originalFor === scope ? "original" : chosenView;
+  const chooseView = useCallback((next: TranslationView) => { setOriginalFor(undefined); setChosenView(next); }, [setChosenView]);
+  const headerSlot = useContext(ReaderHeaderSlot);
   useEffect(() => {
     if (!placeRequest || !agentId) return;
     if (readView !== "original") { setOriginalFor(scope); return; }
@@ -175,8 +179,10 @@ export function DocumentBody({ document, agentId, section, bare, inPlace, marksL
           <span className="document-guide-note">written by your mentor, not a first-hand source</span>
         </p>
       ) : null}
-      {translation && agentId ? <TranslationBar state={translation} view={readView} document={document} agentId={agentId} section={shownSection}
-        onView={(next) => { setOriginalFor(undefined); setChosenView(next); }} /> : null}
+      {/* In a reader with a header, the switch is an icon there; elsewhere a bar over the text. */}
+      {translation && agentId ? headerSlot
+        ? createPortal(<TranslationButton state={translation} view={readView} document={document} agentId={agentId} section={shownSection} onView={chooseView} />, headerSlot)
+        : <TranslationBar state={translation} view={readView} document={document} agentId={agentId} section={shownSection} onView={chooseView} /> : null}
       {/* The original stays mounted: highlights and found passages live in it. */}
       <div ref={bodyRef} className="select-text" data-reading-text hidden={readView !== "original"}>
         <AgentMarkdown text={document.body} wholeDocument sourceUrl={sourceUrl} section={shownSection} />
