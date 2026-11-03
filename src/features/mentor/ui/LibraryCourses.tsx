@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Highlighter, Plus } from "../../../shared/ui/icons";
+import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { ask } from "../../../platform/dialog";
+import { Popover, type PopoverAnchor } from "../../../shared/ui/Popover";
+import { Highlighter, MoreHorizontal, Plus, RotateCcw } from "../../../shared/ui/icons";
 import { useCourseMarks } from "../../learning/ui/LessonMarks";
 import { agentLook, type Agent } from "../../agents/model/agent";
-import { COURSES_CHANGED_EVENT, loadCourse, type CourseChangedDetail, type CourseSummary } from "../../learning/model/course";
+import { COURSES_CHANGED_EVENT, loadCourse, resetCourseProgress, type CourseChangedDetail, type CourseSummary } from "../../learning/model/course";
 import { loadCoursePath, pathSteps, type PathRead, type PathStep } from "../../learning/model/coursePath";
 import { useLiveCourse } from "../../learning/ui/CourseOutline";
 import { courseProgress, courseState, nextLesson, withoutOrdinal } from "../model/libraryCourse";
@@ -142,12 +144,9 @@ export function LibraryCourses({ agent, courses: listed, selected, page, lesson,
   return <div className="library-courses" data-library-courses onKeyDown={listKeyDown}>
     {error ? <LibraryLoadError subject="courses" onRetry={onRetry} /> : null}
     {plan && steps ? <div className="library-path" data-library-path>
-      <div className="library-path-head">
+      <div className="library-head">
         <p className="library-path-title">{path?.title ?? "Learning path"}</p>
-        <div className="library-progress-line">
-          <Bar read={read} total={total} label="Path progress" />
-          <span className="library-count" title={`${read} of ${total} lessons read`}>{read}/{total}</span>
-        </div>
+        <span className="library-head-count" title={`${read} of ${total} lessons read`}>{read}<small>/{total}</small></span>
       </div>
       {pathRead?.error ? <p role="alert" className="mentor-library-empty">The path file has a problem: {pathRead.error}</p> : null}
       <ol className="library-steps" aria-label="Courses on the path">{steps.map(row)}</ol>
@@ -160,11 +159,31 @@ export function LibraryCourses({ agent, courses: listed, selected, page, lesson,
   </div>;
 }
 
-function Bar({ read, total, label }: { read: number; total: number; label?: string }) {
-  return <span className="library-bar" role={label ? "progressbar" : undefined} aria-label={label} aria-hidden={label ? undefined : true}
-    aria-valuemin={label ? 0 : undefined} aria-valuemax={label ? total : undefined} aria-valuenow={label ? read : undefined}>
-    <i style={{ width: total ? `${(read / total) * 100}%` : 0 }} />
-  </span>;
+/** A course's own menu, from its head's … or a right-click: for now, starting it over. */
+function useCourseMenu(agentId: string, courseId: string, title: string) {
+  const [anchor, setAnchor] = useState<PopoverAnchor | null>(null);
+  const [error, setError] = useState<string>();
+  const reset = async () => {
+    setAnchor(null);
+    if (!await ask(`Every lesson of “${withoutOrdinal(title)}” goes back to unread. Highlights and notes are kept.`,
+      { title: "Reset progress?", kind: "warning", okLabel: "Reset", cancelLabel: "Cancel" })) return;
+    try { await resetCourseProgress(courseId, agentId); setError(undefined); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+  };
+  const popover = <>
+    {anchor ? <Popover anchor={anchor} side="bottom" align="end" width={180} constrainHeight={false} onDismiss={() => setAnchor(null)} role="menu" aria-label="Course options" className="p-1">
+      <button type="button" role="menuitem" autoFocus onClick={() => void reset()}
+        className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] text-content/85 hover:bg-content/8">
+        <RotateCcw aria-hidden className="size-3.5" />Reset progress…
+      </button>
+    </Popover> : null}
+    {error ? <p role="alert" className="mentor-library-empty">{error}</p> : null}
+  </>;
+  return {
+    popover,
+    openAt: (event: MouseEvent) => { event.preventDefault(); setAnchor({ x: event.clientX, y: event.clientY }); },
+    openFrom: (event: MouseEvent<HTMLElement>) => setAnchor(event.currentTarget),
+  };
 }
 
 type RowProps = {
@@ -190,8 +209,11 @@ function CourseRow({ agent, row, positions, current, expanded, activeId, isNew, 
     if ((event.key === "ArrowRight" && !expanded) || (event.key === "ArrowLeft" && expanded)) { event.preventDefault(); onPick(); }
   };
   const summary = row.planned ? `${title}: not written yet. Ask for it.` : `${title}: ${progress.read} of ${progress.total} read`;
+  const menu = useCourseMenu(agent.id, row.id, row.title);
   return <li className="library-step" data-library-step={row.id} data-planned={row.planned || undefined}>
+    {menu.popover}
     <button type="button" data-library-item className="library-step-row" title={summary}
+      onContextMenu={row.planned ? undefined : menu.openAt}
       aria-current={current ? "true" : undefined} aria-expanded={row.planned ? undefined : expanded} onClick={onPick} onKeyDown={keys}>
       {row.position !== undefined
         ? <span aria-hidden className={`library-dot library-dot--${row.planned ? "planned" : state}`}>{row.position}</span>
@@ -199,10 +221,7 @@ function CourseRow({ agent, row, positions, current, expanded, activeId, isNew, 
       <span className="library-step-text">
         <span className="library-step-title">{title}{isNew ? <span className="mentor-library-new">New</span> : null}</span>
         <span className="library-step-meta">
-          {row.planned ? <span className="library-step-planned">planned</span> : <>
-            <Bar read={progress.read} total={progress.total} />
-            <span className="library-count">{progress.read}/{progress.total}</span>
-          </>}
+          {row.planned ? <span className="library-step-planned">planned</span> : <span className="library-count">{progress.read}/{progress.total}</span>}
           {pending.length ? <span className="library-tag" title={`Best after ${pending.map((item) => withoutOrdinal(item.title)).join(", ")}`}>
             After {pending.map((item) => positions.get(item.id) ?? withoutOrdinal(item.title)).join(", ")}
           </span> : null}
@@ -231,14 +250,15 @@ function SingleCourse({ agent, current, activeId, onOpen, badge, isNew }: {
   const progress = course ? courseProgress(course) : { read: current.masteredCount, total: current.itemCount };
   const reading = (course?.data.engine ?? current.engine) === "reading";
   const title = withoutOrdinal(course?.title ?? current.title);
+  const menu = useCourseMenu(agent.id, current.id, title);
   return <div className="library-course" data-library-course={current.id} data-library-new={isNew || undefined}>
-    <div className="library-path-head">
+    <div className="library-head" onContextMenu={menu.openAt}>
       <p className="library-course-title" title={title}>{title}{isNew ? <span className="mentor-library-new">New</span> : null}</p>
-      <div className="library-progress-line">
-        <Bar read={progress.read} total={progress.total} label="Course progress" />
-        {badge?.(current.id)}
-        <span className="library-count" title={`${progress.read} of ${progress.total} ${reading ? "read" : "done"}`}>{progress.read}/{progress.total}</span>
-      </div>
+      <span className="library-head-count" title={`${progress.read} of ${progress.total} ${reading ? "read" : "done"}`}>{progress.read}<small>/{progress.total}</small></span>
+      <button type="button" className="library-head-more" aria-label="Course options" title="Course options" aria-haspopup="menu" onClick={menu.openFrom}>
+        <MoreHorizontal aria-hidden className="size-3.5" />
+      </button>
+      {menu.popover}
     </div>
     {error ? <p role="alert" className="mentor-library-empty">{error}</p> : null}
     {course ? <LibraryOutline course={course} activeId={activeId} onSelect={(itemId) => openLesson(agent.id, onOpen, current.id, course.title, itemId)}

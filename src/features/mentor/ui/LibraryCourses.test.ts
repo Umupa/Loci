@@ -60,7 +60,7 @@ it("shows the path as numbered courses without their own ordinals, and opens the
   await vi.waitFor(() => expect(host.querySelector("[data-library-path]")).not.toBeNull());
   expect(host.querySelector(".library-path-kicker")).toBeNull();
   expect(host.querySelector(".library-path-title")?.textContent).toBe("Sandboxes");
-  expect(host.querySelector(".library-path-head .library-count")?.textContent).toBe("1/4");
+  expect(host.querySelector(".library-head .library-head-count")?.textContent).toBe("1/4");
   expect([...host.querySelectorAll(".library-step-title")].map((title) => title.textContent)).toEqual(["KVM 第一性原理", "NetworkingNew", "Snapshots", "Loose ends"]);
   expect([...host.querySelectorAll(".library-dot")].map((dot) => dot.className.split("--").pop())).toEqual(["learning", "untouched", "planned", "untouched"]);
   // Prerequisites not read yet are one small tag, by number, with their names on hover.
@@ -147,6 +147,6 @@ it("shows a single course as its head and outline, without a list", async () => 
   await vi.waitFor(() => expect(host.querySelector('[data-library-course="kvm"] [data-library-lesson="intro"]')).not.toBeNull());
   expect(host.querySelector("[data-library-step]")).toBeNull();
   expect(host.querySelector(".library-course-title")?.textContent).toBe("kvm");
-  expect(host.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("1");
+  expect(host.querySelector(".library-head-count")?.getAttribute("title")).toBe("1 of 2 read");
   expect([...host.querySelectorAll(".library-ask")].map((ask) => ask.textContent)).toEqual(["Ask Ada for a course"]);
 });

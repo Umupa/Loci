@@ -210,7 +210,8 @@ it("shows the learning path with the chosen course open under it, never locking 
   await vi.waitFor(() => expect(container.querySelector("[data-library-path]")).not.toBeNull());
   const steps = () => [...container.querySelectorAll<HTMLButtonElement>("[data-library-step] > button")];
   expect(container.querySelector(".library-path-title")?.textContent).toBe("Sandboxes");
-  expect(container.querySelector(".library-path-head .library-count")?.textContent).toBe("2/4");
+  expect(container.querySelector(".library-head .library-head-count")?.textContent).toBe("2/4");
+  expect(container.querySelector(".library-bar, [role=\"progressbar\"]")).toBeNull();
   expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2", "2SDS0/2", "3Three waysplannedAfter 2", "Loose1/3"]);
   // The next course on the path not read to the end is the one shown, open under its row.
   expect(steps()[1].getAttribute("aria-current")).toBe("true");

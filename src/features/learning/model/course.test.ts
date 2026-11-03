@@ -199,3 +199,27 @@ describe("stored course contract", () => {
     await expect(loadCourse("sample", "owner")).rejects.toThrow("database unavailable");
   });
 });
+
+describe("starting a course over", () => {
+  it("puts every lesson read or begun back to unread, and leaves the rest alone", async () => {
+    const data = { chapters: [{ title: "A", lessons: [{ id: "one", title: "One", document: "d" }, { id: "two", title: "Two", document: "d" }, { id: "three", title: "Three", document: "d" }] }] };
+    vi.mocked(invoke).mockImplementation(async (command: string) => {
+      if (command === "course_get") return { id: "kvm", agentId: "kern", title: "KVM", engine: "reading", updatedAt: 1, dataJson: JSON.stringify(data) };
+      if (command === "course_progress_get") return [{ itemId: "one", status: "mastered" }, { itemId: "two", status: "learning" }, { itemId: "three", status: "untouched" }];
+      return null;
+    });
+    const { resetCourseProgress } = await import("./course");
+    await resetCourseProgress("kvm", "kern");
+    const sets = vi.mocked(invoke).mock.calls.filter(([command]) => command === "course_progress_set").map(([, args]) => args);
+    expect(sets).toEqual([
+      { courseId: "kvm", agentId: "kern", itemId: "one", status: "untouched" },
+      { courseId: "kvm", agentId: "kern", itemId: "two", status: "untouched" },
+    ]);
+  });
+
+  it("says so when the course is gone", async () => {
+    vi.mocked(invoke).mockResolvedValue(null);
+    const { resetCourseProgress } = await import("./course");
+    await expect(resetCourseProgress("gone", "kern")).rejects.toThrow("no longer there");
+  });
+});

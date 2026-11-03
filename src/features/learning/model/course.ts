@@ -316,6 +316,19 @@ export async function setLessonStatus(courseId: string, agentId: string, itemId:
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<ProgressDetail>(PROGRESS_EVENT, { detail: { courseId, agentId, itemId, status } }));
 }
 
+/**
+ * Starts a course over: every lesson read or begun goes back to unread, and
+ * every view of it is told. Highlights and notes are kept.
+ */
+export async function resetCourseProgress(courseId: string, agentId: string): Promise<void> {
+  const course = await loadCourse(courseId, agentId);
+  if (!course) throw new Error("This course is no longer there.");
+  for (const [itemId, status] of course.progress) {
+    if (status !== "untouched") await setLessonStatus(courseId, agentId, itemId, "untouched");
+  }
+  coursesChanged({ agentId, courseId });
+}
+
 /** One course, or with no id every course the agent owns. */
 export async function deleteCourse(agentId: string, id?: string): Promise<void> {
   await transport.call("course_delete", { agentId, id: id ?? null });
