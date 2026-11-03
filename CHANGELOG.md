@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- **No keychain password at every update.** With remote access set up, each new version asked twice at launch for the login keychain password. This device's key and its group's secret now live in files in Loci's data folder that only you can read; the first launch of this version asks one last time to move them out of the keychain.
+
 ## [0.8.3] - 2026-11-03
 
 ### Fixed
