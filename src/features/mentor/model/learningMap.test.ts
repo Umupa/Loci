@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { area, clip, contours, inset, layoutLearningMap, mapSize, roundedPath, type MapCourse, type Point } from "./learningMap";
+import { area, chordWidth, clip, contours, inset, layoutLearningMap, mapSize, roundedPath, type MapCourse, type Point } from "./learningMap";
 
 const course = (id: string, count: number, read = 0): MapCourse => ({
   id, title: id, lessons: Array.from({ length: count }, (_, i) => ({ id: `${id}-${i}`, title: `${id} ${i}`, status: i < read ? "mastered" : "untouched" })),
@@ -92,8 +92,14 @@ describe("map geometry", () => {
     const rings = contours(square, 6, 14);
     // 100 − 2·6·7 = 16 across is the last ring; the eighth would be 4px, too small to draw.
     expect(rings.length).toBe(7);
-    // By default a few rings, never a fill.
-    expect(contours(square, 6)).toHaveLength(6);
+    // By default the rings run all the way in.
+    expect(contours(square, 6)).toHaveLength(7);
     expect(Math.abs(area(rings[0]))).toBeGreaterThan(Math.abs(area(rings[rings.length - 1])));
+  });
+
+  it("measures how wide a polygon is along a line", () => {
+    expect(chordWidth(square, 50)).toBeCloseTo(100);
+    expect(chordWidth([[0, 0], [100, 0], [0, 100]], 50)).toBeCloseTo(50);
+    expect(chordWidth(square, 200)).toBe(0);
   });
 });

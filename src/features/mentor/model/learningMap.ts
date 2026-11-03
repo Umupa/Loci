@@ -19,8 +19,8 @@ export type MapPlot = { courseId: string; lesson: MapLesson; index: number; shap
 export type MapRegion = { course: MapCourse; shape: Polygon; center: Point; plots: MapPlot[] };
 
 /** Space between courses, and between the lessons of one. */
-const COURSE_GAP = 10;
-const LESSON_GAP = 3;
+const COURSE_GAP = 14;
+const LESSON_GAP = 7;
 const RELAX_ROUNDS = 6;
 
 export function area(polygon: readonly Point[]): number {
@@ -205,8 +205,8 @@ export function mapSize(courses: readonly MapCourse[], width: number, height: nu
   return { width: Math.round(width * scale), height: Math.round(height * scale) };
 }
 
-/** The rings drawn inside a plot being read, like contour lines, from the edge in: a few, not a fill. */
-export function contours(shape: readonly Point[], step = 6, limit = 6): Polygon[] {
+/** The rings drawn inside the plot to go on with, like contour lines, from the edge in to the middle. */
+export function contours(shape: readonly Point[], step = 5.5, limit = 40): Polygon[] {
   const rings: Polygon[] = [];
   for (let k = 1; k <= limit; k++) {
     const ring = inset(shape, k * step);
@@ -214,4 +214,15 @@ export function contours(shape: readonly Point[], step = 6, limit = 6): Polygon[
     rings.push(ring);
   }
   return rings;
+}
+
+/** How wide the polygon is along the horizontal line at `y` (0 when the line misses it). */
+export function chordWidth(polygon: readonly Point[], y: number): number {
+  const xs: number[] = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const [x0, y0] = polygon[i];
+    const [x1, y1] = polygon[(i + 1) % polygon.length];
+    if ((y0 <= y) !== (y1 <= y)) xs.push(x0 + ((y - y0) / (y1 - y0)) * (x1 - x0));
+  }
+  return xs.length >= 2 ? Math.max(...xs) - Math.min(...xs) : 0;
 }

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentLook, type Agent } from "../../agents/model/agent";
 import { COURSES_CHANGED_EVENT, loadCourse, loadCourseSummaries, PROGRESS_EVENT, type CourseChangedDetail, type ProgressDetail } from "../../learning/model/course";
 import { nextLesson, withoutOrdinal } from "../model/libraryCourse";
-import { contours, layoutLearningMap, mapSize, roundedPath, type MapCourse, type MapPlot } from "../model/learningMap";
+import { chordWidth, contours, layoutLearningMap, mapSize, roundedPath, type MapCourse, type MapPlot } from "../model/learningMap";
 import type { MentorPage } from "../model/mentorPage";
 import { useCoursePath } from "./LibraryCourses";
 import "./LearningMap.css";
@@ -75,46 +75,118 @@ function useSize<T extends HTMLElement>() {
   return [ref, size] as const;
 }
 
-/** Roughly how wide a label is at the map's size: CJK and full-width forms take a full em. */
-function labelWidth(text: string): number {
+/** Roughly how wide a label is at `size` px: CJK and full-width forms take a full em. */
+function labelWidth(text: string, size = 13.5): number {
   let width = 0;
-  for (const char of text) width += /[\u2E80-\uFFEF]/u.test(char) ? 13.5 : 7.6;
-  return width;
+  for (const char of text) width += /[\u2E80-\uFFEF]/u.test(char) ? 1 : 0.563;
+  return width * size;
 }
 
-/**
- * A course's name as its region can hold it: the part before a colon (the
- * subject, without its subtitle), cut short with an ellipsis if still too wide.
- */
-export function mapLabel(title: string, room: number): string {
-  const subject = withoutOrdinal(title).split(/[：:]/)[0].trim() || withoutOrdinal(title);
-  if (labelWidth(subject) <= room) return subject;
+/** A title's subject: the part before a colon, without its ordinal. */
+function subject(title: string): string {
+  return withoutOrdinal(title).split(/[：:]/)[0].trim() || withoutOrdinal(title);
+}
+
+/** `text` cut short with an ellipsis to fit `room`. */
+function ellipsize(text: string, room: number, size: number): string {
+  if (labelWidth(text, size) <= room) return text;
   let shown = "";
-  for (const char of subject) {
-    if (labelWidth(`${shown}${char}…`) > room) break;
+  for (const char of text) {
+    if (labelWidth(`${shown}${char}…`, size) > room) break;
     shown += char;
   }
   return shown ? `${shown.trimEnd()}…` : "";
 }
 
+/** A course's name as its region can hold it, on one line. */
+export function mapLabel(title: string, room: number): string {
+  return ellipsize(subject(title), room, 13.5);
+}
+
+/**
+ * Text broken into at most `max` lines of `room` width: CJK breaks between
+ * any two characters, other words stay whole unless one alone is too wide.
+ * The last line ends in an ellipsis when the text runs on.
+ */
+export function wrapLabel(text: string, room: number, max: number, size: number): string[] {
+  const tokens = text.match(/[\u2E80-\uFFEF]|[^\s\u2E80-\uFFEF]+|\s+/gu) ?? [];
+  const lines: string[] = [];
+  let line = "";
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (labelWidth(line + token, size) <= room) { line += token; continue; }
+    if (/^\s+$/.test(token)) { lines.push(line); line = ""; }
+    else if (!line.trim() || labelWidth(token, size) > room) {
+      // A word wider than a line breaks where it must.
+      for (const char of token) {
+        if (labelWidth(line + char, size) > room) { lines.push(line); line = ""; }
+        line += char;
+      }
+    } else { lines.push(line); line = token; }
+    if (lines.length >= max) {
+      const rest = [lines.pop() ?? "", line, ...tokens.slice(i + 1)].join("");
+      return [...lines, ellipsize(rest.trim(), room, size)].filter(Boolean);
+    }
+  }
+  if (line.trim()) lines.push(line);
+  return lines.map((value) => value.trim()).filter(Boolean).slice(0, max);
+}
+
+const LESSON_LINE = 1.3;
+
+type PlotLabel = { course?: string; lines: string[]; size: number; x: number; y: number };
+
+/**
+ * A lesson's name as its plot holds it, broken over a few lines, a size
+ * smaller rather than a word broken in two; the first plot of a course also
+ * carries the course's name above it. Nothing when the plot is too small.
+ */
+function lessonLabel(plot: MapPlot, course?: string): PlotLabel | null {
+  const [x, y] = plot.center;
+  const ys = plot.shape.map((point) => point[1]);
+  const tall = Math.max(...ys) - Math.min(...ys);
+  const text = subject(plot.lesson.title);
+  const longest = Math.max(0, ...(text.match(/[^\s\u2E80-\uFFEF]+/gu) ?? []).map((word) => labelWidth(word, 1)));
+  for (const size of [12.5, 11.5, 10.5]) {
+    const line = size * LESSON_LINE;
+    const max = Math.min(3, Math.floor((tall * 0.62) / line) - (course ? 1 : 0));
+    if (max < 1) return null;
+    const half = ((max + (course ? 1 : 0)) * line) / 2;
+    const room = Math.min(chordWidth(plot.shape, y - half), chordWidth(plot.shape, y), chordWidth(plot.shape, y + half)) * 0.8 - 6;
+    if (room < 36) return null;
+    if (longest * size > room && size > 10.5) continue;
+    const lines = wrapLabel(text, room, max, size);
+    if (!lines.length) return null;
+    const heading = course ? ellipsize(course, room, size) : undefined;
+    return { course: heading || undefined, lines, size, x, y };
+  }
+  return null;
+}
+
 const STATUS_LABEL = { mastered: "Read", learning: "Reading", untouched: "Not read yet" } as const;
 
-function Plot({ plot, next, onOpen }: { plot: MapPlot; next: boolean; onOpen: () => void }) {
+function Plot({ plot, next, course, onOpen }: { plot: MapPlot; next: boolean; course?: string; onOpen: () => void }) {
   const { lesson, shape } = plot;
-  const d = roundedPath(shape, 14);
+  const label = lessonLabel(plot, course);
+  const rows = label ? [...(label.course ? [label.course] : []), ...label.lines] : [];
+  const line = label ? label.size * LESSON_LINE : 0;
   return <g className="learning-map__plot" data-status={lesson.status} data-next={next || undefined} role="button" tabIndex={0}
     aria-label={`${lesson.title}, ${STATUS_LABEL[lesson.status]}`} onClick={onOpen}
     onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(); } }}>
     <title>{`${lesson.title} · ${STATUS_LABEL[lesson.status]}`}</title>
-    <path d={d} className="learning-map__ground" />
-    {lesson.status === "learning" ? contours(shape).map((ring, index) => <path key={index} d={roundedPath(ring, Math.max(4, 12 - index * 2))} className="learning-map__contour" />) : null}
+    <path d={roundedPath(shape, 18)} className="learning-map__ground" />
+    {next ? contours(shape).map((ring, index) => <path key={index} d={roundedPath(ring, Math.max(3, 16 - index * 1.5))} className="learning-map__contour" />) : null}
+    {label ? <text className="learning-map__name" fontSize={label.size} x={label.x} y={label.y - (rows.length * line) / 2 + line * 0.75}>
+      {rows.map((row, index) => <tspan key={index} x={label.x} dy={index ? line : 0}
+        className={label.course && index === 0 ? "learning-map__course" : undefined}>{row}</tspan>)}
+    </text> : null}
   </g>;
 }
 
 /**
  * The reader before anything is open: the mentor's courses as a map. Each
- * lesson is a plot, inked once read, drawn in contour lines while being read,
- * stone until then; a course the path names but nobody wrote yet is only an
+ * lesson is a plot named in place: ink once read, grey while being read,
+ * pale stone until then, and the one to go on with drawn in contour lines; a course the path names but nobody wrote yet is only an
  * outline. A plot opens its lesson.
  */
 export function LearningMap({ agent, onOpen }: { agent: Agent; onOpen: (page: MentorPage) => void }) {
@@ -151,24 +223,19 @@ export function LearningMapView({ courses, next, title, onOpenLesson }: {
     <div ref={frame} className="learning-map__frame">
       {size.width ? <svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} className="learning-map__svg">
         {regions.map((region) => region.course.planned || !region.plots.length
-          ? <path key={region.course.id} d={roundedPath(region.shape, 18)} className="learning-map__planned"
-            role="img" aria-label={`${region.course.title}, not written yet`}><title>{`${region.course.title} · not written yet`}</title></path>
+          ? <g key={region.course.id} role="img" aria-label={`${region.course.title}, not written yet`}>
+            <title>{`${region.course.title} · not written yet`}</title>
+            <path d={roundedPath(region.shape, 18)} className="learning-map__planned" />
+            <text className="learning-map__name" x={region.center[0]} y={region.center[1] + 4}>{mapLabel(region.course.title, (Math.max(...region.shape.map((p) => p[0])) - Math.min(...region.shape.map((p) => p[0]))) * 0.8)}</text>
+          </g>
           : <g key={region.course.id}>{region.plots.map((plot) => <Plot key={plot.lesson.id} plot={plot}
+            course={single || plot.index ? undefined : subject(region.course.title)}
             next={next?.courseId === region.course.id && next.lessonId === plot.lesson.id}
             onOpen={() => onOpenLesson(region.course, plot.lesson.id)} />)}</g>)}
-        {single ? null : regions.map((region) => {
-          const done = region.course.lessons.filter((lesson) => lesson.status === "mastered").length;
-          const xs = region.shape.map((point) => point[0]);
-          const name = mapLabel(region.course.title, (Math.max(...xs) - Math.min(...xs)) * 0.86);
-          return <g key={`label:${region.course.id}`} className="learning-map__label" transform={`translate(${region.center[0].toFixed(1)} ${region.center[1].toFixed(1)})`}>
-            <text y={-3}>{name}</text>
-            {region.course.lessons.length ? <text y={14} className="learning-map__label-count">{done} / {region.course.lessons.length}</text> : null}
-          </g>;
-        })}
       </svg> : null}
     </div>
     <footer className="learning-map__legend" aria-hidden>
-      <span data-status="mastered">Read</span><span data-status="learning">Reading</span><span data-status="untouched">Not yet</span><span data-status="planned">To be written</span>
+      <span data-status="next">Up next</span><span data-status="mastered">Read</span><span data-status="learning">Reading</span><span data-status="untouched">Not yet</span><span data-status="planned">To be written</span>
     </footer>
   </section>;
 }
