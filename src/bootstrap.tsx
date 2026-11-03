@@ -16,6 +16,8 @@ import { setHomeDir } from "./shared/lib/paths";
 import { initializeProviderBinaryPaths } from "./features/providers/model/providerBinaryPaths";
 import { hydrateMentors } from "./features/agents/model/mentorStore";
 import { BootGate } from "./bootSplash";
+import "lxgw-wenkai-screen-webfont/lxgwwenkaiscreen.css";
+import "@fontsource-variable/literata/opsz.css";
 import "./styles/index.css";
 
 performance.mark("loci:bootstrap");

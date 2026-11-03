@@ -26,8 +26,10 @@
 @theme {
   /* Preserve descenders in compact labels, including two 10px lines in a 30px tab. */
   --leading-label: 1.4;
+  /* Dark pages take a fraction of the tint, so warm paper turns to ink
+     rather than brown; a named theme's own colours come through whole. */
   --color-background-base: hsl(
-    var(--theme-hue) var(--theme-saturation) var(--background-lightness)
+    var(--theme-hue) calc(var(--theme-saturation) * var(--background-saturation-scale, 1)) var(--background-lightness)
   );
   /* A named theme gives the text its own hue and saturation; without one the
      text shares the page tint. */
@@ -121,9 +123,10 @@
 }
 
 :root {
-  /* Reader body text: the interface sans unless Settings > Appearance > Fonts
-     asks for a serif. Codes and chrome never use this. */
-  --font-reading: var(--font-sans);
+  /* Reader body text: the bundled book face (Literata, LXGW WenKai for CJK)
+     unless Settings > Appearance > Fonts asks for another. Code and chrome
+     never use this. */
+  --font-reading: "Literata Variable", "LXGW WenKai Screen", var(--font-sans);
   --font-mono-system:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
@@ -159,6 +162,21 @@ html {
   color-scheme: dark;
 }
 
+html:not(.has-theme) {
+  --background-saturation-scale: 0.3;
+  --content-saturation: 6%;
+}
+
+/* Paper and ink: without a named theme, light mode is Loci's icon paper with
+   near-black ink. */
+html.theme-light:not(.has-theme) {
+  --background-saturation-scale: 1;
+  --background-lightness: 92.5%;
+  --content-hue: 210;
+  --content-saturation: 9%;
+  --content-lightness: 13%;
+}
+
 html.theme-light {
   --background-lightness: 97%;
   --content-lightness: 18%;
@@ -185,8 +203,9 @@ html.theme-light {
  */
 .reader-body {
   font-family: var(--font-reading);
-  font-size: 15px;
-  line-height: 26px;
+  font-size: 16px;
+  line-height: 28px;
+  font-optical-sizing: auto;
 }
 
 .reader-body.reader-measure {

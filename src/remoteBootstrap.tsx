@@ -15,6 +15,8 @@ import { setHomeDir } from "./shared/lib/paths";
 import { RemoteSessionClient } from "./app/remote/remoteSessions";
 import { contentChangeEvents } from "./features/agents/model/mentorStore";
 import { setRosterHost } from "./features/agents/model/agent";
+import "lxgw-wenkai-screen-webfont/lxgwwenkaiscreen.css";
+import "@fontsource-variable/literata/opsz.css";
 import "./styles/index.css";
 
 // Boot for a window connected to another device. Nothing of this device's own

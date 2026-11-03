@@ -13,6 +13,7 @@ import { SettingsView } from "./SettingsView";
 import { setLanguagePreference } from "../../../shared/i18n/locale";
 import { SETTINGS_INDEX, SETTINGS_SECTIONS, type SettingsSectionId, } from "../model/settings";
 import { HARNESSES, HARNESS_TITLE, } from "../../sessions/model/session";
+const withHoverText = (root: Element | null | undefined) => root ? `${root.textContent ?? ""} ${[...root.querySelectorAll("[title]")].map((el) => el.getAttribute("title")).join(" ")}` : "";
 vi.mock("@tauri-apps/api/core", () => ({
     invoke: vi.fn(async () => undefined),
     convertFileSrc: (path: string) => path,
@@ -117,14 +118,14 @@ describe("settings pages", () => {
     });
     it("sets the reader body font and stores the choice", async () => {
         await render("appearance");
-        const sans = container.querySelector<HTMLButtonElement>("#reading-font-sans")!;
+        const book = container.querySelector<HTMLButtonElement>("#reading-font-book")!;
         const serif = container.querySelector<HTMLButtonElement>("#reading-font-serif")!;
-        expect(sans.getAttribute("aria-checked")).toBe("true");
+        expect(book.getAttribute("aria-checked")).toBe("true");
         await act(async () => serif.click());
         expect(localStorage.getItem("loci.readingFont")).toBe("serif");
         expect(document.documentElement.style.getPropertyValue("--font-reading")).toContain("Songti SC");
         expect(serif.getAttribute("aria-checked")).toBe("true");
-        await act(async () => sans.click());
+        await act(async () => book.click());
         expect(localStorage.getItem("loci.readingFont")).toBeNull();
         expect(document.documentElement.style.getPropertyValue("--font-reading")).toBe("");
     });
@@ -143,7 +144,7 @@ describe("settings pages", () => {
         await act(async () => (effect as HTMLButtonElement).click());
         expect(localStorage.getItem("loci.newThreadBackgroundEffect")).toBe("dither");
         expect(effect.getAttribute("aria-checked")).toBe("true");
-        expect(container.textContent).toContain("Rebuilds the artwork with a dithered color palette.");
+        expect(withHoverText(container)).toContain("Rebuilds the artwork with a dithered color palette.");
     });
     it("previews and restores Haze with the existing empty-chat visibility", async () => {
         localStorage.setItem("loci.chatBackgroundPath", "/background.png");
@@ -236,16 +237,16 @@ describe("settings pages", () => {
     it("turns command-line access off, rotates its token and installs loci", async () => {
         const { setCliAccess, rotateCliToken, installCli } = await import("../model/cliAccess");
         await render("general");
-        expect(container.textContent).toContain("/data/control/cli-token");
+        expect(withHoverText(container)).toContain("/data/control/cli-token");
         const button = (label: string) => [...container.querySelectorAll("button")].find((entry) => entry.textContent === label)!;
         await act(async () => button("Rotate token").click());
         expect(rotateCliToken).toHaveBeenCalled();
         await act(async () => button("Install").click());
         expect(installCli).toHaveBeenCalled();
-        expect(container.textContent).toContain("runs this build");
+        expect(withHoverText(container)).toContain("runs this build");
         await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Command-line access"]')!.click());
         expect(setCliAccess).toHaveBeenCalledWith(false);
-        expect(container.textContent).toContain("Terminals cannot reach this Loci");
+        expect(withHoverText(container)).toContain("Terminals cannot reach this Loci");
     });
     it("shows path details for every Agent CLI", async () => {
         await render("providers");
@@ -501,7 +502,7 @@ describe("localized Settings copy", () => {
             expect(container.querySelector('[aria-label="代码字体: 系统等宽字体"]')).not.toBeNull();
             expect(container.querySelector('[aria-label="界面字体: 系统默认"]')).not.toBeNull();
             await render("providers");
-            expect(container.textContent).toMatch(/个模型可用/);
+            expect(withHoverText(container)).toMatch(/个模型可用/);
             expect(container.textContent).not.toContain("models available");
         }
         finally {

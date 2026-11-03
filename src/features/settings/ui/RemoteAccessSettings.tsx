@@ -523,7 +523,7 @@ export function RemoteAccessSettings() {
                 {pairing.code}
               </span>
             }
-            description={t("Type this code on the other computer. It expires in {0}.", remaining(pairing.expiresAt, now))}
+            status={t("Type this code on the other computer. It expires in {0}.", remaining(pairing.expiresAt, now))}
           >
             <SecondaryButton onClick={() => void cancelPairing()}>{t("Cancel")}</SecondaryButton>
           </Row>
@@ -621,7 +621,7 @@ export function RemoteAccessSettings() {
                   ) : null}
                 </span>
               }
-              description={`${device.platform} · ${lastActive(device.lastSeen)}`}
+              status={`${device.platform} · ${lastActive(device.lastSeen)}`}
             >
               {device.connectable ? (
                 <SecondaryButton
@@ -824,10 +824,7 @@ function Group({
     <section id={id ? `setting-${id}` : undefined} data-setting-id={id} className="pt-8 first:pt-0">
       <div className="flex items-end gap-4 pb-2.5">
         <div className="min-w-0 flex-1">
-          <h2 className="text-[13px] font-semibold text-content">{title}</h2>
-          {description ? (
-            <p className="mt-1 text-[12px] leading-relaxed text-content/45">{description}</p>
-          ) : null}
+          <h2 title={description} className="text-[13px] font-semibold text-content">{title}</h2>
         </div>
         {action ? <div className="shrink-0 pb-0.5">{action}</div> : null}
       </div>
@@ -838,23 +835,24 @@ function Group({
   );
 }
 
+/** A setting: its name (what it does is the hover text) and its control; `status` is what must show now. */
 function Row({
   label,
   description,
+  status,
   children,
 }: {
   label: ReactNode;
   description?: string;
+  status?: ReactNode;
   children?: ReactNode;
 }) {
   useLocale();
   return (
-    <div className="settings-row flex items-start gap-6 border-b border-content/5 px-4 py-3.5 last:border-b-0">
-      <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-medium text-content">{label}</div>
-        {description ? (
-          <p className="mt-1 text-[12px] leading-relaxed text-content/45">{description}</p>
-        ) : null}
+    <div className="settings-row flex min-h-12 items-center gap-6 border-b border-content/5 px-4 py-2.5 last:border-b-0">
+      <div className="min-w-0 flex-1" title={description}>
+        <div className="text-[13px] text-content">{label}</div>
+        {status ? <p role="status" className="mt-0.5 text-[12px] leading-relaxed text-content/50">{status}</p> : null}
       </div>
       <div className="settings-row-control flex min-w-0 max-w-[60%] shrink-0 flex-wrap items-center justify-end gap-2">
         {children}
@@ -875,10 +873,7 @@ function BlockRow({
   useLocale();
   return (
     <div className="border-b border-content/5 px-4 py-3.5 last:border-b-0">
-      <div className="text-[13px] font-medium text-content">{label}</div>
-      {description ? (
-        <p className="mt-1 text-[12px] leading-relaxed text-content/45">{description}</p>
-      ) : null}
+      <div title={description} className="text-[13px] text-content">{label}</div>
       <div className="mt-3">{children}</div>
     </div>
   );

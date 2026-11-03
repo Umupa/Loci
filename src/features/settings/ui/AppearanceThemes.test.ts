@@ -7,6 +7,7 @@ import { SettingsView } from "./SettingsView";
 import { applyFonts } from "../model/fonts";
 import { findTheme, THEMES } from "../model/themes";
 import { initAppearance } from "../model/appearance";
+const withHoverText = (root: Element | null | undefined) => root ? `${root.textContent ?? ""} ${[...root.querySelectorAll("[title]")].map((el) => el.getAttribute("title")).join(" ")}` : "";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async () => undefined),
@@ -135,7 +136,7 @@ describe("the color theme gallery", () => {
     expect(html().dataset.theme).toBe("tokyo-night");
     expect(radio("Color theme", "Tokyo Night")!.getAttribute("aria-checked")).toBe("true");
     expect(radio("Color theme", "Default")!.getAttribute("aria-checked")).toBe("false");
-    expect(container.textContent).toContain("Tokyo Night sets the colors");
+    expect(withHoverText(container)).toContain("Tokyo Night sets the colors");
   });
 
   it("hands the mode, the tint and the accent default over to the theme", async () => {

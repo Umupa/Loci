@@ -100,8 +100,36 @@ function withWallpapers(source: ThemeSource): ThemeDefinition {
   };
 }
 
+/**
+ * Loci's own looks, from its icon: paper and ink. Headings and links are the
+ * ink itself (the palette's magenta and blue), so the only colour on the page
+ * is the open mentor's accent; code keeps quiet, earthy hues.
+ */
+const LOCI_THEME_SOURCES: readonly ThemeSource[] = [
+  {
+    id: "loci-paper", name: "Loci Paper", mode: "light", wallpapers: [],
+    palette: {
+      background: "#f2efe6", foreground: "#1e2124", accent: "#1e2124", selection: "#e2ddcf", muted: "#a9a496",
+      dark_background: "#eae6da", darker_background: "#e1dcce", lighter_background: "#f7f5ef",
+      dark_foreground: "#85837c", light_foreground: "#4a4c4e", bright_foreground: "#1e2124",
+      red: "#a13d2d", orange: "#a35f22", yellow: "#86691c", green: "#4d6b36", cyan: "#356b69", blue: "#1e2124", magenta: "#1e2124", brown: "#6e4b2a",
+      bright_red: "#a13d2d", bright_yellow: "#86691c", bright_green: "#4d6b36", bright_cyan: "#356b69", bright_blue: "#3b5a7a", bright_magenta: "#7a4a68",
+    },
+  },
+  {
+    id: "loci-ink", name: "Loci Ink", mode: "dark", wallpapers: [],
+    palette: {
+      background: "#1a1b1c", foreground: "#e8e4d9", accent: "#e8e4d9", selection: "#34352f", muted: "#5f5e58",
+      dark_background: "#151617", darker_background: "#111212", lighter_background: "#222324",
+      dark_foreground: "#8c8a82", light_foreground: "#c9c5ba", bright_foreground: "#f2efe6",
+      red: "#d98a7c", orange: "#d9a46c", yellow: "#cdb874", green: "#a3bc8a", cyan: "#8cbdb8", blue: "#e8e4d9", magenta: "#e8e4d9", brown: "#b08f6e",
+      bright_red: "#d98a7c", bright_yellow: "#cdb874", bright_green: "#a3bc8a", bright_cyan: "#8cbdb8", bright_blue: "#9db4cf", bright_magenta: "#cfa3c0",
+    },
+  },
+];
+
 export const THEMES: readonly ThemeDefinition[] =
-  OMARCHY_THEME_SOURCES.map(withWallpapers);
+  [...LOCI_THEME_SOURCES, ...OMARCHY_THEME_SOURCES].map(withWallpapers);
 
 export function findTheme(id: unknown): ThemeDefinition | null {
   return typeof id === "string"

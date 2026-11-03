@@ -16,6 +16,7 @@ import { LOCAL_MODEL_SOURCE, ModelSourceContext, type ModelSource } from "../../
 import { setLanguagePreference } from "../../../shared/i18n/locale";
 import { SETTINGS_INDEX, SETTINGS_SECTIONS, type SettingsSectionId, } from "../model/settings";
 import { HARNESSES, HARNESS_TITLE, } from "../../sessions/model/session";
+const withHoverText = (root: Element | null | undefined) => root ? `${root.textContent ?? ""} ${[...root.querySelectorAll("[title]")].map((el) => el.getAttribute("title")).join(" ")}` : "";
 vi.mock("@tauri-apps/api/core", () => ({
     invoke: vi.fn(async () => undefined),
     convertFileSrc: (path: string) => path,
@@ -118,8 +119,8 @@ const disabledFieldsets = () => [...container.querySelectorAll("fieldset")].filt
 describe("settings in a window connected to another device", () => {
     it("says which settings are the host's, and leaves resetting the workspace to the host", async () => {
         await render("general");
-        expect(container.querySelector('[data-setting-id="learning-language"]')?.textContent).toContain("Applies to Mac mini.");
-        expect(container.querySelector('[data-setting-id="command-line"]')?.textContent).toContain("Runs on Mac mini.");
+        expect(withHoverText(container.querySelector('[data-setting-id="learning-language"]'))).toContain("Applies to Mac mini.");
+        expect(withHoverText(container.querySelector('[data-setting-id="command-line"]'))).toContain("Runs on Mac mini.");
         expect(container.querySelector('[data-setting-id="sounds"]')?.textContent).not.toContain("Mac mini");
         expect(container.querySelector("[data-reset-unavailable]")?.textContent).toContain("only be done on Mac mini itself");
         expect([...container.querySelectorAll("button")].some((button) => /reset workspace/i.test(button.textContent ?? ""))).toBe(false);

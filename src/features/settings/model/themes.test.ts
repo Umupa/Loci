@@ -34,15 +34,17 @@ const PUBLIC = join(process.cwd(), "public");
 
 describe("the Omarchy catalog", () => {
   it("has the themes of the quattro branch", () => {
-    expect(THEMES.length).toBe(22);
+    expect(THEMES.length).toBe(24);
     expect(themesWithMode("light").map((theme) => theme.id)).toEqual([
+      "loci-paper",
       "catppuccin-latte",
       "flexoki-light",
       "lupine",
       "rose-pine",
       "white",
     ]);
-    expect(themesWithMode("dark")).toHaveLength(17);
+    expect(themesWithMode("dark")).toHaveLength(18);
+    expect(themesWithMode("dark")[0]?.id).toBe("loci-ink");
   });
 
   it("gives every theme a full, valid palette", () => {
@@ -78,7 +80,8 @@ describe("the Omarchy catalog", () => {
   it("ships every wallpaper it lists, and nothing else", () => {
     const listed = new Set<string>();
     const originals = new Set<string>();
-    for (const theme of THEMES) {
+    // Loci's own paper and ink have none: the page is the paper.
+    for (const theme of THEMES.filter((item) => !item.id.startsWith("loci-"))) {
       expect(theme.wallpapers.length, theme.id).toBeGreaterThan(0);
       const ids = theme.wallpapers.map((wallpaper) => wallpaper.id);
       expect(new Set(ids).size, theme.id).toBe(ids.length);

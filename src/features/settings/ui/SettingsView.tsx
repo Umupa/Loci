@@ -329,7 +329,7 @@ function CommandLineGroup() {
           : t("Off. Terminals cannot reach this Loci; agents in Loci keep their own access.")}>
         <Toggle label={t("Command-line access")} on={access.enabled} disabled={busy} onChange={(on) => run(() => setCliAccess(on))}/>
       </Row>
-      {access.enabled ? (<Row id="token" label={t("Token")} description={note ?? t("A new token stops the old one at once, for anything that copied it.")}>
+      {access.enabled ? (<Row id="token" label={t("Token")} description={t("A new token stops the old one at once, for anything that copied it.")} status={note}>
           <button type="button" className={button} disabled={busy} onClick={() => run(rotateCliToken, t("A new token is in place."))}>{t("Rotate token")}</button>
         </Row>) : null}
       <Row label={t("loci command")} description={access.installPath
@@ -668,7 +668,7 @@ function AppearancePage({ appearance }: {
         <BlockRow id="color-theme" label={t("Color theme")} description={t("Palettes and wallpapers from Omarchy's themes. Default keeps Loci's own colors, which the controls below adjust.")}>
           <ThemeGallery activeId={appearance.themeId} onSelect={appearance.onTheme}/>
         </BlockRow>
-        <Row id="theme" label={t("Mode")} description={theme ? t("Set by the {0} theme.", theme.name) : t("System follows the OS appearance.")}>
+        <Row id="theme" label={t("Mode")} description={theme ? undefined : t("System follows the OS appearance.")} status={theme ? t("Set by the {0} theme.", theme.name) : undefined}>
           <Segmented label={t("Mode")} value={theme ? theme.mode : appearance.themePreference} disabled={theme != null} options={[
             { value: "system", label: t("System") },
             { value: "dark", label: t("Dark") },
@@ -708,7 +708,7 @@ function AppearancePage({ appearance }: {
         </Row>
         <Row id="reading-font" label={t("Reading font")} description={t("The body text of lessons, sources and notes. Code and the interface stay as they are.")}>
           <Segmented label={t("Reading font")} value={appearance.readingFont} optionIdPrefix="reading-font"
-            options={[{ value: "sans", label: t("Sans") }, { value: "serif", label: t("Serif") }]} onChange={appearance.onReadingFont}/>
+            options={[{ value: "book", label: t("Book") }, { value: "sans", label: t("Sans") }, { value: "serif", label: t("Serif") }]} onChange={appearance.onReadingFont}/>
         </Row>
       </Group>
 
@@ -1281,7 +1281,7 @@ function ProviderRow({ harness, selectedModel, isDefault, inPicker, onDefault, o
             ? (models.length === 1
                 ? t("{0} model available.", models.length)
                 : t("{0} models available.", models.length))
-            : harnessUnavailableHint(harness)}>
+            : undefined} status={available ? undefined : harnessUnavailableHint(harness)}>
       {current ? (<Select label={t("{0} model", HARNESS_TITLE[harness])} value={current.id} onChange={(next) => onModelChange(harness, next)} options={models.map((item) => ({
                 value: item.id,
                 label: item.name,
@@ -1305,12 +1305,9 @@ function PageHeader({ title, description, note = null, }: {
 }) {
   useLocale();
     return (<header className="pb-4">
-      <h1 className="text-[20px] font-semibold leading-tight text-content">
+      <h1 title={description || undefined} className="text-[20px] font-semibold leading-tight text-content">
         {title}
       </h1>
-      {description ? (<p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-content/45">
-          {description}
-        </p>) : null}
       {note ? (<p data-host-note className="mt-2 max-w-xl text-[12px] font-medium text-content/60">{note}</p>) : null}
     </header>);
 }
@@ -1379,7 +1376,7 @@ function AgentRow({ agent, onOpenSettings }: {
     return (<Row label={<span className="flex min-w-0 items-center gap-2">
           <AgentAvatar name={look.avatar} color={look.color} className="size-4 shrink-0"/>
           <span className="truncate">{look.name}</span>
-        </span>} description={error ?? (look.workdir ? prettyCwd(look.workdir) : look.role)}>
+        </span>} description={look.workdir ? prettyCwd(look.workdir) : look.role} status={error}>
       {onOpenSettings ? (<SecondaryButton onClick={() => onOpenSettings(agent.id)} aria-label={t("Open {0} settings", look.name)}>{t("Settings")}</SecondaryButton>) : null}
       <SecondaryButton onClick={() => void reset()}>{t("Reset")}</SecondaryButton>
     </Row>);
@@ -1398,10 +1395,7 @@ function Group({ id, title, description, action, children, }: {
     return (<section id={id ? settingDomId(id) : undefined} data-setting-id={id} className="pt-8 first:pt-0">
       <div className="flex items-end gap-4 pb-2.5">
         <div className="min-w-0 flex-1">
-          <h2 className="text-[13px] font-semibold text-content">{title}</h2>
-          {description ? (<p className="mt-1 text-[12px] leading-relaxed text-content/45">
-              {description}
-            </p>) : null}
+          <h2 title={description} className="text-[13px] font-semibold text-content">{title}</h2>
         </div>
         {action ? <div className="shrink-0 pb-0.5">{action}</div> : null}
       </div>
@@ -1410,21 +1404,26 @@ function Group({ id, title, description, action, children, }: {
       </div>
     </section>);
 }
-function Row({ id, label, description, children, }: {
+/**
+ * A setting: its name and its control. What it does is the name's hover text;
+ * only a state the person must see now (an error, a result) shows as `status`.
+ */
+function Row({ id, label, description, status, children, }: {
     /** Matches a `SETTINGS_INDEX` id so search can scroll here. */
     id?: string;
     label: ReactNode;
     description?: string;
+    status?: ReactNode;
     children?: ReactNode;
 }) {
   useLocale();
     const revealed = useContext(RevealedSetting);
     const flash = id != null && revealed === id;
-    return (<div id={id ? settingDomId(id) : undefined} data-setting-id={id} className={`settings-row flex items-start gap-6 border-b border-content/5 px-4 py-3.5 transition-colors last:border-b-0 ${flash ? "bg-accent/10" : ""}`}>
-      <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-medium text-content">{label}</div>
-        {description ? (<p className="mt-1 text-[12px] leading-relaxed text-content/45">
-            {description}
+    return (<div id={id ? settingDomId(id) : undefined} data-setting-id={id} className={`settings-row flex min-h-12 items-center gap-6 border-b border-content/5 px-4 py-2.5 transition-colors last:border-b-0 ${flash ? "bg-accent/10" : ""}`}>
+      <div className="min-w-0 flex-1" title={description}>
+        <div className="text-[13px] text-content">{label}</div>
+        {status ? (<p role="status" className="mt-0.5 text-[12px] leading-relaxed text-content/50">
+            {status}
           </p>) : null}
       </div>
       <div className="settings-row-control flex min-w-0 max-w-[60%] shrink-0 flex-wrap items-center justify-end gap-2">
@@ -1443,10 +1442,7 @@ function BlockRow({ id, label, description, children, }: {
     const revealed = useContext(RevealedSetting);
     const flash = id != null && revealed === id;
     return (<div id={id ? settingDomId(id) : undefined} data-setting-id={id} className={`border-b border-content/5 px-4 py-3.5 transition-colors last:border-b-0 ${flash ? "bg-accent/10" : ""}`}>
-      <div className="text-[13px] font-medium text-content">{label}</div>
-      {description ? (<p className="mt-1 text-[12px] leading-relaxed text-content/45">
-          {description}
-        </p>) : null}
+      <div title={description} className="text-[13px] text-content">{label}</div>
       <div className="mt-3">{children}</div>
     </div>);
 }

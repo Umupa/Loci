@@ -3,6 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { RemoteAccessSettings } from "./RemoteAccessSettings";
+const withHoverText = (root: Element | null | undefined) => root ? `${root.textContent ?? ""} ${[...root.querySelectorAll("[title]")].map((el) => el.getAttribute("title")).join(" ")}` : "";
 
 const invoke = vi.fn();
 const ask = vi.fn(async () => true);
@@ -315,7 +316,7 @@ it("turns remote access on and off through remote_settings_set", async () => {
   await act(async () => toggle().click());
   expect(invoke).toHaveBeenCalledWith("remote_settings_set", { settings: { enabled: true } });
   expect(toggle().getAttribute("aria-checked")).toBe("true");
-  expect(text()).toContain("stays awake while it is plugged in");
+  expect(withHoverText(container)).toContain("stays awake while it is plugged in");
 });
 
 it("follows remote-status-changed from another window", async () => {
@@ -420,8 +421,8 @@ it("hides both keys until they are shown", async () => {
   expect(registry.type).toBe("password");
   expect(registration.value).toBe("relay-secret");
   expect(registry.value).toBe("registry-secret");
-  expect(text()).toContain("Only needed when the relay is set up with RELAY_REGISTRATION_KEY.");
-  expect(text()).toContain("Only needed when the registry is set up with REGISTRY_KEY.");
+  expect(withHoverText(container)).toContain("Only needed when the relay is set up with RELAY_REGISTRATION_KEY.");
+  expect(withHoverText(container)).toContain("Only needed when the registry is set up with REGISTRY_KEY.");
 
   await act(async () => buttonByLabel("Show relay registration key").click());
   expect(registration.type).toBe("text");
@@ -484,7 +485,7 @@ it("creates a device group and shows its key masked", async () => {
   await act(async () => button("Create device group").click());
   expect(invoke).toHaveBeenCalledWith("remote_group_create");
   expect(invoke.mock.calls.some(([command]) => command === "remote_group_create")).toBe(true);
-  expect(text()).toContain("Anyone with this key can join the group and control this computer.");
+  expect(withHoverText(container)).toContain("Anyone with this key can join the group and control this computer.");
   expect(text()).not.toContain(INVITE);
   expect(button("Show")).not.toBeNull();
 });

@@ -183,9 +183,9 @@ describe("applyFonts", () => {
     expect(root().classList.contains("has-ui-font")).toBe(false);
   });
 
-  it("uses the interface sans for reader body text by default", () => {
-    expect(READING_FONT_DEFAULT).toBe("sans");
-    expect(loadReadingFont()).toBe("sans");
+  it("uses the bundled book face for reader body text by default", () => {
+    expect(READING_FONT_DEFAULT).toBe("book");
+    expect(loadReadingFont()).toBe("book");
     applyFonts();
     expect(prop("--font-reading")).toBe("");
   });
@@ -199,6 +199,10 @@ describe("applyFonts", () => {
     expect(READING_FONT_SERIF).toContain("Noto Serif CJK SC");
 
     saveReadingFont("sans");
+    applyFonts();
+    expect(prop("--font-reading")).toBe("var(--font-sans)");
+
+    saveReadingFont("book");
     applyFonts();
     expect(prop("--font-reading")).toBe("");
   });

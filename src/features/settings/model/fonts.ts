@@ -2,13 +2,15 @@ const CODE_FONT_KEY = "loci.codeFont";
 const UI_FONT_KEY = "loci.uiFont";
 const READING_FONT_KEY = "loci.readingFont";
 
-/** The face for reader body text: the interface sans, or a book serif. */
-export type ReadingFont = "sans" | "serif";
-export const READING_FONT_DEFAULT: ReadingFont = "sans";
 /**
- * Reader body only, and only when asked for. Every family is a system face, so
- * the choice works offline; the Chinese serifs keep CJK text in the same voice.
+ * The face for reader body text: the bundled book face (Literata with LXGW
+ * WenKai for Chinese), the interface sans, or the system's book serif.
  */
+export type ReadingFont = "book" | "sans" | "serif";
+export const READING_FONT_DEFAULT: ReadingFont = "book";
+/** Bundled with the app (bootstrap imports them), so it works offline. */
+export const READING_FONT_BOOK = '"Literata Variable", "LXGW WenKai Screen", var(--font-sans)';
+/** System faces only; the Chinese serifs keep CJK text in the same voice. */
 export const READING_FONT_SERIF =
   '"New York", "Iowan Old Style", Georgia, "Songti SC", "Noto Serif CJK SC", serif';
 
@@ -114,11 +116,12 @@ export function saveUiFont(value: string | null) {
 }
 
 export function loadReadingFont(): ReadingFont {
-  return readString(READING_FONT_KEY) === "serif" ? "serif" : READING_FONT_DEFAULT;
+  const stored = readString(READING_FONT_KEY);
+  return stored === "serif" || stored === "sans" ? stored : READING_FONT_DEFAULT;
 }
 
 export function saveReadingFont(value: ReadingFont) {
-  writeString(READING_FONT_KEY, value === "serif" ? "serif" : null);
+  writeString(READING_FONT_KEY, value === READING_FONT_DEFAULT ? null : value);
 }
 
 export function subscribeFonts(onChange: () => void) {
@@ -180,11 +183,9 @@ export function applyFonts() {
   }
   // "Same as code font" with no code font set keeps the system interface font.
   root.classList.toggle("has-ui-font", sans != null);
-  if (loadReadingFont() === "serif") {
-    root.style.setProperty("--font-reading", READING_FONT_SERIF);
-  } else {
-    root.style.removeProperty("--font-reading");
-  }
+  const reading = loadReadingFont();
+  if (reading === READING_FONT_DEFAULT) root.style.removeProperty("--font-reading");
+  else root.style.setProperty("--font-reading", reading === "serif" ? READING_FONT_SERIF : "var(--font-sans)");
 }
 
 // Narrow and wide letters: they only measure the same in a monospace font.
