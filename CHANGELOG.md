@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-03
+
 ### Changed
 
 - **Translation is one icon in the reader's header.** The bar over a foreign source is gone. The translate icon by the lesson's actions is pale while nothing is translated, has a dot while some is still to do, and is ink once there is a translation; its menu reads in your language, the original or both, and asks your mentor for the rest. ⌥T flips between the translation and the original.
@@ -284,7 +286,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/Umupa/Loci/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Umupa/Loci/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/Umupa/Loci/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/Umupa/Loci/compare/v0.6.1...v0.7.0
