@@ -190,7 +190,7 @@ describe("settings pages", () => {
         expect(ids).toEqual([...new Set(ids)]);
     });
     it("starts new mentors with Full access and remembers another default", async () => {
-        await render("agents");
+        await render("providers");
         const row = container.querySelector('[data-setting-id="agent-access"]')!;
         const trigger = row.querySelector<HTMLButtonElement>("[data-access-picker-trigger]")!;
         expect(trigger.getAttribute("aria-label")).toBe("Full access");
@@ -205,10 +205,6 @@ describe("settings pages", () => {
         for (const label of ["Projects", "Tab animations", "Tab limit", "Notes", "Working agents"]) {
             expect(container.querySelector(`[role="switch"][aria-label="${label}"]`)).toBeNull();
         }
-        await act(async () => root.unmount());
-        root = createRoot(container);
-        await render("agents");
-        expect(container.querySelector('[role="switch"][aria-label="Show agents"]')).toBeNull();
         await act(async () => root.unmount());
         root = createRoot(container);
         await render("appearance");
@@ -510,20 +506,7 @@ describe("localized Settings copy", () => {
         }
     });
 });
-describe("mentor rows and global providers", () => {
-    it("opens a mentor's own settings from its row", async () => {
-        localStorage.setItem("loci:agent-roster", JSON.stringify([
-            { id: "ada", name: "Ada", avatar: "ember", color: "#fff", projects: [] },
-        ]));
-        const onOpenMentorSettings = vi.fn();
-        await render("agents", { onOpenMentorSettings });
-        // The page points at the settings that exist and stops promising habits.
-        expect(container.textContent).not.toContain("habits");
-        const open = container.querySelector<HTMLButtonElement>('[aria-label="Open Ada settings"]')!;
-        expect(open).not.toBeNull();
-        await act(async () => open.click());
-        expect(onOpenMentorSettings).toHaveBeenCalledWith("ada");
-    });
+describe("global providers", () => {
     it("offers global provider defaults with no project scope", async () => {
         await render("providers");
         expect(container.querySelector('[aria-label^="Provider defaults scope"]')).toBeNull();

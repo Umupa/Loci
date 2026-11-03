@@ -667,8 +667,7 @@ function Workspace(boot: BootWorkspace) {
             onPickFolders={() => pickFolders("Choose folders")}
             onReset={() => void agents.reset(settingsAgent.id)} onDelete={() => void agents.remove(settingsAgent.id)} /> : null}
           {surface === "settings" && !settingsAgent ? <SettingsView section={settingsSection} anchor={settingsAnchor}
-            cwd="~" besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection}
-            onOpenMentorSettings={openMentorSettings} /> : null}
+            cwd="~" besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection} /> : null}
         </div>
       </div>
       <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, shownIds)} onFocusSession={(id) => void showSession(id).catch(reportError)} onApproval={submission.approve} />

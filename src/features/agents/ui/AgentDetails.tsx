@@ -14,6 +14,7 @@ import { defaultAgentName } from "../model/agentAvatars";
 import {
   AgentFileConflict,
   editAgentFile,
+  resetAgentDefaults,
   loadAgentFiles,
   memoryForContext,
   memoryWithinBudget,
@@ -155,6 +156,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         <h4 className="agent-setting-group-title">Conversation</h4>
         <div className="agent-setting-group">
           <SettingRow label="Reset conversation" description="Clear messages. Soul, memory and habits stay."><button type="button" onClick={onReset} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-danger hover:bg-danger/8">Reset</button></SettingRow>
+          <ResetDefaultsRow agent={agent} />
           <SettingRow label="Delete mentor" description="Move its folder to the Trash and delete its conversation, highlights and progress. Folders you gave it stay."><button type="button" onClick={onDelete} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-danger hover:bg-danger/8">Delete</button></SettingRow>
         </div>
         {error ? <p role="alert" className="mt-3 text-xs text-danger">{error}</p> : null}
@@ -222,6 +224,20 @@ function FolderRow({ agent, folder }: { agent: Agent; folder: string }) {
       <button type="button" onClick={() => void revealPath(folder)} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Reveal</button>
       <button type="button" onClick={exportZip} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Export…</button>
     </div>
+  </SettingRow>;
+}
+
+/** Its soul back to the default and its name to its face's; conversation, files and memory stay. */
+function ResetDefaultsRow({ agent }: { agent: Agent }) {
+  const [error, setError] = useState<string>();
+  const reset = async () => {
+    const look = agentLook(agent);
+    if (!await ask(`Its soul goes back to the default and its name to ${defaultAgentName(look.avatar)}. Changes to its soul can't be recovered. Its conversation, files and memory are kept.`,
+      { title: `Reset ${look.name} to its defaults?`, kind: "warning", okLabel: "Reset", cancelLabel: "Cancel" })) return;
+    await resetAgentDefaults(agent.id).then(() => setError(undefined), (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
+  };
+  return <SettingRow label="Reset soul and name" description="Its soul and name go back to the defaults. Conversation, files and memory stay." status={error}>
+    <button type="button" onClick={() => void reset()} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-danger hover:bg-danger/8">Reset</button>
   </SettingRow>;
 }
 

@@ -141,7 +141,7 @@ describe("settings in a window connected to another device", () => {
     });
 
     it("marks the host's sections, and the remote-access section as this device's own", async () => {
-        for (const [section, note] of [["providers", "Applies to Mac mini."], ["mcp", "Runs on Mac mini."], ["agents", "Applies to Mac mini."]] as const) {
+        for (const [section, note] of [["providers", "Applies to Mac mini."], ["mcp", "Runs on Mac mini."]] as const) {
             await render(section);
             expect(container.querySelector("[data-host-note]")?.textContent).toBe(note);
         }

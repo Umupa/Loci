@@ -5,7 +5,6 @@ import { LEARNING_LANGUAGES, useLearningLanguage, type LearningLanguage } from "
 import { t, useLocale, getLocale, useLanguagePreference, setLanguagePreference, type LanguagePreference } from "../../../shared/i18n/locale";
 import { transport } from "../../../platform/transport";
 import { getName, getVersion } from "../../../platform/native";
-import { ask } from "../../../platform/dialog";
 import { checkForUpdate, openUpdatePrompt, updatesEnabled, usePendingUpdate } from "../../updates/model/updates";
 import { shortcutPreview, shortcutFromKeyEvent } from "../../../shared/lib/shortcuts";
 import { Check, ChevronDown, ExternalLink, FolderOpen, ImagePlus, Loader, Pencil, RefreshCw, RotateCcw, Search, X } from "../../../shared/ui/icons";
@@ -15,11 +14,7 @@ import { AccessPicker } from "../../sessions/ui/AccessPicker";
 import { ColorPickerPopover, ColorSwatchRow } from "../../../shared/ui/ColorPickerPopover";
 import { Popover } from "../../../shared/ui/Popover";
 import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
-import { agentLook, agentsSnapshot, listAgents, subscribeAgents, type Agent } from "../../agents/model/agent";
 import { loadNewAgentAccess, NEW_AGENT_ACCESS, saveNewAgentAccess, subscribeNewAgentAccess } from "../../agents/model/agentAccess";
-import { defaultAgentName } from "../../agents/model/agentAvatars";
-import { resetAgentDefaults } from "../../agents/model/agentFiles";
-import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { GradientBlurBackground } from "./GradientBlurBackground";
 import { McpSettings } from "./McpSettings";
 import { RemoteAccessSettings } from "./RemoteAccessSettings";
@@ -40,7 +35,6 @@ import { getHarnessAvailabilitySnapshot, harnessUnavailableHint, isHarnessAvaila
 import type { HarnessBinaryInspection } from "../../../integrations/harness/core/child";
 import { loadProviderBinaryPath, providerBinaryPathChangePending, saveProviderBinaryPath, type ConfigurableBinaryProvider } from "../../providers/model/providerBinaryPaths";
 import { defaultModelId, getModelSnapshot, hasLiveCatalog, loadDefaultModels, loadHiddenPickerProviders, loadLastModelChoice, modelsFor, resolveModel, saveDefaultModel, saveLastModelChoice, savePickerProviderVisible, subscribeModels } from "../../sessions/model/models";
-import { prettyCwd } from "../../../shared/lib/paths";
 import { revealPath } from "../../../platform/tauri/fs";
 import { IS_LINUX, IS_MAC, IS_WIN } from "../../../platform/tauri/platform";
 import { HARNESSES, HARNESS_TITLE, type HarnessId } from "../../sessions/model/session";
@@ -68,13 +62,11 @@ type Props = {
     onClose: () => void;
     /** Lets search jump to a setting that lives on another page. */
     onSelectSection?: (section: SettingsSectionId) => void;
-    /** Opens a mentor's own settings, which is where its model, folders, soul and memory live. */
-    onOpenMentorSettings?: (agentId: string) => void;
 };
 export function SettingsView(props: Props) {
     return <SettingsLanguage><SettingsViewContent {...props}/></SettingsLanguage>;
 }
-function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, onClose, onSelectSection, onOpenMentorSettings, }: Props) {
+function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, onClose, onSelectSection, }: Props) {
   useLocale();
     const lockOverscroll = useLockOverscroll<HTMLDivElement>();
     const [revealed, setRevealed] = useState<string | null>(anchor);
@@ -147,7 +139,6 @@ function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, 
 
               {section === "appearance" ? (<AppearancePage appearance={appearance}/>) : null}
               {section === "remote" ? <RemoteAccessSettings /> : null}
-              {section === "agents" ? <HostOnly><AgentsPage onOpenMentorSettings={onOpenMentorSettings}/></HostOnly> : null}
               {section === "chat" ? <ChatPage /> : null}
               {section === "keybindings" ? <KeybindingsPage /> : null}
               {section === "mcp" ? (<HostOnly><McpSettings cwd={cwd}/></HostOnly>) : null}
@@ -1205,6 +1196,7 @@ function ProvidersPage() {
     const [hiddenGlobally, setHiddenGlobally] = useState(loadHiddenPickerProviders);
     // Which CLIs are installed, on this device or the host a window is connected to.
     const modelSource = useModelSource();
+    const newAccess = useSyncExternalStore(subscribeNewAgentAccess, loadNewAgentAccess, () => NEW_AGENT_ACCESS);
     useEffect(() => {
         modelSource.refresh([]);
     }, [modelSource]);
@@ -1232,6 +1224,11 @@ function ProvidersPage() {
             : [...new Set([...prev, harness])]);
     };
     return (<>
+      <Group id="agent-access" title={t("New mentors")}>
+        <Row label={t("Default permissions for new mentors")} description={t("What a new mentor may do without asking.")}>
+          <AccessPicker value={newAccess} onChange={saveNewAgentAccess}/>
+        </Row>
+      </Group>
       <Group id="agent-clis" title={t("Agent CLIs")} description={t("A provider is listed as installed once its CLI is found on your PATH. Uninstalled CLIs stay listed but are left out of the model picker, as are installed ones with Show in picker off. The model beside a provider is what its new conversations start with; Use by default picks the provider itself. CLI paths are global for Loci.")}>
         {HARNESSES.map((harness) => {
             const inPicker = !hiddenGlobally.includes(harness);
@@ -1317,7 +1314,7 @@ function PageHeader({ title, description, note = null, }: {
  */
 type HostKind = "shared" | "acts";
 const HOST_SECTIONS: Partial<Record<SettingsSectionId, HostKind>> = {
-    agents: "shared", providers: "shared", skills: "shared", mcp: "acts",
+    providers: "shared", skills: "shared", mcp: "acts",
 };
 /** A line saying a setting is the host's; `null` in a window of this device. */
 function useHostNote(kind: HostKind): string | null {
@@ -1341,46 +1338,6 @@ function withHostNote(description: string, note: string | null): string {
  * A titled card of related settings. Everything on a page lives in one, so a
  * page reads as a handful of topics instead of one long list of switches.
  */
-/** The agents the user has, and how to reach each one's own settings. */
-function AgentsPage({ onOpenMentorSettings }: {
-    onOpenMentorSettings?: (agentId: string) => void;
-}) {
-    useLocale();
-    const snapshot = useSyncExternalStore(subscribeAgents, agentsSnapshot);
-    const newAccess = useSyncExternalStore(subscribeNewAgentAccess, loadNewAgentAccess, () => NEW_AGENT_ACCESS);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const agents = useMemo(() => listAgents(), [snapshot]);
-    return (<>
-      <Group id="agent-access" title={t("New mentors")} description={t("The permissions a mentor starts with. Each mentor can be changed in its own settings.")}>
-        <Row label={t("Default permissions for new mentors")} description={t("What a new mentor may do without asking.")}>
-          <AccessPicker value={newAccess} onChange={saveNewAgentAccess}/>
-        </Row>
-      </Group>
-      <Group id="agent-list" title={t("Your mentors")} description={t("Add a mentor with the plus on the mentor rail. Open one here to choose its model, permissions and folders, or to edit its soul and memory.")}>
-        {agents.length ? agents.map((agent) => <AgentRow key={agent.id} agent={agent} onOpenSettings={onOpenMentorSettings}/>) : (<p className="px-4 py-3.5 text-[12px] text-content/45">{t("No mentors yet.")}</p>)}
-      </Group>
-    </>);
-}
-function AgentRow({ agent, onOpenSettings }: {
-    agent: Agent;
-    onOpenSettings?: (agentId: string) => void;
-}) {
-    useLocale();
-    const look = agentLook(agent);
-    const [error, setError] = useState<string>();
-    const reset = async () => {
-        if (!await ask(t("Its soul goes back to the default and its name to {0}. Changes to its soul can't be recovered. Its conversation, files and memory are kept.", defaultAgentName(look.avatar)), { title: t("Reset {0} to its defaults?", look.name), kind: "warning", okLabel: t("Reset"), cancelLabel: t("Cancel") }))
-            return;
-        await resetAgentDefaults(agent.id).then(() => setError(undefined), (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
-    };
-    return (<Row label={<span className="flex min-w-0 items-center gap-2">
-          <AgentAvatar name={look.avatar} color={look.color} className="size-4 shrink-0"/>
-          <span className="truncate">{look.name}</span>
-        </span>} description={look.workdir ? prettyCwd(look.workdir) : look.role} status={error}>
-      {onOpenSettings ? (<SecondaryButton onClick={() => onOpenSettings(agent.id)} aria-label={t("Open {0} settings", look.name)}>{t("Settings")}</SecondaryButton>) : null}
-      <SecondaryButton onClick={() => void reset()}>{t("Reset")}</SecondaryButton>
-    </Row>);
-}
 function Group({ id, title, description, action, children, }: {
     /** Matches a `SETTINGS_INDEX` id when the whole card is the search target. */
     id?: string;

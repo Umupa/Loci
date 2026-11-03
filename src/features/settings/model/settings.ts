@@ -4,7 +4,7 @@ import { canonicalShortcut, shortcutLabel, shortcutFromKeyEvent, shortcutTokens 
 import { readFlag, writeFlag } from "./storageFlags";
 import { hostSettingWritten } from "../../../platform/hostSettings";
 const SECTION_KEY = "loci.settingsSection";
-export type SettingsSectionId = "general" | "appearance" | "remote" | "keybindings" | "agents" | "chat" | "providers" | "mcp" | "skills";
+export type SettingsSectionId = "general" | "appearance" | "remote" | "keybindings" | "chat" | "providers" | "mcp" | "skills";
 /** Rail buckets. Sections list in order under their group label. */
 export type SettingsGroupId = "app" | "agents" | "workspace";
 export const SETTINGS_GROUPS: {
@@ -51,13 +51,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         get label() { return t("Keybindings"); },
         get description() { return t("Every shortcut the workspace handles, from the app menu and the key handler."); },
         keywords: "shortcut hotkey keyboard binding",
-    },
-    {
-        id: "agents",
-        group: "agents",
-        get label() { return t("Your mentors"); },
-        get description() { return t("The permissions a new mentor starts with, and the mentors you have. Each opens its own settings."); },
-        keywords: "agent persistent memory soul habits schedule rail reset mentor",
     },
     {
         id: "chat",
@@ -160,15 +153,9 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
     },
     {
         id: "agent-access",
-        section: "agents",
+        section: "providers",
         get label() { return t("Default permissions for new mentors"); },
         keywords: "agent mentor permission access full access supervised auto accept edits default",
-    },
-    {
-        id: "agent-list",
-        section: "agents",
-        get label() { return t("Your mentors"); },
-        keywords: "agent mentor reset soul name folders",
     },
     ...(IS_WIN
         ? [

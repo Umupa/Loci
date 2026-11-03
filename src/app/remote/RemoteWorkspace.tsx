@@ -243,8 +243,7 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
             {settingsAgent ? <MentorSettingsPage agent={settingsAgent} session={sessions.find((session) => session.id === settingsAgent.sessionId)} recents={[]}
               onModelChange={intents["session.changeModel"]} onModelSettingsChange={intents["session.changeModelSettings"]} onRuntimeModeChange={intents["session.changeRuntimeMode"]}
               onPickFolders={() => pickFolders("Choose folders")} onReset={() => resetAgent(settingsAgent.id)} onDelete={() => removeAgent(settingsAgent.id)} readOnly={offline} />
-              : <SettingsView section={settingsSection} cwd="~" besideRail onClose={() => setSettingsOpen(false)} onSelectSection={selectSettingsSection}
-                onOpenMentorSettings={openMentorSettings} />}
+              : <SettingsView section={settingsSection} cwd="~" besideRail onClose={() => setSettingsOpen(false)} onSelectSection={selectSettingsSection} />}
           </RemoteSettingsScopeContext.Provider>
           : current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
             <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)} busy={!!chatSession?.busy}

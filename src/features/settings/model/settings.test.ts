@@ -202,7 +202,6 @@ describe("settings navigation", () => {
             "appearance",
             "remote",
             "keybindings",
-            "agents",
             "chat",
             "providers",
             "mcp",
