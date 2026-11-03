@@ -169,6 +169,15 @@ describe("createSessionHost", () => {
     expect(onLeases).toHaveBeenLastCalledWith(["b", "c"]);
   });
 
+  it("keeps a conversation a device opened until that device says what it shows", async () => {
+    const onLeases = vi.fn();
+    const host = createSessionHost({ intents: () => sessionIntents(sources().parts), feed, onLeases });
+    await expect(host.handle(intent("agent.open", ["agent-1"], undefined, "mac-mini"))).resolves.toBe("agent-chat");
+    expect(onLeases).toHaveBeenLastCalledWith(["agent-chat"]);
+    await host.handle(intent("session.view", [[]], undefined, "mac-mini"));
+    expect(onLeases).toHaveBeenLastCalledWith([]);
+  });
+
   it("looks for a provider's CLI on the host for a connected window, and only for a provider it knows", async () => {
     const inspectBinary = vi.fn(async () => ({ path: "/opt/homebrew/bin/codex", version: "0.9" }));
     const host = createSessionHost({ intents: () => sessionIntents(sources().parts), feed, onLeases: vi.fn(), inspectBinary });

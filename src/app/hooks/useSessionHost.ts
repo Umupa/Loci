@@ -62,7 +62,14 @@ export function createSessionHost({ intents, feed, onLeases, setSetting, models,
     if (CONFIRMED_INTENTS.has(name) && (args[args.length - 1] as { confirmed?: unknown } | undefined)?.confirmed !== true) {
       throw new Error(`${name} must be confirmed on the device that sent it`);
     }
-    return (table[name as keyof SessionIntents] as (...input: unknown[]) => unknown)(...args);
+    const result = await (table[name as keyof SessionIntents] as (...input: unknown[]) => unknown)(...args);
+    // The device shows the conversation it opened only once it has the id; until
+    // it says so, it holds it here, or an empty new chat is released first.
+    if (name === "agent.open" && typeof result === "string") {
+      leases.set(connectionId, [...new Set([...(leases.get(connectionId) ?? []), result])]);
+      onLeases([...new Set([...leases.values()].flat())]);
+    }
+    return result;
   };
 
   return {
