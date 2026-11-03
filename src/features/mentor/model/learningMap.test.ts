@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { area, clip, contours, inset, layoutLearningMap, roundedPath, type MapCourse, type Point } from "./learningMap";
+import { area, clip, contours, inset, layoutLearningMap, mapSize, roundedPath, type MapCourse, type Point } from "./learningMap";
 
 const course = (id: string, count: number, read = 0): MapCourse => ({
   id, title: id, lessons: Array.from({ length: count }, (_, i) => ({ id: `${id}-${i}`, title: `${id} ${i}`, status: i < read ? "mastered" : "untouched" })),
@@ -53,6 +53,18 @@ describe("the learning map", () => {
     }
   });
 
+  it("draws a few plots small and many up to the room", () => {
+    const one = mapSize([course("one", 12)], 1100, 900);
+    expect(one.width * one.height).toBeLessThan(1100 * 900 / 2);
+    expect(one.width / one.height).toBeCloseTo(1100 / 900, 1);
+    expect(mapSize(courses, 1100, 900)).toEqual({ width: 1100, height: 900 });
+  });
+
+  it("insets a thin, sharp cell without losing what is left of it", () => {
+    const sliver: Point[] = [[0, 0], [200, 0], [199, 3], [100, 80]];
+    expect(inset(sliver, 6)).not.toBeNull();
+  });
+
   it("draws nothing without courses or room", () => {
     expect(layoutLearningMap([], 800, 600)).toEqual([]);
     expect(layoutLearningMap(courses, 20, 600)).toEqual([]);
@@ -77,9 +89,11 @@ describe("map geometry", () => {
   });
 
   it("draws contour rings from the edge in until the middle", () => {
-    const rings = contours(square, 6);
+    const rings = contours(square, 6, 14);
     // 100 − 2·6·7 = 16 across is the last ring; the eighth would be 4px, too small to draw.
     expect(rings.length).toBe(7);
+    // By default a few rings, never a fill.
+    expect(contours(square, 6)).toHaveLength(6);
     expect(Math.abs(area(rings[0]))).toBeGreaterThan(Math.abs(area(rings[rings.length - 1])));
   });
 });

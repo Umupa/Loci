@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentLook, type Agent } from "../../agents/model/agent";
 import { COURSES_CHANGED_EVENT, loadCourse, loadCourseSummaries, PROGRESS_EVENT, type CourseChangedDetail, type ProgressDetail } from "../../learning/model/course";
 import { nextLesson, withoutOrdinal } from "../model/libraryCourse";
-import { contours, layoutLearningMap, roundedPath, type MapCourse, type MapPlot } from "../model/learningMap";
+import { contours, layoutLearningMap, mapSize, roundedPath, type MapCourse, type MapPlot } from "../model/learningMap";
 import type { MentorPage } from "../model/mentorPage";
 import { useCoursePath } from "./LibraryCourses";
 import "./LearningMap.css";
@@ -135,14 +135,18 @@ export function LearningMapView({ courses, next, title, onOpenLesson }: {
   title?: string;
   onOpenLesson: (course: MapCourse, lessonId: string) => void;
 }) {
-  const [frame, size] = useSize<HTMLDivElement>();
+  const [frame, room] = useSize<HTMLDivElement>();
+  const size = useMemo(() => mapSize(courses, room.width, room.height), [courses, room.width, room.height]);
   const regions = useMemo(() => layoutLearningMap(courses, size.width, size.height), [courses, size.width, size.height]);
   const lessons = courses.flatMap((course) => course.lessons);
   const read = lessons.filter((lesson) => lesson.status === "mastered").length;
+  // One course is the map's whole subject: its name is the heading, not a label on the ground.
+  const single = courses.length === 1;
+  const heading = title ?? (single ? withoutOrdinal(courses[0].title) : undefined);
   return <section className="learning-map" aria-label="Learning map" data-learning-map>
     <header className="learning-map__head">
       <p className="learning-map__count" aria-label={`${read} of ${lessons.length} lessons read`}>{read}<small>/ {lessons.length}</small></p>
-      {title ? <h2 className="learning-map__title">{title}</h2> : null}
+      {heading ? <h2 className="learning-map__title">{heading}</h2> : null}
     </header>
     <div ref={frame} className="learning-map__frame">
       {size.width ? <svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`} className="learning-map__svg">
@@ -152,7 +156,7 @@ export function LearningMapView({ courses, next, title, onOpenLesson }: {
           : <g key={region.course.id}>{region.plots.map((plot) => <Plot key={plot.lesson.id} plot={plot}
             next={next?.courseId === region.course.id && next.lessonId === plot.lesson.id}
             onOpen={() => onOpenLesson(region.course, plot.lesson.id)} />)}</g>)}
-        {regions.map((region) => {
+        {single ? null : regions.map((region) => {
           const done = region.course.lessons.filter((lesson) => lesson.status === "mastered").length;
           const xs = region.shape.map((point) => point[0]);
           const name = mapLabel(region.course.title, (Math.max(...xs) - Math.min(...xs)) * 0.86);

@@ -40,8 +40,9 @@
   overflow: hidden;
 }
 
-.learning-map__frame { position: relative; min-height: 220px; flex: 1; }
-.learning-map__svg { position: absolute; inset: 0; overflow: visible; }
+/* The map sits in the middle of the room it is given, at its own size. */
+.learning-map__frame { position: relative; display: flex; min-height: 220px; flex: 1; align-items: center; justify-content: center; }
+.learning-map__svg { flex: none; overflow: visible; }
 
 .learning-map__plot { cursor: pointer; outline: none; }
 .learning-map__ground { fill: var(--map-stone); transition: fill 140ms ease-out, opacity 140ms ease-out; }

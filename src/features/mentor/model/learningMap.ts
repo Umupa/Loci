@@ -69,32 +69,36 @@ export function clip(subject: readonly Point[], clipper: readonly Point[]): Poly
   return out;
 }
 
-/** A convex polygon moved in by `d` on every edge, or null when nothing is left. */
+/**
+ * A convex polygon moved in by `d` on every edge, or null when nothing is
+ * left: the polygon cut by each edge's line shifted inward. Short edges at
+ * sharp corners simply drop out, as they should.
+ */
 export function inset(polygon: readonly Point[], d: number): Polygon | null {
   const n = polygon.length;
   if (n < 3) return null;
   const sign = Math.sign(area(polygon)) || 1;
-  const lines = polygon.map((a, i) => {
-    const b = polygon[(i + 1) % n];
-    const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  let out: Polygon = [...polygon];
+  for (let i = 0; i < n && out.length >= 3; i++) {
+    const a = polygon[i], b = polygon[(i + 1) % n];
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (length < 1e-9) continue;
+    // Inward unit normal, and how far inside the shifted edge a point is.
     const nx = (-(b[1] - a[1]) / length) * sign, ny = ((b[0] - a[0]) / length) * sign;
-    return [[a[0] + nx * d, a[1] + ny * d], [b[0] + nx * d, b[1] + ny * d]] as const;
-  });
-  const result: Polygon = [];
-  for (let i = 0; i < n; i++) {
-    const [p1, p2] = lines[(i - 1 + n) % n], [p3, p4] = lines[i];
-    const d1 = [p2[0] - p1[0], p2[1] - p1[1]], d2 = [p4[0] - p3[0], p4[1] - p3[1]];
-    const den = d1[0] * d2[1] - d1[1] * d2[0];
-    if (Math.abs(den) < 1e-9) { result.push(p3 as Point); continue; }
-    const t = ((p3[0] - p1[0]) * d2[1] - (p3[1] - p1[1]) * d2[0]) / den;
-    result.push([p1[0] + d1[0] * t, p1[1] + d1[1] * t]);
+    const depth = (p: Point) => (p[0] - a[0]) * nx + (p[1] - a[1]) * ny - d;
+    const input = out;
+    out = [];
+    for (let j = 0; j < input.length; j++) {
+      const p = input[j], q = input[(j + 1) % input.length];
+      const dp = depth(p), dq = depth(q);
+      if (dp >= 0) out.push(p);
+      if ((dp >= 0) !== (dq >= 0)) {
+        const t = dp / (dp - dq);
+        out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+      }
+    }
   }
-  // Moved past the middle, edges turn round (a square comes back mirrored, same winding): nothing is left.
-  const turned = result.some((a, i) => {
-    const b = result[(i + 1) % n], p = polygon[i], q = polygon[(i + 1) % n];
-    return (b[0] - a[0]) * (q[0] - p[0]) + (b[1] - a[1]) * (q[1] - p[1]) < 0;
-  });
-  return !turned && Math.sign(area(result)) === sign && Math.abs(area(result)) > 24 ? result : null;
+  return out.length >= 3 && Math.abs(area(out)) > 24 ? out : null;
 }
 
 /** An SVG path for the polygon with every corner rounded by up to `r`. */
@@ -187,8 +191,22 @@ export function layoutLearningMap(courses: readonly MapCourse[], width: number, 
   });
 }
 
-/** The rings drawn inside a plot being read, like contour lines, from the edge in. */
-export function contours(shape: readonly Point[], step = 6, limit = 14): Polygon[] {
+/**
+ * The ground a map takes: about a plot's worth per lesson (a course not
+ * written yet counts as a few), never more than the room there is, in the
+ * room's proportions. A mentor with one short course draws a small map, not
+ * a few giant plots.
+ */
+export const PLOT_AREA = 24000;
+export function mapSize(courses: readonly MapCourse[], width: number, height: number): { width: number; height: number } {
+  const plots = courses.reduce((sum, course) => sum + (course.planned || !course.lessons.length ? 4 : course.lessons.length), 0);
+  if (!plots || width <= 0 || height <= 0) return { width: 0, height: 0 };
+  const scale = Math.min(1, Math.sqrt((plots * PLOT_AREA) / (width * height)));
+  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+}
+
+/** The rings drawn inside a plot being read, like contour lines, from the edge in: a few, not a fill. */
+export function contours(shape: readonly Point[], step = 6, limit = 6): Polygon[] {
   const rings: Polygon[] = [];
   for (let k = 1; k <= limit; k++) {
     const ring = inset(shape, k * step);
