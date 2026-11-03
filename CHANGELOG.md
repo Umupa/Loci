@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-11-03
+
 ### Fixed
 
 - **Clicking a notification opens the conversation.** A mentor's banner did nothing when its conversation had gone idle; it now brings the window forward on that mentor with its conversation showing.
@@ -297,7 +299,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.3...HEAD
+[0.8.3]: https://github.com/Umupa/Loci/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/Umupa/Loci/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Umupa/Loci/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Umupa/Loci/compare/v0.7.1...v0.8.0
