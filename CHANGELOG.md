@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-11-03
+
 ### Fixed
 
 - **No keychain password at every update.** With remote access set up, each new version asked twice at launch for the login keychain password. This device's key and its group's secret now live in files in Loci's data folder that only you can read; the first launch of this version asks one last time to move them out of the keychain.
@@ -303,7 +305,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.3...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.4...HEAD
+[0.8.4]: https://github.com/Umupa/Loci/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/Umupa/Loci/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/Umupa/Loci/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Umupa/Loci/compare/v0.8.0...v0.8.1
