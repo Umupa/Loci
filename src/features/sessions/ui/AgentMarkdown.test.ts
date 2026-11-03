@@ -171,3 +171,17 @@ describe("AgentMarkdown note images", () => {
     expect(markup).toContain('alt="Diagram"');
   });
 });
+
+describe("AgentMarkdown emphasis in Chinese", () => {
+  it("bolds a run that opens or closes beside full-width punctuation", () => {
+    const markup = renderToStaticMarkup(
+      createElement(AgentMarkdown, {
+        text: "本质是在解决最致命的**“双写一致性”（Dual-Write Problem）**：\n\n把**“快照”、“事件”和“任务”**同时写入，~~旧的“做法”~~已不用。",
+      }),
+    );
+    expect(markup).not.toContain("**");
+    expect(markup).toMatch(/data-streamdown="strong">“双写一致性”（Dual-Write Problem）</);
+    expect(markup).toMatch(/data-streamdown="strong">“快照”、“事件”和“任务”</);
+    expect(markup).toMatch(/>旧的“做法”<\/del>/);
+  });
+});

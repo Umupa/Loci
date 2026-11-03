@@ -1,3 +1,5 @@
+import remarkCjkFriendly from "remark-cjk-friendly";
+import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethrough";
 import { CARD_FENCE } from "../model/cards";
 import { DocumentCard, MindmapCard, TodoCard } from "./cards/Cards";
 import { CourseCard } from "../../learning/ui/CourseCard";
@@ -760,6 +762,10 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   const remarkPlugins = useMemo<PluggableList>(
     () => [
       ...Object.values(defaultRemarkPlugins),
+      // CommonMark will not open **…** between a CJK character and a full-width
+      // mark (“ （ 「), so 的**“双写”**： stayed literal and later pairs went wrong.
+      remarkCjkFriendly,
+      remarkCjkFriendlyGfmStrikethrough,
       [remarkSourceAddresses, { sourceUrl }],
       [remarkLocalImages, { cwd: imageCwd ?? cwd }],
       [remarkWorkspaceFileLinks, { cwd }],
