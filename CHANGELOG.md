@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- **Notifications read cleanly.** A mentor's banner is headed by its name instead of "Loci" and the first thing you said, and its reply shows as plain text rather than raw Markdown with links.
+
 ## [0.8.1] - 2026-11-03
 
 ### Changed
