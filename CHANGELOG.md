@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- **Gemini works with a system SOCKS proxy.** With a proxy app such as Clash turning on the macOS SOCKS proxy, every Antigravity (Gemini) turn failed with "python-socks is required to use a SOCKS proxy". Loci now hands Antigravity the system HTTP(S) proxy and keeps its local connection off the proxy.
+
 ## [0.7.0] - 2026-11-03
 
 ### Added

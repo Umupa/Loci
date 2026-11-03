@@ -2717,7 +2717,122 @@ fn prepare_child(cmd: &mut Command, command: &str) {
     if command_basename(command) == "grok" {
         apply_grok_env(cmd);
     }
+    if command_basename(command) == "agy_acp_server" {
+        apply_antigravity_proxy_env(cmd);
+    }
     isolate_child(cmd);
+}
+
+const PROXY_ENV_KEYS: [&str; 8] = [
+    "http_proxy",
+    "HTTP_PROXY",
+    "https_proxy",
+    "HTTPS_PROXY",
+    "all_proxy",
+    "ALL_PROXY",
+    "no_proxy",
+    "NO_PROXY",
+];
+
+/// The Antigravity ACP server is Python and talks to its harness over
+/// `ws://localhost`. With no proxy variables in the environment — the normal
+/// case for an app started from Finder — Python's `urllib` falls back to the
+/// macOS system proxy settings, which also report the SOCKS proxy that tools
+/// like Clash enable. Python's macOS bypass check never matches `localhost`
+/// when a port is attached, so `websockets` routes the loopback connection
+/// through `socks5h://…`, and the bundled build has no python-socks: every
+/// turn fails with "python-socks is required to use a SOCKS proxy".
+///
+/// Spelling the system HTTP(S) proxy out as environment variables makes
+/// Python read the environment instead of the system settings: Gemini traffic
+/// still goes through the proxy, the SOCKS entry is never seen, and loopback
+/// is exempt.
+fn apply_antigravity_proxy_env(cmd: &mut Command) {
+    if PROXY_ENV_KEYS
+        .iter()
+        .any(|key| std::env::var_os(key).is_some_and(|v| !v.is_empty()))
+    {
+        return;
+    }
+    let system = if cfg!(target_os = "macos") {
+        Command::new("/usr/sbin/scutil")
+            .arg("--proxy")
+            .output()
+            .ok()
+            .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+    for (key, value) in proxy_env_from_scutil(&system) {
+        cmd.env(key, value);
+    }
+}
+
+/// Translate `scutil --proxy` output into proxy environment variables.
+/// Always returns a `no_proxy` with loopback, so the environment is never
+/// empty and Python never consults the system settings itself.
+fn proxy_env_from_scutil(text: &str) -> Vec<(&'static str, String)> {
+    let mut fields = HashMap::new();
+    let mut exceptions = Vec::new();
+    let mut in_exceptions = false;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.starts_with("ExceptionsList") {
+            in_exceptions = true;
+            continue;
+        }
+        if in_exceptions {
+            if line.starts_with('}') {
+                in_exceptions = false;
+            } else if let Some((_, value)) = line.split_once(" : ") {
+                exceptions.push(value.trim().to_string());
+            }
+            continue;
+        }
+        if let Some((key, value)) = line.split_once(" : ") {
+            fields.insert(key.trim().to_string(), value.trim().to_string());
+        }
+    }
+    let proxy = |kind: &str| -> Option<String> {
+        if fields.get(&format!("{kind}Enable")).map(String::as_str) != Some("1") {
+            return None;
+        }
+        let host = fields
+            .get(&format!("{kind}Proxy"))
+            .filter(|h| !h.is_empty())?;
+        let port = fields.get(&format!("{kind}Port"))?;
+        Some(format!("http://{host}:{port}"))
+    };
+
+    let mut env = Vec::new();
+    if let Some(http) = proxy("HTTP") {
+        env.push(("http_proxy", http.clone()));
+        env.push(("HTTP_PROXY", http));
+    }
+    if let Some(https) = proxy("HTTPS") {
+        env.push(("https_proxy", https.clone()));
+        env.push(("HTTPS_PROXY", https));
+    }
+    let mut no_proxy: Vec<String> = ["localhost", "127.0.0.1", "::1"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    for entry in exceptions {
+        // no_proxy only understands suffixes: keep plain hosts, CIDRs and
+        // `*.domain` (as `.domain`); drop other wildcard patterns.
+        let entry = match entry.strip_prefix('*') {
+            Some(rest) if rest.starts_with('.') => rest.to_string(),
+            _ => entry,
+        };
+        if !entry.is_empty() && !entry.contains('*') && !no_proxy.contains(&entry) {
+            no_proxy.push(entry);
+        }
+    }
+    let no_proxy = no_proxy.join(",");
+    env.push(("no_proxy", no_proxy.clone()));
+    env.push(("NO_PROXY", no_proxy));
+    env
 }
 
 /// fx keeps its Gateway credential in the macOS Keychain and reads it by
@@ -3503,6 +3618,41 @@ mod tests {
         } else {
             assert!(antigravity_args().is_empty());
         }
+    }
+
+    #[test]
+    fn antigravity_proxy_env_drops_socks_and_exempts_loopback() {
+        let scutil = "<dictionary> {
+  ExceptionsList : <array> {
+    0 : 192.168.0.0/16
+    1 : 127.0.0.1
+    2 : localhost
+    3 : *.local
+    4 : cvte.*
+  }
+  ExcludeSimpleHostnames : 0
+  HTTPEnable : 1
+  HTTPPort : 7893
+  HTTPProxy : 127.0.0.1
+  HTTPSEnable : 1
+  HTTPSPort : 7893
+  HTTPSProxy : 127.0.0.1
+  SOCKSEnable : 1
+  SOCKSPort : 7893
+  SOCKSProxy : 127.0.0.1
+}";
+        let env: HashMap<_, _> = proxy_env_from_scutil(scutil).into_iter().collect();
+        assert_eq!(env["HTTPS_PROXY"], "http://127.0.0.1:7893");
+        assert_eq!(env["http_proxy"], "http://127.0.0.1:7893");
+        assert_eq!(
+            env["no_proxy"],
+            "localhost,127.0.0.1,::1,192.168.0.0/16,.local"
+        );
+        assert!(!env.contains_key("ALL_PROXY") && !env.contains_key("all_proxy"));
+
+        let none: HashMap<_, _> = proxy_env_from_scutil("").into_iter().collect();
+        assert_eq!(none.len(), 2);
+        assert_eq!(none["NO_PROXY"], "localhost,127.0.0.1,::1");
     }
 
     #[test]
