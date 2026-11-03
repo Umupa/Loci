@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-03
+
 ### Fixed
 
 - **Notifications read cleanly.** A mentor's banner is headed by its name instead of "Loci" and the first thing you said, and its reply shows as plain text rather than raw Markdown with links.
@@ -290,7 +292,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/Umupa/Loci/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Umupa/Loci/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Umupa/Loci/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/Umupa/Loci/compare/v0.7.0...v0.7.1
