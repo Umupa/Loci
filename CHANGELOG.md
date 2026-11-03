@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-03
+
 ### Fixed
 
 - **Gemini works with a system SOCKS proxy.** With a proxy app such as Clash turning on the macOS SOCKS proxy, every Antigravity (Gemini) turn failed with "python-socks is required to use a SOCKS proxy". Loci now hands Antigravity the system HTTP(S) proxy and keeps its local connection off the proxy.
@@ -247,7 +249,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/Umupa/Loci/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/Umupa/Loci/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/Umupa/Loci/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Umupa/Loci/compare/v0.5.0...v0.6.0
