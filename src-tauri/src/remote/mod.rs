@@ -24,9 +24,10 @@
 //! and `LOCI_REGISTRY_KEY` in its environment uses those ([`BUILT_IN`]);
 //! they never reach `remote.json` or the settings page.
 //!
-//! The device key and the group secret live in the system keychain (service
-//! = the app identifier, accounts `remote-device-key` and
-//! `remote-group-secret`), read only once remote access has been set up.
+//! The device key and the group secret live in files readable by this user
+//! only (`remote-secrets/remote-device-key` and `remote-group-secret` in the
+//! app's data folder), read only once remote access has been set up. Older
+//! versions kept them in the keychain; they move on first read.
 
 pub mod alma_relay;
 pub mod cache;
@@ -93,7 +94,7 @@ impl Drop for Pairing {
 #[derive(Default)]
 struct Inner {
     settings: Settings,
-    /// Read from the keychain on first need.
+    /// Read from its files on first need.
     identity: Option<(SigningKey, Option<Arc<DeviceGroup>>)>,
     serving: Option<Serving>,
 }
@@ -272,7 +273,7 @@ impl RemoteHost {
             .map(|serving| serving.gateway.clone())
     }
 
-    /// This device's key and its group, from the keychain on first use.
+    /// This device's key and its group, from their files on first use.
     pub fn identity(
         &self,
         app: &AppHandle,
@@ -414,30 +415,138 @@ async fn reconnect_last(app: AppHandle) {
     }
 }
 
+/*
+ * This device's key and its group's secret live in files of their own under
+ * the app's data folder, readable by this user only. They used to be in the
+ * login keychain, but a build not signed with an Apple team ID is known to
+ * the keychain by its code hash, which every release changes, so each update
+ * asked for the keychain password again. An item still in the keychain is
+ * moved to its file the first time it is read.
+ */
+
+fn secrets_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("remote-secrets"))
+}
+
 fn keychain(app: &AppHandle, account: &str) -> Result<keyring::Entry, String> {
     keyring::Entry::new(&app.config().identifier, account).map_err(|e| e.to_string())
 }
 
 fn load_secret(app: &AppHandle, account: &str) -> Result<Option<[u8; 32]>, String> {
-    match keychain(app, account)?.get_password() {
-        Ok(text) => device_group::decode32(&text)
-            .map(Some)
-            .ok_or_else(|| format!("The keychain item {account} is damaged")),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(error) => Err(format!("Could not read the keychain: {error}")),
+    let dir = secrets_dir(app)?;
+    if let Some(secret) = secret_files::read(&dir, account)? {
+        return Ok(Some(secret));
     }
+    // Moved out of the keychain once; a keychain that cannot be read is no secret.
+    let Ok(entry) = keychain(app, account) else {
+        return Ok(None);
+    };
+    let text = match entry.get_password() {
+        Ok(text) => text,
+        Err(keyring::Error::NoEntry) => return Ok(None),
+        Err(error) => return Err(format!("Could not read the keychain: {error}")),
+    };
+    let secret = device_group::decode32(&text)
+        .ok_or_else(|| format!("The keychain item {account} is damaged"))?;
+    secret_files::write(&dir, account, &secret)?;
+    let _ = entry.delete_credential();
+    Ok(Some(secret))
 }
 
 fn save_secret(app: &AppHandle, account: &str, secret: &[u8; 32]) -> Result<(), String> {
-    keychain(app, account)?
-        .set_password(&device_group::b64url(secret))
-        .map_err(|e| format!("Could not write to the keychain: {e}"))
+    secret_files::write(&secrets_dir(app)?, account, secret)
 }
 
 fn delete_secret(app: &AppHandle, account: &str) -> Result<(), String> {
-    match keychain(app, account)?.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(error) => Err(format!("Could not write to the keychain: {error}")),
+    secret_files::delete(&secrets_dir(app)?, account)?;
+    if let Ok(entry) = keychain(app, account) {
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => {}
+            Err(error) => return Err(format!("Could not write to the keychain: {error}")),
+        }
+    }
+    Ok(())
+}
+
+/// A secret per file, base64url as the keychain held it, for this user only.
+mod secret_files {
+    use super::device_group;
+    use std::io::Write;
+    use std::path::Path;
+
+    pub fn read(dir: &Path, account: &str) -> Result<Option<[u8; 32]>, String> {
+        let path = dir.join(account);
+        match std::fs::read_to_string(&path) {
+            Ok(text) => device_group::decode32(text.trim())
+                .map(Some)
+                .ok_or_else(|| format!("{} is damaged", path.display())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(format!("{}: {error}", path.display())),
+        }
+    }
+
+    /// Written whole to a temporary file and renamed into place, so a crash
+    /// never leaves half a key.
+    pub fn write(dir: &Path, account: &str, secret: &[u8; 32]) -> Result<(), String> {
+        let fail = |error: std::io::Error| format!("Could not save {account}: {error}");
+        let mut builder = std::fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(unix)]
+        std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+        builder.create(dir).map_err(fail)?;
+        let temporary = dir.join(format!(".{account}.tmp"));
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut file = options.open(&temporary).map_err(fail)?;
+        file.write_all(device_group::b64url(secret).as_bytes())
+            .map_err(fail)?;
+        file.sync_all().map_err(fail)?;
+        std::fs::rename(&temporary, dir.join(account)).map_err(fail)
+    }
+
+    pub fn delete(dir: &Path, account: &str) -> Result<(), String> {
+        match std::fs::remove_file(dir.join(account)) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(format!("Could not delete {account}: {error}")),
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn keeps_a_secret_for_this_user_only_and_forgets_it() {
+            let dir = std::env::temp_dir().join(format!("loci-secrets-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            assert_eq!(read(&dir, "key").unwrap(), None);
+            let secret = [7u8; 32];
+            write(&dir, "key", &secret).unwrap();
+            assert_eq!(read(&dir, "key").unwrap(), Some(secret));
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode =
+                    |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+                assert_eq!(mode(&dir.join("key")), 0o600);
+                assert_eq!(mode(&dir), 0o700);
+            }
+            write(&dir, "key", &[9u8; 32]).unwrap();
+            assert_eq!(read(&dir, "key").unwrap(), Some([9u8; 32]));
+            delete(&dir, "key").unwrap();
+            delete(&dir, "key").unwrap();
+            assert_eq!(read(&dir, "key").unwrap(), None);
+            std::fs::write(dir.join("bad"), "not a key").unwrap();
+            assert!(read(&dir, "bad").is_err());
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 }
 
@@ -463,7 +572,7 @@ pub fn init(app: &AppHandle) {
         pairing: Mutex::new(None),
     });
     app.manage(client::RemoteClients::default());
-    // Leave the keychain alone until remote access has been set up.
+    // Leave the secrets (and any left in the keychain) alone until remote access has been set up.
     if configured {
         apply(app);
         tauri::async_runtime::spawn(reconnect_last(app.clone()));
