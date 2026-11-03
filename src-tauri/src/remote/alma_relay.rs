@@ -26,8 +26,13 @@ use super::tunnel::{Connection, Listener, Tunnel, TunnelStatus, CONNECTION_DEPTH
 pub const CLIENT_PATH: &str = "/__loci__";
 const PROTOCOL: u8 = 2;
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
-/// The relay pings every 30 s; this much silence means the socket is dead.
+/// Cloudflare drops a WebSocket after 100 s without traffic and the relay
+/// never pings, so each end pings on its own; the pongs keep it alive.
+const PING_EVERY: Duration = Duration::from_secs(30);
+/// This much silence, pongs included, means the socket is dead.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+/// A dial that hangs, as one through a stalled proxy can, is given up.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Binary frame kinds (protocol 2).
 const WBIN: u8 = 3;
@@ -58,15 +63,21 @@ impl Tunnel for AlmaRelayTunnel {
             self.relay.trim_end_matches('/'),
             self.code.routing_token()
         );
-        let (socket, _) = tokio_tungstenite::connect_async(url)
+        let (socket, _) = connect(&url)
             .await
             .map_err(|error| format!("Could not reach the relay: {error}"))?;
         let (client, inner) = Connection::pair();
         let (tx, mut rx) = inner.split();
         tokio::spawn(async move {
             let (mut sink, mut stream) = socket.split();
+            let mut ping = pings();
             loop {
                 tokio::select! {
+                    _ = ping.tick() => {
+                        if sink.send(Message::Ping(Default::default())).await.is_err() {
+                            break;
+                        }
+                    }
                     outgoing = rx.recv() => match outgoing {
                         Some(data) => {
                             if sink.send(Message::binary(data)).await.is_err() {
@@ -78,12 +89,12 @@ impl Tunnel for AlmaRelayTunnel {
                             break;
                         }
                     },
-                    incoming = stream.next() => {
+                    incoming = tokio::time::timeout(IDLE_TIMEOUT, stream.next()) => {
                         let data = match incoming {
-                            Some(Ok(Message::Binary(data))) => data.to_vec(),
-                            Some(Ok(Message::Text(text))) => text.as_bytes().to_vec(),
-                            Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
-                            Some(Ok(_)) => continue,
+                            Ok(Some(Ok(Message::Binary(data)))) => data.to_vec(),
+                            Ok(Some(Ok(Message::Text(text)))) => text.as_bytes().to_vec(),
+                            Ok(Some(Ok(Message::Close(_))) | Some(Err(_)) | None) | Err(_) => break,
+                            Ok(Some(Ok(_))) => continue,
                         };
                         if tx.send(data).await.is_err() {
                             break;
@@ -117,6 +128,14 @@ async fn host(
                 status.send_replace(TunnelStatus::Retrying { attempt });
                 tokio::time::sleep(backoff(attempt)).await;
             }
+            End::Replaced => {
+                // Usually this host's own earlier socket, left half-open by a
+                // flaky network; a minute apart, two hosts with one code do
+                // not fight over it.
+                attempt = 0;
+                status.send_replace(TunnelStatus::Retrying { attempt: 1 });
+                tokio::time::sleep(MAX_BACKOFF).await;
+            }
         }
     }
 }
@@ -126,8 +145,37 @@ fn backoff(attempt: u32) -> Duration {
 }
 
 enum End {
-    Retry { registered: bool },
+    Retry {
+        registered: bool,
+    },
+    /// Another socket registered the same code.
+    Replaced,
     Stop(String),
+}
+
+async fn connect(
+    url: &str,
+) -> Result<
+    (
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        tokio_tungstenite::tungstenite::handshake::client::Response,
+    ),
+    String,
+> {
+    match tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(url)).await {
+        Ok(result) => result.map_err(|error| error.to_string()),
+        Err(_) => Err("timed out".into()),
+    }
+}
+
+/// Ticks every [`PING_EVERY`], the first one a period from now.
+fn pings() -> tokio::time::Interval {
+    let start = tokio::time::Instant::now() + PING_EVERY;
+    let mut interval = tokio::time::interval_at(start, PING_EVERY);
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    interval
 }
 
 /// One agent socket, from dial to close.
@@ -141,7 +189,7 @@ async fn serve(
         tunnel.relay.trim_end_matches('/'),
         tunnel.code.token_hash()
     );
-    let Ok((socket, _)) = tokio_tungstenite::connect_async(url).await else {
+    let Ok((socket, _)) = connect(&url).await else {
         return End::Retry { registered: false };
     };
     let (mut sink, mut stream) = socket.split();
@@ -171,9 +219,16 @@ async fn serve(
     // A fresh channel per agent socket, so a stale connection can never write
     // into a later socket that reuses its id.
     let (out_tx, mut out_rx) = mpsc::channel::<(String, Option<Vec<u8>>)>(CONNECTION_DEPTH);
+    let mut ping = pings();
 
     loop {
         let message = tokio::select! {
+            _ = ping.tick() => {
+                if sink.send(Message::Ping(Default::default())).await.is_err() {
+                    return End::Retry { registered: proto.is_some() };
+                }
+                continue;
+            }
             message = tokio::time::timeout(IDLE_TIMEOUT, stream.next()) => match message {
                 Ok(Some(Ok(message))) => message,
                 Ok(_) | Err(_) => return End::Retry { registered: proto.is_some() },
@@ -289,7 +344,7 @@ fn deliver(
 fn close_outcome(code: Option<(u16, String)>, refusal: Option<String>, registered: bool) -> End {
     let reason = |fallback: &str| refusal.clone().unwrap_or_else(|| fallback.to_string());
     match code.map(|(code, _)| code) {
-        Some(4000) => End::Stop("Another Loci registered this connection code on the relay".into()),
+        Some(4000) => End::Replaced,
         Some(4002) => End::Stop(reason("The relay rejected the token hash")),
         Some(4003) => End::Stop(reason("The relay registration key is wrong")),
         Some(4401) => End::Stop(reason("The relay requires a valid relay token")),
@@ -403,7 +458,7 @@ mod tests {
     fn stops_instead_of_redialling_when_the_relay_says_so() {
         assert!(matches!(
             close_outcome(Some((4000, String::new())), None, true),
-            End::Stop(_)
+            End::Replaced
         ));
         assert!(matches!(
             close_outcome(Some((4003, String::new())), Some("Invalid registration key".into()), false),
@@ -493,21 +548,50 @@ mod tests {
             Ok(None)
         );
 
-        // A second host with the same code takes over; the first stops for good.
+        // A second host with the same code takes over; the first waits to try again.
         let _second = tunnel.listen();
-        let stopped = timeout(
+        timeout(
             wait,
             listener
                 .status
-                .wait_for(|s| matches!(s, TunnelStatus::Stopped { .. })),
+                .wait_for(|s| matches!(s, TunnelStatus::Retrying { .. })),
         )
         .await
         .unwrap()
-        .unwrap()
-        .clone();
+        .unwrap();
+    }
+
+    /// The tunnel stays registered past Cloudflare's 100 s idle cutoff, as
+    /// clients see it. Slow: `LOCI_TEST_RELAY=wss://… cargo test -p loci
+    /// stays_online_while_idle -- --ignored`
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn stays_online_while_idle() {
+        let relay = std::env::var("LOCI_TEST_RELAY").expect("LOCI_TEST_RELAY");
+        let tunnel = AlmaRelayTunnel {
+            relay,
+            code: ConnectCode::generate(),
+            name: "loci-test".into(),
+            registration_key: std::env::var("LOCI_TEST_RELAY_KEY").ok(),
+        };
+        let mut listener = tunnel.listen();
+        listener
+            .status
+            .wait_for(|s| *s == TunnelStatus::Online)
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_secs(150)).await;
+        assert_eq!(*listener.status.borrow(), TunnelStatus::Online);
+        // Still the first socket: a redial would have passed through Retrying.
+        assert!(!listener.status.has_changed().unwrap());
+        let client = tunnel.dial().await.unwrap();
         assert!(
-            matches!(stopped, TunnelStatus::Stopped { reason } if reason.contains("Another Loci"))
+            tokio::time::timeout(Duration::from_secs(10), listener.accept())
+                .await
+                .unwrap()
+                .is_some()
         );
+        drop(client);
     }
 
     #[test]

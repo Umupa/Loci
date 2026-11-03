@@ -20,7 +20,28 @@ type RemoteSettings = {
   builtIn?: { relay: boolean; registry: boolean };
   /** The name used while `name` is unset: the computer's own. */
   defaultName?: string;
+  /** The relay tunnel other devices reach this computer through, while there is one. */
+  tunnel?: TunnelStatus | null;
 };
+
+type TunnelStatus =
+  | { state: "connecting" | "online" }
+  | { state: "retrying"; attempt: number }
+  | { state: "stopped"; reason: string };
+
+/** Why other devices cannot reach this computer right now, if they cannot. */
+function tunnelProblem(tunnel: TunnelStatus | null | undefined): string | null {
+  switch (tunnel?.state) {
+    case "connecting":
+      return t("Connecting to the relay…");
+    case "retrying":
+      return t("Cannot reach the relay. Trying again…");
+    case "stopped":
+      return t("Other devices cannot reach this computer: {0}", tunnel.reason);
+    default:
+      return null;
+  }
+}
 
 /** What the group commands return. */
 type GroupStatus = {
@@ -174,10 +195,12 @@ export function RemoteAccessSettings() {
       });
   }, [loadSettings, loadGroup]);
 
-  useRemoteEvent<{ enabled: boolean }>(
+  useRemoteEvent<{ enabled: boolean; tunnel?: TunnelStatus | null }>(
     "remote-status-changed",
     useCallback((payload) => {
-      setSettings((current) => (current ? { ...current, enabled: payload.enabled } : current));
+      setSettings((current) =>
+        current ? { ...current, enabled: payload.enabled, tunnel: payload.tunnel ?? null } : current,
+      );
     }, []),
   );
 
@@ -485,7 +508,8 @@ export function RemoteAccessSettings() {
           label={t("Allow other devices to connect to this computer")}
           description={
             enabled
-              ? t("On. While remote access is on, this computer stays awake while it is plugged in.")
+              ? (tunnelProblem(settings?.tunnel) ??
+                t("On. While remote access is on, this computer stays awake while it is plugged in."))
               : t("Off. Only this computer can open its workspace.")
           }
         >

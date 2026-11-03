@@ -59,7 +59,7 @@ use gateway::{Gateway, Reply, ReplyFuture};
 use loopback::LoopbackTunnel;
 use secure_channel::{ConnectCode, TrustedDevices};
 use session_master::SessionMaster;
-use tunnel::Tunnel;
+use tunnel::{Tunnel, TunnelStatus};
 
 const HOST_WINDOW: &str = "main";
 const NO_WINDOW: &str = "The host window is not open";
@@ -76,6 +76,8 @@ pub struct RemoteHost {
     inner: Mutex<Inner>,
     /// The pairing code on show, if any.
     pairing: Mutex<Option<Pairing>>,
+    /// Wakes the heartbeat early, when the relay tunnel comes or goes.
+    beat_now: tokio::sync::Notify,
 }
 
 /// A pairing code waiting for its device; dropping it takes the code back.
@@ -104,6 +106,8 @@ struct Inner {
 struct Serving {
     gateway: Arc<Gateway>,
     route: Option<Route>,
+    /// The relay tunnel's state; `None` without one.
+    tunnel: Option<tokio::sync::watch::Receiver<TunnelStatus>>,
     tasks: Vec<JoinHandle<()>>,
     _awake: Option<crate::power::KeepAwake>,
 }
@@ -265,6 +269,14 @@ pub fn normalize_relay(relay: &str) -> Result<String, String> {
 }
 
 impl RemoteHost {
+    /// The relay tunnel's state, while there is one.
+    pub fn tunnel(&self) -> Option<TunnelStatus> {
+        let inner = self.inner.lock().unwrap();
+        let tunnel = inner.serving.as_ref()?.tunnel.as_ref()?;
+        let status = tunnel.borrow().clone();
+        Some(status)
+    }
+
     pub fn gateway(&self) -> Option<Arc<Gateway>> {
         let inner = self.inner.lock().unwrap();
         inner
@@ -570,6 +582,7 @@ pub fn init(app: &AppHandle) {
             ..Inner::default()
         }),
         pairing: Mutex::new(None),
+        beat_now: tokio::sync::Notify::new(),
     });
     app.manage(client::RemoteClients::default());
     // Leave the secrets (and any left in the keychain) alone until remote access has been set up.
@@ -589,7 +602,18 @@ async fn keep_in_touch(app: AppHandle) {
             let host = app.state::<RemoteHost>();
             let inner = host.inner.lock().unwrap();
             let group = inner.identity.as_ref().and_then(|(_, group)| group.clone());
-            (group, inner.serving.as_ref().and_then(|s| s.route.clone()))
+            // Members dial only a route that answers.
+            let route = inner
+                .serving
+                .as_ref()
+                .filter(|serving| {
+                    serving
+                        .tunnel
+                        .as_ref()
+                        .is_some_and(|tunnel| *tunnel.borrow() == TunnelStatus::Online)
+                })
+                .and_then(|serving| serving.route.clone());
+            (group, route)
         };
         if let Some(group) = group {
             let refresh = beat.is_multiple_of(REFRESH_EVERY);
@@ -603,7 +627,11 @@ async fn keep_in_touch(app: AppHandle) {
             update_menu(&app);
         }
         beat = beat.wrapping_add(1);
-        tokio::time::sleep(HEARTBEAT).await;
+        let host = app.state::<RemoteHost>();
+        tokio::select! {
+            _ = tokio::time::sleep(HEARTBEAT) => {}
+            _ = host.beat_now.notified() => {}
+        }
     }
 }
 
@@ -642,7 +670,7 @@ fn write_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
 /// every window.
 fn apply(app: &AppHandle) {
     let host = app.state::<RemoteHost>();
-    let enabled = {
+    let (enabled, tunnel) = {
         let mut inner = host.inner.lock().unwrap();
         inner.serving = None;
         if inner.settings.enabled {
@@ -653,9 +681,17 @@ fn apply(app: &AppHandle) {
                 Err(error) => eprintln!("Remote access could not start: {error}"),
             }
         }
-        inner.serving.is_some()
+        let tunnel = inner.serving.as_ref().and_then(|serving| {
+            let tunnel = serving.tunnel.as_ref()?;
+            let status = tunnel.borrow().clone();
+            Some(status)
+        });
+        (inner.serving.is_some(), tunnel)
     };
-    let _ = app.emit("remote-status-changed", json!({ "enabled": enabled }));
+    let _ = app.emit(
+        "remote-status-changed",
+        json!({ "enabled": enabled, "tunnel": tunnel }),
+    );
 }
 
 fn start(
@@ -699,6 +735,7 @@ fn start(
         serving.run(loopback.listen()).await
     })];
     let mut route = None;
+    let mut tunnel = None;
     match (settings.relay_in(&BUILT_IN), &group) {
         (Some(relay), Some(_)) => {
             route = Some(Route {
@@ -712,8 +749,30 @@ fn start(
                 registration_key: relay.key,
             };
             let serving = gateway.clone();
+            let (status_tx, status_rx) = tokio::sync::watch::channel(TunnelStatus::Connecting);
+            tunnel = Some(status_rx);
+            let status_app = app.clone();
             tasks.push(tauri::async_runtime::spawn(async move {
-                serving.run(relay.listen()).await
+                let listener = relay.listen();
+                let mut status = listener.status.clone();
+                let report = async move {
+                    loop {
+                        let now = status.borrow_and_update().clone();
+                        if let TunnelStatus::Stopped { reason } = &now {
+                            eprintln!("Remote access: the relay tunnel stopped: {reason}");
+                        }
+                        status_tx.send_replace(now.clone());
+                        status_app.state::<RemoteHost>().beat_now.notify_one();
+                        let _ = status_app.emit(
+                            "remote-status-changed",
+                            json!({ "enabled": true, "tunnel": now }),
+                        );
+                        if status.changed().await.is_err() {
+                            return;
+                        }
+                    }
+                };
+                tokio::join!(serving.run(listener), report);
             }));
         }
         (Some(_), None) => eprintln!("Remote access: the relay needs a device group; relay off"),
@@ -725,6 +784,7 @@ fn start(
     Ok(Serving {
         gateway,
         route,
+        tunnel,
         tasks,
         _awake: awake,
     })
@@ -801,7 +861,7 @@ fn host_window(window: &WebviewWindow) -> Result<(), String> {
 
 #[tauri::command]
 pub fn remote_status(host: State<'_, RemoteHost>) -> Value {
-    json!({ "enabled": host.gateway().is_some() })
+    json!({ "enabled": host.gateway().is_some(), "tunnel": host.tunnel() })
 }
 
 #[tauri::command]

@@ -14,7 +14,7 @@ use super::device_group::{
     decode32, now_ms, parse_invite, Device, DeviceGroup, Identity, Registry,
 };
 use super::pairing::{self, PairingCode};
-use super::tunnel::Tunnel;
+use super::tunnel::{Tunnel, TunnelStatus};
 use super::{
     apply, computer_name, delete_secret, device_name, host_page, identity, new_device_key,
     registry, remember_host, save_secret, update_menu, write_settings, Pairing, RemoteHost,
@@ -208,13 +208,14 @@ pub async fn remote_device_remove(app: AppHandle, device_id: String) -> Result<V
 
 /// The saved settings, plus which services this build carries (whether, not
 /// what) and the name used when none is set.
-fn settings_json(settings: &Settings) -> Value {
+fn settings_json(settings: &Settings, tunnel: Option<TunnelStatus>) -> Value {
     let mut value = serde_json::to_value(settings).expect("settings serialize");
     value["builtIn"] = json!({
         "relay": BUILT_IN.relay().is_some(),
         "registry": BUILT_IN.registry().is_some(),
     });
     value["defaultName"] = json!(computer_name().unwrap_or_else(|| "Loci".into()));
+    value["tunnel"] = json!(tunnel);
     value
 }
 
@@ -222,7 +223,7 @@ fn settings_json(settings: &Settings) -> Value {
 pub fn remote_settings_get(app: AppHandle) -> Value {
     let host = app.state::<RemoteHost>();
     let settings = host.inner.lock().unwrap().settings.clone();
-    settings_json(&settings)
+    settings_json(&settings, host.tunnel())
 }
 
 /// Merges `settings` (any of the fields; `null` clears one) into the saved
@@ -253,7 +254,7 @@ pub fn remote_settings_set(app: AppHandle, settings: Value) -> Result<Value, Str
     if restart {
         apply(&app);
     }
-    Ok(settings_json(&updated))
+    Ok(settings_json(&updated, host.tunnel()))
 }
 
 fn pairing_json(pairing: &Pairing) -> Value {
