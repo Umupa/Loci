@@ -131,7 +131,6 @@ import { HarnessIcon } from "./HarnessIcon";
 import { WorkFoldLine, type WorkFoldState } from "./WorkFoldLine";
 import { TurnProgress } from "./TurnProgress";
 import { TranscriptSelectionMenu } from "./TranscriptSelectionMenu";
-import type { Note, NoteTarget } from "../../notes";
 import { UserLinkPreview } from "./UserLinkPreview";
 
 const NEAR_BOTTOM_PX = 16;
@@ -172,9 +171,8 @@ type Props = {
   onSaveNote?: (text: string) => void | Promise<void>;
   onSendDraft?: (block: Block) => boolean | void;
   onRemoveDraft?: (block: Block) => boolean | void;
-  onSaveSelectionNote?: (text: string, target: NoteTarget) => void | Promise<Note | void>;
-  listSelectionNotes?: () => Promise<Note[]>;
-  notesScope?: string;
+  /** Highlight on selected text: keep the passage in the mentor's highlights. */
+  onKeepSelection?: (text: string) => void | Promise<unknown>;
   onOpenFile?: OpenFileFn;
 
 
@@ -217,9 +215,7 @@ function AgentTranscriptComponent({
   onSaveNote,
   onSendDraft,
   onRemoveDraft,
-  onSaveSelectionNote,
-  listSelectionNotes,
-  notesScope,
+  onKeepSelection,
   onOpenFile,
 
 
@@ -307,7 +303,7 @@ function AgentTranscriptComponent({
   }
   const { selection, dismissSelection } = useTranscriptSelection(
     scrollerEl,
-    onAddToChat !== undefined || onSaveSelectionNote !== undefined,
+    onAddToChat !== undefined || onKeepSelection !== undefined,
   );
   const transcriptLayout = useTranscriptLayout();
   const promptAnchor = useTranscriptAnchor();
@@ -1057,13 +1053,11 @@ function AgentTranscriptComponent({
           );
         })}
       </div>
-      {onAddToChat || onSaveSelectionNote ? (
+      {onAddToChat || onKeepSelection ? (
         <TranscriptSelectionMenu
           selection={selection}
           onAddToChat={onAddToChat}
-          onAddToNotes={onSaveSelectionNote}
-          listNotes={listSelectionNotes}
-          notesScope={notesScope}
+          onKeep={onKeepSelection}
           onDismiss={dismissSelection}
         />
       ) : null}

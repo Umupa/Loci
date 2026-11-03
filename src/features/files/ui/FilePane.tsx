@@ -15,7 +15,6 @@ import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { fileReference, selectionLines, type SelectionPlace } from "../model/fileReference";
 import { ReadingSelectionMenu, type ChatIntent } from "../../learning/ui/ReadingSelectionMenu";
 import { askDraft, chatDraft, useReadingMarks, type MarkSpec } from "../../learning/ui/useReadingMarks";
-import { quoteMarkdown } from "../../learning/model/quoteNote";
 import { describeRange, quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
 import { flashRange } from "../../learning/ui/useTextHighlights";
 import { readCode, shortCommit } from "../../../platform/tauri/code";
@@ -41,7 +40,6 @@ import type { LoadedPdf, PdfArea } from "./PdfView";
 import type { PdfAnnotation, ReadingDocument } from "../../learning/model/types";
 import { createPdfAnnotation, isPdfArea, pdfAreaAnchor, pdfAreaPicture, pdfSelectionAnchors, pdfSelectionSource } from "../../learning/model/pdfAnnotations";
 import { BlockToolbar } from "../../learning/ui/BlockToolbar";
-import { quoteMarkdown as passageMarkdown, savePictureQuoteToNote } from "../../learning/model/quoteNote";
 import { attachmentsFromFiles } from "../../sessions/model/attachments";
 import { deletePdfAnnotation, getReadingDocumentByPath, listPdfAnnotations, registerLearningSource, registerReadingDocument, relocateReadingDocument, subscribeLearningChanges, upsertPdfAnnotation } from "../../learning/model/learningStore";
 import { AnnotationList, AnnotationToolbar } from "../../learning/ui/PdfAnnotations";
@@ -183,7 +181,6 @@ function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin
     const [text, mode] = chatDraft(intent, passage.text, source);
     requestAddToChat(text, mode, { sources: [source], ...marks.chatTarget });
   };
-  const pdfQuote = async (passage: FileSelection) => quoteMarkdown(passage.text, await pdfSource());
   const highlightPdfSelection = async (passage: FileSelection) => {
     const details = selectionDetails();
     // The words too, so the mark can be found by them as well as by its rectangles.
@@ -191,7 +188,6 @@ function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin
     const created = createPdfAnnotation(details.document, details.quote, details.anchors);
     const annotation = await upsertPdfAnnotation(anchor ? { ...created, anchor } : created);
     setAnnotations((current) => [...current.filter((entry) => entry.id !== annotation.id), annotation]);
-    setOpenAnnotation({ id: annotation.id, rect: passage.rect });
     onPin();
   };
   /** A picture of an area of a page as it is drawn now, for the chat or a note. */
@@ -547,21 +543,18 @@ function FilePaneComponent({ path, commit, cwd, preview, focused, onFocus, onPin
         {annotationsOpen ? marks.list(() => setAnnotationsOpen(false)) : null}
       </div> : <div ref={bodyRef} className="min-h-0 min-w-0 flex-1" {...(content.status === "pdf" ? { "data-reading-text": "" } : {})}>{body}</div>}
       {content.status === "pdf"
-        ? <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`pdf:${path}`} askLabel={askLabel} toChat={pdfToChat} onMark={highlightPdfSelection} quote={pdfQuote} notes={marks.notes} />
+        ? <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`pdf:${path}`} askLabel={askLabel} toChat={pdfToChat} onMark={highlightPdfSelection} />
         : <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`text:${path}:${diskText?.length ?? 0}`} askLabel={askLabel}
-          toChat={marks.toChat} onMark={editing ? undefined : marks.onMark} quote={marks.quote} notes={marks.notes} actions={nav.selectionActions} />}
+          toChat={marks.toChat} onMark={editing ? undefined : marks.onMark} actions={nav.selectionActions} />}
       {nav.results}
       {content.status === "text" ? marks.popover : null}
       {content.status === "pdf" && openAnnotation && shownPdfAnnotation ?
         <AnnotationToolbar key={openAnnotation.id} annotation={shownPdfAnnotation} anchor={openAnnotation.rect}
-          askLabel={askLabel} notes={marks.notes} onDismiss={() => setOpenAnnotation(null)} onAsk={askAnnotation} onSave={saveAnnotation} onDelete={removeAnnotation}
-          picture={isPdfArea(shownPdfAnnotation) && shownPdfAnnotation.anchors[0]?.rects[0] ? () => areaPicture(shownPdfAnnotation.anchors[0].page, shownPdfAnnotation.anchors[0].rects[0]) : undefined} /> : null}
-      {content.status === "pdf" && area ? <BlockToolbar key={`${area.page}:${area.rect.x}:${area.rect.y}`} anchor={area.at} label="Area actions" askLabel={askLabel} notes={marks.notes}
+          askLabel={askLabel} onDismiss={() => setOpenAnnotation(null)} onAsk={askAnnotation} onSave={saveAnnotation} onDelete={removeAnnotation} /> : null}
+      {content.status === "pdf" && area ? <BlockToolbar key={`${area.page}:${area.rect.x}:${area.rect.y}`} anchor={area.at} label="Area actions" askLabel={askLabel}
         onDismiss={() => setArea(null)}
         onMark={readingDocument ? () => highlightArea(area) : undefined}
-        onAsk={async () => askWithPicture(area.text, "", await areaSource(area), area.picture)}
-        save={async (target) => savePictureQuoteToNote(area.picture, passageMarkdown(area.text, await areaSource(area)), area.text || `${name} · p. ${area.page}`, target, marks.notes.agentId)}
-        copy={async () => passageMarkdown(area.text, await areaSource(area))} /> : null}
+        onAsk={async () => askWithPicture(area.text, "", await areaSource(area), area.picture)} /> : null}
     </div>
   );
 }

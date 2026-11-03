@@ -27,7 +27,8 @@ type ApprovalDecision,
 type UserQuestionReply,
 } from "../../../integrations/harness";
 import { MOD } from "../../../platform/tauri/platform";
-import { appendToNote,createNote,listAgentNotes,loadNotes,noteTitle,type NoteTarget } from "../../notes";
+import { createNote, keepInHighlightsNote, noteTitle } from "../../notes";
+import { quoteMarkdown } from "../../learning/model/quoteNote";
 import {
 looksLikeProject,
 type RecentProject,
@@ -432,23 +433,16 @@ export const SessionPane = memo(function SessionPane({
     },
     [session.cwd, session.harness, session.id, session.title, onNoteSaved, residentAgent?.id],
   );
-  const saveSelectionNote = useCallback(
-    async (text: string, target: NoteTarget) => {
-      if (target.kind === "note") return appendToNote(target.id, text);
-      return createNote({
-        title: noteTitle(text),
-        body: text,
-        sourceSessionId: session.id,
-        ...(residentAgent ? { agentId: residentAgent.id } : {}),
-        sourceCwd: session.cwd,
-      });
-    },
+  /** A passage kept from the conversation: quoted in the mentor's highlights note, without asking which. */
+  const keepSelection = useCallback(
+    (text: string) => keepInHighlightsNote(residentAgent?.id ?? "global", quoteMarkdown(text), () => createNote({
+      title: "Highlights",
+      body: quoteMarkdown(text),
+      sourceSessionId: session.id,
+      ...(residentAgent ? { agentId: residentAgent.id } : {}),
+      sourceCwd: session.cwd,
+    })),
     [session.cwd, session.id, residentAgent?.id],
-  );
-  const residentAgentId = residentAgent?.id;
-  const listSelectionNotes = useCallback(
-    () => (residentAgentId ? listAgentNotes(residentAgentId) : loadNotes()),
-    [residentAgentId],
   );
 
   useEffect(() => {
@@ -705,11 +699,7 @@ export const SessionPane = memo(function SessionPane({
                       ? (block) => onRemoveDraft(session.id, block.id)
                       : undefined
                   }
-                  onSaveSelectionNote={
-                    notesEnabled ? saveSelectionNote : undefined
-                  }
-                  listSelectionNotes={listSelectionNotes}
-                  notesScope={residentAgentId ?? "global"}
+                  onKeepSelection={notesEnabled ? keepSelection : undefined}
                   onOpenFile={onOpenFile}
 
 

@@ -48,7 +48,7 @@ beforeEach(() => {
   root = createRoot(container);
 });
 
-const quote = () => act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyL", key: "l", metaKey: true, ctrlKey: false, bubbles: true, cancelable: true })); });
+const ask = () => act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyL", key: "l", metaKey: true, ctrlKey: false, bubbles: true, cancelable: true })); });
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
@@ -70,19 +70,19 @@ it("says where a source came from and hands its address to the text, and labels 
 
 it("puts a selected passage of a source to its agent as a quoted passage of the library document, without sending anything", async () => {
   await act(async () => root.render(createElement(DocumentBody, { document: source, agentId: "a" })));
-  await quote();
+  await ask();
   const quoted = { id: "source-1", kind: "document", agentId: "a", documentId: "k8s-pod-lifecycle", url: source.sourceUrl, title: "Pod Lifecycle", quote: "A Pod's phase",
     anchor: { exact: "A Pod's phase", prefix: "", suffix: "", start: 0, end: 0 } };
   expect(registerLearningSource).toHaveBeenCalledWith(quoted);
-  expect(requestAddToChat).toHaveBeenCalledWith("", "plain", { sources: [quoted], targetSessionId: "agent-chat" });
+  expect(requestAddToChat).toHaveBeenCalledWith("> A Pod's phase\n\n", "prompt", { sources: [quoted], targetSessionId: "agent-chat" });
 });
 
-it("quotes a selected passage of a document outside any library as plain text", async () => {
+it("asks about a selected passage of a document outside any library as plain text", async () => {
   await act(async () => root.render(createElement(DocumentBody, { document: { id: "notes", title: "Notes", body: "Mine" } })));
   expect(container.querySelector("[data-document-guide]")).toBeNull();
-  await quote();
+  await ask();
   expect(registerLearningSource).not.toHaveBeenCalled();
-  expect(requestAddToChat).toHaveBeenCalledWith("A Pod's phase", "quote", {});
+  expect(requestAddToChat).toHaveBeenCalledWith("> A Pod's phase\n\n", "prompt", {});
 });
 
 it("finds the heading a lesson starts at by its words, however it is spaced or cased", async () => {

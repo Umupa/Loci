@@ -1,13 +1,14 @@
-/* The bar beside a passage: ink on the paper it floats over, one hairline,
-   no title. Paper under a PDF is always white, so the bar keeps an opaque
-   theme surface to stay readable in either theme. */
+/* The bar beside a passage, in every reader and the conversation: a strip of
+   ink on the page (paper text on it), so it never reads as part of the text.
+   PDF paper is always white; the ink keeps the bar legible on it either way. */
 .reading-toolbar {
+  --bar-ink: var(--color-content);
+  --bar-paper: var(--color-background-base);
   overflow: auto;
-  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
-  border-radius: 10px;
-  background: var(--color-background-base);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 4px 14px rgb(0 0 0 / 10%);
-  color: var(--color-content);
+  border-radius: 9px;
+  background: var(--bar-ink);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%), 0 6px 18px rgb(0 0 0 / 16%);
+  color: var(--bar-paper);
   font-family: var(--font-sans);
   font-size: 12.5px;
   line-height: 18px;
@@ -26,9 +27,9 @@
   height: 28px;
   align-items: center;
   gap: 6px;
-  padding: 0 8px;
+  padding: 0 9px;
   border-radius: 6px;
-  color: color-mix(in srgb, var(--color-content) 78%, transparent);
+  color: color-mix(in srgb, var(--bar-paper) 82%, transparent);
 }
 
 .reading-toolbar__button[aria-label] {
@@ -39,12 +40,11 @@
 
 .reading-toolbar__button:enabled:hover,
 .reading-toolbar__button[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--color-content) 6%, transparent);
-  color: var(--color-content);
+  background: color-mix(in srgb, var(--bar-paper) 14%, transparent);
+  color: var(--bar-paper);
 }
 
-.reading-toolbar__button:focus-visible,
-.reading-toolbar__note-form button:focus-visible {
+.reading-toolbar__button:focus-visible {
   outline: 2px solid var(--color-accent-ring);
   outline-offset: -2px;
 }
@@ -53,25 +53,15 @@
   opacity: 0.4;
 }
 
-.reading-toolbar__split {
-  display: flex;
-}
-
-.reading-toolbar .reading-toolbar__chevron {
-  width: 18px;
-  margin-left: -2px;
-  color: color-mix(in srgb, var(--color-content) 45%, transparent);
-}
-
 .reading-toolbar__divider {
   width: 1px;
   height: 16px;
   margin: 0 3px;
-  background: color-mix(in srgb, var(--color-content) 12%, transparent);
+  background: color-mix(in srgb, var(--bar-paper) 18%, transparent);
 }
 
 .reading-toolbar__button--danger:enabled:hover {
-  color: var(--color-diff-del-fg);
+  color: color-mix(in srgb, var(--color-danger) 60%, var(--bar-paper));
 }
 
 /* The note on a highlight, under its bar: read as a line, written in a small field. */
@@ -82,8 +72,8 @@
   max-height: 84px;
   overflow: auto;
   padding: 6px 11px 8px;
-  border-top: 1px solid color-mix(in srgb, var(--color-content) 8%, transparent);
-  color: color-mix(in srgb, var(--color-content) 62%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--bar-paper) 14%, transparent);
+  color: color-mix(in srgb, var(--bar-paper) 72%, transparent);
   font-size: 12px;
   line-height: 18px;
   text-align: left;
@@ -92,114 +82,39 @@
 }
 
 .reading-toolbar__note:hover {
-  color: var(--color-content);
+  color: var(--bar-paper);
 }
 
 .reading-toolbar__note-form {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 6px 6px;
+  padding: 0 4px 4px;
 }
 
-.reading-toolbar__note-form textarea,
-.reading-toolbar__comment textarea {
+.reading-toolbar__note-form textarea {
   user-select: text;
+  width: 100%;
+  min-width: 260px;
   min-height: 56px;
   max-height: 200px;
   resize: vertical;
-  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
+  border: 0;
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 7px 9px;
   outline: none;
-  background: color-mix(in srgb, var(--color-content) 3%, transparent);
-  color: var(--color-content);
+  background: var(--bar-paper);
+  color: var(--bar-ink);
   font-size: 12.5px;
   line-height: 18px;
 }
 
-.reading-toolbar__note-form textarea:focus,
-.reading-toolbar__comment textarea:focus {
-  border-color: color-mix(in srgb, var(--color-content) 28%, transparent);
-}
-
-.reading-toolbar__note-form textarea::placeholder,
-.reading-toolbar__comment textarea::placeholder {
-  color: color-mix(in srgb, var(--color-content) 40%, transparent);
-}
-
-.reading-toolbar__note-form footer,
-.reading-toolbar__comment footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  color: color-mix(in srgb, var(--color-content) 40%, transparent);
-  font-size: 11px;
-}
-
-.reading-toolbar__note-form footer span {
-  margin-right: auto;
-}
-
-.reading-toolbar__note-form footer button,
-.reading-toolbar__comment footer button {
-  height: 24px;
-  border-radius: 6px;
-  padding: 0 8px;
-  color: var(--color-content);
-  font-size: 12px;
-}
-
-.reading-toolbar__note-form footer button:enabled:hover,
-.reading-toolbar__comment footer button:enabled:hover {
-  background: color-mix(in srgb, var(--color-content) 6%, transparent);
-}
-
-.reading-toolbar__note-form button[type="submit"],
-.reading-toolbar__comment button[type="submit"] {
-  background: color-mix(in srgb, var(--color-content) 8%, transparent);
-}
-
-.reading-toolbar__note-form footer button:disabled,
-.reading-toolbar__comment footer button:disabled {
-  opacity: 0.4;
-}
-
-/* ⌥⌘M: a comment on the passage, for the chat. */
-.reading-toolbar__comment {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-}
-
-.reading-toolbar__comment blockquote {
-  user-select: text;
-  max-height: 72px;
-  overflow: auto;
-  border-left: 2px solid var(--color-mark-wash-strong);
-  padding-left: 8px;
-  color: color-mix(in srgb, var(--color-content) 62%, transparent);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 12px;
-}
-
-.reading-toolbar__picker {
-  padding: 4px;
-}
-
-/* The picker takes the bar's place, at the bar's width. */
-.reading-toolbar__picker [role="menu"] {
-  width: auto;
-  min-width: 16rem;
+.reading-toolbar__note-form textarea::placeholder {
+  color: color-mix(in srgb, var(--bar-ink) 40%, transparent);
 }
 
 .reading-toolbar__error {
   max-width: 360px;
   padding: 0 11px 7px;
-  color: var(--color-diff-del-fg);
+  color: color-mix(in srgb, var(--color-danger) 55%, var(--bar-paper));
   font-size: 12px;
   overflow-wrap: anywhere;
 }

@@ -1,17 +1,14 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { copyText } from "../../../platform/tauri/clipboard";
-import { Copy, Highlighter, MessageSquarePlus } from "../../../shared/ui/icons";
+import { Highlighter, MessageSquarePlus } from "../../../shared/ui/icons";
 import { Popover } from "../../../shared/ui/Popover";
-import type { Note } from "../../notes/notes";
-import type { NoteTarget } from "../../notes/noteTarget";
 import { BLOCK_SELECTOR } from "../model/blockAnchor";
-import { ToolbarButton, useSaveToNote, type NoteShelf } from "./ReadingToolbar";
+import { ToolbarButton } from "./ReadingToolbar";
 
 /*
  * A whole block (a table, a diagram, a code block, a picture, an area drawn
- * on a PDF page) has the selection's bar: Highlight · Ask · Save to note ·
- * Copy. What each action takes from the block is the reader's to say.
+ * on a PDF page) has the selection's bar: Highlight · Ask. What each action
+ * takes from the block is the reader's to say.
  */
 
 type Props = {
@@ -19,41 +16,29 @@ type Props = {
   /** "Table actions": what the bar is for, to a screen reader. */
   label: string;
   askLabel?: string;
-  notes?: NoteShelf;
   onDismiss: () => void;
-  /** Keep the block highlighted; its own bar opens on it. Absent where nothing can be kept. */
+  /** Keep the block highlighted. Absent where nothing can be kept. */
   onMark?: () => Promise<void>;
   /** Put the block in the composer's draft. */
   onAsk: () => Promise<void> | void;
-  /** Add the block to a note, or start one with it. */
-  save: (target: NoteTarget) => Promise<Note>;
-  /** The block as Markdown, for the clipboard. */
-  copy: () => Promise<string>;
 };
 
-export function BlockToolbar({ anchor, label, askLabel = "Ask", notes, onDismiss, onMark, onAsk, save, copy }: Props) {
+export function BlockToolbar({ anchor, label, askLabel = "Ask", onDismiss, onMark, onAsk }: Props) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const saving = useSaveToNote(notes, save);
   const run = async (action: () => Promise<unknown> | unknown) => {
     setPending(true); setError(null);
-    try {
-      // An action that resolves `false` moved on to another step (the note picker).
-      if (await action() !== false) onDismiss();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    try { await action(); onDismiss(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setPending(false); }
   };
-  const picker = saving.picker(onDismiss);
   return <Popover bare anchor={anchor} side="bottom" align="start" onDismiss={onDismiss} role="toolbar" aria-label={label} className="reading-toolbar">
-    {picker ? <div className="reading-toolbar__picker">{picker}</div> : <div className="reading-toolbar__actions">
-      {onMark ? <ToolbarButton icon={<Highlighter className="size-3.5" />} label="Highlight" title="Keep this block highlighted"
+    <div className="reading-toolbar__actions">
+      {onMark ? <ToolbarButton icon={<Highlighter className="size-3.5" />} label="Highlight" title="Keep this block"
         disabled={pending} onClick={() => void run(onMark)} /> : null}
       <ToolbarButton icon={<MessageSquarePlus className="size-3.5" />} label={askLabel} disabled={pending}
         title="Put this block in the chat, as written, and write your question" onClick={() => void run(onAsk)} />
-      {saving.button(() => void run(async () => await saving.run() ? undefined : false), pending)}
-      <ToolbarButton icon={<Copy className="size-3.5" />} label="Copy as Markdown" iconOnly disabled={pending}
-        title="Copy as Markdown, with a link back here" onClick={() => void run(async () => copyText(await copy()))} />
-    </div>}
+    </div>
     {error ? <p role="alert" className="reading-toolbar__error">Could not do that. {error}</p> : null}
   </Popover>;
 }
@@ -125,7 +110,7 @@ export function BlockHandle({ root, enabled = true, marked, onOpen }: {
   const isMarked = marked(shown.block);
   return createPortal(<button type="button" data-block-handle className="block-handle" data-marked={isMarked ? "" : undefined}
     style={{ left: shown.x, top: shown.y }}
-    aria-label={isMarked ? "Highlight actions" : "Block actions"} title={isMarked ? "This block is highlighted: note, ask, save or delete" : "Highlight, ask about or save this block"}
+    aria-label={isMarked ? "Highlight actions" : "Block actions"} title={isMarked ? "Highlighted: note, ask or delete" : "Highlight or ask about this block"}
     onPointerEnter={() => window.clearTimeout(hideTimer.current)}
     onPointerLeave={(event) => {
       if (event.relatedTarget instanceof Node && shown.block.contains(event.relatedTarget)) return;

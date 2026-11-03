@@ -411,7 +411,7 @@ function LessonFile({ agentId, lesson, marksList, onMarks, part }: { agentId: st
         </div>;
       })()
       : <div ref={excerptRef} className="select-text" data-reading-text><AgentMarkdown text={pin.loaded.text!} wholeDocument /></div>}
-    <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${pin.view}:${pin.loaded?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} quote={marks.quote} notes={marks.notes} actions={nav.selectionActions} />
+    <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${pin.view}:${pin.loaded?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} actions={nav.selectionActions} />
     {marks.popover}
     {nav.results}
     {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) : null}
@@ -434,7 +434,7 @@ function LessonFile({ agentId, lesson, marksList, onMarks, part }: { agentId: st
         </div>;
       })()
       : <div ref={excerptRef} className="select-text" data-reading-text><AgentMarkdown text={shown.text!} wholeDocument /></div>}
-    <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${pin.view}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} quote={marks.quote} notes={marks.notes} actions={nav.selectionActions} />
+    <ReadingSelectionMenu selection={selection} onDismiss={dismiss} resetKey={`${file}:${pin.view}:${shown?.text?.length ?? 0}`} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} actions={nav.selectionActions} />
     {marks.popover}
     {nav.results}
     {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) : null}

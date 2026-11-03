@@ -5,17 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AnnotationList, AnnotationToolbar } from "./PdfAnnotations";
 import { createPdfAnnotation } from "../model/pdfAnnotations";
 import { OPEN_LEARNING_DISCUSSION_EVENT } from "../model/navigation";
-import { registerLearningSource } from "../model/learningStore";
-import { copyText } from "../../../platform/tauri/clipboard";
-import { createNote, getNote, upsertNote } from "../../notes/notes";
-import { NOTE_SAVED_EVENT, rememberedNoteTarget } from "../../notes/noteTarget";
 
 vi.mock("../model/learningStore", () => ({ registerLearningSource: vi.fn(async () => undefined) }));
-vi.mock("../../../platform/tauri/clipboard", () => ({ copyText: vi.fn(async () => undefined) }));
-vi.mock("../../notes/notes", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../notes/notes")>(),
-  getNote: vi.fn(), upsertNote: vi.fn(), createNote: vi.fn(), listAgentNotes: vi.fn(), loadNotes: vi.fn(),
-}));
 
 describe("reading notes and discussions", () => {
   let host: HTMLDivElement; let root: Root;
@@ -23,9 +14,6 @@ describe("reading notes and discussions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    vi.mocked(getNote).mockImplementation(async (id) => id === stored.id ? stored : null);
-    vi.mocked(upsertNote).mockImplementation(async (note) => ({ ...stored, ...note }));
-    vi.mocked(createNote).mockImplementation(async (input) => ({ ...stored, id: "new-note", title: input.title ?? "", body: input.body ?? "" }));
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
     host = document.createElement("div"); document.body.append(host); root = createRoot(host);
@@ -60,11 +48,9 @@ describe("reading notes and discussions", () => {
   });
 
   const bar = (props: Partial<Parameters<typeof AnnotationToolbar>[0]> = {}) => createElement(AnnotationToolbar, {
-    annotation, anchor: new DOMRect(100, 100, 10, 10), askLabel: "Ask Kern", notes: shelf,
+    annotation, anchor: new DOMRect(100, 100, 10, 10), askLabel: "Ask Kern",
     onAsk: vi.fn(), onSave: vi.fn(async () => {}), onDelete: vi.fn(async () => {}), onDismiss: vi.fn(), ...props,
   });
-  const shelf = { scope: "agent-a", agentId: "agent-a", list: vi.fn(async () => [stored]) };
-  const stored = { id: "reading", slug: "reading", title: "Reading log", body: "Earlier", tags: [], slugPending: false, createdAt: 1, updatedAt: 1 };
   const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find((entry) => (entry.textContent || entry.getAttribute("aria-label")) === label)!;
   const field = () => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Note"]');
   const type = async (text: string) => act(async () => {
@@ -76,20 +62,19 @@ describe("reading notes and discussions", () => {
     await act(async () => root.render(bar()));
     const toolbar = document.querySelector('[role="toolbar"][aria-label="Highlight actions"]')!;
     expect([...toolbar.querySelectorAll(".reading-toolbar__actions button")].map((entry) => entry.textContent || entry.getAttribute("aria-label")))
-      .toEqual(["Note", "Ask Kern", "Save to note", "Copy quote", "Open discussion", "Delete highlight"]);
+      .toEqual(["Note", "Ask Kern", "Open discussion", "Delete highlight"]);
     expect(toolbar.querySelector("h2, blockquote")).toBeNull();
     expect(field()).toBeNull();
     expect(button("Read again").className).toContain("reading-toolbar__note");
   });
 
-  it("opens the note field from Note, saves it, and asks with the note as it stands", async () => {
+  it("opens the note field from Note, keeps it on Enter, and asks with the note as it stands", async () => {
     const onSave = vi.fn(async () => {}); const onAsk = vi.fn();
     await act(async () => root.render(bar({ onSave, onAsk })));
     await act(async () => button("Note").click());
     expect(document.activeElement).toBe(field());
-    expect(button("Save").disabled).toBe(true);
     await type("How does this compare with the experiment?");
-    await act(async () => button("Save").click());
+    await act(async () => field()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
     expect(onSave).toHaveBeenCalledWith(annotation, "How does this compare with the experiment?");
     expect(field()).toBeNull();
     await act(async () => button("Ask Kern").click());
@@ -109,41 +94,6 @@ describe("reading notes and discussions", () => {
     await act(async () => button("Ask Kern").click());
     expect(onSave).toHaveBeenCalledWith(annotation, "Why does this hold?");
     expect(onAsk).toHaveBeenCalledWith({ ...annotation, note: "Why does this hold?" });
-  });
-
-  it("asks which note the first time, then saves the quote, its link and the note to the one chosen last", async () => {
-    const onDismiss = vi.fn();
-    const saved = vi.fn(); window.addEventListener(NOTE_SAVED_EVENT, saved);
-    await act(async () => root.render(bar({ onDismiss })));
-    await act(async () => button("Save to note").click());
-    expect(document.querySelector('[role="menu"][aria-label="Add to which note"]')).not.toBeNull();
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    await act(async () => button("Reading log").click());
-    expect(registerLearningSource).toHaveBeenCalledWith(annotation.source);
-    expect(vi.mocked(upsertNote).mock.calls[0][0].body).toBe(`Earlier\n\n> A useful passage\n>\n> — [Book · p. 3](loci://source/${annotation.source.id}#p3&quote=A%20useful%20passage)\n\nRead again\n`);
-    expect(onDismiss).toHaveBeenCalledOnce();
-    expect((saved.mock.calls[0][0] as CustomEvent).detail).toMatchObject({ id: "reading", title: "Reading log" });
-    expect(rememberedNoteTarget("agent-a")).toEqual({ kind: "note", id: "reading", title: "Reading log" });
-    // The next passage goes straight there, with no question.
-    await act(async () => root.render(bar({ key: "again", onDismiss })));
-    await act(async () => button("Save to note").click());
-    expect(document.querySelector('[role="menu"]')).toBeNull();
-    expect(upsertNote).toHaveBeenCalledTimes(2);
-    window.removeEventListener(NOTE_SAVED_EVENT, saved);
-  });
-
-  it("starts a new note from the picker, and goes on adding to that note", async () => {
-    await act(async () => root.render(bar({ annotation: { ...annotation, note: "" } })));
-    await act(async () => button("Save to note").click());
-    await act(async () => button("New note").click());
-    expect(createNote).toHaveBeenCalledWith({ title: "A useful passage", body: expect.stringMatching(/^> A useful passage\n>\n> — \[Book · p\. 3\]\(loci:\/\/source\/.+\)$/), agentId: "agent-a" });
-    expect(rememberedNoteTarget("agent-a")).toEqual({ kind: "note", id: "new-note", title: "A useful passage" });
-  });
-
-  it("copies the passage as a linked Markdown quote", async () => {
-    await act(async () => root.render(bar()));
-    await act(async () => button("Copy quote").click());
-    expect(copyText).toHaveBeenCalledWith(expect.stringMatching(/^> A useful passage\n>\n> — \[Book · p\. 3\]\(loci:.+\)\n\nRead again$/));
   });
 
   it("reopens the linked discussion and removes a mark through its visible controls", async () => {

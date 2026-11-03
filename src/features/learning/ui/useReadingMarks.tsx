@@ -7,11 +7,10 @@ import { deleteAnnotation, listAnnotations, registerLearningSource, subscribeLea
 import { describeRange } from "../model/textAnchor";
 import type { Annotation, AnnotationTarget, LearningSource, TextAnchor } from "../model/types";
 import { blockAnchor, blockAt, blockLabel, type ReadingBlock } from "../model/blockAnchor";
-import { quoteMarkdown, saveQuoteToNote } from "../model/quoteNote";
+import { quoteMarkdown } from "../model/quoteNote";
 import { BlockHandle, BlockToolbar } from "./BlockToolbar";
 import { AnnotationList, AnnotationToolbar } from "./PdfAnnotations";
 import type { ChatIntent } from "./ReadingSelectionMenu";
-import { useNoteShelf } from "./ReadingToolbar";
 import { flashRange, useTextHighlights } from "./useTextHighlights";
 
 /** Show a reader's list of highlights, dropping from this anchor. */
@@ -105,7 +104,6 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
   }, [sourceOf, agent?.sessionId]);
 
   const quote = useCallback(async (passage: FileSelection) => quoteMarkdown(passage.text, await sourceOf(passage)), [sourceOf]);
-  const notes = useNoteShelf(agentId);
 
   const onMark = useCallback(async (passage: FileSelection) => {
     if (!target || !cite) return;
@@ -115,8 +113,8 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
     const now = Date.now();
     const saved = await upsertAnnotation({ id, documentId: "", target, anchor, source: cite(anchor, anchor.exact, id),
       anchors: [], note: "", discussions: [], createdAt: now, updatedAt: now });
+    // Kept, and that is all: a click on it later takes a note.
     setAnnotations((current) => [...current.filter((entry) => entry.id !== saved.id), saved]);
-    setOpen({ id: saved.id, at: passage.rect });
   }, [key, cite, anchorOf]);
 
   /** A whole block's anchor and its source, saved so a link or a chat can name it. The block's Markdown is the quote. */
@@ -128,7 +126,7 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
     return { anchor, source };
   };
 
-  const markBlock = async (block: ReadingBlock, at: DOMRect) => {
+  const markBlock = async (block: ReadingBlock) => {
     if (!target || !cite) return;
     const id = crypto.randomUUID();
     const { anchor, source } = await blockSource(block, id);
@@ -137,7 +135,6 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
     const saved = await upsertAnnotation({ id, documentId: "", target, anchor, source,
       anchors: [], note: "", discussions: [], createdAt: now, updatedAt: now });
     setAnnotations((current) => [...current.filter((entry) => entry.id !== saved.id), saved]);
-    setOpen({ id: saved.id, at });
   };
 
   /** The handle on a block: its highlight's bar when it has one, else the block's own. */
@@ -158,19 +155,14 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
   const shown = open ? annotations.find((entry) => entry.id === open.id) : undefined;
   const shownBlock = openBlock?.block;
   const blockBar: ReactNode = shownBlock && openBlock ? <BlockToolbar key={shownBlock.source} anchor={openBlock.at} label={`${blockLabel(shownBlock.kind)} actions`}
-    askLabel={askLabel} notes={notes} onDismiss={() => setOpenBlock(null)}
-    onMark={target && cite ? () => markBlock(shownBlock, openBlock.at) : undefined}
+    askLabel={askLabel} onDismiss={() => setOpenBlock(null)}
+    onMark={target && cite ? () => markBlock(shownBlock) : undefined}
     onAsk={async () => {
       const { source } = await blockSource(shownBlock);
       requestAddToChat(askDraft(shownBlock.source), "prompt", { ...(source ? { sources: [source] } : {}), ...chatTarget });
-    }}
-    save={async (to) => {
-      const { anchor, source } = await blockSource(shownBlock);
-      return saveQuoteToNote(quoteMarkdown(shownBlock.source, source), anchor?.block?.lead || blockLabel(shownBlock.kind), to, agentId);
-    }}
-    copy={async () => quoteMarkdown(shownBlock.source, (await blockSource(shownBlock)).source)} /> : null;
+    }} /> : null;
   const handle: ReactNode = <BlockHandle root={root} enabled={enabled} marked={(block) => !!blockMark(block)} onOpen={onBlock} />;
-  const toolbar: ReactNode = shown && open ? <AnnotationToolbar key={shown.id} annotation={shown} anchor={open.at} askLabel={askLabel} notes={notes}
+  const toolbar: ReactNode = shown && open ? <AnnotationToolbar key={shown.id} annotation={shown} anchor={open.at} askLabel={askLabel}
     onDismiss={() => setOpen(null)}
     onAsk={(annotation) => {
       requestAddToChat(askDraft(annotation.source.quote, annotation.note), "prompt", { sources: [annotation.source], ...chatTarget });
@@ -195,5 +187,5 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
       {list(onClose, title, only)}
     </Popover>;
 
-  return { annotations, orphans, askLabel, chatTarget, popover, list, listPopover, select, rangeOf, toChat, quote, notes, onMark: target && cite ? onMark : undefined };
+  return { annotations, orphans, askLabel, chatTarget, popover, list, listPopover, select, rangeOf, toChat, quote, onMark: target && cite ? onMark : undefined };
 }

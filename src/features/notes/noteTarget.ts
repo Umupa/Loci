@@ -50,3 +50,22 @@ export const NOTE_SAVED_EVENT = "loci:note-saved";
 export function announceNoteSaved(note: Note) {
   window.dispatchEvent(new CustomEvent<Note>(NOTE_SAVED_EVENT, { detail: note }));
 }
+
+const HIGHLIGHTS_KEY = "loci.highlightsNote.";
+
+/**
+ * A passage kept from a conversation goes to one note per mentor, its
+ * highlights, without asking which: the note is made the first time and again
+ * if it was deleted. `create` makes it with the passage as its first entry.
+ */
+export async function keepInHighlightsNote(scope: string, markdown: string, create: () => Promise<Note>): Promise<Note> {
+  let id: string | null = null;
+  try { id = localStorage.getItem(HIGHLIGHTS_KEY + scope); } catch { /* none remembered */ }
+  if (id) {
+    try { return await appendToNote(id, markdown); }
+    catch (error) { if (!(error instanceof MissingNoteError)) throw error; }
+  }
+  const note = await create();
+  try { localStorage.setItem(HIGHLIGHTS_KEY + scope, note.id); } catch { /* made again next time */ }
+  return note;
+}

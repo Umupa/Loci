@@ -80,16 +80,14 @@ describe("PDF passage workflows", () => {
     expect(button("Ask Ada")).toBeDefined();
   });
 
-  it("keeps a selected passage and opens its own bar on it", async () => {
+  it("keeps a selected passage, and its own bar opens from the mark, not by itself", async () => {
     await show(); await selectPassage();
     await act(async () => button("Highlight").click());
     expect(learning.upsertPdfAnnotation).toHaveBeenCalledOnce();
     const mark = vi.mocked(learning.upsertPdfAnnotation).mock.calls[0][0];
     expect(mark.source).toMatchObject({ annotationId: mark.id, documentId: "document", quote: "Selectable passage" });
-    const bar = document.querySelector('[role="toolbar"][aria-label="Highlight actions"]');
-    expect([...bar!.querySelectorAll("button")].map((entry) => entry.textContent || entry.getAttribute("aria-label")))
-      .toEqual(["Note", "Ask", "Save to note", "Copy quote", "Delete highlight"]);
-    expect(document.querySelector('textarea[aria-label="Note"]')).toBeNull();
+    expect(document.querySelector('[role="toolbar"][aria-label="Highlight actions"]')).toBeNull();
+    expect(document.querySelector('[role="toolbar"][aria-label="Selected text actions"]')).toBeNull();
     expect(window.getSelection()!.toString()).toBe("");
   });
 

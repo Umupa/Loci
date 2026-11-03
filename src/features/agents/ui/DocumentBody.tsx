@@ -184,7 +184,7 @@ export function DocumentBody({ document, agentId, section, bare, inPlace, marksL
       {translation && readView !== "original" ? <div className="select-text" data-translated-text>
         <TranslatedText units={translation.units} view={readView} sourceUrl={sourceUrl} />
       </div> : null}
-      <ReadingSelectionMenu selection={selection} onDismiss={dismiss} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark} quote={marks.quote} notes={marks.notes}
+      <ReadingSelectionMenu selection={selection} onDismiss={dismiss} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark}
         resetKey={JSON.stringify([document.id, document.body, document.title, document.sourceUrl, agentId])} />
       {marks.popover}
       {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) as ReactNode : null}

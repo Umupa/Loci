@@ -1,7 +1,4 @@
 import { parseAppResourceUrl } from "../../../shared/lib/appResourceLinks";
-import { createNote, getNote, noteTitle, type Note } from "../../notes/notes";
-import { noteImageMarkdown, saveNoteImagesFromFiles } from "../../notes/noteImages";
-import { appendToNote, MissingNoteError, type NoteTarget } from "../../notes/noteTarget";
 import { learningSourceLabel } from "./learningContext";
 import type { LearningSource } from "./types";
 
@@ -47,25 +44,4 @@ export function quoteMarkdown(quote: string, source?: LearningSource, note = "")
   if (source) lines.push(...(lines.length ? [">"] : []), `> — [${learningSourceLabel(source).replace(/([[\]\\])/g, "\\$1")}](${quoteLink(source)})`);
   const own = note.replace(/\r\n?/g, "\n").trim();
   return `${lines.join("\n")}${own ? `\n\n${own}` : ""}`;
-}
-
-/** Add a passage's Markdown to the end of a note, or start a new one with it. */
-export function saveQuoteToNote(markdown: string, quote: string, target: NoteTarget, agentId?: string): Promise<Note> {
-  if (target.kind === "note") return appendToNote(target.id, markdown);
-  return createNote({ title: noteTitle(quote), body: markdown, ...(agentId ? { agentId } : {}) });
-}
-
-/**
- * A passage with a picture of it (an area of a PDF page): the picture is kept
- * with the note, among its own pictures, and shown above the passage.
- */
-export async function savePictureQuoteToNote(picture: File | null, markdown: string, title: string, target: NoteTarget, agentId?: string): Promise<Note> {
-  let id: string;
-  if (target.kind === "note") {
-    // Before the picture is copied anywhere: a note that is gone takes nothing.
-    if (!await getNote(target.id)) throw new MissingNoteError();
-    id = target.id;
-  } else id = (await createNote({ title, body: "", ...(agentId ? { agentId } : {}) })).id;
-  const pictures = picture ? await saveNoteImagesFromFiles(id, [picture]) : [];
-  return appendToNote(id, [...pictures.map(noteImageMarkdown), markdown].filter(Boolean).join("\n\n"));
 }

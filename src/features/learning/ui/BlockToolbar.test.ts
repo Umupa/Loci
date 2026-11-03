@@ -5,7 +5,6 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { registerLearningSource, upsertAnnotation } from "../model/learningStore";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { documentMarkSpec } from "../../agents/model/documentMarks";
-import { copyText } from "../../../platform/tauri/clipboard";
 import { useReadingMarks } from "./useReadingMarks";
 
 vi.mock("../../agents/model/agent", () => ({ findAgent: () => ({ id: "kern", name: "Kern", sessionId: "s-kern" }) }));
@@ -13,7 +12,6 @@ vi.mock("../model/learningStore", () => ({
   registerLearningSource: vi.fn(), listAnnotations: vi.fn(async () => []), subscribeLearningChanges: () => () => {},
   upsertAnnotation: vi.fn(async (annotation: unknown) => annotation), deleteAnnotation: vi.fn(),
 }));
-vi.mock("../../../platform/tauri/clipboard", () => ({ copyText: vi.fn(async () => undefined) }));
 vi.mock("../../sessions/model/quoteDraft", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../sessions/model/quoteDraft")>(),
   requestAddToChat: vi.fn(),
@@ -62,7 +60,7 @@ const button = (bar: Element, label: string) => [...bar.querySelectorAll("button
 
 it("asks the mentor about a table as its Markdown, cited by its section", async () => {
   const bar = await openBar();
-  expect([...bar.querySelectorAll("button")].map((entry) => entry.textContent || entry.getAttribute("aria-label"))).toEqual(["Highlight", "Ask Kern", "Save to note", "Copy as Markdown"]);
+  expect([...bar.querySelectorAll("button")].map((entry) => entry.textContent || entry.getAttribute("aria-label"))).toEqual(["Highlight", "Ask Kern"]);
   await act(async () => button(bar, "Ask Kern").click());
   const [text, mode, context] = vi.mocked(requestAddToChat).mock.calls[0];
   expect(text).toBe("> | Phase | Meaning |\n> | --- | --- |\n> | Pending | accepted |\n\n");
@@ -72,18 +70,17 @@ it("asks the mentor about a table as its Markdown, cited by its section", async 
   expect(document.querySelector('[aria-label="Table actions"]')).toBeNull();
 });
 
-it("copies a table as a quote of its Markdown linked to its section", async () => {
-  const bar = await openBar();
-  await act(async () => button(bar, "Copy as Markdown").click());
-  expect(vi.mocked(copyText).mock.calls[0][0]).toMatch(/^> \| Phase \| Meaning \|\n> \| --- \| --- \|\n> \| Pending \| accepted \|\n>\n> — \[Pods · Pod phase\]\(loci:\/\/source\/[\w-]+#section=Pod%20phase&quote=Pendingaccepted\)$/);
-});
-
 it("highlights the whole table, then opens its highlight's bar from the handle", async () => {
   const bar = await openBar();
   await act(async () => button(bar, "Highlight").click());
   const saved = vi.mocked(upsertAnnotation).mock.calls[0][0];
   expect(saved).toMatchObject({ target: { kind: "document", agentId: "kern", documentId: "pods" }, anchor: { exact: TABLE, block: { kind: "table" } }, source: { quote: TABLE, annotationId: saved.id } });
+  // Kept, and the bar goes; the handle now opens the highlight's own bar.
+  expect(document.querySelector('[aria-label="Table actions"]')).toBeNull();
+  expect(host.querySelector("table")!.hasAttribute("data-block-mark")).toBe(true);
+  const handle = document.querySelector<HTMLButtonElement>("[data-block-handle]")!;
+  expect(handle.getAttribute("aria-label")).toBe("Highlight actions");
+  await act(async () => handle.click());
   expect(document.querySelector('[aria-label="Highlight actions"][role="toolbar"]')).not.toBeNull();
   expect(host.querySelector("table")!.getAttribute("data-block-mark")).toBe("selected");
-  expect(document.querySelector("[data-block-handle]")?.getAttribute("aria-label")).toBe("Highlight actions");
 });
