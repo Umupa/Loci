@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useAnimatedReorder } from "../../shared/hooks/useAnimatedReorder";
-import { CircleAlert, CircleDashed, MoreHorizontal, Pencil, Plus, Search, Settings, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
+import { CircleAlert, CircleDashed, Pencil, Plus, Search, Settings, SlidersHorizontal, Trash2 } from "../../shared/ui/icons";
 import { Popover, type PopoverAnchor } from "../../shared/ui/Popover";
 import { AgentAvatar } from "../../features/agents/ui/AgentAvatar";
 import { IS_MAC } from "../../platform/tauri/platform";
@@ -151,12 +151,6 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
             onClick={() => { if (!sortable.consumeClick()) onOpen(agent.id); }}>
             <AgentAvatar name={look.avatar} color={look.color} className="mentor-rail-avatar size-6.5" />
             <RailSignal phase={phase} />
-          </button>
-          <button type="button" className="mentor-rail-more" aria-label={`${look.name} options`} title={`${look.name} options`}
-            aria-haspopup="menu" aria-expanded={menu?.id === agent.id} tabIndex={agent.id === rovingId ? 0 : -1}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => openMenu(agent.id, event.currentTarget, event.currentTarget)}>
-            <MoreHorizontal className="size-3.5" strokeWidth={2} />
           </button>
         </div>;
       })}

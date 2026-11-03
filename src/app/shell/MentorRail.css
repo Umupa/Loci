@@ -40,18 +40,13 @@
 [data-agent-rail-phase="needs-you"] .mentor-rail-signal { color: hsl(38 85% 60%); }
 html.theme-light [data-agent-rail-phase="needs-you"] .mentor-rail-signal { color: hsl(32 85% 40%); }
 [data-agent-rail-phase="updated"] .mentor-rail-signal { color: var(--color-accent-text); }
-/* The per-mentor menu, on the item's corner while it is hovered or focused. */
-.mentor-rail-more { position: absolute; top: -4px; right: 2px; z-index: 2; display: grid; width: 20px; height: 20px; place-items: center; border-radius: 8px; background: color-mix(in srgb, var(--color-background-base) 88%, transparent); color: color-mix(in srgb, var(--color-content) 55%, transparent); opacity: 0; pointer-events: none; transform: scale(0.6); transition: opacity 140ms var(--rail-glide), transform 220ms var(--rail-spring); }
-.mentor-rail-item:hover .mentor-rail-more, .mentor-rail-item:focus-within .mentor-rail-more, .mentor-rail-more[aria-expanded="true"] { opacity: 1; pointer-events: auto; transform: scale(1); }
-.mentor-rail-more:hover { background: color-mix(in srgb, var(--color-content) 12%, transparent); color: var(--color-content); }
 .mentor-rail-action { display: grid; width: 32px; height: 32px; flex: none; place-items: center; border-radius: 8px; color: color-mix(in srgb, var(--color-content) 65%, transparent); transition: background-color 160ms var(--rail-glide), color 160ms var(--rail-glide), border-color 160ms var(--rail-glide), transform 220ms var(--rail-spring); }
 .mentor-rail-action:active { transform: scale(0.88); transition-duration: 80ms; }
 .mentor-rail-action svg { transition: transform 420ms var(--rail-spring); }
 .mentor-rail-action:hover .mentor-rail-plus { transform: rotate(90deg); }
 .mentor-rail-action:hover .mentor-rail-gear, .mentor-rail-action[aria-pressed="true"] .mentor-rail-gear { transform: rotate(60deg); }
 .mentor-rail-action:hover, .mentor-rail-action[aria-pressed="true"] { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
-.mentor-rail-list > .mentor-rail-action { position: relative; z-index: 1; margin-top: 2px; border: 1px dashed color-mix(in srgb, var(--color-content) 18%, transparent); }
-.mentor-rail-list > .mentor-rail-action:hover { border-color: color-mix(in srgb, var(--color-content) 35%, transparent); border-style: solid; }
+.mentor-rail-list > .mentor-rail-action { position: relative; z-index: 1; margin-top: 2px; }
 .mentor-rail-bottom { display: flex; flex: none; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0 12px; }
 /* A quiet update check leaves this dot under the settings button, on a target of its own. */
 .mentor-rail-update { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border-radius: 999px; color: var(--color-accent); }

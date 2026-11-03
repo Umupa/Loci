@@ -71,12 +71,12 @@ describe("the rail's keyboard navigation", () => {
     expect(document.activeElement).toBe(mentorButton("Bea"));
   });
 
-  it("opens the mentor's menu from its … button, with the first item focused, and returns focus on Escape", async () => {
+  it("opens the mentor's menu on right-click, with the first item focused, and returns focus on Escape", async () => {
     const handlers = mountRoster("a1");
-    const more = mentorButton("Ada").parentElement!.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')!;
-    expect(more.getAttribute("aria-expanded")).toBe("false");
-    act(() => more.click());
-    expect(more.getAttribute("aria-expanded")).toBe("true");
+    const face = mentorButton("Ada");
+    // Nothing sits over a face: a click anywhere on it switches mentor.
+    expect(face.parentElement!.querySelector('[aria-haspopup="menu"]')).toBeNull();
+    act(() => { face.parentElement!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 })); });
     const items = () => [...document.querySelectorAll<HTMLElement>('[role="menu"] [role="menuitem"]')];
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(items().map((item) => item.textContent)).toEqual(["Settings", "Delete mentor…"]);
@@ -84,7 +84,7 @@ describe("the rail's keyboard navigation", () => {
     act(() => { items()[0].dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     expect(document.querySelector('[role="menu"]')).toBeNull();
-    expect(document.activeElement).toBe(more);
+    expect(document.activeElement).toBe(face);
     expect(handlers.onOpenDetails).not.toHaveBeenCalled();
   });
 
