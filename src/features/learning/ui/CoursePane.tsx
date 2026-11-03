@@ -1,5 +1,5 @@
 import { cloneElement, Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode } from "react";
-import { ArrowHorizontal, ChatQuestion, Check, Highlighter, ChevronDown, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
+import { ArrowHorizontal, ChatQuestion, Check, Highlighter, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
 import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";
@@ -289,6 +289,13 @@ function LessonMenu({ items, trigger }: { items: LessonMenuItem[]; trigger: RefO
   </>;
 }
 
+/** A course's subject for a breadcrumb: its title before a colon, without a leading ordinal. */
+export function courseSubject(title: string): string {
+  const plain = title.replace(/^\s*\d+[.、)]\s*/, "").trim();
+  return plain.split(/[：:]/)[0].trim() || plain;
+}
+
+/** The course and the lesson open, as a breadcrumb; the course opens its contents. */
 function CourseContentsDropdown({ course, activeId, onSelect }: { course: CourseWithProgress; activeId: string | null; onSelect: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -301,6 +308,8 @@ function CourseContentsDropdown({ course, activeId, onSelect }: { course: Course
     selected?.scrollIntoView({ block: "nearest" });
   }, [open]);
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
+  const lessons = course.data.engine === "reading" ? course.data.chapters.flatMap((chapter) => chapter.lessons) : course.data.steps;
+  const lesson = lessons.find((item) => item.id === activeId)?.title;
   const navigate = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("nav button")];
@@ -310,14 +319,15 @@ function CourseContentsDropdown({ course, activeId, onSelect }: { course: Course
     const index = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
     buttons[index].focus();
   };
-  return <>
+  return <span className="course-pane__crumbs">
     <button ref={trigger} type="button" data-tauri-drag-region="false" data-no-drag className="course-pane__contents-trigger" aria-label="Course contents" title="Course contents" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen((value) => !value)} onKeyDown={(event) => { if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); } }}>
-      <span>{course.title}</span><ChevronDown className="size-3.5 shrink-0 text-content/45" aria-hidden="true" />
+      <span>{courseSubject(course.title)}</span>
     </button>
+    {lesson ? <><span aria-hidden className="course-pane__crumb-sep">/</span><span className="course-pane__crumb-lesson" title={lesson}>{lesson}</span></> : null}
     {open ? <Popover ref={popup} anchor={trigger} id={id} role="dialog" aria-label="Course contents" side="bottom" align="start" width={320} maxHeight={420} className="course-pane__contents" onKeyDown={navigate} onDismiss={(reason) => { if (reason === "escape") close(); else setOpen(false); }}>
       <CourseOutline course={course} activeId={activeId} onSelect={(item) => { onSelect(item); close(); }} />
     </Popover> : null}
-  </>;
+  </span>;
 }
 
 type MarksProps = { marksList?: MarksListRequest; onMarks?: (count: number) => void };
