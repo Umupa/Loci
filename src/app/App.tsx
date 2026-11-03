@@ -19,6 +19,7 @@ import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, use
 import { openUpdatePrompt, startUpdateChecks, usePendingUpdateVersion } from "../features/updates/model/updates";
 import { UpdatePrompt } from "../features/updates/ui/UpdatePrompt";
 import { WindowControls } from "./shell/WindowControls";
+import { MentorSettingsPage } from "../features/agents/ui/MentorSettingsPage";
 import { MenuBar } from "./shell/MenuBar";
 import { MentorRail } from "./shell/MentorRail";
 import { SettingsNav } from "./shell/SettingsRail";
@@ -104,6 +105,8 @@ function Workspace(boot: BootWorkspace) {
   const pendingUpdateVersion = usePendingUpdateVersion();
   const [settingsSection, setSettingsSection] = useState(loadSettingsSection);
   const [settingsAnchor, setSettingsAnchor] = useState<string | null>(null);
+  /** The mentor whose page Settings shows, in place of a section. */
+  const [settingsMentorId, setSettingsMentorId] = useState<string | null>(null);
   const [savedToast, setSavedToast] = useState<SavedToastData | null>(null);
   const [transcriptPool] = useState(() => new TranscriptPool());
   const [agentGalleryOpen, setAgentGalleryOpen] = useState(false);
@@ -436,8 +439,16 @@ function Workspace(boot: BootWorkspace) {
   const openSettings = useCallback((section?: SettingsSectionId, anchor: string | null = null) => {
     if (section) { setSettingsSection(section); saveSettingsSection(section); }
     setSettingsAnchor(anchor);
+    setSettingsMentorId(null);
     startTransition(() => setSurface("settings"));
   }, []);
+  /** A mentor's own page in Settings; its conversation loads for the model and permissions. */
+  const openMentorSettings = useCallback((agentId: string) => {
+    const sessionId = agentsRef.current?.agents.find((agent) => agent.id === agentId)?.sessionId;
+    setSettingsMentorId(agentId);
+    startTransition(() => setSurface("settings"));
+    if (sessionId) void storeRef.current?.ensureSession(sessionId, runtime.bindRestoredSession).catch(reportError);
+  }, [reportError, runtime.bindRestoredSession]);
   const closeSettings = useCallback(() => setSurface("mentor"), []);
   // The composer's MCP picker hands its settings link to the app rather than the pane.
   useEffect(() => {
@@ -446,7 +457,7 @@ function Workspace(boot: BootWorkspace) {
     return () => window.removeEventListener("loci:open-mcp-settings", openMcp);
   }, [openSettings]);
   const onSelectSettingsSection = useCallback((section: SettingsSectionId) => {
-    setSettingsSection(section); saveSettingsSection(section); setSettingsAnchor(null);
+    setSettingsSection(section); saveSettingsSection(section); setSettingsAnchor(null); setSettingsMentorId(null);
   }, []);
   const persistWindow = useCallback(async (mode: WorkspaceSaveMode = "transition") => {
     runtime.flushEvents();
@@ -587,9 +598,7 @@ function Workspace(boot: BootWorkspace) {
     return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-pane-id={sessionId}>
       <AgentSessionPane agent={agent} state={agents.states.get(agent.id) ?? { status: "idle" }}
         sessionPaneProps={{ ...paneProps(session, true), onApproval: agentHabits.approve }}
-        detailsOpen={agents.isDetailsOpen(agent.id)} onToggleDetails={() => agents.setDetailsOpenFor(agent.id, (open) => !open)}
-        onReset={() => void agents.reset(agent.id)} onDelete={() => void agents.remove(agent.id)}
-        onPickFolders={() => pickFolders("Choose folders")}
+        onOpenSettings={() => openMentorSettings(agent.id)}
         onLoadEarlier={agents.hasEarlier(sessionId) ? () => void agents.loadEarlier(sessionId) : undefined} />
     </div>;
   };
@@ -603,6 +612,7 @@ function Workspace(boot: BootWorkspace) {
     return session ? sessionDisplayTitle(session.title, session.harness) : "Conversation";
   };
   const shownIds = surface === "mentor" ? visibleSessionIds : new Set<string>();
+  const settingsAgent = settingsMentorId ? agents.agents.find((agent) => agent.id === settingsMentorId) : undefined;
 
   return <>
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
@@ -613,13 +623,14 @@ function Workspace(boot: BootWorkspace) {
         onZoomIn={() => applyZoom(1)} onZoomOut={() => applyZoom(-1)} onZoomReset={() => applyZoom(0)} /> : null}
       <div className="flex min-h-0 min-w-0 flex-1">
         <MentorRail activeId={activeAgent?.id} states={agents.states} unseenIds={unseenAgentIds} settingsOpen={surface === "settings"}
-          onOpen={(id) => void showMentor(id)} onOpenDetails={(id) => { agents.setDetailsOpenFor(id, true); void showMentor(id); }}
+          onOpen={(id) => void showMentor(id)} onOpenDetails={openMentorSettings}
           onCreate={() => setAgentGalleryOpen(true)} onDelete={(id) => void agents.remove(id)}
           onSearch={() => setSearchOpen(true)} onOpenSettings={() => surface === "settings" ? closeSettings() : openSettings()}
           updateVersion={pendingUpdateVersion} onViewUpdate={openUpdatePrompt} />
         {surface === "settings" ? <aside className="flex w-[220px] shrink-0 flex-col border-r border-stroke" aria-label="Settings sections">
           <div className="h-10 shrink-0" data-tauri-drag-region="deep" />
-          <SettingsNav section={settingsSection} onSelect={onSelectSettingsSection} onClose={closeSettings} />
+          <SettingsNav section={settingsSection} onSelect={onSelectSettingsSection} onClose={closeSettings}
+            mentors={agents.agents} mentorId={settingsAgent?.id ?? null} onSelectMentor={openMentorSettings} />
         </aside> : null}
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
           {surface === "mentor" && mentor.current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -650,9 +661,14 @@ function Workspace(boot: BootWorkspace) {
             openingName={firstMentor ? agentLook(firstMentor).name : undefined} failed={firstMentorFailed}
             onCreate={() => setAgentGalleryOpen(true)} onRetry={openFirstMentor}
             trailing={IS_MAC ? undefined : <WindowControls />} /> : null}
-          {surface === "settings" ? <SettingsView section={settingsSection} anchor={settingsAnchor}
+          {surface === "settings" && settingsAgent ? <MentorSettingsPage agent={settingsAgent}
+            session={sessions.find((entry) => entry.id === settingsAgent.sessionId)} recents={store.recents}
+            onModelChange={intents["session.changeModel"]} onModelSettingsChange={intents["session.changeModelSettings"]} onRuntimeModeChange={intents["session.changeRuntimeMode"]}
+            onPickFolders={() => pickFolders("Choose folders")}
+            onReset={() => void agents.reset(settingsAgent.id)} onDelete={() => void agents.remove(settingsAgent.id)} /> : null}
+          {surface === "settings" && !settingsAgent ? <SettingsView section={settingsSection} anchor={settingsAnchor}
             cwd="~" besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection}
-            onOpenMentorSettings={(id) => { agents.setDetailsOpenFor(id, true); void showMentor(id); }} /> : null}
+            onOpenMentorSettings={openMentorSettings} /> : null}
         </div>
       </div>
       <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, shownIds)} onFocusSession={(id) => void showSession(id).catch(reportError)} onApproval={submission.approve} />

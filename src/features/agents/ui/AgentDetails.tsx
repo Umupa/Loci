@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
-import { Pencil, Plus, Settings, Feather, StickyNote, X } from "../../../shared/ui/icons";
+import { Pencil, Plus, X } from "../../../shared/ui/icons";
 import type { RecentProject } from "../../projects/model/recents";
 import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/session";
 import { AccessPicker } from "../../sessions/ui/AccessPicker";
@@ -83,13 +83,21 @@ const fieldClass =
   "w-full rounded-lg border border-stroke bg-content/5 px-2.5 py-1.5 text-[13px] text-content outline-none placeholder:text-content/35 focus:border-content/30";
 const iconButton = "grid size-6 shrink-0 place-items-center rounded-md text-content/65 hover:bg-content/8 hover:text-content";
 
-/** Settings use the same left navigation and grouped properties as Monos. */
+/** What each page holds, said on hover rather than on the page. */
+const PAGE_HINT: Record<Page, string> = {
+  general: "Model, permissions, language and folders.",
+  soul: "The rules it keeps while helping you. Refine them here or in chat.",
+  memory: "Facts and preferences carried across conversations, topics included.",
+};
+
+/**
+ * One mentor's settings, as a page of the Settings window: its face and name,
+ * then General, Soul and Memory as tabs.
+ */
 export function AgentDetails({ agent, session, onModelChange, onModelSettingsChange, onRuntimeModeChange, recents, refreshKey, onPickFolders, onReset, onDelete }: Props) {
-  const look = agentLook(agent);
   const { files, error } = useAgentFiles(agent.id, refreshKey);
   const [page, setPage] = useState<Page>("general");
   useEffect(() => setPage("general"), [agent.id]);
-  const icons = { general: Settings, soul: Feather, memory: StickyNote };
   const pages = Object.keys(PAGE_TITLE) as Page[];
   const tabId = useId();
   const tabDomId = (id: Page) => `${tabId}-${id}`;
@@ -106,31 +114,26 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
     setPage(next);
     document.getElementById(tabDomId(next))?.focus();
   };
-  return <div aria-label={`${look.name} settings`} className="agent-settings-layout">
-    <nav role="tablist" aria-label="Agent settings" aria-orientation="vertical" className="agent-settings-nav">
-      <p>Settings</p>
-      {pages.map((id) => {
-        const Icon = icons[id];
-        return <button key={id} id={tabDomId(id)} type="button" role="tab" aria-selected={page === id} tabIndex={page === id ? 0 : -1}
-          aria-controls={`${tabId}-panel`} onKeyDown={onTabKeyDown} onClick={() => setPage(id)}><Icon className="size-3.5 shrink-0" />{PAGE_TITLE[id]}</button>;
-      })}
-    </nav>
+  return <div aria-label={`${agentLook(agent).name} settings`} className="agent-settings-layout">
+    <header className="agent-settings-head">
+      <AppearanceButton agent={agent} />
+      <div className="agent-settings-names">
+        <NameField key={`name:${agent.id}:${agent.name ?? ""}`} agent={agent} />
+        <RoleField key={`role:${agent.id}:${agent.role ?? ""}`} agent={agent} />
+      </div>
+      <nav role="tablist" aria-label="Mentor settings" className="agent-settings-tabs">
+        {pages.map((id) => <button key={id} id={tabDomId(id)} type="button" role="tab" aria-selected={page === id} tabIndex={page === id ? 0 : -1}
+          title={PAGE_HINT[id]} aria-controls={`${tabId}-panel`} onKeyDown={onTabKeyDown} onClick={() => setPage(id)}>{PAGE_TITLE[id]}</button>)}
+      </nav>
+    </header>
     <div id={`${tabId}-panel`} className="agent-settings-content" role="tabpanel" aria-labelledby={tabDomId(page)}>
       {page === "general" ? <div className="agent-settings-general">
-        <h3>General</h3>
-        <div className="agent-settings-identity">
-          <AppearanceButton agent={agent} />
-          <div className="mt-2 flex w-full max-w-sm flex-col items-center"><NameField key={`name:${agent.id}:${agent.name ?? ""}`} agent={agent} /><RoleField key={`role:${agent.id}:${agent.role ?? ""}`} agent={agent} /></div>
-        </div>
         <h4 className="agent-setting-group-title">Model</h4>
         <div className="agent-setting-group">
           <SettingRow label="Model" description="What it thinks and replies with."><ModelPicker harness={session.harness} model={session.model} values={session.modelSettings} hideSettings onChange={onModelChange} onSettingsChange={onModelSettingsChange} /></SettingRow>
           <ModelSettingRows harness={session.harness} model={session.model} values={session.modelSettings} onSettingsChange={onModelSettingsChange}
             row={(label, control) => <SettingRow label={label}>{control}</SettingRow>} />
           <SettingRow label="Permissions" description="What it may do without asking."><AccessPicker value={session.runtimeMode} busy={!!session.busy} onChange={onRuntimeModeChange} /></SettingRow>
-        </div>
-        <h4 className="agent-setting-group-title">Language</h4>
-        <div className="agent-setting-group">
           <SettingRow label="Language" description="What it writes in: replies, courses, guides and notes, whatever language its sources are in.">
             <LanguagePicker value={agent.language} onChange={(language) => updateAgent(agent.id, (current) => {
               const next = { ...current };
@@ -144,22 +147,21 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
           {agent.folder ? <FolderRow agent={agent} folder={agent.folder} /> : null}
           <WorkdirRow agent={agent} chatCwd={session.cwd} />
           <div className="agent-setting-row">
-            <ProjectsField header={<div className="agent-setting-label"><span>Other folders</span><small>More folders it may read and work in.</small></div>}
+            <ProjectsField header={<div className="agent-setting-label" title="More folders it may read and work in."><span>Other folders</span></div>}
               projects={agent.projects} recents={recents} onPickFolders={onPickFolders}
               onAdd={(path) => addAgentProject(agent.id, path)} onRemove={(path) => removeAgentProject(agent.id, path)} />
           </div>
         </div>
         <h4 className="agent-setting-group-title">Conversation</h4>
         <div className="agent-setting-group">
-          <SettingRow label="Reset conversation" description="Clear messages. Soul, memory and habits stay."><button type="button" onClick={onReset} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/8">Reset</button></SettingRow>
-          <SettingRow label="Delete agent" description="Move its folder to the Trash and delete its conversation, highlights and progress. Folders you gave it stay."><button type="button" onClick={onDelete} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/8">Delete</button></SettingRow>
+          <SettingRow label="Reset conversation" description="Clear messages. Soul, memory and habits stay."><button type="button" onClick={onReset} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-danger hover:bg-danger/8">Reset</button></SettingRow>
+          <SettingRow label="Delete mentor" description="Move its folder to the Trash and delete its conversation, highlights and progress. Folders you gave it stay."><button type="button" onClick={onDelete} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-danger hover:bg-danger/8">Delete</button></SettingRow>
         </div>
-        {error ? <p role="alert" className="mt-3 text-xs text-red-400/90">{error}</p> : null}
-      </div> : <>
-        <h3 className="agent-settings-page-title">{PAGE_TITLE[page]}</h3>
+        {error ? <p role="alert" className="mt-3 text-xs text-danger">{error}</p> : null}
+      </div> : <div className="agent-settings-file-page">
         {files ? page === "soul" ? <SoulPage key={agent.id} agentId={agent.id} files={files} /> : <MemoryPage key={agent.id} agentId={agent.id} files={files} />
           : <p role={error ? "alert" : "status"} className="p-6 text-xs text-content/50">{error ?? "Loading…"}</p>}
-      </>}
+      </div>}
     </div>
   </div>;
 }
@@ -189,10 +191,8 @@ function WorkdirRow({ agent, chatCwd }: { agent: Agent; chatCwd?: string }) {
   });
   // A running chat stays in the folder it started in; its provider conversation is tied to it.
   const elsewhere = !!shown && !!chatCwd && !folderHolds(chatCwd, shown);
-  const description = error ?? (elsewhere
-    ? "The current chat keeps running in its own folder; Reset conversation to start it here."
-    : "Cloned source and experiments go here.");
-  return <SettingRow label="Working folder" description={description}>
+  const status = error ?? (elsewhere ? "The current chat keeps running in its own folder; Reset conversation to start it here." : undefined);
+  return <SettingRow label="Working folder" description="Cloned source and experiments go here." status={status}>
     <div className="flex min-w-0 items-center gap-1.5">
       <span className="min-w-0 truncate text-[12px] text-content/70" title={shown}>{shown ? prettyCwd(shown) : "…"}</span>
       {shown ? <button type="button" onClick={() => void revealPath(shown)} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Reveal</button> : null}
@@ -216,7 +216,7 @@ function FolderRow({ agent, folder }: { agent: Agent; folder: string }) {
       setStatus(String(reason));
     }
   });
-  return <SettingRow label="Mentor folder" description={status ?? "Its library, courses, notes, Soul and memory, as files you and it can edit."}>
+  return <SettingRow label="Mentor folder" description="Its library, courses, notes, Soul and memory, as files you and it can edit." status={status}>
     <div className="flex min-w-0 items-center gap-1.5">
       <span className="min-w-0 truncate text-[12px] text-content/70" title={folder}>{prettyCwd(folder)}</span>
       <button type="button" onClick={() => void revealPath(folder)} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Reveal</button>
@@ -225,8 +225,9 @@ function FolderRow({ agent, folder }: { agent: Agent; folder: string }) {
   </SettingRow>;
 }
 
-function SettingRow({ label, description, children }: { label: string; description?: string; children: ReactNode }) {
-  return <div className="agent-setting-row"><div className="agent-setting-label"><span>{label}</span>{description ? <small>{description}</small> : null}</div><div className="agent-setting-value">{children}</div></div>;
+/** A setting's name (what it does on hover) and its control; `status` is what must show now. */
+function SettingRow({ label, description, status, children }: { label: string; description?: string; status?: string; children: ReactNode }) {
+  return <div className="agent-setting-row"><div className="agent-setting-label" title={description}><span>{label}</span>{status ? <small role="status">{status}</small> : null}</div><div className="agent-setting-value">{children}</div></div>;
 }
 
 function AppearanceButton({ agent }: { agent: Agent }) {
@@ -235,8 +236,8 @@ function AppearanceButton({ agent }: { agent: Agent }) {
   const look = agentLook(agent);
   return <>
     <button ref={anchor} type="button" aria-label="Change avatar and color" title="Change avatar and color" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)}
-      className="grid size-20 place-items-center rounded-2xl border border-stroke bg-content/4 hover:bg-content/8"><AgentAvatarPreview name={look.avatar} color={look.color} className="size-12" /></button>
-    {open ? <Popover anchor={anchor} side="bottom" align="center" width={280} constrainHeight={false} onDismiss={() => setOpen(false)} autoFocus role="dialog" aria-label="Avatar and color" data-dialog-popover className="flex flex-col gap-3 p-3">
+      className="grid size-12 shrink-0 place-items-center rounded-[10px] border border-stroke bg-content/4 hover:bg-content/8"><AgentAvatarPreview name={look.avatar} color={look.color} className="size-9" /></button>
+    {open ? <Popover anchor={anchor} side="bottom" align="start" width={280} constrainHeight={false} onDismiss={() => setOpen(false)} autoFocus role="dialog" aria-label="Avatar and color" data-dialog-popover className="flex flex-col gap-3 p-3">
       <FacePicker current={agent.avatar} color={agent.color} onPick={(avatar) => updateAgent(agent.id, (current) => ({ ...current, avatar }))} />
       <div className="border-t border-stroke pt-3"><ColorPicker current={agent.color} onPick={(color) => updateAgent(agent.id, (current) => ({ ...current, color }))} /></div>
     </Popover> : null}
@@ -249,7 +250,7 @@ function NameField({ agent }: { agent: Agent }) {
   const save = () => updateAgent(agent.id, (current) => ({ ...current, name: name.trim() }));
   return (
     <input aria-label="Name" value={name} maxLength={40} placeholder={defaultAgentName(agent.avatar)}
-      className="w-full rounded-lg bg-transparent px-2 py-1 text-center text-[18px] font-medium text-content outline-none placeholder:text-content/60 hover:bg-content/5 focus:bg-content/6"
+      className="w-full rounded-md bg-transparent px-1.5 py-0.5 text-[18px] font-semibold text-content outline-none placeholder:text-content/60 hover:bg-content/5 focus:bg-content/6"
       onChange={(event) => setName(event.target.value)} onBlur={save}
       onKeyDown={(event) => { if (event.key === "Enter" && !isImeComposition(event.nativeEvent)) event.currentTarget.blur(); }} />
   );
@@ -261,7 +262,7 @@ function RoleField({ agent }: { agent: Agent }) {
   const save = () => updateAgent(agent.id, (current) => ({ ...current, role: role.trim() }));
   return (
     <input aria-label="Role" value={role} maxLength={60} placeholder="What it is for, in a few words"
-      className="w-full rounded-md bg-transparent px-2 py-0.5 text-center text-xs text-content/60 outline-none placeholder:text-content/30 hover:bg-content/5 focus:bg-content/6"
+      className="w-full rounded-md bg-transparent px-1.5 py-0.5 text-[13px] text-content/55 outline-none placeholder:text-content/30 hover:bg-content/5 focus:bg-content/6"
       onChange={(event) => setRole(event.target.value)} onBlur={save}
       onKeyDown={(event) => { if (event.key === "Enter" && !isImeComposition(event.nativeEvent)) event.currentTarget.blur(); }} />
   );
@@ -316,8 +317,7 @@ function SoulPage({ agentId, files }: { agentId: string; files: AgentFiles }) {
   useEffect(() => () => void latest.current().catch(() => undefined), []);
   return (
     <div className="agent-settings-file-page flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-start gap-3">
-        <p className="min-w-0 flex-1 text-xs leading-snug text-content/45">The rules it keeps while helping you. Refine them here or in chat.</p>
+      <div className="flex justify-end">
         <TemplatePicker onPick={(template) => void replace(template)} />
       </div>
       <textarea aria-label="Soul" value={text} spellCheck={false} className={`${fieldClass} min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed`}
@@ -370,7 +370,7 @@ function MemoryPage({ agentId, files }: { agentId: string; files: AgentFiles }) 
   };
   const empty = !memoryLines(files.memory).length && !topics.length;
   return <div className="agent-settings-file-page flex min-h-0 flex-1 flex-col gap-3">
-    <p className="text-xs leading-snug text-content/45">Facts and preferences carried across conversations, topics included.{budget.droppedLines ? ` ${budget.droppedLines} lines are past what loads.` : ""}</p>
+    {budget.droppedLines ? <p role="status" className="text-xs leading-snug text-content/50">{budget.droppedLines} lines are past what loads.</p> : null}
     <div className="flex gap-1.5"><input aria-label="Add a fact" value={draft} placeholder="Add a fact…" className={`${fieldClass} min-w-0 flex-1`} onChange={(event) => setDraft(event.target.value)}
       onKeyDown={(event) => { if (event.key === "Enter" && !isImeComposition(event.nativeEvent) && !saving) void add(); }} /><button type="button" title="Add" aria-label="Add fact" onClick={() => void add()} disabled={saving || !draft.trim()} className="grid size-8 place-items-center rounded-md border border-stroke disabled:opacity-40"><Plus className="size-3.5" /></button></div>
     {error ? <p role="alert" className="text-xs text-red-400">{error}</p> : null}

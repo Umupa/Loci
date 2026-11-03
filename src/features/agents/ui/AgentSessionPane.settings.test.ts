@@ -17,7 +17,6 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({ onDragDropEvent: async () => () => {} }),
 }));
-vi.mock("./AgentDetails", () => ({ AgentDetails: () => null }));
 
 let root: Root;
 let host: HTMLDivElement;
@@ -49,8 +48,7 @@ async function render(extra: Partial<Session> = {}, look = agent, pane: Partial<
     onApproval: vi.fn(), onQuestionReply: vi.fn(), onOpenFile: vi.fn(),
   };
   await act(async () => root.render(createElement(AgentSessionPane, {
-    agent: look, state: { status: "working" }, sessionPaneProps, detailsOpen: false,
-    onToggleDetails: vi.fn(), onReset: vi.fn(), onDelete: vi.fn(), onPickFolders: vi.fn(async () => []), ...pane,
+    agent: look, state: { status: "working" }, sessionPaneProps, onOpenSettings: vi.fn(), ...pane,
   })));
 }
 

@@ -100,14 +100,13 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it("opens an agent ready for an editable first task without starting a model or opening details", async () => {
+it("opens an agent ready for an editable first task without starting a model", async () => {
   await mount();
   await act(async () => agents.create());
   const agent = listAgents()[0];
   expect(agent.sessionId).toBe(liveSessions[0].id);
   expect(liveSessions[0].blocks).toEqual([]);
   expect(mocks.show).toHaveBeenCalledWith(agent.id, liveSessions[0]);
-  expect(agents.isDetailsOpen(agent.id)).toBe(false);
   expect(mocks.submit).not.toHaveBeenCalled();
   expect(mocks.saveFile).not.toHaveBeenCalled();
 });
@@ -173,11 +172,11 @@ it("does not remove live turns when their pane opens during archiving, or repeat
   expect(mocks.persist).not.toHaveBeenCalled();
 });
 
-it("replaces the reset conversation in its existing panes and preserves agent details", async () => {
+it("replaces the reset conversation in its existing panes", async () => {
   const id = addAgent("chat");
   visible = new Set(["chat"]);
   await mount();
-  await act(async () => { agents.select(id); agents.setDetailsOpenFor(id, true); });
+  await act(async () => { agents.select(id); });
   await act(async () => agents.reset(id));
   expect(mocks.replace).toHaveBeenCalledWith("chat", expect.objectContaining({ cwd: "/home/me", blocks: [] }));
   expect(mocks.remove).not.toHaveBeenCalled();
@@ -185,7 +184,6 @@ it("replaces the reset conversation in its existing panes and preserves agent de
   expect(fresh.id).not.toBe("chat");
   expect(findAgent(id)?.sessionId).toBe(fresh.id);
   expect(liveSessions.map((session) => session.id)).toEqual([fresh.id]);
-  expect(agents.isDetailsOpen(id)).toBe(true);
 });
 
 it("says what deleting a mentor throws away, and forgets what the window kept about it", async () => {

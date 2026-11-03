@@ -34,29 +34,26 @@ button.agent-speaker-pill:hover { color: var(--color-content); }
 .agent-greeting-copy { display: flex; flex-direction: column; align-items: center; min-width: 0; }
 .agent-greeting-name { display: flex; align-items: center; color: color-mix(in srgb, var(--color-content) 70%, transparent); font-size: 13px; font-weight: 500; line-height: 20px; }
 
-.agent-settings-modal .modal-panel > header { top: 6px; right: 8px; }
-.agent-settings-modal .modal-panel > div { overflow: hidden; }
-.agent-settings-layout { display: flex; height: 100%; min-height: 0; font-family: var(--font-sans); }
-.agent-settings-nav { display: flex; width: 192px; flex: none; flex-direction: column; gap: 1px; padding: 8px; border-right: 1px solid var(--color-stroke); }
-.agent-settings-nav > p { padding: 6px 10px 8px; font-size: 11px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
-.agent-settings-nav button { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; text-align: left; font-size: 13px; color: color-mix(in srgb, var(--color-content) 65%, transparent); }
-.agent-settings-nav button[aria-selected="true"] { color: var(--color-content); background: color-mix(in srgb, var(--color-content) 8%, transparent); }
-.agent-settings-nav button:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); }
-.agent-settings-content { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; }
-.agent-settings-general { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 24px 32px 32px; }
-.agent-settings-general > h3 { font-size: 14px; font-weight: 500; }
-.agent-settings-identity { display: flex; flex-direction: column; align-items: center; padding: 16px 0 24px; }
-.agent-setting-group-title { padding: 20px 0 8px; font-size: 12px; font-weight: 500; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
-.agent-setting-group { display: flex; flex-direction: column; border: 1px solid var(--color-stroke); border-radius: 10px; background: color-mix(in srgb, var(--color-content) 2%, transparent); }
-.agent-setting-row { display: flex; min-height: 48px; align-items: center; gap: 16px; padding: 8px 12px; }
-.agent-setting-row + .agent-setting-row { border-top: 1px solid var(--color-stroke); }
+/* A mentor's settings page: its face and name, tabs, then the same cards as the Settings window. */
+.agent-settings-layout { display: flex; height: 100%; min-height: 0; flex-direction: column; font-family: var(--font-sans); }
+.agent-settings-head { display: flex; width: 100%; max-width: 64rem; margin: 0 auto; align-items: center; gap: 12px; padding: 28px 32px 0; }
+.agent-settings-names { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.agent-settings-tabs { display: flex; flex: none; gap: 2px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--color-content) 6%, transparent); }
+.agent-settings-tabs button { padding: 4px 12px; border-radius: 6px; font-size: 12.5px; color: color-mix(in srgb, var(--color-content) 60%, transparent); }
+.agent-settings-tabs button:hover { color: var(--color-content); }
+.agent-settings-tabs button[aria-selected="true"] { color: var(--color-content); background: var(--color-background-base); box-shadow: 0 0 0 1px var(--color-stroke), 0 1px 2px #0000000f; }
+.agent-settings-content { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.agent-settings-general, .agent-settings-file-page { display: flex; width: 100%; max-width: 64rem; margin: 0 auto; flex: 1; min-height: 0; flex-direction: column; padding: 4px 32px 48px; }
+.agent-settings-file-page { padding-top: 24px; }
+.agent-setting-group-title { padding: 28px 0 10px; font-size: 13px; font-weight: 600; color: var(--color-content); }
+.agent-setting-group { display: flex; flex-direction: column; border: 1px solid color-mix(in srgb, var(--color-content) 10%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--color-content) 3%, transparent); overflow: hidden; }
+.agent-setting-row { display: flex; min-height: 48px; align-items: center; gap: 16px; padding: 8px 16px; }
+.agent-setting-row + .agent-setting-row { border-top: 1px solid color-mix(in srgb, var(--color-content) 5%, transparent); }
 .agent-setting-label { display: flex; flex: 1; min-width: 0; flex-direction: column; font-size: 13px; line-height: 20px; }
-.agent-setting-label small { font-size: 12px; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
-.agent-setting-value { display: flex; min-width: 0; max-width: 55%; flex: none; align-items: center; justify-content: flex-end; gap: 6px; padding-right: 6px; font-size: 12px; }
+.agent-setting-label small { font-size: 12px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.agent-setting-value { display: flex; min-width: 0; max-width: 60%; flex: none; align-items: center; justify-content: flex-end; gap: 6px; font-size: 12px; }
 .agent-setting-value > button, .agent-setting-value > div > button { background: transparent; }
-.agent-settings-page-title { display: flex; height: 40px; flex: none; align-items: center; border-bottom: 1px solid var(--color-stroke); padding: 0 16px; font-size: 13px; font-weight: 500; }
-.agent-settings-file-page { padding: 24px 32px; }
-@media (max-width: 720px) { .agent-settings-nav { width: 140px; } .agent-settings-general, .agent-settings-file-page { padding: 20px; } .agent-setting-row { flex-wrap: wrap; gap: 4px; } .agent-setting-value { max-width: 100%; } }
+@media (max-width: 720px) { .agent-settings-head { flex-wrap: wrap; padding: 20px 20px 0; } .agent-settings-general, .agent-settings-file-page { padding-inline: 20px; } .agent-setting-row { flex-wrap: wrap; gap: 4px; } .agent-setting-value { max-width: 100%; } }
 
 .agent-setting-value > button { max-width: 100%; min-width: 0; }
 .agent-setting-value > button > span:first-of-type { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

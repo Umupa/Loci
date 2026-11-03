@@ -12,21 +12,19 @@ export const AgentHeaderExtra = createContext<ReactNode>(null);
 type Props = {
   agent: Agent;
   state: AgentState;
-  detailsOpen: boolean;
   focused: boolean;
   onFocus: () => void;
   onPaneDragStart?: (event: ReactPointerEvent<HTMLElement>) => void;
-  onToggleDetails: () => void;
+  /** Opens this mentor's page in Settings. */
+  onOpenSettings: () => void;
   /** Reads the next archived page back into view, when older turns exist. */
   onLoadEarlier?: () => void;
   /** The conversation itself. */
   children: ReactNode;
-  /** The details panel, beside the conversation. */
-  details?: ReactNode;
 };
 
-/** An agent's conversation and details, with the workspace's pane controls. */
-export function AgentView({ agent, state, detailsOpen, focused, onFocus, onPaneDragStart, onToggleDetails, onLoadEarlier, children, details }: Props) {
+/** An agent's conversation, with the workspace's pane controls. */
+export function AgentView({ agent, state, focused, onFocus, onPaneDragStart, onOpenSettings, onLoadEarlier, children }: Props) {
   const look = agentLook(agent);
   const extra = useContext(AgentHeaderExtra);
   return (
@@ -39,8 +37,8 @@ export function AgentView({ agent, state, detailsOpen, focused, onFocus, onPaneD
           <AgentStatus state={state} />
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <button type="button" data-no-drag title="Settings" aria-label="Agent settings" aria-pressed={detailsOpen} onClick={onToggleDetails}
-            className={`grid size-7 place-items-center rounded-md hover:bg-content/8 hover:text-content ${detailsOpen ? "bg-content/8 text-content" : "text-content/65"}`}>
+          <button type="button" data-no-drag title={`${look.name} settings`} aria-label="Agent settings" onClick={onOpenSettings}
+            className="grid size-7 place-items-center rounded-md text-content/65 hover:bg-content/8 hover:text-content">
             <AgentSettings className="size-4" />
           </button>
           {extra}
@@ -60,7 +58,6 @@ export function AgentView({ agent, state, detailsOpen, focused, onFocus, onPaneD
           ) : null}
           {children}
         </div>
-        {detailsOpen ? details : null}
       </div>
       </PaneHeaderChrome.Provider>
     </section>

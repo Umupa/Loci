@@ -95,7 +95,7 @@ it("uses the saved beside setting and changes the resident agent's model options
 
 it("keeps model options in labelled settings rows regardless of the composer preference", async () => {
   await render();
-  expect(container.querySelector('[aria-orientation="vertical"]')).not.toBeNull();
+  expect(container.querySelector('[role="tablist"]')).not.toBeNull();
   expect(button("Effort: High")).not.toBeNull();
   expect(button("Effort: High")?.closest(".agent-setting-row")?.textContent).toContain("Effort");
   act(() => saveModelControls("beside"));
@@ -116,7 +116,7 @@ it("shows the working folder and points an existing mentor at a folder the user 
   await render();
   const row = [...container.querySelectorAll(".agent-setting-row")].find((item) => item.textContent?.includes("Working folder"))!;
   expect(row.textContent).toContain("Loci/ada");
-  expect(row.textContent).toContain("Cloned source and experiments go here.");
+  expect(row.querySelector("[title]")?.getAttribute("title")).toBe("Cloned source and experiments go here.");
 
   dialogOpen.mockResolvedValue("/Volumes/study/sandbox-study");
   const change = [...row.querySelectorAll("button")].find((item) => item.textContent === "Change…")!;

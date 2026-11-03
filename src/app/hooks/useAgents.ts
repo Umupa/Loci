@@ -1,6 +1,6 @@
 import { saveAgentDocuments } from "../../features/agents/model/agentDocuments";
 import { documentsInText } from "../../features/sessions/model/cards";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ask } from "../../platform/dialog";
 import { homeDir } from "../../platform/tauri/fs";
 import { forgetHarnessSession } from "../../integrations/harness/core/registry";
@@ -54,15 +54,6 @@ export function useAgents(options: Options) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const agents = useMemo(() => listAgents(), [snapshot]);
   const [viewId, setViewId] = useState<string | null>(null);
-  const [details, setDetails] = useState<ReadonlyMap<string, boolean>>(() => new Map());
-  const isDetailsOpen = useCallback((agentId: string) => details.get(agentId) ?? false, [details]);
-  const setDetailsOpenFor = useCallback((agentId: string, open: SetStateAction<boolean>) => {
-    setDetails((current) => {
-      const value = typeof open === "function" ? open(current.get(agentId) ?? false) : open;
-      if ((current.get(agentId) ?? false) === value) return current;
-      return new Map(current).set(agentId, value);
-    });
-  }, []);
   const viewIdRef = useRef(viewId);
   viewIdRef.current = viewId;
   // A slower open must not replace the agent chosen after it.
@@ -349,11 +340,6 @@ export function useAgents(options: Options) {
         forgetAgentRotation(agent.sessionId);
       }
       const removed = removeAgent(agentId);
-      setDetails((current) => {
-        const next = new Map(current);
-        next.delete(agentId);
-        return next;
-      });
       forgetMentorLocally(agentId);
       await removed;
       return true;
@@ -365,7 +351,7 @@ export function useAgents(options: Options) {
   }, [close, discardSession]);
 
   return {
-    agents, states, viewAgent, viewSession, earlierBlocksFor, hasEarlier, loadEarlier, ensureBlockLoaded, isDetailsOpen, setDetailsOpenFor,
+    agents, states, viewAgent, viewSession, earlierBlocksFor, hasEarlier, loadEarlier, ensureBlockLoaded,
     open, chat, create, select, close, reset, remove,
   };
 }

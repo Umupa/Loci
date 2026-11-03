@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ComponentProps } from "react";
 import { agentLook, agentsSnapshot, agentState, listAgents, subscribeAgents, type AgentState } from "../../features/agents/model/agent";
 import { AgentSessionPane } from "../../features/agents/ui/AgentSessionPane";
+import { MentorSettingsPage } from "../../features/agents/ui/MentorSettingsPage";
 import { AgentGallery } from "../../features/agents/ui/AgentGallery";
 import { MentorWorkspace } from "../../features/mentor/ui/MentorWorkspace";
 import { requestAddToChat } from "../../features/sessions/model/quoteDraft";
@@ -85,13 +86,15 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
   const mentor = useActiveMentor();
   const mentorView = useMentorView();
   const [transcriptPool] = useState(() => new TranscriptPool());
-  const [detailsFor, setDetailsFor] = useState<string | null>(null);
+  /** The mentor whose page Settings shows, in place of a section. */
+  const [settingsMentorId, setSettingsMentorId] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
   // Settings take the workspace's place, as in a window of this device.
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState(loadSettingsSection);
-  const selectSettingsSection = useCallback((section: SettingsSectionId) => { setSettingsSection(section); saveSettingsSection(section); }, []);
-  const toggleSettings = useCallback(() => setSettingsOpen((open) => !open), []);
+  const selectSettingsSection = useCallback((section: SettingsSectionId) => { setSettingsSection(section); saveSettingsSection(section); setSettingsMentorId(null); }, []);
+  const toggleSettings = useCallback(() => { setSettingsMentorId(null); setSettingsOpen((open) => !open); }, []);
+  const openMentorSettings = useCallback((agentId: string) => { setSettingsMentorId(agentId); setSettingsOpen(true); }, []);
   const [searchOpen, setSearchOpen] = useState(false);
   useWindowCommands({ openSettings: () => setSettingsOpen(true), toggleSearch: () => setSearchOpen((open) => !open) });
   const hostName = useHostName();
@@ -200,13 +203,12 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
   });
 
   const focusedAgent = current ? agents.find((agent) => agent.id === current.agentId) : undefined;
+  const settingsAgent = settingsMentorId ? agents.find((agent) => agent.id === settingsMentorId) : undefined;
   const chatSession = current ? sessions.find((session) => session.id === current.sessionId) : undefined;
   const chat = focusedAgent && chatSession
     ? <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-pane-id={chatSession.id}>
       <AgentSessionPane agent={focusedAgent} state={states.get(focusedAgent.id) ?? { status: "idle" }} sessionPaneProps={paneProps(client.sessionWithEarlier(chatSession), true)}
-        detailsOpen={detailsFor === focusedAgent.id} onToggleDetails={() => setDetailsFor((id) => id === focusedAgent.id ? null : focusedAgent.id)}
-        onReset={() => resetAgent(focusedAgent.id)} onDelete={() => removeAgent(focusedAgent.id)}
-        onPickFolders={() => pickFolders("Choose folders")}
+        onOpenSettings={() => openMentorSettings(focusedAgent.id)}
         onLoadEarlier={client.hasEarlier(chatSession.id) ? () => void client.loadEarlier(chatSession.id) : undefined}
         // Offline, nothing can be sent; archived history is read from what this device kept.
         readOnly={offline} />
@@ -228,17 +230,21 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
       <ConnectionBar client={client} />
       <div className="flex min-h-0 min-w-0 flex-1">
         <MentorRail activeId={focusedAgent?.id} states={states} unseenIds={new Set()} settingsOpen={settingsOpen}
-          onOpen={(id) => { setSettingsOpen(false); void openMentor(id); }} onOpenDetails={(id) => { setSettingsOpen(false); setDetailsFor(id); void openMentor(id); }}
+          onOpen={(id) => { setSettingsOpen(false); void openMentor(id); }} onOpenDetails={openMentorSettings}
           onCreate={() => setGalleryOpen(true)} onDelete={removeAgent}
           onSearch={() => setSearchOpen(true)} onOpenSettings={toggleSettings} />
         {settingsOpen ? <aside className="flex w-[220px] shrink-0 flex-col border-r border-stroke" aria-label="Settings sections">
           <div className="h-10 shrink-0" data-tauri-drag-region="deep" />
-          <SettingsNav section={settingsSection} onSelect={selectSettingsSection} onClose={() => setSettingsOpen(false)} />
+          <SettingsNav section={settingsSection} onSelect={selectSettingsSection} onClose={() => setSettingsOpen(false)}
+            mentors={agents} mentorId={settingsAgent?.id ?? null} onSelectMentor={openMentorSettings} />
         </aside> : null}
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
           {settingsOpen ? <RemoteSettingsScopeContext.Provider value={{ host: hostName, offline }}>
-            <SettingsView section={settingsSection} cwd="~" besideRail onClose={() => setSettingsOpen(false)} onSelectSection={selectSettingsSection}
-              onOpenMentorSettings={(id) => { setSettingsOpen(false); setDetailsFor(id); void openMentor(id); }} />
+            {settingsAgent ? <MentorSettingsPage agent={settingsAgent} session={sessions.find((session) => session.id === settingsAgent.sessionId)} recents={[]}
+              onModelChange={intents["session.changeModel"]} onModelSettingsChange={intents["session.changeModelSettings"]} onRuntimeModeChange={intents["session.changeRuntimeMode"]}
+              onPickFolders={() => pickFolders("Choose folders")} onReset={() => resetAgent(settingsAgent.id)} onDelete={() => removeAgent(settingsAgent.id)} readOnly={offline} />
+              : <SettingsView section={settingsSection} cwd="~" besideRail onClose={() => setSettingsOpen(false)} onSelectSection={selectSettingsSection}
+                onOpenMentorSettings={openMentorSettings} />}
           </RemoteSettingsScopeContext.Provider>
           : current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
             <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)} busy={!!chatSession?.busy}
