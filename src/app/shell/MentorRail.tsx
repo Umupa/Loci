@@ -132,7 +132,13 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
         const label = [look.name, status, unseen ? "New update" : undefined].filter(Boolean).join(", ");
         return <div key={agent.id} ref={(el) => sortable.setItemRef(agent.id, el)} className="mentor-rail-item reorder-item" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
           data-agent-id={agent.id} data-selected={selected || undefined} data-agent-status={state.status} data-agent-rail-phase={phase}
-          onPointerDown={(event) => { if (event.button === 0) sortable.onItemPointerDown(agent.id, event); }}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            // A face switches on press, as a tab does: macOS can hand the first
+            // click on an inactive window to the page as a press with no click.
+            if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && agent.id !== activeId) onOpen(agent.id);
+            sortable.onItemPointerDown(agent.id, event);
+          }}
           onContextMenu={(event) => { event.preventDefault(); openMenu(agent.id, { x: event.clientX, y: event.clientY }, buttons.current.get(agent.id) ?? null); }}>
           <button type="button" ref={(el) => { if (el) buttons.current.set(agent.id, el); else buttons.current.delete(agent.id); }}
             className="mentor-rail-button" aria-label={label} aria-current={selected ? "true" : undefined}
@@ -148,7 +154,8 @@ export function MentorRail({ activeId, states, unseenIds, settingsOpen, onOpen, 
               }
             }}
             title={[look.role ? `${look.name} · ${look.role}` : look.name, status, look.workdir ? prettyCwd(look.workdir) : undefined, index < 9 ? `${IS_MAC ? "⌘" : "Ctrl+"}${index + 1}` : undefined].filter(Boolean).join("\n")}
-            onClick={() => { if (!sortable.consumeClick()) onOpen(agent.id); }}>
+            // The press already switched; a click without one is the keyboard's (or a script's).
+            onClick={(event) => { if (event.detail === 0 && !sortable.consumeClick()) onOpen(agent.id); }}>
             <AgentAvatar name={look.avatar} color={look.color} className="mentor-rail-avatar size-6.5" />
             <RailSignal phase={phase} />
           </button>

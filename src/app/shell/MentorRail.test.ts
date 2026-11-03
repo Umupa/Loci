@@ -71,6 +71,26 @@ describe("the rail's keyboard navigation", () => {
     expect(document.activeElement).toBe(mentorButton("Bea"));
   });
 
+  it("switches mentor on the press itself, once, and from the keyboard on Enter", () => {
+    const handlers = mountRoster("a1");
+    const press = (init: PointerEventInit = {}) => act(() => { mentorButton("Bea").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerId: 1, ...init })); });
+    // macOS may hand the first click on an inactive window over as a press alone.
+    press();
+    expect(handlers.onOpen).toHaveBeenCalledExactlyOnceWith("a2");
+    act(() => { window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 })); });
+    act(() => { mentorButton("Bea").dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 })); });
+    expect(handlers.onOpen).toHaveBeenCalledOnce();
+    // A modified press and a press on the open mentor do nothing.
+    press({ metaKey: true });
+    act(() => { window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 })); });
+    act(() => { mentorButton("Ada").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerId: 2 })); });
+    act(() => { window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 2 })); });
+    expect(handlers.onOpen).toHaveBeenCalledOnce();
+    // Enter on a focused face clicks it with no press before.
+    act(() => { mentorButton("Bea").dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 })); });
+    expect(handlers.onOpen).toHaveBeenCalledTimes(2);
+  });
+
   it("opens the mentor's menu on right-click, with the first item focused, and returns focus on Escape", async () => {
     const handlers = mountRoster("a1");
     const face = mentorButton("Ada");
