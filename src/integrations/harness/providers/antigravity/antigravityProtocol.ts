@@ -398,6 +398,88 @@ export function sessionIdFromResult(result: unknown): string | undefined {
   return typeof id === "string" && id.trim() ? id.trim() : undefined;
 }
 
+export const ANTIGRAVITY_AUTH_HELP =
+  "Use Sign in to Antigravity in Loci to authenticate the ACP server.";
+
+/**
+ * ACP reports an unhandled provider failure as a bare JSON-RPC "Internal
+ * error" and puts the provider's own explanation in `data.details`. Keep that
+ * explanation: a dropped session, an exhausted quota, and an expired sign-in
+ * all arrive through the same code, and only the detail tells them apart.
+ */
+export function antigravityErrorDetail(error: unknown): string {
+  const record =
+    error != null && typeof error === "object"
+      ? (error as Record<string, unknown>)
+      : null;
+  const rawData = record?.data;
+  const data = asRecord(rawData);
+  const fallback = error instanceof Error ? error.message : String(error);
+  const direct =
+    typeof rawData === "string"
+      ? rawData
+      : data
+        ? (stringField(data, "details") ?? stringField(data, "message"))
+        : undefined;
+  // "Internal error" and "Invalid params" name the envelope, not the failure.
+  const generic = /^(?:internal error|invalid params|error)$/i.test(
+    fallback.trim(),
+  );
+  const text =
+    direct?.trim() ||
+    (generic && data ? structuredErrorText(data) : undefined) ||
+    fallback.trim();
+  return text || "Antigravity turn failed.";
+}
+
+export function antigravityErrorMessage(error: unknown): string {
+  const detail = antigravityErrorDetail(error);
+  // A model the account cannot use is a model picker problem, not a login one:
+  // the message already names the model, and `Sign in` would not fix it.
+  const modelFailure = /model ['"].+['"] is not available|available models:/i.test(
+    detail,
+  );
+  if (detail.includes(ANTIGRAVITY_AUTH_HELP) || modelFailure) return detail;
+  return /auth|login|sign.in|credential|api.key/i.test(detail)
+    ? `${detail}\n\n${ANTIGRAVITY_AUTH_HELP}`
+    : detail;
+}
+
+export function antigravityError(error: unknown): Error {
+  return new Error(antigravityErrorMessage(error));
+}
+
+/** Read the shapes ACP uses for provider, validation, and model failures. */
+function structuredErrorText(data: Record<string, unknown>): string | undefined {
+  const nested = asRecord(data.error);
+  const message = nested ? stringField(nested, "message") : undefined;
+  if (message) return message;
+  if (Array.isArray(data.errors)) {
+    const lines = data.errors.flatMap((entry) => {
+      const rec = asRecord(entry);
+      const text = rec
+        ? stringField(rec, "msg") ?? stringField(rec, "message")
+        : undefined;
+      if (!text) return [];
+      const location = Array.isArray(rec?.loc)
+        ? rec.loc
+            .filter(
+              (part): part is string | number =>
+                typeof part === "string" || typeof part === "number",
+            )
+            .join(".")
+        : "";
+      return [location ? `${location}: ${text}` : text];
+    });
+    if (lines.length) return lines.join("\n");
+  }
+  const models = Array.isArray(data.availableModels)
+    ? data.availableModels.filter(
+        (value): value is string => typeof value === "string",
+      )
+    : [];
+  return models.length ? `Available models: ${models.join(", ")}` : undefined;
+}
 
 function usageFromUpdate(update: Record<string, unknown>): HarnessEvent[] {
   const usage =
