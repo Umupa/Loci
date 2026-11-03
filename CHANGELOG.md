@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-11-03
+
 ### Fixed
 
 - **Connecting to another computer no longer crashes Loci.** Pairing with a code, or opening the last computer at launch, quit Loci as soon as its window appeared, and from then on Loci quit at every launch. ([#43](https://github.com/Umupa/Loci/issues/43))
@@ -309,7 +311,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.4...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.5...HEAD
+[0.8.5]: https://github.com/Umupa/Loci/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/Umupa/Loci/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/Umupa/Loci/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/Umupa/Loci/compare/v0.8.1...v0.8.2
