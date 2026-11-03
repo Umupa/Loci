@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { Highlighter, MessageSquarePlus } from "../../../shared/ui/icons";
+import { FilePlusCorner, Highlighter, MessageSquarePlus } from "../../../shared/ui/icons";
 import { Popover } from "../../../shared/ui/Popover";
 import { BLOCK_SELECTOR } from "../model/blockAnchor";
 import { ToolbarButton } from "./ReadingToolbar";
 
 /*
  * A whole block (a table, a diagram, a code block, a picture, an area drawn
- * on a PDF page) has the selection's bar: Highlight · Ask. What each action
+ * on a PDF page) has the selection's bar: Highlight · Ask, and in a
+ * conversation Save as note. What each action
  * takes from the block is the reader's to say.
  */
 
@@ -18,12 +19,14 @@ type Props = {
   askLabel?: string;
   onDismiss: () => void;
   /** Keep the block highlighted. Absent where nothing can be kept. */
-  onMark?: () => Promise<void>;
+  onMark?: () => Promise<void> | void;
+  /** Save the block as a note of its own. */
+  onSaveNote?: () => Promise<void> | void;
   /** Put the block in the composer's draft. */
-  onAsk: () => Promise<void> | void;
+  onAsk?: () => Promise<void> | void;
 };
 
-export function BlockToolbar({ anchor, label, askLabel = "Ask", onDismiss, onMark, onAsk }: Props) {
+export function BlockToolbar({ anchor, label, askLabel = "Ask", onDismiss, onMark, onSaveNote, onAsk }: Props) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const run = async (action: () => Promise<unknown> | unknown) => {
@@ -36,8 +39,10 @@ export function BlockToolbar({ anchor, label, askLabel = "Ask", onDismiss, onMar
     <div className="reading-toolbar__actions">
       {onMark ? <ToolbarButton icon={<Highlighter className="size-3.5" />} label="Highlight" title="Keep this block"
         disabled={pending} onClick={() => void run(onMark)} /> : null}
-      <ToolbarButton icon={<MessageSquarePlus className="size-3.5" />} label={askLabel} disabled={pending}
-        title="Put this block in the chat, as written, and write your question" onClick={() => void run(onAsk)} />
+      {onSaveNote ? <ToolbarButton icon={<FilePlusCorner className="size-3.5" />} label="Save as note" title="Save this block as a note of its own"
+        disabled={pending} onClick={() => void run(onSaveNote)} /> : null}
+      {onAsk ? <ToolbarButton icon={<MessageSquarePlus className="size-3.5" />} label={askLabel} disabled={pending}
+        title="Put this block in the chat, as written, and write your question" onClick={() => void run(onAsk)} /> : null}
     </div>
     {error ? <p role="alert" className="reading-toolbar__error">Could not do that. {error}</p> : null}
   </Popover>;

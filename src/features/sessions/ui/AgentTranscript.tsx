@@ -131,6 +131,7 @@ import { HarnessIcon } from "./HarnessIcon";
 import { WorkFoldLine, type WorkFoldState } from "./WorkFoldLine";
 import { TurnProgress } from "./TurnProgress";
 import { TranscriptSelectionMenu } from "./TranscriptSelectionMenu";
+import { TranscriptBlockActions } from "./TranscriptBlockActions";
 import { UserLinkPreview } from "./UserLinkPreview";
 
 const NEAR_BOTTOM_PX = 16;
@@ -1061,6 +1062,15 @@ function AgentTranscriptComponent({
           onDismiss={dismissSelection}
         />
       ) : null}
+      {onAddToChat || onKeepSelection || onSaveNote ? (
+        <TranscriptBlockActions
+          scroller={scrollerEl}
+          enabled={!parked && visible !== false}
+          onAddToChat={onAddToChat}
+          onKeep={onKeepSelection}
+          onSaveNote={onSaveNote}
+        />
+      ) : null}
     </div>
     </CourseHostContext.Provider>
   );
@@ -1645,6 +1655,7 @@ const TranscriptBlock = memo(function TranscriptBlock({
           revealOnMount={revealOnMount}
           cwd={cwd}
           onOpenFile={onOpenFile}
+          blocks
         />
       </div>
     </div>

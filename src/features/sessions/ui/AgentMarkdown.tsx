@@ -717,6 +717,7 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   wholeDocument = false,
   sourceUrl,
   section,
+  blocks: blockSources,
 }: {
   text: string;
   streaming?: boolean;
@@ -736,7 +737,10 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   sourceUrl?: string;
   /** Render this heading and its descendants from a saved document. */
   section?: string;
+  /** Let a reader keep or quote whole blocks (a table, a diagram): each carries its Markdown. A whole document does by default. */
+  blocks?: boolean;
 }) {
+  const withBlocks = (blockSources ?? wholeDocument) && !streaming;
   const code = useCodePlugin();
   const plugins = useMemo(() => ({ code, mermaid, math }), [code]);
   const [fileMenu, setFileMenu] = useState<FileLinkMenu | null>(null);
@@ -750,8 +754,8 @@ export const AgentMarkdown = memo(function AgentMarkdown({
     [],
   );
   const fileOpen = useMemo(
-    () => ({ cwd, onOpenFile, onFileContextMenu, sourceUrl, blocks: wholeDocument && !streaming }),
-    [cwd, onOpenFile, onFileContextMenu, sourceUrl, wholeDocument, streaming],
+    () => ({ cwd, onOpenFile, onFileContextMenu, sourceUrl, blocks: withBlocks }),
+    [cwd, onOpenFile, onFileContextMenu, sourceUrl, withBlocks],
   );
   const remarkPlugins = useMemo<PluggableList>(
     () => [
@@ -777,9 +781,9 @@ export const AgentMarkdown = memo(function AgentMarkdown({
     () => [
       ...baseRehypePlugins,
       ...(hardBreaks ? [rehypeHardBreaks] : []),
-      ...(wholeDocument && !streaming ? [rehypeTableSources] : []),
+      ...(withBlocks ? [rehypeTableSources] : []),
     ],
-    [baseRehypePlugins, hardBreaks, wholeDocument, streaming],
+    [baseRehypePlugins, hardBreaks, withBlocks],
   );
 
   const onFileMenuPick = (id: string) => {
