@@ -4,6 +4,35 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+A release about how Loci looks and reads: one quiet paper-and-ink look across the reader, the library and the conversation.
+
+### Added
+
+- **The learning map.** With nothing open, a mentor's reader shows its courses as a map: each lesson is a plot carrying its name, ink once read, grey while being read, pale stone until then, and the one to go on with is ringed in contour lines. A course the path names but nobody wrote yet is a dotted outline. Click a plot to open its lesson.
+- **A book face for reading.** Lessons and documents are set in Literata, with LXGW WenKai for Chinese, both built in so they work offline. Settings → Appearance → Reading font switches to the interface sans or the system serif.
+- **Loci Paper and Loci Ink themes**, a light and a dark paper with ink headings and no wallpaper.
+- **A highlight is the note.** Selected text anywhere — a lesson, a document, a PDF, the conversation — has one bar: **Highlight** (H) and **Ask** (⌘L). A highlight's own bar takes a thought on it, asks about it, or deletes it. A table, diagram or code block in a reply has the same bar, and can be saved as a note of its own.
+- **A course's highlights on one page**, from the link under its outline.
+- **Start a course over** from its … menu or a right-click: every lesson goes back to unread, highlights and notes stay.
+- **JetBrains Mono is built in** as a code font, so it is there on every machine.
+
+### Changed
+
+- **Mentor settings are a page of Settings** instead of a dialog that dimmed the window; each mentor has its own page, and resetting its soul and name is there. Default permissions for new mentors moved to Providers.
+- **The course list is quieter.** No counts beside courses, chapters or path steps: the rule under a course fills with ink as you read. Chapters are plain headings whose fold arrow shows on hover, lesson titles keep to one line, and the status marks are ink, not blue.
+- **The reader's head is a breadcrumb**, course / lesson, without a dropdown arrow; the course's name still opens its contents.
+- **The composer** is one rounded field with a round send button that appears once there is something to send; +, the reading tag and the model share one row under it.
+- **Settings rows** show a name and its control; what a setting does is on hover.
+- **Code fonts** are offered under the names they are installed by on this computer, so fonts such as Cascadia (CaskaydiaCove on a Mac) can be chosen; fonts that are not installed are no longer offered, and Menlo, Monaco and PT Mono join the list.
+- Citations in replies read as part of the sentence, scroll bars are thin and ink, and the top of a lesson is quieter.
+
+### Fixed
+
+- **Switching mentors takes one click.** A mentor switches on the press, and a click on an inactive window acts instead of only focusing it.
+- **Selecting text stays in its column.** Dragging up out of the conversation no longer selects the reader and the library too.
+- **Highlight and Ask on a lesson's source.** Selecting text in a lesson that reads a file showed no bar at all.
+- A course of a few lessons draws a small map, not a few giant plots.
+
 ## [0.7.1] - 2026-11-03
 
 ### Fixed
