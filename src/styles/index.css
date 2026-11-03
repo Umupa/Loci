@@ -228,7 +228,10 @@ body,
   margin: 0;
   background: var(--color-background-base);
   color: var(--color-content);
-  overflow: hidden;
+  /* `clip`, not `hidden`: a hidden root is still a scroll container, so a
+     reader's scrollIntoView scrolls the whole shell and the window's header
+     row leaves the viewport. `clip` cannot be scrolled at all. */
+  overflow: clip;
   overscroll-behavior: none;
   user-select: none;
   transition: background-color var(--motion-feedback-duration)

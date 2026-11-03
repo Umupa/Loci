@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- **The header row stays put.** Jumping to a section in a source could scroll the whole window up by the header's height, leaving the library toggle, back and forward, and the conversation's settings and close off screen until the app restarted. The shell no longer scrolls at all; only the reader inside it does.
+
 ## [0.6.1] - 2026-11-03
 
 ### Fixed
