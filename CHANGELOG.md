@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Changed
+
+- **Mentors open faster on another computer.** A mentor's library and reader start loading as soon as you click it instead of after the other computer answers, and the learning map no longer reads the same courses twice.
+
 ### Fixed
 
 - **This computer stays reachable from your other devices.** After a while the connection through the relay could drop and never come back, while your other computers still listed this one as there to connect to and then showed it offline. It now stays up, comes back on its own, and Settings → Remote access says when other devices cannot reach this computer and why.
