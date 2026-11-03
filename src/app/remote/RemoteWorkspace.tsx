@@ -104,13 +104,27 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
 
   const connected = status.state === "connected";
   const offline = status.state === "disconnected";
+  /** What this window shows of a mentor: its conversation, and one open in its reader. */
+  const viewedFor = (agentId: string, sessionId: string | undefined) => {
+    const page = mentorView.viewFor(agentId).page;
+    return [sessionId, page?.kind === "session" ? page.id : undefined].filter((id): id is string => !!id);
+  };
   const openMentor = useCallback(async (agentId: string) => {
     // Offline, the host cannot open it; the conversation this device kept is shown, if any.
     const kept = agents.find((agent) => agent.id === agentId)?.sessionId;
     if (offline && kept) { mentor.open(agentId, { id: kept } as Session); return; }
+    if (kept) {
+      // Its workspace opens now, while the host opens the conversation. The host
+      // hears what is shown first, so the conversation it opens is held as well.
+      client.view(viewedFor(agentId, kept));
+      mentor.open(agentId, { id: kept } as Session);
+    }
     try {
       const sessionId = await client.openAgent(agentId);
-      if (sessionId) mentor.open(agentId, { id: sessionId } as Session);
+      if (!sessionId) return;
+      // An empty conversation comes back as a new one.
+      if (!kept) mentor.open(agentId, { id: sessionId } as Session);
+      else if (sessionId !== kept) mentor.replaceSession(kept, { id: sessionId } as Session);
     } catch (reason) { setOpenError(String(reason)); }
   }, [agents, client, mentor.open, offline]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -124,8 +138,7 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
     if (current && agents.length && !agents.some((agent) => agent.id === current.agentId)) mentor.forgetSession(current.sessionId);
   }, [agents, current]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const page = current ? mentorView.stateFor(current.agentId).page : undefined;
-  const viewedIds = [current?.sessionId, page?.kind === "session" ? page.id : undefined].filter((id): id is string => !!id);
+  const viewedIds = current ? viewedFor(current.agentId, current.sessionId) : [];
   const viewedKey = viewedIds.join("\0");
   useEffect(() => client.view(viewedIds), [client, viewedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 

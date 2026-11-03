@@ -7,6 +7,7 @@ import { NotePane } from "../../notes/ui/NotePane";
 import { agentLook, type Agent } from "../../agents/model/agent";
 import { AgentDocumentReader } from "../../agents/ui/AgentDocumentReader";
 import { ResourceBar, ResourceHeader } from "../../../shared/ui/ResourceHeader";
+import type { CourseSummary } from "../../learning/model/course";
 import type { MentorLesson, MentorPage } from "../model/mentorPage";
 import { LearningMap } from "./LearningMap";
 
@@ -14,6 +15,8 @@ const FilePane = lazy(() => import("../../files/ui/FilePane").then((m) => ({ def
 
 type Props = {
   agent: Agent;
+  /** The mentor's courses as the workspace listed them, for the map; undefined until read. */
+  courses?: readonly CourseSummary[];
   page?: MentorPage;
   /** Bumped by every explicit opening, so the same lesson can be asked for again. */
   request: number;
@@ -37,11 +40,11 @@ function ReaderLoading({ label }: { label: string }) {
 }
 
 /** The one reader in the middle of a mentor's workspace. Whatever opens replaces it. */
-export function MentorReader({ agent, page, request, onClose, onLessonChange, onBeforeLeave, onOpenFile, renderSession, sessionTitle, onOpen }: Props) {
+export function MentorReader({ agent, courses, page, request, onClose, onLessonChange, onBeforeLeave, onOpenFile, renderSession, sessionTitle, onOpen }: Props) {
   const mentorName = agentLook(agent).name;
   if (!page) return <>
     <ResourceBar />
-    <LearningMap agent={agent} onOpen={onOpen} />
+    <LearningMap agent={agent} courses={courses} onOpen={onOpen} />
   </>;
   if (page.kind === "course") return <CoursePane key={`${agent.id}/${page.course.courseId}`} {...page.course} openRequest={request}
     sourceSessionId={agent.sessionId} reader focused onFocus={noop} onClose={onClose} onLessonChange={onLessonChange} />;

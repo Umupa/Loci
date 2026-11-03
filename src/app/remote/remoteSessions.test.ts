@@ -230,6 +230,20 @@ describe("a connected window and its host", () => {
     w.client.stop();
   });
 
+  it("tells the host what it shows once per change", async () => {
+    const w = world();
+    await w.client.start();
+    await settle();
+    const views = () => w.received.filter((call) => call.name === "session.view").map((call) => call.args);
+    const before = views().length;
+    w.client.view(["chat"]);
+    w.client.view(["chat"]);
+    w.client.view(["chat", "work"]);
+    await settle();
+    expect(views().slice(before)).toEqual([[["chat"]], [["chat", "work"]]]);
+    w.client.stop();
+  });
+
   it("asks for archived turns once when the host has none", async () => {
     const w = world();
     await w.client.start();

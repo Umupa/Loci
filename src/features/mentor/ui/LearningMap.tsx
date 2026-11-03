@@ -1,17 +1,23 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { agentLook, type Agent } from "../../agents/model/agent";
-import { COURSES_CHANGED_EVENT, loadCourse, loadCourseSummaries, PROGRESS_EVENT, type CourseChangedDetail, type ProgressDetail } from "../../learning/model/course";
+import { COURSES_CHANGED_EVENT, loadCourse, PROGRESS_EVENT, type CourseChangedDetail, type CourseSummary, type CourseWithProgress, type ProgressDetail } from "../../learning/model/course";
 import { nextLesson, withoutOrdinal } from "../model/libraryCourse";
 import { chordWidth, contours, layoutLearningMap, mapSize, roundedPath, type MapCourse, type MapPlot } from "../model/learningMap";
 import type { MentorPage } from "../model/mentorPage";
 import { useCoursePath } from "./LibraryCourses";
 import "./LearningMap.css";
 
-/** The mentor's courses in path order (then the rest), each with its lessons and how far each is read. */
-function useMapCourses(agentId: string): { courses: MapCourse[]; next?: { courseId: string; lessonId: string }; loaded: boolean; title?: string } {
+/**
+ * The mentor's courses in path order (then the rest), each with its lessons and
+ * how far each is read. `listed` is the workspace's course listing, undefined
+ * until it is read. Each course is read once, all at the same time; a course
+ * or progress change reads them again.
+ */
+function useMapCourses(agentId: string, listed: readonly CourseSummary[] | undefined): { courses: MapCourse[]; next?: { courseId: string; lessonId: string }; loaded: boolean; title?: string } {
   const path = useCoursePath(agentId);
   const [state, setState] = useState<{ agentId: string; courses: MapCourse[]; next?: { courseId: string; lessonId: string } }>();
   const [version, setVersion] = useState(0);
+  const reads = useRef<{ key: string; courses: Map<string, Promise<CourseWithProgress | null>> }>(undefined);
   useEffect(() => {
     const bump = (event: Event) => {
       const detail = (event as CustomEvent<CourseChangedDetail | ProgressDetail>).detail;
@@ -22,18 +28,26 @@ function useMapCourses(agentId: string): { courses: MapCourse[]; next?: { course
     return () => { window.removeEventListener(COURSES_CHANGED_EVENT, bump); window.removeEventListener(PROGRESS_EVENT, bump); };
   }, [agentId]);
   useEffect(() => {
+    if (!listed) return;
     let live = true;
+    const key = `${agentId}\0${version}`;
+    if (reads.current?.key !== key) reads.current = { key, courses: new Map() };
+    const cache = reads.current.courses;
+    const read = (id: string) => {
+      let pending = cache.get(id);
+      if (!pending) { pending = loadCourse(id, agentId).catch(() => null); cache.set(id, pending); }
+      return pending;
+    };
+    const order = path?.path?.courses ?? [];
+    const known = new Map(listed.map((course) => [course.id, course]));
+    const ids = [...order.map((entry) => entry.id), ...listed.filter((course) => !order.some((entry) => entry.id === course.id)).map((course) => course.id)];
     void (async () => {
-      const own = (await loadCourseSummaries().catch(() => [])).filter((course) => course.agentId === agentId);
-      const order = path?.path?.courses ?? [];
-      const known = new Map(own.map((course) => [course.id, course]));
-      const ids = [...order.map((entry) => entry.id), ...own.filter((course) => !order.some((entry) => entry.id === course.id)).map((course) => course.id)];
       let next: { courseId: string; lessonId: string } | undefined;
       const courses = await Promise.all(ids.map(async (id): Promise<MapCourse> => {
         const summary = known.get(id);
         const planned = order.find((entry) => entry.id === id);
         if (!summary) return { id, title: planned?.title ?? id, lessons: [], planned: true };
-        const course = await loadCourse(id, agentId).catch(() => null);
+        const course = await read(id);
         if (!course || course.data.engine !== "reading") return { id, title: summary.title, lessons: [] };
         return {
           id, title: course.title,
@@ -48,7 +62,7 @@ function useMapCourses(agentId: string): { courses: MapCourse[]; next?: { course
       if (live) setState({ agentId, courses, next });
     })();
     return () => { live = false; };
-  }, [agentId, path, version]);
+  }, [agentId, listed, path, version]);
   const shown = state?.agentId === agentId ? state : undefined;
   return { courses: shown?.courses ?? [], next: shown?.next, loaded: !!shown, title: path?.path?.title };
 }
@@ -189,8 +203,8 @@ function Plot({ plot, next, course, onOpen }: { plot: MapPlot; next: boolean; co
  * pale stone until then, and the one to go on with drawn in contour lines; a course the path names but nobody wrote yet is only an
  * outline. A plot opens its lesson.
  */
-export function LearningMap({ agent, onOpen }: { agent: Agent; onOpen: (page: MentorPage) => void }) {
-  const { courses, next, loaded, title } = useMapCourses(agent.id);
+export function LearningMap({ agent, courses: listed, onOpen }: { agent: Agent; courses: readonly CourseSummary[] | undefined; onOpen: (page: MentorPage) => void }) {
+  const { courses, next, loaded, title } = useMapCourses(agent.id, listed);
   if (loaded && !courses.length) return <div className="mentor-reader-empty" data-tauri-drag-region="deep">
     <p>Ask {agentLook(agent).name} for a course.</p>
   </div>;

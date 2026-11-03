@@ -81,7 +81,7 @@ beforeEach(() => {
   documentRead = async (id) => id === agent.id ? documents : [];
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const input = args as { agent?: string; agentId?: string; id?: string; note?: Note };
-    if (command === "course_list_all") return [agent, other].map((owner) => ({ id: "kube", agentId: owner.id, title: `${owner.name}'s course`, engine: "reading", itemCount: 2, masteredCount: 1, updatedAt: 2 }));
+    if (command === "course_list_all") return courseGone ? [] : [agent, other].map((owner) => ({ id: "kube", agentId: owner.id, title: `${owner.name}'s course`, engine: "reading", itemCount: 2, masteredCount: 1, updatedAt: 2 }));
     if (command === "course_get") return courseGone ? null : { id: input.id, agentId: input.agentId, title: "Ada's course", updatedAt: 2, engine: "reading", dataJson: courseData };
     if (command === "course_progress_get") return [{ itemId: "pod", status: "mastered" }];
     if (command === "agent_documents_list") return documentRead(input.agent!);
@@ -311,6 +311,46 @@ it("comes back to the lesson a mentor was showing, remembering identifiers only"
   await render();
   await vi.waitFor(() => expect(container.querySelector<HTMLElement>("[data-test-course]")?.dataset.item).toBe("service"));
   expect(control.stateFor(agent.id).restored).toBe(false);
+});
+
+it("reads the path and the course list once, and each course on the map once, however late the path comes", async () => {
+  let pathRead!: (value: unknown) => void;
+  vi.mocked(invoke).mockImplementation(async (command, args) => {
+    const input = args as { agentId?: string; id?: string; courseId?: string };
+    if (command === "course_path_read") return new Promise((resolve) => { pathRead = resolve; });
+    if (command === "course_list_all") return [
+      { id: "kube", agentId: agent.id, title: "Kubernetes", engine: "reading", itemCount: 2, masteredCount: 2, updatedAt: 1 },
+      { id: "sds", agentId: agent.id, title: "SDS", engine: "reading", itemCount: 2, masteredCount: 0, updatedAt: 2 },
+    ];
+    if (command === "course_get") return { id: input.id, agentId: input.agentId, title: input.id, updatedAt: 2, engine: "reading", dataJson: courseData };
+    if (command === "course_progress_get") return input.courseId === "kube" ? [{ itemId: "pod", status: "mastered" }, { itemId: "service", status: "mastered" }] : [];
+    if (command === "agent_documents_list" || command === "notes_list") return [];
+    throw new Error(`Unexpected command: ${command}`);
+  });
+  const calls = (command: string, id?: string) => vi.mocked(invoke).mock.calls
+    .filter(([name, args]) => name === command && (!id || (args as { id?: string; courseId?: string }).id === id || (args as { courseId?: string }).courseId === id)).length;
+  await render();
+  // The map and the library are both shown: one path read between them, and the workspace's listing.
+  await vi.waitFor(() => expect(calls("course_get", "kube")).toBe(1));
+  expect(calls("course_path_read")).toBe(1);
+  expect(calls("course_list_all")).toBe(1);
+  await act(async () => pathRead({ path: { title: "Sandboxes", courses: [{ id: "kube" }, { id: "sds", after: ["kube"] }] }, file: "courses/_path.yaml" }));
+  await vi.waitFor(() => expect(container.querySelector("[data-library-path]")).not.toBeNull());
+  // The path only orders what was read; nothing is read again for it.
+  expect(calls("course_path_read")).toBe(1);
+  expect(calls("course_list_all")).toBe(1);
+  expect(calls("course_get", "kube")).toBe(1);
+  expect(calls("course_progress_get", "kube")).toBe(1);
+});
+
+it("checks a remembered page against the listing instead of reading it again", async () => {
+  localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [agent.id]: { library: true, page: { kind: "document", document: { id: "doc", title: "HTTP reference" } } } }));
+  await render();
+  await vi.waitFor(() => expect(control.stateFor(agent.id).restored).toBe(false));
+  expect(reader().dataset.mentorReader).toBe("document");
+  // The reader alone reads the source.
+  await vi.waitFor(() => expect(container.querySelector("[data-test-document]")).not.toBeNull());
+  expect(vi.mocked(invoke).mock.calls.filter(([name]) => name === "agent_documents_get")).toHaveLength(1);
 });
 
 it("drops a remembered page that no longer exists", async () => {

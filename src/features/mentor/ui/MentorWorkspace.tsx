@@ -12,7 +12,7 @@ import { AgentHeaderExtra } from "../../agents/ui/AgentView";
 import { useAgentResources } from "../../agents/ui/useAgentResources";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import { moveFileDrafts, setFileDraft } from "../../files/model/fileDrafts";
-import { loadCourse } from "../../learning/model/course";
+import { loadCourse, type CourseSummary } from "../../learning/model/course";
 import { createNote, getNote } from "../../notes";
 import { readingOf, type MentorLesson, type MentorPage } from "../model/mentorPage";
 import { noveltyKey, pageNoveltyKey } from "../model/libraryNovelty";
@@ -20,7 +20,7 @@ import type { CourseBadge } from "./LibraryCourses";
 import { useLibraryNovelty } from "./useLibraryNovelty";
 import { useReadingPlace } from "./useReadingPlace";
 import { useReadingPosition } from "./useReadingPosition";
-import { MentorLibrary, type LibraryChange } from "./MentorLibrary";
+import { MentorLibrary, type LibraryChange, type LibraryData } from "./MentorLibrary";
 import { MentorReader } from "./MentorReader";
 import "./MentorWorkspace.css";
 
@@ -85,7 +85,7 @@ type Props = {
 /** The conversation's header is the window's top row, like the other columns'. */
 const CHAT_CHROME = { windowTop: true, leadingInset: 4 };
 
-/** Whether a page remembered from an earlier visit can still be shown. */
+/** Whether a page remembered from an earlier visit can still be shown, read from the host. */
 export async function restoredPageExists(agentId: string, page: MentorPage): Promise<boolean> {
   if (page.kind === "course") return !!await loadCourse(page.course.courseId, agentId);
   if (page.kind === "document") return !!await readAgentDocument(agentId, page.document.id);
@@ -93,6 +93,24 @@ export async function restoredPageExists(agentId: string, page: MentorPage): Pro
   // Files say for themselves when they are gone.
   return true;
 }
+
+/**
+ * The same, from the workspace's own listings, so the reader is the only one
+ * to read the page: undefined while the listing is on its way, "read" when only
+ * reading the page can tell (its listing failed, or a note another mentor owns).
+ */
+export function restoredPageListed(page: MentorPage, data: LibraryData, errors: Partial<Record<keyof LibraryData, string>>): boolean | "read" | undefined {
+  const listed = page.kind === "course" ? { items: data.courses, id: page.course.courseId, error: errors.courses }
+    : page.kind === "document" ? { items: data.documents, id: page.document.id, error: errors.documents }
+      : page.kind === "note" ? { items: data.notes, id: page.id, error: errors.notes } : undefined;
+  if (!listed) return true;
+  if (!listed.items) return listed.error ? "read" : undefined;
+  if (listed.items.some((item) => item.id === listed.id)) return true;
+  return page.kind === "note" ? "read" : false;
+}
+
+/** For the map while the course listing could not be read: nothing listed. */
+const NO_COURSES: readonly CourseSummary[] = [];
 
 /**
  * One mentor's workspace: the outline and library on the left, the reader in
@@ -152,12 +170,14 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
 
   // A page remembered from the last visit may have been removed since.
   const restored = state.restored ? state.page : undefined;
+  const restoredListed = restored ? restoredPageListed(restored, data, errors) : undefined;
   useEffect(() => {
-    if (!restored) return;
+    if (!restored || restoredListed === undefined) return;
+    if (restoredListed !== "read") { onRestoredChecked(restored, restoredListed); return; }
     let live = true;
     restoredPageExists(agent.id, restored).then((exists) => { if (live) onRestoredChecked(restored, exists); }, () => { if (live) onRestoredChecked(restored, true); });
     return () => { live = false; };
-  }, [agent.id, restored]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [agent.id, restored, restoredListed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const newNote = async () => {
     if (creating) return;
@@ -268,7 +288,7 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
       </aside>
       <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}>
         <ResourceHeaderLeading.Provider value={readerLeading}><ResourceHeaderExtra.Provider value={readerExtra}>
-        <MentorReader agent={agent} page={state.page} request={state.request}
+        <MentorReader agent={agent} courses={data.courses ?? (errors.courses ? NO_COURSES : undefined)} page={state.page} request={state.request}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
           onOpenFile={onOpenFile} renderSession={renderSession}
           sessionTitle={sessionTitle} onOpen={onOpen} />

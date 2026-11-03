@@ -127,8 +127,10 @@ export class RemoteSessionClient {
 
   /** Sessions this window shows, which the host keeps in memory for it. */
   view(sessionIds: string[]): void {
+    // Said once: the lease timer and a reconnect say it again.
+    const same = sessionIds.length === this.viewed.length && sessionIds.every((id, index) => id === this.viewed[index]);
     this.viewed = sessionIds;
-    this.sendView();
+    if (!same) this.sendView();
     for (const sessionId of sessionIds) void this.prefetchEarlier(sessionId);
   }
 

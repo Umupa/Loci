@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { ask } from "../../../platform/dialog";
 import { Popover, type PopoverAnchor } from "../../../shared/ui/Popover";
 import { Highlighter, MoreHorizontal, Plus, RotateCcw } from "../../../shared/ui/icons";
@@ -21,22 +21,46 @@ export const NEW_COURSE_PROMPT = "I'd like a new course on ";
 /** What "plan a path" puts in the composer. */
 export const NEW_PATH_PROMPT = "Plan a learning path of short courses for me, in order, from what we have and what is missing: ";
 
-/** The mentor's learning path, read again whenever its courses change. */
-export function useCoursePath(agentId: string): PathRead | undefined {
-  const [read, setRead] = useState<{ agentId: string; read?: PathRead }>();
-  const [version, setVersion] = useState(0);
-  useEffect(() => {
-    const changed = (event: Event) => { if ((event as CustomEvent<CourseChangedDetail>).detail?.agentId === agentId) setVersion((value) => value + 1); };
+/** One mentor's path as every view of it shares it: read once, and again once per change. */
+type SharedPath = { read?: PathRead; request: number; users: Set<() => void>; stop: () => void };
+const sharedPaths = new Map<string, SharedPath>();
+
+function readSharedPath(agentId: string, shared: SharedPath) {
+  const request = ++shared.request;
+  const settle = (read?: PathRead) => {
+    if (sharedPaths.get(agentId) !== shared || request !== shared.request) return;
+    shared.read = read;
+    for (const listener of shared.users) listener();
+  };
+  // A mentor whose content is not in a folder has no path: the segment stays as it was.
+  void loadCoursePath(agentId).then(settle, () => settle(undefined));
+}
+
+function subscribeCoursePath(agentId: string, listener: () => void): () => void {
+  let shared = sharedPaths.get(agentId);
+  if (!shared) {
+    const changed = (event: Event) => { if ((event as CustomEvent<CourseChangedDetail>).detail?.agentId === agentId) readSharedPath(agentId, created); };
+    const created: SharedPath = { request: 0, users: new Set(), stop: () => window.removeEventListener(COURSES_CHANGED_EVENT, changed) };
     window.addEventListener(COURSES_CHANGED_EVENT, changed);
-    return () => window.removeEventListener(COURSES_CHANGED_EVENT, changed);
-  }, [agentId]);
-  useEffect(() => {
-    let live = true;
-    // A mentor whose content is not in a folder has no path: the segment stays as it was.
-    void loadCoursePath(agentId).then((found) => { if (live) setRead({ agentId, read: found }); }, () => { if (live) setRead({ agentId }); });
-    return () => { live = false; };
-  }, [agentId, version]);
-  return read?.agentId === agentId ? read.read : undefined;
+    sharedPaths.set(agentId, created);
+    readSharedPath(agentId, created);
+    shared = created;
+  }
+  const entry = shared;
+  entry.users.add(listener);
+  return () => {
+    entry.users.delete(listener);
+    // Read afresh the next time anything shows it.
+    if (entry.users.size || sharedPaths.get(agentId) !== entry) return;
+    entry.stop();
+    sharedPaths.delete(agentId);
+  };
+}
+
+/** The mentor's learning path, read again whenever its courses change; views shown together share one read. */
+export function useCoursePath(agentId: string): PathRead | undefined {
+  const subscribe = useCallback((listener: () => void) => subscribeCoursePath(agentId, listener), [agentId]);
+  return useSyncExternalStore(subscribe, () => sharedPaths.get(agentId)?.read);
 }
 
 /** Opens a course at the lesson to continue with. */
