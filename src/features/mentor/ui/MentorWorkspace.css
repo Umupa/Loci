@@ -182,3 +182,8 @@
 .library-mark--mastered { border-color: transparent; background: color-mix(in srgb, var(--color-content) 75%, transparent); color: var(--color-background-base); }
 .mentor-history { display: flex; flex: none; align-items: center; gap: 0; }
 .mentor-history .mentor-bar-button:disabled { opacity: .35; pointer-events: none; }
+
+/* While a drag selects in one column, the others cannot be selected into. */
+.mentor-body[data-selecting="chat"] > :is(.mentor-library-column, .mentor-reader),
+.mentor-body[data-selecting="reader"] > :is(.mentor-library-column, .mentor-chat-column),
+.mentor-body[data-selecting="library"] > :is(.mentor-reader, .mentor-chat-column) { -webkit-user-select: none; user-select: none; }

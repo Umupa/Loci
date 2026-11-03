@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { MentorViewState } from "../../../app/hooks/useMentorView";
 import { useDragResize } from "../../../shared/hooks/useDragResize";
 import { ChevronLeft, ChevronRight, MessageSquare, SidebarLeft, X } from "../../../shared/ui/icons";
@@ -249,7 +249,7 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
       event.preventDefault(); event.stopPropagation();
       close();
     }}>
-    <div ref={body} className="mentor-body">
+    <div ref={body} className="mentor-body" onPointerDownCapture={keepSelectionInColumn}>
       {narrowLibrary && state.library ? <div className="mentor-library-scrim" aria-hidden="true" onPointerDown={onToggleLibrary} /> : null}
       <aside ref={library.setPaneRef} className="mentor-library-column" hidden={!state.library} aria-label="Outline and library">
         <MentorLibrary agent={agent} headerLeading={leading} headerEnd={libraryToggle} data={data} errors={errors} onRetry={reload} page={state.page} lesson={state.lesson}
@@ -286,4 +286,21 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
       </aside>
     </div>
   </section>;
+}
+
+/**
+ * A drag that starts in one column selects only in that column: the others
+ * stop being selectable until the button is let go. Without it, dragging up
+ * or left out of the conversation runs the selection back through the reader
+ * and the library, which come before it on the page.
+ */
+function keepSelectionInColumn(event: ReactPointerEvent<HTMLDivElement>) {
+  if (event.button !== 0 || event.pointerType !== "mouse" || !(event.target instanceof Element)) return;
+  const column = event.target.closest(".mentor-library-column, .mentor-reader, .mentor-chat-column");
+  if (!column || column.parentElement !== event.currentTarget) return;
+  const body = event.currentTarget;
+  body.dataset.selecting = column.classList.contains("mentor-reader") ? "reader" : column.classList.contains("mentor-chat-column") ? "chat" : "library";
+  const done = () => { delete body.dataset.selecting; window.removeEventListener("pointerup", done, true); window.removeEventListener("pointercancel", done, true); };
+  window.addEventListener("pointerup", done, true);
+  window.addEventListener("pointercancel", done, true);
 }
