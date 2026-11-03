@@ -210,6 +210,8 @@ export function useMentorView() {
     }), [update]),
     toggleLibrary: useCallback((id: string) => update(id, (state) => ({ ...state, library: !state.library })), [update]),
     toggleChat: useCallback((id: string) => update(id, (state) => ({ ...state, chat: !state.chat })), [update]),
+    /** Shows the conversation, if it was hidden. */
+    showChat: useCallback((id: string) => update(id, (state) => state.chat ? state : { ...state, chat: true }), [update]),
     resizeLibrary: useCallback((id: string, value: number) => update(id, (state) => ({ ...state, libraryWidth: value })), [update]),
     resizeChat: useCallback((id: string, value: number) => update(id, (state) => ({ ...state, chatWidth: value })), [update]),
   };

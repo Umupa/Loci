@@ -255,10 +255,10 @@ function Workspace(boot: BootWorkspace) {
     if (!await showMentor(agentId)) return;
     mentorViewRef.current.show(agentId, page, options);
   }, [leaveReader, showMentor]);
-  /** A mentor's own conversation opens the mentor; any other opens in the reader. */
+  /** A mentor's own conversation opens the mentor with its conversation in view; any other opens in the reader. */
   const showSession = useCallback(async (id: string) => {
     const owner = agentForSession(id);
-    if (owner) { await showMentor(owner.id); return; }
+    if (owner) { if (await showMentor(owner.id)) mentorViewRef.current.showChat(owner.id); return; }
     await storeRef.current!.ensureSession(id, runtime.bindRestoredSession);
     await showInMentor({ kind: "session", id });
   }, [runtime.bindRestoredSession, showInMentor, showMentor]);
@@ -514,6 +514,10 @@ function Workspace(boot: BootWorkspace) {
     openSearch: () => setSearchOpen((open) => !open),
     openSettings: () => openSettings(),
     openSession: (id) => { void showSessionRef.current(id).catch(reportError); },
+    ownsMentorSession: (id) => {
+      const owner = agentForSession(id);
+      return !owner ? null : mentorRef.current.currentRef.current?.agentId === owner.id ? "showing" : "roster";
+    },
     reload,
   });
 

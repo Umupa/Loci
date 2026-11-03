@@ -32,6 +32,12 @@ type Options = {
   openSearch: () => void;
   openSettings: () => void;
   openSession: (id: string) => void;
+  /**
+   * Whether a session is a mentor's conversation: "showing" when this window
+   * has that mentor open, "roster" when it is a mentor's but not on screen,
+   * null when it is no mentor's.
+   */
+  ownsMentorSession: (id: string) => "showing" | "roster" | null;
   reload: () => void;
 };
 
@@ -144,9 +150,14 @@ export function useAppCommands(options: Options) {
     }
     listeners.push(transport.listen("zoom_in", () => zoom("zoom-in")), transport.listen("zoom_out", () => zoom("zoom-out")), transport.listen("zoom_reset", () => zoom("zoom-reset")));
     listeners.push(transport.listen<string>(NOTIFICATION_CLICK_EVENT, ({ payload }) => {
-      // Native notification clicks are broadcast; only a window holding this session acts.
-      if (!latest.current.sessionsRef.current.some((session) => session.id === payload)) return;
+      // Native notification clicks are broadcast to every window. The one
+      // holding the session acts. A mentor's conversation may have been let go
+      // once it was idle and off screen (which is when its banner comes), so
+      // then the window showing that mentor acts, or else the main window.
       const win = getCurrentWindow();
+      const held = latest.current.sessionsRef.current.some((session) => session.id === payload);
+      const mentor = held ? null : latest.current.ownsMentorSession(payload);
+      if (!held && mentor !== "showing" && !(mentor === "roster" && win.label === "main")) return;
       void win.unminimize().then(() => win.setFocus()).catch(() => undefined);
       latest.current.openSession(payload);
     }));

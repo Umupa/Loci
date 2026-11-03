@@ -15,6 +15,7 @@ vi.mock("../../platform/tauri/platform", async (original) => ({
 }));
 const native = vi.hoisted(() => ({
   handlers: new Map<string, Set<(event: { payload: unknown }) => void>>(),
+  label: "main",
   invoke: vi.fn(async () => undefined),
   unminimize: vi.fn(async () => undefined),
   focus: vi.fn(async () => undefined),
@@ -31,6 +32,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 }));
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
+    label: native.label,
     unminimize: native.unminimize, setFocus: native.focus,
     isFocused: async () => true, onFocusChanged: async () => () => undefined,
   }),
@@ -58,6 +60,7 @@ function options(id = "s1") {
     newMentor: vi.fn(), closeReader: vi.fn(() => true), closeWindow: vi.fn(),
     toggleLibrary: vi.fn(), toggleChat: vi.fn(), openSearch: vi.fn(), openSettings: vi.fn(),
     openSession: vi.fn(), reload: vi.fn(),
+    ownsMentorSession: vi.fn((_id: string): "showing" | "roster" | null => null),
     setFocused: (next: string | null) => { focused = next; },
   };
   return value satisfies Options;
@@ -83,6 +86,7 @@ function emit(name: string, payload?: unknown) {
 const later = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
 
 beforeEach(() => {
+  native.label = "main";
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   platform.mac = true;
   localStorage.clear();
@@ -302,5 +306,24 @@ describe("application command routing", () => {
     expect(second.openSession).toHaveBeenCalledExactlyOnceWith("second");
     expect(native.unminimize).toHaveBeenCalledOnce();
     expect(native.focus).toHaveBeenCalledOnce();
+  });
+
+  it("opens a mentor's conversation that no window holds any more: where that mentor shows, else in the main window", async () => {
+    const click = async (value: ReturnType<typeof options>, label: string, owns: "showing" | "roster" | null) => {
+      native.label = label;
+      value.ownsMentorSession.mockReturnValue(owns);
+      emit("loci:notification-click", "kern-chat");
+      await act(async () => { await Promise.resolve(); });
+    };
+    const value = options("other");
+    await mount(value);
+    await click(value, "window-2", "roster");
+    expect(value.openSession).not.toHaveBeenCalled();
+    await click(value, "window-2", null);
+    expect(value.openSession).not.toHaveBeenCalled();
+    await click(value, "window-2", "showing");
+    expect(value.openSession).toHaveBeenLastCalledWith("kern-chat");
+    await click(value, "main", "roster");
+    expect(value.openSession).toHaveBeenCalledTimes(2);
   });
 });
