@@ -142,7 +142,6 @@ export function LibraryCourses({ agent, courses: listed, selected, page, lesson,
     {error ? <LibraryLoadError subject="courses" onRetry={onRetry} /> : null}
     {plan && steps ? <div className="library-path" data-library-path>
       <div className="library-path-head">
-        <p className="library-path-kicker">Learning path · {steps.length} {steps.length === 1 ? "course" : "courses"}</p>
         <p className="library-path-title">{path?.title ?? "Learning path"}</p>
         <div className="library-progress-line">
           <Bar read={read} total={total} label="Path progress" />

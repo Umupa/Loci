@@ -58,7 +58,7 @@ it("shows the path as numbered courses without their own ordinals, and opens the
   path = { title: "Sandboxes", courses: [{ id: "kvm" }, { id: "net", after: ["kvm"] }, { id: "snap", title: "三、Snapshots", after: ["kvm", "net"] }] };
   await render(onPath);
   await vi.waitFor(() => expect(host.querySelector("[data-library-path]")).not.toBeNull());
-  expect(host.querySelector(".library-path-kicker")?.textContent).toBe("Learning path · 3 courses");
+  expect(host.querySelector(".library-path-kicker")).toBeNull();
   expect(host.querySelector(".library-path-title")?.textContent).toBe("Sandboxes");
   expect(host.querySelector(".library-path-head .library-count")?.textContent).toBe("1/4");
   expect([...host.querySelectorAll(".library-step-title")].map((title) => title.textContent)).toEqual(["KVM 第一性原理", "NetworkingNew", "Snapshots", "Loose ends"]);

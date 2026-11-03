@@ -103,7 +103,6 @@
 .library-courses, .library-course { display: flex; flex-direction: column; font-size: 13px; line-height: 20px; }
 .library-courses-empty { display: flex; flex-direction: column; align-items: flex-start; }
 .library-path-head { padding: 6px 8px 12px; }
-.library-path-kicker { margin: 0 0 2px; font-size: 11px; line-height: 16px; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
 .library-path-title, .library-course-title { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; font-weight: 600; color: var(--color-content); }
 .library-course-title .mentor-library-new, .library-step-title .mentor-library-new { margin-left: 6px; vertical-align: 1px; }
 .library-progress-line { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
@@ -149,22 +148,24 @@
 .library-outline ol { margin: 0; padding: 0; list-style: none; }
 .library-chapter { margin-top: 10px; }
 .library-chapter:first-child { margin-top: 2px; }
-.library-chapter-title { display: flex; width: 100%; min-width: 0; align-items: center; gap: 6px; height: 28px; padding: 0 8px 0 4px; border-radius: 6px; text-align: left; font-weight: 500; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
+.library-chapter-title { display: flex; width: 100%; min-width: 0; align-items: center; gap: 10px; height: 28px; padding: 0 8px 0 4px; border-radius: 6px; text-align: left; font-weight: 500; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
 .library-chapter-title:hover { color: var(--color-content); }
 .library-chapter-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .library-chapter-title .library-count { line-height: 28px; font-weight: 400; }
-.library-chevron { transition: transform 120ms; }
+.library-chevron { margin-left: 1px; transition: transform 120ms; }
 .library-chapter-title[aria-expanded="false"] .library-chevron { transform: rotate(-90deg); }
 .library-course > .library-outline .library-chapter-title, .library-course > .library-outline .library-lesson { padding-left: 8px; }
 .library-lesson { position: relative; display: flex; width: 100%; min-height: 30px; align-items: flex-start; gap: 8px; padding: 5px 8px 5px 4px; border-radius: 6px; text-align: left; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
 .library-lesson:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); color: var(--color-content); }
-/* The lesson in the reader: the mentor's pale wash and an ink bar at its edge. */
-.library-lesson--current { background: var(--color-tint); color: var(--color-content); }
-.library-lesson--current::before { content: ""; position: absolute; top: 7px; bottom: 7px; left: 0; width: 2px; border-radius: 1px; background: var(--color-content); }
-.library-lesson--current:hover { background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
+/* The lesson in the reader: its title run over with the highlighter, nothing more. */
+.library-lesson--current { color: var(--color-content); }
+.library-lesson--current .library-lesson-title { font-weight: 600; }
+.library-lesson--current .library-lesson-title > span { background-image: linear-gradient(transparent 58%, var(--color-mark-wash-strong) 58%); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .library-lesson--mastered .library-lesson-title { color: color-mix(in srgb, var(--color-content) 55%, transparent); }
 .library-lesson-title { display: -webkit-box; min-width: 0; flex: 1; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
-.library-lesson-kind { display: flex; flex: none; margin-top: 3px; color: color-mix(in srgb, var(--color-content) 25%, transparent); }
+/* What a lesson reads (a source, code, a comparison) is there when asked: on hover or focus. */
+.library-lesson-kind { display: flex; flex: none; margin-top: 3px; color: color-mix(in srgb, var(--color-content) 35%, transparent); opacity: 0; transition: opacity 120ms; }
+.library-lesson:is(:hover, :focus-visible) .library-lesson-kind { opacity: 1; }
 .library-lesson-marks { display: flex; flex: none; }
 /* Status column, one ink ring drawn three ways: empty, half filled with the
    mentor's colour while reading, and solid ink with a paper tick once read. */

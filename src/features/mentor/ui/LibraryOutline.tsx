@@ -74,7 +74,7 @@ export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
             aria-describedby={marks ? `${marksId}-${lesson.id}` : undefined}
             title={lesson.title} onClick={() => onSelect(lesson.id)}>
             <span aria-hidden className={`library-mark library-mark--${state}`}>{state === "mastered" ? <Check className="size-2.5" strokeWidth={3} /> : null}</span>
-            <span className="library-lesson-title">{lesson.title}</span>
+            <span className="library-lesson-title"><span>{lesson.title}</span></span>
             {kind ? <span className="library-lesson-kind" title={kind.label} data-lesson-kind={lessonKind(lesson)}><kind.Icon aria-hidden className="size-3.5" /></span> : null}
             {marks ? <span id={`${marksId}-${lesson.id}`} className="library-lesson-marks">{marks}</span> : null}
           </button>
