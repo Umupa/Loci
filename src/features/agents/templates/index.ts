@@ -22,6 +22,6 @@ export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   },
   {
     id: "repo-lens", name: "Lens", role: "Open-source reader", avatar: "tide", soul: repoLens,
-    summary: "Give it a repository: it clones it, hands you a course through its own docs and code at a pinned commit, then writes a one-page brief.",
+    summary: "Give it a repository: it writes a one-page brief on how it works in minutes, and builds a course through its docs and code only when you want to go deeper.",
   },
 ];

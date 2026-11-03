@@ -2,10 +2,8 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { LAYER } from "../../shared/lib/layers";
 
-export type SavedToastData =
-  | { type: "canvas"; id: string; title: string }
-  /** The mentor that owns the note, so Open still finds it after a mentor switch. */
-  | { type: "note"; id: string; agentId?: string };
+/** `agentId`: the mentor that owns the note, so Open still finds it after a mentor switch. */
+export type SavedToastData = { type: "note"; id: string; agentId?: string; title?: string };
 
 type Props = {
   toast: SavedToastData;
@@ -29,10 +27,7 @@ export function SavedToast({ toast, onOpen, onDismiss }: Props) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const label =
-    toast.type === "canvas"
-      ? `Saved to "${truncate(toast.title || "Untitled drawing")}"`
-      : "Saved to Notes";
+  const label = toast.title ? `Saved to “${toast.title}”` : "Saved to Notes";
 
   return createPortal(
     <div
@@ -59,8 +54,4 @@ export function SavedToast({ toast, onOpen, onDismiss }: Props) {
     </div>,
     document.body,
   );
-}
-
-function truncate(title: string): string {
-  return title.length > 32 ? `${title.slice(0, 31)}…` : title;
 }

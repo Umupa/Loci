@@ -131,9 +131,6 @@ const APP_WORDING: Record<
   "habits.update": ["Updating a habit", "Updated a habit", "Couldn't update a habit", "library"],
   "habits.run": ["Running a habit", "Ran a habit", "Couldn't run a habit", "library"],
   "habits.remove": ["Removing a habit", "Removed a habit", "Couldn't remove a habit", "library"],
-  "canvas.create": ["Creating a drawing", "Created a drawing", "Couldn't create a drawing", "write"],
-  "canvas.write-data": ["Drawing on the canvas", "Drew on the canvas", "Couldn't draw on the canvas", "write"],
-  "canvas.read-data": ["Reading the canvas", "Read the canvas", "Couldn't read the canvas", "read"],
   "agent.rename": ["Renaming itself", "Renamed itself", "Couldn't rename itself", "other"],
 };
 

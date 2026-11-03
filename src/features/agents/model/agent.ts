@@ -80,7 +80,7 @@ export type Agent = {
   accessMigrated?: true;
   /**
    * Its folder of files (`~/Loci/<slug>`): sources, guides, courses, notes,
-   * canvases, Soul and memory. Set by Rust once the mentor has one; usually
+   * Soul and memory. Set by Rust once the mentor has one; usually
    * also its workdir.
    */
   folder?: string;
@@ -208,24 +208,6 @@ function saveRoster(roster: readonly Agent[]): void {
 
 export function findAgent(id: string): Agent | undefined {
   return listAgents().find((agent) => agent.id === id);
-}
-
-/**
- * An agent's library as the place a canvas lives. A canvas belongs to a
- * project folder; an agent is tied to none, so what it draws for the
- * conversation, a diagram for a lesson, say, goes into its library beside
- * its documents instead of needing a project first. This stands where a
- * project path would, and is not a path.
- */
-const AGENT_CANVAS_SCOPE = "loci-agent://";
-
-export function agentCanvasScope(agentId: string): string {
-  return `${AGENT_CANVAS_SCOPE}${agentId}`;
-}
-
-/** The agent whose library a canvas is in, if it is in one. */
-export function canvasScopeAgentId(cwd: string | undefined): string | undefined {
-  return cwd?.startsWith(AGENT_CANVAS_SCOPE) ? cwd.slice(AGENT_CANVAS_SCOPE.length) : undefined;
 }
 
 /** The agent whose conversation this is. */
@@ -363,11 +345,12 @@ export function applyAgentChanges(agentId: string, changed: Partial<Agent>, remo
   });
 }
 
-/** Forgets the agent. Its folder of files stays on disk. */
-export function removeAgent(id: string): void {
+/** Deletes the agent; its folder goes to the trash. Resolves when Rust has done so. */
+export function removeAgent(id: string): Promise<void> {
   if (rosterHost) throw hostOnly("Remove a mentor");
-  queueMentorRemoval(id);
+  const removed = queueMentorRemoval(id);
   saveRoster(listAgents().filter((agent) => agent.id !== id));
+  return removed;
 }
 
 export function reorderAgents(ids: readonly string[]): void {

@@ -77,8 +77,11 @@
      (rounded-lg / rounded-xl), and the portrait plate's own curve. */
   --radius-lg: 10px;
   --radius-xl: 10px;
-  /* The learner's highlighter: only things they marked carry this hue. */
-  --color-mark: hsl(48 90% 62%);
+  /* The learner's highlighter is the mentor's hue too: a pale wash under
+     what they marked, deeper on the mark that is open. Never an outline. */
+  --color-mark: var(--color-accent);
+  --color-mark-wash: color-mix(in srgb, var(--color-mark) 24%, transparent);
+  --color-mark-wash-strong: color-mix(in srgb, var(--color-mark) 40%, transparent);
   --color-skill: #e8c547;
   --color-mention: #38bdf8;
   /* Settings > Appearance > Fonts sets --font-*-user in front of the system stack. */
@@ -2674,6 +2677,27 @@ html.theme-light .btw-burst {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* With ⌥ held the pointer draws an area: the text layer stops taking it, so
+   no text is selected underneath, and the page shows a crosshair. */
+.loci-pdf[data-area-select] .textLayer,
+.loci-pdf[data-area-select] .textLayer :is(span, br) {
+  pointer-events: none;
+}
+
+.loci-pdf[data-area-select] .loci-pdf-page {
+  cursor: crosshair;
+}
+
+/* The area being drawn, and the one whose bar is open. */
+.loci-pdf-area {
+  position: absolute;
+  z-index: 2;
+  border: 1.5px dashed color-mix(in srgb, var(--color-mark) 80%, black);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-mark) 10%, transparent);
+  pointer-events: none;
 }
 
 .loci-pdf .textLayer {

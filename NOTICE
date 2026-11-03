@@ -23,11 +23,6 @@ combinations, a card tinted with the agent's color, cheeks, a blinkable eyes
 group, and scoped SVG resource IDs. Assets are pre-generated; the generator
 libraries are not shipped.
 
-Loci ships the official Excalidraw MCP server unmodified in
-src-tauri/resources/excalidraw-mcp/official (MIT; origin, version and file
-hashes are recorded in the SOURCE file beside it). Excalidraw is a trademark
-of its owners and is used only to identify that project.
-
 Loci's color themes, their wallpapers and the mapping that colors code come from
 Omarchy (https://github.com/omacom/omarchy, branch quattro, commit
 b83d3df0840504299d3099ebf391eb8110527edd), released under the MIT License,

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isLibrarySegment, type LibrarySegment } from "../../features/mentor/model/libraryCourse";
 import { parseStoredPage, samePage, storedPage, type MentorLesson, type MentorPage } from "../../features/mentor/model/mentorPage";
 import { requestFilePlace } from "../../features/files/model/filePlace";
@@ -55,6 +55,20 @@ function read(): Record<string, MentorViewState> {
   } catch { return {}; }
 }
 
+const VIEW_FORGOTTEN = "loci:mentor-view-forgotten";
+
+/** Drops a deleted mentor's view from storage and from the open window's memory. */
+export function forgetMentorView(agentId: string) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY) ?? "{}");
+    if (stored && typeof stored === "object" && agentId in stored) {
+      delete stored[agentId];
+      localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify(stored));
+    }
+  } catch { /* Nothing stored to forget. */ }
+  window.dispatchEvent(new CustomEvent(VIEW_FORGOTTEN, { detail: agentId }));
+}
+
 function write(states: Record<string, MentorViewState>) {
   const stored = Object.fromEntries(Object.entries(states).map(([id, state]) => [id, {
     library: state.library, libraryWidth: state.libraryWidth, chat: state.chat, width: state.chatWidth,
@@ -106,6 +120,19 @@ export function useMentorView() {
     history.forward = [];
     setHistoryVersion((version) => version + 1);
   };
+  // Otherwise the next change to any mentor's view would write a deleted one's back.
+  useEffect(() => {
+    const onForgotten = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      histories.current.delete(id);
+      if (!(id in latest.current)) return;
+      const { [id]: _gone, ...rest } = latest.current;
+      latest.current = rest;
+      setStates(rest);
+    };
+    window.addEventListener(VIEW_FORGOTTEN, onForgotten);
+    return () => window.removeEventListener(VIEW_FORGOTTEN, onForgotten);
+  }, []);
   const update = useCallback((id: string, edit: (state: MentorViewState) => MentorViewState) => {
     const before = latest.current[id] ?? DEFAULT_MENTOR_VIEW;
     const after = edit(before);

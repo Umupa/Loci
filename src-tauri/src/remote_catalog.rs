@@ -113,13 +113,6 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("mcp_add", Write),
     ("mcp_discover", Read),
     ("keybindings_set_overrides", ClientLocal),
-    // canvas
-    ("canvas_list", Read),
-    ("canvas_get", Read),
-    ("canvas_upsert", Write),
-    ("canvas_delete", Write),
-    ("canvas_checkpoint_canvas", Write),
-    ("canvas_checkpoint_latest", Read),
     // course
     ("course_list", Read),
     ("course_list_all", Read),
@@ -128,7 +121,6 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("course_upsert", Write),
     ("course_progress_get", Read),
     ("course_progress_set", Write),
-    ("canvas_mcp_server", Never),
     // agent
     ("agent_load", Read),
     ("agent_read", Read),

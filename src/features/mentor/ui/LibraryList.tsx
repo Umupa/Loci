@@ -3,7 +3,7 @@ import type { MentorPage } from "../model/mentorPage";
 import { listKeyDown } from "./listKeys";
 
 export type LibraryEntry = {
-  kind: "document" | "note" | "canvas" | "course";
+  kind: "document" | "note" | "course";
   id: string;
   icon: ReactNode;
   title: string;

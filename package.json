@@ -1,7 +1,7 @@
 {
   "name": "loci-desktop",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Loci — an AI-native learning workspace for engineers",
   "license": "MIT",
   "repository": {
@@ -37,7 +37,6 @@
     "release": "scripts/release.sh"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.18.1",
     "@hugeicons/core-free-icons": "^4.3.0",
     "@hugeicons/react": "^1.1.10",
     "@milkdown/kit": "7.22.3",

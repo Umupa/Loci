@@ -152,7 +152,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         <h4 className="agent-setting-group-title">Conversation</h4>
         <div className="agent-setting-group">
           <SettingRow label="Reset conversation" description="Clear messages. Soul, memory and habits stay."><button type="button" onClick={onReset} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/8">Reset</button></SettingRow>
-          <SettingRow label="Delete agent" description="Remove this agent and its conversation. Its folder of files stays on disk."><button type="button" onClick={onDelete} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/8">Delete</button></SettingRow>
+          <SettingRow label="Delete agent" description="Move its folder to the Trash and delete its conversation, highlights and progress. Folders you gave it stay."><button type="button" onClick={onDelete} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-red-400 hover:bg-red-400/8">Delete</button></SettingRow>
         </div>
         {error ? <p role="alert" className="mt-3 text-xs text-red-400/90">{error}</p> : null}
       </div> : <>
@@ -202,8 +202,8 @@ function WorkdirRow({ agent, chatCwd }: { agent: Agent; chatCwd?: string }) {
 }
 
 /**
- * The mentor's folder: its sources, guides, courses, notes, drawings, Soul
- * and memory as files. Export zips it so it can be imported elsewhere.
+ * The mentor's folder: its sources, guides, courses, notes, Soul and
+ * memory as files. Export zips it so it can be imported elsewhere.
  */
 function FolderRow({ agent, folder }: { agent: Agent; folder: string }) {
   const [status, setStatus] = useState<string>();

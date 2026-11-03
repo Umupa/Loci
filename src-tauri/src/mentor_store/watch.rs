@@ -32,7 +32,7 @@ const RESCAN_FOLDERS: Duration = Duration::from_secs(5);
 #[derive(Debug, Default, PartialEq)]
 pub struct Outcome {
     pub roster: bool,
-    /// `(agent, event kind, id)`: documents, courses, notes, canvases, files.
+    /// `(agent, event kind, id)`: documents, courses, notes, files.
     pub content: BTreeSet<(String, String, String)>,
 }
 

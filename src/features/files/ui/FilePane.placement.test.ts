@@ -37,7 +37,7 @@ vi.mock("../../learning/model/learningStore", () => ({
 // Inspect the anchor handed to the real annotation UI after the real PDF view scrolls.
 vi.mock("../../learning/ui/PdfAnnotations", () => ({
   AnnotationList: () => null,
-  AnnotationPopover: ({ annotation, anchor }: { annotation: PdfAnnotation; anchor: DOMRect }) =>
+  AnnotationToolbar: ({ annotation, anchor }: { annotation: PdfAnnotation; anchor: DOMRect }) =>
     createElement("output", { "data-open-annotation": annotation.id, "data-anchor": JSON.stringify({ x: anchor.x, y: anchor.y, width: anchor.width, height: anchor.height }) }),
 }));
 

@@ -3,7 +3,7 @@ export type FilePlace = { page: number; quote?: string; annotationId?: string } 
 /** Where in a source a link points: a heading, a quoted passage, a page or lines. */
 export type SourcePlace = { section?: string; quote?: string; page?: number; lines?: [number, number] };
 export type AppResource =
-  | { kind: "canvas" | "note" | "session"; id: string }
+  | { kind: "note" | "session"; id: string }
   | { kind: "source"; id: string; place?: SourcePlace }
   /** `id` is the project-relative path, base64url-encoded so every resource id has one alphabet. */
   | { kind: "file"; id: string; place?: FilePlace };
@@ -13,7 +13,7 @@ export const APP_RESOURCE_OPEN_EVENT = "loci-open-resource";
 // persisted ID contract, which validates characters rather than length.
 const RESOURCE_ID = /^[A-Za-z0-9_-]+$/;
 
-export function appResourceUrl(kind: "canvas" | "note" | "session" | "source", id: string): string {
+export function appResourceUrl(kind: "note" | "session" | "source", id: string): string {
   if (!RESOURCE_ID.test(id)) throw new Error("Invalid resource ID");
   return `loci://${kind}/${id}`;
 }
@@ -84,8 +84,8 @@ export function fileResourcePath(resource: AppResource): string | undefined {
 
 /** Parse the exact app-owned address, without URL path normalization. */
 export function parseAppResourceUrl(href: string): AppResource | undefined {
-  const match = /^loci:\/\/(canvas|note|session)\/([A-Za-z0-9_-]+)$/.exec(href);
-  if (match) return { kind: match[1] as "canvas" | "note" | "session", id: match[2] };
+  const match = /^loci:\/\/(note|session)\/([A-Za-z0-9_-]+)$/.exec(href);
+  if (match) return { kind: match[1] as "note" | "session", id: match[2] };
   const source = /^loci:\/\/source\/([A-Za-z0-9_-]+)(?:#(.{1,2000}))?$/.exec(href);
   if (source) {
     if (source[2] === undefined) return { kind: "source", id: source[1] };

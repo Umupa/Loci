@@ -50,6 +50,7 @@ describe("PDF reading with annotations", () => {
     expect(mark.parentElement!.className).toContain("pointer-events-none");
     const textLayer = host.querySelector(".textLayer")!;
     expect(textLayer.textContent).toBe("Readable PDF text");
+    expect(textLayer.querySelector(".endOfContent")).not.toBeNull();
     const page = host.querySelector<HTMLElement>('[data-page-number="1"]')!;
     vi.spyOn(page, "getBoundingClientRect").mockReturnValue(new DOMRect(100, 200, 200, 200));
     await act(async () => textLayer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 130, clientY: 250 })));

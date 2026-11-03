@@ -5,10 +5,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { MENTOR_VIEW_KEY, useMentorView } from "../../../app/hooks/useMentorView";
-import { invalidateCanvases } from "../../canvas/canvas";
 import { getFileDraft, setFileDraft } from "../../files/model/fileDrafts";
 import type { Note } from "../../notes";
-import { agentCanvasScope, type Agent } from "../../agents/model/agent";
+import type { Agent } from "../../agents/model/agent";
 import { MentorWorkspace } from "./MentorWorkspace";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -37,7 +36,6 @@ vi.mock("../../agents/ui/AgentFilesSection", () => ({
   },
 }));
 vi.mock("../../files/ui/FilePane", () => ({ FilePane: ({ path }: { path: string }) => createElement("section", { "data-test-file": path }, path) }));
-vi.mock("../../canvas/ui/CanvasPane", () => ({ CanvasPane: ({ canvas }: { canvas: { title: string } }) => createElement("section", { "data-test-canvas": true }, canvas.title) }));
 vi.mock("../../notes/ui/NoteEditor", () => ({ NoteEditor: ({ note }: { note: Note }) => createElement("article", { "data-test-note": true }, note.title) }));
 
 let container: HTMLDivElement;
@@ -54,7 +52,6 @@ function TestChat({ id }: { id: string }) {
   return createElement("div", { "data-test-chat": id }, useContext(AgentHeaderExtra));
 }
 
-const drawings = [{ id: "drawing-a", title: "Ada's sketch", cwd: "", dataJson: "{}", tags: [], createdAt: 1, updatedAt: 2 }];
 const agent: Agent = { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#123456", projects: [] };
 const other: Agent = { ...agent, id: "agent-b", sessionId: "chat-b", name: "Bea" };
 const courseData = JSON.stringify({ engine: "reading", chapters: [{ title: "Workloads", lessons: [{ id: "pod", title: "Pod", document: "doc" }, { id: "service", title: "Service", document: "doc" }] }] });
@@ -62,12 +59,12 @@ const courseData = JSON.stringify({ engine: "reading", chapters: [{ title: "Work
 function Host({ owner = agent, busy = false }: { owner?: Agent; busy?: boolean }) {
   control = useMentorView();
   return createElement(MentorWorkspace, {
-    key: owner.id, agent: owner, state: control.stateFor(owner.id), chat: createElement(TestChat, { id: owner.id }), canvases: drawings, busy,
+    key: owner.id, agent: owner, state: control.stateFor(owner.id), chat: createElement(TestChat, { id: owner.id }), busy,
     onOpen: (page) => control.show(owner.id, page), onClose: () => control.close(owner.id),
     onLessonChange: (lesson) => control.setLesson(owner.id, lesson), onRestoredChecked: (page, exists) => control.confirmRestored(owner.id, page, exists),
     onToggleLibrary: () => control.toggleLibrary(owner.id), onLibraryChange: (change) => control.openLibrary(owner.id, change), onDraft: (text) => drafts.push(text), onToggleChat: () => control.toggleChat(owner.id),
     onResizeLibrary: (width) => control.resizeLibrary(owner.id, width), onResizeChat: (width) => control.resizeChat(owner.id, width),
-    onCanvasAddToChat: () => {}, onCanvasTitleChange: () => {}, onOpenFile: () => {},
+    onOpenFile: () => {},
     renderSession: (id) => createElement("section", { "data-test-session": id }), sessionTitle: () => "Delegated work",
   });
 }
@@ -78,7 +75,7 @@ const reader = () => container.querySelector<HTMLElement>("[data-mentor-reader]"
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
-  localStorage.clear(); invalidateCanvases(); vi.clearAllMocks();
+  localStorage.clear(); vi.clearAllMocks();
   documents = [{ id: "doc", title: "HTTP reference", subject: "Networking", sourceUrl: "https://example.org/http", updatedAt: 2, createdAt: 1 }];
   notes = []; courseGone = false; drafts = [];
   documentRead = async (id) => id === agent.id ? documents : [];
@@ -90,7 +87,6 @@ beforeEach(() => {
     if (command === "agent_documents_list") return documentRead(input.agent!);
     if (command === "agent_documents_get") return { ...documents[0], body: "Original source text" };
     if (command === "agent_read") return { text: "[]", hash: "h" };
-    if (command === "canvas_list") return [agent, other].map((owner) => ({ id: owner.id, title: `${owner.name}'s drawing`, cwd: agentCanvasScope(owner.id), dataJson: "{}", tags: [], createdAt: 1, updatedAt: 2 }));
     if (command === "notes_list") return notes.filter((note) => !input.agentId || note.agentId === input.agentId);
     if (command === "notes_get") return notes.find((note) => note.id === input.id) ?? null;
     if (command === "notes_upsert") {
@@ -104,6 +100,7 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); container.remove(); localStorage.clear(); vi.unstubAllGlobals(); });
 
 it("lays out library, reader and conversation, listing only this mentor's things without habits", async () => {
+  notes = [agent, other].map((owner) => ({ id: `note-${owner.id}`, slug: owner.id, title: `${owner.name}'s note`, body: "", tags: [], agentId: owner.id, createdAt: 1, updatedAt: 2 } as Note));
   await render();
   const body = container.querySelector(".mentor-body")!;
   expect([...body.children].map((child) => child.className)).toEqual(["mentor-library-column", "mentor-reader", "mentor-chat-column"]);
@@ -119,8 +116,8 @@ it("lays out library, reader and conversation, listing only this mentor's things
   expect(container.textContent).not.toContain("Bea's course");
   expect(container.textContent).toContain("1/2");
   await tab("notes");
-  expect(container.textContent).toContain("Ada's drawing");
-  expect(container.textContent).not.toContain("Bea's drawing");
+  expect(container.textContent).toContain("Ada's note");
+  expect(container.textContent).not.toContain("Bea's note");
   expect(container.textContent).not.toContain("Habits");
   expect(reader().dataset.mentorReader).toBe("empty");
   expect(reader().querySelector("[data-resource-header]")).not.toBeNull();
@@ -134,12 +131,10 @@ it("opens whatever is chosen in place of what was read, and closes back to an em
   expect(reader().dataset.mentorReader).toBe("document");
   expect(container.querySelector('[data-resource-id="doc"]')?.getAttribute("aria-current")).toBe("true");
   expect(container.querySelector('[aria-label="Back to documents"]')).toBeNull();
-  await act(async () => control.show(agent.id, { kind: "canvas", id: "drawing-a" }));
-  expect(await vi.waitFor(() => container.querySelector("[data-test-canvas]")!)).toBeTruthy();
+  await act(async () => control.show(agent.id, { kind: "file", path: "/repo/main.rs" }));
+  expect(await vi.waitFor(() => container.querySelector("[data-test-file]")!)).toBeTruthy();
   expect(container.querySelector("[data-test-document]")).toBeNull();
-  await act(async () => control.show(agent.id, { kind: "canvas", id: "gone" }));
-  expect(reader().textContent).toContain("This drawing is no longer available.");
-  await click('[data-mentor-reader] button');
+  await act(async () => control.close(agent.id));
   expect(reader().dataset.mentorReader).toBe("empty");
 });
 
@@ -147,7 +142,9 @@ it("shows the course once, with its progress, and opens lessons from its outline
   await render();
   const panel = () => container.querySelector<HTMLElement>('[data-library-section="courses"]')!;
   await vi.waitFor(() => expect(panel().querySelector('nav[aria-label="Course navigation"]')).not.toBeNull());
-  expect(panel().querySelector(".library-switcher")?.textContent).toBe("Ada's course");
+  // One course: its own head over its outline, no list to choose from.
+  expect(panel().querySelector(".library-course-title")?.textContent).toBe("Ada's course");
+  expect(panel().querySelector("[data-library-step]")).toBeNull();
   expect(panel().textContent).toContain("1/2");
   expect(panel().querySelector("[data-library-continue]")).toBeNull();
   expect(panel().textContent?.match(/Ada's course/g)).toHaveLength(1);
@@ -168,7 +165,7 @@ it("shows the course once, with its progress, and opens lessons from its outline
   expect(lessons()[1].getAttribute("aria-current")).toBe("step");
 });
 
-it("switches course from the menu, landing in it, and asks the mentor for a new one without sending", async () => {
+it("lists courses as rows, opening the chosen one in place at its next lesson, and asks the mentor for a new one without sending", async () => {
   const kubeData = courseData;
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const input = args as { agent?: string; agentId?: string; id?: string; courseId?: string };
@@ -179,75 +176,58 @@ it("switches course from the menu, landing in it, and asks the mentor for a new 
     if (command === "course_get") return { id: input.id, agentId: input.agentId, title: input.id === "sds" ? "SDS" : "Kubernetes", updatedAt: 2, engine: "reading", dataJson: kubeData };
     if (command === "course_progress_get") return input.courseId === "sds" ? [{ itemId: "pod", status: "learning" }] : [{ itemId: "pod", status: "mastered" }];
     if (command === "agent_documents_list" || command === "notes_list") return [];
-    if (command === "canvas_list") return [];
     throw new Error(`Unexpected command: ${command}`);
   });
   await render();
-  await vi.waitFor(() => expect(container.querySelector(".library-switcher")?.textContent).toBe("Kubernetes"));
-  await click(".library-switcher");
-  const items = () => [...document.querySelectorAll<HTMLElement>('[role="menu"] [role^="menuitem"]')];
-  expect(items().map((item) => item.textContent)).toEqual([expect.stringContaining("Kubernetes"), expect.stringContaining("SDS"), "Ask Ada for a new course", "Ask Ada to plan a path"]);
-  expect(items()[0].getAttribute("aria-checked")).toBe("true");
-  await act(async () => items()[1].click());
-  // Picking a course opens it at the lesson to continue with: the one begun.
+  const opened = () => [...container.querySelectorAll<HTMLElement>("[data-library-course]")].map((course) => course.dataset.libraryCourse);
+  await vi.waitFor(() => expect(opened()).toEqual(["kube"]));
+  expect([...container.querySelectorAll(".library-step-title")].map((title) => title.textContent)).toEqual(["Kubernetes", "SDS"]);
+  await click('[data-library-step="sds"] > button');
+  // Choosing a course opens it at the lesson to continue with: the one begun.
   await vi.waitFor(() => expect(container.querySelector<HTMLElement>("[data-test-course]")?.dataset.item).toBe("pod"));
   expect(control.stateFor(agent.id).course).toBe("sds");
-  await vi.waitFor(() => expect(container.querySelector(".library-switcher")?.textContent).toBe("SDS"));
+  await vi.waitFor(() => expect(opened()).toEqual(["sds"]));
   await vi.waitFor(() => expect(container.querySelector('[data-library-lesson="pod"] .library-mark--learning')).not.toBeNull());
-  await click(".library-switcher");
-  await act(async () => items().at(-2)!.click());
+  await click(".library-ask");
   expect(drafts).toEqual(["I'd like a new course on "]);
 });
 
-it("shows the learning path above the chosen course's outline, never locking a course", async () => {
+it("shows the learning path with the chosen course open under it, never locking a course", async () => {
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const input = args as { agentId?: string; id?: string; courseId?: string };
     if (command === "course_path_read") return { path: { title: "Sandboxes", courses: [{ id: "kube" }, { id: "sds", after: ["kube"] }, { id: "compare", title: "Three ways", after: ["sds"] }] }, file: "courses/_path.yaml" };
     if (command === "course_list_all") return [
-      { id: "kube", agentId: agent.id, title: "Kubernetes", engine: "reading", itemCount: 2, masteredCount: 2, updatedAt: 1 },
+      { id: "kube", agentId: agent.id, title: "一、Kubernetes", engine: "reading", itemCount: 2, masteredCount: 2, updatedAt: 1 },
       { id: "sds", agentId: agent.id, title: "SDS", engine: "reading", itemCount: 2, masteredCount: 0, updatedAt: 2 },
       { id: "loose", agentId: agent.id, title: "Loose", engine: "reading", itemCount: 3, masteredCount: 1, updatedAt: 3 },
     ];
     if (command === "course_get") return { id: input.id, agentId: input.agentId, title: input.id, updatedAt: 2, engine: "reading", dataJson: courseData };
     if (command === "course_progress_get") return [];
-    if (command === "agent_documents_list" || command === "notes_list" || command === "canvas_list") return [];
+    if (command === "agent_documents_list" || command === "notes_list") return [];
     throw new Error(`Unexpected command: ${command}`);
   });
   await render();
   await vi.waitFor(() => expect(container.querySelector("[data-library-path]")).not.toBeNull());
-  const steps = () => [...container.querySelectorAll<HTMLButtonElement>(".library-path-step")];
+  const steps = () => [...container.querySelectorAll<HTMLButtonElement>("[data-library-step] > button")];
   expect(container.querySelector(".library-path-title")?.textContent).toBe("Sandboxes");
-  expect(container.querySelector(".library-path-head .library-progress-text")?.textContent).toBe("2/4");
-  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2", "2SDS0/2", "3Three waysplanned", "Loose1/3"]);
-  // The next course on the path not read to the end is the one shown.
+  expect(container.querySelector(".library-path-head .library-count")?.textContent).toBe("2/4");
+  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2", "2SDS0/2", "3Three waysplannedAfter 2", "Loose1/3"]);
+  // The next course on the path not read to the end is the one shown, open under its row.
   expect(steps()[1].getAttribute("aria-current")).toBe("true");
-  expect(container.querySelector(".library-switcher")).toBeNull();
-  expect(container.querySelector('[data-library-course="sds"] [data-library-lesson="pod"]')).not.toBeNull();
-  // A prerequisite not read yet is a hint under the course; nothing is disabled.
-  expect([...container.querySelectorAll(".library-path-after")].map((line) => line.textContent)).toEqual(["Best after SDS"]);
+  await vi.waitFor(() => expect(container.querySelector('[data-library-course="sds"] [data-library-lesson="pod"]')).not.toBeNull());
+  // A prerequisite not read yet is a hint on the course; nothing is disabled.
+  expect(container.querySelector<HTMLElement>(".library-tag")?.title).toBe("Best after SDS");
   expect(steps().every((step) => !step.disabled)).toBe(true);
   await act(async () => steps()[2].click());
   expect(drafts).toEqual(['Please write the course "Three ways" (id compare) on my learning path.']);
   await act(async () => steps()[0].click());
   await vi.waitFor(() => expect(control.stateFor(agent.id).course).toBe("kube"));
-  // Folding keeps only the chosen course.
-  await click(".library-path-fold");
-  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes2/2"]);
-});
-
-it("gives focus back to the course switcher when its menu closes", async () => {
-  await render();
-  await vi.waitFor(() => expect(container.querySelector(".library-switcher")).not.toBeNull());
-  const switcher = container.querySelector<HTMLButtonElement>(".library-switcher")!;
-  await act(async () => { switcher.focus(); switcher.click(); });
-  expect(document.activeElement).not.toBe(switcher);
-  await act(async () => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
-  expect(document.activeElement).toBe(switcher);
+  await vi.waitFor(() => expect([...container.querySelectorAll<HTMLElement>("[data-library-course]")].map((course) => course.dataset.libraryCourse)).toEqual(["kube"]));
 });
 
 it("filters the segment being shown", async () => {
   vi.mocked(invoke).mockImplementation(async (command) => {
-    if (command === "course_list_all" || command === "notes_list" || command === "canvas_list") return [];
+    if (command === "course_list_all" || command === "notes_list") return [];
     if (command === "agent_documents_list") return [...documents, { ...documents[0], id: "dns", title: "DNS notes", sourceUrl: undefined }];
     throw new Error(`Unexpected command: ${command}`);
   });
@@ -268,7 +248,7 @@ it("filters the segment being shown", async () => {
 
 it("offers to ask for a course when the mentor has none", async () => {
   vi.mocked(invoke).mockImplementation(async (command) => {
-    if (command === "course_list_all" || command === "agent_documents_list" || command === "notes_list" || command === "canvas_list") return [];
+    if (command === "course_list_all" || command === "agent_documents_list" || command === "notes_list") return [];
     throw new Error(`Unexpected command: ${command}`);
   });
   await render();
@@ -287,7 +267,6 @@ it("reports a failed list in its own segment, with a retry", async () => {
     if (command === "course_progress_get") return [];
     if (command === "agent_documents_list") return documents;
     if (command === "notes_list") { noteLoads += 1; throw new Error("disk full"); }
-    if (command === "canvas_list") return [];
     if (command === "agent_read") return { text: "[]", hash: "h" };
     throw new Error(`Unexpected command: ${command}`);
   });
@@ -392,27 +371,30 @@ it("closes the reader on Escape from anywhere in the workspace, except from a te
 });
 
 it("filters only the segment it was typed in, and moves through a list with the arrow keys", async () => {
-  notes = [{ id: "n1", slug: "n1", title: "Pods by hand", body: "", tags: [], agentId: agent.id, createdAt: 1, updatedAt: 5 } as Note];
+  notes = [
+    { id: "n1", slug: "n1", title: "Pods by hand", body: "", tags: [], agentId: agent.id, createdAt: 1, updatedAt: 5 } as Note,
+    { id: "n2", slug: "n2", title: "Service sketch", body: "", tags: [], agentId: agent.id, createdAt: 1, updatedAt: 2 } as Note,
+  ];
   await render();
   await tab("notes");
-  expect([...container.querySelectorAll("[data-resource-kind]")].map((row) => row.getAttribute("data-resource-kind"))).toEqual(["note", "canvas"]);
+  expect([...container.querySelectorAll("[data-resource-kind]")].map((row) => row.getAttribute("data-resource-id"))).toEqual(["n1", "n2"]);
   const filter = () => container.querySelector<HTMLInputElement>('input[aria-label="Filter notes"]')!;
   await act(async () => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    setter.call(filter(), "drawing"); filter().dispatchEvent(new Event("input", { bubbles: true }));
+    setter.call(filter(), "sketch"); filter().dispatchEvent(new Event("input", { bubbles: true }));
   });
-  expect([...container.querySelectorAll("[data-resource-kind]")].map((row) => row.getAttribute("data-resource-id"))).toEqual([agent.id]);
+  expect([...container.querySelectorAll("[data-resource-kind]")].map((row) => row.getAttribute("data-resource-id"))).toEqual(["n2"]);
   await tab("sources");
   expect(container.querySelector<HTMLInputElement>('input[aria-label="Filter sources"]')!.value).toBe("");
   expect(container.querySelector('[data-resource-id="doc"]')).not.toBeNull();
   await tab("notes");
-  expect(filter().value).toBe("drawing");
+  expect(filter().value).toBe("sketch");
   await act(async () => filter().dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
   expect(filter().value).toBe("");
   await act(async () => filter().dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
   expect(document.activeElement?.getAttribute("data-resource-id")).toBe("n1");
   await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
-  expect(document.activeElement?.getAttribute("data-resource-kind")).toBe("canvas");
+  expect(document.activeElement?.getAttribute("data-resource-id")).toBe("n2");
   // ← and → move between the segments.
   const selected = container.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')!;
   await act(async () => selected.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));

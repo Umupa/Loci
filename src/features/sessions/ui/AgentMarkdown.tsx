@@ -1,5 +1,5 @@
 import { CARD_FENCE } from "../model/cards";
-import { CanvasCard, DocumentCard, MindmapCard, TodoCard } from "./cards/Cards";
+import { DocumentCard, MindmapCard, TodoCard } from "./cards/Cards";
 import { CourseCard } from "../../learning/ui/CourseCard";
 import { DiffCardFromSource } from "../../learning/ui/DiffCard";
 import { transport } from "../../../platform/transport";
@@ -46,7 +46,6 @@ import { ContextMenu,type ContextMenuItem } from "../../../shared/ui/ContextMenu
 import { FileActionError } from "../../../shared/ui/FileActionError";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { ImageLightbox } from "../../../shared/ui/ImageLightbox";
-import { ExcalidrawIcon } from "../../../shared/ui/ExcalidrawIcon";
 import { File, MessageSquare } from "../../../shared/ui/icons";
 import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 
@@ -63,6 +62,7 @@ import { remarkDocumentSection } from "../../../shared/lib/markdown/markdownSect
 
 import { IS_MAC,IS_WIN } from "../../../platform/tauri/platform";
 import { isNoteImagePath } from "../../notes";
+import { fencedSource, imageSource } from "../../learning/model/blockAnchor";
 
 import { rehypeHardBreaks } from "./hardBreaks";
 import { MarkdownBlockquote, rehypeGithubAlerts } from "./MarkdownAlert";
@@ -121,6 +121,31 @@ const MARKDOWN_REHYPE_PLUGINS: PluggableList = [
 
 
 
+/**
+ * A saved document's tables carry their Markdown (`data-block-source`), so a
+ * reader can keep or quote a table as it was written rather than as drawn.
+ * Lines inside a quote or a list lose the prefix the table's first line has.
+ */
+function rehypeTableSources() {
+  return (tree: Root, file: { value?: unknown }) => {
+    const text = typeof file.value === "string" ? file.value : "";
+    const visit = (node: Root | RootContent) => {
+      if (node.type === "element" && node.tagName === "table") {
+        const start = node.position?.start.offset;
+        const end = node.position?.end.offset;
+        if (text && start != null && end != null && end > start) {
+          const prefix = text.slice(text.lastIndexOf("\n", start - 1) + 1, start);
+          const source = text.slice(start, end).split("\n").map((line, index) => index && prefix && line.startsWith(prefix) ? line.slice(prefix.length) : line).join("\n");
+          node.properties.dataBlockKind = "table";
+          node.properties.dataBlockSource = source.trimEnd();
+        }
+      }
+      if ("children" in node) node.children.forEach(visit);
+    };
+    visit(tree);
+  };
+}
+
 // A reply that streams renders its words as spans that fade in as they land.
 const FADING_MARKDOWN_REHYPE_PLUGINS: PluggableList = [
   ...MARKDOWN_REHYPE_PLUGINS,
@@ -144,6 +169,8 @@ const FileOpenContext = createContext<{
     path: string,
   ) => void;
   sourceUrl?: string;
+  /** A saved text being read: its blocks carry their Markdown for the reader to keep or quote. */
+  blocks?: boolean;
 }>({});
 
 type SourceNode = { type: string; url?: string; children?: SourceNode[] };
@@ -296,7 +323,7 @@ function MarkdownLink({
   // A source's own links go where its page's links went, never to a local file.
   const file = href && !sourceUrl ? resolveWorkspaceFileReference(href, cwd) : undefined;
   if (href?.startsWith("loci:") && !resource) return <span dir={dir ?? "auto"}>{children}</span>;
-  const ResourceIcon = resource?.kind === "canvas" ? ExcalidrawIcon : resource?.kind === "session" ? MessageSquare : File;
+  const ResourceIcon = resource?.kind === "session" ? MessageSquare : File;
   return (
     <a
       href={href}
@@ -345,6 +372,7 @@ function MarkdownCode({
   ...props
 }: MarkdownCodeProps) {
   const incomplete = useIsCodeFenceIncomplete();
+  const { blocks } = useContext(FileOpenContext);
   const block = Object.prototype.hasOwnProperty.call(props, "data-block");
   if (!block) {
     const text = textContent(children);
@@ -395,9 +423,14 @@ function MarkdownCode({
 
   const meta = codeMeta(node);
   const fence = parseCodeFence(className, meta);
+  // In a saved text each block says what it is and its Markdown, for the reader to keep or quote.
+  const blockOf = (kind: string) => blocks && !incomplete ? {
+    "data-block-kind": kind,
+    "data-block-source": fencedSource(className?.match(/\blanguage-([^\s]+)/)?.[1] ?? "", meta, textContent(children)),
+  } : {};
   if (fence.language.toLowerCase() === "mermaid") {
     return (
-      <MermaidBlock code={textContent(children)} incomplete={incomplete} />
+      <div {...blockOf("mermaid")}><MermaidBlock code={textContent(children)} incomplete={incomplete} /></div>
     );
   }
   // A fence Loci knows is drawn as its card rather than as code.
@@ -412,10 +445,8 @@ function MarkdownCode({
   if (card === CARD_FENCE.todo)
     return incomplete ? null : <TodoCard source={textContent(children)} />;
   if (card === CARD_FENCE.mindmap)
-    return incomplete ? null : <MindmapCard source={textContent(children)} />;
+    return incomplete ? null : <div {...blockOf("mindmap")}><MindmapCard source={textContent(children)} /></div>;
   // The form is drawn where the conversation continues, not here.
-  if (card === CARD_FENCE.canvas)
-    return incomplete ? null : <CanvasCard source={textContent(children)} />;
   if (card === CARD_FENCE.question) return null;
   const iconName =
     fence.fileName ??
@@ -433,7 +464,7 @@ function MarkdownCode({
   );
 
   return (
-    <div className="markdown-code-shell" dir="ltr">
+    <div className="markdown-code-shell" dir="ltr" {...blockOf("code")}>
       {iconName ? (
         <span className="markdown-code-icon" aria-hidden="true">
           <FileTypeIcon name={iconName} isDir={false} />
@@ -619,23 +650,25 @@ function MarkdownImage({
   node: _node,
   ...props
 }: MarkdownImageProps) {
-  const { sourceUrl } = useContext(FileOpenContext);
+  const { sourceUrl, blocks } = useContext(FileOpenContext);
   const url = typeof src === "string" ? src.trim() : "";
+  // In a saved text a picture is a block the reader can keep or quote, as Markdown with its address.
+  const shown = blocks && url ? { ...props, "data-block-kind": "image", "data-block-source": imageSource(alt ?? "", sourceAddress(url, sourceUrl) ?? url) } : props;
   if (url.startsWith("data:image/")) {
-    return <PreviewableImage {...props} src={url} alt={alt ?? ""} />;
+    return <PreviewableImage {...shown} src={url} alt={alt ?? ""} />;
   }
   // Only a source shows pictures from the web, from where it was published.
   // A reply never does: an address written into one could carry data out.
   const remote = sourceAddress(url, sourceUrl);
   if (remote?.startsWith("https:")) {
-    return <PreviewableImage {...props} src={remote} alt={alt ?? ""} draggable={false} loading="lazy" referrerPolicy="no-referrer" />;
+    return <PreviewableImage {...shown} src={remote} alt={alt ?? ""} draggable={false} loading="lazy" referrerPolicy="no-referrer" />;
   }
   if (isNoteImagePath(url)) {
-    return <NoteAssetImage key={url} {...props} asset={url} alt={alt} />;
+    return <NoteAssetImage key={url} {...shown} asset={url} alt={alt} />;
   }
   const local = localImagePath(url);
   if (local) {
-    return <LocalImage key={local} {...props} path={local} alt={alt} />;
+    return <LocalImage key={local} {...shown} path={local} alt={alt} />;
   }
 
   return null;
@@ -712,8 +745,8 @@ export const AgentMarkdown = memo(function AgentMarkdown({
     [],
   );
   const fileOpen = useMemo(
-    () => ({ cwd, onOpenFile, onFileContextMenu, sourceUrl }),
-    [cwd, onOpenFile, onFileContextMenu, sourceUrl],
+    () => ({ cwd, onOpenFile, onFileContextMenu, sourceUrl, blocks: wholeDocument && !streaming }),
+    [cwd, onOpenFile, onFileContextMenu, sourceUrl, wholeDocument, streaming],
   );
   const remarkPlugins = useMemo<PluggableList>(
     () => [
@@ -736,9 +769,12 @@ export const AgentMarkdown = memo(function AgentMarkdown({
   // Hard breaks go last, so nothing after them undoes them, and after the word
   // fade, whose word spans would otherwise hide the newlines from them.
   const rehypePlugins = useMemo(
-    () =>
-      hardBreaks ? [...baseRehypePlugins, rehypeHardBreaks] : baseRehypePlugins,
-    [baseRehypePlugins, hardBreaks],
+    () => [
+      ...baseRehypePlugins,
+      ...(hardBreaks ? [rehypeHardBreaks] : []),
+      ...(wholeDocument && !streaming ? [rehypeTableSources] : []),
+    ],
+    [baseRehypePlugins, hardBreaks, wholeDocument, streaming],
   );
 
   const onFileMenuPick = (id: string) => {
@@ -840,6 +876,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
       tabIndex={0}
       role="region"
       aria-label="Markdown preview"
+      data-reading-scroll
       className="markdown-preview h-full overflow-y-auto overscroll-none [overflow-anchor:none]"
     >
       <div className="px-6 py-8">

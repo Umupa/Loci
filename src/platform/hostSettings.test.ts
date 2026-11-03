@@ -9,7 +9,6 @@ import {
 import { setProjectDefaultProvider } from "../features/sessions/model/projectProviders";
 import { saveProviderBinaryPath } from "../features/providers/model/providerBinaryPaths";
 import { saveClaudeHooks, saveFollowUpBehavior } from "../features/settings/model/settings";
-import { saveCanvasMcpEnabled } from "../features/settings/model/builtinMcp";
 import { saveDisabledSkillPaths } from "../features/skills/model/skills";
 import { archiveProject, rememberProject } from "../features/projects/model/recents";
 
@@ -30,7 +29,6 @@ describe("host settings", () => {
     saveProviderBinaryPath("claude", "/opt/claude");
     saveFollowUpBehavior("queue");
     saveClaudeHooks(false);
-    saveCanvasMcpEnabled(false);
     saveDisabledSkillPaths(["/w/.agents/skills/a/SKILL.md"]);
     rememberProject("/w");
     archiveProject("/w");

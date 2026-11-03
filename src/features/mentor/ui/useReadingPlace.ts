@@ -9,7 +9,7 @@ import { headingsAt, linesOf, textIndex } from "../../learning/model/textAnchor"
  * `data-page-number`. Nothing here knows which reader it is.
  */
 
-const BLOCKS = "p, li, pre, blockquote, h1, h2, h3, h4, h5, h6, td, dd";
+export const BLOCKS = "p, li, pre, blockquote, h1, h2, h3, h4, h5, h6, td, dd";
 const TEXT = "[data-reading-text]";
 
 function codeOf(element: Element | null): Element | null {

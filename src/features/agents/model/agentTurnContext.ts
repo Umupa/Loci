@@ -9,7 +9,7 @@ import {
   recordAgentContext,
   recordAppContext,
 } from "./agentFiles";
-import { readingContext, type SharedReading } from "./agentReading";
+import { takeReadingContext, type SharedReading } from "./agentReading";
 import { effectiveLearningLanguage, languageContext } from "./learningLanguage";
 import { ensureAgentWorkdir } from "./agentWorkdir";
 import {
@@ -43,7 +43,7 @@ export async function prepareAppTurn(
   agent: Agent | undefined,
   session: Pick<Session, "id" | "providerSessionId" | "context" | "blocks">,
   /** `reading`: what another device's reader shows, when the message came from there. */
-  options: { canRotate: boolean; now?: number; reading?: SharedReading },
+  options: { canRotate: boolean; now?: number; reading?: SharedReading | null },
 ): Promise<AppTurnContext> {
   const previous = loadAgentRotation(session.id);
   const pending = previous?.pending;
@@ -104,10 +104,11 @@ export async function prepareAppTurn(
   const language = agent ? languageContext(effectiveLearningLanguage(agent.language)) : undefined;
   if (language) context.push(language);
   // What is open beside the chat changes from turn to turn, so it goes every time.
-  // A selection the message already carries as a source is not sent twice.
+  // A selection the message already carries as a source is not sent twice, and
+  // a page the user dismissed from the composer stays out of this turn only.
   const lastUser = [...session.blocks].reverse().find((block) => block.role === "user");
   const attached = lastUser?.sources?.map((source) => source.quote) ?? [];
-  const reading = agent ? readingContext(agent.id, attached, options.reading) : undefined;
+  const reading = agent ? takeReadingContext(agent.id, attached, options.reading) : undefined;
   if (reading) context.push(reading);
   return {
     context,

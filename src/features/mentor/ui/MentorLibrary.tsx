@@ -1,8 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { formatRelativeTime } from "../../../shared/lib/relativeTime";
-import { File, Folder, Mortarboard, Palette, Pencil, PenLine, Plus, Search, StickyNote, X, type IconComponent } from "../../../shared/ui/icons";
+import { File, Folder, Mortarboard, Pencil, PenLine, Plus, Search, StickyNote, X, type IconComponent } from "../../../shared/ui/icons";
 import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
-import type { Canvas } from "../../canvas/canvas";
 import type { OpenFileFn } from "../../files/model/filePlace";
 import type { CourseSummary } from "../../learning/model/course";
 import { notePreview, type Note } from "../../notes";
@@ -15,7 +13,7 @@ import { LibraryCourses, type CourseBadge } from "./LibraryCourses";
 import { LibraryList, type LibraryEntry } from "./LibraryList";
 import { focusFirstItem } from "./listKeys";
 
-export type LibraryData = { courses?: CourseSummary[]; documents?: StoredDocument[]; notes?: Note[]; canvases?: Canvas[] };
+export type LibraryData = { courses?: CourseSummary[]; documents?: StoredDocument[]; notes?: Note[] };
 export type LibraryChange = { segment?: LibrarySegment; course?: string; filter?: string };
 
 const LABELS: Record<LibrarySegment, string> = { courses: "Courses", sources: "Sources", notes: "Notes", files: "Files" };
@@ -51,7 +49,7 @@ type Props = {
   /** Room after a course's or a lesson's title, for counts such as highlights. */
   courseBadge?: CourseBadge;
   /** A source, guide, course or note saved by the turn that is running now. */
-  isNew?: (kind: "document" | "course" | "note" | "canvas", id: string) => boolean;
+  isNew?: (kind: "document" | "course" | "note", id: string) => boolean;
 };
 
 /**
@@ -61,15 +59,15 @@ type Props = {
  */
 export function defaultSegment(page?: MentorPage): LibrarySegment {
   if (page?.kind === "document") return "sources";
-  if (page?.kind === "note" || page?.kind === "canvas") return "notes";
+  if (page?.kind === "note") return "notes";
   if (page?.kind === "file") return "files";
   return "courses";
 }
 
 /**
  * The left column: one kind of thing at a time, chosen at the top. Courses
- * shows the course being learned and where to continue; Sources, Notes (with
- * drawings) and Files are one list each, with a filter for that list.
+ * shows the course being learned and where to continue; Sources, Notes and
+ * Files are one list each, with a filter for that list.
  */
 export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, onRetry, page, lesson, onOpen, onNewNote, creatingNote, onOpenFile, onFileMoved, onFileDeleted, segment: chosen, course, filter, onChange, onDraft, courseBadge, isNew }: Props) {
   const id = useId();
@@ -83,13 +81,12 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
   // Only the segment being shown reports its own load failure.
   const failure = segment === "courses" ? errors.courses
     : segment === "sources" ? errors.documents
-      : segment === "notes" ? errors.notes ?? errors.canvases
+      : segment === "notes" ? errors.notes
         : undefined;
-  const notesCount = data.notes || data.canvases ? (data.notes?.length ?? 0) + (data.canvases?.length ?? 0) : undefined;
   const counts: Record<LibrarySegment, number | undefined> = {
     courses: data.courses && data.courses.length > 1 ? data.courses.length : undefined,
     sources: data.documents?.length || undefined,
-    notes: notesCount || undefined,
+    notes: data.notes?.length || undefined,
     files: undefined,
   };
 
@@ -116,17 +113,12 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
     return [...data.documents.filter((document) => !isGuide(document)), ...data.documents.filter(isGuide)].map(entry);
   }, [data.documents]);
   const notes = useMemo<LibraryEntry[] | undefined>(() => {
-    if (!data.notes && !data.canvases) return undefined;
-    const written = (data.notes ?? []).map((note) => ({ at: note.updatedAt, entry: {
+    if (!data.notes) return undefined;
+    return [...data.notes].sort((a, b) => b.updatedAt - a.updatedAt).map((note) => ({
       kind: "note", id: note.id, icon: <StickyNote className="size-3.5" />, title: note.title || "Untitled",
       subtitle: notePreview(note.body, note.title), target: { kind: "note", id: note.id },
-    } satisfies LibraryEntry }));
-    const drawn = (data.canvases ?? []).map((canvas) => ({ at: canvas.updatedAt, entry: {
-      kind: "canvas", id: canvas.id, icon: <Palette className="size-3.5" />, title: canvas.title,
-      subtitle: formatRelativeTime(new Date(canvas.updatedAt).toISOString()), target: { kind: "canvas", id: canvas.id },
-    } satisfies LibraryEntry }));
-    return [...written, ...drawn].sort((a, b) => b.at - a.at).map(({ entry }) => entry);
-  }, [data.notes, data.canvases]);
+    }) satisfies LibraryEntry);
+  }, [data.notes]);
 
   const tabKeys = (event: KeyboardEvent<HTMLDivElement>) => {
     const at = LIBRARY_SEGMENTS.indexOf(segment);
@@ -156,7 +148,7 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
     body = <LibraryList entries={entries} query={query} isCurrent={(target) => samePage(page, target)} onOpen={open}
       isNew={(entry) => isNew?.(entry.kind, entry.id) ?? false}
       subject={segment === "sources" ? "sources" : "notes"} error={failure} onRetry={onRetry}
-      empty={segment === "sources" ? `First-hand material ${agentLook(agent).name} saves, and guides it writes, appear here.` : "Your notes and drawings appear here."} />;
+      empty={segment === "sources" ? `First-hand material ${agentLook(agent).name} saves, and guides it writes, appear here.` : "Your notes appear here."} />;
   }
 
   return <nav className="mentor-library" aria-label={`${agent.name || "Mentor"} library`} data-mentor-library={agent.id} data-library-segment={segment}>

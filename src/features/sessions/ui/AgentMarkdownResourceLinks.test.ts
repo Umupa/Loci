@@ -31,7 +31,7 @@ describe("app resource links in replies", () => {
       text, streaming, cwd: "/repo", onOpenFile: openFile,
     })));
   }
-  it.each(["note", "canvas"])("opens a %s link inside this window", async (kind) => {
+  it.each(["note", "session"])("opens a %s link inside this window", async (kind) => {
     await render(`已保存：[架构图](loci://${kind}/resource-1)`);
     const link = container.querySelector<HTMLAnchorElement>("a")!;
     expect(link.getAttribute("href")).toBe(`loci://${kind}/resource-1`);
@@ -48,7 +48,7 @@ describe("app resource links in replies", () => {
     await render(text, false);
     expect(container.querySelector("a")?.getAttribute("href")).toBe("loci://note/plan");
   });
-  it.each(["loci://project/id", "loci://note/../id", "loci://canvas/id?command=delete", "loci://note/id/extra"])("does not turn an invalid resource address into a link: %s", async (href) => {
+  it.each(["loci://project/id", "loci://note/../id", "loci://canvas/id", "loci://note/id?command=delete", "loci://note/id/extra"])("does not turn an invalid resource address into a link: %s", async (href) => {
     await render(`[Invalid](${href})`);
     expect(container.querySelector("a[href]" )).toBeNull();
     expect(container.textContent).toContain("Invalid");

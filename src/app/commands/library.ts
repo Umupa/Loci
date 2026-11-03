@@ -89,8 +89,7 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
     field("title", "string", "Its title", { required: true, max: 200 }),
     field("engine", "string", "reading (default) or another course engine"),
     field("chapters", "json", "Chapters of lessons, as JSON"),
-    field("canvasId", "string", "The canvas a canvas course walks through"),
-    field("steps", "json", "Steps of a canvas course, as JSON"),
+    field("steps", "json", "Steps of a build-your-own course, as JSON"),
   ]),
   forMentor("courses.delete", "courses.delete", "Remove a course and its progress.", [id()]),
   {
@@ -142,16 +141,6 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
       return { id: note.id, deleted: true };
     },
   },
-
-  forMentor("canvases.list", "canvas.list", "The mentor's drawings, newest first; metadata only.", [project]),
-  forMentor("canvases.get", "canvas.get", "Metadata of one drawing.", [id(), project]),
-  forMentor("canvases.create", "canvas.create", "Create an empty drawing.", [field("title", "string", "Its title", { max: 200 }), project]),
-  forMentor("canvases.rename", "canvas.rename", "Rename a drawing.", [id(), field("title", "string", "The new title", { required: true, max: 200 }), project]),
-  forMentor("canvases.delete", "canvas.delete", "Delete a drawing.", [id(), project]),
-  forMentor("canvases.read-data", "canvas.read-data", "The full Excalidraw scene of a drawing (dataJson).", [id(), project]),
-  forMentor("canvases.write-data", "canvas.write-data", "Replace a drawing's scene with Excalidraw JSON.", [
-    id(), field("dataJson", "string", "The scene as a JSON string (use --data-json-file)", { required: true, max: 250_000 }), project,
-  ]),
 
   forMentor("soul.read", "soul.read", "The mentor's standing instructions (SOUL.md) and their hash.", []),
   forMentor("soul.update", "soul.update", "Replace the mentor's standing instructions.", [

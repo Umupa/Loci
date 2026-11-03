@@ -33,8 +33,6 @@ Pencil,
 Play,
 Plus,
 Square,
-ExcalidrawIcon,
-StickyNote,
 Trash2,
 X
 } from "../../../shared/ui/icons";
@@ -52,9 +50,11 @@ import { dragPointToClient } from "../../../shared/lib/dragPoint";
 import type { ContextUsage } from "../model/contextUsage";
 
 import type { ProjectFile } from "../../../platform/tauri/fs";
-import { CANVASES_CHANGED_EVENT, loadCanvases, peekCanvases, type Canvas } from "../../canvas/canvas";
 import { loadProjectFiles } from "../../files/model/fileIndex";
-import { buildMentionSources, mentionKind, projectCanvases, rankMentions } from "../model/mentionSources";
+import { buildMentionSources, flatMentions, mentionGroupStep, mentionKind, rankMentions, type LibraryMention } from "../model/mentionSources";
+import { loadLibraryMentions } from "../model/libraryMentions";
+import { agentReading, subscribeAgentReading } from "../../agents/model/agentReading";
+import { loadPositions, recentPositionKeys } from "../../mentor/model/readingPositions";
 import {
 fileMentionParts,
 mentionLabel,
@@ -99,9 +99,9 @@ import { ContextMeter } from "./ContextMeter";
 
 
 
-import { FileTypeIcon } from "../../../shared/ui/FileTypeIcon";
 import { McpServerPicker } from "./McpServerPicker";
-import { NoteMentionPicker } from "./NoteMentionPicker";
+import { MentionIcon, MentionPicker } from "./MentionPicker";
+import { ReadingTag } from "./ReadingTag";
 
 import { NoteMiniCard } from "../../notes/ui/NoteMiniCard";
 
@@ -173,6 +173,8 @@ type Props = {
   cwd?: string;
   executionCwd: string;
   sessionId?: string;
+  /** The mentor this conversation belongs to: its reading tag, and its library for `@`. */
+  agentId?: string;
 
   recents?: RecentProject[];
   hideProjectPicker?: boolean;
@@ -467,6 +469,7 @@ export function Composer({
   cwd = "~",
   executionCwd,
   sessionId,
+  agentId,
 
 
   chat = false,
@@ -605,8 +608,8 @@ export function Composer({
   );
   const controlsBeside = chat || modelControls === "beside";
   const [notes, setNotes] = useState<Note[]>(() => peekNotes() ?? []);
-  const [canvases, setCanvases] = useState<Canvas[]>(() => peekCanvases() ?? []);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
+  const [library, setLibrary] = useState<{ agentId: string; entries: LibraryMention[]; recent: string[] }>();
   const [mention, setMention] = useState<MentionToken | null>(null);
   const [mentionActive, setMentionActive] = useState(0);
   const [resendEdited, setResendEdited] = useState(false);
@@ -619,7 +622,13 @@ export function Composer({
   attachmentsRef.current = attachments;
 
   const mentionOpen =
-    mention !== null && (looksLikeProject(cwd) || notesEnabled);
+    mention !== null && (looksLikeProject(cwd) || notesEnabled || !!agentId);
+  // The open course's lessons lead the `@` list. Only the course is watched:
+  // the reading place changes on every scroll and the composer is large.
+  const currentCourse = useSyncExternalStore(subscribeAgentReading, () => {
+    const reading = agentId ? agentReading(agentId) : undefined;
+    return reading?.kind === "course" ? reading.courseId : undefined;
+  });
   const navigationEmpty =
     draft.length === 0 &&
     attachments.length === 0 &&
@@ -658,18 +667,22 @@ export function Composer({
     if (ref.current) resizeComposer(ref.current);
   }, [modeIndent]);
   const inProject = looksLikeProject(cwd);
+  const shownLibrary = library && library.agentId === agentId ? library : undefined;
   const mentionSources = useMemo(() => ({
     notes: notesEnabled ? notes : [],
-    canvases: inProject ? projectCanvases(canvases, cwd) : [],
     files: inProject ? projectFiles : [],
-  }), [notesEnabled, notes, inProject, canvases, cwd, projectFiles]);
+    library: shownLibrary?.entries ?? [],
+    recent: shownLibrary?.recent ?? [],
+    currentCourse,
+  }), [notesEnabled, notes, inProject, projectFiles, shownLibrary, currentCourse]);
   const mentionIndex = useMemo(() => buildMentionSources(mentionSources), [mentionSources]);
   const mentionIndexRef = useRef<MentionIndex>(mentionIndex);
   mentionIndexRef.current = mentionIndex;
-  const rankedFiles = useMemo(
+  const mentionGroups = useMemo(
     () => mentionOpen ? rankMentions(mentionSources, mention?.query ?? "") : [],
     [mentionOpen, mentionSources, mention?.query],
   );
+  const rankedFiles = useMemo(() => flatMentions(mentionGroups), [mentionGroups]);
 
   const syncHasValue = useCallback(
     (text: string, files: Attachment[]) => {
@@ -896,22 +909,6 @@ export function Composer({
     };
   }, [mentionsWanted, notesEnabled]);
 
-  useEffect(() => {
-    if (!mentionsWanted || !inProject) return;
-    let cancelled = false;
-    const refresh = () => {
-      void loadCanvases().then((next) => {
-        if (!cancelled) setCanvases(next);
-      }).catch(() => undefined);
-    };
-    refresh();
-    window.addEventListener(CANVASES_CHANGED_EVENT, refresh);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(CANVASES_CHANGED_EVENT, refresh);
-    };
-  }, [mentionsWanted, inProject]);
-
   // The listing is cached per project and dropped when the folder changes, so
   // asking again each time the picker opens is cheap and never stale.
   useEffect(() => {
@@ -926,6 +923,19 @@ export function Composer({
       cancelled = true;
     };
   }, [mentionsWanted, mentionOpen, inProject, cwd]);
+
+  // A mentor's library and what its reader showed lately, asked again each
+  // time `@` opens so a lesson written a moment ago can be mentioned.
+  useEffect(() => {
+    if (!mentionsWanted || !agentId) return;
+    let cancelled = false;
+    void Promise.all([loadLibraryMentions(agentId), loadPositions()]).then(([entries]) => {
+      if (!cancelled) setLibrary({ agentId, entries, recent: recentPositionKeys(agentId, 20) });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mentionsWanted, mentionOpen, agentId]);
 
   useEffect(() => {
     setMentionActive(0);
@@ -1036,6 +1046,8 @@ export function Composer({
     );
     consumedQuoteId.current = result.consumedId;
     replaceLearningContext(mergeLearningContext(learningRef.current, quoteRequest));
+    // A passage's picture (an area of a PDF page) joins the draft's attachments.
+    if (quoteRequest.attachments?.length) addAttachments(quoteRequest.attachments);
     if (result.changed) {
       el.value = result.draft;
       resizeComposer(el);
@@ -1049,7 +1061,7 @@ export function Composer({
       el.focus();
     }
     onQuoteRequestConsumed?.(quoteRequest.id);
-  }, [onQuoteRequestConsumed, quoteRequest, syncHasValue, replaceLearningContext]);
+  }, [onQuoteRequestConsumed, quoteRequest, syncHasValue, replaceLearningContext, addAttachments]);
 
   // `/btw ` opens the side conversation as soon as it is typed, carrying any
   // text after it over as the unsent side question.
@@ -1135,7 +1147,7 @@ export function Composer({
         setMention(null);
         return;
       }
-      // Notes and drawings are always written with their `note/` or `canvas/` label.
+      // Notes are always written with their `note/` label.
       const label = mentionKind(file.path) === "file"
         ? mentionLabel(file, mentionIndexRef.current)
         : file.relative;
@@ -1612,6 +1624,11 @@ export function Composer({
       }
       if (e.key === "Tab") {
         e.preventDefault();
+        // Tab moves between groups; with only one group it picks, as it always has.
+        if (mentionGroups.length > 1) {
+          setMentionActive(mentionGroupStep(mentionGroups, mentionActive, e.shiftKey ? -1 : 1));
+          return;
+        }
         const file = rankedFiles[mentionActive];
         if (file) pickMention(file);
         return;
@@ -1940,8 +1957,8 @@ export function Composer({
         ) : null}
         {mentionOpen && !pickerOpen ? (
           <div className="absolute inset-x-0 bottom-full z-30 mb-1">
-            <NoteMentionPicker
-              files={rankedFiles}
+            <MentionPicker
+              groups={mentionGroups}
               query={mention?.query ?? ""}
               active={mentionActive}
 
@@ -1984,6 +2001,7 @@ export function Composer({
             </div>
           ) : null}
 
+          {agentId ? <ReadingTag agentId={agentId} /> : null}
           {learningContext.sources?.length ? <div className="px-3 pt-2">
             <SourceChips {...learningContext}
               onRemoveSource={(id) => { draftRevisionRef.current += 1; replaceLearningContext({ ...learningRef.current, sources: learningRef.current.sources?.filter((source) => source.id !== id) }); }}
@@ -2032,7 +2050,7 @@ export function Composer({
               rows={chat ? 1 : 2}
               spellCheck={false}
               defaultValue={initialDraft}
-              placeholder={noteCard ? "Add a message, or send…" : (placeholder ?? "Ask, / for commands, @ for files, notes, drawings…")}
+              placeholder={noteCard ? "Add a message, or send…" : (placeholder ?? "Ask, / for commands, @ for files and notes…")}
               aria-label={inputAriaLabel ?? placeholder ?? "Message"}
               disabled={disabled}
               className={`composer-field scrollbar-none relative max-h-52 w-full resize-none overflow-x-hidden whitespace-pre-wrap wrap-break-word bg-transparent px-3 text-sm leading-5.5 outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap font-sans ${fieldPadding}`}
@@ -2332,17 +2350,12 @@ function FileMentionRuns({
                   drawn in `currentColor` would inherit that: give it the mention
                   colour back. */}
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 indent-0 text-mention">
-                {mentionKind(part.file.path) === "note" ? (
-                  <StickyNote className="size-3.5" />
-                ) : mentionKind(part.file.path) === "canvas" ? (
-                  <ExcalidrawIcon className="size-3.5" />
-                ) : (
-                  <FileTypeIcon
-                    name={part.file.name}
-                    isDir={Boolean(part.file.isDir)}
-                    size={13}
-                  />
-                )}
+                <MentionIcon
+                  kind={mentionKind(part.file.path)}
+                  name={part.file.name}
+                  isDir={part.file.isDir}
+                  size={13}
+                />
               </span>
             </span>
             {part.text.slice(1)}

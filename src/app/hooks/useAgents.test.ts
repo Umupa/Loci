@@ -6,8 +6,11 @@ import { createAgent, findAgent, listAgents, updateAgent } from "../../features/
 import { newSession, type Block, type Session } from "../../features/sessions/model/session";
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
-import { useAgents } from "./useAgents";
+import { deleteQuestion, useAgents } from "./useAgents";
 import { createSessionHost } from "./useSessionHost";
+import { MENTOR_VIEW_KEY } from "./useMentorView";
+import { ACTIVE_MENTOR_KEY } from "./useActiveMentor";
+import { recalledPosition, rememberPosition } from "../../features/mentor/model/readingPositions";
 
 const mocks = vi.hoisted(() => ({
   ask: vi.fn(), deleteSession: vi.fn(), archive: vi.fn(), page: vi.fn(),
@@ -22,7 +25,6 @@ vi.mock("../../features/sessions/data/sessionStore", async (original) => ({ ...(
 vi.mock("../../features/agents/model/agentTranscript", async (original) => ({
   ...(await original<object>()), archiveOlderTurns: mocks.archive, loadTranscriptPage: mocks.page,
 }));
-vi.mock("../../features/canvas/canvas", () => ({ loadCanvases: vi.fn(async () => []), deleteCanvas: vi.fn() }));
 vi.mock("../../features/agents/model/agentDocuments", () => ({ saveAgentDocuments: vi.fn(), deleteAgentDocument: vi.fn(async () => undefined) }));
 vi.mock("../../features/agents/model/agentFiles", () => ({
   forgetAgentContext: vi.fn(), loadAgentFiles: mocks.loadFiles, saveAgentFile: mocks.saveFile, editAgentFile: mocks.editFile,
@@ -184,6 +186,40 @@ it("replaces the reset conversation in its existing panes and preserves agent de
   expect(findAgent(id)?.sessionId).toBe(fresh.id);
   expect(liveSessions.map((session) => session.id)).toEqual([fresh.id]);
   expect(agents.isDetailsOpen(id)).toBe(true);
+});
+
+it("says what deleting a mentor throws away, and forgets what the window kept about it", async () => {
+  const id = addAgent("chat");
+  const other = addAgent("other");
+  localStorage.setItem(MENTOR_VIEW_KEY, JSON.stringify({ [id]: { library: true }, [other]: { library: false } }));
+  localStorage.setItem(`loci.noteTarget.${id}`, JSON.stringify({ kind: "new" }));
+  localStorage.setItem(`loci.noteTarget.${other}`, JSON.stringify({ kind: "new" }));
+  localStorage.setItem(ACTIVE_MENTOR_KEY, id);
+  rememberPosition(id, "document:d", { ratio: 0.5 });
+  await mount();
+  await act(async () => agents.remove(id));
+  const [question] = mocks.ask.mock.calls[0] as [string];
+  expect(question).toBe(deleteQuestion("chat"));
+  expect(question).toMatch(/folder \(sources, courses, notes, repos and memory\) moves to the Trash/);
+  expect(question).toMatch(/conversation, highlights and progress are deleted/);
+  expect(mocks.deleteSession).toHaveBeenCalledWith("chat");
+  expect(Object.keys(JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!))).toEqual([other]);
+  expect(localStorage.getItem(`loci.noteTarget.${id}`)).toBeNull();
+  expect(localStorage.getItem(`loci.noteTarget.${other}`)).not.toBeNull();
+  expect(localStorage.getItem(ACTIVE_MENTOR_KEY)).toBeNull();
+  expect(recalledPosition(id, "document:d")).toBeUndefined();
+  expect(findAgent(other)).toBeDefined();
+});
+
+it("does not delete anything when the question is declined", async () => {
+  const id = addAgent("chat");
+  mocks.ask.mockResolvedValue(false);
+  await mount();
+  let removed: boolean | undefined;
+  await act(async () => { removed = await agents.remove(id); });
+  expect(removed).toBe(false);
+  expect(mocks.deleteSession).not.toHaveBeenCalled();
+  expect(findAgent(id)).toBeDefined();
 });
 
 it("removes panes for a deleted agent even when its conversation was not loaded", async () => {

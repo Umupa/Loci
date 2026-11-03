@@ -1,6 +1,6 @@
 //! One mentor = one folder (v0.4).
 //!
-//! A mentor's content (sources, guides, courses, notes, canvases, Soul and
+//! A mentor's content (sources, guides, courses, notes, Soul and
 //! memory) lives as files in `<mentors root>/<slug>/`. Rust owns those files:
 //! it writes them atomically, indexes them in SQLite for fast listing and
 //! search, and watches them so edits made outside the app (by the mentor's
@@ -8,12 +8,13 @@
 //! or is not portable: conversations, progress, annotations, view state.
 //!
 //! The commands the window has always called (`agent_documents_*`,
-//! `course_*`, `notes_*`, `canvas_*`, `agent_*`) keep their names and payloads;
-//! for a mentor whose content is in its folder they read and write files, and
-//! for anything else (a mentor not migrated yet, a note with no mentor, a
-//! project canvas) they read the old tables as before.
+//! `course_*`, `notes_*`, `agent_*`) keep their names and payloads; for a
+//! mentor whose content is in its folder they read and write files, and for
+//! anything else (a mentor not migrated yet, a note with no mentor) they read
+//! the old tables as before.
 
 pub mod bundle;
+pub mod canvas_removal;
 pub mod commands;
 pub mod format;
 pub mod fsio;
@@ -22,6 +23,7 @@ pub mod migrate;
 pub mod paths;
 pub mod pdf;
 pub mod registry;
+pub mod removal;
 pub mod watch;
 
 use std::path::{Path, PathBuf};

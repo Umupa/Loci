@@ -19,8 +19,7 @@
   border-bottom: 1px solid var(--color-stroke);
 }
 
-.pdf-annotations__header h2,
-.pdf-annotation-popover__heading h2 {
+.pdf-annotations__header h2 {
   font-size: 13px;
   font-weight: 500;
   line-height: 20px;
@@ -106,8 +105,7 @@
   height: 7px;
   flex-shrink: 0;
   border-radius: 2px;
-  background: var(--color-skill);
-  opacity: 0.8;
+  background: var(--color-mark-wash-strong);
 }
 
 .pdf-annotations__entry-quote {
@@ -141,218 +139,52 @@
   line-height: 20px;
 }
 
-/* Paper is always white. An opaque theme surface keeps the annotation's ink
-   readable when it floats over a PDF in either application theme. */
-.pdf-annotation-popover {
-  overflow: auto;
-  border: 1px solid color-mix(in srgb, var(--color-content) 14%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--color-background-base) 97%, var(--color-content) 3%);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 10%);
-  color: var(--color-content);
-  font-family: var(--font-sans);
-}
-
-.pdf-annotation-popover__header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--color-stroke);
-}
-
-.pdf-annotation-popover__badge {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  place-items: center;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--color-skill) 10%, transparent);
-  color: var(--color-skill);
-}
-
-.pdf-annotation-popover__heading {
-  min-width: 0;
-  flex: 1;
-}
-
-.pdf-annotation-popover__heading p {
-  color: color-mix(in srgb, var(--color-content) 50%, transparent);
-  font-size: 10px;
-  line-height: 16px;
-}
-
-.pdf-annotation-popover__body {
-  padding: 14px;
-}
-
-.pdf-annotation-popover__quote {
-  max-height: 104px;
-  overflow: auto;
-  padding: 8px 10px;
-  border-left: 2px solid var(--color-skill);
-  border-radius: 0 6px 6px 0;
-  background: color-mix(in srgb, var(--color-skill) 5%, transparent);
-  color: color-mix(in srgb, var(--color-content) 88%, transparent);
-  font-size: 12px;
-  line-height: 20px;
-  overflow-wrap: anywhere;
-  user-select: text;
-}
-
-.pdf-annotation-popover__note-header {
-  display: flex;
-  height: 34px;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-  color: color-mix(in srgb, var(--color-content) 58%, transparent);
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.pdf-annotation-popover__save {
-  padding: 3px 7px;
-  border-radius: 5px;
-  color: var(--color-content);
-  font-size: 11px;
-  font-weight: 400;
-}
-
-.pdf-annotation-popover__save:enabled:hover {
-  background: var(--color-selection-subtle);
-}
-
-.pdf-annotation-popover__note {
-  display: block;
-  width: 100%;
-  min-height: 88px;
-  max-height: 240px;
-  resize: vertical;
-  padding: 9px 10px;
-  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
-  border-radius: 8px;
-  outline: none;
-  background: var(--color-selection-subtle);
-  color: var(--color-content);
-  font-size: 12px;
-  line-height: 20px;
-}
-
-.pdf-annotation-popover__note::placeholder {
-  color: color-mix(in srgb, var(--color-content) 40%, transparent);
-}
-
-.pdf-annotation-popover__note:focus {
-  border-color: color-mix(in srgb, var(--color-content) 28%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-content) 4%, transparent);
-}
-
-.pdf-annotation-popover__discussions {
-  margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px solid var(--color-stroke);
-}
-
-.pdf-annotation-popover__section-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-  color: color-mix(in srgb, var(--color-content) 55%, transparent);
-  font-size: 11px;
-  line-height: 20px;
-}
-
-.pdf-annotation-popover__section-title span {
-  color: color-mix(in srgb, var(--color-content) 40%, transparent);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-
-.pdf-annotation-popover__discussion-list {
-  max-height: 120px;
-  overflow: auto;
-}
-
-.pdf-annotation-popover__discussion {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 6px;
-  border-radius: 6px;
-  color: color-mix(in srgb, var(--color-content) 70%, transparent);
-  font-size: 11px;
-  line-height: 16px;
-  text-align: left;
-}
-
-.pdf-annotation-popover__discussion span {
-  flex: 1;
-}
-
-.pdf-annotation-popover__discussion:hover {
-  background: var(--color-selection-subtle);
-  color: var(--color-content);
-}
-
-.pdf-annotation-popover__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-top: 1px solid var(--color-stroke);
-}
-
-.pdf-annotation-popover__ask {
-  display: flex;
-  height: 30px;
-  align-items: center;
-  gap: 7px;
-  padding: 0 11px;
-  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
-  border-radius: 7px;
-  background: var(--color-selection-subtle);
-  font-size: 12px;
-}
-
-.pdf-annotation-popover__ask:hover {
-  background: var(--color-selection);
-}
-
-.pdf-annotations__delete:enabled:hover {
-  background: color-mix(in srgb, var(--color-diff-del) 10%, transparent);
-  color: var(--color-diff-del-fg);
-}
-
-.pdf-annotations__error {
-  margin-top: 8px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--color-diff-del) 8%, transparent);
-  color: var(--color-diff-del-fg);
-  font-size: 11px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
-}
-
-.pdf-annotations button:focus-visible,
-.pdf-annotation-popover button:focus-visible {
+.pdf-annotations button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--color-accent-ring) 60%, transparent);
   outline-offset: 2px;
 }
 
-.pdf-annotation-popover button:disabled {
-  cursor: default;
-  opacity: 0.35;
-}
-
 /* Text highlights are painted with the CSS Custom Highlight API: the text itself is never wrapped or changed. */
-::highlight(loci-mark) { background-color: color-mix(in srgb, var(--color-mark) 42%, transparent); }
-::highlight(loci-mark-selected) { background-color: color-mix(in srgb, var(--color-mark) 58%, transparent); }
-::highlight(loci-flash) { background-color: rgb(96 165 250 / 0.4); }
+::highlight(loci-mark) { background-color: var(--color-mark-wash); }
+::highlight(loci-mark-selected) { background-color: var(--color-mark-wash-strong); }
+::highlight(loci-flash) { background-color: var(--color-mark-wash-strong); }
+
+/* A whole block kept as a mark (a table, a diagram, a code block): a paler
+   wash than a passage's, laid over the block's own surface so it shows on any
+   of them, with a thin bar in the mentor's colour down its left side. */
+[data-block-mark]:not(img) {
+  position: relative;
+}
+[data-block-mark]:not(img)::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: -4px -6px -4px -10px;
+  border-left: 2px solid var(--color-mark);
+  border-radius: 2px 8px 8px 2px;
+  background: color-mix(in srgb, var(--color-mark) 12%, transparent);
+  pointer-events: none;
+}
+/* A table's frame clips what overflows it: the wash sits inside, the bar outside as a shadow. */
+[data-streamdown="table-wrapper"][data-block-mark]::after {
+  inset: 0;
+  border-left: 0;
+  border-radius: inherit;
+}
+[data-streamdown="table-wrapper"][data-block-mark] {
+  box-shadow: -10px 0 0 -8px var(--color-mark);
+}
+[data-block-mark="selected"]:not(img)::after {
+  background: var(--color-mark-wash);
+}
+img[data-block-mark] {
+  outline: 4px solid var(--color-mark-wash);
+  outline-offset: 2px;
+  box-shadow: -12px 0 0 -10px var(--color-mark);
+}
+img[data-block-mark="selected"] {
+  outline-color: var(--color-mark-wash-strong);
+}
 
 /* The list dropping from a reader's menu, rather than beside a PDF. */
 .pdf-annotations--floating {

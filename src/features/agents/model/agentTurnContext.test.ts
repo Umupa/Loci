@@ -380,3 +380,24 @@ it("tells the mentor what a connected window's reader shows, in place of this wi
   expect(reading).not.toContain("on-the-host");
   setAgentReading(agent.id, undefined);
 });
+
+it("leaves the open page out of a turn the user dismissed it from, and carries it again on the next", async () => {
+  const { setAgentReading, skipReadingOnce } = await import("./agentReading");
+  setAgentReading("agent", { kind: "document", id: "fc", title: "Firecracker" });
+  const session = { id: "reading", providerSessionId: "native-1", blocks: [] };
+  const reading = (prepared: { context: string[] }) => prepared.context.some((block) => block.startsWith("<reading_now>"));
+  expect(reading(await prepareAppTurn(agent, session, { canRotate: false }))).toBe(true);
+  skipReadingOnce("agent");
+  expect(reading(await prepareAppTurn(agent, session, { canRotate: false }))).toBe(false);
+  expect(reading(await prepareAppTurn(agent, session, { canRotate: false }))).toBe(true);
+  setAgentReading("agent", undefined);
+});
+
+it("leaves the open page out when the connected window that sent the turn dismissed it", async () => {
+  const { setAgentReading } = await import("./agentReading");
+  setAgentReading(agent.id, { kind: "note", id: "on-the-host" });
+  const session = { id: "dismissed", providerSessionId: "native-1", blocks: [] };
+  const sent = await prepareAppTurn(agent, session, { canRotate: false, reading: null });
+  expect(sent.context.some((part) => part.startsWith("<reading_now>"))).toBe(false);
+  setAgentReading(agent.id, undefined);
+});

@@ -489,7 +489,6 @@ function sanitizeBlock(
   const turnModel = sanitizeTurnModel(block.turnModel);
   if (block.role === "user" && turnModel) next.turnModel = turnModel;
   if (block.role === "user" && block.draft) next.draft = true;
-  if (block.role === "user" && block.canvasCli) next.canvasCli = true;
   if (
     block.role === "user" &&
     typeof block.appRequestId === "string" &&

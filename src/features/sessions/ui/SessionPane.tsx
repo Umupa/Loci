@@ -137,7 +137,6 @@ export type SessionPaneProps = {
 
   onNoteCardDismiss?: (sessionId: string) => void;
   onNoteSaved?: (noteId: string) => void;
-  onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
 
 
   onApproval: (
@@ -244,7 +243,6 @@ export const SessionPane = memo(function SessionPane({
 
   onNoteCardDismiss,
   onNoteSaved,
-  onSaveToCanvas,
 
   onApproval,
   onQuestionReply,
@@ -490,6 +488,7 @@ export const SessionPane = memo(function SessionPane({
       cwd={session.cwd}
       executionCwd={workCwd}
       sessionId={session.id}
+      agentId={residentAgent?.id}
       compactSupported={canCompactHarnessContext(session.harness)}
       recents={recents}
       hideProjectPicker={
@@ -684,7 +683,6 @@ export const SessionPane = memo(function SessionPane({
                     ? addSelectionToChat("", "plain", { sources: [{ id: crypto.randomUUID(), kind: "conversation", title: sessionDisplayTitle(session.title, session.harness), quote: text, sessionId: session.id, blockId }] })
                     : addSelectionToChat(text, "quote")}
                   onSaveNote={notesEnabled ? saveNote : undefined}
-                  onSaveToCanvas={onSaveToCanvas}
                   onSendDraft={
                     draftBlock
                       ? (block) =>

@@ -34,12 +34,17 @@ export function CourseOutline({ course, activeId, onSelect, id, hidden, classNam
     : <ol>{items.map(row)}</ol>}</nav>;
 }
 
-/** A course's latest saved state, following progress and revisions made anywhere. */
-export function useLiveCourse(courseId: string, agentId: string): { course: CourseWithProgress | null; error: string | null } {
+/**
+ * A course's latest saved state, following progress and revisions made
+ * anywhere. No course (`null`) loads nothing, for a view that shows one only
+ * some of the time and must keep its own elements meanwhile.
+ */
+export function useLiveCourse(courseId: string | null, agentId: string): { course: CourseWithProgress | null; error: string | null } {
   const scope = JSON.stringify([agentId, courseId]);
   const [state, setState] = useState<{ scope: string; course: CourseWithProgress | null; error: string | null }>({ scope, course: null, error: null });
   const [revision, setRevision] = useState(0);
   useEffect(() => {
+    if (courseId === null) return;
     let live = true;
     loadCourse(courseId, agentId).then(
       (course) => { if (live) setState({ scope, course, error: course ? null : "This course is no longer available." }); },

@@ -249,18 +249,18 @@ describe("isRecoverableThreadResumeError", () => {
 describe("mapCodexNotification", () => {
   it("keeps what an MCP tool answered, so its row can link to or explain the result", () => {
     const item = {
-      type: "mcpToolCall", id: "call_1", server: "excalidraw", tool: "create_view", status: "completed",
-      arguments: { elements: "[]" },
-      result: { content: [{ type: "text", text: 'Diagram displayed! Checkpoint id: "9f8e7d6c5b4a392817".' }], structuredContent: { checkpointId: "9f8e7d6c5b4a392817" } },
+      type: "mcpToolCall", id: "call_1", server: "docs", tool: "search", status: "completed",
+      arguments: { query: "rings" },
+      result: { content: [{ type: "text", text: "Found 3 pages." }], structuredContent: { count: 3 } },
     };
     expect(mapCodexNotification("item/started", { item: { ...item, status: "inProgress", result: null } }).events).toEqual([
-      expect.objectContaining({ type: "tool.started", callId: "call_1", title: "excalidraw:create_view", kind: "other" }),
+      expect.objectContaining({ type: "tool.started", callId: "call_1", title: "docs:search", kind: "other" }),
     ]);
     expect(mapCodexNotification("item/completed", { item }).events).toEqual([
-      expect.objectContaining({ type: "tool.updated", title: "excalidraw:create_view", status: "completed", detail: 'Diagram displayed! Checkpoint id: "9f8e7d6c5b4a392817".' }),
+      expect.objectContaining({ type: "tool.updated", title: "docs:search", status: "completed", detail: "Found 3 pages." }),
     ]);
-    const failed = mapCodexNotification("item/completed", { item: { ...item, status: "failed", result: null, error: { message: 'Checkpoint "abc" not found' } } }).events[0];
-    expect(failed).toMatchObject({ type: "tool.updated", status: "failed", detail: 'Checkpoint "abc" not found' });
+    const failed = mapCodexNotification("item/completed", { item: { ...item, status: "failed", result: null, error: { message: 'Index "abc" not found' } } }).events[0];
+    expect(failed).toMatchObject({ type: "tool.updated", status: "failed", detail: 'Index "abc" not found' });
     const silent = mapCodexNotification("item/completed", { item: { ...item, result: { content: [{ type: "image", data: "AAAA" }] } } }).events[0];
     expect(silent).not.toHaveProperty("detail");
   });

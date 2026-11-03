@@ -7,7 +7,6 @@ export type MentorPage =
   | { kind: "course"; course: OpenCourseDetail }
   | { kind: "document"; document: AgentDocument }
   | { kind: "note"; id: string }
-  | { kind: "canvas"; id: string }
   /** `commit`: source code read as it was at that commit (read-only). */
   | { kind: "file"; path: string; commit?: string }
   /** A session a mentor started, or any conversation a link points to. Never remembered. */
@@ -49,7 +48,7 @@ export function parseStoredPage(value: unknown): MentorPage | undefined {
     return { kind: "document", document: { id: document.id, title: typeof document.title === "string" ? document.title : "Document", body: "",
       ...(text(document.subject) ? { subject: document.subject } : {}) } };
   }
-  if ((page.kind === "note" || page.kind === "canvas") && text(page.id)) return { kind: page.kind, id: page.id };
+  if (page.kind === "note" && text(page.id)) return { kind: "note", id: page.id };
   if (page.kind === "file" && text(page.path)) return { kind: "file", path: page.path, ...(text(page.commit) && /^[0-9a-f]{7,40}$/i.test(page.commit) ? { commit: page.commit } : {}) };
   return undefined;
 }
@@ -61,7 +60,6 @@ export function readingOf(page: MentorPage | undefined, lesson: MentorLesson | u
     ...(lesson?.compare ? { compare: lesson.compare.map(({ note: _note, ...part }) => part) } : {}) };
   if (page?.kind === "document") return { kind: "document", id: page.document.id, title: page.document.title };
   if (page?.kind === "note") return { kind: "note", id: page.id };
-  if (page?.kind === "canvas") return { kind: "canvas", id: page.id };
   if (page?.kind === "file") return { kind: "file", path: page.path, ...(page.commit ? { commit: page.commit } : {}) };
   return undefined;
 }

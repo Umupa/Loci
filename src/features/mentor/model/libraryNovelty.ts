@@ -19,7 +19,7 @@ export function emptyNovelty(): NoveltyState {
 
 /** The key an item is known by across the three listings. */
 export function noveltyKey(
-  kind: "document" | "course" | "note" | "canvas",
+  kind: "document" | "course" | "note",
   id: string,
 ): string {
   return `${kind}:${id}`;

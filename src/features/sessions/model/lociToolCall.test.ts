@@ -8,13 +8,9 @@ function shell(text: string): Block {
 
 describe("Loci CLI tool calls", () => {
   it.each([
-    ["canvas.list", "List canvases"],
-    ["canvas.get", "Get a canvas"],
-    ["canvas.create", "Create a canvas"],
-    ["canvas.rename", "Rename a canvas"],
-    ["canvas.delete", "Delete a canvas"],
-    ["canvas.read-data", "Read canvas scene data"],
-    ["canvas.write-data", "Write canvas scene data"],
+    ["notes.list", "List notes"],
+    ["notes.read", "Read a note"],
+    ["notes.write", "Write a note"],
   ])("labels %s as an app operation", (action, label) => {
     expect(lociToolCall(shell(`loci app ${action} --json '{}'`))?.label).toBe(label);
   });
@@ -120,10 +116,8 @@ describe("Loci CLI tool calls", () => {
     ).toBe("loci app sessions.send --json '{\"prompt\":\"a; b\"}'");
   });
 
-  it("names a look at the built-in tools, and leaves their calls to the canvas rows", () => {
-    expect(lociToolCall(shell("loci canvas --help"))?.label).toBe("View canvas tools");
-    expect(lociToolCall(shell("loci canvas create_view --input drawing.json"))).toBeUndefined();
-    expect(lociToolCall(shell("loci canvas --help; ls"))).toBeUndefined();
+  it("leaves commands outside the app CLI alone", () => {
+    expect(lociToolCall(shell("loci canvas --help"))).toBeUndefined();
     expect(lociToolCall(shell("loci other --help"))).toBeUndefined();
   });
 

@@ -16,7 +16,6 @@ vi.mock("../../features/agents/model/agentDocuments", () => ({
   readAgentDocument: vi.fn(async (_agent: string, id: string) => id === "doc" ? { id, title: "Doc", body: "# A\n## B", updatedAt: 0 } : undefined),
 }));
 vi.mock("../../features/notes", () => ({ getNote: vi.fn(async (id: string) => id === "n1" ? { id } : null) }));
-vi.mock("../../features/canvas/canvas", () => ({ getCanvas: vi.fn(async () => null) }));
 vi.mock("../../features/agents/model/documentPlace", () => ({ requestDocumentPlace: vi.fn() }));
 vi.mock("../../features/files/model/filePlace", () => ({ requestFilePlace: vi.fn() }));
 
@@ -72,9 +71,9 @@ describe("reader commands", () => {
   it("refuse what is missing or ambiguous", async () => {
     const { ctx } = testContext([agent("a1")]);
     await expect(runCommand(ctx, "reader.open", { mentor: "a1" }, external)).rejects.toMatchObject({ code: "usage" });
-    await expect(runCommand(ctx, "reader.open", { mentor: "a1", note: "n1", canvas: "c" }, external)).rejects.toMatchObject({ code: "usage" });
+    await expect(runCommand(ctx, "reader.open", { mentor: "a1", note: "n1", file: "/tmp/a.md" }, external)).rejects.toMatchObject({ code: "usage" });
     await expect(runCommand(ctx, "reader.open", { mentor: "a1", course: "k8s", lesson: "nope" }, external)).rejects.toMatchObject({ code: "not_found" });
-    await expect(runCommand(ctx, "reader.open", { mentor: "a1", canvas: "c" }, external)).rejects.toMatchObject({ code: "not_found" });
+    await expect(runCommand(ctx, "reader.open", { mentor: "a1", canvas: "c" }, external)).rejects.toMatchObject({ code: "usage" });
     await expect(runCommand(ctx, "reader.open", { mentor: "a1", file: "relative.md" }, external)).rejects.toMatchObject({ code: "usage" });
     await expect(runCommand(ctx, "reader.open", { mentor: "a1", note: "n1", section: "x" }, external)).rejects.toMatchObject({ code: "usage" });
     await expect(runCommand(ctx, "reader.open", { note: "n1" }, external)).rejects.toMatchObject({ code: "usage" });

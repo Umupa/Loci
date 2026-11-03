@@ -17,10 +17,10 @@ English · [简体中文](README.zh-CN.md)
 
 ---
 
-Loci is a local-first desktop workspace for learning technical subjects with an agent. Each mentor is a long-lived agent for one topic: a Soul (its standing instructions), a memory, and a library of courses, documents, notes and canvases beside one conversation. The mentor gathers primary sources and reads them with you. It runs through the agent CLI you already signed in to — Claude Code or Codex — so there is no model API key to add, and it has no server of its own. Your data stays on your machine: each mentor's material in a folder of plain files, the rest in one local SQLite database.
+Loci is a local-first desktop workspace for learning technical subjects with an agent. Each mentor is a long-lived agent for one topic: a Soul (its standing instructions), a memory, and a library of courses, documents and notes beside one conversation. The mentor gathers primary sources and reads them with you. It runs through the agent CLI you already signed in to — Claude Code or Codex — so there is no model API key to add, and it has no server of its own. Your data stays on your machine: each mentor's material in a folder of plain files, the rest in one local SQLite database.
 
 > [!NOTE]
-> Loci is early software (v0.1). The interface, the data model and the bundled MCP tools may still change. See [Platform support](#platform-support) for what has and has not been tried on each OS.
+> Loci is early software (v0.1). The interface and the data model may still change. See [Platform support](#platform-support) for what has and has not been tried on each OS.
 
 ## The learning loop
 
@@ -28,7 +28,7 @@ Loci is a local-first desktop workspace for learning technical subjects with an 
 2. **Gather first-hand sources.** It finds official documentation, specifications, papers and source code, and keeps them where the course can point at them.
 3. **Arrange a course.** It orders the sources into chapters and lessons. Each lesson points at the passage, page or file to read.
 4. **Read and ask.** You read the original in Loci. Attach a passage from a document, a PDF, a web page or a conversation to a question; the answer can refer back to that excerpt.
-5. **Keep what you learned.** Write notes and draw canvases beside the chat. The mentor records progress in its memory, so the next session continues where you stopped.
+5. **Keep what you learned.** Write notes beside the chat. The mentor records progress in its memory, so the next session continues where you stopped.
 
 ## Mentors
 
@@ -38,15 +38,15 @@ Every mentor has:
 
 - **A Soul.** Standing instructions for how it teaches, what it expects from you and what to avoid. Edit it in the mentor's settings under **Soul**, or ask the mentor to revise it in chat.
 - **A memory.** Facts and topic notes the mentor maintains through the built-in `app` CLI. They are files in Loci's data folder, so a change of model keeps them.
-- **A library.** Courses, documents, notes and canvases beside the conversation. A course is what you read; documents are the material it points at; notes are yours to edit; canvases are Excalidraw drawings. The mentor saves documents and courses through `app documents.write` and `app courses.write`.
+- **A library.** Courses, documents and notes beside the conversation. A course is what you read; documents are the material it points at; notes are yours to edit. The mentor saves documents and courses through `app documents.write` and `app courses.write`.
 - **One conversation.** A mentor keeps a single conversation. The lesson, document or note open beside it is passed as context, so "this" and "the passage" refer to what you are reading.
-- **Cards.** A reply can carry a question with choices to click, a document to open, a checklist, a mind map, a course, a code diff, a Mermaid diagram, or a link to a canvas.
+- **Cards.** A reply can carry a question with choices to click, a document to open, a checklist, a mind map, a course, a code diff or a Mermaid diagram.
 
 A mentor works through the CLI: it can clone a repository, run code and prepare experiments on your machine. It starts with **Full access**, so it does not stop for a prompt on every step; change that in the mentor's settings, or the default for new mentors in **Settings → Your mentors**.
 
 What a mentor does is its prompt at work, so how well it goes depends on the model behind it.
 
-Each mentor has its own workspace: the open course's outline and the library on the left, the reader in the middle, and the conversation on the right. Opening anything (a lesson, a source, a note, a canvas, a file, or a session the mentor started) replaces what the reader shows; nothing opens in a new tab or window. Coming back to a mentor reopens the lesson it was showing. ⌘K finds a mentor or anything in its library, ⌘1–9 switch mentors, ⌘W closes the reader, and ⌘B and ⇧⌘B fold the library and the conversation.
+Each mentor has its own workspace: the open course's outline and the library on the left, the reader in the middle, and the conversation on the right. Opening anything (a lesson, a source, a note, a file, or a session the mentor started) replaces what the reader shows; nothing opens in a new tab or window. Coming back to a mentor reopens the lesson it was showing. ⌘K finds a mentor or anything in its library, ⌘1–9 switch mentors, ⌘W closes the reader, and ⌘B and ⇧⌘B fold the library and the conversation.
 
 ## Reading and sources
 
@@ -85,7 +85,6 @@ On macOS, `./script/build_and_run.sh --verify` builds and launches a release bun
 ### Before the first session
 
 - Install and sign in to Claude Code or Codex. These are the two supported CLIs. Loci looks for each CLI on your `PATH` and in the usual install locations. **Settings → Agent CLIs** lets you point at a specific binary, set a default model, and hide CLIs you do not use.
-- Install Node.js 20.11+ (or Bun) if you want the built-in MCP server (`loci_excalidraw`). Without it sessions still start; Settings and the canvas panel say what is missing.
 
 ## Supported agent CLIs
 
@@ -93,7 +92,7 @@ Loci starts a CLI installed on your machine and speaks its protocol; it does not
 
 | CLI | State |
 | --- | --- |
-| Claude Code, Codex | Supported: chat, tools and permissions, and the built-in canvas MCP server |
+| Claude Code, Codex | Supported: chat, tools and permissions |
 | Antigravity, Pi, Cursor, Grok Build, OpenCode, omp, fx, Hermes Agent | Experimental: chat with model and permission selection. What else shows up (questions, plans, tool details) depends on what the CLI reports |
 
 Each CLI keeps its own sign-in and settings. Each session picks a model and a permission mode: Supervised, Auto-accept edits, Auto or Full access.
@@ -101,7 +100,6 @@ Each CLI keeps its own sign-in and settings. Each session picks a model and a pe
 Details worth knowing:
 
 - Antigravity runs through its own ACP server. If you are asked to authenticate, use **Sign in to Antigravity** in the app; signing in to the interactive `agy` does not carry over.
-- Antigravity and Pi call the canvas tools by running a command, so they are told about them in the conversation rather than through a tool list. Pi never asks before it acts, so drawing does not ask there either, and in Plan mode Pi has no shell and cannot reach these tools.
 - fx does not support attachments yet.
 - CLIs that are not installed still appear in Settings, with an install hint.
 
@@ -126,7 +124,7 @@ Commands work at the start of a prompt.
 
 ## Data and privacy
 
-- **Where your data is.** Each mentor's library, courses, notes, drawings, Soul and memory are files in its own folder, `~/Loci/<mentor>/`; you and the mentor can edit them, and Loci shows the change. Conversations, reading progress, highlights and an index of those folders are in `loci.db` (SQLite) inside the app data folder `com.loci.desktop`: `~/Library/Application Support/com.loci.desktop` on macOS, `~/.local/share/com.loci.desktop` on Linux, `%APPDATA%\com.loci.desktop` on Windows. Pasted images live beside it. Your project files stay in your own folders. PDF annotations do not rewrite the PDF.
+- **Where your data is.** Each mentor's library, courses, notes, Soul and memory are files in its own folder, `~/Loci/<mentor>/`; you and the mentor can edit them, and Loci shows the change. Conversations, reading progress, highlights and an index of those folders are in `loci.db` (SQLite) inside the app data folder `com.loci.desktop`: `~/Library/Application Support/com.loci.desktop` on macOS, `~/.local/share/com.loci.desktop` on Linux, `%APPDATA%\com.loci.desktop` on Windows. Pasted images live beside it. Your project files stay in your own folders. PDF annotations do not rewrite the PDF.
 - **What Loci sends over the network.** Loci has no analytics or crash reporting. An installed Loci checks GitHub Releases for updates a little after launch and every six hours, and asks before installing one; a build from source does not update itself. Beyond what the agent CLIs do with their own providers, Loci fetches the title and icon of public links shown in a conversation (loopback and private addresses are refused).
 - **The command line.** `loci` in a terminal can drive Loci while it runs. It needs a token that only your user account can read, and it can be turned off in **Settings → General → Command line**.
 - **What agents can do.** An agent runs with your user's permissions. The permission mode only decides when Loci asks you before the CLI acts, so choose it with the same care as in the CLI itself. **Full access**, what a mentor starts with, allows commands, edits and supported MCP confirmations without prompts.
@@ -167,22 +165,22 @@ Layout:
 ```text
 src/                      React front end
   app/                    window shell: the mentor rail, keys and session wiring
-  features/               mentor workspace, sessions, agents, learning, notes, canvas, settings, skills, ...
+  features/               mentor workspace, sessions, agents, learning, notes, settings, skills, ...
   integrations/harness/   agent CLI protocol core and the ten CLI adapters
   platform/tauri/         thin wrappers over Tauri commands
   shared/                 UI components, hooks and utilities
-src-tauri/                Rust back end: processes, SQLite stores, app control, MCP resources
-  resources/              bundled MCP servers (excalidraw-mcp)
+src-tauri/                Rust back end: processes, SQLite stores, app control
+  resources/              the app CLI's help and command manifest
 docs/                     guides and design records
-scripts/                  releases, version bump, vendoring and live protocol probes
+scripts/                  releases, version bump and live protocol probes
 ```
 
 [docs/architecture.md](docs/architecture.md) explains how the pieces fit together. Contributions are welcome; please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ## Documentation
 
-The [documentation index](docs/README.md) lists every guide. [docs/roadmap.md](docs/roadmap.md) (in Chinese) sets out the positioning and the stages ahead. The design record for the canvas MCP is written in Chinese.
+The [documentation index](docs/README.md) lists every guide. [docs/roadmap.md](docs/roadmap.md) (in Chinese) sets out the positioning and the stages ahead.
 
 ## License
 
-Loci is released under the [MIT License](LICENSE). It is derived from an earlier MIT-licensed project and bundles the official Excalidraw MCP server, also MIT; [NOTICE](NOTICE) records the origin, revisions and trademarks. Loci is independent of the makers of the agent CLIs it runs.
+Loci is released under the [MIT License](LICENSE). It is derived from an earlier MIT-licensed project; [NOTICE](NOTICE) records the origin, revisions and trademarks. Loci is independent of the makers of the agent CLIs it runs.

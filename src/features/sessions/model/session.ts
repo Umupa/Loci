@@ -291,8 +291,6 @@ export type Block = LearningMessageContext & {
   providerTurnId?: string;
   /** User turn saved to the session but not submitted to the harness yet. */
   draft?: boolean;
-  /** This user turn told the agent how to reach the project's canvases through the app's CLI. */
-  canvasCli?: boolean;
   /** Stable CLI request that submitted this turn, for safe retries. */
   appRequestId?: string;
   /** Hidden app prompt that starts a separate completion report in an agent's chat. */

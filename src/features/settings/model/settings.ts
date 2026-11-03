@@ -77,8 +77,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         id: "mcp",
         group: "agents",
         label: "MCP",
-        get description() { return t("Manage Loci's built-in MCP servers and your provider connections."); },
-        keywords: "tools servers connections oauth authenticate login claude codex built-in excalidraw canvas",
+        get description() { return t("Manage your provider MCP connections."); },
+        keywords: "tools servers connections oauth authenticate login claude codex",
     },
     {
         id: "skills",
@@ -122,12 +122,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "learning language mentor reply course translate chinese english 中文 英文 学习语言 首选语言 翻译",
     },
 { id: "version", section: "general", get label() { return t("Version"); }, keywords: "build about update upgrade release" },
-    {
-        id: "builtin-excalidraw",
-        section: "mcp",
-        get label() { return t("Built-in Excalidraw MCP"); },
-        keywords: "loci_excalidraw drawing canvas built-in enable disable claude codex",
-    },
     {
         id: "mcp-servers",
         section: "mcp",

@@ -518,7 +518,8 @@ pub fn import_zip(conn: &Connection, root: &Path, archive: &Path) -> Result<Impo
 }
 
 /// Brings back a mentor folder as it is, where it is: one kept after a
-/// reset or removal, or copied from elsewhere. Nothing is moved.
+/// reset, put back from the trash, removed by a Loci before 0.6 (its
+/// `mentor.removed.json`), or copied from elsewhere. Nothing is moved.
 pub fn import_folder(conn: &Connection, folder: &Path) -> Result<ImportSummary, String> {
     if !folder.is_absolute() || !folder.is_dir() {
         return Err(format!("Not a folder: {}", folder.display()));
@@ -798,13 +799,14 @@ mod tests {
     }
 
     #[test]
-    fn a_removed_mentor_folder_comes_back_in_place() {
+    fn a_mentor_folder_removed_by_an_older_loci_comes_back_in_place() {
         let store = SessionStore::open_in_memory().unwrap();
         let conn = store.lock_conn().unwrap();
         let root = temp_dir("bundle-folder");
         let folder = mentor(&conn, &root);
-        crate::mentor_store::commands::remove(&conn, "m-1").unwrap();
-        assert!(folder.join(REMOVED_MENTOR_FILE).is_file());
+        // Before 0.6 a removed mentor kept its folder, its mentor.json renamed.
+        registry::remove(&conn, "m-1").unwrap();
+        std::fs::rename(folder.join(MENTOR_FILE), folder.join(REMOVED_MENTOR_FILE)).unwrap();
         let back = import_folder(&conn, &folder).unwrap();
         assert_eq!(back.id, "m-1");
         assert!(folder.join(MENTOR_FILE).is_file());

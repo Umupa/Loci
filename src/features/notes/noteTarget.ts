@@ -43,3 +43,10 @@ export async function appendToNote(id: string, text: string): Promise<Note> {
     ...(note.hash ? { expectedHash: note.hash } : {}),
   });
 }
+
+export const NOTE_SAVED_EVENT = "loci:note-saved";
+
+/** Say a passage went into a note, so the window can offer to open it. */
+export function announceNoteSaved(note: Note) {
+  window.dispatchEvent(new CustomEvent<Note>(NOTE_SAVED_EVENT, { detail: note }));
+}

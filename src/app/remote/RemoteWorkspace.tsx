@@ -3,9 +3,8 @@ import { agentLook, agentsSnapshot, agentState, listAgents, subscribeAgents, typ
 import { AgentSessionPane } from "../../features/agents/ui/AgentSessionPane";
 import { AgentGallery } from "../../features/agents/ui/AgentGallery";
 import { MentorWorkspace } from "../../features/mentor/ui/MentorWorkspace";
-import { CANVASES_CHANGED_EVENT, loadCanvases, updateCanvas, type Canvas } from "../../features/canvas/canvas";
 import { requestAddToChat } from "../../features/sessions/model/quoteDraft";
-import { setAgentReading, sharedReading } from "../../features/agents/model/agentReading";
+import { readingSkipped, setAgentReading, sharedReading, skipReadingOnce } from "../../features/agents/model/agentReading";
 import { sessionDisplayTitle, type Session } from "../../features/sessions/model/session";
 import { LOCAL_MODEL_SOURCE, ModelSourceContext, type ModelSource } from "../../features/sessions/ui/modelSource";
 import { SessionPane } from "../../features/sessions/ui/SessionPane";
@@ -86,7 +85,6 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
   const mentor = useActiveMentor();
   const mentorView = useMentorView();
   const [transcriptPool] = useState(() => new TranscriptPool());
-  const [canvases, setCanvases] = useState<Canvas[]>([]);
   const [detailsFor, setDetailsFor] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
   // Settings take the workspace's place, as in a window of this device.
@@ -127,13 +125,6 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
   const viewedIds = [current?.sessionId, page?.kind === "session" ? page.id : undefined].filter((id): id is string => !!id);
   const viewedKey = viewedIds.join("\0");
   useEffect(() => client.view(viewedIds), [client, viewedKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const refresh = () => { void loadCanvases(true).then(setCanvases).catch(() => undefined); };
-    if (connected) refresh();
-    window.addEventListener(CANVASES_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(CANVASES_CHANGED_EVENT, refresh);
-  }, [connected]);
 
   const states = useMemo(() => {
     const map = new Map<string, AgentState>();
@@ -191,8 +182,11 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
     // The mentor on the host is told what this window's reader shows.
     onSubmit: taken((sessionId, text, attachments, options) => {
       const agentId = agents.find((agent) => agent.sessionId === sessionId)?.id;
-      const reading = agentId ? sharedReading(agentId) : undefined;
-      return intents["session.submit"](sessionId, text, attachments, reading ? { ...options, reading } : options);
+      if (!agentId) return intents["session.submit"](sessionId, text, attachments, options);
+      // Dismissed for this message: the host must not fall back to its own reader.
+      const reading = readingSkipped(agentId) ? null : sharedReading(agentId) ?? null;
+      if (reading === null) skipReadingOnce(agentId, false);
+      return intents["session.submit"](sessionId, text, attachments, { ...options, reading });
     }),
     onSaveDraft: taken(intents["session.saveDraft"]), onRemoveDraft: taken(intents["session.removeDraft"]),
     onStop: intents["session.stop"], onCompactContext: taken(intents["session.compact"]),
@@ -248,7 +242,7 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
           </RemoteSettingsScopeContext.Provider>
           : current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
             <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)} busy={!!chatSession?.busy}
-              trailing={IS_MAC ? undefined : <WindowControls />} canvases={canvases}
+              trailing={IS_MAC ? undefined : <WindowControls />}
               onOpen={(next) => mentorView.show(focusedAgent.id, next)} onClose={() => mentorView.close(focusedAgent.id)}
               history={mentorView.historyFor(focusedAgent.id)} onBack={() => mentorView.back(focusedAgent.id)} onForward={() => mentorView.forward(focusedAgent.id)}
               onLessonChange={(lesson) => mentorView.setLesson(focusedAgent.id, lesson)}
@@ -258,8 +252,7 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
               onToggleChat={() => mentorView.toggleChat(focusedAgent.id)}
               onResizeLibrary={(width) => mentorView.resizeLibrary(focusedAgent.id, width)} onResizeChat={(width) => mentorView.resizeChat(focusedAgent.id, width)}
               onReading={(reading) => setAgentReading(focusedAgent.id, reading)}
-              onCanvasAddToChat={(text) => requestAddToChat(text, "plain", { targetSessionId: current.sessionId })}
-              onCanvasTitleChange={(id, title) => void updateCanvas(id, { title }).catch(() => undefined)} onOpenFile={openFile}
+              onOpenFile={openFile}
               renderSession={readerSession} sessionTitle={sessionTitle} chat={chat} />
           </section> : <div className="flex flex-1 items-center justify-center p-8 text-sm text-content/60" role="status">
             {connected || offline ? (agents.length ? "Opening a mentor…" : offline ? "Nothing from the host was kept on this device yet." : "The host has no mentors yet.") : "Waiting for the host…"}

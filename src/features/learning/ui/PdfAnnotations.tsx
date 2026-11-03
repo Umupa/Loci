@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { IS_MAC } from "../../../platform/tauri/platform";
+import { copyText } from "../../../platform/tauri/clipboard";
 import { Popover } from "../../../shared/ui/Popover";
-import { ChevronRight, Pencil, MessageSquare, MessageSquarePlus, Trash2, X } from "../../../shared/ui/icons";
+import { ChevronRight, Copy, MessageSquare, MessageSquarePlus, PenLine, Trash2, X } from "../../../shared/ui/icons";
+import { registerLearningSource } from "../model/learningStore";
 import { openLearningDiscussion } from "../model/navigation";
+import { quoteMarkdown, savePictureQuoteToNote, saveQuoteToNote } from "../model/quoteNote";
+import { blockLabel } from "../model/blockAnchor";
+import { ToolbarButton, ToolbarDivider, useSaveToNote, type NoteShelf } from "./ReadingToolbar";
 import type { Annotation } from "../model/types";
 import { annotationPlace } from "../model/annotationPlace";
 
@@ -45,7 +51,7 @@ export function AnnotationList({ annotations, selectedId, orphans, title = "High
           <span className="pdf-annotations__page"><span className="pdf-annotations__marker" />{annotationPlace(annotation, orphans?.has(annotation.id))}</span>
           <ChevronRight className="size-3" />
         </span>
-        <span className="pdf-annotations__entry-quote line-clamp-3">{annotation.source.quote}</span>
+        <span className="pdf-annotations__entry-quote line-clamp-3">{annotation.source.quote || (annotation.anchor?.block ? blockLabel(annotation.anchor.block.kind) : "")}</span>
         {annotation.note ? <span className="pdf-annotations__entry-note line-clamp-2">{annotation.note}</span> : null}
         {annotation.discussions.length ? <span className="pdf-annotations__entry-discussions"><MessageSquare className="size-3" />{annotation.discussions.length} discussion{annotation.discussions.length === 1 ? "" : "s"}</span> : null}
       </button>)}
@@ -53,61 +59,80 @@ export function AnnotationList({ annotations, selectedId, orphans, title = "High
   </aside>;
 }
 
-/** One mark: its passage, the note on it, the conversations about it, and Ask. */
-export function AnnotationPopover({ annotation, anchor, onDismiss, onAsk, onSave, onDelete, askLabel = "Ask agent", focusNote = false }: Actions & {
+/**
+ * A highlight's bar, the same as a selection's with its own two added: Note,
+ * which opens a small field for a note on it, and Delete. A note already
+ * written shows as a line under the bar.
+ */
+export function AnnotationToolbar({ annotation, anchor, onDismiss, onAsk, onSave, onDelete, askLabel = "Ask", notes, picture }: Actions & {
   annotation: Annotation; anchor: DOMRect; onDismiss: () => void;
+  /** A picture of what is marked (an area of a PDF page), kept with the note above the passage. */
+  picture?: () => Promise<File | null>;
   /** "Ask Kern": the mentor the question goes to. */
   askLabel?: string;
-  /** Opened by Note: the cursor starts in the note. */
-  focusNote?: boolean;
+  /** Where Save to note puts the passage. */
+  notes?: NoteShelf;
 }) {
   const [note, setNote] = useState(annotation.note);
+  const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const run = async (action: () => Promise<void>) => {
+  const noteRef = useRef(note);
+  noteRef.current = note;
+  const markdown = async () => {
+    await registerLearningSource(annotation.source);
+    return quoteMarkdown(annotation.source.quote, annotation.source, noteRef.current);
+  };
+  const title = annotation.source.quote || (annotation.anchor?.block ? `${blockLabel(annotation.anchor.block.kind)} · ${annotation.source.title}` : annotation.source.title);
+  const saving = useSaveToNote(notes, async (target) => picture
+    ? savePictureQuoteToNote(await picture(), await markdown(), title, target, notes?.agentId)
+    : saveQuoteToNote(await markdown(), title, target, notes?.agentId));
+  const run = async (action: () => Promise<unknown>) => {
     setPending(true); setError(null);
     try { await action(); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { setPending(false); }
   };
-  // Text written into the note is worth keeping: dismissing or asking saves it.
+  // Text written into the note is worth keeping: dismissing, asking or saving it elsewhere keeps it.
   const savePending = async () => {
     if (note === annotation.note) return;
     await onSave(annotation, note);
   };
   const saveAndDismiss = async () => { await savePending(); onDismiss(); };
-  return <Popover bare anchor={anchor} side="right" width={320} onDismiss={() => void run(saveAndDismiss)} role="dialog" aria-label="Highlight" className="pdf-annotation-popover">
-    <header className="pdf-annotation-popover__header">
-      <span className="pdf-annotation-popover__badge"><Pencil className="size-3.5" /></span>
-      <div className="pdf-annotation-popover__heading">
-        <h2>Highlight</h2>
-        <p>{annotationPlace(annotation)}</p>
+  const discussion = annotation.discussions[annotation.discussions.length - 1];
+  const picker = saving.picker(onDismiss);
+  return <Popover bare anchor={anchor} side="bottom" align="start" onDismiss={() => void run(saveAndDismiss)}
+    role="toolbar" aria-label="Highlight actions" className="reading-toolbar">
+    {picker ? <div className="reading-toolbar__picker">{picker}</div> : <>
+      <div className="reading-toolbar__actions">
+        <ToolbarButton icon={<PenLine className="size-3.5" />} label="Note" title={annotation.note ? "Edit the note on this highlight" : "Write a note on this highlight"}
+          pressed={editing} disabled={pending} onClick={() => setEditing((open) => !open)} />
+        <ToolbarButton icon={<MessageSquarePlus className="size-3.5" />} label={askLabel} title="Quote this passage in the chat and write your question" disabled={pending}
+          onClick={() => void run(async () => { await savePending(); onAsk({ ...annotation, note }); })} />
+        {saving.button(() => void run(async () => { await savePending(); if (await saving.run()) onDismiss(); }), pending)}
+        <ToolbarButton icon={<Copy className="size-3.5" />} label="Copy quote" iconOnly title="Copy as a Markdown quote, with a link back here" disabled={pending}
+          onClick={() => void run(async () => copyText(await markdown()))} />
+        <ToolbarDivider />
+        {discussion ? <ToolbarButton icon={<MessageSquare className="size-3.5" />} label="Open discussion" iconOnly disabled={pending}
+          title={annotation.discussions.length === 1 ? "Open the conversation about this passage" : `Open the latest of ${annotation.discussions.length} conversations about this passage`}
+          onClick={() => openLearningDiscussion(discussion)} /> : null}
+        <ToolbarButton icon={<Trash2 className="size-3.5" />} label="Delete highlight" iconOnly danger disabled={pending} onClick={() => {
+          if (!annotation.note || window.confirm("Delete this highlight and its note?")) void run(async () => { await onDelete(annotation); onDismiss(); });
+        }} />
       </div>
-      <button type="button" title="Close annotation" aria-label="Close annotation" disabled={pending} onClick={() => void run(saveAndDismiss)} className="pdf-annotations__icon-button"><X className="size-3.5" /></button>
-    </header>
-    <div className="pdf-annotation-popover__body">
-      <blockquote className="pdf-annotation-popover__quote">{annotation.source.quote}</blockquote>
-      <div className="pdf-annotation-popover__note-header">
-        <span>Note</span>
-        <button type="button" disabled={pending || note === annotation.note} onClick={() => void run(() => onSave(annotation, note))}
-          className="pdf-annotation-popover__save">Save note</button>
-      </div>
-      <textarea aria-label="Annotation note" autoFocus={focusNote} placeholder="Add your thoughts or a question…" value={note} onChange={(event) => setNote(event.target.value)}
-        className="pdf-annotation-popover__note" />
-      {annotation.discussions.length ? <div className="pdf-annotation-popover__discussions">
-        <p className="pdf-annotation-popover__section-title">Discussions <span>{annotation.discussions.length}</span></p>
-        <div className="pdf-annotation-popover__discussion-list">
-          {annotation.discussions.map((discussion, index) => <button key={`${discussion.sessionId}:${discussion.blockId}`} type="button"
-            onClick={() => openLearningDiscussion(discussion)} className="pdf-annotation-popover__discussion"><MessageSquare className="size-3.5" /><span>Open discussion {index + 1}</span><ChevronRight className="size-3" /></button>)}
-        </div>
-      </div> : null}
-      {error ? <p role="alert" className="pdf-annotations__error">{error}</p> : null}
-    </div>
-    <footer className="pdf-annotation-popover__footer">
-      <button type="button" disabled={pending} onClick={() => void run(async () => { await savePending(); onAsk({ ...annotation, note }); })} className="pdf-annotation-popover__ask"><MessageSquarePlus className="size-3.5" />{askLabel}</button>
-      <button type="button" title="Delete annotation" aria-label="Delete annotation" disabled={pending} onClick={() => {
-        if (window.confirm("Delete this highlight and its note?")) void run(async () => { await onDelete(annotation); onDismiss(); });
-      }}
-        className="pdf-annotations__icon-button pdf-annotations__delete"><Trash2 className="size-3.5" /></button>
-    </footer>
+      {editing ? <form className="reading-toolbar__note-form" onSubmit={(event) => {
+        event.preventDefault();
+        void run(async () => { await savePending(); setEditing(false); });
+      }}>
+        <textarea aria-label="Note" autoFocus placeholder="Write a note on this passage…" value={note} disabled={pending}
+          onChange={(event) => setNote(event.target.value)}
+          onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
+        <footer>
+          <span>{IS_MAC ? "⌘↩" : "Ctrl+Enter"} to save</span>
+          <button type="button" disabled={pending} onClick={() => { setNote(annotation.note); setEditing(false); }}>Cancel</button>
+          <button type="submit" disabled={pending || note === annotation.note}>Save</button>
+        </footer>
+      </form> : annotation.note ? <button type="button" className="reading-toolbar__note" title="Edit the note" onClick={() => setEditing(true)}>{annotation.note}</button> : null}
+    </>}
+    {error ? <p role="alert" className="reading-toolbar__error">Could not do that. {error}</p> : null}
   </Popover>;
 }

@@ -1,0 +1,238 @@
+/* The bar beside a passage: ink on the paper it floats over, one hairline,
+   no title. Paper under a PDF is always white, so the bar keeps an opaque
+   theme surface to stay readable in either theme. */
+.reading-toolbar {
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
+  border-radius: 10px;
+  background: var(--color-background-base);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%), 0 4px 14px rgb(0 0 0 / 10%);
+  color: var(--color-content);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.reading-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px;
+  white-space: nowrap;
+}
+
+.reading-toolbar__button {
+  display: flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--color-content) 78%, transparent);
+}
+
+.reading-toolbar__button[aria-label] {
+  width: 28px;
+  justify-content: center;
+  padding: 0;
+}
+
+.reading-toolbar__button:enabled:hover,
+.reading-toolbar__button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--color-content) 6%, transparent);
+  color: var(--color-content);
+}
+
+.reading-toolbar__button:focus-visible,
+.reading-toolbar__note-form button:focus-visible {
+  outline: 2px solid var(--color-accent-ring);
+  outline-offset: -2px;
+}
+
+.reading-toolbar__button:disabled {
+  opacity: 0.4;
+}
+
+.reading-toolbar__split {
+  display: flex;
+}
+
+.reading-toolbar .reading-toolbar__chevron {
+  width: 18px;
+  margin-left: -2px;
+  color: color-mix(in srgb, var(--color-content) 45%, transparent);
+}
+
+.reading-toolbar__divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: color-mix(in srgb, var(--color-content) 12%, transparent);
+}
+
+.reading-toolbar__button--danger:enabled:hover {
+  color: var(--color-diff-del-fg);
+}
+
+/* The note on a highlight, under its bar: read as a line, written in a small field. */
+.reading-toolbar__note {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  max-height: 84px;
+  overflow: auto;
+  padding: 6px 11px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--color-content) 8%, transparent);
+  color: color-mix(in srgb, var(--color-content) 62%, transparent);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.reading-toolbar__note:hover {
+  color: var(--color-content);
+}
+
+.reading-toolbar__note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 6px 6px;
+}
+
+.reading-toolbar__note-form textarea,
+.reading-toolbar__comment textarea {
+  user-select: text;
+  min-height: 56px;
+  max-height: 200px;
+  resize: vertical;
+  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
+  border-radius: 6px;
+  padding: 6px 8px;
+  outline: none;
+  background: color-mix(in srgb, var(--color-content) 3%, transparent);
+  color: var(--color-content);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.reading-toolbar__note-form textarea:focus,
+.reading-toolbar__comment textarea:focus {
+  border-color: color-mix(in srgb, var(--color-content) 28%, transparent);
+}
+
+.reading-toolbar__note-form textarea::placeholder,
+.reading-toolbar__comment textarea::placeholder {
+  color: color-mix(in srgb, var(--color-content) 40%, transparent);
+}
+
+.reading-toolbar__note-form footer,
+.reading-toolbar__comment footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  color: color-mix(in srgb, var(--color-content) 40%, transparent);
+  font-size: 11px;
+}
+
+.reading-toolbar__note-form footer span {
+  margin-right: auto;
+}
+
+.reading-toolbar__note-form footer button,
+.reading-toolbar__comment footer button {
+  height: 24px;
+  border-radius: 6px;
+  padding: 0 8px;
+  color: var(--color-content);
+  font-size: 12px;
+}
+
+.reading-toolbar__note-form footer button:enabled:hover,
+.reading-toolbar__comment footer button:enabled:hover {
+  background: color-mix(in srgb, var(--color-content) 6%, transparent);
+}
+
+.reading-toolbar__note-form button[type="submit"],
+.reading-toolbar__comment button[type="submit"] {
+  background: color-mix(in srgb, var(--color-content) 8%, transparent);
+}
+
+.reading-toolbar__note-form footer button:disabled,
+.reading-toolbar__comment footer button:disabled {
+  opacity: 0.4;
+}
+
+/* ⌥⌘M: a comment on the passage, for the chat. */
+.reading-toolbar__comment {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.reading-toolbar__comment blockquote {
+  user-select: text;
+  max-height: 72px;
+  overflow: auto;
+  border-left: 2px solid var(--color-mark-wash-strong);
+  padding-left: 8px;
+  color: color-mix(in srgb, var(--color-content) 62%, transparent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.reading-toolbar__picker {
+  padding: 4px;
+}
+
+/* The picker takes the bar's place, at the bar's width. */
+.reading-toolbar__picker [role="menu"] {
+  width: auto;
+  min-width: 16rem;
+}
+
+.reading-toolbar__error {
+  max-width: 360px;
+  padding: 0 11px 7px;
+  color: var(--color-diff-del-fg);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* The handle a block (a table, a diagram, a code block, a picture) shows
+   while the pointer is on it; it opens the block's bar. */
+.block-handle {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-content) 12%, transparent);
+  border-radius: 6px;
+  background: var(--color-background-base);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+  color: color-mix(in srgb, var(--color-content) 55%, transparent);
+}
+
+.block-handle:hover,
+.block-handle:focus-visible {
+  color: var(--color-content);
+}
+
+.block-handle:focus-visible {
+  outline: 2px solid var(--color-accent-ring);
+  outline-offset: 1px;
+}
+
+/* On a block already highlighted, the handle wears the highlight's colour. */
+.block-handle[data-marked] {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--color-mark) 24%, var(--color-background-base));
+  color: var(--color-content);
+}

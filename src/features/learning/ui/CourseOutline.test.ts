@@ -9,7 +9,6 @@ import { CoursePane } from "./CoursePane";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("../../agents/model/agent", () => ({ findAgent: vi.fn() }));
-vi.mock("../../canvas/concepts", () => ({ setConceptStatus: vi.fn() }));
 vi.mock("../../sessions/ui/AgentMarkdown", () => ({ AgentMarkdown: ({ text }: { text: string }) => createElement("div", null, text) }));
 vi.mock("../../../shared/hooks/useCodePlugin", () => ({ useCodePlugin: () => ({ highlight: () => null, getThemes: () => ["github-light", "github-dark"] }) }));
 vi.mock("../../../shared/hooks/useColorScheme", () => ({ useColorScheme: () => "dark" }));

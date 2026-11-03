@@ -241,7 +241,7 @@ export const mentorCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "mentors.delete",
-    summary: "Delete a mentor, its conversation, documents and courses. Its soul and memory files stay on disk.",
+    summary: "Delete a mentor: its folder (sources, courses, notes, repos, memory) moves to the Trash; its conversation, highlights and progress are deleted. Folders it was given stay.",
     fields: [mentorField(true), yes],
     callers: ["external"],
     destructive: true,

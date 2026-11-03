@@ -1,11 +1,10 @@
-import { agentCanvasScope, agentLook, canvasScopeAgentId, type Agent } from "../../agents/model/agent";
+import { agentLook, type Agent } from "../../agents/model/agent";
 import type { StoredDocument } from "../../agents/model/agentDocuments";
-import type { Canvas } from "../../canvas/canvas";
 import { courseItems, type CourseWithProgress } from "../../learning/model/course";
 import type { Note } from "../../notes";
 import type { MentorPage } from "./mentorPage";
 
-export type MentorSearchKind = "mentor" | "course" | "lesson" | "source" | "note" | "canvas";
+export type MentorSearchKind = "mentor" | "course" | "lesson" | "source" | "note";
 
 /** One thing ⌘K can open: a mentor, or a page in a mentor's reader. */
 export type MentorSearchItem = {
@@ -25,11 +24,10 @@ export type MentorSearchSources = {
   courses: readonly CourseWithProgress[];
   documents: ReadonlyMap<string, readonly StoredDocument[]>;
   notes: readonly Note[];
-  canvases: readonly Canvas[];
 };
 
 /** Everything searchable, mentors first, each mentor's library after it. */
-export function mentorSearchItems({ agents, courses, documents, notes, canvases }: MentorSearchSources): MentorSearchItem[] {
+export function mentorSearchItems({ agents, courses, documents, notes }: MentorSearchSources): MentorSearchItem[] {
   const names = new Map(agents.map((agent) => [agent.id, agentLook(agent).name]));
   const items: MentorSearchItem[] = agents.map((agent) => ({ id: `mentor:${agent.id}`, kind: "mentor", title: names.get(agent.id)!, context: agentLook(agent).role ?? "Mentor", agentId: agent.id }));
   for (const course of courses) {
@@ -56,15 +54,10 @@ export function mentorSearchItems({ agents, courses, documents, notes, canvases 
     items.push({ id: `note:${note.id}`, kind: "note", title: note.title || "Untitled", context: owner ? names.get(owner)! : "Notes", ...(owner ? { agentId: owner } : {}),
       page: { kind: "note", id: note.id } });
   }
-  for (const canvas of canvases) {
-    const owner = canvasScopeAgentId(canvas.cwd);
-    if (!owner || !names.has(owner) || canvas.cwd !== agentCanvasScope(owner)) continue;
-    items.push({ id: `canvas:${canvas.id}`, kind: "canvas", title: canvas.title, context: names.get(owner)!, agentId: owner, page: { kind: "canvas", id: canvas.id } });
-  }
   return items;
 }
 
-const KIND_ORDER: Record<MentorSearchKind, number> = { mentor: 0, course: 1, lesson: 2, source: 3, note: 4, canvas: 5 };
+const KIND_ORDER: Record<MentorSearchKind, number> = { mentor: 0, course: 1, lesson: 2, source: 3, note: 4 };
 
 function score(title: string, query: string): number | null {
   const text = title.toLocaleLowerCase();

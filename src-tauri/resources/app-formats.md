@@ -160,8 +160,7 @@ heading's visible title for `section`: the reader focuses on that heading and
 its descendants, stopping before the next heading of the same or higher level.
 Omit `section` or leave it blank to
 read the whole document; an unmatched title shows the full document.
-A course can
-link a canvas through optional `canvasId`. Updating the same course ID retains
+Updating the same course ID retains
 progress for lesson IDs that remain in the course. A fence that still carries
 the JSON body after its front matter is shown as a preview; Open saves it.
 
@@ -258,17 +257,6 @@ Section content is preserved verbatim. `(empty file)` as the entire BEFORE
 section represents an empty file. This block displays a change; it does not
 apply it to disk.
 
-## Canvas
-
-```loci-canvas
-id: existing-canvas-id
-title: System overview
-```
-
-The block links to an existing canvas. It does not create or change a scene.
-Canvas creation and editing are available through the canvas tools and app
-CLI actions listed above.
-
 # Your folder
 
 A mentor's library is a folder of files (`<agent>.folder`, such as
@@ -286,11 +274,10 @@ guides/<id>.md            what you wrote: reading guides, briefs
 courses/<id>.yaml         courses
 courses/_path.yaml        the learning path (path.write)
 notes/<id>.md             notes
-canvases/<id>.excalidraw  drawings (Excalidraw files)
 repos/  lab/              cloned source and experiments; not indexed
 ```
 
-An `<id>` uses letters, digits, `-` and `_` (courses, notes and drawings:
+An `<id>` uses letters, digits, `-` and `_` (courses and notes:
 ASCII only). A source and a guide never share an id. Files whose names
 start with a dot or end in `~`, `.tmp` or `.swp` are ignored.
 

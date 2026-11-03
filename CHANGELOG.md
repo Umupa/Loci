@@ -6,7 +6,7 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ### Added
 
-- **Remote access.** Settings → Remote access lets your other devices use this computer's workspace. Mentors, courses, conversations, notes, drawings, PDFs and highlights stay here and are read and written here; the other device sends what you do and shows what comes back. It is off until you turn it on.
+- **Remote access.** Settings → Remote access lets your other devices use this computer's workspace. Mentors, courses, conversations, notes, PDFs and highlights stay here and are read and written here; the other device sends what you do and shows what comes back. It is off until you turn it on.
 - **Device groups.** Create a group on the host and share its `loci-group:…` key. Another installation joins by pasting the key, without an approval step. The device list shows every member, whether it is online and when it was last active; **Connect** opens a device and **Remove** revokes one for good.
 - **A window connected to another device.** It looks like the host's own window: open a mentor, ask, answer approvals, take notes, highlight a PDF, and change the mentor's model and permissions from its settings dialog. A bar at the top names the host and says whether the connection is up.
 - **Files on the host.** Choosing a file in a connected window browses the host's disk. Files and pictures dragged in or copied from this device are uploaded to the host first and keep their names.
@@ -16,6 +16,38 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 ### Changed
 
 - In a window connected to another device, the model list and the settings that decide what the host does come from the host. Appearance, layout and shortcuts stay with this device.
+
+## [0.6.0] - 2026-11-02
+
+### Added
+
+- **Highlight a table, a diagram or a figure as a whole.** Hover a table, a Mermaid diagram, a code block or a picture in a source, guide, lesson or Markdown file and a small handle appears beside it; it opens the selection's bar: Highlight · Ask · Save to note · Copy. The mentor and your notes get the block as written (the table's Markdown, the diagram's source, the fenced code, `![alt](address)`), not its rendered words. A block's highlight follows it when the text around it changes. In a PDF, hold ⌥ (Option) and drag to draw an area around a figure or a table: highlight it, or ask about it or save it with the words inside the area and a picture of it (attached to the message, kept with the note).
+- **The reader keeps your place.** Each mentor remembers where you were in each page: the page of a PDF, the paragraph of a source, guide, lesson or note, the line of a code file. Switching to another page or mentor and back, or restarting Loci, opens it there again. A link or `reader.open` that names a place still goes to that place. The last 50 pages per mentor are kept.
+- **See what your mentor knows you are reading.** A small tag above a mentor's composer names the page open beside the chat and where you are in it: the course and lesson, the PDF page, a file's lines, and how many lines you have selected. It follows you as you scroll and select. Its × leaves the page out of the next message only; the one after carries it again.
+- **`@` reaches your whole library.** The picker groups what it offers into courses, lessons, sources, guides, notes, highlights and files, each row saying where it lives (a lesson's course, a file's folder). With nothing typed it starts with what you opened lately and the lessons of the open course. Type `@资料/` or `@source/` (also `课程/` `course/`, `课/` `lesson/`, `导读/` `guide/`, `笔记/` `note/`, `高亮/` `highlight/`, `文件/` `file/`) to keep one group; Tab jumps from group to group. A mentioned course, lesson, source, guide or highlight reaches the mentor with how to read it.
+
+### Changed
+
+- **Lens answers a repository question in minutes.** Given a repository, Lens now reads it and writes a one-page brief — what it is and who it is for, the one data flow that explains it, 2–4 design decisions with links to the code, and the three files to read first — without saving the project's prose or building a course. Ask to go deeper ("深入读" or "带我读这个仓库") and it builds the 6–12 lesson course as before, with the brief as the last lesson of chapter 1.
+- **Deleting a mentor deletes it.** Its folder (sources, guides, courses, notes, translations, repos, lab, Soul and memory) moves to the Trash, where you can still get it back: put it back where it was and Loci picks the mentor up again. Its conversation, highlights, lesson progress, reading places and view are deleted. Folders you gave it, a working folder outside its own and the shared `~/Loci/repos` are left alone. Before, the folder stayed on disk with `mentor.json` renamed. The same holds for `loci mentors delete`.
+- **A calmer Courses list.** A learning path shows as its courses in order on one line, each with a numbered dot, its progress and a small "After 2, 3" tag while a course worth reading first is unread; the course you are in opens right under its row with its chapters and lessons, one course at a time, and clicking its row folds it. Without a path, courses are rows of the same kind (a single course shows its title and progress over its outline), with "Ask … for a course" and "Ask … to plan a path" at the end instead of a switcher menu. Lessons lose their numbers and show what they read (source, code tour or comparison) instead; titles take up to two lines, and an ordinal a mentor put in a course title ("一、", "1.") is left out. One style marks where you are, and the text comes in two sizes.
+
+- **Save a passage to a note.** Selecting text, or clicking a highlight, offers **Save to note**: the passage goes to the end of a note as a Markdown quote, with a link back to its page, lines or section and your note on it under the quote. The first time you pick a note or start a new one; after that it goes to the note you used last, per mentor, with a chevron to choose another. A toast says where it went and opens the note. **Copy quote** puts the same Markdown on the clipboard.
+- ⌘-click (Ctrl-click) a Loci link in a note, such as a saved passage, to open it in the app; a passage's link scrolls to its words and flashes them.
+
+### Changed
+
+- **Highlights and their notes, redone.** Selected text and an existing highlight get the same small bar beside the passage, in every reader (PDF, sources, guides, lessons, code): Highlight · Ask · Save to note · Copy, and on a highlight Note and Delete. The large highlight card is gone; a note on a highlight opens as a small field only when you ask for it, and shows as a line under the bar once written.
+- **Ask puts the passage in the chat as a quote** and leaves the cursor after it for your question, instead of prefilling "Explain this passage.".
+- Highlights are a pale wash of the mentor's colour, with no outline, the same on PDF pages and in text. Deleting a highlight asks first only when it has a note.
+
+### Fixed
+
+- Selecting text in a PDF no longer jumps when the pointer crosses the blank space between lines or columns, and a finished selection grows to the whole words it touches.
+
+### Removed
+
+- **Canvases.** The Excalidraw canvas is gone, with everything around it: the drawing pane and its library entries, Save to canvas, drawings in the `@` picker, `loci-canvas` cards and `loci://canvas` links, the built-in `loci_excalidraw` MCP server and its switch in Settings → MCP, the `canvas.*` app actions, `loci canvases …` and `loci reader open --canvas`, the `canvasTools` setting and a course's `canvasId`. On the first start, Loci deletes the canvas tables and each mentor's `canvases/` folder; nothing else in the folder is touched. Loci no longer looks for Node.js or Bun.
 
 ## [0.5.0] - 2026-11-01
 
@@ -196,7 +228,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Umupa/Loci/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Umupa/Loci/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Umupa/Loci/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Umupa/Loci/compare/v0.2.0...v0.3.0

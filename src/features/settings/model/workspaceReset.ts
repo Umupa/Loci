@@ -13,7 +13,7 @@ const SETTINGS = new Set([
   "defaultModels", "favoriteModels", "hiddenPickerProviders", "lastModel",
   "lastModelSettings", "recentModels", "modelPickerTab", "providerAccounts.v1",
   "providerAccountSelections.v1", "providerBinaryPaths.v1", "disabledSkillPaths",
-  "builtinExcalidrawMcpEnabled", "diffPalette", "files.showHidden", "showExcludedFiles",
+  "diffPalette", "files.showHidden", "showExcludedFiles",
 ].map((key) => `loci.${key}`));
 
 export function workspaceKeysToRemove(keys: readonly string[]): string[] {

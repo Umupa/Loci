@@ -1,4 +1,4 @@
-import { courseItems, type CourseWithProgress, type LearningStatus } from "../../learning/model/course";
+import { courseItems, type CourseLesson, type CourseWithProgress, type LearningStatus } from "../../learning/model/course";
 
 /** The four kinds of things the library column shows, one at a time. */
 export const LIBRARY_SEGMENTS = ["courses", "sources", "notes", "files"] as const;
@@ -32,4 +32,29 @@ export function nextLesson(course: Pick<CourseWithProgress, "data" | "progress">
   let lastRead = -1;
   items.forEach((item, at) => { if (status(item.id) === "mastered") lastRead = at; });
   return items.slice(lastRead + 1).find((item) => status(item.id) === "untouched") ?? items.find((item) => status(item.id) === "untouched");
+}
+
+/**
+ * A course's title without the ordinal a mentor sometimes starts it with
+ * ("一、", "2.", "(3)"): the path already shows the order. Only for display;
+ * the course keeps its title.
+ */
+export function withoutOrdinal(title: string): string {
+  const shown = title.replace(/^\s*(?:[一二三四五六七八九十百]+\s*[、.．]|\d{1,3}\s*(?:[、．)）]|\.(?!\d))|[(（]\d{1,3}[)）])\s*/u, "");
+  return shown.trim() ? shown : title;
+}
+
+/** What a lesson reads: a source, code shown in place, or a comparison. */
+export type LessonKind = "source" | "code" | "compare";
+
+export function lessonKind(lesson: Pick<CourseLesson, "compare" | "file" | "pages">): LessonKind {
+  if (lesson.compare) return "compare";
+  // A PDF on disk is a source read in the original; any other file is code.
+  if (lesson.file && !lesson.pages && !/\.pdf$/i.test(lesson.file)) return "code";
+  return "source";
+}
+
+/** How far a course is read, as its marker on the path draws it. */
+export function courseState(read: number, total: number): LearningStatus {
+  return total > 0 && read >= total ? "mastered" : read > 0 ? "learning" : "untouched";
 }

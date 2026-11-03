@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { CourseWithProgress, LearningStatus } from "../../learning/model/course";
 import { LibraryOutline } from "./LibraryOutline";
+import { listKeyDown } from "./listKeys";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
@@ -13,8 +14,8 @@ const course = (progress: [string, LearningStatus][]): CourseWithProgress => ({
   id: "sds", agentId: "a", title: "SDS", updatedAt: 1, progress: new Map(progress),
   data: { engine: "reading", chapters: [
     { title: "Layout", lessons: [{ id: "bytes", title: "Bytes" }, { id: "flags", title: "Flags" }] },
-    { title: "Growth", lessons: [{ id: "room", title: "Room" }] },
-    { title: "Review", lessons: [{ id: "self", title: "Self check" }] },
+    { title: "Growth", lessons: [{ id: "room", title: "Room", file: "/repo/sds.c", lines: [1, 9] }] },
+    { title: "Review", lessons: [{ id: "self", title: "Self check", compare: [{ label: "a", document: "x" }, { label: "b", document: "y" }] }] },
   ] },
 });
 const build = (progress: [string, LearningStatus][]): CourseWithProgress => ({
@@ -46,16 +47,24 @@ it("names build-your-own statuses in product words and describes a lesson's mark
   const marks = document.getElementById(row.getAttribute("aria-describedby")!);
   expect(marks?.textContent).toBe("3 highlights");
   expect(row.querySelector(".library-mark--learning")).not.toBeNull();
+  // Build-your-own steps are all code: no kind to tell apart.
+  expect(row.querySelector("[data-lesson-kind]")).toBeNull();
 });
 
 it("marks read and begun lessons, folds a chapter wholly read, and follows the open lesson", async () => {
   const onSelect = vi.fn();
   const progress: [string, LearningStatus][] = [["self", "mastered"], ["bytes", "mastered"], ["flags", "learning"]];
-  await act(async () => root.render(createElement(LibraryOutline, { course: course(progress), activeId: "flags", onSelect, badge: (id) => createElement("i", { "data-badge": id }) })));
+  const outline = (activeId: string) => createElement("div", { onKeyDown: listKeyDown },
+    createElement(LibraryOutline, { course: course(progress), activeId, onSelect, badge: (id) => createElement("i", { "data-badge": id }) }));
+  await act(async () => root.render(outline("flags")));
   // Each lesson has room for a count, such as its highlights.
   expect(host.querySelector('[data-library-lesson="room"] [data-badge="room"]')).not.toBeNull();
   expect(chapters().map((chapter) => chapter.getAttribute("aria-expanded"))).toEqual(["true", "true", "false"]);
-  expect(chapters()[2].textContent).toContain("1");
+  // Each chapter says how much of it is read; lessons carry no numbers, only what kind of reading they are.
+  expect(chapters().map((chapter) => chapter.textContent)).toEqual(["Layout1/2", "Growth0/1", "Review1/1"]);
+  expect(host.querySelector('[data-library-lesson="flags"]')!.textContent).toBe("Flags");
+  expect([...host.querySelectorAll<HTMLElement>("[data-lesson-kind]")].map((kind) => [kind.dataset.lessonKind, kind.title]))
+    .toEqual([["source", "Source"], ["source", "Source"], ["code", "Code tour"]]);
   expect(lessons()).toEqual(["bytes", "flags", "room"]);
   expect(host.querySelector('[data-library-lesson="bytes"]')!.className).toContain("library-lesson--mastered");
   expect(host.querySelector('[data-library-lesson="flags"] .library-mark--learning')).not.toBeNull();
@@ -63,9 +72,10 @@ it("marks read and begun lessons, folds a chapter wholly read, and follows the o
   expect(scrolled).toContain("flags");
 
   // Opening a lesson in a folded chapter unfolds it and brings it into view.
-  await act(async () => root.render(createElement(LibraryOutline, { course: course(progress), activeId: "self", onSelect })));
+  await act(async () => root.render(outline("self")));
   expect(chapters()[2].getAttribute("aria-expanded")).toBe("true");
   expect(scrolled.at(-1)).toBe("self");
+  expect(host.querySelector('[data-library-lesson="self"] [data-lesson-kind]')?.getAttribute("title")).toBe("Comparison");
 
   // Chapters fold by hand, and with ← / →.
   await act(async () => chapters()[0].click());

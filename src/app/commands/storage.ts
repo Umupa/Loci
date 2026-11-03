@@ -80,10 +80,10 @@ export const storageCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "mentors.import",
-    summary: "Import a mentor from an exported .zip (--path), or bring back a mentor folder where it is (--folder), such as one kept after a reset or removal.",
+    summary: "Import a mentor from an exported .zip (--path), or bring back a mentor folder where it is (--folder), such as one put back from the Trash outside the mentors folder.",
     fields: [
       field("path", "string", "Absolute path of the .zip", { max: 4096 }),
-      field("folder", "string", "Absolute path of a mentor folder (it holds mentor.json or mentor.removed.json)", { max: 4096 }),
+      field("folder", "string", "Absolute path of a mentor folder (it holds mentor.json, or mentor.removed.json from a Loci before 0.6)", { max: 4096 }),
     ],
     callers: ["external"],
     run: async (_ctx, input) => {

@@ -1,9 +1,4 @@
 import { nativeModelId } from "../../../../features/sessions/model/models";
-import {
-  appCliPath,
-  builtinCliCall,
-  builtinCliDecision,
-} from "../../../../features/sessions/model/builtinCli";
 import { AcpSubagents } from "../../core/acpSubagents";
 import type { RuntimeMode } from "../../../../features/sessions/model/session";
 import { AcpClient, type AcpHandlers } from "../../core/acp";
@@ -66,8 +61,6 @@ type Live = {
   stale: boolean;
   runtimeMode: RuntimeMode;
   planning: boolean;
-  /** Loci's own executable: only its built-in tool calls are answered for the user. */
-  cliPath?: string;
   onEvent: (event: HarnessEvent) => void;
   approvals: Map<number, (decision: ApprovalDecision) => void>;
   questions: Map<number, PendingQuestion>;
@@ -434,10 +427,7 @@ async function startLive(input: SendTurnInput, life: number): Promise<Live> {
   if (retired()) throw new Error("Antigravity session stopped during startup");
   const childKey = `${input.sessionId}#${childSeq++}`;
 
-  const [{ path, args }, cliPath] = await Promise.all([
-    resolveAntigravityBinary(),
-    appCliPath(),
-  ]);
+  const { path, args } = await resolveAntigravityBinary();
   const handlers: AcpHandlers = {};
   const acp = new AcpClient(childKey, handlers);
   const pendingSetup = { acp, childKey };
@@ -613,7 +603,6 @@ async function startLive(input: SendTurnInput, life: number): Promise<Live> {
       stale: false,
       runtimeMode: input.runtimeMode,
       planning: input.intent === "plan",
-      cliPath,
       onEvent: input.onEvent,
       approvals: new Map(),
       questions: new Map(),
@@ -845,19 +834,6 @@ async function handlePermission(live: Live, id: number, params: unknown) {
       preview: request.preview,
     });
   }
-  // Antigravity reaches Loci's canvas tools by running the app's
-  // CLI. Such a call follows the tools' own rules, as it would over MCP, not
-  // the rule for arbitrary shell commands. Only this app's executable counts.
-  const builtin =
-    live.cliPath && !["edit", "delete", "move"].includes(request.kind ?? "")
-      ? builtinCliCall(request.command, live.cliPath)
-      : undefined;
-  const builtinDecision = builtin
-    ? builtinCliDecision(builtin, live.runtimeMode, live.planning)
-    : undefined;
-  const builtinOption = builtinDecision
-    ? permissionOptionId(builtinDecision, request.optionIds, request.optionKinds)
-    : null;
   let optionId: string | null;
   if (
     !live.promptInFlight ||
@@ -866,8 +842,6 @@ async function handlePermission(live: Live, id: number, params: unknown) {
     request.optionIds.length === 0
   ) {
     optionId = null;
-  } else if (builtinOption) {
-    optionId = builtinOption;
   } else if (live.planning) {
     optionId = permissionOptionId(
       request.kind === "read" || request.kind === "search" ? "allow" : "deny",

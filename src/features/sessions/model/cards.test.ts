@@ -5,7 +5,6 @@ import {
   fencedBlocks,
   parseDocument,
   parseMindmap,
-  parseCanvasLink,
   parseTodo,
 } from "./cards";
 
@@ -107,14 +106,6 @@ describe("mind maps", () => {
   it("gathers several top branches under one root, and is nothing when empty", () => {
     expect(parseMindmap("- A\n- B")).toEqual({ text: "", children: [{ text: "A", children: [] }, { text: "B", children: [] }] });
     expect(parseMindmap("\n")).toBeUndefined();
-  });
-});
-
-describe("canvas links", () => {
-  it("reads the id and the name, or a bare id", () => {
-    expect(parseCanvasLink("id: abc-123\ntitle: Pod lifecycle")).toEqual({ id: "abc-123", title: "Pod lifecycle" });
-    expect(parseCanvasLink("abc-123\n")).toEqual({ id: "abc-123" });
-    expect(parseCanvasLink("the canvas I drew")).toBeUndefined();
   });
 });
 

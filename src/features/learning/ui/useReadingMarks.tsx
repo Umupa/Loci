@@ -6,11 +6,13 @@ import { appendSelectionQuote, requestAddToChat } from "../../sessions/model/quo
 import { deleteAnnotation, listAnnotations, registerLearningSource, subscribeLearningChanges, upsertAnnotation } from "../model/learningStore";
 import { describeRange } from "../model/textAnchor";
 import type { Annotation, AnnotationTarget, LearningSource, TextAnchor } from "../model/types";
-import { AnnotationList, AnnotationPopover } from "./PdfAnnotations";
+import { blockAnchor, blockAt, blockLabel, type ReadingBlock } from "../model/blockAnchor";
+import { quoteMarkdown, saveQuoteToNote } from "../model/quoteNote";
+import { BlockHandle, BlockToolbar } from "./BlockToolbar";
+import { AnnotationList, AnnotationToolbar } from "./PdfAnnotations";
 import type { ChatIntent } from "./ReadingSelectionMenu";
+import { useNoteShelf } from "./ReadingToolbar";
 import { flashRange, useTextHighlights } from "./useTextHighlights";
-
-export const ASK_PROMPT = "Explain this passage.";
 
 /** Show a reader's list of highlights, dropping from this anchor. */
 export type MarksListRequest = { anchor: PopoverAnchor; onClose: () => void; title?: string };
@@ -33,11 +35,20 @@ type Options = {
 
 const targetKey = (target?: AnnotationTarget) => target ? JSON.stringify(target) : "";
 
+/**
+ * Ask: the passage quoted at the end of the draft, with the reader's note on
+ * it, and the cursor after them for the question.
+ */
+export function askDraft(quote: string, note = ""): string {
+  return appendSelectionQuote("", quote) + (note.trim() ? `My note: ${note.trim()}\n\n` : "");
+}
+
 /** The draft a passage becomes: a question, a quote or a comment, with its source when it has one. */
-export function chatDraft(intent: ChatIntent, text: string, source?: LearningSource): [string, "plain" | "quote"] {
-  if (source) return [intent.kind === "ask" ? ASK_PROMPT : intent.kind === "comment" ? intent.text : "", "plain"];
+export function chatDraft(intent: ChatIntent, text: string, source?: LearningSource): [string, "plain" | "quote" | "prompt"] {
+  if (intent.kind === "ask") return [askDraft(text), "prompt"];
+  if (source) return [intent.kind === "comment" ? intent.text : "", "plain"];
   if (intent.kind === "quote") return [text, "quote"];
-  return [appendSelectionQuote("", text) + (intent.kind === "ask" ? ASK_PROMPT : intent.text), "plain"];
+  return [appendSelectionQuote("", text) + intent.text, "plain"];
 }
 
 /**
@@ -48,7 +59,8 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
   const { target, source: cite, lines } = spec;
   const key = targetKey(target);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [open, setOpen] = useState<{ id: string; at: DOMRect; note: boolean } | null>(null);
+  const [open, setOpen] = useState<{ id: string; at: DOMRect } | null>(null);
+  const [openBlock, setOpenBlock] = useState<{ block: ReadingBlock; at: DOMRect } | null>(null);
   const agent = agentId ? findAgent(agentId) : undefined;
   const askLabel = agent?.name ? `Ask ${agent.name}` : "Ask";
   const chatTarget = agent?.sessionId ? { targetSessionId: agent.sessionId } : {};
@@ -56,6 +68,7 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
   useEffect(() => {
     setAnnotations([]);
     setOpen(null);
+    setOpenBlock(null);
     if (!target) return;
     let current = true;
     const load = () => void listAnnotations(target).then((found) => { if (current) setAnnotations(found); }, () => {});
@@ -64,9 +77,9 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
     return () => { current = false; stop(); };
   }, [key]);
 
-  const { orphans, rangeOf } = useTextHighlights(root, annotations, {
+  const { orphans, rangeOf, blockMark } = useTextHighlights(root, annotations, {
     selectedId: open?.id, enabled,
-    onOpen: (annotation, at) => setOpen({ id: annotation.id, at, note: false }),
+    onOpen: (annotation, at) => setOpen({ id: annotation.id, at }),
   });
 
   const anchorOf = useCallback((passage: FileSelection): TextAnchor | null => {
@@ -76,16 +89,25 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
     return describeRange(element, passage.range, found ? { lines: found } : {});
   }, [root, lines]);
 
-  const toChat = useCallback(async (passage: FileSelection, intent: ChatIntent, current: () => boolean = () => true) => {
+  /** The passage's source, saved so a link or a chat can name it. */
+  const sourceOf = useCallback(async (passage: FileSelection) => {
     const anchor = cite ? anchorOf(passage) ?? { exact: passage.text, prefix: "", suffix: "", start: 0, end: 0 } : null;
     const source = cite && anchor ? cite(anchor, passage.text) : undefined;
     if (source) await registerLearningSource(source);
+    return source;
+  }, [cite, anchorOf]);
+
+  const toChat = useCallback(async (passage: FileSelection, intent: ChatIntent, current: () => boolean = () => true) => {
+    const source = await sourceOf(passage);
     if (!current()) return;
     const [text, mode] = chatDraft(intent, passage.text, source);
     requestAddToChat(text, mode, { ...(source ? { sources: [source] } : {}), ...chatTarget });
-  }, [cite, anchorOf, agent?.sessionId]);
+  }, [sourceOf, agent?.sessionId]);
 
-  const onMark = useCallback(async (passage: FileSelection, note: boolean) => {
+  const quote = useCallback(async (passage: FileSelection) => quoteMarkdown(passage.text, await sourceOf(passage)), [sourceOf]);
+  const notes = useNoteShelf(agentId);
+
+  const onMark = useCallback(async (passage: FileSelection) => {
     if (!target || !cite) return;
     const anchor = anchorOf(passage);
     if (!anchor) throw new Error("This selection has no readable text.");
@@ -94,21 +116,64 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
     const saved = await upsertAnnotation({ id, documentId: "", target, anchor, source: cite(anchor, anchor.exact, id),
       anchors: [], note: "", discussions: [], createdAt: now, updatedAt: now });
     setAnnotations((current) => [...current.filter((entry) => entry.id !== saved.id), saved]);
-    setOpen({ id: saved.id, at: passage.rect, note });
+    setOpen({ id: saved.id, at: passage.rect });
   }, [key, cite, anchorOf]);
+
+  /** A whole block's anchor and its source, saved so a link or a chat can name it. The block's Markdown is the quote. */
+  const blockSource = async (block: ReadingBlock, annotationId?: string) => {
+    const element = root.current;
+    const anchor = element ? blockAnchor(element, block) : null;
+    const source = cite && anchor ? cite(anchor, block.source, annotationId) : undefined;
+    if (source && !annotationId) await registerLearningSource(source);
+    return { anchor, source };
+  };
+
+  const markBlock = async (block: ReadingBlock, at: DOMRect) => {
+    if (!target || !cite) return;
+    const id = crypto.randomUUID();
+    const { anchor, source } = await blockSource(block, id);
+    if (!anchor || !source) throw new Error("This block can no longer be found.");
+    const now = Date.now();
+    const saved = await upsertAnnotation({ id, documentId: "", target, anchor, source,
+      anchors: [], note: "", discussions: [], createdAt: now, updatedAt: now });
+    setAnnotations((current) => [...current.filter((entry) => entry.id !== saved.id), saved]);
+    setOpen({ id: saved.id, at });
+  };
+
+  /** The handle on a block: its highlight's bar when it has one, else the block's own. */
+  const onBlock = (element: HTMLElement, at: DOMRect) => {
+    const id = blockMark(element);
+    if (id) { setOpenBlock(null); setOpen({ id, at }); return; }
+    const block = root.current ? blockAt(root.current, element) : null;
+    if (block) { setOpen(null); setOpenBlock({ block, at }); }
+  };
 
   const select = useCallback((annotation: Annotation) => {
     const range = rangeOf(annotation.id);
     if (range) flashRange(range);
     const rect = range?.getBoundingClientRect();
-    setOpen({ id: annotation.id, at: rect && (rect.width || rect.height) ? rect : new DOMRect(window.innerWidth / 2, 120, 1, 1), note: false });
+    setOpen({ id: annotation.id, at: rect && (rect.width || rect.height) ? rect : new DOMRect(window.innerWidth / 2, 120, 1, 1) });
   }, [rangeOf]);
 
   const shown = open ? annotations.find((entry) => entry.id === open.id) : undefined;
-  const popover: ReactNode = shown && open ? <AnnotationPopover key={shown.id} annotation={shown} anchor={open.at} askLabel={askLabel} focusNote={open.note}
+  const shownBlock = openBlock?.block;
+  const blockBar: ReactNode = shownBlock && openBlock ? <BlockToolbar key={shownBlock.source} anchor={openBlock.at} label={`${blockLabel(shownBlock.kind)} actions`}
+    askLabel={askLabel} notes={notes} onDismiss={() => setOpenBlock(null)}
+    onMark={target && cite ? () => markBlock(shownBlock, openBlock.at) : undefined}
+    onAsk={async () => {
+      const { source } = await blockSource(shownBlock);
+      requestAddToChat(askDraft(shownBlock.source), "prompt", { ...(source ? { sources: [source] } : {}), ...chatTarget });
+    }}
+    save={async (to) => {
+      const { anchor, source } = await blockSource(shownBlock);
+      return saveQuoteToNote(quoteMarkdown(shownBlock.source, source), anchor?.block?.lead || blockLabel(shownBlock.kind), to, agentId);
+    }}
+    copy={async () => quoteMarkdown(shownBlock.source, (await blockSource(shownBlock)).source)} /> : null;
+  const handle: ReactNode = <BlockHandle root={root} enabled={enabled} marked={(block) => !!blockMark(block)} onOpen={onBlock} />;
+  const toolbar: ReactNode = shown && open ? <AnnotationToolbar key={shown.id} annotation={shown} anchor={open.at} askLabel={askLabel} notes={notes}
     onDismiss={() => setOpen(null)}
     onAsk={(annotation) => {
-      requestAddToChat(annotation.note ? `${ASK_PROMPT}\n\nMy note: ${annotation.note}` : ASK_PROMPT, "plain", { sources: [annotation.source], ...chatTarget });
+      requestAddToChat(askDraft(annotation.source.quote, annotation.note), "prompt", { sources: [annotation.source], ...chatTarget });
       setOpen(null);
     }}
     onSave={async (annotation, note) => {
@@ -119,6 +184,7 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
       await deleteAnnotation(annotation.id);
       setAnnotations((current) => current.filter((entry) => entry.id !== annotation.id));
     }} /> : null;
+  const popover: ReactNode = <>{handle}{blockBar}{toolbar}</>;
 
   const list = (onClose: () => void, title?: string, only: readonly Annotation[] = annotations): ReactNode =>
     <AnnotationList annotations={[...only]} orphans={orphans} selectedId={open?.id} title={title} onSelect={select} onClose={onClose} />;
@@ -129,5 +195,5 @@ export function useReadingMarks(root: RefObject<HTMLElement | null>, spec: MarkS
       {list(onClose, title, only)}
     </Popover>;
 
-  return { annotations, orphans, askLabel, popover, list, listPopover, select, rangeOf, toChat, onMark: target && cite ? onMark : undefined };
+  return { annotations, orphans, askLabel, chatTarget, popover, list, listPopover, select, rangeOf, toChat, quote, notes, onMark: target && cite ? onMark : undefined };
 }

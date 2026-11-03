@@ -20,7 +20,7 @@ use crate::session_store::now_millis;
 
 /// Sources, guides and notes: what one document may weigh.
 pub const TEXT_MAX: u64 = 1024 * 1024;
-/// Courses and canvases, as the tables allowed.
+/// Courses, as the table allowed.
 pub const DATA_MAX: u64 = 50_000_000;
 
 pub fn ensure_tables(conn: &Connection) -> rusqlite::Result<()> {
@@ -197,7 +197,7 @@ fn parse_pdf_source(id: &str, sidecar: &str, pdf_path: &Path) -> Result<Parsed, 
 }
 
 fn parse(kind: Kind, id: &str, text: &str, ctx: &MentorCtx) -> Result<Parsed, String> {
-    if matches!(kind, Kind::Course | Kind::Note | Kind::Canvas) && !ascii_id(id) {
+    if matches!(kind, Kind::Course | Kind::Note) && !ascii_id(id) {
         return Err(format!(
             "Rename it: {} ids use only ASCII letters, digits, - and _",
             kind.as_str()
@@ -273,18 +273,6 @@ fn parse(kind: Kind, id: &str, text: &str, ctx: &MentorCtx) -> Result<Parsed, St
                 body: Some(data_json),
                 created_at: None,
                 updated_at: None,
-                warning: None,
-            })
-        }
-        Kind::Canvas => {
-            let (meta, data) = format::parse_canvas(text)?;
-            Ok(Parsed {
-                title: meta.title.clone(),
-                subject: None,
-                meta: json!({ "tags": meta.tags }),
-                body: Some(data),
-                created_at: meta.created_at,
-                updated_at: meta.updated_at,
                 warning: None,
             })
         }
@@ -751,7 +739,7 @@ pub fn get(conn: &Connection, agent: &str, kind: Kind, id: &str) -> rusqlite::Re
     .optional()
 }
 
-/// A note or canvas by id alone, whichever mentor keeps it.
+/// A note by id alone, whichever mentor keeps it.
 pub fn find(conn: &Connection, kind: Kind, id: &str) -> rusqlite::Result<Option<Row>> {
     conn.query_row(
         &format!(
@@ -891,7 +879,8 @@ mod tests {
         write(&folder, "repos/x/README.md", "ignored");
         write(&folder, "sources/.virtio.md.swp", "ignored");
         let changes = reconcile(&conn, &ctx).unwrap();
-        assert_eq!(changes.len(), 5);
+        // A drawing left from before 0.6 is not content any more.
+        assert_eq!(changes.len(), 4);
         let docs = list(&conn, "a1", &[Kind::Source, Kind::Guide]).unwrap();
         assert_eq!(docs.len(), 2);
         let guide = get(&conn, "a1", Kind::Guide, "g").unwrap().unwrap();

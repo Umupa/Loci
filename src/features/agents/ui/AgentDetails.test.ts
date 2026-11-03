@@ -48,7 +48,7 @@ beforeEach(() => {
   vi.mocked(invoke).mockImplementation(async (command) => {
     if (command === "agent_load") return { soul: "# Soul", memory: "", topics: [] };
     if (command === "agent_read") return { text: "[]", hash: "habits" };
-    if (command === "agent_documents_list" || command === "canvas_list") return [];
+    if (command === "agent_documents_list") return [];
     throw new Error(`Unexpected command: ${command}`);
   });
   container = document.createElement("div");

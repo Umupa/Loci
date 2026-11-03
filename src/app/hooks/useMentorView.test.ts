@@ -2,7 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { MENTOR_VIEW_KEY, useMentorView, type MentorView } from "./useMentorView";
+import { forgetMentorView, MENTOR_VIEW_KEY, useMentorView, type MentorView } from "./useMentorView";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -32,6 +32,17 @@ it("remembers each mentor's library segment and course, but not its filter", asy
   expect(view.stateFor("a").segment).toBe("notes");
   expect(view.stateFor("a").filter).toBeUndefined();
   expect(view.stateFor("b").course).toBe("kube");
+});
+
+it("does not write a deleted mentor's view back with the next change", async () => {
+  await mount();
+  await act(async () => view.toggleLibrary("a"));
+  await act(async () => view.toggleChat("b"));
+  act(() => forgetMentorView("a"));
+  expect(Object.keys(stored())).toEqual(["b"]);
+  await act(async () => view.toggleChat("b"));
+  expect(Object.keys(stored())).toEqual(["b"]);
+  expect(view.stateFor("a").library).toBe(true);
 });
 
 it("follows the course being read and clears an emptied filter", async () => {

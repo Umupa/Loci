@@ -5,21 +5,18 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { requestOpenAppResource } from "../../shared/lib/appResourceLinks";
 import { useAppResourceNavigation } from "./useAppResourceNavigation";
 
-const mocks = vi.hoisted(() => ({ getCanvas: vi.fn(), checkpointCanvasId: vi.fn(), getLearningSource: vi.fn(), getReadingDocument: vi.fn(), getNote: vi.fn() }));
-vi.mock("../../features/canvas/canvas", () => ({
-  getCanvas: mocks.getCanvas, checkpointCanvasId: mocks.checkpointCanvasId, CANVAS_OPEN_CHECKPOINT_EVENT: "loci-canvas-open-checkpoint",
-}));
+const mocks = vi.hoisted(() => ({ getLearningSource: vi.fn(), getReadingDocument: vi.fn(), getNote: vi.fn(), requestFilePlace: vi.fn() }));
+vi.mock("../../features/files/model/filePlace", () => ({ requestFilePlace: mocks.requestFilePlace }));
 vi.mock("../../features/learning/model/learningStore", () => ({ getLearningSource: mocks.getLearningSource, getReadingDocument: mocks.getReadingDocument }));
 vi.mock("../../features/notes", () => ({ getNote: mocks.getNote }));
 vi.mock("../../features/agents/model/agent", () => ({
   findAgent: (id: string) => id === "agent-a" ? { id } : undefined,
-  canvasScopeAgentId: (cwd: string) => cwd.startsWith("loci-agent://") ? cwd.slice("loci-agent://".length) : undefined,
 }));
 let root: Root;
 let container: HTMLDivElement;
 const view = {
   openSession: vi.fn(async () => undefined), openFile: vi.fn(), fileBase: vi.fn<() => string | undefined>(),
-  openCanvas: vi.fn(async () => undefined), openNote: vi.fn(async () => undefined), onError: vi.fn(),
+  openNote: vi.fn(async () => undefined), onError: vi.fn(),
   mentorBase: vi.fn<() => string | undefined>(), openDocument: vi.fn(async (..._args: unknown[]) => true),
 };
 function Harness() {
@@ -32,8 +29,6 @@ beforeEach(async () => {
   view.fileBase.mockReturnValue("/project");
   view.mentorBase.mockReturnValue("agent-a");
   view.openDocument.mockResolvedValue(true);
-  mocks.getCanvas.mockImplementation(async (id) => ({ id, cwd: "/project" }));
-  mocks.checkpointCanvasId.mockResolvedValue("drawing");
   mocks.getNote.mockImplementation(async (id) => ({ id, agentId: id === "owned" ? "agent-a" : id === "orphan-of-removed" ? "gone" : undefined }));
   container = document.createElement("div"); document.body.append(container);
   root = createRoot(container);
@@ -41,24 +36,6 @@ beforeEach(async () => {
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 
-it("opens a drawing in the open mentor's reader, or in the reader of the mentor that keeps it", async () => {
-  await act(async () => requestOpenAppResource({ kind: "canvas", id: "drawing" }));
-  expect(view.openCanvas).toHaveBeenLastCalledWith(expect.objectContaining({ id: "drawing" }), undefined);
-  mocks.getCanvas.mockResolvedValue({ id: "drawing", cwd: "loci-agent://agent-a" });
-  await act(async () => requestOpenAppResource({ kind: "canvas", id: "drawing" }));
-  expect(view.openCanvas).toHaveBeenLastCalledWith(expect.objectContaining({ id: "drawing" }), "agent-a");
-});
-it("resolves old checkpoint buttons through the same navigation", async () => {
-  await act(async () => window.dispatchEvent(new CustomEvent("loci-canvas-open-checkpoint", { detail: "old-checkpoint" })));
-  expect(mocks.checkpointCanvasId).toHaveBeenCalledWith("old-checkpoint");
-  expect(view.openCanvas).toHaveBeenCalledWith(expect.objectContaining({ id: "drawing" }), undefined);
-});
-it("reports a deleted drawing instead of opening an empty reader", async () => {
-  mocks.getCanvas.mockResolvedValue(null);
-  await act(async () => requestOpenAppResource({ kind: "canvas", id: "deleted" }));
-  expect(view.onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("no longer exists") }));
-  expect(view.openCanvas).not.toHaveBeenCalled();
-});
 it("opens a note in its owner's reader, and a note without a living owner in the open mentor's", async () => {
   await act(async () => requestOpenAppResource({ kind: "note", id: "owned" }));
   expect(view.openNote).toHaveBeenLastCalledWith("owned", "agent-a");
@@ -83,14 +60,14 @@ it("resolves a relative file link against the folder of the conversation on scre
   expect(view.openFile).toHaveBeenCalledOnce();
   expect(view.onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("not open here") }));
 });
-it("does not let an older pending canvas read override a newer note click", async () => {
-  let finish!: (canvas: object) => void;
-  mocks.getCanvas.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
-  await act(async () => requestOpenAppResource({ kind: "canvas", id: "slow" }));
-  await act(async () => requestOpenAppResource({ kind: "note", id: "plan" }));
-  await act(async () => finish({ id: "slow", cwd: "/project" }));
-  expect(view.openNote).toHaveBeenCalledWith("plan", undefined);
-  expect(view.openCanvas).not.toHaveBeenCalled();
+it("does not let an older pending note read override a newer conversation click", async () => {
+  let finish!: (note: object) => void;
+  mocks.getNote.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  await act(async () => requestOpenAppResource({ kind: "note", id: "slow" }));
+  await act(async () => requestOpenAppResource({ kind: "session", id: "delegated" }));
+  await act(async () => finish({ id: "slow" }));
+  expect(view.openSession).toHaveBeenCalledWith("delegated");
+  expect(view.openNote).not.toHaveBeenCalled();
 });
 
 it.each(["source", "document"])("ignores a pending PDF %s read after a newer note click", async (stage) => {
@@ -140,4 +117,16 @@ it("opens a registered document passage at its highlight, and a file passage at 
   await act(async () => requestOpenAppResource({ kind: "source", id: "f" }));
   expect(view.openFile).toHaveBeenCalledWith("/src/main.rs");
   window.removeEventListener("loci:open-file", place);
+});
+
+it("flashes the words a note's link names, on the PDF page and in a Markdown file without lines", async () => {
+  mocks.getLearningSource.mockResolvedValueOnce({ id: "p", kind: "pdf", title: "Book", quote: "Selectable passage", documentId: "book", path: "/book.pdf",
+    anchors: [{ page: 3, rects: [] }], annotationId: "mark" });
+  mocks.getReadingDocument.mockResolvedValue({ id: "book", path: "/book.pdf" });
+  await act(async () => requestOpenAppResource({ kind: "source", id: "p", place: { page: 3, quote: "Selectable passage" } }));
+  expect(mocks.requestFilePlace).toHaveBeenLastCalledWith("/book.pdf", { page: 3, quote: "Selectable passage" });
+  mocks.getLearningSource.mockResolvedValueOnce({ id: "m", kind: "file", path: "/notes/guide.md", title: "guide.md", quote: "Read slowly" });
+  await act(async () => requestOpenAppResource({ kind: "source", id: "m", place: { quote: "Read slowly" } }));
+  expect(mocks.requestFilePlace).toHaveBeenLastCalledWith("/notes/guide.md", { lines: [1, 1], quote: "Read slowly" });
+  expect(view.openFile).toHaveBeenLastCalledWith("/notes/guide.md");
 });

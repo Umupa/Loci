@@ -368,8 +368,6 @@ mod tests {
              INSERT INTO workspace_snapshot VALUES (1,'{}',1);
              INSERT INTO agent_transcript_pages VALUES ('s',0,'b','[]',1);
              INSERT INTO agent_documents (agent_id,id,title,body,created_at,updated_at) VALUES ('a','d','title','body',1,1);
-             INSERT INTO canvases (id,created_at,updated_at) VALUES ('c',1,1);
-             INSERT INTO canvas_checkpoints VALUES ('cp','c','{}',1);
              INSERT INTO notes (id,slug,title,created_at,updated_at) VALUES ('n','note','title',1,1);
              INSERT INTO courses VALUES ('a','course','domain-navigation','title','{}',1,1);
              INSERT INTO course_progress VALUES ('a','course','item','learning');
@@ -499,10 +497,12 @@ mod tests {
         seed(&store);
         assert_eq!(
             table_counts(&store).len(),
-            18,
+            16,
             "Update fixtures when the schema grows"
         );
-        assert!(table_counts(&store).iter().all(|(_, count)| *count == 1));
+        assert!(table_counts(&store)
+            .iter()
+            .all(|(table, count)| table == "schema_migrations" || *count == 1));
         let schema_before = schema(&store);
         let migrations_before = migrations(&store);
         let deleted = [
@@ -526,7 +526,9 @@ mod tests {
         }
         reset_data(&store, &dir.0).unwrap();
         for (table, count) in table_counts(&store) {
-            assert_eq!(count, i64::from(table == "schema_migrations"), "{table}");
+            if table != "schema_migrations" {
+                assert_eq!(count, 0, "{table}");
+            }
         }
         assert_eq!(schema(&store), schema_before);
         assert_eq!(migrations(&store), migrations_before);
@@ -546,7 +548,8 @@ mod tests {
         let dir = TestDir::new();
         reset_data(&store, &dir.0).unwrap();
         assert!(table_counts(&store).contains(&("legacy_feature".into(), 0)));
-        assert_eq!(migrations(&store).len(), 1);
+        // The schema itself and the removal of canvases (0.6).
+        assert_eq!(migrations(&store).len(), 2);
     }
 
     #[test]

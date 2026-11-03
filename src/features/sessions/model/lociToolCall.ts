@@ -1,4 +1,3 @@
-import { builtinCliCall } from "./builtinCli";
 import type { Block } from "./session";
 import { shellWords } from "./shellWords";
 
@@ -18,13 +17,6 @@ const ACTION_LABELS: Record<string, string> = {
   "notes.list": "List notes",
   "notes.read": "Read a note",
   "notes.write": "Write a note",
-  "canvas.list": "List canvases",
-  "canvas.get": "Get a canvas",
-  "canvas.create": "Create a canvas",
-  "canvas.rename": "Rename a canvas",
-  "canvas.delete": "Delete a canvas",
-  "canvas.read-data": "Read canvas scene data",
-  "canvas.write-data": "Write canvas scene data",
 };
 
 /** Recognize the actual app CLI command, not a mention of it in prose/output. */
@@ -43,16 +35,6 @@ export function lociToolCall(block: Block): LociToolCall | undefined {
   const words = shellWords(command);
   if (!words || !/(?:^|[/\\])loci(?:\.exe)?$/i.test(words[0] ?? ""))
     return undefined;
-  // Asking which canvas tools exist; a call of one is named by
-  // canvasToolCall for what it does.
-  const builtin = builtinCliCall(command);
-  if (builtin?.tool === "help") {
-    return {
-      action: "--help",
-      label: "View canvas tools",
-      command,
-    };
-  }
   if (words[1] !== "app") return undefined;
   const action = words[2] ?? "--help";
   if (action === "--help" || action === "help" || action === "-h") {

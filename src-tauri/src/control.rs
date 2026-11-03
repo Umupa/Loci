@@ -15,15 +15,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use crate::cli_access;
 
 const APP_TURN_INACTIVE: &str = "Loci app access is inactive. Call the CLI during an active agent turn. Retrying this request now will not enable access.";
-const CANVAS_TURN_INACTIVE: &str = "Loci canvas access is only available while this session's agent turn is running. Retrying this request now will not enable access.";
-const CANVAS_DISABLED: &str = "Loci's built-in Excalidraw canvas tools are turned off in Settings → MCP. Turning them on there applies from this session's next turn. Retrying this request now will not enable access.";
-/// Asked by the app's own CLI: which stdio command runs a built-in MCP server.
-/// The host answers it; a window never sees it.
-const MCP_SERVER_ACTION: &str = "mcp.server";
 const APP_REQUEST_MAX: usize = 262_144;
-/// A canvas save carries drawing elements. The official Excalidraw MCP server
-/// accepts 5 MB of them, so leave room for the JSON envelope around that.
-const CANVAS_REQUEST_MAX: usize = 6 * 1024 * 1024;
 /// The namespace of the `loci` CLI run from a terminal outside Loci.
 const EXTERNAL_NAMESPACE: &str = "cli";
 /// A command from a terminal may wait on a confirmation dialog.
@@ -46,9 +38,6 @@ struct Pending {
 struct ActiveTurn {
     window: String,
     app_allowed: bool,
-    /// The built-in Excalidraw switch as it was when the turn started, so a
-    /// change applies from the next turn and a running turn can finish.
-    canvas_allowed: bool,
 }
 
 /// Access for the `loci` CLI outside Loci: one local token, kept in a file only
@@ -156,13 +145,9 @@ struct Event {
     action: String,
     input: Value,
 }
-/// `app` is the Loci app CLI and needs an agent turn's grant. `canvas` is the
-/// built-in Excalidraw server: every session may draw while the switch in
-/// Settings is on, but only on its own project's canvases and only while its
-/// turn runs. The server is reached the same way whether an agent CLI
-/// attached it over MCP or calls it through the app's CLI.
+/// `app` is the Loci app CLI and needs an agent turn's grant.
 fn request_grant(host: &Inner, namespace: &str, token: &str) -> Result<Grant, String> {
-    if !matches!(namespace, "app" | "canvas") {
+    if namespace != "app" {
         return Err("Unknown control namespace".into());
     }
     let grant = host
@@ -171,16 +156,14 @@ fn request_grant(host: &Inner, namespace: &str, token: &str) -> Result<Grant, St
         .find(|grant| grant.token == token)
         .cloned()
         .ok_or("Connection revoked or unauthorized")?;
-    let turn = host
+    let allowed = host
         .active
         .get(&grant.session)
-        .filter(|turn| turn.window == grant.window);
-    match namespace {
-        "canvas" if turn.is_some_and(|turn| turn.canvas_allowed) => Ok(grant),
-        "canvas" if turn.is_some() => Err(CANVAS_DISABLED.into()),
-        "canvas" => Err(CANVAS_TURN_INACTIVE.into()),
-        _ if turn.is_some_and(|turn| turn.app_allowed) => Ok(grant),
-        _ => Err(APP_TURN_INACTIVE.into()),
+        .is_some_and(|turn| turn.window == grant.window && turn.app_allowed);
+    if allowed {
+        Ok(grant)
+    } else {
+        Err(APP_TURN_INACTIVE.into())
     }
 }
 
@@ -203,16 +186,6 @@ fn pick_window(ready: &HashSet<String>) -> Option<String> {
         return Some("main".into());
     }
     ready.iter().min().cloned()
-}
-
-fn request_size_error(namespace: &str, bytes: usize) -> Option<&'static str> {
-    if bytes > CANVAS_REQUEST_MAX {
-        Some("Request exceeds 6 MiB")
-    } else if namespace != "canvas" && bytes > APP_REQUEST_MAX {
-        Some("Request exceeds 256 KiB")
-    } else {
-        None
-    }
 }
 
 pub fn init(app: &AppHandle) -> Result<(), String> {
@@ -432,16 +405,13 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
     let result = (|| -> Result<Value, String> {
         let mut raw = String::new();
         BufReader::new(&mut stream)
-            .take(CANVAS_REQUEST_MAX as u64 + 1)
+            .take(APP_REQUEST_MAX as u64 + 1)
             .read_line(&mut raw)
             .map_err(|e| e.to_string())?;
-        if let Some(error) = request_size_error("canvas", raw.len()) {
-            return Err(error.into());
+        if raw.len() > APP_REQUEST_MAX {
+            return Err("Request exceeds 256 KiB".into());
         }
         let request: Request = serde_json::from_str(&raw).map_err(|_| "Invalid control request")?;
-        if let Some(error) = request_size_error(&request.namespace, raw.len()) {
-            return Err(error.into());
-        }
         if !request.input.is_object()
             || request.request_id.is_empty()
             || request.request_id.len() > 128
@@ -454,29 +424,21 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
         }
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = mpsc::channel();
-        let hosted = request.action == MCP_SERVER_ACTION && request.namespace == "canvas";
         let grant = {
             let mut host = inner.lock().map_err(|_| "Control service unavailable")?;
             let grant = request_grant(&host, &request.namespace, &request.token)?;
-            if !hosted {
-                if host.pending.len() >= 24 {
-                    return Err("Too many pending control requests".into());
-                }
-                host.pending.insert(
-                    id.clone(),
-                    Pending {
-                        window: grant.window.clone(),
-                        reply: tx,
-                    },
-                );
+            if host.pending.len() >= 24 {
+                return Err("Too many pending control requests".into());
             }
+            host.pending.insert(
+                id.clone(),
+                Pending {
+                    window: grant.window.clone(),
+                    reply: tx,
+                },
+            );
             grant
         };
-        if hosted {
-            // Looking up the runtime can take a moment; the lock is released.
-            let server = crate::canvas_mcp::canvas_server(app)?;
-            return Ok(json!({"ok": true, "result": server}));
-        }
         let event = Event {
             id: id.clone(),
             namespace: request.namespace,
@@ -498,7 +460,7 @@ fn serve(mut stream: TcpStream, app: &AppHandle, inner: &Arc<Mutex<Inner>>) {
         result
     })();
     let response = result.unwrap_or_else(|error| {
-        if error == APP_TURN_INACTIVE || error == CANVAS_TURN_INACTIVE || error == CANVAS_DISABLED {
+        if error == APP_TURN_INACTIVE {
             json!({"ok": false, "error": error, "retryable": false})
         } else {
             json!({"ok": false, "error": error})
@@ -513,7 +475,6 @@ pub fn control_authorize_turn(
     session_id: String,
     cwd: String,
     app_access: bool,
-    canvas_access: bool,
 ) -> Result<(), String> {
     let cwd = std::fs::canonicalize(crate::fs::expand_home(&cwd)).map_err(|e| e.to_string())?;
     if !cwd.is_dir() {
@@ -529,7 +490,6 @@ pub fn control_authorize_turn(
         ActiveTurn {
             window: window.label().into(),
             app_allowed: app_access,
-            canvas_allowed: canvas_access,
         },
     );
     Ok(())
@@ -760,7 +720,6 @@ mod tests {
             ActiveTurn {
                 window: "main".into(),
                 app_allowed: false,
-                canvas_allowed: true,
             },
         );
         assert!(request_grant(&inner, "app", &token).is_err());
@@ -773,57 +732,6 @@ mod tests {
         assert!(request_grant(&inner, "app", &token).is_err());
         inner.active.remove("session");
         assert!(request_grant(&inner, "app", &token).is_err());
-    }
-    #[test]
-    fn canvas_access_needs_an_active_turn_but_not_app_access() {
-        let mut inner = Inner::default();
-        inner.prepare_app_grant("session", "main");
-        let token = inner.app_grants["session"].token.clone();
-        assert_eq!(
-            request_grant(&inner, "canvas", &token).err().as_deref(),
-            Some(CANVAS_TURN_INACTIVE)
-        );
-        inner.active.insert(
-            "session".into(),
-            ActiveTurn {
-                window: "main".into(),
-                app_allowed: false,
-                canvas_allowed: true,
-            },
-        );
-        assert_eq!(
-            request_grant(&inner, "canvas", &token).unwrap().session,
-            "session"
-        );
-        // Drawing does not widen what the app CLI may do.
-        assert!(request_grant(&inner, "app", &token).is_err());
-        assert!(request_grant(&inner, "canvas", "wrong-token").is_err());
-        inner.active.get_mut("session").unwrap().window = "other".into();
-        assert!(request_grant(&inner, "canvas", &token).is_err());
-    }
-    #[test]
-    fn the_canvas_switch_is_fixed_for_a_turn_and_refuses_when_off() {
-        let mut inner = Inner::default();
-        inner.prepare_app_grant("session", "main");
-        let token = inner.app_grants["session"].token.clone();
-        inner.active.insert(
-            "session".into(),
-            ActiveTurn {
-                window: "main".into(),
-                app_allowed: true,
-                canvas_allowed: false,
-            },
-        );
-        // Off means off however the agent reaches the server, MCP or CLI.
-        assert_eq!(
-            request_grant(&inner, "canvas", &token).err().as_deref(),
-            Some(CANVAS_DISABLED)
-        );
-        // The switch is about drawing only.
-        assert!(request_grant(&inner, "app", &token).is_ok());
-        // The next turn carries the new value; nothing changes mid-turn.
-        inner.active.get_mut("session").unwrap().canvas_allowed = true;
-        assert!(request_grant(&inner, "canvas", &token).is_ok());
     }
     #[test]
     fn a_generation_scoped_process_uses_its_sessions_credential() {
@@ -844,7 +752,6 @@ mod tests {
             ActiveTurn {
                 window: "main".into(),
                 app_allowed: true,
-                canvas_allowed: true,
             },
         );
         let turn_token = inner.app_grants["session"].token.clone();
@@ -859,7 +766,6 @@ mod tests {
             "unauthorized"
         );
         assert!(request_grant(&inner, "app", &external).is_err());
-        assert!(request_grant(&inner, "canvas", &external).is_err());
         assert!(request_grant(&inner, "cli", &turn_token).is_err());
         inner.external.enabled = false;
         assert_eq!(
@@ -910,14 +816,6 @@ mod tests {
         assert_eq!(pick_window(&inner.ready).as_deref(), Some("window-1"));
     }
     #[test]
-    fn only_canvas_requests_may_exceed_the_cli_limit() {
-        assert!(request_size_error("app", APP_REQUEST_MAX).is_none());
-        assert!(request_size_error("app", APP_REQUEST_MAX + 1).is_some());
-        assert!(request_size_error("canvas", APP_REQUEST_MAX + 1).is_none());
-        assert!(request_size_error("canvas", CANVAS_REQUEST_MAX + 1).is_some());
-        assert!(request_size_error("other", APP_REQUEST_MAX + 1).is_some());
-    }
-    #[test]
     fn closing_a_window_revokes_only_owned_grants_and_pending_requests() {
         let mut inner = Inner::default();
         for (id, window) in [("session", "closing"), ("other", "open")] {
@@ -927,7 +825,6 @@ mod tests {
                 ActiveTurn {
                     window: window.into(),
                     app_allowed: true,
-                    canvas_allowed: true,
                 },
             );
         }

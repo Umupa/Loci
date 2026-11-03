@@ -30,7 +30,6 @@ body:
       options:
         - Sessions and agent CLIs
         - Notes
-        - Canvases
         - Agents and cards
         - Workspace (tabs, panes, projects)
         - Settings

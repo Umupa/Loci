@@ -21,7 +21,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
-use super::format::{self, CanvasMeta, DocMeta, NoteMeta};
+use super::format::{self, DocMeta, NoteMeta};
 use super::fsio::{sha256, write_atomic};
 use super::index;
 use super::paths::{self, Kind, MENTOR_FILE, SHARED_REPOS};
@@ -529,42 +529,7 @@ fn write_rows(
             touched += 1;
         }
     }
-    // Canvases drawn into the mentor's library.
-    {
-        let mut statement = conn
-            .prepare(&format!(
-                "SELECT id, title, data_json, tags_json, created_at, updated_at
-                 FROM canvases WHERE cwd = 'loci-agent://' || ?1{}",
-                since.clause()
-            ))
-            .map_err(|e| e.to_string())?;
-        let rows = statement
-            .query_map(params![agent, since.0], |row| {
-                let tags: String = row.get(3)?;
-                Ok((
-                    row.get::<_, String>(0)?,
-                    CanvasMeta {
-                        title: row.get(1)?,
-                        tags: serde_json::from_str(&tags).unwrap_or_default(),
-                        created_at: row.get(4)?,
-                        updated_at: row.get(5)?,
-                    },
-                    row.get::<_, String>(2)?,
-                ))
-            })
-            .map_err(|e| e.to_string())?;
-        for row in rows {
-            let (id, meta, data) = row.map_err(|e| e.to_string())?;
-            if !paths::valid_content_id(&id) {
-                continue;
-            }
-            let updated = meta.updated_at;
-            let text = format::render_canvas(&meta, &data)?;
-            let outcome = place(&ctx.path(Kind::Canvas, &id), &text, updated, dry)?;
-            record(report, "canvases", outcome);
-            touched += 1;
-        }
-    }
+    // Canvases drawn into the library are skipped: the feature is gone (0.6).
     Ok(touched)
 }
 
@@ -723,8 +688,7 @@ fn catch_up(conn: &Connection, report: &mut Report) -> Result<(), String> {
                 .query_row(
                     "SELECT max(coalesce((SELECT max(updated_at) FROM agent_documents WHERE agent_id = ?1), 0),
                                 coalesce((SELECT max(updated_at) FROM courses WHERE agent_id = ?1), 0),
-                                coalesce((SELECT max(updated_at) FROM notes WHERE agent_id = ?1), 0),
-                                coalesce((SELECT max(updated_at) FROM canvases WHERE cwd = 'loci-agent://' || ?1), 0))",
+                                coalesce((SELECT max(updated_at) FROM notes WHERE agent_id = ?1), 0))",
                     [&record.id],
                     |row| row.get(0),
                 )
@@ -1013,9 +977,10 @@ mod tests {
                VALUES ('n1','kvm','KVM','note body','[\"kvm\"]',1,2,'m1');
              INSERT INTO notes (id,slug,title,body,created_at,updated_at)
                VALUES ('n2','loose','Loose','no mentor',1,2);
+             CREATE TABLE canvases (id TEXT PRIMARY KEY, title TEXT, data_json TEXT, cwd TEXT,
+               created_at INTEGER, updated_at INTEGER);
              INSERT INTO canvases (id,title,data_json,cwd,created_at,updated_at)
                VALUES ('k1','Map','{\"elements\":[],\"appState\":{},\"files\":{}}','loci-agent://m1',1,3);
-             INSERT INTO canvases (id,title,cwd,created_at,updated_at) VALUES ('k2','Project','/repo',1,3);
              CREATE TABLE feed_item_state (id TEXT);",
         )
         .unwrap();
@@ -1209,9 +1174,9 @@ mod tests {
         assert!(lens.join("guides/引言.md").is_file());
         assert!(lens.join("courses/c1.yaml").is_file());
         assert!(lens.join("notes/n1.md").is_file());
-        assert!(lens.join("canvases/k1.excalidraw").is_file());
         assert!(!lens.join("notes/n2.md").exists());
-        assert!(!lens.join("canvases/k2.excalidraw").exists());
+        // Canvases were removed in 0.6: a 0.3 drawing is left behind, not an error.
+        assert!(!lens.join("canvases").exists());
 
         // The user's own workdir is untouched; content goes beside the others.
         let sandbox = root.join("sandbox-internals-guide");

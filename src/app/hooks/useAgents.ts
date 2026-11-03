@@ -1,5 +1,4 @@
-import { deleteCanvas, loadCanvases } from "../../features/canvas/canvas";
-import { deleteAgentDocument, saveAgentDocuments } from "../../features/agents/model/agentDocuments";
+import { saveAgentDocuments } from "../../features/agents/model/agentDocuments";
 import { documentsInText } from "../../features/sessions/model/cards";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type SetStateAction } from "react";
 import { ask } from "../../platform/dialog";
@@ -9,12 +8,13 @@ import { deleteSession } from "../../features/sessions/data/sessionStore";
 import { sessionChildHarnesses } from "../../features/sessions/model/handoff";
 import { newDefaultSession, type Session } from "../../features/sessions/model/session";
 import {
-  agentCanvasScope, agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
+  agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
 } from "../../features/agents/model/agent";
 import { editAgentFile, forgetAgentContext } from "../../features/agents/model/agentFiles";
 import type { AgentTemplate } from "../../features/agents/templates";
 import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
+import { forgetMentorLocally } from "./forgetMentor";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession, saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
 import { ensureAgentWorkdir } from "../../features/agents/model/agentWorkdir";
@@ -38,6 +38,12 @@ type Options = {
   /** Remove every pane for a deleted conversation. */
   onRemoveSession: (sessionId: string) => void;
 };
+
+/** What deleting a mentor asks first: what goes to the trash, and what is deleted for good. */
+export function deleteQuestion(name: string): string {
+  return `Delete ${name}? Its folder (sources, courses, notes, repos and memory) moves to the Trash, `
+    + "and its conversation, highlights and progress are deleted. Folders you gave it stay where they are.";
+}
 
 /** Owns the agents' conversations: opening one into view, resetting it and deleting it. */
 export function useAgents(options: Options) {
@@ -320,12 +326,15 @@ export function useAgents(options: Options) {
     }
   }, [addSession, discardSession]);
 
-  /** Deletes the agent's conversation, then the agent. Its files stay on disk. */
-  /** `confirmed` (a command run with --yes) skips the question. False when nothing was deleted. */
+  /**
+   * Deletes the agent's conversation, then the agent: its folder goes to the
+   * trash and what the app kept about it is deleted. Folders it was given stay.
+   * `confirmed` (a command run with --yes) skips the question. False when nothing was deleted.
+   */
   const remove = useCallback(async (agentId: string, options: { confirmed?: boolean; rethrow?: boolean } = {}): Promise<boolean> => {
     const agent = findAgent(agentId);
     if (!agent) return false;
-    if (!options.confirmed && !await ask(`Delete ${agentLook(agent).name}? Its conversation is permanently removed. Its documents and courses go with it; its soul and memory files stay on disk.`,
+    if (!options.confirmed && !await ask(deleteQuestion(agentLook(agent).name),
       { title: "Delete agent", kind: "warning", okLabel: "Delete", cancelLabel: "Cancel" })) return false;
     try {
       if (viewIdRef.current === agentId) {
@@ -339,17 +348,14 @@ export function useAgents(options: Options) {
         forgetAgentContext(agent.sessionId);
         forgetAgentRotation(agent.sessionId);
       }
-      removeAgent(agentId);
+      const removed = removeAgent(agentId);
       setDetails((current) => {
         const next = new Map(current);
         next.delete(agentId);
         return next;
       });
-      void deleteAgentDocument(agentId).catch(() => undefined);
-      void import("../../features/learning/model/course").then(({ deleteCourse }) => deleteCourse(agentId)).catch(() => undefined);
-      // Its library goes with it, canvases included.
-      void loadCanvases(true).then((all) => Promise.all(all.filter((canvas) => canvas.cwd === agentCanvasScope(agentId)).map((canvas) => deleteCanvas(canvas.id)))).catch(() => undefined);
-      saveAgentPreview(agentId, undefined);
+      forgetMentorLocally(agentId);
+      await removed;
       return true;
     } catch (error) {
       if (options.rethrow) throw error;

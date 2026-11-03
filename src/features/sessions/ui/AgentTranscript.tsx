@@ -27,7 +27,6 @@ CircleDashed,
 Copy,
 FilePlusCorner,
 Minus,
-ExcalidrawIcon,
 Pencil,
 PenLine,
 Search,
@@ -86,12 +85,6 @@ lociToolCall,
 lociWorkSummary,
 type LociToolCall,
 } from "../model/lociToolCall";
-import {
-  canvasToolCall,
-  canvasWorkSummary,
-  type CanvasToolCall,
-} from "../model/canvasToolCall";
-import { CANVAS_OPEN_CHECKPOINT_EVENT } from "../../canvas/canvas";
 import { HARNESS_TITLE,hasPendingApproval,type AgentStep,type Block,type HarnessId,type ToolPreview,type TurnMetrics } from "../model/session";
 import {
 activityPhaseTitle,
@@ -177,7 +170,6 @@ type Props = {
   onApproval?: (requestId: number, decision: ApprovalDecision) => void;
   onAddToChat?: (text: string, blockId?: string) => void;
   onSaveNote?: (text: string) => void | Promise<void>;
-  onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
   onSendDraft?: (block: Block) => boolean | void;
   onRemoveDraft?: (block: Block) => boolean | void;
   onSaveSelectionNote?: (text: string, target: NoteTarget) => void | Promise<Note | void>;
@@ -223,7 +215,6 @@ function AgentTranscriptComponent({
   onApproval,
   onAddToChat,
   onSaveNote,
-  onSaveToCanvas,
   onSendDraft,
   onRemoveDraft,
   onSaveSelectionNote,
@@ -1056,7 +1047,6 @@ function AgentTranscriptComponent({
                   }
                   copyText={turnCopyText(turn)}
                   onSaveNote={onSaveNote}
-                  onSaveToCanvas={onSaveToCanvas}
 
 
 
@@ -1161,7 +1151,6 @@ function TurnDuration({
   completedAt,
   copyText: output,
   onSaveNote,
-  onSaveToCanvas,
 
 
 }: {
@@ -1172,7 +1161,6 @@ function TurnDuration({
   completedAt?: number;
   copyText?: string;
   onSaveNote?: (text: string) => void | Promise<void>;
-  onSaveToCanvas?: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
 
 
 
@@ -1198,9 +1186,6 @@ function TurnDuration({
             <CopyTurnButton text={output} />
             {onSaveNote ? (
               <SaveNoteButton text={output} onSave={onSaveNote} />
-            ) : null}
-            {onSaveToCanvas ? (
-              <SaveToCanvasButton text={output} onSave={onSaveToCanvas} />
             ) : null}
           </>
         ) : (
@@ -1467,67 +1452,6 @@ function SaveNoteButton({
       {error && (
         <span role="alert" className="max-w-xs text-xs text-content/70">
           Could not save note. {error}
-        </span>
-      )}
-    </>
-  );
-}
-
-function SaveToCanvasButton({
-  text,
-  onSave,
-}: {
-  text: string;
-  onSave: (text: string, anchor?: HTMLElement | null) => void | Promise<void>;
-}) {
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const timer = useRef<number | null>(null);
-
-  useEffect(() => {
-    setSaved(false);
-    setError(null);
-    return () => {
-      if (timer.current != null) window.clearTimeout(timer.current);
-    };
-  }, [text]);
-
-  return (
-    <>
-      <button
-        type="button"
-        disabled={pending}
-        title={saved ? "Saved to Canvas" : "Save to canvas"}
-        aria-label={saved ? "Saved to Canvas" : "Save to canvas"}
-        className="rounded-md p-1 text-content/40 hover:bg-content/8 hover:text-content/70"
-        onClick={async (event) => {
-          setError(null);
-          setSaved(false);
-          setPending(true);
-          try {
-            await onSave(text, event.currentTarget as HTMLElement);
-            playCue("copy");
-            setSaved(true);
-            if (timer.current != null) window.clearTimeout(timer.current);
-            timer.current = window.setTimeout(() => setSaved(false), 2000);
-          } catch (error) {
-            if (error instanceof DOMException && error.name === "AbortError") return;
-            setError(error instanceof Error ? error.message : String(error));
-          } finally {
-            setPending(false);
-          }
-        }}
-      >
-        {saved ? (
-          <Check className="size-3.5" />
-        ) : (
-          <ExcalidrawIcon className="size-3.5" />
-        )}
-      </button>
-      {error && (
-        <span role="alert" className="max-w-xs text-xs text-content/70">
-          Could not save to canvas. {error}
         </span>
       )}
     </>
@@ -2281,7 +2205,6 @@ function ActivityPhaseGroup({
   const turnFor = useStepQueue();
   const title = activityPhaseTitle(phase, active);
   const lociPhase = !!lociWorkSummary(phase.steps, active);
-  const canvasPhase = !lociPhase && !!canvasWorkSummary(phase.steps, active);
   // Opening a group on purpose is also how you read the line that titled it,
   // whole. The auto-open while it runs is a live view, not a reading one, and
   // a one-line note the header already shows in full has nothing to add.
@@ -2296,7 +2219,7 @@ function ActivityPhaseGroup({
   if (!phase.headline && phase.steps.length === 1) {
     return (
       <div className="flex min-w-0 items-start gap-1.5">
-        {lociPhase || canvasPhase ? null : (
+        {lociPhase ? null : (
           <ActivityPhaseIcon kind={phase.kind} className="mt-[7px]" />
         )}
         <div className="min-w-0 flex-1">
@@ -2353,10 +2276,6 @@ function ActivityPhaseGroup({
         <span className="relative flex size-3.5 shrink-0 items-center justify-center">
           {lociPhase ? (
             <LociMark className="size-3.5 group-hover:opacity-0" />
-          ) : canvasPhase ? (
-            <ExcalidrawIcon
-              className="size-3.5 text-content/50 group-hover:opacity-0"
-            />
           ) : (
             <ActivityPhaseIcon
               kind={phase.kind}
@@ -3081,12 +3000,6 @@ function ActivityToolRow({
       <LociCallRow block={block} call={appCall} onApproval={onApproval} />
     );
   }
-  const canvasCall = canvasToolCall(block);
-  if (canvasCall) {
-    return (
-      <CanvasCallRow block={block} call={canvasCall} onApproval={onApproval} />
-    );
-  }
   const label = toolCallLabel(block, cwd);
   const state = toolCallState(block);
   const pending = needsApproval(block);
@@ -3234,87 +3147,6 @@ function LociCallRow({
   );
 }
 
-/** A call to the built-in Excalidraw MCP server, named for what it does to the drawing. */
-function CanvasCallRow({
-  block,
-  call,
-  onApproval,
-}: {
-  block: Block;
-  call: CanvasToolCall;
-  onApproval?: (requestId: number, decision: ApprovalDecision) => void;
-}) {
-  const state = toolCallState(block);
-  const output = block.tool?.detail?.trim();
-  const [errorOpen, setErrorOpen] = useState(false);
-  const hasError = state === "rejected" && !!output;
-  const label =
-    needsApproval(block) || state === "rejected"
-      ? call.ask
-      : state === "pending"
-        ? call.running
-        : call.done;
-  const summary = (
-    <>
-      <ExcalidrawIcon
-        className={`size-3.5 shrink-0 ${state === "rejected" ? "text-red-400" : "text-content/50"}`}
-      />
-      <span
-        className={`min-w-0 truncate font-sans text-sm ${state === "rejected" ? "text-red-400" : "text-content/50"}`}
-      >
-        {label}
-      </span>
-      <ToolCallStatusIcon state={state} />
-      {hasError ? (
-        <ChevronRight
-          className={`size-3.5 shrink-0 text-red-400/60 transition-transform ${errorOpen ? "rotate-90" : ""}`}
-        />
-      ) : null}
-    </>
-  );
-  return (
-    <div data-canvas-tool-call={call.tool} className="min-w-0">
-      <div className="flex min-w-0 items-center gap-1.5 py-1">
-        {hasError ? (
-          <button
-            type="button"
-            aria-expanded={errorOpen}
-            aria-label={`${errorOpen ? "Hide" : "Show"} error details for Excalidraw: ${call.ask}`}
-            onClick={() => setErrorOpen((value) => !value)}
-            className="flex min-w-0 items-center gap-1.5 text-left"
-          >
-            {summary}
-          </button>
-        ) : (
-          summary
-        )}
-        {call.checkpointId && state === "accepted" ? (
-          <button
-            type="button"
-            aria-label="Open the drawing"
-            onClick={() =>
-              window.dispatchEvent(
-                new CustomEvent(CANVAS_OPEN_CHECKPOINT_EVENT, {
-                  detail: call.checkpointId,
-                }),
-              )
-            }
-            className="shrink-0 rounded px-1.5 py-0.5 font-sans text-xs text-content/55 hover:bg-content/10 hover:text-content"
-          >
-            Open
-          </button>
-        ) : null}
-      </div>
-      {errorOpen && hasError ? (
-        <pre className="min-w-0 whitespace-pre-wrap break-words py-1 pl-5 font-mono text-[12px] leading-5 text-red-400/80">
-          {output}
-        </pre>
-      ) : null}
-      <ApprovalControls block={block} onApproval={onApproval} />
-    </div>
-  );
-}
-
 function ActivityToolIcon({
   state,
   live = false,
@@ -3439,14 +3271,6 @@ function ToolCall({
     return (
       <div className={frame}>
         <LociCallRow block={block} call={appCall} onApproval={onApproval} />
-      </div>
-    );
-  }
-  const canvasCall = canvasToolCall(block);
-  if (canvasCall) {
-    return (
-      <div className={frame}>
-        <CanvasCallRow block={block} call={canvasCall} onApproval={onApproval} />
       </div>
     );
   }

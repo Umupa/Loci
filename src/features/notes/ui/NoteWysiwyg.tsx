@@ -13,6 +13,7 @@ import { readBinaryFile } from "../../../platform/tauri/fs";
 import { imageDataUrl } from "../../../shared/lib/filePreview";
 import { relativeImagePath } from "../../../shared/lib/markdown/markdownLocalImages";
 import { isNoteImagePath } from "../noteImages";
+import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
 import "./NoteWysiwyg.css";
 
 /*
@@ -48,6 +49,18 @@ function showImage(img: HTMLImageElement, src: string, imageCwd: string | undefi
   }
   const local = relativeImagePath(url, imageCwd);
   if (local) void readBinaryFile(local).then((bytes) => { const next = imageDataUrl(bytes); if (next) set(next); }).catch(() => undefined);
+}
+
+/**
+ * Follow a link in a note: a web address in the browser, a Loci link (a
+ * passage saved from a reader, another note) in the app. False for anything else.
+ */
+export function followNoteLink(href: string): boolean {
+  if (/^(https?:|mailto:)/i.test(href)) { void openUrl(href).catch(() => undefined); return true; }
+  const resource = parseAppResourceUrl(href);
+  if (!resource) return false;
+  requestOpenAppResource(resource);
+  return true;
 }
 
 export function NoteWysiwyg({
@@ -131,9 +144,7 @@ export function NoteWysiwyg({
           if (!(event.metaKey || event.ctrlKey)) return false;
           const mark = view.state.doc.resolve(pos).marks().find((entry) => entry.type.name === "link");
           const href = mark?.attrs.href as string | undefined;
-          if (!href || !/^(https?:|mailto:)/i.test(href)) return false;
-          void openUrl(href).catch(() => undefined);
-          return true;
+          return href ? followNoteLink(href) : false;
         },
       },
     }));

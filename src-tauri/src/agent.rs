@@ -29,7 +29,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
 
-const AGENTS_DIR: &str = "agents";
+pub(crate) const AGENTS_DIR: &str = "agents";
 const SOUL_FILE: &str = "SOUL.md";
 const MEMORY_FILE: &str = "MEMORY.md";
 const MEMORY_DIR: &str = "memory";

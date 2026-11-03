@@ -187,230 +187,6 @@
       ]
     },
     {
-      "name": "canvases.create",
-      "summary": "Create an empty drawing.",
-      "callers": [
-        "external"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "help": "Its title",
-          "required": false,
-          "positional": false
-        },
-        {
-          "name": "project",
-          "type": "string",
-          "help": "One of the mentor's folders, by path or name",
-          "required": false,
-          "positional": false
-        }
-      ]
-    },
-    {
-      "name": "canvases.delete",
-      "summary": "Delete a drawing.",
-      "callers": [
-        "external"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "help": "Its id",
-          "required": true,
-          "positional": true
-        },
-        {
-          "name": "project",
-          "type": "string",
-          "help": "One of the mentor's folders, by path or name",
-          "required": false,
-          "positional": false
-        }
-      ]
-    },
-    {
-      "name": "canvases.get",
-      "summary": "Metadata of one drawing.",
-      "callers": [
-        "external"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "help": "Its id",
-          "required": true,
-          "positional": true
-        },
-        {
-          "name": "project",
-          "type": "string",
-          "help": "One of the mentor's folders, by path or name",
-          "required": false,
-          "positional": false
-        }
-      ]
-    },
-    {
-      "name": "canvases.list",
-      "summary": "The mentor's drawings, newest first; metadata only.",
-      "callers": [
-        "external"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "project",
-          "type": "string",
-          "help": "One of the mentor's folders, by path or name",
-          "required": false,
-          "positional": false
-        }
-      ]
-    },
-    {
-      "name": "canvases.read-data",
-      "summary": "The full Excalidraw scene of a drawing (dataJson).",
-      "callers": [
-        "external"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "help": "Its id",
-          "required": true,
-          "positional": true
-        },
-        {
-          "name": "project",
-          "type": "string",
-          "help": "One of the mentor's folders, by path or name",
-          "required": false,
-          "positional": false
-        }
-      ]
-    },
-    {
-      "name": "canvases.rename",
-      "summary": "Rename a drawing.",
-      "callers": [
-        "external"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "help": "Its id",
-          "required": true,
-          "positional": true
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "help": "The new title",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "project",
-          "type": "string",
-          "help": "One of the mentor's folders, by path or name",
-          "required": false,
-          "positional": false
-        }
-      ]
-    },
-    {
-      "name": "canvases.write-data",
-      "summary": "Replace a drawing's scene with Excalidraw JSON.",
-      "callers": [
-        "external"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "id",
-          "type": "string",
-          "help": "Its id",
-          "required": true,
-          "positional": true
-        },
-        {
-          "name": "dataJson",
-          "type": "string",
-          "help": "The scene as a JSON string (use --data-json-file)",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "project",
-          "type": "string",
-          "help": "One of the mentor's folders, by path or name",
-          "required": false,
-          "positional": false
-        }
-      ]
-    },
-    {
       "name": "code.definition",
       "summary": "Where a name is defined in the file's repository (by name, best first: the project before vendored code, the same file and folder first).",
       "callers": [
@@ -805,16 +581,9 @@
           "positional": false
         },
         {
-          "name": "canvasId",
-          "type": "string",
-          "help": "The canvas a canvas course walks through",
-          "required": false,
-          "positional": false
-        },
-        {
           "name": "steps",
           "type": "json",
-          "help": "Steps of a canvas course, as JSON",
+          "help": "Steps of a build-your-own course, as JSON",
           "required": false,
           "positional": false
         }
@@ -1499,7 +1268,7 @@
     },
     {
       "name": "mentors.delete",
-      "summary": "Delete a mentor, its conversation, documents and courses. Its soul and memory files stay on disk.",
+      "summary": "Delete a mentor: its folder (sources, courses, notes, repos, memory) moves to the Trash; its conversation, highlights and progress are deleted. Folders it was given stay.",
       "callers": [
         "external"
       ],
@@ -1554,7 +1323,7 @@
     },
     {
       "name": "mentors.import",
-      "summary": "Import a mentor from an exported .zip (--path), or bring back a mentor folder where it is (--folder), such as one kept after a reset or removal.",
+      "summary": "Import a mentor from an exported .zip (--path), or bring back a mentor folder where it is (--folder), such as one put back from the Trash outside the mentors folder.",
       "callers": [
         "external"
       ],
@@ -1570,7 +1339,7 @@
         {
           "name": "folder",
           "type": "string",
-          "help": "Absolute path of a mentor folder (it holds mentor.json or mentor.removed.json)",
+          "help": "Absolute path of a mentor folder (it holds mentor.json, or mentor.removed.json from a Loci before 0.6)",
           "required": false,
           "positional": false
         }
@@ -2067,7 +1836,7 @@
     },
     {
       "name": "reader.open",
-      "summary": "Open a lesson, source, note, canvas or file in a mentor's reader, in place of what it showed.",
+      "summary": "Open a lesson, source, note or file in a mentor's reader, in place of what it showed.",
       "callers": [
         "external",
         "agent"
@@ -2106,13 +1875,6 @@
           "name": "note",
           "type": "string",
           "help": "A note id",
-          "required": false,
-          "positional": false
-        },
-        {
-          "name": "canvas",
-          "type": "string",
-          "help": "A canvas id",
           "required": false,
           "positional": false
         },
@@ -2526,7 +2288,7 @@
     },
     {
       "name": "settings.get",
-      "summary": "App settings a terminal may read: defaultProvider, defaultModel, defaultMentorAccess, learningLanguage, canvasTools.",
+      "summary": "App settings a terminal may read: defaultProvider, defaultModel, defaultMentorAccess, learningLanguage.",
       "callers": [
         "external"
       ],
@@ -2552,7 +2314,7 @@
         {
           "name": "key",
           "type": "string",
-          "help": "defaultProvider: The provider new conversations start with; defaultModel: The model new conversations start with, for the default provider; defaultMentorAccess: The permissions a new mentor starts with: supervised, auto-accept-edits, auto, full-access; learningLanguage: What mentors write in, whatever their sources' language: auto (follow the learner's messages), zh-CN, en; canvasTools: Whether agents get the built-in Excalidraw tools (true or false)",
+          "help": "defaultProvider: The provider new conversations start with; defaultModel: The model new conversations start with, for the default provider; defaultMentorAccess: The permissions a new mentor starts with: supervised, auto-accept-edits, auto, full-access; learningLanguage: What mentors write in, whatever their sources' language: auto (follow the learner's messages), zh-CN, en",
           "required": true,
           "positional": true
         },
