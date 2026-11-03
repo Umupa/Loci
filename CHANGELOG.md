@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Changed
+
+- **Translation is one icon in the reader's header.** The bar over a foreign source is gone. The translate icon by the lesson's actions is pale while nothing is translated, has a dot while some is still to do, and is ink once there is a translation; its menu reads in your language, the original or both, and asks your mentor for the rest. ⌥T flips between the translation and the original.
+
 ## [0.8.0] - 2026-11-03
 
 A release about how Loci looks and reads: one quiet paper-and-ink look across the reader, the library and the conversation.
