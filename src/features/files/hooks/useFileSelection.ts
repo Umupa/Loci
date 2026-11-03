@@ -20,8 +20,9 @@ export function useFileSelection(root: RefObject<HTMLElement | null>, enabled: b
   const dismiss = useCallback(() => setSelection(null), []);
 
   useEffect(() => {
-    const el = root.current;
-    if (!enabled || !el) {
+    // The viewer is read at each event, not once: its text often mounts
+    // after it has loaded, well after this runs.
+    if (!enabled) {
       setSelection(null);
       return;
     }
@@ -32,7 +33,8 @@ export function useFileSelection(root: RefObject<HTMLElement | null>, enabled: b
       const native = window.getSelection();
       const range = native && native.rangeCount > 0 ? native.getRangeAt(0) : null;
       const text = native?.toString().trim() ?? "";
-      const inside = !!range && el.contains(range.commonAncestorContainer);
+      const el = root.current;
+      const inside = !!range && !!el && el.contains(range.commonAncestorContainer);
       const rect = range && inside && text && !native?.isCollapsed ? rangeRect(range) : null;
       setSelection(rect && range ? { text, rect, range: range.cloneRange() } : null);
     };
@@ -41,7 +43,7 @@ export function useFileSelection(root: RefObject<HTMLElement | null>, enabled: b
       frame = requestAnimationFrame(report);
     };
     const onPointerDown = (event: PointerEvent) => {
-      pointerSelecting = el.contains(event.target as Node);
+      pointerSelecting = !!root.current?.contains(event.target as Node);
       // A new press ends the previous selection's menu.
       if (pointerSelecting) setSelection(null);
     };
