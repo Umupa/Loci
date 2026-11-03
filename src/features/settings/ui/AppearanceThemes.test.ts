@@ -321,7 +321,7 @@ describe("font settings", () => {
     expect(trigger("interface-font").getAttribute("aria-label")).toBe("Interface font: System default");
   });
 
-  it("offer the fonts Omarchy installs", async () => {
+  it("offer Omarchy's fonts and the Mac's own, when nothing can be measured", async () => {
     await render();
     await click(trigger("code-font"));
     const options = Array.from(document.querySelectorAll('[role="option"]')).map(
@@ -336,6 +336,9 @@ describe("font settings", () => {
       "Victor Mono",
       "Bitstream Vera Mono",
       "Iosevka",
+      "Menlo",
+      "Monaco",
+      "PT Mono",
       "Custom…",
     ]);
   });
@@ -417,14 +420,18 @@ describe("font settings", () => {
     expect(stored("loci.codeFont")).toBeNull();
   });
 
-  it("say when a code font would not be monospace, and leave it unused", async () => {
+  it("offer only installed fonts, and say when the chosen one is missing, leaving it unused", async () => {
     // Every font measures as proportional here, which is what fontconfig makes of one it lacks.
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation((() => ({
       font: "",
       measureText: (text: string) => ({ width: text.startsWith("W") ? 12 : 8 }),
     })) as never);
+    localStorage.setItem("loci.codeFont", "VictorMono Nerd Font");
     await render();
-    await pick("code-font", "Victor Mono");
+    await click(trigger("code-font"));
+    const options = Array.from(document.querySelectorAll('[role="option"]')).map((option) => option.textContent?.trim());
+    // JetBrains Mono ships with Loci, so it is offered even with nothing installed.
+    expect(options).toEqual(["System monospace", "JetBrains Mono", "Victor Mono (not installed)", "Custom…"]);
     expect(container.textContent).toContain("Not installed, or not a monospace font");
     expect(stored("loci.codeFont")).toBe("VictorMono Nerd Font");
     expect(html().style.getPropertyValue("--font-mono-user")).toBe("");

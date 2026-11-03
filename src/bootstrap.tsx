@@ -18,6 +18,7 @@ import { hydrateMentors } from "./features/agents/model/mentorStore";
 import { BootGate } from "./bootSplash";
 import "lxgw-wenkai-screen-webfont/lxgwwenkaiscreen.css";
 import "@fontsource-variable/literata/opsz.css";
+import "@fontsource-variable/jetbrains-mono/wght.css";
 import "./styles/index.css";
 
 performance.mark("loci:bootstrap");

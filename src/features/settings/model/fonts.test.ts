@@ -8,7 +8,10 @@ import {
   loadReadingFont,
   loadUiFont,
   normalizeFontFamily,
-  OMARCHY_FONTS,
+  BUNDLED_CODE_FONT,
+  CODE_FONTS,
+  codeFontUsable,
+  installedFamily,
   READING_FONT_DEFAULT,
   READING_FONT_SERIF,
   rendersMonospace,
@@ -220,9 +223,9 @@ describe("applyFonts", () => {
   });
 });
 
-describe("Omarchy's fonts", () => {
-  it("are the families its font menu installs", () => {
-    expect(OMARCHY_FONTS.map((font) => font.family)).toEqual([
+describe("code fonts", () => {
+  it("lead with the families Omarchy's font menu installs, all plain names", () => {
+    expect(CODE_FONTS.slice(0, 7).map((font) => font.families[0])).toEqual([
       "JetBrainsMono Nerd Font",
       "CaskaydiaMono Nerd Font",
       "MesloLGL Nerd Font",
@@ -231,9 +234,25 @@ describe("Omarchy's fonts", () => {
       "BitstromWera Nerd Font",
       "Iosevka Nerd Font Mono",
     ]);
-    for (const font of OMARCHY_FONTS) {
-      expect(normalizeFontFamily(font.family)).toBe(font.family);
+    for (const family of CODE_FONTS.flatMap((font) => font.families)) {
+      expect(normalizeFontFamily(family)).toBe(family);
     }
+  });
+
+  it("are found under whichever name they are installed as, or not at all", () => {
+    fakeCanvas(["CaskaydiaCove Nerd Font Mono"]);
+    const cascadia = CODE_FONTS.find((font) => font.label === "Cascadia Mono")!;
+    const iosevka = CODE_FONTS.find((font) => font.label === "Iosevka")!;
+    expect(installedFamily(cascadia)).toBe("CaskaydiaCove Nerd Font Mono");
+    expect(installedFamily(iosevka)).toBeNull();
+  });
+
+  it("fall back to the JetBrains Mono Loci ships, which is always usable", () => {
+    fakeCanvas([]);
+    const jetbrains = CODE_FONTS.find((font) => font.label === "JetBrains Mono")!;
+    expect(installedFamily(jetbrains)).toBe(BUNDLED_CODE_FONT);
+    expect(codeFontUsable(BUNDLED_CODE_FONT)).toBe(true);
+    expect(codeFontUsable("Iosevka")).toBe(false);
   });
 });
 

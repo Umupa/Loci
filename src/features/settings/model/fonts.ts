@@ -20,22 +20,55 @@ export const UI_FONT_FOLLOWS_CODE = "@code";
 /** Fired on `window` whenever a font setting changes. */
 export const FONT_CHANGE_EVENT = "loci:fontchange";
 
-export type FontPreset = { label: string; family: string };
+/** A font offered by name, under each family name it is installed as, most likely first; `bundled` ships with Loci. */
+export type FontPreset = { label: string; families: readonly string[]; bundled?: string };
+
+/** JetBrains Mono ships with Loci (bootstrap imports it), so a code font is there on every machine, offline. */
+export const BUNDLED_CODE_FONT = "JetBrains Mono Variable";
 
 /**
- * Omarchy sets one monospace font for everything and ships JetBrainsMono Nerd
- * Font. These are the families its Install > Style > Font menu offers (see
- * `bin/omarchy-menu`), under the names fontconfig knows them by.
+ * The code fonts offered by name. Omarchy sets one monospace font for
+ * everything and ships these as Nerd Fonts (its Install > Style > Font menu,
+ * `bin/omarchy-menu`), under the names fontconfig knows them by; the same
+ * fonts installed on a Mac or from their own releases go by other names,
+ * which follow. Last, the monospace fonts macOS has built in.
  */
-export const OMARCHY_FONTS: readonly FontPreset[] = [
-  { label: "JetBrains Mono", family: "JetBrainsMono Nerd Font" },
-  { label: "Cascadia Mono", family: "CaskaydiaMono Nerd Font" },
-  { label: "Meslo LG Mono", family: "MesloLGL Nerd Font" },
-  { label: "Fira Code", family: "FiraCode Nerd Font" },
-  { label: "Victor Mono", family: "VictorMono Nerd Font" },
-  { label: "Bitstream Vera Mono", family: "BitstromWera Nerd Font" },
-  { label: "Iosevka", family: "Iosevka Nerd Font Mono" },
+export const CODE_FONTS: readonly FontPreset[] = [
+  { label: "JetBrains Mono", families: ["JetBrainsMono Nerd Font", "JetBrainsMono Nerd Font Mono", "JetBrains Mono"], bundled: BUNDLED_CODE_FONT },
+  { label: "Cascadia Mono", families: ["CaskaydiaMono Nerd Font", "CaskaydiaCove Nerd Font Mono", "CaskaydiaCove Nerd Font", "Cascadia Mono", "Cascadia Code"] },
+  { label: "Meslo LG Mono", families: ["MesloLGL Nerd Font", "MesloLGM Nerd Font", "MesloLGS Nerd Font", "Meslo LG M"] },
+  { label: "Fira Code", families: ["FiraCode Nerd Font", "FiraCode Nerd Font Mono", "Fira Code"] },
+  { label: "Victor Mono", families: ["VictorMono Nerd Font", "VictorMono Nerd Font Mono", "Victor Mono"] },
+  { label: "Bitstream Vera Mono", families: ["BitstromWera Nerd Font", "Bitstream Vera Sans Mono"] },
+  { label: "Iosevka", families: ["Iosevka Nerd Font Mono", "Iosevka Nerd Font", "Iosevka", "Iosevka Term"] },
+  { label: "Menlo", families: ["Menlo"] },
+  { label: "Monaco", families: ["Monaco"] },
+  { label: "PT Mono", families: ["PT Mono"] },
 ];
+
+/**
+ * The name a preset is installed under here, or null when none of its names
+ * is. A code font is installed when it draws as monospace by its name alone;
+ * a missing one falls back to the proportional default. When nothing can be
+ * measured, its first name is assumed. A copy installed on the system wins
+ * (a Nerd Font has its icons); else the copy Loci ships, if it ships one.
+ */
+export function installedFamily(preset: FontPreset): string | null {
+  for (const family of preset.families) {
+    const mono = rendersMonospace(family);
+    if (mono === null) return preset.families[0];
+    if (mono) return family;
+  }
+  return preset.bundled ?? null;
+}
+
+/**
+ * Whether a code font can be used: the bundled one always can (it may not
+ * have loaded yet, so it is not measured); any other must draw as monospace.
+ */
+export function codeFontUsable(families: string): boolean {
+  return families.split(",")[0].trim() === BUNDLED_CODE_FONT || rendersMonospace(families) !== false;
+}
 
 const GENERIC_FAMILIES = new Set([
   "serif",
@@ -155,7 +188,7 @@ export function cssFamilies(families: string): string {
 /** The stored code font, unless it is known not to render as monospace. */
 export function usableCodeFont(): string | null {
   const code = loadCodeFont();
-  return code && rendersMonospace(code) !== false ? code : null;
+  return code && codeFontUsable(code) ? code : null;
 }
 
 /**
