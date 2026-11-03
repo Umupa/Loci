@@ -65,6 +65,17 @@ struct QuitConfirm {
 /// A window already showing that page, such as one connected to the same
 /// host, comes to the front instead of a second one opening.
 pub fn open_new_window(app: &AppHandle, page: Option<&str>) -> Result<(), String> {
+    // AppKit aborts when another thread changes a window, which `macos::install` does.
+    #[cfg(target_os = "macos")]
+    if objc2::MainThreadMarker::new().is_none() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (main_app, page) = (app.clone(), page.map(str::to_owned));
+        app.run_on_main_thread(move || {
+            let _ = tx.send(open_new_window(&main_app, page.as_deref()));
+        })
+        .map_err(|err| err.to_string())?;
+        return rx.recv().map_err(|err| err.to_string())?;
+    }
     if let Some(query) = page
         .and_then(|page| page.split_once('?'))
         .map(|(_, query)| query)
