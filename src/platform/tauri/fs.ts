@@ -1,5 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { transport } from "../transport";
 import { slash } from "../../shared/lib/paths";
 
 
@@ -8,7 +7,7 @@ export function claudeShellCommands(
   providerAccountId: string | undefined,
   toolIds: string[],
 ): Promise<Record<string, string>> {
-  return invoke<Record<string, string>>("claude_shell_commands", {
+  return transport.call<Record<string, string>>("claude_shell_commands", {
     providerSessionId,
     providerAccountId,
     toolIds,
@@ -26,7 +25,7 @@ export function resolveProjectLocation(
   path: string,
   identity?: string,
 ): Promise<ProjectLocation | null> {
-  return invoke<ProjectLocation | null>("resolve_project_location", {
+  return transport.call<ProjectLocation | null>("resolve_project_location", {
     path,
     identity: identity ?? null,
   });
@@ -55,7 +54,7 @@ export function listSkills(
   disabledPaths?: readonly string[] | null,
   userOnly?: boolean,
 ): Promise<DiscoveredSkill[]> {
-  return invoke<DiscoveredSkill[]>("list_skills", {
+  return transport.call<DiscoveredSkill[]>("list_skills", {
     cwd,
     disabledPaths: disabledPaths ?? null,
     ...(userOnly ? { userOnly: true } : {}),
@@ -68,12 +67,12 @@ export function createPath(
   name: string,
   isDir: boolean,
 ): Promise<string> {
-  return invoke<string>("create_path", { parent, name, isDir }).then(slash);
+  return transport.call<string>("create_path", { parent, name, isDir }).then(slash);
 }
 
 
 export function deletePath(path: string): Promise<void> {
-  return invoke<void>("delete_path", { path });
+  return transport.call<void>("delete_path", { path });
 }
 
 export type FsEntry = {
@@ -86,36 +85,36 @@ export type FsEntry = {
 
 /** Immediate children of a folder: folders first, then files, in natural order. */
 export function listDir(path: string): Promise<FsEntry[]> {
-  return invoke<FsEntry[]>("list_dir", { path });
+  return transport.call<FsEntry[]>("list_dir", { path });
 }
 
 /** Every file and folder under a project, for finding by name or path. */
 export function listProjectFiles(cwd: string): Promise<ProjectFile[]> {
-  return invoke<ProjectFile[]>("list_project_files", { cwd });
+  return transport.call<ProjectFile[]>("list_project_files", { cwd });
 }
 
 export type FileMtime = { path: string; mtimeMs: number | null };
 
 export function statFiles(paths: string[]): Promise<FileMtime[]> {
   if (paths.length === 0) return Promise.resolve([]);
-  return invoke<FileMtime[]>("stat_files", { paths });
+  return transport.call<FileMtime[]>("stat_files", { paths });
 }
 
 export function renamePath(path: string, name: string): Promise<string> {
-  return invoke<string>("rename_path", { path, name }).then(slash);
+  return transport.call<string>("rename_path", { path, name }).then(slash);
 }
 
 /** Move a file or folder to the system trash. */
 export function trashPath(path: string): Promise<void> {
-  return invoke<void>("trash_path", { path });
+  return transport.call<void>("trash_path", { path });
 }
 
 export function copyPath(from: string, destParent: string): Promise<string> {
-  return invoke<string>("copy_path", { from, destParent }).then(slash);
+  return transport.call<string>("copy_path", { from, destParent }).then(slash);
 }
 
 export function movePath(from: string, destParent: string): Promise<string> {
-  return invoke<string>("move_path", { from, destParent }).then(slash);
+  return transport.call<string>("move_path", { from, destParent }).then(slash);
 }
 
 
@@ -125,7 +124,7 @@ export function movePath(from: string, destParent: string): Promise<string> {
  * files.
  */
 export function clipboardFilePaths(): Promise<string[]> {
-  return invoke<string[]>("clipboard_file_paths").then((paths) =>
+  return transport.call<string[]>("clipboard_file_paths").then((paths) =>
     paths.map(slash),
   );
 }
@@ -133,97 +132,38 @@ export function clipboardFilePaths(): Promise<string[]> {
 
 /** Put the original file on the macOS clipboard, preserving its name and type. */
 export function copyFileToClipboard(path: string): Promise<void> {
-  return invoke<void>("copy_file_to_clipboard", { path });
+  return transport.call<void>("copy_file_to_clipboard", { path });
 }
 
 
 export function revealPath(path: string): Promise<void> {
-  return invoke<void>("reveal_path", { path });
+  return transport.call<void>("reveal_path", { path });
 }
 
 
 export function openPathWithDefaultApp(path: string): Promise<void> {
-  return invoke<void>("open_path_with_default_app", { path });
+  return transport.call<void>("open_path_with_default_app", { path });
 }
 
 
 export function homeDir(): Promise<string> {
-  return invoke<string>("home_dir");
-}
-
-
-/**
- * Folders chosen from the system picker. Multi-select is on, so several
- * projects can be opened in one pass; the dialog still returns a bare string
- * when only one was taken.
- */
-export async function pickFolders(title = "Open projects"): Promise<string[]> {
-  const selected = await open({
-    directory: true,
-    multiple: true,
-    title,
-  });
-  if (Array.isArray(selected)) {
-    return selected.filter((path) => !!path).map(slash);
-  }
-  return typeof selected === "string" && selected ? [slash(selected)] : [];
-}
-
-/** One folder chosen from the system picker, starting at `defaultPath`. */
-export async function pickFolder(title: string, defaultPath?: string): Promise<string | undefined> {
-  const selected = await open({
-    directory: true,
-    multiple: false,
-    title,
-    ...(defaultPath ? { defaultPath } : {}),
-  });
-  const path = Array.isArray(selected) ? selected[0] : selected;
-  return typeof path === "string" && path ? slash(path) : undefined;
-}
-
-/** Where to save a file, from the system's save dialog. */
-export async function pickSavePath(title: string, defaultPath: string, extensions: string[]): Promise<string | undefined> {
-  const chosen = await save({ title, defaultPath, filters: [{ name: extensions.join(", "), extensions }] });
-  return typeof chosen === "string" && chosen ? slash(chosen) : undefined;
-}
-
-/** One file of these extensions, from the system picker. */
-export async function pickFile(title: string, extensions: string[]): Promise<string | undefined> {
-  const selected = await open({ title, multiple: false, directory: false, filters: [{ name: extensions.join(", "), extensions }] });
-  const path = Array.isArray(selected) ? selected[0] : selected;
-  return typeof path === "string" && path ? slash(path) : undefined;
-}
-
-export async function pickFiles(title = "Attach files"): Promise<string[] | null> {
-  const selected = await open({
-    multiple: true,
-    directory: false,
-    title,
-  });
-  if (Array.isArray(selected)) {
-    const paths = selected
-      .filter((path): path is string => Boolean(path))
-      .map(slash);
-    return paths.length > 0 ? paths : null;
-  }
-  if (typeof selected === "string" && selected) return [slash(selected)];
-  return null;
+  return transport.call<string>("home_dir");
 }
 
 
 export function readTextFile(path: string): Promise<string> {
-  return invoke<string>("read_text_file", { path });
+  return transport.call<string>("read_text_file", { path });
 }
 
 
 /** Raw bytes for the image viewer. Arrives as an ArrayBuffer, not base64. */
 /** Bytes of a document shown in a file pane; allows far larger files than a preview. */
 export async function readDocumentFile(path: string): Promise<Uint8Array> {
-  return new Uint8Array(await invoke<ArrayBuffer>("read_document_file", { path }));
+  return new Uint8Array(await transport.call<ArrayBuffer>("read_document_file", { path }));
 }
 
 export async function readBinaryFile(path: string): Promise<Uint8Array> {
-  const buffer = await invoke<ArrayBuffer | string>("read_binary_file", {
+  const buffer = await transport.call<ArrayBuffer | string>("read_binary_file", {
     path,
   });
   // A connected machine sends the bytes as base64 inside its JSON reply.
@@ -244,17 +184,17 @@ export function saveGeneratedImage(input: {
   data: string;
   name: string;
 }): Promise<GeneratedImageAsset> {
-  return invoke<GeneratedImageAsset>("save_generated_image", input);
+  return transport.call<GeneratedImageAsset>("save_generated_image", input);
 }
 
 
 export function deleteGeneratedImages(paths: string[]): Promise<void> {
-  return invoke<void>("delete_generated_images", { paths });
+  return transport.call<void>("delete_generated_images", { paths });
 }
 
 
 export function writeTextFile(path: string, content: string): Promise<void> {
-  return invoke<void>("write_text_file", { path, content });
+  return transport.call<void>("write_text_file", { path, content });
 }
 
 

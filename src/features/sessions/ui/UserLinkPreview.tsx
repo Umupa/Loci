@@ -1,4 +1,4 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../../../platform/native";
 import { useEffect,useState,type MouseEvent } from "react";
 import { fetchLinkPreviewMetadata,type LinkPreviewMetadata,type UserLink } from "../model/linkPreview";
 

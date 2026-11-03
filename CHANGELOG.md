@@ -4,6 +4,19 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **Remote access.** Settings → Remote access lets your other devices use this computer's workspace. Mentors, courses, conversations, notes, drawings, PDFs and highlights stay here and are read and written here; the other device sends what you do and shows what comes back. It is off until you turn it on.
+- **Device groups.** Create a group on the host and share its `loci-group:…` key. Another installation joins by pasting the key, without an approval step. The device list shows every member, whether it is online and when it was last active; **Connect** opens a device and **Remove** revokes one for good.
+- **A window connected to another device.** It looks like the host's own window: open a mentor, ask, answer approvals, take notes, highlight a PDF, and change the mentor's model and permissions from its settings dialog. A bar at the top names the host and says whether the connection is up.
+- **Files on the host.** Choosing a file in a connected window browses the host's disk. Files and pictures dragged in or copied from this device are uploaded to the host first and keep their names.
+- **Offline reading.** When the host cannot be reached, the window keeps showing what it read before and turns read-only: changes and new messages are refused rather than queued. Reconnecting catches up with the host.
+- **The host stays awake.** While remote access is on and the host is plugged in, Loci prevents idle sleep. It still sleeps on battery or with the lid closed.
+
+### Changed
+
+- In a window connected to another device, the model list and the settings that decide what the host does come from the host. Appearance, layout and shortcuts stay with this device.
+
 ## [0.5.0] - 2026-11-01
 
 ### Added

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 
 /** Command-line access to this Loci, as the host reports it. */
 export type CliAccess = {
@@ -11,7 +11,7 @@ export type CliAccess = {
   installed: boolean;
 };
 
-export const loadCliAccess = () => invoke<CliAccess>("cli_access_status");
-export const setCliAccess = (enabled: boolean) => invoke<CliAccess>("cli_access_set", { enabled });
-export const rotateCliToken = () => invoke<void>("cli_access_rotate");
-export const installCli = () => invoke<CliAccess>("cli_install");
+export const loadCliAccess = () => transport.call<CliAccess>("cli_access_status");
+export const setCliAccess = (enabled: boolean) => transport.call<CliAccess>("cli_access_set", { enabled });
+export const rotateCliToken = () => transport.call<void>("cli_access_rotate");
+export const installCli = () => transport.call<CliAccess>("cli_install");

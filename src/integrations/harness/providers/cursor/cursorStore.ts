@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../../platform/transport";
 
 export type StoredCursorToolCall = {
   toolCallId: string;
@@ -29,7 +29,7 @@ export function readStoredCursorSubagentRuns(
   toolCallIds: string[],
   knownRevisions: Record<string, string> = {},
 ): Promise<StoredCursorSubagentRun[]> {
-  return invoke("cursor_subagent_runs", {
+  return transport.call("cursor_subagent_runs", {
     sessionId,
     toolCallIds,
     knownRevisions,
@@ -40,7 +40,7 @@ export function readStoredCursorToolCalls(
   sessionId: string,
   toolCallIds: string[],
 ): Promise<StoredCursorToolCall[]> {
-  return invoke<StoredCursorToolCall[]>("cursor_tool_calls", {
+  return transport.call<StoredCursorToolCall[]>("cursor_tool_calls", {
     sessionId,
     toolCallIds,
   });

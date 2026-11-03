@@ -3,7 +3,7 @@ import { sanitizeLearningContext } from "../../learning/model/learningContext";
 import { isAgentSession } from "../../agents/model/agent";
 import { forgetAgentContext } from "../../agents/model/agentFiles";
 import { forgetAgentRotation } from "../../agents/model/agentRotation";
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import {
   isWeakToolTitle,
   titleFromToolInput,
@@ -168,7 +168,7 @@ export async function upsertSession(
   const payload = sanitizeSessionForPersist(session);
   const summary = await enqueueSessionWrite(session.id, async () => {
     if (deletedSessionIds.has(session.id)) return null;
-    return invoke<SessionSummary>("session_upsert", {
+    return transport.call<SessionSummary>("session_upsert", {
       session: payload,
     });
   });
@@ -203,7 +203,7 @@ export async function listSessionsByProject(
   cwd: string,
 ): Promise<SessionSummary[]> {
   if (!cwd || cwd === "~") return [];
-  const rows = await invoke<SessionSummary[]>("session_list_by_project", {
+  const rows = await transport.call<SessionSummary[]>("session_list_by_project", {
     cwd: normalizeProjectPath(cwd),
   });
   // An agent's chat starts in the home folder but belongs to no project.
@@ -214,7 +214,7 @@ export function rebaseProjectSessions(
   fromCwd: string,
   toCwd: string,
 ): Promise<void> {
-  return invoke<void>("session_rebase_project", {
+  return transport.call<void>("session_rebase_project", {
     fromCwd: normalizeProjectPath(fromCwd),
     toCwd: normalizeProjectPath(toCwd),
   });
@@ -245,7 +245,7 @@ export async function searchSessions(options: {
 }): Promise<SessionSearchResult> {
   const query = options.query.trim();
   if (!query) return { hits: [], truncated: false };
-  const result = await invoke<SessionSearchResult>("session_search", {
+  const result = await transport.call<SessionSearchResult>("session_search", {
     options: {
       query,
       searchOwner: options.searchOwner,
@@ -264,11 +264,11 @@ export async function searchSessions(options: {
 }
 
 export function cancelSessionSearch(searchOwner: string): Promise<void> {
-  return invoke<void>("cancel_session_search", { searchOwner });
+  return transport.call<void>("cancel_session_search", { searchOwner });
 }
 
 export async function getSession(sessionId: string): Promise<Session | null> {
-  const record = await invoke<SessionRecord | null>("session_get", {
+  const record = await transport.call<SessionRecord | null>("session_get", {
     sessionId,
   });
   if (!record) return null;
@@ -365,7 +365,7 @@ export async function deleteSession(
     const pending = sessionWriteQueues.get(sessionId);
     if (pending) await pending;
     await enqueueSessionWrite(sessionId, () =>
-      invoke<void>("session_delete", { sessionId, imagePaths }),
+      transport.call<void>("session_delete", { sessionId, imagePaths }),
     );
     forgetAgentContext(sessionId);
     forgetAgentRotation(sessionId);
@@ -382,7 +382,7 @@ export async function discardDraftSessionRecord(
   sessionId: string,
 ): Promise<void> {
   await enqueueSessionWrite(sessionId, () =>
-    invoke<void>("session_delete", { sessionId, imagePaths: [] }),
+    transport.call<void>("session_delete", { sessionId, imagePaths: [] }),
   );
 }
 
@@ -391,7 +391,7 @@ export async function setSessionArchived(
   archived: boolean,
 ): Promise<void> {
   await enqueueSessionWrite(sessionId, () =>
-    invoke<void>("session_set_archived", { sessionId, archived }),
+    transport.call<void>("session_set_archived", { sessionId, archived }),
   );
 }
 
@@ -399,7 +399,7 @@ export async function setSessionPinned(
   sessionId: string,
   pinned: boolean,
 ): Promise<void> {
-  await invoke<void>("session_set_pinned", { sessionId, pinned });
+  await transport.call<void>("session_set_pinned", { sessionId, pinned });
 }
 
 /** Drain pending saves before closing the application. */
@@ -419,7 +419,7 @@ export async function replaceInFlightSessions(
   const run = inFlightWrite
     .catch(() => undefined)
     .then(() =>
-      invoke("session_set_in_flight", {
+      transport.call("session_set_in_flight", {
         sessions: refs.map((ref) => ({
           sessionId: ref.sessionId,
           cwd: normalizeProjectPath(ref.cwd),
@@ -434,7 +434,7 @@ export async function replaceInFlightSessions(
 export async function listInFlightSessions(): Promise<
   { sessionId: string; cwd: string }[]
 > {
-  const rows = await invoke<{ sessionId: string; cwd: string }[]>(
+  const rows = await transport.call<{ sessionId: string; cwd: string }[]>(
     "session_list_in_flight",
   );
   return Array.isArray(rows) ? rows : [];
@@ -444,7 +444,7 @@ export async function listInFlightSessions(): Promise<
 export async function takeInFlightSessions(): Promise<
   { sessionId: string; cwd: string }[]
 > {
-  const rows = await invoke<{ sessionId: string; cwd: string }[]>(
+  const rows = await transport.call<{ sessionId: string; cwd: string }[]>(
     "session_take_in_flight",
   );
   return Array.isArray(rows) ? rows : [];
@@ -459,13 +459,13 @@ let workspaceWrite: Promise<unknown> = Promise.resolve();
 export async function saveWorkspaceSnapshot(snapshot: unknown): Promise<void> {
   const run = workspaceWrite
     .catch(() => undefined)
-    .then(() => invoke("workspace_set_snapshot", { snapshot }));
+    .then(() => transport.call("workspace_set_snapshot", { snapshot }));
   workspaceWrite = run;
   await run;
 }
 
 export async function loadWorkspaceSnapshot(): Promise<unknown | null> {
-  const raw = await invoke<unknown | null>("workspace_get_snapshot");
+  const raw = await transport.call<unknown | null>("workspace_get_snapshot");
   return raw ?? null;
 }
 

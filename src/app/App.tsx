@@ -4,8 +4,8 @@ import type { MentorPage } from "../features/mentor/model/mentorPage";
 import { AgentGallery } from "../features/agents/ui/AgentGallery";
 import { setAgentReading } from "../features/agents/model/agentReading";
 import { useMentorView, type ShowOptions } from "./hooks/useMentorView";
-import { open as pickFile } from "@tauri-apps/plugin-dialog";
-import { listen } from "@tauri-apps/api/event";
+import { transport } from "../platform/transport";
+import { getCurrentWindow } from "../platform/native";
 import { Modal } from "../shared/ui/Modal";
 import { ADD_TO_CHAT_EVENT, requestAddToChat, type AddToChatRequest } from "../features/sessions/model/quoteDraft";
 import { queueLearningDraft } from "../features/learning/model/learningDraft";
@@ -16,7 +16,6 @@ import { LessonMarks } from "../features/learning/ui/LessonMarks";
 import { requestDocumentPlace } from "../features/agents/model/documentPlace";
 import type { DiscussionRef } from "../features/learning/model/types";
 import { startTransition, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUpdatePrompt, startUpdateChecks, usePendingUpdateVersion } from "../features/updates/model/updates";
 import { UpdatePrompt } from "../features/updates/ui/UpdatePrompt";
 import { WindowControls } from "./shell/WindowControls";
@@ -29,7 +28,7 @@ import { SessionPane } from "../features/sessions/ui/SessionPane";
 import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
 import { OPEN_FILE_EVENT, requestFilePlace, type OpenFileFn, type OpenFileOptions } from "../features/files/model/filePlace";
-import { pickFolders } from "../platform/tauri/fs";
+import { open as pickFile, pickFolders } from "../platform/dialog";
 import { useAgents } from "./hooks/useAgents";
 import { useAgentHabits } from "./hooks/useAgentHabits";
 import { useAgentDelegation } from "./hooks/useAgentDelegation";
@@ -66,6 +65,8 @@ import { rebaseProjectSessions } from "../features/sessions/data/sessionStore";
 import { ProjectNotFoundError } from "../features/projects/model/projectLocationError";
 import { closeBusyWindow, closeCurrentWindow, confirmDiscardFileDrafts, hasInFlightSessions, hideCurrentWindow, isAppQuitting, persistAndCloseWindow, persistLiveTranscripts, persistQuitState, setQuitWorkspace, type BootWorkspace, type WorkspaceSaveMode } from "./model/appLifecycle";
 import { useSessionRuntime } from "./hooks/useSessionRuntime";
+import { useSessionHost } from "./hooks/useSessionHost";
+import { sessionIntents, type SessionIntents } from "./remote/sessionIntents";
 import { useSessionSubmission } from "./hooks/useSessionSubmission";
 import { useIdleSessionDetach } from "./hooks/useIdleSessionDetach";
 import { useAppCommands } from "./hooks/useAppCommands";
@@ -140,8 +141,10 @@ function Workspace(boot: BootWorkspace) {
   const isForeground = useCallback((id: string) => surfaceRef.current === "mentor"
     && (mentorRef.current.currentRef.current?.sessionId === id || readerSessionId() === id), []);
 
+  const intentsRef = useRef<SessionIntents | null>(null);
+  const sessionHost = useSessionHost(sessionsRef, () => intentsRef.current!);
   const runtime = useSessionRuntime({ sessions, sessionsRef, setSessions, isForeground,
-    onPersistenceError: reportError,
+    onPersistenceError: reportError, onSessionsChanged: sessionHost.sessionsChanged,
     onFinished: (session) => { if (!session.ephemeral) void announceSessionFinished(session, isForeground(session.id)); },
   });
   const submission = useSessionSubmission({ runtime,
@@ -165,13 +168,16 @@ function Workspace(boot: BootWorkspace) {
     const page = mentor.current ? mentorView.stateFor(mentor.current.agentId).page : undefined;
     return new Set(surface === "mentor" && mentor.current ? [mentor.current.sessionId, ...(page?.kind === "session" ? [page.id] : [])] : []);
   }, [surface, mentor.current, mentorView]);
+  // What a connected device shows counts as shown: its older turns stay in the conversation.
+  const shownAnywhereIds = useMemo(() => sessionHost.leasedIds.length ? new Set([...visibleSessionIds, ...sessionHost.leasedIds]) : visibleSessionIds,
+    [visibleSessionIds, sessionHost.leasedIds]);
   const agents = useAgents({ runtime, submission,
     loadSession: (id) => storeRef.current!.loadSession(id),
     onError: reportError,
     onShow: (agentId, session) => { mentorRef.current.open(agentId, session); surfaceRef.current = "mentor"; setSurface("mentor"); },
     onReplaceSession: (oldId, session) => mentorRef.current.replaceSession(oldId, session),
     onRemoveSession: (id) => mentorRef.current.forgetSession(id),
-    visibleSessionIds,
+    visibleSessionIds: shownAnywhereIds,
   });
   agentsRef.current = agents;
   const activeAgent = mentor.current ? agents.agents.find((agent) => agent.id === mentor.current!.agentId) : undefined;
@@ -276,6 +282,8 @@ function Workspace(boot: BootWorkspace) {
     loadSession: (id) => storeRef.current!.loadSession(id),
     onPosted: (chat, name) => { void announceSessionFinished({ ...chat, title: name }, isForeground(chat.id)); },
   }, true);
+  const intents = sessionIntents({ submission, agents, agentHabits, store, updateSessions: runtime.updateSessions });
+  intentsRef.current = intents;
   const viewedSessionId = surface === "mentor" ? mentor.current?.sessionId : undefined;
   // A hidden run speaks through whoever started it, so nothing here counts or announces it.
   const shownSessions = useMemo(() => sessions.some((session) => session.ephemeral) ? sessions.filter((session) => !session.ephemeral) : sessions, [sessions]);
@@ -295,10 +303,11 @@ function Workspace(boot: BootWorkspace) {
     }).then((release) => { if (stopped) release(); else unlisten = release; });
     return () => { stopped = true; unlisten?.(); };
   }, [runtime.flushEvents]);
-  // The open mentor's conversation and its reader stay in memory, even behind Settings.
+  // The open mentor's conversation and its reader stay in memory, even behind
+  // Settings, and so does whatever a connected device shows.
   const readerPage = mentor.current ? mentorView.stateFor(mentor.current.agentId).page : undefined;
-  const keepIds = useMemo(() => [mentor.current?.sessionId, readerPage?.kind === "session" ? readerPage.id : undefined].filter((id): id is string => !!id),
-    [mentor.current?.sessionId, readerPage]);
+  const keepIds = useMemo(() => [mentor.current?.sessionId, readerPage?.kind === "session" ? readerPage.id : undefined, ...sessionHost.leasedIds].filter((id): id is string => !!id),
+    [mentor.current?.sessionId, readerPage, sessionHost.leasedIds]);
   useIdleSessionDetach({ sessions, sessionsRef, keepIds, isForeground,
     openingSessionIds: store.openingSessionIds,
     loadedSessionCache: store.loadedSessionCache, skipForgetSessionIds: store.skipForgetSessionIds,
@@ -398,7 +407,7 @@ function Workspace(boot: BootWorkspace) {
     return () => window.removeEventListener(OPEN_FILE_EVENT, open);
   }, [openLearningFile]);
   useEffect(() => {
-    const release = listen("open_pdf", openPdf);
+    const release = transport.listen("open_pdf", openPdf);
     return () => { void release.then((stop) => stop()); };
   }, [openPdf]);
   useAppResourceNavigation({
@@ -585,17 +594,17 @@ function Workspace(boot: BootWorkspace) {
     session, visible: true, focused, inSplit: false, composerFocused: true, composerFocusToken: mentor.composerFocusToken,
     recents: [...store.recents], hideProjectPicker: true, transcriptPool,
     onFocus: () => undefined, onClose: () => undefined, onCwdChange: () => undefined,
-    onModelChange: submission.changeModel, onModelSettingsChange: submission.changeModelSettings, onRuntimeModeChange: submission.changeRuntimeMode,
-    onSubmit: submission.onSubmit, onSaveDraft: submission.saveDraft, onRemoveDraft: submission.removeDraft,
-    onStop: submission.stop, onCompactContext: submission.compact,
-    onDeleteQueuedMessage: submission.deleteQueuedMessage, onEditQueuedMessage: submission.editQueuedMessage,
-    onQueuedMessageEditingChange: submission.queuedMessageEditingChange, onSteerQueuedMessage: submission.steerQueuedMessage, onResumeQueue: submission.resumeQueue,
-    onUsageLimitResume: submission.usageLimitResume, onUsageLimitResumeAtReset: submission.usageLimitResumeAtReset, onUsageLimitDismiss: submission.usageLimitDismiss,
-    onNoteCardDismiss: (id: string) => runtime.updateSessions((current) => current.map((entry) => entry.id === id ? { ...entry, noteCard: undefined } : entry)),
+    onModelChange: intents["session.changeModel"], onModelSettingsChange: intents["session.changeModelSettings"], onRuntimeModeChange: intents["session.changeRuntimeMode"],
+    onSubmit: intents["session.submit"], onSaveDraft: intents["session.saveDraft"], onRemoveDraft: intents["session.removeDraft"],
+    onStop: intents["session.stop"], onCompactContext: intents["session.compact"],
+    onDeleteQueuedMessage: intents["session.queue.delete"], onEditQueuedMessage: intents["session.queue.edit"],
+    onQueuedMessageEditingChange: intents["session.queue.editing"], onSteerQueuedMessage: intents["session.queue.steer"], onResumeQueue: intents["session.queue.resume"],
+    onUsageLimitResume: intents["session.usageLimit.resume"], onUsageLimitResumeAtReset: intents["session.usageLimit.resumeAtReset"], onUsageLimitDismiss: intents["session.usageLimit.dismiss"],
+    onNoteCardDismiss: intents["session.dismissNoteCard"],
     onNoteSaved: (noteId: string) => setSavedToast({ type: "note", id: noteId, agentId: agentForSession(session.id)?.id }),
-    onApproval: submission.approve, onQuestionReply: submission.answer, onQuestionInteraction: submission.keepQuestionOpen,
-    onOpenFile: openAgentFile, onBtwSubmit: submission.btwSubmit, onBtwRetry: submission.btwRetry, onBtwDelete: submission.btwDelete,
-    onBtwStop: submission.btwStop, onBtwModelChange: submission.btwModelChange,
+    onApproval: intents["session.approve"], onQuestionReply: intents["session.answer"], onQuestionInteraction: intents["session.keepQuestionOpen"],
+    onOpenFile: openAgentFile, onBtwSubmit: intents["session.btw.submit"], onBtwRetry: intents["session.btw.retry"], onBtwDelete: intents["session.btw.delete"],
+    onBtwStop: intents["session.btw.stop"], onBtwModelChange: intents["session.btw.modelChange"],
   });
   const mentorChat = (agentId: string, sessionId: string) => {
     const agent = agents.agents.find((entry) => entry.id === agentId);
@@ -605,7 +614,7 @@ function Workspace(boot: BootWorkspace) {
     const session = earlier?.length ? { ...live, blocks: [...earlier, ...live.blocks] } : live;
     return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-pane-id={sessionId}>
       <AgentSessionPane agent={agent} state={agents.states.get(agent.id) ?? { status: "idle" }}
-        sessionPaneProps={{ ...paneProps(session, true), onApproval: agentHabits.approve,
+        sessionPaneProps={{ ...paneProps(session, true),
           onSaveToCanvas: (text, anchor) => saveToCanvas(agent.id, text, anchor) }}
         detailsOpen={agents.isDetailsOpen(agent.id)} onToggleDetails={() => agents.setDetailsOpenFor(agent.id, (open) => !open)}
         onReset={() => void agents.reset(agent.id)} onDelete={() => void agents.remove(agent.id)}

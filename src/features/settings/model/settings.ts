@@ -2,8 +2,9 @@ import { t } from "../../../shared/i18n/locale";
 import { IS_MAC, IS_WIN, MOD, SHIFT } from "../../../platform/tauri/platform";
 import { canonicalShortcut, shortcutLabel, shortcutFromKeyEvent, shortcutTokens } from "../../../shared/lib/shortcuts";
 import { readFlag, writeFlag } from "./storageFlags";
+import { hostSettingWritten } from "../../../platform/hostSettings";
 const SECTION_KEY = "loci.settingsSection";
-export type SettingsSectionId = "general" | "appearance" | "keybindings" | "agents" | "chat" | "providers" | "mcp" | "skills";
+export type SettingsSectionId = "general" | "appearance" | "remote" | "keybindings" | "agents" | "chat" | "providers" | "mcp" | "skills";
 /** Rail buckets. Sections list in order under their group label. */
 export type SettingsGroupId = "app" | "agents" | "workspace";
 export const SETTINGS_GROUPS: {
@@ -36,6 +37,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         get label() { return t("Appearance"); },
         get description() { return t("Theme, tint, translucency, workspace layout, and conversation backgrounds."); },
         keywords: "theme dark light color accent glass blur zoom scale wallpaper rail sidebar",
+    },
+    {
+        id: "remote",
+        group: "app",
+        get label() { return t("Remote access"); },
+        get description() { return t("Reach this computer from another device, and open another device's workspace from here."); },
+        keywords: "remote host tunnel relay registry device group key invite join leave connect online 远程 主机 隧道 设备组 组密钥 连接",
     },
     {
         id: "keybindings",
@@ -178,6 +186,30 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
             },
         ]
         : []),
+    {
+        id: "remote-enabled",
+        section: "remote",
+        get label() { return t("Remote access"); },
+        keywords: "remote enable host tunnel relay sleep awake power offline 远程 开启 主机 隧道 睡眠",
+    },
+    {
+        id: "remote-addresses",
+        section: "remote",
+        get label() { return t("Service addresses"); },
+        keywords: "relay registration registry device name address server 服务 地址 注册表 设备名",
+    },
+    {
+        id: "device-group",
+        section: "remote",
+        get label() { return t("Device group"); },
+        keywords: "group key invite join create leave trust 设备组 组密钥 加入 创建 退出 信任",
+    },
+    {
+        id: "devices",
+        section: "remote",
+        get label() { return t("Devices"); },
+        keywords: "device list online offline connect remove this device 设备 在线 离线 连接 移除 本机",
+    },
     {
         id: "color-theme",
         section: "appearance",
@@ -435,6 +467,7 @@ export function saveFollowUpBehavior(value: FollowUpBehavior) {
     catch {
         // private mode / quota
     }
+    hostSettingWritten(FOLLOW_UP_BEHAVIOR_KEY);
 }
 export type ModelControls = "menu" | "beside";
 export const MODEL_CONTROLS_DEFAULT: ModelControls = "menu";
@@ -525,6 +558,7 @@ export function loadClaudeHooks(): boolean {
 }
 export function saveClaudeHooks(value: boolean) {
     writeFlag(CLAUDE_HOOKS_KEY, value);
+    hostSettingWritten(CLAUDE_HOOKS_KEY);
 }
 export type KeybindingRow = {
     command: string;

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../platform/transport";
 import { rosterSettled } from "../agents/model/mentorStore";
 import { fuzzyMatch } from "../../shared/lib/fuzzy";
 import type { ProjectFile } from "../../platform/tauri/fs";
@@ -104,7 +104,7 @@ export async function loadNotes(refresh = false): Promise<Note[]> {
   if (!refresh && cache) return cache;
   if (!refresh && inflight) return inflight;
 
-  const promise = invoke<Note[]>("notes_list")
+  const promise = transport.call<Note[]>("notes_list")
     .then((notes) => {
       cache = notes;
       return notes;
@@ -121,11 +121,11 @@ export async function loadNotes(refresh = false): Promise<Note[]> {
 }
 
 export function listAgentNotes(agentId: string): Promise<Note[]> {
-  return invoke<Note[]>("notes_list", { agentId });
+  return transport.call<Note[]>("notes_list", { agentId });
 }
 
 export async function getNote(id: string): Promise<Note | null> {
-  const note = await invoke<Note | null>("notes_get", { id });
+  const note = await transport.call<Note | null>("notes_get", { id });
   remember(note);
   return note;
 }
@@ -134,7 +134,7 @@ export async function upsertNote(note: NoteUpsert): Promise<Note> {
   // A new mentor must have its folder before its first note is saved.
   if (note.agentId) await rosterSettled();
   const expectedHash = note.expectedHash ?? readHashes.get(note.id);
-  const saved = await invoke<Note>("notes_upsert", { note: expectedHash ? { ...note, expectedHash } : note });
+  const saved = await transport.call<Note>("notes_upsert", { note: expectedHash ? { ...note, expectedHash } : note });
   remember(saved);
   if (saved.conflictCopy) console.warn(`The note changed on disk while it was open; that version is kept at ${saved.conflictCopy}`);
   cache = null;
@@ -144,7 +144,7 @@ export async function upsertNote(note: NoteUpsert): Promise<Note> {
 
 /** Finalize only the slug of an unchanged editor, preserving concurrent edits/deletion. */
 export async function finalizeNoteSlug(id: string, title: string): Promise<Note | null> {
-  const saved = await invoke<Note | null>("notes_finalize_slug", { id, title });
+  const saved = await transport.call<Note | null>("notes_finalize_slug", { id, title });
   remember(saved);
   cache = null;
   window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
@@ -152,7 +152,7 @@ export async function finalizeNoteSlug(id: string, title: string): Promise<Note 
 }
 
 export async function deleteNote(id: string): Promise<void> {
-  await invoke("notes_delete", { id });
+  await transport.call("notes_delete", { id });
   cache = null;
   window.dispatchEvent(new Event(NOTES_CHANGED_EVENT));
 }

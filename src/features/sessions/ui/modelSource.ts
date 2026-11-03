@@ -5,6 +5,7 @@ isHarnessAvailable,
 probeHarnessAvailability,
 } from "../../../integrations/harness/core/availability";
 import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
+import { inspectHarnessBinary, type HarnessBinaryInspection } from "../../../integrations/harness/core/child";
 import {
 findModel,
 modelsFor,
@@ -25,6 +26,8 @@ export type ModelSource = {
   probed(): boolean;
   /** Refresh availability and catalogs, when the source supports it. */
   refresh(harnesses: HarnessId[]): void;
+  /** Where a provider's CLI is and which version it is, given a path or found on PATH. */
+  inspectBinary(harness: HarnessId, binaryPath?: string | null): Promise<HarnessBinaryInspection>;
 };
 
 export const LOCAL_MODEL_SOURCE: ModelSource = {
@@ -35,8 +38,9 @@ export const LOCAL_MODEL_SOURCE: ModelSource = {
   probed: hasProbedHarnessAvailability,
   refresh: (harnesses) => {
     void probeHarnessAvailability();
-    void refreshHarnessCatalogs(harnesses);
+    if (harnesses.length) void refreshHarnessCatalogs(harnesses);
   },
+  inspectBinary: inspectHarnessBinary,
 };
 
 export const ModelSourceContext =

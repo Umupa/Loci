@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { open as chooseFile } from "@tauri-apps/plugin-dialog";
+import { open as chooseFile } from "../../../platform/dialog";
 import { CircleAlert, ExternalLink, Folder, MessageSquarePlus, MoreHorizontal, Pencil, Pin, X } from "../../../shared/ui/icons";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";

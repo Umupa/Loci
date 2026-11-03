@@ -1,6 +1,6 @@
 import { t, useLocale, getLocale } from "../../../shared/i18n/locale";
-import { invoke } from "@tauri-apps/api/core";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { transport } from "../../../platform/transport";
+import { ask } from "../../../platform/dialog";
 import {
   useCallback,
   useEffect,
@@ -192,7 +192,7 @@ function AddServerModal({
       }
       setBusy(true);
       setError("");
-      await invoke("mcp_add", {
+      await transport.call("mcp_add", {
         cwd,
         provider,
         scope,
@@ -456,7 +456,7 @@ function McpConnections({
     setBusy(server.name);
     setError("");
     try {
-      await invoke("mcp_provider_login", {
+      await transport.call("mcp_provider_login", {
         cwd,
         provider: server.provider,
         name: server.name,
@@ -482,7 +482,7 @@ function McpConnections({
     setBusy(server.name);
     setError("");
     try {
-      await invoke("claude_mcp_remove", {
+      await transport.call("claude_mcp_remove", {
         cwd,
         name: server.name,
         scope: selectedScope,

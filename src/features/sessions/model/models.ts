@@ -6,6 +6,7 @@ import {
   hasProbedHarnessAvailability,
   isHarnessAvailable,
 } from "../../../integrations/harness/core/availabilityState";
+import { hostSettingWritten, onHostSettingApplied } from "../../../platform/hostSettings";
 
 export type ModelSettingChoice = {
   value: string;
@@ -590,6 +591,7 @@ export function saveLastModelSettings(
   } catch {
     // private mode / quota
   }
+  hostSettingWritten(LAST_MODEL_SETTINGS_KEY);
 }
 
 /** Compound launch id, e.g. `claude-opus-4-8[effort=high,fast=false]`. */
@@ -658,6 +660,7 @@ function emitPickerVisibility() {
   pickerVisibilityVersion += 1;
   for (const listener of pickerVisibilityListeners) listener();
 }
+onHostSettingApplied(HIDDEN_PICKER_PROVIDERS_KEY, emitPickerVisibility);
 
 export function subscribePickerVisibility(
   onStoreChange: () => void,
@@ -702,6 +705,7 @@ export function savePickerProviderVisible(id: HarnessId, visible: boolean) {
   } catch {
     // private mode / quota
   }
+  hostSettingWritten(HIDDEN_PICKER_PROVIDERS_KEY);
   emitPickerVisibility();
 }
 
@@ -772,6 +776,7 @@ export function saveDefaultModel(harness: HarnessId, model: string) {
   } catch {
     // private mode / quota
   }
+  hostSettingWritten(DEFAULT_MODELS_KEY);
 }
 
 /** User-picked model for a provider, else the catalog default. */
@@ -848,6 +853,7 @@ export function saveLastModelChoice(harness: HarnessId, model: string) {
   } catch {
     // private mode / quota
   }
+  hostSettingWritten(LAST_MODEL_KEY);
 }
 
 export function loadRecentModelChoices(): LastModelChoice[] {

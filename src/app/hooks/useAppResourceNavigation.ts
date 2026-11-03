@@ -4,7 +4,7 @@ import { APP_RESOURCE_OPEN_EVENT, fileResourcePath, parseAppResourceUrl, resourc
 import { requestFilePlace } from "../../features/files/model/filePlace";
 import { CANVAS_OPEN_CHECKPOINT_EVENT, checkpointCanvasId, getCanvas, type Canvas } from "../../features/canvas/canvas";
 import { getLearningSource, getReadingDocument } from "../../features/learning/model/learningStore";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../../platform/native";
 import { requestTranscriptJump } from "../../features/sessions/model/transcriptJump";
 import { getNote } from "../../features/notes";
 import { joinPath } from "../../shared/lib/paths";

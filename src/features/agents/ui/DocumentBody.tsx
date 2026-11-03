@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../../../platform/native";
 import { PenLine } from "../../../shared/ui/icons";
 import { sectionHeadingIndex } from "../../../shared/lib/markdown/markdownSection";
 import { useFileSelection } from "../../files/hooks/useFileSelection";

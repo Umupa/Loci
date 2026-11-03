@@ -1,7 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../platform/transport";
 import {
   attachmentsFromFiles,
-  attachmentsFromPaths,
+  attachmentsFromLocalPaths,
   revokeAttachment,
 } from "../sessions/model/attachments";
 import type { Attachment } from "../sessions/model/session";
@@ -29,7 +29,7 @@ export async function saveNoteImagesFromPaths(
   noteId: string,
   paths: string[],
 ): Promise<NoteImageAsset[]> {
-  return saveNoteImageAttachments(noteId, await attachmentsFromPaths(paths));
+  return saveNoteImageAttachments(noteId, await attachmentsFromLocalPaths(paths));
 }
 
 async function saveNoteImageAttachments(
@@ -48,7 +48,7 @@ async function saveNoteImageAttachments(
       let sourcePath = image.path;
       let temporary = false;
       if (!sourcePath && image.data) {
-        sourcePath = await invoke<string>("write_attachment", {
+        sourcePath = await transport.call<string>("write_attachment", {
           name: image.name,
           data: image.data,
         });
@@ -57,7 +57,7 @@ async function saveNoteImageAttachments(
       if (!sourcePath) continue;
       try {
         saved.push(
-          await invoke<NoteImageAsset>("notes_save_image", {
+          await transport.call<NoteImageAsset>("notes_save_image", {
             noteId,
             sourcePath,
           }),
@@ -66,7 +66,7 @@ async function saveNoteImageAttachments(
         failure ??= err;
       } finally {
         if (temporary) {
-          await invoke("delete_path", { path: sourcePath }).catch(
+          await transport.call("delete_path", { path: sourcePath }).catch(
             () => undefined,
           );
         }

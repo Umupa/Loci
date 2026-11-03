@@ -73,7 +73,7 @@ A lesson pins code with `commit` beside `file` (the work-tree path, so marks, pl
 
 ## Storage
 
-A mentor's content lives as files in its own folder; SQLite (`rusqlite`, bundled, `loci.db` in the app data folder `com.loci.desktop`) keeps what changes often or is not portable, and an index of the folders.
+A mentor's content lives as files in its own folder; SQLite (`rusqlite`, bundled, `loci.db` in the app data folder `com.loci.desktop`) keeps what changes often or is not portable, and an index of the folders. Remote access moves none of this: a connected device reads and writes these stores through the host's own command handlers and keeps only its own cache under `<app data>/remote-cache/` (see [Remote access](#remote-access)).
 
 ### Mentor folders
 
@@ -162,6 +162,98 @@ The `cli` namespace is not tied to a turn. A running Loci writes where it listen
 
 The switch is read when a turn starts and kept for that turn, so a change applies from the next turn and a running turn can finish. A provider may start its process under a generation-scoped id (`<session>#<n>`, as Antigravity does); the credential is looked up by the session that owns the process.
 
+## Remote access
+
+Loci can serve its workspace to another Loci. The device holding the data is the **host**; an installed Loci on another device opens a **connected** window that shows the host's mentors, courses, conversations, notes, canvases and PDFs. The host keeps everything: its mentor folders, `loci.db`, agent CLIs and model configuration. Nothing is synced, and there is no account service. A connected window sends actions; the host carries them out. Remote access is off until it is turned on in **Settings → Remote access**, which writes `remote.json` in the app data folder.
+
+Every installation can host and connect. `remote_page` in `src-tauri/src/lib.rs` opens a connected window for `?remote=device:<deviceId>` (from **Connect** in Settings) or `?remote=loopback` (a development window into this process's own gateway). `src/platform/transport.ts` chooses the `Transport` while it loads, before any call, and `src/main.tsx` boots `src/remoteBootstrap.tsx` in such a window instead of `bootstrap.tsx`. The client bootstrap does not migrate mentors, resume interrupted turns or probe CLIs; it connects, then reads the host's `home_dir`. `src/app/remote/RemoteWorkspace.tsx` lays out the host's workspace with the same rail, reader and conversation components, and `src/app/remote/remoteSessions.ts` keeps the mirror. Session actions arrive as intents; reads and writes are forwarded commands. Window, menu, clipboard and notification calls act on the device showing the window and stay outside the transport (`src/platform/native.ts`).
+
+### Transport
+
+`src/platform/transport.ts` defines `Transport`: `call(command, args)`, `listen(event, handler)` and `fileUrl(path)` for a URL the webview can load. A local window uses `tauriTransport`, which forwards to `invoke` and `convertFileSrc`; a connected window uses `createRemoteTransport` from `src/platform/remoteTransport.ts`. Remote `fileUrl` reads the whole file with `read_binary_file`, keeps it in a cache per path and returns a blob URL; there is no ranged read.
+
+`src-tauri/src/remote_catalog.rs` gives every registered command exactly one class. A Rust test reads the names in `generate_handler!` and fails when a command is missing or listed twice (194 commands in this version):
+
+| Class | What a connected device gets |
+| --- | --- |
+| `Read` | Forwarded and run on the host; reads host data. |
+| `Write` | Forwarded and run on the host; changes host data. |
+| `SessionAction` | Routed to the host window; a device cannot run it against the database itself. |
+| `OnHost` | Forwarded and carried out on the host machine, such as revealing a file or opening a host browser. |
+| `ClientLocal` | Run by the client against its own machine, never forwarded. |
+| `Never` | Refused for every connected device; this includes every `harness_*`, the control channel and the workspace reset. |
+
+The client copy of the `ClientLocal` list lives in `src/platform/remoteTransport.ts` and a test keeps the two lists equal. A name with a dot is an intent and goes to the host window; everything else that is not a registered `Read`, `Write` or `OnHost` command is refused with `<command> is not available to connected devices`. `harness_*` is also rejected in the client before it leaves the machine.
+
+### Sessions: the host window drives
+
+The host's main window is the only session driver. It owns the CLI processes and the in-memory sessions, and it saves them to `loci.db`; a connected device cannot start a turn itself. Its input arrives as intents, and the window runs them through the same table its own panes use (`src/app/remote/sessionIntents.ts`), so a message, stop, approval, question answer, model change and mentor reset behave the same from either side. `src/app/hooks/useSessionHost.ts` starts and stops with the `remote-status-changed` event, listens for `loci-remote-intent`, runs the intent and answers with `remote_intent_reply`. It remembers the last 256 `requestId`s, so a device that resends after a lost connection runs an intent once. `agent.reset`, `agent.remove` and `session.delete` must carry `{ "confirmed": true }` from the device that asked, because the host never opens a confirmation dialog for another device. Only the `main` window hosts.
+
+The window publishes its sessions as a feed (`src/app/remote/sessionFeed.ts`) through `remote_session_publish`. A **snapshot** carries every shared session and the host's shared settings; a **patch** carries changed sessions and blocks, and a **settings** message carries changed shared settings. `epoch` is this page load of the host window, and `seq` counts what it has sent since, including settings, so one sequence covers both. Changes within 50 ms coalesce into one patch. A block that only grew text at its end is sent as an `append`; attachment bytes and preview URLs are stripped. Hidden habit sessions (`ephemeral`) are not sent.
+
+`src-tauri/src/remote/session_master.rs` keeps the last 8 MiB of patches. A device subscribes with `{epoch, seq}`: an epoch it knows and a position the buffer covers replay the missed patches, otherwise the gateway asks the window for `session.snapshot`. The window's intents time out after 120 s, at most 64 wait at once, and closing or reloading the window fails those pending. A dropped connection fails its pending intents at once and sends an empty `session.view` on its behalf, so its leases are released. A device also sends `session.view` for the sessions it shows every 30 s; the union of every device's leases keeps those sessions in memory and out of the idle detacher and transcript pager (`useIdleSessionDetach`, `useAgents`).
+
+On the client side, `RemoteSessionClient` applies snapshots and patches in order. A patch at an applied position is discarded; another epoch or a gap in `seq` triggers a new subscribe, which asks for a snapshot when the buffer cannot cover it. It reconnects with backoff from 1 s to 30 s, sends the leases, and keeps the mirror for offline use. Intent results, the host's shared settings and the host's model catalog come back through the same connection; `session.models` asks the host to probe its own CLIs.
+
+### Gateway
+
+`src-tauri/src/remote/gateway.rs` is the host's end of a connected device. After the secure channel, every message is one frame: a JSON object (starts with `{`) or a blob chunk (starts with `0x01`).
+
+| Direction | Frame | Meaning |
+| --- | --- | --- |
+| Device → host | `call` | A registered command with `args`, or an intent with a `requestId`. |
+| Device → host | `subscribe` | Start the session feed after `{epoch, seq}`, or from a snapshot when omitted. |
+| Device → host | `upload` | A file name and size; its bytes follow as chunks led by `0x01` and the upload id. |
+| Host → device | `result` | `ok` with a value, or an error; a byte reply announces `blob` and its chunks follow. |
+| Host → device | `event` | Feed messages, named `session.feed`. |
+
+`Read`, `Write` and `OnHost` commands run on the host through `remote::invoke_command`, which hands the request to the main window's own invoke handler; arguments, state, the workspace-reset guard and the ACL are the same as for a local call. Intents and `SessionAction` commands are passed to the host window. Blob chunks are at most 1 MiB. An upload is at most 100 MiB, and one connection may have at most that much announced and not yet sent. The host saves an upload with `fs::save_uploaded_file` beside pasted attachments, in its own folder and with its original name, readable only by the owner.
+
+### Tunnels
+
+`src-tauri/src/remote/tunnel.rs` separates transport from meaning. A `Tunnel` starts hosting with `listen()` and dials with `dial()`; both ends of a `Connection` exchange opaque byte messages, and dropping either end closes both directions. Status is `Connecting`, `Online`, `Retrying { attempt }` or `Stopped { reason }`.
+
+- `LoopbackTunnel` (`loopback.rs`) joins two windows of one process in memory. It runs the same secure channel and gateway as a remote connection and is the development path.
+- `AlmaRelayTunnel` (`alma_relay.rs`) is the deployed tunnel. The host dials out to `wss://<relay>/agent?th=<tokenHash>`, registers protocol 2 and falls back to protocol 1 on older relays. Clients reach `/c/<routing token>/__loci__`; the relay bridges each client WebSocket over the host's socket (`wopen`/`wmsg`/`wclose`). Only those bridged sockets are served: plain HTTP gets 403. The host retries with backoff from 1 s to 60 s and stops for good when the relay reports its code taken (4000) or the registration refused. The routing token is a one-way derivation of the connection code, so the relay never sees the code, and everything above the tunnel is encrypted.
+
+### Secure channel
+
+`src-tauri/src/remote/secure_channel.rs` encrypts every message end to end, whichever tunnel carries it. Each device has an Ed25519 key: the private key is in the system keychain (service is the app identifier; account `remote-device-key`), and devices are known by the public key. A host also has a 256-bit connection code.
+
+The handshake uses fresh X25519 keys per connection for forward secrecy and HKDF-SHA256 for every key. `psk = HKDF(code)`, and the code is mixed into every derived key, so a peer without it cannot open the second message; each side then signs a transcript hash with its device key. The host sends an empty encrypted record once it accepts the client, so the client only counts as connected after the host has checked it; a host that turns the client away closes. Records are AES-256-GCM with `nonce = counter` and one key per direction. A record holds at most 1 MiB of plaintext; a bigger message is split into records, up to 64 MiB. A replayed, reordered, dropped or altered record fails to decrypt and ends the channel.
+
+For a host in a device group, the connection code is derived from the group secret and that host's `deviceId`; every member can compute it, and neither the registry nor the relay can. A host without a group generates a random code, which only a loopback client can know.
+
+### Device group and registry
+
+`src-tauri/src/remote/device_group.rs` implements the `Identity` trait (`devices`, `join`, `remove`). A group is a 32-byte secret held by every member. `src-tauri/src/remote/setup.rs` exposes creating a group, joining with `loci-group:<secret>?registry=<url>`, leaving, listing devices and removing one. The group's Ed25519 signing key is derived from the secret with HKDF, and `groupId` is its public key. A device's `deviceId` is the first 22 base64url characters of SHA-256 over its public key.
+
+The member list is kept by the separate Worker in `services/device-registry`, one Durable Object with SQLite per group. It stores signed device records and signed removal tombstones; every member verifies them again after reading. Heartbeats go every 30 s and carry the host's relay route when it is serving; the list is read again every 60 s, and a device is shown as online when it was heard from within 90 s. Joining needs no approval: the new device writes its signed record, and the host accepts it after the next list refresh. A rejected handshake makes the host refresh once, at most every 5 s, so a just-joined device usually gets in on its second attempt. Removing a device writes a signed tombstone; that `deviceId` cannot join again, and the host drops the device's open connections when its verified list changes. Other hosts learn of the removal within one refresh, up to 60 s. Leaving the group also writes a removal, deletes the group secret and generates a new device key, which is the only way back in. The device key and group secret are kept in the system keychain and read only once remote access has been set up; `remote.json` holds the addresses, the optional relay and registry keys, the device name and the on/off switch.
+
+### Settings
+
+`src/platform/hostSettings.ts` names the 16 settings that decide what the host does: default access, learning language, default and last models, model parameters, provider visibility and accounts, CLI paths, follow-up behavior, Claude hooks, the canvas MCP switch, disabled skills and recent projects. The host keeps the authoritative copy. Clients keep a mirror under the same localStorage keys, so existing synchronous readers work unchanged. The snapshot and `settings` feed messages carry these values; a client change is a `settings.set` intent, checked against the same list and a 64 KiB limit, and the host's saved value comes back in the feed. Appearance, layout, panel state, theme, fonts and window shortcuts stay per device. The mentor roster is read with the ordinary `mentors_load` command, and the host's model catalog through `session.models`.
+
+### Files and uploads
+
+A connected window's file picker is not the system dialog: `src/platform/dialog.ts` routes open, save and folder choices to `src/app/remote/HostFileDialog.tsx`, which browses the host with `list_dir` and `stat_files`, starting at the host's home or a suggested path. `src/platform/upload.ts` exports `toHostPaths`, which uploads paths that name files on the client, one at a time, through `remote_client_upload`; the returned host paths are what attachments, dropped files, clipboard files, note pictures and files copied into a project use. Screenshots and other bytes without a path already go through `write_attachment` and are written on the host.
+
+### Offline cache
+
+`src-tauri/src/remote/cache.rs` keeps what a connected window has read from one host under `<app data>/remote-cache/<host>/`, one file per reply, keyed by a hash of the command and its arguments. Replies to `Read` commands are kept, up to 256 MiB per host, with 32 MiB for one entry and least-recently-used eviction. The session mirror is written by the client through `remote_client_cache_put` after 2 s of quiet, and read back with `remote_client_cache_get`.
+
+With no connection, a `Read` command is answered from that cache or with `NOT_KEPT`; anything else, including every intent, is refused with `HOST_OFFLINE`. An intent already sent when the connection dropped keeps its `requestId` and is sent again if the connection returns within 10 s, so the host's deduplication still runs it once; nothing is queued. Conversation panes, including a conversation opened in the reader, are wrapped in a disabled `fieldset`, and the rest of the library stays readable. On reconnect the feed catches up from `{epoch, seq}` and the window reloads the roster, models and open content from the host. Removing a device deletes what this device kept for it; leaving the group deletes the whole cache.
+
+### Keeping the host awake
+
+`src-tauri/src/power.rs` holds `KeepAwake`, which runs `caffeinate -s -w <pid>` on macOS while the gateway is serving and drops it when remote access stops. It prevents idle system sleep only on AC power; on battery, or with the lid closed, the machine can still sleep, and clients reconnect when it wakes.
+
+### Trust boundaries
+
+A connected device is treated as **Full access** on the host. It can read and write every mentor's content, run every `Read`, `Write` and `OnHost` command, drive any session through an intent, and change the host-shared settings. There is no per-device permission and no read-only role: the device group is the whole authorization model, so anyone holding the group secret can add a device that does all of this. The connection code is a second gate, not a substitute for device signatures; a removed device may still know the group secret and reach the relay, and the host refuses it at the handshake.
+
+The relay and the device registry are outside the trust boundary. The relay sees ciphertext, the routing token and connection metadata, and writes nothing; it cannot open the channel or read a frame. The registry sees plaintext metadata — device names, platform, public keys, last-seen times and IPs — and can withhold or roll back a list or refuse service, but records are signed by the group key, so it cannot forge a member, and the host enforces removals at the handshake. The client's front end is installed locally and trusted; the host never sends front-end code over the relay. `remote_catalog.rs` is the allow list that keeps everything else — the CLI drivers, the control channel and the workspace reset — off the wire.
+
 ## Built-in MCP servers
 
 One stdio MCP server ships in `src-tauri/resources` and runs on the user's Node.js (20.11+) or Bun, located by `canvas_mcp.rs`.
@@ -232,7 +324,8 @@ Replies can link to notes (`loci://note/<id>`), canvases (`loci://canvas/<id>`),
 ## Network and trust boundaries
 
 - The WebView has a strict Content Security Policy (`'self'` for scripts, no remote frames) and the asset protocol is scoped to the app data folder. Frames are disabled by `frame-src 'none'`.
-- The Rust host makes only three kinds of outbound request: link previews (public hosts only, and every redirect is revalidated), the Claude Code usage endpoint (with the local token, which never leaves the host process), and loopback HTTP to servers that agent CLIs start (`harness_http` refuses anything that is not loopback).
+- The Rust host makes only three kinds of outbound request outside remote access: link previews (public hosts only, and every redirect is revalidated), the Claude Code usage endpoint (with the local token, which never leaves the host process), and loopback HTTP to servers that agent CLIs start (`harness_http` refuses anything that is not loopback).
+- Remote access adds outbound WebSockets to the relay and accepts encrypted connections from devices in the group. A connected device is Full access on the host, and the relay and registry are outside the trust boundary; see [Remote access](#remote-access).
 - Agent processes run with the user's permissions. Anything that widens what an agent can reach, such as a new control namespace, a new bridge, or a new place a token is passed, needs the same care as a security change. See [SECURITY.md](../SECURITY.md).
 
 ## Testing

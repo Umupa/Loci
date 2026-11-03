@@ -9,7 +9,7 @@ import {
   recordAgentContext,
   recordAppContext,
 } from "./agentFiles";
-import { readingContext } from "./agentReading";
+import { readingContext, type SharedReading } from "./agentReading";
 import { effectiveLearningLanguage, languageContext } from "./learningLanguage";
 import { ensureAgentWorkdir } from "./agentWorkdir";
 import {
@@ -42,7 +42,8 @@ export type AppTurnContext = {
 export async function prepareAppTurn(
   agent: Agent | undefined,
   session: Pick<Session, "id" | "providerSessionId" | "context" | "blocks">,
-  options: { canRotate: boolean; now?: number },
+  /** `reading`: what another device's reader shows, when the message came from there. */
+  options: { canRotate: boolean; now?: number; reading?: SharedReading },
 ): Promise<AppTurnContext> {
   const previous = loadAgentRotation(session.id);
   const pending = previous?.pending;
@@ -106,7 +107,7 @@ export async function prepareAppTurn(
   // A selection the message already carries as a source is not sent twice.
   const lastUser = [...session.blocks].reverse().find((block) => block.role === "user");
   const attached = lastUser?.sources?.map((source) => source.quote) ?? [];
-  const reading = agent ? readingContext(agent.id, attached) : undefined;
+  const reading = agent ? readingContext(agent.id, attached, options.reading) : undefined;
   if (reading) context.push(reading);
   return {
     context,

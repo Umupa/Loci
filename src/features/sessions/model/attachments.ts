@@ -1,5 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
-import { basename, pickFiles as pickFilePaths } from "../../../platform/tauri/fs";
+import { transport } from "../../../platform/transport";
+import { basename } from "../../../platform/tauri/fs";
+import { pickFiles as pickFilePaths } from "../../../platform/dialog";
+import { toHostPaths } from "../../../platform/upload";
 import type { Attachment, AttachmentKind } from "./session";
 
 export const MAX_ATTACHMENTS = 20;
@@ -243,12 +245,17 @@ export async function pickAttachments(): Promise<Attachment[]> {
   return attachmentsFromPaths(paths);
 }
 
+/** Files dropped or copied on this device: uploaded first when the data is on a host. */
+export async function attachmentsFromLocalPaths(paths: string[]): Promise<Attachment[]> {
+  return attachmentsFromPaths(await toHostPaths(paths));
+}
+
 export async function attachmentsFromPaths(
   paths: string[],
 ): Promise<Attachment[]> {
   const unique = [...new Set(paths.filter((path) => path.trim()))];
   if (unique.length === 0) return [];
-  const infos = await invoke<PathInfo[]>("inspect_paths", { paths: unique });
+  const infos = await transport.call<PathInfo[]>("inspect_paths", { paths: unique });
   const out: Attachment[] = [];
   for (const info of infos) {
     const file = await attachmentFromPath(info);
@@ -269,7 +276,7 @@ export async function attachmentsFromFiles(
     else blobs.push(file);
   }
   if (pathFiles.length) {
-    out.push(...(await attachmentsFromPaths(pathFiles)));
+    out.push(...(await attachmentsFromLocalPaths(pathFiles)));
   }
   for (const file of blobs) {
     const item = await attachmentFromBlob(file);
@@ -288,7 +295,7 @@ export async function prepareAttachments(
         return file;
       }
       try {
-        const data = await invoke<string>("read_file_base64", {
+        const data = await transport.call<string>("read_file_base64", {
           path: file.path,
         });
         return { ...file, data };
@@ -377,7 +384,7 @@ async function attachmentFromPath(info: PathInfo): Promise<Attachment | null> {
     info.size <= MAX_EMBED_BYTES
   ) {
     try {
-      file.data = await invoke<string>("read_file_base64", { path: info.path });
+      file.data = await transport.call<string>("read_file_base64", { path: info.path });
     } catch {
       // Fall back to a resource_link so the agent can still read the file.
     }
@@ -408,7 +415,7 @@ async function attachmentFromBlob(file: File): Promise<Attachment | null> {
     return null;
   }
   try {
-    const path = await invoke<string>("write_attachment", { name, data });
+    const path = await transport.call<string>("write_attachment", { name, data });
     return {
       id: crypto.randomUUID(),
       name,

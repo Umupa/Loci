@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { transport } from "../../platform/transport";
+import { getCurrentWebviewWindow } from "../../platform/native";
 import { handleAgentApp } from "../../features/agent-app/model/agentApp";
 import { handleCanvasBridge } from "../../features/canvas/checkpoints";
 import { agentForSession } from "../../features/agents/model/agent";
@@ -66,18 +66,18 @@ export function useAppControl(options: Options) {
         });
       };
       void handle().then(
-        (result) => invoke("control_reply", { id: payload.id, response: { ok: true, result } }),
+        (result) => transport.call("control_reply", { id: payload.id, response: { ok: true, result } }),
         (error: unknown) => {
           // A terminal is told why with a stable code; agents keep the reply they always had.
           const response = payload.namespace === "cli"
             ? { ok: false, ...commandFailure(error) }
             : { ok: false, error: error instanceof Error ? error.message : String(error) };
-          return invoke("control_reply", { id: payload.id, response });
+          return transport.call("control_reply", { id: payload.id, response });
         },
       ).catch(console.error);
     });
     // Commands from a terminal outside Loci are sent only to windows that listen.
-    void listening.then(() => invoke("control_window_ready")).catch(console.error);
+    void listening.then(() => transport.call("control_window_ready")).catch(console.error);
     return () => { void listening.then((stop) => stop()); };
   }, []);
 }

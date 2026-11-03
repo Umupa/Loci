@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import { parseClaudeMcpList, type McpConnection } from "./mcp";
 
 export type McpServerRow = McpConnection & { status: string };
@@ -74,7 +74,7 @@ export function loadMcpSettings(
 
 async function fetchMcpSettings(cwd: string): Promise<McpSettingsSnapshot> {
   try {
-    const configured = await invoke<McpConnection[]>("mcp_discover", { cwd });
+    const configured = await transport.call<McpConnection[]>("mcp_discover", { cwd });
     const servers = configured.map((server) => ({
       ...server,
       status: server.enabled === false ? "Disabled" : "Configured",
@@ -90,7 +90,7 @@ function loadClaudeHealth(
   discovery: Promise<McpSettingsSnapshot>,
 ) {
   if (healthRequests.has(cwd)) return;
-  const request = invoke<string>("claude_mcp_list", { cwd })
+  const request = transport.call<string>("claude_mcp_list", { cwd })
     .then((output) => {
       if (requests.get(cwd) !== discovery) return;
       const snapshot = snapshots.get(cwd)!;

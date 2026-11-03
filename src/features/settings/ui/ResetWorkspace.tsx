@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../../platform/dialog";
 import { t, useLocale } from "../../../shared/i18n/locale";
 import { resetWorkspace } from "../model/workspaceReset";
 

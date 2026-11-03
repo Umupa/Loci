@@ -1,0 +1,17 @@
+{
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "loci-device-registry",
+    "main": "src/worker.mjs",
+    "compatibility_date": "2026-06-01",
+    "durable_objects": {
+        "bindings": [{ "name": "DEVICE_GROUP", "class_name": "DeviceGroupDO" }]
+    },
+    // SQLite-backed Durable Objects run on the Workers Free plan.
+    "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DeviceGroupDO"] }],
+    "vars": {
+        // Optional access gate. Set it with `npx wrangler secret put REGISTRY_KEY`;
+        // when it is unset every request is accepted.
+        // "REGISTRY_KEY": ""
+    },
+    "observability": { "enabled": true }
+}

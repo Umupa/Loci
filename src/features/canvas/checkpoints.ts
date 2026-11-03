@@ -1,5 +1,5 @@
 import { agentCanvasScope, agentForSession } from "../agents/model/agent";
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../platform/transport";
 import { appResourceUrl } from "../../shared/lib/appResourceLinks";
 import { looksLikeProject, sameProjectPath } from "../projects/model/recents";
 import type { Session } from "../sessions/model/session";
@@ -153,7 +153,7 @@ export async function handleCanvasBridge(source: Session, action: string, input:
       const canvas = await checkpointCanvas(source, id);
       const saved = canvas && await readCanvasScene(canvas.id);
       if (!saved) throw new Error(`Checkpoint "${id}" was not found in this project. Call read_widget_context without checkpointId to list drawings.`);
-      const latest = await invoke<LatestCheckpoint | null>("canvas_checkpoint_latest", { canvasId: saved.id });
+      const latest = await transport.call<LatestCheckpoint | null>("canvas_checkpoint_latest", { canvasId: saved.id });
       const edits = latest?.baselineJson ? scenes.describeUserEdits(latest.baselineJson, saved.dataJson, id) : "";
       const files = Object.keys((JSON.parse(saved.dataJson) as { files?: object }).files ?? {}).length;
       return { canvasId: saved.id, title: saved.title, url: appResourceUrl("canvas", saved.id), text: [

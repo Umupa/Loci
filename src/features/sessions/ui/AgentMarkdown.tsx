@@ -2,8 +2,8 @@ import { CARD_FENCE } from "../model/cards";
 import { CanvasCard, DocumentCard, MindmapCard, TodoCard } from "./cards/Cards";
 import { CourseCard } from "../../learning/ui/CourseCard";
 import { DiffCardFromSource } from "../../learning/ui/DiffCard";
-import { convertFileSrc,invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { transport } from "../../../platform/transport";
+import { openUrl } from "../../../platform/native";
 import {
 createContext,
 isValidElement,
@@ -555,9 +555,9 @@ function NoteAssetImage({
   useEffect(() => {
     if (src) return;
     let cancelled = false;
-    void invoke<string>("notes_image_path", { asset })
-      .then((path) => {
-        const next = convertFileSrc(path);
+    void transport.call<string>("notes_image_path", { asset })
+      .then((path) => transport.fileUrl(path))
+      .then((next) => {
         noteImageSrcCache.set(asset, next);
         if (!cancelled) setSrc(next);
       })

@@ -46,6 +46,15 @@ tree-sitter-c = "0.24.1"
 tree-sitter-typescript = "0.23.2"
 tree-sitter-javascript = "0.25.0"
 tree-sitter-python = "0.25.0"
+tokio = { version = "1", features = ["rt", "macros", "sync", "time", "net"] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+x25519-dalek = "2"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+hkdf = "0.12"
+aes-gcm = "0.10"
+rand_core = { version = "0.6", features = ["getrandom"] }
+keyring = "4"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

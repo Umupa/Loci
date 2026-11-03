@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Copy, Eye, FolderOpen, RefreshCw, Search, X } from "../../../shared/ui/icons";
 import { CreateSkillForm } from "./SkillPicker";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
@@ -18,7 +17,7 @@ import {
 import { MarkdownSource } from "../../sessions/ui/AgentMarkdown";
 import { SkillDocumentPreview } from "./SkillDocumentPreview";
 import { copyText } from "../../../platform/tauri/clipboard";
-import { listSkills, readTextFile, type DiscoveredSkill } from "../../../platform/tauri/fs";
+import { listSkills, readTextFile, revealPath, type DiscoveredSkill } from "../../../platform/tauri/fs";
 import {
   createBlankSkill,
   invalidateSkills,
@@ -183,7 +182,8 @@ export function SkillsPage({
 
   const onReveal = (path: string): void => {
     setActionError(null);
-    void revealItemInDir(path).catch((err: unknown) => {
+    // On the device holding the skill: the host, in a window connected to one.
+    void revealPath(path).catch((err: unknown) => {
       setActionError(
         t("Could not open the folder: {0}", err instanceof Error ? err.message : String(err)),
       );

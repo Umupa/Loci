@@ -3,7 +3,7 @@ import { Modal } from "../../../shared/ui/Modal";
 import { Plus } from "../../../shared/ui/icons";
 import { AGENT_COLORS } from "../model/agent";
 import { importMentor } from "../model/mentorStore";
-import { pickFile } from "../../../platform/tauri/fs";
+import { pickFile } from "../../../platform/dialog";
 import { AGENT_TEMPLATES, type AgentTemplate } from "../templates";
 import { AgentAvatar } from "./AgentAvatar";
 

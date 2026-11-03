@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { hostSettingWritten } from "../../../platform/hostSettings";
 
 /*
  * The learning language: what the mentors write in (replies, course and lesson
@@ -34,6 +35,7 @@ export function saveLearningLanguage(value: LearningLanguage) {
     if (value === "auto") localStorage.removeItem(KEY);
     else localStorage.setItem(KEY, value);
   } catch { /* kept for this window only */ }
+  hostSettingWritten(KEY);
   for (const listener of listeners) listener();
 }
 

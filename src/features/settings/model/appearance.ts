@@ -1,4 +1,5 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
+import { convertFileSrc } from "../../../platform/native";
 import { hslToRgb, isHexColor, type Rgb } from "../../../shared/lib/colorUtils";
 import { IS_LINUX, IS_MAC } from "../../../platform/tauri/platform";
 import { readFlag, writeFlag } from "./storageFlags";
@@ -421,7 +422,7 @@ export function syncNativeGlass(scheme: ColorScheme) {
   const root = document.documentElement;
   const generation = ++glassSyncGeneration;
   const setWindow = () =>
-    invoke<boolean>("set_window_glass_enabled", {
+    transport.call<boolean>("set_window_glass_enabled", {
       enabled,
       background: opaqueWindowBackground(),
       ...(IS_MAC ? { opacity: nativeWindowOpacity() } : {}),
@@ -671,7 +672,7 @@ export function saveSidebarBlur(value: number) {
 
 export function applySidebarBlur(value: number) {
   const next = Math.round(clamp(value, SIDEBAR_BLUR_MIN, SIDEBAR_BLUR_MAX));
-  void invoke("set_window_background_blur", { radius: next });
+  void transport.call("set_window_background_blur", { radius: next });
   return next;
 }
 
@@ -749,6 +750,7 @@ export function chatBackgroundSrc(path: string | null): string | null {
       ?? resolveThemeWallpaper(path)?.wallpaper.thumb;
     return src ? `${src}?v=${chatBackgroundRevision}` : null;
   }
+  // The background is this device's own file, also in a window connected to another.
   return `${convertFileSrc(path)}?v=${chatBackgroundRevision}`;
 }
 
@@ -760,7 +762,7 @@ function ensureThemeWallpaperCached(path: string): Promise<boolean> {
   const resolved = resolveThemeWallpaper(path);
   if (!resolved) return Promise.resolve(false);
   const { theme, wallpaper } = resolved;
-  const download = invoke<string>("download_wallpaper", {
+  const download = transport.call<string>("download_wallpaper", {
     cdnUrl: wallpaper.cdnUrl,
     cacheKey: `${theme.id}/${wallpaper.id}.${wallpaper.ext}`,
   })

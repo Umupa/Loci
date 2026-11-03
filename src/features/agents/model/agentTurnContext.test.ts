@@ -363,3 +363,20 @@ it("tells every turn the learning language from Settings, and a mentor's own cho
   // "Follow my messages" for this mentor sends nothing, whatever Settings says.
   expect(await languageBlock({ ...agent, language: "auto" })).toBeUndefined();
 });
+
+it("tells the mentor what a connected window's reader shows, in place of this window's", async () => {
+  const { setAgentReading } = await import("./agentReading");
+  setAgentReading(agent.id, { kind: "note", id: "on-the-host" });
+  const session = { id: "chat", providerSessionId: "native-1", blocks: [] };
+  const own = await prepareAppTurn(agent, session, { canRotate: false });
+  expect(own.context.join("\n")).toContain("on-the-host");
+  const sent = await prepareAppTurn(agent, session, {
+    canRotate: false,
+    reading: { reading: { kind: "document", id: "doc-1", title: "Pods" }, place: { section: ["Lifecycle"] } },
+  });
+  const reading = sent.context.find((part) => part.startsWith("<reading_now>"))!;
+  expect(reading).toContain('"id":"doc-1"');
+  expect(reading).toContain('"section":["Lifecycle"]');
+  expect(reading).not.toContain("on-the-host");
+  setAgentReading(agent.id, undefined);
+});

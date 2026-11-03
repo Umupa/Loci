@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import {
   CANVAS_MCP_TOOLS,
   canvasToolAutoAllowed,
@@ -23,7 +23,7 @@ export function usesBuiltinCli(harness: HarnessId | undefined): boolean {
 /** This app's executable, which is also its CLI. Undefined when it cannot be asked, as outside the desktop app. */
 export async function appCliPath(): Promise<string | undefined> {
   try {
-    const path = await invoke<string>("app_cli_path");
+    const path = await transport.call<string>("app_cli_path");
     return typeof path === "string" && path ? path : undefined;
   } catch { return undefined; }
 }

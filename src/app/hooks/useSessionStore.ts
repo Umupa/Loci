@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../platform/dialog";
 import { loadRecents } from "../../features/projects/model/recents";
 import { createSessionRemover } from "../../features/sessions/model/sessionRemoval";
 import { sessionDisplayTitle, type Session } from "../../features/sessions/model/session";
@@ -87,7 +87,7 @@ export function useSessionStore(options: Options) {
     } finally { openingSessionIds.current.delete(id); }
   }, [addSession, isSessionUnavailable, loadSession]);
 
-  const removeStoredSession = useCallback(async (id: string, mode: "archive" | "delete"): Promise<boolean> => {
+  const removeStoredSession = useCallback(async (id: string, mode: "archive" | "delete", confirmed = false): Promise<boolean> => {
     if (isSessionUnavailable(id)) return false;
     const cached = loadedSessionCache.current.get(id);
     removingSessionIds.current.add(id);
@@ -99,7 +99,7 @@ export function useSessionStore(options: Options) {
       const remover = createSessionRemover({
         mode,
         replacement: seed,
-        confirm: async () => mode === "archive" || await ask(
+        confirm: async () => mode === "archive" || confirmed || await ask(
           `Delete “${sessionDisplayTitle(seed.title, seed.harness)}”? This conversation will be permanently removed.`,
           { title: "Delete conversation", kind: "warning", okLabel: "Delete", cancelLabel: "Cancel" },
         ),
@@ -142,7 +142,9 @@ export function useSessionStore(options: Options) {
     catch (reason) { setError(String(reason)); return false; }
   }, [isSessionUnavailable, removeStoredSession]);
 
-  const removeSession = useCallback((id: string) => removeStoredSession(id, "delete"), [removeStoredSession]);
+  /** `confirmed`: the user already agreed, on another device, so nothing asks here. */
+  const removeSession = useCallback((id: string, options: { confirmed?: boolean } = {}) =>
+    removeStoredSession(id, "delete", options.confirmed), [removeStoredSession]);
 
   return {
     recents, error, setError, isSessionUnavailable, loadedSessionCache, openingSessionIds, skipForgetSessionIds,

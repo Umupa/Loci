@@ -1,5 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import type { HarnessId } from "../../sessions/model/session";
+import { hostSettingWritten } from "../../../platform/hostSettings";
 
 export type ConfigurableBinaryProvider = HarnessId;
 
@@ -24,7 +25,7 @@ function readProviderBinaryPaths(): StoredBinaryPaths {
 const runtimeBinaryPaths = readProviderBinaryPaths();
 
 export async function initializeProviderBinaryPaths(): Promise<void> {
-  const active = await invoke<StoredBinaryPaths>("harness_runtime_binary_paths", {
+  const active = await transport.call<StoredBinaryPaths>("harness_runtime_binary_paths", {
     paths: readProviderBinaryPaths(),
   });
   for (const provider of Object.keys(runtimeBinaryPaths)) {
@@ -63,6 +64,7 @@ export function saveProviderBinaryPath(
     if (value) stored[provider] = value;
     else delete stored[provider];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    hostSettingWritten(STORAGE_KEY);
     return true;
   } catch {
     return false;

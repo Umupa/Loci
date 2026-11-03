@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import { HARNESS_TITLE, sessionDisplayTitle, type Session } from "../../sessions/model/session";
 import { loadSoundsEnabled, playCue } from "../../settings/model/sounds";
 import {
@@ -51,7 +51,7 @@ export function cachedNotificationPermission(): NotificationPermission {
 
 export async function probeNotificationPermission(): Promise<NotificationPermission> {
   try {
-    permission = await invoke<NotificationPermission>(
+    permission = await transport.call<NotificationPermission>(
       "notification_permission",
     );
   } catch {
@@ -63,7 +63,7 @@ export async function probeNotificationPermission(): Promise<NotificationPermiss
 /** Shows the OS prompt when undecided; otherwise reports the current state. */
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   try {
-    permission = await invoke<NotificationPermission>(
+    permission = await transport.call<NotificationPermission>(
       "request_notification_permission",
     );
   } catch {
@@ -73,7 +73,7 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 }
 
 export function openNotificationSettings(): Promise<void> {
-  return invoke<void>("open_notification_settings");
+  return transport.call<void>("open_notification_settings");
 }
 
 /**
@@ -285,7 +285,7 @@ async function notifyProjectSession(
   if (!decision) return false;
   const { title, subtitle, body } = notificationText(session, event);
   try {
-    await invoke("show_notification", {
+    await transport.call("show_notification", {
       sessionId: session.id,
       title,
       subtitle,

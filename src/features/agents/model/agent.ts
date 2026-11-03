@@ -175,6 +175,27 @@ export function listAgents(): Agent[] {
   return parsed.flatMap((entry) => parseAgent(entry) ?? []);
 }
 
+/**
+ * In a window connected to another device, the roster here is a copy of the
+ * host's, possibly behind it; writing it back would undo the host's changes.
+ * Such a window hands each change to the host instead, as the fields it
+ * changed, and reads the roster back from there.
+ */
+export type RosterHost = {
+  update(agentId: string, changed: Partial<Agent>, removed: (keyof Agent)[]): void;
+  reorder(ids: readonly string[]): void;
+};
+
+let rosterHost: RosterHost | undefined;
+
+export function setRosterHost(host: RosterHost | undefined): void {
+  rosterHost = host;
+}
+
+function hostOnly(what: string): Error {
+  return new Error(`${what} on the device that holds the mentors; this window shows another device's.`);
+}
+
 function saveRoster(roster: readonly Agent[]): void {
   try {
     localStorage.setItem(ROSTER_KEY, JSON.stringify(roster));
@@ -244,6 +265,7 @@ export function createAgent(
   projects: readonly string[] = [],
   chosen: Partial<Pick<Agent, "name" | "role" | "avatar" | "color">> = {},
 ): Agent {
+  if (rosterHost) throw hostOnly("Add a mentor");
   const roster = listAgents();
   const name = chosen.name?.trim();
   const agent: Agent = {
@@ -306,18 +328,53 @@ export function updateAgent(
   if (!next.role?.trim()) delete next.role;
   if (!next.workdir?.trim()) delete next.workdir;
   next.projects = uniqueProjects(next.projects);
+  if (rosterHost) {
+    const { changed, removed } = agentChanges(roster[index], next);
+    if (Object.keys(changed).length || removed.length) rosterHost.update(id, changed, removed);
+    return next;
+  }
   roster[index] = next;
   saveRoster(roster);
   return next;
 }
 
+/** What differs between two versions of an agent, field by field. */
+export function agentChanges(before: Agent, after: Agent): { changed: Partial<Agent>; removed: (keyof Agent)[] } {
+  const changed: Partial<Record<keyof Agent, unknown>> = {};
+  const removed: (keyof Agent)[] = [];
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]) as Set<keyof Agent>;
+  for (const key of keys) {
+    if (key === "id" || JSON.stringify(before[key]) === JSON.stringify(after[key])) continue;
+    if (after[key] === undefined) removed.push(key);
+    else changed[key] = after[key];
+  }
+  return { changed: changed as Partial<Agent>, removed };
+}
+
+/**
+ * On the host: a change a connected window made to one agent, applied to the
+ * host's own copy, so fields it did not change stay as the host has them.
+ */
+export function applyAgentChanges(agentId: string, changed: Partial<Agent>, removed: readonly string[]): Agent | undefined {
+  return updateAgent(agentId, (agent) => {
+    const next: Agent = { ...agent, ...changed, id: agent.id };
+    for (const key of removed) if (key !== "id") delete (next as Partial<Agent>)[key as keyof Agent];
+    return next;
+  });
+}
+
 /** Forgets the agent. Its folder of files stays on disk. */
 export function removeAgent(id: string): void {
+  if (rosterHost) throw hostOnly("Remove a mentor");
   queueMentorRemoval(id);
   saveRoster(listAgents().filter((agent) => agent.id !== id));
 }
 
 export function reorderAgents(ids: readonly string[]): void {
+  if (rosterHost) {
+    rosterHost.reorder(ids);
+    return;
+  }
   const roster = listAgents();
   const order = new Map(ids.map((id, index) => [id, index]));
   saveRoster(

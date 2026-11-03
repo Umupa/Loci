@@ -17,6 +17,7 @@ import {
   CREATE_SKILL_DESCRIPTION,
   CREATE_SKILL_NAME,
 } from "./createSkill";
+import { hostSettingWritten, onHostSettingApplied } from "../../../platform/hostSettings";
 
 export {
   rankSkills,
@@ -49,12 +50,18 @@ export function saveDisabledSkillPaths(paths: string[]): void {
   } catch {
     throw new Error("Could not save skill preferences");
   }
+  hostSettingWritten(DISABLED_SKILL_PATHS_KEY);
+  skillPreferencesChanged();
+}
+
+function skillPreferencesChanged(): void {
   // The composer catalog caches per context; drop it so the next picker or
   // prompt sees the change immediately.
   invalidateSkills();
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(SKILLS_CHANGE_EVENT));
 }
+onHostSettingApplied(DISABLED_SKILL_PATHS_KEY, skillPreferencesChanged);
 
 function disabledSkillPathSet(): Set<string> {
   return new Set(loadDisabledSkillPaths());

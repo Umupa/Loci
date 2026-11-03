@@ -7,7 +7,7 @@ import { AccessPicker } from "../../sessions/ui/AccessPicker";
 import { ModelPicker, ModelSettingRows } from "../../sessions/ui/ModelPicker";
 import { addAgentProject, agentLook, removeAgentProject, updateAgent, type Agent } from "../model/agent";
 import { ensureAgentWorkdir, folderHolds, setAgentWorkdir } from "../model/agentWorkdir";
-import { pickFolder, pickSavePath, revealPath } from "../../../platform/tauri/fs";
+import { revealPath } from "../../../platform/tauri/fs";
 import { exportMentor } from "../model/mentorStore";
 import { prettyCwd } from "../../../shared/lib/paths";
 import { defaultAgentName } from "../model/agentAvatars";
@@ -27,7 +27,7 @@ import { AgentAvatarPreview } from "./AgentAvatar";
 import { LanguagePicker } from "./LanguagePicker";
 import { ColorPicker, FacePicker, ProjectsField } from "./agentPanelParts";
 import { Popover } from "../../../shared/ui/Popover";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask, pickFolder, pickSavePath } from "../../../platform/dialog";
 import { AGENT_TEMPLATES, type AgentTemplate } from "../templates";
 
 type Props = {

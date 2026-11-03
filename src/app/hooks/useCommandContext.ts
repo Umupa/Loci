@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../platform/transport";
 import { handleAgentApp } from "../../features/agent-app/model/agentApp";
 import { listAgents } from "../../features/agents/model/agent";
 import type { MentorPage } from "../../features/mentor/model/mentorPage";
@@ -41,7 +41,7 @@ export function useCommandContext(options: Options): CommandContext {
   };
   let identifier: Promise<string> | undefined;
   context.current = {
-    identifier: () => identifier ??= invoke<{ identifier: string }>("cli_access_status").then((status) => status.identifier),
+    identifier: () => identifier ??= transport.call<{ identifier: string }>("cli_access_status").then((status) => status.identifier),
     agents: () => listAgents(),
     activeAgentId: () => latest.current.activeAgentId(),
     createAgent: (template, look) => agents().create(template, { show: false, ...(look ? { look } : {}) }),

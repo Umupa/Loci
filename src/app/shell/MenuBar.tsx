@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../platform/transport";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { ContextMenu, type ContextMenuItem, } from "../../shared/ui/ContextMenu";
 import { LAYER } from "../../shared/lib/layers";
@@ -124,7 +124,7 @@ export function MenuBar({ onNewMentor, onCloseReader, onReaderBack, onReaderForw
     }, [activeMenu, openDropdown]);
     const actions: Record<string, (() => void) | undefined> = {
         new_mentor: onNewMentor,
-        new_window: () => { void invoke("open_new_window").catch(() => { }); },
+        new_window: () => { void transport.call("open_new_window").catch(() => { }); },
         open_pdf: onOpenPdf,
         open_search: onSearch,
         close_reader: onCloseReader,
@@ -136,7 +136,7 @@ export function MenuBar({ onNewMentor, onCloseReader, onReaderBack, onReaderForw
         toggle_chat: onToggleChat,
         open_model_picker: () => window.dispatchEvent(new Event("open_model_picker")),
         open_settings: onOpenSettings,
-        exit: () => { void invoke("quit_app").catch(() => { }); },
+        exit: () => { void transport.call("quit_app").catch(() => { }); },
         zoom_in: onZoomIn,
         zoom_out: onZoomOut,
         zoom_reset: onZoomReset,

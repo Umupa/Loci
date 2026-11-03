@@ -2,12 +2,12 @@ import { deleteCanvas, loadCanvases } from "../../features/canvas/canvas";
 import { deleteAgentDocument, saveAgentDocuments } from "../../features/agents/model/agentDocuments";
 import { documentsInText } from "../../features/sessions/model/cards";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type SetStateAction } from "react";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask } from "../../platform/dialog";
 import { homeDir } from "../../platform/tauri/fs";
 import { forgetHarnessSession } from "../../integrations/harness/core/registry";
 import { deleteSession } from "../../features/sessions/data/sessionStore";
 import { sessionChildHarnesses } from "../../features/sessions/model/handoff";
-import { newDefaultSession, type Block, type Session } from "../../features/sessions/model/session";
+import { newDefaultSession, type Session } from "../../features/sessions/model/session";
 import {
   agentCanvasScope, agentLook, agentState, agentsSnapshot, createAgent, findAgent, listAgents, removeAgent, subscribeAgents,
   type AgentState,
@@ -18,7 +18,8 @@ import { agentPreview, saveAgentPreview } from "../../features/agents/model/agen
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
 import { ensureAgentSession, resetAgentSession, saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
 import { ensureAgentWorkdir } from "../../features/agents/model/agentWorkdir";
-import { archiveOlderTurns, canArchive, loadTranscriptPage, planArchive, type TranscriptPage } from "../../features/agents/model/agentTranscript";
+import { archiveOlderTurns, canArchive, planArchive } from "../../features/agents/model/agentTranscript";
+import { earlierBlocks, hasEarlierPages, readEarlierPage, type EarlierPages } from "../../features/agents/model/transcriptPages";
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
 
@@ -98,23 +99,19 @@ export function useAgents(options: Options) {
   }, [agents, sessions]);
 
   /** Archived pages stay with their conversation when pane focus changes. */
-  type Earlier = { blocks: Block[]; next?: TranscriptPage; before?: number };
-  const [earlier, setEarlier] = useState<ReadonlyMap<string, Earlier>>(() => new Map());
+  const [earlier, setEarlier] = useState<ReadonlyMap<string, EarlierPages>>(() => new Map());
   const earlierRef = useRef(earlier);
   earlierRef.current = earlier;
-  const pageRequests = useRef(new Map<string, Promise<Earlier | undefined>>());
-  const readEarlier = useCallback((sessionId: string, append: boolean): Promise<Earlier | undefined> => {
+  const pageRequests = useRef(new Map<string, Promise<EarlierPages | undefined>>());
+  const readEarlier = useCallback((sessionId: string, append: boolean): Promise<EarlierPages | undefined> => {
     const pending = pageRequests.current.get(sessionId);
     if (pending) return pending;
     const shown = earlierRef.current.get(sessionId);
-    if (shown && (!append || (!shown.next && shown.before === undefined))) return Promise.resolve(shown);
+    if (shown && (!append || !hasEarlierPages(shown))) return Promise.resolve(shown);
     // Both targeted navigation and the manual history button share this read.
-    const request = Promise.resolve().then(async () => {
-      const page = shown?.next ?? await loadTranscriptPage(sessionId, shown?.before);
+    const request = readEarlierPage(sessionId, shown, append).then((next) => {
+      // Forgotten meanwhile: the pane no longer wants this page.
       if (pageRequests.current.get(sessionId) !== request) return undefined;
-      const next: Earlier = !shown ? { blocks: [], next: page }
-        : { blocks: page ? [...page.blocks, ...shown.blocks] : shown.blocks,
-          ...(page?.hasOlder ? { before: page.seq } : {}) };
       const updated = new Map(earlierRef.current).set(sessionId, next);
       earlierRef.current = updated;
       setEarlier(updated);
@@ -135,16 +132,10 @@ export function useAgents(options: Options) {
     }
   }, [agents, options.visibleSessionIds, viewSessionId, readEarlier]);
   const earlierBlocksFor = useCallback((sessionId: string) => {
-    const blocks = earlier.get(sessionId)?.blocks;
-    if (!blocks?.length) return blocks;
     // The page write can finish after the pane opens, while its live turns are kept.
-    const liveIds = new Set(sessions.find((session) => session.id === sessionId)?.blocks.map((block) => block.id));
-    return blocks.filter((block) => !liveIds.has(block.id));
+    return earlierBlocks(earlier.get(sessionId), sessions.find((session) => session.id === sessionId)?.blocks ?? []);
   }, [earlier, sessions]);
-  const hasEarlier = useCallback((sessionId: string) => {
-    const shown = earlier.get(sessionId);
-    return !!shown?.next || shown?.before !== undefined;
-  }, [earlier]);
+  const hasEarlier = useCallback((sessionId: string) => hasEarlierPages(earlier.get(sessionId)), [earlier]);
   const loadEarlier = useCallback(async (sessionId: string) => {
     const shown = earlierRef.current.get(sessionId);
     if (!shown || (!shown.next && shown.before === undefined) || pageRequests.current.has(sessionId)) return;

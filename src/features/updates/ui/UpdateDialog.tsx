@@ -1,4 +1,4 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../../../platform/native";
 import { useEffect, useRef } from "react";
 import { useUiText } from "../../../shared/i18n/SettingsLanguage";
 import { ExternalLink, Loader } from "../../../shared/ui/icons";

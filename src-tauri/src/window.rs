@@ -61,7 +61,8 @@ struct QuitConfirm {
     in_flight: u32,
 }
 
-pub fn open_new_window(app: &AppHandle) -> Result<(), String> {
+/// `page` replaces the start page, query included (`index.html?remote=loopback`).
+pub fn open_new_window(app: &AppHandle, page: Option<&str>) -> Result<(), String> {
     let mut config = app
         .config()
         .app
@@ -75,6 +76,9 @@ pub fn open_new_window(app: &AppHandle) -> Result<(), String> {
     config.focus = true;
     let id = WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed);
     config.label = format!("window-{id}");
+    if let Some(page) = page {
+        config.url = tauri::WebviewUrl::App(page.into());
+    }
 
     let build = || {
         WebviewWindowBuilder::from_config(app, &config)
@@ -200,7 +204,7 @@ fn workspace_labels(app: &AppHandle) -> Vec<String> {
 pub fn show_hidden_or_open_new(app: &AppHandle) -> Result<(), String> {
     let windows = workspace_windows(app);
     if windows.is_empty() {
-        return open_new_window(app);
+        return open_new_window(app, None);
     }
     for window in &windows {
         let _ = window.unminimize();

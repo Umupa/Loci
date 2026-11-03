@@ -1,6 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../platform/transport";
+import { ask } from "../../platform/dialog";
 import { hasFileDrafts } from "../../features/files/model/fileDrafts";
-import { ask } from "@tauri-apps/plugin-dialog";
 import {
   bindHarnessSession,
   forgetHarnessSession,
@@ -99,7 +99,7 @@ export async function reportQuitPoll(id: number): Promise<void> {
     // Count every active turn before asking to quit.
     inFlight = liveWorkspace.sessions().filter(isInFlightSession).length;
   }
-  await invoke("quit_poll_reply", { id, inFlight }).catch(() => undefined);
+  await transport.call("quit_poll_reply", { id, inFlight }).catch(() => undefined);
 }
 
 /** The one quit dialog, shown by whichever window the coordinator picked. */
@@ -122,12 +122,12 @@ export async function askQuitConfirmation(
       quitDialogOpen = false;
     }
   }
-  await invoke("quit_decision", { id, confirmed }).catch(() => undefined);
+  await transport.call("quit_decision", { id, confirmed }).catch(() => undefined);
 }
 
 export async function commitQuit(id: number): Promise<void> {
   const persisted = await handleQuitRequested();
-  await invoke("quit_ready", { id, persisted }).catch(() => undefined);
+  await transport.call("quit_ready", { id, persisted }).catch(() => undefined);
 }
 
 /**
@@ -196,11 +196,11 @@ export function bindResumedSessions(sessions: Session[]): void {
 }
 
 export async function hideCurrentWindow(): Promise<void> {
-  await invoke("hide_window");
+  await transport.call("hide_window");
 }
 
 export async function closeCurrentWindow(): Promise<void> {
-  await invoke("destroy_window");
+  await transport.call("destroy_window");
 }
 
 /** Persist the idle window before performing its native close action. */

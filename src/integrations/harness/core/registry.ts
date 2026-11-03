@@ -4,7 +4,8 @@ import type {
   TaskListMeta,
   TurnIntent,
 } from "../../../features/sessions/model/session";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
+import { isTauri } from "../../../platform/native";
 import type { GeneratedSessionTitle } from "../../../features/sessions/model/sessionTitle";
 import { hasLiveCatalog } from "../../../features/sessions/model/models";
 import { loadCanvasMcpEnabled } from "../../../features/settings/model/builtinMcp";
@@ -211,7 +212,7 @@ export function sendHarnessTurn(input: SendTurnInput & { harness: HarnessId }) {
     cancelIdlePark(input.sessionId);
     const controlled = typeof isTauri === "function" && isTauri();
     if (controlled)
-      await invoke("control_authorize_turn", {
+      await transport.call("control_authorize_turn", {
         sessionId: input.sessionId,
         cwd: input.cwd,
         appAccess: input.appAccess === true,
@@ -225,7 +226,7 @@ export function sendHarnessTurn(input: SendTurnInput & { harness: HarnessId }) {
     } finally {
       activeTurnSessions.delete(input.sessionId);
       if (controlled)
-        await invoke("control_turn_finished", { sessionId: input.sessionId });
+        await transport.call("control_turn_finished", { sessionId: input.sessionId });
       scheduleIdlePark(input.harness, input.sessionId);
     }
   });

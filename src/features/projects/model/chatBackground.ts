@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { transport } from "../../../platform/transport";
+import { openOnThisDevice as open } from "../../../platform/dialog";
 
 export async function pickAndSaveChatBackground(title = "Choose chat background"): Promise<string | null> {
   const sourcePath = await open({
@@ -14,9 +14,9 @@ export async function pickAndSaveChatBackground(title = "Choose chat background"
     ],
   });
   if (typeof sourcePath !== "string" || !sourcePath) return null;
-  return invoke<string>("save_chat_background", { sourcePath });
+  return transport.call<string>("save_chat_background", { sourcePath });
 }
 
 export function removeChatBackground(): Promise<void> {
-  return invoke<void>("remove_chat_background");
+  return transport.call<void>("remove_chat_background");
 }

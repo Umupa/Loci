@@ -1,4 +1,4 @@
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWebview } from "../../../platform/native";
 
 const UI_SCALE_KEY = "loci.uiScale";
 

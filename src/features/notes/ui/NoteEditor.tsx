@@ -1,5 +1,5 @@
 import { File, Trash2, X } from "../../../shared/ui/icons";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWebview } from "../../../platform/native";
 import {
   Fragment,
   useCallback,

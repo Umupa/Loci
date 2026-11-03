@@ -1,7 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../transport";
 import {
   attachmentsFromFiles,
-  attachmentsFromPaths,
+  attachmentsFromLocalPaths,
   isAttachmentFolder,
   MAX_ATTACHMENTS,
   MAX_EMBED_BYTES,
@@ -55,7 +55,7 @@ export async function copyMessage(
     try {
       let data = attachment.data;
       if (data === undefined && attachment.path) {
-        data = await invoke<string>("read_file_base64", {
+        data = await transport.call<string>("read_file_base64", {
           path: attachment.path,
         });
       }
@@ -201,7 +201,7 @@ async function attachmentsFromClipboardPaths(paths: string[]) {
   let consumed = 0;
   while (consumed < paths.length && files.length < MAX_ATTACHMENTS) {
     const batch = paths.slice(consumed, consumed + MAX_ATTACHMENTS);
-    for (const file of await attachmentsFromPaths(batch)) {
+    for (const file of await attachmentsFromLocalPaths(batch)) {
       if (files.length >= MAX_ATTACHMENTS) break;
       files.push(file);
     }
@@ -254,12 +254,9 @@ export async function nativeClipboardAttachments(
  * Paths for files copied in a file manager, empty when the clipboard holds
  * none. Rejects when the clipboard cannot be read, so a failure reaches the
  * composer instead of looking like an empty clipboard.
- *
- * Invokes the command directly rather than through `fs.clipboardFilePaths`:
- * that module pulls in the dialog plugin, which nothing here needs.
  */
 export async function readClipboardFilePaths(): Promise<string[]> {
-  const paths = await invoke<string[]>("clipboard_file_paths");
+  const paths = await transport.call<string[]>("clipboard_file_paths");
   return Array.isArray(paths) ? paths.filter((path) => path.trim()) : [];
 }
 
@@ -273,7 +270,7 @@ export async function readClipboardFilePaths(): Promise<string[]> {
 export async function readClipboardImage(): Promise<File> {
   let buffer: ArrayBuffer;
   try {
-    buffer = await invoke<ArrayBuffer>("clipboard_image");
+    buffer = await transport.call<ArrayBuffer>("clipboard_image");
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(reason || "The clipboard could not be read.");

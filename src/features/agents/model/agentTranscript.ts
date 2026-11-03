@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport, type Transport } from "../../../platform/transport";
 import {
   sessionConversationPage,
   type SessionReadOptions,
@@ -69,7 +69,7 @@ export async function archiveOlderTurns(
     blocks: plan.archived,
   }).blocks;
   if (!blocks.length) return plan.kept;
-  await invoke("agent_transcript_append", {
+  await transport.call("agent_transcript_append", {
     sessionId: session.id,
     firstBlockId: blocks[0].id,
     blocksJson: JSON.stringify(blocks),
@@ -88,8 +88,9 @@ export type TranscriptPage = {
 export async function loadTranscriptPage(
   sessionId: string,
   before?: number,
+  via: Transport = transport,
 ): Promise<TranscriptPage | undefined> {
-  const page = await invoke<{
+  const page = await via.call<{
     seq: number;
     blocksJson: string;
     hasOlder: boolean;

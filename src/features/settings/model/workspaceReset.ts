@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 
 // Settings are an explicit allowlist; new workspace keys are reset by default.
 const SETTINGS = new Set([
@@ -28,5 +28,5 @@ export function clearWorkspaceStorage(storage: Storage): void {
 }
 
 export function resetWorkspace(): Promise<void> {
-  return invoke("workspace_reset");
+  return transport.call("workspace_reset");
 }

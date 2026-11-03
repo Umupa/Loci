@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../platform/transport";
 import type { ExcalidrawProps } from "@excalidraw/excalidraw/types";
 
 type CanvasChange = NonNullable<ExcalidrawProps["onChange"]>;
@@ -51,22 +51,22 @@ export function invalidateCanvases() {
 
 export async function loadCanvases(refresh = false): Promise<Canvas[]> {
   if (!refresh && cache) return cache;
-  const list = await invoke<Canvas[]>("canvas_list");
+  const list = await transport.call<Canvas[]>("canvas_list");
   cache = list;
   return list;
 }
 
 export async function getCanvas(id: string): Promise<Canvas | null> {
-  return invoke<Canvas | null>("canvas_get", { id });
+  return transport.call<Canvas | null>("canvas_get", { id });
 }
 
 /** The drawing an Excalidraw MCP checkpoint id (or a canvas id) refers to. */
 export function checkpointCanvasId(checkpointId: string): Promise<string | null> {
-  return invoke<string | null>("canvas_checkpoint_canvas", { checkpointId });
+  return transport.call<string | null>("canvas_checkpoint_canvas", { checkpointId });
 }
 
 export async function upsertCanvas(canvas: CanvasUpsert): Promise<Canvas> {
-  const result = await invoke<Canvas>("canvas_upsert", { canvas });
+  const result = await transport.call<Canvas>("canvas_upsert", { canvas });
   if (cache) {
     const idx = cache.findIndex((c) => c.id === result.id);
     if (idx >= 0) {
@@ -233,7 +233,7 @@ export async function deleteCanvas(id: string): Promise<void> {
   deletingCanvases.add(id);
   try {
     await pendingUpdates.get(id)?.catch(() => undefined);
-    await invoke("canvas_delete", { id });
+    await transport.call("canvas_delete", { id });
     canvasSceneDrafts.delete(id);
     if (cache) cache = cache.filter((c) => c.id !== id);
     window.dispatchEvent(new Event(CANVASES_CHANGED_EVENT));

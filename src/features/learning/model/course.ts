@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import { rosterSettled } from "../../agents/model/mentorStore";
 import { isCommit, parseCodeRef } from "./codeRef";
 
@@ -260,8 +260,8 @@ export function courseItems(data: CourseData): { id: string; title: string }[] {
 
 export async function loadCourse(courseId: string, agentId: string): Promise<CourseWithProgress | null> {
   const [rawValue, progressValue] = await Promise.all([
-    invoke<unknown>("course_get", { id: courseId, agentId }),
-    invoke<unknown>("course_progress_get", { courseId, agentId }),
+    transport.call<unknown>("course_get", { id: courseId, agentId }),
+    transport.call<unknown>("course_progress_get", { courseId, agentId }),
   ]);
   if (rawValue === null) return null;
   const raw = object(rawValue, "Stored course");
@@ -301,13 +301,13 @@ function coursesChanged(detail: CourseChangedDetail) {
 export async function saveCourse(agentId: string, course: ParsedCourse): Promise<void> {
   // A new mentor must have its folder before its first course is saved.
   await rosterSettled();
-  await invoke("course_upsert", { course: { id: course.id, agentId, engine: course.engine, title: course.title, dataJson: JSON.stringify(course.data) } });
+  await transport.call("course_upsert", { course: { id: course.id, agentId, engine: course.engine, title: course.title, dataJson: JSON.stringify(course.data) } });
   coursesChanged({ agentId, courseId: course.id });
 }
 
 /** Every stored course; callers keep the ones owned by a current agent. */
 export function loadCourseSummaries(): Promise<CourseSummary[]> {
-  return invoke<CourseSummary[]>("course_list_all");
+  return transport.call<CourseSummary[]>("course_list_all");
 }
 
 /** Fired on `window` when a lesson's status changes, from any pane or command. */
@@ -316,13 +316,13 @@ export type ProgressDetail = { courseId: string; agentId: string; itemId: string
 
 /** Records how far the user is with one lesson or step, and tells every open view. */
 export async function setLessonStatus(courseId: string, agentId: string, itemId: string, status: LearningStatus): Promise<void> {
-  await invoke("course_progress_set", { courseId, agentId, itemId, status });
+  await transport.call("course_progress_set", { courseId, agentId, itemId, status });
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<ProgressDetail>(PROGRESS_EVENT, { detail: { courseId, agentId, itemId, status } }));
 }
 
 /** One course, or with no id every course the agent owns. */
 export async function deleteCourse(agentId: string, id?: string): Promise<void> {
-  await invoke("course_delete", { agentId, id: id ?? null });
+  await transport.call("course_delete", { agentId, id: id ?? null });
   coursesChanged({ agentId, ...(id === undefined ? {} : { courseId: id }) });
 }
 

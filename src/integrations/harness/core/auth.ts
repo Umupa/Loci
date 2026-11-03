@@ -1,4 +1,4 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "../../../platform/native";
 import { homeDir } from "../../../platform/tauri/fs";
 import { supportsProviderAccounts } from "../../../features/providers/model/providerAccounts";
 import { HARNESS_TITLE, type HarnessId } from "../../../features/sessions/model/session";

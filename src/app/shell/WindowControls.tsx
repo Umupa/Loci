@@ -1,5 +1,5 @@
 import { useUiText } from "../../shared/i18n/SettingsLanguage";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "../../platform/native";
 import { Copy, Minus, Square, X } from "../../shared/ui/icons";
 import { useEffect, useState } from "react";
 

@@ -27,6 +27,9 @@ mod menu;
 mod notes;
 mod notifications;
 mod pasteboard;
+pub mod power;
+pub mod remote;
+pub mod remote_catalog;
 mod reset;
 mod session_store;
 mod skills;
@@ -195,9 +198,31 @@ fn set_trackpad_zoom_enabled(
     trackpad_zoom::set_enabled(&window, enabled);
 }
 
+/// `remote: "loopback"` opens a window that starts as a client of this
+/// Loci's own gateway (`?remote=loopback`), for developing remote access.
 #[tauri::command]
-fn open_new_window(app: tauri::AppHandle) -> Result<(), String> {
-    window::open_new_window(&app)
+fn open_new_window(app: tauri::AppHandle, remote: Option<String>) -> Result<(), String> {
+    let page = remote.as_deref().map(remote_page).transpose()?;
+    window::open_new_window(&app, page.as_deref())
+}
+
+/// The page a window connected to another device opens: `loopback` (this
+/// Loci's own host, for development) or `device:<deviceId>` (a group member).
+fn remote_page(remote: &str) -> Result<String, String> {
+    let valid = match remote.strip_prefix("device:") {
+        Some(id) => {
+            !id.is_empty()
+                && id
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        }
+        None => remote == "loopback",
+    };
+    if valid {
+        Ok(format!("index.html?remote={remote}"))
+    } else {
+        Err(format!("Unknown remote target: {remote}"))
+    }
 }
 
 fn should_request_quit(code: Option<i32>) -> bool {
@@ -257,6 +282,7 @@ pub fn run() {
                     let _ = window.set_shadow(true);
                 }
             }
+            remote::init(app.handle());
             reset::resume(app.handle())?;
             Ok(())
         })
@@ -441,6 +467,24 @@ pub fn run() {
             set_dock_badge,
             set_trackpad_zoom_enabled,
             open_new_window,
+            remote::remote_status,
+            remote::remote_session_publish,
+            remote::remote_intent_reply,
+            remote::client::remote_client_connect,
+            remote::client::remote_client_call,
+            remote::client::remote_client_subscribe,
+            remote::client::remote_client_disconnect,
+            remote::client::remote_client_upload,
+            remote::client::remote_client_cache_put,
+            remote::client::remote_client_cache_get,
+            remote::setup::remote_group_status,
+            remote::setup::remote_group_create,
+            remote::setup::remote_group_join,
+            remote::setup::remote_group_leave,
+            remote::setup::remote_devices_list,
+            remote::setup::remote_device_remove,
+            remote::setup::remote_settings_get,
+            remote::setup::remote_settings_set,
         ]))
         .build(context)
         .expect("error while building Loci");
@@ -475,6 +519,7 @@ pub fn run() {
                 .iter()
                 .any(|window| window.label() != label);
             control::window_closed(handle, &label);
+            remote::window_closed(handle, &label);
             if !other_window {
                 reap_harness_children(handle);
             }
@@ -513,7 +558,22 @@ pub fn ensure_macos_dev_bundle() {
 
 #[cfg(test)]
 mod tests {
-    use super::should_request_quit;
+    use super::{remote_page, should_request_quit};
+
+    #[test]
+    fn opens_remote_windows_only_for_loopback_and_group_devices() {
+        assert_eq!(
+            remote_page("loopback").unwrap(),
+            "index.html?remote=loopback"
+        );
+        assert_eq!(
+            remote_page("device:Ab9_-x").unwrap(),
+            "index.html?remote=device:Ab9_-x"
+        );
+        for refused in ["device:", "device:a&b=c", "device:a/b", "relay", ""] {
+            assert!(remote_page(refused).is_err(), "{refused}");
+        }
+    }
 
     #[test]
     fn asset_protocol_exposes_only_media_directories() {

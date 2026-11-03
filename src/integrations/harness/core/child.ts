@@ -1,12 +1,11 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { transport, type Unlisten } from "../../../platform/transport";
 import {
   runtimeProviderBinaryPath,
   type ConfigurableBinaryProvider,
 } from "../../../features/providers/model/providerBinaryPaths";
 
 export function readHarnessTextFile(path: string): Promise<string> {
-  return invoke("read_text_file", { path });
+  return transport.call("read_text_file", { path });
 }
 
 type LinePayload = { sessionId: string; line: string };
@@ -50,7 +49,7 @@ export function isCurrentChildExit(
 }
 
 const MAX_BUFFERED = 1000;
-let bridge: Promise<UnlistenFn[]> | null = null;
+let bridge: Promise<Unlisten[]> | null = null;
 let bridgeAttempt: symbol | null = null;
 let users = 0;
 let teardownTimer: ReturnType<typeof setTimeout> | undefined;
@@ -71,8 +70,8 @@ function pushBounded(
 function ensureBridge() {
   if (bridge) return;
   let failed = false;
-  const installed: UnlistenFn[] = [];
-  const register = (pending: Promise<UnlistenFn>) =>
+  const installed: Unlisten[] = [];
+  const register = (pending: Promise<Unlisten>) =>
     pending.then((unlisten) => {
       if (failed) {
         unlisten();
@@ -85,7 +84,7 @@ function ensureBridge() {
   bridgeAttempt = attempt;
   const installation = Promise.all([
     register(
-      listen<LinePayload>("harness-stdout", (event) => {
+      transport.listen<LinePayload>("harness-stdout", (event) => {
         const { sessionId, line } = event.payload;
         const handler = lineHandlers.get(sessionId);
         if (handler) {
@@ -98,13 +97,13 @@ function ensureBridge() {
       }),
     ),
     register(
-      listen<LinePayload>("harness-stderr", (event) => {
+      transport.listen<LinePayload>("harness-stderr", (event) => {
         const { sessionId, line } = event.payload;
         stderrHandlers.get(sessionId)?.(line);
       }),
     ),
     register(
-      listen<ExitPayload>("harness-exit", (event) => {
+      transport.listen<ExitPayload>("harness-exit", (event) => {
         const { sessionId, code, pid } = event.payload;
         const handler = exitHandlers.get(sessionId);
         if (!handler || pid == null || pid <= 0) return;
@@ -122,7 +121,7 @@ function ensureBridge() {
       }),
     ),
     register(
-      listen<SsePayload>("harness-sse", (event) => {
+      transport.listen<SsePayload>("harness-sse", (event) => {
         const { sessionId, streamId, data } = event.payload;
         if (!streamId || sseGenerations.get(sessionId) !== streamId) return;
         const handler = sseHandlers.get(sessionId);
@@ -134,7 +133,7 @@ function ensureBridge() {
       }),
     ),
     register(
-      listen<SseEndPayload>("harness-sse-end", (event) => {
+      transport.listen<SseEndPayload>("harness-sse-end", (event) => {
         const { sessionId, streamId, error } = event.payload;
         if (!streamId || sseGenerations.get(sessionId) !== streamId) return;
         sseEndHandlers.get(sessionId)?.(error ?? undefined);
@@ -270,7 +269,7 @@ export async function spawnChild(
   const binaryPath = binaryProvider
     ? runtimeProviderBinaryPath(binaryProvider)
     : undefined;
-  const pid = await invoke<number>("harness_spawn", {
+  const pid = await transport.call<number>("harness_spawn", {
     sessionId,
     command,
     args,
@@ -290,14 +289,14 @@ export async function spawnChild(
 }
 
 export function writeChild(sessionId: string, line: string): Promise<void> {
-  return invoke("harness_write", { sessionId, line });
+  return transport.call("harness_write", { sessionId, line });
 }
 
 export function killChild(sessionId: string): Promise<void> {
   livePid.delete(sessionId);
   pendingExit.delete(sessionId);
   unwatchChild(sessionId);
-  return invoke("harness_kill", { sessionId });
+  return transport.call("harness_kill", { sessionId });
 }
 
 export function killAllChildren(): Promise<void> {
@@ -313,7 +312,7 @@ export function killAllChildren(): Promise<void> {
   sseGenerations.clear();
   livePid.clear();
   pendingExit.clear();
-  return invoke("harness_kill_all");
+  return transport.call("harness_kill_all");
 }
 
 type ResolvedHarnessBinary = { path: string; args?: string[] };
@@ -327,7 +326,7 @@ async function resolveHarnessBinary(
       ? runtimeProviderBinaryPath(provider)
       : binaryPath?.trim();
   if (configuredPath) {
-    return invoke("harness_resolve_configured", {
+    return transport.call("harness_resolve_configured", {
       provider,
       binaryPath: configuredPath,
     });
@@ -344,7 +343,7 @@ async function resolveHarnessBinary(
     hermes: "harness_resolve_hermes",
     antigravity: "harness_resolve_antigravity",
   };
-  return invoke(command[provider]);
+  return transport.call(command[provider]);
 }
 
 export function resolveCursorBinary(
@@ -411,7 +410,7 @@ export function resolveAntigravityBinary(
 }
 
 export function freeHarnessPort(): Promise<number> {
-  return invoke("harness_free_port");
+  return transport.call("harness_free_port");
 }
 
 export function harnessHttp(input: {
@@ -421,7 +420,7 @@ export function harnessHttp(input: {
   body?: string;
   timeoutMs?: number;
 }): Promise<{ status: number; body: string }> {
-  return invoke("harness_http", input);
+  return transport.call("harness_http", input);
 }
 
 export async function openHarnessSse(
@@ -435,7 +434,7 @@ export async function openHarnessSse(
   ownedSse.add(sessionId);
   try {
     // Native resolves only once the HTTP event-stream headers have arrived.
-    await invoke("harness_sse_open", { sessionId, streamId, url, headers });
+    await transport.call("harness_sse_open", { sessionId, streamId, url, headers });
   } catch (error) {
     if (sseGenerations.get(sessionId) === streamId) unwatchSse(sessionId);
     throw error;
@@ -444,7 +443,7 @@ export async function openHarnessSse(
 
 export function closeHarnessSse(sessionId: string): Promise<void> {
   unwatchSse(sessionId);
-  return invoke("harness_sse_close", { sessionId });
+  return transport.call("harness_sse_close", { sessionId });
 }
 
 export type HarnessBinaryInspection = {
@@ -494,7 +493,7 @@ export function execChild(
     binaryPathOverride === undefined && binaryProvider
       ? runtimeProviderBinaryPath(binaryProvider)
       : binaryPathOverride;
-  return invoke("harness_exec", {
+  return transport.call("harness_exec", {
     command,
     args,
     cwd,

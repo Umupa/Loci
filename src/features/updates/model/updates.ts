@@ -1,6 +1,4 @@
-import { getIdentifier, getVersion } from "@tauri-apps/api/app";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type Update } from "@tauri-apps/plugin-updater";
+import { getIdentifier, getVersion, relaunch, check, type Update } from "../../../platform/native";
 import { useSyncExternalStore } from "react";
 
 /**

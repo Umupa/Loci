@@ -40,7 +40,7 @@ import {
   saveSelected,
   subscribeDirsChanged,
 } from "../model/fileTree";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWebview } from "../../../platform/native";
 import { dragPointToClient } from "../../../shared/lib/dragPoint";
 import {
   basename,
@@ -49,12 +49,13 @@ import {
   createPath,
   movePath,
   openPathWithDefaultApp,
-  pickFiles,
   renamePath,
   revealPath,
   trashPath,
   type FsEntry,
 } from "../../../platform/tauri/fs";
+import { pickFiles } from "../../../platform/dialog";
+import { toHostPaths } from "../../../platform/upload";
 import { displayPath, parentPath, rebasePath } from "../../../shared/lib/paths";
 import { IS_MAC, IS_WIN, MOD, SHIFT } from "../../../platform/tauri/platform";
 import {
@@ -653,10 +654,11 @@ export const FileTree = memo(function FileTree({
     onFileDeleted?.(path);
   };
 
+  /** Files from this device's file manager; uploaded first when the project is on a host. */
   const copyExternalFiles = async (paths: string[], destParent: string) => {
     let created: string | null = null;
     try {
-      for (const from of paths) created = await copyPath(from, destParent);
+      for (const from of await toHostPaths(paths)) created = await copyPath(from, destParent);
     } finally {
       if (created) {
         await refreshTouched([destParent]);

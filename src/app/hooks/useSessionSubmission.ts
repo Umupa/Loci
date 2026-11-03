@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../platform/transport";
 import { linkLearningDiscussion, registerSubmittedLearningContext, sanitizeLearningContext, withLearningContext } from "../../features/learning/model/learningContext";
 import type { LearningMessageContext } from "../../features/learning/model/types";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -60,6 +60,7 @@ import { agentForSession } from "../../features/agents/model/agent";
 import { saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
 import { agentTurn } from "../../features/agents/model/agentFiles";
 import { prepareAppTurn } from "../../features/agents/model/agentTurnContext";
+import type { SharedReading } from "../../features/agents/model/agentReading";
 import { questionReplyText } from "../../features/sessions/model/standingQuestion";
 import { documentsInText } from "../../features/sessions/model/cards";
 import { saveAgentDocuments } from "../../features/agents/model/agentDocuments";
@@ -85,6 +86,8 @@ export type SubmitOptions = ComposerTurnOptions & {
   onSettled?: (outcome: TurnOutcome) => void;
   /** Internal grant for a scheduled habit run; agent chats always have app access. */
   appAccess?: boolean;
+  /** What the reader shows in the connected window that sent this message. */
+  reading?: SharedReading;
 };
 type Submit = (sessionId: string, text: string, attachments?: Attachment[], options?: SubmitOptions) => SubmissionAcceptance;
 type SubmissionOptions = {
@@ -102,7 +105,7 @@ function shellPath(path: string): string {
 
 /** The app's own executable as an agent types it: it is also the CLI for the built-in tools. */
 async function appCli(): Promise<string> {
-  return shellPath(await invoke<string>("app_cli_path"));
+  return shellPath(await transport.call<string>("app_cli_path"));
 }
 
 /** Everything the agent said in the latest turn, in order. */
@@ -395,7 +398,7 @@ export function useSessionSubmission(options: SubmissionOptions) {
           queuedHandoff ? userMessagesAfterHandoff(current) : []) : prompt;
         // Native commands stay untouched; app context is separate from user text.
         const appTurnContext = !rawCommand
-          ? await prepareAppTurn(agent, current, { canRotate: !pendingSwitch && !edited && !current.ephemeral }) : undefined;
+          ? await prepareAppTurn(agent, current, { canRotate: !pendingSwitch && !edited && !current.ephemeral, reading: options?.reading }) : undefined;
         if (!isCurrent()) return;
         if (canvasAvailable && (canvasNote || appTurnContext?.rotates || appTurnContext?.recovering)) {
           // A fresh provider also needs the tool entry point previously sent to its predecessor.

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import { useEffect, useState } from "react";
 import { findAgent } from "../../agents/model/agent";
 import { parseTranslation, serializeTranslation, type SourceTranslation } from "./sourceTranslation";
@@ -15,12 +15,12 @@ function folderOf(agentId: string): string {
 }
 
 export async function loadSourceTranslation({ agentId, id, language }: Key): Promise<SourceTranslation> {
-  const text = await invoke<string | null>("source_translation_read", { folder: folderOf(agentId), id, language });
+  const text = await transport.call<string | null>("source_translation_read", { folder: folderOf(agentId), id, language });
   return text ? parseTranslation(language, text) : { language, units: [] };
 }
 
 export async function saveSourceTranslation({ agentId, id, language }: Key, translation: SourceTranslation): Promise<void> {
-  await invoke("source_translation_write", { folder: folderOf(agentId), id, language, content: serializeTranslation(id, translation) });
+  await transport.call("source_translation_write", { folder: folderOf(agentId), id, language, content: serializeTranslation(id, translation) });
   window.dispatchEvent(new CustomEvent<Key>(SOURCE_TRANSLATION_EVENT, { detail: { agentId, id, language } }));
 }
 

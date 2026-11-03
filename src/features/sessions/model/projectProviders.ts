@@ -1,5 +1,6 @@
 import { pathKey } from "../../../shared/lib/paths";
 import type { HarnessId } from "./session";
+import { hostSettingWritten } from "../../../platform/hostSettings";
 
 /**
  * Per-project overrides for the Providers settings: which provider new
@@ -212,6 +213,7 @@ function writeAll(next: Stored): void {
   } catch {
     // private mode / quota
   }
+  hostSettingWritten(KEY);
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(PROJECT_PROVIDERS_CHANGE_EVENT));
 }

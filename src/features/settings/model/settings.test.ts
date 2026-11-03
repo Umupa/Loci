@@ -200,6 +200,7 @@ describe("settings navigation", () => {
         expect(groups.flatMap((group) => group.sections.map((s) => s.id))).toEqual([
             "general",
             "appearance",
+            "remote",
             "keybindings",
             "agents",
             "chat",

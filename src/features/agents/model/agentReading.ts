@@ -94,10 +94,22 @@ export function budgetPlace(place: ReadingPlace, attached: readonly string[] = [
 }
 
 /** The context block for a turn, or nothing when the agent's main area is empty. */
-export function readingContext(agentId: string, attached: readonly string[] = []): string | undefined {
+/** What a reader shows and where in it, as another window hands it to the one running the turn. */
+export type SharedReading = { reading: AgentReading; place?: ReadingPlace };
+
+/** This window's reader beside an agent, to send along with a message. */
+export function sharedReading(agentId: string): SharedReading | undefined {
   const current = reading.get(agentId);
   if (!current) return undefined;
   const place = places.get(agentId);
+  return place ? { reading: current, place } : { reading: current };
+}
+
+/** `given`: the reader of the window that sent the message, in place of this window's. */
+export function readingContext(agentId: string, attached: readonly string[] = [], given?: SharedReading): string | undefined {
+  const current = given ? given.reading : reading.get(agentId);
+  if (!current) return undefined;
+  const place = given ? given.place : places.get(agentId);
   const shown: Record<string, unknown> = { ...current };
   // How a mentor cites this page back, so its answer can link to the passage.
   if (current.kind === "document") shown.link = `loci://source/${current.id}`;

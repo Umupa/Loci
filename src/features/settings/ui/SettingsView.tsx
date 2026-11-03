@@ -3,11 +3,11 @@ import { SettingsLanguage } from "../../../shared/i18n/SettingsLanguage";
 import { installCli, loadCliAccess, rotateCliToken, setCliAccess, type CliAccess } from "../model/cliAccess";
 import { LEARNING_LANGUAGES, useLearningLanguage, type LearningLanguage } from "../../agents/model/learningLanguage";
 import { t, useLocale, getLocale, useLanguagePreference, setLanguagePreference, type LanguagePreference } from "../../../shared/i18n/locale";
-import { getName, getVersion } from "@tauri-apps/api/app";
+import { transport } from "../../../platform/transport";
+import { getName, getVersion } from "../../../platform/native";
+import { ask } from "../../../platform/dialog";
 import { checkForUpdate, openUpdatePrompt, updatesEnabled, usePendingUpdate } from "../../updates/model/updates";
 import { shortcutPreview, shortcutFromKeyEvent } from "../../../shared/lib/shortcuts";
-import { invoke } from "@tauri-apps/api/core";
-import { ask } from "@tauri-apps/plugin-dialog";
 import { Check, ChevronDown, ExternalLink, FolderOpen, ImagePlus, Loader, Pencil, RefreshCw, RotateCcw, Search, X } from "../../../shared/ui/icons";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
@@ -22,6 +22,10 @@ import { resetAgentDefaults } from "../../agents/model/agentFiles";
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { GradientBlurBackground } from "./GradientBlurBackground";
 import { McpSettings } from "./McpSettings";
+import { RemoteAccessSettings } from "./RemoteAccessSettings";
+import { useRemoteSettingsScope } from "../model/settingsScope";
+import { ReadOnly } from "../../../shared/ui/ReadOnly";
+import { useModelSource } from "../../sessions/ui/modelSource";
 import { WindowControls } from "../../../app/shell/WindowControls";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 import { useColorScheme } from "../../../shared/hooks/useColorScheme";
@@ -32,10 +36,9 @@ import { applyFonts, loadCodeFont, loadReadingFont, loadUiFont, normalizeFontFam
 import { findTheme, isThemeWallpaperPath, resolveTheme, type ThemeWallpaper } from "../model/themes";
 import { ThemeGallery, WallpaperStrip } from "./ThemeGallery";
 import { applyUiScale, loadUiScale, saveUiScale, subscribeUiScale, UI_SCALE_DEFAULT, UI_SCALE_PERCENTS } from "../model/uiScale";
-import { getHarnessAvailabilitySnapshot, harnessUnavailableHint, isHarnessAvailable, probeHarnessAvailability, subscribeHarnessAvailability } from "../../../integrations/harness/core/availability";
-import { inspectHarnessBinary, type HarnessBinaryInspection } from "../../../integrations/harness/core/child";
+import { getHarnessAvailabilitySnapshot, harnessUnavailableHint, isHarnessAvailable, subscribeHarnessAvailability } from "../../../integrations/harness/core/availability";
+import type { HarnessBinaryInspection } from "../../../integrations/harness/core/child";
 import { loadProviderBinaryPath, providerBinaryPathChangePending, saveProviderBinaryPath, type ConfigurableBinaryProvider } from "../../providers/model/providerBinaryPaths";
-import { refreshHarnessCatalogs } from "../../../integrations/harness/core/registry";
 import { defaultModelId, getModelSnapshot, hasLiveCatalog, loadDefaultModels, loadHiddenPickerProviders, loadLastModelChoice, modelsFor, resolveModel, saveDefaultModel, saveLastModelChoice, savePickerProviderVisible, subscribeModels } from "../../sessions/model/models";
 import { prettyCwd } from "../../../shared/lib/paths";
 import { revealPath } from "../../../platform/tauri/fs";
@@ -78,6 +81,14 @@ function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, 
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
     const appearance = useAppearanceSettings();
+    const scope = useRemoteSettingsScope();
+    const hostKind = HOST_SECTIONS[section];
+    const hostNote = useHostNote(hostKind ?? "shared");
+    // In a window connected to another device: whose settings this page holds.
+    const sectionNote = !scope ? null
+        : hostKind ? hostNote
+            : section === "remote" ? t("These are this device's own remote-access settings, not {0}'s.", scope.host)
+                : null;
     useEffect(() => setRevealed(anchor), [anchor]);
     // Section is a dependency so a search result on another page scrolls once
     // that page has mounted the row.
@@ -128,18 +139,19 @@ function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, 
         {IS_MAC ? null : <WindowControls />}
       </div>
 
-      {section === "skills" ? (<SkillsPage key={cwd} cwd={cwd} userOnly header={<PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)}/>}/>) : (<RevealedSetting.Provider value={revealed}>
+      {section === "skills" ? (<HostOnly><SkillsPage key={cwd} cwd={cwd} userOnly header={<PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)} note={sectionNote}/>}/></HostOnly>) : (<RevealedSetting.Provider value={revealed}>
           <div ref={lockOverscroll} className="@container/settings min-h-0 flex-1 overflow-y-auto overscroll-none">
             <div className="mx-auto w-full max-w-5xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
-              <PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)}/>
+              <PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)} note={sectionNote}/>
               {section === "general" ? (<GeneralPage />) : null}
 
               {section === "appearance" ? (<AppearancePage appearance={appearance}/>) : null}
-              {section === "agents" ? <AgentsPage onOpenMentorSettings={onOpenMentorSettings}/> : null}
+              {section === "remote" ? <RemoteAccessSettings /> : null}
+              {section === "agents" ? <HostOnly><AgentsPage onOpenMentorSettings={onOpenMentorSettings}/></HostOnly> : null}
               {section === "chat" ? <ChatPage /> : null}
               {section === "keybindings" ? <KeybindingsPage /> : null}
-              {section === "mcp" ? (<McpSettings cwd={cwd}/>) : null}
-              {section === "providers" ? (<ProvidersPage />) : null}
+              {section === "mcp" ? (<HostOnly><McpSettings cwd={cwd}/></HostOnly>) : null}
+              {section === "providers" ? (<HostOnly><ProvidersPage /></HostOnly>) : null}
 
 
             </div>
@@ -246,6 +258,8 @@ function GeneralPage({}: {}) {
         saveCloseToTray(next);
         setCloseToTray(next);
     };
+    const scope = useRemoteSettingsScope();
+    const sharedNote = useHostNote("shared");
     return (<>
       <Group title={t("Language")}>
         <Row id="language" label={t("Settings language")} description={t("Choose the language for Settings. The workspace stays in English.")}>
@@ -255,11 +269,11 @@ function GeneralPage({}: {}) {
             { value: "en", label: "English" },
           ]}/>
         </Row>
-        <Row id="learning-language" label={t("Learning language")} description={t("What mentors write in: replies, courses, guides and notes, even when their sources are in another language. A mentor can choose its own in its settings.")}>
-          <Select label={t("Learning language")} value={learningLanguage} onChange={(value) => setLearningLanguage(value as LearningLanguage)} options={[
+        <Row id="learning-language" label={t("Learning language")} description={withHostNote(t("What mentors write in: replies, courses, guides and notes, even when their sources are in another language. A mentor can choose its own in its settings."), sharedNote)}>
+          <HostOnly><Select label={t("Learning language")} value={learningLanguage} onChange={(value) => setLearningLanguage(value as LearningLanguage)} options={[
             { value: "auto", label: t("Follow my messages") },
             ...LEARNING_LANGUAGES.map((entry) => ({ value: entry.id, label: entry.label })),
-          ]}/>
+          ]}/></HostOnly>
         </Row>
       </Group>
       <Group title={t("Alerts")} description={t("How Loci reaches you while you are looking somewhere else.")}>
@@ -274,7 +288,7 @@ function GeneralPage({}: {}) {
         </Row>
       </Group>
 
-      <CommandLineGroup />
+      <HostOnly><CommandLineGroup /></HostOnly>
 
       {IS_WIN ? <Group title={t("Window")}>
         {IS_WIN && (<Row id="close-to-tray" label={t("Close to tray")} description={t("Closing a window hides it to the system tray instead of quitting, so running agents keep going. Reopen from the tray icon, and quit for real from its menu. Turn this off to have close end the window.")}>
@@ -286,13 +300,16 @@ function GeneralPage({}: {}) {
         <VersionRow />
       </Group>
       <Group id="reset-workspace" title={t("Reset workspace")}>
-        <ResetWorkspace />
+        {scope
+            ? <p data-reset-unavailable className="px-4 py-3.5 text-[12px] text-content/45">{t("Resetting removes {0}'s workspace, so it can only be done on {0} itself.", scope.host)}</p>
+            : <ResetWorkspace />}
       </Group>
     </>);
 }
 /** `loci` in a terminal: whether it may drive this Loci, its token, and putting it on PATH. */
 function CommandLineGroup() {
   useLocale();
+    const actsNote = useHostNote("acts");
     const [access, setAccess] = useState<CliAccess | null>(null);
     const [busy, setBusy] = useState(false);
     const [note, setNote] = useState<string | null>(null);
@@ -306,7 +323,7 @@ function CommandLineGroup() {
     };
     if (!access) return null;
     const button = "shrink-0 rounded-md border border-content/10 px-2.5 py-1 text-[12px] text-content/70 hover:bg-content/10 hover:text-content disabled:opacity-50";
-    return (<Group id="command-line" title={t("Command line")} description={t("Run loci in a terminal to drive this Loci: mentors, courses, sources, notes and the reader. It is how tests and agents outside Loci work with it. Only your user account can use it.")}>
+    return (<Group id="command-line" title={t("Command line")} description={withHostNote(t("Run loci in a terminal to drive this Loci: mentors, courses, sources, notes and the reader. It is how tests and agents outside Loci work with it. Only your user account can use it."), actsNote)}>
       <Row label={t("Command-line access")} description={access.enabled
           ? t("On for {0}. The token in {1} lets a terminal in; only your account can read it.", access.identifier, access.tokenPath ?? "…")
           : t("Off. Terminals cannot reach this Loci; agents in Loci keep their own access.")}>
@@ -326,6 +343,7 @@ function CommandLineGroup() {
 }
 function ChatPage() {
   useLocale();
+    const sharedNote = useHostNote("shared");
     const [composerRunner, setComposerRunner] = useState(loadComposerRunner);
     const [transcriptLayout, setTranscriptLayout] = useState<TranscriptLayout>(loadTranscriptLayout);
     const [transcriptAnchor, setTranscriptAnchor] = useState(loadTranscriptAnchor);
@@ -370,11 +388,11 @@ function ChatPage() {
       </Group>
 
       <Group title={t("Composer")} description={t("What the composer does with what you type.")}>
-        <Row id="follow-up" label={t("Follow-up behavior")} description={t("Queue follow-ups until the active turn finishes, or steer the active turn immediately.")}>
-          <Segmented label={t("Follow-up behavior")} value={followUpBehavior} options={[
+        <Row id="follow-up" label={t("Follow-up behavior")} description={withHostNote(t("Queue follow-ups until the active turn finishes, or steer the active turn immediately."), sharedNote)}>
+          <HostOnly><Segmented label={t("Follow-up behavior")} value={followUpBehavior} options={[
             { value: "queue", label: t("Queue") },
             { value: "steer", label: t("Steer") },
-        ]} onChange={onFollowUpBehavior}/>
+        ]} onChange={onFollowUpBehavior}/></HostOnly>
         </Row>
         <Row id="composer-mascot" label={t("Composer mascot")} description={t("While an agent is working, its avatar or a small robot runs along the composer, jumps obstacles and occasionally collects a coin.")}>
           <Toggle label={t("Composer mascot")} on={composerRunner} onChange={(next) => { saveComposerRunner(next); setComposerRunner(next); }}/>
@@ -932,7 +950,7 @@ function KeybindingsPage() {
     const save = async (command: string, override: KeybindingOverride) => {
         const next = saveKeybindingOverride(command, override);
         if (IS_MAC)
-            await invoke("keybindings_set_overrides", { overrides: next });
+            await transport.call("keybindings_set_overrides", { overrides: next });
     };
     return (<Group id="shortcuts" title={t("Shortcuts")} description={t("Click a shortcut to record new keys. Press Delete while recording to disable it.")} action={<div className="flex items-center gap-3">
           <span className="shrink-0 text-[12px] text-content/40 tabular-nums">
@@ -979,6 +997,8 @@ function ProviderBinaryControl({ provider, }: {
     provider: ConfigurableBinaryProvider;
 }) {
   useLocale();
+    // The CLI found on this device, or on the host a window is connected to.
+    const modelSource = useModelSource();
     const root = useRef<HTMLSpanElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
     const editInput = useRef<HTMLInputElement>(null);
@@ -998,7 +1018,7 @@ function ProviderBinaryControl({ provider, }: {
         setError(null);
         setRevealError(null);
         try {
-            const next = await inspectHarnessBinary(provider, binaryPath);
+            const next = await modelSource.inspectBinary(provider, binaryPath);
             setInspection({
                 ...next,
                 overridden: Boolean(binaryPath?.trim()),
@@ -1014,7 +1034,7 @@ function ProviderBinaryControl({ provider, }: {
         finally {
             setWorking(false);
         }
-    }, [provider]);
+    }, [modelSource, provider]);
     useEffect(() => {
         if (editing)
             editInput.current?.focus();
@@ -1183,9 +1203,11 @@ function ProvidersPage() {
     const [defaultModels, setDefaultModels] = useState(loadDefaultModels);
     const [claudeHooks, setClaudeHooks] = useState(loadClaudeHooks);
     const [hiddenGlobally, setHiddenGlobally] = useState(loadHiddenPickerProviders);
+    // Which CLIs are installed, on this device or the host a window is connected to.
+    const modelSource = useModelSource();
     useEffect(() => {
-        void probeHarnessAvailability();
-    }, []);
+        modelSource.refresh([]);
+    }, [modelSource]);
     const onClaudeHooks = (next: boolean) => {
         saveClaudeHooks(next);
         setClaudeHooks(next);
@@ -1243,11 +1265,12 @@ function ProviderRow({ harness, selectedModel, isDefault, inPicker, onDefault, o
     const models = modelsFor(harness);
     const available = isHarnessAvailable(harness);
     const current = models.length > 0 ? resolveModel(harness, selectedModel) : null;
+    const modelSource = useModelSource();
     useEffect(() => {
         if (!available || hasLiveCatalog(harness))
             return;
-        void refreshHarnessCatalogs([harness]);
-    }, [available, harness]);
+        modelSource.refresh([harness]);
+    }, [available, harness, modelSource]);
     return (<Row label={<span className="flex items-center gap-2">
           <HarnessIcon harness={harness} className="size-4 shrink-0"/>
           {HARNESS_TITLE[harness]}
@@ -1274,9 +1297,11 @@ function ProviderRow({ harness, selectedModel, isDefault, inPicker, onDefault, o
         </div>) : null}
     </Row>);
 }
-function PageHeader({ title, description, }: {
+function PageHeader({ title, description, note = null, }: {
     title: string;
     description: string;
+    /** Whose settings these are, in a window connected to another device. */
+    note?: string | null;
 }) {
   useLocale();
     return (<header className="pb-4">
@@ -1286,7 +1311,34 @@ function PageHeader({ title, description, }: {
       {description ? (<p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-content/45">
           {description}
         </p>) : null}
+      {note ? (<p data-host-note className="mt-2 max-w-xl text-[12px] font-medium text-content/60">{note}</p>) : null}
     </header>);
+}
+/**
+ * In a window connected to another device, what the host keeps (`shared`)
+ * or what runs on the host (`acts`). Sections not listed are this device's.
+ */
+type HostKind = "shared" | "acts";
+const HOST_SECTIONS: Partial<Record<SettingsSectionId, HostKind>> = {
+    agents: "shared", providers: "shared", skills: "shared", mcp: "acts",
+};
+/** A line saying a setting is the host's; `null` in a window of this device. */
+function useHostNote(kind: HostKind): string | null {
+    const scope = useRemoteSettingsScope();
+    if (!scope)
+        return null;
+    if (scope.offline)
+        return t("{0} is offline. This is read-only until it is back.", scope.host);
+    return kind === "shared" ? t("Applies to {0}.", scope.host) : t("Runs on {0}.", scope.host);
+}
+/** What the host keeps or acts on cannot change while it is offline. Unchanged in a window of this device. */
+function HostOnly({ children }: { children: ReactNode }) {
+    const scope = useRemoteSettingsScope();
+    return scope ? <ReadOnly readOnly={scope.offline}>{children}</ReadOnly> : <>{children}</>;
+}
+/** A row description, with whose setting it is when that is the host's. */
+function withHostNote(description: string, note: string | null): string {
+    return note ? `${description} ${note}` : description;
 }
 /**
  * A titled card of related settings. Everything on a page lives in one, so a

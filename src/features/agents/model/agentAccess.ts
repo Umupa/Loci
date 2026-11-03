@@ -1,5 +1,6 @@
 import type { RuntimeMode } from "../../sessions/model/session";
 import { findAgent, updateAgent } from "./agent";
+import { hostSettingWritten } from "../../../platform/hostSettings";
 
 const DEFAULT_ACCESS_KEY = "loci:agent-default-access";
 const ACCESS_CHANGED = "loci:agent-default-access-changed";
@@ -41,6 +42,7 @@ export function saveNewAgentAccess(mode: RuntimeMode): void {
   } catch {
     /* Keep this window usable. */
   }
+  hostSettingWritten(DEFAULT_ACCESS_KEY);
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(ACCESS_CHANGED));
   }

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import { sessionNeedsInput, type Session } from "../../sessions/model/session";
 
 let lastCount = -1;
@@ -11,5 +11,5 @@ export function syncDockBadge(sessions: Session[]): void {
   }
   if (count === lastCount) return;
   lastCount = count;
-  void invoke("set_dock_badge", { count }).catch(() => {});
+  void transport.call("set_dock_badge", { count }).catch(() => {});
 }

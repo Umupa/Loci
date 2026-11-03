@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import { updateAgent, type AgentLook } from "./agent";
 
 /**
@@ -74,12 +74,12 @@ export function loadAgentFiles(agentId: string): Promise<AgentFiles> {
 const loading = new Map<string, Promise<AgentFiles>>();
 
 async function readAgentFiles(agentId: string): Promise<AgentFiles> {
-  const loaded = await invoke<LoadedFiles>("agent_load", { agent: agentId });
+  const loaded = await transport.call<LoadedFiles>("agent_load", { agent: agentId });
   if (loaded.soul != null) return { ...loaded, soul: loaded.soul };
   const soul = defaultSoul();
   try {
     // Over the missing file only, so another window's seed is never replaced.
-    const soulHash = await invoke<string>("agent_save", {
+    const soulHash = await transport.call<string>("agent_save", {
       agent: agentId,
       path: FILE_PATH.soul,
       text: soul,
@@ -88,7 +88,7 @@ async function readAgentFiles(agentId: string): Promise<AgentFiles> {
     return { ...loaded, soul, soulHash };
   } catch (error) {
     if (error !== "conflict") throw error;
-    const seeded = await invoke<LoadedFiles>("agent_load", { agent: agentId });
+    const seeded = await transport.call<LoadedFiles>("agent_load", { agent: agentId });
     return { ...seeded, soul: seeded.soul ?? "" };
   }
 }
@@ -134,7 +134,7 @@ export async function readAgentFile(
   agentId: string,
   path: AgentFilePath,
 ): Promise<{ text: string | null; hash: string }> {
-  return invoke("agent_read", { agent: agentId, path });
+  return transport.call("agent_read", { agent: agentId, path });
 }
 
 /** Saves over `expectedHash`; throws `AgentFileConflict` if it moved. */
@@ -145,7 +145,7 @@ export async function writeAgentFile(
   expectedHash?: string,
 ): Promise<string> {
   try {
-    const hash = await invoke<string>("agent_save", {
+    const hash = await transport.call<string>("agent_save", {
       agent: agentId,
       path,
       text,

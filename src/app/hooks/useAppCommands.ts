@@ -1,6 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { transport } from "../../platform/transport";
+import { getCurrentWindow } from "../../platform/native";
 import { useEffect, useRef, type RefObject } from "react";
 import { NOTIFICATION_CLICK_EVENT, setWindowFocused } from "../../features/notifications/model/notifications";
 import type { Session } from "../../features/sessions/model/session";
@@ -48,7 +47,7 @@ export function useAppCommands(options: Options) {
 
   useEffect(() => {
     let disposed = false;
-    void invoke("keybindings_set_overrides", { overrides: loadKeybindingOverrides() }).catch(console.error);
+    void transport.call("keybindings_set_overrides", { overrides: loadKeybindingOverrides() }).catch(console.error);
     const run = (name: string, work: () => unknown) => {
       const now = performance.now();
       if (name === debounce.current.name && now - debounce.current.at < 80) return;
@@ -88,7 +87,7 @@ export function useAppCommands(options: Options) {
     const appAction = (name: string) => {
       const a = latest.current;
       const actions: Record<string, () => unknown> = {
-        new_window: () => invoke("open_new_window"),
+        new_window: () => transport.call("open_new_window"),
         toggle_library: a.toggleLibrary, toggle_chat: a.toggleChat,
         open_search: a.openSearch, open_settings: a.openSettings,
         sidebar_opacity: a.openSettings, reload: a.reload,
@@ -139,12 +138,12 @@ export function useAppCommands(options: Options) {
       new_mentor: "new-mentor", close_reader: "close-reader", next_mentor: "next-mentor", prev_mentor: "prev-mentor",
       reader_back: "reader-back", reader_forward: "reader-forward",
     };
-    const listeners = Object.entries(menuEvents).map(([name, command]) => listen(name, () => dispatch(command)));
+    const listeners = Object.entries(menuEvents).map(([name, command]) => transport.listen(name, () => dispatch(command)));
     for (const name of ["toggle_library", "toggle_chat", "open_search", "open_settings", "sidebar_opacity", "reload", "open_model_picker"]) {
-      listeners.push(listen(name, () => appAction(name)));
+      listeners.push(transport.listen(name, () => appAction(name)));
     }
-    listeners.push(listen("zoom_in", () => zoom("zoom-in")), listen("zoom_out", () => zoom("zoom-out")), listen("zoom_reset", () => zoom("zoom-reset")));
-    listeners.push(listen<string>(NOTIFICATION_CLICK_EVENT, ({ payload }) => {
+    listeners.push(transport.listen("zoom_in", () => zoom("zoom-in")), transport.listen("zoom_out", () => zoom("zoom-out")), transport.listen("zoom_reset", () => zoom("zoom-reset")));
+    listeners.push(transport.listen<string>(NOTIFICATION_CLICK_EVENT, ({ payload }) => {
       // Native notification clicks are broadcast; only a window holding this session acts.
       if (!latest.current.sessionsRef.current.some((session) => session.id === payload)) return;
       const win = getCurrentWindow();

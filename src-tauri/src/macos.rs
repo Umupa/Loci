@@ -479,7 +479,7 @@ define_class!(
     impl DockMenuTarget {
         #[unsafe(method(newWindow:))]
         fn new_window(&self, _sender: Option<&NSMenuItem>) {
-            let _ = crate::window::open_new_window(&self.ivars().app);
+            let _ = crate::window::open_new_window(&self.ivars().app, None);
         }
     }
 );

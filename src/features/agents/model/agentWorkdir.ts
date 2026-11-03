@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import { findAgent, updateAgent } from "./agent";
 import { rosterSettled } from "./mentorStore";
 import { pathKey } from "../../../shared/lib/paths";
@@ -35,8 +35,8 @@ async function resolveWorkdir(agentId: string): Promise<string> {
   await rosterSettled();
   const agent = findAgent(agentId);
   if (!agent) throw new Error("No such agent");
-  if (agent.workdir) return invoke<string>("agent_workdir_ensure", { path: agent.workdir });
-  const created = await invoke<string>("agent_workdir_create", { slug: workdirSlug(agent) });
+  if (agent.workdir) return transport.call<string>("agent_workdir_ensure", { path: agent.workdir });
+  const created = await transport.call<string>("agent_workdir_create", { slug: workdirSlug(agent) });
   // Another window may have given it one meanwhile; the first one stays, and
   // the empty folder made here is left alone rather than deleted.
   const now = findAgent(agentId);
@@ -51,7 +51,7 @@ async function resolveWorkdir(agentId: string): Promise<string> {
  * the folder it started in until it is reset.
  */
 export async function setAgentWorkdir(agentId: string, path: string): Promise<string> {
-  const chosen = await invoke<string>("agent_workdir_ensure", { path });
+  const chosen = await transport.call<string>("agent_workdir_ensure", { path });
   updateAgent(agentId, (agent) => ({ ...agent, workdir: chosen }));
   return chosen;
 }

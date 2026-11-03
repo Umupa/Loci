@@ -30,7 +30,7 @@ const onQueuedMessageEditingChange = vi.fn();
 const onSteerQueuedMessage = vi.fn();
 const onResumeQueue = vi.fn();
 
-async function render(extra: Partial<Session> = {}, look = agent) {
+async function render(extra: Partial<Session> = {}, look = agent, pane: Partial<ComponentProps<typeof AgentSessionPane>> = {}) {
   const session = {
     ...newSession("codex", "/home/me", "codex:test"),
     id: "agent-chat", busy: true,
@@ -50,7 +50,7 @@ async function render(extra: Partial<Session> = {}, look = agent) {
   };
   await act(async () => root.render(createElement(AgentSessionPane, {
     agent: look, state: { status: "working" }, sessionPaneProps, detailsOpen: false,
-    onToggleDetails: vi.fn(), onReset: vi.fn(), onDelete: vi.fn(), onPickFolders: vi.fn(async () => []),
+    onToggleDetails: vi.fn(), onReset: vi.fn(), onDelete: vi.fn(), onPickFolders: vi.fn(async () => []), ...pane,
   })));
 }
 
@@ -166,4 +166,18 @@ it("lets an empty split pane start from one ordinary sentence without setup cont
   });
   await act(async () => textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
   expect(onSubmit).toHaveBeenCalledWith("agent-chat", "我想练英语口语", [], expect.any(Object));
+});
+
+it("keeps archived history to hand while nothing else in a read-only conversation can be used", async () => {
+  const onLoadEarlier = vi.fn();
+  await render({ busy: false }, agent, { readOnly: true, onLoadEarlier });
+  const archived = [...host.querySelectorAll("button")].find((button) => button.textContent === "Show archived history")!;
+  expect(archived.closest("fieldset")).toBeNull();
+  await act(async () => archived.click());
+  expect(onLoadEarlier).toHaveBeenCalledOnce();
+  const composer = host.querySelector("textarea")!;
+  expect(composer.closest("fieldset")?.disabled).toBe(true);
+
+  await render({ busy: false }, agent, { readOnly: false, onLoadEarlier });
+  expect(host.querySelector("textarea")!.closest("fieldset")?.disabled).toBe(false);
 });

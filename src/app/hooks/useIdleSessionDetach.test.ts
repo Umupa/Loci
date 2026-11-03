@@ -20,6 +20,7 @@ import {
   type Session,
 } from "../../features/sessions/model/session";
 import { useIdleSessionDetach } from "./useIdleSessionDetach";
+import { createSessionHost } from "./useSessionHost";
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -287,5 +288,22 @@ describe("idle session detachment", () => {
     await advance();
     expect(workspace.persistSession).not.toHaveBeenCalled();
     expect(mocks.forgetHarnessSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("sessions a connected device views", () => {
+  it("stay in memory while the device shows them, as the host window keeps them", async () => {
+    let leased: string[] = [];
+    const host = createSessionHost({ intents: () => { throw new Error("unused"); }, feed: { snapshot: () => { throw new Error("unused"); } }, onLeases: (ids) => { leased = ids; } });
+    await host.handle({ requestId: "view-1", connectionId: "mac-mini", name: "session.view", args: [["remote"]] });
+    // App.tsx adds the leased ids to the ones its own view keeps.
+    const workspace = mountWorkspace({ sessions: [chat("remote")], keepIds: leased, busySessionIds: new Set() });
+    await advance(1000);
+    expect(workspace.snapshot().sessions.map((s) => s.id)).toEqual(["remote"]);
+
+    await host.handle({ requestId: "view-2", connectionId: "mac-mini", name: "session.view", args: [[]] });
+    workspace.update({ keepIds: leased });
+    await advance(1000);
+    expect(workspace.snapshot().sessions).toEqual([]);
   });
 });

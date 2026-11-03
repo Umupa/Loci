@@ -37,6 +37,8 @@ type RuntimeOptions = {
   onFinished?: (session: Session) => void;
   onInput?: (session: Session) => void;
   onContinued?: (sessionId: string) => void;
+  /** After every change to the sessions in memory, with the new list. */
+  onSessionsChanged?: (sessions: Session[]) => void;
 };
 
 /** Owns event batching, provider binding, turn identities, and session saves. */
@@ -85,6 +87,7 @@ export function useSessionRuntime(options: RuntimeOptions) {
     pruneDetached(next);
     sessionsRef.current = next;
     currentOptions.current.setSessions(next);
+    currentOptions.current.onSessionsChanged?.(next);
     for (const session of next) {
       if (!sessionNeedsInput(session)) continue;
       const previous = before.find((entry) => entry.id === session.id);

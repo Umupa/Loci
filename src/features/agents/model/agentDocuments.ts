@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import { rosterSettled } from "./mentorStore";
 import type { AgentDocument } from "../../sessions/model/cards";
 
@@ -43,7 +43,7 @@ export function subscribeAgentDocuments(onChange: () => void): () => void {
 
 /** Everything the agent has written for the user, newest first, without the text. */
 export function listAgentDocuments(agentId: string): Promise<StoredDocument[]> {
-  return invoke<StoredDocument[]>("agent_documents_list", { agent: agentId });
+  return transport.call<StoredDocument[]>("agent_documents_list", { agent: agentId });
 }
 
 export async function readAgentDocument(
@@ -51,7 +51,7 @@ export async function readAgentDocument(
   id: string,
 ): Promise<StoredDocument | undefined> {
   return (
-    (await invoke<StoredDocument | null>("agent_documents_get", {
+    (await transport.call<StoredDocument | null>("agent_documents_get", {
       agent: agentId,
       id,
     })) ?? undefined
@@ -70,7 +70,7 @@ export async function saveAgentDocuments(
     try {
       // A new mentor must have its folder before its first document is saved.
       await rosterSettled();
-      await invoke("agent_documents_upsert", {
+      await transport.call("agent_documents_upsert", {
         agent: agentId,
         document: {
           id: document.id,
@@ -93,7 +93,7 @@ export async function writeAgentGuide(
   guide: { id: string; title: string; subject?: string; path?: string; body?: string },
 ): Promise<StoredDocument> {
   await rosterSettled();
-  const saved = await invoke<StoredDocument>("agent_documents_write_guide", {
+  const saved = await transport.call<StoredDocument>("agent_documents_write_guide", {
     agent: agentId,
     guide: { id: guide.id, title: guide.title, subject: guide.subject ?? null, path: guide.path ?? null, body: guide.body ?? null },
   });
@@ -107,7 +107,7 @@ export async function importAgentSource(
   source: { id: string; title: string; subject?: string; path: string; sourceUrl: string; version?: string },
 ): Promise<StoredDocument> {
   await rosterSettled();
-  const saved = await invoke<StoredDocument>("agent_documents_import", {
+  const saved = await transport.call<StoredDocument>("agent_documents_import", {
     agent: agentId,
     source: { ...source, subject: source.subject ?? null, version: source.version ?? null },
   });
@@ -120,6 +120,6 @@ export async function deleteAgentDocument(
   agentId: string,
   id?: string,
 ): Promise<void> {
-  await invoke("agent_documents_delete", { agent: agentId, id: id ?? null });
+  await transport.call("agent_documents_delete", { agent: agentId, id: id ?? null });
   changed();
 }

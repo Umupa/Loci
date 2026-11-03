@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../platform/transport";
 import { loadCanvasMcpEnabled } from "../settings/model/builtinMcp";
 
 /** Stdio command for Loci's built-in Excalidraw MCP server. */
@@ -37,7 +37,7 @@ export function canvasToolAutoAllowed(tool: CanvasMcpTool, runtimeMode: string):
 /** The app's reason the server cannot start here, e.g. no Node.js; null when it can. */
 export async function canvasMcpProblem(): Promise<string | null> {
   if (!loadCanvasMcpEnabled()) return "The built-in Excalidraw MCP is disabled in Settings → MCP.";
-  try { await invoke<CanvasMcpServer>("canvas_mcp_server"); return null; }
+  try { await transport.call<CanvasMcpServer>("canvas_mcp_server"); return null; }
   // A command failure is the backend's own sentence; anything else is not ours to show.
   catch (error) { return typeof error === "string" ? error : null; }
 }
@@ -50,7 +50,7 @@ export async function canvasMcpProblem(): Promise<string | null> {
 export async function canvasMcpServer(enabled = loadCanvasMcpEnabled()): Promise<CanvasMcpServer | null> {
   if (!enabled) return null;
   try {
-    const server = await invoke<CanvasMcpServer>("canvas_mcp_server");
+    const server = await transport.call<CanvasMcpServer>("canvas_mcp_server");
     return server && typeof server.command === "string" && Array.isArray(server.args) ? server : null;
   } catch { return null; }
 }

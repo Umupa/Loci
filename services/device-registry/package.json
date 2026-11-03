@@ -1,0 +1,15 @@
+{
+    "name": "loci-device-registry",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Signed device-group registry for Loci remote access",
+    "type": "module",
+    "scripts": {
+        "test": "node --test",
+        "dev": "wrangler dev",
+        "deploy": "wrangler deploy"
+    },
+    "devDependencies": {
+        "wrangler": "^4.156.1"
+    }
+}

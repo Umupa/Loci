@@ -1,5 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { transport } from "../../../platform/transport";
 import { workdirSlug } from "./mentorSlug";
 
 /**
@@ -111,10 +110,10 @@ function reload(): Promise<void> {
 }
 
 async function reloadNow(): Promise<void> {
-  const status = await invoke<{ ready: boolean }>("storage_status");
+  const status = await transport.call<{ ready: boolean }>("storage_status");
   registryReady = status.ready;
   if (!registryReady) return;
-  const agents = await invoke<RosterEntry[]>("mentors_load");
+  const agents = await transport.call<RosterEntry[]>("mentors_load");
   if (latest) return; // a newer local change is on its way; its answer reloads
   writeCopy(mergeRoster(agents, readArray(ROSTER_KEY), unsynced, removing));
 }
@@ -126,7 +125,7 @@ async function reloadNow(): Promise<void> {
 export async function hydrateMentors(): Promise<MigrationReport | undefined> {
   if (!inTauri()) return undefined;
   try {
-    const report = await invoke<MigrationReport>("storage_migrate", {
+    const report = await transport.call<MigrationReport>("storage_migrate", {
       input: { roster: readArray(ROSTER_KEY), overviews: readObject(VIEW_KEY) ?? null },
     });
     for (const mentor of report.mentors) {
@@ -136,10 +135,10 @@ export async function hydrateMentors(): Promise<MigrationReport | undefined> {
     await hydrateViewState();
     if (!listening) {
       listening = true;
-      void listen(MENTORS_CHANGED, () => {
+      void transport.listen(MENTORS_CHANGED, () => {
         void reload().catch(() => undefined);
       });
-      void listen<ContentChange>(MENTOR_CONTENT_CHANGED, (event) => {
+      void transport.listen<ContentChange>(MENTOR_CONTENT_CHANGED, (event) => {
         for (const change of contentChangeEvents(event.payload ?? {})) window.dispatchEvent(change);
       });
     }
@@ -148,6 +147,15 @@ export async function hydrateMentors(): Promise<MigrationReport | undefined> {
     console.warn("Mentor folders are unavailable; using the saved roster.", error);
     return undefined;
   }
+}
+
+/**
+ * The roster of the device this window is connected to. Nothing is migrated
+ * or synced from here: the host keeps its registry, and this window only
+ * shows a copy of it.
+ */
+export async function loadHostRoster(): Promise<void> {
+  writeCopy(await transport.call<RosterEntry[]>("mentors_load"));
 }
 
 /** Sends the roster to Rust, coalescing bursts of changes into one call. */
@@ -162,7 +170,7 @@ export function queueRosterSync(roster: readonly RosterEntry[]): void {
       if (!sending) return;
       // The folder name a new mentor gets: its name, else its face's name, as 0.3 named workdirs.
       const roster = sending.map((entry) => typeof entry.avatar === "string" ? { ...entry, slug: workdirSlug(entry as { id: string; name?: string; avatar: string }) } : entry);
-      const agents = await invoke<RosterEntry[]>("mentors_sync", { roster });
+      const agents = await transport.call<RosterEntry[]>("mentors_sync", { roster });
       for (const entry of sending) unsynced.delete(entry.id);
       if (registryReady && !latest) writeCopy(mergeRoster(agents, readArray(ROSTER_KEY), unsynced, removing));
     })
@@ -177,7 +185,7 @@ export function queueMentorRemoval(id: string): void {
   removing.add(id);
   unsynced.delete(id);
   chain = chain
-    .then(() => invoke<void>("mentors_remove", { id }))
+    .then(() => transport.call<void>("mentors_remove", { id }))
     .catch((error: unknown) => console.warn("Could not forget the mentor's folder.", error))
     .finally(() => removing.delete(id));
 }
@@ -218,12 +226,12 @@ export type ImportSummary = { id: string; folder: string; renamedId: boolean; fi
 
 /** Zips the mentor's folder (without repos/ and lab/ unless asked) to `path`. */
 export function exportMentor(agentId: string, path: string, withRepos = false): Promise<ExportSummary> {
-  return invoke<ExportSummary>("mentors_export", { agent: agentId, path, withRepos });
+  return transport.call<ExportSummary>("mentors_export", { agent: agentId, path, withRepos });
 }
 
 /** Imports a mentor from an exported .zip, or brings back a mentor folder where it is. */
 export async function importMentor(from: { path: string } | { folder: string }): Promise<ImportSummary> {
-  const summary = await invoke<ImportSummary>("mentors_import", "path" in from ? { path: from.path } : { folder: from.folder });
+  const summary = await transport.call<ImportSummary>("mentors_import", "path" in from ? { path: from.path } : { folder: from.folder });
   await reload();
   return summary;
 }
@@ -234,12 +242,12 @@ export type LibraryHit = { agentId: string; kind: string; id: string; title: str
 
 /** Where mentors' folders are, and what each holds. */
 export function storageStatus(): Promise<StorageStatus> {
-  return invoke<StorageStatus>("storage_status");
+  return transport.call<StorageStatus>("storage_status");
 }
 
 /** Runs (or with `dryRun` only describes) the 0.3 → 0.4 migration of this window's roster. */
 export async function migrateStorage(options: { dryRun?: boolean; redo?: string } = {}): Promise<MigrationReport> {
-  const report = await invoke<MigrationReport>("storage_migrate", {
+  const report = await transport.call<MigrationReport>("storage_migrate", {
     input: { roster: readArray(ROSTER_KEY), overviews: readObject(VIEW_KEY) ?? null, dryRun: !!options.dryRun, ...(options.redo ? { redo: options.redo } : {}) },
   });
   if (!options.dryRun) await reload();
@@ -248,17 +256,17 @@ export async function migrateStorage(options: { dryRun?: boolean; redo?: string 
 
 /** Re-reads mentors' folders (one, or all) into the index. */
 export function reindexMentors(agentId?: string): Promise<{ id: string; changed: number }[]> {
-  return invoke("storage_reindex", { agent: agentId ?? null });
+  return transport.call("storage_reindex", { agent: agentId ?? null });
 }
 
 /** Files in a mentor's folder that Loci could not read, or read with a warning. */
 export function checkLibrary(agentId: string): Promise<LibraryProblem[]> {
-  return invoke<LibraryProblem[]>("library_check", { agent: agentId });
+  return transport.call<LibraryProblem[]>("library_check", { agent: agentId });
 }
 
 /** Full-text search over mentors' titles, sources, guides and notes. */
 export function searchLibrary(query: string, agentId?: string, limit?: number): Promise<LibraryHit[]> {
-  return invoke<LibraryHit[]>("library_search", { query, agent: agentId ?? null, limit: limit ?? null });
+  return transport.call<LibraryHit[]>("library_search", { query, agent: agentId ?? null, limit: limit ?? null });
 }
 
 let viewTimer: ReturnType<typeof setTimeout> | undefined;
@@ -270,13 +278,13 @@ export function mirrorViewState(states: Record<string, unknown>): void {
   viewTimer = setTimeout(() => {
     viewTimer = undefined;
     const writes = Object.entries(states).map(([agent, value]) => ({ agent, key: "view", value }));
-    if (writes.length) void invoke("mentor_state_set", { writes }).catch(() => undefined);
+    if (writes.length) void transport.call("mentor_state_set", { writes }).catch(() => undefined);
   }, 500);
 }
 
 /** Fills view state this window does not have (a wiped WebView, an import). */
 async function hydrateViewState(): Promise<void> {
-  const saved = await invoke<Record<string, unknown>>("mentor_state_all", { key: "view" });
+  const saved = await transport.call<Record<string, unknown>>("mentor_state_all", { key: "view" });
   const local = readObject(VIEW_KEY) ?? {};
   let changed = false;
   for (const [agent, value] of Object.entries(saved)) {

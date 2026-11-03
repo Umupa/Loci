@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 import { COURSES_CHANGED_EVENT, type CourseChangedDetail, type CourseSummary } from "./course";
 
 /**
@@ -15,12 +15,12 @@ export const PATH_ID = "_path";
 export type PathRead = { path: LearningPath | null; file?: string; updatedAt?: number; error?: string | null };
 
 export function loadCoursePath(agentId: string): Promise<PathRead> {
-  return invoke<PathRead>("course_path_read", { agentId });
+  return transport.call<PathRead>("course_path_read", { agentId });
 }
 
 /** Replaces the path; every view of the mentor's courses hears of it. */
 export async function saveCoursePath(agentId: string, path: LearningPath): Promise<PathRead> {
-  const saved = await invoke<PathRead>("course_path_write", { agentId, path });
+  const saved = await transport.call<PathRead>("course_path_write", { agentId, path });
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<CourseChangedDetail>(COURSES_CHANGED_EVENT, { detail: { agentId, courseId: PATH_ID } }));
   return saved;
 }

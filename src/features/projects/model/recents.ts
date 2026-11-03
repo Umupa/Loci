@@ -1,4 +1,5 @@
 import { pathKey, prettyCwd, slash } from "../../../shared/lib/paths";
+import { hostSettingWritten, onHostSettingApplied } from "../../../platform/hostSettings";
 
 const KEY = "loci.recentProjects";
 const RAIL_ORDER_KEY = "loci.projectRailOrder";
@@ -59,6 +60,7 @@ function save(next: RecentProject[]) {
   } catch {
     // private mode / quota
   }
+  hostSettingWritten(KEY);
 }
 
 export function rememberProject(path: string): RecentProject[] {
@@ -208,6 +210,11 @@ function saveArchived(next: ArchivedProject[]) {
   } catch {
     // private mode / quota
   }
+  hostSettingWritten(ARCHIVED_KEY);
+  notifyArchivedChanged();
+}
+
+function notifyArchivedChanged(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(ARCHIVED_CHANGED));
   }
@@ -403,3 +410,5 @@ export function looksLikeProject(path: string): boolean {
   if (path.includes(".app/") || path.includes(".app\\")) return false;
   return true;
 }
+onHostSettingApplied(KEY, notifyProjectPathsChanged);
+onHostSettingApplied(ARCHIVED_KEY, notifyArchivedChanged);

@@ -7,6 +7,7 @@ import { newSession, type Block, type Session } from "../../features/sessions/mo
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
 import { useAgents } from "./useAgents";
+import { createSessionHost } from "./useSessionHost";
 
 const mocks = vi.hoisted(() => ({
   ask: vi.fn(), deleteSession: vi.fn(), archive: vi.fn(), page: vi.fn(),
@@ -205,4 +206,17 @@ it("does not let a pending open override a later pane selection", async () => {
   await act(async () => { finish(initialSessions[0]); await opening; });
   expect(mocks.show).not.toHaveBeenCalled();
   expect(agents.viewAgent?.id).toBe(second);
+});
+
+it("leaves older turns in a conversation a connected device views", async () => {
+  addAgent("remote", longChat("remote"));
+  addAgent("hidden", longChat("hidden"));
+  let leased: string[] = [];
+  const host = createSessionHost({ intents: () => { throw new Error("unused"); }, feed: { snapshot: () => { throw new Error("unused"); } }, onLeases: (ids) => { leased = ids; } });
+  await host.handle({ requestId: "view-1", connectionId: "mac-mini", name: "session.view", args: [["remote"]] });
+  // App.tsx counts the leased ids as shown, beside what its own window shows.
+  visible = new Set(leased);
+  await mount();
+  expect(mocks.archive.mock.calls.map(([session]) => session.id)).toEqual(["hidden"]);
+  expect(liveSessions.find((session) => session.id === "remote")!.blocks).toHaveLength(61);
 });

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { transport } from "../../../platform/transport";
 
 export type UserLink = {
   url: string;
@@ -99,7 +99,7 @@ export function fetchLinkPreviewMetadata(
   const cached = metadataCache.get(url);
   if (cached) return cached;
 
-  const pending = invoke<LinkPreviewMetadata>("fetch_link_preview", { url });
+  const pending = transport.call<LinkPreviewMetadata>("fetch_link_preview", { url });
   metadataCache.set(url, pending);
   pending.catch(() => metadataCache.delete(url));
   return pending;

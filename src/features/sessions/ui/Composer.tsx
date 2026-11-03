@@ -3,7 +3,7 @@ import type { LearningMessageContext } from "../../learning/model/types";
 import { mergeLearningContext } from "../../learning/model/learningContext";
 import { SourceChips } from "../../learning/ui/SourceChips";
 import { AddWebSource } from "../../learning/ui/AddWebSource";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWebview } from "../../../platform/native";
 import {
 useCallback,
 useEffect,
@@ -40,7 +40,7 @@ X
 } from "../../../shared/ui/icons";
 import {
 attachmentsFromFiles,
-attachmentsFromPaths,
+attachmentsFromLocalPaths,
 filesFromClipboard,
 mergeAttachments,
 pickAttachments,
@@ -1270,7 +1270,7 @@ export function Composer({
         }
         nativeDropAt = Date.now();
         const paths = event.payload.paths;
-        readDroppedAttachments(() => attachmentsFromPaths(paths));
+        readDroppedAttachments(() => attachmentsFromLocalPaths(paths));
       })
       .then((fn) => {
         if (cancelled) fn();

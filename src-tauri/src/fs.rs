@@ -442,18 +442,38 @@ fn write_attachment_sync(name: &str, data: &str) -> Result<String, String> {
             MAX_ATTACHMENT_EMBED_BYTES / 1024 / 1024
         ));
     }
+    let path = attachments_dir()?.join(format!(
+        "{}-{}",
+        attachment_stamp(),
+        safe_attachment_name(name)
+    ));
+    write_private(&path, &bytes)
+}
+
+/// A file a connected device sent (`remote::gateway`), saved beside pasted
+/// attachments in a folder of its own, so it keeps its name: copied into a
+/// project it is the file that was dropped, not a stamped copy.
+pub(crate) fn save_uploaded_file(name: &str, bytes: &[u8]) -> Result<String, String> {
+    let dir = attachments_dir()?.join(attachment_stamp());
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    write_private(&dir.join(safe_attachment_name(name)), bytes)
+}
+
+fn attachments_dir() -> Result<PathBuf, String> {
     let dir = std::env::temp_dir().join("loci-attachments");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
+
+fn attachment_stamp() -> String {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let path = dir.join(format!(
-        "{}-{}-{}",
-        std::process::id(),
-        stamp,
-        safe_attachment_name(name)
-    ));
+    format!("{}-{stamp}", std::process::id())
+}
+
+fn write_private(path: &Path, bytes: &[u8]) -> Result<String, String> {
     // A pasted screenshot can be a picture of whatever was on screen, so keep
     // it owner-only rather than at the umask default of 0644 in a shared /tmp.
     let mut options = std::fs::OpenOptions::new();
@@ -464,8 +484,8 @@ fn write_attachment_sync(name: &str, data: &str) -> Result<String, String> {
         options.mode(0o600);
     }
     options
-        .open(&path)
-        .and_then(|mut file| file.write_all(&bytes))
+        .open(path)
+        .and_then(|mut file| file.write_all(bytes))
         .map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(path.to_string_lossy().into_owned())
 }
@@ -1177,6 +1197,27 @@ pub async fn open_path_with_default_app(path: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keeps_an_uploaded_file_s_name_in_a_folder_of_its_own() {
+        let first = save_uploaded_file("notes.pdf", b"one").unwrap();
+        let second = save_uploaded_file("notes.pdf", b"two").unwrap();
+        assert_ne!(first, second);
+        for (path, bytes) in [(&first, b"one"), (&second, b"two")] {
+            let path = Path::new(path);
+            assert_eq!(path.file_name().unwrap(), "notes.pdf");
+            assert_eq!(std::fs::read(path).unwrap(), bytes);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                assert_eq!(
+                    std::fs::metadata(path).unwrap().permissions().mode() & 0o777,
+                    0o600
+                );
+            }
+            std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+        }
+    }
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static TMP_SEQ: AtomicU64 = AtomicU64::new(0);

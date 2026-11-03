@@ -99,7 +99,10 @@ fn menu_item(
 pub fn dispatch(app: &AppHandle, id: &str) {
     match id {
         "new_window" => {
-            let _ = crate::window::open_new_window(app);
+            let _ = crate::window::open_new_window(app, None);
+        }
+        "new_loopback_client_window" => {
+            let _ = crate::window::open_new_window(app, Some("index.html?remote=loopback"));
         }
         "quit" => crate::window::request_quit(app),
         "sidebar_opacity" | "open_search" | "open_model_picker" | "open_settings" => {
@@ -255,8 +258,15 @@ fn build(
         overrides,
     )?;
 
-    let file = SubmenuBuilder::with_id(app, "file", "File")
-        .item(&new_window)
+    // Development only: a window that connects to this Loci as a remote client.
+    let loopback_window =
+        MenuItemBuilder::with_id("new_loopback_client_window", "New Loopback Client Window")
+            .build(app)?;
+    let mut file = SubmenuBuilder::with_id(app, "file", "File").item(&new_window);
+    if cfg!(debug_assertions) {
+        file = file.item(&loopback_window);
+    }
+    let file = file
         .item(&new_mentor)
         .item(&open_pdf)
         .item(&open_search)

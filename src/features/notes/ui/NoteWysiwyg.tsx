@@ -1,5 +1,5 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { transport } from "../../../platform/transport";
+import { openUrl } from "../../../platform/native";
 import { defaultValueCtx, Editor, editorViewCtx, editorViewOptionsCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
 import { clipboard } from "@milkdown/kit/plugin/clipboard";
 import { history } from "@milkdown/kit/plugin/history";
@@ -40,8 +40,7 @@ function showImage(img: HTMLImageElement, src: string, imageCwd: string | undefi
   if (isNoteImagePath(url)) {
     const cached = noteAssetSrc.get(url);
     if (cached) { set(cached); return; }
-    void invoke<string>("notes_image_path", { asset: url }).then((path) => {
-      const next = convertFileSrc(path);
+    void transport.call<string>("notes_image_path", { asset: url }).then((path) => transport.fileUrl(path)).then((next) => {
       noteAssetSrc.set(url, next);
       set(next);
     }).catch(() => undefined);

@@ -23,6 +23,7 @@ vi.mock("@tauri-apps/api/window", () => ({
         onResized: async () => () => { },
     }),
 }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => { }) }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("../model/cliAccess", () => ({
     loadCliAccess: vi.fn(async () => ({ enabled: true, identifier: "com.loci.desktop.test", executable: "/Applications/Loci.app/Contents/MacOS/loci", tokenPath: "/data/control/cli-token", installPath: "/home/me/.local/bin/loci", installed: false })),
