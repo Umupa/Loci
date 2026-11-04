@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-11-04
+
 ### Added
 
 - **`/new` starts a mentor's conversation over.** Type it in the message box to clear the conversation, the same as Reset conversation in the mentor's settings; its soul and memory stay.
@@ -330,7 +332,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.6...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.7...HEAD
+[0.8.7]: https://github.com/Umupa/Loci/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/Umupa/Loci/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/Umupa/Loci/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/Umupa/Loci/compare/v0.8.3...v0.8.4
