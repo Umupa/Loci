@@ -63,3 +63,8 @@
 .translation-pair + .translation-pair { border-top: 1px dashed var(--color-stroke); padding-top: 12px; }
 .translation-pair__original { font-size: .92em; color: color-mix(in srgb, var(--color-content) 58%, transparent); }
 .translation-pair__translated { margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--color-accent); }
+.translation-menu__view { height: 42px; gap: 12px; }
+.translation-glyph { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border: 1px solid var(--color-stroke); border-radius: 7px; background: var(--color-background-base); font-family: var(--font-reading, var(--font-sans)); font-size: 13px; font-weight: 600; line-height: 1; color: color-mix(in srgb, var(--color-content) 70%, transparent); }
+.translation-glyph__pair { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 9.5px; }
+.translation-menu__view[aria-checked="true"] .translation-glyph { border-color: var(--color-content); background: var(--color-content); color: var(--color-background-base); }
+.translation-menu__ask { gap: 12px; padding-left: 13px; font-size: 12px; color: color-mix(in srgb, var(--color-content) 75%, transparent); }

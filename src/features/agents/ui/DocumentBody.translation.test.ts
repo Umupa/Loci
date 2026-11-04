@@ -90,9 +90,9 @@ it("puts the switch in the reader's header as one icon, and flips with ⌥T", as
   await renderInHeader(slot);
   expect(button().dataset.phase).toBe("partial");
   await act(async () => button().click());
-  expect([...document.querySelectorAll('[role="menuitemradio"]')].map((item) => item.textContent)).toEqual(["简体中文", "Original", "Both"]);
+  expect([...document.querySelectorAll('[role="menuitemradio"]')].map((item) => item.querySelector(".lesson-menu__label")?.textContent)).toEqual(["简体中文", "Original", "Both"]);
   expect([...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual(["Ask Kern for the rest"]);
-  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((item) => item.textContent === "Original")!.click());
+  await act(async () => [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')].find((item) => item.textContent?.endsWith("Original"))!.click());
   expect(text("[data-reading-text]")?.hidden).toBe(false);
   await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyT", key: "†", altKey: true })); });
   expect(text("[data-reading-text]")?.hidden).toBe(true);

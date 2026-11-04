@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, useMemo, useSyncExternalStore } from "react";
-import { Check, Languages, MessageSquarePlus } from "../../../shared/ui/icons";
+import { useEffect, useRef, useState, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { Languages } from "../../../shared/ui/icons";
 import { Popover } from "../../../shared/ui/Popover";
 import { RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { isImeComposition } from "../../../shared/lib/keyboard";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { agentLook, findAgent } from "../model/agent";
+import { AgentAvatar } from "./AgentAvatar";
 import { effectiveLearningLanguage, LEARNING_LANGUAGES } from "../model/learningLanguage";
 import { looksForeign, sectionUnits, shownUnits, sourceUnits, type ShownUnit } from "../../learning/model/sourceTranslation";
 import { useSourceTranslation } from "../../learning/model/sourceTranslationStore";
@@ -74,14 +75,15 @@ function translationAsk(state: SourceTranslationState, document: AgentDocument, 
   const { language, units, translated, stale } = state;
   const missing = units.length - translated;
   const agent = findAgent(agentId);
-  const mentor = agent ? agentLook(agent).name : "your mentor";
+  const look = agent ? agentLook(agent) : undefined;
+  const mentor = look?.name ?? "your mentor";
   const ask = () => {
     const part = section ? `the section "${section}" of the source` : "the source";
     requestAddToChat(`Please translate ${part} "${document.title}" (${document.id}) into ${language.name} with documents.translate${stale ? ", including the parts that are out of date" : ""}.`, "plain",
       agent?.sessionId ? { targetSessionId: agent.sessionId } : undefined);
   };
   const todo = [missing ? `${missing} of ${units.length} parts untranslated` : "", stale ? `${stale} out of date` : ""].filter(Boolean).join(", ");
-  return { missing, mentor, ask, todo };
+  return { missing, mentor, look, ask, todo };
 }
 
 /** The switch between the two languages, and what is still to translate, as a bar over the text. */
@@ -123,7 +125,7 @@ export function TranslationButton({ state, view, onView, document, agentId, sect
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const { language, translated, stale } = state;
-  const { missing, mentor, ask, todo } = translationAsk(state, document, agentId, section);
+  const { missing, mentor, look, ask, todo } = translationAsk(state, document, agentId, section);
   const phase = !translated ? "none" : missing || stale ? "partial" : "done";
   const label = !translated ? `Translate into ${language.label}` : view === "original" ? "Reading the original" : `Reading in ${language.label}`;
   useEffect(() => {
@@ -138,23 +140,30 @@ export function TranslationButton({ state, view, onView, document, agentId, sect
     window.addEventListener("keydown", flip);
     return () => window.removeEventListener("keydown", flip);
   }, [translated, view, onView]);
-  const views: [TranslationView, string][] = [["translated", language.label], ["original", "Original"], ["both", "Both"]];
+  // Each way of reading has a glyph: the learner's script, the source's, or both.
+  const own = language.id === "zh-CN" ? "中" : "En";
+  const source = language.id === "zh-CN" ? "Aa" : "文";
+  const views: [TranslationView, string, ReactNode][] = [
+    ["translated", language.label, own],
+    ["original", "Original", source],
+    ["both", "Both", <span key="both" className="translation-glyph__pair"><span>{source}</span><span>{own}</span></span>],
+  ];
   return <>
     <button ref={trigger} type="button" data-translation-button data-phase={phase} data-tauri-drag-region="false"
       className={`${RESOURCE_ACTION} translation-button`} aria-label={label} title={translated ? `${label} · ⌥T` : label}
       aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
       <Languages className="size-4" />
     </button>
-    {open ? <Popover anchor={trigger} side="bottom" align="end" width={224} role="menu" aria-label="Translation" onDismiss={() => setOpen(false)} className="lesson-menu p-1 font-sans">
-      {translated ? views.map(([value, text]) => <button key={value} type="button" role="menuitemradio" aria-checked={view === value}
+    {open ? <Popover anchor={trigger} side="bottom" align="end" width={224} role="menu" aria-label="Translation" onDismiss={() => setOpen(false)} className="lesson-menu translation-menu p-1.5 font-sans">
+      {translated ? views.map(([value, text, glyph]) => <button key={value} type="button" role="menuitemradio" aria-checked={view === value}
         title={value === "original" ? undefined : `Translated by ${mentor}, not the original`}
-        onClick={() => { setOpen(false); onView(value); }} className="lesson-menu__item">
+        onClick={() => { setOpen(false); onView(value); }} className="lesson-menu__item translation-menu__view">
+        <span aria-hidden className="translation-glyph">{glyph}</span>
         <span className="lesson-menu__label">{text}</span>
-        {view === value ? <Check className="lesson-menu__check" strokeWidth={2} /> : null}
       </button>) : null}
       {translated && (missing || stale) ? <div role="separator" className="lesson-menu__rule" /> : null}
-      {missing || stale ? <button type="button" role="menuitem" title={todo} onClick={() => { setOpen(false); ask(); }} className="lesson-menu__item">
-        <MessageSquarePlus className="lesson-menu__icon" />
+      {missing || stale ? <button type="button" role="menuitem" title={todo} onClick={() => { setOpen(false); ask(); }} className="lesson-menu__item translation-menu__ask">
+        {look ? <AgentAvatar name={look.avatar} color={look.color} className="size-[18px] shrink-0" /> : <Languages className="lesson-menu__icon" />}
         <span className="lesson-menu__label">{translated ? `Ask ${mentor} for the rest` : `Ask ${mentor} to translate`}</span>
       </button> : null}
     </Popover> : null}
