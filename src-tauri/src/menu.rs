@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter};
 
 /// The group members File → Connect To offers, as `(deviceId, name)`.
 static HOSTS: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const CONNECT_TO: &str = "connect_to";
 const CONNECT_HOST: &str = "connect_host:";
 
