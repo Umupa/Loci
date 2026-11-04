@@ -4,6 +4,15 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Changed
+
+- **A course's contents read as one ink line.** Each lesson is a dot on it, filled once read; the lesson open is the mentor's dot with its title highlighted. Lessons keep to one line and lose their numbers.
+- **The translation menu shows each way of reading as a glyph**: 中 for the translation, Aa for the original, both stacked for side by side, inked when chosen. Asking for the rest carries the mentor's face.
+
+### Fixed
+
+- **A source opened from the library shows translation as one icon in its header too.** It still had the old bar over the text, while lessons already had the icon.
+
 ## [0.8.8] - 2026-11-04
 
 ### Added
