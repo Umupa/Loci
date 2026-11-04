@@ -599,6 +599,34 @@ describe.each(providers)("$id offline ACP transport", (provider) => {
     expect(events).toContainEqual({ type: "message.completed" });
   });
 
+  it("recycles the transport after a reply that is only the provider's error", async () => {
+    const first = provider.send(input);
+    await waitPrompt();
+    childListener()(JSON.stringify({ jsonrpc: "2.0", method: "session/update",
+      params: { update: { sessionUpdate: "agent_message_chunk", content: { text: "User location is not supported for the API use." } } },
+    }));
+    finishPrompt();
+    await first;
+    mock.autoPrompt = true;
+    mock.sent.length = 0;
+    await provider.send({ ...input, text: "again" });
+    expect(mock.spawn).toHaveBeenCalledTimes(2);
+    expect(mock.sent.map((m) => m.method)).toContain("session/resume");
+  });
+
+  it("keeps the transport after an ordinary reply", async () => {
+    const first = provider.send(input);
+    await waitPrompt();
+    childListener()(JSON.stringify({ jsonrpc: "2.0", method: "session/update",
+      params: { update: { sessionUpdate: "agent_message_chunk", content: { text: "Internal errors in Go are wrapped with %w." } } },
+    }));
+    finishPrompt();
+    await first;
+    mock.autoPrompt = true;
+    await provider.send({ ...input, text: "again" });
+    expect(mock.spawn).toHaveBeenCalledTimes(1);
+  });
+
   it("reuses the live transport when a cancel landed between turns", async () => {
     mock.autoPrompt = true;
     await provider.send(input);

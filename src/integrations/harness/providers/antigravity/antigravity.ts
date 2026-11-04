@@ -71,6 +71,10 @@ type Live = {
    *  a cancel here makes the transport indeterminate even mid-config. */
   turnActive: boolean;
   stallNotified: boolean;
+  /** The current turn's reply so far, until it reads like more than an error. */
+  replyHead: string;
+  /** The current turn called a tool, so its reply is work, not an error. */
+  replyUsedTools: boolean;
   watchdog?: ReturnType<typeof setTimeout>;
 };
 
@@ -602,6 +606,8 @@ async function startLive(input: SendTurnInput, life: number): Promise<Live> {
       promptInFlight: false,
       turnActive: false,
       stallNotified: false,
+      replyHead: "",
+      replyUsedTools: false,
     };
     liveRef.current = live;
     liveByThread.set(input.sessionId, live);
@@ -725,6 +731,8 @@ async function prompt(live: Live, input: SendTurnInput): Promise<void> {
     const blocks = antigravityPromptBlocks(input.text, input.attachments);
     if (blocks.length === 0) return;
     live.promptInFlight = true;
+    live.replyHead = "";
+    live.replyUsedTools = false;
     noteActivity(live);
     const result = await live.acp.request(
       "session/prompt",
@@ -745,6 +753,9 @@ async function prompt(live: Live, input: SendTurnInput): Promise<void> {
       });
       return;
     }
+    // Antigravity reports some failures as the reply itself, and the session
+    // behind it is gone: the next prompt only gets "Resource not found".
+    if (!live.replyUsedTools && isProviderErrorReply(live.replyHead)) live.stale = true;
     live.onEvent({ type: "message.completed" });
     live.onEvent({ type: "reasoning.completed" });
   } catch (error) {
@@ -780,8 +791,24 @@ function handleNotification(live: Live, method: string, params: unknown) {
   }
   if (live.muteUpdates) return;
   for (const event of live.subagents.route(params, eventsFromAcpUpdate(params))) {
+    if (event.type === "message.delta" && live.replyHead.length < 200) live.replyHead += event.text;
+    else if (event.type === "tool.started" || event.type === "tool.updated") live.replyUsedTools = true;
     live.onEvent(event);
   }
+}
+
+/** First lines Antigravity uses when a turn never reached the model. */
+const PROVIDER_ERROR_REPLIES = [
+  /^user location is not supported\b/i,
+  /^agent connection was lost\b/i,
+  /^unauthorized\b/i,
+  /^internal error\b/i,
+  /^invalid or expired credentials\b/i,
+];
+
+export function isProviderErrorReply(text: string): boolean {
+  const firstLine = text.trim().split(/\r?\n/, 1)[0]!.trim();
+  return firstLine !== "" && PROVIDER_ERROR_REPLIES.some((pattern) => pattern.test(firstLine));
 }
 
 async function handleRequest(
