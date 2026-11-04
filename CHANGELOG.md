@@ -4,6 +4,14 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **`/new` starts a mentor's conversation over.** Type it in the message box to clear the conversation, the same as Reset conversation in the mentor's settings; its soul and memory stay.
+
+### Fixed
+
+- **An Antigravity mentor recovers after Google refuses a reply.** When Antigravity answered with its own error, such as "User location is not supported", the next message failed with "Resource not found". The next message now restarts Antigravity and picks the conversation back up.
+
 ## [0.8.6] - 2026-11-04
 
 ### Changed
