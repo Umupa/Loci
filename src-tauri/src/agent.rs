@@ -1,13 +1,13 @@
 //! An agent's Soul and memory live in its mentor folder (v0.4), beside its
 //! sources and courses; until its 0.3 data has moved there, in the app's
-//! data folder as before. Habits always stay in the app's data folder: they
-//! run things on their own, and a mentor folder copied or imported from
-//! elsewhere must not bring jobs with it.
+//! data folder as before. Habits and the heartbeat's state always stay in the
+//! app's data folder: they run things on their own, and a mentor folder
+//! copied or imported from elsewhere must not bring jobs or their state with it.
 //!
 //! ```text
 //! ~/Loci/<slug>/                 <app data>/agents/<agent id>/
-//! ├── SOUL.md                    └── habits.json
-//! ├── MEMORY.md
+//! ├── SOUL.md                    ├── habits.json
+//! ├── MEMORY.md                  └── heartbeat.json
 //! └── memory/<topic>.md, archive.md
 //! ```
 //!
@@ -34,6 +34,8 @@ const SOUL_FILE: &str = "SOUL.md";
 const MEMORY_FILE: &str = "MEMORY.md";
 const MEMORY_DIR: &str = "memory";
 const HABITS_FILE: &str = "habits.json";
+/// When the heartbeat last looked in and what it raised lately.
+const HEARTBEAT_FILE: &str = "heartbeat.json";
 /// Larger than anything that would load: the soul and memory both have far
 /// smaller prompt budgets, this only stops a runaway write.
 const FILE_MAX: usize = 256 * 1024;
@@ -77,7 +79,7 @@ pub struct TopicNote {
     pub hash: String,
 }
 
-/// Where an agent's files are: its Soul and memory, and its habits.
+/// Where an agent's files are: its Soul and memory, and its habits and heartbeat.
 #[derive(Debug, Clone)]
 pub struct Dirs {
     pub files: PathBuf,
@@ -99,10 +101,10 @@ impl Dirs {
 }
 
 /// The files the app reads and writes for an agent, relative to its folder:
-/// SOUL.md, MEMORY.md, habits.json, or one `memory/<name>.md`. Nothing nested, nothing
+/// SOUL.md, MEMORY.md, habits.json, heartbeat.json, or one `memory/<name>.md`. Nothing nested, nothing
 /// hidden, so a path from the agent's CLI can never leave the folder.
 fn resolve_file(dirs: &Dirs, relative: &str) -> Result<PathBuf, String> {
-    if relative == HABITS_FILE {
+    if relative == HABITS_FILE || relative == HEARTBEAT_FILE {
         return Ok(dirs.habits.join(relative));
     }
     let dir = &dirs.files;
@@ -577,6 +579,13 @@ mod tests {
             None,
         )
         .unwrap();
+        save(
+            &Dirs::legacy(&root, "m").unwrap(),
+            "heartbeat.json",
+            "{}",
+            None,
+        )
+        .unwrap();
         for path in [
             "../x.md",
             "memory/../SOUL.md",
@@ -632,7 +641,7 @@ mod tests {
     }
 
     #[test]
-    fn soul_and_memory_live_in_the_mentor_folder_and_habits_stay_in_app_data() {
+    fn soul_and_memory_live_in_the_mentor_folder_and_habits_and_heartbeat_stay_in_app_data() {
         let root = temp_root();
         let dirs = Dirs {
             files: root.join("Loci/repo-lens"),
@@ -641,10 +650,13 @@ mod tests {
         save(&dirs, SOUL_FILE, "soul", None).unwrap();
         save(&dirs, "memory/kvm.md", "topic", None).unwrap();
         save(&dirs, HABITS_FILE, "[]", None).unwrap();
+        save(&dirs, HEARTBEAT_FILE, "{}", None).unwrap();
         assert!(root.join("Loci/repo-lens/SOUL.md").is_file());
         assert!(root.join("Loci/repo-lens/memory/kvm.md").is_file());
         assert!(root.join("app/agents/m/habits.json").is_file());
         assert!(!root.join("Loci/repo-lens/habits.json").exists());
+        assert!(root.join("app/agents/m/heartbeat.json").is_file());
+        assert!(!root.join("Loci/repo-lens/heartbeat.json").exists());
         let files = load(&dirs, "m").unwrap();
         assert_eq!(files.soul.as_deref(), Some("soul"));
         assert_eq!(files.dir, root.join("Loci/repo-lens").to_string_lossy());

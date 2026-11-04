@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **A mentor's heartbeat.** Once its chat has sat idle for a while (30 minutes by default; 15, 30, 60 or 120, or off, in its settings), the mentor looks over its Soul, memory and your last exchanges for follow-ups it owes you, and posts at most two suggestions to the chat. It never quizzes or plans reviews, does not repeat itself, and stays silent when there is nothing to raise. Quiet checks space out, up to every four hours, until you write again.
+
 ### Changed
 
 - **Mentors remember on their own.** They save what is worth keeping (your goal, what you know, what you skip, corrections and decisions) after replying, look in memory before answering about earlier talks, and know the local date and time every turn. Habit runs save too.

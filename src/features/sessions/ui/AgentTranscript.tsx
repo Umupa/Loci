@@ -133,6 +133,7 @@ import { TurnProgress } from "./TurnProgress";
 import { TranscriptSelectionMenu } from "./TranscriptSelectionMenu";
 import { TranscriptBlockActions } from "./TranscriptBlockActions";
 import { UserLinkPreview } from "./UserLinkPreview";
+import { HEARTBEAT_ID } from "../../agents/model/agentHeartbeat";
 
 const NEAR_BOTTOM_PX = 16;
 /*
@@ -1643,7 +1644,7 @@ const TranscriptBlock = memo(function TranscriptBlock({
       {block.agentHabit ? (
         <AgentNotice
           embedded
-          label={`From its habit “${block.agentHabit.name}”`}
+          label={block.agentHabit.id === HEARTBEAT_ID ? "From its heartbeat" : `From its habit “${block.agentHabit.name}”`}
           at={block.agentHabit.at}
         />
       ) : null}

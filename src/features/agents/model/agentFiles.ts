@@ -27,7 +27,7 @@ export type AgentFile = "soul" | "memory";
 
 /** An agent file by its path in the agent's folder. */
 export type AgentFilePath =
-  "SOUL.md" | "MEMORY.md" | "habits.json" | `memory/${string}.md`;
+  "SOUL.md" | "MEMORY.md" | "habits.json" | "heartbeat.json" | `memory/${string}.md`;
 
 const FILE_PATH: Record<AgentFile, AgentFilePath> = {
   soul: "SOUL.md",

@@ -2,15 +2,19 @@ import { useCallback, useEffect, useRef } from "react";
 import { forgetHarnessSession, respondHarnessApproval } from "../../integrations/harness/core/registry";
 import type { ApprovalDecision } from "../../integrations/harness/core/types";
 import { sessionChildHarnesses } from "../../features/sessions/model/handoff";
-import { newSession, type Block, type Session } from "../../features/sessions/model/session";
+import { newSession, type Block, type RuntimeMode, type Session } from "../../features/sessions/model/session";
 import type { TurnOutcome } from "../../features/sessions/model/turnOutcome";
-import { agentForSession, agentLook, findAgent, listAgents } from "../../features/agents/model/agent";
+import { agentForSession, agentLook, findAgent, listAgents, type AgentLook } from "../../features/agents/model/agent";
 import { loadAgentFiles } from "../../features/agents/model/agentFiles";
 import {
   afterRun, claimHabit, clearHabitRun, dropRelays, dueHabits, HABIT_APPROVAL_WAIT_MS, HABIT_RUN_TIMEOUT_MS,
   habitReport, habitRunPrompt, isRelayed, loadHabits, markHabitRun, relayApproval, setHabitRunning,
-  subscribeCheckHabitsNow, takeRelayedApproval, updateHabits, type Habit,
+  subscribeCheckHabitsNow, takeRelayedApproval, updateHabits,
 } from "../../features/agents/model/agentHabits";
+import {
+  afterHeartbeat, HEARTBEAT_ID, HEARTBEAT_NAME, heartbeatMinutes, heartbeatModel, heartbeatPrompt, loadHeartbeat,
+  planHeartbeat, recentExchanges, updateHeartbeat,
+} from "../../features/agents/model/agentHeartbeat";
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
 
@@ -37,11 +41,14 @@ type Options = {
   onPosted?: (chat: Session, agentName: string) => void;
 };
 
+/** What a hidden run posts as, in the agent's chat: one of its habits, or its heartbeat. */
+type RunTag = { id: string; name: string };
+
 /**
- * Runs each agent's habits on schedule while the app is open: in a hidden
- * session of its own, posting to the agent's chat only when the run has
- * something to say. One run at a time across all agents keeps a wake from
- * sleep from starting several at once.
+ * Runs each agent's habits on schedule, and its heartbeat once its chat has
+ * sat idle, while the app is open: in a hidden session of its own, posting
+ * to the agent's chat only when the run has something to say. One run at a
+ * time across all agents keeps a wake from sleep from starting several at once.
  */
 export function useAgentHabits(options: Options, enabled = true) {
   const latest = useRef(options);
@@ -117,7 +124,7 @@ export function useAgentHabits(options: Options, enabled = true) {
      * for to the agent's chat. Only time spent working counts toward the
      * timeout; time waiting on the user has its own, much longer limit.
      */
-    const watchRun = async (chatId: string, habit: Habit, runId: string, start: () => Promise<TurnOutcome>): Promise<TurnOutcome> => {
+    const watchRun = async (chatId: string, tag: RunTag, runId: string, start: () => Promise<TurnOutcome>): Promise<TurnOutcome> => {
       let settled: TurnOutcome | undefined;
       const turn = start().then((outcome) => (settled = outcome),
         (error: unknown) => (settled = { status: "failed", text: "", error: error instanceof Error ? error.message : String(error) }));
@@ -134,7 +141,7 @@ export function useAgentHabits(options: Options, enabled = true) {
           const requestId = relayApproval({ chatId, runId, requestId: block.approval!.requestId, blockId });
           void appendToChat(chatId, {
             id: blockId, role: "approval", text: block.text, ...(block.tool ? { tool: block.tool } : {}),
-            approval: { requestId }, agentHabit: { id: habit.id, name: habit.name, at: Date.now() },
+            approval: { requestId }, agentHabit: { id: tag.id, name: tag.name, at: Date.now() },
           });
         }
         if (pending.length) waiting += POLL_MS;
@@ -155,8 +162,36 @@ export function useAgentHabits(options: Options, enabled = true) {
       runtime.updateSessions((current) => current.filter((entry) => entry.id !== runId));
     };
 
-    const runHabit = async (agentId: string, chatId: string, habitId: string) => {
+    /** One hidden run for the agent's chat, its report posted there when it has one. */
+    const runHidden = async (agentId: string, chat: Session, look: AgentLook, tag: RunTag, setup: {
+      model: string; modelSettings: Record<string, string>; mode: RuntimeMode; prompt: string; startedAt: number;
+    }): Promise<{ outcome: TurnOutcome; report?: string }> => {
       const { runtime, submission } = latest.current;
+      const run: Session = {
+        ...newSession(chat.harness, chat.cwd, setup.model, setup.mode, setup.modelSettings),
+        title: `${look.name} · ${tag.name}`,
+        ephemeral: true,
+      };
+      markHabitRun(run.id, agentId);
+      setHabitRunning(tag.id, setup.startedAt);
+      runtime.updateSessions((current) => [...current, run]);
+      const outcome = await watchRun(chat.id, tag, run.id,
+        () => submission.runTurn(run.id, setup.prompt, { appAccess: true }))
+        .catch((error: unknown): TurnOutcome => ({ status: "failed", text: "", error: error instanceof Error ? error.message : String(error) }));
+      for (const relay of dropRelays(run.id)) decideBlock(relay.chatId, relay.blockId, "cancelled");
+      await removeRun(run.id);
+      clearHabitRun(run.id);
+      setHabitRunning(tag.id);
+
+      const report = outcome.status === "completed" ? habitReport(outcome.text) : undefined;
+      if (report) {
+        void appendToChat(chat.id, { id: crypto.randomUUID(), role: "assistant", text: report, agentHabit: { ...tag, at: Date.now() } },
+          (posted) => latest.current.onPosted?.(posted, look.name));
+      }
+      return { outcome, ...(report ? { report } : {}) };
+    };
+
+    const runHabit = async (agentId: string, chatId: string, habitId: string) => {
       const chat = await openChat(chatId);
       if (!chat || stopped || !findAgent(agentId)) return;
       const files = await loadAgentFiles(agentId);
@@ -168,30 +203,15 @@ export function useAgentHabits(options: Options, enabled = true) {
       const record = findAgent(agentId);
       if (!habit || stopped || !record) return;
       const look = agentLook(record);
-      const run: Session = {
+      const { outcome, report } = await runHidden(agentId, chat, look, habit, {
+        model: chat.model, modelSettings: chat.modelSettings,
         // Nobody is watching a habit's run, so it cannot stop to ask before
         // each step unless it was set to. Anything the harness asks goes to
         // the user in the chat.
-        ...newSession(chat.harness, chat.cwd, chat.model, habit.access === "auto" ? "auto" : "full-access", chat.modelSettings),
-        title: `${look.name} · ${habit.name}`,
-        ephemeral: true,
-      };
-      markHabitRun(run.id, agentId);
-      setHabitRunning(habit.id, now);
-      runtime.updateSessions((current) => [...current, run]);
-      const outcome = await watchRun(chatId, habit, run.id,
-        () => submission.runTurn(run.id, habitRunPrompt(look, files, habit, now), { appAccess: true }))
-        .catch((error: unknown): TurnOutcome => ({ status: "failed", text: "", error: error instanceof Error ? error.message : String(error) }));
-      for (const relay of dropRelays(run.id)) decideBlock(relay.chatId, relay.blockId, "cancelled");
-      await removeRun(run.id);
-      clearHabitRun(run.id);
-      setHabitRunning(habit.id);
-
-      const report = outcome.status === "completed" ? habitReport(outcome.text) : undefined;
-      if (report) {
-        void appendToChat(chatId, { id: crypto.randomUUID(), role: "assistant", text: report, agentHabit: { id: habit.id, name: habit.name, at: Date.now() } },
-          (posted) => latest.current.onPosted?.(posted, look.name));
-      }
+        mode: habit.access === "auto" ? "auto" : "full-access",
+        prompt: habitRunPrompt(look, files, habit, now),
+        startedAt: now,
+      });
       await updateHabits(agentId, (habits) => ({
         habits: habits.map((entry) => entry.id === habit.id ? afterRun(entry, Date.now(), {
           kind: outcome.status !== "completed" ? "failed" : report ? "posted" : "quiet",
@@ -201,6 +221,38 @@ export function useAgentHabits(options: Options, enabled = true) {
         }) : entry),
         result: undefined,
       }));
+    };
+
+    /**
+     * The agent's heartbeat, if its chat has sat idle long enough and moved
+     * since the last one. A quiet result is dropped; the chat never sees it.
+     */
+    const beat = async (agentId: string, chatId: string) => {
+      const state = await loadHeartbeat(agentId);
+      const minutes = heartbeatMinutes(state);
+      // Cheap first: nothing is due before a whole interval has passed.
+      if (minutes <= 0 || (state.lastRunAt > 0 && Date.now() - state.lastRunAt < minutes * 60_000)) return;
+      // A chat put away is read, not brought back, until there is something to post.
+      const chat = session(chatId) ?? await latest.current.loadSession(chatId);
+      if (!chat || stopped) return;
+      const files = await loadAgentFiles(agentId);
+      const record = findAgent(agentId);
+      if (stopped || !record) return;
+      const now = Date.now();
+      const plan = planHeartbeat(state, chat, files.memoryHash, now);
+      if (plan.kind === "wait") return;
+      const { lastRunAt, quietStreak, memoryHash } = plan.state;
+      // Over the latest file, so an interval changed meanwhile stays.
+      const claimed = await updateHeartbeat(agentId, (current) => ({ ...current, lastRunAt, quietStreak, ...(memoryHash ? { memoryHash } : {}) }));
+      if (plan.kind === "skip" || stopped) return;
+      const look = agentLook(record);
+      const { outcome, report } = await runHidden(agentId, chat, look, { id: HEARTBEAT_ID, name: HEARTBEAT_NAME }, {
+        ...heartbeatModel(chat.harness, chat.model, chat.modelSettings),
+        mode: chat.runtimeMode,
+        prompt: heartbeatPrompt(look, files, claimed, recentExchanges(chat.blocks), now),
+        startedAt: now,
+      });
+      await updateHeartbeat(agentId, (current) => afterHeartbeat(current, { ok: outcome.status === "completed", ...(report ? { report } : {}) }));
     };
 
     const tick = async () => {
@@ -215,7 +267,10 @@ export function useAgentHabits(options: Options, enabled = true) {
           // Habits are set up in its chat, so one never opened has none.
           if (!sessionId) continue;
           const { run, skipped } = dueHabits(await loadHabits(id), Date.now());
-          if (!run.length && !skipped.length) continue;
+          if (!run.length && !skipped.length) {
+            await beat(id, sessionId).catch((error) => console.warn("Heartbeat could not run", error));
+            continue;
+          }
           if (skipped.length) {
             await updateHabits(id, (habits) => {
               const stale = new Set(dueHabits(habits, Date.now()).skipped.map((habit) => habit.id));

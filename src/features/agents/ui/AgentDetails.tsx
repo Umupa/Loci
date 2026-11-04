@@ -25,6 +25,7 @@ import {
 } from "../model/agentFiles";
 import { addMemoryEntry, memoryDate, memoryEntry, memoryLines, withLineEdited, withoutLine } from "../model/agentMemory";
 import { AgentAvatarPreview } from "./AgentAvatar";
+import { HeartbeatPicker } from "./HeartbeatPicker";
 import { LanguagePicker } from "./LanguagePicker";
 import { ColorPicker, FacePicker, ProjectsField } from "./agentPanelParts";
 import { Popover } from "../../../shared/ui/Popover";
@@ -142,6 +143,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
               return next;
             })} />
           </SettingRow>
+          <SettingRow label="Heartbeat" description="After its chat sits idle this long, it looks for follow-ups it owes you."><HeartbeatPicker agentId={agent.id} /></SettingRow>
         </div>
         <h4 className="agent-setting-group-title">Files</h4>
         <div className="agent-setting-group">
