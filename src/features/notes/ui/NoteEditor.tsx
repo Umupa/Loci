@@ -198,9 +198,11 @@ export function NoteEditor({
       expectedHash.current = saved.hash;
       diskChangeRef.current = null;
       setDiskChange(null);
-      // A completed save only clears the edits included in that request.
+      // A completed save only clears the edits included in that request. A
+      // title cleared to type a new one stays empty: the file gets a title
+      // from the body, but the field takes it only when it loses focus.
       const remaining = { ...editsRef.current };
-      if (remaining.title === changes.title) delete remaining.title;
+      if (remaining.title === changes.title && changes.title?.trim() !== "") delete remaining.title;
       if (remaining.body === changes.body) delete remaining.body;
       if (remaining.tags === changes.tags) delete remaining.tags;
       editsRef.current = remaining;

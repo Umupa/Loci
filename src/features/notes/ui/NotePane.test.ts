@@ -33,10 +33,10 @@ afterEach(async () => { failSave = false; await act(async () => root.unmount());
 async function mount(agentId = "agent-a") {
   await act(async () => root.render(createElement(NotePane, { noteId: "note-a", agentId, recents: [], focused: true, onFocus: vi.fn(), onClose: close, onBack: back })));
 }
-async function editTitle() {
+async function editTitle(value = "Revised thoughts") {
   await act(async () => {
     const title = host.querySelector<HTMLInputElement>('[aria-label="Note title"]')!;
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(title, "Revised thoughts");
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(title, value);
     title.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
@@ -51,6 +51,17 @@ it("saves pending edits before closing and preserves agent ownership", async () 
   expect(stored.title).toBe("Revised thoughts");
   expect(stored.agentId).toBe("agent-a");
   expect(close).toHaveBeenCalledOnce();
+});
+
+it("keeps a cleared title empty while it is edited, and names the note from its body after", async () => {
+  await mount(); await editTitle("");
+  // Past the debounced save: the file is named from the body, the field stays empty.
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 600)); });
+  expect(stored.title).toBe("Old idea");
+  const title = host.querySelector<HTMLInputElement>('[aria-label="Note title"]')!;
+  expect(title.value).toBe("");
+  await act(async () => { title.focus(); title.blur(); });
+  expect(title.value).toBe("Old idea");
 });
 
 it("keeps the editor and draft visible when saving fails before Back", async () => {
