@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-11-04
+
 ### Changed
 
 - **Mentors open faster on another computer.** A mentor's library and reader start loading as soon as you click it instead of after the other computer answers, and the learning map no longer reads the same courses twice.
@@ -320,7 +322,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.5...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.6...HEAD
+[0.8.6]: https://github.com/Umupa/Loci/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/Umupa/Loci/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/Umupa/Loci/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/Umupa/Loci/compare/v0.8.2...v0.8.3
