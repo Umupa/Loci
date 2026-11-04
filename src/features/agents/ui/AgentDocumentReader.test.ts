@@ -172,3 +172,17 @@ it("keeps the reader visible when copying fails", async () => {
   expect(container.querySelector("article")?.textContent).toBe(reading.body);
   expect(container.querySelector('[role="alert"]')?.textContent).toContain("Clipboard unavailable");
 });
+
+it("puts a source's translation switch in its header, not a bar over the text", async () => {
+  localStorage.setItem("loci:agent-roster", JSON.stringify([{ id: "a", name: "Kern", folder: "/m/kern", sessionId: "chat", language: "zh-CN" }]));
+  const fallback = vi.mocked(invoke).getMockImplementation()!;
+  vi.mocked(invoke).mockImplementation(async (command, args) => command === "agent_documents_get" ? fallback(command, args) : command === "source_translation_read" ? null : []);
+  for (const embedded of [true, false]) {
+    props = { ...props, agentId: "a", embedded, document: { ...reading, body: "# Pods\n\nPods are the smallest deployable units of computing that you can create and manage in Kubernetes.\n\n## Pod phase\n\nThe phase of a Pod is a simple, high-level summary of where the Pod is in its lifecycle.\n", sourceUrl: "https://kubernetes.io/pods" } };
+    await render();
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(container.querySelector("[data-translation-button]")).not.toBeNull();
+    expect(container.querySelector("[data-translation-bar]")).toBeNull();
+  }
+  localStorage.clear();
+});

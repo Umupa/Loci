@@ -3,7 +3,7 @@ import { ArrowHorizontal, Check, Copy, Highlighter, MoreHorizontal, StickyNote, 
 import { copyMessage } from "../../../platform/tauri/clipboard";
 import { Popover } from "../../../shared/ui/Popover";
 import { useReadingWide } from "../../../shared/lib/readingWidth";
-import { ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
+import { ReaderHeaderSlot, ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { upsertNote } from "../../notes";
 import { requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
@@ -96,6 +96,9 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
     void deleteAgentDocument(agentId, latest.id).then(onBack ?? onClose).catch((cause) => setActionError(String(cause)));
   };
 
+  // Where the document puts its own header control (a source's translation switch).
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+
   const saveAsNote = async () => {
     try {
       const note = await upsertNote({ id: crypto.randomUUID(), title: latest.title, body: latest.body, tags: latest.subject ? [latest.subject] : [], ...(agentId ? { agentId } : {}) });
@@ -105,8 +108,10 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
   };
 
   return (
+    <ReaderHeaderSlot.Provider value={headerSlot}>
     <aside aria-label={latest.title} className="flex h-full min-h-0 min-w-0 w-full flex-col text-content" onPointerDown={() => { if (!focused) onFocus(); }}>
       {embedded ? <ResourceHeader title={latest.title} backLabel="Back to documents" onBack={onBack} onClose={onClose}>
+        <span ref={setHeaderSlot} className="contents" />
         <button ref={more} type="button" title="Document actions" aria-label="Document actions" aria-expanded={menu} aria-haspopup="menu" className={RESOURCE_ACTION} onClick={() => setMenu((open) => !open)}><MoreHorizontal className="size-4" /></button>
       </ResourceHeader> : <PaneHeader onPaneDragStart={onPaneDragStart}>
         {!embedded ? <span className={`size-2 shrink-0 rounded-full ${focused ? "bg-accent" : "bg-transparent"}`} /> : null}
@@ -114,6 +119,7 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
           <h2 className="min-w-0 truncate text-xs" title={latest.title}>{latest.title}</h2>
           {latest.subject ? <span className="pane-header-secondary min-w-0 truncate text-[11px] text-content/45">{latest.subject}</span> : null}
         </div>
+        <span ref={setHeaderSlot} data-no-drag className="contents" />
         <button type="button" data-no-drag title={saved ? "Saved to Notes" : "Save as a note"} aria-label="Save as a note" disabled={saved || loading || !!error} onClick={() => void saveAsNote()} className={iconButton}>
           {saved ? <Check className="size-4" strokeWidth={2} /> : <StickyNote className="size-4" />}
         </button>
@@ -149,5 +155,6 @@ export function AgentDocumentReader({ agentId, document, focused, onFocus, onClo
         {actionError ? <p role="alert" className="mt-3 text-xs text-red-400">{actionError}</p> : null}
       </div>
     </aside>
+    </ReaderHeaderSlot.Provider>
   );
 }
