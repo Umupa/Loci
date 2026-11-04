@@ -12,6 +12,7 @@ Start with the [project README](../README.md) for what Loci is and how to run it
 | [remote-session.md](remote-session.md) | 简体中文 | 远程访问的会话主控：一轮对话的状态流、广播接缝、意图表、P1 任务拆分 |
 | [remote-settings.md](remote-settings.md) | 简体中文 | 远程访问的设置：localStorage 逐键分类（主机共享 / 每台设备各自），settings 通道与客户端镜像方案 |
 | [remote-deploy.md](remote-deploy.md) | 简体中文 | 远程访问部署指南：在 Cloudflare 上部署 alma-relay 和设备注册表，配置主机和客户端，安全与排查 |
+| [native-shell.md](native-shell.md) | 简体中文 | 用 Native Shell（nsh）替换 Tauri 的研究：成熟度、契合度、收益代价，暂缓及重新评估的条件 |
 | [learning.md](learning.md) | 简体中文 | 和导师一起阅读：选中即问、高亮与笔记、阅读位置、跳转到原文、本地存储 |
 | [stability-validation.md](stability-validation.md) | 中文 | Session persistence, background work and rendering: regression checks, measurements and remaining verification limits |
 | [localization.md](localization.md) | 中文 | Settings language preferences, translation boundaries and UI verification |

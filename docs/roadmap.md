@@ -198,6 +198,10 @@
 - **Tailscale**：`TailscaleTunnel` + Tailnet 身份，换隧道不改上层。
 - **无头主机**：会话驱动从前端下沉到 Rust，主机不再依赖窗口。
 
+### 换掉 Tauri（暂缓）
+
+研究过用 [Native Shell](https://github.com/longbridge/nsh) 替换 Tauri，得到原生的 iPhone / iPad 端。框架还太新，等它成熟再推进，见 [native-shell.md](native-shell.md)。
+
 ### 以后再说
 
 首次启动引导、habit 与导师主动跟进、Today 首页、学习者画像。现有的 habit 代码保留，但不再投入。
