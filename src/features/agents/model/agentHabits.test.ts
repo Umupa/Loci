@@ -129,7 +129,7 @@ it("runs the saved habit instructions with result delivery context and no added 
   expect(prompt).toContain(`${QUIET_MARKER} is an optional no-message result marker`);
   expect(prompt).not.toContain("short, in your own voice");
   expect(prompt).not.toContain("silence is the right answer");
-  expect(prompt).not.toContain("Save anything worth remembering");
+  expect(prompt).toContain("Save anything worth remembering with the memory actions before you give the report.");
 });
 
 it("hands the agent what its habits posted since the user last wrote", () => {

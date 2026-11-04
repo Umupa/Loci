@@ -323,7 +323,7 @@ export function forgetAgentContext(sessionId: string): void {
 }
 
 /** Version of the app data carried by an agent turn. */
-export const AGENT_PROMPT_VERSION = 13;
+export const AGENT_PROMPT_VERSION = 14;
 
 /** Discoverable app capabilities; teaching style and standing behavior belong to the Soul. */
 const AGENT_TOOLS = `<tools>
@@ -331,7 +331,8 @@ The local app CLI is available in this conversation; its command and help entry 
 - Courses: courses.list/read/write/delete manage this agent's courses. A reading course arranges chapters and lessons referencing saved document IDs (optionally a heading, or pages when the document is a PDF source) or absolute file paths (optionally PDF pages, or source lines shown in place); a comparison lesson lists 2–4 such places in compare, each with a short label. Keep lesson IDs stable when revising so reading progress survives. Save with courses.write, then show a loci-course fence containing only id and title front matter. The course appears in the overview and opens beside this chat; discuss it in this conversation.
 - Documents: documents.list/read find saved material; each is a source or a guide. documents.write imports an existing local file someone else published, with its sourceUrl, preserving the original: a first-hand source. A PDF (a paper, a spec) is taken in the same way; Loci copies it into the library, reads its text for search and documents.read, and the learner reads it in the PDF reader. A document you write yourself (a reading guide, a brief) is a guide: save it with guides.write (path or body) or a loci-document fence with id, title, optional subject, and Markdown; it is shown as your guide, apart from sources. Never save your own summary as a source. Reuse an ID to revise; a guide and a source never share an ID. These are separate from the user's notes.
 - Notes: notes.list/read/write manage editable personal notes. Notes created here belong to this agent and also appear in Notes. Link a saved note with its returned loci:// URL.
-- Memory: memory.read/search find facts and topic notes; memory.add/replace/remove update long-term facts through the CLI. Soul: soul.read/update read or edit standing instructions using the returned hash.
+- Memory: it carries across conversations, and what you do not save is gone next time. Save on your own, without waiting to be asked, once you have written your reply rather than before or in the middle of it. Worth keeping: the learner's goal, what they already know, their preferences, what they chose to skip, misconceptions they corrected and breakthroughs, decisions, and where things live. Never source text, code or courses; they are in the library. memory.add saves one dated fact (with until for one that expires), memory.replace supersedes one that changed, memory.remove drops one that was wrong. Facts across subjects go in MEMORY.md (no topic); pass a topic only for longer detail on one subject. Before answering about something you may have learned earlier that is not in <memory>, look with memory.search; it covers topic notes and the archive. Never save secrets or credentials; they are redacted anyway.
+- Soul: soul.read/update read or edit standing instructions using the returned hash.
 - Habits: habits.list/add/update/run/remove manage recurring tasks and their schedules. Habits run only while Loci is open, and their reports appear here.
 - Folder: <agent>.folder holds your library as files: sources/<id>.md, a PDF source as sources/<id>.pdf with sources/<id>.pdf.yaml, guides/<id>.md, courses/<id>.yaml, notes/<id>.md, beside SOUL.md and memory/. You may create or edit those files directly; Loci picks the change up. Run library.check after editing files directly to see any it could not read (a PDF without its sidecar, or a sidecar without its PDF), and library.search to find text in your library, a PDF's text included. Change SOUL.md and memory only through soul.* and memory.*. The help has the file formats.
 - Workdir: <agent>.workdir is your own folder, which the user can browse beside this chat. Clone source code into repos/<owner>/<repo> and keep experiments in lab/; create these when needed. Link a file there by its absolute path to open it beside this chat. <agent>.folders are other folders the user gave you. Never move or delete files you did not create.
@@ -375,7 +376,11 @@ export function agentContext(
   if (plan.memory) {
     const budget = memoryWithinBudget(memoryForContext(files));
     parts.push(
-      `<memory>\n${budget.text}\n</memory>`,
+      `<memory>\n${budget.text || "(Empty. Nothing has been remembered yet.)"}${
+        budget.droppedLines
+          ? `\n[${budget.droppedLines} more lines did not load; move older detail into topic files.]`
+          : ""
+      }\n</memory>`,
       `<memory_files>\n${JSON.stringify({ path: files.memoryPath, topics: files.topics, omittedLines: budget.droppedLines }, null, 2)}\n</memory_files>`,
     );
   }

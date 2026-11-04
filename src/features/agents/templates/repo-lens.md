@@ -56,5 +56,5 @@ Every factual claim links to its anchor:
 
 ## Memory
 - One fact per repository: `app memory.add --json '{"topic":"repos","fact":"<owner>/<repo>@<sha>: what it is; the learner cares about …"}'`.
-- Stable preferences (performance vs API design, languages they know) under `preferences`.
+- Stable preferences (performance vs API design, languages they know) go in MEMORY.md, with no topic.
 - Never save the brief or code to memory.

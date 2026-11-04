@@ -11,6 +11,9 @@ import * as agentFiles from "./agentFiles";
 import { loadAgentRotation } from "./agentRotation";
 import { prepareAppTurn } from "./agentTurnContext";
 
+/** What the turn carries apart from the local time, which goes every agent turn. */
+const appData = (part: string) => !part.startsWith("<local_time>");
+
 const agent: Agent = { id: "agent", avatar: "wisp", color: "#fff", projects: [] };
 const files = () => ({
   id: "agent",
@@ -67,16 +70,16 @@ it.each([
   const refreshed = await prepareAppTurn(changed, session, { canRotate: true });
   expect(refreshed.introduces).toBe(true);
   expect(refreshed.rotates).toBe(false);
-  expect(refreshed.context).toHaveLength(1);
+  expect(refreshed.context.filter(appData)).toHaveLength(1);
   refreshed.record(session.providerSessionId);
-  expect((await prepareAppTurn(changed, session, { canRotate: true })).context).toEqual([]);
+  expect((await prepareAppTurn(changed, session, { canRotate: true })).context.filter(appData)).toEqual([]);
 });
 
 it("does not refresh identity when the explicit name equals the displayed placeholder", async () => {
   const session = { id: "chat", providerSessionId: "native-1", blocks: [] };
   (await prepareAppTurn(agent, { ...session, providerSessionId: undefined }, { canRotate: false })).record(session.providerSessionId);
   const named = { ...agent, name: agentLook(agent).name };
-  expect((await prepareAppTurn(named, session, { canRotate: false })).context).toEqual([]);
+  expect((await prepareAppTurn(named, session, { canRotate: false })).context.filter(appData)).toEqual([]);
 });
 
 it("refreshes a changed Soul without replacing the provider", async () => {
@@ -119,7 +122,7 @@ it("replaces a provider carrying old global rules once while retaining the chat 
 
   const continued = await prepareAppTurn(agent, { ...session, providerSessionId: "native-2" }, { canRotate: true });
   expect(continued.rotates).toBe(false);
-  expect(continued.context).toEqual([]);
+  expect(continued.context.filter(appData)).toEqual([]);
 });
 
 it.each([undefined, "native-1"])("keeps policy reset pending when an edited turn retains the old provider (%s)", async (providerSessionId) => {
@@ -140,7 +143,7 @@ it("records the current policy after a model switch returns a different provider
   switched.record("native-2");
   const continued = await prepareAppTurn(agent, { ...session, providerSessionId: "native-2" }, { canRotate: true });
   expect(continued.rotates).toBe(false);
-  expect(continued.context).toEqual([]);
+  expect(continued.context.filter(appData)).toEqual([]);
 });
 
 it("does not reset a provider that has not been started yet", async () => {
@@ -179,7 +182,7 @@ it("replaces an old plain-chat provider once with conversation excerpts and reta
 
   expect(prepared.rotates).toBe(true);
   expect(prepared.introduces).toBe(false);
-  expect(prepared.context).toHaveLength(1);
+  expect(prepared.context.filter(appData)).toHaveLength(1);
   expect(prepared.context[0]).toContain("Explain process scheduling\n\nYou:\nWe compared FIFO and round robin.");
   expect(prepared.context[0]).not.toContain("<soul>");
   expect(prepared.context[0]).not.toContain("nothing was lost");
@@ -191,26 +194,26 @@ it("replaces an old plain-chat provider once with conversation excerpts and reta
 
   const continued = await prepareAppTurn(undefined, { ...session, providerSessionId: "native-2" }, { canRotate: true });
   expect(continued.rotates).toBe(false);
-  expect(continued.context).toEqual([]);
+  expect(continued.context.filter(appData)).toEqual([]);
 });
 
 it("adds no agent facts to a fresh plain-chat provider and records the current version", async () => {
   const session = { id: "chat", blocks: [] };
   const prepared = await prepareAppTurn(undefined, session, { canRotate: true });
-  expect(prepared.context).toEqual([]);
+  expect(prepared.context.filter(appData)).toEqual([]);
   expect(prepared.rotates).toBe(false);
   expect(prepared.introduces).toBe(false);
   expect(invoke).not.toHaveBeenCalled();
   prepared.record("native-1");
   expect(agentFiles.needsAppContextReset(session.id, "native-1")).toBe(false);
-  expect((await prepareAppTurn(undefined, { ...session, providerSessionId: "native-1" }, { canRotate: true })).context).toEqual([]);
+  expect((await prepareAppTurn(undefined, { ...session, providerSessionId: "native-1" }, { canRotate: true })).context.filter(appData)).toEqual([]);
 });
 
 it.each([undefined, "native-1"])("keeps plain-chat migration pending while an edited turn reuses the provider (%s)", async (providerSessionId) => {
   const session = { id: "chat", providerSessionId: "native-1", blocks: [] };
   const edited = await prepareAppTurn(undefined, session, { canRotate: false });
   expect(edited.rotates).toBe(false);
-  expect(edited.context).toEqual([]);
+  expect(edited.context.filter(appData)).toEqual([]);
   edited.record(providerSessionId);
   expect(agentFiles.needsAppContextReset(session.id, session.providerSessionId)).toBe(true);
   expect((await prepareAppTurn(undefined, session, { canRotate: true })).rotates).toBe(true);
@@ -222,7 +225,7 @@ it("records the current plain-chat context after a model switch returns a new pr
   switched.record("native-2");
   const continued = await prepareAppTurn(undefined, { ...session, providerSessionId: "native-2" }, { canRotate: true });
   expect(continued.rotates).toBe(false);
-  expect(continued.context).toEqual([]);
+  expect(continued.context.filter(appData)).toEqual([]);
 });
 
 it("leaves a current plain chat's context compaction to its provider", async () => {
@@ -235,7 +238,7 @@ it("leaves a current plain chat's context compaction to its provider", async () 
   agentFiles.recordAppContext(session.id, session.providerSessionId);
   const prepared = await prepareAppTurn(undefined, session, { canRotate: true });
   expect(prepared.rotates).toBe(false);
-  expect(prepared.context).toEqual([]);
+  expect(prepared.context.filter(appData)).toEqual([]);
 });
 
 it.each([agent, undefined])("retries a failed fresh-provider start with the original conversation excerpts (%j)", async (identity) => {
@@ -269,7 +272,7 @@ it.each([agent, undefined])("retries a failed fresh-provider start with the orig
   retry.record("native-2");
   const continued = await prepareAppTurn(identity, { ...session, providerSessionId: "native-2" }, { canRotate: true });
   expect(continued.rotates).toBe(false);
-  expect(continued.context).toEqual([]);
+  expect(continued.context.filter(appData)).toEqual([]);
 });
 
 it.each([agent, undefined])("does not forget an already-bound replacement again after its first turn fails (%j)", async (identity) => {
@@ -288,7 +291,7 @@ it.each([agent, undefined])("does not forget an already-bound replacement again 
   expect(retry.rotates).toBe(false);
   expect(retry.context[0]).toBe(first.context[0]);
   retry.record("native-2");
-  expect((await prepareAppTurn(identity, { ...session, providerSessionId: "native-2" }, { canRotate: true })).context).toEqual([]);
+  expect((await prepareAppTurn(identity, { ...session, providerSessionId: "native-2" }, { canRotate: true })).context.filter(appData)).toEqual([]);
 });
 
 it.each([agent, undefined])("keeps an unaccepted rotation brief when editing still reuses the replaced provider (%j)", async (identity) => {
@@ -362,6 +365,20 @@ it("tells every turn the learning language from Settings, and a mentor's own cho
   expect(await languageBlock({ ...agent, language: "en" })).toContain("reads in English (en)");
   // "Follow my messages" for this mentor sends nothing, whatever Settings says.
   expect(await languageBlock({ ...agent, language: "auto" })).toBeUndefined();
+});
+
+it("tells every agent turn the local time, without counting it as new soul or memory", async () => {
+  const now = new Date(2026, 10, 4, 21, 5).getTime();
+  const session = { id: "chat", providerSessionId: "native-1", blocks: [] };
+  const time = (turn: { context: string[] }) => turn.context.find((part) => !appData(part));
+  const first = await prepareAppTurn(agent, { ...session, providerSessionId: undefined }, { canRotate: false, now });
+  expect(time(first)).toMatch(/^<local_time>\n2026-11-04 21:05 \(.*UTC[+-]\d\d:\d\d\)\n<\/local_time>$/);
+  first.record(session.providerSessionId);
+  const next = await prepareAppTurn(agent, session, { canRotate: false, now: now + 60_000 });
+  expect(next.introduces).toBe(false);
+  expect(next.context).toEqual([time(next)]);
+  expect(time(next)).toContain("2026-11-04 21:06");
+  expect((await prepareAppTurn(undefined, { id: "plain", blocks: [] }, { canRotate: false })).context).toEqual([]);
 });
 
 it("tells the mentor what a connected window's reader shows, in place of this window's", async () => {

@@ -103,6 +103,8 @@ export async function prepareAppTurn(
   // outranks the "reply in the learner's language" of an older Soul.
   const language = agent ? languageContext(effectiveLearningLanguage(agent.language)) : undefined;
   if (language) context.push(language);
+  // The local time goes every turn too, so dates in memory and replies are right.
+  if (agent) context.push(localTimeContext(options.now ?? Date.now()));
   // What is open beside the chat changes from turn to turn, so it goes every time.
   // A selection the message already carries as a source is not sent twice, and
   // a page the user dismissed from the composer stays out of this turn only.
@@ -141,4 +143,15 @@ export async function prepareAppTurn(
         saveAgentRotation(session.id, { ...saved, pending: undefined });
     },
   };
+}
+
+/** The user's local date and time with its zone, e.g. 2026-11-04 21:30 (Asia/Shanghai, UTC+08:00). */
+export function localTimeContext(now: number): string {
+  const date = new Date(now);
+  const pad = (value: number) => String(Math.trunc(value)).padStart(2, "0");
+  const offset = -date.getTimezoneOffset();
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const utc = `UTC${offset < 0 ? "-" : "+"}${pad(Math.abs(offset) / 60)}:${pad(Math.abs(offset) % 60)}`;
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return `<local_time>\n${day} ${pad(date.getHours())}:${pad(date.getMinutes())} (${zone ? `${zone}, ` : ""}${utc})\n</local_time>`;
 }

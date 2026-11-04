@@ -129,6 +129,8 @@ it("introduces app tools alongside the user's soul without introducing session d
   expect(blocks[2][2]).toContain("notes.list/read/write");
   expect(blocks[2][2]).toContain("<agent>.workdir");
   expect(blocks[2][2]).not.toContain("sessions.start");
+  expect(blocks[2][2]).toContain("once you have written your reply rather than before or in the middle of it");
+  expect(blocks[2][2]).toContain("memory.search");
   expect(blocks[3][2]).toBe(current.memory);
   expect(JSON.parse(blocks[4][2])).toEqual({
     path: current.memoryPath, topics: current.topics, omittedLines: 0,
@@ -140,6 +142,16 @@ it("introduces app tools alongside the user's soul without introducing session d
   expect(memoryOnly).not.toContain("<agent>");
   expect(memoryOnly).toContain(current.memory);
   expect(agentContext(look, current, { soul: false, memory: false })).toBe("");
+});
+
+it("says when memory is empty and when lines did not load", () => {
+  const look = { name: "Mentor", projects: [] };
+  const empty = agentContext(look, { ...files(), memory: "" }, { soul: false, memory: true });
+  expect(empty).toContain("<memory>\n(Empty. Nothing has been remembered yet.)\n</memory>");
+  const long = Array.from({ length: 205 }, (_, i) => `- fact ${i}`).join("\n");
+  const cut = agentContext(look, { ...files(), memory: long }, { soul: false, memory: true });
+  expect(cut).toContain("- fact 199\n[5 more lines did not load; move older detail into topic files.]\n</memory>");
+  expect(cut).not.toContain("- fact 200");
 });
 
 it("seeds SOUL.md once, over the missing file only", async () => {

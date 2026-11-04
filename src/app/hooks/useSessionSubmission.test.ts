@@ -51,6 +51,11 @@ async function mount(initial: Session) {
 }
 
 function session() { return runtime.sessionsRef.current[0]; }
+
+/** A message with only the local time every agent turn carries taken off. */
+function withoutTime(text: string) {
+  return text.replace(/^<loci_context>\n<local_time>\n.*\n<\/local_time>\n<\/loci_context>\n\n/, "");
+}
 async function settle(run: Pending) {
   await act(async () => {
     run.input.onEvent({ type: "message.completed" });
@@ -586,12 +591,12 @@ describe("agents without an MCP server of Loci's, and runs", () => {
 
       await settle(pending[0]);
       await act(async () => vi.waitFor(() => expect(pending).toHaveLength(2)));
-      expect(pending[1].input.text).toBe("Second");
+      expect(withoutTime(pending[1].input.text)).toBe("Second");
       expect(session().queuedMessages?.map((message) => message.text)).toEqual(["Third"]);
 
       await settle(pending[1]);
       await act(async () => vi.waitFor(() => expect(pending).toHaveLength(3)));
-      expect(pending[2].input.text).toBe("Third");
+      expect(withoutTime(pending[2].input.text)).toBe("Third");
       expect(session().queuedMessages).toBeUndefined();
       expect(adapter.steerTurn).not.toHaveBeenCalled();
       await settle(pending[2]);
@@ -631,7 +636,7 @@ describe("agents without an MCP server of Loci's, and runs", () => {
 
       await settle(pending[0]);
       await act(async () => vi.waitFor(() => expect(pending).toHaveLength(2)));
-      expect(pending[1].input.text).toBe("Queued");
+      expect(withoutTime(pending[1].input.text)).toBe("Queued");
       expect(session().queuedMessages).toBeUndefined();
       await settle(pending[1]);
     });
@@ -656,7 +661,8 @@ describe("agents without an MCP server of Loci's, and runs", () => {
 
       await act(async () => { actions.onSubmit(session().id, "And now?"); });
       await vi.waitFor(() => expect(pending).toHaveLength(2));
-      expect(pending[1].input).toMatchObject({ appAccess: true, text: "And now?" });
+      expect(pending[1].input.appAccess).toBe(true);
+      expect(withoutTime(pending[1].input.text)).toBe("And now?");
       await settle(pending[1]);
 
       files.memory += "\n- 2026-10-02 · Deploys go through Fly";
@@ -691,7 +697,7 @@ describe("agents without an MCP server of Loci's, and runs", () => {
       await act(async () => { actions.onSubmit(session().id, "Next source"); });
       await vi.waitFor(() => expect(pending).toHaveLength(2));
       expect(adapter.forgetSession).toHaveBeenCalledOnce();
-      expect(pending[1].input.text).toBe("Next source");
+      expect(withoutTime(pending[1].input.text)).toBe("Next source");
       expect(session().providerSessionId).toBe("clean-provider");
       await settle(pending[1]);
     });

@@ -136,6 +136,25 @@ const cases: {
     },
   },
   {
+    name: "a memory add after a chained cd reads as remembering",
+    block: shell(
+      "remember",
+      `cd /tmp/work && '${app}' app memory.add --json '{"fact":"Goal: read the scheduler; skip: networking"}'`,
+      "in_progress",
+    ),
+    expect: { id: "remember", kind: "memory", status: "running", text: "Remembering that" },
+  },
+  {
+    name: "a memory replace reads as an update",
+    block: shell("replace", `${app} app memory.replace --json '{"find":"Goal:","fact":"Goal: read the kubelet"}'`),
+    expect: { id: "replace", kind: "memory", status: "done", text: "Updated its memory" },
+  },
+  {
+    name: "a memory remove reads as forgetting",
+    block: shell("remove", `/bin/zsh -lc "${app} app memory.remove --find 'Goal:'"`),
+    expect: { id: "remove", kind: "memory", status: "done", text: "Forgot something" },
+  },
+  {
     name: "a clone names the repository, not its checkout path",
     block: shell("clone", "git clone --depth 1 https://github.com/tokio-rs/tokio.git ~/Loci/repos/tokio-rs/tokio", "in_progress"),
     expect: { id: "clone", kind: "clone", status: "running", text: "Cloning tokio-rs/tokio" },

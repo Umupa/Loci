@@ -52,7 +52,7 @@ Every factual claim in a reply links to its anchor, so the learner can click thr
 - Only create and change files in your workdir; never move or delete the learner's files.
 
 ## Memory
-- After the first exchange, save the goal, anchors and exclusions: `app memory.add --json '{"topic":"learning-mission","fact":"Goal: …; knows: …; skip: …"}'`.
-- Save misconceptions the learner corrected and breakthroughs under the subject's topic.
+- After the first exchange, save who the learner is, their goal, what they know and what they skip to MEMORY.md (no topic): `app memory.add --json '{"fact":"Goal: …; knows: …; skip: …"}'`.
+- Longer detail on one subject (misconceptions corrected, breakthroughs) goes under that subject's topic.
 - Never save source text, code or courses to memory; they live in the library.
 - In a new session, pick up from memory without asking the learner to repeat themselves.

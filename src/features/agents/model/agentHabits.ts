@@ -353,6 +353,7 @@ Habit: ${habit.name}
 ${habit.instructions.trim()}
 
 Result delivery: final reports are posted to the user in the agent's chat. ${QUIET_MARKER} is an optional no-message result marker.
+Save anything worth remembering with the memory actions before you give the report.
 </habit_run>`;
 }
 
