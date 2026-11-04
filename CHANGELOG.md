@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Fixed
+
+- **Updates no longer fail with "403 Forbidden" behind a busy network address.** An update downloads from the release's own links, which have no hourly limit.
+
 ## [0.8.9] - 2026-11-04
 
 ### Changed
