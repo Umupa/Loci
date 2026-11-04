@@ -18,6 +18,8 @@ import {
   recordAgentContext,
   resetAgentDefaults,
 } from "./agentFiles";
+import { AGENT_TEMPLATES } from "../templates";
+import { currentSoulFor } from "../templates/retiredSouls";
 
 beforeEach(() => {
   const stored = new Map<string, string>();
@@ -175,6 +177,59 @@ it("seeds SOUL.md once, over the missing file only", async () => {
     path: "SOUL.md",
     expectedHash: "empty",
   });
+});
+
+const OLD_MENTOR_SOUL = "e0575861b4bbd98182a53707d77cae059516a972ec21440f50c54d60aa6b24e1";
+const OLD_LENS_SOUL = "36032ba9729f32fc63add440abb2a82d3615218f05e3c1051e2f5971ae11fa91";
+
+it.each([
+  [OLD_MENTOR_SOUL, "learning-guide"],
+  [OLD_LENS_SOUL, "repo-lens"],
+] as const)("moves an untouched %s template Soul to the current template", async (hash, template) => {
+  const { id } = createAgent([]);
+  invoke.mockImplementation(async (command: string) =>
+    command === "agent_load" ? { ...files(hash), soul: "# Soul\n\nthe old template" } : "upgraded",
+  );
+  const loaded = await loadAgentFiles(id);
+  const current = AGENT_TEMPLATES.find((entry) => entry.id === template)!.soul;
+  expect(loaded).toMatchObject({ soul: current, soulHash: "upgraded" });
+  const saves = invoke.mock.calls.filter(([command]) => command === "agent_save");
+  expect(saves).toHaveLength(1);
+  expect(saves[0][1]).toMatchObject({ agent: id, path: "SOUL.md", text: current, expectedHash: hash });
+});
+
+it("keeps a Soul the user edited, and one edited while the upgrade ran", async () => {
+  const { id } = createAgent([]);
+  invoke.mockImplementation(async (command: string) =>
+    command === "agent_load" ? { ...files("edited"), soul: "# Soul\n\nmine" } : "never",
+  );
+  expect((await loadAgentFiles(id)).soul).toBe("# Soul\n\nmine");
+  expect(invoke.mock.calls.some(([command]) => command === "agent_save")).toBe(false);
+
+  let loads = 0;
+  invoke.mockReset();
+  invoke.mockImplementation(async (command: string) => {
+    if (command === "agent_save") throw "conflict";
+    loads += 1;
+    return loads === 1 ? { ...files(OLD_MENTOR_SOUL), soul: "old" } : { ...files("raced"), soul: "# Soul\n\njust edited" };
+  });
+  expect(await loadAgentFiles(id)).toMatchObject({ soul: "# Soul\n\njust edited", soulHash: "raced" });
+});
+
+it("keeps the platform's formats out of the templates and in the tool guide", async () => {
+  const { createHash } = await import("node:crypto");
+  const tools = agentContext({ name: "Mentor", projects: [] }, files(), { soul: true, memory: false })
+    .match(/<tools>\n([\s\S]*?)\n<\/tools>/)![1];
+  for (const format of ["loci://source/<id>#section=", "code.pin", "compare", "documents.write", "reader.open", "annotations.list", "lab/<topic>/", "no scores, mastery gates or review schedules"])
+    expect(tools).toContain(format);
+  for (const template of AGENT_TEMPLATES) {
+    // A shipped template is never its own retired version.
+    expect(currentSoulFor(createHash("sha256").update(template.soul).digest("hex"))).toBeUndefined();
+    for (const format of ["loci://", "code.pin", "--json", "documents.write", "courses.write", "<reading_now>", "考我"])
+      expect(template.soul).not.toContain(format);
+    expect(template.soul).toMatch(/first principles/);
+    expect(template.soul).toMatch(/shallow to deep/);
+  }
 });
 
 it.each([

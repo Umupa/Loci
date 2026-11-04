@@ -18,10 +18,10 @@ export type AgentTemplate = {
 export const AGENT_TEMPLATES: readonly AgentTemplate[] = [
   {
     id: "learning-guide", name: "Mentor", role: "Domain guide", avatar: "nova", soul: learningGuide,
-    summary: "Asks at most one question, then has you reading primary sources within minutes. Builds a short course as you go and answers with links to the exact passage.",
+    summary: "Teaches from first principles, foundations first. Asks at most one question, then has you reading primary sources within minutes, in a course that builds from the problem up, and answers with links to the exact passage.",
   },
   {
     id: "repo-lens", name: "Lens", role: "Open-source reader", avatar: "tide", soul: repoLens,
-    summary: "Give it a repository: it writes a one-page brief on how it works in minutes, and builds a course through its docs and code only when you want to go deeper.",
+    summary: "Give it a repository: in minutes, a one-page brief on the problem it solves and the idea at its core; a course through its docs and code, from the core outward, when you want to go deeper.",
   },
 ];

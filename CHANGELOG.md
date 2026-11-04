@@ -4,6 +4,14 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Changed
+
+- **Mentors teach from first principles.** Mentor and Lens start from the problem a system solves and the constraint that shapes it, establish the mechanism underneath before what is built on it, and go from shallow to deep: problem, principle, mechanism, implementation, then edge cases and trade-offs. Courses open with the foundation and build lesson on lesson; answers make one point from its root, give each design choice its cost and its alternative, and go down a layer when you are stuck. Lens's brief starts with the problem and the core idea, and its code tour goes from the core types outward.
+- **A mentor's Soul is only how it teaches.** Citation formats, pinned code lessons, comparison lessons, how sources are taken in, reading together and folders moved out of the templates into the guide Loci gives every mentor, so they stay current for mentors made earlier. A mentor whose Soul you never edited moves to the new template by itself; a Soul you edited stays yours, and its settings page can still replace it with a template.
+- **Design over code.** Code is evidence, not the lesson: a mentor quotes the few lines that keep an invariant or make a decision, and never walks through an implementation. Lessons mostly open design docs, papers and specs. Mentors also name each mechanism's invariant and how it breaks, the designs it replaced, the magnitudes involved, where it fits and where it doesn't, and why it won, using whichever of these the question needs. Lens's brief ends with where the project fits and how it fails instead of three files to read, and its course is a tour of its design decisions instead of its call path.
+- Lens offers its course in your language instead of fixed Chinese phrases, and asks to go deeper in any words.
+- The mentor evaluation scores teaching from first principles (`firstPrinciples`) beside its other four measures, and code as evidence (`codeEvidence`) instead of code tours that follow the call path. The sandbox scenarios no longer require a code lesson in every course.
+
 ## [0.9.0] - 2026-11-04
 
 ### Added
