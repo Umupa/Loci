@@ -14,6 +14,7 @@ import { imageDataUrl } from "../../../shared/lib/filePreview";
 import { relativeImagePath } from "../../../shared/lib/markdown/markdownLocalImages";
 import { isNoteImagePath } from "../noteImages";
 import { parseAppResourceUrl, requestOpenAppResource } from "../../../shared/lib/appResourceLinks";
+import { mermaidCodeBlockView, mermaidEditingPlugin } from "./noteMermaid";
 import "./NoteWysiwyg.css";
 
 /*
@@ -176,6 +177,8 @@ export function NoteWysiwyg({
       .use(history)
       .use(clipboard)
       .use(imageView)
+      .use(mermaidCodeBlockView)
+      .use(mermaidEditingPlugin)
       .use(placeholderPlugin)
       .use(linkPlugin)
       .use(changes)

@@ -6,6 +6,7 @@ import { NoteWysiwyg, type NoteWysiwygHandle } from "./NoteWysiwyg";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async () => "/tmp/x.png"), convertFileSrc: (path: string) => path }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
+vi.mock("mermaid", () => ({ default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: "<svg></svg>" })) } }));
 vi.mock("../../../platform/tauri/fs", () => ({ readBinaryFile: vi.fn(async () => new Uint8Array()) }));
 
 let host: HTMLDivElement, root: Root;
@@ -58,4 +59,15 @@ it("follows a Loci link in a note, such as a saved passage, inside the app", asy
   // The editor keeps the link's address for ⌘-click and writes it back as it was.
   await act(async () => handle.current!.insertMarkdown("Next"));
   expect(onChange.mock.calls[0]![0]).toContain("[Firecracker · p. 7](loci://source/s-pdf#p7\\&quote=A%20microVM)");
+});
+
+it("shows a mermaid block as its diagram and keeps its source as written", async () => {
+  await render("```mermaid\ngraph TD\n  A --> B\n```\n\n```js\nlet a = 1\n```");
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+  const block = host.querySelector(".note-mermaid");
+  expect(block?.querySelector(".note-mermaid-diagram svg")).not.toBeNull();
+  expect(block?.querySelector("pre code")?.textContent).toBe("graph TD\n  A --> B");
+  expect(host.querySelectorAll(".note-mermaid")).toHaveLength(1);
+  expect(host.querySelector('pre[data-language="js"]')?.textContent).toBe("let a = 1");
+  expect(onChange).not.toHaveBeenCalled();
 });
