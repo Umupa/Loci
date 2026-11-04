@@ -4,6 +4,14 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **Mermaid diagrams in notes.** A ```mermaid block in a note shows as its diagram. Click it to edit the source, and the diagram follows as you type.
+
+### Fixed
+
+- **Clearing a note's title no longer fills it from the body while you type.** The title stays empty until you leave the field; only then, if it is still empty, does the note take its first heading or line as its title.
+
 ## [0.8.7] - 2026-11-04
 
 ### Added
