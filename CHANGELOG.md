@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-04
+
 ### Added
 
 - **A mentor's heartbeat.** Once its chat has sat idle for a while (30 minutes by default; 15, 30, 60 or 120, or off, in its settings), the mentor looks over its Soul, memory and your last exchanges for follow-ups it owes you, and posts at most two suggestions to the chat. It never quizzes or plans reviews, does not repeat itself, and stays silent when there is nothing to raise. Quiet checks space out, up to every four hours, until you write again.
@@ -371,7 +373,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.10...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Umupa/Loci/compare/v0.8.10...v0.9.0
 [0.8.10]: https://github.com/Umupa/Loci/compare/v0.8.9...v0.8.10
 [0.8.9]: https://github.com/Umupa/Loci/compare/v0.8.8...v0.8.9
 [0.8.8]: https://github.com/Umupa/Loci/compare/v0.8.7...v0.8.8
