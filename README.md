@@ -1,186 +1,116 @@
 <div align="center">
 
-<img src="src-tauri/icons/128x128@2x.png" width="112" alt="Loci logo" />
+<img src="src-tauri/icons/128x128@2x.png" width="112" alt="Loci" />
 
 # Loci
 
 **An AI-native learning workspace for engineers.**
 
-**One resident mentor per topic. It brings the first-hand sources — documentation, specifications, papers and source code — and reads them with you.**
+One resident mentor per topic. It gathers the first-hand sources — documentation, specifications, papers, source code — arranges them into a course, and reads them with you.
 
+[**Download for macOS**](https://github.com/Umupa/Loci/releases/latest) · [Linux](https://github.com/Umupa/Loci/releases/latest) · [Changelog](CHANGELOG.md)
+
+[![Release](https://img.shields.io/github/v/release/Umupa/Loci?color=2b2b2b&label=release)](https://github.com/Umupa/Loci/releases/latest)
 [![CI](https://github.com/Umupa/Loci/actions/workflows/ci.yml/badge.svg)](https://github.com/Umupa/Loci/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2b2b2b.svg)](LICENSE)
 
 English · [简体中文](README.zh-CN.md)
 
 </div>
 
----
+<br />
 
-Loci is a local-first desktop workspace for learning technical subjects with an agent. Each mentor is a long-lived agent for one topic: a Soul (its standing instructions), a memory, and a library of courses, documents and notes beside one conversation. The mentor gathers primary sources and reads them with you. It runs through the agent CLI you already signed in to — Claude Code or Codex — so there is no model API key to add, and it has no server of its own. Your data stays on your machine: each mentor's material in a folder of plain files, the rest in one local SQLite database.
+![A mentor's workspace: the course on the left, the lesson with two highlights in the middle, the mentor answering a highlighted passage on the right](docs/images/readme/workspace.png)
 
-> [!NOTE]
-> Loci is early software (v0.1). The interface and the data model may still change. See [Platform support](#platform-support) for what has and has not been tried on each OS.
+## Learn from the source, with a mentor beside it
 
-## The learning loop
+Most AI learning tools answer from what the model remembers. Loci starts from the original text. Tell a mentor what you want to learn; it asks what it needs to know, finds the official documentation, the specification, the paper or the repository, and orders the passages worth reading into a short course. You read the original in Loci. Select a sentence and ask, and the answer quotes the passage it rests on.
 
-1. **Set the goal.** Tell the mentor what you want to learn. It asks one question at a time until the goal and your background are clear.
-2. **Gather first-hand sources.** It finds official documentation, specifications, papers and source code, and keeps them where the course can point at them.
-3. **Arrange a course.** It orders the sources into chapters and lessons. Each lesson points at the passage, page or file to read.
-4. **Read and ask.** You read the original in Loci. Attach a passage from a document, a PDF, a web page or a conversation to a question; the answer can refer back to that excerpt.
-5. **Keep what you learned.** Write notes beside the chat. The mentor records progress in its memory, so the next session continues where you stopped.
+It runs on the agent CLI you already use — Claude Code or Codex — so there is no API key to add and no account to make. Everything stays on your machine.
 
-## Mentors
+## What's inside
 
-Press **+** on the mentor rail (or ⌘T) to create one. Use one mentor per topic. Start from **Mentor**, **Lens**, or a blank agent. The **Mentor** template agrees on a goal one question at a time, gathers first-hand sources, arranges them into a course, and tests your understanding as you read. **Lens** takes a repository, clones it, writes a one-page brief, and builds a code-tour course of the files worth reading.
+**A mentor per topic.** Each mentor is a long-lived agent with its own Soul (how it teaches), memory, library and conversation. Start from **Mentor** for a subject, or **Lens** to understand a repository: it writes a one-page brief in minutes and builds a code tour when you want to go deeper.
 
-Every mentor has:
+**The original, not a summary.** Lessons point at the passage, page or lines to read: a section of a document, pages of a PDF, a function in a repository pinned to the commit it was written against. The code reader has symbols, go-to-definition and references for Go, Rust, C, TypeScript, JavaScript and Python.
 
-- **A Soul.** Standing instructions for how it teaches, what it expects from you and what to avoid. Edit it in the mentor's settings under **Soul**, or ask the mentor to revise it in chat.
-- **A memory.** Facts and topic notes the mentor maintains through the built-in `app` CLI. They are files in Loci's data folder, so a change of model keeps them.
-- **A library.** Courses, documents and notes beside the conversation. A course is what you read; documents are the material it points at; notes are yours to edit. The mentor saves documents and courses through `app documents.write` and `app courses.write`.
-- **One conversation.** A mentor keeps a single conversation. The lesson, document or note open beside it is passed as context, so "this" and "the passage" refer to what you are reading.
-- **Cards.** A reply can carry a question with choices to click, a document to open, a checklist, a mind map, a course, a code diff or a Mermaid diagram.
+**Highlight is the note.** Select text anywhere — a lesson, a PDF, the conversation — and press **H** to highlight or **⌘L** to ask. A highlight takes your thought on it, and every highlight of a course is on one page.
 
-A mentor works through the CLI: it can clone a repository, run code and prepare experiments on your machine. It starts with **Full access**, so it does not stop for a prompt on every step; change that in the mentor's settings, or the default for new mentors in **Settings → Your mentors**.
+**A course you can see.** With nothing open, the reader shows the course as a map: what you have read in ink, what you are reading in grey, and the next lesson ringed in contour lines.
 
-What a mentor does is its prompt at work, so how well it goes depends on the model behind it.
+![The learning map: lessons as plots, read ones in ink, the next one ringed in contour lines](docs/images/readme/learning-map.png)
 
-Each mentor has its own workspace: the open course's outline and the library on the left, the reader in the middle, and the conversation on the right. Opening anything (a lesson, a source, a note, a file, or a session the mentor started) replaces what the reader shows; nothing opens in a new tab or window. Coming back to a mentor reopens the lesson it was showing. ⌘K finds a mentor or anything in its library, ⌘1–9 switch mentors, ⌘W closes the reader, and ⌘B and ⇧⌘B fold the library and the conversation.
+**In your language.** Mentors write in the learning language you choose (English or 简体中文), and translate the sections your lessons open, side by side with the original.
 
-## Reading and sources
+**From another Mac.** Remote access lets a second computer use this one's workspace — mentors, courses, highlights and all — after pairing with a one-time code.
 
-Questions can carry an excerpt. Select code or text in a file and choose **Ask agent** or **Add to chat**; select a passage in a PDF or a conversation; or add a web source with a URL and the passage pasted in (Loci does not fetch the page for this). The excerpt is shown with the message and passed to the CLI as text.
+**A quiet place to read.** Literata and LXGW WenKai for text, JetBrains Mono for code, all built in. Loci Paper and Loci Ink themes, plus 22 Omarchy themes.
 
-For PDFs, select text and choose **Ask agent** to ask about it, or **Highlight** to save a highlight. Click a highlight to add a note, ask about it, open a linked discussion or delete it. The **PDF annotations** list in the reader toolbar shows every highlight. Highlights, notes and discussions are stored in the local `loci.db`; the PDF itself is not rewritten. Pages need a text layer; there is no OCR. See [docs/learning.md](docs/learning.md).
+## Get started
 
-## Install
+1. **Download** Loci from [Releases](https://github.com/Umupa/Loci/releases/latest): `.dmg` for macOS (Apple silicon or Intel), `.AppImage` or `.deb` for Linux. Builds are not notarized yet, so macOS asks you to confirm the first time. Loci updates itself after that.
+2. **Sign in to an agent CLI.** Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) and sign in. Loci finds it on your `PATH`.
+3. **Create a mentor** with **+** (⌘T), and tell it what you want to learn.
 
-### Download
+| Keys | |
+| --- | --- |
+| ⌘T | New mentor |
+| ⌘K | Find a mentor, course, source or note |
+| ⌘1–9 | Switch mentors |
+| H / ⌘L | Highlight / ask about the selection |
+| ⌘B / ⇧⌘B | Fold the library / the conversation |
+| ⌘[ / ⌘] | Back / forward in the reader |
 
-Installers for macOS (Apple silicon and Intel) and Linux (x64) are on the [Releases](https://github.com/Umupa/Loci/releases) page, and an installed Loci updates itself from there (**Settings → General → About**). Release builds are not notarized, so macOS asks you to confirm the first time you open one. [CHANGELOG.md](CHANGELOG.md) lists what changed in each version.
+## Agent CLIs
 
-### Build from source
+Loci starts the CLI installed on your machine and speaks its protocol; it does not run models itself. Each CLI keeps its own sign-in, and each mentor picks a model and a permission mode.
 
-You need:
+| CLI | |
+| --- | --- |
+| Claude Code, Codex | Supported |
+| Antigravity, Pi, Cursor, Grok Build, OpenCode, omp, fx, Hermes Agent | Experimental |
 
-| Tool | Version | Notes |
-| --- | --- | --- |
-| Node.js | 20.19+ or 22.12+ (24 recommended; `.nvmrc` pins it) | Vite 7 sets this floor |
-| Rust | stable, with `rustfmt` and `clippy` | `rustup component add rustfmt clippy` |
-| Platform libraries | see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) | Xcode Command Line Tools on macOS; WebKitGTK 4.1 and friends on Linux; MSVC and WebView2 on Windows |
+A mentor starts with **Full access** so it can clone repositories and run code without stopping at every step. Change it per mentor, or the default for new mentors, in Settings.
+
+## Your data
+
+- **Files you own.** Each mentor is a folder, `~/Loci/<mentor>/`: sources, courses, notes, Soul and memory as plain files that you and the mentor can both edit. Conversations, progress and highlights are in a local SQLite database. PDFs are never rewritten.
+- **No telemetry.** Loci has no analytics or crash reporting. It checks GitHub Releases for updates, and fetches the title and icon of public links in a conversation. Remote access goes through an end-to-end encrypted relay, and only when you turn it on.
+- **Agents act as you.** A CLI runs with your user's permissions; the permission mode only decides when Loci asks first.
+
+See [SECURITY.md](SECURITY.md) to report a vulnerability.
+
+## Platforms
+
+| | |
+| --- | --- |
+| macOS (Apple silicon, Intel) | Primary platform |
+| Linux (x64) | Builds and passes the tests; less used day to day |
+| Windows | Not built or tried yet |
+
+Loci is young and moves fast; the [changelog](CHANGELOG.md) lists every release.
+
+## Build from source
+
+Node.js 20.19+ or 22.12+, stable Rust, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your platform.
 
 ```sh
 git clone https://github.com/Umupa/Loci.git
 cd Loci
 npm ci
-npm run app:dev        # run Loci Dev with hot reload
-npm run tauri build    # build an installer for your platform
+npm run app:dev    # Loci Dev, with hot reload
+npm run check      # what CI runs: Vitest, tsc, cargo fmt, clippy, cargo test
 ```
 
-What you run from source is **Loci Dev**: a separate app with its own data folder, so it can run beside an installed Loci without touching your notes or agents. `npm run install:local` (macOS) builds this checkout as the real Loci and installs it to `/Applications`. See [docs/releasing.md](docs/releasing.md).
-
-On macOS, `./script/build_and_run.sh --verify` builds and launches a release bundle of Loci Dev (it first stops any running copy built from this checkout; `--help` lists the debug and log options).
-
-### Before the first session
-
-- Install and sign in to Claude Code or Codex. These are the two supported CLIs. Loci looks for each CLI on your `PATH` and in the usual install locations. **Settings → Agent CLIs** lets you point at a specific binary, set a default model, and hide CLIs you do not use.
-
-## Supported agent CLIs
-
-Loci starts a CLI installed on your machine and speaks its protocol; it does not run models itself. Claude Code and Codex are supported. The other eight adapters are kept and are experimental.
-
-| CLI | State |
-| --- | --- |
-| Claude Code, Codex | Supported: chat, tools and permissions |
-| Antigravity, Pi, Cursor, Grok Build, OpenCode, omp, fx, Hermes Agent | Experimental: chat with model and permission selection. What else shows up (questions, plans, tool details) depends on what the CLI reports |
-
-Each CLI keeps its own sign-in and settings. Each session picks a model and a permission mode: Supervised, Auto-accept edits, Auto or Full access.
-
-Details worth knowing:
-
-- Antigravity runs through its own ACP server. If you are asked to authenticate, use **Sign in to Antigravity** in the app; signing in to the interactive `agy` does not carry over.
-- fx does not support attachments yet.
-- CLIs that are not installed still appear in Settings, with an install hint.
-
-## Slash commands
-
-Commands work at the start of a prompt.
-
-| Command | What it does |
-| --- | --- |
-| `/btw` | Ask a read-only side question about the current turn |
-| `/draft` | Save this message without starting the agent |
-| `/compact` | Summarize older conversation context to free space |
-| `/mcp` | Find an MCP server for this message |
-
-## Command line
-
-`loci` drives a running Loci from a terminal: create mentors and talk to them, write sources, courses and notes, and open them in the reader. Tests and agents outside Loci use it. **Settings → General → Command line** puts it on your PATH and can turn it off. See [docs/cli.md](docs/cli.md).
-
-## Appearance and language
-
-**Settings → Appearance** offers 22 Omarchy themes, matching code highlighting and 72 wallpapers, alongside system-installed fonts and custom accent colors. **Settings → General → Settings language** can follow the system language or use English or Simplified Chinese. The workspace stays in English. See [docs/themes.md](docs/themes.md).
-
-## Data and privacy
-
-- **Where your data is.** Each mentor's library, courses, notes, Soul and memory are files in its own folder, `~/Loci/<mentor>/`; you and the mentor can edit them, and Loci shows the change. Conversations, reading progress, highlights and an index of those folders are in `loci.db` (SQLite) inside the app data folder `com.loci.desktop`: `~/Library/Application Support/com.loci.desktop` on macOS, `~/.local/share/com.loci.desktop` on Linux, `%APPDATA%\com.loci.desktop` on Windows. Pasted images live beside it. Your project files stay in your own folders. PDF annotations do not rewrite the PDF.
-- **What Loci sends over the network.** Loci has no analytics or crash reporting. An installed Loci checks GitHub Releases for updates a little after launch and every six hours, and asks before installing one; a build from source does not update itself. Beyond what the agent CLIs do with their own providers, Loci fetches the title and icon of public links shown in a conversation (loopback and private addresses are refused).
-- **The command line.** `loci` in a terminal can drive Loci while it runs. It needs a token that only your user account can read, and it can be turned off in **Settings → General → Command line**.
-- **What agents can do.** An agent runs with your user's permissions. The permission mode only decides when Loci asks you before the CLI acts, so choose it with the same care as in the CLI itself. **Full access**, what a mentor starts with, allows commands, edits and supported MCP confirmations without prompts.
-
-To report a vulnerability, see [SECURITY.md](SECURITY.md).
-
-## Platform support
-
-| Platform | State |
-| --- | --- |
-| macOS (Apple Silicon) | Primary development and manual testing platform |
-| Linux | Builds, passes the test suite and runs; checked on Arch Linux ARM during development, and less used than macOS |
-| Windows | Platform code and an installer configuration exist, but it has not been built or tried by the maintainers |
-
-CI builds and tests the Rust and web code on Linux and macOS (see [.github/workflows/ci.yml](.github/workflows/ci.yml)).
-
-## Development
-
-```sh
-npm ci
-npm run app:dev       # Loci Dev with hot reload
-npm run check         # what CI runs: Vitest, tsc, cargo fmt, clippy and cargo test
-npm run build         # type-check and build the web bundle
-```
-
-| Command | What it does |
-| --- | --- |
-| `npm test` / `npm run test:watch` | Vitest, once or in watch mode |
-| `npm run check:web` | Vitest and `tsc --noEmit` |
-| `npm run check:rust` | `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` |
-| `npm run set-version -- 0.1.1` | Bump the version in every file that carries it |
-| `npm run tauri:stable` | Loci Dev without reloading when files change (no hot reload, no Rust rebuild) |
-| `npm run install:local` | Build this checkout as the installed Loci and put it in `/Applications` (macOS) |
-| `npm run release -- 0.2.0` | Release a version from main (maintainers; see [docs/releasing.md](docs/releasing.md)) |
-
-Layout:
-
-```text
-src/                      React front end
-  app/                    window shell: the mentor rail, keys and session wiring
-  features/               mentor workspace, sessions, agents, learning, notes, settings, skills, ...
-  integrations/harness/   agent CLI protocol core and the ten CLI adapters
-  platform/tauri/         thin wrappers over Tauri commands
-  shared/                 UI components, hooks and utilities
-src-tauri/                Rust back end: processes, SQLite stores, app control
-  resources/              the app CLI's help and command manifest
-docs/                     guides and design records
-scripts/                  releases, version bump and live protocol probes
-```
-
-[docs/architecture.md](docs/architecture.md) explains how the pieces fit together. Contributions are welcome; please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+A build from source is **Loci Dev**: a separate app with its own data folder, so it runs beside an installed Loci without touching it. [CONTRIBUTING.md](CONTRIBUTING.md) covers the workflow, [docs/architecture.md](docs/architecture.md) how the pieces fit, and [docs/releasing.md](docs/releasing.md) the release builds.
 
 ## Documentation
 
-The [documentation index](docs/README.md) lists every guide. [docs/roadmap.md](docs/roadmap.md) (in Chinese) sets out the positioning and the stages ahead.
+- [Command line](docs/cli.md): `loci` drives a running Loci from a terminal — mentors, courses, sources, the reader
+- [Architecture](docs/architecture.md): processes, agent CLI adapters, storage, trust boundaries
+- In Chinese: [reading with your mentor](docs/learning.md), [remote access](docs/remote-deploy.md), [themes](docs/themes.md), [roadmap](docs/roadmap.md)
+- [Everything else](docs/README.md)
 
 ## License
 
-Loci is released under the [MIT License](LICENSE). It is derived from an earlier MIT-licensed project; [NOTICE](NOTICE) records the origin, revisions and trademarks. Loci is independent of the makers of the agent CLIs it runs.
+[MIT](LICENSE). Loci is derived from an earlier MIT-licensed project; [NOTICE](NOTICE) records its origin and trademarks. Loci is independent of the makers of the agent CLIs it runs.

@@ -1,186 +1,117 @@
 <div align="center">
 
-<img src="src-tauri/icons/128x128@2x.png" width="112" alt="Loci logo" />
+<img src="src-tauri/icons/128x128@2x.png" width="112" alt="Loci" />
 
 # Loci
 
 **给工程师的 AI 原生学习工作台。**
 
-**一位常驻导师，一个主题。它带来一手材料——文档、规范、论文和源码——陪你一起读。**
+一个主题，一位常驻导师。它找来一手材料——文档、规范、论文、源码——排成课程，陪你一起读。
 
+[**下载 macOS 版**](https://github.com/Umupa/Loci/releases/latest) · [Linux](https://github.com/Umupa/Loci/releases/latest) · [更新日志](CHANGELOG.md)
+
+[![Release](https://img.shields.io/github/v/release/Umupa/Loci?color=2b2b2b&label=release)](https://github.com/Umupa/Loci/releases/latest)
 [![CI](https://github.com/Umupa/Loci/actions/workflows/ci.yml/badge.svg)](https://github.com/Umupa/Loci/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2b2b2b.svg)](LICENSE)
 
 [English](README.md) · 简体中文
 
 </div>
 
----
+<br />
 
-Loci 是一个本地优先的桌面学习工作台，用 agent 学习技术主题。每位导师都是一个长期存在的 agent，对应一个主题：一份 Soul（长期指令）、一份记忆，以及对话旁的资料库，存放课程、文档和笔记。导师采集一手材料，陪你一起读。它通过你已经登录的 agent CLI 运行——Claude Code 或 Codex——不需要另配模型 API key，也没有自己的服务端。数据留在你的机器上，主要是一个本地 SQLite 数据库。
+![导师的工作区：左边是课程，中间是带两处高亮的课文，右边是导师在回答一段高亮的原文](docs/images/readme/workspace.png)
 
-> [!NOTE]
-> Loci 还是早期软件（v0.1）。界面和数据模型都可能变化。各系统上试过什么、没试过什么，见[平台支持](#平台支持)。
+## 从原文学，导师就在旁边
 
-## 学习循环
+多数 AI 学习工具靠模型记得的东西作答。Loci 从原文出发。告诉导师你想学什么，它问清需要知道的，找来官方文档、规范、论文或代码仓库，把值得读的段落排成一门短课。你在 Loci 里读原文，选中一句就能问，回答会引用它依据的那段原文。
 
-1. **定下目标。** 告诉导师你想学什么。它一次只问一个问题，直到目标和你的基础都清楚。
-2. **采集一手材料。** 它查找官方文档、规范、论文和源码，放在课程能指向的地方。
-3. **编排课程。** 它把材料排成章节和课时，每一课指向要读的段落、页面或文件。
-4. **阅读与提问。** 你在 Loci 里读原文。可以把文档、PDF、网页或对话中的选段附在问题上，回答可以引用这段原文。
-5. **沉淀理解。** 在对话旁写笔记。导师把进度记进记忆，下次从你停下的地方继续。
+它跑在你已经在用的 agent CLI 上——Claude Code 或 Codex——不用配 API key，不用注册账号。所有东西都留在你的电脑上。
 
-## 导师
+## 有什么
 
-点击导师栏上的 **+**（或按 ⌘T）新建。每位导师负责一个主题。可以从 **Mentor**、**Lens** 或空白 agent 开始。**Mentor** 模板一次一个问题地和你对齐目标，采集一手材料，编排成课程，并在阅读过程中检验你的理解。**Lens** 接收一个仓库，克隆它，写一页速览，并把值得读的文件编成代码导览课。
+**一个主题一位导师。** 每位导师都是长期存在的 agent，有自己的 Soul（怎么教）、记忆、资料库和对话。学一个领域用 **Mentor** 模板；想看懂一个仓库用 **Lens**：几分钟写出一页简报，想深入时再建一门读码课。
 
-每位导师都有：
+**读原文，不是读摘要。** 每一课指向要读的段落、页码或代码行：文档的一节、PDF 的几页、仓库里的一个函数，并钉在写课时的那个 commit 上。代码阅读器支持 Go、Rust、C、TypeScript、JavaScript 和 Python 的符号大纲、跳转定义和查找引用。
 
-- **Soul。** 长期指令：它怎么教、对你有什么期待、要避开什么。可以在导师设置的 **Soul** 页编辑，也可以让导师在对话里修改。
-- **记忆。** 导师通过内置的 `app` CLI 维护的事实和主题笔记。它们是 Loci 数据目录里的文件，换模型也不会丢。
-- **资料库。** 对话旁的课程、文档和笔记。课程是你读的内容，文档是课程指向的材料，笔记由你编辑。导师通过 `app documents.write` 和 `app courses.write` 保存文档与课程。
-- **一段持续的对话。** 每位导师只有一段对话。旁边打开的课、文档或笔记会作为上下文一起传给导师，所以“这里”“这段”指的就是你正在读的内容。
-- **卡片。** 回复可以带可点选的提问、可打开的文档、清单、思维导图、课程、代码 diff 或 Mermaid 图。
+**划线即笔记。** 在课文、PDF、对话里选中文字，按 **H** 高亮，按 **⌘L** 提问。高亮上可以写下想法，一门课的所有高亮汇在一页。
 
-导师通过 CLI 动手：它可以在你的机器上克隆仓库、运行代码、准备实验。导师默认使用 **Full access**，不会在每一步停下来询问；可以在导师自己的设置里修改，或在 **设置 → 你的导师** 里修改新导师的默认权限。
+**看得见的课程。** 阅读区空着时，课程是一张地图：读完的是墨色，在读的是灰色，下一课围着等高线。
 
-导师做什么由提示词决定，所以效果取决于它背后的模型。
+![学习地图：每一课是一块地，读完的是墨色，下一课围着等高线](docs/images/readme/learning-map.png)
 
-每位导师有自己的工作台：左边是当前课程的目录和资料库，中间是阅读区，右边是对话。打开任何东西（课文、资料、笔记、文件，或导师发起的会话）都只替换阅读区，不开新标签页或新窗口。切回一位导师时，会回到它上次显示的课文。⌘K 查找导师或资料库里的内容，⌘1–9 切换导师，⌘W 关闭阅读区，⌘B 和 ⇧⌘B 折叠资料库和对话。
+**用你的语言学。** 导师按你选的学习语言（简体中文或 English）写作，并翻译课程要读的章节，原文和译文可以对照着读。
 
-## 阅读与来源
+**换一台 Mac 接着学。** 远程访问让另一台电脑用一次性配对码连上这台的工作区，导师、课程、高亮都在。
 
-问题可以附带选段。在文件里选中代码或文字，选择 **Ask agent** 或 **Add to chat**；在 PDF 或对话中选中段落；或者添加网页来源，填写 URL 并贴上原文（Loci 不会为这个功能抓取网页）。选段会随消息显示，并以文本形式交给 CLI。
+**安静的阅读。** 正文用 Literata 和霞鹜文楷，代码用 JetBrains Mono，全部内置。有 Loci Paper、Loci Ink 两套纸墨主题，外加 22 套 Omarchy 主题。
 
-PDF 支持高亮。选中文字后可以选择 **Ask agent** 提问，或选择 **Highlight** 保存高亮。点击高亮可以写笔记、提问、打开关联讨论或删除。阅读器工具栏的 **PDF annotations** 列出全部高亮。高亮、笔记和讨论保存在本地 `loci.db`，不会改写 PDF。页面需要已有文本层；目前不做 OCR。详见 [docs/learning.md](docs/learning.md)。
+## 开始使用
 
-## 安装
+1. **下载**：在 [Releases](https://github.com/Umupa/Loci/releases/latest) 下载 macOS 的 `.dmg`（Apple 芯片或 Intel）或 Linux 的 `.AppImage`、`.deb`。安装包还没有公证，macOS 第一次打开时需要确认。之后 Loci 会自己更新。
+2. **登录 agent CLI**：安装 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 或 [Codex](https://github.com/openai/codex) 并登录，Loci 会在 `PATH` 里找到它。
+3. **新建导师**：点 **+**（⌘T），告诉它你想学什么。
 
-### 下载
+| 按键 | |
+| --- | --- |
+| ⌘T | 新建导师 |
+| ⌘K | 查找导师、课程、资料或笔记 |
+| ⌘1–9 | 切换导师 |
+| H / ⌘L | 高亮选中的文字 / 就它提问 |
+| ⌘B / ⇧⌘B | 收起资料库 / 对话 |
+| ⌘[ / ⌘] | 阅读区后退 / 前进 |
 
-macOS（Apple 芯片与 Intel）和 Linux（x64）的安装包在 [Releases](https://github.com/Umupa/Loci/releases) 页面，安装后的 Loci 会从那里检查并安装更新（**设置 → 通用 → 关于**）。发布版没有经过 macOS 公证，第一次打开时 macOS 会要求你确认。每个版本的改动见 [CHANGELOG.md](CHANGELOG.md)。
+## Agent CLI
 
-### 从源码构建
+Loci 启动你电脑上安装的 CLI，用它的协议对话，自己不跑模型。每个 CLI 用自己的登录，每位导师各选模型和权限模式。
 
-需要：
+| CLI | |
+| --- | --- |
+| Claude Code、Codex | 支持 |
+| Antigravity、Pi、Cursor、Grok Build、OpenCode、omp、fx、Hermes Agent | 实验性 |
 
-| 工具 | 版本 | 说明 |
-| --- | --- | --- |
-| Node.js | 20.19+ 或 22.12+（推荐 24，`.nvmrc` 已固定） | 下限由 Vite 7 决定 |
-| Rust | stable，带 `rustfmt` 和 `clippy` | `rustup component add rustfmt clippy` |
-| 平台依赖 | 见 [Tauri 前置条件](https://v2.tauri.app/start/prerequisites/) | macOS 需要 Xcode 命令行工具；Linux 需要 WebKitGTK 4.1 等；Windows 需要 MSVC 和 WebView2 |
+导师默认 **Full access**，克隆仓库、运行代码时不用每一步都停下来问你。可以在设置里按导师修改，或修改新导师的默认值。
+
+## 你的数据
+
+- **文件归你。** 每位导师是一个文件夹 `~/Loci/<导师>/`：资料、课程、笔记、Soul 和记忆都是普通文件，你和导师都能改。对话、进度和高亮在本地的 SQLite 数据库里。PDF 不会被改写。
+- **没有遥测。** Loci 没有统计和崩溃上报。它会向 GitHub Releases 检查更新，并抓取对话里公开链接的标题和图标。远程访问经端到端加密的中继，只在你打开时才启用。
+- **agent 以你的身份行事。** CLI 以你的用户权限运行，权限模式只决定 Loci 什么时候先问你。
+
+报告安全漏洞见 [SECURITY.md](SECURITY.md)。
+
+## 平台
+
+| | |
+| --- | --- |
+| macOS（Apple 芯片、Intel） | 主要平台 |
+| Linux（x64） | 能构建、测试通过，日常用得少 |
+| Windows | 还没构建和试过 |
+
+Loci 还年轻，迭代很快，每个版本的变化见[更新日志](CHANGELOG.md)。
+
+## 从源码构建
+
+需要 Node.js 20.19+ 或 22.12+、稳定版 Rust，以及对应平台的 [Tauri 依赖](https://v2.tauri.app/start/prerequisites/)。
 
 ```sh
 git clone https://github.com/Umupa/Loci.git
 cd Loci
 npm ci
-npm run app:dev        # 带热更新运行 Loci Dev
-npm run tauri build    # 为当前平台构建安装包
+npm run app:dev    # Loci Dev，热重载
+npm run check      # CI 跑的检查：Vitest、tsc、cargo fmt、clippy、cargo test
 ```
 
-从源码运行的是 **Loci Dev**：一个独立的应用，数据目录也独立，可以和安装的 Loci 同时运行，不会碰到你的笔记和 agent。`npm run install:local`（macOS）把当前代码构建成正式的 Loci 并安装到 `/Applications`。详见 [docs/releasing.md](docs/releasing.md)。
-
-macOS 上可以用 `./script/build_and_run.sh --verify` 构建并启动 Loci Dev 的 Release 包（它会先停掉从本仓库构建的、正在运行的实例；`--help` 列出调试和日志选项）。
-
-### 开始第一个会话之前
-
-- 安装并登录 Claude Code 或 Codex。这两个是受支持的 CLI。Loci 会在 `PATH` 和常见安装位置里找它们。**Settings → Agent CLIs** 可以指定具体的可执行文件、默认模型，以及隐藏你不用的 CLI。
-
-## 支持的 agent CLI
-
-Loci 启动你机器上已安装的 CLI，说它的协议，自己不运行模型。Claude Code 和 Codex 是受支持的两个。其余八个适配保留，属于实验性。
-
-| CLI | 状态 |
-| --- | --- |
-| Claude Code、Codex | 受支持：对话、工具与权限 |
-| Antigravity、Pi、Cursor、Grok Build、OpenCode、omp、fx、Hermes Agent | 实验性：可以对话并选择模型和权限。提问、计划、工具详情等还能显示什么，取决于 CLI 上报什么 |
-
-每个 CLI 继续使用自己的登录和设置。每个会话可以选择模型和权限模式：Supervised、Auto-accept edits、Auto 或 Full access。
-
-需要知道的细节：
-
-- Antigravity 使用独立的 ACP server。遇到认证提示时，请点击应用内的 **Sign in to Antigravity**；交互式 `agy` 的登录不能替代它。
-- fx 暂不支持附件。
-- 未安装的 CLI 仍会显示在设置里，并附安装提示。
-
-## 斜杠命令
-
-命令只在输入框开头生效。
-
-| 命令 | 作用 |
-| --- | --- |
-| `/btw` | 就当前 turn 问一个只读的旁问 |
-| `/draft` | 保存这条消息，但不启动 agent |
-| `/compact` | 总结较早的对话内容，腾出上下文空间 |
-| `/mcp` | 为这条消息查找合适的 MCP 服务 |
-
-## 命令行
-
-终端里的 `loci` 可以操作正在运行的 Loci：创建导师并和它对话，写入资料、课程和笔记，在阅读区打开它们。测试和 Loci 之外的 agent 都用它。**Settings → 通用 → 命令行** 可以把它加到 PATH，也可以关闭它。见 [docs/cli.md](docs/cli.md)。
-
-## 外观与语言
-
-**Settings → Appearance** 提供 22 个 Omarchy 主题、配套代码高亮和 72 张壁纸，也支持系统已安装的字体和自定义强调色。**Settings → 通用 → 设置页语言** 可以跟随系统语言，或选择简体中文、英文，立即生效。工作区保持英文。见 [docs/themes.md](docs/themes.md)。
-
-## 数据与隐私
-
-- **数据在哪。** 会话、笔记、来源引用和 PDF 批注都在应用数据目录 `com.loci.desktop` 下的 `loci.db`（SQLite）里：macOS 是 `~/Library/Application Support/com.loci.desktop`，Linux 是 `~/.local/share/com.loci.desktop`，Windows 是 `%APPDATA%\com.loci.desktop`。粘贴的图片放在它旁边。你的项目文件仍在你自己的文件夹里，批注不会改写原 PDF。
-- **Loci 会联网做什么。** Loci 没有统计，也没有崩溃上报。安装版会在启动后不久检查 GitHub Releases 上的更新，之后每六小时一次，安装前会征求你的同意；从源码构建的版本不会自己更新。除了 agent CLI 自己和各自的 provider 通信之外，Loci 会读取对话中公开链接的标题和图标（回环和内网地址会被拒绝）。
-- **命令行。** Loci 运行时，终端里的 `loci` 可以操作它。它需要一个只有你的用户账户能读取的令牌，可以在 **Settings → 通用 → 命令行** 关闭。
-- **agent 能做什么。** agent 以你的用户权限运行。权限模式只决定 Loci 在 CLI 行动之前是否询问你，所以选它要像在 CLI 里一样谨慎。导师默认使用的 **Full access** 会让命令、编辑和受支持的 MCP 确认都不再询问。
-
-报告安全漏洞请见 [SECURITY.md](SECURITY.md)。
-
-## 平台支持
-
-| 平台 | 状态 |
-| --- | --- |
-| macOS（Apple Silicon） | 主要的开发和手动测试平台 |
-| Linux | 能构建、通过测试套件并运行；开发中在 Arch Linux ARM 上检查过，使用得比 macOS 少 |
-| Windows | 有平台代码和安装包配置，但维护者没有构建或试过 |
-
-CI 在 Linux 和 macOS 上构建并测试 Rust 与 Web 代码，见 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
-
-## 开发
-
-```sh
-npm ci
-npm run app:dev       # 带热更新运行 Loci Dev
-npm run check         # CI 运行的全部检查：Vitest、tsc、cargo fmt、clippy 和 cargo test
-npm run build         # 类型检查并构建 Web 包
-```
-
-| 命令 | 作用 |
-| --- | --- |
-| `npm test` / `npm run test:watch` | Vitest，单次或监听模式 |
-| `npm run check:web` | Vitest 和 `tsc --noEmit` |
-| `npm run check:rust` | `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test` |
-| `npm run set-version -- 0.1.1` | 一次更新所有带版本号的文件 |
-| `npm run tauri:stable` | 文件变化时不会重载的 Loci Dev（无热更新，不重编 Rust） |
-| `npm run install:local` | 把当前代码构建成安装版 Loci 并放进 `/Applications`（macOS） |
-| `npm run release -- 0.2.0` | 从 main 发布一个版本（维护者，见 [docs/releasing.md](docs/releasing.md)） |
-
-目录结构：
-
-```text
-src/                      React 前端
-  app/                    窗口外壳与工作区组合
-  features/               mentor（导师工作台）、sessions、agents、learning、notes、settings、skills 等
-  integrations/harness/   agent CLI 协议核心和十个 CLI 适配器
-  platform/tauri/         对 Tauri 命令的薄封装
-  shared/                 UI 组件、hooks 和工具函数
-src-tauri/                Rust 后端：进程、SQLite 存储、应用控制
-  resources/              应用 CLI 的帮助与命令清单
-docs/                     指南和设计记录
-scripts/                  版本号更新和真实协议探测
-```
-
-各部分如何配合，见 [docs/architecture.md](docs/architecture.md)。欢迎贡献，请先读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+源码构建出来的是 **Loci Dev**：一个独立的应用，有自己的数据目录，可以和已安装的 Loci 同时运行、互不影响。工作流程见 [CONTRIBUTING.md](CONTRIBUTING.md)，整体结构见 [docs/architecture.md](docs/architecture.md)，发布构建见 [docs/releasing.md](docs/releasing.md)。
 
 ## 文档
 
-[文档索引](docs/README.md)列出了全部指南。[docs/roadmap.md](docs/roadmap.md) 说明定位和后续阶段。
+- [和导师一起阅读](docs/learning.md)：选中提问、高亮与笔记、阅读位置
+- [远程访问](docs/remote-deploy.md)：配对，以及部署自己的中继
+- [主题](docs/themes.md)、[路线图](docs/roadmap.md)
+- 英文：[命令行](docs/cli.md)（`loci` 在终端里操作运行中的 Loci）、[架构](docs/architecture.md)
+- [全部文档](docs/README.md)
 
-## 许可证
+## 许可
 
-Loci 以 [MIT 许可证](LICENSE)发布。它派生自一个更早的 MIT 许可项目；来源、版本和商标声明见 [NOTICE](NOTICE)。Loci 与它能运行的各 agent CLI 的厂商相互独立。
+[MIT](LICENSE)。Loci 派生自一个更早的 MIT 项目，来源和商标见 [NOTICE](NOTICE)。Loci 与它调用的各个 agent CLI 的厂商无关。
