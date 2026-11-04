@@ -238,6 +238,24 @@ jobs:
             fi
           done
 
+      # The build jobs write each update as an API address, the only kind a
+      # draft has. Anonymous API calls are limited to 60 an hour per address,
+      # and a shared proxy runs out, so the update fails with 403. The
+      # release's own download links have no such limit.
+      - name: Point latest.json at the download links
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.prepare.outputs.release-id }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --paginate \
+            --jq '[.[] | {key: .url, value: .name}] | from_entries' > names.json
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          jq --arg base "$base" --slurpfile names names.json \
+            '.platforms |= map_values(.url = ($base + "/" + ($names[0][.url] // error("no asset for \(.url)"))))' \
+            latest.json > latest.fixed.json
+          mv latest.fixed.json latest.json
+          gh release upload "$GITHUB_REF_NAME" latest.json --clobber --repo "$GITHUB_REPOSITORY"
+
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
