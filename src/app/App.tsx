@@ -584,6 +584,7 @@ function Workspace(boot: BootWorkspace) {
     onModelChange: intents["session.changeModel"], onModelSettingsChange: intents["session.changeModelSettings"], onRuntimeModeChange: intents["session.changeRuntimeMode"],
     onSubmit: intents["session.submit"], onSaveDraft: intents["session.saveDraft"], onRemoveDraft: intents["session.removeDraft"],
     onStop: intents["session.stop"], onCompactContext: intents["session.compact"],
+    onNewConversation: (sessionId: string) => { const agent = agentForSession(sessionId); if (agent) void agents.reset(agent.id); },
     onDeleteQueuedMessage: intents["session.queue.delete"], onEditQueuedMessage: intents["session.queue.edit"],
     onQueuedMessageEditingChange: intents["session.queue.editing"], onSteerQueuedMessage: intents["session.queue.steer"], onResumeQueue: intents["session.queue.resume"],
     onUsageLimitResume: intents["session.usageLimit.resume"], onUsageLimitResumeAtReset: intents["session.usageLimit.resumeAtReset"], onUsageLimitDismiss: intents["session.usageLimit.dismiss"],

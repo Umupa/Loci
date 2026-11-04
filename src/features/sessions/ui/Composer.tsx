@@ -140,6 +140,7 @@ import { getComposerMcpTags,setComposerMcpTags } from "../model/draftCache";
 import { consumeDraftCommand,DRAFT_COMMAND } from "../model/draftCommand";
 import type { LastTurnRecall } from "../model/editLastTurn";
 import { isMcpCommand,MCP_COMMAND } from "../model/mcpCommand";
+import { isNewCommand,NEW_COMMAND } from "../model/newCommand";
 import {
 mcpContextText,
 mcpTagParts,
@@ -241,6 +242,8 @@ type Props = {
   onSaveDraft?: (text: string, attachments: Attachment[], context?: LearningMessageContext) => boolean | void;
   onStop?: () => void;
   onCompactContext?: () => boolean;
+  /** Starts the conversation over; absent where there is no agent to reset. */
+  onNewConversation?: () => void;
   onDeleteQueuedMessage?: (messageId: string) => void;
   onEditQueuedMessage?: (messageId: string, text: string) => void;
   onQueuedMessageEditingChange?: (messageId?: string) => void;
@@ -520,6 +523,7 @@ export function Composer({
   onSaveDraft,
   onStop,
   onCompactContext,
+  onNewConversation,
   onDeleteQueuedMessage,
   onEditQueuedMessage,
   onQueuedMessageEditingChange,
@@ -646,11 +650,12 @@ export function Composer({
   const slashItems = useMemo(() => [
     MCP_COMMAND,
     ...(canSaveDraft && onSaveDraft ? [DRAFT_COMMAND] : []), COMPACT_COMMAND,
+    ...(onNewConversation ? [NEW_COMMAND] : []),
     ...(supportsBtwHarness(harness) ? [BTW_COMMAND] : []),
     ...skills.filter((skill) => skill.kind === "native" ||
-      ![COMPACT_COMMAND.name,
+      ![COMPACT_COMMAND.name, NEW_COMMAND.name,
         MCP_COMMAND.name, DRAFT_COMMAND.name, BTW_COMMAND.name].includes(skill.name)),
-  ], [harness, skills, canSaveDraft, onSaveDraft]);
+  ], [harness, skills, canSaveDraft, onSaveDraft, onNewConversation]);
   const skillLimit = hasNativeCommands(harness)
     ? Number.POSITIVE_INFINITY
     : undefined;
@@ -1495,6 +1500,19 @@ export function Composer({
       syncHasValue("", []);
       return;
     }
+    if (onNewConversation && isNewCommand(value)) {
+      if (!ref.current) return;
+      pasteGenerationRef.current += 1;
+      ref.current.value = "";
+      ref.current.style.height = "auto";
+      setDraft("");
+      onDraftChange?.("");
+      setSlash(null);
+      setMention(null);
+      syncHasValue("", attachmentsRef.current);
+      onNewConversation();
+      return;
+    }
     if (isCompactCommand(value)) {
       if (!onCompactContext?.()) return;
       if (!ref.current) return;
@@ -1595,7 +1613,8 @@ export function Composer({
       e.key === "Enter" &&
       !e.shiftKey &&
       (isCompactCommand(e.currentTarget.value) ||
-        isMcpCommand(e.currentTarget.value))
+        isMcpCommand(e.currentTarget.value) ||
+        (onNewConversation && isNewCommand(e.currentTarget.value)))
     ) {
       e.preventDefault();
       submit(e.currentTarget.value);
@@ -1648,7 +1667,8 @@ export function Composer({
       e.key === "Enter" &&
       !e.shiftKey &&
       (isCompactCommand(e.currentTarget.value) ||
-        isMcpCommand(e.currentTarget.value))
+        isMcpCommand(e.currentTarget.value) ||
+        (onNewConversation && isNewCommand(e.currentTarget.value)))
     ) {
       e.preventDefault();
       submit(e.currentTarget.value);

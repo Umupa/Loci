@@ -206,6 +206,7 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
     }),
     onSaveDraft: taken(intents["session.saveDraft"]), onRemoveDraft: taken(intents["session.removeDraft"]),
     onStop: intents["session.stop"], onCompactContext: taken(intents["session.compact"]),
+    onNewConversation: (sessionId: string) => { const agent = agents.find((entry) => entry.sessionId === sessionId); if (agent) resetAgent(agent.id); },
     onDeleteQueuedMessage: intents["session.queue.delete"], onEditQueuedMessage: intents["session.queue.edit"],
     onQueuedMessageEditingChange: intents["session.queue.editing"], onSteerQueuedMessage: intents["session.queue.steer"], onResumeQueue: intents["session.queue.resume"],
     onUsageLimitResume: intents["session.usageLimit.resume"], onUsageLimitResumeAtReset: intents["session.usageLimit.resumeAtReset"], onUsageLimitDismiss: intents["session.usageLimit.dismiss"],

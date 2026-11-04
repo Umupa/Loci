@@ -122,6 +122,7 @@ export type SessionPaneProps = {
   onRemoveDraft: (sessionId: string, draftBlockId: string) => boolean | void;
   onStop: (sessionId: string) => void;
   onCompactContext: (sessionId: string) => boolean;
+  onNewConversation?: (sessionId: string) => void;
   onDeleteQueuedMessage: (sessionId: string, messageId: string) => void;
   onEditQueuedMessage: (
     sessionId: string,
@@ -232,6 +233,7 @@ export const SessionPane = memo(function SessionPane({
   onSubmit,
   onStop,
   onCompactContext,
+  onNewConversation,
   onDeleteQueuedMessage,
   onEditQueuedMessage,
   onQueuedMessageEditingChange,
@@ -545,6 +547,7 @@ export const SessionPane = memo(function SessionPane({
       onBtwCommand={btw.openWith}
       onStop={() => onStop(session.id)}
       onCompactContext={() => onCompactContext(session.id)}
+      onNewConversation={onNewConversation ? () => onNewConversation(session.id) : undefined}
       queuedMessages={session.queuedMessages}
       queueStatus={session.queueStatus}
       onDeleteQueuedMessage={(messageId) =>
