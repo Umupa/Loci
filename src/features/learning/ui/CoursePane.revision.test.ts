@@ -185,7 +185,7 @@ it("supports keyboard lesson navigation and dismisses course contents without ch
   await act(async () => contents.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));
   const popup = () => document.querySelector('[role="dialog"][aria-label="Course contents"]');
   expect(document.activeElement?.getAttribute("aria-label")).toBe("service, Not started");
-  expect(popup()?.textContent).toContain("1 / 2 read");
+  expect(popup()?.querySelector("progress")?.getAttribute("aria-label")).toBe("Course completion, 1 / 2 read");
   await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })));
   expect(document.activeElement?.getAttribute("aria-label")).toBe("pod, Read");
   await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })));

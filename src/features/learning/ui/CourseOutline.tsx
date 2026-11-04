@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Check } from "../../../shared/ui/icons";
 import { COURSES_CHANGED_EVENT, courseItems, loadCourse, PROGRESS_EVENT, type CourseChangedDetail, type ProgressDetail, type CourseWithProgress, type LearningStatus } from "../model/course";
 import "./CoursePane.css";
 
@@ -14,23 +13,19 @@ export function statusLabel(status: LearningStatus, reading: boolean): string {
   return reading ? READING_STATUS[status] : LEARNING_STATUS[status];
 }
 
-export function StatusMark({ status }: { status: LearningStatus }) {
-  return <span className={`course-status course-status--${status}`} aria-hidden="true">{status === "mastered" ? <Check className="size-2.5" strokeWidth={3} /> : null}</span>;
-}
-
 /** Chapters and lessons with their read marks; selecting one opens it in the reader. */
 export function CourseOutline({ course, activeId, onSelect, id, hidden, className }: { course: CourseWithProgress; activeId: string | null; onSelect: (id: string) => void; id?: string; hidden?: boolean; className?: string }) {
   const items = courseItems(course.data);
   const reading = course.data.engine === "reading";
   const mastered = items.filter((item) => course.progress.get(item.id) === "mastered").length;
-  const row = (item: { id: string; title: string }, index: number) => {
+  const row = (item: { id: string; title: string }) => {
     const status = course.progress.get(item.id) ?? "untouched";
-    return <li key={item.id}><button type="button" className={`course-pane__nav-item${activeId === item.id ? " course-pane__nav-item--active" : ""}`} aria-current={activeId === item.id ? "step" : undefined} aria-label={`${item.title}, ${statusLabel(status, reading)}`} onClick={() => onSelect(item.id)}><StatusMark status={status} /><span className="course-pane__nav-label"><span className="course-pane__step-number">{String(index + 1).padStart(2, "0")}</span>{item.title}</span></button></li>;
+    // One line each, on an ink spine: a filled dot once read, the mentor's dot where the reader is.
+    return <li key={item.id}><button type="button" className={`course-pane__nav-item course-pane__nav-item--${status}${activeId === item.id ? " course-pane__nav-item--active" : ""}`} aria-current={activeId === item.id ? "step" : undefined} aria-label={`${item.title}, ${statusLabel(status, reading)}`} title={item.title} onClick={() => onSelect(item.id)}><span className="course-pane__node" aria-hidden="true" /><span className="course-pane__nav-label">{item.title}</span></button></li>;
   };
-  // Lessons are numbered through the whole course, in the order shown.
-  let number = 0;
-  return <nav id={id} hidden={hidden} className={`course-pane__nav${className ? ` ${className}` : ""}`} aria-label="Course navigation"><div className="course-pane__nav-intro">{reading ? null : <span>Build Your Own</span>}<p>{mastered} / {items.length} {reading ? "read" : "mastered"}</p><progress max={items.length} value={mastered} aria-label="Course completion" /></div>{course.data.engine === "reading"
-    ? course.data.chapters.map((chapter, at) => <section key={at} className="course-pane__chapter" aria-label={chapter.title}><h3 className="course-pane__chapter-title"><span className="course-pane__chapter-dot" aria-hidden="true" />{chapter.title}</h3><ol>{chapter.lessons.map((lesson) => row(lesson, number++))}</ol></section>)
+  const done = `${mastered} / ${items.length} ${reading ? "read" : "mastered"}`;
+  return <nav id={id} hidden={hidden} className={`course-pane__nav${className ? ` ${className}` : ""}`} aria-label="Course navigation"><div className="course-pane__nav-intro" title={done}>{reading ? null : <span>Build Your Own</span>}<progress max={items.length} value={mastered} aria-label={`Course completion, ${done}`} /></div>{course.data.engine === "reading"
+    ? course.data.chapters.map((chapter, at) => <section key={at} className="course-pane__chapter" aria-label={chapter.title}><h3 className="course-pane__chapter-title">{chapter.title}</h3><ol>{chapter.lessons.map(row)}</ol></section>)
     : <ol>{items.map(row)}</ol>}</nav>;
 }
 

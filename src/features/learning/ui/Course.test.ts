@@ -164,12 +164,12 @@ it("refreshes same-id updated courses without losing a still-valid selection", a
   expect(nav("Borg").getAttribute("aria-current")).toBe("step"); expect(container.textContent).toContain("Revised chapter");
 });
 
-it("groups lessons under their chapters and numbers them through the course in the order written", async () => {
+it("groups lessons under their chapters in the order written, without numbers", async () => {
   await act(async () => root.render(pane("domain")));
   const chapters = [...container.querySelectorAll("nav section")];
   expect(chapters.map((chapter) => chapter.querySelector("h3")?.textContent)).toEqual(["Workloads", "Papers"]);
-  expect(chapters.map((chapter) => [...chapter.querySelectorAll("button")].map((item) => item.textContent))).toEqual([["01Container", "02Pod"], ["03Borg"]]);
-  expect(container.textContent).toContain("0 / 3 read");
+  expect(chapters.map((chapter) => [...chapter.querySelectorAll("button")].map((item) => item.textContent))).toEqual([["Container", "Pod"], ["Borg"]]);
+  expect(container.querySelector("progress")?.getAttribute("aria-label")).toBe("Course completion, 0 / 3 read");
 });
 
 it("shows a lesson's source itself, from its section, and starts reading when a lesson is opened", async () => {
