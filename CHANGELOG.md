@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.8.9] - 2026-11-04
+
 ### Changed
 
 - **A course's contents read as one ink line.** Each lesson is a dot on it, filled once read; the lesson open is the mentor's dot with its title highlighted. Lessons keep to one line and lose their numbers.
@@ -351,7 +353,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.8...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.9...HEAD
+[0.8.9]: https://github.com/Umupa/Loci/compare/v0.8.8...v0.8.9
 [0.8.8]: https://github.com/Umupa/Loci/compare/v0.8.7...v0.8.8
 [0.8.7]: https://github.com/Umupa/Loci/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/Umupa/Loci/compare/v0.8.5...v0.8.6
