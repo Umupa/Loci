@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.8.10] - 2026-11-04
+
 ### Fixed
 
 - **Updates no longer fail with "403 Forbidden" behind a busy network address.** An update downloads from the release's own links, which have no hourly limit.
@@ -357,7 +359,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.9...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.8.10...HEAD
+[0.8.10]: https://github.com/Umupa/Loci/compare/v0.8.9...v0.8.10
 [0.8.9]: https://github.com/Umupa/Loci/compare/v0.8.8...v0.8.9
 [0.8.8]: https://github.com/Umupa/Loci/compare/v0.8.7...v0.8.8
 [0.8.7]: https://github.com/Umupa/Loci/compare/v0.8.6...v0.8.7
