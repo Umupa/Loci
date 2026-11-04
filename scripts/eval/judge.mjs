@@ -9,10 +9,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const RUBRIC = ["firstHand", "courseStructure", "grounding", "firstTenMinutes"];
-/** Rubric items a scenario opts into; code tours and a learning path are the v0.4 sandbox additions. */
+export const RUBRIC = ["firstHand", "courseStructure", "grounding", "firstTenMinutes", "firstPrinciples"];
+/** Rubric items a scenario opts into: code used as evidence, and a learning path. */
 export const RUBRIC_EXTENSIONS = {
-  codeTours: "Do the code-tour lessons show the real call path, are they pinned to a commit (`commit` or `repos/<repo>@<sha>:path`), and is each line range accurate for what the lesson says? 1 = no code tours, unpinned lessons, or ranges that do not show the claim; 3 = some tours pinned and mostly accurate, but the path skips entry points or jumps between unrelated files; 5 = every code lesson pinned, its lines accurate, and the lessons follow the call path in reading order.",
+  codeEvidence: "When the course or the answers show code, is it evidence for a mechanism? Few code lessons, each opening the lines that keep an invariant or make a design decision, pinned to a commit (`commit` or `repos/<repo>@<sha>:path`), with a range that shows exactly that and a lesson that says what the lines guarantee. A course whose design is clear from docs and papers needs no code lesson. 1 = code walked through line by line or along a call path for its own sake, or unpinned lessons and ranges that do not show the claim; 3 = code mostly used as evidence, but some lessons narrate an implementation or ranges are loose; 5 = every code lesson is pinned evidence for one invariant or decision, and the course would lose an argument without it.",
   path: "Is the learning path progressive: 3–5 short courses in an order where each builds on the last, with no overlap and with prerequisites that name earlier courses? 1 = no path, or one course dressed up as a path; 3 = a path exists but courses overlap or repeat material, or the order does not build; 5 = a clear progression from one distinct focus to the next, prerequisites shown, no repeated lessons.",
 };
 /** The rubric keys one scenario asks for. */

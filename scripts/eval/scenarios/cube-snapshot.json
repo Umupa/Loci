@@ -2,7 +2,7 @@
   "id": "cube-snapshot",
   "template": "repo-lens",
   "acceptance": "v0.4",
-  "rubric": ["codeTours"],
+  "rubric": ["codeEvidence"],
   "seed": {
     "repos": [
       "TencentCloud/CubeSandbox"
@@ -29,7 +29,6 @@
   "expect": {
     "minLessons": 6,
     "maxLessons": 12,
-    "minCodeLessonsPerCourse": 1,
     "minFirstHand": 2,
     "firstSourceWithinSeconds": 300,
     "compareLessons": 0

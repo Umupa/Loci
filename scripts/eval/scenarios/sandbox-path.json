@@ -2,7 +2,7 @@
   "id": "sandbox-path",
   "template": "learning-guide",
   "acceptance": "v0.4",
-  "rubric": ["codeTours", "path"],
+  "rubric": ["codeEvidence", "path"],
   "seed": {
     "repos": [
       "TencentCloud/CubeSandbox",
@@ -44,7 +44,6 @@
   "expect": {
     "pathCourses": [3, 5],
     "lessonsPerCourse": [6, 12],
-    "minCodeLessonsPerCourse": 1,
     "minFirstHand": 10,
     "firstSourceWithinSeconds": 300,
     "compareLessons": 1,

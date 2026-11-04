@@ -191,7 +191,7 @@ describe("the v0.4 sandbox checks", () => {
     const courses = ["c1", "c2", "c3"].map((id) => ({ id, title: id, chapters: [{ title: "Code", lessons: lessons(id) }] }));
     return {
       scenario: {
-        id: "sandbox-path", template: "learning-guide", acceptance: "v0.4", rubric: ["codeTours", "path"], firstPartyDomains: ["docs.kernel.org"],
+        id: "sandbox-path", template: "learning-guide", acceptance: "v0.4", rubric: ["codeEvidence", "path"], firstPartyDomains: ["docs.kernel.org"],
         expect: { pathCourses: [3, 5], lessonsPerCourse: [6, 12], minCodeLessonsPerCourse: 1, minFirstHand: 10, firstSourceWithinSeconds: 300, compareLessons: 1, tolerateMissingCompare: true },
       },
       sources: Array.from({ length: 10 }, (_, index) => ({ id: `s${index}`, title: `Source ${index}`, kind: "source", sourceUrl: `https://docs.kernel.org/${index}`, version: "6.12", body: "word ".repeat(300) })),
@@ -328,7 +328,7 @@ describe("the v0.4 sandbox checks", () => {
 });
 
 describe("the judge and the summary", () => {
-  const verdict = { scores: { firstHand: { score: 4, reason: "docs" }, courseStructure: { score: 3, reason: "ok" }, grounding: { score: 2, reason: "few links" }, firstTenMinutes: { score: 5, reason: "fast" } }, worst: "Cite more." };
+  const verdict = { scores: { firstHand: { score: 4, reason: "docs" }, courseStructure: { score: 3, reason: "ok" }, grounding: { score: 2, reason: "few links" }, firstTenMinutes: { score: 5, reason: "fast" }, firstPrinciples: { score: 4, reason: "builds up" } }, worst: "Cite more." };
 
   it("reads a verdict out of plain text, a fenced block or a CLI's JSON envelope, and rejects incomplete ones", () => {
     expect(parseVerdict(`Here you go:\n\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``)).toEqual(verdict);
@@ -354,22 +354,22 @@ describe("the judge and the summary", () => {
   it("adds the code-tour and path rubric items only when a scenario asks for them", () => {
     const commit = "a".repeat(40);
     expect(rubricFor({})).toEqual(RUBRIC);
-    expect(rubricFor({ rubric: ["codeTours", "path", "unknown"] })).toEqual([...RUBRIC, "codeTours", "path"]);
-    const keys = rubricFor({ rubric: ["codeTours", "path"] });
+    expect(rubricFor({ rubric: ["codeEvidence", "path", "unknown"] })).toEqual([...RUBRIC, "codeEvidence", "path"]);
+    const keys = rubricFor({ rubric: ["codeEvidence", "path"] });
     const prompt = judgePrompt({
-      scenario: { opening: "Sandboxes", template: "learning-guide", learner: { background: "Systems engineer" }, rubric: ["codeTours", "path"] },
+      scenario: { opening: "Sandboxes", template: "learning-guide", learner: { background: "Systems engineer" }, rubric: ["codeEvidence", "path"] },
       checks: {}, sources: [], courses: [], turns: [],
       codeTours: [{ course: "c1", lesson: "l1", title: "Entry point", file: "repos/x/a.go", commit, lines: [1, 2], state: "current", excerpt: "func main() {}" }],
     });
-    expect(prompt).toContain("**codeTours**");
+    expect(prompt).toContain("**codeEvidence**");
     expect(prompt).toContain("**path**");
     expect(prompt).toContain("Entry point");
-    expect(prompt).toContain('"codeTours":{"score":1');
+    expect(prompt).toContain('"codeEvidence":{"score":1');
     expect(prompt).not.toMatch(/\{\{\w+\}\}/);
     const verdict = { scores: Object.fromEntries(keys.map((key: string) => [key, { score: 4, reason: key }])), worst: "Pin every lesson." };
     expect(parseVerdict(JSON.stringify(verdict), keys)).toMatchObject({ worst: "Pin every lesson." });
     expect(Object.keys(parseVerdict(JSON.stringify(verdict), keys)!.scores)).toEqual(keys);
-    expect(RUBRIC_EXTENSIONS.codeTours).toMatch(/call path/);
+    expect(RUBRIC_EXTENSIONS.codeEvidence).toMatch(/evidence for a mechanism/);
     expect(RUBRIC_EXTENSIONS.path).toMatch(/progressive/);
   });
 
@@ -418,10 +418,10 @@ describe("the judge and the summary", () => {
       firstTenMinutes: { firstReplySeconds: 10, firstSourceSeconds: 120, courseSeconds: 200, mentorTurnsBeforeFirstSource: 0, questionsPerReply: [], maxQuestionsInOneReply: 0, nudges: 0 },
       failures: [], sandbox,
     };
-    const verdict = { scores: Object.fromEntries(["firstHand", "courseStructure", "grounding", "firstTenMinutes", "codeTours", "path"].map((key) => [key, { score: 4, reason: key }])), worst: "Pin more." };
+    const verdict = { scores: Object.fromEntries(["firstHand", "courseStructure", "grounding", "firstTenMinutes", "firstPrinciples", "codeEvidence", "path"].map((key) => [key, { score: 4, reason: key }])), worst: "Pin more." };
     const text = summaryMarkdown(meta, [{ scenario: { id: "sandbox-path", template: "learning-guide" }, score, judge: { verdict } }]);
     expect(text).toContain("Sandbox acceptance (v0.4)");
-    expect(text).toContain("| Code tours | Path |");
+    expect(text).toContain("| Code evidence | Path |");
     expect(text).toContain("c1=6");
     expect(text).toContain("Acceptance: pass");
     // A mixed run keeps the old scenarios' four scores and shows a dash for the new columns.

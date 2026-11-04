@@ -1,12 +1,12 @@
 // summary.md for one evaluation run: a table across scenarios, then what each
 // scenario got wrong, so a template change can be judged against the last run.
 
-const RUBRIC_LABEL = { firstHand: "First-hand", courseStructure: "Course", grounding: "Grounding", firstTenMinutes: "First 10 min", codeTours: "Code tours", path: "Path" };
+const RUBRIC_LABEL = { firstHand: "First-hand", courseStructure: "Course", grounding: "Grounding", firstTenMinutes: "First 10 min", firstPrinciples: "First principles", codeEvidence: "Code evidence", path: "Path" };
 /** The rubric keys any judged result in this run has, base first. */
 function rubricColumns(results) {
   const seen = new Set();
   for (const result of results) for (const key of Object.keys(result.judge?.verdict?.scores ?? {})) seen.add(key);
-  return Object.keys(RUBRIC_LABEL).filter((key) => ["codeTours", "path"].includes(key) ? seen.has(key) : true);
+  return Object.keys(RUBRIC_LABEL).filter((key) => ["codeEvidence", "path"].includes(key) ? seen.has(key) : true);
 }
 const dash = (value) => (value === null || value === undefined ? "—" : String(value));
 const seconds = (value) => (value === null || value === undefined ? "—" : value < 120 ? `${value}s` : `${Math.round(value / 6) / 10}m`);

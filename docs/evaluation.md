@@ -83,7 +83,7 @@ Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyD
 | Citations | `loci://source/…#section/quote`, `loci://file/…#L` and absolute-path links in replies: the target exists, the section is a heading, the quote is found, the lines are inside; whether the probe answer cites anything |
 | First ten minutes | seconds to first reply, first first-hand source and first course; mentor turns before the first source; question marks per reply; nudges |
 | Failures | timeouts, failed turns, a mentor asking for permission in full access |
-| Sandbox acceptance (v0.4) | learning path shape, pinned code tours and their pins/ranges, first-hand sources with address and version, time to first source, comparison lessons when present, and `library check` problems; only for scenarios with `"acceptance": "v0.4"` (see below) |
+| Sandbox acceptance (v0.4) | learning path shape, code lessons pinned, with their pins and ranges, first-hand sources with address and version, time to first source, comparison lessons when present, and `library check` problems; only for scenarios with `"acceptance": "v0.4"` (see below) |
 
 **Rubric** (`scripts/eval/judge-prompt.md`, filled with the checks, sources, courses and transcript, run in print mode from an empty folder). 1–5 each with a one-line reason, plus the single change that would help most:
 
@@ -91,6 +91,7 @@ Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyD
 - **courseStructure**: a progressive, complete path with precise anchors, not an overview.
 - **grounding**: answers quote and link the sources, separate source from inference, are correct (probe weighted most).
 - **firstTenMinutes**: reading quickly, few questions at a time.
+- **firstPrinciples**: the judgement to choose and evaluate a design rather than knowledge of code: from the problem and the underlying mechanism upward, shallow to deep, each choice with its cost and alternative, invariants and failure modes, where it fits and the magnitudes.
 
 ## Sandbox acceptance (v0.4)
 
@@ -98,8 +99,8 @@ v0.4 is accepted on the sandbox topic: a broad goal at kernel level, a learning 
 
 | Scenario | What it measures |
 | --- | --- |
-| `sandbox-path` | Mentor with the broad goal ("from the kernel up to CubeSandbox, SPACE and E2B runtime"), a learning path of 3–5 courses, at least 10 first-hand sources, code tours in every course |
-| `cube-snapshot` | Lens on CubeSandbox with only the repository seeded: 6–12 lessons, a pinned code tour along snapshot/restore |
+| `sandbox-path` | Mentor with the broad goal ("from the kernel up to CubeSandbox, SPACE and E2B runtime"), a learning path of 3–5 courses, at least 10 first-hand sources; any code lesson pinned and accurate |
+| `cube-snapshot` | Lens on CubeSandbox with only the repository seeded: 6–12 lessons on snapshot/restore's design; any code lesson pinned and accurate |
 
 ### Repositories on this machine
 
@@ -137,9 +138,9 @@ Artifacts per scenario: `path.json`, `pins.json`, `library.json`, `seed.json` (m
 
 ### Rubric
 
-A scenario may add `"rubric": ["codeTours", "path"]`. The judge then scores two extra items and returns them with the base four:
+A scenario may add `"rubric": ["codeEvidence", "path"]`. The judge then scores two extra items and returns them with the base four:
 
-- **codeTours** — the code tours show the real call path, are pinned to a commit, and each line range is accurate for what the lesson says.
+- **codeEvidence** — code appears as evidence for a mechanism: few lessons, each pinned and opening the lines that keep an invariant or make a decision, saying what they guarantee. A walk through an implementation scores low, and a course clear from docs and papers needs no code lesson. (It replaced `codeTours`, which rewarded following the call path, on 2026-11-05.)
 - **path** — 3–5 short courses build on each other, with no overlap and prerequisites that name earlier courses.
 
 The prompt keeps the extra items and output shape in one place (`scripts/eval/judge-prompt.md` with `{{rubricExtra}}` and `{{outputShape}}`), filled by `rubricFor(scenario)`; old scenarios keep the four-item verdict, so their scores stay comparable.
