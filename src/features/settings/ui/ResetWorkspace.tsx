@@ -1,7 +1,9 @@
 import { useRef, useState } from "react";
 import { ask } from "../../../platform/dialog";
 import { t, useLocale } from "../../../shared/i18n/locale";
+import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
 import { resetWorkspace } from "../model/workspaceReset";
+import { Row } from "./SettingsLayout";
 
 export function ResetWorkspace() {
   useLocale();
@@ -25,11 +27,10 @@ export function ResetWorkspace() {
       setBusy(false);
     }
   };
-  return <div className="py-3">
-    <p className="mb-3 text-[12px] text-content/50">{t("Delete all mentors, conversations, courses, sources, notes and reading history. All settings are kept. This cannot be undone.")}</p>
-    <button type="button" disabled={busy} onClick={() => void reset()} className="rounded-lg border border-red-500/30 px-3 py-1.5 text-[12px] text-red-500 hover:bg-red-500/10 disabled:opacity-50">
+  return <Row label={t("Delete all mentors, conversations, courses, sources, notes and reading history. All settings are kept. This cannot be undone.")}
+    status={error ? <span role="alert" className="text-red-400">{error}</span> : null}>
+    <SecondaryButton danger disabled={busy} onClick={() => void reset()}>
       {busy ? t("Resetting workspace…") : t("Reset workspace")}
-    </button>
-    {error && <p role="alert" className="mt-2 text-[12px] text-red-500">{error}</p>}
-  </div>;
+    </SecondaryButton>
+  </Row>;
 }

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { readFileSync } from "node:fs";
 import { act, createElement, type ComponentProps, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -246,4 +247,10 @@ it("replaces the Soul with a template only after the warning is confirmed", asyn
   await pick();
   expect(saves).toEqual([expect.objectContaining({ agent: "agent", text: lens.soul, expectedHash: "s" })]);
   expect(field().value).toBe(lens.soul);
+});
+
+it("lets the General page grow past the scroller instead of squeezing its cards", () => {
+  // In the scroller's flex column a shrinking page clipped each card's last row.
+  const css = readFileSync("src/features/agents/ui/AgentSurface.css", "utf8");
+  expect(css).toMatch(/\.agent-settings-general \{ flex: 1 0 auto; \}/);
 });

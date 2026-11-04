@@ -280,7 +280,7 @@ export function SkillsPage({
             </div>
 
             {adding ? (
-              <div className="mb-4 overflow-hidden rounded-lg border border-content/10 bg-content/[0.03]">
+              <div className="mb-4 overflow-hidden rounded-xl border border-content/10 bg-content/3">
                 <CreateSkillForm
                   key={cwd}
                   query={query}
@@ -311,9 +311,9 @@ export function SkillsPage({
             ) : skills == null ? (
               <p className="text-[12px] text-content/45">{t("Loading skills…")}</p>
             ) : (
-              <div className="overflow-hidden rounded-lg border border-content/10">
+              <div className="overflow-hidden rounded-xl border border-content/10 bg-content/3">
                 {filtered.length === 0 ? (
-                  <p className="px-3 py-3 text-[12px] text-content/45">
+                  <p className="px-4 py-3.5 text-[12px] text-content/45">
                     {skills.length === 0
                       ? t("No skills yet. Add skill creates a starter SKILL.md.")
                       : t("No matching skills")}
@@ -324,7 +324,7 @@ export function SkillsPage({
                     return (
                       <div
                         key={skill.path}
-                        className={`border-b border-content/5 px-3 py-2 last:border-b-0 ${previewSkill?.path === skill.path ? "bg-content/5" : ""} ${
+                        className={`border-b border-content/5 px-4 py-2.5 last:border-b-0 ${previewSkill?.path === skill.path ? "bg-content/5" : ""} ${
                           disabled ? "opacity-50" : ""
                         }`}
                       >

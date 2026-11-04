@@ -12,6 +12,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 - **Mentors remember on their own.** They save what is worth keeping (your goal, what you know, what you skip, corrections and decisions) after replying, look in memory before answering about earlier talks, and know the local date and time every turn. Habit runs save too.
 
+### Fixed
+
+- **Settings line up again.** Reset workspace sits in a padded row like every other setting, a mentor's settings no longer cut off the last row of each card, and the MCP and Skills lists use the same card, padding and buttons as the rest of Settings.
+
 ## [0.8.10] - 2026-11-04
 
 ### Fixed

@@ -59,3 +59,8 @@ it("surfaces command failure and leaves local data alone", async () => {
   expect(localStorage.getItem("loci.recentProjects")).toBe("original");
   expect(container.querySelector("button")!.disabled).toBe(false);
 });
+it("lays out as a settings row, inset from the card's edge", () => {
+  const row = container.querySelector(".settings-row");
+  expect(row?.className).toContain("px-4");
+  expect(row?.querySelector("button")?.textContent).toBe("Reset workspace");
+});

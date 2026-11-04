@@ -13,6 +13,7 @@ import {
 import { revealPath } from "../../../platform/tauri/fs";
 import { HarnessIcon } from "../../sessions/ui/HarnessIcon";
 import { Modal } from "../../../shared/ui/Modal";
+import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
 import { Popover } from "../../../shared/ui/Popover";
 import { LAYER } from "../../../shared/lib/layers";
 import {
@@ -417,23 +418,19 @@ function McpConnections({
       data-setting-id="mcp-servers"
       className="space-y-6"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-sm font-semibold">{t("MCP connections")}</h2>
-          </div>
-          <p className="mt-1 text-xs text-content/55">
+          <h2 className="text-[13px] font-semibold text-content">{t("MCP connections")}</h2>
+          <p className="mt-1 text-[12px] text-content/50">
             {t("Configured servers for Loci.")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <SecondaryButton
             onClick={() => void refresh()}
             disabled={loading || busy !== null}
-            className="flex items-center gap-1.5 rounded-md border border-stroke px-3 py-1.5 text-xs hover:bg-content/5 disabled:opacity-50"
           >
             <RefreshCw className="size-3.5" />
-            {t("Refresh")}</button>
+            {t("Refresh")}</SecondaryButton>
           <button
             type="button"
             aria-label={
@@ -448,7 +445,7 @@ function McpConnections({
                 : t("Showing available providers")
             }
             onClick={() => setShowAllProviders(!showAllProviders)}
-            className={`grid size-7 place-items-center rounded-md border border-content/10 hover:bg-content/5 ${showAllProviders ? "bg-selection text-content" : "text-content/55"}`}
+            className={`grid size-7 place-items-center rounded-md border border-content/10 hover:bg-content/10 ${showAllProviders ? "bg-selection text-content" : "text-content/55"}`}
           >
             <ListFilter className="size-3.5" />
           </button>
@@ -456,7 +453,7 @@ function McpConnections({
             type="button"
             aria-label={t("Add MCP server")}
             onClick={() => setAddOpen(true)}
-            className="grid size-7 place-items-center rounded-md border border-stroke hover:bg-content/5"
+            className="grid size-7 place-items-center rounded-md border border-content/10 text-content/70 hover:bg-content/10 hover:text-content"
           >
             <Plus className="size-3.5" />
           </button>
@@ -503,14 +500,14 @@ function McpConnections({
           {t("Claude connection status unavailable:")}{" "}{claudeError}
         </p>
       ) : null}
+      <div className="overflow-hidden rounded-xl border border-content/10 bg-content/3">
       {loading ? (
-        <p className="text-sm text-content/55">{t("Checking servers…")}</p>
+        <p className="px-4 py-3.5 text-[12px] text-content/45">{t("Checking servers…")}</p>
       ) : visible.length === 0 ? (
-        <p className="text-sm text-content/55">
+        <p className="px-4 py-3.5 text-[12px] text-content/45">
           {t("No MCP servers configured for this provider.")}</p>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-content/10 bg-content/3">
-          {visible.map((server) => (
+          visible.map((server) => (
             <div
               key={`${server.provider}:${server.scope}:${server.configPath}:${server.name}`}
               className="flex flex-wrap items-center gap-3 border-b border-content/5 px-4 py-3.5 last:border-b-0"
@@ -537,13 +534,11 @@ function McpConnections({
               </div>
               {server.transport &&
               !["stdio", "local", "ws"].includes(server.transport) ? (
-                <button
-                  type="button"
+                <SecondaryButton
                   disabled={busy !== null}
                   onClick={() => void login(server)}
-                  className="rounded-md border border-stroke px-2 py-1 text-xs hover:bg-content/5 disabled:opacity-50"
                 >
-                  {t("Sign in")}</button>
+                  {t("Sign in")}</SecondaryButton>
               ) : null}
               {server.provider === "claude" ? (
                 <>
@@ -567,31 +562,27 @@ function McpConnections({
                       />
                     </div>
                   ) : null}
-                  <button
-                    type="button"
+                  <SecondaryButton
                     disabled={busy !== null}
                     onClick={() => void remove(server)}
-                    className="rounded-md border border-stroke px-2 py-1 text-xs hover:bg-content/5 disabled:opacity-50"
                   >
-                    {t("Remove")}</button>
+                    {t("Remove")}</SecondaryButton>
                 </>
               ) : (
-                <button
-                  type="button"
+                <SecondaryButton
                   onClick={() =>
                     void revealPath(server.configPath).catch((cause) =>
                       setError(String(cause)),
                     )
                   }
-                  className="rounded-md border border-stroke px-2 py-1 text-xs hover:bg-content/5"
                 >
-                  {t("Show config")}</button>
+                  {t("Show config")}</SecondaryButton>
               )}
             </div>
-          ))}
-        </div>
+          ))
       )}
-      <p className="text-xs text-content/45">
+      </div>
+      <p className="text-[12px] text-content/45">
         {t("Claude Code status comes from its CLI. Other providers show configured entries. Sign in opens your browser when supported.")}</p>
       {addOpen ? (
         <AddServerModal

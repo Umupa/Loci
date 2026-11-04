@@ -4,6 +4,7 @@ import { transport } from "../../../platform/transport";
 import { ask } from "../../../platform/dialog";
 import { copyText } from "../../../platform/tauri/clipboard";
 import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
+import { BlockRow, Group, Row } from "./SettingsLayout";
 import { ChevronDown } from "../../../shared/ui/icons";
 
 /** What `remote_settings_get` and `remote_settings_set` return. */
@@ -826,80 +827,6 @@ export function RemoteAccessSettings() {
         )}
       </Group>
     </>
-  );
-}
-
-function Group({
-  id,
-  title,
-  description,
-  action,
-  children,
-}: {
-  /** Matches a `SETTINGS_INDEX` id when the whole card is the search target. */
-  id?: string;
-  title: ReactNode;
-  description?: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  useLocale();
-  return (
-    <section id={id ? `setting-${id}` : undefined} data-setting-id={id} className="pt-8 first:pt-0">
-      <div className="flex items-end gap-4 pb-2.5">
-        <div className="min-w-0 flex-1">
-          <h2 title={description} className="text-[13px] font-semibold text-content">{title}</h2>
-        </div>
-        {action ? <div className="shrink-0 pb-0.5">{action}</div> : null}
-      </div>
-      {children ? (
-        <div className="overflow-hidden rounded-xl border border-content/10 bg-content/3">{children}</div>
-      ) : null}
-    </section>
-  );
-}
-
-/** A setting: its name (what it does is the hover text) and its control; `status` is what must show now. */
-function Row({
-  label,
-  description,
-  status,
-  children,
-}: {
-  label: ReactNode;
-  description?: string;
-  status?: ReactNode;
-  children?: ReactNode;
-}) {
-  useLocale();
-  return (
-    <div className="settings-row flex min-h-12 items-center gap-6 border-b border-content/5 px-4 py-2.5 last:border-b-0">
-      <div className="min-w-0 flex-1" title={description}>
-        <div className="text-[13px] text-content">{label}</div>
-        {status ? <p role="status" className="mt-0.5 text-[12px] leading-relaxed text-content/50">{status}</p> : null}
-      </div>
-      <div className="settings-row-control flex min-w-0 max-w-[60%] shrink-0 flex-wrap items-center justify-end gap-2">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function BlockRow({
-  label,
-  description,
-  children,
-}: {
-  label: ReactNode;
-  description?: string;
-  children: ReactNode;
-}) {
-  useLocale();
-  return (
-    <div className="border-b border-content/5 px-4 py-3.5 last:border-b-0">
-      <div title={description} className="text-[13px] text-content">{label}</div>
-      <div className="mt-3">{children}</div>
-    </div>
   );
 }
 

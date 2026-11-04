@@ -29,6 +29,7 @@ import { HeartbeatPicker } from "./HeartbeatPicker";
 import { LanguagePicker } from "./LanguagePicker";
 import { ColorPicker, FacePicker, ProjectsField } from "./agentPanelParts";
 import { Popover } from "../../../shared/ui/Popover";
+import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
 import { ask, pickFolder, pickSavePath } from "../../../platform/dialog";
 import { AGENT_TEMPLATES, type AgentTemplate } from "../templates";
 
@@ -157,9 +158,9 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         </div>
         <h4 className="agent-setting-group-title">Conversation</h4>
         <div className="agent-setting-group">
-          <SettingRow label="Reset conversation" description="Clear messages. Soul, memory and habits stay."><button type="button" onClick={onReset} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-danger hover:bg-danger/8">Reset</button></SettingRow>
+          <SettingRow label="Reset conversation" description="Clear messages. Soul, memory and habits stay."><SecondaryButton danger onClick={onReset}>Reset</SecondaryButton></SettingRow>
           <ResetDefaultsRow agent={agent} />
-          <SettingRow label="Delete mentor" description="Move its folder to the Trash and delete its conversation, highlights and progress. Folders you gave it stay."><button type="button" onClick={onDelete} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-danger hover:bg-danger/8">Delete</button></SettingRow>
+          <SettingRow label="Delete mentor" description="Move its folder to the Trash and delete its conversation, highlights and progress. Folders you gave it stay."><SecondaryButton danger onClick={onDelete}>Delete</SecondaryButton></SettingRow>
         </div>
         {error ? <p role="alert" className="mt-3 text-xs text-danger">{error}</p> : null}
       </div> : <div className="agent-settings-file-page">
@@ -199,8 +200,8 @@ function WorkdirRow({ agent, chatCwd }: { agent: Agent; chatCwd?: string }) {
   return <SettingRow label="Working folder" description="Cloned source and experiments go here." status={status}>
     <div className="flex min-w-0 items-center gap-1.5">
       <span className="min-w-0 truncate text-[12px] text-content/70" title={shown}>{shown ? prettyCwd(shown) : "…"}</span>
-      {shown ? <button type="button" onClick={() => void revealPath(shown)} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Reveal</button> : null}
-      <button type="button" onClick={change} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Change…</button>
+      {shown ? <SecondaryButton onClick={() => void revealPath(shown)}>Reveal</SecondaryButton> : null}
+      <SecondaryButton onClick={change}>Change…</SecondaryButton>
     </div>
   </SettingRow>;
 }
@@ -223,8 +224,8 @@ function FolderRow({ agent, folder }: { agent: Agent; folder: string }) {
   return <SettingRow label="Mentor folder" description="Its library, courses, notes, Soul and memory, as files you and it can edit." status={status}>
     <div className="flex min-w-0 items-center gap-1.5">
       <span className="min-w-0 truncate text-[12px] text-content/70" title={folder}>{prettyCwd(folder)}</span>
-      <button type="button" onClick={() => void revealPath(folder)} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Reveal</button>
-      <button type="button" onClick={exportZip} className="shrink-0 rounded-md border border-stroke px-2 py-1 text-xs text-content/70 hover:bg-content/6">Export…</button>
+      <SecondaryButton onClick={() => void revealPath(folder)}>Reveal</SecondaryButton>
+      <SecondaryButton onClick={exportZip}>Export…</SecondaryButton>
     </div>
   </SettingRow>;
 }
@@ -239,7 +240,7 @@ function ResetDefaultsRow({ agent }: { agent: Agent }) {
     await resetAgentDefaults(agent.id).then(() => setError(undefined), (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason)));
   };
   return <SettingRow label="Reset soul and name" description="Its soul and name go back to the defaults. Conversation, files and memory stay." status={error}>
-    <button type="button" onClick={() => void reset()} className="rounded-md border border-stroke px-3 py-1.5 text-xs text-danger hover:bg-danger/8">Reset</button>
+    <SecondaryButton danger onClick={() => void reset()}>Reset</SecondaryButton>
   </SettingRow>;
 }
 
