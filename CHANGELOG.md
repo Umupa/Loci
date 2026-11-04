@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-04
+
 ### Changed
 
 - **Mentors teach from first principles.** Mentor and Lens start from the problem a system solves and the constraint that shapes it, establish the mechanism underneath before what is built on it, and go from shallow to deep: problem, principle, mechanism, implementation, then edge cases and trade-offs. Courses open with the foundation and build lesson on lesson; answers make one point from its root, give each design choice its cost and its alternative, and go down a layer when you are stuck. Lens's brief starts with the problem and the core idea, and its code tour goes from the core types outward.
@@ -381,7 +383,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/Umupa/Loci/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Umupa/Loci/compare/v0.8.10...v0.9.0
 [0.8.10]: https://github.com/Umupa/Loci/compare/v0.8.9...v0.8.10
 [0.8.9]: https://github.com/Umupa/Loci/compare/v0.8.8...v0.8.9
