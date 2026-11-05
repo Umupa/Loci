@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-05
+
 ### Changed
 
 - **`/new` keeps your conversation.** It starts the mentor over with a fresh context instead of deleting the chat: a "New conversation" divider marks the spot, everything above it stays readable and searchable, and the next turn begins with only the Soul and memory. It no longer asks first, since nothing is lost. A mentor's settings and `loci mentors reset` do the same. Only deleting a mentor deletes its conversation.
@@ -387,7 +389,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/Umupa/Loci/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/Umupa/Loci/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Umupa/Loci/compare/v0.8.10...v0.9.0
 [0.8.10]: https://github.com/Umupa/Loci/compare/v0.8.9...v0.8.10
