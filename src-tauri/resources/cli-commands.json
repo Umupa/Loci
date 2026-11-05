@@ -1418,11 +1418,11 @@
     },
     {
       "name": "mentors.reset",
-      "summary": "Clear a mentor's conversation; its soul, memory and library stay.",
+      "summary": "Start a mentor's conversation over, as /new does: the chat stays, the next turn starts a fresh context.",
       "callers": [
         "external"
       ],
-      "destructive": true,
+      "destructive": false,
       "fields": [
         {
           "name": "mentor",
@@ -1430,13 +1430,6 @@
           "help": "The mentor, by id or name",
           "required": true,
           "positional": true
-        },
-        {
-          "name": "yes",
-          "type": "boolean",
-          "help": "Do not ask (Loci Dev and QA builds only)",
-          "required": false,
-          "positional": false
         }
       ]
     },

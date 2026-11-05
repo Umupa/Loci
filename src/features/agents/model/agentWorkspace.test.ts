@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { newSession, type Session } from "../../sessions/model/session";
+import { newSession, type Block, type Session } from "../../sessions/model/session";
 import { createAgent, findAgent, removeAgent, saveAgentDefaults, saveAgentSessionId } from "./agent";
 import { loadNewAgentAccess, markAgentAccessMigrated, saveNewAgentAccess } from "./agentAccess";
 import { planAgentContext, recordAgentContext } from "./agentFiles";
-import { defaultsFromSession, ensureAgentSession, resetAgentSession, sessionFromDefaults } from "./agentWorkspace";
+import { loadAgentRotation } from "./agentRotation";
+import { clearAgentContext, ensureAgentSession, sessionFromDefaults } from "./agentWorkspace";
 
 beforeEach(() => {
   const stored = new Map<string, string>();
@@ -90,25 +91,6 @@ it("keeps a saved conversation in the folder it started in", async () => {
   expect(again.workdir).not.toHaveBeenCalled();
 });
 
-it("moves a chat into the workdir when it is reset", async () => {
-  const { id } = createAgent();
-  const session = (await ensureAgentSession(id, host()))!;
-  const fresh = await resetAgentSession(session, {
-    workdir: async () => "/home/me/Loci/ember",
-    stop: async () => undefined,
-    remove: async () => undefined,
-    replace: () => undefined,
-  });
-  expect(fresh.cwd).toBe("/home/me/Loci/ember");
-  const kept = await resetAgentSession(fresh, {
-    workdir: async () => { throw new Error("gone"); },
-    stop: async () => undefined,
-    remove: async () => undefined,
-    replace: () => undefined,
-  });
-  expect(kept.cwd).toBe("/home/me/Loci/ember");
-});
-
 it("starts a new chat from the mentor's stored defaults, even when the catalog does not know the model yet", async () => {
   const { id } = createAgent();
   saveAgentDefaults(id, {
@@ -131,30 +113,6 @@ it("starts a new chat from the mentor's stored defaults, even when the catalog d
   // A saved chat is resumed as it is, without being re-seeded.
   const again = host([fresh]);
   expect(await ensureAgentSession(id, again)).toBe(fresh);
-});
-
-it("resets a mentor's chat to its stored defaults, and to the chat's own settings without them", async () => {
-  const withDefaults = createAgent();
-  saveAgentDefaults(withDefaults.id, {
-    provider: "codex", model: "codex:test", mode: "auto", effort: "high", modelSettings: { effort: "high" },
-  });
-  const chat = (await ensureAgentSession(withDefaults.id, host()))!;
-  expect(defaultsFromSession(chat).modelSettings).toEqual({ effort: "high" });
-  const fresh = await resetAgentSession(chat, {
-    stop: async () => undefined,
-    remove: async () => undefined,
-    replace: () => undefined,
-  });
-  expect(fresh).toMatchObject({ harness: "codex", model: "codex:test", runtimeMode: "auto" });
-
-  const plain = createAgent();
-  const own = (await ensureAgentSession(plain.id, host()))!;
-  const kept = await resetAgentSession(own, {
-    stop: async () => undefined,
-    remove: async () => undefined,
-    replace: () => undefined,
-  });
-  expect(kept).toMatchObject({ harness: own.harness, model: own.model, runtimeMode: own.runtimeMode });
 });
 
 it("builds a session from defaults without a catalog entry", () => {
@@ -192,48 +150,51 @@ it("opens nothing for an agent removed meanwhile", async () => {
   expect(await ensureAgentSession("missing", host())).toBeUndefined();
 });
 
-it("resets the chat alone: a fresh conversation that is told who it is again", async () => {
+function clearing(session: Session, workdir?: () => Promise<string>) {
+  const order: string[] = [];
+  let current = session;
+  const run = () => clearAgentContext(current, {
+    ...(workdir ? { workdir } : {}),
+    stop: async () => void order.push("stop"),
+    forget: async () => void order.push("forget"),
+    update: (_id, change) => { current = change(current); },
+  }, 42);
+  return { order, run, current: () => current };
+}
+
+it("starts over in the same chat: the messages stay, a divider follows, and the provider is dropped", async () => {
   const { id } = createAgent();
-  const session = {
-    ...(await ensureAgentSession(id, host()))!,
-    model: "codex:other",
-    modelSettings: { effort: "high" },
-  };
-  saveAgentDefaults(id, {
-    provider: "codex", model: "codex:other", mode: "full-access", effort: "high", modelSettings: { effort: "high" },
-  });
+  const said: Block[] = [
+    { id: "u1", role: "user", text: "What is a sandbox?" },
+    { id: "a1", role: "assistant", text: "An isolated place to run code." },
+  ];
+  const session: Session = { ...(await ensureAgentSession(id, host()))!, blocks: said, providerSessionId: "thread-1" };
   const files = { soulHash: "s", memoryHash: "m" };
   recordAgentContext(session.id, "thread-1", files);
-  expect(planAgentContext(session.id, "thread-1", files).soul).toBe(false);
-  const order: string[] = [];
-  const fresh = await resetAgentSession(session, {
-    stop: async () => void order.push("stop"),
-    remove: async () => void order.push("remove"),
-    replace: () => void order.push("replace"),
-  });
-  expect(order).toEqual(["stop", "remove", "replace"]);
-  expect(fresh).toMatchObject({
-    cwd: "/home/me",
-    model: "codex:other",
-    modelSettings: { effort: "high" },
-    runtimeMode: "full-access",
-    blocks: [],
-  });
-  expect(findAgent(id)?.sessionId).toBe(fresh.id);
-  expect(planAgentContext(session.id, "thread-1", files).soul).toBe(true);
+  const clear = clearing(session);
+  expect(await clear.run()).toBe(true);
+  expect(clear.order).toEqual(["stop", "forget"]);
+  const after = clear.current();
+  expect(after.id).toBe(session.id);
+  expect(after.blocks.slice(0, 2)).toEqual(said);
+  expect(after.blocks[2]).toMatchObject({ role: "divider", startedAt: 42 });
+  expect(after.providerSessionId).toBeUndefined();
+  expect(findAgent(id)?.sessionId).toBe(session.id);
+  // The fresh provider is told who it is again, with no brief of the chat above.
+  expect(planAgentContext(session.id, undefined, files).soul).toBe(true);
+  expect(loadAgentRotation(session.id)).toMatchObject({ afterBlockId: after.blocks[2].id, earlier: [] });
+  // A second `/new` with nothing said since adds nothing.
+  expect(await clearing(after).run()).toBe(false);
 });
 
-it("keeps the conversation when it could not be deleted", async () => {
+it("moves the chat into the workdir when it starts over, and keeps its folder when that cannot be made", async () => {
   const { id } = createAgent();
-  const session = (await ensureAgentSession(id, host()))!;
-  await expect(
-    resetAgentSession(session, {
-      stop: async () => undefined,
-      remove: async () => {
-        throw new Error("disk");
-      },
-      replace: () => undefined,
-    }),
-  ).rejects.toThrow("disk");
-  expect(findAgent(id)?.sessionId).toBe(session.id);
+  const session: Session = { ...(await ensureAgentSession(id, host()))!, blocks: [{ id: "u1", role: "user", text: "hi" }] };
+  const moved = clearing(session, async () => "/home/me/Loci/ember");
+  await moved.run();
+  expect(moved.current().cwd).toBe("/home/me/Loci/ember");
+  const kept = clearing({ ...moved.current(), blocks: [...moved.current().blocks, { id: "u2", role: "user", text: "again" }] },
+    async () => { throw new Error("gone"); });
+  await kept.run();
+  expect(kept.current().cwd).toBe("/home/me/Loci/ember");
 });

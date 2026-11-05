@@ -4,7 +4,7 @@ export const NEW_COMMAND: BuiltinSkill = {
   kind: "builtin",
   name: "new",
   invocation: "new",
-  description: "Start a new conversation. Soul and memory stay.",
+  description: "Start over with a fresh context. The chat above stays.",
   scope: "builtin",
   source: "loci",
 };

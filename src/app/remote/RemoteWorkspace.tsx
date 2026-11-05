@@ -155,11 +155,7 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
   const confirmThen = async (question: string, title: string, okLabel: string, run: () => Promise<unknown>) => {
     if (await ask(question, { title, kind: "warning", okLabel, cancelLabel: "Cancel" })) await run().catch(() => undefined);
   };
-  const resetAgent = (agentId: string) => {
-    const agent = agents.find((entry) => entry.id === agentId);
-    if (agent) void confirmThen(`Reset ${agentLook(agent).name}'s conversation? Its messages are removed; its soul and memory stay.`,
-      "Reset conversation", "Reset", () => intents["agent.reset"](agentId, { confirmed: true }));
-  };
+  const resetAgent = (agentId: string) => void intents["agent.reset"](agentId).catch(() => undefined);
   const removeAgent = (agentId: string) => {
     const agent = agents.find((entry) => entry.id === agentId);
     if (agent) void confirmThen(`Delete ${agentLook(agent).name}? Its conversation is permanently removed. Its documents and courses go with it; its soul and memory files stay on disk.`,

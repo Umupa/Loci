@@ -314,12 +314,12 @@ export function resolveToolCallDisplay(
   return { action, target, fileName, filePath, isFile, previewMatchesFile };
 }
 
-/** User turns, with provider-switch dividers on their own row. */
+/** User turns, with provider-switch and `/new` dividers on their own row. */
 export function groupTurns(blocks: Block[]): Block[][] {
   const turns: Block[][] = [];
   let current: Block[] = [];
   for (const block of blocks) {
-    if (block.role === "handoff") {
+    if (block.role === "handoff" || block.role === "divider") {
       if (current.length > 0) turns.push(current);
       turns.push([block]);
       current = [];

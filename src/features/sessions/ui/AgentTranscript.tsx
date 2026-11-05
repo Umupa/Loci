@@ -1623,6 +1623,10 @@ const TranscriptBlock = memo(function TranscriptBlock({
     return <HandoffDivider block={block} />;
   }
 
+  if (block.role === "divider") {
+    return <NewConversationDivider />;
+  }
+
   if (block.role === "system") {
 
     return (
@@ -3546,6 +3550,21 @@ function AgentNotice({
               {formatClockTime(at)}
             </span>
           ) : null}
+        </div>
+        <div className="h-px min-w-4 flex-1 bg-content/12" />
+      </div>
+    </div>
+  );
+}
+
+/** Where `/new` started the context over; everything above is still the same chat. */
+function NewConversationDivider() {
+  return (
+    <div className="px-4 py-5">
+      <div className="flex items-center gap-3">
+        <div className="h-px min-w-4 flex-1 bg-content/12" />
+        <div role="separator" className="px-1.5 font-sans text-[12px] text-content/55">
+          New conversation
         </div>
         <div className="h-px min-w-4 flex-1 bg-content/12" />
       </div>

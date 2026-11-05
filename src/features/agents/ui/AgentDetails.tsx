@@ -158,7 +158,7 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         </div>
         <h4 className="agent-setting-group-title">Conversation</h4>
         <div className="agent-setting-group">
-          <SettingRow label="Reset conversation" description="Clear messages. Soul, memory and habits stay."><SecondaryButton danger onClick={onReset}>Reset</SecondaryButton></SettingRow>
+          <SettingRow label="New conversation" description="Start over with a fresh context. Earlier messages stay in the chat."><SecondaryButton onClick={onReset}>New</SecondaryButton></SettingRow>
           <ResetDefaultsRow agent={agent} />
           <SettingRow label="Delete mentor" description="Move its folder to the Trash and delete its conversation, highlights and progress. Folders you gave it stay."><SecondaryButton danger onClick={onDelete}>Delete</SecondaryButton></SettingRow>
         </div>

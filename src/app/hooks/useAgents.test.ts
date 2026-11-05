@@ -29,7 +29,7 @@ vi.mock("../../features/agents/model/agentDocuments", () => ({ saveAgentDocument
 vi.mock("../../features/agents/model/agentFiles", () => ({
   forgetAgentContext: vi.fn(), loadAgentFiles: mocks.loadFiles, saveAgentFile: mocks.saveFile, editAgentFile: mocks.editFile,
 }));
-vi.mock("../../features/agents/model/agentRotation", () => ({ forgetAgentRotation: vi.fn() }));
+vi.mock("../../features/agents/model/agentRotation", () => ({ forgetAgentRotation: vi.fn(), saveAgentRotation: vi.fn() }));
 
 let root: Root | undefined;
 let initialSessions: Session[];
@@ -172,18 +172,23 @@ it("does not remove live turns when their pane opens during archiving, or repeat
   expect(mocks.persist).not.toHaveBeenCalled();
 });
 
-it("replaces the reset conversation in its existing panes", async () => {
-  const id = addAgent("chat");
+it("starts the conversation over in place, deleting nothing and asking nothing", async () => {
+  const said: Block[] = [{ id: "u1", role: "user", text: "hi" }, { id: "a1", role: "assistant", text: "hello" }];
+  const id = addAgent("chat", said);
   visible = new Set(["chat"]);
   await mount();
   await act(async () => { agents.select(id); });
-  await act(async () => agents.reset(id));
-  expect(mocks.replace).toHaveBeenCalledWith("chat", expect.objectContaining({ cwd: "/home/me", blocks: [] }));
-  expect(mocks.remove).not.toHaveBeenCalled();
-  const fresh = mocks.replace.mock.calls[0][1] as Session;
-  expect(fresh.id).not.toBe("chat");
-  expect(findAgent(id)?.sessionId).toBe(fresh.id);
-  expect(liveSessions.map((session) => session.id)).toEqual([fresh.id]);
+  await act(async () => { expect(await agents.reset(id)).toBe(true); });
+  expect(mocks.ask).not.toHaveBeenCalled();
+  expect(mocks.deleteSession).not.toHaveBeenCalled();
+  expect(mocks.replace).not.toHaveBeenCalled();
+  expect(findAgent(id)?.sessionId).toBe("chat");
+  const [chat] = liveSessions;
+  expect(chat.id).toBe("chat");
+  expect(chat.blocks.slice(0, 2)).toEqual(said);
+  expect(chat.blocks[2].role).toBe("divider");
+  expect(chat.providerSessionId).toBeUndefined();
+  expect(mocks.persist).toHaveBeenCalledWith("chat");
 });
 
 it("says what deleting a mentor throws away, and forgets what the window kept about it", async () => {

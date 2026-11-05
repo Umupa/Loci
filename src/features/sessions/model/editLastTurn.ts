@@ -170,5 +170,7 @@ export function canEditLastTurn(session: Session): boolean {
   if (session.harness === "codex" && !block.providerTurnId) return false;
   if (block.noteCard) return false;
   if (session.blocks.some((entry) => entry.role === "handoff")) return false;
+  // After `/new` the provider no longer has that turn to rewind.
+  if (session.blocks.slice(session.blocks.indexOf(block)).some((entry) => entry.role === "divider")) return false;
   return true;
 }

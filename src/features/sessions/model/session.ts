@@ -46,7 +46,9 @@ export type BlockRole =
   | "tasks"
   | "plan"
   | "system"
-  | "handoff";
+  | "handoff"
+  /** `/new`: the provider context starts over here; the chat above stays. */
+  | "divider";
 
 export type TaskListItemStatus =
   "pending" | "in_progress" | "completed" | "cancelled";

@@ -202,6 +202,7 @@ const SNAPSHOT_ROLES: Record<Block["role"], true | undefined> = {
   approval: undefined,
   system: undefined,
   handoff: undefined,
+  divider: undefined,
 };
 
 const PRIVATE_ROLES: Record<Block["role"], true | undefined> = {
@@ -209,6 +210,7 @@ const PRIVATE_ROLES: Record<Block["role"], true | undefined> = {
   approval: true,
   system: true,
   handoff: true,
+  divider: true,
   user: undefined,
   assistant: undefined,
   image: undefined,

@@ -254,15 +254,13 @@ export const mentorCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "mentors.reset",
-    summary: "Clear a mentor's conversation; its soul, memory and library stay.",
-    fields: [mentorField(true), yes],
+    summary: "Start a mentor's conversation over, as /new does: the chat stays, the next turn starts a fresh context.",
+    fields: [mentorField(true)],
     callers: ["external"],
-    destructive: true,
     run: async (ctx, input, meta) => {
       const agent = resolveMentor(ctx, input.mentor, meta);
       await ctx.agentChat(agent.id);
-      if (!await ctx.resetAgent(agent.id, await confirmed(ctx, input))) throw new CommandError("Not reset: the question was declined", "declined");
-      return { id: agent.id, reset: true };
+      return { id: agent.id, reset: await ctx.resetAgent(agent.id) };
     },
   },
   {

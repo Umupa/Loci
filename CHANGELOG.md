@@ -4,6 +4,10 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Changed
+
+- **`/new` keeps your conversation.** It starts the mentor over with a fresh context instead of deleting the chat: a "New conversation" divider marks the spot, everything above it stays readable and searchable, and the next turn begins with only the Soul and memory. It no longer asks first, since nothing is lost. A mentor's settings and `loci mentors reset` do the same. Only deleting a mentor deletes its conversation.
+
 ## [0.9.1] - 2026-11-04
 
 ### Changed

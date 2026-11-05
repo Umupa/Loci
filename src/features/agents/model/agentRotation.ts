@@ -29,7 +29,7 @@ export type RotationReason = "context" | "policy";
 export type AgentRotation = {
   at: number;
   /** Preserve saved briefs from older rotation policies. */
-  reason: RotationReason | "idle" | "restart";
+  reason: RotationReason | "idle" | "restart" | "new";
   /** The last block the replaced session saw; the fresh one takes it from here. */
   afterBlockId?: string;
   /** One line per exchange before the verbatim ones, oldest first. */

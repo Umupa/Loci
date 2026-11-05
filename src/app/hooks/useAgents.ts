@@ -16,7 +16,7 @@ import type { AgentTemplate } from "../../features/agents/templates";
 import { agentPreview, saveAgentPreview } from "../../features/agents/model/agentPreview";
 import { forgetMentorLocally } from "./forgetMentor";
 import { forgetAgentRotation } from "../../features/agents/model/agentRotation";
-import { ensureAgentSession, resetAgentSession, saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
+import { clearAgentContext, ensureAgentSession, saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
 import { ensureAgentWorkdir } from "../../features/agents/model/agentWorkdir";
 import { archiveOlderTurns, canArchive, planArchive } from "../../features/agents/model/agentTranscript";
 import { earlierBlocks, hasEarlierPages, readEarlierPage, type EarlierPages } from "../../features/agents/model/transcriptPages";
@@ -290,32 +290,29 @@ export function useAgents(options: Options) {
     if (notify) latest.current.onRemoveSession(session.id);
   }, [forgetEarlier]);
 
-  /** `confirmed` (a command run with --yes) skips the question. False when nothing was reset. */
-  const reset = useCallback(async (agentId: string, options: { confirmed?: boolean; rethrow?: boolean } = {}): Promise<boolean> => {
+  /** Starts the agent's conversation over in place; nothing is deleted, so nothing is asked. False when nothing was reset. */
+  const reset = useCallback(async (agentId: string, options: { rethrow?: boolean } = {}): Promise<boolean> => {
     const agent = findAgent(agentId);
     const current = agent?.sessionId
       ? latest.current.runtime.sessionsRef.current.find((session) => session.id === agent.sessionId)
         ?? (options.rethrow ? await latest.current.loadSession(agent.sessionId) : undefined) : undefined;
     if (!agent || !current) return false;
-    if (!options.confirmed && !await ask(`Reset ${agentLook(agent).name}'s conversation? Its messages are removed; its soul and memory stay.`,
-      { title: "Reset conversation", kind: "warning", okLabel: "Reset", cancelLabel: "Cancel" })) return false;
     try {
-      await resetAgentSession(current, {
+      const { runtime, submission } = latest.current;
+      const cleared = await clearAgentContext(current, {
         workdir: ensureAgentWorkdir,
-        stop: (id) => latest.current.submission.stopSessionWork(id),
-        remove: (session) => discardSession(session, false),
-        replace: (previousId, fresh) => {
-          addSession(fresh);
-          latest.current.onReplaceSession(previousId, fresh);
-        },
+        stop: (id) => submission.stopSessionWork(id),
+        forget: (session) => forgetHarnessSession(session.harness, session.id),
+        update: (id, change) => runtime.updateSessions((sessions) => sessions.map((session) => session.id === id ? change(session) : session)),
       });
-      return true;
+      if (cleared) await runtime.persistSession(current.id);
+      return cleared;
     } catch (error) {
       if (options.rethrow) throw error;
       latest.current.onError(error);
       return false;
     }
-  }, [addSession, discardSession]);
+  }, []);
 
   /**
    * Deletes the agent's conversation, then the agent: its folder goes to the

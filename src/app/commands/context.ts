@@ -20,8 +20,8 @@ export type CommandContext = {
   createAgent(template?: AgentTemplate, look?: { name?: string; role?: string; avatar?: string; color?: string }): Promise<string>;
   /** Removes a mentor as the rail does; `confirmed` skips the dialog. False when the user declined. */
   removeAgent(id: string, confirmed: boolean): Promise<boolean>;
-  /** Clears a mentor's conversation; `confirmed` skips the dialog. False when the user declined. */
-  resetAgent(id: string, confirmed: boolean): Promise<boolean>;
+  /** Starts a mentor's conversation over in place, as `/new` does. False when it had nothing to start over. */
+  resetAgent(id: string): Promise<boolean>;
   /** Shows a mentor in the window, as choosing it on the rail does. */
   switchAgent(id: string): Promise<boolean>;
   /** The mentor's conversation, loaded and kept in memory as opening it would. */

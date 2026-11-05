@@ -46,7 +46,7 @@ export function useCommandContext(options: Options): CommandContext {
     activeAgentId: () => latest.current.activeAgentId(),
     createAgent: (template, look) => agents().create(template, { show: false, ...(look ? { look } : {}) }),
     removeAgent: (id, confirmed) => agents().remove(id, { confirmed, rethrow: true }),
-    resetAgent: (id, confirmed) => agents().reset(id, { confirmed, rethrow: true }),
+    resetAgent: (id) => agents().reset(id, { rethrow: true }),
     switchAgent: (id) => latest.current.showMentor(id),
     agentChat: async (id) => {
       const session = await agents().chat(id);

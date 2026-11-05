@@ -59,7 +59,7 @@ export function sessionIntents({ submission, agents, agentHabits, store, updateS
     /** The agent's conversation, loaded into memory without changing what this window shows. */
     "agent.open": async (agentId: string) => (await agents.chat(agentId))?.id ?? null,
     "agent.create": (template?: AgentTemplate) => agents.create(template, { show: false }),
-    "agent.reset": (agentId: string, options?: { confirmed?: boolean }) => agents.reset(agentId, options),
+    "agent.reset": (agentId: string) => agents.reset(agentId),
     "agent.remove": (agentId: string, options?: { confirmed?: boolean }) => agents.remove(agentId, options),
     /** A connected window's change to one agent: only the fields it changed (`agentChanges`). */
     "agent.update": (agentId: string, changed: Partial<Agent>, removed: string[]) => { roster.update(agentId, changed, removed); },

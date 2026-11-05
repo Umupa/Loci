@@ -1,5 +1,5 @@
 import { modelEffortSetting, resolveModel } from "../../sessions/model/models";
-import { newSession, type Session } from "../../sessions/model/session";
+import { newSession, type Block, type Session } from "../../sessions/model/session";
 import {
   agentForSession,
   findAgent,
@@ -14,7 +14,7 @@ import {
   markAgentAccessMigrated,
 } from "./agentAccess";
 import { forgetAgentContext } from "./agentFiles";
-import { forgetAgentRotation } from "./agentRotation";
+import { saveAgentRotation } from "./agentRotation";
 
 const openingAgents = new Map<string, Promise<Session | undefined>>();
 
@@ -147,41 +147,43 @@ function migrateAgentAccess(agent: Agent, session: Session): Session {
 }
 
 /**
- * Reset only the agent's chat, keeping its identity, memory and permissions.
- * The fresh chat starts in the agent's workdir: this is where a chat that began
- * in the home folder moves into it, since its provider conversation ends here
- * anyway.
+ * `/new`: the agent starts its conversation over, and nothing is deleted. A
+ * divider goes on the end of the chat, the provider session is dropped, and
+ * the next turn opens a fresh one that gets the soul and memory but no brief
+ * of what came before the divider. The chat itself is only ever added to.
+ * The fresh context starts in the agent's workdir: this is where a chat that
+ * began in the home folder moves into it.
  */
-export async function resetAgentSession(
+export async function clearAgentContext(
   current: Session,
   host: {
     /** The agent's workdir; the old folder is kept when it cannot be made. */
     workdir?(agentId: string): Promise<string>;
     stop(id: string): Promise<void>;
-    remove(session: Session): Promise<void>;
-    replace(previousId: string, session: Session): void;
+    forget(session: Session): Promise<void>;
+    update(id: string, change: (session: Session) => Session): void;
   },
-): Promise<Session> {
+  now = Date.now(),
+): Promise<boolean> {
+  const last = current.blocks[current.blocks.length - 1];
+  // Nothing was said since the conversation last started.
+  if (!last || last.role === "divider") return false;
   const agentId = agentForSession(current.id)?.id;
-  const agent = agentId ? findAgent(agentId) : undefined;
   const cwd = agentId && host.workdir
     ? await host.workdir(agentId).catch(() => current.cwd)
     : current.cwd;
   await host.stop(current.id);
-  const fresh = agent?.defaults
-    ? sessionFromDefaults(cwd, agent.defaults)
-    : newSession(
-        current.harness,
-        cwd,
-        current.model,
-        current.runtimeMode,
-        current.modelSettings,
-      );
-  // A failed deletion must leave the original conversation selected.
-  await host.remove(current);
+  await host.forget(current);
+  const divider: Block = { id: crypto.randomUUID(), role: "divider", text: "", startedAt: now };
+  host.update(current.id, (session) => ({
+    ...session,
+    cwd,
+    blocks: [...session.blocks, divider],
+    providerSessionId: undefined,
+    context: undefined,
+  }));
   forgetAgentContext(current.id);
-  forgetAgentRotation(current.id);
-  if (agentId) saveAgentSessionId(agentId, fresh.id);
-  host.replace(current.id, fresh);
-  return fresh;
+  // Later rotations brief only from what follows the divider.
+  saveAgentRotation(current.id, { at: now, reason: "new", afterBlockId: divider.id, earlier: [] });
+  return true;
 }
