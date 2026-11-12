@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-12
+
 ### Added
 
 - **Lessons your mentor writes.** A lesson is now the mentor's own explanation, written for you: the question, the mechanism, a diagram, a worked case, the trade-off, with every claim citing the first-hand passage it rests on. Click a citation to open the original at that passage, and ⌘[ to come back. A lesson's text is a Markdown file in the mentor's folder (`courses/<course>/<lesson>.md`); highlights, notes, asking about a selection and blocks work on it as on any document. Where a lesson also names its source, the File button in its header shows the original in its place. Lessons written before keep opening their source.
@@ -415,7 +417,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Umupa/Loci/compare/v0.9.2...v0.10.0
 [0.9.2]: https://github.com/Umupa/Loci/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/Umupa/Loci/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Umupa/Loci/compare/v0.8.10...v0.9.0
