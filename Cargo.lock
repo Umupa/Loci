@@ -2677,7 +2677,7 @@ version = "0.10.0"
 dependencies = [
  "aes-gcm",
  "arboard",
- "base64 0.22.1",
+ "base64 0.23.1",
  "block2",
  "dirs",
  "ed25519-dalek",
