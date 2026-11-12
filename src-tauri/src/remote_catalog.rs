@@ -105,7 +105,6 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("harness_kill_all", Never),
     ("harness_exec", Never),
     ("fetch_link_preview", ClientLocal),
-    // mcp
     ("keybindings_set_overrides", ClientLocal),
     // course
     ("course_list", Read),
@@ -116,6 +115,13 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("course_lesson_get", Read),
     ("course_lesson_set", Write),
     ("lesson_question_add", Write),
+    ("lesson_question_answer", Write),
+    ("lesson_revision_get", Read),
+    ("lesson_revisions_unseen", Read),
+    ("lesson_revision_seen", Write),
+    ("glossary_read", Read),
+    ("glossary_write", Write),
+    ("glossary_remove", Write),
     ("lesson_questions_list", Read),
     ("course_progress_get", Read),
     ("course_progress_set", Write),
@@ -125,8 +131,6 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("agent_save", Write),
     ("agent_workdir_create", Write),
     ("agent_workdir_ensure", Write),
-    ("course_path_read", Read),
-    ("course_path_write", Write),
     // code
     ("code_read", Read),
     ("code_pin_status", Read),
@@ -194,7 +198,6 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("session_take_in_flight", SessionAction),
     // The window layout snapshot is per window; whether a client keeps its own
     // or shares the host's is not decided yet.
-    ("list_skills", Read),
     // window
     ("set_window_glass_enabled", ClientLocal),
     ("hide_window", ClientLocal),

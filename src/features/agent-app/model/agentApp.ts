@@ -57,6 +57,7 @@ export type SessionLaunch = {
   reveal?: boolean;
 };
 import type { LessonQuestion } from "../../learning/model/lessonQuestions";
+import { parseGlossaryInput, type GlossaryTerm } from "../../learning/model/glossary";
 import { courseItems, LESSON_MAX, lessonPlanned, parseCourseInput, type CourseSummary, type CourseWithProgress, type LessonInput, type LessonText, type ParsedCourse } from "../../learning/model/course";
 import { sessionConversationPage, type SessionReadOptions } from "./sessionConversation";
 
@@ -143,6 +144,12 @@ export type AgentAppHost = {
     readLesson?(agentId: string, courseId: string, lessonId: string): Promise<LessonText | null>;
     writeLesson?(agentId: string, courseId: string, lessonId: string, lesson: LessonInput): Promise<LessonText>;
     questions?(agentId: string, where: { courseId?: string; lessonId?: string; limit?: number }): Promise<LessonQuestion[]>;
+  };
+  /** The terms an agent's lessons introduce. */
+  glossary?: {
+    read(agentId: string): Promise<GlossaryTerm[]>;
+    write(agentId: string, terms: GlossaryTerm[]): Promise<{ saved: number; total: number }>;
+    remove(agentId: string, terms: string[]): Promise<number>;
   };
   /** The clock entries are dated by; tests pin it. */
   now?(): Date;
@@ -247,6 +254,9 @@ const FIELDS = new Map<string, readonly string[]>([
   ["lessons.read", ["course", "lesson"]],
   ["lessons.write", ["course", "lesson", "path", "body"]],
   ["lessons.questions", ["course", "lesson"]],
+  ["glossary.read", []],
+  ["glossary.write", ["terms"]],
+  ["glossary.remove", ["terms"]],
 ]);
 
 function fields(action: string, input: Record<string, unknown>) {
@@ -579,6 +589,25 @@ async function handleCourses(
   };
 }
 
+async function handleGlossary(
+  source: Session,
+  action: string,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): Promise<unknown> {
+  const agentId = ownConversation(source, host)?.id;
+  const glossary = host.glossary;
+  if (!agentId || !glossary) throw new Error("Only an agent's own conversation can use its glossary");
+  if (action === "glossary.read") return { terms: await glossary.read(agentId) };
+  if (action === "glossary.write") {
+    const result = await glossary.write(agentId, parseGlossaryInput(input.terms));
+    return { saved: true, terms: result.saved, total: result.total };
+  }
+  const names = Array.isArray(input.terms) ? input.terms : [input.terms];
+  if (!names.length || !names.every((name) => typeof name === "string" && name.trim())) throw new Error("terms is a list of term names");
+  return { removed: await glossary.remove(agentId, names as string[]) };
+}
+
 async function handleLessons(
   source: Session,
   action: string,
@@ -596,7 +625,14 @@ async function handleLessons(
     if (lesson && !course) throw new Error("Name the lesson's course too");
     const list = await courses.questions(agentId, { ...(course ? { courseId: course } : {}), ...(lesson ? { lessonId: lesson } : {}), limit: 200 });
     // Oldest first, as they were asked; the same question twice is worth seeing twice.
-    return { questions: [...list].reverse().map((question) => ({ course: question.courseId, lesson: question.lessonId, text: question.text, askedAt: new Date(question.askedAt).toISOString() })) };
+    // A question on a passage carries the passage's words; a follow-up names the question it follows.
+    const passage = (anchor?: string) => { try { return anchor ? String((JSON.parse(anchor) as { exact?: unknown }).exact ?? "").slice(0, 400) || undefined : undefined; } catch { return undefined; } };
+    return { questions: [...list].reverse().map((question) => ({
+      course: question.courseId, lesson: question.lessonId, id: question.messageId, text: question.text,
+      ...(passage(question.anchor) ? { passage: passage(question.anchor) } : {}),
+      ...(question.threadId ? { follows: question.threadId } : {}),
+      answered: !!question.answer, askedAt: new Date(question.askedAt).toISOString(),
+    })) };
   }
   const courseId = requiredString(input.course, "course", 80);
   const lessonId = requiredString(input.lesson, "lesson", 80);
@@ -952,6 +988,8 @@ export async function handleAgentApp(
     return handleCourses(source, action, input, host);
   if (action.startsWith("lessons."))
     return handleLessons(source, action, input, host);
+  if (action.startsWith("glossary."))
+    return handleGlossary(source, action, input, host);
   switch (action) {
     case "models.list":
       return appModels();

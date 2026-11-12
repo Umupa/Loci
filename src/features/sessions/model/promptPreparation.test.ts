@@ -2,7 +2,6 @@ import { beforeEach,describe,expect,it,vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   applyNotesToTurn: vi.fn(),
-  applySkillsToTurn: vi.fn(),
   events: [] as string[],
   warmNativeSkills: vi.fn(),
 }));
@@ -13,7 +12,6 @@ vi.mock("../../notes", () => ({
 }));
 
 vi.mock("../../skills/model/skills", () => ({
-  applySkillsToTurn: mocks.applySkillsToTurn,
   warmNativeSkills: mocks.warmNativeSkills,
   isNativeCommandPrompt: (text: string, harness: string) =>
     harness === "codex" && text.startsWith("/"),
@@ -33,7 +31,6 @@ beforeEach(() => {
   mocks.events.length = 0;
   mocks.applyNotesToTurn.mockReset();
   mocks.applyNotesToTurn.mockImplementation(async (text: string) => text);
-  mocks.applySkillsToTurn.mockReset();
   mocks.warmNativeSkills.mockReset();
   mocks.warmNativeSkills.mockImplementation(() => {
     mocks.events.push("warm");
@@ -50,17 +47,15 @@ describe("preparePrompt", () => {
       preparePrompt(text, { harness: "codex", cwd: "/repo" }),
     ).resolves.toBe(text.replace("/codex:compact", "/compact"));
     expect(mocks.applyNotesToTurn).not.toHaveBeenCalled();
-    expect(mocks.applySkillsToTurn).not.toHaveBeenCalled();
   });
   it("starts warmup before awaiting note contents", async () => {
     const notes = deferred<string>();
     mocks.applyNotesToTurn.mockImplementation(() => { mocks.events.push("notes"); return notes.promise; });
-    mocks.applySkillsToTurn.mockResolvedValue("prepared");
     const preparation = preparePrompt("hello", { harness: "codex", cwd: "/repo" });
     expect(mocks.events).toEqual(["warm", "notes"]);
     notes.resolve("with notes");
-    await expect(preparation).resolves.toBe("prepared");
+    // Skill files are not read: the text goes as the notes left it.
+    await expect(preparation).resolves.toBe("with notes");
     expect(mocks.applyNotesToTurn).toHaveBeenCalledWith("hello");
-    expect(mocks.applySkillsToTurn).toHaveBeenCalledWith("with notes", { harness: "codex", cwd: "/repo" });
   });
 });

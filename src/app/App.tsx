@@ -4,6 +4,8 @@ import { requestSearchPlace } from "../features/mentor/model/mentorSearch";
 import { lessonForFile } from "../features/learning/model/lessonLinks";
 import type { MentorPage } from "../features/mentor/model/mentorPage";
 import { AgentGallery } from "../features/agents/ui/AgentGallery";
+import { StartPage } from "../features/mentor/ui/StartPage";
+import { mentorForRequest } from "../features/mentor/model/startMentor";
 import { setAgentReading } from "../features/agents/model/agentReading";
 import { useMentorView, type ShowOptions } from "./hooks/useMentorView";
 import { transport } from "../platform/transport";
@@ -12,6 +14,7 @@ import { Modal } from "../shared/ui/Modal";
 import { ADD_TO_CHAT_EVENT, requestAddToChat, type AddToChatRequest } from "../features/sessions/model/quoteDraft";
 import { queueLearningDraft } from "../features/learning/model/learningDraft";
 import { OPEN_LEARNING_DISCUSSION_EVENT } from "../features/learning/model/navigation";
+import { LESSON_ASK_EVENT, lessonAskText, queueLessonAsk, settleLessonAnswers, takeLessonAsk, type LessonAsk } from "../features/learning/model/lessonQuestions";
 import { courseItems, loadCourse, OPEN_COURSE_EVENT, type OpenCourseDetail } from "../features/learning/model/course";
 import { readAgentDocument } from "../features/agents/model/agentDocuments";
 import { LessonMarks } from "../features/learning/ui/LessonMarks";
@@ -99,6 +102,8 @@ function Workspace(boot: BootWorkspace) {
   const [initialSessions] = useState(() => boot.resumed?.sessions ?? []);
   const [sessions, setSessions] = useState<Session[]>(initialSessions);
   const sessionsRef = useRef(sessions);
+  // A question asked on a lesson keeps its answer once the turn ends.
+  useEffect(() => { settleLessonAnswers(sessions); }, [sessions]);
   const [surface, setSurface] = useState<Surface>("mentor");
   const surfaceRef = useRef(surface);
   surfaceRef.current = surface;
@@ -112,6 +117,8 @@ function Workspace(boot: BootWorkspace) {
   const [savedToast, setSavedToast] = useState<SavedToastData | null>(null);
   const [transcriptPool] = useState(() => new TranscriptPool());
   const [agentGalleryOpen, setAgentGalleryOpen] = useState(false);
+  /** The start page over the open mentor, from New mentor; without a mentor it is the whole window anyway. */
+  const [startOpen, setStartOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [providerSignIn, setProviderSignIn] = useState<{ key: string; sessionId: string; harness: HarnessId } | null>(null);
   const seenSignInRequests = useRef(new Set(initialSessions.filter((session) => latestTurnNeedsHarnessLogin(session.blocks)).map(signInRequestKey)));
@@ -250,6 +257,24 @@ function Workspace(boot: BootWorkspace) {
     } catch (error) { reportError(error); }
     finally { creatingMentor.current = false; }
   }, [reportError, showMentor]); // eslint-disable-line react-hooks/exhaustive-deps
+  /**
+   * The start page's request: a Lens for a repository, else a Mentor, named
+   * from the request, which then goes to it as its first message.
+   */
+  const startMentor = useCallback(async (text: string) => {
+    const { template, name } = mentorForRequest(text);
+    creatingMentor.current = true;
+    surfaceRef.current = "mentor";
+    setSurface("mentor");
+    try {
+      const id = await agentsRef.current!.create(template, { look: { name } });
+      if (mentorRef.current.currentRef.current?.agentId !== id) await showMentor(id);
+      const sessionId = listAgents().find((agent) => agent.id === id)?.sessionId;
+      if (!sessionId) throw new Error("The mentor's conversation could not be opened.");
+      setStartOpen(false);
+      if (!intentsRef.current!["session.submit"](sessionId, text)) throw new Error("The mentor did not take the message.");
+    } finally { creatingMentor.current = false; }
+  }, [showMentor]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Reads something in the open mentor's reader, in place of what was there. */
   const showInMentor = useCallback(async (page: MentorPage, agentId = mentorRef.current.currentRef.current?.agentId, options?: ShowOptions) => {
     if (!agentId) throw new Error("Open a mentor first.");
@@ -366,7 +391,7 @@ function Workspace(boot: BootWorkspace) {
       // The draft waits in the composer. Its mentor's conversation is unfolded
       // so the learner sees where the passage went, as the library's drafts do.
       const owner = agentForSession(id);
-      if (owner && !mentorViewRef.current.viewFor(owner.id).chat) mentorViewRef.current.toggleChat(owner.id);
+      if (owner) mentorViewRef.current.showChat(owner.id);
       queueLearningDraft(id, { ...request, targetSessionId: id });
       void revealLearningConversation(id).catch(reportError);
     };
@@ -389,10 +414,19 @@ function Workspace(boot: BootWorkspace) {
       const owner = agentsRef.current?.agents.some((agent) => agent.id === detail.agentId) ? detail.agentId : undefined;
       void showInMentor({ kind: "course", course: detail }, owner).catch(reportError);
     };
+    // Asked from a lesson: straight to the mentor, with its passage and thread kept for the margin.
+    const lessonAsk = (event: Event) => {
+      const ask = (event as CustomEvent<LessonAsk>).detail;
+      if (!ask?.sessionId || !ask.question.trim()) return;
+      queueLessonAsk(ask.sessionId, { ...(ask.passage ? { passage: ask.passage } : {}), ...(ask.threadId ? { threadId: ask.threadId } : {}) });
+      if (!intentsRef.current!["session.submit"](ask.sessionId, lessonAskText(ask))) takeLessonAsk(ask.sessionId);
+    };
+    window.addEventListener(LESSON_ASK_EVENT, lessonAsk);
     window.addEventListener(ADD_TO_CHAT_EVENT, add, true);
     window.addEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
     window.addEventListener(OPEN_COURSE_EVENT, course);
     return () => {
+      window.removeEventListener(LESSON_ASK_EVENT, lessonAsk);
       window.removeEventListener(ADD_TO_CHAT_EVENT, add, true);
       window.removeEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
       window.removeEventListener(OPEN_COURSE_EVENT, course);
@@ -458,6 +492,8 @@ function Workspace(boot: BootWorkspace) {
     if (sessionId) void storeRef.current?.ensureSession(sessionId, runtime.bindRestoredSession).catch(reportError);
   }, [reportError, runtime.bindRestoredSession]);
   const closeSettings = useCallback(() => setSurface("mentor"), []);
+  /** New mentor: the start page, over whatever the window shows. */
+  const openStart = useCallback(() => { setSurface("mentor"); setStartOpen(true); }, []);
   const onSelectSettingsSection = useCallback((section: SettingsSectionId) => {
     setSettingsSection(section); saveSettingsSection(section); setSettingsAnchor(null); setSettingsMentorId(null);
   }, []);
@@ -509,7 +545,7 @@ function Workspace(boot: BootWorkspace) {
       return (focusedReader ? readerSessionId() : undefined) ?? mentorRef.current.currentRef.current?.sessionId ?? null;
     },
     openMentor: (id) => { void showMentor(id); },
-    newMentor: () => setAgentGalleryOpen(true),
+    newMentor: () => openStart(),
     closeReader, closeWindow: () => { void closeCurrentWindow(); },
     readerBack: () => readerHistory(-1), readerForward: () => readerHistory(1),
     toggleLibrary, toggleChat,
@@ -623,7 +659,7 @@ function Workspace(boot: BootWorkspace) {
 
   return <>
     <div className={`workspace-background flex h-full flex-col text-content ${HAS_NATIVE_GLASS ? "bg-background-base/[var(--window-background-opacity)]" : "bg-background-base"}`}>
-      {!IS_MAC ? <MenuBar onNewMentor={() => setAgentGalleryOpen(true)} onCloseReader={() => { if (!closeReader()) void closeCurrentWindow(); }}
+      {!IS_MAC ? <MenuBar onNewMentor={openStart} onCloseReader={() => { if (!closeReader()) void closeCurrentWindow(); }}
         onReaderBack={() => readerHistory(-1)} onReaderForward={() => readerHistory(1)}
         onPreviousMentor={() => stepMentor(-1)} onNextMentor={() => stepMentor(1)} onToggleLibrary={toggleLibrary} onToggleChat={toggleChat}
         onOpenPdf={openPdf} onSearch={() => setSearchOpen(true)} onOpenSettings={() => openSettings()}
@@ -631,7 +667,7 @@ function Workspace(boot: BootWorkspace) {
       <div className="flex min-h-0 min-w-0 flex-1">
         <MentorRail activeId={activeAgent?.id} states={agents.states} unseenIds={unseenAgentIds} settingsOpen={surface === "settings"}
           onOpen={(id) => void showMentor(id)} onOpenDetails={openMentorSettings}
-          onCreate={() => setAgentGalleryOpen(true)} onDelete={(id) => void agents.remove(id)}
+          onCreate={openStart} onDelete={(id) => void agents.remove(id)}
           onSearch={() => setSearchOpen(true)} onOpenSettings={() => surface === "settings" ? closeSettings() : openSettings()}
           updateVersion={pendingUpdateVersion} onViewUpdate={openUpdatePrompt} />
         {surface === "settings" ? <aside className="flex w-[220px] shrink-0 flex-col border-r border-stroke" aria-label="Settings sections">
@@ -640,9 +676,12 @@ function Workspace(boot: BootWorkspace) {
             mentors={agents.agents} mentorId={settingsAgent?.id ?? null} onSelectMentor={openMentorSettings} />
         </aside> : null}
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
-          {surface === "mentor" && mentor.current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {surface === "mentor" && (startOpen || !agents.agents.length) ? <StartPage onStart={startMentor} onTemplates={() => setAgentGalleryOpen(true)}
+            onClose={agents.agents.length ? () => setStartOpen(false) : undefined} trailing={IS_MAC ? undefined : <WindowControls />} /> : null}
+          {surface === "mentor" && !startOpen && mentor.current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
             <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)}
               busy={!!sessions.find((entry) => entry.id === mentor.current?.sessionId)?.busy}
+              blocks={sessions.find((entry) => entry.id === mentor.current?.sessionId)?.blocks}
               courseBadge={(courseId, lessonId) => <LessonMarks agentId={focusedAgent.id} courseId={courseId} lessonId={lessonId} />}
               trailing={IS_MAC ? undefined : <WindowControls />}
               onOpen={(page) => mentorView.show(focusedAgent.id, page)} onClose={() => mentorView.close(focusedAgent.id)}
@@ -654,7 +693,7 @@ function Workspace(boot: BootWorkspace) {
               onDraft={(text) => {
                 if (!focusedAgent.sessionId) return;
                 // The draft waits in the composer; the conversation comes into view to show it.
-                if (!mentorView.stateFor(focusedAgent.id).chat) mentorView.toggleChat(focusedAgent.id);
+                mentorView.showChat(focusedAgent.id);
                 requestAddToChat(text, "prompt", { targetSessionId: focusedAgent.sessionId });
               }}
               onToggleChat={() => mentorView.toggleChat(focusedAgent.id)}
@@ -664,9 +703,9 @@ function Workspace(boot: BootWorkspace) {
               renderSession={readerSession} sessionTitle={sessionTitle}
               chat={mentorChat(mentor.current.agentId, mentor.current.sessionId)} />
           </section> : null}
-          {surface === "mentor" && !focusedAgent ? <MentorsEmpty hasMentors={agents.agents.length > 0}
+          {surface === "mentor" && !startOpen && agents.agents.length > 0 && !focusedAgent ? <MentorsEmpty
             openingName={firstMentor ? agentLook(firstMentor).name : undefined} failed={firstMentorFailed}
-            onCreate={() => setAgentGalleryOpen(true)} onRetry={openFirstMentor}
+            onRetry={openFirstMentor}
             trailing={IS_MAC ? undefined : <WindowControls />} /> : null}
           {surface === "settings" && settingsAgent ? <MentorSettingsPage agent={settingsAgent}
             session={sessions.find((entry) => entry.id === settingsAgent.sessionId)} 
@@ -683,7 +722,7 @@ function Workspace(boot: BootWorkspace) {
         const work = item.page ? showInMentor(item.page, item.agentId) : item.agentId ? showMentor(item.agentId) : Promise.resolve();
         void work.catch(reportError);
       }} /> : null}
-      {agentGalleryOpen ? <AgentGallery onClose={() => setAgentGalleryOpen(false)} onPick={(template) => void createMentor(template ?? undefined)} /> : null}
+      {agentGalleryOpen ? <AgentGallery onClose={() => setAgentGalleryOpen(false)} onPick={(template) => { setStartOpen(false); void createMentor(template ?? undefined); }} /> : null}
       {savedToast && (
         <SavedToast
           toast={savedToast}
@@ -712,21 +751,17 @@ function Workspace(boot: BootWorkspace) {
   </>;
 }
 
-/** Before the first mentor, or while the last one is opening. */
-function MentorsEmpty({ hasMentors, openingName, failed, onCreate, onRetry, trailing }: {
-  hasMentors: boolean; openingName?: string; failed: boolean; onCreate: () => void; onRetry: () => void; trailing?: ReactNode;
+/** While the mentor to show is opening, or if it could not be opened. */
+function MentorsEmpty({ openingName, failed, onRetry, trailing }: {
+  openingName?: string; failed: boolean; onRetry: () => void; trailing?: ReactNode;
 }) {
   return <div className="flex min-h-0 flex-1 flex-col" data-mentors-empty>
     <div className="flex h-10 shrink-0 items-center justify-end pr-2" data-tauri-drag-region="deep">{trailing}</div>
-    {hasMentors ? <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
       <p role="status" className="text-sm text-content/60">
         {failed ? `Couldn't open ${openingName ?? "your mentor"}.` : `Opening ${openingName ?? "your mentor"}…`}
       </p>
       {failed ? <button type="button" className="primary-action rounded-md px-3 py-1.5 text-sm font-medium" onClick={onRetry}>Try again</button> : null}
-    </div> : <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-      <h1 className="text-[15px] font-medium">Create your first mentor</h1>
-      <p className="max-w-sm text-sm text-content/60">A mentor is a resident agent for one topic you are learning. It keeps your courses, sources and notes, and reads along with you.</p>
-      <button type="button" className="primary-action rounded-md px-3 py-1.5 text-sm font-medium" onClick={onCreate}>Create a mentor</button>
-    </div>}
+    </div>
   </div>;
 }

@@ -47,10 +47,10 @@ Rust 端共注册 194 个命令，每个都要标一类。白名单由这份清�
 
 | 类别 | 远程端行为 | 例子（模块） |
 | --- | --- | --- |
-| 读 | 转发到主机 | `mentor_store`（load/search/state）、`course`、`agent_documents`、`notes`、`canvas`、`learning`、`code`、`skills`、`source_translations`、`session_store`（get/list/search）、`fs` 的读（`read_*`、`list_dir`、`stat_files`、`inspect_paths`） |
-| 写 | 转发到主机 | 上面各模块的 upsert/delete/set，`fs` 的写（`write_text_file`、`create_path`、`rename_path`、`trash_path`、`copy_path`、`move_path`、`write_attachment`），`mentors_import/export`，`mcp_add`，`claude_mcp_*`，`cli_access_*` |
+| 读 | 转发到主机 | `mentor_store`（load/search/state）、`course`、`agent_documents`、`notes`、`canvas`、`learning`、`code`、`source_translations`、`session_store`（get/list/search）、`fs` 的读（`read_*`、`list_dir`、`stat_files`、`inspect_paths`） |
+| 写 | 转发到主机 | 上面各模块的 upsert/delete/set，`fs` 的写（`write_text_file`、`create_path`、`rename_path`、`trash_path`、`copy_path`、`move_path`、`write_attachment`），`mentors_import/export`，`cli_access_*` |
 | 会话动作 | 不直接执行，交给主机窗口 | `session_upsert`、`session_delete`、`session_set_archived`、`agent_transcript_append` 等会话存储命令 |
-| 在主机执行 | 转发，作用在主机上 | `reveal_path`、`open_path_with_default_app`、`show_notification`（主机提示）、`mcp_provider_login`（在主机浏览器里完成） |
+| 在主机执行 | 转发，作用在主机上 | `reveal_path`、`open_path_with_default_app`、`show_notification`（主机提示） |
 | 客户端本地 | 不转发，在客户端执行 | `window`、`menu`、`set_traffic_lights_visible`、`set_window_*`、`set_trackpad_zoom_enabled`、`set_dock_badge`、`open_new_window`、`pasteboard`、`notifications` 的权限、`chat_background`（外观）、`fetch_link_preview`、`keybindings_set_overrides` |
 | 永不对外 | 拒绝 | `harness_*`（spawn/write/kill/exec/http/sse/resolve）、`control_*`、`workspace_reset*`、`canvas_mcp_server` |
 

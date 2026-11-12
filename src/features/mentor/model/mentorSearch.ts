@@ -5,8 +5,9 @@ import type { Note } from "../../notes";
 import type { LibraryHit } from "../../agents/model/mentorStore";
 import { requestDocumentPlace } from "../../agents/model/documentPlace";
 import type { MentorPage } from "./mentorPage";
+import type { GlossaryTerm } from "../../learning/model/glossary";
 
-export type MentorSearchKind = "mentor" | "course" | "lesson" | "source" | "note";
+export type MentorSearchKind = "mentor" | "course" | "lesson" | "source" | "note" | "term";
 
 /** One thing ⌘K can open: a mentor, or a page in a mentor's reader. */
 export type MentorSearchItem = {
@@ -23,6 +24,8 @@ export type MentorSearchItem = {
   snippet?: string;
   /** The words matched, for the reader to find and flash. */
   quote?: string;
+  /** Other names it goes by, matched as its title is: a term's aliases. */
+  also?: readonly string[];
 };
 
 export type MentorSearchSources = {
@@ -30,10 +33,12 @@ export type MentorSearchSources = {
   courses: readonly CourseWithProgress[];
   documents: ReadonlyMap<string, readonly StoredDocument[]>;
   notes: readonly Note[];
+  /** Each mentor's glossary. */
+  glossaries?: ReadonlyMap<string, readonly GlossaryTerm[]>;
 };
 
 /** Everything searchable, mentors first, each mentor's library after it. */
-export function mentorSearchItems({ agents, courses, documents, notes }: MentorSearchSources): MentorSearchItem[] {
+export function mentorSearchItems({ agents, courses, documents, notes, glossaries }: MentorSearchSources): MentorSearchItem[] {
   const names = new Map(agents.map((agent) => [agent.id, agentLook(agent).name]));
   const items: MentorSearchItem[] = agents.map((agent) => ({ id: `mentor:${agent.id}`, kind: "mentor", title: names.get(agent.id)!, context: agentLook(agent).role ?? "Mentor", agentId: agent.id }));
   for (const course of courses) {
@@ -55,6 +60,17 @@ export function mentorSearchItems({ agents, courses, documents, notes }: MentorS
         ? { kind: "file", path: document.pdf.path }
         : { kind: "document", document: { id: document.id, title: document.title, body: "", ...(document.subject ? { subject: document.subject } : {}) } } });
   }
+  // A term opens the lesson that teaches it; its definition is where it lives.
+  for (const [agentId, terms] of glossaries ?? []) {
+    const mentor = names.get(agentId);
+    if (!mentor) continue;
+    for (const term of terms) {
+      const course = term.course ? courses.find((entry) => entry.agentId === agentId && entry.id === term.course) : undefined;
+      items.push({ id: `term:${agentId}:${term.term}`, kind: "term", title: term.term, context: term.definition, agentId,
+        ...(term.aliases?.length ? { also: term.aliases } : {}),
+        ...(term.course && term.lesson ? { page: { kind: "course" as const, course: { courseId: term.course, agentId, title: course?.title ?? term.course, itemId: term.lesson } } } : {}) });
+    }
+  }
   for (const note of notes) {
     const owner = note.agentId && names.has(note.agentId) ? note.agentId : undefined;
     items.push({ id: `note:${note.id}`, kind: "note", title: note.title || "Untitled", context: owner ? names.get(owner)! : "Notes", ...(owner ? { agentId: owner } : {}),
@@ -63,7 +79,7 @@ export function mentorSearchItems({ agents, courses, documents, notes }: MentorS
   return items;
 }
 
-const KIND_ORDER: Record<MentorSearchKind, number> = { mentor: 0, course: 1, lesson: 2, source: 3, note: 4 };
+const KIND_ORDER: Record<MentorSearchKind, number> = { mentor: 0, course: 1, lesson: 2, term: 3, source: 4, note: 5 };
 
 function score(title: string, query: string): number | null {
   const text = title.toLocaleLowerCase();
@@ -83,7 +99,7 @@ export function searchMentorItems(items: readonly MentorSearchItem[], query: str
   items.forEach((item, index) => {
     let rank = 0;
     for (const word of words) {
-      const own = score(item.title, word);
+      const own = [item.title, ...(item.also ?? [])].map((name) => score(name, word)).reduce<number | null>((best, next) => next === null ? best : best === null ? next : Math.min(best, next), null);
       // A word may also match where the item lives, such as its mentor's name.
       const where = own === null && item.kind !== "mentor" ? score(item.context, word) : null;
       if (own === null && where === null) return;

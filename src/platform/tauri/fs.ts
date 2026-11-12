@@ -40,28 +40,6 @@ export type ProjectFile = {
 };
 
 
-export type DiscoveredSkill = {
-  name: string;
-  description: string;
-  path: string;
-  scope: "project" | "user" | "builtin";
-  source: "agents" | "claude" | "codex" | "loci";
-};
-
-
-export function listSkills(
-  cwd: string,
-  disabledPaths?: readonly string[] | null,
-  userOnly?: boolean,
-): Promise<DiscoveredSkill[]> {
-  return transport.call<DiscoveredSkill[]>("list_skills", {
-    cwd,
-    disabledPaths: disabledPaths ?? null,
-    ...(userOnly ? { userOnly: true } : {}),
-  });
-}
-
-
 export function createPath(
   parent: string,
   name: string,

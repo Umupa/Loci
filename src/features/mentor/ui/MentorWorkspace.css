@@ -102,7 +102,7 @@
    what is read, 11px (mono for numbers) for what is said about it. */
 .library-courses, .library-course { display: flex; flex-direction: column; font-size: 13px; line-height: 20px; }
 .library-courses-empty { display: flex; flex-direction: column; align-items: flex-start; }
-/* A course's or a path's head: its name, and how far it is read in quiet figures at its right. */
+/* A course's head: its name, and how far it is read in quiet figures at its right. */
 .library-head { position: relative; display: flex; align-items: flex-start; gap: 10px; margin: 2px 0 8px; padding: 8px 8px 14px; }
 .library-head > p { min-width: 0; flex: 1; font-size: 13.5px; line-height: 20px; }
 /* The head's rule fills with ink as the course is read. */
@@ -112,42 +112,14 @@
 .library-head-more { display: grid; width: 22px; height: 20px; flex: none; margin: 0 -6px 0 -4px; place-items: center; border-radius: 5px; color: color-mix(in srgb, var(--color-content) 55%, transparent); opacity: 0; transition: opacity 120ms; }
 .library-head:hover .library-head-more, .library-head-more:focus-visible, .library-head-more[aria-expanded="true"] { opacity: 1; }
 .library-head-more:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
-.library-path-title, .library-course-title { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; font-weight: 600; color: var(--color-content); }
-.library-course-title .mentor-library-new, .library-step-title .mentor-library-new { margin-left: 6px; vertical-align: 1px; }
-.library-count { flex: none; font-family: var(--font-mono); font-size: 11px; line-height: 20px; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
-.library-tag { flex: none; height: 18px; padding: 0 6px; border: 1px solid color-mix(in srgb, var(--color-content) 8%, transparent); border-radius: 9px; font-size: 11px; line-height: 16px; white-space: nowrap; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
-.library-others { margin: 12px 8px 2px; font-size: 11px; line-height: 16px; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
-.library-asks { display: flex; flex-direction: column; align-items: flex-start; margin-top: 10px; }
+.library-course-title { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; font-weight: 600; color: var(--color-content); }
+.library-course-title .mentor-library-new { margin-left: 6px; vertical-align: 1px; }
 .library-ask { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px; font-size: 13px; color: color-mix(in srgb, var(--color-content) 55%, transparent); }
 .library-highlights { margin: 6px 0 0 -4px; }
 .library-ask:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); color: var(--color-content); }
 
-/* Courses as steps: a dot each (numbered on the path), joined by a hairline
-   that runs past an open course, so its chapters hang off the line. */
-.library-steps { margin: 0; padding: 0; list-style: none; }
-.library-step { position: relative; }
-.library-steps:not(.library-steps--loose) > .library-step:not(:last-child)::after { content: ""; position: absolute; top: 26px; bottom: -4px; left: 18px; width: 1px; background: color-mix(in srgb, var(--color-content) 8%, transparent); }
-.library-step-row { position: relative; z-index: 1; display: flex; width: 100%; gap: 10px; padding: 6px 8px; border-radius: 6px; text-align: left; color: color-mix(in srgb, var(--color-content) 80%, transparent); }
-.library-step-row:hover { background: color-mix(in srgb, var(--color-content) 5%, transparent); color: var(--color-content); }
-/* The current course, folded: the same wash the current lesson wears. */
-.library-step-row[aria-current="true"]:not([aria-expanded="true"]) { background: var(--color-tint); color: var(--color-content); }
-.library-step-row[aria-expanded="true"] { color: var(--color-content); }
-.library-step-row[aria-expanded="true"] .library-step-title { font-weight: 600; }
-.library-step[data-planned] .library-step-row { color: color-mix(in srgb, var(--color-content) 45%, transparent); }
-.library-dot { display: grid; width: 20px; height: 20px; flex: none; place-items: center; border: 1.5px solid color-mix(in srgb, var(--color-content) 25%, transparent); border-radius: 50%; font: 600 10.5px/1 var(--font-mono); color: color-mix(in srgb, var(--color-content) 55%, transparent); background: var(--color-background-base); }
-.library-dot--learning { border-color: color-mix(in srgb, var(--color-content) 80%, transparent); color: var(--color-content); }
-.library-dot--mastered { border-color: transparent; background: color-mix(in srgb, var(--color-content) 80%, var(--color-background-base)); color: var(--color-background-base); }
-.library-dot--planned { border-style: dashed; color: color-mix(in srgb, var(--color-content) 40%, transparent); }
-/* Off the path a course has no number: a small ring in the dot's column. */
-.library-dot--loose { width: 8px; height: 8px; margin: 6px; border-width: 1.5px; }
-.library-dot--loose.library-dot--mastered { background: color-mix(in srgb, var(--color-content) 80%, transparent); }
-.library-step-text { min-width: 0; flex: 1; }
-.library-step-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.library-step-meta { display: flex; min-width: 0; align-items: center; gap: 8px; margin-top: 3px; }
-.library-step-meta:empty { display: none; }
-
-.library-step-planned { font-size: 11px; line-height: 18px; font-style: italic; }
-.library-step-body { margin: 2px 0 8px 28px; padding-left: 4px; }
+/* Several courses follow one another in one outline. */
+.library-course + .library-course { margin-top: 22px; }
 
 /* An outline: chapters that fold, and lessons with a status ring, a title of
    up to two lines and what kind of reading it is. */
@@ -203,3 +175,22 @@
 .mentor-return-go:hover { text-decoration: underline; text-underline-offset: 3px; }
 .mentor-return-close { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
 .mentor-return-close:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
+
+/* Reading a lesson's text: the outline is a strip of short lines on the left,
+   one per lesson, the open one heavier; pointing at it lays the full outline
+   over the text as a drawer. */
+.lesson-strip { display: flex; width: 26px; flex: none; flex-direction: column; align-items: center; gap: 10px; overflow-y: auto; padding: 52px 0 16px; border-right: 1px solid var(--color-stroke); scrollbar-width: none; }
+.lesson-strip__chapter { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.lesson-strip__line { display: block; width: 18px; height: 7px; padding: 0; background: none; }
+.lesson-strip__line::before { content: ""; display: block; width: 10px; height: 2px; margin: 0 auto; border-radius: 1px; background: color-mix(in srgb, var(--color-content) 28%, transparent); }
+.lesson-strip__line[data-read]::before { background: color-mix(in srgb, var(--color-content) 55%, transparent); }
+.lesson-strip__line[data-planned]::before { background: color-mix(in srgb, var(--color-content) 12%, transparent); }
+.lesson-strip__line[aria-current="step"]::before { width: 14px; height: 2.5px; background: var(--color-content); }
+.mentor-library-column--drawer:not([hidden]) { position: absolute; z-index: 31; top: 0; bottom: 0; left: 26px; width: 280px; max-width: calc(100% - 74px); box-shadow: 12px 0 40px #0002; }
+.mentor-library-column--drawer > .mentor-resize { display: none; }
+
+/* The text widens to a comfortable measure, centred, with the margin beside it. */
+.mentor-body[data-reading] :is(.course-pane__reading.reader-measure, .course-pane__reading .agent-markdown, .course-pane__lesson-end.reader-measure, [data-once-hint].reader-measure) { max-width: 72ch; }
+
+/* A lesson the mentor revised and the learner has not looked at yet. */
+.library-lesson-revised { width: 5px; height: 5px; flex: none; align-self: center; margin-left: 4px; border-radius: 50%; background: var(--color-content); }

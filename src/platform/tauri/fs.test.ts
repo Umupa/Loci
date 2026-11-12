@@ -1,36 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { listSkills, resolveProjectLocation, } from "./fs";
+import { resolveProjectLocation } from "./fs";
 vi.mock("@tauri-apps/api/core", () => ({
     invoke: vi.fn(),
 }));
-describe("listSkills", () => {
-    it("invokes list_skills with cwd and disabledPaths", async () => {
-        vi.mocked(invoke).mockResolvedValueOnce([]);
-        await listSkills("/repo", ["/repo/.agents/skills/review/SKILL.md"]);
-        expect(invoke).toHaveBeenCalledWith("list_skills", {
-            cwd: "/repo",
-            disabledPaths: ["/repo/.agents/skills/review/SKILL.md"],
-        });
-    });
-    it("passes null when disabledPaths is omitted", async () => {
-        vi.mocked(invoke).mockResolvedValueOnce([]);
-        await listSkills("/repo");
-        expect(invoke).toHaveBeenCalledWith("list_skills", {
-            cwd: "/repo",
-            disabledPaths: null,
-        });
-    });
-    it("asks for the user's own skills only for Settings", async () => {
-        vi.mocked(invoke).mockResolvedValueOnce([]);
-        await listSkills("~", null, true);
-        expect(invoke).toHaveBeenCalledWith("list_skills", {
-            cwd: "~",
-            disabledPaths: null,
-            userOnly: true,
-        });
-    });
-});
 describe("resolveProjectLocation", () => {
     it("passes the saved filesystem identity to the backend", async () => {
         vi.mocked(invoke).mockResolvedValueOnce({

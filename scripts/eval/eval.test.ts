@@ -216,23 +216,22 @@ describe("the v0.4 sandbox checks", () => {
     const courses = ["c1", "c2", "c3"].map((id) => ({ id, title: id, chapters: [{ title: "Code", lessons: lessons(id) }] }));
     return {
       scenario: {
-        id: "sandbox-path", template: "learning-guide", acceptance: "v0.4", rubric: ["codeEvidence", "path"], firstPartyDomains: ["docs.kernel.org"],
-        expect: { pathCourses: [3, 5], lessonsPerCourse: [6, 12], minCodeLessonsPerCourse: 1, minFirstHand: 10, firstSourceWithinSeconds: 300, compareLessons: 1, tolerateMissingCompare: true },
+        id: "sandbox-course", template: "learning-guide", acceptance: "v0.4", rubric: ["codeEvidence"], firstPartyDomains: ["docs.kernel.org"],
+        expect: { chapters: [1, 6], lessons: [6, 12], minCodeLessonsPerCourse: 1, minFirstHand: 10, firstSourceWithinSeconds: 300, compareLessons: 1, tolerateMissingCompare: true },
       },
       sources: Array.from({ length: 10 }, (_, index) => ({ id: `s${index}`, title: `Source ${index}`, kind: "source", sourceUrl: `https://docs.kernel.org/${index}`, version: "6.12", body: "word ".repeat(300) })),
       courses,
-      path: { path: { title: "Boxes", courses: [{ id: "c1" }, { id: "c2", after: ["c1"] }, { id: "c3", after: ["c2"] }] }, file: "courses/_path.yaml" },
       pins: { pins: courses.flatMap((course) => course.chapters[0].lessons.map((lesson) => ({ course: course.id, lesson: lesson.id, file: lesson.file, commit, lines: lesson.lines, state: "current" }))), stale: 0 },
       libraryProblems: [],
       timings: { firstSource: 120 }, turns: [], failures: [], nudges: 0,
     };
   }
 
-  it("passes a path of three 6-lesson courses with pinned tours, ten sourced and versioned first-hand sources, and a readable folder", () => {
+  it("passes three 6-lesson courses with pinned tours, ten sourced and versioned first-hand sources, and a readable folder", () => {
     const run = fixture();
     const check = checkSandbox(run, files);
     expect(check.ok).toBe(true);
-    expect(check.path).toMatchObject({ checked: true, exists: true, count: 3, withinRange: true });
+    expect(check.courseLessons.map((course: { chapters: number; lessons: number; withinRange: boolean }) => [course.chapters, course.lessons, course.withinRange])).toEqual([[1, 6, true], [1, 6, true], [1, 6, true]]);
     expect(check.code).toMatchObject({ lessons: 18, pinned: 18, unpinned: [] });
     expect(check.code.pins.byState.current).toBe(18);
     expect(check.code.lines).toMatchObject({ checked: 18, resolved: 18 });
@@ -242,10 +241,10 @@ describe("the v0.4 sandbox checks", () => {
     expect(scoreRun(run, files).sandbox.ok).toBe(true);
   });
 
-  it("fails a missing path, a course outside 6–12 lessons, and a course with no code tour", () => {
-    const missing = fixture();
-    missing.path = null as never;
-    expect(checkSandbox(missing, files).problems.join(" ")).toContain("no learning path");
+  it("fails a course with too few chapters, a course outside 6–12 lessons, and a course with no code tour", () => {
+    const flat = fixture();
+    flat.scenario.expect.chapters = [3, 6];
+    expect(checkSandbox(flat, files).problems.join(" ")).toContain("c1 has 1 chapters; expected 3–6");
 
     const short = fixture();
     short.courses[0].chapters[0].lessons = short.courses[0].chapters[0].lessons.slice(0, 5);
@@ -376,18 +375,18 @@ describe("the judge and the summary", () => {
     expect(prompt).not.toMatch(/\{\{\w+\}\}/);
   });
 
-  it("adds the code-tour and path rubric items only when a scenario asks for them", () => {
+  it("adds the code-tour rubric item only when a scenario asks for it", () => {
     const commit = "a".repeat(40);
     expect(rubricFor({})).toEqual(RUBRIC);
-    expect(rubricFor({ rubric: ["codeEvidence", "path", "unknown"] })).toEqual([...RUBRIC, "codeEvidence", "path"]);
-    const keys = rubricFor({ rubric: ["codeEvidence", "path"] });
+    expect(rubricFor({ rubric: ["codeEvidence", "path", "unknown"] })).toEqual([...RUBRIC, "codeEvidence"]);
+    const keys = rubricFor({ rubric: ["codeEvidence"] });
     const prompt = judgePrompt({
-      scenario: { opening: "Sandboxes", template: "learning-guide", learner: { background: "Systems engineer" }, rubric: ["codeEvidence", "path"] },
+      scenario: { opening: "Sandboxes", template: "learning-guide", learner: { background: "Systems engineer" }, rubric: ["codeEvidence"] },
       checks: {}, sources: [], courses: [], turns: [],
       codeTours: [{ course: "c1", lesson: "l1", title: "Entry point", file: "repos/x/a.go", commit, lines: [1, 2], state: "current", excerpt: "func main() {}" }],
     });
     expect(prompt).toContain("**codeEvidence**");
-    expect(prompt).toContain("**path**");
+    expect(prompt).not.toContain("**path**");
     expect(prompt).toContain("Entry point");
     expect(prompt).toContain('"codeEvidence":{"score":1');
     expect(prompt).not.toMatch(/\{\{\w+\}\}/);
@@ -395,7 +394,7 @@ describe("the judge and the summary", () => {
     expect(parseVerdict(JSON.stringify(verdict), keys)).toMatchObject({ worst: "Pin every lesson." });
     expect(Object.keys(parseVerdict(JSON.stringify(verdict), keys)!.scores)).toEqual(keys);
     expect(RUBRIC_EXTENSIONS.codeEvidence).toMatch(/evidence for a mechanism/);
-    expect(RUBRIC_EXTENSIONS.path).toMatch(/progressive/);
+    expect(RUBRIC_EXTENSIONS).not.toHaveProperty("path");
   });
 
   it("pins each judge's model and runs other judges only when named", () => {
@@ -429,8 +428,7 @@ describe("the judge and the summary", () => {
     };
     const sandbox = {
       ok: true, problems: [],
-      path: { checked: true, exists: true, count: 3, expected: [3, 5], title: "Boxes", courses: [{ id: "c1", lessons: 6, withinRange: true, planned: false }], otherCourses: [] },
-      courseLessons: [],
+      courseLessons: [{ id: "c1", title: "c1", chapters: 2, lessons: 6, withinRange: true }],
       code: { lessons: 18, pinned: 18, unpinned: [], pins: { listed: 18, stale: 0, byState: { current: 18, moved: 0, changed: 0, "missing-commit": 0, "missing-file": 0, "no-repo": 0, error: 0 } }, lines: { checked: 18, resolved: 18, withoutLines: [], problems: [] }, perCourse: [] },
       firstHand: { count: 10, min: 10, ok: true, missingAddress: [], missingVersion: [], firstSourceSeconds: 120, withinSeconds: 300 },
       compare: { count: 0, expected: 1, tolerated: true, present: 0, lessons: [], rows: [] },
@@ -443,16 +441,17 @@ describe("the judge and the summary", () => {
       firstTenMinutes: { firstReplySeconds: 10, firstSourceSeconds: 120, courseSeconds: 200, mentorTurnsBeforeFirstSource: 0, questionsPerReply: [], maxQuestionsInOneReply: 0, nudges: 0 },
       failures: [], sandbox,
     };
-    const verdict = { scores: Object.fromEntries(["firstHand", "courseStructure", "grounding", "firstTenMinutes", "firstPrinciples", "readability", "codeEvidence", "path"].map((key) => [key, { score: 4, reason: key }])), worst: "Pin more." };
-    const text = summaryMarkdown(meta, [{ scenario: { id: "sandbox-path", template: "learning-guide" }, score, judge: { verdict } }]);
+    const verdict = { scores: Object.fromEntries(["firstHand", "courseStructure", "grounding", "firstTenMinutes", "firstPrinciples", "readability", "codeEvidence"].map((key) => [key, { score: 4, reason: key }])), worst: "Pin more." };
+    const text = summaryMarkdown(meta, [{ scenario: { id: "sandbox-course", template: "learning-guide" }, score, judge: { verdict } }]);
     expect(text).toContain("Sandbox acceptance (v0.4)");
-    expect(text).toContain("| Code evidence | Path |");
-    expect(text).toContain("c1=6");
+    expect(text).toContain("| Code evidence |");
+    expect(text).not.toContain("| Path |");
+    expect(text).toContain("c1=2 chapters, 6 lessons");
     expect(text).toContain("Acceptance: pass");
     // A mixed run keeps the old scenarios' four scores and shows a dash for the new columns.
     const base = { ...verdict, scores: Object.fromEntries(["firstHand", "courseStructure", "grounding", "firstTenMinutes"].map((key) => [key, { score: 3, reason: key }])) };
     const mixed = summaryMarkdown(meta, [
-      { scenario: { id: "sandbox-path", template: "learning-guide" }, score, judge: { verdict } },
+      { scenario: { id: "sandbox-course", template: "learning-guide" }, score, judge: { verdict } },
       { scenario: { id: "sqlite-wal", template: "learning-guide" }, score: { ...score, sandbox: undefined }, judge: { verdict: base } },
     ]);
     expect(mixed).toContain("| **mean** |");
@@ -548,12 +547,12 @@ describe("scenarios", () => {
 
   it("seed only the sandbox scenarios, from owner/repo names under the shared checkout root", () => {
     const seeded = scenarios.filter(({ data }) => data.seed);
-    expect(seeded.map(({ data }) => data.id).sort()).toEqual(["cube-snapshot", "sandbox-path"]);
+    expect(seeded.map(({ data }) => data.id).sort()).toEqual(["cube-snapshot", "sandbox-course"]);
     for (const { data } of seeded) {
       expect(data.acceptance).toBe("v0.4");
       for (const repo of data.seed.repos) expect(repo).toMatch(/^[^/\\]+\/[^/\\]+$/);
     }
-    expect(scenarios.find(({ data }) => data.id === "sandbox-path")?.data.seed.repos).toHaveLength(3);
+    expect(scenarios.find(({ data }) => data.id === "sandbox-course")?.data.seed.repos).toHaveLength(3);
   });
 });
 

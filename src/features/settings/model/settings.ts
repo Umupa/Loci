@@ -543,7 +543,7 @@ export const KEYBINDINGS: KeybindingRow[] = [
     { command: "App: Search", keys: `${MOD}K`, when: "Always" },
     { command: "App: New Window", keys: `${MOD}${SHIFT}N`, when: "Always" },
     { command: "App: Toggle Library", keys: `${MOD}B`, when: "Always" },
-    { command: "App: Toggle Conversation", keys: `${MOD}${SHIFT}B`, when: "Always" },
+    { command: "App: Toggle Conversation", keys: `${MOD}J`, when: "Always" },
     { command: "App: Switch Model", keys: `${MOD}.`, when: "Always" },
     { command: "View: Reload", keys: `${MOD}${SHIFT}R`, when: "Always" },
     { command: "View: Zoom In", keys: `${MOD}+`, when: "Always" },

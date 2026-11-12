@@ -1,0 +1,28 @@
+/* A lesson's margin. A note's host sits in the text's flow, before its block;
+   in the margin it is taken out of the flow and set beside the text at the
+   block's height, against the article (which is positioned). Without room it
+   stays in the flow, under its paragraph. */
+.lesson-note-host[data-wide="true"] { position: absolute; left: calc(100% + 40px); width: 250px; margin: 0; }
+.lesson-note-host[data-wide="false"] { margin: 4px 0 18px; }
+.lesson-note { font: 12.5px/1.55 var(--font-sans); color: color-mix(in srgb, var(--color-content) 75%, transparent); border-left: 1px solid var(--color-content); padding-left: 10px; }
+.lesson-note-host[data-wide="false"] .lesson-note { padding: 2px 0 2px 12px; }
+.lesson-note__summary { display: block; width: 100%; text-align: left; color: inherit; }
+.lesson-note__summary:hover .lesson-note__question { text-decoration: underline; text-underline-offset: 3px; }
+.lesson-note__item + .lesson-note__item { margin-top: 12px; }
+.lesson-note__question { margin: 0 0 3px; font-weight: 600; color: var(--color-content); }
+.lesson-note__answer .agent-markdown { font-size: 12.5px; line-height: 1.55; }
+.lesson-note__answer .agent-markdown :is(p, ul, ol) { margin: 0 0 6px; }
+.lesson-note__answer--clamped { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 6; }
+.lesson-note__waiting { margin: 0; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.lesson-note__count { display: inline-block; margin-top: 4px; font-size: 11px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.lesson-note__fold { margin-top: 6px; font-size: 11px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.lesson-note__fold:hover { color: var(--color-content); }
+
+/* Asking in place: a quiet one-line box that grows as it is written in. */
+.lesson-ask { display: block; width: 100%; min-height: 30px; margin-top: 8px; padding: 5px 8px; resize: none; field-sizing: content; border: 1px solid var(--color-stroke); border-radius: 6px; background: transparent; font: 12.5px/1.5 var(--font-sans); color: var(--color-content); }
+.lesson-ask::placeholder { color: color-mix(in srgb, var(--color-content) 40%, transparent); }
+.lesson-ask:focus { outline: none; border-color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.lesson-note-host > .lesson-ask { margin-top: 0; }
+
+/* An answer is not the lesson's text: it takes its box's width, not the reading measure. */
+:is(.lesson-note__answer, .course-pane__answer) .agent-markdown { max-width: none; margin-inline: 0; }

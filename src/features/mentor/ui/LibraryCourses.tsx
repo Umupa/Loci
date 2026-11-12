@@ -1,13 +1,12 @@
-import { useCallback, useMemo, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { ask } from "../../../platform/dialog";
 import { Popover, type PopoverAnchor } from "../../../shared/ui/Popover";
 import { Highlighter, MoreHorizontal, Plus, RotateCcw } from "../../../shared/ui/icons";
 import { useCourseMarks } from "../../learning/ui/LessonMarks";
 import { agentLook, type Agent } from "../../agents/model/agent";
-import { COURSES_CHANGED_EVENT, loadCourse, resetCourseProgress, type CourseChangedDetail, type CourseSummary } from "../../learning/model/course";
-import { loadCoursePath, pathSteps, type PathRead, type PathStep } from "../../learning/model/coursePath";
+import { resetCourseProgress, type CourseSummary } from "../../learning/model/course";
 import { useLiveCourse } from "../../learning/ui/CourseOutline";
-import { courseProgress, courseState, nextLesson, withoutOrdinal } from "../model/libraryCourse";
+import { courseProgress, withoutOrdinal } from "../model/libraryCourse";
 import type { MentorLesson, MentorPage } from "../model/mentorPage";
 import { LibraryOutline } from "./LibraryOutline";
 import { LibraryLoadError } from "./LibraryList";
@@ -18,71 +17,14 @@ export type CourseBadge = (courseId: string, lessonId?: string) => ReactNode;
 
 /** What "ask for a course" puts in the composer, for the user to finish. */
 export const NEW_COURSE_PROMPT = "I'd like a new course on ";
-/** What "plan a path" puts in the composer. */
-export const NEW_PATH_PROMPT = "Plan a learning path of short courses for me, in order, from what we have and what is missing: ";
-
-/** One mentor's path as every view of it shares it: read once, and again once per change. */
-type SharedPath = { read?: PathRead; request: number; users: Set<() => void>; stop: () => void };
-const sharedPaths = new Map<string, SharedPath>();
-
-function readSharedPath(agentId: string, shared: SharedPath) {
-  const request = ++shared.request;
-  const settle = (read?: PathRead) => {
-    if (sharedPaths.get(agentId) !== shared || request !== shared.request) return;
-    shared.read = read;
-    for (const listener of shared.users) listener();
-  };
-  // A mentor whose content is not in a folder has no path: the segment stays as it was.
-  void loadCoursePath(agentId).then(settle, () => settle(undefined));
-}
-
-function subscribeCoursePath(agentId: string, listener: () => void): () => void {
-  let shared = sharedPaths.get(agentId);
-  if (!shared) {
-    const changed = (event: Event) => { if ((event as CustomEvent<CourseChangedDetail>).detail?.agentId === agentId) readSharedPath(agentId, created); };
-    const created: SharedPath = { request: 0, users: new Set(), stop: () => window.removeEventListener(COURSES_CHANGED_EVENT, changed) };
-    window.addEventListener(COURSES_CHANGED_EVENT, changed);
-    sharedPaths.set(agentId, created);
-    readSharedPath(agentId, created);
-    shared = created;
-  }
-  const entry = shared;
-  entry.users.add(listener);
-  return () => {
-    entry.users.delete(listener);
-    // Read afresh the next time anything shows it.
-    if (entry.users.size || sharedPaths.get(agentId) !== entry) return;
-    entry.stop();
-    sharedPaths.delete(agentId);
-  };
-}
-
-/** The mentor's learning path, read again whenever its courses change; views shown together share one read. */
-export function useCoursePath(agentId: string): PathRead | undefined {
-  const subscribe = useCallback((listener: () => void) => subscribeCoursePath(agentId, listener), [agentId]);
-  return useSyncExternalStore(subscribe, () => sharedPaths.get(agentId)?.read);
-}
-
-/** Opens a course at the lesson to continue with. */
-async function pickCourse(agentId: string, entry: CourseSummary, onSelect: (id: string) => void, onOpen: (page: MentorPage) => void) {
-  onSelect(entry.id);
-  let itemId: string | undefined;
-  try {
-    const loaded = await loadCourse(entry.id, agentId);
-    itemId = loaded ? nextLesson(loaded)?.id : undefined;
-  } catch { /* The course opens at its start. */ }
-  onOpen({ kind: "course", course: { courseId: entry.id, agentId, title: entry.title, ...(itemId ? { itemId } : {}) } });
-}
-
 type Props = {
   agent: Agent;
   courses: CourseSummary[] | undefined;
-  /** The course chosen for the library, if any. */
+  /** The course last chosen for the library, brought into view. */
   selected?: string;
   page?: MentorPage;
   lesson?: MentorLesson;
   onOpen: (page: MentorPage) => void;
-  onSelect: (courseId: string) => void;
   onDraft: (text: string) => void;
   badge?: CourseBadge;
   /** Why the course listing could not be read, if it could not. */
@@ -92,94 +34,45 @@ type Props = {
   isNew?: (courseId: string) => boolean;
 };
 
-/** One course row: on the path (numbered, maybe planned) or not (`position` absent). */
-type Row = { id: string; title: string; read: number; total: number; position?: number; planned?: boolean; pending?: PathStep["pending"]; summary?: CourseSummary };
+/** Courses in the order they were first written, so a new one goes to the end. */
+export function courseOrder(courses: readonly CourseSummary[]): CourseSummary[] {
+  return [...courses].sort((a, b) => (a.createdAt ?? a.updatedAt) - (b.createdAt ?? b.updatedAt) || a.id.localeCompare(b.id));
+}
 
 /**
- * The Courses segment. With a learning path: the path and its progress, its
- * courses in order on a line, then any course not on it. Without one: the
- * courses as rows, or a single course's own head. Either way the current
- * course opens in place under its row, one at a time, showing its chapters
- * and lessons; the outline's current lesson and the reader's next/previous
- * are where to continue.
+ * The Courses segment: one outline of chapters and lessons. A mentor with
+ * several courses (a Lens reading several repositories) has them one after
+ * another, each under its title. The outline's current lesson and the
+ * reader's next/previous are where to continue.
  */
-export function LibraryCourses({ agent, courses: listed, selected, page, lesson, onOpen, onSelect, onDraft, badge, error, onRetry, isNew }: Props) {
+export function LibraryCourses({ agent, courses: listed, selected, page, lesson, onOpen, onDraft, badge, error, onRetry, isNew }: Props) {
   const name = agentLook(agent).name;
-  const pathRead = useCoursePath(agent.id);
-  const path = pathRead?.path ?? undefined;
   const open = page?.kind === "course" ? page.course : undefined;
   const courses = useMemo(() => {
-    const all = [...(listed ?? [])];
+    const all = courseOrder(listed ?? []);
     // A course just written may be open before the listing has it.
     if (open && !all.some((entry) => entry.id === open.courseId))
-      all.unshift({ id: open.courseId, agentId: agent.id, engine: "reading", title: open.title, updatedAt: 0, itemCount: 0, masteredCount: 0 });
+      all.push({ id: open.courseId, agentId: agent.id, engine: "reading", title: open.title, updatedAt: 0, itemCount: 0, masteredCount: 0 });
     return all;
   }, [listed, open?.courseId, open?.title, agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  const plan = useMemo(() => path ? pathSteps(path, courses) : undefined, [path, courses]);
-  // With a path, the course to show is the one chosen, the one open, else the first one on the path not read to the end.
-  const onPathNext = plan?.steps.find((step) => !step.planned && step.read < step.total) ?? plan?.steps.find((step) => !step.planned);
-  const current = courses.find((entry) => entry.id === selected)
-    ?? courses.find((entry) => entry.id === open?.courseId)
-    ?? (onPathNext ? courses.find((entry) => entry.id === onPathNext.id) : undefined)
-    ?? [...courses].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-  // The current course is open under its row until its row is clicked; choosing another opens that one.
-  const [collapsed, setCollapsed] = useState<string | null>(null);
-  const expandedId = current && current.id !== collapsed ? current.id : null;
   const activeId = (id: string) => open?.courseId === id ? lesson?.id ?? open.itemId ?? null : null;
+  const list = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (selected) list.current?.querySelector(`[data-library-course="${CSS.escape(selected)}"]`)?.scrollIntoView?.({ block: "nearest" });
+  }, [selected]);
 
   if (listed === undefined && !open) return error ? <LibraryLoadError subject="courses" onRetry={onRetry} />
     : <p role="status" className="mentor-library-empty">Loading…</p>;
-  if (!current && !plan) return <div className="library-courses-empty">
+  if (!courses.length) return <div className="library-courses-empty">
     {error ? <LibraryLoadError subject="courses" onRetry={onRetry} /> : null}
     <p className="mentor-library-empty">No course yet.</p>
     <button type="button" className="library-ask" onClick={() => onDraft(NEW_COURSE_PROMPT)}><Plus aria-hidden className="size-3.5" />Ask {name} for a course</button>
   </div>;
 
-  const asks = <div className="library-asks">
-    <button type="button" className="library-ask" onClick={() => onDraft(NEW_COURSE_PROMPT)}><Plus aria-hidden className="size-3.5" />Ask {name} for a course</button>
-    {!plan && courses.length >= 2
-      ? <button type="button" className="library-ask" onClick={() => onDraft(NEW_PATH_PROMPT)}><Plus aria-hidden className="size-3.5" />Ask {name} to plan a path</button> : null}
-  </div>;
-
-  // A single course needs no list: its own head, then its outline.
-  if (!plan && courses.length === 1 && current) return <div className="library-courses" data-library-courses onKeyDown={listKeyDown}>
+  return <div ref={list} className="library-courses" data-library-courses onKeyDown={listKeyDown}>
     {error ? <LibraryLoadError subject="courses" onRetry={onRetry} /> : null}
-    <SingleCourse agent={agent} current={current} activeId={activeId(current.id)} onOpen={onOpen} badge={badge} isNew={isNew?.(current.id) ?? false} />
-    {asks}
-  </div>;
-
-  const fromSummary = (entry: CourseSummary): Row => ({ id: entry.id, title: entry.title, read: entry.masteredCount, total: entry.itemCount, summary: entry });
-  const steps = plan?.steps.map((step): Row => ({ ...step, summary: courses.find((entry) => entry.id === step.id) }));
-  const others = (plan ? plan.others : courses).map(fromSummary);
-  const positions = new Map(plan?.steps.map((step) => [step.id, step.position]));
-  const pick = (row: Row) => {
-    if (row.planned || !row.summary) { onDraft(`Please write the course "${row.title}" (id ${row.id}) on my learning path.`); return; }
-    if (row.id === current?.id) { setCollapsed(row.id === expandedId ? row.id : null); return; }
-    setCollapsed(null);
-    void pickCourse(agent.id, row.summary, onSelect, onOpen);
-  };
-  const row = (entry: Row) => <CourseRow key={entry.id} agent={agent} row={entry} positions={positions}
-    current={entry.id === current?.id} expanded={entry.id === expandedId} activeId={activeId(entry.id)}
-    isNew={isNew?.(entry.id) ?? false} badge={badge} onPick={() => pick(entry)} onOpen={onOpen} />;
-  const written = plan?.steps.filter((step) => !step.planned) ?? [];
-  const read = written.reduce((sum, step) => sum + step.read, 0);
-  const total = written.reduce((sum, step) => sum + step.total, 0);
-
-  return <div className="library-courses" data-library-courses onKeyDown={listKeyDown}>
-    {error ? <LibraryLoadError subject="courses" onRetry={onRetry} /> : null}
-    {plan && steps ? <div className="library-path" data-library-path>
-      <div className="library-head">
-        <p className="library-path-title">{path?.title ?? "Learning path"}</p>
-        <ReadLine read={read} total={total} />
-      </div>
-      {pathRead?.error ? <p role="alert" className="mentor-library-empty">The path file has a problem: {pathRead.error}</p> : null}
-      <ol className="library-steps" aria-label="Courses on the path">{steps.map(row)}</ol>
-    </div> : null}
-    {others.length ? <>
-      {plan ? <p className="library-others">Other courses</p> : null}
-      <ul className="library-steps library-steps--loose" aria-label={plan ? "Other courses" : "Courses"}>{others.map(row)}</ul>
-    </> : null}
-    {asks}
+    {courses.map((entry) => <CourseSection key={entry.id} agent={agent} current={entry} activeId={activeId(entry.id)} onOpen={onOpen} badge={badge}
+      isNew={isNew?.(entry.id) ?? false} />)}
   </div>;
 }
 
@@ -210,64 +103,12 @@ function useCourseMenu(agentId: string, courseId: string, title: string) {
   };
 }
 
-type RowProps = {
-  agent: Agent; row: Row; positions: Map<string, number>; current: boolean; expanded: boolean; activeId: string | null;
-  isNew: boolean; badge?: CourseBadge; onPick: () => void; onOpen: Props["onOpen"];
-};
-
-/**
- * A course as a row: its marker (a numbered dot on the path, a small ring
- * off it), title, progress and the courses best read first. Clicking opens
- * it at the lesson to continue with; clicking the open one folds it.
- */
-function CourseRow({ agent, row, positions, current, expanded, activeId, isNew, badge, onPick, onOpen }: RowProps) {
-  // Loaded only while open; the row stays the same element either way, so focus stays on it.
-  const { course, error } = useLiveCourse(expanded ? row.id : null, agent.id);
-  // While open, the outline's own progress is the freshest.
-  const progress = expanded && course ? courseProgress(course) : row;
-  const title = withoutOrdinal(row.title);
-  const state = courseState(progress.read, progress.total);
-  const pending = row.pending ?? [];
-  const keys = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (row.planned) return;
-    if ((event.key === "ArrowRight" && !expanded) || (event.key === "ArrowLeft" && expanded)) { event.preventDefault(); onPick(); }
-  };
-  const summary = row.planned ? `${title}: not written yet. Ask for it.` : `${title}: ${progress.read} of ${progress.total} read`;
-  const menu = useCourseMenu(agent.id, row.id, row.title);
-  return <li className="library-step" data-library-step={row.id} data-planned={row.planned || undefined}>
-    {menu.popover}
-    <button type="button" data-library-item className="library-step-row" title={summary}
-      onContextMenu={row.planned ? undefined : menu.openAt}
-      aria-current={current ? "true" : undefined} aria-expanded={row.planned ? undefined : expanded} onClick={onPick} onKeyDown={keys}>
-      {row.position !== undefined
-        ? <span aria-hidden className={`library-dot library-dot--${row.planned ? "planned" : state}`}>{row.position}</span>
-        : <span aria-hidden className={`library-dot library-dot--loose library-dot--${state}`} />}
-      <span className="library-step-text">
-        <span className="library-step-title">{title}{isNew ? <span className="mentor-library-new">New</span> : null}</span>
-        <span className="library-step-meta">
-          {row.planned ? <span className="library-step-planned">planned</span> : null}
-          {pending.length ? <span className="library-tag" title={`Best after ${pending.map((item) => withoutOrdinal(item.title)).join(", ")}`}>
-            After {pending.map((item) => positions.get(item.id) ?? withoutOrdinal(item.title)).join(", ")}
-          </span> : null}
-          {expanded ? badge?.(row.id) : null}
-        </span>
-      </span>
-    </button>
-    {expanded ? <div className="library-step-body" data-library-course={row.id} data-library-new={isNew || undefined}>
-      {error ? <p role="alert" className="mentor-library-empty">{error}</p> : null}
-      {course ? <LibraryOutline course={course} activeId={activeId} onSelect={(itemId) => openLesson(agent.id, onOpen, row.id, course.title, itemId)}
-        badge={badge ? (lessonId) => badge(row.id, lessonId) : undefined} /> : null}
-      {course ? <HighlightsLink agentId={agent.id} courseId={row.id} title={course.title} onOpen={onOpen} /> : null}
-    </div> : null}
-  </li>;
-}
-
 function openLesson(agentId: string, onOpen: Props["onOpen"], courseId: string, title: string, itemId: string) {
   onOpen({ kind: "course", course: { courseId, agentId, title, itemId } });
 }
 
-/** The only course a mentor has: its head (title and progress) over its outline. */
-function SingleCourse({ agent, current, activeId, onOpen, badge, isNew }: {
+/** A course in the outline: its head (title and progress) over its chapters and lessons. */
+function CourseSection({ agent, current, activeId, onOpen, badge, isNew }: {
   agent: Agent; current: CourseSummary; activeId: string | null; onOpen: Props["onOpen"]; badge?: CourseBadge; isNew: boolean;
 }) {
   const { course, error } = useLiveCourse(current.id, agent.id);
@@ -291,7 +132,7 @@ function SingleCourse({ agent, current, activeId, onOpen, badge, isNew }: {
   </div>;
 }
 
-/** How far a course or path is read, as the line under its head fills: no numbers to read, only ink. */
+/** How far a course is read, as the line under its head fills: no numbers to read, only ink. */
 function ReadLine({ read, total, done }: { read: number; total: number; done?: boolean }) {
   const share = total ? Math.min(1, read / total) : 0;
   return <span className="library-readline" role="img" aria-label={`${read} of ${total} ${done ? "done" : "read"}`} title={`${read} of ${total} ${done ? "done" : "read"}`}>

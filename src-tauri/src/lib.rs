@@ -10,10 +10,10 @@ mod code;
 mod control;
 pub mod control_cli;
 mod course;
-mod course_path;
 pub mod external_cli;
 mod flavor;
 mod fs;
+mod glossary;
 mod harness;
 mod learning;
 mod link_preview;
@@ -29,7 +29,6 @@ pub mod remote;
 pub mod remote_catalog;
 mod reset;
 mod session_store;
-mod skills;
 mod source_translations;
 #[cfg(target_os = "macos")]
 mod trackpad_zoom;
@@ -373,6 +372,13 @@ pub fn run() {
             course::course_lesson_get,
             course::course_lesson_set,
             course::lesson_question_add,
+            course::lesson_question_answer,
+            course::lesson_revision_get,
+            course::lesson_revisions_unseen,
+            course::lesson_revision_seen,
+            glossary::glossary_read,
+            glossary::glossary_write,
+            glossary::glossary_remove,
             course::lesson_questions_list,
             course::course_progress_get,
             course::course_progress_set,
@@ -381,8 +387,6 @@ pub fn run() {
             agent::agent_save,
             agent::agent_workdir_create,
             agent::agent_workdir_ensure,
-            course_path::course_path_read,
-            course_path::course_path_write,
             code::commands::code_read,
             code::commands::code_pin_status,
             code::commands::code_resolve,
@@ -438,7 +442,6 @@ pub fn run() {
             session_store::session_set_in_flight,
             session_store::session_list_in_flight,
             session_store::session_take_in_flight,
-            skills::list_skills,
             window::set_window_glass_enabled,
             window::hide_window,
             window::destroy_window,

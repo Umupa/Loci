@@ -4,6 +4,7 @@ import { lessonPlanned, type CourseLesson, type CourseWithProgress, type Learnin
 import { requestChapter } from "../../learning/model/chapterRequest";
 import { statusLabel } from "../../learning/ui/CourseOutline";
 import { lessonKind, type LessonKind } from "../model/libraryCourse";
+import { useUnseenRevisions } from "../../learning/ui/useRevisions";
 
 type Props = {
   course: CourseWithProgress;
@@ -31,6 +32,7 @@ const KINDS: Record<LessonKind, { label: string; Icon: IconComponent }> = {
  */
 export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
   const marksId = useId();
+  const revised = useUnseenRevisions(course.agentId);
   const chapters: Chapter[] = course.data.chapters.map((chapter, at) => ({ key: String(at), title: chapter.title, lessons: chapter.lessons }));
   const status = (id: string): LearningStatus => course.progress.get(id) ?? "untouched";
   const [folds, setFolds] = useState<{ course: string; open: Record<string, boolean> }>({ course: course.id, open: {} });
@@ -74,6 +76,7 @@ export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
             title={lesson.title} onClick={() => { if (!planned || !requestChapter(course.agentId, course, lesson.id)) onSelect(lesson.id); }}>
             <span aria-hidden className={`library-mark library-mark--${planned ? "planned" : state}`}>{state === "mastered" ? <Check className="size-2" strokeWidth={3.5} /> : null}</span>
             <span className="library-lesson-title"><span>{lesson.title}</span></span>
+            {revised.has(`${course.id}/${lesson.id}`) ? <span className="library-lesson-revised" title="Revised" aria-label="Revised" /> : null}
             {kind ? <span className="library-lesson-kind" title={kind.label} data-lesson-kind={lessonKind(lesson)}><kind.Icon aria-hidden className="size-3.5" /></span> : null}
             {marks ? <span id={`${marksId}-${lesson.id}`} className="library-lesson-marks">{marks}</span> : null}
           </button>

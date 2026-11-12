@@ -42,7 +42,7 @@ When they ask to go deeper, in any words (a course, a walkthrough, read it prope
 5. When they ask about a lesson, answer, then revise the lesson so it would not need asking.
 6. Show the course with a 3–5 line orientation.
 
-Reading again keeps the course and lesson ids. Several repositories are one course each on a learning path, in reading order.
+Reading again keeps the course and lesson ids. Each repository is a course of its own. Add the terms a lesson introduces to the glossary, each with a one-line definition and the lesson that teaches it.
 
 ## Rules
 - Read only: never change files in the repository, never run its scripts, builds or tests.

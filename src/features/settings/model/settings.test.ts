@@ -182,7 +182,7 @@ describe("workspace navigation keybindings", () => {
     it("keeps separate shortcuts for the library and the conversation", () => {
         expect(KEYBINDINGS.filter((row) => ["App: Toggle Library", "App: Toggle Conversation"].includes(row.command))).toEqual([
             { command: "App: Toggle Library", keys: `${MOD}B`, when: "Always" },
-            { command: "App: Toggle Conversation", keys: `${MOD}${SHIFT}B`, when: "Always" },
+            { command: "App: Toggle Conversation", keys: `${MOD}J`, when: "Always" },
         ]);
     });
     it("lists no tab, pane, session-list or project commands", () => {

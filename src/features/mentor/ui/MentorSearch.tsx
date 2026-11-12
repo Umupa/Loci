@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { File, Mortarboard, Search, StickyNote } from "../../../shared/ui/icons";
+import { File, Mortarboard, Pencil, Search, StickyNote } from "../../../shared/ui/icons";
 import { MatchText } from "../../../shared/ui/MatchText";
 import { listAgents, type Agent } from "../../agents/model/agent";
 import { listAgentDocuments, type StoredDocument } from "../../agents/model/agentDocuments";
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { loadCourse, loadCourseSummaries, type CourseWithProgress } from "../../learning/model/course";
 import { loadNotes } from "../../notes";
+import { loadGlossary, type GlossaryTerm } from "../../learning/model/glossary";
 import { searchLibrary, type LibraryHit } from "../../agents/model/mentorStore";
 import { bodyHitItems, mentorSearchItems, searchMentorItems, type MentorSearchItem, type MentorSearchSources } from "../model/mentorSearch";
 import "./MentorSearch.css";
@@ -13,14 +14,15 @@ import "./MentorSearch.css";
 /** Everything the palette searches, read fresh each time it opens. */
 export async function loadMentorSearchSources(agents: readonly Agent[] = listAgents()): Promise<MentorSearchSources> {
   const ids = new Set(agents.map((agent) => agent.id));
-  const [summaries, notes, documents] = await Promise.all([
+  const [summaries, notes, documents, glossaries] = await Promise.all([
     loadCourseSummaries().catch(() => []),
     loadNotes(true).catch(() => []),
     Promise.all(agents.map(async (agent) => [agent.id, await listAgentDocuments(agent.id).catch(() => [] as StoredDocument[])] as const)),
+    Promise.all(agents.map(async (agent) => [agent.id, await loadGlossary(agent.id).catch(() => [] as GlossaryTerm[])] as const)),
   ]);
   const courses = (await Promise.all(summaries.filter((course) => ids.has(course.agentId))
     .map((course) => loadCourse(course.id, course.agentId).catch(() => null)))).filter((course): course is CourseWithProgress => !!course);
-  return { agents, courses, documents: new Map(documents), notes };
+  return { agents, courses, documents: new Map(documents), notes, glossaries: new Map(glossaries) };
 }
 
 /** The characters of each query word where it first appears in the title. */
@@ -32,7 +34,7 @@ function matchPositions(title: string, query: string): number[] {
   });
 }
 
-const KIND_LABEL: Record<MentorSearchItem["kind"], string> = { mentor: "Mentor", course: "Course", lesson: "Lesson", source: "Source", note: "Note" };
+const KIND_LABEL: Record<MentorSearchItem["kind"], string> = { mentor: "Mentor", course: "Course", lesson: "Lesson", source: "Source", note: "Note", term: "Term" };
 
 type Props = {
   onPick: (item: MentorSearchItem) => void;
@@ -97,7 +99,7 @@ export function MentorSearch({ onPick, onClose, sources, searchText = (query) =>
       const agent = agents.get(item.agentId!);
       return agent ? <AgentAvatar name={agent.avatar} color={agent.color} className="size-4" /> : null;
     }
-    const Icon = item.kind === "note" ? StickyNote : item.kind === "source" ? File : Mortarboard;
+    const Icon = item.kind === "note" ? StickyNote : item.kind === "source" ? File : item.kind === "term" ? Pencil : Mortarboard;
     return <Icon className="size-3.5" />;
   };
   const status = error ? error

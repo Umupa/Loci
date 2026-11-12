@@ -58,28 +58,26 @@ it("still opens a Markdown source in the document reader", async () => {
   expect(onOpen).toHaveBeenCalledWith({ kind: "document", document: { id: "kvm", title: "KVM API", body: "" } });
 });
 
-it("lists the courses in the Courses segment, choosing one through the library and badging only the open one", async () => {
+it("lists the courses in the Courses segment as one outline, badging their lessons", async () => {
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const input = args as { id?: string; agentId?: string };
-    if (command === "course_path_read") return { path: null };
     if (command === "course_get") return { id: input.id, agentId: input.agentId, title: input.id, updatedAt: 1, engine: "reading",
       dataJson: JSON.stringify({ engine: "reading", chapters: [{ title: "One", lessons: [{ id: "l1", title: "L1", document: "d" }] }] }) };
     if (command === "course_progress_get") return [];
     throw new Error(`Unexpected command: ${command}`);
   });
   const courses = [
-    { id: "kvm", agentId: agent.id, title: "1. KVM", engine: "reading" as const, itemCount: 1, masteredCount: 0, updatedAt: 2 },
-    { id: "net", agentId: agent.id, title: "2. Networking", engine: "reading" as const, itemCount: 1, masteredCount: 0, updatedAt: 1 },
+    { id: "kvm", agentId: agent.id, title: "1. KVM", engine: "reading" as const, itemCount: 1, masteredCount: 0, updatedAt: 2, createdAt: 1 },
+    { id: "net", agentId: agent.id, title: "2. Networking", engine: "reading" as const, itemCount: 1, masteredCount: 0, updatedAt: 1, createdAt: 2 },
   ];
   await act(() => root.render(createElement(MentorLibrary, {
     agent, segment: "courses", data: { courses }, errors: {}, onRetry: () => {}, onOpen,
     onNewNote: () => {}, creatingNote: false, onOpenFile: () => {}, onChange, onDraft: () => {},
     courseBadge: (courseId, lessonId) => createElement("i", { "data-badge": `${courseId}:${lessonId ?? ""}` }),
   })));
-  await vi.waitFor(() => expect(container.querySelector('[data-library-course="kvm"] [data-library-lesson="l1"]')).not.toBeNull());
-  expect([...container.querySelectorAll(".library-step-title")].map((title) => title.textContent)).toEqual(["KVM", "Networking"]);
-  expect([...container.querySelectorAll<HTMLElement>("[data-badge]")].map((badge) => badge.dataset.badge)).toEqual(["kvm:", "kvm:l1"]);
-  await act(async () => container.querySelector<HTMLButtonElement>('[data-library-step="net"] > button')!.click());
-  expect(onChange).toHaveBeenCalledWith({ course: "net" });
-  await vi.waitFor(() => expect(onOpen).toHaveBeenCalledWith({ kind: "course", course: { courseId: "net", agentId: agent.id, title: "2. Networking", itemId: "l1" } }));
+  await vi.waitFor(() => expect(container.querySelector('[data-library-course="net"] [data-library-lesson="l1"]')).not.toBeNull());
+  expect([...container.querySelectorAll(".library-course-title")].map((title) => title.textContent)).toEqual(["kvm", "net"]);
+  expect([...container.querySelectorAll<HTMLElement>("[data-badge]")].map((badge) => badge.dataset.badge)).toEqual(["kvm:l1", "net:l1"]);
+  await act(async () => container.querySelector<HTMLButtonElement>('[data-library-course="net"] [data-library-lesson="l1"]')!.click());
+  expect(onOpen).toHaveBeenCalledWith({ kind: "course", course: { courseId: "net", agentId: agent.id, title: "net", itemId: "l1" } });
 });

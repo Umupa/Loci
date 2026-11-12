@@ -2,7 +2,6 @@ import { applyNotesToTurn } from "../../notes";
 import { applyLibraryMentionsToTurn } from "./libraryMentions";
 import { applyMentionsToTurn } from "./mentionSources";
 import {
-  applySkillsToTurn,
   warmNativeSkills,
   isNativeCommandPrompt,
   type SkillCatalogContext,
@@ -22,5 +21,5 @@ export async function preparePrompt(
   const withMentions = text.includes("@") ? await applyMentionsToTurn(text, context.cwd) : text;
   const withLibrary = agentId && withMentions.includes("@") ? await applyLibraryMentionsToTurn(withMentions, agentId) : withMentions;
   const withNotes = await applyNotesToTurn(withLibrary);
-  return applySkillsToTurn(withNotes, context);
+  return withNotes;
 }

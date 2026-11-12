@@ -110,6 +110,27 @@ describe("generated course boundary", () => {
   });
 });
 
+describe("chapters that stand on chapters", () => {
+  const lesson = (id: string) => ({ id, title: id.toUpperCase() });
+  it("keeps a chapter's id and after, naming only earlier chapters", () => {
+    const data = parseCourseData("reading", { chapters: [
+      { id: "base", title: "Base", lessons: [lesson("a")] },
+      { id: "top", title: "Top", after: ["base"], lessons: [lesson("b")] },
+      { title: "Loose", lessons: [lesson("c")] },
+    ] });
+    expect(data.chapters.map((chapter) => [chapter.id, chapter.after])).toEqual([["base", undefined], ["top", ["base"]], [undefined, undefined]]);
+    expect(() => parseCourseData("reading", { chapters: [
+      { id: "base", title: "Base", after: ["top"], lessons: [lesson("a")] },
+      { id: "top", title: "Top", lessons: [lesson("b")] },
+    ] })).toThrow("not an earlier chapter");
+    expect(() => parseCourseData("reading", { chapters: [
+      { id: "x", title: "One", lessons: [lesson("a")] },
+      { id: "x", title: "Two", lessons: [lesson("b")] },
+    ] })).toThrow("Duplicate chapter id");
+    expect(() => parseCourseData("reading", { chapters: [{ title: "One", after: "x", lessons: [lesson("a")] }] })).toThrow("list of chapter ids");
+  });
+});
+
 describe("comparison lessons", () => {
   const sha = "3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e3f2a9c1e";
   const compare = (parts: unknown[], extra: Record<string, unknown> = {}) => chapters({ id: "restore", title: "Restoring", compare: parts, ...extra });

@@ -79,6 +79,7 @@ pub struct CourseSummary {
     pub agent_id: String,
     pub engine: String,
     pub title: String,
+    pub created_at: i64,
     pub updated_at: i64,
     pub item_count: usize,
     pub mastered_count: usize,
@@ -206,7 +207,13 @@ const COMPARE_NOTE_MAX: usize = 2000;
 
 #[derive(Serialize, Deserialize)]
 struct Chapter {
+    /// Named only when another chapter stands on this one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
     title: String,
+    /// The earlier chapters this one stands on: a hint, never a lock.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    after: Option<Vec<String>>,
     lessons: Vec<Lesson>,
 }
 
@@ -344,15 +351,6 @@ fn file_courses(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<Course>, Strin
     Ok(out)
 }
 
-#[cfg(test)]
-pub(crate) mod tests_support {
-    /// The courses a folder mentor has, as the app lists them.
-    pub fn courses_of(conn: &rusqlite::Connection, agent: &str) -> Vec<super::Course> {
-        let ctx = crate::mentor_store::ctx_for(conn, agent).unwrap().unwrap();
-        super::file_courses(conn, &ctx).unwrap()
-    }
-}
-
 fn file_course(conn: &Connection, ctx: &MentorCtx, id: &str) -> Result<Option<Course>, String> {
     match mentor_store::current(conn, ctx, Kind::Course, id)?.and_then(course_from_row) {
         Some(course) => Ok(Some(with_bodies(conn, course)?)),
@@ -418,8 +416,85 @@ fn file_write_lesson(
         ));
     }
     let id = crate::mentor_store::paths::lesson_id(course_id, lesson_id);
+    // The index keeps the text it replaces as the lesson's last revision.
     let row = mentor_store::write_content(conn, ctx, Kind::Lesson, &id, text)?;
     lesson_text(ctx, row).ok_or_else(|| "The saved lesson could not be read back".into())
+}
+
+/// A lesson's text before its last revision, and whether the learner has looked.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LessonRevision {
+    pub course_id: String,
+    pub lesson_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous: Option<String>,
+    pub revised_at: i64,
+    pub seen: bool,
+}
+
+/// One lesson's revision with the text it replaced, or none.
+#[tauri::command(async)]
+pub fn lesson_revision_get(
+    store: State<'_, SessionStore>,
+    agent_id: String,
+    course_id: String,
+    lesson_id: String,
+) -> Result<Option<LessonRevision>, String> {
+    validate_id(&agent_id, "agent")?;
+    validate_id(&course_id, "course")?;
+    validate_id(&lesson_id, "lesson")?;
+    let conn = store.lock_conn()?;
+    conn.query_row(
+        "SELECT previous, revised_at, seen FROM lesson_revisions WHERE agent_id = ?1 AND course_id = ?2 AND lesson_id = ?3",
+        params![agent_id, course_id, lesson_id],
+        |row| Ok(LessonRevision { course_id: course_id.clone(), lesson_id: lesson_id.clone(), previous: Some(row.get(0)?), revised_at: row.get(1)?, seen: row.get::<_, i64>(2)? != 0 }),
+    )
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
+/// The mentor's lessons revised since the learner last looked, without their texts.
+#[tauri::command(async)]
+pub fn lesson_revisions_unseen(
+    store: State<'_, SessionStore>,
+    agent_id: String,
+) -> Result<Vec<LessonRevision>, String> {
+    validate_id(&agent_id, "agent")?;
+    let conn = store.lock_conn()?;
+    let mut statement = conn
+        .prepare("SELECT course_id, lesson_id, revised_at FROM lesson_revisions WHERE agent_id = ?1 AND seen = 0 ORDER BY revised_at DESC")
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map(params![agent_id], |row| {
+            Ok(LessonRevision {
+                course_id: row.get(0)?,
+                lesson_id: row.get(1)?,
+                previous: None,
+                revised_at: row.get(2)?,
+                seen: false,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
+}
+
+/// The learner has looked at what changed: the mark goes, the text it replaced stays.
+#[tauri::command(async)]
+pub fn lesson_revision_seen(
+    store: State<'_, SessionStore>,
+    agent_id: String,
+    course_id: String,
+    lesson_id: String,
+) -> Result<(), String> {
+    validate_id(&agent_id, "agent")?;
+    let conn = store.lock_conn()?;
+    conn.execute(
+        "UPDATE lesson_revisions SET seen = 1 WHERE agent_id = ?1 AND course_id = ?2 AND lesson_id = ?3",
+        params![agent_id, course_id, lesson_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// Removes the texts of lessons a course no longer has, or of every lesson
@@ -434,6 +509,11 @@ fn prune_lessons(
         if !keep.contains(&lesson) {
             let id = crate::mentor_store::paths::lesson_id(course_id, &lesson);
             mentor_store::remove_content(conn, ctx, Kind::Lesson, &id)?;
+            conn.execute(
+                "DELETE FROM lesson_revisions WHERE agent_id = ?1 AND course_id = ?2 AND lesson_id = ?3",
+                params![ctx.agent, course_id, lesson],
+            )
+            .map_err(|e| e.to_string())?;
         }
     }
     let dir = ctx.folder.join(Kind::Lesson.dir()).join(course_id);
@@ -563,6 +643,7 @@ fn file_summaries(conn: &Connection) -> Result<Vec<CourseSummary>, String> {
             agent_id: course.agent_id,
             engine: course.engine,
             title: course.title,
+            created_at: course.created_at,
             updated_at: course.updated_at,
         });
     }
@@ -638,8 +719,8 @@ pub fn course_upsert(
     course: CourseUpsert,
 ) -> Result<Course, String> {
     validate_id(&course.agent_id, "agent")?;
-    if course.id == crate::course_path::PATH_ID {
-        return Err("_path is the learning path's file; give the course another id".into());
+    if course.id == mentor_store::paths::RETIRED_PATH_ID {
+        return Err("_path is reserved; give the course another id".into());
     }
     let ctx = mentor_store::ctx_for(&*store.lock_conn()?, &course.agent_id)?;
     // Lesson files relative to the mentor's folder, or pinned as
@@ -684,13 +765,28 @@ pub struct LessonQuestion {
     pub message_id: String,
     pub text: String,
     pub asked_at: i64,
+    /// The passage it was asked on, as the reader's text anchor (JSON), if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
+    /// The first question of the thread this one follows up, if it does.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub answer_id: Option<String>,
+    /// The mentor's reply as it read when its turn ended.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub answer: Option<String>,
 }
 
 /// What is kept of a question: its words, not a whole pasted page.
 const QUESTION_MAX: usize = 2000;
+/// A passage's anchor and a reply's text, at most.
+const ANCHOR_MAX: usize = 8_000;
+const ANSWER_MAX: usize = 40_000;
 
 /// Records a message as asked on a lesson. The same message again is one question.
 #[tauri::command(async)]
+#[allow(clippy::too_many_arguments)] // A command's arguments are its IPC fields.
 pub fn lesson_question_add(
     store: State<'_, SessionStore>,
     agent_id: String,
@@ -699,12 +795,25 @@ pub fn lesson_question_add(
     session_id: String,
     message_id: String,
     text: String,
+    anchor: Option<String>,
+    thread_id: Option<String>,
 ) -> Result<(), String> {
     validate_id(&agent_id, "agent")?;
     validate_id(&course_id, "course")?;
     validate_id(&lesson_id, "lesson")?;
     validate_id(&session_id, "session")?;
     validate_id(&message_id, "message")?;
+    if let Some(thread) = &thread_id {
+        validate_id(thread, "thread")?;
+    }
+    if let Some(anchor) = &anchor {
+        if anchor.len() > ANCHOR_MAX
+            || serde_json::from_str::<serde_json::Value>(anchor)
+                .map_or(true, |value| !value.is_object())
+        {
+            return Err("A question's passage is a text anchor object".into());
+        }
+    }
     let text: String = text.trim().chars().take(QUESTION_MAX).collect();
     if text.is_empty() {
         return Ok(());
@@ -712,8 +821,8 @@ pub fn lesson_question_add(
     let conn = store.lock_conn()?;
     conn.execute(
         "INSERT OR IGNORE INTO lesson_questions
-           (agent_id, course_id, lesson_id, session_id, message_id, text, asked_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+           (agent_id, course_id, lesson_id, session_id, message_id, text, asked_at, anchor, thread_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             agent_id,
             course_id,
@@ -721,8 +830,33 @@ pub fn lesson_question_add(
             session_id,
             message_id,
             text,
-            now_millis()
+            now_millis(),
+            anchor,
+            thread_id
         ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Keeps the mentor's reply to a question asked on a lesson.
+#[tauri::command(async)]
+pub fn lesson_question_answer(
+    store: State<'_, SessionStore>,
+    agent_id: String,
+    message_id: String,
+    answer_id: String,
+    answer: String,
+) -> Result<(), String> {
+    validate_id(&agent_id, "agent")?;
+    validate_id(&message_id, "message")?;
+    validate_id(&answer_id, "message")?;
+    let answer: String = answer.trim().chars().take(ANSWER_MAX).collect();
+    let conn = store.lock_conn()?;
+    conn.execute(
+        "UPDATE lesson_questions SET answer_id = ?3, answer = ?4, answered_at = ?5
+         WHERE agent_id = ?1 AND message_id = ?2",
+        params![agent_id, message_id, answer_id, answer, now_millis()],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -738,7 +872,7 @@ pub(crate) fn lesson_questions(
     limit: usize,
 ) -> rusqlite::Result<Vec<LessonQuestion>> {
     let mut statement = conn.prepare(
-        "SELECT course_id, lesson_id, session_id, message_id, text, asked_at FROM lesson_questions
+        "SELECT course_id, lesson_id, session_id, message_id, text, asked_at, anchor, thread_id, answer_id, answer FROM lesson_questions
          WHERE agent_id = ?1 AND (?2 IS NULL OR course_id = ?2) AND (?3 IS NULL OR lesson_id = ?3)
          ORDER BY asked_at DESC, message_id LIMIT ?4",
     )?;
@@ -752,6 +886,10 @@ pub(crate) fn lesson_questions(
                 message_id: row.get(3)?,
                 text: row.get(4)?,
                 asked_at: row.get(5)?,
+                anchor: row.get(6)?,
+                thread_id: row.get(7)?,
+                answer_id: row.get(8)?,
+                answer: row.get(9)?,
             })
         },
     )?;
@@ -1016,10 +1154,26 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                 .map_err(|e| format!("Invalid reading course: {e}"))?;
             let lessons = || data.chapters.iter().flat_map(|chapter| &chapter.lessons);
             let ids = item_ids(lessons().map(|lesson| lesson.id.as_str()))?;
+            let mut earlier = HashSet::new();
             for chapter in &data.chapters {
                 require_text(&chapter.title, "chapter title")?;
                 if chapter.lessons.is_empty() {
                     return Err(format!("Chapter {} has no lessons", chapter.title));
+                }
+                // Only earlier chapters can be stood on, so the tree has no loops.
+                for id in chapter.after.iter().flatten() {
+                    if !earlier.contains(id.as_str()) {
+                        return Err(format!(
+                            "Chapter {}: after names {id}, which is not an earlier chapter's id",
+                            chapter.title
+                        ));
+                    }
+                }
+                if let Some(id) = &chapter.id {
+                    validate_id(id, "chapter")?;
+                    if !earlier.insert(id.as_str()) {
+                        return Err(format!("Duplicate chapter id: {id}"));
+                    }
                 }
             }
             for lesson in lessons() {
@@ -1129,7 +1283,7 @@ fn list_courses(conn: &Connection, agent_id: &str) -> rusqlite::Result<Vec<Cours
 
 fn list_summaries(conn: &Connection) -> rusqlite::Result<Vec<CourseSummary>> {
     let mut statement = conn.prepare(
-        "SELECT c.id, c.agent_id, c.engine, c.title, c.data_json, c.updated_at,
+        "SELECT c.id, c.agent_id, c.engine, c.title, c.data_json, c.updated_at, c.created_at,
                 (SELECT COUNT(*) FROM course_progress p
                   WHERE p.agent_id = c.agent_id AND p.course_id = c.id AND p.status = 'mastered')
          FROM courses c
@@ -1146,7 +1300,8 @@ fn list_summaries(conn: &Connection) -> rusqlite::Result<Vec<CourseSummary>> {
             engine,
             title: row.get(3)?,
             updated_at: row.get(5)?,
-            mastered_count: row.get::<_, i64>(6)?.max(0) as usize,
+            created_at: row.get(6)?,
+            mastered_count: row.get::<_, i64>(7)?.max(0) as usize,
         })
     })?;
     rows.collect()
@@ -1698,6 +1853,28 @@ mod tests {
         // Its place belongs to a source it does not name.
         neither["chapters"][0]["lessons"][0]["section"] = json!("Intro");
         assert!(crate::course::validate_data("reading", &neither.to_string()).is_err());
+        // A chapter stands only on earlier chapters, named by unique ids.
+        let chapters = |after: serde_json::Value| {
+            json!({"chapters": [
+                {"id": "base", "title": "Base", "lessons": [{"id": "a", "title": "A"}]},
+                {"id": "top", "title": "Top", "after": after, "lessons": [{"id": "b", "title": "B"}]},
+            ]})
+            .to_string()
+        };
+        crate::course::validate_data("reading", &chapters(json!(["base"]))).unwrap();
+        assert!(
+            crate::course::validate_data("reading", &chapters(json!(["top"])))
+                .unwrap_err()
+                .contains("not an earlier chapter")
+        );
+        assert!(crate::course::validate_data("reading", &chapters(json!(["later"]))).is_err());
+        let twice = json!({"chapters": [
+            {"id": "x", "title": "One", "lessons": [{"id": "a", "title": "A"}]},
+            {"id": "x", "title": "Two", "lessons": [{"id": "b", "title": "B"}]},
+        ]});
+        assert!(crate::course::validate_data("reading", &twice.to_string())
+            .unwrap_err()
+            .contains("Duplicate chapter id"));
         course.data_json = base.to_string();
         course.engine = "domain-navigation".into();
         assert!(save_course(&conn, &course)
@@ -1914,6 +2091,47 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(read.body.unwrap().contains("MSI-X"));
+        // An edit to the file is a revision too.
+        let edited: String = conn
+            .query_row(
+                "SELECT previous FROM lesson_revisions WHERE lesson_id = 'later'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(edited.contains("Used ring"));
+        // Revising a lesson keeps the text it replaced, unseen until looked at.
+        let first = file_write_lesson(
+            &conn,
+            &ctx,
+            "virtio",
+            "later",
+            "# Interrupts\n\nMSI-X, then INTx.\n",
+        )
+        .unwrap();
+        assert!(first.body.contains("INTx"));
+        let revision = || -> (String, i64) {
+            conn.query_row(
+                "SELECT previous, seen FROM lesson_revisions WHERE lesson_id = 'later'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap()
+        };
+        assert!(revision().0.contains("MSI-X vectors"));
+        assert_eq!(revision().1, 0);
+        conn.execute("UPDATE lesson_revisions SET seen = 1", [])
+            .unwrap();
+        // The same text again is no revision.
+        file_write_lesson(
+            &conn,
+            &ctx,
+            "virtio",
+            "later",
+            "# Interrupts\n\nMSI-X, then INTx.\n",
+        )
+        .unwrap();
+        assert_eq!(revision().1, 1);
         // A revision that drops a lesson drops its text.
         let mut fewer = data.clone();
         fewer["chapters"][0]["lessons"]
@@ -1929,6 +2147,12 @@ mod tests {
         // Deleting the course takes its lesson folder.
         prune_lessons(&conn, &ctx, "virtio", &HashSet::new()).unwrap();
         assert!(!folder.join("courses/virtio").exists());
+        let left: i64 = conn
+            .query_row("SELECT COUNT(*) FROM lesson_revisions", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(left, 0);
         std::fs::remove_dir_all(folder).ok();
     }
 

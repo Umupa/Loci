@@ -4,6 +4,32 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **A start page.** With no mentor, the window asks what you want to learn, with three examples to start from. Press Return and Loci makes the mentor (a Lens when you name a GitHub repository), names it from what you wrote and sends it as the first message. Without an agent CLI on the computer, the page says what to install and how to sign in, and looks again. New mentor opens the same page; the template gallery is a step from it.
+- **The knowledge tree.** With nothing open, the reader draws each course as an ink tree, in place of the contour map: the first chapter is the lowest bough, later ones climb the trunk, chapters that build on the same one fork from one height, and the last is the crown. Each lesson is a leaf: ink once read, grey while being read, pale until then, dashed while only planned, and the one to go on with ringed. The wood is inked as far as you have read. A leaf opens its lesson; a planned one asks for its chapter.
+- **Before the first chapter**, the reader shows what your mentor is doing: the sources it saved and the lesson it is writing.
+- Selecting to ask and a lesson's original are each pointed out once, the first time they apply.
+- **A lesson reads like a book.** With a lesson's text open, the text sits in the middle at a wider measure, the outline folds to a strip of short lines (point at it, or ⌘B, for the full outline over the text), and the conversation is folded until you open it with ⌘J or Chat; each mentor remembers whether you keep it open while reading.
+- **Answers in the margin.** Select a passage and Ask (⌘L): the question goes straight to your mentor and its answer appears beside the passage as it is written, and stays there. Several on one passage fold to the latest; open one to read them all and ask more. In a narrow window they sit under the paragraph. They are messages in the same conversation, shown again where you asked them.
+- **Ask about the lesson** from a box at its end; what was asked on the lesson as a whole is listed there with its answers.
+- **A glossary.** Your mentor keeps the terms its lessons introduce, each with a one-line definition and the lesson that teaches it (`glossary.yaml`, `glossary` commands). A term is underlined where a lesson first uses it; hover for the definition, click to go to its lesson. ⌘K finds terms.
+- **Revisions you can see.** When your mentor rewrites a lesson, the lesson is marked in the outline and its header, and the header shows what changed. The mark goes once you have looked.
+
+### Changed
+
+- **⌘J folds the conversation** (it was ⇧⌘B).
+- **One outline.** A mentor's Courses are one outline of chapters and lessons. A mentor with several courses (a Lens reading several repositories) lists them one after another in it, each under its title.
+- **Chapters stand on chapters.** A chapter in a course file may carry an `id` and `after`, the earlier chapters it builds on: a hint, never a lock.
+- **Something to read sooner.** A new mentor saves the course outline and its map lesson first, then the first chapter one lesson at a time, instead of the whole chapter at once.
+- A lesson's end lines up with the lesson's text.
+- In a window connected to another device, a question listed at a lesson's end opens the conversation at that message.
+
+### Removed
+
+- **Learning paths.** `courses/_path.yaml`, the `path` commands, the course switcher and "Other courses" are gone; a path file left by 0.10 stays on disk and is not read. The evaluation no longer scores a path.
+- **Skill files.** Typing `/name` no longer pulls a skill file into the message; the slash menu offers Loci's own commands and the provider's native ones.
+
 ## [0.10.0] - 2026-11-12
 
 ### Added

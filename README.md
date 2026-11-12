@@ -58,7 +58,7 @@ It runs on the agent CLI you already use — Claude Code or Codex — so there i
 | ⌘K | Find a mentor, course, source or note |
 | ⌘1–9 | Switch mentors |
 | H / ⌘L | Highlight / ask about the selection |
-| ⌘B / ⇧⌘B | Fold the library / the conversation |
+| ⌘B / ⌘J | Fold the library / the conversation |
 | ⌘[ / ⌘] | Back / forward in the reader |
 
 ## Agent CLIs

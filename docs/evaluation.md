@@ -63,7 +63,7 @@ Everything lands in `eval/results/<timestamp>/<scenario>/` (`conversation.md`, `
 | `firecracker-paper` | Mentor | to read the Firecracker NSDI'20 paper | usenix.org, arxiv.org, the Firecracker repo and site, amazon.science |
 | `tokio-scheduler` | Lens | Tokio's multi-thread scheduler | github.com/tokio-rs, docs.rs/tokio, tokio.rs |
 | `cubesandbox-snapshot` | Lens | CubeSandbox's snapshot/restore path | github.com/TencentCloud |
-| `sandbox-path` | Mentor | agent sandboxes from the kernel to CubeSandbox, SPACE and E2B runtime, with the three checkouts seeded locally | the three repositories, kernel.org, docs.oasis-open.org, e2b.dev, arxiv.org, usenix.org |
+| `sandbox-course` | Mentor | agent sandboxes from the kernel to CubeSandbox, SPACE and E2B runtime, with the three checkouts seeded locally | the three repositories, kernel.org, docs.oasis-open.org, e2b.dev, arxiv.org, usenix.org |
 | `cube-snapshot` | Lens | CubeSandbox's snapshot and restore path, from a seeded checkout | github.com/TencentCloud |
 
 Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyDomains` (a host suffix, or host and path prefix), `probe`, `expect`, `maxTurns`, `maxMinutes`, `turnTimeoutSeconds`, and optionally `seed.repos` (owner/repo names under `~/Loci/repos`) and the v0.4 `acceptance` and `rubric` keys. `expect` holds the lesson range (`minLessons`/`maxLessons`), and for the sandbox scenarios the path shape, first-hand minimum and first-source deadline described below.
@@ -83,12 +83,12 @@ Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyD
 | Citations | `loci://source/…#section/quote`, `loci://file/…#L` and absolute-path links in replies: the target exists, the section is a heading, the quote is found, the lines are inside; whether the probe answer cites anything |
 | First ten minutes | seconds to first reply, first first-hand source and first course; mentor turns before the first source; question marks per reply; nudges |
 | Failures | timeouts, failed turns, a mentor asking for permission in full access |
-| Sandbox acceptance (v0.4) | learning path shape, code lessons pinned, with their pins and ranges, first-hand sources with address and version, time to first source, comparison lessons when present, and `library check` problems; only for scenarios with `"acceptance": "v0.4"` (see below) |
+| Sandbox acceptance (v0.4) | course shape (chapters and lessons), code lessons pinned, with their pins and ranges, first-hand sources with address and version, time to first source, comparison lessons when present, and `library check` problems; only for scenarios with `"acceptance": "v0.4"` (see below) |
 
 **Rubric** (`scripts/eval/judge-prompt.md`, filled with the checks, sources, courses, each lesson's text and the transcript, run in print mode from an empty folder). 1–5 each with a one-line reason, plus the single change that would help most:
 
 - **firstHand**: the evidence behind the lessons is first-hand and verbatim, with addresses and versions, and the lessons cite it. Writing the lesson is the mentor's job and is not scored down.
-- **courseStructure**: a map first, then a progressive, complete path of one-idea lessons (written chapters and planned titles), not an overview.
+- **courseStructure**: a map first, then progressive, complete chapters of one-idea lessons (written chapters and planned titles), not an overview.
 - **grounding**: answers quote and link the sources, separate source from inference, are correct (probe weighted most).
 - **firstTenMinutes**: reading quickly, few questions at a time.
 - **firstPrinciples**: the judgement to choose and evaluate a design rather than knowledge of code: from the problem and the underlying mechanism upward, shallow to deep, each choice with its cost and alternative, invariants and failure modes, where it fits and the magnitudes.
@@ -96,11 +96,11 @@ Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyD
 
 ## Sandbox acceptance (v0.4)
 
-v0.4 is accepted on the sandbox topic: a broad goal at kernel level, a learning path of short courses, pinned code tours and first-hand sources. Two scenarios encode it; the coordinator runs them on the release candidate.
+v0.4 is accepted on the sandbox topic: a broad goal at kernel level, one course of several chapters, pinned code tours and first-hand sources. Two scenarios encode it; the coordinator runs them on the release candidate.
 
 | Scenario | What it measures |
 | --- | --- |
-| `sandbox-path` | Mentor with the broad goal ("from the kernel up to CubeSandbox, SPACE and E2B runtime"), a learning path of 3–5 courses, at least 10 first-hand sources; any code lesson pinned and accurate |
+| `sandbox-course` | Mentor with the broad goal ("from the kernel up to CubeSandbox, SPACE and E2B runtime"), one course of 3–6 chapters (9–36 lessons, planned ones included), at least 10 first-hand sources; any code lesson pinned and accurate |
 | `cube-snapshot` | Lens on CubeSandbox with only the repository seeded: 6–12 lessons on snapshot/restore's design; any code lesson pinned and accurate |
 
 ### Repositories on this machine
@@ -127,22 +127,22 @@ It loads every scenario and seeds the sandbox checkouts into a temporary mentor 
 
 | Check | What passes |
 | --- | --- |
-| Learning path | `path read` returns a path; 3–5 courses (`expect.pathCourses`); each course is written and has 6–12 lessons (`expect.lessonsPerCourse`); each `after` names an earlier course |
+| Course shape | each course has `expect.chapters` chapters and `expect.lessons` lessons (planned ones count) |
 | Code tours | every code lesson (a file lesson with lines, a pin or a `repos/` path; PDFs excluded) has `commit`; `code pins` lists it with state `current` or `moved` (`changed`, `missing-commit`, `missing-file` and `no-repo` fail) |
 | Pinned ranges | each pinned lesson's `lines` are inside the file at that commit, read with `git show <commit>:<path>`; lessons without lines are reported separately |
-| First-hand sources | at least `expect.minFirstHand` saved sources (10 for `sandbox-path`, 2 for `cube-snapshot`); each has `sourceUrl` and `version` |
+| First-hand sources | at least `expect.minFirstHand` saved sources (10 for `sandbox-course`, 2 for `cube-snapshot`); each has `sourceUrl` and `version` |
 | Time to first source | the first saved source arrives within `expect.firstSourceWithinSeconds` (300 s, the roadmap's five minutes) |
 | Comparison lessons | lessons whose `compare` array has two or more parts are counted; while `expect.tolerateMissingCompare` is true, a build without the compare feature is not failed |
 | Mentor folder | `library check` reports no problems: every source, guide and course is a file Loci could read |
 
-Artifacts per scenario: `path.json`, `pins.json`, `library.json`, `seed.json` (mentor folder and repositories) and `code-tours.json` (each code lesson's file at its commit, pin state and first lines, also given to the judge). `summary.md` adds a **Sandbox acceptance (v0.4)** table and a `- Path`, `- Code`, `- First-hand`, `- Compare` and `- Library` line per scenario.
+Artifacts per scenario: `pins.json`, `library.json`, `seed.json` (mentor folder and repositories) and `code-tours.json` (each code lesson's file at its commit, pin state and first lines, also given to the judge). `summary.md` adds a **Sandbox acceptance (v0.4)** table and a `- Courses`, `- Code`, `- First-hand`, `- Compare` and `- Library` line per scenario.
 
 ### Rubric
 
-A scenario may add `"rubric": ["codeEvidence", "path"]`. The judge then scores two extra items and returns them with the base four:
+A scenario may add `"rubric": ["codeEvidence"]`. The judge then scores the extra item and returns it with the base ones:
 
 - **codeEvidence** — code appears as evidence for a mechanism: few lessons, each pinned and opening the lines that keep an invariant or make a decision, saying what they guarantee. A walk through an implementation scores low, and a course clear from docs and papers needs no code lesson. (It replaced `codeTours`, which rewarded following the call path, on 2026-11-05.)
-- **path** — 3–5 short courses build on each other, with no overlap and prerequisites that name earlier courses.
+The `path` item went with learning paths in 0.11.
 
 The prompt keeps the extra items and output shape in one place (`scripts/eval/judge-prompt.md` with `{{rubricExtra}}` and `{{outputShape}}`), filled by `rubricFor(scenario)`; old scenarios keep the four-item verdict, so their scores stay comparable.
 
@@ -158,7 +158,7 @@ scripts/eval/qa-app.sh down
 
 Mentors use `--provider grok --model grok:deepseek-flash` and the judge `grok` by default, the official setup. `scripts/eval/baseline.sh` runs every scenario, sandbox ones included. Compare a run only with runs whose provider, model and judge match.
 
-When v0.4's comparison lessons merge, remove `tolerateMissingCompare` from `sandbox-path.json`; `expect.compareLessons` then requires at least one lesson with two or more parts in the path.
+When v0.4's comparison lessons merge, remove `tolerateMissingCompare` from `sandbox-path.json`; `expect.compareLessons` then requires at least one lesson with two or more parts.
 
 ## Baseline
 

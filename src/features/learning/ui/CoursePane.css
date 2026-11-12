@@ -127,11 +127,30 @@
 .course-pane__nav-item--active .course-pane__nav-label { font-weight: 600; background: linear-gradient(transparent 62%, color-mix(in srgb, var(--color-accent) 26%, transparent) 62%); }
 .course-pane__chapter-title { margin: 0; padding: 4px 8px 6px; font-size: 12px; font-weight: 500; color: color-mix(in srgb, var(--color-content) 50%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* A lesson's end: what was asked on it, then the next lesson, its title the way on. */
-.course-pane__lesson-end { margin: 40px auto 48px; padding: 16px 0 0; border-top: 1px solid var(--color-stroke); font-family: var(--font-sans); }
-.course-pane__asked { display: flex; flex-direction: column; gap: 2px; margin: 0 0 20px; padding: 0; list-style: none; }
-.course-pane__asked button { display: block; width: 100%; overflow: hidden; padding: 3px 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: color-mix(in srgb, var(--color-content) 60%, transparent); }
-.course-pane__asked button:hover { color: var(--color-content); }
+/* A lesson's end: what was asked on it, then the next lesson, its title the way
+   on. It takes the text's measure (reader-body), so its edges are the text's. */
+.course-pane__lesson-end { margin: 40px auto 48px; padding: 16px 0 0; border-top: 1px solid var(--color-stroke); }
+.course-pane__lesson-end :is(ul, nav) { font-family: var(--font-sans); line-height: 1.5; }
+.course-pane__asked { display: flex; flex-direction: column; gap: 14px; margin: 0 0 16px; padding: 0; list-style: none; }
+.course-pane__asked li { padding-left: 12px; border-left: 1px solid var(--color-content); }
+.course-pane__asked button { display: block; width: 100%; padding: 0 0 3px; text-align: left; font-size: 13.5px; font-weight: 600; color: var(--color-content); }
+.course-pane__asked button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.course-pane__answer { margin: 0; font-size: 13px; color: color-mix(in srgb, var(--color-content) 75%, transparent); }
+.course-pane__answer .agent-markdown { font-size: 13px; line-height: 1.6; }
+.course-pane__ask { margin: 0 0 22px; font-size: 13.5px; min-height: 34px; padding: 6px 10px; }
+/* A lesson's text holds its margin notes, which are placed against it. */
+.course-pane__reading[data-lesson-text] { position: relative; }
 .course-pane__next { display: flex; justify-content: flex-end; }
 .course-pane__next button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; color: var(--color-content); }
 .course-pane__next button:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* A hint shown once, the first time it applies, above the text. */
+.course-pane__hint { display: flex; align-items: center; gap: 10px; margin: 0 auto 16px; padding: 6px 4px 6px 12px; border-left: 2px solid var(--color-content); font: 13px/1.5 var(--font-sans); color: color-mix(in srgb, var(--color-content) 70%, transparent); }
+.course-pane__hint span { flex: 1; }
+.course-pane__hint button { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 4px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.course-pane__hint button:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }
+
+/* A revised lesson's header button: a dot until what changed is looked at. */
+.course-pane__revised { position: relative; }
+.course-pane__revised[data-unseen]::after { content: ""; position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; border-radius: 50%; background: var(--color-content); }
+.course-pane__passage { margin: 0 0 2px; font-size: 12.5px; font-style: italic; color: color-mix(in srgb, var(--color-content) 50%, transparent); }

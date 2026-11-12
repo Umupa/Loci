@@ -82,10 +82,26 @@ pub fn ensure_tables(conn: &Connection) -> rusqlite::Result<()> {
            message_id TEXT NOT NULL,
            text TEXT NOT NULL,
            asked_at INTEGER NOT NULL,
+           anchor TEXT,
+           thread_id TEXT,
+           answer_id TEXT,
+           answer TEXT,
+           answered_at INTEGER,
            PRIMARY KEY (agent_id, message_id)
          );
          CREATE INDEX IF NOT EXISTS lesson_questions_lesson
            ON lesson_questions (agent_id, course_id, lesson_id, asked_at);
+         -- A lesson's text before its last revision through lessons.write, so
+         -- the learner can see what changed; seen once they have looked.
+         CREATE TABLE IF NOT EXISTS lesson_revisions (
+           agent_id TEXT NOT NULL,
+           course_id TEXT NOT NULL,
+           lesson_id TEXT NOT NULL,
+           previous TEXT NOT NULL,
+           revised_at INTEGER NOT NULL,
+           seen INTEGER NOT NULL DEFAULT 0,
+           PRIMARY KEY (agent_id, course_id, lesson_id)
+         );
          CREATE TABLE IF NOT EXISTS mentor_state (
            agent_id TEXT NOT NULL,
            key TEXT NOT NULL,
@@ -94,7 +110,33 @@ pub fn ensure_tables(conn: &Connection) -> rusqlite::Result<()> {
            PRIMARY KEY (agent_id, key)
          );",
     )?;
+    ensure_question_columns(conn)?;
     ensure_text_triggers(conn)
+}
+
+/// A question asked on a passage keeps the passage (`anchor`, the reader's
+/// text anchor as JSON) and the thread it continues; its answer is the
+/// mentor's reply, by message id and as it read when the turn ended. Tables
+/// made by 0.10 gain these columns.
+fn ensure_question_columns(conn: &Connection) -> rusqlite::Result<()> {
+    let mut statement = conn.prepare("SELECT name FROM pragma_table_info('lesson_questions')")?;
+    let have: Vec<String> = statement
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<_, _>>()?;
+    for (name, kind) in [
+        ("anchor", "TEXT"),
+        ("thread_id", "TEXT"),
+        ("answer_id", "TEXT"),
+        ("answer", "TEXT"),
+        ("answered_at", "INTEGER"),
+    ] {
+        if !have.iter().any(|column| column == name) {
+            conn.execute_batch(&format!(
+                "ALTER TABLE lesson_questions ADD COLUMN {name} {kind}"
+            ))?;
+        }
+    }
+    Ok(())
 }
 
 /// The kinds whose text is searched, as SQL.
@@ -311,23 +353,6 @@ fn parse(kind: Kind, id: &str, text: &str, ctx: &MentorCtx) -> Result<Parsed, St
                 warning: None,
             })
         }
-        // The learning path shares the courses folder under a reserved id.
-        Kind::Course if id == crate::course_path::PATH_ID => {
-            let path = crate::course_path::parse(text)?;
-            Ok(Parsed {
-                title: path
-                    .get("title")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                    .or_else(|| Some("Learning path".into())),
-                subject: None,
-                meta: json!({ "path": true }),
-                body: Some(path.to_string()),
-                created_at: None,
-                updated_at: None,
-                warning: None,
-            })
-        }
         Kind::Course => {
             let resolve = |path: &str| ctx.resolve_lesson_file(path);
             let course = format::parse_course(text, &resolve)?;
@@ -391,6 +416,35 @@ fn write_row(
     let created = parsed.created_at.unwrap_or(mtime_ms);
     // An edit that did not bump updatedAt still counts as a change.
     let updated = parsed.updated_at.map_or(mtime_ms, |at| at.max(mtime_ms));
+    // A lesson whose text changed keeps the text it had, however it was
+    // written: through lessons.write, a course revision, or its file directly.
+    if kind == Kind::Lesson {
+        let previous: Option<String> = conn
+            .query_row(
+                "SELECT body FROM mentor_content WHERE agent_id = ?1 AND kind = 'lesson' AND id = ?2",
+                params![ctx.agent, id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?
+            .flatten();
+        let changed = previous.filter(|before| {
+            parsed
+                .body
+                .as_deref()
+                .is_some_and(|after| after.trim() != before.trim())
+        });
+        if let (Some(before), Some((course, lesson))) = (changed, super::paths::lesson_parts(id)) {
+            conn.execute(
+                "INSERT INTO lesson_revisions (agent_id, course_id, lesson_id, previous, revised_at, seen)
+                 VALUES (?1, ?2, ?3, ?4, ?5, 0)
+                 ON CONFLICT(agent_id, course_id, lesson_id) DO UPDATE SET
+                   previous = excluded.previous, revised_at = excluded.revised_at, seen = 0",
+                params![ctx.agent, course, lesson, before, now],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
     conn.execute(
         "INSERT INTO mentor_content
            (agent_id, kind, id, rel_path, title, subject, meta_json, body, hash, size,
@@ -1088,6 +1142,28 @@ mod tests {
             .unwrap()
             .is_none());
         std::fs::remove_dir_all(folder).unwrap();
+    }
+
+    #[test]
+    fn a_question_table_from_0_10_gains_passage_thread_and_answer() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE lesson_questions (agent_id TEXT NOT NULL, course_id TEXT NOT NULL,
+               lesson_id TEXT NOT NULL, session_id TEXT NOT NULL, message_id TEXT NOT NULL,
+               text TEXT NOT NULL, asked_at INTEGER NOT NULL, PRIMARY KEY (agent_id, message_id));
+             INSERT INTO lesson_questions VALUES ('a', 'c', 'l', 's', 'm', 'Why?', 1);",
+        )
+        .unwrap();
+        ensure_tables(&conn).unwrap();
+        ensure_tables(&conn).unwrap();
+        let (text, anchor): (String, Option<String>) = conn
+            .query_row("SELECT text, anchor FROM lesson_questions", [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .unwrap();
+        assert_eq!((text.as_str(), anchor), ("Why?", None));
+        conn.execute("UPDATE lesson_questions SET thread_id = 'm', answer_id = 'r', answer = 'Because.', answered_at = 2", [])
+            .unwrap();
     }
 
     #[test]

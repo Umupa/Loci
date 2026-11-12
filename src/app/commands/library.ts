@@ -88,13 +88,13 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
     field("id", "string", "A stable course id", { required: true, max: 80 }),
     field("title", "string", "Its title", { required: true, max: 200 }),
     field("engine", "string", "reading, the default and only engine"),
-    field("chapters", "json", "Chapters of lessons, as JSON"),
+    field("chapters", "json", "Chapters of lessons, as JSON; a chapter may carry an id and after (ids of earlier chapters it stands on)"),
   ]),
   forMentor("lessons.read", "lessons.read", "One lesson's own text, and the file it is kept in.", [
     field("course", "string", "The course id", { required: true, max: 80 }),
     field("lesson", "string", "The lesson id", { required: true, max: 80 }),
   ]),
-  forMentor("lessons.questions", "lessons.questions", "What the learner asked while a lesson was open, oldest first: one lesson's, one course's, or all.", [
+  forMentor("lessons.questions", "lessons.questions", "What the learner asked while a lesson was open, oldest first: one lesson's, one course's, or all. A question asked on a passage carries the passage; a follow-up names the question it follows.", [
     field("course", "string", "A course id", { max: 80 }),
     field("lesson", "string", "A lesson id, with its course", { max: 80 }),
   ]),
@@ -103,6 +103,13 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
     field("lesson", "string", "The lesson id", { required: true, max: 80 }),
     field("path", "string", "Absolute path of the Markdown file; or give --body", { max: 4096 }),
     field("body", "string", "The lesson's Markdown, instead of --path", { max: 512 * 1024 }),
+  ]),
+  forMentor("glossary.read", "glossary.read", "The mentor's glossary: every term with its aliases, one-line definition and the lesson that teaches it.", []),
+  forMentor("glossary.write", "glossary.write", "Add terms to the glossary, or replace those with the same name (any case): a list of { term, definition, aliases?, course?, lesson? }. --input glossary.json works well.", [
+    field("terms", "json", "The terms, as JSON", { required: true }),
+  ]),
+  forMentor("glossary.remove", "glossary.remove", "Take terms out of the glossary by name.", [
+    field("terms", "json", "Term names, as a JSON list", { required: true }),
   ]),
   forMentor("courses.delete", "courses.delete", "Remove a course and its progress.", [id()]),
   {

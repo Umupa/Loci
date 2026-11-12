@@ -13,7 +13,8 @@ import { useReadingMarks, type MarkSpec, type MarksListRequest } from "../../lea
 import { documentMarkSpec } from "../model/documentMarks";
 import { inLesson } from "../../learning/model/annotationCounts";
 import { consumeDocumentPlace, useDocumentPlace } from "../model/documentPlace";
-import { quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
+import { describeRange, quoteInText, rangeAt, textIndex } from "../../learning/model/textAnchor";
+import type { TextAnchor } from "../../learning/model/types";
 import { flashRange } from "../../learning/ui/useTextHighlights";
 import { TranslatedText, TranslationBar, TranslationButton, useSourceTranslationState, useTranslationView, type TranslationView } from "./SourceTranslation";
 import "./DocumentBody.css";
@@ -67,6 +68,8 @@ type Props = {
   markSpec?: MarkSpec;
   /** A lesson's own text: the mentor's, read as the lesson, with no label saying so. */
   lessonText?: boolean;
+  /** Asking about a passage goes here, to be asked in place, instead of to the chat's composer. */
+  onAsk?: (passage: TextAnchor) => void;
 };
 
 /**
@@ -74,7 +77,7 @@ type Props = {
  * shows that page's pictures. Selecting text offers to ask about, highlight or
  * note the passage; its highlights are painted on the text.
  */
-export function DocumentBody({ document, agentId, section, bare, inPlace, marksList, onMarks, markSpec, lessonText }: Props) {
+export function DocumentBody({ document, agentId, section, bare, inPlace, marksList, onMarks, markSpec, lessonText, onAsk }: Props) {
   const requestedSection = section?.trim() || undefined;
   const scope = JSON.stringify([document.id, requestedSection]);
   const [view, setView] = useState({ scope, full: false });
@@ -194,7 +197,13 @@ export function DocumentBody({ document, agentId, section, bare, inPlace, marksL
       {translation && readView !== "original" ? <div className="select-text" data-translated-text>
         <TranslatedText units={translation.units} view={readView} sourceUrl={sourceUrl} />
       </div> : null}
-      <ReadingSelectionMenu selection={selection} onDismiss={dismiss} askLabel={marks.askLabel} toChat={marks.toChat} onMark={marks.onMark}
+      <ReadingSelectionMenu selection={selection} onDismiss={dismiss} askLabel={onAsk ? "Ask" : marks.askLabel} onMark={marks.onMark}
+        toChat={(passage, intent, current) => {
+          const root = bodyRef.current;
+          const anchor = onAsk && intent.kind === "ask" && root ? describeRange(root, passage.range) : null;
+          if (anchor) { onAsk!(anchor); return; }
+          return marks.toChat(passage, intent, current);
+        }}
         resetKey={JSON.stringify([document.id, document.body, document.title, document.sourceUrl, agentId])} />
       {marks.popover}
       {marksList ? marks.listPopover(marksList.anchor, marksList.onClose, marksList.title, shownMarks) as ReactNode : null}

@@ -231,7 +231,7 @@ describe("application command routing", () => {
     key({ key: "b", code: "KeyB", metaKey: true });
     emit("toggle_library");
     expect(value.toggleLibrary).toHaveBeenCalledOnce();
-    key({ key: "b", code: "KeyB", metaKey: true, shiftKey: true });
+    key({ key: "j", code: "KeyJ", metaKey: true });
     expect(value.toggleChat).toHaveBeenCalledOnce();
   });
 

@@ -1,0 +1,54 @@
+/* The knowledge tree: one ink tree per course on the reader's own paper, in
+   the old map's tones. Read leaves are ink, the ones being read grey, unread
+   ones pale stone, planned ones a dashed outline; the leaf to go on with is
+   paper ringed in to its middle. */
+.knowledge-tree {
+  --tree-paper: var(--color-background-base);
+  --tree-ink: var(--color-content);
+  --tree-dark: color-mix(in srgb, var(--color-content) 92%, var(--tree-paper));
+  --tree-grey: color-mix(in srgb, var(--color-content) 58%, var(--tree-paper));
+  --tree-stone: color-mix(in srgb, var(--color-content) 13%, var(--tree-paper));
+  --tree-soft: color-mix(in srgb, var(--color-content) 48%, var(--tree-paper));
+  display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 6px; overflow: hidden; padding: 28px 28px 20px; font-family: var(--font-sans);
+}
+.knowledge-tree__head { display: flex; min-width: 0; align-items: flex-end; gap: 18px; }
+.knowledge-tree__count { flex: none; margin: 0; font-size: 64px; font-weight: 300; line-height: 0.9; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; color: var(--tree-ink); }
+.knowledge-tree__count small { margin-left: 6px; font-size: 22px; letter-spacing: 0; color: var(--tree-soft); }
+.knowledge-tree__heading { display: -webkit-box; min-width: 0; margin: 0 0 4px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font: 600 17px/1.4 var(--font-reading); color: var(--tree-ink); }
+/* The trees take the room left under the head; each draws itself for its share, then scales to fit it. */
+.knowledge-tree__forest { position: relative; display: flex; min-height: 240px; flex: 1 1 0; justify-content: center; gap: 12px; }
+.knowledge-tree__course { position: relative; min-width: 0; flex: 1 1 0; margin: 0; }
+.knowledge-tree__svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; overflow: visible; }
+
+.knowledge-tree__ring { fill: none; stroke: var(--tree-ink); stroke-width: 0.6; opacity: 0.55; }
+.knowledge-tree__wood { fill: var(--tree-ink); }
+.knowledge-tree__wood[data-tone="pale"] { fill: var(--tree-stone); }
+.knowledge-tree__limb { fill: none; stroke: var(--tree-ink); stroke-linecap: round; }
+.knowledge-tree__limb[data-tone="pale"] { stroke: var(--tree-stone); }
+.knowledge-tree__limb[data-tone="dash"] { stroke: var(--tree-soft); stroke-dasharray: 2.5 3; }
+.knowledge-tree__chapter { font: 600 12.5px var(--font-reading); fill: var(--tree-ink); }
+.knowledge-tree__chapter[data-planned] { fill: var(--tree-soft); }
+.knowledge-tree__title { font: 13px var(--font-reading); fill: var(--tree-soft); }
+
+.knowledge-tree__leaf { cursor: pointer; outline: none; }
+.knowledge-tree__blade { fill: var(--tree-stone); transition: filter 140ms ease-out; }
+.knowledge-tree__leaf[data-state="read"] .knowledge-tree__blade { fill: var(--tree-dark); }
+.knowledge-tree__leaf[data-state="reading"] .knowledge-tree__blade { fill: var(--tree-grey); }
+.knowledge-tree__leaf[data-state="planned"] .knowledge-tree__blade { fill: none; stroke: var(--tree-soft); stroke-width: 1.1; stroke-dasharray: 2.5 3; }
+.knowledge-tree__leaf[data-current] .knowledge-tree__blade { fill: var(--tree-paper); stroke: var(--tree-ink); stroke-width: 2.2; stroke-dasharray: none; }
+.knowledge-tree__vein { fill: none; stroke: var(--tree-ink); stroke-width: 0.6; opacity: 0.55; pointer-events: none; }
+.knowledge-tree__leaf:hover .knowledge-tree__blade { filter: brightness(0.94); }
+.knowledge-tree__leaf[data-state="read"]:hover .knowledge-tree__blade { filter: brightness(1.35); }
+.knowledge-tree__leaf:focus-visible .knowledge-tree__blade { stroke: var(--color-accent-ring); stroke-width: 2.5; }
+.knowledge-tree__name { pointer-events: none; font-size: 12px; text-anchor: middle; fill: var(--tree-soft); }
+.knowledge-tree__leaf:is([data-state="read"], [data-state="reading"]):not([data-current]) .knowledge-tree__name { fill: var(--tree-paper); }
+.knowledge-tree__leaf[data-current] .knowledge-tree__name { fill: var(--tree-ink); paint-order: stroke fill; stroke: var(--tree-paper); stroke-width: 5px; stroke-linejoin: round; }
+
+@media (prefers-reduced-motion: reduce) { .knowledge-tree__blade { transition: none; } }
+
+/* Before the first lesson: the turn in a few quiet lines, newest on top. */
+.knowledge-tree__first { display: flex; width: 100%; max-width: 560px; flex: 1; flex-direction: column; justify-content: center; gap: 12px; margin: 0 auto; padding: 0 24px 10vh; font-family: var(--font-sans); }
+.knowledge-tree__now { display: flex; align-items: baseline; gap: 10px; margin: 0; font: 17px/1.5 var(--font-reading); color: var(--color-content); }
+.knowledge-tree__spinner { display: inline-block; width: 14px; flex: none; font-size: 12px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.knowledge-tree__log { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0 0 0 24px; list-style: none; font-size: 13px; line-height: 1.5; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.knowledge-tree__log li[data-status="failed"] { color: color-mix(in srgb, var(--color-content) 30%, transparent); text-decoration: line-through; }

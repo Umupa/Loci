@@ -45,7 +45,8 @@ Anything running as your user can read the token, just as it can read Loci's dat
 
 Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false,"error":"...","code":"..."}`. On a terminal it is indented, and piped it is one line. `--json` is accepted and changes nothing.
 
-| Exit | `code` | Meaning |
+| Exit | `glossary` | `read`, `write` (`--terms '[{"term":…,"definition":…,"aliases":[…],"course":…,"lesson":…}]'` or `--input`), `remove` (`--terms '["watch"]'`): the mentor's glossary, `glossary.yaml` in its folder |
+| `code` | Meaning |
 | --- | --- | --- |
 | 0 | — | Done |
 | 1 | `failed`, `not_found`, `busy` | Loci refused or could not do it |
@@ -76,7 +77,6 @@ Every command prints one JSON object: `{"ok":true,"result":...}` or `{"ok":false
 | `guides` | `write`: save the mentor's own guide (a reading guide, a brief), from `--path` or `--body`/`--body-file`; listed and labelled apart from sources |
 | `courses` | `list`, `read`, `write`, `delete`, `lesson` (mark read, reading or untouched) |
 | `lessons` | `read`, `write`: one lesson's own text (`--course C --lesson L`, `--path /abs.md` or `--body`); `questions`: what the learner asked while a lesson was open (`--course`, `--lesson`, or neither for all) |
-| `path` | `read`, `write`: the mentor's learning path, its courses in order with prerequisites (`courses/_path.yaml`) |
 | `code` | `symbols`, `definition`, `references`, `read`, `pin`, `pins`: code in the mentor's cloned repositories, for pinned code tours |
 | `notes` | `list`, `read`, `write`, `delete` |
 | `files` | `list`, `read`, `write`, in the mentor's working folder |
@@ -105,10 +105,9 @@ Notes:
 - `storage status` reports the mentors root and each mentor's folder and file counts; `storage migrate --dry-run` lists what the move of 0.3 data would write, without writing. `library check` and `library search` work on a mentor's folder; a mentor's own `loci app` has them too, for its own folder.
 
 - `code` commands take `--file` as `repos/<repo>@<sha>:path` (pinned), a path in the mentor's folder, or an absolute path inside its folders, and `--at SHA` to read at a commit. `code symbols` gives a file's definitions (Go, Rust, C, TypeScript/TSX, JavaScript, Python, read with tree-sitter). `code definition` and `code references` take `--line` and `--column` (1-based, characters) or `--name`; they search the file's repository by name with `git grep` and tree-sitter, so references report `match: "name"` (not resolved like a compiler; no LSP). `references --file <repository folder> --name N` searches every language. `code read` prints numbered lines; `code pin --lines 40-88` returns the `ref` a lesson's `file` takes, pinned to HEAD (or `--at`); `code pins` lists every pinned lesson (and each pinned part of a comparison lesson, with its `part` label) with `state`: `current`, `moved` (HEAD moved, the file did not), `changed` (with `currentLines`), `missing-commit`, `missing-file` or `no-repo`.
-- `courses write --input course.json`: a lesson's text goes in the lesson as `body` (Markdown) or `bodyPath` (an absolute `.md` file) and is written to `courses/<course>/<lesson>.md`, never into the course file. A lesson with only `id` and `title` is planned. `courses read` marks lessons with text (`text: true`) and planned ones (`planned: true`). A revision that leaves a lesson out deletes its text. `lessons write --course C --lesson L --path /abs/lesson.md` revises one lesson alone; the lesson must already be in the course.
-- `path write --mentor M --input path.json` replaces the path with `{"title":…,"courses":["a",{"id":"b","after":["a"],"title":"…"}]}`: `after` names earlier courses, shown in the library as a hint and never enforced; a course may be on the path before it is written (give it a `title`). `path read` adds each course's read count and the mentor's courses not on the path.
+- `courses write --input course.json`: a lesson's text goes in the lesson as `body` (Markdown) or `bodyPath` (an absolute `.md` file) and is written to `courses/<course>/<lesson>.md`, never into the course file. A lesson with only `id` and `title` is planned. A chapter may carry an `id` and `after` (ids of earlier chapters it stands on), which the knowledge tree draws as branches. `courses read` marks lessons with text (`text: true`) and planned ones (`planned: true`). A revision that leaves a lesson out deletes its text. `lessons write --course C --lesson L --path /abs/lesson.md` revises one lesson alone; the lesson must already be in the course.
 
-Mentors inside Loci can also use `code.*` and `path.read`/`path.write`, and `reader.open`, `reader.show` and `reader.close`, and `library.open` and `library.show`, through `loci app`, for their own reader and library.
+Mentors inside Loci can also use `code.*`, and `reader.open`, `reader.show` and `reader.close`, and `library.open` and `library.show`, through `loci app`, for their own reader and library.
 
 If no Loci window is listening, the command shows or opens the main window and waits for it.
 

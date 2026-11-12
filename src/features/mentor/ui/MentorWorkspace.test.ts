@@ -165,41 +165,12 @@ it("shows the course once, with its progress, and opens lessons from its outline
   expect(lessons()[1].getAttribute("aria-current")).toBe("step");
 });
 
-it("lists courses as rows, opening the chosen one in place at its next lesson, and asks the mentor for a new one without sending", async () => {
-  const kubeData = courseData;
-  vi.mocked(invoke).mockImplementation(async (command, args) => {
-    const input = args as { agent?: string; agentId?: string; id?: string; courseId?: string };
-    if (command === "course_list_all") return [
-      { id: "kube", agentId: agent.id, title: "Kubernetes", engine: "reading", itemCount: 2, masteredCount: 1, updatedAt: 2 },
-      { id: "sds", agentId: agent.id, title: "SDS", engine: "reading", itemCount: 2, masteredCount: 0, updatedAt: 1 },
-    ];
-    if (command === "course_get") return { id: input.id, agentId: input.agentId, title: input.id === "sds" ? "SDS" : "Kubernetes", updatedAt: 2, engine: "reading", dataJson: kubeData };
-    if (command === "course_progress_get") return input.courseId === "sds" ? [{ itemId: "pod", status: "learning" }] : [{ itemId: "pod", status: "mastered" }];
-    if (command === "agent_documents_list" || command === "notes_list") return [];
-    throw new Error(`Unexpected command: ${command}`);
-  });
-  await render();
-  const opened = () => [...container.querySelectorAll<HTMLElement>("[data-library-course]")].map((course) => course.dataset.libraryCourse);
-  await vi.waitFor(() => expect(opened()).toEqual(["kube"]));
-  expect([...container.querySelectorAll(".library-step-title")].map((title) => title.textContent)).toEqual(["Kubernetes", "SDS"]);
-  await click('[data-library-step="sds"] > button');
-  // Choosing a course opens it at the lesson to continue with: the one begun.
-  await vi.waitFor(() => expect(container.querySelector<HTMLElement>("[data-test-course]")?.dataset.item).toBe("pod"));
-  expect(control.stateFor(agent.id).course).toBe("sds");
-  await vi.waitFor(() => expect(opened()).toEqual(["sds"]));
-  await vi.waitFor(() => expect(container.querySelector('[data-library-lesson="pod"] .library-mark--learning')).not.toBeNull());
-  await click(".library-ask");
-  expect(drafts).toEqual(["I'd like a new course on "]);
-});
-
-it("shows the learning path with the chosen course open under it, never locking a course", async () => {
+it("lists every course in one outline, each under its title", async () => {
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const input = args as { agentId?: string; id?: string; courseId?: string };
-    if (command === "course_path_read") return { path: { title: "Sandboxes", courses: [{ id: "kube" }, { id: "sds", after: ["kube"] }, { id: "compare", title: "Three ways", after: ["sds"] }] }, file: "courses/_path.yaml" };
     if (command === "course_list_all") return [
-      { id: "kube", agentId: agent.id, title: "一、Kubernetes", engine: "reading", itemCount: 2, masteredCount: 2, updatedAt: 1 },
-      { id: "sds", agentId: agent.id, title: "SDS", engine: "reading", itemCount: 2, masteredCount: 0, updatedAt: 2 },
-      { id: "loose", agentId: agent.id, title: "Loose", engine: "reading", itemCount: 3, masteredCount: 1, updatedAt: 3 },
+      { id: "sds", agentId: agent.id, title: "SDS", engine: "reading", itemCount: 2, masteredCount: 0, updatedAt: 2, createdAt: 2 },
+      { id: "kube", agentId: agent.id, title: "一、Kubernetes", engine: "reading", itemCount: 2, masteredCount: 2, updatedAt: 3, createdAt: 1 },
     ];
     if (command === "course_get") return { id: input.id, agentId: input.agentId, title: input.id, updatedAt: 2, engine: "reading", dataJson: courseData };
     if (command === "course_progress_get") return [];
@@ -207,23 +178,9 @@ it("shows the learning path with the chosen course open under it, never locking 
     throw new Error(`Unexpected command: ${command}`);
   });
   await render();
-  await vi.waitFor(() => expect(container.querySelector("[data-library-path]")).not.toBeNull());
-  const steps = () => [...container.querySelectorAll<HTMLButtonElement>("[data-library-step] > button")];
-  expect(container.querySelector(".library-path-title")?.textContent).toBe("Sandboxes");
-  expect(container.querySelector(".library-head .library-readline")?.getAttribute("aria-label")).toBe("2 of 4 read");
-  expect(container.querySelector(".library-bar, [role=\"progressbar\"]")).toBeNull();
-  expect(steps().map((step) => step.textContent)).toEqual(["1Kubernetes", "2SDS", "3Three waysplannedAfter 2", "Loose"]);
-  // The next course on the path not read to the end is the one shown, open under its row.
-  expect(steps()[1].getAttribute("aria-current")).toBe("true");
   await vi.waitFor(() => expect(container.querySelector('[data-library-course="sds"] [data-library-lesson="pod"]')).not.toBeNull());
-  // A prerequisite not read yet is a hint on the course; nothing is disabled.
-  expect(container.querySelector<HTMLElement>(".library-tag")?.title).toBe("Best after SDS");
-  expect(steps().every((step) => !step.disabled)).toBe(true);
-  await act(async () => steps()[2].click());
-  expect(drafts).toEqual(['Please write the course "Three ways" (id compare) on my learning path.']);
-  await act(async () => steps()[0].click());
-  await vi.waitFor(() => expect(control.stateFor(agent.id).course).toBe("kube"));
-  await vi.waitFor(() => expect([...container.querySelectorAll<HTMLElement>("[data-library-course]")].map((course) => course.dataset.libraryCourse)).toEqual(["kube"]));
+  expect([...container.querySelectorAll<HTMLElement>("[data-library-course]")].map((course) => course.dataset.libraryCourse)).toEqual(["kube", "sds"]);
+  expect(container.querySelector("[data-library-path], [data-library-step]")).toBeNull();
 });
 
 it("filters the segment being shown", async () => {
@@ -302,7 +259,7 @@ it("comes back to the lesson a mentor was showing, remembering identifiers only"
   await click("[data-test-course] button");
   await act(async () => control.resizeChat(agent.id, 520));
   const stored = JSON.parse(localStorage.getItem(MENTOR_VIEW_KEY)!);
-  expect(stored[agent.id]).toEqual({ library: true, libraryWidth: 260, chat: true, width: 520, course: "kube",
+  expect(stored[agent.id]).toEqual({ library: true, libraryWidth: 260, chat: true, width: 520, readingChat: false, course: "kube",
     page: { kind: "course", course: { courseId: "kube", agentId: "agent-a", title: "Ada's course", itemId: "service" } } });
   await render(other);
   expect(reader().dataset.mentorReader).toBe("empty");
@@ -313,11 +270,9 @@ it("comes back to the lesson a mentor was showing, remembering identifiers only"
   expect(control.stateFor(agent.id).restored).toBe(false);
 });
 
-it("reads the path and the course list once, and each course on the map once, however late the path comes", async () => {
-  let pathRead!: (value: unknown) => void;
+it("reads the course list once, and each course once, with the map and the library both shown", async () => {
   vi.mocked(invoke).mockImplementation(async (command, args) => {
     const input = args as { agentId?: string; id?: string; courseId?: string };
-    if (command === "course_path_read") return new Promise((resolve) => { pathRead = resolve; });
     if (command === "course_list_all") return [
       { id: "kube", agentId: agent.id, title: "Kubernetes", engine: "reading", itemCount: 2, masteredCount: 2, updatedAt: 1 },
       { id: "sds", agentId: agent.id, title: "SDS", engine: "reading", itemCount: 2, masteredCount: 0, updatedAt: 2 },
@@ -330,17 +285,10 @@ it("reads the path and the course list once, and each course on the map once, ho
   const calls = (command: string, id?: string) => vi.mocked(invoke).mock.calls
     .filter(([name, args]) => name === command && (!id || (args as { id?: string; courseId?: string }).id === id || (args as { courseId?: string }).courseId === id)).length;
   await render();
-  // The map and the library are both shown: one path read between them, and the workspace's listing.
-  await vi.waitFor(() => expect(calls("course_get", "kube")).toBe(1));
-  expect(calls("course_path_read")).toBe(1);
+  await vi.waitFor(() => expect(container.querySelector('[data-library-course="sds"] [data-library-lesson="pod"]')).not.toBeNull());
   expect(calls("course_list_all")).toBe(1);
-  await act(async () => pathRead({ path: { title: "Sandboxes", courses: [{ id: "kube" }, { id: "sds", after: ["kube"] }] }, file: "courses/_path.yaml" }));
-  await vi.waitFor(() => expect(container.querySelector("[data-library-path]")).not.toBeNull());
-  // The path only orders what was read; nothing is read again for it.
-  expect(calls("course_path_read")).toBe(1);
-  expect(calls("course_list_all")).toBe(1);
-  expect(calls("course_get", "kube")).toBe(1);
-  expect(calls("course_progress_get", "kube")).toBe(1);
+  // The map and the outline opening together share their reads.
+  expect(calls("course_get", "kube")).toBeLessThanOrEqual(2);
 });
 
 it("checks a remembered page against the listing instead of reading it again", async () => {

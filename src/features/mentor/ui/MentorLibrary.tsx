@@ -134,7 +134,7 @@ export function MentorLibrary({ agent, headerLeading, headerEnd, data, errors, o
   let body: ReactNode;
   if (segment === "courses") {
     body = <LibraryCourses agent={agent} courses={data.courses} selected={course} page={page} lesson={lesson}
-      onOpen={onOpen} onSelect={(courseId) => onChange({ course: courseId })} onDraft={onDraft} badge={courseBadge}
+      onOpen={onOpen} onDraft={onDraft} badge={courseBadge}
       isNew={(courseId) => isNew?.("course", courseId) ?? false}
       error={failure} onRetry={onRetry} />;
   } else if (segment === "files") {

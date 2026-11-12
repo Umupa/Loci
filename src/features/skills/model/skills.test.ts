@@ -12,19 +12,11 @@ vi.mock("../../../integrations/harness/core/registry", () => ({
 
 import { describe, expect, it, vi } from "vitest";
 import {
-  BUILTIN_CREATE_SKILL,
-  applySkillsToTurn,
-  blankSkillMarkdown,
-  injectSkillPrompt,
-  isValidSkillName,
   isNativeCommandPrompt,
-  mergeCatalog,
   rankSkills,
   replaceSlashToken,
-  skillNamesInText,
   skillTextParts,
   slashTokenAt,
-  slugSkillName,
   type Skill,
 } from "./skills";
 
@@ -68,23 +60,20 @@ describe("native command composer behavior", () => {
 });
 
 const review: Skill = {
-  kind: "file",
+  kind: "native",
   name: "review-pr",
   description: "Review pull requests against team standards.",
   invocation: "review-pr",
-  path: "/tmp/.agents/skills/review-pr/SKILL.md",
-  scope: "project",
-  source: "agents",
+  source: "claude",
 };
 
-const native: Skill = {
-  kind: "file",
-  name: "claude-only",
-  description: "Claude helper",
-  invocation: "claude-only",
-  path: "/tmp/.claude/skills/claude-only/SKILL.md",
-  scope: "project",
-  source: "claude",
+const compact: Skill = {
+  kind: "builtin",
+  name: "compact",
+  description: "Summarize the conversation so far",
+  invocation: "compact",
+  scope: "builtin",
+  source: "loci",
 };
 
 const providerNative: Skill = {
@@ -95,15 +84,6 @@ const providerNative: Skill = {
   source: "claude",
 };
 
-const providerFile: Skill = {
-  kind: "file",
-  name: "provider-file",
-  description: "A file discovered by the existing scanner.",
-  invocation: "provider-file",
-  path: "/tmp/.claude/skills/provider-file/SKILL.md",
-  scope: "project",
-  source: "claude",
-};
 
 describe("slashTokenAt", () => {
   it("reads the /token the cursor is in", () => {
@@ -161,19 +141,6 @@ describe("replaceSlashToken", () => {
   });
 });
 
-describe("skillNamesInText", () => {
-  it("collects unique /skill tokens", () => {
-    expect(skillNamesInText("/create-skill write a deploy skill")).toEqual([
-      "create-skill",
-    ]);
-    expect(skillNamesInText("/review-pr /create-skill /review-pr")).toEqual([
-      "review-pr",
-      "create-skill",
-    ]);
-    expect(skillNamesInText("path /tmp/foo")).toEqual([]);
-  });
-});
-
 describe("skillTextParts", () => {
   const names = new Set(["review-pr", "create-skill", "skill:architect"]);
 
@@ -208,7 +175,6 @@ describe("skillTextParts", () => {
   it("ignores skill tokens inside Markdown blockquotes", () => {
     const text = "/review-pr\n> /create-skill\n  > /review-pr";
     expect(slashTokenAt(text, text.indexOf("/create-skill") + 3)).toBeNull();
-    expect(skillNamesInText(text)).toEqual(["review-pr"]);
     expect(
       skillTextParts(text, names)
         .filter((part) => part.skill)
@@ -217,107 +183,20 @@ describe("skillTextParts", () => {
   });
 });
 
-describe("applySkillsToTurn", () => {
-  it("leaves provider-native skill commands unchanged", async () => {
-    await expect(
-      applySkillsToTurn("/skill:architect inspect this", {
-        harness: "claude",
-        cwd: "/repo",
-      }),
-    ).resolves.toBe("/skill:architect inspect this");
-  });
-});
-
-describe("injectSkillPrompt", () => {
-  it("prefixes invoked skill bodies and keeps the user text", () => {
-    const out = injectSkillPrompt("/review-pr look at auth", [review], {
-      "review-pr": "# Review\n\nBe strict.",
-    });
-    expect(out).toContain("## /review-pr");
-    expect(out).toContain("Be strict.");
-    expect(out.endsWith("/review-pr look at auth")).toBe(true);
-  });
-
-  it("returns the original text when nothing matches", () => {
-    expect(injectSkillPrompt("hello", [], {})).toBe("hello");
-  });
-});
-
-describe("mergeCatalog", () => {
-  it("lets .agents win, then Loci create-skill, then provider skills", () => {
-    const catalog = mergeCatalog([
-      {
-        name: "review-pr",
-        description: "from agents",
-        path: "/p/.agents/skills/review-pr/SKILL.md",
-        scope: "project",
-        source: "agents",
-      },
-      {
-        name: "review-pr",
-        description: "from claude",
-        path: "/p/.claude/skills/review-pr/SKILL.md",
-        scope: "project",
-        source: "claude",
-      },
-      {
-        name: "create-skill",
-        description: "claude native",
-        path: "/home/.claude/skills/create-skill/SKILL.md",
-        scope: "user",
-        source: "claude",
-      },
-      {
-        name: "claude-only",
-        description: "native",
-        path: "/p/.claude/skills/claude-only/SKILL.md",
-        scope: "project",
-        source: "claude",
-      },
-    ]);
-    expect(catalog.find((s) => s.name === "review-pr")?.description).toBe(
-      "from agents",
-    );
-    expect(catalog.find((s) => s.name === "create-skill")).toEqual(
-      BUILTIN_CREATE_SKILL,
-    );
-    expect(catalog.find((s) => s.name === "claude-only")?.source).toBe(
-      "claude",
-    );
-  });
-});
-
 describe("rankSkills", () => {
-  it("puts create-skill first when the query is empty", () => {
-    const ranked = rankSkills([native, review, BUILTIN_CREATE_SKILL], "");
-    expect(ranked.map((s) => s.name)).toEqual([
-      "create-skill",
-      "claude-only",
-      "review-pr",
-    ]);
+  it("puts Loci's own commands first when the query is empty", () => {
+    const ranked = rankSkills([review, providerNative, compact], "");
+    expect(ranked.map((s) => s.name)).toEqual(["compact", "architect", "review-pr"]);
   });
 
   it("fuzzy-matches names ahead of descriptions", () => {
-    const ranked = rankSkills([native, review, BUILTIN_CREATE_SKILL], "rev");
+    const ranked = rankSkills([providerNative, review, compact], "rev");
     expect(ranked[0]?.name).toBe("review-pr");
-  });
-
-  it("ranks native provider rows with project skills", () => {
-    const ranked = rankSkills([review, providerNative, providerFile], "");
-    expect(ranked.map((skill) => skill.name)).toEqual([
-      "architect",
-      "provider-file",
-      "review-pr",
-    ]);
   });
 
   it("matches the displayed invocation", () => {
     expect(rankSkills([review, providerNative], "skill")).toEqual([providerNative]);
     expect(rankSkills([review, providerNative], "skill:arch")).toEqual([providerNative]);
-  });
-
-  it("gives the built-in row its exact invocation", () => {
-    expect(BUILTIN_CREATE_SKILL.invocation).toBe("create-skill");
   });
 
   it("keeps every provider result when the composer removes the default cap", () => {
@@ -334,20 +213,5 @@ describe("rankSkills", () => {
     expect(
       rankSkills(rows, "skill-74", Number.POSITIVE_INFINITY)[0]?.name,
     ).toBe("skill-74");
-  });
-});
-
-describe("skill names", () => {
-  it("slugs and validates", () => {
-    expect(slugSkillName("Review PR")).toBe("review-pr");
-    expect(isValidSkillName("review-pr")).toBe(true);
-    expect(isValidSkillName("Review")).toBe(false);
-    expect(isValidSkillName("-nope")).toBe(false);
-  });
-
-  it("writes a starter SKILL.md", () => {
-    const md = blankSkillMarkdown("review-pr");
-    expect(md).toContain("name: review-pr");
-    expect(md).toContain("# Review Pr");
   });
 });

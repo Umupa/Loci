@@ -9,13 +9,14 @@ import { AgentDocumentReader } from "../../agents/ui/AgentDocumentReader";
 import { ResourceBar, ResourceHeader } from "../../../shared/ui/ResourceHeader";
 import type { CourseSummary } from "../../learning/model/course";
 import type { MentorLesson, MentorPage } from "../model/mentorPage";
-import { LearningMap } from "./LearningMap";
+import type { Block } from "../../sessions/model/session";
+import { KnowledgeTree } from "./KnowledgeTree";
 
 const FilePane = lazy(() => import("../../files/ui/FilePane").then((m) => ({ default: m.FilePane })));
 
 type Props = {
   agent: Agent;
-  /** The mentor's courses as the workspace listed them, for the map; undefined until read. */
+  /** The mentor's courses as the workspace listed them, for the tree; undefined until read. */
   courses?: readonly CourseSummary[];
   page?: MentorPage;
   /** Bumped by every explicit opening, so the same lesson can be asked for again. */
@@ -28,8 +29,10 @@ type Props = {
   renderSession: (id: string) => ReactNode;
   /** A conversation's title, for its reader header. */
   sessionTitle: (id: string) => string;
-  /** Opens a page in this reader, as the learning map does with a lesson. */
+  /** Opens a page in this reader, as the knowledge tree does with a lesson. */
   onOpen: (page: MentorPage) => void;
+  /** The mentor's conversation while its turn runs. */
+  turn?: readonly Block[];
 };
 
 const noop = () => {};
@@ -40,11 +43,11 @@ function ReaderLoading({ label }: { label: string }) {
 }
 
 /** The one reader in the middle of a mentor's workspace. Whatever opens replaces it. */
-export function MentorReader({ agent, courses, page, request, onClose, onLessonChange, onBeforeLeave, onOpenFile, renderSession, sessionTitle, onOpen }: Props) {
+export function MentorReader({ agent, courses, page, request, onClose, onLessonChange, onBeforeLeave, onOpenFile, renderSession, sessionTitle, onOpen, turn }: Props) {
   const mentorName = agentLook(agent).name;
   if (!page) return <>
     <ResourceBar />
-    <LearningMap agent={agent} courses={courses} onOpen={onOpen} />
+    <KnowledgeTree agent={agent} courses={courses} onOpen={onOpen} turn={turn} />
   </>;
   if (page.kind === "course") return <CoursePane key={`${agent.id}/${page.course.courseId}`} {...page.course} openRequest={request}
     sourceSessionId={agent.sessionId} reader focused onFocus={noop} onClose={onClose} onLessonChange={onLessonChange} />;

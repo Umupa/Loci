@@ -1,8 +1,8 @@
 {
-  "id": "sandbox-path",
+  "id": "sandbox-course",
   "template": "learning-guide",
   "acceptance": "v0.4",
-  "rubric": ["codeEvidence", "path"],
+  "rubric": ["codeEvidence"],
   "seed": {
     "repos": [
       "TencentCloud/CubeSandbox",
@@ -42,8 +42,8 @@
   ],
   "probe": "Where does CubeSandbox actually enter the guest kernel during a launch, and what does the KVM side do there? Point me at the code or the spec line.",
   "expect": {
-    "pathCourses": [3, 5],
-    "lessonsPerCourse": [6, 12],
+    "chapters": [3, 6],
+    "lessons": [9, 36],
     "minFirstHand": 10,
     "firstSourceWithinSeconds": 300,
     "compareLessons": 1,

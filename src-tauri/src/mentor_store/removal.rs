@@ -60,6 +60,7 @@ fn forget(
     for table in [
         "lesson_progress",
         "lesson_questions",
+        "lesson_revisions",
         "mentor_state",
         "course_progress",
         "courses",

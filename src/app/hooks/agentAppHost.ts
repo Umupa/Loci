@@ -1,3 +1,4 @@
+import { loadGlossary, removeGlossaryTerms, saveGlossaryTerms } from "../../features/learning/model/glossary";
 import { importAgentSource, writeAgentGuide, listAgentDocuments, readAgentDocument } from "../../features/agents/model/agentDocuments";
 import { canAccessAgentAppProject, type AgentAppHost, type AppSessionListing } from "../../features/agent-app/model/agentApp";
 import { agentFolders, agentForSession, findAgent, updateAgent } from "../../features/agents/model/agent";
@@ -147,6 +148,7 @@ export function agentAppHost(source: Session, { workspace, runtime, submission, 
       writeLesson: saveLessonText,
       questions: loadLessonQuestions,
     },
+    glossary: { read: loadGlossary, write: saveGlossaryTerms, remove: removeGlossaryTerms },
     notes: () => loadNotes(true), note: getNote,
     saveNote: async (note) => { const saved = await upsertNote(note); window.dispatchEvent(new Event(NOTES_CHANGED_EVENT)); return saved; },
   };

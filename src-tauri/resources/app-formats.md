@@ -150,6 +150,13 @@ The `courses.write` input is one object:
 Chapters and lessons are non-empty arrays. Each lesson has a unique `id` and
 a `title`.
 
+A chapter may carry an `id` and `after`, the ids of earlier chapters it
+stands on: `{"id":"pods","title":"Pods","after":["control-loop"],"lessons":[…]}`.
+The learner sees the course as a tree, each chapter standing on those it
+names; a chapter without `after` stands on the one before it. It is a hint,
+never a lock. One course holds a subject; a reader of several repositories
+has one course for each, listed one after another in the same outline.
+
 A lesson's **text** is yours: Markdown (Mermaid, math, code, citations)
 given as `body`, or as `bodyPath`, an absolute path to a `.md` file. It is
 kept in its own file, `courses/<course>/<lesson>.md`, never in the course
@@ -228,21 +235,20 @@ one page:
 - `<reading_now>` names the comparison's parts, and `place.part` the part the
   learner is reading.
 
-### Learning path
+### Glossary
 
-A broad goal is a path of 3–5 short courses (6–12 lessons each), in order.
-Write it with `path.write`:
+`glossary.write` adds terms, or replaces those with the same name (any case):
 
 ```json
-{"title":"Sandboxes from the source","courses":[{"id":"sandbox-foundations"},{"id":"cube-internals","after":["sandbox-foundations"]},{"id":"snapshots-compared","title":"Snapshot and restore, three ways","after":["cube-internals"]}]}
+{"terms":[{"term":"watch","aliases":["watches"],"definition":"A client's subscription to changes of one kind of object.","course":"k8s-reading","lesson":"watch-and-list"}]}
 ```
 
-`courses` lists course ids in reading order; `after` names earlier courses
-the learner may want first. It is a hint shown in the library, never a lock:
-every course stays open. A course may be on the path before it is written;
-give it a `title` until then. `path.read` returns the path with how far each
-course is read. The path is the file `courses/_path.yaml`; `_path` is never a
-course id.
+`term` (1–80 characters) and `definition` (one line, at most 400) are
+required; `aliases` are other spellings (at most 8); `lesson` goes with its
+`course`. The glossary is `glossary.yaml` in your folder. In a lesson's text,
+the first use of a term (or an alias) is underlined, except in the lesson
+that teaches it; hovering shows the definition and the lesson, and clicking
+opens that lesson.
 
 ## Diff
 
@@ -279,7 +285,8 @@ sources/<id>.pdf          a first-hand PDF (a paper), from documents.write
 sources/<id>.pdf.yaml     the PDF's sidecar: title, sourceUrl, version, pages
 guides/<id>.md            what you wrote: reading guides, briefs
 courses/<id>.yaml         courses
-courses/_path.yaml        the learning path (path.write)
+courses/<id>/<lesson>.md  each lesson's text
+glossary.yaml             the glossary (glossary.write)
 notes/<id>.md             notes
 repos/  lab/              cloned source and experiments; not indexed
 ```

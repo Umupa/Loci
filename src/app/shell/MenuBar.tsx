@@ -164,7 +164,7 @@ export function MenuBar({ onNewMentor, onCloseReader, onReaderBack, onReaderForw
         { kind: "item", id: "exit", label: "Exit" },
     ] : [
         { kind: "item", id: "toggle_library", label: "Toggle Library", shortcut: shortcut("App: Toggle Library", `${MOD}B`) },
-        { kind: "item", id: "toggle_chat", label: "Toggle Conversation", shortcut: shortcut("App: Toggle Conversation", `${MOD}${SHIFT}B`) },
+        { kind: "item", id: "toggle_chat", label: "Toggle Conversation", shortcut: shortcut("App: Toggle Conversation", `${MOD}J`) },
         { kind: "item", id: "open_model_picker", label: "Switch Model…", shortcut: shortcut("App: Switch Model", `${MOD}.`) },
         { kind: "sep" },
         { kind: "item", id: "zoom_in", label: "Zoom In", shortcut: shortcut("View: Zoom In", `${MOD}+`) },

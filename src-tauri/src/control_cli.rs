@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 32] = [
+const APP_ACTIONS: [&str; 35] = [
     "models.list",
     "sessions.list",
     "sessions.read",
@@ -39,6 +39,9 @@ const APP_ACTIONS: [&str; 32] = [
     "lessons.read",
     "lessons.write",
     "lessons.questions",
+    "glossary.read",
+    "glossary.write",
+    "glossary.remove",
 ];
 const APP_USAGE: &str = r#"Loci app access — available in agent chats.
 
@@ -170,6 +173,13 @@ Only in an agent's own conversation:
   lessons.questions {"course":"k8s-reading","lesson":"pods"}  What the learner
                   asked while that lesson was open, oldest first. Leave out
                   lesson for a course, or both for every lesson.
+  glossary.read  {}  The glossary: every term with its aliases, definition and
+                  the lesson that teaches it.
+  glossary.write {"terms":[{"term":"watch","aliases":["watches"],"definition":"A
+                  client's subscription to changes of one kind of object.",
+                  "course":"k8s-reading","lesson":"watch-and-list"}]}
+                  Add terms, or replace those with the same name (any case).
+  glossary.remove {"terms":["watch"]}  Take terms out by name.
 
 The output is one JSON line: {"ok":true,"result":...} or {"ok":false,"error":"..."}.
 Note results include a stable loci://note/ID url.

@@ -53,7 +53,7 @@ import {
 import { composeNoteMessage, noteCardMeta, type NoteComposerCard } from "../../features/notes";
 import { looksLikeProject } from "../../features/projects/model/recents";
 import { isNativeCommandPrompt } from "../../features/skills/model/skills";
-import { recordLessonQuestion } from "../../features/learning/model/lessonQuestions";
+import { recordLessonQuestion, takeLessonAsk } from "../../features/learning/model/lessonQuestions";
 import { loadFollowUpBehavior, type FollowUpBehavior } from "../../features/settings/model/settings";
 import { agentForSession } from "../../features/agents/model/agent";
 import { saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
@@ -418,8 +418,10 @@ export function useSessionSubmission(options: SubmissionOptions) {
           } });
         accepted();
         // A message sent while a lesson was open is a question asked on that lesson.
+        // Asked from the lesson's margin or its end: the passage and the thread come with it.
+        const lessonAsk = takeLessonAsk(sessionId);
         if (agent && appTurnContext?.lesson && !current.ephemeral && !options?.agentCompletion && !text.startsWith('Write the chapter "'))
-          void recordLessonQuestion(agent.id, appTurnContext.lesson, sessionId, submittedBlockId, text).catch(() => undefined);
+          void recordLessonQuestion(agent.id, appTurnContext.lesson, sessionId, submittedBlockId, text, lessonAsk).catch(() => undefined);
         if (edited) void linkLearningDiscussion(learningContext, sessionId, submittedBlockId).catch((error: unknown) => {
           enqueueHarnessEvent(sessionId, { type: "session.error", message: `Could not link the highlighted passage to this discussion: ${String(error)}` });
         });

@@ -55,7 +55,6 @@ beforeEach(() => {
   state = { status: { state: "connected" }, sessions: [], earlier: new Map(), error: null };
   vi.mocked(invoke).mockImplementation(async (command) => {
     sent.push(command);
-    if (command === "course_path_read") return { path: null };
     if (command === "agent_read") return { text: "[]", hash: "h" };
     if (command.endsWith("_list") || command === "course_list_all") return [];
     return null;
@@ -82,7 +81,7 @@ it("opens a mentor with a known conversation without waiting for the host to ope
   expect(sent.indexOf("session.view chat-a")).toBeLessThan(sent.indexOf("agent.open ada"));
   // `agent.open` has not answered, yet the workspace is up and reading.
   expect(container.querySelector('[data-mentor-workspace="ada"]')).not.toBeNull();
-  for (const read of ["course_list_all", "agent_documents_list", "notes_list", "course_path_read"]) expect(sent).toContain(read);
+  for (const read of ["course_list_all", "agent_documents_list", "notes_list"]) expect(sent).toContain(read);
   setSessions([session("chat-a")]);
   await act(async () => finishOpen("chat-a"));
   expect(container.querySelector('[data-test-chat="chat-a"]')).not.toBeNull();
@@ -108,4 +107,24 @@ it("waits for the host when no conversation is known", async () => {
   await act(async () => finishOpen("chat-new"));
   expect(container.querySelector('[data-test-chat="chat-new"]')).not.toBeNull();
   expect(sent).toContain("course_list_all");
+});
+
+it("opens the conversation at a question asked on a lesson, fetching older pages until it is there", async () => {
+  const jumps = await import("../../features/sessions/model/transcriptJump");
+  const { openLearningDiscussion } = await import("../../features/learning/model/navigation");
+  await open([{ id: "ada", sessionId: "chat-a" }]);
+  setSessions([session("chat-a")]);
+  await act(async () => finishOpen("chat-a"));
+  const asked = { ...session("chat-a"), blocks: [{ id: "q1" }] } as unknown as Session;
+  let pages = 1;
+  const original = { hasEarlier: client.hasEarlier, loadEarlier: client.loadEarlier };
+  Object.assign(client, {
+    hasEarlier: () => pages > 0,
+    loadEarlier: async () => { pages -= 1; setSessions([asked]); },
+  });
+  try {
+    await act(async () => openLearningDiscussion({ sessionId: "chat-a", blockId: "q1" }));
+    await vi.waitFor(() => expect(jumps.peekTranscriptJump("chat-a")?.blockId).toBe("q1"));
+    expect(pages).toBe(0);
+  } finally { Object.assign(client, original); }
 });

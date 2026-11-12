@@ -18,7 +18,6 @@ export const HOST_SHARED_KEYS: readonly string[] = [
   "loci.providerBinaryPaths.v1",
   "loci.followUpBehavior",
   "loci.claudeHooks",
-  "loci.disabledSkillPaths",
   "loci.recentProjects",
   "loci.archivedProjects",
 ];

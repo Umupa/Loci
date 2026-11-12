@@ -265,8 +265,15 @@ pub fn classify(folder: &Path, path: &Path) -> Option<(Kind, String)> {
         stem
     };
     let id: String = stem.nfc().collect();
+    // `courses/_path.yaml` was the learning path, which is gone; its file is left alone.
+    if kind == Kind::Course && id == RETIRED_PATH_ID {
+        return None;
+    }
     valid_content_id(&id).then_some((kind, id))
 }
+
+/// The id the retired learning path took among courses; no course may have it.
+pub const RETIRED_PATH_ID: &str = "_path";
 
 /// A path relative to the mentor's folder, refusing `..` and absolute parts.
 pub fn relative_inside(folder: &Path, relative: &str) -> Result<PathBuf, String> {
@@ -355,6 +362,8 @@ mod tests {
             classify(folder, Path::new("/m/courses/virtio.yaml")),
             Some((Kind::Course, "virtio".into()))
         );
+        // The learning path's file from 0.10 is not a course.
+        assert_eq!(classify(folder, Path::new("/m/courses/_path.yaml")), None);
         for other in [
             "/m/courses/virtio/queue.yaml",
             "/m/courses/virtio/deep/x.md",

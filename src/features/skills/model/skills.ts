@@ -1,23 +1,8 @@
-import {
-  createPath,
-  homeDir,
-  listSkills,
-  readTextFile,
-  writeTextFile,
-  type DiscoveredSkill,
-} from "../../../platform/tauri/fs";
-import { joinPath } from "../../../shared/lib/paths";
-import { isLocalProject, normalizeProjectPath } from "../../projects/model/recents";
+import { normalizeProjectPath } from "../../projects/model/recents";
 import { isMarkdownBlockquotePosition } from "../../sessions/model/quoteDraft";
 import type { HarnessId } from "../../sessions/model/session";
 import { getHarness } from "../../../integrations/harness/core/registry";
 import type { NativeCommand } from "../../../integrations/harness/core/nativeCommands";
-import {
-  CREATE_SKILL_BODY,
-  CREATE_SKILL_DESCRIPTION,
-  CREATE_SKILL_NAME,
-} from "./createSkill";
-import { hostSettingWritten, onHostSettingApplied } from "../../../platform/hostSettings";
 
 export {
   rankSkills,
@@ -26,65 +11,14 @@ export {
   type SlashToken,
 } from "./slashCommands";
 
-const DISABLED_SKILL_PATHS_KEY = "loci.disabledSkillPaths";
-
-/** Fired on `window` when a skill is enabled or disabled in Settings. */
-export const SKILLS_CHANGE_EVENT = "loci:skills-change";
-
-export function loadDisabledSkillPaths(): string[] {
-  try {
-    const raw = localStorage.getItem(DISABLED_SKILL_PATHS_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed)
-      ? parsed.filter((path): path is string => typeof path === "string")
-      : [];
-  } catch {
-    // private mode / quota
-    return [];
-  }
-}
-
-export function saveDisabledSkillPaths(paths: string[]): void {
-  try {
-    localStorage.setItem(DISABLED_SKILL_PATHS_KEY, JSON.stringify(paths));
-  } catch {
-    throw new Error("Could not save skill preferences");
-  }
-  hostSettingWritten(DISABLED_SKILL_PATHS_KEY);
-  skillPreferencesChanged();
-}
-
-function skillPreferencesChanged(): void {
-  // The composer catalog caches per context; drop it so the next picker or
-  // prompt sees the change immediately.
-  invalidateSkills();
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(SKILLS_CHANGE_EVENT));
-}
-onHostSettingApplied(DISABLED_SKILL_PATHS_KEY, skillPreferencesChanged);
-
-function disabledSkillPathSet(): Set<string> {
-  return new Set(loadDisabledSkillPaths());
-}
-
-export type SkillScope = "project" | "user" | "builtin";
-export type SkillSource =
-  | "agents"
-  | "claude"
-  | "codex"
-  | "loci";
-
+/**
+ * What the composer's slash menu offers: Loci's own commands (/new, /compact,
+ * /draft, /btw) and the provider CLI's native ones. Skill files are not read.
+ */
 type SkillCommon = {
   name: string;
   description: string;
   invocation: string;
-};
-
-export type FileSkill = SkillCommon & {
-  kind: "file";
-  path: string;
-  scope: Exclude<SkillScope, "builtin">;
-  source: SkillSource;
 };
 
 export type BuiltinSkill = SkillCommon & {
@@ -97,18 +31,8 @@ export type NativeSkill = NativeCommand & {
   kind: "native";
 };
 
-export type Skill = FileSkill | BuiltinSkill | NativeSkill;
+export type Skill = BuiltinSkill | NativeSkill;
 
-export const BUILTIN_CREATE_SKILL: BuiltinSkill = {
-  kind: "builtin",
-  name: CREATE_SKILL_NAME,
-  description: CREATE_SKILL_DESCRIPTION,
-  invocation: CREATE_SKILL_NAME,
-  scope: "builtin",
-  source: "loci",
-};
-
-const SKILL_NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SKILL_TOKEN_RE =
   /(^|\s)\/([a-z0-9]+(?:-[a-z0-9]+)*(?::[a-z0-9]+(?:-[a-z0-9]+)*)?)(?=\s|$)/g;
 const NATIVE_SKILL_TTL_MS = 30_000;
@@ -282,10 +206,9 @@ function startCatalogLoad(
         entry.retryAt = Date.now() + NATIVE_SKILL_RETRY_MS;
         return entry.skills ?? [];
       }
-      const fallback = mergeCatalog([]);
-      entry.skills = fallback;
+      entry.skills = [];
       entry.loadedAt = Date.now();
-      return fallback;
+      return [];
     })
     .finally(() => {
       if (
@@ -302,62 +225,12 @@ function startCatalogLoad(
 
 async function loadCatalog(context: SkillCatalogContext): Promise<Skill[]> {
   const provider = getHarness(context.harness)?.commands;
-  if (provider) {
-    const commands = await provider.discover(context);
-    return commands.map((command): NativeSkill => ({
-      kind: "native",
-      ...command,
-    }));
-  }
-  const disabledPaths = loadDisabledSkillPaths();
-  const discovered = await listSkills(context.cwd, disabledPaths);
-  const disabled = disabledSkillPathSet();
-  return mergeCatalog(discovered.filter((skill) => !disabled.has(skill.path)));
-}
-
-export function mergeCatalog(discovered: DiscoveredSkill[]): Skill[] {
-  const out = new Map<string, Skill>();
-  const add = (skill: Skill) => {
-    if (!skill.name || out.has(skill.name)) return;
-    out.set(skill.name, skill);
-  };
-  for (const skill of discovered) {
-    if (skill.source === "agents") add(asSkill(skill));
-  }
-  add(BUILTIN_CREATE_SKILL);
-  for (const skill of discovered) {
-    if (skill.source !== "agents") add(asSkill(skill));
-  }
-  return [...out.values()];
-}
-
-function asSkill(skill: DiscoveredSkill): FileSkill {
-  return {
-    kind: "file",
-    name: skill.name,
-    description: skill.description,
-    invocation: skill.name,
-    path: skill.path,
-    scope: skill.scope === "user" ? "user" : "project",
-    source: skill.source === "loci" ? "loci" : skill.source,
-  };
-}
-
-export function skillNamesInText(text: string): string[] {
-  const names: string[] = [];
-  const seen = new Set<string>();
-  SKILL_TOKEN_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = SKILL_TOKEN_RE.exec(text))) {
-    const name = match[2];
-    const start = match.index + (match[1]?.length ?? 0);
-    if (!name || seen.has(name) || isMarkdownBlockquotePosition(text, start)) {
-      continue;
-    }
-    seen.add(name);
-    names.push(name);
-  }
-  return names;
+  if (!provider) return [];
+  const commands = await provider.discover(context);
+  return commands.map((command): NativeSkill => ({
+    kind: "native",
+    ...command,
+  }));
 }
 
 export type SkillTextPart = {
@@ -407,57 +280,6 @@ export function skillTextParts(
   return parts;
 }
 
-export function injectSkillPrompt(
-  text: string,
-  skills: Skill[],
-  bodies: Record<string, string>,
-): string {
-  const blocks: string[] = [];
-  const seen = new Set<string>();
-  for (const skill of skills) {
-    if (seen.has(skill.name)) continue;
-    seen.add(skill.name);
-    const body = bodies[skill.name]?.trim();
-    if (!body) continue;
-    blocks.push(`## /${skill.name}\n\n${body}`);
-  }
-  if (blocks.length === 0) return text;
-  return [
-    "The user invoked skill(s) with /name. Follow every instruction in each skill body.",
-    "",
-    blocks.join("\n\n"),
-    "",
-    "---",
-    "",
-    text,
-  ].join("\n");
-}
-
-export async function applySkillsToTurn(
-  text: string,
-  context: SkillCatalogContext,
-): Promise<string> {
-  if (hasNativeCommands(context.harness)) return text;
-  const names = skillNamesInText(text);
-  if (names.length === 0) return text;
-  const catalog = await loadSkills(context);
-  const picked: Array<FileSkill | BuiltinSkill> = [];
-  for (const name of names) {
-    const skill = catalog.find((item) => item.name === name);
-    if (skill?.kind === "file" || skill?.kind === "builtin") {
-      picked.push(skill);
-    }
-  }
-  if (picked.length === 0) return text;
-  const bodies: Record<string, string> = {};
-  await Promise.all(
-    picked.map(async (skill) => {
-      bodies[skill.name] = await readSkillBody(skill);
-    }),
-  );
-  return injectSkillPrompt(text, picked, bodies);
-}
-
 type SkillLoader = typeof loadSkills;
 
 export function warmNativeSkills(
@@ -466,73 +288,4 @@ export function warmNativeSkills(
 ): void {
   if (!hasNativeCommands(context.harness)) return;
   void load(context).catch(() => undefined);
-}
-
-export async function readSkillBody(
-  skill: FileSkill | BuiltinSkill,
-): Promise<string> {
-  if (skill.kind === "builtin") return CREATE_SKILL_BODY;
-  try {
-    return await readTextFile(skill.path);
-  } catch {
-    return `Skill "${skill.name}" could not be read from ${skill.path}.`;
-  }
-}
-
-export function slugSkillName(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64)
-    .replace(/-+$/g, "");
-}
-
-export function isValidSkillName(name: string): boolean {
-  return SKILL_NAME_RE.test(name) && name.length <= 64;
-}
-
-export function titleFromSkillName(name: string): string {
-  return name
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-export function blankSkillMarkdown(name: string): string {
-  const title = titleFromSkillName(name);
-  const words = name.replace(/-/g, " ");
-  return `---
-name: ${name}
-description: ${title}. Use when the user asks to ${words}.
----
-
-# ${title}
-
-## Instructions
-
-`;
-}
-
-export async function createBlankSkill(input: {
-  cwd: string;
-  name: string;
-  scope: "project" | "user";
-}): Promise<string> {
-  const name = slugSkillName(input.name);
-  if (!isValidSkillName(name)) {
-    throw new Error("Use a lowercase name with letters, numbers, and hyphens.");
-  }
-  const root =
-    input.scope === "user" || !isLocalProject(input.cwd)
-      ? await homeDir()
-      : input.cwd;
-  const relative = `.agents/skills/${name}`;
-  await createPath(root, relative, true);
-  const path = joinPath(root, `${relative}/SKILL.md`);
-  await writeTextFile(path, blankSkillMarkdown(name));
-  invalidateSkills({ cwd: input.cwd });
-  return path;
 }

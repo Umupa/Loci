@@ -105,7 +105,6 @@ async function rescore(runDir) {
     const decisions = json(join(dir, "learner.json"), []);
     const previous = json(join(dir, "score.json"), {});
     const workdir = join(tmpdir(), "loci-eval", meta.stamp, id);
-    const path = json(join(dir, "path.json"), null);
     const pins = json(join(dir, "pins.json"), null);
     const library = json(join(dir, "library.json"), null);
     const tours = json(join(dir, "code-tours.json"), []);
@@ -115,7 +114,7 @@ async function rescore(runDir) {
       const total = lineCounts.get(`${file}\u0000${commit}`);
       return Number.isInteger(total) ? `${"x\n".repeat(Math.max(total - 1, 0))}x` : null;
     };
-    const run = { scenario, sources, courses, turns, path, pins, libraryProblems: Array.isArray(library?.problems) ? library.problems : null, timings: json(join(dir, "timings.json"), {}), failures: previous.failures ?? [], nudges: decisions.filter((entry) => entry.nudge).length };
+    const run = { scenario, sources, courses, turns, pins, libraryProblems: Array.isArray(library?.problems) ? library.problems : null, timings: json(join(dir, "timings.json"), {}), failures: previous.failures ?? [], nudges: decisions.filter((entry) => entry.nudge).length };
     const score = scoreRun(run, { readFile: readText, roots: [workdir], readPinned });
     writeFileSync(join(dir, "score.json"), `${JSON.stringify(score, null, 2)}\n`);
     let verdict = json(join(dir, "judge.json"), null);
@@ -328,17 +327,15 @@ async function collect(mentor, workdir, roots, dir) {
     before = read.nextBefore;
   }
   write("conversation.json", pages);
-  const path = await loci.call("path", "read", "--mentor", mentor).catch((error) => ({ error: String(error.message) }));
   const pins = await loci.call("code", "pins", "--mentor", mentor).catch((error) => ({ error: String(error.message) }));
   const library = await loci.call("library", "check", "--mentor", mentor).catch((error) => ({ error: String(error.message) }));
   const tours = codeToursOf(courses, pins, roots);
-  write("path.json", path);
   write("pins.json", pins);
   write("library.json", library);
   write("code-tours.json", tours);
   const files = workdir ? walk(workdir) : [];
   write("workdir.txt", `${files.join("\n")}\n`);
-  return { sources, courses, files, path, pins, libraryProblems: Array.isArray(library?.problems) ? library.problems : null, tours };
+  return { sources, courses, files, pins, libraryProblems: Array.isArray(library?.problems) ? library.problems : null, tours };
 }
 
 async function runScenario(scenario, runDir, meta) {

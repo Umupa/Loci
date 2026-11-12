@@ -54,9 +54,7 @@ export function rankSkills(
 }
 
 function scopeRank(skill: Skill): number {
-  if (skill.kind === "builtin") return 0;
-  if (skill.kind === "native" || skill.scope === "project") return 1;
-  return 2;
+  return skill.kind === "builtin" ? 0 : 1;
 }
 
 /** Slash token that contains `cursor`, if the user is typing `/skill`. */

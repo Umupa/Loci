@@ -1,0 +1,6 @@
+/* A glossary term where a lesson first uses it: a dashed underline painted
+   over the text, which shows its definition on hover. */
+::highlight(loci-term) { text-decoration: underline dashed color-mix(in srgb, var(--color-content) 45%, transparent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.lesson-term-tip { position: fixed; z-index: 60; max-width: 260px; padding: 8px 10px; border-radius: 6px; background: var(--color-content); color: var(--color-background-base); font: 12px/1.5 var(--font-sans); pointer-events: none; box-shadow: 0 4px 16px #0003; }
+.lesson-term-tip b { margin-right: 6px; font-weight: 600; }
+.lesson-term-tip__where { display: block; margin-top: 4px; opacity: 0.7; }

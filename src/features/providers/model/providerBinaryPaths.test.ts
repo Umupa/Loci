@@ -37,7 +37,7 @@ describe("provider binary paths", () => {
   });
 
   it("filters non-string paths before runtime initialization", async () => {
-    const stored = JSON.stringify({ codex: null, codex: "/opt/codex" });
+    const stored = JSON.stringify({ claude: null, codex: "/opt/codex", grok: 7 });
     vi.mocked(localStorage.getItem).mockImplementation(() => stored);
     mocks.invoke.mockResolvedValue({ codex: "/opt/codex" });
 

@@ -32,3 +32,9 @@
 .diff-card--error details { margin-top: 8px; color: var(--color-content); }
 .diff-card--error pre { white-space: pre-wrap; font-size: 11px; }
 @media (max-width: 480px) { .diff-card__header { flex-wrap: wrap; gap: 8px; } .diff-card__number { flex-basis: 24px; } }
+
+/* Prose wraps inside its column; the numbers and gutter stay at the line's top. */
+.diff-card--wrap .diff-card__body { overflow-x: hidden; }
+.diff-card--wrap .diff-card__line { align-items: flex-start; }
+.diff-card--wrap .diff-card__text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-card--wrap .diff-card__body code { min-width: 0; }

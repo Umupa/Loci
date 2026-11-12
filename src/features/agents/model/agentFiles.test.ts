@@ -178,8 +178,8 @@ it("seeds SOUL.md once, over the missing file only", async () => {
   });
 });
 
-const OLD_MENTOR_SOUL = "82cc4b4893928045d3affbfade734f6afaa5efa89b686b7e112ec31d43dabf61";
-const OLD_LENS_SOUL = "fac43da16d0dafeccd7f90b7fbb4dd6221ea41cec5dd381e0e32c705233ed5fa";
+const OLD_MENTOR_SOUL = "30e97bba51631d667976d4977ff8896290ccbe0c4f03eab04d7d9a5617466fa7";
+const OLD_LENS_SOUL = "8a58dff8feff911456df7a6c94e580a3d86d5652fab3a1066a0f7bd9b0744ce9";
 
 it.each([
   [OLD_MENTOR_SOUL, "learning-guide"],

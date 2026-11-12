@@ -9,7 +9,6 @@ import {
 import { setProjectDefaultProvider } from "../features/sessions/model/projectProviders";
 import { saveProviderBinaryPath } from "../features/providers/model/providerBinaryPaths";
 import { saveClaudeHooks, saveFollowUpBehavior } from "../features/settings/model/settings";
-import { saveDisabledSkillPaths } from "../features/skills/model/skills";
 import { archiveProject, rememberProject } from "../features/projects/model/recents";
 
 beforeEach(() => localStorage.clear());
@@ -29,7 +28,6 @@ describe("host settings", () => {
     saveProviderBinaryPath("claude", "/opt/claude");
     saveFollowUpBehavior("queue");
     saveClaudeHooks(false);
-    saveDisabledSkillPaths(["/w/.agents/skills/a/SKILL.md"]);
     rememberProject("/w");
     archiveProject("/w");
     // Accounts are only read so far; whatever writes them later joins this list.
@@ -41,14 +39,14 @@ describe("host settings", () => {
     const storage = vi.fn();
     const refresh = vi.fn();
     window.addEventListener("storage", storage);
-    onHostSettingApplied("loci.disabledSkillPaths", refresh);
+    onHostSettingApplied("loci.claudeHooks", refresh);
     localStorage.setItem("loci.followUpBehavior", "steer");
-    applyHostSettings({ "loci.followUpBehavior": "queue", "loci.disabledSkillPaths": "[]", "loci:agent-handed": "{}", "loci.theme": "dark" });
+    applyHostSettings({ "loci.followUpBehavior": "queue", "loci.claudeHooks": "[]", "loci:agent-handed": "{}", "loci.theme": "dark" });
     expect(localStorage.getItem("loci.followUpBehavior")).toBe("queue");
     expect(localStorage.getItem("loci:agent-handed")).toBeNull();
     expect(localStorage.getItem("loci.theme")).toBeNull();
     expect(storage.mock.calls.map(([event]) => [event.key, event.oldValue, event.newValue])).toEqual([
-      ["loci.followUpBehavior", "steer", "queue"], ["loci.disabledSkillPaths", null, "[]"],
+      ["loci.followUpBehavior", "steer", "queue"], ["loci.claudeHooks", null, "[]"],
     ]);
     expect(refresh).toHaveBeenCalledOnce();
     applyHostSettings({ "loci.followUpBehavior": null });

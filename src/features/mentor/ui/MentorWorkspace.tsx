@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import type { MentorViewState } from "../../../app/hooks/useMentorView";
+import { chatShown, readingLesson, type MentorViewState } from "../../../app/hooks/useMentorView";
 import { useDragResize } from "../../../shared/hooks/useDragResize";
 import { ChevronLeft, ChevronRight, MessageSquare, SidebarLeft, X } from "../../../shared/ui/icons";
 import { IS_MAC } from "../../../platform/tauri/platform";
@@ -8,6 +8,7 @@ import { ResourceHeaderExtra, ResourceHeaderLeading } from "../../../shared/ui/R
 import { agentLook, type Agent } from "../../agents/model/agent";
 import { readAgentDocument } from "../../agents/model/agentDocuments";
 import type { AgentReading } from "../../agents/model/agentReading";
+import type { Block } from "../../sessions/model/session";
 import { AgentHeaderExtra } from "../../agents/ui/AgentView";
 import { useAgentResources } from "../../agents/ui/useAgentResources";
 import type { OpenFileFn } from "../../files/model/filePlace";
@@ -23,6 +24,8 @@ import { useReadingPosition } from "./useReadingPosition";
 import { MentorLibrary, type LibraryChange, type LibraryData } from "./MentorLibrary";
 import { MentorReader } from "./MentorReader";
 import { ReturnCard, useReturn } from "./ReturnCard";
+import { LessonStrip } from "./LessonStrip";
+import { LessonSessionContext } from "../../learning/ui/lessonSession";
 import "./MentorWorkspace.css";
 
 const LIBRARY_MIN = 200;
@@ -53,6 +56,8 @@ type Props = {
   chat: ReactNode;
   /** Whether the mentor's current turn is running; a new library item is marked while it is. */
   busy?: boolean;
+  /** The mentor's conversation: for a lesson's margin to show answers as they come, and for the reader to show what a turn is doing before anything is written. */
+  blocks?: readonly Block[];
   /** Ahead of the leftmost column's header, when the workspace is the window's left edge. */
   leading?: ReactNode;
   /** At the end of the rightmost column's header, such as the window's buttons. */
@@ -118,7 +123,7 @@ const NO_COURSES: readonly CourseSummary[] = [];
  * the middle and the conversation on the right. Opening anything replaces
  * what the reader showed; nothing opens beside it.
  */
-export function MentorWorkspace({ agent, state, chat, busy = false, leading, trailing, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onLibraryChange, onDraft, courseBadge, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onOpenFile, renderSession, sessionTitle, history, onBack, onForward }: Props) {
+export function MentorWorkspace({ agent, state, chat, busy = false, blocks, leading, trailing, onOpen, onClose, onLessonChange, onRestoredChecked, onToggleLibrary, onLibraryChange, onDraft, courseBadge, onToggleChat, onResizeLibrary, onResizeChat, onReading, onBeforeLeave, onOpenFile, renderSession, sessionTitle, history, onBack, onForward }: Props) {
   const { data, errors, reload } = useAgentResources(agent.id);
   // Every listing has to be readable before the first of them can serve as the
   // turn's baseline; otherwise a slow one looks like a batch of new items.
@@ -142,6 +147,15 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
   /** The widths the app remembers, so each drag limit counts the other column as it is now. */
   const widths = useRef({ library: state.libraryWidth, chat: state.chatWidth });
   widths.current = { library: state.libraryWidth, chat: state.chatWidth };
+  // Reading a lesson's text is reading a book: the outline is a strip beside it
+  // (pointing at it opens the outline over the text) and the conversation is
+  // folded until asked for. Anything else keeps the three columns.
+  const book = readingLesson(state);
+  const chatOpen = chatShown(state);
+  const [peek, setPeek] = useState(false);
+  const libraryInFlow = !book && state.library;
+  const libraryOpen = book ? !!state.readingLibrary || peek : state.library;
+  const lessonSession = useMemo(() => ({ agentId: agent.id, sessionId: agent.sessionId, blocks: blocks ?? [], busy }), [agent.id, agent.sessionId, blocks, busy]);
   const [creating, setCreating] = useState(false);
   const [actionError, setActionError] = useState<string>();
   /** Narrow enough that the library covers the reader, as the CSS does at the same width. */
@@ -155,6 +169,8 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
   const leave = async (next: () => void) => { if (!save.current || await save.current()) next(); };
   const open = (page: MentorPage) => void leave(() => {
     setActionError(undefined);
+    setPeek(false);
+    if (book && state.readingLibrary) onToggleLibrary();
     onOpen(page);
     // A narrow window shows the library over the reader as a drawer; a choice puts it away.
     if (narrowLibrary && state.library) onToggleLibrary();
@@ -214,11 +230,11 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
 
   const library = useDragResize({
     min: LIBRARY_MIN, direction: "right", defaultWidth: 260, initial: state.libraryWidth, onCommit: onResizeLibrary,
-    max: () => libraryLimit(body.current?.clientWidth || window.innerWidth, state.chat ? widths.current.chat : 0),
+    max: () => libraryLimit(body.current?.clientWidth || window.innerWidth, chatOpen ? widths.current.chat : 0),
   });
   const conversation = useDragResize({
     min: CHAT_MIN, direction: "left", defaultWidth: 420, initial: state.chatWidth, onCommit: onResizeChat,
-    max: () => chatLimit(body.current?.clientWidth || window.innerWidth, state.library ? widths.current.library : 0),
+    max: () => chatLimit(body.current?.clientWidth || window.innerWidth, libraryInFlow ? widths.current.library : 0),
   });
   // A width saved on a larger window has to give way when this one shrinks.
   useEffect(() => {
@@ -228,16 +244,16 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
       const width = element.clientWidth;
       if (!width) return;
       setNarrowLibrary(width < LIBRARY_OVERLAY_WIDTH);
-      const libraryWidth = state.library ? library.reclamp(libraryLimit(width, state.chat ? widths.current.chat : 0)) : widths.current.library;
+      const libraryWidth = libraryInFlow ? library.reclamp(libraryLimit(width, chatOpen ? widths.current.chat : 0)) : widths.current.library;
       widths.current.library = libraryWidth;
-      if (state.chat) widths.current.chat = conversation.reclamp(chatLimit(width, state.library ? libraryWidth : 0));
+      if (chatOpen) widths.current.chat = conversation.reclamp(chatLimit(width, libraryInFlow ? libraryWidth : 0));
     };
     fit();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
     observer?.observe(element);
     window.addEventListener("resize", fit);
     return () => { observer?.disconnect(); window.removeEventListener("resize", fit); };
-  }, [state.library, state.chat, library.reclamp, conversation.reclamp]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [libraryInFlow, chatOpen, library.reclamp, conversation.reclamp]); // eslint-disable-line react-hooks/exhaustive-deps
   const name = agentLook(agent).name;
   const libraryLabel = state.library ? "Hide library" : "Show library";
   // There is no title bar of its own: each column's header is the window's top
@@ -251,8 +267,8 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
     <button type="button" className="mentor-bar-button" aria-label="Back" title={`Back (${IS_MAC ? "⌘[" : "Ctrl+["})`} disabled={!history.back} onClick={onBack}><ChevronLeft className="size-4" /></button>
     <button type="button" className="mentor-bar-button" aria-label="Forward" title={`Forward (${IS_MAC ? "⌘]" : "Ctrl+]"})`} disabled={!history.forward} onClick={onForward}><ChevronRight className="size-4" /></button>
   </span> : null;
-  const readerLeading = state.library ? travel : <>{leading}{libraryToggle}{travel}</>;
-  const readerExtra = state.chat ? null : <>
+  const readerLeading = libraryInFlow ? travel : <>{leading}{book ? null : libraryToggle}{travel}</>;
+  const readerExtra = chatOpen ? null : <>
     <button type="button" data-tauri-drag-region="false" className="mentor-chat-show" aria-pressed={false} aria-label={`Chat with ${name}`} title={`Chat with ${name}`} onClick={onToggleChat}>
       <MessageSquare className="size-4 shrink-0" /><span>Chat</span>
     </button>
@@ -273,9 +289,12 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
       event.preventDefault(); event.stopPropagation();
       close();
     }}>
-    <div ref={body} className="mentor-body" onPointerDownCapture={keepSelectionInColumn}>
-      {narrowLibrary && state.library ? <div className="mentor-library-scrim" aria-hidden="true" onPointerDown={onToggleLibrary} /> : null}
-      <aside ref={library.setPaneRef} className="mentor-library-column" hidden={!state.library} aria-label="Outline and library">
+    <div ref={body} className="mentor-body" data-reading={book || undefined} onPointerDownCapture={keepSelectionInColumn}>
+      {narrowLibrary && libraryInFlow ? <div className="mentor-library-scrim" aria-hidden="true" onPointerDown={onToggleLibrary} /> : null}
+      {book && state.page?.kind === "course" ? <LessonStrip agentId={agent.id} courseId={state.page.course.courseId} lessonId={state.lesson?.id}
+        onPeek={() => setPeek(true)} onSelect={(itemId) => state.page?.kind === "course" && open({ kind: "course", course: { ...state.page.course, itemId } })} /> : null}
+      <aside ref={library.setPaneRef} className={`mentor-library-column${book ? " mentor-library-column--drawer" : ""}`} hidden={!libraryOpen} aria-label="Outline and library"
+        onPointerLeave={book ? () => setPeek(false) : undefined}>
         <MentorLibrary agent={agent} headerLeading={leading} headerEnd={libraryToggle} data={data} errors={errors} onRetry={reload} page={state.page} lesson={state.lesson}
           isNew={isNew}
           onOpen={open} onNewNote={() => void newNote()} creatingNote={creating} onOpenFile={(path) => open({ kind: "file", path })}
@@ -291,15 +310,17 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
           }} />
       </aside>
       <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}>
+        <LessonSessionContext.Provider value={lessonSession}>
         <ResourceHeaderLeading.Provider value={readerLeading}><ResourceHeaderExtra.Provider value={readerExtra}>
         {back.summary ? <ReturnCard agentId={agent.id} summary={back.summary} onOpen={open} onDismiss={back.dismiss} /> : null}
         <MentorReader agent={agent} courses={data.courses ?? (errors.courses ? NO_COURSES : undefined)} page={state.page} request={state.request}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
           onOpenFile={onOpenFile} renderSession={renderSession}
-          sessionTitle={sessionTitle} onOpen={onOpen} />
+          sessionTitle={sessionTitle} onOpen={onOpen} turn={busy ? blocks : undefined} />
         </ResourceHeaderExtra.Provider></ResourceHeaderLeading.Provider>
+        </LessonSessionContext.Provider>
       </main>
-      <aside ref={conversation.setPaneRef} className="mentor-chat-column" hidden={!state.chat} aria-label={`Conversation with ${name}`}>
+      <aside ref={conversation.setPaneRef} className="mentor-chat-column" hidden={!chatOpen} aria-label={`Conversation with ${name}`}>
         <div role="separator" aria-label="Resize conversation" aria-orientation="vertical" tabIndex={0} className="mentor-resize mentor-resize--left"
           onPointerDown={conversation.onPointerDown} onDoubleClick={conversation.onDoubleClick}
           onKeyDown={(event) => {

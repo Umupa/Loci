@@ -51,3 +51,16 @@ it("ranks whole and prefix matches before matches inside words, and mentors firs
   expect(searchMentorItems(items, "nothing like this")).toEqual([]);
   expect(searchMentorItems(items, "  ").map((item) => item.kind)).toEqual(["mentor", "mentor"]);
 });
+
+it("finds a glossary term by its name or an alias, opening the lesson that teaches it", () => {
+  const items = mentorSearchItems({ ...sources, glossaries: new Map([["sandbox", [
+    { term: "jailer", aliases: ["jail process"], definition: "Firecracker's launcher that drops privileges.", course: "jailer", lesson: "6-02" },
+    { term: "vsock", definition: "A socket between host and guest." },
+  ]]]) });
+  const term = items.find((item) => item.id === "term:sandbox:jailer")!;
+  expect(term).toMatchObject({ kind: "term", context: "Firecracker's launcher that drops privileges.",
+    page: { kind: "course", course: { courseId: "jailer", agentId: "sandbox", title: "Firecracker isolation", itemId: "6-02" } } });
+  expect(searchMentorItems(items, "jail process").map((item) => item.id)).toContain("term:sandbox:jailer");
+  expect(searchMentorItems(items, "vsock")[0]).toMatchObject({ id: "term:sandbox:vsock" });
+  expect(searchMentorItems(items, "vsock")[0].page).toBeUndefined();
+});

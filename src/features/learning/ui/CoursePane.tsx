@@ -1,5 +1,5 @@
 import { cloneElement, Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode } from "react";
-import { ArrowHorizontal, ChatQuestion, Check, File as FileIcon, Highlighter, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
+import { ArrowHorizontal, ChatQuestion, Check, File as FileIcon, Highlighter, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, RotateCcw, SidebarLeft, X } from "../../../shared/ui/icons";
 import { ReaderHeaderSlot, ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";
@@ -13,13 +13,22 @@ import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { CodeReader } from "../../../shared/ui/CodeReader";
+import { IS_MAC } from "../../../platform/tauri/platform";
+import { lessonHint, markHintSeen, type OnceHint } from "../model/onceHints";
 import { COURSES_CHANGED_EVENT, courseItems, lessonHasSource, lessonPlaceKey, lessonPlanned, loadCourse, loadLessonText, OPEN_COURSE_EVENT, setLessonStatus, type ComparePart, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type LessonText, type OpenCourseDetail } from "../model/course";
 import { requestChapter } from "../model/chapterRequest";
-import { LESSON_QUESTIONS_EVENT, loadLessonQuestions, type LessonQuestion } from "../model/lessonQuestions";
+import { LESSON_QUESTIONS_EVENT, lessonThreads, loadLessonQuestions, type LessonThread } from "../model/lessonQuestions";
+import type { TextAnchor } from "../model/types";
+import { AskBox, answerOf, LessonMargin } from "./LessonMargin";
+import { useLessonSession } from "./lessonSession";
+import { LessonTerms } from "./LessonTerms";
+import { DiffCard } from "./DiffCard";
+import { Modal } from "../../../shared/ui/Modal";
+import { loadLessonRevision, markRevisionSeen, type LessonRevision } from "../model/lessonRevisions";
 import { openLearningDiscussion } from "../model/navigation";
 import { inLesson } from "../model/annotationCounts";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
-import { linesOf } from "../model/textAnchor";
+import { findInText, linesOf, textIndex } from "../model/textAnchor";
 import { ReadingSelectionMenu } from "./ReadingSelectionMenu";
 import { useReadingMarks, type MarkSpec, type MarksListRequest } from "./useReadingMarks";
 import { CourseToc } from "./CourseToc";
@@ -197,6 +206,9 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
   // A lesson with its own text can show its source instead, until another lesson is opened.
   const [originalOf, setOriginalOf] = useState<string | null>(null);
   const showOriginal = hasText && !!activeLesson && lessonHasSource(activeLesson) && originalOf === activeId;
+  // A lesson the mentor revised: what changed, marked until looked at.
+  const revisionButton = hasText && activeId ? <RevisionButton key={`${courseId}/${activeId}`} agentId={agentId} courseId={courseId} lessonId={activeId}
+    className={embedded ? RESOURCE_ACTION : "course-pane__close"} /> : null;
   const originalButton = hasText && activeLesson && lessonHasSource(activeLesson)
     ? <button type="button" data-no-drag className={embedded ? RESOURCE_ACTION : "course-pane__close"} aria-pressed={showOriginal} title={showOriginal ? "Back to the lesson" : "Original"}
       onClick={() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; setOriginalOf(showOriginal ? null : activeId); }}><FileIcon className="size-3.5" /><span className="sr-only">{showOriginal ? "Lesson" : "Original"}</span></button>
@@ -224,6 +236,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     <button type="button" data-no-drag className={iconButton} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-4" /><span className="sr-only">Next</span></button>
     <button type="button" data-no-drag className={`${iconButton}${activeStatus === "mastered" ? " course-pane__read" : ""}`} title={activeStatus === "mastered" ? "Read" : "Mark as read"} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}><Check className="size-3.5" /><span className="sr-only">{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? "Read ✓" : "Mark as read"}</span></button>
     {originalButton}
+    {revisionButton}
     <button type="button" data-no-drag className={iconButton} title="Test my understanding with the agent" onClick={discuss}><MessageSquarePlus className="size-3.5" /><span className="sr-only">Test understanding</span></button>
   </> : null;
   const [readingWide, setReadingWide] = useReadingWide();
@@ -234,6 +247,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     <button type="button" className={RESOURCE_ACTION} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-4" /><span className="sr-only">Previous</span></button>
     <button type="button" className={RESOURCE_ACTION} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-4" /><span className="sr-only">Next</span></button>
     {originalButton}
+    {revisionButton}
     <LessonMenu trigger={lessonMenu} items={[
       { label: markLabel, icon: <Check />, disabled: !activeId || saving.has(activeId) || activeStatus === "mastered", onSelect: () => { if (activeId) void markStatus(activeId, "mastered"); } },
       { label: "Test my understanding", icon: <ChatQuestion />, onSelect: discuss },
@@ -257,7 +271,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     </PaneHeader>
     </>}
     {course ? <ReaderHeaderSlot.Provider value={headerSlot}>
-      <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough} data-reading-scroll><CourseContent course={course} activeId={activeId} original={showOriginal} onMarks={setMarks}
+      <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough} data-reading-scroll>{activeLesson ? <LessonHint key={activeId} text={hasText} original={showOriginal} source={lessonHasSource(activeLesson)} /> : null}<CourseContent course={course} activeId={activeId} original={showOriginal} onMarks={setMarks}
         marksList={marksOpen ? { anchor: lessonMenu, onClose: () => setMarksOpen(false), title: "Highlights & notes in this lesson" } : undefined} />
         {activeId && !activePlanned ? <LessonEnd agentId={agentId} courseId={courseId} lessonId={activeId} next={nextItem}
           onNext={() => {
@@ -362,6 +376,10 @@ function CourseContent({ course, activeId, original, marksList, onMarks }: { cou
  */
 function LessonTextContent({ course, lesson, marksList, onMarks }: { course: CourseWithProgress; lesson: CourseLesson } & MarksProps) {
   const key = JSON.stringify([course.agentId, course.id, lesson.id]);
+  const session = useLessonSession();
+  const [article, setArticle] = useState<HTMLElement | null>(null);
+  const [draft, setDraft] = useState<TextAnchor | null>(null);
+  const threads = useLessonThreads(course.agentId, course.id, lesson.id);
   const [loaded, setLoaded] = useState<{ key: string; text?: LessonText | null; error?: string }>({ key: "" });
   useEffect(() => {
     let live = true;
@@ -383,22 +401,23 @@ function LessonTextContent({ course, lesson, marksList, onMarks }: { course: Cou
   if (!document || !markSpec) return <p className="course-pane__relations">Opening…</p>;
   // The mentor's own heading stands as the title; otherwise the course's title does.
   const titled = /^\s*#\s/.test(document.body);
-  return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id} data-lesson-text>
+  return <article ref={setArticle} className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id} data-lesson-text>
     {titled ? null : <h2>{lesson.title}</h2>}
-    <DocumentBody document={document} agentId={course.agentId} bare lessonText markSpec={markSpec} marksList={marksList} onMarks={onMarks} />
+    <DocumentBody document={document} agentId={course.agentId} bare lessonText markSpec={markSpec} marksList={marksList} onMarks={onMarks}
+      onAsk={session?.sessionId ? setDraft : undefined} />
+    <LessonMargin article={article} threads={threads} draft={draft} onDraftDone={() => setDraft(null)} />
+    <LessonTerms article={article} agentId={course.agentId} courseId={course.id} lessonId={lesson.id} text={document.body} />
   </article>;
 }
 
-/**
- * The end of a lesson: the questions asked on it, one line each, which open
- * the conversation at that message; then the next lesson, its title the way on.
- */
-function LessonEnd({ agentId, courseId, lessonId, next, onNext }: { agentId: string; courseId: string; lessonId: string; next: { id: string; title: string } | null; onNext: () => void }) {
+/** The threads of questions asked on a lesson, oldest first, read again whenever one is asked or answered. */
+function useLessonThreads(agentId: string, courseId: string, lessonId: string): LessonThread[] {
   const key = JSON.stringify([agentId, courseId, lessonId]);
-  const [asked, setAsked] = useState<{ key: string; list: LessonQuestion[] }>({ key: "", list: [] });
+  const [asked, setAsked] = useState<{ key: string; threads: LessonThread[] }>({ key: "", threads: [] });
   useEffect(() => {
     let live = true;
-    const load = () => void loadLessonQuestions(agentId, { courseId, lessonId, limit: 20 }).then((list) => { if (live) setAsked({ key, list: Array.isArray(list) ? list : [] }); }, () => undefined);
+    const load = () => void loadLessonQuestions(agentId, { courseId, lessonId, limit: 200 })
+      .then((list) => { if (live) setAsked({ key, threads: lessonThreads(Array.isArray(list) ? list : []) }); }, () => undefined);
     load();
     const changed = (event: Event) => {
       const detail = (event as CustomEvent<{ agentId: string; courseId: string; lessonId: string }>).detail;
@@ -407,17 +426,101 @@ function LessonEnd({ agentId, courseId, lessonId, next, onNext }: { agentId: str
     window.addEventListener(LESSON_QUESTIONS_EVENT, changed);
     return () => { live = false; window.removeEventListener(LESSON_QUESTIONS_EVENT, changed); };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Oldest first, as they were asked.
-  const questions = asked.key === key ? [...asked.list].reverse() : [];
-  if (!questions.length && !next) return null;
-  return <footer className="course-pane__lesson-end reader-measure" data-lesson-end>
+  return asked.key === key ? asked.threads : [];
+}
+
+/**
+ * The end of a lesson: what was asked on the lesson as a whole, each with the
+ * mentor's answer (the question opens the conversation at that message), a
+ * box to ask about the lesson, then the next lesson, its title the way on.
+ * Questions on a passage are in the margin beside it.
+ */
+function LessonEnd({ agentId, courseId, lessonId, next, onNext }: { agentId: string; courseId: string; lessonId: string; next: { id: string; title: string } | null; onNext: () => void }) {
+  const session = useLessonSession();
+  const all = useLessonThreads(agentId, courseId, lessonId);
+  // A question on a passage is in the margin, unless a revision took its passage away: then it is here.
+  const footer = useRef<HTMLElement>(null);
+  const [lost, setLost] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    const text = footer.current?.parentElement?.querySelector<HTMLElement>("[data-lesson-text] [data-reading-text]");
+    if (!text) return;
+    const index = textIndex(text).text;
+    const gone = new Set(all.filter((thread) => thread.passage && !findInText(index, thread.passage)).map((thread) => thread.id));
+    setLost((current) => [...gone].join() === [...current].join() ? current : gone);
+  });
+  const threads = all.filter((thread) => !thread.passage || lost.has(thread.id));
+  const questions = threads.flatMap((thread) => thread.questions.map((question) => ({ question, passage: thread.passage && question === thread.questions[0] ? thread.passage : undefined })));
+  const canAsk = !!session?.sessionId && session.agentId === agentId;
+  if (!questions.length && !next && !canAsk) return null;
+  return <footer ref={footer} className="course-pane__lesson-end reader-body reader-measure" data-lesson-end>
     {questions.length ? <ul className="course-pane__asked" aria-label="Asked in this lesson">
-      {questions.map((question) => <li key={question.messageId}>
-        <button type="button" title={question.text} onClick={() => openLearningDiscussion({ sessionId: question.sessionId, blockId: question.messageId })}>{question.text}</button>
-      </li>)}
+      {questions.map(({ question, passage }) => {
+        const answer = session ? answerOf(question, session) : { text: question.answer ?? "", streaming: false, waiting: false };
+        return <li key={question.messageId}>
+          {passage ? <p className="course-pane__passage">{passage.exact}</p> : null}
+          <button type="button" title="Open in the conversation" onClick={() => openLearningDiscussion({ sessionId: question.sessionId, blockId: question.messageId })}>{question.text}</button>
+          {answer.text ? <div className="course-pane__answer"><AgentMarkdown text={answer.text} streaming={answer.streaming} /></div>
+            : answer.waiting ? <p className="course-pane__answer" role="status">…</p> : null}
+        </li>;
+      })}
     </ul> : null}
+    {canAsk ? <AskBox session={session!} placeholder="Ask about this lesson…" className="course-pane__ask" /> : null}
     {next ? <nav aria-label="Next lesson" className="course-pane__next"><button type="button" onClick={onNext}>{next.title}</button></nav> : null}
   </footer>;
+}
+
+const HINT_TEXT: Record<OnceHint, string> = {
+  "select-to-ask": `Select a passage to ask about it (${IS_MAC ? "⌘L" : "Ctrl+L"}) or to highlight it.`,
+  original: "The file button above shows the original this lesson draws on.",
+};
+
+/** A hint the first time it applies on this device; seen once it shows, and closed with ×. */
+function LessonHint({ text, source, original }: { text: boolean; source: boolean; original: boolean }) {
+  const [hint] = useState(() => lessonHint({ text, source, original }));
+  const [open, setOpen] = useState(true);
+  useEffect(() => { if (hint) markHintSeen(hint); }, [hint]);
+  if (!hint || !open) return null;
+  return <div className="reader-body reader-measure" data-once-hint={hint}><p className="course-pane__hint" role="note">
+    <span>{HINT_TEXT[hint]}</span>
+    <button type="button" aria-label="Dismiss" title="Dismiss" onClick={() => setOpen(false)}><X className="size-3" /></button>
+  </p></div>;
+}
+
+/**
+ * A lesson revised since the learner last looked: its header button opens
+ * what changed, the text before beside the text now, and marks it seen. The
+ * button stays while a revision is kept; its dot goes once it is looked at.
+ */
+function RevisionButton({ agentId, courseId, lessonId, className }: { agentId: string; courseId: string; lessonId: string; className: string }) {
+  const [revision, setRevision] = useState<LessonRevision | null>(null);
+  const [shown, setShown] = useState<{ before: string; after: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => void loadLessonRevision(agentId, courseId, lessonId).then((found) => { if (live) setRevision(found ?? null); }, () => undefined);
+    load();
+    const changed = (event: Event) => { if ((event as CustomEvent<CourseChangedDetail>).detail?.agentId === agentId) load(); };
+    window.addEventListener(COURSES_CHANGED_EVENT, changed);
+    return () => { live = false; window.removeEventListener(COURSES_CHANGED_EVENT, changed); };
+  }, [agentId, courseId, lessonId]);
+  if (!revision?.previous) return null;
+  const open = async () => {
+    const now = await loadLessonText(agentId, courseId, lessonId).catch(() => null);
+    setShown({ before: revision.previous ?? "", after: now?.body ?? "" });
+    if (!revision.seen) {
+      setRevision({ ...revision, seen: true });
+      void markRevisionSeen(agentId, courseId, lessonId).catch(() => undefined);
+    }
+  };
+  const label = revision.seen ? "What changed" : "Revised: what changed";
+  return <>
+    <button type="button" data-no-drag className={`${className} course-pane__revised`} data-unseen={revision.seen ? undefined : ""} title={label} aria-label={label}
+      onClick={() => void open()}><RotateCcw className="size-3.5" /></button>
+    {shown ? <Modal title="What changed" description={`Revised ${new Date(revision.revisedAt).toLocaleString()}`} size="lg" fitViewport onClose={() => setShown(null)}>
+      <div className="p-4 pt-1" data-lesson-diff>
+        <DiffCard id={`${courseId}-${lessonId}`} title="What changed" file={`${lessonId}.md`} before={shown.before} after={shown.after} wrap />
+      </div>
+    </Modal> : null}
+  </>;
 }
 
 /** A lesson that is only a title so far: one step asks for its chapter. */

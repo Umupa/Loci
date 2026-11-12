@@ -1,12 +1,12 @@
 // summary.md for one evaluation run: a table across scenarios, then what each
 // scenario got wrong, so a template change can be judged against the last run.
 
-const RUBRIC_LABEL = { firstHand: "First-hand", courseStructure: "Course", grounding: "Grounding", firstTenMinutes: "First 10 min", firstPrinciples: "First principles", readability: "Readable", codeEvidence: "Code evidence", path: "Path" };
+const RUBRIC_LABEL = { firstHand: "First-hand", courseStructure: "Course", grounding: "Grounding", firstTenMinutes: "First 10 min", firstPrinciples: "First principles", readability: "Readable", codeEvidence: "Code evidence" };
 /** The rubric keys any judged result in this run has, base first. */
 function rubricColumns(results) {
   const seen = new Set();
   for (const result of results) for (const key of Object.keys(result.judge?.verdict?.scores ?? {})) seen.add(key);
-  return Object.keys(RUBRIC_LABEL).filter((key) => ["codeEvidence", "path"].includes(key) ? seen.has(key) : true);
+  return Object.keys(RUBRIC_LABEL).filter((key) => key === "codeEvidence" ? seen.has(key) : true);
 }
 const dash = (value) => (value === null || value === undefined ? "—" : String(value));
 const seconds = (value) => (value === null || value === undefined ? "—" : value < 120 ? `${value}s` : `${Math.round(value / 6) / 10}m`);
@@ -67,16 +67,13 @@ export function summaryMarkdown(meta, results) {
   const sandbox = results.filter((result) => result.score?.sandbox);
   if (sandbox.length) {
     lines.push("### Sandbox acceptance (v0.4)", "");
-    lines.push("| Scenario | Acceptance | Path | Courses (lessons) | Code pinned | Pins | Lines | First-hand (min) | First source | Compare | Library |");
-    lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+    lines.push("| Scenario | Acceptance | Courses (chapters, lessons) | Code pinned | Pins | Lines | First-hand (min) | First source | Compare | Library |");
+    lines.push("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
     for (const { scenario, score } of sandbox) {
       const p = score.sandbox;
-      const path = p.path.checked ? (p.path.exists ? `${p.path.count} courses` : "**none**") : p.path.exists ? `${p.path.count} (not required)` : "—";
-      const courses = p.path.checked
-        ? `${p.path.courses.filter((course) => course.withinRange).length}/${p.path.courses.length} in ${p.path.expected?.join("–") ?? "range"}`
-        : `${p.courseLessons.filter((course) => course.withinRange).length}/${p.courseLessons.length} in range`;
+      const courses = `${p.courseLessons.filter((course) => course.withinRange).length}/${p.courseLessons.length} in range`;
       const pins = p.code.pins.byState.current + p.code.pins.byState.moved;
-      lines.push(`| ${scenario.id} | ${p.ok ? "pass" : `**${p.problems.length} problem(s)**`} | ${path} | ${courses} | ${p.code.pinned}/${p.code.lessons} | ${pins}/${p.code.pins.listed ?? "—"} | ${p.code.lines.resolved}/${p.code.lines.checked} | ${p.firstHand.count}/${p.firstHand.min} | ${seconds(p.firstHand.firstSourceSeconds)} | ${p.compare.count}${p.compare.tolerated ? " (tolerated)" : ""} | ${p.library.problems ?? "—"} |`);
+      lines.push(`| ${scenario.id} | ${p.ok ? "pass" : `**${p.problems.length} problem(s)**`} | ${courses} | ${p.code.pinned}/${p.code.lessons} | ${pins}/${p.code.pins.listed ?? "—"} | ${p.code.lines.resolved}/${p.code.lines.checked} | ${p.firstHand.count}/${p.firstHand.min} | ${seconds(p.firstHand.firstSourceSeconds)} | ${p.compare.count}${p.compare.tolerated ? " (tolerated)" : ""} | ${p.library.problems ?? "—"} |`);
     }
     lines.push("");
   }
@@ -96,7 +93,7 @@ export function summaryMarkdown(meta, results) {
       const p = s.sandbox;
       lines.push(`- Acceptance: ${p.ok ? "pass" : `**${p.problems.length} problem(s)**`}`);
       for (const problem of p.problems.slice(0, 20)) lines.push(`  - ${problem}`);
-      lines.push(`- Path: ${p.path.exists ? `${p.path.count} course(s)${p.path.title ? ` — ${p.path.title}` : ""}` : "none"}${p.path.checked ? "" : " (not required by this scenario)"}; lessons ${p.path.courses.map((course) => `${course.id}=${course.lessons}${course.planned ? " planned" : ""}`).join(", ") || "—"}`);
+      lines.push(`- Courses: ${p.courseLessons.map((course) => `${course.id}=${course.chapters} chapters, ${course.lessons} lessons`).join("; ") || "—"}`);
       lines.push(`- Code: ${p.code.lessons} code lesson(s), ${p.code.pinned} pinned; pins ${Object.entries(p.code.pins.byState).filter(([, count]) => count).map(([state, count]) => `${count} ${state}`).join(", ") || "none"}; lines ${p.code.lines.resolved}/${p.code.lines.checked} resolve${p.code.lines.withoutLines.length ? `; ${p.code.lines.withoutLines.length} pinned lesson(s) name no lines` : ""}`);
       lines.push(`- First-hand: ${p.firstHand.count} of ${p.firstHand.min} required; ${p.firstHand.missingAddress.length} without an address, ${p.firstHand.missingVersion.length} without a version; first source ${seconds(p.firstHand.firstSourceSeconds)}${p.firstHand.withinSeconds === null ? "" : ` (within ${seconds(p.firstHand.withinSeconds)}: ${p.firstHand.firstSourceSeconds !== null && p.firstHand.firstSourceSeconds <= p.firstHand.withinSeconds ? "yes" : "no"})`}`);
       lines.push(`- Compare: ${p.compare.count} lesson(s) with two or more parts of ${p.compare.present} comparison lesson(s)${p.compare.tolerated ? " (feature not merged; absence tolerated)" : ""}`);

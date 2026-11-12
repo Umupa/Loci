@@ -289,7 +289,7 @@ fn build(
         app,
         "toggle_chat",
         "Toggle Conversation",
-        "CmdOrCtrl+Shift+B",
+        "CmdOrCtrl+J",
         "App: Toggle Conversation",
         overrides,
     )?;

@@ -198,28 +198,85 @@ it("leaves room for the window's buttons in the rail on macOS", async () => {
   expect(workspace().querySelector("[data-resource-header] button[aria-label^='Back']")).toBeNull();
 });
 
-it("starts on the mentor workspace's empty state when there is no mentor, and offers the gallery", async () => {
+/** Claude Code is installed, as far as the start page can tell. */
+async function withClaude() {
+  await act(async () => {
+    const original = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = async (command: string, args: unknown, options: unknown) =>
+      command === "harness_resolve_claude" ? { path: "/bin/claude" } : original(command, args, options);
+  });
+}
+
+it("starts on the start page when there is no mentor, with the gallery a step away", async () => {
   localStorage.setItem("loci:agent-roster", "[]");
+  await withClaude();
   localStorage.setItem("loci.settingsSection", "chat");
   await renderApp();
-  await settle(() => expect(container.querySelector("[data-mentors-empty]")).not.toBeNull());
+  await settle(() => expect(container.querySelector("[data-start-page]")).not.toBeNull());
   expect(container.querySelector("[data-app-settings]")).toBeNull();
   expect(workspace()).toBeNull();
-  const create = container.querySelector<HTMLButtonElement>("[data-mentors-empty] button.primary-action")!;
-  expect(create.textContent).toBe("Create a mentor");
-  await click(create);
+  expect(container.querySelector("[data-start-page] h1")?.textContent).toBe("What do you want to learn?");
+  expect(container.querySelectorAll("[data-start-page] [aria-label=\"Examples\"] button")).toHaveLength(3);
+  // Nothing to go back to.
+  expect(container.querySelector('[data-start-page] button[aria-label="Close"]')).toBeNull();
+  await click([...container.querySelectorAll<HTMLButtonElement>("[data-start-page] button")].find((button) => button.textContent === "From a template…")!);
   const gallery = () => document.querySelector<HTMLElement>('[role="dialog"]');
   await settle(() => expect(gallery()?.textContent).toContain("New mentor"));
   expect([...document.querySelectorAll<HTMLElement>("[data-agent-template]")].map((card) => card.dataset.agentTemplate)).toEqual(["learning-guide", "repo-lens"]);
   expect(gallery()!.textContent).toContain("Blank mentor");
 });
 
-it("keeps the window's buttons while no mentor is open", async () => {
+it("says what to install on the start page when no agent CLI is found, and looks again", async () => {
   localStorage.setItem("loci:agent-roster", "[]");
   await renderApp();
-  await settle(() => expect(container.querySelector("[data-mentors-empty]")).not.toBeNull());
-  expect(container.querySelector('[data-mentors-empty] [aria-label="Minimize window"]')).not.toBeNull();
-  expect(container.querySelector('[data-mentors-empty] [aria-label="Close window"]')).not.toBeNull();
+  await settle(() => expect(container.querySelector("[data-start-page] h1")?.textContent).toBe("Install an agent CLI"));
+  expect(container.querySelector("[data-start-page] textarea")).toBeNull();
+  await withClaude();
+  await click([...container.querySelectorAll<HTMLButtonElement>("[data-start-page] button")].find((button) => button.textContent === "Check again")!);
+  await settle(() => expect(container.querySelector("[data-start-page] h1")?.textContent).toBe("What do you want to learn?"));
+});
+
+it("makes a mentor from the start page's request, named from it, and sends the request as its first message", async () => {
+  localStorage.setItem("loci:agent-roster", "[]");
+  await withClaude();
+  const sent: string[] = [];
+  await act(async () => {
+    const original = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = async (command: string, args: unknown, options: unknown) => {
+      if (command === "agent_save" && (args as { path?: string }).path === "SOUL.md") { sent.push(`soul:${(args as { text: string }).text.slice(0, 12)}`); return "soul"; }
+      return original(command, args, options);
+    };
+  });
+  await renderApp();
+  await settle(() => expect(container.querySelector("[data-start-page] textarea")).not.toBeNull());
+  const example = [...container.querySelectorAll<HTMLButtonElement>("[data-start-page] [aria-label=\"Examples\"] button")][1];
+  await click(example);
+  const field = container.querySelector<HTMLTextAreaElement>("[data-start-page] textarea")!;
+  expect(field.value).toBe("Read the design of github.com/firecracker-microvm/firecracker");
+  await act(async () => { field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); });
+  await settle(() => expect(workspace()).not.toBeNull());
+  expect(container.querySelector("[data-start-page]")).toBeNull();
+  const roster = JSON.parse(localStorage.getItem("loci:agent-roster")!);
+  expect(roster.map((agent: { name: string; role: string }) => [agent.name, agent.role])).toEqual([["firecracker", "Open-source reader"]]);
+  expect(sent.some((entry) => entry.startsWith("soul:"))).toBe(true);
+  await settle(() => expect(container.textContent).toContain("Read the design of github.com/firecracker-microvm/firecracker"));
+});
+
+it("keeps the window's buttons on the start page", async () => {
+  localStorage.setItem("loci:agent-roster", "[]");
+  await renderApp();
+  await settle(() => expect(container.querySelector("[data-start-page]")).not.toBeNull());
+  expect(container.querySelector('[data-start-page] [aria-label="Minimize window"]')).not.toBeNull();
+  expect(container.querySelector('[data-start-page] [aria-label="Close window"]')).not.toBeNull();
+});
+
+it("opens the start page from New mentor over the open mentor, and closes back to it", async () => {
+  await renderMentor();
+  await click(container.querySelector<HTMLButtonElement>('[data-agent-rail] button[aria-label="New mentor"]')!);
+  await settle(() => expect(container.querySelector("[data-start-page]")).not.toBeNull());
+  expect(workspace()).toBeNull();
+  await click(container.querySelector<HTMLButtonElement>('[data-start-page] button[aria-label="Close"]')!);
+  await settle(() => expect(workspace()?.dataset.mentorWorkspace).toBe("agent-a"));
 });
 
 it("says which mentor is opening before its workspace arrives", async () => {
@@ -465,15 +522,18 @@ it("creates a mentor from the gallery while Settings is open and switches to its
     };
   });
   await renderApp();
-  await settle(() => expect(container.querySelector("[data-mentors-empty]")).not.toBeNull());
+  await settle(() => expect(container.querySelector("[data-start-page]")).not.toBeNull());
   await click(container.querySelector<HTMLButtonElement>('[data-agent-rail] button[aria-label="Settings"]')!);
   await settle(() => expect(container.querySelector("[data-app-settings]")).not.toBeNull());
+  // New mentor leaves Settings for the start page; the gallery is a step from there.
   await act(async () => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "t", code: "KeyT", ctrlKey: true, bubbles: true, cancelable: true })); });
+  await settle(() => expect(container.querySelector("[data-start-page]")).not.toBeNull());
+  expect(container.querySelector("[data-app-settings]")).toBeNull();
+  await click([...container.querySelectorAll<HTMLButtonElement>("[data-start-page] button")].find((button) => button.textContent === "From a template…")!);
   await settle(() => expect(document.querySelector("[data-agent-template]")).not.toBeNull());
   await click(document.querySelector<HTMLButtonElement>('[data-agent-template="learning-guide"] button[aria-label^="Add"]')!);
-  // The rail and the surface change at once, before the new mentor's conversation is ready.
+  // The rail changes at once, before the new mentor's conversation is ready.
   expect(container.querySelectorAll("[data-agent-rail] [data-agent-id]")).toHaveLength(1);
-  expect(container.querySelector("[data-app-settings]")).toBeNull();
   await settle(() => expect(workspace()).not.toBeNull());
   const created = JSON.parse(localStorage.getItem("loci:agent-roster")!)[0].id;
   expect(workspace().dataset.mentorWorkspace).toBe(created);

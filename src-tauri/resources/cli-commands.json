@@ -576,7 +576,7 @@
         {
           "name": "chapters",
           "type": "json",
-          "help": "Chapters of lessons, as JSON",
+          "help": "Chapters of lessons, as JSON; a chapter may carry an id and after (ids of earlier chapters it stands on)",
           "required": false,
           "positional": false
         }
@@ -662,6 +662,71 @@
       ]
     },
     {
+      "name": "glossary.read",
+      "summary": "The mentor's glossary: every term with its aliases, one-line definition and the lesson that teaches it.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "glossary.remove",
+      "summary": "Take terms out of the glossary by name.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "terms",
+          "type": "json",
+          "help": "Term names, as a JSON list",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
+      "name": "glossary.write",
+      "summary": "Add terms to the glossary, or replace those with the same name (any case): a list of { term, definition, aliases?, course?, lesson? }. --input glossary.json works well.",
+      "callers": [
+        "external"
+      ],
+      "destructive": false,
+      "fields": [
+        {
+          "name": "mentor",
+          "type": "string",
+          "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "terms",
+          "type": "json",
+          "help": "The terms, as JSON",
+          "required": true,
+          "positional": false
+        }
+      ]
+    },
+    {
       "name": "guides.write",
       "summary": "Save a guide the mentor wrote (a reading guide, a brief) from a Markdown file or text; it has no sourceUrl and is labelled as the mentor's guide.",
       "callers": [
@@ -715,7 +780,7 @@
     },
     {
       "name": "lessons.questions",
-      "summary": "What the learner asked while a lesson was open, oldest first: one lesson's, one course's, or all.",
+      "summary": "What the learner asked while a lesson was open, oldest first: one lesson's, one course's, or all. A question asked on a passage carries the passage; a follow-up names the question it follows.",
       "callers": [
         "external"
       ],
@@ -1686,56 +1751,6 @@
           "type": "json",
           "help": "Tags, as a JSON array of strings",
           "required": false,
-          "positional": false
-        }
-      ]
-    },
-    {
-      "name": "path.read",
-      "summary": "The mentor's learning path (courses/_path.yaml): its courses in order with prerequisites and how far each is read, and the courses not on it.",
-      "callers": [
-        "external",
-        "agent"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
-          "required": true,
-          "positional": false
-        }
-      ]
-    },
-    {
-      "name": "path.write",
-      "summary": "Replace the mentor's learning path: courses in order (3-5 short courses of 6-12 lessons), each { id, after?, title? }; after names earlier courses and is shown, never enforced. A course may be planned before it is written (give it a title). --input path.json works well.",
-      "callers": [
-        "external",
-        "agent"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "help": "The path's title",
-          "required": false,
-          "positional": false
-        },
-        {
-          "name": "courses",
-          "type": "json",
-          "help": "The courses in order: [\"id\", { \"id\": \"…\", \"after\": [\"…\"], \"title\": \"…\" }]",
-          "required": true,
           "positional": false
         }
       ]

@@ -13,7 +13,7 @@ type AppShortcutEvent = ShortcutEvent & {
 const APP_SHORTCUTS: [string, string, boolean][] = [
   ["App: New Window", "n", true],
   ["App: Toggle Library", "b", false],
-  ["App: Toggle Conversation", "b", true],
+  ["App: Toggle Conversation", "j", false],
   ["View: Reload", "r", true],
   ["App: Search", "k", false],
   ["App: Settings", ",", false],

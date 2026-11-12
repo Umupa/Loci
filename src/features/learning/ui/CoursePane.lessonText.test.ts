@@ -11,7 +11,10 @@ import { CourseOutline } from "./CourseOutline";
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("../../agents/model/agent", () => ({ findAgent: () => ({ id: "owner", name: "Kern", sessionId: "chat" }), listAgents: () => [] }));
 vi.mock("../../sessions/ui/AgentMarkdown", () => ({ AgentMarkdown: ({ text }: { text: string }) => createElement("div", { "data-markdown": "" }, text) }));
-vi.mock("../../../shared/hooks/useCodePlugin", () => ({ useCodePlugin: () => ({ highlight: () => null, getThemes: () => ["github-light", "github-dark"] }) }));
+vi.mock("../../../shared/hooks/useCodePlugin", () => {
+  const plugin = { highlight: () => null, getThemes: () => ["github-light", "github-dark"] };
+  return { useCodePlugin: () => plugin };
+});
 vi.mock("../../../shared/hooks/useColorScheme", () => ({ useColorScheme: () => "dark" }));
 
 const course = {
@@ -119,4 +122,84 @@ it("ends a lesson with the questions asked on it, oldest first, each opening the
     await act(async () => asked[1].click());
     expect(opened).toEqual([{ sessionId: "chat", blockId: "m2" }]);
   } finally { window.removeEventListener("loci:open-learning-discussion", listen); }
+});
+
+it("shows a question on a passage beside it with the answer as it comes, and the lesson's own questions and a box to ask at its end", async () => {
+  const { LessonSessionContext } = await import("./lessonSession");
+  const passage = { exact: "Text of map", prefix: "", suffix: "", start: 0, end: 11 };
+  vi.mocked(invoke).mockImplementation(async (name: string, args: any) => name === "lesson_questions_list" ? [
+    { courseId: "virtio", lessonId: "map", sessionId: "chat", messageId: "m1", text: "Why a map?", askedAt: 1, anchor: JSON.stringify(passage) },
+    { courseId: "virtio", lessonId: "map", sessionId: "chat", messageId: "m2", text: "Is this all?", askedAt: 2, answer: "No, four chapters." },
+  ] : command(name, args));
+  const blocks = [
+    { id: "m1", role: "user", text: "> Text of map\n\nWhy a map?" },
+    { id: "r1", role: "assistant", text: "So you see the whole first", streaming: true },
+  ];
+  const asks: unknown[] = [];
+  const listen = (event: Event) => asks.push((event as CustomEvent).detail);
+  window.addEventListener("loci:lesson-ask", listen);
+  try {
+    await act(async () => root.render(createElement(LessonSessionContext.Provider, { value: { agentId: "owner", sessionId: "chat", blocks: blocks as never, busy: true } }, pane("map"))));
+    await settle();
+    const note = container.querySelector<HTMLElement>('[data-lesson-note="m1"]')!;
+    expect(note).not.toBeNull();
+    // No room beside the text here: the note sits under its paragraph.
+    expect(note.dataset.wide).toBe("false");
+    expect(note.textContent).toContain("Why a map?");
+    expect(note.textContent).toContain("So you see the whole first");
+    const end = container.querySelector<HTMLElement>("[data-lesson-end]")!;
+    expect([...end.querySelectorAll("ul button")].map((item) => item.textContent)).toEqual(["Is this all?"]);
+    expect(end.textContent).toContain("No, four chapters.");
+    const box = end.querySelector<HTMLTextAreaElement>("textarea")!;
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+      set.call(box, "What next?");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => { box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+    expect(asks).toEqual([{ agentId: "owner", sessionId: "chat", question: "What next?" }]);
+  } finally { window.removeEventListener("loci:lesson-ask", listen); }
+});
+
+it("marks the glossary's terms in a lesson's text, except those the lesson itself teaches", async () => {
+  vi.mocked(invoke).mockImplementation(async (name: string, args: any) => name === "glossary_read" ? [
+    { term: "map", definition: "The whole on one page.", course: "virtio", lesson: "queue" },
+    { term: "Text", definition: "Taught right here.", course: "virtio", lesson: "map" },
+    { term: "ring", definition: "Not used here." },
+  ] : command(name, args));
+  await act(async () => root.render(pane("map")));
+  await settle();
+  expect(container.querySelector<HTMLElement>("[data-reading-text]")?.dataset.terms).toBe("1");
+});
+
+it("marks a revised lesson in its header until what changed is looked at, then shows the text before and now", async () => {
+  const calls: string[] = [];
+  vi.mocked(invoke).mockImplementation(async (name: string, args: any) => {
+    calls.push(name);
+    if (name === "lesson_revision_get") return args.lessonId === "map" ? { courseId: "virtio", lessonId: "map", previous: "Old text of map", revisedAt: 5, seen: false } : null;
+    return command(name, args);
+  });
+  await act(async () => root.render(pane("map")));
+  await settle();
+  const revised = container.querySelector<HTMLButtonElement>(".course-pane__revised")!;
+  expect(revised.hasAttribute("data-unseen")).toBe(true);
+  await act(async () => revised.click());
+  await settle();
+  expect(document.querySelector("[data-lesson-diff]")?.textContent).toContain("Old text of map");
+  expect(calls).toContain("lesson_revision_seen");
+  expect(container.querySelector(".course-pane__revised")?.hasAttribute("data-unseen")).toBe(false);
+});
+
+it("moves a question whose passage a revision took away to the lesson's end, with the passage it was asked on", async () => {
+  const { LessonSessionContext } = await import("./lessonSession");
+  const gone = { exact: "a sentence the mentor rewrote", prefix: "", suffix: "", start: 0, end: 29 };
+  vi.mocked(invoke).mockImplementation(async (name: string, args: any) => name === "lesson_questions_list" ? [
+    { courseId: "virtio", lessonId: "map", sessionId: "chat", messageId: "m1", text: "Why?", askedAt: 1, anchor: JSON.stringify(gone), answer: "Because." },
+  ] : command(name, args));
+  await act(async () => root.render(createElement(LessonSessionContext.Provider, { value: { agentId: "owner", sessionId: "chat", blocks: [], busy: false } }, pane("map"))));
+  await settle();
+  expect(container.querySelector('[data-lesson-note="m1"]')).toBeNull();
+  const end = container.querySelector<HTMLElement>("[data-lesson-end]")!;
+  expect(end.querySelector(".course-pane__passage")?.textContent).toBe("a sentence the mentor rewrote");
+  expect(end.textContent).toContain("Because.");
 });

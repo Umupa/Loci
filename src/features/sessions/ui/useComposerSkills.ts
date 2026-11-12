@@ -2,10 +2,8 @@ import { useCallback,useEffect,useMemo,useRef,useState } from "react";
 import {
 hasNativeCommands,
 loadSkills,
-mergeCatalog,
 peekSkills,
 skillCatalogKey,
-SKILLS_CHANGE_EVENT,
 subscribeSkills,
 type Skill,
 type SkillCatalogContext,
@@ -60,10 +58,7 @@ export function useComposerSkills(input: {
     [input.executionCwd, input.harness, input.sessionId],
   );
   const contextKey = skillCatalogKey(context);
-  const fallback = useMemo<Skill[]>(
-    () => (hasNativeCommands(input.harness) ? [] : mergeCatalog([])),
-    [input.harness],
-  );
+  const fallback = useMemo<Skill[]>(() => [], []);
   const currentToken = useRef<ComposerSkillContextToken | null>(null);
   currentToken.current = nextComposerSkillContextToken(
     currentToken.current,
@@ -105,14 +100,6 @@ export function useComposerSkills(input: {
     if (cached) commit(contextToken, cached);
     void refresh().catch(() => undefined);
   }, [commit, context, contextToken, refresh]);
-
-  useEffect(() => {
-    const onChange = (): void => {
-      if (!hasNativeCommands(context.harness)) void refresh({ refresh: true });
-    };
-    window.addEventListener(SKILLS_CHANGE_EVENT, onChange);
-    return () => window.removeEventListener(SKILLS_CHANGE_EVENT, onChange);
-  }, [context.harness, refresh]);
 
   useEffect(() => {
     if (!input.pickerOpen) return;

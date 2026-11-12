@@ -539,7 +539,7 @@ fn ordered(value: &Value, keys: &[&str]) -> Yaml {
                 )
             {
                 let child_keys: &[&str] = match key.as_str() {
-                    "chapters" => &["title", "lessons"],
+                    "chapters" => &["id", "title", "after", "lessons"],
                     "lessons" => &LESSON_KEYS,
                     "compare" => &PART_KEYS,
                     _ => &[],

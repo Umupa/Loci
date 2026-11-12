@@ -25,11 +25,25 @@ export type MentorViewState = {
   /** The conversation column on the right. */
   chat: boolean;
   chatWidth: number;
+  /** The conversation while a lesson's text is read: folded unless opened (⌘J). */
+  readingChat: boolean;
+  /** The full outline over a lesson being read, opened from its strip; not kept. */
+  readingLibrary?: boolean;
 };
+
+/** A lesson's text is being read: the book layout, with the outline a strip and the conversation folded. */
+export function readingLesson(state: Pick<MentorViewState, "page" | "lesson">): boolean {
+  return state.page?.kind === "course" && state.lesson?.view === "text";
+}
+
+/** Whether the conversation shows, in whichever layout the reader is in. */
+export function chatShown(state: MentorViewState): boolean {
+  return readingLesson(state) ? state.readingChat : state.chat;
+}
 
 /** Earlier versions kept the same per-agent preferences here; their extra fields are ignored. */
 export const MENTOR_VIEW_KEY = "loci:agent-overviews.v1";
-export const DEFAULT_MENTOR_VIEW: MentorViewState = { request: 0, library: true, libraryWidth: 260, chat: true, chatWidth: 420 };
+export const DEFAULT_MENTOR_VIEW: MentorViewState = { request: 0, library: true, libraryWidth: 260, chat: true, chatWidth: 420, readingChat: false };
 const width = (value: unknown, min: number, fallback: number) => typeof value === "number" && Number.isFinite(value) ? Math.max(min, value) : fallback;
 
 function read(): Record<string, MentorViewState> {
@@ -48,6 +62,7 @@ function read(): Record<string, MentorViewState> {
         ...(isLibrarySegment(item.segment) ? { segment: item.segment } : {}),
         ...(typeof item.course === "string" && /^[A-Za-z0-9_-]+$/.test(item.course) ? { course: item.course } : {}),
         chat: typeof item.chat === "boolean" ? item.chat : DEFAULT_MENTOR_VIEW.chat,
+        readingChat: typeof item.readingChat === "boolean" ? item.readingChat : DEFAULT_MENTOR_VIEW.readingChat,
         // `width` was the conversation's width before the reader moved to the middle.
         chatWidth: width(item.width, 320, DEFAULT_MENTOR_VIEW.chatWidth),
       }]];
@@ -71,7 +86,7 @@ export function forgetMentorView(agentId: string) {
 
 function write(states: Record<string, MentorViewState>) {
   const stored = Object.fromEntries(Object.entries(states).map(([id, state]) => [id, {
-    library: state.library, libraryWidth: state.libraryWidth, chat: state.chat, width: state.chatWidth,
+    library: state.library, libraryWidth: state.libraryWidth, chat: state.chat, width: state.chatWidth, readingChat: state.readingChat,
     ...(state.segment ? { segment: state.segment } : {}),
     ...(state.course ? { course: state.course } : {}),
     ...(state.page ? { page: storedPage(state.page, state.lesson) } : {}),
@@ -146,7 +161,7 @@ export function useMentorView() {
     // Every replacement can be gone back from; so can a jump within the same file.
     if (state.page && (!samePage(state.page, page) || options.fromLine !== undefined)) remember(id, state, options.fromLine);
     return ({
-    ...state, page, request: state.request + 1, restored: false,
+    ...state, page, request: state.request + 1, restored: false, readingLibrary: false,
     // The library's Courses segment follows the course being read.
     ...(page.kind === "course" ? { course: page.course.courseId } : {}),
     // A different course starts without the previous one's lesson.
@@ -208,10 +223,15 @@ export function useMentorView() {
       }
       return next.segment === state.segment && next.course === state.course && next.library === state.library && next.filter === state.filter ? state : next;
     }), [update]),
-    toggleLibrary: useCallback((id: string) => update(id, (state) => ({ ...state, library: !state.library })), [update]),
-    toggleChat: useCallback((id: string) => update(id, (state) => ({ ...state, chat: !state.chat })), [update]),
+    /** The library, or over a lesson being read, the full outline above its strip. */
+    toggleLibrary: useCallback((id: string) => update(id, (state) => readingLesson(state)
+      ? { ...state, readingLibrary: !state.readingLibrary } : { ...state, library: !state.library }), [update]),
+    /** The conversation, in whichever layout the reader is in; each is remembered apart. */
+    toggleChat: useCallback((id: string) => update(id, (state) => readingLesson(state)
+      ? { ...state, readingChat: !state.readingChat } : { ...state, chat: !state.chat }), [update]),
     /** Shows the conversation, if it was hidden. */
-    showChat: useCallback((id: string) => update(id, (state) => state.chat ? state : { ...state, chat: true }), [update]),
+    showChat: useCallback((id: string) => update(id, (state) => chatShown(state) ? state
+      : readingLesson(state) ? { ...state, readingChat: true } : { ...state, chat: true }), [update]),
     resizeLibrary: useCallback((id: string, value: number) => update(id, (state) => ({ ...state, libraryWidth: value })), [update]),
     resizeChat: useCallback((id: string, value: number) => update(id, (state) => ({ ...state, chatWidth: value })), [update]),
   };

@@ -36,7 +36,8 @@ export type ComparePart = {
   file?: string; lines?: [number, number]; commit?: string;
 };
 export const COMPARE_PARTS = { min: 2, max: 4, label: 60, note: 2000 } as const;
-export type CourseChapter = { title: string; lessons: CourseLesson[] };
+/** A chapter; `after` names the earlier chapters it stands on (a hint, never a lock), by their `id`. */
+export type CourseChapter = { id?: string; title: string; after?: string[]; lessons: CourseLesson[] };
 export type CourseData = { engine: "reading"; chapters: CourseChapter[] };
 export type ParsedCourse = { id: string; title: string; engine: CourseEngine; data: CourseData; bodies?: Record<string, LessonInput> };
 export type CourseWithProgress = {
@@ -95,7 +96,24 @@ export function parseCourseData(engine: unknown, value: unknown): CourseData {
     const chapter = object(value, `Chapter ${index + 1}`);
     const label = `Chapter ${index + 1}`;
     if (!Array.isArray(chapter.lessons) || chapter.lessons.length === 0) throw new Error(`${label} needs a non-empty lessons array.`);
-    return { title: string(chapter.title, `${label} title`), lessons: chapter.lessons.map((value, at) => lesson(value, `${label} lesson ${at + 1}`)) };
+    const chapterId = chapter.id === undefined ? undefined : id(chapter.id, `${label} id`);
+    if (chapter.after !== undefined && (!Array.isArray(chapter.after) || !chapter.after.every((entry) => typeof entry === "string")))
+      throw new Error(`${label} after must be a list of chapter ids.`);
+    const after = chapter.after as string[] | undefined;
+    return {
+      ...(chapterId ? { id: chapterId } : {}), title: string(chapter.title, `${label} title`), ...(after?.length ? { after } : {}),
+      lessons: chapter.lessons.map((value, at) => lesson(value, `${label} lesson ${at + 1}`)),
+    };
+  });
+  // Only an earlier chapter can be stood on, so the tree never loops.
+  const earlier = new Set<string>();
+  chapters.forEach((chapter, index) => {
+    for (const entry of chapter.after ?? [])
+      if (!earlier.has(entry)) throw new Error(`Chapter ${index + 1} after names ${entry}, which is not an earlier chapter's id.`);
+    if (chapter.id) {
+      if (earlier.has(chapter.id)) throw new Error(`Duplicate chapter id: ${chapter.id}.`);
+      earlier.add(chapter.id);
+    }
   });
   const lessonIds = chapters.flatMap((chapter) => chapter.lessons.map((entry) => entry.id));
   if (new Set(lessonIds).size !== lessonIds.length) throw new Error("Course lessons contain duplicate ids.");
@@ -271,7 +289,41 @@ export function courseItems(data: CourseData): { id: string; title: string }[] {
   return data.chapters.flatMap((chapter) => chapter.lessons);
 }
 
-export async function loadCourse(courseId: string, agentId: string): Promise<CourseWithProgress | null> {
+/**
+ * Reads in flight, so the outline, the tree and the reader opening together
+ * share one. A read is dropped once it settles, and when its course changes or
+ * makes progress, so a read after a write is always a fresh one.
+ */
+const reading = new Map<string, Promise<CourseWithProgress | null>>();
+const readKey = (agentId: string, courseId: string) => `${agentId}\0${courseId}`;
+let forgetting = false;
+function forgetReads() {
+  if (forgetting || typeof window === "undefined") return;
+  forgetting = true;
+  const forget = (event: Event) => {
+    const detail = (event as CustomEvent<{ agentId?: string; courseId?: string }>).detail;
+    for (const key of [...reading.keys()]) {
+      const [agent, course] = key.split("\0");
+      if (!detail || (detail.agentId === agent && (detail.courseId === undefined || detail.courseId === course))) reading.delete(key);
+    }
+  };
+  window.addEventListener(COURSES_CHANGED_EVENT, forget);
+  window.addEventListener(PROGRESS_EVENT, forget);
+}
+
+export function loadCourse(courseId: string, agentId: string): Promise<CourseWithProgress | null> {
+  forgetReads();
+  const key = readKey(agentId, courseId);
+  const pending = reading.get(key);
+  if (pending) return pending;
+  const read = readCourse(courseId, agentId);
+  reading.set(key, read);
+  const settle = () => { if (reading.get(key) === read) reading.delete(key); };
+  read.then(settle, settle);
+  return read;
+}
+
+async function readCourse(courseId: string, agentId: string): Promise<CourseWithProgress | null> {
   const [rawValue, progressValue] = await Promise.all([
     transport.call<unknown>("course_get", { id: courseId, agentId }),
     transport.call<unknown>("course_progress_get", { courseId, agentId }),
@@ -305,6 +357,8 @@ export type CourseChangedDetail = { agentId: string; courseId?: string };
 
 export type CourseSummary = {
   id: string; agentId: string; engine: CourseEngine; title: string; updatedAt: number;
+  /** When it was first written; older than this field, absent. */
+  createdAt?: number;
   itemCount: number; masteredCount: number;
 };
 

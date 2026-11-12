@@ -376,7 +376,8 @@ mod tests {
              INSERT INTO mentors (id,folder,added_at) VALUES ('a','/Loci/a',1);
              INSERT INTO mentor_content (agent_id,kind,id,rel_path,title,hash,size,mtime_ns,created_at,updated_at,indexed_at) VALUES ('a','guide','g','guides/g.md','title','h',1,1,1,1,1);
              INSERT INTO lesson_progress VALUES ('a','course','item','learning',1);
-             INSERT INTO lesson_questions VALUES ('a','course','item','s','m','why?',1);
+             INSERT INTO lesson_questions (agent_id, course_id, lesson_id, session_id, message_id, text, asked_at) VALUES ('a','course','item','s','m','why?',1);
+             INSERT INTO lesson_revisions (agent_id, course_id, lesson_id, previous, revised_at) VALUES ('a','course','item','before',1);
              INSERT INTO mentor_state VALUES ('a','view','{}',1);"
         ).unwrap();
     }
@@ -497,7 +498,7 @@ mod tests {
         seed(&store);
         assert_eq!(
             table_counts(&store).len(),
-            16,
+            17,
             "Update fixtures when the schema grows"
         );
         assert!(table_counts(&store)

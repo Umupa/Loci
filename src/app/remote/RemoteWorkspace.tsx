@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ComponentProps } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps } from "react";
 import { agentLook, agentsSnapshot, agentState, listAgents, subscribeAgents, type AgentState } from "../../features/agents/model/agent";
 import { AgentSessionPane } from "../../features/agents/ui/AgentSessionPane";
 import { MentorSettingsPage } from "../../features/agents/ui/MentorSettingsPage";
@@ -28,6 +28,10 @@ import { useWindowCommands } from "./useWindowCommands";
 import { MentorSearch } from "../../features/mentor/ui/MentorSearch";
 import { requestSearchPlace } from "../../features/mentor/model/mentorSearch";
 import { lessonForFile } from "../../features/learning/model/lessonLinks";
+import { OPEN_LEARNING_DISCUSSION_EVENT } from "../../features/learning/model/navigation";
+import { LESSON_ASK_EVENT, lessonAskText, type LessonAsk } from "../../features/learning/model/lessonQuestions";
+import type { DiscussionRef } from "../../features/learning/model/types";
+import { requestTranscriptJump } from "../../features/sessions/model/transcriptJump";
 import type { MentorSearchItem } from "../../features/mentor/model/mentorSearch";
 import { WindowControls } from "../shell/WindowControls";
 import { useRemoteSessions, type RemoteSessionClient } from "./remoteSessions";
@@ -129,6 +133,39 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
       else if (sessionId !== kept) mentor.replaceSession(kept, { id: sessionId } as Session);
     } catch (reason) { setOpenError(String(reason)); }
   }, [agents, client, mentor.open, offline]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A question asked on a lesson opens the conversation at that message, as it does on the host.
+  const latest = useRef({ agents, sessions, openMentor });
+  latest.current = { agents, sessions, openMentor };
+  useEffect(() => {
+    const discussion = (event: Event) => {
+      const ref = (event as CustomEvent<DiscussionRef>).detail;
+      if (!ref?.sessionId || !ref.blockId) return;
+      const agent = latest.current.agents.find((entry) => entry.sessionId === ref.sessionId);
+      if (!agent) return;
+      void (async () => {
+        if (mentor.currentRef.current?.agentId !== agent.id) await latest.current.openMentor(agent.id);
+        mentorView.showChat(agent.id);
+        // A message older than the pages this window holds is fetched first.
+        const held = () => {
+          const session = latest.current.sessions.find((entry) => entry.id === ref.sessionId);
+          return !!session && client.sessionWithEarlier(session).blocks.some((block) => block.id === ref.blockId);
+        };
+        for (let page = 0; page < 20 && !held() && client.hasEarlier(ref.sessionId); page++) await client.loadEarlier(ref.sessionId);
+        requestTranscriptJump(ref.sessionId, ref.blockId);
+      })().catch(() => undefined);
+    };
+    // Asked from a lesson: sent as from the composer, with what this window's reader shows.
+    // The host keeps it on the lesson; its passage stays with this window only.
+    const lessonAsk = (event: Event) => {
+      const ask = (event as CustomEvent<LessonAsk>).detail;
+      if (!ask?.sessionId || !ask.question.trim()) return;
+      void client.intents["session.submit"](ask.sessionId, lessonAskText(ask), [], { reading: sharedReading(ask.agentId) ?? null }).catch(() => undefined);
+    };
+    window.addEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion);
+    window.addEventListener(LESSON_ASK_EVENT, lessonAsk);
+    return () => { window.removeEventListener(OPEN_LEARNING_DISCUSSION_EVENT, discussion); window.removeEventListener(LESSON_ASK_EVENT, lessonAsk); };
+  }, [client, mentor.currentRef, mentorView]);
 
   const current = mentor.current;
   const firstAgentId = (agents.find((agent) => agent.id === loadActiveMentorId()) ?? agents[0])?.id;
@@ -264,7 +301,7 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
               : <SettingsView section={settingsSection} cwd="~" besideRail onClose={() => setSettingsOpen(false)} onSelectSection={selectSettingsSection} />}
           </RemoteSettingsScopeContext.Provider>
           : current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)} busy={!!chatSession?.busy}
+            <MentorWorkspace key={focusedAgent.id} agent={focusedAgent} state={mentorView.stateFor(focusedAgent.id)} busy={!!chatSession?.busy} blocks={chatSession ? client.sessionWithEarlier(chatSession).blocks : undefined}
               trailing={IS_MAC ? undefined : <WindowControls />}
               onOpen={(next) => mentorView.show(focusedAgent.id, next)} onClose={() => mentorView.close(focusedAgent.id)}
               history={mentorView.historyFor(focusedAgent.id)} onBack={() => mentorView.back(focusedAgent.id)} onForward={() => mentorView.forward(focusedAgent.id)}

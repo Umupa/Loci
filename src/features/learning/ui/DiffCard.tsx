@@ -30,8 +30,9 @@ export function computeLineDiff(before: string, after: string): DiffLine[] | und
 }
 
 
-export type DiffCardProps = DiffSpec;
-export function DiffCard({ id, title, file, before, after, runCommand }: DiffCardProps) {
+/** `wrap`: long lines wrap, for prose (a lesson's text) rather than code. */
+export type DiffCardProps = DiffSpec & { wrap?: boolean };
+export function DiffCard({ id, title, file, before, after, runCommand, wrap }: DiffCardProps) {
   const lines = useMemo(() => computeLineDiff(before, after), [before, after]);
   const plugin = useCodePlugin();
   const scheme = useColorScheme();
@@ -59,7 +60,7 @@ export function DiffCard({ id, title, file, before, after, runCommand }: DiffCar
   };
   const additions = lines?.filter((line) => line.kind === "add").length;
   const removals = lines?.filter((line) => line.kind === "remove").length;
-  return <section className="diff-card" data-card="diff" data-diff-id={id} data-file={file} aria-label={title}>
+  return <section className={`diff-card${wrap ? " diff-card--wrap" : ""}`} data-card="diff" data-diff-id={id} data-file={file} aria-label={title}>
     <header className="diff-card__header"><span className="diff-card__file" title={title}>{file}</span>{lines ? <span className="diff-card__stats"><span className="diff-card__add">+{additions}</span><span className="diff-card__remove">−{removals}</span></span> : null}{runCommand ? <button type="button" className="diff-card__run-btn" disabled={copyState === "busy"} onClick={() => void copy()} title={runCommand}><Copy className="size-3.5" />{copyState === "copied" ? "Copied" : "Copy command"}</button> : null}</header>
     {lines ? <pre className="diff-card__body"><code>{lines.length ? lines.map((line, index) => {
       const lineTokens = line.kind === "remove" ? tokens.before?.tokens[(line.beforeLine ?? 1) - 1] : tokens.after?.tokens[(line.afterLine ?? 1) - 1];
