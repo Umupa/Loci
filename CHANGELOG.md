@@ -4,6 +4,8 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-12
+
 ### Added
 
 - **A start page.** With no mentor, the window asks what you want to learn, with three examples to start from. Press Return and Loci makes the mentor (a Lens when you name a GitHub repository), names it from what you wrote and sends it as the first message. Without an agent CLI on the computer, the page says what to install and how to sign in, and looks again. New mentor opens the same page; the template gallery is a step from it.
@@ -443,7 +445,8 @@ Nothing is deleted from your data: tables and settings that these features used,
 
 - The extraction plan and acceptance notes from `docs/`. They remain in git history.
 
-[Unreleased]: https://github.com/Umupa/Loci/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/Umupa/Loci/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/Umupa/Loci/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Umupa/Loci/compare/v0.9.2...v0.10.0
 [0.9.2]: https://github.com/Umupa/Loci/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/Umupa/Loci/compare/v0.9.0...v0.9.1
