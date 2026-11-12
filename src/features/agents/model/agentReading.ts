@@ -4,7 +4,8 @@
  */
 export type AgentReading =
   /** `compare`: a comparison lesson's parts, the same mechanism in several places. */
-  | { kind: "course"; courseId: string; title: string; lessonId?: string; lessonTitle?: string; compare?: ReadingPart[] }
+  /** `view`: the lesson's own text, the source behind it ("original"), or a lesson not written yet ("planned"). */
+  | { kind: "course"; courseId: string; title: string; lessonId?: string; lessonTitle?: string; view?: "text" | "original" | "planned"; compare?: ReadingPart[] }
   | { kind: "document"; id: string; title: string }
   | { kind: "note"; id: string }
   /** `commit`: code read as it was at that commit, not as it is on disk. */
@@ -180,6 +181,19 @@ export function readingTag(current: AgentReading, place: ReadingPlace | undefine
 }
 
 /** The context block for a turn, or nothing when the agent's main area is empty. */
+/**
+ * The lesson the turn is asked on: the course lesson open beside the chat
+ * (or in the window that sent it), unless the reader was left out of this
+ * turn or the lesson is only planned.
+ */
+export function readingLesson(agentId: string, given?: SharedReading | null): { courseId: string; lessonId: string } | undefined {
+  if (given === null) return undefined;
+  if (given === undefined && skipped.has(agentId)) return undefined;
+  const current = given ? given.reading : reading.get(agentId);
+  if (current?.kind !== "course" || !current.lessonId || current.view === "planned") return undefined;
+  return { courseId: current.courseId, lessonId: current.lessonId };
+}
+
 /** What a reader shows and where in it, as another window hands it to the one running the turn. */
 export type SharedReading = { reading: AgentReading; place?: ReadingPlace };
 

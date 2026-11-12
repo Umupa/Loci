@@ -4,6 +4,32 @@ All notable changes to Loci are recorded here. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+
+- **Lessons your mentor writes.** A lesson is now the mentor's own explanation, written for you: the question, the mechanism, a diagram, a worked case, the trade-off, with every claim citing the first-hand passage it rests on. Click a citation to open the original at that passage, and ⌘[ to come back. A lesson's text is a Markdown file in the mentor's folder (`courses/<course>/<lesson>.md`); highlights, notes, asking about a selection and blocks work on it as on any document. Where a lesson also names its source, the File button in its header shows the original in its place. Lessons written before keep opening their source.
+- **Planned lessons.** A lesson with only a title shows faded in the outline; choosing it asks your mentor for that chapter in the composer.
+- **Questions stay on the lesson.** A message sent while a lesson is open is kept on that lesson. The lesson's end lists what was asked there, each line opening the conversation at that message, and your mentor can read them with `lessons questions` when it revises the lesson.
+- **Next lesson at the end.** A lesson ends with the next one's title; following it marks this lesson read.
+- **Pick up where you left off.** Opening a mentor six hours or more after you were last with it shows the lesson you were on, your last question and the lesson to go on with, one click away. Your mentor is also told each turn how long it has been since your last message, and its heartbeat looks in once after a start that missed it.
+- **`lessons read` and `lessons write`** read or revise one lesson's text without rewriting its course; `courses write` takes each lesson's text as `body` or `bodyPath`.
+- The mentor evaluation reads every lesson's text, scores **readability** (can the scenario's learner follow each lesson; terms used before they are explained, skipped steps and mechanisms without a diagram or an example are listed), and checks that the citations in a lesson resolve to first-hand material instead of requiring each lesson to point at a source.
+
+### Changed
+
+- **Mentor and Lens write the lessons.** They no longer hold back explanations until asked: the whole first, then the parts; terms before their use; a diagram and a case for every mechanism; a chapter at a time, the next shaped by your questions. Experiments only when you ask.
+
+- **What counts as read.** Reaching the end of a lesson still marks it read, but a lesson that fits without scrolling is no longer marked read after eight seconds open, and a PDF or file lesson is not marked read by opening it. Mark it from the lesson's menu, or go on to the next lesson from its end.
+- **⌘K searches the text.** Beside titles, ⌘K finds words in your mentors' sources, guides, lessons and notes, a PDF's text included. A match shows its passage and opens the reader there.
+
+### Removed
+
+- **Habits.** Scheduled habits, their `habits.*` commands and their panel are gone; the heartbeat stays. A `habits.json` from 0.9 is left on disk and no longer read; habit posts already in a chat still show.
+- **Build-your-own courses.** A course is chapters of lessons to read. A build-your-own course from an earlier version says it was written in an earlier format.
+- **MCP and Skills settings.** The MCP and Skills pages, and the MCP and skill pickers in the composer, are gone. The slash menu keeps Loci's own commands (`/new`, `/compact`, `/draft`, `/btw`) and the provider's native ones.
+- **Other folders.** A mentor works in its own folder; the extra folders a mentor could be given are no longer offered, shown or told to it.
+- **Per-project notification settings**, which had no settings page left. Notifications follow the one switch in Settings.
+- Tables of removed features (`workspace_snapshot`, `feed_item_state`, `session_reminders`, `learning_widgets`) are dropped on first start, and modules nothing used are deleted.
+
 ## [0.9.2] - 2026-11-05
 
 ### Changed

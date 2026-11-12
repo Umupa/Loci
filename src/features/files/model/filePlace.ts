@@ -59,6 +59,11 @@ function subscribe(listener: () => void): () => void {
   return () => { listeners.delete(listener); };
 }
 
+/** The place asked for in `path`, if any, without taking it. */
+export function peekFilePlace(path: string): FilePlaceRequest | undefined {
+  return requests.get(path);
+}
+
 export function useFilePlace(path: string): FilePlaceRequest | undefined {
   return useSyncExternalStore(subscribe, () => requests.get(path), () => undefined);
 }

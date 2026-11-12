@@ -34,8 +34,8 @@ vi.mock("../features/notes/ui/NoteEditor", () => ({ NoteEditor: ({ note }: { not
 
 const reading = { id: "network", title: "Network strategy", subject: "Sandbox", body: "# Network strategy\n\nStored network strategy." };
 const agents: Agent[] = [
-  { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#cc66aa", projects: [] },
-  { id: "agent-b", sessionId: "chat-b", name: "Bea", avatar: "loci", color: "#66aacc", projects: [] },
+  { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#cc66aa" },
+  { id: "agent-b", sessionId: "chat-b", name: "Bea", avatar: "loci", color: "#66aacc" },
 ];
 const library = new Map<string, StoredDocument>();
 let root: Root;
@@ -481,17 +481,10 @@ it("creates a mentor from the gallery while Settings is open and switches to its
   expect(railButton("Mentor").getAttribute("aria-current")).toBe("true");
 });
 
-it("opens Settings on MCP when the composer asks to manage servers", async () => {
-  await renderMentor();
-  await act(async () => { window.dispatchEvent(new Event("loci:open-mcp-settings")); });
-  await settle(() => expect(container.querySelector("[data-app-settings]")).not.toBeNull());
-  expect(localStorage.getItem("loci.settingsSection")).toBe("mcp");
-});
-
 it("shows a mentor another window created on the rail at once", async () => {
   await renderMentor();
   const roster = JSON.parse(localStorage.getItem("loci:agent-roster")!);
-  localStorage.setItem("loci:agent-roster", JSON.stringify([...roster, { id: "agent-c", name: "Cy", avatar: "loci", color: "#123456", projects: [] }]));
+  localStorage.setItem("loci:agent-roster", JSON.stringify([...roster, { id: "agent-c", name: "Cy", avatar: "loci", color: "#123456" }]));
   await act(async () => { window.dispatchEvent(new StorageEvent("storage", { key: "loci:agent-roster" })); });
   expect(container.querySelectorAll("[data-agent-rail] [data-agent-id]")).toHaveLength(3);
   expect(railButton("Cy")).not.toBeNull();

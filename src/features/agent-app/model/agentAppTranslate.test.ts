@@ -20,7 +20,7 @@ function run(action: string, input: Record<string, unknown>) {
   const source = newSession("codex", "/tmp/project", "codex:test");
   source.id = "agent";
   const host = {
-    agentOf: (id: string) => (id === "agent" ? { id: "agent-1", projects: [] } : undefined),
+    agentOf: (id: string) => (id === "agent" ? { id: "agent-1" } : undefined),
     documents: {
       read: async (_agentId: string, id: string) => id === "pods"
         ? { id, title: "Pods", kind: "source", sourceUrl: "https://kubernetes.io/pods", body: BODY, updatedAt: 0 }

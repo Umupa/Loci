@@ -53,6 +53,7 @@ import {
 import { composeNoteMessage, noteCardMeta, type NoteComposerCard } from "../../features/notes";
 import { looksLikeProject } from "../../features/projects/model/recents";
 import { isNativeCommandPrompt } from "../../features/skills/model/skills";
+import { recordLessonQuestion } from "../../features/learning/model/lessonQuestions";
 import { loadFollowUpBehavior, type FollowUpBehavior } from "../../features/settings/model/settings";
 import { agentForSession } from "../../features/agents/model/agent";
 import { saveSessionDefaults } from "../../features/agents/model/agentWorkspace";
@@ -82,7 +83,7 @@ export type SubmitOptions = ComposerTurnOptions & {
    * for a message that is refused, queued or steered into a running turn.
    */
   onSettled?: (outcome: TurnOutcome) => void;
-  /** Internal grant for a scheduled habit run; agent chats always have app access. */
+  /** Internal grant for a heartbeat's hidden run; agent chats always have app access. */
   appAccess?: boolean;
   /** From a connected window: what its reader shows, or null when it left the page out of this turn. */
   reading?: SharedReading | null;
@@ -416,6 +417,9 @@ export function useSessionSubmission(options: SubmissionOptions) {
             else applyEvent(event);
           } });
         accepted();
+        // A message sent while a lesson was open is a question asked on that lesson.
+        if (agent && appTurnContext?.lesson && !current.ephemeral && !options?.agentCompletion && !text.startsWith('Write the chapter "'))
+          void recordLessonQuestion(agent.id, appTurnContext.lesson, sessionId, submittedBlockId, text).catch(() => undefined);
         if (edited) void linkLearningDiscussion(learningContext, sessionId, submittedBlockId).catch((error: unknown) => {
           enqueueHarnessEvent(sessionId, { type: "session.error", message: `Could not link the highlighted passage to this discussion: ${String(error)}` });
         });

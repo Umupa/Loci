@@ -245,7 +245,7 @@ export function useAgents(options: Options) {
   const create = useCallback(async (template?: AgentTemplate, options: { show?: boolean; look?: { name?: string; role?: string; avatar?: string; color?: string } } = {}): Promise<string> => {
     const show = options.show ?? true;
     // A name given up front also names its folder, which is made before its first conversation.
-    const agent = createAgent([], { ...(template ? { name: template.name, role: template.role, avatar: template.avatar } : {}), ...options.look });
+    const agent = createAgent({ ...(template ? { name: template.name, role: template.role, avatar: template.avatar } : {}), ...options.look });
     const turn = show ? ++request.current : request.current;
     try {
       // Its Soul is in place before its first turn reads it.

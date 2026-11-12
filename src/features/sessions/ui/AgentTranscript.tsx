@@ -1648,7 +1648,7 @@ const TranscriptBlock = memo(function TranscriptBlock({
       {block.agentHabit ? (
         <AgentNotice
           embedded
-          label={block.agentHabit.id === HEARTBEAT_ID ? "From its heartbeat" : `From its habit “${block.agentHabit.name}”`}
+          label={block.agentHabit.id === HEARTBEAT_ID ? "From its heartbeat" : `From “${block.agentHabit.name}”`}
           at={block.agentHabit.at}
         />
       ) : null}
@@ -3525,7 +3525,7 @@ function ApprovalControls({
   );
 }
 
-/** Marks something an agent's chat received from the app itself: a habit's post, or finished sessions. */
+/** Marks something an agent's chat received from the app itself: a heartbeat's post, or finished sessions. */
 function AgentNotice({
   label,
   at,

@@ -36,7 +36,7 @@ async function settle() {
 }
 
 it("lists the mentor's workdir and opens its files through the callback", async () => {
-  const agent = createAgent(["/code/old-project"], { name: "Lens" });
+  const agent = createAgent({ name: "Lens" });
   invoke.mockImplementation(async (command: string, args: { slug?: string; path?: string }) =>
     command === "agent_workdir_create" ? `/home/me/Loci/${args.slug}` : args.path);
   const onOpenFile = vi.fn();
@@ -50,15 +50,6 @@ it("lists the mentor's workdir and opens its files through the callback", async 
   expect(tree!.dataset.empty).toContain("ask Lens to write one");
   act(() => tree!.click());
   expect(onOpenFile).toHaveBeenCalledWith("/home/me/Loci/lens/README.md");
-
-  // Other folders stay folded until opened.
-  expect(host.textContent).toContain("Other folders");
-  expect(host.querySelector('[data-tree="/code/old-project"]')).toBeNull();
-  const fold = host.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')!;
-  expect(fold.textContent).toContain("old-project");
-  act(() => fold.click());
-  // The same filter reaches every folder, which then keeps its own search field away.
-  expect(host.querySelector<HTMLButtonElement>('[data-tree="/code/old-project"]')!.dataset.query).toBe("read");
 });
 
 it("says so when the working folder cannot be opened", async () => {

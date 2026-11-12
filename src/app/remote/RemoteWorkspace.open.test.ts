@@ -71,7 +71,7 @@ afterEach(() => {
 });
 
 async function open(roster: { id: string; sessionId?: string }[]) {
-  localStorage.setItem(ROSTER_KEY, JSON.stringify(roster.map((agent) => ({ name: "Ada", avatar: "loci", color: "#123456", projects: [], ...agent }))));
+  localStorage.setItem(ROSTER_KEY, JSON.stringify(roster.map((agent) => ({ name: "Ada", avatar: "loci", color: "#123456", ...agent }))));
   await act(async () => root.render(createElement(RemoteWorkspace, { client })));
 }
 

@@ -30,7 +30,7 @@ function host(saved: Session[] = []) {
 }
 
 it("starts an agent's conversation once, at home with Full access", async () => {
-  const { id } = createAgent(["/code/app"]);
+  const { id } = createAgent();
   const first = host();
   const [a, b] = await Promise.all([
     ensureAgentSession(id, first),

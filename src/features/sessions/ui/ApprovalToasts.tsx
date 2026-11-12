@@ -1,12 +1,9 @@
-import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { ApprovalDecision } from "../../../integrations/harness";
 import { LAYER } from "../../../shared/lib/layers";
 import { CircleAlert } from "../../../shared/ui/icons";
-import { useProjectNotificationPreferences } from "../../notifications/hooks/useProjectNotificationPreferences";
 import type { PendingApprovalNotice } from "../../notifications/model/approvalToast";
-import { allowsProjectNotification } from "../../notifications/model/notificationPreferences";
-import { knownNotificationProject } from "../../notifications/model/notificationProjects";
+import { looksLikeProject } from "../../projects/model/recents";
 import {
 HARNESS_TITLE,
 sessionDisplayTitle,
@@ -31,7 +28,6 @@ export function ApprovalToasts({
   onFocusSession,
   onApproval,
 }: Props) {
-  useProjectNotificationPreferences();
   if (notices.length === 0) return null;
 
   return createPortal(
@@ -58,21 +54,7 @@ function ProjectApprovalToast(props: {
   onFocusSession: Props["onFocusSession"];
   onApproval: Props["onApproval"];
 }) {
-  const path = props.notice.session.cwd;
-  // The keyed gate stays mounted even while hidden. Resuming notifications
-  // must not turn a pending request into a new popup.
-  const [occurredAt] = useState(Date.now);
-  const project = knownNotificationProject(path);
-
-  if (
-    !project ||
-    !allowsProjectNotification({
-      projectId: project.id,
-      category: "agentInput",
-      occurredAt,
-    })
-  )
-    return null;
+  if (!looksLikeProject(props.notice.session.cwd)) return null;
   return <ApprovalToastCard {...props} />;
 }
 

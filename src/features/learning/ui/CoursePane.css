@@ -119,7 +119,19 @@
 .course-pane__node { position: relative; z-index: 1; width: 9px; height: 9px; flex: none; border: 1.5px solid color-mix(in srgb, var(--color-content) 32%, transparent); border-radius: 50%; background: var(--color-background-base); }
 .course-pane__nav-item--learning .course-pane__node { border-color: color-mix(in srgb, var(--color-content) 75%, transparent); }
 .course-pane__nav-item--mastered .course-pane__node { border-color: var(--color-content); background: var(--color-content); }
+.course-pane__nav-item--planned { color: color-mix(in srgb, var(--color-content) 40%, transparent); }
+.course-pane__nav-item--planned .course-pane__node { border-style: dashed; }
+.course-pane__planned h2 { color: color-mix(in srgb, var(--color-content) 55%, transparent); }
 .course-pane__nav-item--active { color: var(--color-content); }
 .course-pane__nav-item--active .course-pane__node { width: 11px; height: 11px; margin: 0 -1px; border-color: var(--color-accent); background: var(--color-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent); }
 .course-pane__nav-item--active .course-pane__nav-label { font-weight: 600; background: linear-gradient(transparent 62%, color-mix(in srgb, var(--color-accent) 26%, transparent) 62%); }
 .course-pane__chapter-title { margin: 0; padding: 4px 8px 6px; font-size: 12px; font-weight: 500; color: color-mix(in srgb, var(--color-content) 50%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A lesson's end: what was asked on it, then the next lesson, its title the way on. */
+.course-pane__lesson-end { margin: 40px auto 48px; padding: 16px 0 0; border-top: 1px solid var(--color-stroke); font-family: var(--font-sans); }
+.course-pane__asked { display: flex; flex-direction: column; gap: 2px; margin: 0 0 20px; padding: 0; list-style: none; }
+.course-pane__asked button { display: block; width: 100%; overflow: hidden; padding: 3px 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: color-mix(in srgb, var(--color-content) 60%, transparent); }
+.course-pane__asked button:hover { color: var(--color-content); }
+.course-pane__next { display: flex; justify-content: flex-end; }
+.course-pane__next button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; color: var(--color-content); }
+.course-pane__next button:hover { text-decoration: underline; text-underline-offset: 3px; }

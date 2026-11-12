@@ -59,6 +59,7 @@ fn forget(
     index::forget_mentor(&tx, id).map_err(|e| e.to_string())?;
     for table in [
         "lesson_progress",
+        "lesson_questions",
         "mentor_state",
         "course_progress",
         "courses",

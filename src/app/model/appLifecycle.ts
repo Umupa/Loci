@@ -158,8 +158,7 @@ export function loadBootWorkspace(): Promise<BootWorkspace> {
 
 /**
  * The sessions whose turns were running at quit. Earlier versions also saved
- * a tab layout in `workspace_snapshot`; it is no longer read or written, and
- * the table is left as it is.
+ * a tab layout in `workspace_snapshot`; v0.10 drops that table.
  */
 async function loadResumedWorkspaceOnce(): Promise<ResumedWorkspace | null> {
   const refs = await listInFlightSessions().catch(() => []);

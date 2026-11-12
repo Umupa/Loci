@@ -66,14 +66,14 @@ function world(archived: { seq: number; blocksJson: string; hasOlder: boolean }[
     changeModel: vi.fn((id: string, harness: Session["harness"], model: string) => change(id, (session) => ({ ...session, harness, model }))),
     approve: vi.fn(),
   };
-  const agentHabits = {
+  const agentHeartbeat = {
     approve: vi.fn((id: string, requestId: number, decision: "allow" | "deny") => change(id, (session) => ({
       ...session, blocks: session.blocks.map((block) => block.approval?.requestId === requestId ? { ...block, approval: { requestId, decided: decision } } : block),
     }))),
   };
   const agents = { chat: vi.fn(async () => hostSessions[0]), create: vi.fn(), reset: vi.fn(), remove: vi.fn() };
   const store = { archiveSession: vi.fn(), removeSession: vi.fn() };
-  const table = sessionIntents({ submission: submission as never, agents: agents as never, agentHabits, store: store as never, updateSessions });
+  const table = sessionIntents({ submission: submission as never, agents: agents as never, agentHeartbeat, store: store as never, updateSessions });
   const feed = createSessionFeed(hostSessions, (message) => {
     if (message.kind !== "snapshot") buffer.push(message);
     hostEvent("session.feed", message);
@@ -162,7 +162,7 @@ function world(archived: { seq: number; blocksJson: string; hasOlder: boolean }[
     target, applySettings: (values) => Object.assign(clientSettings, values), applyModels, onReconnected,
   });
   return {
-    client, submission, agentHabits, received, bridgeCalls, callsThroughTransport,
+    client, submission, agentHeartbeat, received, bridgeCalls, callsThroughTransport,
     hostSettings, clientSettings, hostWrites, connects, readModels, applyModels, hostModels,
     host: () => hostSessions,
     change,
@@ -279,7 +279,7 @@ describe("a connected window and its host", () => {
       pendingQuestion: { requestId: 9, questions: [{ id: "q", prompt: "Which?", options: [] }] } as never }));
     await settle();
     await intents["session.approve"]("chat", 4, "allow");
-    expect(w.agentHabits.approve).toHaveBeenCalledWith("chat", 4, "allow");
+    expect(w.agentHeartbeat.approve).toHaveBeenCalledWith("chat", 4, "allow");
     await intents["session.answer"]("chat", 9, { answers: { q: "this" } } as never);
     expect(w.submission.answer).toHaveBeenCalledWith("chat", 9, { answers: { q: "this" } });
     await intents["session.changeModel"]("chat", "codex", "codex:test");

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use serde_json::{json, Value};
 
-const APP_ACTIONS: [&str; 34] = [
+const APP_ACTIONS: [&str; 32] = [
     "models.list",
     "sessions.list",
     "sessions.read",
@@ -36,11 +36,9 @@ const APP_ACTIONS: [&str; 34] = [
     "courses.read",
     "courses.write",
     "courses.delete",
-    "habits.list",
-    "habits.add",
-    "habits.update",
-    "habits.run",
-    "habits.remove",
+    "lessons.read",
+    "lessons.write",
+    "lessons.questions",
 ];
 const APP_USAGE: &str = r#"Loci app access — available in agent chats.
 
@@ -83,14 +81,13 @@ Actions:
                   to derive it from the body. Use {"id":"...","body":"..."}
                   to edit an existing note; title and tags are also optional.
                   Omitted fields stay unchanged. Reuse --request-id on retries.
-An agent works on several projects rather than in one. Its sessions.* actions
-also take "project":"<path or name>" to choose which; it may be left out with
-one project. Ordinary sessions cannot pass it.
+An agent's sessions.* actions work in its workdir; "project" may name it and
+is otherwise left out. Ordinary sessions cannot pass it.
   sessions.stop    {"sessionId":"..."}  Cancel another session's current turn.
   sessions.archive {"sessionId":"..."}  Stop it and put it away; it can be restored.
   sessions.delete  {"sessionId":"..."}  Remove it for good. The user is asked to
                   confirm first; the call fails if they decline.
-                  None of these can target the caller, an agent's chat or a habit run.
+                  None of these can target the caller, an agent's chat or its heartbeat's run.
   In an agent's chat, sessions.start reports the session's result back when it
   stops; pass "notifyOnComplete":false to opt out, or "notifyOnComplete":true
   on sessions.send to hear back about a follow-up.
@@ -154,26 +151,25 @@ Only in an agent's own conversation:
                   has read of each.
   courses.read   {"id":"k8s-reading"}  One course in full, with progress per
                   lesson id: untouched, learning (opened) or mastered (read).
+                  Lessons with their own text say text:true; lessons with
+                  only a title say planned:true.
   courses.write  {"id":"k8s-reading","title":"Kubernetes reading",
                   "chapters":[{"title":"Workloads","lessons":[...]}]}
                   Save a course to its library; it appears in Loci's Courses
                   at once. The fields are a loci-course block's front matter
                   and JSON body in one object (see Reading course below).
-                  The same id replaces the course and keeps progress for
-                  lesson ids that remain.
-  courses.delete {"id":"k8s-reading"}  Remove a course and its progress.
-  habits.list    {}  What it does on its own, with schedules and last outcomes.
-  habits.add     {"name":"Morning CI check","instructions":"...",
-                  "schedule":{"kind":"weekdays","time":"09:00"}}
-                  kind is hourly (with "minute":0-59), daily, weekdays or
-                  weekly (with "dayOfWeek":0-6, 0 is Sunday). Times are local.
-                  "access":"auto" runs it in Auto mode: steps the harness judges
-                  risky are put to the user in this chat. The default, "full",
-                  runs unattended with full access; prefer "auto" for a habit
-                  that reads untrusted pages.
-  habits.update  {"id":"...","enabled":false}  Also name, instructions, schedule, access.
-  habits.run     {"id":"..."}  Run it now; the schedule is left alone.
-  habits.remove  {"id":"..."}
+                  A lesson's text goes in the lesson as "body" (Markdown) or
+                  "bodyPath" (an absolute .md file) and is kept in its own
+                  file. The same id replaces the course and keeps progress for
+                  lesson ids that remain; a lesson left out loses its text.
+  courses.delete {"id":"k8s-reading"}  Remove a course, its lesson texts and progress.
+  lessons.read   {"course":"k8s-reading","lesson":"pods"}  One lesson's text.
+  lessons.write  {"course":"k8s-reading","lesson":"pods","path":"/abs/pods.md"}
+                  Write or revise one lesson's text ("path" or "body"),
+                  leaving the rest of the course as it is.
+  lessons.questions {"course":"k8s-reading","lesson":"pods"}  What the learner
+                  asked while that lesson was open, oldest first. Leave out
+                  lesson for a course, or both for every lesson.
 
 The output is one JSON line: {"ok":true,"result":...} or {"ok":false,"error":"..."}.
 Note results include a stable loci://note/ID url.

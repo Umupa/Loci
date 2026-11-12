@@ -7,16 +7,12 @@ export { isCommit };
 export const COURSE_FENCE = "loci-course";
 export const DIFF_FENCE = "loci-diff";
 /**
- * A reading course is chapters of lessons, each naming what to read: a
- * document in the agent's library or a file on disk. It holds no text of its
- * own. A build-your-own course is a sequence of code steps.
+ * A course is chapters of lessons. A lesson's text is the mentor's own,
+ * written to its folder; the document in the library or file on disk a
+ * lesson names is its source. A lesson with neither is planned.
  */
-export type CourseEngine = "build-your-own" | "reading";
+export type CourseEngine = "reading";
 export type LearningStatus = "untouched" | "learning" | "mastered";
-export type CourseStep = {
-  id: string; title: string; summary: string; file: string;
-  before: string; after: string; explanation: string; runCommand?: string;
-};
 export type CourseLesson = {
   id: string; title: string;
   /** A document in the agent's library, and optionally the heading to start at. */
@@ -41,11 +37,15 @@ export type ComparePart = {
 };
 export const COMPARE_PARTS = { min: 2, max: 4, label: 60, note: 2000 } as const;
 export type CourseChapter = { title: string; lessons: CourseLesson[] };
-export type CourseData =
-  | { engine: "build-your-own"; steps: CourseStep[] }
-  | { engine: "reading"; chapters: CourseChapter[] };
-export type ParsedCourse = { id: string; title: string; engine: CourseEngine; data: CourseData };
-export type CourseWithProgress = { id: string; agentId: string; title: string; updatedAt: number; data: CourseData; progress: Map<string, LearningStatus> };
+export type CourseData = { engine: "reading"; chapters: CourseChapter[] };
+export type ParsedCourse = { id: string; title: string; engine: CourseEngine; data: CourseData; bodies?: Record<string, LessonInput> };
+export type CourseWithProgress = {
+  id: string; agentId: string; title: string; updatedAt: number; data: CourseData; progress: Map<string, LearningStatus>;
+  /** The lessons that have their own text. */
+  bodies: Set<string>;
+};
+/** A lesson's text written with its course: Markdown, or an absolute path to a Markdown file. */
+export type LessonInput = { body: string; path?: never } | { path: string; body?: never };
 export type CourseParseResult = { course: ParsedCourse; error?: never } | { course?: never; error: string };
 export type DiffSpec = { id: string; title: string; file: string; before: string; after: string; runCommand?: string };
 export type DiffParseResult = { diff: DiffSpec; error?: never } | { diff?: never; error: string };
@@ -88,23 +88,7 @@ function frontMatter(source: string, fence: string) {
 export function parseCourseData(engine: unknown, value: unknown): CourseData {
   const raw = object(value, "Course body");
   if (raw.engine !== undefined && raw.engine !== engine) throw new Error("Course body engine does not match metadata.");
-  if (engine === "build-your-own") {
-    if (!Array.isArray(raw.steps) || raw.steps.length === 0) throw new Error("A build-your-own course needs a non-empty steps array.");
-    const steps = raw.steps.map((value, index): CourseStep => {
-      const step = object(value, `Step ${index + 1}`);
-      const label = `Step ${index + 1}`;
-      return {
-        id: id(step.id, `${label} id`), title: string(step.title, `${label} title`),
-        summary: string(step.summary, `${label} summary`), file: string(step.file, `${label} file`),
-        before: string(step.before, `${label} before`, true), after: string(step.after, `${label} after`, true),
-        explanation: string(step.explanation, `${label} explanation`, true),
-        ...(step.runCommand !== undefined ? { runCommand: optionalString(step.runCommand, `${label} runCommand`) } : {}),
-      };
-    });
-    if (new Set(steps.map((step) => step.id)).size !== steps.length) throw new Error("Course steps contain duplicate ids.");
-    return { engine, steps };
-  }
-  if (engine === "domain-navigation") throw new Error("This course was written in an earlier format. Ask the agent to write it again.");
+  if (engine === "domain-navigation" || engine === "build-your-own") throw new Error("This course was written in an earlier format. Ask the agent to write it again.");
   if (engine !== "reading") throw new Error(`Unknown course engine: ${String(engine)}.`);
   if (!Array.isArray(raw.chapters) || raw.chapters.length === 0) throw new Error("A course needs a non-empty chapters array.");
   const chapters = raw.chapters.map((value, index): CourseChapter => {
@@ -135,7 +119,12 @@ function lesson(value: unknown, label: string): CourseLesson {
     pinned = ref.commit;
     fragmentLines = ref.lines;
   }
-  if ((document === undefined) === (file === undefined)) throw new Error(`${label} must name exactly one of document or file.`);
+  if (document !== undefined && file !== undefined) throw new Error(`${label} names both a document and a file; its source is one of them.`);
+  if (document === undefined && file === undefined) {
+    // Only a title: the lesson has its own text, or is planned.
+    for (const field of ["section", "pages", "lines", "commit"]) if (raw[field] !== undefined) throw new Error(`${label}: ${field} belongs to a document or file.`);
+    return base;
+  }
   const range = (value: unknown, name: string): [number, number] => {
     if (!Array.isArray(value) || value.length !== 2 || !value.every((n) => Number.isSafeInteger(n) && n > 0) || value[1] < value[0]) throw new Error(`${label} ${name} must be [first, last].`);
     return [value[0], value[1]];
@@ -184,6 +173,7 @@ function compareParts(raw: Record<string, unknown>, label: string): ComparePart[
     // A part is read as a lesson of its own would be.
     const place = lesson({ ...part, id: "part", title: name, label: undefined, note: undefined, compare: undefined }, at);
     const { id: _id, title: _title, ...where } = place;
+    if (where.document === undefined && where.file === undefined) throw new Error(`${at} must name a document or a file.`);
     return { label: name, ...where, ...(note !== undefined ? { note } : {}) };
   });
 }
@@ -202,7 +192,6 @@ export function parseCourse(source: string): CourseParseResult {
     let json: unknown;
     try { json = JSON.parse(body.replace(/\n---[ \t]*\n?$/, "").trim()); }
     catch { throw new Error("loci-course body must be valid JSON."); }
-    // Chapters of things to read is what a course is; only code steps say otherwise.
     const data = parseCourseData(fields.engine ?? "reading", json);
     return { course: { id: courseId, title, engine: data.engine, data } };
   } catch (cause) { return { error: errorText(cause) }; }
@@ -220,14 +209,42 @@ export function parseCourseLink(source: string): { id: string; title: string } |
   } catch { return null; }
 }
 
-/** The `courses.write` input: the fence's front matter fields plus its JSON body, as one object. */
+/** What a lesson may weigh: a long chapter, not a book. */
+export const LESSON_MAX = 512 * 1024;
+
+/**
+ * The `courses.write` input: the fence's front matter fields plus its JSON
+ * body, as one object. A lesson may carry its text as `body`, or as
+ * `bodyPath` (an absolute path to a Markdown file); the text is written to
+ * its own file and never into the course.
+ */
 export function parseCourseInput(input: Record<string, unknown>): ParsedCourse {
   const courseId = id(input.id, "id");
   const title = string(input.title, "title");
   if ([...title].length > 200) throw new Error("title must be at most 200 characters.");
   const { id: _id, title: _title, engine, ...body } = input;
-  const data = parseCourseData(engine ?? "reading", body);
-  return { id: courseId, title, engine: data.engine, data };
+  const bodies: Record<string, LessonInput> = {};
+  const chapters = Array.isArray(body.chapters) ? body.chapters.map((chapter) => {
+    if (!chapter || typeof chapter !== "object" || !Array.isArray((chapter as { lessons?: unknown }).lessons)) return chapter;
+    const lessons = (chapter as { lessons: unknown[] }).lessons.map((entry) => {
+      if (!entry || typeof entry !== "object") return entry;
+      const { body: text, bodyPath, ...lesson } = entry as Record<string, unknown>;
+      const lessonId = typeof lesson.id === "string" ? lesson.id : undefined;
+      if (text !== undefined && bodyPath !== undefined) throw new Error(`Lesson ${lessonId ?? "?"}: give body or bodyPath, not both.`);
+      if (lessonId && text !== undefined) {
+        if (typeof text !== "string" || !text.trim()) throw new Error(`Lesson ${lessonId}: body must be non-empty Markdown.`);
+        if (text.length > LESSON_MAX) throw new Error(`Lesson ${lessonId}: body must be at most 512 KB; split it.`);
+        bodies[lessonId] = { body: text };
+      } else if (lessonId && bodyPath !== undefined) {
+        if (typeof bodyPath !== "string" || !/^(?:\/|[A-Za-z]:[\\/])/.test(bodyPath)) throw new Error(`Lesson ${lessonId}: bodyPath must be an absolute path to a Markdown file.`);
+        bodies[lessonId] = { path: bodyPath };
+      }
+      return lesson;
+    });
+    return { ...(chapter as object), lessons };
+  }) : body.chapters;
+  const data = parseCourseData(engine ?? "reading", { ...body, ...(chapters !== undefined ? { chapters } : {}) });
+  return { id: courseId, title, engine: data.engine, data, ...(Object.keys(bodies).length ? { bodies } : {}) };
 }
 
 /** Delimiter lines are structural; every byte inside the code sections is kept. */
@@ -251,7 +268,7 @@ export function parseDiff(source: string): DiffParseResult {
 
 /** Everything to work through, in the order shown: that order is the order to study in. */
 export function courseItems(data: CourseData): { id: string; title: string }[] {
-  return data.engine === "build-your-own" ? data.steps : data.chapters.flatMap((chapter) => chapter.lessons);
+  return data.chapters.flatMap((chapter) => chapter.lessons);
 }
 
 export async function loadCourse(courseId: string, agentId: string): Promise<CourseWithProgress | null> {
@@ -262,6 +279,7 @@ export async function loadCourse(courseId: string, agentId: string): Promise<Cou
   if (rawValue === null) return null;
   const raw = object(rawValue, "Stored course");
   if (raw.id !== courseId || raw.agentId !== agentId) throw new Error("The stored course belongs to a different conversation.");
+  const bodies = new Set(Array.isArray(raw.bodies) ? raw.bodies.filter((entry): entry is string => typeof entry === "string") : []);
   const title = string(raw.title, "Stored course title");
   if (typeof raw.updatedAt !== "number" || !Number.isSafeInteger(raw.updatedAt) || raw.updatedAt < 0) throw new Error("Stored course updatedAt must be a valid timestamp.");
   let json: unknown;
@@ -278,7 +296,7 @@ export async function loadCourse(courseId: string, agentId: string): Promise<Cou
     if (item.status !== "untouched" && item.status !== "learning" && item.status !== "mastered") throw new Error(`Invalid learning status for ${itemId}.`);
     progress.set(itemId, item.status);
   }
-  return { id: courseId, agentId, title, updatedAt: raw.updatedAt, data, progress };
+  return { id: courseId, agentId, title, updatedAt: raw.updatedAt, data, progress, bodies };
 }
 
 /** Fired on `window` after a course is saved or deleted; no courseId means all of the owner's courses. */
@@ -297,7 +315,7 @@ function coursesChanged(detail: CourseChangedDetail) {
 export async function saveCourse(agentId: string, course: ParsedCourse): Promise<void> {
   // A new mentor must have its folder before its first course is saved.
   await rosterSettled();
-  await transport.call("course_upsert", { course: { id: course.id, agentId, engine: course.engine, title: course.title, dataJson: JSON.stringify(course.data) } });
+  await transport.call("course_upsert", { course: { id: course.id, agentId, engine: course.engine, title: course.title, dataJson: JSON.stringify(course.data), ...(course.bodies ? { bodies: course.bodies } : {}) } });
   coursesChanged({ agentId, courseId: course.id });
 }
 
@@ -310,7 +328,7 @@ export function loadCourseSummaries(): Promise<CourseSummary[]> {
 export const PROGRESS_EVENT = "loci:course-progress";
 export type ProgressDetail = { courseId: string; agentId: string; itemId: string; status: LearningStatus };
 
-/** Records how far the user is with one lesson or step, and tells every open view. */
+/** Records how far the user is with one lesson, and tells every open view. */
 export async function setLessonStatus(courseId: string, agentId: string, itemId: string, status: LearningStatus): Promise<void> {
   await transport.call("course_progress_set", { courseId, agentId, itemId, status });
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<ProgressDetail>(PROGRESS_EVENT, { detail: { courseId, agentId, itemId, status } }));
@@ -339,4 +357,44 @@ export const OPEN_COURSE_EVENT = "loci:open-course";
 export type OpenCourseDetail = { courseId: string; agentId: string; title: string; sourceSessionId?: string; itemId?: string; openRequest?: number };
 export function openCourse(detail: OpenCourseDetail) {
   window.dispatchEvent(new CustomEvent<OpenCourseDetail>(OPEN_COURSE_EVENT, { detail }));
+}
+
+/** A lesson's text as it is now, and the file it is kept in. */
+export type LessonText = { courseId: string; lessonId: string; body: string; path: string; updatedAt: number };
+
+/** A lesson's own text, or null when it has none: it is planned, or read from its source. */
+export function loadLessonText(agentId: string, courseId: string, lessonId: string): Promise<LessonText | null> {
+  return transport.call<LessonText | null>("course_lesson_get", { agentId, courseId, lessonId });
+}
+
+/** Writes one lesson's text, leaving the rest of its course as it is. */
+export async function saveLessonText(agentId: string, courseId: string, lessonId: string, lesson: LessonInput): Promise<LessonText> {
+  await rosterSettled();
+  const saved = await transport.call<LessonText>("course_lesson_set", { agentId, courseId, lessonId, lesson });
+  coursesChanged({ agentId, courseId });
+  return saved;
+}
+
+/** Whether a lesson names something to read beside its text. */
+export function lessonHasSource(lesson: CourseLesson): boolean {
+  return lesson.document !== undefined || lesson.file !== undefined || lesson.compare !== undefined;
+}
+
+/** A lesson only titled so far: no text of its own and nothing to read. */
+export function lessonPlanned(course: Partial<Pick<CourseWithProgress, "bodies">>, lesson: CourseLesson): boolean {
+  return !course.bodies?.has(lesson.id) && !lessonHasSource(lesson);
+}
+
+/** The key a reader is asked to show a place in a lesson's text under. */
+export function lessonPlaceKey(courseId: string, lessonId: string): string {
+  return `lesson:${courseId}/${lessonId}`;
+}
+
+/** The lesson a file is the text of, when it is `courses/<course>/<lesson>.md` in a mentor's folder. */
+export function lessonOfFile(folder: string | undefined, path: string): { courseId: string; lessonId: string } | null {
+  if (!folder) return null;
+  const base = folder.replace(/[\\/]+$/, "");
+  const rest = path.startsWith(`${base}/`) || path.startsWith(`${base}\\`) ? path.slice(base.length + 1).replace(/\\/g, "/") : null;
+  const match = rest ? /^courses\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\.md$/.exec(rest) : null;
+  return match ? { courseId: match[1], lessonId: match[2] } : null;
 }

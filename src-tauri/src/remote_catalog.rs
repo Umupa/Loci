@@ -99,10 +99,6 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("harness_resolve_configured", Never),
     ("harness_runtime_binary_paths", Never),
     ("harness_resolve_claude", Never),
-    ("claude_mcp_list", Read),
-    ("claude_mcp_add", Write),
-    ("claude_mcp_remove", Write),
-    ("mcp_provider_login", OnHost),
     ("harness_spawn", Never),
     ("harness_write", Never),
     ("harness_kill", Never),
@@ -110,8 +106,6 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("harness_exec", Never),
     ("fetch_link_preview", ClientLocal),
     // mcp
-    ("mcp_add", Write),
-    ("mcp_discover", Read),
     ("keybindings_set_overrides", ClientLocal),
     // course
     ("course_list", Read),
@@ -119,6 +113,10 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("course_delete", Write),
     ("course_get", Read),
     ("course_upsert", Write),
+    ("course_lesson_get", Read),
+    ("course_lesson_set", Write),
+    ("lesson_question_add", Write),
+    ("lesson_questions_list", Read),
     ("course_progress_get", Read),
     ("course_progress_set", Write),
     // agent
@@ -196,8 +194,6 @@ const CATALOG: &[(&str, CommandClass)] = &[
     ("session_take_in_flight", SessionAction),
     // The window layout snapshot is per window; whether a client keeps its own
     // or shares the host's is not decided yet.
-    ("workspace_set_snapshot", Never),
-    ("workspace_get_snapshot", Never),
     ("list_skills", Read),
     // window
     ("set_window_glass_enabled", ClientLocal),

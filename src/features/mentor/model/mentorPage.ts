@@ -15,7 +15,9 @@ export type MentorPage =
   | { kind: "highlights"; courseId: string; agentId: string; title: string };
 
 /** The lesson on screen; a comparison also names its parts (without the notes). */
-export type MentorLesson = { id: string; title: string; compare?: ComparePart[] };
+export type MentorLesson = { id: string; title: string; compare?: ComparePart[]; view?: LessonView };
+/** What a lesson shows: the mentor's text, the source behind it, or nothing yet (planned). */
+export type LessonView = "text" | "original" | "planned";
 
 /** The page as it is remembered between visits: identifiers only, never contents. */
 export function storedPage(page: MentorPage | undefined, lesson?: MentorLesson): MentorPage | undefined {
@@ -61,6 +63,7 @@ export function parseStoredPage(value: unknown): MentorPage | undefined {
 export function readingOf(page: MentorPage | undefined, lesson: MentorLesson | undefined): AgentReading | undefined {
   if (page?.kind === "course") return { kind: "course", courseId: page.course.courseId, title: page.course.title ?? page.course.courseId,
     ...(lesson ? { lessonId: lesson.id, lessonTitle: lesson.title } : {}),
+    ...(lesson?.view ? { view: lesson.view } : {}),
     ...(lesson?.compare ? { compare: lesson.compare.map(({ note: _note, ...part }) => part) } : {}) };
   if (page?.kind === "document") return { kind: "document", id: page.document.id, title: page.document.title };
   if (page?.kind === "note") return { kind: "note", id: page.id };

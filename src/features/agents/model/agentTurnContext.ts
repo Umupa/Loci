@@ -1,4 +1,4 @@
-import type { Session } from "../../sessions/model/session";
+import type { Block, Session } from "../../sessions/model/session";
 import { agentLook, type Agent } from "./agent";
 import {
   AGENT_PROMPT_VERSION,
@@ -9,7 +9,7 @@ import {
   recordAgentContext,
   recordAppContext,
 } from "./agentFiles";
-import { takeReadingContext, type SharedReading } from "./agentReading";
+import { readingLesson, takeReadingContext, type SharedReading } from "./agentReading";
 import { effectiveLearningLanguage, languageContext } from "./learningLanguage";
 import { ensureAgentWorkdir } from "./agentWorkdir";
 import {
@@ -28,6 +28,8 @@ export type AppTurnContext = {
   rotates: boolean;
   /** A previous attempt created a fresh provider but did not finish sending its context. */
   recovering: boolean;
+  /** The lesson open beside the chat, which this message is asked on. */
+  lesson?: { courseId: string; lessonId: string };
   /** Call once the provider session is fresh, so the next rotation starts here. */
   commitRotation(): void;
   /** Call once the provider accepted the turn, with the session it ran in. */
@@ -73,9 +75,7 @@ export async function prepareAppTurn(
   // Identity and folders are refreshed with the soul when they change.
   const handed = files && look && {
     ...files,
-    soulHash: `${files.soulHash}:${look.name}:${look.role ?? ""}:${look.workdir ?? ""}:${look.projects
-      .map((project) => project.path)
-      .join("|")}:${AGENT_PROMPT_VERSION}`,
+    soulHash: `${files.soulHash}:${look.name}:${look.role ?? ""}:${look.workdir ?? ""}:${AGENT_PROMPT_VERSION}`,
   };
   const plan = handed
     ? planAgentContext(
@@ -103,17 +103,23 @@ export async function prepareAppTurn(
   // outranks the "reply in the learner's language" of an older Soul.
   const language = agent ? languageContext(effectiveLearningLanguage(agent.language)) : undefined;
   if (language) context.push(language);
-  // The local time goes every turn too, so dates in memory and replies are right.
+  // The local time goes every turn too, so dates in memory and replies are right,
+  // with how long the learner was away since their last message.
   if (agent) context.push(localTimeContext(options.now ?? Date.now()));
+  const away = agent ? sinceLastMessageContext(session.blocks, options.now ?? Date.now()) : undefined;
+  if (away) context.push(away);
   // What is open beside the chat changes from turn to turn, so it goes every time.
   // A selection the message already carries as a source is not sent twice, and
   // a page the user dismissed from the composer stays out of this turn only.
   const lastUser = [...session.blocks].reverse().find((block) => block.role === "user");
   const attached = lastUser?.sources?.map((source) => source.quote) ?? [];
+  // The lesson this message is asked on, read before the reader's one-turn dismissal is spent.
+  const lesson = agent ? readingLesson(agent.id, options.reading) : undefined;
   const reading = agent ? takeReadingContext(agent.id, attached, options.reading) : undefined;
   if (reading) context.push(reading);
   return {
     context,
+    ...(lesson ? { lesson } : {}),
     introduces: !!plan?.soul,
     rotates: !!rotation,
     recovering,
@@ -146,6 +152,24 @@ export async function prepareAppTurn(
 }
 
 /** The user's local date and time with its zone, e.g. 2026-11-04 21:30 (Asia/Shanghai, UTC+08:00). */
+/** How long ago a moment was, in the largest whole unit: "3 days", "1 hour", "under a minute". */
+export function elapsedPhrase(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "under a minute";
+  const [count, unit] = minutes < 60 ? [minutes, "minute"] : minutes < 48 * 60 ? [Math.floor(minutes / 60), "hour"] : [Math.floor(minutes / (24 * 60)), "day"];
+  return `${count} ${unit}${count === 1 ? "" : "s"}`;
+}
+
+/** The time since the learner's message before this one; nothing for a first message. */
+export function sinceLastMessageContext(blocks: readonly Block[], now: number): string | undefined {
+  const sent = blocks.filter((block) => block.role === "user" && !block.draft && !block.agentSessionCompletion && !block.agentSetup && block.startedAt != null);
+  const previous = sent.length >= 2 ? sent[sent.length - 2] : undefined;
+  if (!previous?.startedAt) return undefined;
+  return `<since_last_message>
+${elapsedPhrase(Math.max(0, now - previous.startedAt))}
+</since_last_message>`;
+}
+
 export function localTimeContext(now: number): string {
   const date = new Date(now);
   const pad = (value: number) => String(Math.trunc(value)).padStart(2, "0");

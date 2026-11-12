@@ -1,5 +1,7 @@
 import { MentorWorkspace } from "../features/mentor/ui/MentorWorkspace";
 import { MentorSearch } from "../features/mentor/ui/MentorSearch";
+import { requestSearchPlace } from "../features/mentor/model/mentorSearch";
+import { lessonForFile } from "../features/learning/model/lessonLinks";
 import type { MentorPage } from "../features/mentor/model/mentorPage";
 import { AgentGallery } from "../features/agents/ui/AgentGallery";
 import { setAgentReading } from "../features/agents/model/agentReading";
@@ -29,9 +31,9 @@ import { SessionPane } from "../features/sessions/ui/SessionPane";
 import { FileActionError } from "../shared/ui/FileActionError";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../platform/tauri/platform";
 import { OPEN_FILE_EVENT, requestFilePlace, type OpenFileFn, type OpenFileOptions } from "../features/files/model/filePlace";
-import { open as pickFile, pickFolders } from "../platform/dialog";
+import { open as pickFile } from "../platform/dialog";
 import { useAgents } from "./hooks/useAgents";
-import { useAgentHabits } from "./hooks/useAgentHabits";
+import { useAgentHeartbeat } from "./hooks/useAgentHeartbeat";
 import { useAgentDelegation } from "./hooks/useAgentDelegation";
 import { useActiveMentor, loadActiveMentorId } from "./hooks/useActiveMentor";
 import { useSessionStore } from "./hooks/useSessionStore";
@@ -281,11 +283,11 @@ function Workspace(boot: BootWorkspace) {
     return () => window.removeEventListener(OPEN_DOCUMENT_EVENT, open);
   }, [reportError, showInMentor]);
 
-  const agentHabits = useAgentHabits({ runtime, submission,
+  const agentHeartbeat = useAgentHeartbeat({ runtime, submission,
     loadSession: (id) => storeRef.current!.loadSession(id),
     onPosted: (chat, name) => { void announceSessionFinished({ ...chat, title: name }, isForeground(chat.id)); },
   }, true);
-  const intents = sessionIntents({ submission, agents, agentHabits, store, updateSessions: runtime.updateSessions });
+  const intents = sessionIntents({ submission, agents, agentHeartbeat, store, updateSessions: runtime.updateSessions });
   intentsRef.current = intents;
   const viewedSessionId = surface === "mentor" ? mentor.current?.sessionId : undefined;
   // A hidden run speaks through whoever started it, so nothing here counts or announces it.
@@ -347,6 +349,11 @@ function Workspace(boot: BootWorkspace) {
     await showSessionRef.current(id);
   }, []);
   const openLearningFile = useCallback((path: string, options: OpenFileOptions = {}) => {
+    const lesson = lessonForFile(path);
+    if (lesson) {
+      void showInMentor({ kind: "course", course: { courseId: lesson.courseId, agentId: lesson.agentId, title: lesson.courseId, itemId: lesson.lessonId, openRequest: Date.now() } }, lesson.agentId).catch(reportError);
+      return;
+    }
     void showInMentor({ kind: "file", path, ...(options.commit ? { commit: options.commit } : {}) }, undefined, { fromLine: options.fromLine }).catch(reportError);
   }, [reportError, showInMentor]);
   const openPdf = useCallback(() => {
@@ -423,7 +430,8 @@ function Workspace(boot: BootWorkspace) {
       if (state.page?.kind === "course" && state.lesson) {
         const course = await loadCourse(state.page.course.courseId, agentId).catch(() => null);
         const lesson = course ? courseItems(course.data).find((item) => item.id === state.lesson!.id) : undefined;
-        inLesson = !!lesson && "document" in lesson && lesson.document === documentId;
+        // A lesson with its own text shows that text, not its source.
+        inLesson = !!lesson && !course?.bodies.has(lesson.id) && "document" in lesson && lesson.document === documentId;
       }
       if (place) requestDocumentPlace(agentId, documentId, place);
       if (inLesson) { await showMentorRef.current(agentId); return true; }
@@ -450,12 +458,6 @@ function Workspace(boot: BootWorkspace) {
     if (sessionId) void storeRef.current?.ensureSession(sessionId, runtime.bindRestoredSession).catch(reportError);
   }, [reportError, runtime.bindRestoredSession]);
   const closeSettings = useCallback(() => setSurface("mentor"), []);
-  // The composer's MCP picker hands its settings link to the app rather than the pane.
-  useEffect(() => {
-    const openMcp = () => openSettings("mcp");
-    window.addEventListener("loci:open-mcp-settings", openMcp);
-    return () => window.removeEventListener("loci:open-mcp-settings", openMcp);
-  }, [openSettings]);
   const onSelectSettingsSection = useCallback((section: SettingsSectionId) => {
     setSettingsSection(section); saveSettingsSection(section); setSettingsAnchor(null); setSettingsMentorId(null);
   }, []);
@@ -602,7 +604,7 @@ function Workspace(boot: BootWorkspace) {
     const session = earlier?.length ? { ...live, blocks: [...earlier, ...live.blocks] } : live;
     return <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-pane-id={sessionId}>
       <AgentSessionPane agent={agent} state={agents.states.get(agent.id) ?? { status: "idle" }}
-        sessionPaneProps={{ ...paneProps(session, true), onApproval: agentHabits.approve }}
+        sessionPaneProps={{ ...paneProps(session, true), onApproval: agentHeartbeat.approve }}
         onOpenSettings={() => openMentorSettings(agent.id)}
         onLoadEarlier={agents.hasEarlier(sessionId) ? () => void agents.loadEarlier(sessionId) : undefined} />
     </div>;
@@ -667,9 +669,8 @@ function Workspace(boot: BootWorkspace) {
             onCreate={() => setAgentGalleryOpen(true)} onRetry={openFirstMentor}
             trailing={IS_MAC ? undefined : <WindowControls />} /> : null}
           {surface === "settings" && settingsAgent ? <MentorSettingsPage agent={settingsAgent}
-            session={sessions.find((entry) => entry.id === settingsAgent.sessionId)} recents={store.recents}
+            session={sessions.find((entry) => entry.id === settingsAgent.sessionId)} 
             onModelChange={intents["session.changeModel"]} onModelSettingsChange={intents["session.changeModelSettings"]} onRuntimeModeChange={intents["session.changeRuntimeMode"]}
-            onPickFolders={() => pickFolders("Choose folders")}
             onReset={() => void agents.reset(settingsAgent.id)} onDelete={() => void agents.remove(settingsAgent.id)} /> : null}
           {surface === "settings" && !settingsAgent ? <SettingsView section={settingsSection} anchor={settingsAnchor}
             cwd="~" besideRail onClose={closeSettings} onSelectSection={onSelectSettingsSection} /> : null}
@@ -677,6 +678,7 @@ function Workspace(boot: BootWorkspace) {
       </div>
       <ApprovalToasts notices={hiddenApprovalNotices(shownSessions, shownIds)} onFocusSession={(id) => void showSession(id).catch(reportError)} onApproval={submission.approve} />
       {searchOpen ? <MentorSearch onClose={() => setSearchOpen(false)} onPick={(item) => {
+        requestSearchPlace(item);
         // A note no mentor owns opens in the open mentor's reader.
         const work = item.page ? showInMentor(item.page, item.agentId) : item.agentId ? showMentor(item.agentId) : Promise.resolve();
         void work.catch(reportError);

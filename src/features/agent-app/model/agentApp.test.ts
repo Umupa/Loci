@@ -550,7 +550,7 @@ describe("agent app commands", () => {
     host.agentOf = () => ({ id: "a", projects: [] });
     await expect(
       handleAgentApp(source, "r2", "sessions.list", {}, host),
-    ).rejects.toThrow("none yet; the user adds them from your details panel");
+    ).rejects.toThrow("none yet; your workdir is made on first use");
   });
 
   it("keeps project for agents, and a session read inside the chosen project", async () => {
@@ -603,7 +603,7 @@ describe("agent app commands", () => {
     await expect(
       handleAgentApp(source, "r3", "agent.rename", { name: "x".repeat(41) }, host),
     ).rejects.toThrow();
-    host.agentOf = () => ({ id: "a", projects: [], habitRun: true });
+    host.agentOf = () => ({ id: "a", hiddenRun: true });
     await expect(
       handleAgentApp(source, "r4", "agent.rename", { name: "Scout" }, host),
     ).rejects.toThrow("Only an agent's own conversation can rename it");

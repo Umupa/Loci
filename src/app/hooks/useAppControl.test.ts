@@ -157,7 +157,7 @@ describe("terminal commands", () => {
     const notMentor = emit("reader.show", {}, "t5");
     await settle();
     expect(reply(notMentor)?.response).toEqual({ ok: false, error: "Only a mentor's own conversation can use this action" });
-    localStorage.setItem("loci:agent-roster", JSON.stringify([{ id: "a1", sessionId: "source", avatar: "nova", color: "#000", projects: [] }]));
+    localStorage.setItem("loci:agent-roster", JSON.stringify([{ id: "a1", sessionId: "source", avatar: "nova", color: "#000" }]));
     const own = emit("reader.show", {}, "t6");
     await settle();
     expect(reply(own)?.response).toMatchObject({ ok: true, result: { mentor: "a1", kind: "none" } });

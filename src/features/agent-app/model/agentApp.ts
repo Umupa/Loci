@@ -24,16 +24,6 @@ import {
   supersedeMemoryEntry,
   topicName,
 } from "../../agents/model/agentMemory";
-import {
-  checkHabitsNow,
-  HABITS_MAX,
-  habitRunningSince,
-  habitSchedule,
-  habitScheduleLabel,
-  newHabit,
-  nextHabitRunAt,
-  type Habit,
-} from "../../agents/model/agentHabits";
 import { looksLikeProject } from "../../projects/model/recents";
 import {
   mergeModelSettings,
@@ -66,7 +56,8 @@ export type SessionLaunch = {
   runtimeMode: Session["runtimeMode"];
   reveal?: boolean;
 };
-import { courseItems, parseCourseInput, type CourseSummary, type CourseWithProgress, type ParsedCourse } from "../../learning/model/course";
+import type { LessonQuestion } from "../../learning/model/lessonQuestions";
+import { courseItems, LESSON_MAX, lessonPlanned, parseCourseInput, type CourseSummary, type CourseWithProgress, type LessonInput, type LessonText, type ParsedCourse } from "../../learning/model/course";
 import { sessionConversationPage, type SessionReadOptions } from "./sessionConversation";
 
 export type AppSessionListing = {
@@ -121,8 +112,8 @@ export type AgentAppHost = {
         projects: readonly string[];
         /** Its own conversation, which it may read though it is in no project. */
         chatId?: string;
-        /** A hidden run of one of its habits: it may remember, not schedule. */
-        habitRun?: boolean;
+        /** A hidden run of its heartbeat, not its own chat. */
+        hiddenRun?: boolean;
       }
     | undefined;
   /** An agent's own chat, read through its archived pages when the request reaches that far. */
@@ -130,13 +121,6 @@ export type AgentAppHost = {
     chatId: string,
     options: SessionReadOptions,
   ): Promise<ReturnType<typeof sessionConversationPage>>;
-  habits?: {
-    load(agentId: string): Promise<Habit[]>;
-    update<T>(
-      agentId: string,
-      change: (habits: Habit[]) => { habits: Habit[]; result: T },
-    ): Promise<T>;
-  };
   /** Gives the agent the name it and the user settled on. */
   renameAgent?(agentId: string, look: { name: string; role?: string }): void;
   /** The agents' own files: soul, memory and topic notes. */
@@ -156,6 +140,9 @@ export type AgentAppHost = {
     read(agentId: string, id: string): Promise<CourseWithProgress | null>;
     write(agentId: string, course: ParsedCourse): Promise<void>;
     remove(agentId: string, id: string): Promise<void>;
+    readLesson?(agentId: string, courseId: string, lessonId: string): Promise<LessonText | null>;
+    writeLesson?(agentId: string, courseId: string, lessonId: string, lesson: LessonInput): Promise<LessonText>;
+    questions?(agentId: string, where: { courseId?: string; lessonId?: string; limit?: number }): Promise<LessonQuestion[]>;
   };
   /** The clock entries are dated by; tests pin it. */
   now?(): Date;
@@ -255,13 +242,11 @@ const FIELDS = new Map<string, readonly string[]>([
   ["guides.write", ["id", "title", "subject", "path", "body"]],
   ["courses.list", []],
   ["courses.read", ["id"]],
-  ["courses.write", ["id", "title", "engine", "chapters", "steps"]],
+  ["courses.write", ["id", "title", "engine", "chapters"]],
   ["courses.delete", ["id"]],
-  ["habits.list", []],
-  ["habits.add", ["name", "instructions", "schedule", "access"]],
-  ["habits.update", ["id", "name", "instructions", "schedule", "enabled", "access"]],
-  ["habits.run", ["id"]],
-  ["habits.remove", ["id"]],
+  ["lessons.read", ["course", "lesson"]],
+  ["lessons.write", ["course", "lesson", "path", "body"]],
+  ["lessons.questions", ["course", "lesson"]],
 ]);
 
 function fields(action: string, input: Record<string, unknown>) {
@@ -357,7 +342,7 @@ function requireProject(
       ? agent.projects
           .map((path) => `${projectName(path)} (${path})`)
           .join(", ")
-      : "none yet; the user adds them from your details panel";
+      : "none yet; your workdir is made on first use";
   if (named) {
     const byPath = agent.projects.find(
       (path) => pathKey(path) === pathKey(named),
@@ -407,10 +392,10 @@ async function projectSession(
   return target;
 }
 
-/** The agent, when this is its chat rather than one of its habits' runs. */
+/** The agent, when this is its chat rather than a hidden run of its heartbeat. */
 function ownConversation(source: Session, host: AgentAppHost) {
   const agent = host.agentOf?.(source.id);
-  return agent && !agent.habitRun ? agent : undefined;
+  return agent && !agent.hiddenRun ? agent : undefined;
 }
 
 function memoryPath(topic: unknown): AgentFilePath {
@@ -568,7 +553,8 @@ async function handleCourses(
       throw new Error(`Invalid course: ${error instanceof Error ? error.message : String(error)}`);
     }
     await host.courses.write(agentId, course);
-    return { id: course.id, title: course.title, engine: course.engine, items: courseItems(course.data).length, saved: true };
+    const texts = Object.keys(course.bodies ?? {}).length;
+    return { id: course.id, title: course.title, engine: course.engine, items: courseItems(course.data).length, ...(texts ? { texts } : {}), saved: true };
   }
   const id = requiredString(input.id, "id", 80);
   if (action === "courses.delete") {
@@ -577,16 +563,55 @@ async function handleCourses(
   }
   const found = await host.courses.read(agentId, id);
   if (!found) throw new Error("No such course");
-  const { engine, ...body } = found.data;
+  const { engine, chapters } = found.data;
   return {
     id: found.id,
     title: found.title,
     engine,
-    ...body,
+    // Which lessons have their own text (read it with lessons.read) and which are only planned.
+    chapters: chapters.map((chapter) => ({ ...chapter, lessons: chapter.lessons.map((lesson) => ({
+      ...lesson,
+      ...(found.bodies?.has(lesson.id) ? { text: true } : lessonPlanned(found, lesson) ? { planned: true } : {}),
+    })) })),
     // What the user has read so far, per lesson or step id.
     progress: Object.fromEntries(found.progress),
     updatedAt: new Date(found.updatedAt).toISOString(),
   };
+}
+
+async function handleLessons(
+  source: Session,
+  action: string,
+  input: Record<string, unknown>,
+  host: AgentAppHost,
+): Promise<unknown> {
+  const agentId = ownConversation(source, host)?.id;
+  const courses = host.courses;
+  if (!agentId || !courses?.readLesson || !courses.writeLesson)
+    throw new Error("Only an agent's own conversation can use its lessons");
+  if (action === "lessons.questions") {
+    if (!courses.questions) throw new Error("Questions are not available here");
+    const course = input.course === undefined ? undefined : requiredString(input.course, "course", 80);
+    const lesson = input.lesson === undefined ? undefined : requiredString(input.lesson, "lesson", 80);
+    if (lesson && !course) throw new Error("Name the lesson's course too");
+    const list = await courses.questions(agentId, { ...(course ? { courseId: course } : {}), ...(lesson ? { lessonId: lesson } : {}), limit: 200 });
+    // Oldest first, as they were asked; the same question twice is worth seeing twice.
+    return { questions: [...list].reverse().map((question) => ({ course: question.courseId, lesson: question.lessonId, text: question.text, askedAt: new Date(question.askedAt).toISOString() })) };
+  }
+  const courseId = requiredString(input.course, "course", 80);
+  const lessonId = requiredString(input.lesson, "lesson", 80);
+  if (action === "lessons.read") {
+    const text = await courses.readLesson(agentId, courseId, lessonId);
+    if (!text) throw new Error("That lesson has no text of its own yet (it is planned, or read from its source)");
+    return { course: courseId, lesson: lessonId, path: text.path, body: text.body, updatedAt: new Date(text.updatedAt).toISOString() };
+  }
+  if ((input.path === undefined) === (input.body === undefined))
+    throw new Error("Give the lesson's text as path (an absolute Markdown file) or body, not both");
+  const lesson: LessonInput = input.path !== undefined
+    ? { path: requiredString(input.path, "path", 4096) }
+    : { body: requiredString(input.body, "body", LESSON_MAX) };
+  const saved = await courses.writeLesson(agentId, courseId, lessonId, lesson);
+  return { course: courseId, lesson: lessonId, path: saved.path, saved: true };
 }
 
 async function handleSoul(
@@ -784,145 +809,6 @@ async function handleMemory(
   throw new Error(`Unknown app action: ${action}`);
 }
 
-/** "auto" asks before risky steps; "full", the default, runs unattended. */
-function habitAccess(value: unknown): "auto" | undefined {
-  if (value === undefined || value === "full") return undefined;
-  if (value === "auto") return "auto";
-  throw new Error('access must be "full" or "auto"');
-}
-
-function habitView(habit: Habit) {
-  return {
-    id: habit.id,
-    name: habit.name,
-    instructions: habit.instructions,
-    schedule: habitScheduleLabel(habit.schedule),
-    access: habit.access ?? "full",
-    enabled: habit.enabled,
-    nextRun: habit.enabled ? new Date(habit.nextRunAt).toLocaleString() : null,
-    ...(habitRunningSince(habit.id) != null ? { running: true } : {}),
-    ...(habit.lastRunAt
-      ? {
-          lastRun: new Date(habit.lastRunAt).toLocaleString(),
-          lastOutcome: habit.lastOutcome,
-          ...(habit.lastError ? { lastError: habit.lastError } : {}),
-        }
-      : {}),
-  };
-}
-
-async function handleHabits(
-  source: Session,
-  action: string,
-  input: Record<string, unknown>,
-  host: AgentAppHost,
-): Promise<unknown> {
-  const habits = host.habits;
-  // A habit's own run cannot schedule more runs.
-  const agentId = ownConversation(source, host)?.id;
-  if (!habits || !agentId)
-    throw new Error("Only an agent's own conversation can manage its habits");
-  const now = host.now?.() ?? new Date();
-  const find = (list: Habit[]) => {
-    const id = requiredString(input.id, "id", 128);
-    const habit = list.find((entry) => entry.id === id);
-    if (!habit) throw new Error("No habit with that id; run habits.list");
-    return habit;
-  };
-  switch (action) {
-    case "habits.list":
-      return { habits: (await habits.load(agentId)).map(habitView) };
-    case "habits.add": {
-      const name = requiredString(input.name, "name", 80);
-      const instructions = requiredString(input.instructions, "instructions", 4_000);
-      const schedule = habitSchedule(input.schedule);
-      const access = habitAccess(input.access);
-      const habit = await habits.update(agentId, (list) => {
-        if (list.length >= HABITS_MAX)
-          throw new Error(`An agent can have at most ${HABITS_MAX} habits`);
-        const created = newHabit(
-          { name, instructions, schedule, ...(access ? { access } : {}) },
-          now.getTime(),
-        );
-        return { habits: [...list, created], result: created };
-      });
-      return { habit: habitView(habit) };
-    }
-    case "habits.update": {
-      const patch = {
-        ...(input.name === undefined
-          ? {}
-          : { name: requiredString(input.name, "name", 80) }),
-        ...(input.instructions === undefined
-          ? {}
-          : {
-              instructions: requiredString(
-                input.instructions,
-                "instructions",
-                4_000,
-              ),
-            }),
-        ...(input.schedule === undefined
-          ? {}
-          : { schedule: habitSchedule(input.schedule) }),
-      };
-      if (input.enabled !== undefined && typeof input.enabled !== "boolean")
-        throw new Error("enabled must be true or false");
-      const access = input.access === undefined ? undefined : habitAccess(input.access) ?? "full";
-      const habit = await habits.update(agentId, (list) => {
-        const current = find(list);
-        const next: Habit = {
-          ...current,
-          ...patch,
-          ...(input.enabled === undefined
-            ? {}
-            : { enabled: input.enabled as boolean }),
-        };
-        if (access === "auto") next.access = "auto";
-        else if (access === "full") delete next.access;
-        // A new schedule, or turning it back on, counts from now.
-        if (patch.schedule || (next.enabled && !current.enabled))
-          next.nextRunAt = nextHabitRunAt(next.schedule, now.getTime());
-        return {
-          habits: list.map((entry) => (entry.id === next.id ? next : entry)),
-          result: next,
-        };
-      });
-      return { habit: habitView(habit) };
-    }
-    case "habits.run": {
-      const running = habitRunningSince(requiredString(input.id, "id", 128));
-      if (running != null)
-        throw new Error(
-          `That habit is already running (started ${new Date(running).toLocaleTimeString()}); its result will be posted here when it ends`,
-        );
-      const habit = await habits.update(agentId, (list) => {
-        const next = { ...find(list), runRequested: true };
-        return {
-          habits: list.map((entry) => (entry.id === next.id ? next : entry)),
-          result: next,
-        };
-      });
-      checkHabitsNow();
-      return {
-        habit: habitView(habit),
-        note: "It starts now, on its own. Whatever it finds is posted to this chat, or nothing if there is nothing to say.",
-      };
-    }
-    case "habits.remove": {
-      const removed = await habits.update(agentId, (list) => {
-        const habit = find(list);
-        return {
-          habits: list.filter((entry) => entry.id !== habit.id),
-          result: habit,
-        };
-      });
-      return { removed: removed.name };
-    }
-  }
-  throw new Error(`Unknown app action: ${action}`);
-}
-
 /** Two short body paragraphs, with a hard cap independent of Markdown length. */
 export function notePreview(body: string): string {
   return body
@@ -1062,10 +948,10 @@ export async function handleAgentApp(
     return handleMemory(source, action, input, host);
   if (action.startsWith("documents.") || action === "guides.write")
     return handleDocuments(source, action, input, host);
-  if (action.startsWith("habits."))
-    return handleHabits(source, action, input, host);
   if (action.startsWith("courses."))
     return handleCourses(source, action, input, host);
+  if (action.startsWith("lessons."))
+    return handleLessons(source, action, input, host);
   switch (action) {
     case "models.list":
       return appModels();

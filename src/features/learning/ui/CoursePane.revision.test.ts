@@ -56,7 +56,7 @@ const reopen = async () => {
 const revise = (lessonIds?: string[]) => handleAgentApp(
   { id: "agent-chat" } as Session, "revision", "courses.write",
   { id: "domain", title: "Revised Kubernetes", ...data(lessonIds) },
-  { agentOf: () => ({ id: "owner", projects: [] }), courses: { write: saveCourse } } as unknown as AgentAppHost,
+  { agentOf: () => ({ id: "owner" }), courses: { write: saveCourse } } as unknown as AgentAppHost,
 );
 const mount = async (agentId = "owner") => {
   await act(async () => root.render(createElement(CoursePane, {
@@ -154,7 +154,7 @@ it("opens the overview's course contents from its title and closes after selecti
   // Beside a conversation the header keeps to moving through the course.
   expect(container.querySelector('[aria-label="Expand course to pane"]')).toBeNull();
   await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Lesson actions"]')!.click());
-  expect([...document.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent)).toEqual(["Test my understanding", "Highlights & notes", "Full-width text"]);
+  expect([...document.querySelectorAll('[role^="menuitem"]')].map((item) => item.textContent)).toEqual(["Mark as read", "Test my understanding", "Highlights & notes", "Full-width text"]);
   await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Lesson actions"]')!.click());
   const contents = container.querySelector<HTMLButtonElement>('[aria-label="Course contents"]')!;
   expect(contents.closest("h3")).not.toBeNull();
@@ -211,9 +211,10 @@ it("keeps a later selection across revisions and honors an explicit reopen at th
   expect(container.querySelector('[aria-current="step"]')?.textContent).toContain("pod");
 });
 
-it("marks a lesson read once the reader scrolls to its end, with no footer to click", async () => {
+it("marks a lesson read once the reader scrolls to its end, or when it goes on to the next lesson from there", async () => {
   await mount();
-  expect(container.querySelector("footer")).toBeNull();
+  // The lesson ends with the next one, its title the way on.
+  expect(container.querySelector("[data-lesson-end] nav button")?.textContent).toBe("service");
   const main = container.querySelector<HTMLElement>(".course-pane__main")!;
   Object.defineProperties(main, { scrollHeight: { value: 2000, configurable: true }, clientHeight: { value: 600, configurable: true } });
   main.scrollTop = 500;
@@ -222,4 +223,15 @@ it("marks a lesson read once the reader scrolls to its end, with no footer to cl
   main.scrollTop = 1380;
   await act(async () => main.dispatchEvent(new Event("scroll")));
   expect(progress.get("pod")).toBe("mastered");
+  await act(async () => container.querySelector<HTMLButtonElement>("[data-lesson-end] nav button")!.click());
+  expect(progress.get("service")).toBe("learning");
+  expect(container.querySelector("[data-lesson-end] nav")).toBeNull();
+});
+
+it("marks a short lesson read only when the reader goes on from its end", async () => {
+  await mount();
+  expect(progress.get("pod")).toBeUndefined();
+  await act(async () => container.querySelector<HTMLButtonElement>("[data-lesson-end] nav button")!.click());
+  expect(progress.get("pod")).toBe("mastered");
+  expect(progress.get("service")).toBe("learning");
 });

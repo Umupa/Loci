@@ -730,8 +730,16 @@ pub fn mentors_import(
 pub fn kind_event(kind: Kind) -> &'static str {
     match kind {
         Kind::Source | Kind::Guide => "documents",
-        Kind::Course => "courses",
+        Kind::Course | Kind::Lesson => "courses",
         Kind::Note => "notes",
+    }
+}
+
+/// The id a window refreshes: a lesson's text refreshes its course.
+pub fn event_id(kind: Kind, id: &str) -> String {
+    match kind {
+        Kind::Lesson => id.split_once('/').map_or(id, |(course, _)| course).into(),
+        _ => id.into(),
     }
 }
 

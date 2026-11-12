@@ -9,7 +9,7 @@ import type { AgentDocument } from "../../sessions/model/cards";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import type { StoredDocument } from "../model/agentDocuments";
 import { ReadingSelectionMenu } from "../../learning/ui/ReadingSelectionMenu";
-import { useReadingMarks, type MarksListRequest } from "../../learning/ui/useReadingMarks";
+import { useReadingMarks, type MarkSpec, type MarksListRequest } from "../../learning/ui/useReadingMarks";
 import { documentMarkSpec } from "../model/documentMarks";
 import { inLesson } from "../../learning/model/annotationCounts";
 import { consumeDocumentPlace, useDocumentPlace } from "../model/documentPlace";
@@ -63,6 +63,10 @@ type Props = {
   marksList?: MarksListRequest;
   /** How many highlights the document has, for a menu to say. */
   onMarks?: (count: number) => void;
+  /** Where its highlights are kept and how a passage is cited, when not as a library document. */
+  markSpec?: MarkSpec;
+  /** A lesson's own text: the mentor's, read as the lesson, with no label saying so. */
+  lessonText?: boolean;
 };
 
 /**
@@ -70,7 +74,7 @@ type Props = {
  * shows that page's pictures. Selecting text offers to ask about, highlight or
  * note the passage; its highlights are painted on the text.
  */
-export function DocumentBody({ document, agentId, section, bare, inPlace, marksList, onMarks }: Props) {
+export function DocumentBody({ document, agentId, section, bare, inPlace, marksList, onMarks, markSpec, lessonText }: Props) {
   const requestedSection = section?.trim() || undefined;
   const scope = JSON.stringify([document.id, requestedSection]);
   const [view, setView] = useState({ scope, full: false });
@@ -83,7 +87,7 @@ export function DocumentBody({ document, agentId, section, bare, inPlace, marksL
   const topRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const { selection, dismiss } = useFileSelection(bodyRef, true);
-  const spec = useMemo(() => documentMarkSpec(document, agentId), [document, agentId]);
+  const spec = useMemo(() => markSpec ?? documentMarkSpec(document, agentId), [markSpec, document, agentId]);
   const marks = useReadingMarks(bodyRef, spec, { agentId });
   // A lesson reading one section lists and counts that section's marks, as its outline does.
   const shownMarks = useMemo(() => bare && requestedSection
@@ -171,7 +175,7 @@ export function DocumentBody({ document, agentId, section, bare, inPlace, marksL
           {document.sourceVersion ? <span>{document.sourceVersion}</span> : null}
           {document.fetchedAt ? <span>saved {new Date(document.fetchedAt).toLocaleDateString()}</span> : null}
         </p>
-      ) : agentId && !sourceUrl ? (
+      ) : agentId && !sourceUrl && !lessonText ? (
         // The mentor's own writing is never mistaken for what someone else published.
         <p data-document-guide className="document-guide-label">
           <PenLine aria-hidden className="size-3 shrink-0" />

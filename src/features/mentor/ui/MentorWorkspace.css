@@ -180,6 +180,9 @@
 .library-mark { display: inline-grid; width: 12px; height: 12px; flex: none; place-items: center; border: 1.25px solid color-mix(in srgb, var(--color-content) 25%, transparent); border-radius: 50%; line-height: 1; }
 .library-mark--learning { border-color: color-mix(in srgb, var(--color-content) 75%, transparent); background: linear-gradient(90deg, color-mix(in srgb, var(--color-content) 75%, transparent) 50%, transparent 50%); }
 .library-mark--mastered { border-color: transparent; background: color-mix(in srgb, var(--color-content) 75%, transparent); color: var(--color-background-base); }
+/* A planned lesson: only its title so far. Faded, with a dashed ring. */
+.library-lesson--planned .library-lesson-title { color: color-mix(in srgb, var(--color-content) 40%, transparent); }
+.library-mark--planned { border-style: dashed; border-color: color-mix(in srgb, var(--color-content) 30%, transparent); }
 .mentor-history { display: flex; flex: none; align-items: center; gap: 0; }
 .mentor-history .mentor-bar-button:disabled { opacity: .35; pointer-events: none; }
 
@@ -187,3 +190,16 @@
 .mentor-body[data-selecting="chat"] > :is(.mentor-library-column, .mentor-reader),
 .mentor-body[data-selecting="reader"] > :is(.mentor-library-column, .mentor-chat-column),
 .mentor-body[data-selecting="library"] > :is(.mentor-reader, .mentor-chat-column) { -webkit-user-select: none; user-select: none; }
+
+/* Coming back after a while: one card over the reader, where things were left. */
+.mentor-return { position: absolute; top: 52px; left: 50%; z-index: 5; display: flex; width: min(560px, calc(100% - 32px)); align-items: flex-start; gap: 8px; padding: 12px 12px 12px 16px; border: 1px solid var(--color-stroke); border-radius: 10px; background: var(--color-background-base); box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); transform: translateX(-50%); font-family: var(--font-sans); }
+.mentor-return-body { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
+.mentor-return-last { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: color-mix(in srgb, var(--color-content) 50%, transparent); }
+.mentor-return-question { overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: color-mix(in srgb, var(--color-content) 65%, transparent); }
+.mentor-return-question::before { content: "“"; }
+.mentor-return-question::after { content: "”"; }
+.mentor-return-question:hover { color: var(--color-content); }
+.mentor-return-go { align-self: flex-start; max-width: 100%; overflow: hidden; margin-top: 4px; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; color: var(--color-content); }
+.mentor-return-go:hover { text-decoration: underline; text-underline-offset: 3px; }
+.mentor-return-close { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border-radius: 6px; color: color-mix(in srgb, var(--color-content) 45%, transparent); }
+.mentor-return-close:hover { background: color-mix(in srgb, var(--color-content) 8%, transparent); color: var(--color-content); }

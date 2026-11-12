@@ -1,11 +1,10 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { isImeComposition } from "../../../shared/lib/keyboard";
 import { Pencil, Plus, X } from "../../../shared/ui/icons";
-import type { RecentProject } from "../../projects/model/recents";
 import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/session";
 import { AccessPicker } from "../../sessions/ui/AccessPicker";
 import { ModelPicker, ModelSettingRows } from "../../sessions/ui/ModelPicker";
-import { addAgentProject, agentLook, removeAgentProject, updateAgent, type Agent } from "../model/agent";
+import { agentLook, updateAgent, type Agent } from "../model/agent";
 import { ensureAgentWorkdir, folderHolds, setAgentWorkdir } from "../model/agentWorkdir";
 import { revealPath } from "../../../platform/tauri/fs";
 import { exportMentor } from "../model/mentorStore";
@@ -27,7 +26,7 @@ import { addMemoryEntry, memoryDate, memoryEntry, memoryLines, withLineEdited, w
 import { AgentAvatarPreview } from "./AgentAvatar";
 import { HeartbeatPicker } from "./HeartbeatPicker";
 import { LanguagePicker } from "./LanguagePicker";
-import { ColorPicker, FacePicker, ProjectsField } from "./agentPanelParts";
+import { ColorPicker, FacePicker } from "./agentPanelParts";
 import { Popover } from "../../../shared/ui/Popover";
 import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
 import { ask, pickFolder, pickSavePath } from "../../../platform/dialog";
@@ -40,10 +39,8 @@ type Props = {
   onModelChange: (harness: HarnessId, model: string) => void;
   onModelSettingsChange: (settings: Record<string, string>) => void;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
-  recents: readonly RecentProject[];
   /** Bumped when the agent finishes a turn, since it may have rewritten its files. */
   refreshKey: unknown;
-  onPickFolders: () => Promise<string[]>;
   onReset: () => void;
   onDelete: () => void;
   onClose: () => void;
@@ -97,7 +94,7 @@ const PAGE_HINT: Record<Page, string> = {
  * One mentor's settings, as a page of the Settings window: its face and name,
  * then General, Soul and Memory as tabs.
  */
-export function AgentDetails({ agent, session, onModelChange, onModelSettingsChange, onRuntimeModeChange, recents, refreshKey, onPickFolders, onReset, onDelete }: Props) {
+export function AgentDetails({ agent, session, onModelChange, onModelSettingsChange, onRuntimeModeChange, refreshKey, onReset, onDelete }: Props) {
   const { files, error } = useAgentFiles(agent.id, refreshKey);
   const [page, setPage] = useState<Page>("general");
   useEffect(() => setPage("general"), [agent.id]);
@@ -150,11 +147,6 @@ export function AgentDetails({ agent, session, onModelChange, onModelSettingsCha
         <div className="agent-setting-group">
           {agent.folder ? <FolderRow agent={agent} folder={agent.folder} /> : null}
           <WorkdirRow agent={agent} chatCwd={session.cwd} />
-          <div className="agent-setting-row">
-            <ProjectsField header={<div className="agent-setting-label" title="More folders it may read and work in."><span>Other folders</span></div>}
-              projects={agent.projects} recents={recents} onPickFolders={onPickFolders}
-              onAdd={(path) => addAgentProject(agent.id, path)} onRemove={(path) => removeAgentProject(agent.id, path)} />
-          </div>
         </div>
         <h4 className="agent-setting-group-title">Conversation</h4>
         <div className="agent-setting-group">

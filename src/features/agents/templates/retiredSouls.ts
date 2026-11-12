@@ -8,6 +8,7 @@ import { AGENT_TEMPLATES, type AgentTemplate } from "./index";
  */
 const RETIRED: Record<string, AgentTemplate["id"]> = {
   // Mentor (learning-guide.md), newest first.
+  "82cc4b4893928045d3affbfade734f6afaa5efa89b686b7e112ec31d43dabf61": "learning-guide",
   e0575861b4bbd98182a53707d77cae059516a972ec21440f50c54d60aa6b24e1: "learning-guide",
   d47e6bebf63f255c114c4b901ef871ebb6b46f03925a38b3a324b232a2b82210: "learning-guide",
   "86da2651215a4b129cdb15015be7174f4bd3855470cdd1eff65a29caa648f09e": "learning-guide",
@@ -21,6 +22,7 @@ const RETIRED: Record<string, AgentTemplate["id"]> = {
   "472ac68d705870a851733b5664d18d289abba520f0462be742b8c20c3fb5b0a6": "learning-guide",
   "8008fb42a35ebd5a1253dd15dd7d5c65887795e1dfd8304c242b216e74074153": "learning-guide",
   // Lens (repo-lens.md), newest first.
+  fac43da16d0dafeccd7f90b7fbb4dd6221ea41cec5dd381e0e32c705233ed5fa: "repo-lens",
   "36032ba9729f32fc63add440abb2a82d3615218f05e3c1051e2f5971ae11fa91": "repo-lens",
   "1024884b019322018e4fb2bddc8229b51582dafd53e3591758b815c6bbae0663": "repo-lens",
   b0d80861e58bb4b85d6d54be27d6d9d87f937c26a42b89d3b6875cc72458527c: "repo-lens",

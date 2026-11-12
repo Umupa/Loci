@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const RUBRIC = ["firstHand", "courseStructure", "grounding", "firstTenMinutes", "firstPrinciples"];
+export const RUBRIC = ["firstHand", "courseStructure", "grounding", "firstTenMinutes", "firstPrinciples", "readability"];
 /** Rubric items a scenario opts into: code used as evidence, and a learning path. */
 export const RUBRIC_EXTENSIONS = {
   codeEvidence: "When the course or the answers show code, is it evidence for a mechanism? Few code lessons, each opening the lines that keep an invariant or make a design decision, pinned to a commit (`commit` or `repos/<repo>@<sha>:path`), with a range that shows exactly that and a lesson that says what the lines guarantee. A course whose design is clear from docs and papers needs no code lesson. 1 = code walked through line by line or along a call path for its own sake, or unpinned lessons and ranges that do not show the claim; 3 = code mostly used as evidence, but some lessons narrate an implementation or ranges are loose; 5 = every code lesson is pinned evidence for one invariant or decision, and the course would lose an argument without it.",
@@ -22,7 +22,7 @@ export function rubricFor(scenario) {
 }
 /** Pinned per judge, in the CLI's own model spelling, so a run's rubric has one model. */
 export const DEFAULT_JUDGE_MODEL = { agy: "claude-opus-4-6-thinking", grok: "deepseek-flash" };
-const LIMITS = { reply: 4000, source: 1500, transcript: 60_000, courses: 12_000, tours: 8000 };
+const LIMITS = { reply: 4000, source: 1500, transcript: 60_000, courses: 12_000, tours: 8000, lesson: 6000, lessons: 40_000 };
 
 const clip = (text, max) => (text.length > max ? `${text.slice(0, max)}\n…[${text.length - max} more characters]` : text);
 
@@ -37,6 +37,14 @@ export function codeToursEvidence(tours) {
   }).join("\n");
 }
 
+/** The lessons the mentor wrote, in course order, each clipped; what the learner reads. */
+export function lessonTextsEvidence(courses) {
+  const texts = courses.flatMap((course) => ((course.data ?? course).chapters ?? []).flatMap((chapter) => (chapter.lessons ?? [])
+    .filter((lesson) => typeof lesson.body === "string")
+    .map((lesson) => `#### ${course.id}/${lesson.id} — ${lesson.title}\n\n${clip(lesson.body, LIMITS.lesson)}`)));
+  return texts.length ? texts.join("\n\n") : "(no lesson has text of its own)";
+}
+
 /** The judge prompt for one scenario run, filled from the template in the repo. */
 export function judgePrompt({ scenario, checks, sources, courses, turns, codeTours = [] }, template = readFileSync(join(HERE, "judge-prompt.md"), "utf8")) {
   const transcript = turns.map((turn) => `#### ${turn.role === "mentor" ? "Mentor" : turn.probe ? "Learner (probe)" : "Learner"}\n${clip(String(turn.text ?? ""), LIMITS.reply)}`).join("\n\n");
@@ -46,14 +54,17 @@ export function judgePrompt({ scenario, checks, sources, courses, turns, codeTou
   const keys = rubricFor(scenario);
   const extra = keys.slice(RUBRIC.length);
   const rubricExtra = extra.map((key, index) => `${RUBRIC.length + index + 1}. **${key}** — ${RUBRIC_EXTENSIONS[key]}`).join("\n\n");
-  const outputShape = `{"scores":{${keys.map((key) => `"${key}":{"score":1,"reason":"..."}`).join(",")}},"worst":"..."}`;
+  const outputShape = `{"scores":{${keys.map((key) => key === "readability" ? `"${key}":{"score":1,"reason":"...","issues":["..."]}` : `"${key}":{"score":1,"reason":"..."}`).join(",")}},"worst":"..."}`;
   const fill = {
     persona: scenario.learner?.background ?? "",
     opening: scenario.opening,
     template: scenario.template,
     checks: JSON.stringify(checks, null, 1),
     sources: sourceList,
-    courses: clip(JSON.stringify(courses.map((course) => ({ id: course.id, title: course.title, chapters: (course.data ?? course).chapters ?? [] })), null, 1), LIMITS.courses),
+    // The structure only; each lesson's text comes under its own heading.
+    courses: clip(JSON.stringify(courses.map((course) => ({ id: course.id, title: course.title, chapters: ((course.data ?? course).chapters ?? [])
+      .map((chapter) => ({ ...chapter, lessons: (chapter.lessons ?? []).map(({ body: _body, ...lesson }) => lesson) })) })), null, 1), LIMITS.courses),
+    lessons: clip(lessonTextsEvidence(courses), LIMITS.lessons),
     codeTours: clip(codeToursEvidence(codeTours), LIMITS.tours),
     transcript: clip(transcript, LIMITS.transcript),
     rubricExtra,
@@ -87,7 +98,11 @@ export function parseVerdict(output, keys = RUBRIC) {
           try {
             const parsed = JSON.parse(candidate.slice(start, end + 1));
             if (parsed?.scores && keys.every((key) => Number.isInteger(parsed.scores[key]?.score) && parsed.scores[key].score >= 1 && parsed.scores[key].score <= 5))
-              return { scores: Object.fromEntries(keys.map((key) => [key, { score: parsed.scores[key].score, reason: String(parsed.scores[key].reason ?? "").trim() }])), worst: String(parsed.worst ?? "").trim() };
+              return { scores: Object.fromEntries(keys.map((key) => {
+                const issues = parsed.scores[key].issues;
+                return [key, { score: parsed.scores[key].score, reason: String(parsed.scores[key].reason ?? "").trim(),
+                  ...(Array.isArray(issues) ? { issues: issues.filter((issue) => typeof issue === "string").slice(0, 30) } : {}) }];
+              })), worst: String(parsed.worst ?? "").trim() };
           } catch { /* keep looking */ }
           break;
         }

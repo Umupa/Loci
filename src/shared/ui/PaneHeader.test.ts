@@ -74,7 +74,7 @@ it("preserves title dragging in workspaces with a separate window toolbar", () =
 it("keeps readers inside an agent's view out of the window titlebar", () => {
   act(() => root.render(createElement(PaneHeaderChrome.Provider, { value: { windowTop: true, leadingInset: 92 } },
     createElement(AgentView, {
-      agent: { id: "agent", name: "Ada", avatar: "luna", color: "#66aacc", projects: [] },
+      agent: { id: "agent", name: "Ada", avatar: "luna", color: "#66aacc" },
       state: { status: "idle" }, focused: true, onFocus: vi.fn(), onOpenSettings: vi.fn(),
       children: [createElement(PaneHeader, { key: "inline", "aria-label": "Inline reader" }, "Source excerpt"),
         createElement(PaneHeader, { key: "library", "aria-label": "Library reader" }, "Network strategy")],

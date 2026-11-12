@@ -143,13 +143,24 @@ title: Kubernetes reading
 The `courses.write` input is one object:
 
 ```json
-{"id":"kubernetes-reading","title":"Kubernetes reading","engine":"reading","chapters":[{"title":"Workloads","lessons":[{"id":"pod-lifecycle","title":"Pod Lifecycle","document":"k8s-pod-lifecycle","section":"Pod phase"},{"id":"firecracker-vmexit","title":"The VM exit path","document":"firecracker-nsdi20","pages":[7,9]},{"id":"borg","title":"Borg","file":"/absolute/path/borg.pdf","pages":[1,12]}]}]}
+{"id":"kubernetes-reading","title":"Kubernetes reading","chapters":[{"title":"Workloads","lessons":[{"id":"pod-map","title":"A Pod is a promise the kubelet keeps","body":"# A Pod is a promise the kubelet keeps\n\n…","document":"k8s-pod-lifecycle","section":"Pod phase"},{"id":"vm-exit","title":"Every device access is a VM exit","bodyPath":"/abs/path/vm-exit.md","document":"firecracker-nsdi20","pages":[7,9]},{"id":"scheduling","title":"Scheduling is filtering, then scoring"}]}]}
 ```
 
-`id` and `title` are required; `engine` defaults to `reading`.
-Chapters and lessons are non-empty arrays. Each lesson has a unique `id`,
-`title`, and exactly one of `document` (an imported document ID) or `file`
-(an absolute path, or a path in your folder such as `repos/…`). `section`
+`id` and `title` are required; `engine` is `reading` and may be left out.
+Chapters and lessons are non-empty arrays. Each lesson has a unique `id` and
+a `title`.
+
+A lesson's **text** is yours: Markdown (Mermaid, math, code, citations)
+given as `body`, or as `bodyPath`, an absolute path to a `.md` file. It is
+kept in its own file, `courses/<course>/<lesson>.md`, never in the course
+file, and is what the learner reads. `lessons.write` writes or revises one
+lesson's text alone; `lessons.read` returns it. A lesson with only `id` and
+`title` is **planned**: the learner sees its title as not written yet.
+
+A lesson may also name its **source**: one of `document` (an imported
+document ID) or `file` (an absolute path, or a path in your folder such as
+`repos/…`), or a `compare` list. With text, the source is what the learner
+opens as the original; without text, it is shown itself. `section`
 belongs to a text document; `pages: [first, last]` belongs to a file or to a
 PDF source's document, and uses positive, inclusive page numbers. A source or
 text file is shown in place, highlighted; a PDF source opens in the PDF reader
@@ -233,10 +244,6 @@ give it a `title` until then. `path.read` returns the path with how far each
 course is read. The path is the file `courses/_path.yaml`; `_path` is never a
 course id.
 
-The `build-your-own` engine uses `{"steps":[...]}`. Each step has a unique
-`id`, `title`, `summary`, `file`, `before`, `after`, `explanation`, and optional
-`runCommand`; `before`, `after`, and `explanation` may be empty strings.
-
 ## Diff
 
 ```loci-diff
@@ -319,7 +326,9 @@ so a citation can name a real page and quote its words. A scanned page still
 opens and can be highlighted.
 
 A course file is the `courses.write` object as YAML, without its `id` (the
-file name is the id). A lesson's `file` may be relative to your folder, and
+file name is the id) and without lesson texts: a lesson's text is the file
+`courses/<course id>/<lesson id>.md`, plain Markdown with no front matter,
+which you may also write or edit directly. A lesson's `file` may be relative to your folder, and
 `document: id#section`, `document: id#p7`, `file: path#L12-40` and
 `file: path#p7-9` are shorthands for `section`, `pages`, `lines` and `pages`:
 

@@ -13,8 +13,8 @@ import {
 } from "./agent";
 
 const ROSTER_KEY = "loci:agent-roster";
-const ada: Agent = { id: "ada", name: "Ada", role: "Tutor", avatar: "ember", color: "#f28c28", projects: [] };
-const bo: Agent = { id: "bo", name: "Bo", avatar: "wisp", color: "#111111", projects: [] };
+const ada: Agent = { id: "ada", name: "Ada", role: "Tutor", avatar: "ember", color: "#f28c28" };
+const bo: Agent = { id: "bo", name: "Bo", avatar: "wisp", color: "#111111" };
 
 beforeEach(() => {
   localStorage.clear();

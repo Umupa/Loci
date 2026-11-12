@@ -1,55 +1,30 @@
 import { useUiText } from "../../../shared/i18n/SettingsLanguage";
-import { Plus } from "../../../shared/ui/icons";
 import {
   useEffect,
   useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { isLocalProject } from "../../projects/model/recents";
-import {
-  isValidSkillName,
-  slugSkillName,
-  type Skill,
-} from "../model/skills";
+import type { Skill } from "../model/skills";
 import { useLockOverscroll } from "../../../shared/hooks/useLockOverscroll";
 
 type Props = {
   skills: Skill[];
   query: string;
   active: number;
-  creating: boolean;
-  cwd: string;
   compact?: boolean;
-  showCreate?: boolean;
-  error?: string | null;
-  busy?: boolean;
   onActive: (index: number) => void;
   onPick: (skill: Skill) => void;
-  onStartCreate: () => void;
-  onCancelCreate: () => void;
-  onCreate: (name: string, scope: "project" | "user") => void;
 };
 
+/** The composer's slash menu: Loci's own commands and the provider's native ones. */
 export function SkillPicker({
   skills,
   query,
   active,
-  creating,
-  cwd,
   compact = false,
-  showCreate = true,
-  error,
-  busy,
   onActive,
   onPick,
-  onStartCreate,
-  onCancelCreate,
-  onCreate,
 }: Props) {
-  const { t } = useUiText();
   return (
     <div
       data-skill-picker
@@ -59,37 +34,14 @@ export function SkillPicker({
           : "overflow-hidden rounded-lg border border-content/10 bg-content/5 backdrop-blur-xl"
       }
     >
-      {creating ? (
-        <CreateSkillForm
-          query={query}
-          cwd={cwd}
-          error={error}
-          busy={busy}
-          onCancel={onCancelCreate}
-          onCreate={onCreate}
-        />
-      ) : (
-        <>
-          <SkillList
-            skills={skills}
-            query={query}
-            active={active}
-            compact={compact}
-            onActive={onActive}
-            onPick={onPick}
-          />
-          {showCreate ? (
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={onStartCreate}
-              className="flex w-full items-center gap-2 border-t border-stroke px-2.5 py-2 text-left text-[12px] text-content/70 hover:bg-content/10 hover:text-content"
-            >
-              <Plus className="size-3.5 shrink-0" />
-              {t("New skill")}</button>
-          ) : null}
-        </>
-      )}
+      <SkillList
+        skills={skills}
+        query={query}
+        active={active}
+        compact={compact}
+        onActive={onActive}
+        onPick={onPick}
+      />
     </div>
   );
 }
@@ -144,7 +96,7 @@ function SkillList({
   if (skills.length === 0) {
     return (
       <p className="px-3 py-2.5 text-[12px] text-content/50">
-        {query.trim() ? t("No matching commands or skills") : t("No commands yet")}
+        {query.trim() ? t("No matching commands") : t("No commands yet")}
       </p>
     );
   }
@@ -153,7 +105,7 @@ function SkillList({
     <div
       ref={lockOverscroll}
       role="listbox"
-      aria-label={t("Commands and skills")}
+      aria-label={t("Commands")}
       onMouseMove={onListMouseMove}
       className={`${compact ? "max-h-48" : "max-h-[min(240px,40vh)]"} overflow-y-auto overscroll-none px-1 py-1`}
     >
@@ -197,152 +149,6 @@ function SkillList({
         );
       })}
     </div>
-  );
-}
-
-/** Shared starter-skill form for the composer picker and Settings. */
-export function CreateSkillForm({
-  query,
-  cwd,
-  monospace = true,
-  error,
-  busy,
-  onCancel,
-  onCreate,
-}: {
-  query: string;
-  cwd: string;
-  monospace?: boolean;
-  error?: string | null;
-  busy?: boolean;
-  onCancel: () => void;
-  onCreate: (name: string, scope: "project" | "user") => void;
-}): ReactNode {
-  const { t } = useUiText();
-  const input = useRef<HTMLInputElement>(null);
-  const project = isLocalProject(cwd);
-  const [name, setName] = useState(() => slugSkillName(query));
-  const [scope, setScope] = useState<"project" | "user">(
-    project ? "project" : "user",
-  );
-
-  useEffect(() => {
-    input.current?.focus();
-    input.current?.select();
-  }, []);
-
-  const slug = slugSkillName(name);
-  const valid = isValidSkillName(slug);
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!valid || busy) return;
-    onCreate(slug, project ? scope : "user");
-  };
-
-  return (
-    <form
-      onSubmit={submit}
-      onKeyDown={(e) => {
-        if (e.key !== "Escape") return;
-        e.preventDefault();
-        onCancel();
-      }}
-      className="px-2.5 py-2"
-    >
-      <p className="mb-2 text-[11px] text-content/50">
-        {t("Writes a starter SKILL.md you can edit.")}</p>
-      <input
-        ref={input}
-        value={name}
-        spellCheck={false}
-        placeholder="skill-name"
-        aria-label={t("Skill name")}
-        disabled={busy}
-        onChange={(e) => setName(e.target.value)}
-        className={`mb-2 w-full rounded-md bg-content/10 px-2 py-1.5 text-[13px] text-content outline-none placeholder:text-content/40 ${monospace ? "font-mono" : "font-sans"}`}
-      />
-      <div className="mb-2 flex gap-1">
-        {/* Settings has no project, so it offers only the personal folder. */}
-        {project ? (
-          <ScopeButton
-            label={t("Project")}
-            hint=".agents/skills"
-            monospace={monospace}
-            selected={scope === "project"}
-            disabled={busy}
-            onClick={() => setScope("project")}
-          />
-        ) : null}
-        <ScopeButton
-          label={t("Personal")}
-          hint="~/.agents/skills"
-          monospace={monospace}
-          selected={scope === "user"}
-          disabled={busy}
-          onClick={() => setScope("user")}
-        />
-      </div>
-      {error ? (
-        <p className="mb-2 text-[12px] text-content/70">{error}</p>
-      ) : !name.trim() || valid ? null : (
-        <p className="mb-2 text-[12px] text-content/50">
-          {t("Use lowercase letters, numbers, and hyphens.")}</p>
-      )}
-      <div className="flex items-center justify-end gap-1">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onCancel}
-          className="rounded-md px-2 py-1 text-[12px] text-content/50 hover:bg-content/10 hover:text-content"
-        >
-          {t("Cancel")}</button>
-        <button
-          type="submit"
-          disabled={!valid || busy}
-          className="rounded-md bg-content/20 px-2 py-1 text-[12px] text-content disabled:opacity-40"
-        >
-          {busy ? t("Creating…") : t("Create")}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function ScopeButton({
-  label,
-  hint,
-  monospace,
-  selected,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  hint: string;
-  monospace: boolean;
-  selected: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`flex min-w-0 flex-1 flex-col rounded-md px-2 py-1.5 text-left ${
-        selected
-          ? "bg-selection-emphasis text-content"
-          : "bg-selection text-content/70"
-      } disabled:opacity-40`}
-    >
-      <span className="text-[12px]">{label}</span>
-      <span
-        className={`truncate text-[10px] text-content/40 ${monospace ? "font-mono" : "font-sans"}`}
-      >
-        {hint}
-      </span>
-    </button>
   );
 }
 

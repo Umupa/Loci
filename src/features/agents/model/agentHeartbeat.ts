@@ -2,15 +2,16 @@ import type { Block, HarnessId } from "../../sessions/model/session";
 import { findModel, mergeModelSettings, modelsFor } from "../../sessions/model/models";
 import type { AgentLook } from "./agent";
 import { agentContext, editAgentFile, readAgentFile, type AgentFiles } from "./agentFiles";
-import { QUIET_MARKER } from "./agentHabits";
+import { QUIET_MARKER } from "./agentWake";
+import { elapsedPhrase } from "./agentTurnContext";
 
 /**
  * A wake-up after the mentor's chat has sat idle: it looks for follow-ups it
- * owes the learner and proposes them. It runs the way a habit does, in a
- * hidden session that posts to the chat only when it has something to say.
+ * owes the learner and proposes them. It runs in a hidden session that
+ * posts to the chat only when it has something to say.
  */
 
-/** Its posts carry this as their habit id; no stored habit uses it. */
+/** Its posts carry this as their `agentHabit` id (the field keeps its old name). */
 export const HEARTBEAT_ID = "heartbeat";
 export const HEARTBEAT_NAME = "Heartbeat";
 export const DEFAULT_HEARTBEAT_MINUTES = 30;
@@ -21,7 +22,7 @@ const QUIET_BEFORE_BACKOFF = 3;
 const RECENT_KEPT = 5;
 const RECENT_CHARS = 300;
 
-/** heartbeat.json, beside habits.json in the app's data folder. */
+/** heartbeat.json, in the agent's app data folder. */
 export type HeartbeatState = {
   /** Idle minutes before it wakes; absent means the default, 0 is off. */
   minutes?: number;
@@ -109,12 +110,16 @@ export type HeartbeatPlan =
  * Whether to wake now. The first look after it is turned on only marks where
  * it starts; after that it waits for the chat to sit idle for the interval,
  * and asks the model only when the chat or memory moved since last time.
+ * `firstSinceStart`: the app has just started. A heartbeat that did not run
+ * while the app was closed then runs once even if nothing moved: the
+ * learner's absence is itself what may be worth a word.
  */
 export function planHeartbeat(
   state: HeartbeatState,
   chat: { blocks: readonly Block[]; busy?: boolean },
   memoryHash: string,
   now: number,
+  firstSinceStart = false,
 ): HeartbeatPlan {
   const minutes = heartbeatMinutes(state);
   if (minutes <= 0 || chat.busy) return { kind: "wait" };
@@ -125,7 +130,8 @@ export function planHeartbeat(
   if (now - Math.max(state.lastRunAt, lastAt) < heartbeatIntervalMs(minutes, quietStreak)) return { kind: "wait" };
   const next = { ...state, lastRunAt: now, quietStreak, memoryHash };
   const changed = lastAt > state.lastRunAt || memoryHash !== state.memoryHash;
-  return changed ? { kind: "run", state: next } : { kind: "skip", state: next };
+  const missed = firstSinceStart && now - state.lastRunAt >= minutes * 60_000;
+  return changed || missed ? { kind: "run", state: next } : { kind: "skip", state: next };
 }
 
 /** The state after a run: what it raised is remembered, quiet runs add up. */
@@ -179,9 +185,11 @@ export function heartbeatPrompt(
   state: HeartbeatState,
   exchanges: string,
   now: number,
+  lastUserAt = 0,
 ): string {
   const parts = [agentContext(look, files, { soul: true, memory: true }), GUIDANCE];
   if (exchanges.trim()) parts.push(`Recent chat with the learner:\n${exchanges.trim()}`);
+  if (lastUserAt > 0) parts.push(`The learner's last message was ${elapsedPhrase(now - lastUserAt)} ago.`);
   if (state.recent.length) parts.push(`You raised these lately:\n${state.recent.map((item) => `- ${item}`).join("\n")}`);
   parts.push(`Local time: ${new Date(now).toLocaleString()}`);
   return parts.join("\n\n");

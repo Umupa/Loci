@@ -204,8 +204,6 @@ describe("settings navigation", () => {
             "keybindings",
             "chat",
             "providers",
-            "mcp",
-            "skills",
         ]);
     });
     it("points every indexed setting at a real section", () => {
@@ -243,14 +241,12 @@ describe("settings search", () => {
         });
     });
     it("returns a whole page with no setting id", () => {
-        expect(searchSettings("skills")).toEqual([
-            {
-                section: "skills",
-                sectionLabel: "Skills",
-                settingId: null,
-                label: "Skills",
-            },
-        ]);
+        expect(searchSettings("providers")).toContainEqual({
+            section: "providers",
+            sectionLabel: "Providers",
+            settingId: null,
+            label: "Providers",
+        });
     });
     it("caps the result list", () => {
         expect(searchSettings("e", 4)).toHaveLength(4);

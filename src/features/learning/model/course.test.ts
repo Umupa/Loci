@@ -1,19 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { courseItems, lessonPlaces, loadCourse, parseCourse, parseCourseData, parseDiff } from "./course";
+import { courseItems, lessonPlaces, lessonPlanned, loadCourse, parseCourse, parseCourseData, parseCourseInput, parseDiff } from "./course";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-const step = { id: "s01", title: "Agent loop", summary: "Add the loop", file: "main.py", before: "", after: "  run()\n\n", explanation: "A **loop**", runCommand: "python main.py" };
 const read = (id: string) => ({ id, title: id.toUpperCase(), document: `k8s-${id}` });
 const chapters = (...lessons: unknown[]) => ({ chapters: [{ title: "Workloads", lessons }] });
 const courseSource = (engine: string, data: unknown, metadata = "") => `---\nid: sample\nengine: ${engine}\ntitle: Sample course\n${metadata}---\n${JSON.stringify(data)}\n---\n`;
 
 beforeEach(() => vi.mocked(invoke).mockReset());
 describe("generated course boundary", () => {
-  it("keeps source code and removes inline progress from a valid build course", () => {
-    const result = parseCourse(courseSource("build-your-own", { steps: [{ ...step, status: "mastered" }] }));
-    expect(result.course?.data).toEqual({ engine: "build-your-own", steps: [step] });
-    expect(result.course?.data.engine === "build-your-own" && result.course.data.steps[0].after).toBe("  run()\n\n");
+  it("says a build-your-own course is from an earlier format", () => {
+    expect(parseCourse(courseSource("build-your-own", { steps: [{ id: "s01", title: "Agent loop" }] })).error).toContain("earlier format");
   });
 
   it("reads a course as chapters of lessons to read, in the order written, without naming an engine", () => {
@@ -44,16 +41,11 @@ describe("generated course boundary", () => {
     expect(parseCourse(courseSource("reading", chapters({ ...read("pod"), commit: "3f2a9c1" }))).error).toMatch(/commit belongs to a file/);
   });
 
-  it.each([null, [], { steps: [] }, { steps: [null] }, { steps: [{ ...step, id: "../step" }] }, { steps: [{ ...step, before: null }] }, { steps: [{ ...step, file: "" }] }, { steps: [step, step] }])("rejects malformed build data without throwing from the parser: %j", (data) => {
-    expect(parseCourse(courseSource("build-your-own", data)).error).toBeTruthy();
-  });
-
   it.each([
     { chapters: [] },
     { chapters: [{ title: "Empty", lessons: [] }] },
     { chapters: [{ title: "", lessons: [read("pod")] }] },
     chapters(read("pod"), read("pod")),
-    chapters({ id: "pod", title: "Pod" }),
     chapters({ ...read("pod"), file: "/books/pod.pdf" }),
     chapters({ ...read("pod"), document: "../notes" }),
     chapters({ ...read("pod"), lines: [1, 2] }),
@@ -83,6 +75,21 @@ describe("generated course boundary", () => {
     ] }] });
   });
 
+  it("takes a lesson that is only a title, and its text as body or bodyPath apart from the course", () => {
+    const parsed = parseCourseInput({ id: "virtio", title: "Virtio", chapters: [{ title: "Rings", lessons: [
+      { id: "map", title: "The map", document: "virtio-spec", body: "# Map\n\nThree pieces." },
+      { id: "queue", title: "Two rings", bodyPath: "/tmp/queue.md" },
+      { id: "later", title: "Interrupts" },
+    ] }] });
+    expect(parsed.bodies).toEqual({ map: { body: "# Map\n\nThree pieces." }, queue: { path: "/tmp/queue.md" } });
+    expect(JSON.stringify(parsed.data)).not.toContain("Three pieces");
+    expect(courseItems(parsed.data)[2]).toEqual({ id: "later", title: "Interrupts" });
+    expect(lessonPlanned({ bodies: new Set(["map", "queue"]) }, courseItems(parsed.data)[2])).toBe(true);
+    expect(lessonPlanned({ bodies: new Set(["map", "queue"]) }, courseItems(parsed.data)[1])).toBe(false);
+    expect(() => parseCourseInput({ id: "c", title: "C", chapters: [{ title: "x", lessons: [{ id: "a", title: "A", bodyPath: "queue.md" }] }] })).toThrow("absolute");
+    expect(() => parseCourseInput({ id: "c", title: "C", chapters: [{ title: "x", lessons: [{ id: "a", title: "A", section: "Intro" }] }] })).toThrow("belongs to a document or file");
+  });
+
   it.each(["", "  ", undefined])("treats an empty section as a whole-document lesson: %j", (section) => {
     const result = parseCourse(courseSource("reading", chapters({ ...read("pod"), section })));
     expect(result.error).toBeUndefined();
@@ -90,15 +97,15 @@ describe("generated course boundary", () => {
   });
 
   it("rejects duplicate metadata, broken JSON and unknown engines", () => {
-    expect(parseCourse(courseSource("build-your-own", { steps: [step] }, "id: duplicate\n")).error).toContain("duplicate metadata");
-    expect(parseCourse("---\nid: sample\ntitle: Sample\nengine: build-your-own\n---\n{").error).toContain("valid JSON");
+    expect(parseCourse(courseSource("reading", chapters(read("pod")), "id: duplicate\n")).error).toContain("duplicate metadata");
+    expect(parseCourse("---\nid: sample\ntitle: Sample\n---\n{").error).toContain("valid JSON");
     expect(parseCourse(courseSource("other", {})).error).toContain("Unknown");
-    expect(() => parseCourseData("build-your-own", { engine: "reading", steps: [step] })).toThrow("engine does not match");
+    expect(() => parseCourseData("build-your-own", { engine: "reading", ...chapters(read("pod")) })).toThrow("engine does not match");
     expect(parseCourse(courseSource("domain-navigation", { concepts: [], learningPath: [] })).error).toContain("earlier format");
   });
 
   it("handles BOM, CRLF and quoted flat metadata", () => {
-    const source = courseSource("build-your-own", { steps: [step] }).replace("id: sample", 'id: "sample"');
+    const source = courseSource("reading", chapters(read("s01"))).replace("id: sample", 'id: "sample"');
     expect(parseCourse("\uFEFF" + source.replace(/\n/g, "\r\n")).course?.id).toBe("sample");
   });
 });
@@ -178,7 +185,7 @@ describe("diff sections", () => {
 });
 
 describe("stored course contract", () => {
-  const raw = { id: "sample", agentId: "owner", title: "Stored", updatedAt: 42, engine: "build-your-own", dataJson: JSON.stringify({ steps: [step] }) };
+  const raw = { id: "sample", agentId: "owner", title: "Stored", updatedAt: 42, engine: "reading", dataJson: JSON.stringify(chapters(read("s01"))) };
   const mock = (course: unknown, progress: unknown) => vi.mocked(invoke).mockImplementation(async (command) => command === "course_get" ? course : progress);
   it("loads scoped camelCase data and progress through the real invoke arguments", async () => {
     mock(raw, [{ itemId: "s01", status: "mastered" }]);

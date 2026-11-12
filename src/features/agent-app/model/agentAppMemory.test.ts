@@ -14,6 +14,7 @@ function fixture(agent = true) {
   source.id = "agent";
   const files = new Map<string, string>([["MEMORY.md", ""]]);
   const courses = new Map<string, ParsedCourse & { agentId: string }>();
+  const lessons = new Map<string, string>();
   const versions = new Map<string, number>();
   const hash = (path: string) => `${path}@${versions.get(path) ?? 0}`;
   const write = vi.fn(
@@ -26,7 +27,7 @@ function fixture(agent = true) {
   );
   const host = {
     agentOf: (id: string) =>
-      agent && id === "agent" ? { id: "agent-1", projects: [] } : undefined,
+      agent && id === "agent" ? { id: "agent-1" } : undefined,
     files: {
     read: async (_agentId: string, path: AgentFilePath) => ({
       text: files.get(path) ?? null,
@@ -61,17 +62,26 @@ function fixture(agent = true) {
       read: async (agentId: string, id: string) => {
         const course = courses.get(id);
         return course && course.agentId === agentId
-          ? { id, agentId, title: course.title, updatedAt: Date.UTC(2026, 9, 11), data: course.data, progress: new Map([["pod", "learning"]]) }
+          ? { id, agentId, title: course.title, updatedAt: Date.UTC(2026, 9, 11), data: course.data, progress: new Map([["pod", "learning"]]),
+            bodies: new Set([...lessons.keys()].filter((key) => key.startsWith(`${id}/`)).map((key) => key.slice(id.length + 1))) }
           : null;
       },
       write: async (agentId: string, course: ParsedCourse) => { courses.set(course.id, { ...course, agentId }); },
       remove: async (_agentId: string, id: string) => { courses.delete(id); },
+      readLesson: async (_agentId: string, courseId: string, lessonId: string) => {
+        const text = lessons.get(`${courseId}/${lessonId}`);
+        return text === undefined ? null : { courseId, lessonId, body: text, path: `/m/courses/${courseId}/${lessonId}.md`, updatedAt: Date.UTC(2026, 9, 11) };
+      },
+      writeLesson: async (_agentId: string, courseId: string, lessonId: string, lesson: { body?: string; path?: string }) => {
+        lessons.set(`${courseId}/${lessonId}`, lesson.body ?? `from ${lesson.path}`);
+        return { courseId, lessonId, body: lesson.body ?? "", path: `/m/courses/${courseId}/${lessonId}.md`, updatedAt: 1 };
+      },
     },
     now: () => new Date(2026, 9, 4, 12),
   } as unknown as AgentAppHost;
   const run = (action: string, input: Record<string, unknown> = {}) =>
     handleAgentApp(source, `req-${Math.random()}`, action, input, host);
-  return { files, write, versions, run, courses };
+  return { files, write, versions, run, courses, lessons };
 }
 
 it("adds, supersedes and removes dated entries in MEMORY.md", async () => {
@@ -190,6 +200,20 @@ it("keeps courses in the agent's own library through courses.*", async () => {
   expect(await run("courses.delete", { id: "k8s" })).toEqual({ id: "k8s", deleted: true });
   await expect(run("courses.read", { id: "k8s" })).rejects.toThrow("No such course");
   await expect(fixture(false).run("courses.list")).rejects.toThrow("Only an agent's own conversation");
+});
+
+it("writes a lesson's text with its course or alone, and says which lessons are planned", async () => {
+  const { run, courses, lessons } = fixture();
+  const course = { id: "virtio", title: "Virtio", chapters: [{ title: "Rings", lessons: [
+    { id: "map", title: "The map", body: "# Map" }, { id: "later", title: "Interrupts" }] }] };
+  expect(await run("courses.write", course)).toMatchObject({ items: 2, texts: 1, saved: true });
+  expect(courses.get("virtio")?.bodies).toEqual({ map: { body: "# Map" } });
+  lessons.set("virtio/map", "# Map");
+  expect(await run("courses.read", { id: "virtio" })).toMatchObject({ chapters: [{ lessons: [{ id: "map", text: true }, { id: "later", planned: true }] }] });
+  expect(await run("lessons.write", { course: "virtio", lesson: "later", body: "# Interrupts" })).toEqual({ course: "virtio", lesson: "later", path: "/m/courses/virtio/later.md", saved: true });
+  expect(await run("lessons.read", { course: "virtio", lesson: "later" })).toMatchObject({ body: "# Interrupts" });
+  await expect(run("lessons.write", { course: "virtio", lesson: "later" })).rejects.toThrow("path");
+  await expect(run("lessons.read", { course: "virtio", lesson: "none" })).rejects.toThrow("no text of its own");
 });
 
 it("saves a comparison lesson whose parts are pasted from code pin", async () => {

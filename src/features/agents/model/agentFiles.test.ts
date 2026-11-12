@@ -114,7 +114,6 @@ it("introduces app tools alongside the user's soul without introducing session d
     avatar: "luna",
     color: "#fff",
     workdir: "/home/me/Loci/navigator",
-    projects: [{ path: "/code/app", name: "app" }],
   };
   const soul = "# Soul\n\nUse Grilling rounds before collecting sources.";
   const current = { ...files(), soul };
@@ -124,7 +123,7 @@ it("introduces app tools alongside the user's soul without introducing session d
   expect(blocks.map((block) => block[0]).join("\n\n")).toBe(prompt);
   expect(JSON.parse(blocks[0][2])).toEqual({
     id: current.id, name: look.name, role: look.role,
-    workdir: "/home/me/Loci/navigator", folders: ["/code/app"],
+    workdir: "/home/me/Loci/navigator",
   });
   expect(blocks[1][2]).toBe(soul);
   expect(blocks[2][2]).toContain("courses.write");
@@ -147,7 +146,7 @@ it("introduces app tools alongside the user's soul without introducing session d
 });
 
 it("says when memory is empty and when lines did not load", () => {
-  const look = { name: "Mentor", projects: [] };
+  const look = { name: "Mentor" };
   const empty = agentContext(look, { ...files(), memory: "" }, { soul: false, memory: true });
   expect(empty).toContain("<memory>\n(Empty. Nothing has been remembered yet.)\n</memory>");
   const long = Array.from({ length: 205 }, (_, i) => `- fact ${i}`).join("\n");
@@ -157,7 +156,7 @@ it("says when memory is empty and when lines did not load", () => {
 });
 
 it("seeds SOUL.md once, over the missing file only", async () => {
-  const { id } = createAgent(["/code/app"]);
+  const { id } = createAgent();
   invoke.mockImplementation(async (command: string) =>
     command === "agent_load" ? { ...files("empty"), soul: null } : "seeded",
   );
@@ -179,14 +178,14 @@ it("seeds SOUL.md once, over the missing file only", async () => {
   });
 });
 
-const OLD_MENTOR_SOUL = "e0575861b4bbd98182a53707d77cae059516a972ec21440f50c54d60aa6b24e1";
-const OLD_LENS_SOUL = "36032ba9729f32fc63add440abb2a82d3615218f05e3c1051e2f5971ae11fa91";
+const OLD_MENTOR_SOUL = "82cc4b4893928045d3affbfade734f6afaa5efa89b686b7e112ec31d43dabf61";
+const OLD_LENS_SOUL = "fac43da16d0dafeccd7f90b7fbb4dd6221ea41cec5dd381e0e32c705233ed5fa";
 
 it.each([
   [OLD_MENTOR_SOUL, "learning-guide"],
   [OLD_LENS_SOUL, "repo-lens"],
 ] as const)("moves an untouched %s template Soul to the current template", async (hash, template) => {
-  const { id } = createAgent([]);
+  const { id } = createAgent();
   invoke.mockImplementation(async (command: string) =>
     command === "agent_load" ? { ...files(hash), soul: "# Soul\n\nthe old template" } : "upgraded",
   );
@@ -199,7 +198,7 @@ it.each([
 });
 
 it("keeps a Soul the user edited, and one edited while the upgrade ran", async () => {
-  const { id } = createAgent([]);
+  const { id } = createAgent();
   invoke.mockImplementation(async (command: string) =>
     command === "agent_load" ? { ...files("edited"), soul: "# Soul\n\nmine" } : "never",
   );
@@ -218,7 +217,7 @@ it("keeps a Soul the user edited, and one edited while the upgrade ran", async (
 
 it("keeps the platform's formats out of the templates and in the tool guide", async () => {
   const { createHash } = await import("node:crypto");
-  const tools = agentContext({ name: "Mentor", projects: [] }, files(), { soul: true, memory: false })
+  const tools = agentContext({ name: "Mentor" }, files(), { soul: true, memory: false })
     .match(/<tools>\n([\s\S]*?)\n<\/tools>/)![1];
   for (const format of ["loci://source/<id>#section=", "code.pin", "compare", "documents.write", "reader.open", "annotations.list", "lab/<topic>/", "no scores, mastery gates or review schedules"])
     expect(tools).toContain(format);
@@ -237,7 +236,7 @@ it.each([
   ["domain guide", "# Soul\n\nGrill the unresolved decisions."],
 ] as const)("adds no initialization or question policies to a %s agent", (role, soul) => {
   const context = agentContext(
-    { name: "小序", role, avatar: "wisp", color: "#fff", projects: [] },
+    { name: "小序", role, avatar: "wisp", color: "#fff" },
     { ...files(), soul },
     { soul: true, memory: false },
   );
@@ -246,12 +245,12 @@ it.each([
   expect(prompt).toBe(`<loci_context>\n${context}\n</loci_context>\n\n${message}`);
   expect(prompt).toContain(soul);
   expect(JSON.parse(context.match(/<agent>\n([\s\S]*?)\n<\/agent>/)![1])).toEqual({
-    id: "agent", name: "小序", role: role ?? null, workdir: null, folders: [],
+    id: "agent", name: "小序", role: role ?? null, workdir: null,
   });
 });
 
 it("loads topic notes into the memory block and resends it when one changes", () => {
-  const look = { name: "Mentor", projects: [] };
+  const look = { name: "Mentor" };
   const withTopic = (hash: string) => ({
     ...files(),
     topicNotes: [{ name: "learning-mission", text: "# learning-mission\n- 2026-10-13 · 使命：K8s", hash }],
@@ -265,7 +264,7 @@ it("loads topic notes into the memory block and resends it when one changes", ()
 });
 
 it("names the mentor's folder and says its files may be edited directly", () => {
-  const look = { name: "Kern", avatar: "luna", color: "#fff", workdir: "/home/me/Loci/kern", folder: "/home/me/Loci/kern", projects: [] };
+  const look = { name: "Kern", avatar: "luna", color: "#fff", workdir: "/home/me/Loci/kern", folder: "/home/me/Loci/kern" };
   const prompt = agentContext(look, files(), { soul: true, memory: true });
   const blocks = Object.fromEntries([...prompt.matchAll(/<([a-z_]+)>\n([\s\S]*?)\n<\/\1>/g)].map((block) => [block[1], block[2]]));
   expect(JSON.parse(blocks.agent).folder).toBe("/home/me/Loci/kern");

@@ -4,7 +4,7 @@ import { canonicalShortcut, shortcutLabel, shortcutFromKeyEvent, shortcutTokens 
 import { readFlag, writeFlag } from "./storageFlags";
 import { hostSettingWritten } from "../../../platform/hostSettings";
 const SECTION_KEY = "loci.settingsSection";
-export type SettingsSectionId = "general" | "appearance" | "remote" | "keybindings" | "chat" | "providers" | "mcp" | "skills";
+export type SettingsSectionId = "general" | "appearance" | "remote" | "keybindings" | "chat" | "providers";
 /** Rail buckets. Sections list in order under their group label. */
 export type SettingsGroupId = "app" | "agents" | "workspace";
 export const SETTINGS_GROUPS: {
@@ -66,20 +66,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
         get description() { return t("Agent CLIs Loci can drive, and the model new sessions start with."); },
         keywords: "model harness claude codex cursor grok opencode pi omp fx hermes antigravity cli default hooks",
     },
-    {
-        id: "mcp",
-        group: "agents",
-        label: "MCP",
-        get description() { return t("Manage your provider MCP connections."); },
-        keywords: "tools servers connections oauth authenticate login claude codex",
-    },
-    {
-        id: "skills",
-        group: "agents",
-        get label() { return t("Skills"); },
-        get description() { return t("Discover and manage the skills in your own folders and your harness folders."); },
-        keywords: "skill instructions prompt skills",
-    },
 ];
 export function settingsSectionsByGroup(): {
     id: SettingsGroupId;
@@ -115,12 +101,6 @@ export const SETTINGS_INDEX: SettingsEntry[] = [
         keywords: "learning language mentor reply course translate chinese english 中文 英文 学习语言 首选语言 翻译",
     },
 { id: "version", section: "general", get label() { return t("Version"); }, keywords: "build about update upgrade release" },
-    {
-        id: "mcp-servers",
-        section: "mcp",
-        get label() { return t("MCP servers"); },
-        keywords: "claude tools connections oauth authenticate login add remove",
-    },
     {
         id: "command-line",
         section: "general",

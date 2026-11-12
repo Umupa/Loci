@@ -1,4 +1,3 @@
-import { projectKey, projectName } from "../../../shared/lib/paths";
 import { isLearningLanguage, type LearningLanguage } from "./learningLanguage";
 import {
   HARNESSES,
@@ -59,11 +58,6 @@ export type Agent = {
    * Absent until first use; it keeps its path when the agent is renamed.
    */
   workdir?: string;
-  /**
-   * Other folders it may use, in the order they were added. Older agents
-   * were given these as "projects"; the key keeps that name for their data.
-   */
-  projects: string[];
   /**
    * What it writes in, when it differs from Settings > Learning language;
    * "auto" follows the learner's messages. Absent: the setting's choice.
@@ -153,11 +147,6 @@ function parseAgent(value: unknown): Agent | undefined {
     color: text("color") ?? AGENT_COLORS[0],
     ...(isLearningLanguage(entry.language) ? { language: entry.language } : {}),
     ...(workdir ? { workdir } : {}),
-    projects: Array.isArray(entry.projects)
-      ? entry.projects.filter(
-          (path): path is string => typeof path === "string" && !!path,
-        )
-      : [],
     ...(typeof entry.showStartedSessionsInSidebar === "boolean"
       ? { showStartedSessionsInSidebar: entry.showStartedSessionsInSidebar }
       : {}),
@@ -240,11 +229,10 @@ export function nextAgentLook(
 }
 
 /**
- * A new agent starting with the projects given, if any. It takes the look
- * and name chosen for it, or the next look the others are not using.
+ * A new agent with the look and name chosen for it, or the next look the
+ * others are not using.
  */
 export function createAgent(
-  projects: readonly string[] = [],
   chosen: Partial<Pick<Agent, "name" | "role" | "avatar" | "color">> = {},
 ): Agent {
   if (rosterHost) throw hostOnly("Add a mentor");
@@ -257,20 +245,9 @@ export function createAgent(
     ...(chosen.color ? { color: chosen.color } : {}),
     ...(name ? { name } : {}),
     ...(chosen.role?.trim() ? { role: chosen.role.trim() } : {}),
-    projects: uniqueProjects(projects),
   };
   saveRoster([...roster, agent]);
   return agent;
-}
-
-function uniqueProjects(paths: readonly string[]): string[] {
-  const seen = new Set<string>();
-  return paths.filter((path) => {
-    const key = projectKey(path);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 function sameSettings(left: Record<string, string> | undefined, right: Record<string, string> | undefined): boolean {
@@ -309,7 +286,6 @@ export function updateAgent(
   if (!next.name?.trim()) delete next.name;
   if (!next.role?.trim()) delete next.role;
   if (!next.workdir?.trim()) delete next.workdir;
-  next.projects = uniqueProjects(next.projects);
   if (rosterHost) {
     const { changed, removed } = agentChanges(roster[index], next);
     if (Object.keys(changed).length || removed.length) rosterHost.update(id, changed, removed);
@@ -373,33 +349,9 @@ export function saveAgentSessionId(agentId: string, sessionId: string): void {
   updateAgent(agentId, (agent) => ({ ...agent, sessionId }));
 }
 
-export function addAgentProject(agentId: string, path: string): void {
-  updateAgent(agentId, (agent) => ({
-    ...agent,
-    projects: [...agent.projects, path],
-  }));
-}
-
-export function removeAgentProject(agentId: string, path: string): void {
-  const key = projectKey(path);
-  updateAgent(agentId, (agent) => ({
-    ...agent,
-    projects: agent.projects.filter((project) => projectKey(project) !== key),
-  }));
-}
-
-/**
- * Every folder the agent works in: its own workdir first, then the other
- * folders it was given. Its reach through the app CLI follows this list.
- */
-export function agentFolders(agent: Pick<Agent, "workdir" | "projects">): string[] {
-  return uniqueProjects(agent.workdir ? [agent.workdir, ...agent.projects] : agent.projects);
-}
-
-/** Whether the agent has been given this project. */
-export function agentWorksOn(agent: Pick<Agent, "projects">, path: string) {
-  const key = projectKey(path);
-  return agent.projects.some((project) => projectKey(project) === key);
+/** The folders the agent works in: its own workdir. Its reach through the app CLI follows this list. */
+export function agentFolders(agent: Pick<Agent, "workdir">): string[] {
+  return agent.workdir ? [agent.workdir] : [];
 }
 
 /**
@@ -425,9 +377,6 @@ export function agentsSnapshot(): string {
   }
 }
 
-/** One other folder an agent was given, as the rail labels it. */
-export type AgentProject = { path: string; name: string };
-
 export type AgentLook = {
   /** The user's name for it, or its avatar's: "Ember", "Wisp". */
   name: string;
@@ -439,8 +388,6 @@ export type AgentLook = {
   workdir?: string;
   /** Its folder of files (library, courses, notes, Soul, memory), once it has one. */
   folder?: string;
-  /** Other folders it was given, by their rail labels. */
-  projects: AgentProject[];
 };
 
 /** How an agent looks, its workdir, and the other folders it was given. */
@@ -452,18 +399,7 @@ export function agentLook(agent: Agent): AgentLook {
     color: agent.color,
     ...(agent.workdir ? { workdir: agent.workdir } : {}),
     ...(agent.folder ? { folder: agent.folder } : {}),
-    projects: agent.projects.map((path) => ({
-      path,
-      name: projectName(path),
-    })),
   };
-}
-
-/** Its projects as a phrase: "app", "app and site", "app, site and api". */
-export function agentProjectsPhrase(projects: readonly AgentProject[]): string {
-  const names = projects.map((project) => project.name);
-  if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /** Plain one-line take on a step's title, for the agent's status. */

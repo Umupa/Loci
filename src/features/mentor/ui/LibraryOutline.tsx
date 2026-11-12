@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Check, ChevronDown, File, FileScript, Ungroup, type IconComponent } from "../../../shared/ui/icons";
-import type { CourseLesson, CourseWithProgress, LearningStatus } from "../../learning/model/course";
+import { lessonPlanned, type CourseLesson, type CourseWithProgress, type LearningStatus } from "../../learning/model/course";
+import { requestChapter } from "../../learning/model/chapterRequest";
 import { statusLabel } from "../../learning/ui/CourseOutline";
 import { lessonKind, type LessonKind } from "../model/libraryCourse";
 
@@ -30,10 +31,7 @@ const KINDS: Record<LessonKind, { label: string; Icon: IconComponent }> = {
  */
 export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
   const marksId = useId();
-  const reading = course.data.engine === "reading";
-  const chapters: Chapter[] = course.data.engine === "reading"
-    ? course.data.chapters.map((chapter, at) => ({ key: String(at), title: chapter.title, lessons: chapter.lessons }))
-    : [{ key: "steps", title: null, lessons: course.data.steps }];
+  const chapters: Chapter[] = course.data.chapters.map((chapter, at) => ({ key: String(at), title: chapter.title, lessons: chapter.lessons }));
   const status = (id: string): LearningStatus => course.progress.get(id) ?? "untouched";
   const [folds, setFolds] = useState<{ course: string; open: Record<string, boolean> }>({ course: course.id, open: {} });
   const overrides = folds.course === course.id ? folds.open : {};
@@ -65,15 +63,16 @@ export function LibraryOutline({ course, activeId, onSelect, badge }: Props) {
         const state = status(lesson.id);
         const current = lesson.id === activeId;
         const marks = badge?.(lesson.id);
-        // Build-your-own steps are all code; only a reading course's lessons say what they read.
-        const kind = reading ? KINDS[lessonKind(lesson)] : undefined;
+        const planned = !!course.bodies && lessonPlanned(course, lesson as CourseLesson);
+        // A lesson the mentor wrote needs no kind: it is the lesson itself.
+        const kind = planned || course.bodies?.has(lesson.id) ? undefined : KINDS[lessonKind(lesson)];
         return <li key={lesson.id}>
-          <button ref={current ? active : undefined} type="button" data-library-item data-library-lesson={lesson.id}
-            className={`library-lesson library-lesson--${state}${current ? " library-lesson--current" : ""}`}
-            aria-current={current ? "step" : undefined} aria-label={`${lesson.title}, ${statusLabel(state, reading)}`}
+          <button ref={current ? active : undefined} type="button" data-library-item data-library-lesson={lesson.id} data-planned={planned ? "" : undefined}
+            className={`library-lesson library-lesson--${planned ? "planned" : state}${current ? " library-lesson--current" : ""}`}
+            aria-current={current ? "step" : undefined} aria-label={`${lesson.title}, ${planned ? "Planned" : statusLabel(state)}`}
             aria-describedby={marks ? `${marksId}-${lesson.id}` : undefined}
-            title={lesson.title} onClick={() => onSelect(lesson.id)}>
-            <span aria-hidden className={`library-mark library-mark--${state}`}>{state === "mastered" ? <Check className="size-2" strokeWidth={3.5} /> : null}</span>
+            title={lesson.title} onClick={() => { if (!planned || !requestChapter(course.agentId, course, lesson.id)) onSelect(lesson.id); }}>
+            <span aria-hidden className={`library-mark library-mark--${planned ? "planned" : state}`}>{state === "mastered" ? <Check className="size-2" strokeWidth={3.5} /> : null}</span>
             <span className="library-lesson-title"><span>{lesson.title}</span></span>
             {kind ? <span className="library-lesson-kind" title={kind.label} data-lesson-kind={lessonKind(lesson)}><kind.Icon aria-hidden className="size-3.5" /></span> : null}
             {marks ? <span id={`${marksId}-${lesson.id}`} className="library-lesson-marks">{marks}</span> : null}

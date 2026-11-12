@@ -84,12 +84,25 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
 
   forMentor("courses.list", "courses.list", "The mentor's courses, with how many lessons have been read.", []),
   forMentor("courses.read", "courses.read", "One course in full, with progress per lesson.", [id()]),
-  forMentor("courses.write", "courses.write", "Save a course (a loci-course block's fields; --input course.json works well). The same id replaces it and keeps progress.", [
+  forMentor("courses.write", "courses.write", "Save a course (a loci-course block's fields; --input course.json works well). The same id replaces it and keeps progress. A lesson's text goes in the lesson as body (Markdown) or bodyPath (an absolute .md file); a lesson with only id and title is planned.", [
     field("id", "string", "A stable course id", { required: true, max: 80 }),
     field("title", "string", "Its title", { required: true, max: 200 }),
-    field("engine", "string", "reading (default) or another course engine"),
+    field("engine", "string", "reading, the default and only engine"),
     field("chapters", "json", "Chapters of lessons, as JSON"),
-    field("steps", "json", "Steps of a build-your-own course, as JSON"),
+  ]),
+  forMentor("lessons.read", "lessons.read", "One lesson's own text, and the file it is kept in.", [
+    field("course", "string", "The course id", { required: true, max: 80 }),
+    field("lesson", "string", "The lesson id", { required: true, max: 80 }),
+  ]),
+  forMentor("lessons.questions", "lessons.questions", "What the learner asked while a lesson was open, oldest first: one lesson's, one course's, or all.", [
+    field("course", "string", "A course id", { max: 80 }),
+    field("lesson", "string", "A lesson id, with its course", { max: 80 }),
+  ]),
+  forMentor("lessons.write", "lessons.write", "Write or revise one lesson's text without rewriting its course. The lesson must be in the course.", [
+    field("course", "string", "The course id", { required: true, max: 80 }),
+    field("lesson", "string", "The lesson id", { required: true, max: 80 }),
+    field("path", "string", "Absolute path of the Markdown file; or give --body", { max: 4096 }),
+    field("body", "string", "The lesson's Markdown, instead of --path", { max: 512 * 1024 }),
   ]),
   forMentor("courses.delete", "courses.delete", "Remove a course and its progress.", [id()]),
   {
@@ -164,19 +177,6 @@ export const libraryCommands: CommandDefinition<CommandContext>[] = [
   forMentor("memory.remove", "memory.remove", "Drop an entry that was wrong.", [
     field("find", "string", "Text of the entry", { required: true }), field("topic", "string", "A topic name"),
   ]),
-
-  forMentor("habits.list", "habits.list", "What the mentor does on its own, with schedules.", []),
-  forMentor("habits.add", "habits.add", "Add a habit.", [
-    field("name", "string", "Its name", { required: true }), field("instructions", "string", "What to do", { required: true }),
-    field("schedule", "json", "{\"kind\":\"daily\",\"time\":\"09:00\"} and the like", { required: true }),
-    field("access", "string", "full (default) or auto"),
-  ]),
-  forMentor("habits.update", "habits.update", "Change a habit.", [
-    id(), field("name", "string", "Its name"), field("instructions", "string", "What to do"),
-    field("schedule", "json", "Its schedule"), field("enabled", "boolean", "On or off"), field("access", "string", "full or auto"),
-  ]),
-  forMentor("habits.run", "habits.run", "Run a habit now.", [id()]),
-  forMentor("habits.remove", "habits.remove", "Remove a habit.", [id()]),
 
   forMentor("sessions.list", "sessions.list", "Sessions in one of the mentor's folders.", [project]),
   forMentor("sessions.read", "sessions.read", "Recent exchanges of a session (the mentor's own conversation too).", [

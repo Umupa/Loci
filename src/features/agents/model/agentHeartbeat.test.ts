@@ -13,7 +13,7 @@ import {
   serializeHeartbeat,
   type HeartbeatState,
 } from "./agentHeartbeat";
-import { QUIET_MARKER } from "./agentHabits";
+import { QUIET_MARKER } from "./agentWake";
 import type { AgentFiles } from "./agentFiles";
 
 const MIN = 60_000;
@@ -107,7 +107,7 @@ it("brings the last two exchanges, leaving out hidden prompts and posts", () => 
 
 it("asks for at most two proposals, never quizzes, and lists what it raised", () => {
   const files = { id: "a", dir: "/a", soul: "Teach Rust.", soulHash: "s", memory: "- promised: find the Pin RFC", memoryHash: "m", memoryPath: "/a/MEMORY.md", topics: [] } as unknown as AgentFiles;
-  const look = { name: "Kern", avatar: "nova", color: "red", projects: [] };
+  const look = { name: "Kern", avatar: "nova", color: "red" };
   const prompt = heartbeatPrompt(look, files, state({ recent: ["Offered the async book"] }), "User: hi", NOW);
   expect(prompt).toContain("Teach Rust.");
   expect(prompt).toContain("find the Pin RFC");
@@ -123,4 +123,15 @@ it("asks for at most two proposals, never quizzes, and lists what it raised", ()
 it("runs on a smaller model of the same provider, or the chat's own when there is none", () => {
   expect(heartbeatModel("claude", "claude:opus-5-5", {}).model).toBe("claude:haiku-4.5");
   expect(heartbeatModel("grok", "grok:grok-4.6", { effort: "high" })).toEqual({ model: "grok:grok-4.6", modelSettings: { effort: "high" } });
+});
+
+it("runs once after the app starts when it missed runs while closed, and otherwise only when something moved", async () => {
+  const { planHeartbeat } = await import("./agentHeartbeat");
+  const now = 10 * 60 * 60_000;
+  const state = { lastRunAt: now - 3 * 60 * 60_000, quietStreak: 0, recent: [], memoryHash: "m" };
+  const chat = { blocks: [{ id: "u", role: "user", text: "hi", startedAt: now - 5 * 60 * 60_000 }] as never[] };
+  expect(planHeartbeat(state, chat, "m", now).kind).toBe("skip");
+  expect(planHeartbeat(state, chat, "m", now, true).kind).toBe("run");
+  // Not missed: the last run is within the interval.
+  expect(planHeartbeat({ ...state, lastRunAt: now - 10 * 60_000 }, chat, "m", now, true).kind).toBe("wait");
 });

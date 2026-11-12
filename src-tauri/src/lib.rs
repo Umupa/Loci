@@ -19,7 +19,6 @@ mod learning;
 mod link_preview;
 #[cfg(target_os = "macos")]
 mod macos;
-mod mcp;
 mod mentor_store;
 mod menu;
 mod notes;
@@ -358,18 +357,12 @@ pub fn run() {
             harness::harness_resolve_configured,
             harness::harness_runtime_binary_paths,
             harness::harness_resolve_claude,
-            harness::claude_mcp_list,
-            harness::claude_mcp_add,
-            harness::claude_mcp_remove,
-            harness::mcp_provider_login,
             harness::harness_spawn,
             harness::harness_write,
             harness::harness_kill,
             harness::harness_kill_all,
             harness::harness_exec,
             link_preview::fetch_link_preview,
-            mcp::mcp_add,
-            mcp::mcp_discover,
             #[cfg(target_os = "macos")]
             menu::keybindings_set_overrides,
             course::course_list,
@@ -377,6 +370,10 @@ pub fn run() {
             course::course_delete,
             course::course_get,
             course::course_upsert,
+            course::course_lesson_get,
+            course::course_lesson_set,
+            course::lesson_question_add,
+            course::lesson_questions_list,
             course::course_progress_get,
             course::course_progress_set,
             agent::agent_load,
@@ -441,8 +438,6 @@ pub fn run() {
             session_store::session_set_in_flight,
             session_store::session_list_in_flight,
             session_store::session_take_in_flight,
-            session_store::workspace_set_snapshot,
-            session_store::workspace_get_snapshot,
             skills::list_skills,
             window::set_window_glass_enabled,
             window::hide_window,

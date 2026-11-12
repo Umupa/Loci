@@ -1,8 +1,4 @@
 import { play, setEnabled, setVolume, type SoundName } from "cuelume";
-import {
-  allowsProjectNotification,
-  type NotificationSubject,
-} from "../../notifications/model/notificationPreferences";
 
 const KEY = "loci.sounds";
 const ENABLED_AT_KEY = "loci.soundsEnabledAt";
@@ -62,15 +58,14 @@ export function initSounds() {
 
 type ProjectSoundCue = "turnFinished";
 
-/** Project cues require their subject so new sources cannot bypass project policy. */
+/** When an event happened, so a cue for something from before sounds were turned on stays quiet. */
+export type CueMoment = { occurredAt?: number };
+
+/** A turn's cue says when the turn ended. */
 export function playCue(cue: Exclude<SoundCue, ProjectSoundCue>): boolean;
-export function playCue(
-  cue: ProjectSoundCue,
-  subject: NotificationSubject,
-): boolean;
-export function playCue(cue: SoundCue, subject?: NotificationSubject): boolean {
+export function playCue(cue: ProjectSoundCue, subject: CueMoment): boolean;
+export function playCue(cue: SoundCue, subject?: CueMoment): boolean {
   if (!loadSoundsEnabled()) return false;
-  if (subject && !allowsProjectNotification(subject)) return false;
   if (subject?.occurredAt !== undefined) {
     try {
       if (subject.occurredAt < Number(localStorage.getItem(ENABLED_AT_KEY)))

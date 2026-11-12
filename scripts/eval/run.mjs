@@ -302,6 +302,16 @@ async function collect(mentor, workdir, roots, dir) {
   for (const entry of courseList) {
     const course = await loci.call("courses", "read", entry.id, "--mentor", mentor).catch(() => null);
     if (!course) continue;
+    // The text of each lesson the mentor wrote, which is what the learner reads.
+    for (const chapter of course.chapters ?? []) {
+      for (const lesson of chapter.lessons ?? []) {
+        if (!lesson.text) continue;
+        const read = await loci.call("lessons", "read", "--course", entry.id, "--lesson", lesson.id, "--mentor", mentor).catch(() => null);
+        if (typeof read?.body !== "string") continue;
+        lesson.body = read.body;
+        write(`courses/${entry.id}/${lesson.id}.md`, read.body);
+      }
+    }
     courses.push(course);
     write(`courses/${entry.id}.json`, course);
   }

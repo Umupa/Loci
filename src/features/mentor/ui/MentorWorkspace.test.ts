@@ -52,7 +52,7 @@ function TestChat({ id }: { id: string }) {
   return createElement("div", { "data-test-chat": id }, useContext(AgentHeaderExtra));
 }
 
-const agent: Agent = { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#123456", projects: [] };
+const agent: Agent = { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#123456" };
 const other: Agent = { ...agent, id: "agent-b", sessionId: "chat-b", name: "Bea" };
 const courseData = JSON.stringify({ engine: "reading", chapters: [{ title: "Workloads", lessons: [{ id: "pod", title: "Pod", document: "doc" }, { id: "service", title: "Service", document: "doc" }] }] });
 

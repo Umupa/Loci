@@ -539,7 +539,7 @@
     },
     {
       "name": "courses.write",
-      "summary": "Save a course (a loci-course block's fields; --input course.json works well). The same id replaces it and keeps progress.",
+      "summary": "Save a course (a loci-course block's fields; --input course.json works well). The same id replaces it and keeps progress. A lesson's text goes in the lesson as body (Markdown) or bodyPath (an absolute .md file); a lesson with only id and title is planned.",
       "callers": [
         "external"
       ],
@@ -569,7 +569,7 @@
         {
           "name": "engine",
           "type": "string",
-          "help": "reading (default) or another course engine",
+          "help": "reading, the default and only engine",
           "required": false,
           "positional": false
         },
@@ -577,13 +577,6 @@
           "name": "chapters",
           "type": "json",
           "help": "Chapters of lessons, as JSON",
-          "required": false,
-          "positional": false
-        },
-        {
-          "name": "steps",
-          "type": "json",
-          "help": "Steps of a build-your-own course, as JSON",
           "required": false,
           "positional": false
         }
@@ -721,8 +714,8 @@
       ]
     },
     {
-      "name": "habits.add",
-      "summary": "Add a habit.",
+      "name": "lessons.questions",
+      "summary": "What the learner asked while a lesson was open, oldest first: one lesson's, one course's, or all.",
       "callers": [
         "external"
       ],
@@ -736,38 +729,24 @@
           "positional": false
         },
         {
-          "name": "name",
+          "name": "course",
           "type": "string",
-          "help": "Its name",
-          "required": true,
+          "help": "A course id",
+          "required": false,
           "positional": false
         },
         {
-          "name": "instructions",
+          "name": "lesson",
           "type": "string",
-          "help": "What to do",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "schedule",
-          "type": "json",
-          "help": "{\"kind\":\"daily\",\"time\":\"09:00\"} and the like",
-          "required": true,
-          "positional": false
-        },
-        {
-          "name": "access",
-          "type": "string",
-          "help": "full (default) or auto",
+          "help": "A lesson id, with its course",
           "required": false,
           "positional": false
         }
       ]
     },
     {
-      "name": "habits.list",
-      "summary": "What the mentor does on its own, with schedules.",
+      "name": "lessons.read",
+      "summary": "One lesson's own text, and the file it is kept in.",
       "callers": [
         "external"
       ],
@@ -777,14 +756,28 @@
           "name": "mentor",
           "type": "string",
           "help": "The mentor, by id or name",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "course",
+          "type": "string",
+          "help": "The course id",
+          "required": true,
+          "positional": false
+        },
+        {
+          "name": "lesson",
+          "type": "string",
+          "help": "The lesson id",
           "required": true,
           "positional": false
         }
       ]
     },
     {
-      "name": "habits.remove",
-      "summary": "Remove a habit.",
+      "name": "lessons.write",
+      "summary": "Write or revise one lesson's text without rewriting its course. The lesson must be in the course.",
       "callers": [
         "external"
       ],
@@ -798,92 +791,30 @@
           "positional": false
         },
         {
-          "name": "id",
+          "name": "course",
           "type": "string",
-          "help": "Its id",
-          "required": true,
-          "positional": true
-        }
-      ]
-    },
-    {
-      "name": "habits.run",
-      "summary": "Run a habit now.",
-      "callers": [
-        "external"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
+          "help": "The course id",
           "required": true,
           "positional": false
         },
         {
-          "name": "id",
+          "name": "lesson",
           "type": "string",
-          "help": "Its id",
-          "required": true,
-          "positional": true
-        }
-      ]
-    },
-    {
-      "name": "habits.update",
-      "summary": "Change a habit.",
-      "callers": [
-        "external"
-      ],
-      "destructive": false,
-      "fields": [
-        {
-          "name": "mentor",
-          "type": "string",
-          "help": "The mentor, by id or name",
+          "help": "The lesson id",
           "required": true,
           "positional": false
         },
         {
-          "name": "id",
+          "name": "path",
           "type": "string",
-          "help": "Its id",
-          "required": true,
-          "positional": true
-        },
-        {
-          "name": "name",
-          "type": "string",
-          "help": "Its name",
+          "help": "Absolute path of the Markdown file; or give --body",
           "required": false,
           "positional": false
         },
         {
-          "name": "instructions",
+          "name": "body",
           "type": "string",
-          "help": "What to do",
-          "required": false,
-          "positional": false
-        },
-        {
-          "name": "schedule",
-          "type": "json",
-          "help": "Its schedule",
-          "required": false,
-          "positional": false
-        },
-        {
-          "name": "enabled",
-          "type": "boolean",
-          "help": "On or off",
-          "required": false,
-          "positional": false
-        },
-        {
-          "name": "access",
-          "type": "string",
-          "help": "full or auto",
+          "help": "The lesson's Markdown, instead of --path",
           "required": false,
           "positional": false
         }
@@ -955,7 +886,7 @@
     },
     {
       "name": "library.search",
-      "summary": "Full-text search of the mentor's sources, guides and notes (titles of courses and drawings too). Any language; three or more characters search the text.",
+      "summary": "Full-text search of the mentor's sources, guides, lessons and notes (course titles too). Any language; three or more characters search the text.",
       "callers": [
         "external",
         "agent"
@@ -1268,7 +1199,7 @@
     },
     {
       "name": "mentors.delete",
-      "summary": "Delete a mentor: its folder (sources, courses, notes, repos, memory) moves to the Trash; its conversation, highlights and progress are deleted. Folders it was given stay.",
+      "summary": "Delete a mentor: its folder (sources, courses, notes, repos, memory) moves to the Trash; its conversation, highlights and progress are deleted.",
       "callers": [
         "external"
       ],
@@ -1292,7 +1223,7 @@
     },
     {
       "name": "mentors.export",
-      "summary": "Zip a mentor's folder (library, courses, notes, drawings, Soul, memory, progress and highlights) to a file another Loci can import. repos/ and lab/ stay out unless --with-repos.",
+      "summary": "Zip a mentor's folder (library, courses and their lessons, notes, Soul, memory, progress and highlights) to a file another Loci can import. repos/ and lab/ stay out unless --with-repos.",
       "callers": [
         "external"
       ],

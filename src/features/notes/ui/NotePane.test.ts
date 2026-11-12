@@ -76,7 +76,7 @@ it("keeps the editor and draft visible when saving fails before Back", async () 
 });
 
 it("names the mentor beside the reader on the note's chat action", async () => {
-  localStorage.setItem("loci:agent-roster", JSON.stringify([{ id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#000", projects: [] }]));
+  localStorage.setItem("loci:agent-roster", JSON.stringify([{ id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#000" }]));
   await mount();
   const add = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.trim() === "Add to Ada")!;
   expect(add).toBeDefined();

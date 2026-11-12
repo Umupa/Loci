@@ -38,14 +38,14 @@ vi.mock("../../platform/tauri/code", () => ({
 }));
 
 const external = { requestId: "r1", caller: "external" as const };
-const kern = { ...agent("a1", "Kern"), folder: "/home/me/Loci/kern", workdir: "/home/me/Loci/kern", projects: ["/code/repo"] };
+const kern = { ...agent("a1", "Kern"), folder: "/home/me/Loci/kern", workdir: "/home/me/Loci/kern" };
 beforeEach(() => vi.clearAllMocks());
 
 describe("code commands", () => {
   it("name files in the mentor's folders, pinned or not, and nothing outside", async () => {
     expect(await codeFile(kern, "repos/e2b@abcdef0:envd/main.go#L3-4"))
       .toEqual({ file: "/home/me/Loci/kern/repos/e2b/envd/main.go", commit: "abcdef0", lines: [3, 4] });
-    expect(await codeFile(kern, "/code/repo/a.rs")).toEqual({ file: "/code/repo/a.rs" });
+    await expect(codeFile(kern, "/code/repo/a.rs")).rejects.toMatchObject({ code: "usage" });
     await expect(codeFile(kern, "/etc/passwd")).rejects.toMatchObject({ code: "usage" });
     await expect(codeFile(kern, "repos/../../../etc/passwd")).rejects.toMatchObject({ code: "usage" });
   });

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { ChevronDown, ChevronRight } from "../../../shared/ui/icons";
 import { prettyCwd, projectName } from "../../../shared/lib/paths";
 import { FileTree, type OpenFileFn } from "../../files/ui/FileTree";
 import { agentLook, agentsSnapshot, findAgent, subscribeAgents } from "../model/agent";
@@ -56,30 +55,6 @@ export function AgentFilesSection({ agentId, onOpenFile, onFileMoved, onFileDele
       ) : (
         <p className="px-3 py-2 text-[12px] text-content/40">Opening the working folder…</p>
       )}
-      {agent.projects.length ? (
-        <div className="mt-2 flex flex-col">
-          <p className="px-3 pb-1 text-[11px] font-medium text-content/45">Other folders</p>
-          {agent.projects.map((path) => (
-            <OtherFolder key={path} path={path} filter={filter} empty={empty} onOpenFile={onOpenFile}
-              onFileMoved={onFileMoved} onFileDeleted={onFileDeleted} onClearQuery={onClearQuery} />
-          ))}
-        </div>
-      ) : null}
     </section>
-  );
-}
-
-function OtherFolder({ path, filter, empty, ...tree }: { path: string; empty: string } & Omit<Props, "agentId">) {
-  const [open, setOpen] = useState(false);
-  const Chevron = open ? ChevronDown : ChevronRight;
-  return (
-    <div className="flex min-w-0 flex-col">
-      <button type="button" aria-expanded={open} title={path} onClick={() => setOpen(!open)}
-        className="flex min-w-0 items-center gap-1 px-3 py-1 text-left text-[12px] text-content/70 hover:text-content">
-        <Chevron className="size-3 shrink-0" />
-        <span className="truncate">{projectName(path)}</span>
-      </button>
-      {open ? <FileTree cwd={path} rootLabel={projectName(path)} query={filter} paneActions={false} empty={empty} {...tree} /> : null}
-    </div>
   );
 }

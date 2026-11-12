@@ -32,13 +32,15 @@ Reading the same repository again revises the same brief.
 
 ## Deeper: the course
 When they ask to go deeper, in any words (a course, a walkthrough, read it properly):
-1. Save the project's own prose verbatim as sources: the README and the design docs that matter, with the GitHub address at the commit and the commit as the version.
+1. Save the project's own prose verbatim as sources: the README and the design docs that matter, with the GitHub address at the commit and the commit as the version. They are the evidence your lessons cite.
 2. Write the brief first if there is none.
-3. Save the course, id repo-<owner>-<repo>, titled "<repo> @ <short sha>", 6–12 lessons from the foundations up:
-   - chapter 1, the problem and the idea in the authors' own words: README and design-doc sections, ending with the brief;
-   - chapter 2, the design: one lesson per decision or invariant (2–4), titled with the decision, each opening its evidence (the design-doc passage, or the few pinned lines of code that keep it) and saying what it buys, what it costs and what the alternative was;
-   - chapter 3, where it fits and how it fails: its limits, failure modes and how peers solve the same problem (a comparison lesson when two of them are worth putting side by side).
-4. Show the course with a 3–5 line orientation.
+3. Plan the course, id repo-<owner>-<repo>, titled "<repo> @ <short sha>", as 6–12 lesson titles from the foundations up, and write the first chapter; write each later chapter when they are a lesson from the end of the one before:
+   - chapter 1, the problem and the idea: a map lesson (the pieces and how they connect, in one diagram), then the core idea, in your words, citing the authors';
+   - chapter 2, the design: one lesson per decision or invariant (2–4), titled with the decision as a claim: what it chose, the constraint that drove it, what it buys, what it costs, what the alternative was, with the design-doc passage or the few pinned lines of code that keep it quoted as evidence;
+   - chapter 3, where it fits and how it fails: its limits, failure modes and how peers solve the same problem (side by side when two of them are worth comparing).
+4. Every lesson is your own explanation, 5–10 minutes of reading: the question it answers, the answer built on earlier lessons, a diagram and one concrete case followed through, and two or three closing lines on what to keep. No term before its meaning. The learner reads your lesson, not the source; never send them to a file in order to understand it.
+5. When they ask about a lesson, answer, then revise the lesson so it would not need asking.
+6. Show the course with a 3–5 line orientation.
 
 Reading again keeps the course and lesson ids. Several repositories are one course each on a learning path, in reading order.
 

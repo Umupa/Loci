@@ -30,8 +30,8 @@ vi.mock("../../agents/ui/DocumentBody", () => ({
   DocumentBody: ({ document, section }: { document: { body: string; sourceUrl?: string }; section?: string }) => createElement("div", { "data-reading": section ?? "", "data-source": document.sourceUrl ?? "" }, document.body),
 }));
 
-const makeStep = (id: string) => ({ id, title: `Step ${id}`, summary: `Build ${id}`, file: "main.py", before: "", after: "run()\n\n", explanation: `Explanation ${id}`, runCommand: "python main.py" });
-const build: ParsedCourse = { id: "build", title: "Build an Agent", engine: "build-your-own", data: { engine: "build-your-own", steps: [makeStep("s01"), makeStep("s02"), makeStep("s03")] } };
+const makeStep = (id: string) => ({ id, title: `Step ${id}`, document: `doc-${id}` });
+const build: ParsedCourse = { id: "build", title: "Build an Agent", engine: "reading", data: { engine: "reading", chapters: [{ title: "Steps", lessons: [makeStep("s01"), makeStep("s02"), makeStep("s03")] }] } };
 const domain: ParsedCourse = { id: "domain", title: "Kubernetes", engine: "reading", data: { engine: "reading", chapters: [
   { title: "Workloads", lessons: [{ id: "container", title: "Container", document: "doc-container" }, { id: "pod", title: "Pod", document: "doc-pod", section: "Pod phase" }] },
   { title: "Papers", lessons: [{ id: "borg", title: "Borg", file: "/books/borg.pdf", pages: [3, 9] }] },
@@ -103,12 +103,12 @@ it("previews a course in an ordinary conversation without saving it", async () =
 });
 
 it("opens a course the agent saved from a fence without a body", async () => {
-  courses.set(key("owner", "build"), { id: "build", agentId: "owner", engine: "build-your-own", title: build.title, dataJson: JSON.stringify(build.data), createdAt: 1, updatedAt: 1 });
+  courses.set(key("owner", "build"), { id: "build", agentId: "owner", engine: "reading", title: build.title, dataJson: JSON.stringify(build.data), createdAt: 1, updatedAt: 1 });
   const opened = vi.fn(); window.addEventListener(OPEN_COURSE_EVENT, opened);
   try {
     await act(async () => root.render(createElement(CourseHostContext.Provider, { value: { agentId: "owner", sourceSessionId: "agent-chat" } }, createElement(CourseCard, { source: "---\nid: build\ntitle: Linked\n---\n", incomplete: false }))));
     expect(container.textContent).toContain(`${build.title}`);
-    expect(button("Open Course").title).toBe("3 steps");
+    expect(button("Open Course").title).toBe("1 chapter · 3 lessons");
     await act(async () => button("Open Course").click());
     expect(invoke).not.toHaveBeenCalledWith("course_upsert", expect.anything());
     expect(opened.mock.calls[0][0].detail).toMatchObject({ courseId: "build", agentId: "owner", sourceSessionId: "agent-chat" });
@@ -140,12 +140,12 @@ it("opens a document kept as a PDF in the PDF reader at the lesson's first page"
   expect(requestOpenFile).toHaveBeenCalledWith("/papers/firecracker.pdf", { page: 7 });
 });
 
-it("opens the first unmastered step, saves progress, and recovers it after remounting", async () => {
+it("opens the first unread lesson, saves progress, and recovers it after remounting", async () => {
   progress.set(key("owner", "build"), new Map([["s01", "mastered"]]));
-  await act(async () => root.render(pane())); expect(nav("Step s02").getAttribute("aria-current")).toBe("step"); expect(container.textContent).toContain("Explanation s02");
-  await act(async () => button("Mark as mastered").click());
+  await act(async () => root.render(pane())); expect(nav("Step s02").getAttribute("aria-current")).toBe("step"); expect(container.textContent).toContain("doc-s02 text");
+  await act(async () => button("Mark as read").click());
   expect(invoke).toHaveBeenCalledWith("course_progress_set", { courseId: "build", agentId: "owner", itemId: "s02", status: "mastered" });
-  expect(nav("Step s02").getAttribute("aria-label")).toBe("Step s02, Done");
+  expect(nav("Step s02").getAttribute("aria-label")).toBe("Step s02, Read");
   act(() => root.unmount()); root = createRoot(container); await act(async () => root.render(pane())); expect(nav("Step s03").getAttribute("aria-current")).toBe("step");
 });
 
@@ -207,16 +207,16 @@ it("drops a late course load after the owner and course switch", async () => {
 
 it("does not attach a late save error to another course or a reloaded generation", async () => {
   const write = deferred<unknown>(); vi.mocked(invoke).mockImplementation(async (name, args) => name === "course_progress_set" ? write.promise : command(name, args));
-  await act(async () => root.render(pane())); act(() => button("Mark as mastered").click());
+  await act(async () => root.render(pane())); act(() => button("Mark as read").click());
   await act(async () => openCourse({ courseId: "build", agentId: "owner", title: build.title }));
-  await act(async () => write.reject(new Error("old save failure"))); expect(container.textContent).not.toContain("old save failure"); expect(button("Mark as mastered").disabled).toBe(false);
+  await act(async () => write.reject(new Error("old save failure"))); expect(container.textContent).not.toContain("old save failure"); expect(button("Mark as read").disabled).toBe(false);
 });
 
 it("merges progress saved by another pane while its early progress snapshot is still loading", async () => {
   const read = deferred<unknown>(); vi.mocked(invoke).mockImplementation(async (name, args) => name === "course_get" ? read.promise : command(name, args));
   await act(async () => root.render(pane()));
   act(() => window.dispatchEvent(new CustomEvent("loci:course-progress", { detail: { courseId: "build", agentId: "owner", itemId: "s01", status: "mastered" } })));
-  await act(async () => read.resolve(stored(build))); expect(nav("Step s01").getAttribute("aria-label")).toBe("Step s01, Done"); expect(nav("Step s02").getAttribute("aria-current")).toBe("step");
+  await act(async () => read.resolve(stored(build))); expect(nav("Step s01").getAttribute("aria-label")).toBe("Step s01, Read"); expect(nav("Step s02").getAttribute("aria-current")).toBe("step");
 });
 
 it("prepares scoped course progress in the original conversation without sending it", async () => {
@@ -227,17 +227,17 @@ it("prepares scoped course progress in the original conversation without sending
 
 it("shows load failures with a retry action", async () => {
   vi.mocked(invoke).mockRejectedValueOnce(new Error("read failed")); await act(async () => root.render(pane())); expect(container.textContent).toContain("read failed");
-  await act(async () => button("Retry").click()); expect(container.textContent).toContain("Explanation s01");
+  await act(async () => button("Retry").click()); expect(container.textContent).toContain("doc-s01 text");
 });
 
 it("keeps same-id courses from different owners separate during a pane switch", async () => {
-  const other = { ...build, title: "Other owner's course", data: { engine: "build-your-own" as const, steps: [{ ...makeStep("s01"), title: "Other lesson", explanation: "Other explanation" }] } };
+  const other: ParsedCourse = { ...build, title: "Other owner's course", data: { engine: "reading", chapters: [{ title: "Steps", lessons: [{ ...makeStep("s01"), title: "Other lesson", document: "doc-other" }] }] } };
   courses.set(key("other-owner", "build"), stored(other, "other-owner"));
   progress.set(key("owner", "build"), new Map([["s01", "mastered"]]));
   await act(async () => root.render(pane())); await act(async () => root.render(pane("build", "other-owner")));
-  expect(container.textContent).toContain("Other explanation"); expect(container.textContent).not.toContain("Explanation s02");
+  expect(container.textContent).toContain("doc-other text"); expect(container.textContent).not.toContain("doc-s02 text");
   expect(nav("Other lesson").getAttribute("aria-label")).toBe("Other lesson, Not started");
-  await act(async () => button("Mark as mastered").click());
+  await act(async () => button("Mark as read").click());
   expect(progress.get(key("other-owner", "build"))?.get("s01")).toBe("mastered"); expect(progress.get(key("owner", "build"))?.get("s02")).toBeUndefined();
 });
 

@@ -63,7 +63,7 @@ async function show(ids: string[]) {
   await act(async () => root!.render(createElement(Harness, { shown: visible })));
 }
 function addAgent(sessionId: string, blocks: Block[] = []) {
-  const agent = createAgent([], { name: sessionId });
+  const agent = createAgent({ name: sessionId });
   updateAgent(agent.id, (current) => ({ ...current, sessionId }));
   const session = { ...newSession("codex", "/home/me", "codex:test", "auto"), id: sessionId, blocks };
   initialSessions.push(session);

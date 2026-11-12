@@ -28,10 +28,6 @@ describe("nextLesson", () => {
   it("has nothing left when every lesson is read", () => {
     expect(nextLesson(course(["a", "b", "c", "d"].map((id) => [id, "mastered"])))).toBeUndefined();
   });
-  it("follows a build-your-own course's steps", () => {
-    const steps = { engine: "build-your-own", steps: [{ id: "s1", title: "S1" }, { id: "s2", title: "S2" }] } as unknown as CourseData;
-    expect(nextLesson({ data: steps, progress: new Map([["s1", "mastered"]]) })?.id).toBe("s2");
-  });
 });
 
 it("counts read lessons", () => {

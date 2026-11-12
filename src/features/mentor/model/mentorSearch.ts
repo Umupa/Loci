@@ -1,7 +1,9 @@
 import { agentLook, type Agent } from "../../agents/model/agent";
 import type { StoredDocument } from "../../agents/model/agentDocuments";
-import { courseItems, type CourseWithProgress } from "../../learning/model/course";
+import { courseItems, lessonPlaceKey, type CourseWithProgress } from "../../learning/model/course";
 import type { Note } from "../../notes";
+import type { LibraryHit } from "../../agents/model/mentorStore";
+import { requestDocumentPlace } from "../../agents/model/documentPlace";
 import type { MentorPage } from "./mentorPage";
 
 export type MentorSearchKind = "mentor" | "course" | "lesson" | "source" | "note";
@@ -17,6 +19,10 @@ export type MentorSearchItem = {
   agentId?: string;
   /** What the reader opens; none for a mentor itself. */
   page?: MentorPage;
+  /** A match in the text, not the title: the words around it, the match in [brackets]. */
+  snippet?: string;
+  /** The words matched, for the reader to find and flash. */
+  quote?: string;
 };
 
 export type MentorSearchSources = {
@@ -87,4 +93,44 @@ export function searchMentorItems(items: readonly MentorSearchItem[], query: str
   });
   ranked.sort((a, b) => a.rank - b.rank || KIND_ORDER[a.item.kind] - KIND_ORDER[b.item.kind] || a.index - b.index);
   return ranked.slice(0, limit).map((entry) => entry.item);
+}
+
+/** The matched words of a snippet: its first run in [brackets]. */
+export function snippetQuote(snippet: string): string | undefined {
+  const match = /\[([^\]]+)\]/.exec(snippet);
+  return match?.[1].trim() || undefined;
+}
+
+/**
+ * Matches in the text of sources, guides, lessons and notes, each opening at
+ * its passage. A hit whose mentor is gone is left out.
+ */
+export function bodyHitItems(hits: readonly LibraryHit[], agents: readonly Agent[]): MentorSearchItem[] {
+  const names = new Map(agents.map((agent) => [agent.id, agentLook(agent).name]));
+  const items: MentorSearchItem[] = [];
+  for (const hit of hits) {
+    const mentor = names.get(hit.agentId);
+    if (!mentor || !hit.snippet.includes("[")) continue;
+    const quote = snippetQuote(hit.snippet);
+    const base = { title: hit.title, context: mentor, agentId: hit.agentId, snippet: hit.snippet, ...(quote ? { quote } : {}) };
+    if (hit.kind === "source" || hit.kind === "guide")
+      items.push({ ...base, id: `text:source:${hit.agentId}:${hit.id}`, kind: "source", page: { kind: "document", document: { id: hit.id, title: hit.title, body: "" } } });
+    else if (hit.kind === "note")
+      items.push({ ...base, id: `text:note:${hit.id}`, kind: "note", page: { kind: "note", id: hit.id } });
+    else if (hit.kind === "lesson") {
+      const [courseId, lessonId] = hit.id.split("/");
+      if (!courseId || !lessonId) continue;
+      items.push({ ...base, id: `text:lesson:${hit.agentId}:${hit.id}`, kind: "lesson",
+        page: { kind: "course", course: { courseId, agentId: hit.agentId, title: hit.title, itemId: lessonId } } });
+    }
+  }
+  return items;
+}
+
+/** Before a text match opens: asks its reader to go to the matched words. */
+export function requestSearchPlace(item: MentorSearchItem): void {
+  if (!item.quote || !item.agentId) return;
+  if (item.page?.kind === "document") requestDocumentPlace(item.agentId, item.page.document.id, { quote: item.quote });
+  else if (item.page?.kind === "course" && item.page.course.itemId)
+    requestDocumentPlace(item.agentId, lessonPlaceKey(item.page.course.courseId, item.page.course.itemId), { quote: item.quote });
 }

@@ -21,14 +21,14 @@ vi.mock("../../platform/tauri/fs", async (load) => ({
 }));
 
 const external = { requestId: "r1", caller: "external" as const };
-const kern = { ...agent("a1", "Kern"), projects: ["/code/repo"] };
+const kern = agent("a1", "Kern");
 beforeEach(() => vi.clearAllMocks());
 
 describe("a mentor's files", () => {
-  it("stay inside its working folder and the folders it was given", async () => {
+  it("stay inside its working folder", async () => {
     expect(await mentorPath(kern, undefined)).toBe("/home/me/Loci/kern");
     expect(await mentorPath(kern, "notes/a.md")).toBe("/home/me/Loci/kern/notes/a.md");
-    expect(await mentorPath(kern, "/code/repo/src/main.rs")).toBe("/code/repo/src/main.rs");
+    await expect(mentorPath(kern, "/code/repo/src/main.rs")).rejects.toMatchObject({ code: "usage" });
     await expect(mentorPath(kern, "../other/secret")).rejects.toMatchObject({ code: "usage" });
     await expect(mentorPath(kern, "/home/me/Loci/kern/../../.ssh/id_rsa")).rejects.toMatchObject({ code: "usage" });
     await expect(mentorPath(kern, "/etc/passwd")).rejects.toMatchObject({ code: "usage" });

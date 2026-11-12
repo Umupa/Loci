@@ -12,7 +12,7 @@ import { SessionPane } from "../../features/sessions/ui/SessionPane";
 import { TranscriptPool, TranscriptPoolOutlet } from "../../features/sessions/ui/TranscriptPool";
 import type { OpenFileFn } from "../../features/files/model/filePlace";
 import { requestFilePlace } from "../../features/files/model/filePlace";
-import { ask, pickFolders } from "../../platform/dialog";
+import { ask } from "../../platform/dialog";
 import { HAS_NATIVE_GLASS, IS_MAC } from "../../platform/tauri/platform";
 import { REMOTE_TARGET, transport } from "../../platform/transport";
 import { FileActionError } from "../../shared/ui/FileActionError";
@@ -26,6 +26,8 @@ import { loadSettingsSection, saveSettingsSection, type SettingsSectionId } from
 import { RemoteSettingsScopeContext } from "../../features/settings/model/settingsScope";
 import { useWindowCommands } from "./useWindowCommands";
 import { MentorSearch } from "../../features/mentor/ui/MentorSearch";
+import { requestSearchPlace } from "../../features/mentor/model/mentorSearch";
+import { lessonForFile } from "../../features/learning/model/lessonLinks";
 import type { MentorSearchItem } from "../../features/mentor/model/mentorSearch";
 import { WindowControls } from "../shell/WindowControls";
 import { useRemoteSessions, type RemoteSessionClient } from "./remoteSessions";
@@ -168,6 +170,7 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
     const agentId = item.agentId ?? mentor.currentRef.current?.agentId;
     if (!agentId) return;
     if (mentor.currentRef.current?.agentId !== agentId) await openMentor(agentId);
+    requestSearchPlace(item);
     if (item.page) mentorView.show(agentId, item.page);
   };
 
@@ -175,6 +178,11 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
     const agentId = mentor.currentRef.current?.agentId;
     if (!agentId) return;
     if (place) requestFilePlace(path, place);
+    const lesson = lessonForFile(path);
+    if (lesson) {
+      mentorView.show(lesson.agentId, { kind: "course", course: { courseId: lesson.courseId, agentId: lesson.agentId, title: lesson.courseId, itemId: lesson.lessonId, openRequest: Date.now() } });
+      return;
+    }
     mentorView.show(agentId, { kind: "file", path, ...(options?.commit ? { commit: options.commit } : {}) }, { fromLine: options?.fromLine });
   }, [mentor.currentRef, mentorView]);
 
@@ -250,9 +258,9 @@ export function RemoteWorkspace({ client }: { client: RemoteSessionClient }) {
         </aside> : null}
         <div className="body-glass flex min-h-0 min-w-0 flex-1 flex-col">
           {settingsOpen ? <RemoteSettingsScopeContext.Provider value={{ host: hostName, offline }}>
-            {settingsAgent ? <MentorSettingsPage agent={settingsAgent} session={sessions.find((session) => session.id === settingsAgent.sessionId)} recents={[]}
+            {settingsAgent ? <MentorSettingsPage agent={settingsAgent} session={sessions.find((session) => session.id === settingsAgent.sessionId)}
               onModelChange={intents["session.changeModel"]} onModelSettingsChange={intents["session.changeModelSettings"]} onRuntimeModeChange={intents["session.changeRuntimeMode"]}
-              onPickFolders={() => pickFolders("Choose folders")} onReset={() => resetAgent(settingsAgent.id)} onDelete={() => removeAgent(settingsAgent.id)} readOnly={offline} />
+              onReset={() => resetAgent(settingsAgent.id)} onDelete={() => removeAgent(settingsAgent.id)} readOnly={offline} />
               : <SettingsView section={settingsSection} cwd="~" besideRail onClose={() => setSettingsOpen(false)} onSelectSection={selectSettingsSection} />}
           </RemoteSettingsScopeContext.Provider>
           : current && focusedAgent ? <section data-agent-workspace={focusedAgent.id} className="flex min-h-0 min-w-0 flex-1 flex-col">

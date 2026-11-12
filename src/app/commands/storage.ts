@@ -51,7 +51,7 @@ export const storageCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "library.search",
-    summary: "Full-text search of the mentor's sources, guides and notes (titles of courses and drawings too). Any language; three or more characters search the text.",
+    summary: "Full-text search of the mentor's sources, guides, lessons and notes (course titles too). Any language; three or more characters search the text.",
     fields: [
       field("query", "string", "What to look for", { required: true, positional: true, max: 200 }),
       ownMentor,
@@ -66,7 +66,7 @@ export const storageCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "mentors.export",
-    summary: "Zip a mentor's folder (library, courses, notes, drawings, Soul, memory, progress and highlights) to a file another Loci can import. repos/ and lab/ stay out unless --with-repos.",
+    summary: "Zip a mentor's folder (library, courses and their lessons, notes, Soul, memory, progress and highlights) to a file another Loci can import. repos/ and lab/ stay out unless --with-repos.",
     fields: [
       mentorField(true),
       field("out", "string", "Absolute path of the .zip to write", { required: true, max: 4096 }),

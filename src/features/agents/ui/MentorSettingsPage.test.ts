@@ -17,7 +17,7 @@ vi.mock("./AgentDetails", () => ({
 vi.mock("../model/agentAccess", () => ({ markAgentAccessMigrated: migrated }));
 vi.mock("../../../app/shell/WindowControls", () => ({ WindowControls: () => null }));
 
-const agent = { id: "agent", name: "Ada", avatar: "ember", color: "#fff", projects: [], sessionId: "chat" };
+const agent = { id: "agent", name: "Ada", avatar: "ember", color: "#fff", sessionId: "chat" };
 const handlers = {
   onModelChange: vi.fn(), onModelSettingsChange: vi.fn(), onRuntimeModeChange: vi.fn(),
   onPickFolders: vi.fn(async () => []), onReset: vi.fn(), onDelete: vi.fn(),

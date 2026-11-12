@@ -35,7 +35,7 @@ function sources() {
   const parts = {
     submission: recorder<Parameters<typeof sessionIntents>[0]["submission"]>(),
     agents,
-    agentHabits: recorder<Parameters<typeof sessionIntents>[0]["agentHabits"]>(),
+    agentHeartbeat: recorder<Parameters<typeof sessionIntents>[0]["agentHeartbeat"]>(),
     store: recorder<Parameters<typeof sessionIntents>[0]["store"]>(),
     updateSessions,
     roster: recorder<NonNullable<Parameters<typeof sessionIntents>[0]["roster"]>>(),
@@ -116,11 +116,11 @@ describe("createSessionHost", () => {
     expect(remote.sessions()).toEqual(direct.sessions());
   });
 
-  it("answers approvals through the habits, which route a hidden run's request back to it", async () => {
+  it("answers approvals through the heartbeat, which route a hidden run's request back to it", async () => {
     const { parts } = sources();
     const host = createSessionHost({ intents: () => sessionIntents(parts), feed, onLeases: vi.fn() });
     await host.handle(intent("session.approve", ["s", 7, "deny"]));
-    expect(parts.agentHabits.approve).toHaveBeenCalledWith("s", 7, "deny");
+    expect(parts.agentHeartbeat.approve).toHaveBeenCalledWith("s", 7, "deny");
     expect(parts.submission.approve).not.toHaveBeenCalled();
   });
 

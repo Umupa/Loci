@@ -6,7 +6,7 @@ import type { Agent } from "../../agents/model/agent";
 import type { Note } from "../../notes";
 import { MentorSearch } from "./MentorSearch";
 
-const agents: Agent[] = [{ id: "sandbox", sessionId: "chat-s", name: "Sandbox", avatar: "loci", color: "#123456", projects: [] }];
+const agents: Agent[] = [{ id: "sandbox", sessionId: "chat-s", name: "Sandbox", avatar: "loci", color: "#123456" }];
 const sources = {
   agents, courses: [], documents: new Map(),
   notes: [{ id: "n1", title: "Jailer notes", agentId: "sandbox", body: "", tags: [] } as unknown as Note],
@@ -75,4 +75,30 @@ it("closes on Escape without opening anything", async () => {
   key(container.querySelector('input[aria-label="Search"]')!, { key: "Escape" });
   expect(onClose).toHaveBeenCalledOnce();
   expect(onPick).not.toHaveBeenCalled();
+});
+
+it("finds words in the text of the library and opens the source at them", async () => {
+  vi.useFakeTimers();
+  try {
+    const onPick = vi.fn();
+    const searchText = vi.fn(async () => [
+      { agentId: "sandbox", kind: "source", id: "virtio", title: "Virtio spec", snippet: "…the driver puts [descriptors] in the ring…" },
+      { agentId: "gone", kind: "note", id: "x", title: "Orphan", snippet: "[descriptors]" },
+    ]);
+    await act(async () => root.render(createElement(MentorSearch, { sources, onPick, onClose: vi.fn(), searchText })));
+    const input = container.querySelector<HTMLInputElement>('input[aria-label="Search"]')!;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "descriptors");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    expect(searchText).toHaveBeenCalledWith("descriptors");
+    const rows = [...container.querySelectorAll<HTMLElement>('[role="option"]')];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain("Virtio spec");
+    expect(rows[0].querySelector(".text-accent-text")?.textContent).toBe("descriptors");
+    key(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ quote: "descriptors", page: expect.objectContaining({ kind: "document" }) }));
+  } finally { vi.useRealTimers(); }
 });

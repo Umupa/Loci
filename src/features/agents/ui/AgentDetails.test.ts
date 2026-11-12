@@ -56,7 +56,7 @@ beforeEach(() => {
   document.body.append(container);
   root = createRoot(container);
   props = {
-    agent: { id: "agent", name: "Ada", avatar: "ember", color: "#fff", projects: [] },
+    agent: { id: "agent", name: "Ada", avatar: "ember", color: "#fff" },
     session: { ...newSession("codex", "/home/me", "codex:test"), modelSettings: { effort: "high" } },
     recents: [], refreshKey: false, onModelChange: vi.fn(), onModelSettingsChange: vi.fn(),
     onRuntimeModeChange: vi.fn(), onPickFolders: vi.fn(async () => []),
@@ -108,7 +108,7 @@ it("keeps model options in labelled settings rows regardless of the composer pre
 
 it("shows the working folder and points an existing mentor at a folder the user has", async () => {
   const { createAgent, findAgent, updateAgent } = await import("../model/agent");
-  const created = createAgent([], { name: "Ada" });
+  const created = createAgent({ name: "Ada" });
   const agent = updateAgent(created.id, (current) => ({ ...current, workdir: "/home/me/Loci/ada" }))!;
   const original = vi.mocked(invoke).getMockImplementation()!;
   vi.mocked(invoke).mockImplementation(async (command, args) =>

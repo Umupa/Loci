@@ -47,7 +47,7 @@ type Exchange = {
   at?: number;
   user: string;
   reply: string;
-  /** Posted by this habit on its own, with no user message before it. */
+  /** Posted on its own (its heartbeat, or a habit in older chats), with no user message before it. */
   habit?: string;
   completion?: string;
 };
@@ -142,7 +142,7 @@ function exchangeLine(exchange: Exchange): string {
   if (exchange.completion)
     return `- ${when(exchange.at)}You, reviewing session "${exchange.completion}": ${oneLine(exchange.reply, LINE_CHARS)}`;
   if (exchange.habit)
-    return `- ${when(exchange.at)}You, from your habit "${exchange.habit}": ${oneLine(exchange.reply, LINE_CHARS)}`;
+    return `- ${when(exchange.at)}You, on your own ("${exchange.habit}"): ${oneLine(exchange.reply, LINE_CHARS)}`;
   return `- ${when(exchange.at)}User: ${oneLine(exchange.user, LINE_CHARS)}${
     exchange.reply ? ` → You: ${oneLine(exchange.reply, LINE_CHARS)}` : ""
   }`;
@@ -200,7 +200,7 @@ export function planRotation(
         `Most recent, word for word:\n\n${verbatim
           .map((exchange) =>
             exchange.habit
-              ? `You, on your own from your habit "${exchange.habit}" (${when(exchange.at).replace(/ · $/, "") || "earlier"}):\n${clip(exchange.reply, VERBATIM_REPLY_CHARS)}`
+              ? `You, on your own ("${exchange.habit}", ${when(exchange.at).replace(/ · $/, "") || "earlier"}):\n${clip(exchange.reply, VERBATIM_REPLY_CHARS)}`
               : exchange.completion
                 ? `You, reviewing session "${exchange.completion}" (${when(exchange.at).replace(/ · $/, "") || "earlier"}):\n${clip(exchange.reply, VERBATIM_REPLY_CHARS)}`
                 : `User (${when(exchange.at).replace(/ · $/, "") || "earlier"}):\n${clip(exchange.user, VERBATIM_USER_CHARS)}${

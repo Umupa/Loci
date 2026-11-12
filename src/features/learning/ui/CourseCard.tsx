@@ -61,19 +61,19 @@ export function CourseCard({ source, incomplete }: { source: string; incomplete:
   };
 
   const count = shown ? courseItems(shown.data).length : 0;
-  const kind = shown?.engine === "build-your-own" ? "step" : "lesson";
-  const chapters = shown?.data.engine === "reading" ? shown.data.chapters.length : 0;
+  const kind = "lesson";
+  const chapters = shown ? shown.data.chapters.length : 0;
   const missing = link && linked && !linked.course;
   const hint = !agentId
     ? "Courses belong to an agent. Ask an agent to write this one to keep it."
     : missing ? linked?.error ?? "This course is not in the agent's library." : null;
   if (agentId) return <div data-card="course" className="agent-course-attachment">
-    <button type="button" className="agent-resource-chip" aria-label={`Open course ${title}`} title={`${chapters ? `${chapters} chapters · ` : ""}${count} ${kind}${count === 1 ? "" : "s"}`}
+    <button type="button" className="agent-resource-chip" aria-label={`Open course ${title}`} title={`${chapters ? `${chapters} chapter${chapters === 1 ? "" : "s"} · ` : ""}${count} ${kind}${count === 1 ? "" : "s"}`}
       disabled={busy || !!missing} onClick={() => void handleOpen()}><Mortarboard /><span>{busy ? "Opening…" : title}</span></button>
     {hint ? <p className="course-error">{hint}</p> : null}{error ? <p role="alert" className="course-error">{error}</p> : null}
   </div>;
   return <div data-card="course" className="course-card">
-    <div className="course-card__heading"><Mortarboard className="size-5" /><span className="course-card__engine-badge">{shown?.engine === "build-your-own" ? "Build Your Own" : "Course"}</span></div>
+    <div className="course-card__heading"><Mortarboard className="size-5" /><span className="course-card__engine-badge">Course</span></div>
     <h3 className="course-card__title">{title}</h3>
     <div className="course-card__footer"><span>{shown ? `${chapters ? `${chapters} chapter${chapters === 1 ? "" : "s"} · ` : ""}${count} ${kind}${count === 1 ? "" : "s"}` : ""}</span><button type="button" disabled={!agentId || busy || !!missing} className="course-button" onClick={() => void handleOpen()}>{busy ? "Opening…" : "Open Course"}<ChevronRight className="size-3.5" /></button></div>
     {hint ? <p className="course-card__hint">{hint}</p> : null}

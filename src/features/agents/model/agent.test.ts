@@ -1,17 +1,13 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
-  addAgentProject,
   agentForSession,
   agentLook,
-  agentProjectsPhrase,
   agentState,
-  agentWorksOn,
   createAgent,
   findAgent,
   listAgents,
   removeAgent,
-  removeAgentProject,
   reorderAgents,
   saveAgentDefaults,
   saveAgentSessionId,
@@ -35,14 +31,13 @@ it("gives each new agent an avatar and color the others are not using", () => {
   expect(second.color).not.toBe(first.color);
   expect(agentLook(first).name).toBe("Ember");
   expect(agentLook(second).name).toBe("Wisp");
-  expect(first.projects).toEqual([]);
 });
 
 it("takes the look and name chosen for it when it is set up", () => {
-  const first = createAgent(["/code/app"], { name: "  Scout ", avatar: "dew", color: "#123456" });
-  expect(first).toMatchObject({ name: "Scout", avatar: "dew", color: "#123456", projects: ["/code/app"] });
+  const first = createAgent({ name: "  Scout ", avatar: "dew", color: "#123456" });
+  expect(first).toMatchObject({ name: "Scout", avatar: "dew", color: "#123456" });
   // What was not chosen still comes from what the others are not using.
-  const second = createAgent([], { name: "  " });
+  const second = createAgent({ name: "  " });
   expect(second.name).toBeUndefined();
   expect(second.avatar).toBe("ember");
 });
@@ -78,8 +73,8 @@ it("keeps the defaults a mentor's next conversation starts with", () => {
   expect(localStorage.getItem("loci:agent-roster")).toBe(written);
   // An unknown provider or permission mode is not read back.
   localStorage.setItem("loci:agent-roster", JSON.stringify([
-    { id: "bad", avatar: "ember", color: "#000", projects: [], defaults: { provider: "nope", model: "x", mode: "full-access" } },
-    { id: "bad-mode", avatar: "dew", color: "#000", projects: [], defaults: { provider: "grok", model: "x", mode: "yolo" } },
+    { id: "bad", avatar: "ember", color: "#000", defaults: { provider: "nope", model: "x", mode: "full-access" } },
+    { id: "bad-mode", avatar: "dew", color: "#000", defaults: { provider: "grok", model: "x", mode: "yolo" } },
   ]));
   expect(listAgents().map((agent) => agent.defaults)).toEqual([undefined, undefined]);
 });
@@ -91,16 +86,6 @@ it("carries its one main job beside its name, and drops an empty one", () => {
   updateAgent(id, (agent) => ({ ...agent, role: " " }));
   expect(findAgent(id)?.role).toBeUndefined();
   expect(agentLook(findAgent(id)!).role).toBeUndefined();
-});
-
-it("adds each project once and takes one away by its path", () => {
-  const { id } = createAgent(["/code/app"]);
-  addAgentProject(id, "/code/site");
-  addAgentProject(id, "/code/app/");
-  expect(findAgent(id)?.projects).toEqual(["/code/app", "/code/site"]);
-  expect(agentWorksOn(findAgent(id)!, "/code/site/")).toBe(true);
-  removeAgentProject(id, "/code/app/");
-  expect(findAgent(id)?.projects).toEqual(["/code/site"]);
 });
 
 it("keeps the rail's order and forgets a removed agent", () => {
@@ -133,20 +118,8 @@ it("drops roster entries it cannot read", () => {
     JSON.stringify([{ id: "../x" }, null, { id: "a-1", projects: [1, "/p"] }]),
   );
   expect(listAgents()).toEqual([
-    { id: "a-1", avatar: "ember", color: "hsl(211 92% 62%)", projects: ["/p"] },
+    { id: "a-1", avatar: "ember", color: "hsl(211 92% 62%)" },
   ]);
-});
-
-it("names its projects the way a sentence would", () => {
-  const project = (name: string) => ({ path: `/code/${name}`, name });
-  expect(agentProjectsPhrase([])).toBe("");
-  expect(agentProjectsPhrase([project("app")])).toBe("app");
-  expect(agentProjectsPhrase([project("app"), project("site")])).toBe(
-    "app and site",
-  );
-  expect(
-    agentProjectsPhrase([project("app"), project("site"), project("api")]),
-  ).toBe("app, site and api");
 });
 
 it("says what the agent is doing from its conversation", () => {
@@ -185,16 +158,16 @@ it("says what the agent is doing from its conversation", () => {
   ).toEqual({ status: "needs-you", activity: "Approve rm -rf build" });
 });
 
-it("keeps the workdir and lists it before the other folders", async () => {
+it("keeps the workdir as the folder it works in", async () => {
   const { agentFolders } = await import("./agent");
-  const { id } = createAgent(["/code/app"]);
+  const { id } = createAgent();
   updateAgent(id, (agent) => ({ ...agent, workdir: "/home/me/Loci/ember" }));
   const agent = findAgent(id)!;
   expect(agent.workdir).toBe("/home/me/Loci/ember");
-  expect(agentFolders(agent)).toEqual(["/home/me/Loci/ember", "/code/app"]);
+  expect(agentFolders(agent)).toEqual(["/home/me/Loci/ember"]);
   updateAgent(id, (current) => ({ ...current, workdir: " " }));
   expect(findAgent(id)).not.toHaveProperty("workdir");
-  expect(agentFolders(findAgent(id)!)).toEqual(["/code/app"]);
+  expect(agentFolders(findAgent(id)!)).toEqual([]);
 });
 
 it("keeps a mentor's own learning language, and only a known one", () => {

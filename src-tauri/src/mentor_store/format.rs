@@ -255,9 +255,11 @@ pub fn parse_course(
     };
     let engine = match root.remove("engine") {
         Some(Value::String(engine)) => engine,
+        // Steps were the build-your-own engine, which is gone; the course
+        // index says so in words the user can act on.
         None if root.contains_key("steps") => "build-your-own".into(),
         None => "reading".into(),
-        Some(_) => return Err("engine must be reading or build-your-own".into()),
+        Some(_) => return Err("engine must be reading".into()),
     };
     if engine == "reading" {
         let chapters = root
@@ -434,22 +436,12 @@ fn pin_shorthand(file: &str, commit: &str, relativize: &dyn Fn(&str) -> String) 
     Some(format!("{repo}@{commit}:{inner}"))
 }
 
-const COURSE_KEYS: [&str; 5] = ["schemaVersion", "title", "engine", "chapters", "steps"];
+const COURSE_KEYS: [&str; 4] = ["schemaVersion", "title", "engine", "chapters"];
 const LESSON_KEYS: [&str; 9] = [
     "id", "title", "document", "section", "file", "lines", "pages", "commit", "compare",
 ];
 const PART_KEYS: [&str; 8] = [
     "label", "file", "document", "section", "lines", "pages", "commit", "note",
-];
-const STEP_KEYS: [&str; 8] = [
-    "id",
-    "title",
-    "summary",
-    "file",
-    "before",
-    "after",
-    "explanation",
-    "runCommand",
 ];
 
 /// Writes a course as YAML. `relativize` turns an absolute file inside the
@@ -550,7 +542,6 @@ fn ordered(value: &Value, keys: &[&str]) -> Yaml {
                     "chapters" => &["title", "lessons"],
                     "lessons" => &LESSON_KEYS,
                     "compare" => &PART_KEYS,
-                    "steps" => &STEP_KEYS,
                     _ => &[],
                 };
                 map.insert(
@@ -944,11 +935,14 @@ mod tests {
     }
 
     #[test]
-    fn a_build_course_and_bad_courses() {
+    fn an_old_build_course_and_bad_courses() {
         let yaml = "title: Build\nsteps:\n  - id: s1\n    title: One\n    summary: S\n    file: main.rs\n    before: ''\n    after: \"fn main() {}\\n\"\n    explanation: E\n";
         let course = parse_course(yaml, &resolve).unwrap();
-        assert_eq!(course.engine, "build-your-own");
-        crate::course::validate_data(&course.engine, &course.data_json).unwrap();
+        assert!(
+            crate::course::validate_data(&course.engine, &course.data_json)
+                .unwrap_err()
+                .contains("earlier format")
+        );
         assert!(parse_course("title: x\nchapters: 3", &resolve).is_err());
         assert!(parse_course("chapters: []", &resolve).is_err());
         assert!(

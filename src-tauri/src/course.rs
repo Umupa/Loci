@@ -1,9 +1,10 @@
 //! Course ids are chosen by an agent, just like agent-document ids. Structure
 //! and progress share that agent scope; another agent can reuse the same slug.
 //!
-//! A reading course holds no text of its own: it is chapters of lessons, each
-//! naming a document in the agent's library or a file on disk to read. A
-//! build-your-own course keeps its code steps.
+//! A course is chapters of lessons. A lesson's text is the mentor's own,
+//! `courses/<course>/<lesson>.md` in its folder; the document in the library
+//! or file on disk a lesson names is its source. A lesson with neither is
+//! planned: a title, not written yet.
 
 use std::collections::HashSet;
 
@@ -27,6 +28,9 @@ pub struct Course {
     pub data_json: String,
     pub created_at: i64,
     pub updated_at: i64,
+    /// The lessons that have their own text.
+    #[serde(default)]
+    pub bodies: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,7 +41,35 @@ pub struct CourseUpsert {
     pub engine: String,
     pub title: String,
     pub data_json: String,
+    /// Lesson texts written with the course, by lesson id.
+    #[serde(default)]
+    pub bodies: Option<std::collections::BTreeMap<String, LessonInput>>,
 }
+
+/// A lesson's text, as Markdown or from a Markdown file.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LessonInput {
+    #[serde(default)]
+    pub body: Option<String>,
+    #[serde(default)]
+    pub path: Option<String>,
+}
+
+/// A lesson's text as it is now.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LessonText {
+    pub course_id: String,
+    pub lesson_id: String,
+    pub body: String,
+    /// Its file, where highlights on it are kept.
+    pub path: String,
+    pub updated_at: i64,
+}
+
+/// What a lesson may weigh: a long chapter, not a book.
+const LESSON_MAX: usize = 512 * 1024;
 
 /// One row of the Courses list: enough to show it without its structure.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -57,29 +89,6 @@ pub struct CourseSummary {
 pub struct CourseProgressItem {
     pub item_id: String,
     pub status: String,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Step {
-    id: String,
-    title: String,
-    summary: String,
-    file: String,
-    before: String,
-    after: String,
-    explanation: String,
-    #[serde(
-        default,
-        deserialize_with = "optional_text",
-        skip_serializing_if = "Option::is_none"
-    )]
-    run_command: Option<String>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct BuildCourse {
-    steps: Vec<Step>,
 }
 
 /// What to read: a document in the agent's library, optionally from one of
@@ -292,7 +301,33 @@ fn course_from_row(row: index::Row) -> Option<Course> {
         title: row.title,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        bodies: Vec::new(),
     })
+}
+
+/// The lessons of a course that have their own text.
+fn lesson_bodies(conn: &Connection, agent: &str, course: &str) -> Result<Vec<String>, String> {
+    let prefix = format!("{course}/");
+    let mut statement = conn
+        .prepare(
+            "SELECT id FROM mentor_content WHERE agent_id = ?1 AND kind = 'lesson'
+               AND substr(id, 1, length(?2)) = ?2 ORDER BY id",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = statement
+        .query_map(params![agent, prefix], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for id in rows {
+        let id = id.map_err(|e| e.to_string())?;
+        out.push(id[prefix.len()..].to_string());
+    }
+    Ok(out)
+}
+
+fn with_bodies(conn: &Connection, mut course: Course) -> Result<Course, String> {
+    course.bodies = lesson_bodies(conn, &course.agent_id, &course.id)?;
+    Ok(course)
 }
 
 fn file_courses(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<Course>, String> {
@@ -301,7 +336,9 @@ fn file_courses(conn: &Connection, ctx: &MentorCtx) -> Result<Vec<Course>, Strin
         if let Some(full) =
             index::get(conn, &ctx.agent, Kind::Course, &row.id).map_err(|e| e.to_string())?
         {
-            out.extend(course_from_row(full));
+            if let Some(course) = course_from_row(full) {
+                out.push(with_bodies(conn, course)?);
+            }
         }
     }
     Ok(out)
@@ -317,7 +354,93 @@ pub(crate) mod tests_support {
 }
 
 fn file_course(conn: &Connection, ctx: &MentorCtx, id: &str) -> Result<Option<Course>, String> {
-    Ok(mentor_store::current(conn, ctx, Kind::Course, id)?.and_then(course_from_row))
+    match mentor_store::current(conn, ctx, Kind::Course, id)?.and_then(course_from_row) {
+        Some(course) => Ok(Some(with_bodies(conn, course)?)),
+        None => Ok(None),
+    }
+}
+
+/// The text a lesson is given: inline, or read from an absolute path.
+fn lesson_input_text(input: &LessonInput) -> Result<String, String> {
+    let text = match (&input.body, &input.path) {
+        (Some(body), None) => body.clone(),
+        (None, Some(path)) => {
+            let path = std::path::Path::new(path);
+            if !path.is_absolute() {
+                return Err("A lesson's path must be an absolute path to a Markdown file".into());
+            }
+            let size = std::fs::metadata(path)
+                .map_err(|e| format!("Could not read {}: {e}", path.display()))?
+                .len();
+            if size as usize > LESSON_MAX {
+                return Err("A lesson's text must be at most 512 KB; split it".into());
+            }
+            std::fs::read_to_string(path)
+                .map_err(|e| format!("Could not read {}: {e}", path.display()))?
+        }
+        _ => return Err("Give a lesson's text as body or path, not both".into()),
+    };
+    if text.trim().is_empty() {
+        return Err("A lesson's text is empty".into());
+    }
+    if text.len() > LESSON_MAX {
+        return Err("A lesson's text must be at most 512 KB; split it".into());
+    }
+    Ok(text)
+}
+
+fn lesson_text(ctx: &MentorCtx, row: index::Row) -> Option<LessonText> {
+    let (course, lesson) = crate::mentor_store::paths::lesson_parts(&row.id)?;
+    Some(LessonText {
+        course_id: course.into(),
+        lesson_id: lesson.into(),
+        path: mentor_store::row_path(ctx, &row)
+            .to_string_lossy()
+            .into_owned(),
+        updated_at: row.updated_at,
+        body: row.body?,
+    })
+}
+
+/// Writes one lesson's text, for a lesson the saved course has.
+fn file_write_lesson(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    course_id: &str,
+    lesson_id: &str,
+    text: &str,
+) -> Result<LessonText, String> {
+    let course = file_course(conn, ctx, course_id)?.ok_or("Course not found")?;
+    let (_, ids) = validate_data(&course.engine, &course.data_json)?;
+    if !ids.contains(lesson_id) {
+        return Err(format!(
+            "No lesson {lesson_id} in course {course_id}; add it to the course first"
+        ));
+    }
+    let id = crate::mentor_store::paths::lesson_id(course_id, lesson_id);
+    let row = mentor_store::write_content(conn, ctx, Kind::Lesson, &id, text)?;
+    lesson_text(ctx, row).ok_or_else(|| "The saved lesson could not be read back".into())
+}
+
+/// Removes the texts of lessons a course no longer has, or of every lesson
+/// when it is gone; their folder goes when it is empty.
+fn prune_lessons(
+    conn: &Connection,
+    ctx: &MentorCtx,
+    course_id: &str,
+    keep: &HashSet<String>,
+) -> Result<(), String> {
+    for lesson in lesson_bodies(conn, &ctx.agent, course_id)? {
+        if !keep.contains(&lesson) {
+            let id = crate::mentor_store::paths::lesson_id(course_id, &lesson);
+            mentor_store::remove_content(conn, ctx, Kind::Lesson, &id)?;
+        }
+    }
+    let dir = ctx.folder.join(Kind::Lesson.dir()).join(course_id);
+    if dir.is_dir() && std::fs::read_dir(&dir).is_ok_and(|mut entries| entries.next().is_none()) {
+        let _ = std::fs::remove_dir(&dir);
+    }
+    Ok(())
 }
 
 fn file_progress(
@@ -349,16 +472,31 @@ fn file_save_course(
     }
     let (data_json, ids) = validate_data(&course.engine, &course.data_json)?;
     let title = course.title.trim();
-    let existing = file_course(conn, ctx, &course.id)?;
-    if let Some(saved) = &existing {
-        if saved.engine == course.engine && saved.title == title && saved.data_json == data_json {
-            return Ok(saved.clone());
+    // Every text is read and checked before anything is written.
+    let mut texts = Vec::new();
+    for (lesson, input) in course.bodies.iter().flatten() {
+        if !ids.contains(lesson) {
+            return Err(format!(
+                "bodies names {lesson}, which is not a lesson of this course"
+            ));
         }
+        texts.push((lesson.clone(), lesson_input_text(input)?));
+    }
+    let existing = file_course(conn, ctx, &course.id)?;
+    let unchanged = existing.as_ref().is_some_and(|saved| {
+        saved.engine == course.engine && saved.title == title && saved.data_json == data_json
+    });
+    if unchanged {
+        for (lesson, text) in &texts {
+            file_write_lesson(conn, ctx, &course.id, lesson, text)?;
+        }
+        return file_course(conn, ctx, &course.id)?
+            .ok_or_else(|| "The saved course could not be read back".into());
     }
     let relativize = |path: &str| ctx.relativize(path);
     let text =
         crate::mentor_store::format::render_course(title, &course.engine, &data_json, &relativize)?;
-    let row = mentor_store::write_content(conn, ctx, Kind::Course, &course.id, &text)?;
+    mentor_store::write_content(conn, ctx, Kind::Course, &course.id, &text)?;
     // Progress of lessons the revision removed goes, as it always has.
     let engine_changed = existing
         .as_ref()
@@ -372,7 +510,13 @@ fn file_save_course(
             .map_err(|e| e.to_string())?;
         }
     }
-    course_from_row(row).ok_or_else(|| "The saved course could not be read back".into())
+    // Lessons the revision removed lose their text too.
+    prune_lessons(conn, ctx, &course.id, &ids)?;
+    for (lesson, text) in &texts {
+        file_write_lesson(conn, ctx, &course.id, lesson, text)?;
+    }
+    file_course(conn, ctx, &course.id)?
+        .ok_or_else(|| "The saved course could not be read back".into())
 }
 
 fn file_set_progress(
@@ -413,7 +557,7 @@ fn file_summaries(conn: &Connection) -> Result<Vec<CourseSummary>, String> {
             .filter(|p| p.status == "mastered" && ids.contains(&p.item_id))
             .count();
         out.push(CourseSummary {
-            item_count: item_count(&course.engine, &course.data_json),
+            item_count: item_count(&course.data_json),
             mastered_count: mastered,
             id: course.id,
             agent_id: course.agent_id,
@@ -465,6 +609,7 @@ pub fn course_delete(
     if let Some(ctx) = mentor_store::ctx_for(&conn, &agent_id)? {
         // Without an id the mentor is being deleted: its folder stays.
         if let Some(id) = &id {
+            prune_lessons(&conn, &ctx, id, &HashSet::new())?;
             mentor_store::remove_content(&conn, &ctx, Kind::Course, id)?;
         }
         return Ok(());
@@ -518,8 +663,164 @@ pub fn course_upsert(
     let conn = store.lock_conn()?;
     match ctx {
         Some(ctx) => file_save_course(&conn, &ctx, &course),
+        None if course
+            .bodies
+            .as_ref()
+            .is_some_and(|bodies| !bodies.is_empty()) =>
+        {
+            Err(NO_FOLDER.into())
+        }
         None => save_course(&conn, &course),
     }
+}
+
+/// A question asked while a lesson was open.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LessonQuestion {
+    pub course_id: String,
+    pub lesson_id: String,
+    pub session_id: String,
+    pub message_id: String,
+    pub text: String,
+    pub asked_at: i64,
+}
+
+/// What is kept of a question: its words, not a whole pasted page.
+const QUESTION_MAX: usize = 2000;
+
+/// Records a message as asked on a lesson. The same message again is one question.
+#[tauri::command(async)]
+pub fn lesson_question_add(
+    store: State<'_, SessionStore>,
+    agent_id: String,
+    course_id: String,
+    lesson_id: String,
+    session_id: String,
+    message_id: String,
+    text: String,
+) -> Result<(), String> {
+    validate_id(&agent_id, "agent")?;
+    validate_id(&course_id, "course")?;
+    validate_id(&lesson_id, "lesson")?;
+    validate_id(&session_id, "session")?;
+    validate_id(&message_id, "message")?;
+    let text: String = text.trim().chars().take(QUESTION_MAX).collect();
+    if text.is_empty() {
+        return Ok(());
+    }
+    let conn = store.lock_conn()?;
+    conn.execute(
+        "INSERT OR IGNORE INTO lesson_questions
+           (agent_id, course_id, lesson_id, session_id, message_id, text, asked_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            agent_id,
+            course_id,
+            lesson_id,
+            session_id,
+            message_id,
+            text,
+            now_millis()
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Questions asked on a mentor's lessons, newest first: one lesson's, one
+/// course's, or all of them.
+pub(crate) fn lesson_questions(
+    conn: &Connection,
+    agent_id: &str,
+    course_id: Option<&str>,
+    lesson_id: Option<&str>,
+    limit: usize,
+) -> rusqlite::Result<Vec<LessonQuestion>> {
+    let mut statement = conn.prepare(
+        "SELECT course_id, lesson_id, session_id, message_id, text, asked_at FROM lesson_questions
+         WHERE agent_id = ?1 AND (?2 IS NULL OR course_id = ?2) AND (?3 IS NULL OR lesson_id = ?3)
+         ORDER BY asked_at DESC, message_id LIMIT ?4",
+    )?;
+    let rows = statement.query_map(
+        params![agent_id, course_id, lesson_id, limit.clamp(1, 500) as i64],
+        |row| {
+            Ok(LessonQuestion {
+                course_id: row.get(0)?,
+                lesson_id: row.get(1)?,
+                session_id: row.get(2)?,
+                message_id: row.get(3)?,
+                text: row.get(4)?,
+                asked_at: row.get(5)?,
+            })
+        },
+    )?;
+    rows.collect()
+}
+
+#[tauri::command(async)]
+pub fn lesson_questions_list(
+    store: State<'_, SessionStore>,
+    agent_id: String,
+    course_id: Option<String>,
+    lesson_id: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<LessonQuestion>, String> {
+    validate_id(&agent_id, "agent")?;
+    if lesson_id.is_some() && course_id.is_none() {
+        return Err("A lesson is named with its course".into());
+    }
+    let conn = store.lock_conn()?;
+    lesson_questions(
+        &conn,
+        &agent_id,
+        course_id.as_deref(),
+        lesson_id.as_deref(),
+        limit.unwrap_or(100),
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Lesson texts live in a mentor's folder; a mentor from before 0.4 has none.
+const NO_FOLDER: &str =
+    "This mentor's courses are in the old store, which keeps no lesson text; make a new mentor";
+
+/// One lesson's text, or nothing when it has none (it is planned, or read from its source).
+#[tauri::command(async)]
+pub fn course_lesson_get(
+    store: State<'_, SessionStore>,
+    agent_id: String,
+    course_id: String,
+    lesson_id: String,
+) -> Result<Option<LessonText>, String> {
+    validate_id(&agent_id, "agent")?;
+    validate_id(&course_id, "course")?;
+    validate_id(&lesson_id, "lesson")?;
+    let conn = store.lock_conn()?;
+    let Some(ctx) = mentor_store::ctx_for(&conn, &agent_id)? else {
+        return Ok(None);
+    };
+    let id = crate::mentor_store::paths::lesson_id(&course_id, &lesson_id);
+    Ok(mentor_store::current(&conn, &ctx, Kind::Lesson, &id)?
+        .and_then(|row| lesson_text(&ctx, row)))
+}
+
+/// Writes one lesson's text without touching the rest of its course.
+#[tauri::command(async)]
+pub fn course_lesson_set(
+    store: State<'_, SessionStore>,
+    agent_id: String,
+    course_id: String,
+    lesson_id: String,
+    lesson: LessonInput,
+) -> Result<LessonText, String> {
+    validate_id(&agent_id, "agent")?;
+    validate_id(&course_id, "course")?;
+    validate_id(&lesson_id, "lesson")?;
+    let text = lesson_input_text(&lesson)?;
+    let conn = store.lock_conn()?;
+    let ctx = mentor_store::ctx_for(&conn, &agent_id)?.ok_or(NO_FOLDER)?;
+    file_write_lesson(&conn, &ctx, &course_id, &lesson_id, &text)
 }
 
 #[tauri::command(async)]
@@ -706,24 +1007,6 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
         return Err("Course data engine does not match the course engine".into());
     }
     match engine {
-        "build-your-own" => {
-            require_object_items(&value, "steps")?;
-            let data: BuildCourse = serde_json::from_value(value)
-                .map_err(|e| format!("Invalid build-your-own course: {e}"))?;
-            let ids = item_ids(data.steps.iter().map(|step| step.id.as_str()))?;
-            for step in &data.steps {
-                require_text(&step.title, "step title")?;
-                require_text(&step.summary, "step summary")?;
-                require_text(&step.file, "step file")?;
-                if let Some(command) = &step.run_command {
-                    require_text(command, "run command")?;
-                }
-            }
-            Ok((
-                serde_json::to_string(&data).map_err(|e| e.to_string())?,
-                ids,
-            ))
-        }
         "reading" => {
             require_object_items(&value, "chapters")?;
             for chapter in value["chapters"].as_array().into_iter().flatten() {
@@ -776,9 +1059,22 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                             ));
                         }
                     }
-                    _ => {
+                    // Only a title: its text is in its own file, or it is planned.
+                    (None, None) => {
+                        if lesson.section.is_some()
+                            || lesson.pages.is_some()
+                            || lesson.lines.is_some()
+                            || lesson.commit.is_some()
+                        {
+                            return Err(format!(
+                                "Lesson {}: section, pages, lines and commit belong to a document or file",
+                                lesson.id
+                            ));
+                        }
+                    }
+                    (Some(_), Some(_)) => {
                         return Err(format!(
-                            "Lesson {} must name exactly one of document or file",
+                            "Lesson {} names both a document and a file; its source is one of them",
                             lesson.id
                         ))
                     }
@@ -815,7 +1111,7 @@ pub(crate) fn validate_data(engine: &str, raw: &str) -> Result<(String, HashSet<
                 ids,
             ))
         }
-        "domain-navigation" => Err(
+        "domain-navigation" | "build-your-own" => Err(
             "This course was written in an earlier format. Ask the agent to write it again.".into(),
         ),
         _ => Err(format!("Unknown course engine: {engine}")),
@@ -846,7 +1142,7 @@ fn list_summaries(conn: &Connection) -> rusqlite::Result<Vec<CourseSummary>> {
         Ok(CourseSummary {
             id: row.get(0)?,
             agent_id: row.get(1)?,
-            item_count: item_count(&engine, &data),
+            item_count: item_count(&data),
             engine,
             title: row.get(3)?,
             updated_at: row.get(5)?,
@@ -856,20 +1152,17 @@ fn list_summaries(conn: &Connection) -> rusqlite::Result<Vec<CourseSummary>> {
     rows.collect()
 }
 
-/// Lessons or steps in stored data; stored data was validated on save.
-fn item_count(engine: &str, data_json: &str) -> usize {
+/// Lessons in stored data; stored data was validated on save.
+fn item_count(data_json: &str) -> usize {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(data_json) else {
         return 0;
     };
-    match engine {
-        "build-your-own" => value["steps"].as_array().map_or(0, Vec::len),
-        _ => value["chapters"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .map(|chapter| chapter["lessons"].as_array().map_or(0, Vec::len))
-            .sum(),
-    }
+    value["chapters"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|chapter| chapter["lessons"].as_array().map_or(0, Vec::len))
+        .sum()
 }
 
 fn delete_courses(conn: &Connection, agent_id: &str, id: Option<&str>) -> rusqlite::Result<()> {
@@ -903,6 +1196,7 @@ fn read_course(row: &rusqlite::Row<'_>) -> rusqlite::Result<Course> {
         data_json: row.get(4)?,
         created_at: row.get(5)?,
         updated_at: row.get(6)?,
+        bodies: Vec::new(),
     })
 }
 
@@ -1049,7 +1343,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             (b.item_count, b.mastered_count, b.engine.as_str()),
-            (3, 0, "build-your-own")
+            (3, 0, "reading")
         );
 
         delete_courses(&conn, "agent-a", Some("agent-loop")).unwrap();
@@ -1064,14 +1358,14 @@ mod tests {
         CourseUpsert {
             id: "agent-loop".into(),
             agent_id: agent.into(),
-            engine: "build-your-own".into(),
+            engine: "reading".into(),
             title: "Build an agent".into(),
-            data_json: json!({"steps": ids.iter().map(|id| json!({
-                "id": id, "title": format!("Step {id}"), "summary": "Add a loop",
-                "file": "main.py", "before": "", "after": "while True:\n    pass\n",
-                "explanation": "", "runCommand": "python main.py"
-            })).collect::<Vec<_>>()})
-            .to_string(),
+            data_json:
+                json!({"chapters": [{"title": "Steps", "lessons": ids.iter().map(|id| json!({
+                "id": id, "title": format!("Step {id}"), "document": "agent-loop"
+            })).collect::<Vec<_>>()}]})
+                .to_string(),
+            bodies: None,
         }
     }
 
@@ -1116,7 +1410,7 @@ mod tests {
         let saved = save_course(&conn, &with(lesson.clone())).unwrap();
         let data: serde_json::Value = serde_json::from_str(&saved.data_json).unwrap();
         assert_eq!(data["chapters"][0]["lessons"][0], lesson);
-        assert_eq!(item_count("reading", &saved.data_json), 1);
+        assert_eq!(item_count(&saved.data_json), 1);
         let part = |index: usize, field: &str, value: serde_json::Value| {
             let mut changed = lesson.clone();
             changed["compare"][index][field] = value;
@@ -1199,7 +1493,7 @@ mod tests {
     }
 
     #[test]
-    fn structure_and_progress_survive_reopening_the_store_in_both_engines() {
+    fn structure_and_progress_survive_reopening_the_store() {
         let dir = std::env::temp_dir().join(format!("loci-course-{}", uuid::Uuid::new_v4()));
         let path = dir.join("loci.db");
         let saved = {
@@ -1271,8 +1565,8 @@ mod tests {
         );
         let unchanged = save_course(&conn, &build("agent-a", &["s01", "s03"])).unwrap();
         assert_eq!(unchanged, revised);
-        // A step and a lesson sharing an id do not share learning semantics.
-        save_course(&conn, &reading("agent-a")).unwrap();
+        // A revision that drops every lesson read drops their progress.
+        save_course(&conn, &build("agent-a", &["s04"])).unwrap();
         assert!(get_progress(&conn, "agent-a", "agent-loop")
             .unwrap()
             .is_empty());
@@ -1289,21 +1583,21 @@ mod tests {
             build("agent-a", &["s01", "s01"]),
             build("agent-a", &["../bad"]),
         ];
-        for raw in ["null", "[]", "{broken", r#"{"steps":[{"id":"s01"}]}"#] {
+        for raw in ["null", "[]", "{broken", r#"{"chapters":[{"id":"s01"}]}"#] {
             let mut course = build("agent-a", &["s01"]);
             course.data_json = raw.into();
             invalid.push(course);
         }
         // Serde structs can accept positional arrays; the external format
-        // requires an object with a named steps field.
+        // requires an object with a named chapters field.
         let mut positional = build("agent-a", &["s01"]);
         let data: serde_json::Value = serde_json::from_str(&positional.data_json).unwrap();
-        positional.data_json = json!([data["steps"]]).to_string();
+        positional.data_json = json!([data["chapters"]]).to_string();
         invalid.push(positional);
         let mut positional_item = build("agent-a", &["s01"]);
-        positional_item.data_json = json!({"steps": [[
-            "s01", "Step", "Summary", "main.py", "", "", "", "python main.py"
-        ]]})
+        positional_item.data_json = json!({"chapters": [{"title": "Steps", "lessons": [[
+            "s01", "Step", "agent-loop"
+        ]]}]})
         .to_string();
         invalid.push(positional_item);
         for (field, value) in [
@@ -1394,31 +1688,25 @@ mod tests {
         crate::course::validate_data("reading", &paged.to_string()).unwrap();
         paged["chapters"][0]["lessons"][0]["section"] = json!("Intro");
         assert!(crate::course::validate_data("reading", &paged.to_string()).is_err());
+        // A lesson with only a title is planned (or has its own text).
         let mut neither = base.clone();
         neither["chapters"][0]["lessons"][0]
             .as_object_mut()
             .unwrap()
             .remove("document");
-        course.data_json = neither.to_string();
-        assert!(save_course(&conn, &course).is_err());
+        crate::course::validate_data("reading", &neither.to_string()).unwrap();
+        // Its place belongs to a source it does not name.
+        neither["chapters"][0]["lessons"][0]["section"] = json!("Intro");
+        assert!(crate::course::validate_data("reading", &neither.to_string()).is_err());
         course.data_json = base.to_string();
         course.engine = "domain-navigation".into();
         assert!(save_course(&conn, &course)
             .unwrap_err()
             .contains("earlier format"));
-        let mut course = build("agent-a", &["s01"]);
-        let base: serde_json::Value = serde_json::from_str(&course.data_json).unwrap();
-        for (field, value) in [
-            ("summary", json!("")),
-            ("file", json!(" ")),
-            ("after", json!(false)),
-            ("runCommand", json!(null)),
-        ] {
-            let mut data = base.clone();
-            data["steps"][0][field] = value;
-            course.data_json = data.to_string();
-            assert!(save_course(&conn, &course).is_err(), "{field}");
-        }
+        course.engine = "build-your-own".into();
+        assert!(save_course(&conn, &course)
+            .unwrap_err()
+            .contains("earlier format"));
         assert!(list_courses(&conn, "agent-a").unwrap().is_empty());
     }
 
@@ -1519,13 +1807,13 @@ mod tests {
     #[test]
     fn json_contract_uses_camel_case_and_structure_cannot_supply_progress() {
         let mut input = serde_json::to_value(json!({
-            "id": "test", "agentId": "agent-a", "engine": "build-your-own",
+            "id": "test", "agentId": "agent-a", "engine": "reading",
             "title": "Test", "dataJson": build("agent-a", &["s01"]).data_json,
         }))
         .unwrap();
         let mut data: serde_json::Value =
             serde_json::from_str(input["dataJson"].as_str().unwrap()).unwrap();
-        data["steps"][0]["status"] = json!("mastered");
+        data["chapters"][0]["lessons"][0]["status"] = json!("mastered");
         input["dataJson"] = json!(data.to_string());
         let course: CourseUpsert = serde_json::from_value(input).unwrap();
         let store = SessionStore::open_in_memory().unwrap();
@@ -1549,6 +1837,102 @@ mod tests {
     }
 
     #[test]
+    fn lesson_texts_are_files_beside_the_course_found_by_search_and_go_with_their_lessons() {
+        use crate::mentor_store::testing::{register, temp_dir};
+        let store = SessionStore::open_in_memory().unwrap();
+        let conn = store.lock_conn().unwrap();
+        let folder = temp_dir("lessons");
+        register(&conn, "agent", &folder);
+        let ctx = mentor_store::ctx_for(&conn, "agent").unwrap().unwrap();
+        let data = json!({"chapters":[{"title":"Rings","lessons":[
+            {"id":"map","title":"The map","document":"virtio","section":"Rings"},
+            {"id":"queue","title":"A queue is two rings"},
+            {"id":"later","title":"Interrupts"}]}]});
+        let draft = folder.join("draft.md");
+        std::fs::write(
+            &draft,
+            "# Queues\n\nThe driver puts descriptors in the available ring.\n",
+        )
+        .unwrap();
+        let mut bodies = std::collections::BTreeMap::new();
+        bodies.insert(
+            "map".to_string(),
+            LessonInput {
+                body: Some("# Map\n\nThree pieces.\n".into()),
+                path: None,
+            },
+        );
+        bodies.insert(
+            "queue".to_string(),
+            LessonInput {
+                body: None,
+                path: Some(draft.to_string_lossy().into_owned()),
+            },
+        );
+        let upsert = |data: &serde_json::Value, bodies| CourseUpsert {
+            id: "virtio".into(),
+            agent_id: "agent".into(),
+            engine: "reading".into(),
+            title: "Virtio".into(),
+            data_json: data.to_string(),
+            bodies,
+        };
+        let saved = file_save_course(&conn, &ctx, &upsert(&data, Some(bodies))).unwrap();
+        assert_eq!(saved.bodies, vec!["map".to_string(), "queue".to_string()]);
+        assert!(folder.join("courses/virtio/queue.md").is_file());
+        // The YAML holds no text, and a planned lesson is only its title.
+        let yaml = std::fs::read_to_string(folder.join("courses/virtio.yaml")).unwrap();
+        assert!(!yaml.contains("descriptors"), "{yaml}");
+        let hits = index::search(&conn, Some("agent"), "available ring", 10).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(
+            (
+                hits[0].kind.as_str(),
+                hits[0].id.as_str(),
+                hits[0].title.as_str()
+            ),
+            ("lesson", "virtio/queue", "A queue is two rings")
+        );
+        // One lesson revised alone; one not in the course is refused.
+        let text = file_write_lesson(
+            &conn,
+            &ctx,
+            "virtio",
+            "later",
+            "# Interrupts\n\nUsed ring.\n",
+        )
+        .unwrap();
+        assert!(text.path.ends_with("courses/virtio/later.md"));
+        assert!(file_write_lesson(&conn, &ctx, "virtio", "nope", "x").is_err());
+        // An edit made outside the app is read back.
+        std::fs::write(
+            folder.join("courses/virtio/later.md"),
+            "# Interrupts\n\nMSI-X vectors.\n",
+        )
+        .unwrap();
+        let read = mentor_store::current(&conn, &ctx, Kind::Lesson, "virtio/later")
+            .unwrap()
+            .unwrap();
+        assert!(read.body.unwrap().contains("MSI-X"));
+        // A revision that drops a lesson drops its text.
+        let mut fewer = data.clone();
+        fewer["chapters"][0]["lessons"]
+            .as_array_mut()
+            .unwrap()
+            .remove(1);
+        let revised = file_save_course(&conn, &ctx, &upsert(&fewer, None)).unwrap();
+        assert_eq!(revised.bodies, vec!["later".to_string(), "map".to_string()]);
+        assert!(!folder.join("courses/virtio/queue.md").exists());
+        assert!(index::search(&conn, Some("agent"), "available ring", 10)
+            .unwrap()
+            .is_empty());
+        // Deleting the course takes its lesson folder.
+        prune_lessons(&conn, &ctx, "virtio", &HashSet::new()).unwrap();
+        assert!(!folder.join("courses/virtio").exists());
+        std::fs::remove_dir_all(folder).ok();
+    }
+
+    #[test]
     fn a_mentor_with_a_folder_keeps_its_courses_as_yaml_and_progress_outlives_the_file() {
         use crate::mentor_store::testing::{register, temp_dir};
         let store = SessionStore::open_in_memory().unwrap();
@@ -1568,6 +1952,7 @@ mod tests {
             engine: "reading".into(),
             title: title.into(),
             data_json: data.to_string(),
+            bodies: None,
         };
         let saved = file_save_course(&conn, &ctx, &upsert(&data, "Sandbox")).unwrap();
         assert_eq!(saved.title, "Sandbox");

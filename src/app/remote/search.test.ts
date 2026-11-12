@@ -22,7 +22,7 @@ import { loadMentorSearchSources } from "../../features/mentor/ui/MentorSearch";
 import { mentorSearchItems, searchMentorItems } from "../../features/mentor/model/mentorSearch";
 
 it("searches what the host keeps, reading it from the host", async () => {
-  const sources = await loadMentorSearchSources([{ id: "ada", name: "Ada", avatar: "ember", color: "#f28c28", projects: [] }]);
+  const sources = await loadMentorSearchSources([{ id: "ada", name: "Ada", avatar: "ember", color: "#f28c28" }]);
   const found = searchMentorItems(mentorSearchItems(sources), "raft");
   expect(found.map((item) => item.title)).toContain("Raft, explained");
 

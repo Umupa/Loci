@@ -42,8 +42,8 @@ function mount(updateVersion: string | null) {
 }
 
 const roster = [
-  { id: "a1", name: "Ada", avatar: "loci", color: "#123456", projects: [] },
-  { id: "a2", name: "Bea", avatar: "loci", color: "#654321", projects: [] },
+  { id: "a1", name: "Ada", avatar: "loci", color: "#123456" },
+  { id: "a2", name: "Bea", avatar: "loci", color: "#654321" },
 ];
 
 function mountRoster(activeId = "a1") {

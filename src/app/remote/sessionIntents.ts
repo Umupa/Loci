@@ -5,14 +5,14 @@ import { applyAgentChanges, reorderAgents, type Agent } from "../../features/age
 import type { SessionSubmission } from "../hooks/useSessionSubmission";
 import type { SessionStore } from "../hooks/useSessionStore";
 import type { useAgents } from "../hooks/useAgents";
-import type { useAgentHabits } from "../hooks/useAgentHabits";
+import type { useAgentHeartbeat } from "../hooks/useAgentHeartbeat";
 
 type Agents = Pick<ReturnType<typeof useAgents>, "chat" | "create" | "reset" | "remove">;
 
 type IntentSources = {
   submission: SessionSubmission;
   agents: Agents;
-  agentHabits: Pick<ReturnType<typeof useAgentHabits>, "approve">;
+  agentHeartbeat: Pick<ReturnType<typeof useAgentHeartbeat>, "approve">;
   store: Pick<SessionStore, "archiveSession" | "removeSession">;
   updateSessions: Dispatch<SetStateAction<Session[]>>;
   /** The host's roster, changed field by field for a connected window. */
@@ -24,13 +24,13 @@ type IntentSources = {
  * take their callbacks from here, and a connected device's intents run the
  * same entries, so both drive a session the same way.
  */
-export function sessionIntents({ submission, agents, agentHabits, store, updateSessions,
+export function sessionIntents({ submission, agents, agentHeartbeat, store, updateSessions,
   roster = { update: applyAgentChanges, reorder: reorderAgents } }: IntentSources) {
   return {
     "session.submit": submission.onSubmit,
     "session.stop": submission.stop,
-    // An approval a habit's hidden run asked for goes back to that run.
-    "session.approve": agentHabits.approve,
+    // An approval a heartbeat's hidden run asked for goes back to that run.
+    "session.approve": agentHeartbeat.approve,
     "session.answer": submission.answer,
     "session.keepQuestionOpen": submission.keepQuestionOpen,
     "session.changeModel": submission.changeModel,

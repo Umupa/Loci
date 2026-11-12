@@ -502,33 +502,6 @@ pub fn session_take_in_flight(
     take_in_flight(&mut conn).map_err(|e| e.to_string())
 }
 
-const WORKSPACE_SNAPSHOT_MAX_BYTES: usize = 2_000_000;
-
-#[tauri::command(async)]
-pub fn workspace_set_snapshot(
-    store: State<'_, SessionStore>,
-    snapshot: Value,
-) -> Result<(), String> {
-    if !snapshot.is_object() {
-        return Err("workspace snapshot must be an object".into());
-    }
-    let json = serde_json::to_string(&snapshot).map_err(|e| e.to_string())?;
-    if json.len() > WORKSPACE_SNAPSHOT_MAX_BYTES {
-        return Err("workspace snapshot is too large".into());
-    }
-    let conn = store.conn.lock().map_err(|_| "Session store is locked")?;
-    set_workspace_snapshot(&conn, &json).map_err(|e| e.to_string())
-}
-
-#[tauri::command(async)]
-pub fn workspace_get_snapshot(store: State<'_, SessionStore>) -> Result<Option<Value>, String> {
-    let conn = store.conn.lock().map_err(|_| "Session store is locked")?;
-    let json = get_workspace_snapshot(&conn).map_err(|e| e.to_string())?;
-    match json {
-        None => Ok(None),
-        Some(raw) => serde_json::from_str(&raw).map_err(|e| e.to_string()),
-    }
-}
 fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -551,10 +524,6 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
                    archived, pinned, is_draft);
     CREATE TABLE IF NOT EXISTS in_flight_sessions (
       session_id TEXT PRIMARY KEY, cwd TEXT NOT NULL, sort_index INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS workspace_snapshot (
-      id INTEGER PRIMARY KEY CHECK (id = 1), snapshot_json TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
     );",
     )?;
     crate::notes::ensure_notes_table(conn)?;
@@ -564,9 +533,37 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     crate::learning::ensure_table(conn)?;
     crate::mentor_store::index::ensure_tables(conn)?;
     crate::mentor_store::canvas_removal::run(conn)?;
+    drop_dead_tables(conn)?;
     conn.execute(
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, ?1)",
         [now_millis()],
+    )?;
+    Ok(())
+}
+
+/// Recorded in `schema_migrations` once the tables nothing reads are gone.
+const DEAD_TABLES_VERSION: i64 = 100;
+
+/// Tables earlier versions wrote and nothing reads any more: the tab layout,
+/// session reminders, feed state and learning widgets. Dropped once.
+fn drop_dead_tables(conn: &Connection) -> rusqlite::Result<()> {
+    let done: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM schema_migrations WHERE version = ?1",
+        [DEAD_TABLES_VERSION],
+        |row| row.get(0),
+    )?;
+    if done > 0 {
+        return Ok(());
+    }
+    conn.execute_batch(
+        "DROP TABLE IF EXISTS learning_widgets;
+         DROP TABLE IF EXISTS feed_item_state;
+         DROP TABLE IF EXISTS session_reminders;
+         DROP TABLE IF EXISTS workspace_snapshot;",
+    )?;
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?1, ?2)",
+        params![DEAD_TABLES_VERSION, now_millis()],
     )?;
     Ok(())
 }
@@ -1145,27 +1142,6 @@ fn take_in_flight(conn: &mut Connection) -> rusqlite::Result<Vec<InFlightSession
     Ok(sessions)
 }
 
-fn set_workspace_snapshot(conn: &Connection, json: &str) -> rusqlite::Result<()> {
-    conn.execute(
-        "INSERT INTO workspace_snapshot (id, snapshot_json, updated_at)
-         VALUES (1, ?1, ?2)
-         ON CONFLICT(id) DO UPDATE SET
-           snapshot_json = excluded.snapshot_json,
-           updated_at = excluded.updated_at",
-        params![json, now_millis()],
-    )?;
-    Ok(())
-}
-
-fn get_workspace_snapshot(conn: &Connection) -> rusqlite::Result<Option<String>> {
-    conn.query_row(
-        "SELECT snapshot_json FROM workspace_snapshot WHERE id = 1",
-        [],
-        |row| row.get(0),
-    )
-    .optional()
-}
-
 pub(crate) fn validate_id(value: &str, label: &str) -> Result<(), String> {
     if value.is_empty()
         || !value
@@ -1529,16 +1505,45 @@ mod tests {
     }
 
     #[test]
-    fn workspace_snapshot_round_trips_and_replaces() {
+    fn dead_tables_are_dropped_once() {
         let store = SessionStore::open_in_memory().unwrap();
-        let conn = store.conn.lock().unwrap();
-        set_workspace_snapshot(&conn, r#"{"tabs":[{"id":"t1"}]}"#).unwrap();
-        let first = get_workspace_snapshot(&conn).unwrap().unwrap();
-        assert!(first.contains("t1"));
-        set_workspace_snapshot(&conn, r#"{"tabs":[{"id":"t2"}]}"#).unwrap();
-        let second = get_workspace_snapshot(&conn).unwrap().unwrap();
-        assert!(second.contains("t2"));
-        assert!(!second.contains("t1"));
+        let conn = store.lock_conn().unwrap();
+        conn.execute_batch(
+            "DELETE FROM schema_migrations WHERE version = 100;
+             CREATE TABLE learning_widgets (id TEXT);
+             CREATE TABLE feed_item_state (id TEXT);
+             CREATE TABLE session_reminders (id TEXT);
+             CREATE TABLE workspace_snapshot (id INTEGER);",
+        )
+        .unwrap();
+        migrate(&conn).unwrap();
+        for table in [
+            "learning_widgets",
+            "feed_item_state",
+            "session_reminders",
+            "workspace_snapshot",
+        ] {
+            let found: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                    [table],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(found, 0, "{table}");
+        }
+        // Once recorded, a table of that name made later is left alone.
+        conn.execute_batch("CREATE TABLE learning_widgets (id TEXT);")
+            .unwrap();
+        migrate(&conn).unwrap();
+        let kept: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name = 'learning_widgets'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(kept, 1);
     }
 
     #[test]

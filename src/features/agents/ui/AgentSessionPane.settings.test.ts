@@ -21,7 +21,7 @@ vi.mock("@tauri-apps/api/webview", () => ({
 let root: Root;
 let host: HTMLDivElement;
 let styles: HTMLStyleElement;
-const agent = { id: "agent", name: "Ada", avatar: "ember", color: "#f28c28", projects: [] };
+const agent = { id: "agent", name: "Ada", avatar: "ember", color: "#f28c28" };
 const onSubmit = vi.fn(() => true);
 const onDeleteQueuedMessage = vi.fn();
 const onEditQueuedMessage = vi.fn();

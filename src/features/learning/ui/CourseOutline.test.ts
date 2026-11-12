@@ -47,17 +47,6 @@ it("shows the saved read marks and follows progress made elsewhere", async () =>
   expect(onSelect).toHaveBeenCalledWith("pod");
 });
 
-it("names build-your-own statuses in product words in the reader's outline too", async () => {
-  const build: CourseWithProgress = {
-    id: "own", agentId: "owner", title: "Own", updatedAt: 1, progress: new Map([["one", "learning"]]),
-    data: { engine: "build-your-own", steps: [
-      { id: "one", title: "One", summary: "", file: "", before: "", after: "", explanation: "" },
-    ] },
-  };
-  await act(async () => root.render(createElement(CourseOutline, { course: build, activeId: null, onSelect: vi.fn() })));
-  expect(rows()[0].getAttribute("aria-label")).toBe("One, Working");
-});
-
 it("as the reader, has no sidebar and no Back, and opening a lesson from outside starts reading it", async () => {
   const render = (openRequest: number, itemId?: string) => root.render(createElement(CoursePane, {
     courseId: "domain", agentId: "owner", focused: true, onFocus: vi.fn(), onClose: vi.fn(), reader: true, itemId, openRequest,

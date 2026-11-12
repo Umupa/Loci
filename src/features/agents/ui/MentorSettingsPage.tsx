@@ -2,7 +2,6 @@ import { IS_MAC } from "../../../platform/tauri/platform";
 import { t, useLocale } from "../../../shared/i18n/locale";
 import { ReadOnly } from "../../../shared/ui/ReadOnly";
 import { WindowControls } from "../../../app/shell/WindowControls";
-import type { RecentProject } from "../../projects/model/recents";
 import type { HarnessId, RuntimeMode, Session } from "../../sessions/model/session";
 import { agentLook, type Agent } from "../model/agent";
 import { markAgentAccessMigrated } from "../model/agentAccess";
@@ -12,11 +11,9 @@ type Props = {
   agent: Agent;
   /** Its conversation; absent until it has loaded. */
   session?: Session;
-  recents: readonly RecentProject[];
   onModelChange: (sessionId: string, harness: HarnessId, model: string) => void;
   onModelSettingsChange: (sessionId: string, settings: Record<string, string>) => void;
   onRuntimeModeChange: (sessionId: string, mode: RuntimeMode) => void;
-  onPickFolders: () => Promise<string[]>;
   onReset: () => void;
   onDelete: () => void;
   readOnly?: boolean;
@@ -28,7 +25,7 @@ type Props = {
  * A mentor's settings as a page of the Settings window, chosen in its left
  * column like any other section. Nothing is laid over the workspace.
  */
-export function MentorSettingsPage({ agent, session, recents, onModelChange, onModelSettingsChange, onRuntimeModeChange, onPickFolders, onReset, onDelete, readOnly = false, besideRail = true }: Props) {
+export function MentorSettingsPage({ agent, session, onModelChange, onModelSettingsChange, onRuntimeModeChange, onReset, onDelete, readOnly = false, besideRail = true }: Props) {
   useLocale();
   const name = agentLook(agent).name;
   return <div role="region" aria-label={t("Settings")} data-app-settings data-mentor-settings={agent.id} className="flex min-h-0 min-w-0 flex-1 flex-col text-content">
@@ -41,7 +38,7 @@ export function MentorSettingsPage({ agent, session, recents, onModelChange, onM
       </div>
       {IS_MAC ? null : <WindowControls />}
     </div>
-    {session ? <ReadOnly readOnly={readOnly}><AgentDetails agent={agent} session={session} recents={recents} refreshKey={session.busy}
+    {session ? <ReadOnly readOnly={readOnly}><AgentDetails agent={agent} session={session} refreshKey={session.busy}
       onModelChange={(harness, model) => onModelChange(session.id, harness, model)}
       onModelSettingsChange={(settings) => onModelSettingsChange(session.id, settings)}
       onRuntimeModeChange={(mode) => {
@@ -49,7 +46,7 @@ export function MentorSettingsPage({ agent, session, recents, onModelChange, onM
         // Choosing here is the mentor's access from now on, migration included.
         markAgentAccessMigrated(agent.id);
       }}
-      onPickFolders={onPickFolders} onReset={onReset} onDelete={onDelete} onClose={() => undefined} /></ReadOnly>
+      onReset={onReset} onDelete={onDelete} onClose={() => undefined} /></ReadOnly>
       : <p role="status" className="p-8 text-[13px] text-content/50">{t("Opening…")}</p>}
   </div>;
 }

@@ -25,7 +25,7 @@ function oneLine(text: string): string {
 }
 
 /**
- * The latest words in the chat: the agent's last reply or habit post, or the
+ * The latest words in the chat: the agent's last reply or heartbeat post, or the
  * user's message while no reply has come. App notifications and tool steps
  * say nothing a person would read here.
  */

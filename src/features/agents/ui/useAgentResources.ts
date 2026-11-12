@@ -3,10 +3,8 @@ import { COURSES_CHANGED_EVENT, loadCourseSummaries, type CourseChangedDetail, t
 import { PROGRESS_EVENT } from "../../learning/ui/CoursePane";
 import { listAgentNotes, NOTES_CHANGED_EVENT, type Note } from "../../notes";
 import { listAgentDocuments, subscribeAgentDocuments, type StoredDocument } from "../model/agentDocuments";
-import { subscribeAgentFiles } from "../model/agentFiles";
-import { loadHabits, subscribeHabitsRunning, type Habit } from "../model/agentHabits";
 
-type Resources = { courses: CourseSummary[]; documents: StoredDocument[]; notes: Note[]; habits: Habit[] };
+type Resources = { courses: CourseSummary[]; documents: StoredDocument[]; notes: Note[] };
 type Kind = keyof Resources;
 type Snapshot = { agentId: string; data: Partial<Resources>; errors: Partial<Record<Kind, string>> };
 
@@ -16,12 +14,11 @@ export function useAgentResources(agentId: string) {
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let live = true;
-    const requests: Record<Kind, number> = { courses: 0, documents: 0, notes: 0, habits: 0 };
+    const requests: Record<Kind, number> = { courses: 0, documents: 0, notes: 0 };
     const readers = {
       courses: async () => (await loadCourseSummaries()).filter((course) => course.agentId === agentId),
       documents: () => listAgentDocuments(agentId),
       notes: () => listAgentNotes(agentId),
-      habits: () => loadHabits(agentId),
     };
     const load = (kind: Kind) => {
       const request = ++requests[kind];
@@ -42,24 +39,19 @@ export function useAgentResources(agentId: string) {
       if (!detail?.agentId || detail.agentId === agentId) load("courses");
     };
     const notes = () => load("notes");
-    const habits = () => load("habits");
     all();
     const stopDocuments = subscribeAgentDocuments(() => load("documents"));
-    const stopFiles = subscribeAgentFiles(habits);
-    const stopRuns = subscribeHabitsRunning(habits);
     window.addEventListener(COURSES_CHANGED_EVENT, courses);
     window.addEventListener(PROGRESS_EVENT, courses);
     window.addEventListener(NOTES_CHANGED_EVENT, notes);
     window.addEventListener("focus", all);
-    const timer = window.setInterval(habits, 30_000);
     return () => {
       live = false;
-      stopDocuments(); stopFiles(); stopRuns();
+      stopDocuments();
       window.removeEventListener(COURSES_CHANGED_EVENT, courses);
       window.removeEventListener(PROGRESS_EVENT, courses);
       window.removeEventListener(NOTES_CHANGED_EVENT, notes);
       window.removeEventListener("focus", all);
-      window.clearInterval(timer);
     };
   }, [agentId, revision]);
   const shown: Snapshot = snapshot.agentId === agentId ? snapshot : { agentId, data: {}, errors: {} };

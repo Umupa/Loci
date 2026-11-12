@@ -1,10 +1,11 @@
 import { importAgentSource, writeAgentGuide, listAgentDocuments, readAgentDocument } from "../../features/agents/model/agentDocuments";
 import { canAccessAgentAppProject, type AgentAppHost, type AppSessionListing } from "../../features/agent-app/model/agentApp";
 import { agentFolders, agentForSession, findAgent, updateAgent } from "../../features/agents/model/agent";
-import { habitRunAgent, loadHabits, updateHabits } from "../../features/agents/model/agentHabits";
+import { wakeRunAgent } from "../../features/agents/model/agentWake";
 import { loadAgentFiles, readAgentFile, writeAgentFile } from "../../features/agents/model/agentFiles";
 import { readAgentConversation } from "../../features/agents/model/agentTranscript";
-import { deleteCourse, loadCourse, loadCourseSummaries, saveCourse } from "../../features/learning/model/course";
+import { deleteCourse, loadCourse, loadCourseSummaries, loadLessonText, saveCourse, saveLessonText } from "../../features/learning/model/course";
+import { loadLessonQuestions } from "../../features/learning/model/lessonQuestions";
 import { listSessionsByProject } from "../../features/sessions/data/sessionStore";
 import { newSession, sessionDraftBlock, type Session } from "../../features/sessions/model/session";
 import { sameProjectPath } from "../../features/projects/model/recents";
@@ -31,9 +32,9 @@ export type AgentAppDeps = { workspace: AppControlWorkspace; runtime: SessionRun
  */
 export function agentAppHost(source: Session, { workspace, runtime, submission, delegation }: AgentAppDeps): AgentAppHost {
   // An agent's reach is its workdir and the other folders it was given.
-  // A habit's hidden run works for its agent, with the same reach.
-  const habitRunOf = habitRunAgent(source.id);
-  const agent = agentForSession(source.id) ?? (habitRunOf ? findAgent(habitRunOf) : undefined);
+  // A heartbeat's hidden run works for its agent, with the same reach.
+  const hiddenRunOf = wakeRunAgent(source.id);
+  const agent = agentForSession(source.id) ?? (hiddenRunOf ? findAgent(hiddenRunOf) : undefined);
   const reaches = (cwd: string) => canAccessAgentAppProject(source, cwd, agent && agentFolders(agent));
   const ensureSession = async (id: string): Promise<Session> => {
     const target = runtime.sessionsRef.current.find((session) => session.id === id) ?? await workspace.loadSession(id);
@@ -128,13 +129,12 @@ export function agentAppHost(source: Session, { workspace, runtime, submission, 
       await runtime.flushPersistence();
       return { alreadySaved: false, draft: true };
     },
-    agentOf: () => agent && { id: agent.id, projects: agentFolders(agent), ...(agent.sessionId ? { chatId: agent.sessionId } : {}), ...(habitRunOf ? { habitRun: true } : {}) },
+    agentOf: () => agent && { id: agent.id, projects: agentFolders(agent), ...(agent.sessionId ? { chatId: agent.sessionId } : {}), ...(hiddenRunOf ? { hiddenRun: true } : {}) },
     readAgentChat: async (chatId, options) => {
       const chat = runtime.sessionsRef.current.find((session) => session.id === chatId) ?? await workspace.loadSession(chatId);
       if (!chat) throw new Error("The conversation is no longer available");
       return readAgentConversation(chat, options);
     },
-    habits: { load: loadHabits, update: updateHabits },
     renameAgent: (agentId, look) => { updateAgent(agentId, (current) => ({ ...current, ...look })); },
     files: { load: loadAgentFiles, read: readAgentFile, write: writeAgentFile },
     documents: { list: listAgentDocuments, read: readAgentDocument, importSource: importAgentSource, writeGuide: writeAgentGuide },
@@ -143,6 +143,9 @@ export function agentAppHost(source: Session, { workspace, runtime, submission, 
       read: (agentId, id) => loadCourse(id, agentId),
       write: saveCourse,
       remove: deleteCourse,
+      readLesson: loadLessonText,
+      writeLesson: saveLessonText,
+      questions: loadLessonQuestions,
     },
     notes: () => loadNotes(true), note: getNote,
     saveNote: async (note) => { const saved = await upsertNote(note); window.dispatchEvent(new Event(NOTES_CHANGED_EVENT)); return saved; },

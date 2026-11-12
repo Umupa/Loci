@@ -27,9 +27,17 @@ pub enum Kind {
     Guide,
     Course,
     Note,
+    /// A lesson's text, `courses/<course>/<lesson>.md`, under the id `<course>/<lesson>`.
+    Lesson,
 }
 
-pub const KINDS: [Kind; 4] = [Kind::Source, Kind::Guide, Kind::Course, Kind::Note];
+pub const KINDS: [Kind; 5] = [
+    Kind::Source,
+    Kind::Guide,
+    Kind::Course,
+    Kind::Note,
+    Kind::Lesson,
+];
 
 impl Kind {
     pub fn as_str(self) -> &'static str {
@@ -38,6 +46,7 @@ impl Kind {
             Kind::Guide => "guide",
             Kind::Course => "course",
             Kind::Note => "note",
+            Kind::Lesson => "lesson",
         }
     }
 
@@ -50,7 +59,7 @@ impl Kind {
         match self {
             Kind::Source => "sources",
             Kind::Guide => "guides",
-            Kind::Course => "courses",
+            Kind::Course | Kind::Lesson => "courses",
             Kind::Note => "notes",
         }
     }
@@ -58,7 +67,7 @@ impl Kind {
     /// The extension the app writes.
     pub fn ext(self) -> &'static str {
         match self {
-            Kind::Source | Kind::Guide | Kind::Note => "md",
+            Kind::Source | Kind::Guide | Kind::Note | Kind::Lesson => "md",
             Kind::Course => "yaml",
         }
     }
@@ -76,7 +85,7 @@ impl Kind {
 
     /// Whether the index keeps the file's text for search.
     pub fn searchable(self) -> bool {
-        matches!(self, Kind::Source | Kind::Guide | Kind::Note)
+        matches!(self, Kind::Source | Kind::Guide | Kind::Note | Kind::Lesson)
     }
 }
 
@@ -123,7 +132,26 @@ pub fn valid_content_id(id: &str) -> bool {
 
 /// Where the app writes this kind's file with this id.
 pub fn content_path(folder: &Path, kind: Kind, id: &str) -> PathBuf {
+    if kind == Kind::Lesson {
+        if let Some((course, lesson)) = lesson_parts(id) {
+            return folder
+                .join(kind.dir())
+                .join(course)
+                .join(format!("{lesson}.{}", kind.ext()));
+        }
+    }
     folder.join(kind.dir()).join(format!("{id}.{}", kind.ext()))
+}
+
+/// A lesson's id, `<course>/<lesson>`, split in two.
+pub fn lesson_parts(id: &str) -> Option<(&str, &str)> {
+    let (course, lesson) = id.split_once('/')?;
+    (valid_content_id(course) && valid_content_id(lesson)).then_some((course, lesson))
+}
+
+/// The id a lesson's text is kept under.
+pub fn lesson_id(course: &str, lesson: &str) -> String {
+    format!("{course}/{lesson}")
 }
 
 /// The PDF of a source: `sources/<id>.pdf`.
@@ -196,10 +224,31 @@ pub fn classify(folder: &Path, path: &Path) -> Option<(Kind, String)> {
         Component::Normal(name) => name.to_str()?,
         _ => return None,
     };
-    if parts.next().is_some() || ignored_name(name) {
+    if ignored_name(name) {
         return None;
     }
-    let kind = KINDS.into_iter().find(|kind| kind.dir() == dir)?;
+    if let Some(next) = parts.next() {
+        // `courses/<course>/<lesson>.md` is a lesson's text; nothing else nests.
+        let Component::Normal(file) = next else {
+            return None;
+        };
+        let file = file.to_str()?;
+        if dir != Kind::Lesson.dir() || parts.next().is_some() || ignored_name(file) {
+            return None;
+        }
+        let (stem, ext) = file.rsplit_once('.')?;
+        if !ext.eq_ignore_ascii_case("md") {
+            return None;
+        }
+        let course: String = name.nfc().collect();
+        let lesson: String = stem.nfc().collect();
+        return (valid_content_id(&course) && valid_content_id(&lesson))
+            .then(|| (Kind::Lesson, lesson_id(&course, &lesson)));
+    }
+    let kind = KINDS
+        .into_iter()
+        .filter(|kind| *kind != Kind::Lesson)
+        .find(|kind| kind.dir() == dir)?;
     let (stem, ext) = name.rsplit_once('.')?;
     if !kind.reads(&ext.to_ascii_lowercase()) {
         return None;
@@ -294,6 +343,31 @@ pub fn create_folder(root: &Path, slug: &str) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_lesson_text_is_named_by_its_course_and_lesson() {
+        let folder = Path::new("/m");
+        assert_eq!(
+            classify(folder, Path::new("/m/courses/virtio/queue.md")),
+            Some((Kind::Lesson, "virtio/queue".into()))
+        );
+        assert_eq!(
+            classify(folder, Path::new("/m/courses/virtio.yaml")),
+            Some((Kind::Course, "virtio".into()))
+        );
+        for other in [
+            "/m/courses/virtio/queue.yaml",
+            "/m/courses/virtio/deep/x.md",
+            "/m/notes/a/b.md",
+            "/m/courses/virtio/.queue.md",
+        ] {
+            assert_eq!(classify(folder, Path::new(other)), None, "{other}");
+        }
+        assert_eq!(
+            content_path(folder, Kind::Lesson, "virtio/queue"),
+            PathBuf::from("/m/courses/virtio/queue.md")
+        );
+    }
 
     #[test]
     fn each_build_has_its_own_root_and_only_debug_builds_take_an_override() {

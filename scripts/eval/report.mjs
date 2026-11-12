@@ -1,7 +1,7 @@
 // summary.md for one evaluation run: a table across scenarios, then what each
 // scenario got wrong, so a template change can be judged against the last run.
 
-const RUBRIC_LABEL = { firstHand: "First-hand", courseStructure: "Course", grounding: "Grounding", firstTenMinutes: "First 10 min", firstPrinciples: "First principles", codeEvidence: "Code evidence", path: "Path" };
+const RUBRIC_LABEL = { firstHand: "First-hand", courseStructure: "Course", grounding: "Grounding", firstTenMinutes: "First 10 min", firstPrinciples: "First principles", readability: "Readable", codeEvidence: "Code evidence", path: "Path" };
 /** The rubric keys any judged result in this run has, base first. */
 function rubricColumns(results) {
   const seen = new Set();

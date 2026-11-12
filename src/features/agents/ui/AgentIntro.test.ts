@@ -6,7 +6,7 @@ import { AgentIntro } from "./AgentIntro";
 
 let root: Root;
 let host: HTMLDivElement;
-const agent = { id: "agent", name: "Ada", avatar: "ember", color: "#f28c28", projects: [] };
+const agent = { id: "agent", name: "Ada", avatar: "ember", color: "#f28c28" };
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

@@ -13,7 +13,7 @@ let container: HTMLDivElement;
 let root: Root;
 const onOpen = vi.fn();
 const onChange = vi.fn();
-const agent: Agent = { id: "a1", avatar: "nova", color: "blue", projects: [] };
+const agent: Agent = { id: "a1", avatar: "nova", color: "blue" };
 
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

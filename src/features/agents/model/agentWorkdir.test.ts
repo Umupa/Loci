@@ -31,7 +31,7 @@ it("names the folder after the mentor in plain lowercase words", () => {
 });
 
 it("creates the workdir once and remembers it", async () => {
-  const { id } = createAgent([], { name: "Lens" });
+  const { id } = createAgent({ name: "Lens" });
   invoke.mockImplementation(async (command: string, args: { slug?: string; path?: string }) =>
     command === "agent_workdir_create" ? `/home/me/Loci/${args.slug}` : args.path);
   const [a, b] = await Promise.all([ensureAgentWorkdir(id), ensureAgentWorkdir(id)]);
@@ -45,7 +45,7 @@ it("creates the workdir once and remembers it", async () => {
 });
 
 it("keeps a workdir another window gave the mentor meanwhile", async () => {
-  const { id } = createAgent([], { name: "Lens" });
+  const { id } = createAgent({ name: "Lens" });
   invoke.mockImplementation(async () => {
     updateAgent(id, (agent) => ({ ...agent, workdir: "/home/me/Loci/lens" }));
     return "/home/me/Loci/lens-2";

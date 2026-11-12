@@ -117,6 +117,9 @@ const APP_WORDING: Record<
   "documents.read": ["Reading a source", "Read a source", "Couldn't read a source", "source"],
   "courses.list": ["Checking its courses", "Checked its courses", "Couldn't check its courses", "library"],
   "courses.read": ["Reading a course", "Read a course", "Couldn't read a course", "course"],
+  "lessons.read": ["Reading a lesson", "Read a lesson", "Couldn't read a lesson", "course"],
+  "lessons.write": ["Writing a lesson", "Wrote a lesson", "Couldn't write a lesson", "course"],
+  "lessons.questions": ["Reading what was asked", "Read what was asked", "Couldn't read what was asked", "course"],
   "notes.list": ["Reading its notes", "Read its notes", "Couldn't read its notes", "library"],
   "notes.read": ["Reading a note", "Read a note", "Couldn't read a note", "note"],
   "memory.read": ["Checking its memory", "Checked its memory", "Couldn't check its memory", "memory"],
@@ -126,11 +129,6 @@ const APP_WORDING: Record<
   "memory.remove": ["Forgetting something", "Forgot something", "Couldn't forget that", "memory"],
   "soul.read": ["Reading its soul", "Read its soul", "Couldn't read its soul", "memory"],
   "soul.update": ["Updating its soul", "Updated its soul", "Couldn't update its soul", "memory"],
-  "habits.list": ["Checking its habits", "Checked its habits", "Couldn't check its habits", "library"],
-  "habits.add": ["Adding a habit", "Added a habit", "Couldn't add a habit", "library"],
-  "habits.update": ["Updating a habit", "Updated a habit", "Couldn't update a habit", "library"],
-  "habits.run": ["Running a habit", "Ran a habit", "Couldn't run a habit", "library"],
-  "habits.remove": ["Removing a habit", "Removed a habit", "Couldn't remove a habit", "library"],
   "agent.rename": ["Renaming itself", "Renamed itself", "Couldn't rename itself", "other"],
 };
 

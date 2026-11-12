@@ -18,12 +18,6 @@ const course = (progress: [string, LearningStatus][]): CourseWithProgress => ({
     { title: "Review", lessons: [{ id: "self", title: "Self check", compare: [{ label: "a", document: "x" }, { label: "b", document: "y" }] }] },
   ] },
 });
-const build = (progress: [string, LearningStatus][]): CourseWithProgress => ({
-  id: "own", agentId: "a", title: "Own", updatedAt: 1, progress: new Map(progress),
-  data: { engine: "build-your-own", steps: [
-    { id: "one", title: "One", summary: "", file: "", before: "", after: "", explanation: "" },
-  ] },
-});
 const scrolled: string[] = [];
 
 beforeEach(() => {
@@ -36,20 +30,6 @@ afterEach(() => { act(() => root.unmount()); host.remove(); vi.restoreAllMocks()
 
 const chapters = () => [...host.querySelectorAll<HTMLButtonElement>(".library-chapter-title")];
 const lessons = () => [...host.querySelectorAll<HTMLButtonElement>("[data-library-lesson]")].map((lesson) => lesson.dataset.libraryLesson);
-
-it("names build-your-own statuses in product words and describes a lesson's marks", async () => {
-  await act(async () => root.render(createElement(LibraryOutline, {
-    course: build([["one", "learning"]]), activeId: null, onSelect: vi.fn(),
-    badge: () => createElement("span", { "data-badge": true }, "3 highlights"),
-  })));
-  const row = host.querySelector<HTMLButtonElement>('[data-library-lesson="one"]')!;
-  expect(row.getAttribute("aria-label")).toBe("One, Working");
-  const marks = document.getElementById(row.getAttribute("aria-describedby")!);
-  expect(marks?.textContent).toBe("3 highlights");
-  expect(row.querySelector(".library-mark--learning")).not.toBeNull();
-  // Build-your-own steps are all code: no kind to tell apart.
-  expect(row.querySelector("[data-lesson-kind]")).toBeNull();
-});
 
 it("marks read and begun lessons, folds a chapter wholly read, and follows the open lesson", async () => {
   const onSelect = vi.fn();

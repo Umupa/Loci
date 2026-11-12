@@ -18,8 +18,7 @@ export const CARD_FENCE = {
   todo: "loci-todo",
   /** An outline drawn as a tree that folds. */
   mindmap: "loci-mindmap",
-  /** A generated HTML/SVG/JS explanation, isolated from the application. */
-  /** A persisted course with steps or connected concepts. */
+  /** A course the agent saved, opened beside the chat. */
   course: "loci-course",
   /** A code change, displayed as a line diff. */
   diff: "loci-diff",

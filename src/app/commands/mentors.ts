@@ -113,7 +113,6 @@ function mentorView(ctx: CommandContext, agent: Agent, chat?: Session) {
     language: agent.language ?? "default",
     learningLanguage: effectiveLearningLanguage(agent.language),
     ...(agent.workdir ? { workdir: agent.workdir } : {}),
-    folders: agent.projects,
     active: ctx.activeAgentId() === agent.id,
     ...(agent.sessionId ? { sessionId: agent.sessionId } : {}),
     ...(chat ? {
@@ -242,7 +241,7 @@ export const mentorCommands: CommandDefinition<CommandContext>[] = [
   },
   {
     name: "mentors.delete",
-    summary: "Delete a mentor: its folder (sources, courses, notes, repos, memory) moves to the Trash; its conversation, highlights and progress are deleted. Folders it was given stay.",
+    summary: "Delete a mentor: its folder (sources, courses, notes, repos, memory) moves to the Trash; its conversation, highlights and progress are deleted.",
     fields: [mentorField(true), yes],
     callers: ["external"],
     destructive: true,

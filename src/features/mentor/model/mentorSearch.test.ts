@@ -5,8 +5,8 @@ import type { Note } from "../../notes";
 import { mentorSearchItems, searchMentorItems, type MentorSearchSources } from "./mentorSearch";
 
 const agents: Agent[] = [
-  { id: "sandbox", sessionId: "chat-s", name: "Sandbox", avatar: "loci", color: "#123456", projects: [] },
-  { id: "kernel", sessionId: "chat-k", name: "Kernel", avatar: "loci", color: "#654321", projects: [] },
+  { id: "sandbox", sessionId: "chat-s", name: "Sandbox", avatar: "loci", color: "#123456" },
+  { id: "kernel", sessionId: "chat-k", name: "Kernel", avatar: "loci", color: "#654321" },
 ];
 const course: CourseWithProgress = {
   id: "jailer", agentId: "sandbox", title: "Firecracker isolation", updatedAt: 1, progress: new Map(),

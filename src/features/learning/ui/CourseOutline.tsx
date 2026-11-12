@@ -1,32 +1,28 @@
 import { useEffect, useState } from "react";
-import { COURSES_CHANGED_EVENT, courseItems, loadCourse, PROGRESS_EVENT, type CourseChangedDetail, type ProgressDetail, type CourseWithProgress, type LearningStatus } from "../model/course";
+import { COURSES_CHANGED_EVENT, courseItems, lessonPlanned, loadCourse, PROGRESS_EVENT, type CourseChangedDetail, type CourseLesson, type ProgressDetail, type CourseWithProgress, type LearningStatus } from "../model/course";
+import { requestChapter } from "../model/chapterRequest";
 import "./CoursePane.css";
 
 export { PROGRESS_EVENT, type ProgressDetail } from "../model/course";
-/** What a status is called where the work is reading. */
+/** What a status is called. */
 export const READING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Reading", mastered: "Read" };
-/** What a status is called where the work is building. */
-export const LEARNING_STATUS: Record<LearningStatus, string> = { untouched: "Not started", learning: "Working", mastered: "Done" };
 
-/** A status in the words the course's kind of work uses. */
-export function statusLabel(status: LearningStatus, reading: boolean): string {
-  return reading ? READING_STATUS[status] : LEARNING_STATUS[status];
+export function statusLabel(status: LearningStatus): string {
+  return READING_STATUS[status];
 }
 
 /** Chapters and lessons with their read marks; selecting one opens it in the reader. */
 export function CourseOutline({ course, activeId, onSelect, id, hidden, className }: { course: CourseWithProgress; activeId: string | null; onSelect: (id: string) => void; id?: string; hidden?: boolean; className?: string }) {
   const items = courseItems(course.data);
-  const reading = course.data.engine === "reading";
   const mastered = items.filter((item) => course.progress.get(item.id) === "mastered").length;
-  const row = (item: { id: string; title: string }) => {
-    const status = course.progress.get(item.id) ?? "untouched";
+  const row = (item: CourseLesson) => {
+    const planned = !!course.bodies && lessonPlanned(course, item);
+    const status = planned ? "planned" : course.progress.get(item.id) ?? "untouched";
     // One line each, on an ink spine: a filled dot once read, the mentor's dot where the reader is.
-    return <li key={item.id}><button type="button" className={`course-pane__nav-item course-pane__nav-item--${status}${activeId === item.id ? " course-pane__nav-item--active" : ""}`} aria-current={activeId === item.id ? "step" : undefined} aria-label={`${item.title}, ${statusLabel(status, reading)}`} title={item.title} onClick={() => onSelect(item.id)}><span className="course-pane__node" aria-hidden="true" /><span className="course-pane__nav-label">{item.title}</span></button></li>;
+    return <li key={item.id}><button type="button" className={`course-pane__nav-item course-pane__nav-item--${status}${activeId === item.id ? " course-pane__nav-item--active" : ""}`} aria-current={activeId === item.id ? "step" : undefined} aria-label={`${item.title}, ${status === "planned" ? "Planned" : statusLabel(status)}`} title={item.title} onClick={() => { if (!planned || !requestChapter(course.agentId, course, item.id)) onSelect(item.id); }}><span className="course-pane__node" aria-hidden="true" /><span className="course-pane__nav-label">{item.title}</span></button></li>;
   };
-  const done = `${mastered} / ${items.length} ${reading ? "read" : "mastered"}`;
-  return <nav id={id} hidden={hidden} className={`course-pane__nav${className ? ` ${className}` : ""}`} aria-label="Course navigation"><div className="course-pane__nav-intro" title={done}>{reading ? null : <span>Build Your Own</span>}<progress max={items.length} value={mastered} aria-label={`Course completion, ${done}`} /></div>{course.data.engine === "reading"
-    ? course.data.chapters.map((chapter, at) => <section key={at} className="course-pane__chapter" aria-label={chapter.title}><h3 className="course-pane__chapter-title">{chapter.title}</h3><ol>{chapter.lessons.map(row)}</ol></section>)
-    : <ol>{items.map(row)}</ol>}</nav>;
+  const done = `${mastered} / ${items.length} read`;
+  return <nav id={id} hidden={hidden} className={`course-pane__nav${className ? ` ${className}` : ""}`} aria-label="Course navigation"><div className="course-pane__nav-intro" title={done}><progress max={items.length} value={mastered} aria-label={`Course completion, ${done}`} /></div>{course.data.chapters.map((chapter, at) => <section key={at} className="course-pane__chapter" aria-label={chapter.title}><h3 className="course-pane__chapter-title">{chapter.title}</h3><ol>{chapter.lessons.map(row)}</ol></section>)}</nav>;
 }
 
 /**

@@ -2,15 +2,12 @@
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { Habit } from "../../features/agents/model/agentHabits";
 import { newSession, type Session } from "../../features/sessions/model/session";
 import type { TurnOutcome } from "../../features/sessions/model/turnOutcome";
 import type { SessionRuntime } from "./useSessionRuntime";
 import type { SessionSubmission } from "./useSessionSubmission";
 
-let stored: Habit[] = [];
-let fileVersion = 0;
-/** heartbeat.json, apart from habits.json. */
+/** heartbeat.json. */
 let heartbeat: Record<string, unknown> | undefined;
 let heartbeatVersion = 0;
 const AGENT = { id: "agent-1", sessionId: "chat", avatar: "ember", color: "#fff", projects: ["/code/app"] };
@@ -34,19 +31,12 @@ vi.mock("../../features/agents/model/agentFiles", async (original) => {
       id: "a", dir: "/data/agents/a", soul: "Be brief.", soulHash: "s",
       memory: "", memoryHash: "m", memoryPath: "/data/agents/a/MEMORY.md", topics: [],
     })),
-    readAgentFile: vi.fn(async (_agentId, path) => path === "heartbeat.json"
-      ? { text: heartbeat ? JSON.stringify(heartbeat) : null, hash: `hb${heartbeatVersion}` }
-      : { text: JSON.stringify(stored), hash: String(fileVersion) }),
+    readAgentFile: vi.fn(async () => ({ text: heartbeat ? JSON.stringify(heartbeat) : null, hash: `hb${heartbeatVersion}` })),
     // Model the native store's atomic compare-and-save.
-    writeAgentFile: vi.fn(async (_agentId, path, text, expectedHash) => {
-      if (path === "heartbeat.json") {
-        if (expectedHash !== `hb${heartbeatVersion}`) throw new actual.AgentFileConflict();
-        heartbeat = JSON.parse(text) as Record<string, unknown>;
-        return `hb${++heartbeatVersion}`;
-      }
-      if (expectedHash !== String(fileVersion)) throw new actual.AgentFileConflict();
-      stored = JSON.parse(text) as Habit[];
-      return String(++fileVersion);
+    writeAgentFile: vi.fn(async (_agentId, _path, text, expectedHash) => {
+      if (expectedHash !== `hb${heartbeatVersion}`) throw new actual.AgentFileConflict();
+      heartbeat = JSON.parse(text) as Record<string, unknown>;
+      return `hb${++heartbeatVersion}`;
     }),
     // Over the mocked read and save, as the real one does over the native store.
     editAgentFile: vi.fn(async (agentId: string, path: "heartbeat.json", edit: (text: string) => string): Promise<string> => {
@@ -63,22 +53,16 @@ vi.mock("../../features/agents/model/agentFiles", async (original) => {
   return files;
 });
 
-const { useAgentHabits } = await import("./useAgentHabits");
+const { useAgentHeartbeat } = await import("./useAgentHeartbeat");
 
 let root: Root;
 let sessions: Session[];
-let approve: ReturnType<typeof useAgentHabits>["approve"];
+let approve: ReturnType<typeof useAgentHeartbeat>["approve"];
 let posted: string[];
 /** What a hidden run does when its turn is sent. */
 let turn: (run: Session, prompt: string) => Promise<TurnOutcome>;
 const stopped: string[] = [];
 const ownApprovals = vi.fn();
-
-const habit = (over: Partial<Habit> = {}): Habit => ({
-  id: "h1", name: "Morning CI check", instructions: "Check CI.", enabled: true, createdAt: 0,
-  schedule: { scheduleKind: "daily", time: "09:00", minute: 0, dayOfWeek: 1 },
-  nextRunAt: Date.now() - 1_000, ...over,
-});
 
 async function mount() {
   const sessionsRef = { get current() { return sessions; }, set current(next: Session[]) { sessions = next; } };
@@ -94,7 +78,7 @@ async function mount() {
     approve: ownApprovals,
   } as unknown as SessionSubmission;
   function Harness() {
-    approve = useAgentHabits({ runtime, submission, loadSession: async () => null, onPosted: (_chat, name) => void posted.push(name) }).approve;
+    approve = useAgentHeartbeat({ runtime, submission, loadSession: async () => null, onPosted: (_chat, name) => void posted.push(name) }).approve;
     return null;
   }
   root = createRoot(document.createElement("div"));
@@ -105,8 +89,6 @@ const chat = () => sessions.find((session) => session.id === "chat")!;
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-  stored = [];
-  fileVersion = 0;
   heartbeat = { minutes: 0 };
   heartbeatVersion = 0;
   posted = [];
@@ -120,54 +102,15 @@ afterEach(async () => {
   await act(async () => root?.unmount());
 });
 
-it("runs a due habit in a hidden full-access session and posts what it found", async () => {
-  stored = [habit()];
-  let run: Session | undefined;
-  let prompt = "";
-  turn = async (session, text) => {
-    run = session;
-    prompt = text;
-    return { status: "completed", text: "CI is red on main: the lint job fails." };
-  };
-  await mount();
-  await vi.waitFor(() => expect(stored[0].lastOutcome).toBe("posted"));
-  expect(run).toMatchObject({ ephemeral: true, runtimeMode: "full-access", harness: "codex", model: "codex:test", title: "Ember · Morning CI check" });
-  expect(prompt.startsWith("<agent>")).toBe(true);
-  expect(prompt).toContain("Habit: Morning CI check");
-  expect(prompt).toContain("Be brief.");
-  // The run is gone; only its message stays, marked as the habit's.
-  expect(sessions.map((session) => session.id)).toEqual(["chat"]);
-  expect(stopped).toEqual([run!.id]);
-  expect(chat().blocks).toMatchObject([{ role: "assistant", text: "CI is red on main: the lint job fails.", agentHabit: { id: "h1", name: "Morning CI check" } }]);
-  expect(posted).toEqual(["Ember"]);
-  expect(stored[0].runs).toMatchObject([{ outcome: "posted", report: "CI is red on main: the lint job fails." }]);
-  expect(stored[0].nextRunAt).toBeGreaterThan(Date.now());
-});
-
-it("stays quiet when the run has nothing to report, and records a failure without posting", async () => {
-  stored = [habit(), habit({ id: "h2", name: "Flaky" })];
-  turn = async (session) => session.title.endsWith("Flaky")
-    ? { status: "failed", text: "", error: "Not signed in" }
-    : { status: "completed", text: "NOTHING_TO_REPORT" };
-  await mount();
-  await vi.waitFor(() => expect(stored.map((entry) => entry.lastOutcome)).toEqual(["quiet", "failed"]));
-  expect(chat().blocks).toEqual([]);
-  expect(posted).toEqual([]);
-  expect(stored[1].lastError).toBe("Not signed in");
-});
-
-it("skips a habit missed long ago instead of catching up", async () => {
-  stored = [habit({ nextRunAt: Date.now() - 3 * 60 * 60 * 1000 })];
-  const ran = vi.fn();
-  turn = async () => { ran(); return { status: "completed", text: "late" }; };
-  await mount();
-  await vi.waitFor(() => expect(stored[0].nextRunAt).toBeGreaterThan(Date.now()));
-  expect(ran).not.toHaveBeenCalled();
-  expect(stored[0].lastRunAt).toBeUndefined();
-});
+const MIN = 60_000;
+const said = (startedAt: number): Session["blocks"] => [
+  { id: "u", role: "user", text: "Can you find the Pin RFC later?", startedAt, durationMs: 1_000 },
+  { id: "r", role: "assistant", text: "Sure, I will look for it." },
+];
 
 it("puts a run's approval to the user in the agent's chat and routes the answer back", async () => {
-  stored = [habit()];
+  heartbeat = { lastRunAt: Date.now() - 50 * MIN, quietStreak: 0, recent: [], memoryHash: "m" };
+  sessions[0] = { ...sessions[0], blocks: said(Date.now() - 40 * MIN) };
   let finish!: (outcome: TurnOutcome) => void;
   let runId = "";
   turn = (session) => {
@@ -177,26 +120,20 @@ it("puts a run's approval to the user in the agent's chat and routes the answer 
     return new Promise((resolve) => { finish = resolve; });
   };
   await mount();
-  await vi.waitFor(() => expect(chat().blocks).toHaveLength(1), { timeout: 5_000 });
-  const asked = chat().blocks[0];
-  expect(asked).toMatchObject({ role: "approval", text: "git push", agentHabit: { id: "h1" } });
+  await vi.waitFor(() => expect(chat().blocks).toHaveLength(3), { timeout: 5_000 });
+  const asked = chat().blocks[2];
+  expect(asked).toMatchObject({ role: "approval", text: "git push", agentHabit: { id: "heartbeat" } });
   expect(asked.approval!.requestId).not.toBe(7);
   await act(async () => approve("chat", asked.approval!.requestId, "allow"));
   expect(respond).toHaveBeenCalledWith("codex", runId, 7, "allow");
-  expect(chat().blocks[0].approval!.decided).toBe("allow");
+  expect(chat().blocks[2].approval!.decided).toBe("allow");
   expect(ownApprovals).not.toHaveBeenCalled();
   // The conversation's own approvals are untouched.
   await act(async () => approve("chat", 3, "deny"));
   expect(ownApprovals).toHaveBeenCalledWith("chat", 3, "deny");
   finish({ status: "completed", text: "Pushed the fix." });
-  await vi.waitFor(() => expect(stored[0].lastOutcome).toBe("posted"));
+  await vi.waitFor(() => expect(chat().blocks.at(-1)).toMatchObject({ text: "Pushed the fix." }));
 });
-
-const MIN = 60_000;
-const said = (startedAt: number): Session["blocks"] => [
-  { id: "u", role: "user", text: "Can you find the Pin RFC later?", startedAt, durationMs: 1_000 },
-  { id: "r", role: "assistant", text: "Sure, I will look for it." },
-];
 
 it("wakes its heartbeat once the chat sits idle and posts what it proposes", async () => {
   heartbeat = { lastRunAt: Date.now() - 50 * MIN, quietStreak: 2, recent: [], memoryHash: "m" };
@@ -234,19 +171,22 @@ it("drops a quiet heartbeat without a trace in the chat", async () => {
   expect(sessions.map((session) => session.id)).toEqual(["chat"]);
 });
 
-it("only marks where its heartbeat starts, and skips the model when nothing moved", async () => {
+it("only marks where its heartbeat starts, and after a start that missed runs, looks once even though nothing moved", async () => {
   const ran = vi.fn();
-  turn = async () => { ran(); return { status: "completed", text: "Something" }; };
+  let prompt = "";
+  turn = async (_session, text) => { ran(); prompt = text; return { status: "completed", text: "NOTHING_TO_REPORT" }; };
   heartbeat = {};
   sessions[0] = { ...sessions[0], blocks: said(Date.now() - 400 * MIN) };
   await mount();
   await vi.waitFor(() => expect(heartbeat!.lastRunAt).toBeGreaterThan(0));
+  expect(ran).not.toHaveBeenCalled();
   await act(async () => root.unmount());
 
+  // The app was closed for longer than the interval: the first look after it starts runs.
   heartbeat = { lastRunAt: Date.now() - 200 * MIN, quietStreak: 0, recent: [], memoryHash: "m" };
   await mount();
-  await vi.waitFor(() => expect(heartbeat!.lastRunAt).toBeGreaterThan(Date.now() - MIN));
-  expect(ran).not.toHaveBeenCalled();
+  await vi.waitFor(() => expect(ran).toHaveBeenCalledTimes(1));
+  expect(prompt).toContain("The learner's last message was 6 hours ago.");
   expect(chat().blocks).toHaveLength(2);
 });
 

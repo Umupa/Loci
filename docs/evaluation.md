@@ -78,20 +78,21 @@ Each file holds `opening`, `learner.background`, `learner.answers`, `firstPartyD
 | Files read in place | first-hand files the course reads where they are: a cloned repository (`/repos/`), a downloaded paper (PDF). Lens reads code this way by design, and a PDF cannot be taken in as a source |
 | Not verbatim | first-hand sources that read like a summary (phrases such as "in this guide we will", "key takeaways", 总结/本文将; very short); listed for the judge |
 | Guides | how many guides the mentor wrote (kept apart from sources) |
-| Lessons resolve | every lesson's document exists and its `section` matches a heading, or its file exists and `lines` are inside it |
-| Course shape | courses, chapters, lessons (within the scenario's expected range), lessons on files and on guides, lessons reading one document backwards |
+| Lessons resolve | a lesson with its own text (collected with `lessons read` into `courses/<course>/<lesson>.md`): every citation in it resolves, at least one cites first-hand material (a source, not a guide, or a file), and none cites a guide. The text itself is the mentor's by design and is never counted against it; sources must still be verbatim. A lesson that names a source: its document exists and its `section` matches a heading, or its file exists and `lines` are inside it. A lesson with only a title is planned and passes |
+| Course shape | courses, chapters, lessons (within the scenario's expected range), lessons with text, planned lessons and citations in lesson texts, lessons on files and on guides, lessons reading one document backwards |
 | Citations | `loci://source/…#section/quote`, `loci://file/…#L` and absolute-path links in replies: the target exists, the section is a heading, the quote is found, the lines are inside; whether the probe answer cites anything |
 | First ten minutes | seconds to first reply, first first-hand source and first course; mentor turns before the first source; question marks per reply; nudges |
 | Failures | timeouts, failed turns, a mentor asking for permission in full access |
 | Sandbox acceptance (v0.4) | learning path shape, code lessons pinned, with their pins and ranges, first-hand sources with address and version, time to first source, comparison lessons when present, and `library check` problems; only for scenarios with `"acceptance": "v0.4"` (see below) |
 
-**Rubric** (`scripts/eval/judge-prompt.md`, filled with the checks, sources, courses and transcript, run in print mode from an empty folder). 1–5 each with a one-line reason, plus the single change that would help most:
+**Rubric** (`scripts/eval/judge-prompt.md`, filled with the checks, sources, courses, each lesson's text and the transcript, run in print mode from an empty folder). 1–5 each with a one-line reason, plus the single change that would help most:
 
-- **firstHand**: first-hand and verbatim, with addresses and versions.
-- **courseStructure**: a progressive, complete path with precise anchors, not an overview.
+- **firstHand**: the evidence behind the lessons is first-hand and verbatim, with addresses and versions, and the lessons cite it. Writing the lesson is the mentor's job and is not scored down.
+- **courseStructure**: a map first, then a progressive, complete path of one-idea lessons (written chapters and planned titles), not an overview.
 - **grounding**: answers quote and link the sources, separate source from inference, are correct (probe weighted most).
 - **firstTenMinutes**: reading quickly, few questions at a time.
 - **firstPrinciples**: the judgement to choose and evaluate a design rather than knowledge of code: from the problem and the underlying mechanism upward, shallow to deep, each choice with its cost and alternative, invariants and failure modes, where it fits and the magnitudes.
+- **readability**: the judge reads the lesson texts as the scenario's learner (`learner.background`, nothing more) and lists, in `issues`, every term used before it is explained, every skipped step and every mechanism without a diagram or a worked example. 1 = no lesson text, or lost in most lessons; 5 = every lesson readable start to end by this learner.
 
 ## Sandbox acceptance (v0.4)
 

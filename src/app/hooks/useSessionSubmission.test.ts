@@ -54,7 +54,7 @@ function session() { return runtime.sessionsRef.current[0]; }
 
 /** A message with only the local time every agent turn carries taken off. */
 function withoutTime(text: string) {
-  return text.replace(/^<loci_context>\n<local_time>\n.*\n<\/local_time>\n<\/loci_context>\n\n/, "");
+  return text.replace(/^<loci_context>\n<local_time>\n.*\n<\/local_time>(?:\n\n<since_last_message>\n.*\n<\/since_last_message>)?\n<\/loci_context>\n\n/, "");
 }
 async function settle(run: Pending) {
   await act(async () => {
@@ -567,7 +567,7 @@ describe("agents without an MCP server of Loci's, and runs", () => {
     const files = { id: "a", dir: "/data/agents/a", soul: "# Soul\n\n- Be brief.", soulHash: "soul-1", memory: "- 2026-10-01 · CI runs on Actions", memoryHash: "memory-1", memoryPath: "/data/agents/a/MEMORY.md", topics: [] };
     async function mountAgent(extra: Partial<Session> = {}) {
       const chat = { ...newSession("codex", "/home/me", "codex:test"), ...extra };
-      const agent = createAgent(["/code/app"]);
+      const agent = createAgent();
       saveAgentSessionId(agent.id, chat.id);
       const invoke = mocks.invoke.getMockImplementation()!;
       mocks.invoke.mockImplementation(async (command: string, args?: never) => command === "agent_load" ? files : invoke(command, args));
@@ -650,7 +650,6 @@ describe("agents without an MCP server of Loci's, and runs", () => {
       expect(first.text.startsWith("<loci_context>")).toBe(true);
       expect(first.text.endsWith("</loci_context>\n\nWhat broke?")).toBe(true);
       expect(first.text).toContain('"name": "Ember"');
-      expect(first.text).toContain('"folders": [\n    "/code/app"\n  ]');
       expect(first.text).toContain("- Be brief.");
       expect(first.text).toContain("CI runs on Actions");
       expect(first.text).toContain('"access": "agent"');

@@ -22,6 +22,7 @@ import { useReadingPlace } from "./useReadingPlace";
 import { useReadingPosition } from "./useReadingPosition";
 import { MentorLibrary, type LibraryChange, type LibraryData } from "./MentorLibrary";
 import { MentorReader } from "./MentorReader";
+import { ReturnCard, useReturn } from "./ReturnCard";
 import "./MentorWorkspace.css";
 
 const LIBRARY_MIN = 200;
@@ -160,6 +161,9 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
   });
   const close = () => void leave(onClose);
 
+  // Coming back after a while: where things were left, above whatever the reader shows.
+  const left = state.page?.kind === "course" ? { courseId: state.page.course.courseId, ...(state.lesson ? { lessonId: state.lesson.id } : {}) } : undefined;
+  const back = useReturn(agent.id, left, pageNoveltyKey(state.page) ?? state.page?.kind ?? "empty");
   const reading = readingOf(state.page, state.lesson);
   const readingKey = JSON.stringify(reading ?? null);
   useEffect(() => { onReading?.(reading); }, [readingKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -288,6 +292,7 @@ export function MentorWorkspace({ agent, state, chat, busy = false, leading, tra
       </aside>
       <main ref={readerRef} className="mentor-reader" aria-label="Reader" data-mentor-reader={state.page?.kind ?? "empty"}>
         <ResourceHeaderLeading.Provider value={readerLeading}><ResourceHeaderExtra.Provider value={readerExtra}>
+        {back.summary ? <ReturnCard agentId={agent.id} summary={back.summary} onOpen={open} onDismiss={back.dismiss} /> : null}
         <MentorReader agent={agent} courses={data.courses ?? (errors.courses ? NO_COURSES : undefined)} page={state.page} request={state.request}
           onClose={close} onLessonChange={onLessonChange} onBeforeLeave={registerSave}
           onOpenFile={onOpenFile} renderSession={renderSession}

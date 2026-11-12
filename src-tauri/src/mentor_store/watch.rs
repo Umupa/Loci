@@ -19,7 +19,7 @@ use rusqlite::Connection;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager};
 
-use super::commands::{kind_event, CONTENT_CHANGED, MENTORS_CHANGED};
+use super::commands::{event_id, kind_event, CONTENT_CHANGED, MENTORS_CHANGED};
 use super::index::{self, Change};
 use super::paths::{self, classify, Kind, KINDS, MENTOR_FILE};
 use super::{ctx_for, registry, MentorsRoot};
@@ -46,7 +46,17 @@ pub fn watched_dirs(conn: &Connection, root: &Path) -> Vec<PathBuf> {
         dirs.push(record.folder.clone());
         dirs.push(record.folder.join("memory"));
         for kind in KINDS {
-            dirs.push(record.folder.join(kind.dir()));
+            if kind != Kind::Lesson {
+                dirs.push(record.folder.join(kind.dir()));
+            }
+        }
+        // Each course's folder of lesson texts.
+        if let Ok(entries) = std::fs::read_dir(record.folder.join(Kind::Lesson.dir())) {
+            for entry in entries.flatten() {
+                if entry.file_type().is_ok_and(|t| t.is_dir()) {
+                    dirs.push(entry.path());
+                }
+            }
         }
     }
     dirs
@@ -85,9 +95,11 @@ pub fn apply(conn: &Connection, root: &Path, paths: &HashSet<PathBuf>, rescan: b
             }
             if let Ok(Some(ctx)) = ctx_for(conn, &record.id) {
                 for (kind, id, _) in index::reconcile(conn, &ctx).unwrap_or_default() {
-                    outcome
-                        .content
-                        .insert((record.id.clone(), kind_event(kind).into(), id));
+                    outcome.content.insert((
+                        record.id.clone(),
+                        kind_event(kind).into(),
+                        event_id(kind, &id),
+                    ));
                 }
                 outcome
                     .content
@@ -174,9 +186,11 @@ pub fn apply(conn: &Connection, root: &Path, paths: &HashSet<PathBuf>, rescan: b
         match index::index_file(conn, &ctx, kind, &id, &file, false) {
             Ok(Change::Unchanged) | Err(_) => {}
             Ok(_) => {
-                outcome
-                    .content
-                    .insert((record.id.clone(), kind_event(kind).into(), id));
+                outcome.content.insert((
+                    record.id.clone(),
+                    kind_event(kind).into(),
+                    event_id(kind, &id),
+                ));
             }
         }
     }

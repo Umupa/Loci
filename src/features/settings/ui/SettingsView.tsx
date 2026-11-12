@@ -17,7 +17,6 @@ import { Popover } from "../../../shared/ui/Popover";
 import { SecondaryButton } from "../../../shared/ui/SecondaryButton";
 import { loadNewAgentAccess, NEW_AGENT_ACCESS, saveNewAgentAccess, subscribeNewAgentAccess } from "../../agents/model/agentAccess";
 import { GradientBlurBackground } from "./GradientBlurBackground";
-import { McpSettings } from "./McpSettings";
 import { RemoteAccessSettings } from "./RemoteAccessSettings";
 import { useRemoteSettingsScope } from "../model/settingsScope";
 import { ReadOnly } from "../../../shared/ui/ReadOnly";
@@ -43,7 +42,6 @@ import type {} from "../../sessions/data/sessionStore";
 import {  filterKeybindings, currentKeybindings, loadClaudeHooks, loadComposerRunner, loadCloseToTray, loadFollowUpBehavior, loadModelControls, loadKeybindingOverrides, saveClaudeHooks, saveComposerRunner, saveCloseToTray, saveFollowUpBehavior, saveModelControls, saveKeybindingOverride, subscribeKeybindings, type KeybindingOverride, searchSettings, settingsSectionDescription, settingsSectionLabel, type FollowUpBehavior, type ModelControls, type SettingsSearchResult, type SettingsSectionId } from "../model/settings";
 import { loadSoundsEnabled, playCue, saveSoundsEnabled } from "../model/sounds";
 import { cachedNotificationPermission, loadNotificationsEnabled, openNotificationSettings, probeNotificationPermission, requestNotificationPermission, saveNotificationsEnabled, type NotificationPermission } from "../../notifications/model/notifications";
-import { SkillsPage } from "../../skills/ui/SkillsPage";
 import type {} from "../../sessions/model/session";
 /**
  * The `data-setting-id` Settings should reveal when it opens: one of the ids in
@@ -54,8 +52,8 @@ type Props = {
     section: SettingsSectionId;
     /** Card to scroll to; the General page is too long to land at the top. */
     anchor?: SettingsAnchor | null;
-    /** Folder the Skills page scans; MCP reads user-level configurations. */
-    cwd: string;
+    /** Kept for callers; no page reads it now. */
+    cwd?: string;
     besideRail?: boolean;
     onClose: () => void;
     /** Lets search jump to a setting that lives on another page. */
@@ -64,7 +62,7 @@ type Props = {
 export function SettingsView(props: Props) {
     return <SettingsLanguage><SettingsViewContent {...props}/></SettingsLanguage>;
 }
-function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, onClose, onSelectSection, }: Props) {
+function SettingsViewContent({ section, anchor = null, besideRail = false, onClose, onSelectSection, }: Props) {
   useLocale();
     const lockOverscroll = useLockOverscroll<HTMLDivElement>();
     const [revealed, setRevealed] = useState<string | null>(anchor);
@@ -129,7 +127,7 @@ function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, 
         {IS_MAC ? null : <WindowControls />}
       </div>
 
-      {section === "skills" ? (<HostOnly><SkillsPage key={cwd} cwd={cwd} userOnly header={<PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)} note={sectionNote}/>}/></HostOnly>) : (<RevealedSetting.Provider value={revealed}>
+      <RevealedSetting.Provider value={revealed}>
           <div ref={lockOverscroll} className="@container/settings min-h-0 flex-1 overflow-y-auto overscroll-none">
             <div className="mx-auto w-full max-w-5xl px-5 py-6 pb-16 @min-[560px]/settings:px-8 @min-[560px]/settings:py-8">
               <PageHeader title={settingsSectionLabel(section)} description={settingsSectionDescription(section)} note={sectionNote}/>
@@ -139,13 +137,12 @@ function SettingsViewContent({ section, anchor = null, cwd, besideRail = false, 
               {section === "remote" ? <RemoteAccessSettings /> : null}
               {section === "chat" ? <ChatPage /> : null}
               {section === "keybindings" ? <KeybindingsPage /> : null}
-              {section === "mcp" ? (<HostOnly><McpSettings cwd={cwd}/></HostOnly>) : null}
               {section === "providers" ? (<HostOnly><ProvidersPage /></HostOnly>) : null}
 
 
             </div>
           </div>
-        </RevealedSetting.Provider>)}
+        </RevealedSetting.Provider>
     </div>);
 }
 /** Jumps to any setting by name, including ones on another page. */
@@ -1312,7 +1309,7 @@ function PageHeader({ title, description, note = null, }: {
  */
 type HostKind = "shared" | "acts";
 const HOST_SECTIONS: Partial<Record<SettingsSectionId, HostKind>> = {
-    providers: "shared", skills: "shared", mcp: "acts",
+    providers: "shared",
 };
 /** A line saying a setting is the host's; `null` in a window of this device. */
 function useHostNote(kind: HostKind): string | null {

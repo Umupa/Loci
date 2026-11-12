@@ -8,7 +8,6 @@ vi.mock("cuelume", () => ({
     setVolume: (...args: unknown[]) => setVolume(...args),
 }));
 import { loadSoundsEnabled, playCue, saveSoundsEnabled, SOUNDS_DEFAULT, SOUNDS_VOLUME, } from "./sounds";
-import { updateNotificationPreferences } from "../../notifications/model/notificationPreferences";
 const KEY = "loci.sounds";
 function mockLocalStorage() {
     const data = new Map<string, string>();
@@ -57,12 +56,12 @@ describe("sounds", () => {
         expect(setEnabled).toHaveBeenLastCalledWith(true);
     });
     it("plays the mapped cue when enabled", () => {
-        playCue("turnFinished", { projectId: "work", category: "agentFinished" });
+        playCue("turnFinished", {});
         expect(setVolume).toHaveBeenCalledWith(SOUNDS_VOLUME);
         expect(play).toHaveBeenCalledWith("success");
-        playCue("turnFinished", { projectId: "work", category: "agentFinished" });
+        playCue("turnFinished", {});
         expect(play).toHaveBeenCalledWith("success");
-        playCue("turnFinished", { projectId: "work", category: "agentFinished" });
+        playCue("turnFinished", {});
         expect(play).toHaveBeenCalledWith("success");
         playCue("switch");
         expect(play).toHaveBeenCalledWith("toggle");
@@ -74,21 +73,10 @@ describe("sounds", () => {
     it("is silent when muted", () => {
         saveSoundsEnabled(false);
         play.mockClear();
-        playCue("turnFinished", { projectId: "work", category: "agentFinished" });
+        playCue("turnFinished", {});
         expect(play).not.toHaveBeenCalled();
     });
-    it("suppresses project cues without silencing allowed projects or app-wide cues", () => {
-        updateNotificationPreferences(["private"], { mutedUntil: null });
-        playCue("turnFinished", {
-            projectId: "private",
-            category: "agentFinished",
-        });
-        expect(play).not.toHaveBeenCalled();
-        playCue("turnFinished", { projectId: "work", category: "agentFinished" });
-        playCue("switch");
-        expect(play.mock.calls).toEqual([["success"], ["toggle"]]);
-    });
-    it("does not catch up on project activity from before global sounds were re-enabled", () => {
+    it("does not catch up on activity from before global sounds were re-enabled", () => {
         vi.useFakeTimers();
         vi.setSystemTime(1000);
         try {
@@ -96,14 +84,10 @@ describe("sounds", () => {
             vi.setSystemTime(2000);
             saveSoundsEnabled(true);
             playCue("turnFinished", {
-                projectId: "work",
-                category: "agentFinished",
                 occurredAt: 1500,
             });
             expect(play).not.toHaveBeenCalled();
             playCue("turnFinished", {
-                projectId: "work",
-                category: "agentFinished",
                 occurredAt: 2050,
             });
             expect(play).toHaveBeenCalledExactlyOnceWith("success");

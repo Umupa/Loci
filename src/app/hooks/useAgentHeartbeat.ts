@@ -7,12 +7,11 @@ import type { TurnOutcome } from "../../features/sessions/model/turnOutcome";
 import { agentForSession, agentLook, findAgent, listAgents, type AgentLook } from "../../features/agents/model/agent";
 import { loadAgentFiles } from "../../features/agents/model/agentFiles";
 import {
-  afterRun, claimHabit, clearHabitRun, dropRelays, dueHabits, HABIT_APPROVAL_WAIT_MS, HABIT_RUN_TIMEOUT_MS,
-  habitReport, habitRunPrompt, isRelayed, loadHabits, markHabitRun, relayApproval, setHabitRunning,
-  subscribeCheckHabitsNow, takeRelayedApproval, updateHabits,
-} from "../../features/agents/model/agentHabits";
+  clearWakeRun, dropRelays, isRelayed, markWakeRun, relayApproval, takeRelayedApproval, wakeReport,
+  WAKE_APPROVAL_WAIT_MS, WAKE_RUN_TIMEOUT_MS,
+} from "../../features/agents/model/agentWake";
 import {
-  afterHeartbeat, HEARTBEAT_ID, HEARTBEAT_NAME, heartbeatMinutes, heartbeatModel, heartbeatPrompt, loadHeartbeat,
+  afterHeartbeat, chatActivity, HEARTBEAT_ID, HEARTBEAT_NAME, heartbeatMinutes, heartbeatModel, heartbeatPrompt, loadHeartbeat,
   planHeartbeat, recentExchanges, updateHeartbeat,
 } from "../../features/agents/model/agentHeartbeat";
 import type { SessionRuntime } from "./useSessionRuntime";
@@ -25,11 +24,11 @@ const POST_RETRY_MS = 5_000;
 const POST_RETRIES = 120;
 
 /**
- * Only the newest scheduler runs habits. A hot reload in development can
+ * Only the newest scheduler runs heartbeats. A hot reload in development can
  * leave an older copy of this hook running beside the new one, with its own
  * idea of what is running; the newest claims the window and the rest stop.
  */
-const OWNER = "__agentHabitsScheduler";
+const OWNER = "__agentHeartbeatScheduler";
 type OwnedWindow = Window & { [OWNER]?: symbol };
 
 type Options = {
@@ -37,20 +36,20 @@ type Options = {
   submission: SessionSubmission;
   /** A saved conversation by id, from memory or the store. */
   loadSession: (id: string) => Promise<Session | null>;
-  /** A habit told the user something in its agent's chat. */
+  /** A heartbeat told the user something in its agent's chat. */
   onPosted?: (chat: Session, agentName: string) => void;
 };
 
-/** What a hidden run posts as, in the agent's chat: one of its habits, or its heartbeat. */
+/** What a hidden run posts as, in the agent's chat. */
 type RunTag = { id: string; name: string };
 
 /**
- * Runs each agent's habits on schedule, and its heartbeat once its chat has
- * sat idle, while the app is open: in a hidden session of its own, posting
- * to the agent's chat only when the run has something to say. One run at a
- * time across all agents keeps a wake from sleep from starting several at once.
+ * Runs each agent's heartbeat once its chat has sat idle, while the app is
+ * open: in a hidden session of its own, posting to the agent's chat only
+ * when the run has something to say. One run at a time across all agents
+ * keeps a wake from sleep from starting several at once.
  */
-export function useAgentHabits(options: Options, enabled = true) {
+export function useAgentHeartbeat(options: Options, enabled = true) {
   const latest = useRef(options);
   latest.current = options;
 
@@ -93,7 +92,7 @@ export function useAgentHabits(options: Options, enabled = true) {
   }, []);
 
   /**
-   * Answers an approval in an agent's chat. One a habit's hidden run asked
+   * Answers an approval in an agent's chat. One a hidden run asked
    * for goes back to that run; any other is the conversation's own.
    */
   const approve = useCallback((sessionId: string, requestId: number, decision: ApprovalDecision) => {
@@ -112,11 +111,11 @@ export function useAgentHabits(options: Options, enabled = true) {
 
   useEffect(() => {
     if (!enabled) return;
-    const owner = Symbol("agent-habits");
+    const owner = Symbol("agent-heartbeat");
     (window as OwnedWindow)[OWNER] = owner;
     let stopped = false;
     let running = false;
-    // A check asked for mid-run happens as soon as that run ends.
+    // A check that came mid-run happens as soon as that run ends.
     let checkAgain = false;
 
     /**
@@ -146,9 +145,9 @@ export function useAgentHabits(options: Options, enabled = true) {
         }
         if (pending.length) waiting += POLL_MS;
         else working += POLL_MS;
-        if (working >= HABIT_RUN_TIMEOUT_MS || waiting >= HABIT_APPROVAL_WAIT_MS) {
+        if (working >= WAKE_RUN_TIMEOUT_MS || waiting >= WAKE_APPROVAL_WAIT_MS) {
           return { status: "failed", text: "",
-            error: waiting >= HABIT_APPROVAL_WAIT_MS ? "Nobody answered its approval request." : "It took too long and was stopped." };
+            error: waiting >= WAKE_APPROVAL_WAIT_MS ? "Nobody answered its approval request." : "It took too long and was stopped." };
         }
       }
       return settled;
@@ -172,18 +171,16 @@ export function useAgentHabits(options: Options, enabled = true) {
         title: `${look.name} · ${tag.name}`,
         ephemeral: true,
       };
-      markHabitRun(run.id, agentId);
-      setHabitRunning(tag.id, setup.startedAt);
+      markWakeRun(run.id, agentId);
       runtime.updateSessions((current) => [...current, run]);
       const outcome = await watchRun(chat.id, tag, run.id,
         () => submission.runTurn(run.id, setup.prompt, { appAccess: true }))
         .catch((error: unknown): TurnOutcome => ({ status: "failed", text: "", error: error instanceof Error ? error.message : String(error) }));
       for (const relay of dropRelays(run.id)) decideBlock(relay.chatId, relay.blockId, "cancelled");
       await removeRun(run.id);
-      clearHabitRun(run.id);
-      setHabitRunning(tag.id);
+      clearWakeRun(run.id);
 
-      const report = outcome.status === "completed" ? habitReport(outcome.text) : undefined;
+      const report = outcome.status === "completed" ? wakeReport(outcome.text) : undefined;
       if (report) {
         void appendToChat(chat.id, { id: crypto.randomUUID(), role: "assistant", text: report, agentHabit: { ...tag, at: Date.now() } },
           (posted) => latest.current.onPosted?.(posted, look.name));
@@ -191,43 +188,16 @@ export function useAgentHabits(options: Options, enabled = true) {
       return { outcome, ...(report ? { report } : {}) };
     };
 
-    const runHabit = async (agentId: string, chatId: string, habitId: string) => {
-      const chat = await openChat(chatId);
-      if (!chat || stopped || !findAgent(agentId)) return;
-      const files = await loadAgentFiles(agentId);
-      if (stopped || !findAgent(agentId)) return;
-      const now = Date.now();
-      // Claim after preparation, from the latest definition. A queued habit
-      // may have been removed, paused, rescheduled or claimed in another window.
-      const habit = await claimHabit(agentId, habitId, now);
-      const record = findAgent(agentId);
-      if (!habit || stopped || !record) return;
-      const look = agentLook(record);
-      const { outcome, report } = await runHidden(agentId, chat, look, habit, {
-        model: chat.model, modelSettings: chat.modelSettings,
-        // Nobody is watching a habit's run, so it cannot stop to ask before
-        // each step unless it was set to. Anything the harness asks goes to
-        // the user in the chat.
-        mode: habit.access === "auto" ? "auto" : "full-access",
-        prompt: habitRunPrompt(look, files, habit, now),
-        startedAt: now,
-      });
-      await updateHabits(agentId, (habits) => ({
-        habits: habits.map((entry) => entry.id === habit.id ? afterRun(entry, Date.now(), {
-          kind: outcome.status !== "completed" ? "failed" : report ? "posted" : "quiet",
-          ...(outcome.status !== "completed" ? { error: outcome.error ?? "The run did not finish." } : {}),
-          ...(report ? { report } : {}),
-          startedAt: now,
-        }) : entry),
-        result: undefined,
-      }));
-    };
-
     /**
      * The agent's heartbeat, if its chat has sat idle long enough and moved
      * since the last one. A quiet result is dropped; the chat never sees it.
      */
+    // Agents whose heartbeat has been looked at since the app started.
+    const looked = new Set<string>();
     const beat = async (agentId: string, chatId: string) => {
+      // Only the first look after the app starts may find runs missed while it was closed.
+      const first = !looked.has(agentId);
+      looked.add(agentId);
       const state = await loadHeartbeat(agentId);
       const minutes = heartbeatMinutes(state);
       // Cheap first: nothing is due before a whole interval has passed.
@@ -239,7 +209,7 @@ export function useAgentHabits(options: Options, enabled = true) {
       const record = findAgent(agentId);
       if (stopped || !record) return;
       const now = Date.now();
-      const plan = planHeartbeat(state, chat, files.memoryHash, now);
+      const plan = planHeartbeat(state, chat, files.memoryHash, now, first);
       if (plan.kind === "wait") return;
       const { lastRunAt, quietStreak, memoryHash } = plan.state;
       // Over the latest file, so an interval changed meanwhile stays.
@@ -249,7 +219,7 @@ export function useAgentHabits(options: Options, enabled = true) {
       const { outcome, report } = await runHidden(agentId, chat, look, { id: HEARTBEAT_ID, name: HEARTBEAT_NAME }, {
         ...heartbeatModel(chat.harness, chat.model, chat.modelSettings),
         mode: chat.runtimeMode,
-        prompt: heartbeatPrompt(look, files, claimed, recentExchanges(chat.blocks), now),
+        prompt: heartbeatPrompt(look, files, claimed, recentExchanges(chat.blocks), now, chatActivity(chat.blocks).lastUserAt),
         startedAt: now,
       });
       await updateHeartbeat(agentId, (current) => afterHeartbeat(current, { ok: outcome.status === "completed", ...(report ? { report } : {}) }));
@@ -264,26 +234,12 @@ export function useAgentHabits(options: Options, enabled = true) {
       try {
         for (const { id, sessionId } of listAgents()) {
           if (stopped) return;
-          // Habits are set up in its chat, so one never opened has none.
+          // A chat never opened has nothing to follow up.
           if (!sessionId) continue;
-          const { run, skipped } = dueHabits(await loadHabits(id), Date.now());
-          if (!run.length && !skipped.length) {
-            await beat(id, sessionId).catch((error) => console.warn("Heartbeat could not run", error));
-            continue;
-          }
-          if (skipped.length) {
-            await updateHabits(id, (habits) => {
-              const stale = new Set(dueHabits(habits, Date.now()).skipped.map((habit) => habit.id));
-              return { habits: habits.map((habit) => stale.has(habit.id) ? afterRun(habit, Date.now()) : habit), result: undefined };
-            });
-          }
-          for (const habit of run) {
-            if (stopped) return;
-            await runHabit(id, sessionId, habit.id).catch((error) => console.warn(`Habit "${habit.name}" could not run`, error));
-          }
+          await beat(id, sessionId).catch((error) => console.warn("Heartbeat could not run", error));
         }
       } catch (error) {
-        console.warn("Could not check agent habits", error);
+        console.warn("Could not check agent heartbeats", error);
       } finally {
         running = false;
         if (checkAgain && !stopped) void tick();
@@ -292,11 +248,9 @@ export function useAgentHabits(options: Options, enabled = true) {
 
     void tick();
     const timer = window.setInterval(() => void tick(), TICK_MS);
-    const stopChecks = subscribeCheckHabitsNow(() => void tick());
     return () => {
       stopped = true;
       window.clearInterval(timer);
-      stopChecks();
       if ((window as OwnedWindow)[OWNER] === owner) delete (window as OwnedWindow)[OWNER];
     };
   }, [enabled, appendToChat, decideBlock, openChat]);

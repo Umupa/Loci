@@ -6,7 +6,7 @@ it("drains existing saves and prevents queued snapshots from being written after
   const { invoke, suspendWorkspaceInvokes } = await import("./core");
   let finish!: () => void;
   nativeInvoke.mockReturnValueOnce(new Promise<void>((resolve) => { finish = resolve; }));
-  const save = invoke("workspace_set_snapshot", { snapshot: "old" });
+  const save = invoke("session_upsert", { snapshot: "old" });
   let drained = false;
   const drain = suspendWorkspaceInvokes().then(() => { drained = true; });
   await expect(invoke("session_upsert", { session: "old" })).rejects.toThrow("Workspace reset");
@@ -16,7 +16,7 @@ it("drains existing saves and prevents queued snapshots from being written after
   await save;
   await drain;
   expect(drained).toBe(true);
-  await expect(invoke("workspace_set_snapshot")).rejects.toThrow("Workspace reset");
+  await expect(invoke("session_upsert")).rejects.toThrow("Workspace reset");
   nativeInvoke.mockResolvedValueOnce(null);
   await expect(invoke("workspace_reset_status")).resolves.toBeNull();
 });
@@ -54,7 +54,7 @@ it("acknowledges a save before callers can close their window", async () => {
   nativeInvoke.mockImplementation((command: string) => command === "workspace_reset_request_finished"
     ? new Promise<void>((resolve) => { acknowledge = resolve; }) : Promise.resolve("saved"));
   let saved = false;
-  const result = invoke("workspace_set_snapshot").then(() => { saved = true; });
+  const result = invoke("session_upsert").then(() => { saved = true; });
   await vi.waitFor(() => expect(acknowledge).toBeDefined());
   expect(saved).toBe(false);
   acknowledge();

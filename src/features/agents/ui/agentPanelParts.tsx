@@ -1,8 +1,3 @@
-import { useRef, useState, type ReactNode } from "react";
-import { prettyCwd, projectKey, projectName } from "../../../shared/lib/paths";
-import { Folder, FolderOpen, Plus, X } from "../../../shared/ui/icons";
-import { Popover } from "../../../shared/ui/Popover";
-import type { RecentProject } from "../../projects/model/recents";
 import { AGENT_COLORS } from "../model/agent";
 import { AGENT_AVATARS, agentAvatar, defaultAgentName } from "../model/agentAvatars";
 import { AgentAvatar } from "./AgentAvatar";
@@ -32,82 +27,6 @@ export function ColorPicker({ current, onPick }: { current: string; onPick: (col
           className="agent-color-option size-5 rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-content/60"
           style={{ backgroundColor: color }} />
       ))}
-    </div>
-  );
-}
-
-/** A folder by its name. */
-function projectLook(path: string) {
-  return { name: projectName(path) };
-}
-
-function ProjectIcon(_: { path: string }) {
-  return <Folder className="size-3.5 shrink-0 text-content/50" />;
-}
-
-/**
- * The other folders an agent works in, each removable, and a menu to add one
- * of the folders the app already knows or any folder.
- */
-export function ProjectsField({ header, projects, recents, onAdd, onRemove, onPickFolders }: {
-  /** The row's label; the add button sits beside it, the folders below. */
-  header?: ReactNode;
-  projects: readonly string[];
-  recents: readonly RecentProject[];
-  onAdd: (path: string) => void;
-  onRemove: (path: string) => void;
-  onPickFolders: () => Promise<string[]>;
-}) {
-  const [open, setOpen] = useState(false);
-  const anchor = useRef<HTMLButtonElement>(null);
-  const taken = new Set(projects.map((path) => projectKey(path)));
-  const candidates = recents.filter((recent) => !taken.has(projectKey(recent.path)));
-  const pick = () => {
-    setOpen(false);
-    void onPickFolders().then((paths) => { for (const path of paths) onAdd(path); });
-  };
-  return (
-    <div className="flex min-w-0 flex-1 flex-col">
-      <div className="flex min-w-0 items-center gap-4">
-        {header}
-        <button ref={anchor} type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => (candidates.length ? setOpen((value) => !value) : pick())}
-          className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-stroke py-1 pl-1.5 pr-2 text-xs text-content/70 hover:bg-content/6">
-          <Plus className="size-3.5" />
-          Add folder
-        </button>
-      </div>
-      {projects.length ? <ul className="-mx-1.5 mt-1.5 flex min-w-0 flex-col gap-0.5">
-        {projects.map((path) => (
-          <li key={projectKey(path)} title={path} className="group flex h-7 min-w-0 items-center gap-2 rounded-md px-1.5 hover:bg-content/6">
-            <ProjectIcon path={path} />
-            <span className="shrink-0 text-[13px]">{projectLook(path).name}</span>
-            <span className="min-w-0 flex-1 truncate text-[12px] text-content/40">{prettyCwd(path)}</span>
-            <button type="button" title="Remove folder" aria-label={`Remove ${projectLook(path).name}`} onClick={() => onRemove(path)}
-              className="grid size-5 shrink-0 place-items-center rounded text-content/40 opacity-0 hover:text-content focus-visible:opacity-100 group-hover:opacity-100">
-              <X className="size-3" />
-            </button>
-          </li>
-        ))}
-      </ul> : null}
-      {open ? (
-        <Popover anchor={anchor} side="bottom" align="end" width={240} onDismiss={() => setOpen(false)} role="menu" aria-label="Add folder" className="p-1.5">
-          <div className="max-h-56 overflow-y-auto">
-            {candidates.map((recent) => (
-              <button key={recent.path} type="button" role="menuitem" title={recent.path} onClick={() => { setOpen(false); onAdd(recent.path); }}
-                className="flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-content/85 hover:bg-content/8">
-                <ProjectIcon path={recent.path} />
-                <span className="min-w-0 flex-1 truncate">{projectLook(recent.path).name}</span>
-              </button>
-            ))}
-          </div>
-          <div role="separator" className="my-1 h-px bg-content/10" />
-          <button type="button" role="menuitem" onClick={pick}
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-content/85 hover:bg-content/8">
-            <FolderOpen className="size-3.5 shrink-0" />
-            Choose folder…
-          </button>
-        </Popover>
-      ) : null}
     </div>
   );
 }

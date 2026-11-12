@@ -1,5 +1,5 @@
 import { cloneElement, Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode } from "react";
-import { ArrowHorizontal, ChatQuestion, Check, Highlighter, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
+import { ArrowHorizontal, ChatQuestion, Check, File as FileIcon, Highlighter, ChevronLeft, ChevronRight, MessageSquarePlus, MoreHorizontal, Mortarboard, SidebarLeft, X } from "../../../shared/ui/icons";
 import { ReaderHeaderSlot, ResourceHeader, RESOURCE_ACTION } from "../../../shared/ui/ResourceHeader";
 import { PaneHeader } from "../../../shared/ui/PaneHeader";
 import { Popover } from "../../../shared/ui/Popover";
@@ -13,9 +13,11 @@ import type { AgentDocument } from "../../sessions/model/cards";
 import { requestAddToChat } from "../../sessions/model/quoteDraft";
 import { AgentMarkdown } from "../../sessions/ui/AgentMarkdown";
 import { CodeReader } from "../../../shared/ui/CodeReader";
-import { COURSES_CHANGED_EVENT, courseItems, loadCourse, OPEN_COURSE_EVENT, setLessonStatus, type ComparePart, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type OpenCourseDetail } from "../model/course";
+import { COURSES_CHANGED_EVENT, courseItems, lessonHasSource, lessonPlaceKey, lessonPlanned, loadCourse, loadLessonText, OPEN_COURSE_EVENT, setLessonStatus, type ComparePart, type CourseChangedDetail, type CourseLesson, type CourseWithProgress, type LearningStatus, type LessonText, type OpenCourseDetail } from "../model/course";
+import { requestChapter } from "../model/chapterRequest";
+import { LESSON_QUESTIONS_EVENT, loadLessonQuestions, type LessonQuestion } from "../model/lessonQuestions";
+import { openLearningDiscussion } from "../model/navigation";
 import { inLesson } from "../model/annotationCounts";
-import { DiffCard } from "./DiffCard";
 import { useFileSelection } from "../../files/hooks/useFileSelection";
 import { linesOf } from "../model/textAnchor";
 import { ReadingSelectionMenu } from "./ReadingSelectionMenu";
@@ -40,7 +42,7 @@ type Props = {
   /** After a discussion draft is queued, show the conversation it went to. */
   onDiscussed?: () => void;
   /** The lesson on screen, so the conversation beside it knows what is being read. */
-  onLessonChange?: (lesson: { id: string; title: string; compare?: ComparePart[] } | null) => void;
+  onLessonChange?: (lesson: { id: string; title: string; compare?: ComparePart[]; view?: "text" | "original" | "planned" } | null) => void;
   /**
    * Shown as the window's one reader: its outline lives outside, so the pane
    * has no sidebar and no Back, only Close.
@@ -53,8 +55,6 @@ const message = (cause: unknown) => cause instanceof Error ? cause.message : Str
 const READ_END_SLACK = 48;
 /** A lesson that just replaced another scrolls; its own events settle first. */
 const READ_SWITCH_SETTLE_MS = 250;
-/** A lesson that fits without scrolling counts as read after this long open. */
-const SHORT_LESSON_DWELL_MS = 8000;
 
 export function CoursePane({ courseId, agentId, title, sourceSessionId, focused, onFocus, onClose, onPaneDragStart, actions, onDiscussed, onLessonChange, itemId, openRequest, onBack, reader = false }: Props) {
   const embedded = reader || !!onBack;
@@ -168,10 +168,7 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     const targetSessionId = findAgent(agentId)?.sessionId ?? sourceSessionId;
     if (!targetSessionId) { setActionError("Open the course's original conversation before discussing progress."); return; }
     const currentItem = courseItems(course.data).find((item) => item.id === activeId)!;
-    const reading = course.data.engine === "reading";
-    const prompt = reading
-      ? `I'm studying course "${course.title}" (courseId: ${course.id}). Current lesson: "${currentItem.title}" (${activeId}), status: ${course.progress.get(activeId) ?? "untouched"}. Test my understanding with 1–2 practical questions or edge-case scenarios about this material, and highlight what to watch out for.`
-      : `I'm working on step "${currentItem.title}" in course "${course.title}" (courseId: ${course.id}). Current step: "${currentItem.title}" (${activeId}), status: ${course.progress.get(activeId) ?? "untouched"}. Let's discuss the key design decisions, trade-offs and next steps.`;
+    const prompt = `I'm studying course "${course.title}" (courseId: ${course.id}). Current lesson: "${currentItem.title}" (${activeId}), status: ${course.progress.get(activeId) ?? "untouched"}. Test my understanding with 1–2 practical questions or edge-case scenarios about this material, and highlight what to watch out for.`;
     requestAddToChat(prompt, "plain", { targetSessionId });
     setActionError(null);
     onDiscussed?.();
@@ -184,57 +181,63 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
       if (scrollRef.current) scrollRef.current.scrollTop = 0;
     }
     setActiveId(id);
-    if (course?.data.engine === "reading" && (course.progress.get(id) ?? "untouched") === "untouched") void markStatus(id, "learning");
+    const chosen = course ? courseItems(course.data).find((item) => item.id === id) : undefined;
+    // A planned lesson has nothing to read yet.
+    if (course && chosen && !lessonPlanned(course, chosen) && (course.progress.get(id) ?? "untouched") === "untouched") void markStatus(id, "learning");
   };
-  const reading = course?.data.engine === "reading";
   const activeStatus = course?.progress.get(activeId ?? "") ?? "untouched";
   const items = course ? courseItems(course.data) : [];
   const currentIndex = items.findIndex((item) => item.id === activeId);
   const nextItem = currentIndex >= 0 && currentIndex < items.length - 1 ? items[currentIndex + 1] : null;
   const previousItem = currentIndex > 0 ? items[currentIndex - 1] : null;
   const sidebarLabel = `${sidebarOpen ? "Hide" : "Show"} course sidebar`;
-  // Reaching the end of a lesson is reading it; a lesson too short to scroll
-  // counts once it has been open a while.
+  const activeLesson = currentIndex >= 0 ? items[currentIndex] as CourseLesson : undefined;
+  const activePlanned = !!course && !!activeLesson && lessonPlanned(course, activeLesson);
+  const hasText = !!course && !!activeId && !!course.bodies?.has(activeId);
+  // A lesson with its own text can show its source instead, until another lesson is opened.
+  const [originalOf, setOriginalOf] = useState<string | null>(null);
+  const showOriginal = hasText && !!activeLesson && lessonHasSource(activeLesson) && originalOf === activeId;
+  const originalButton = hasText && activeLesson && lessonHasSource(activeLesson)
+    ? <button type="button" data-no-drag className={embedded ? RESOURCE_ACTION : "course-pane__close"} aria-pressed={showOriginal} title={showOriginal ? "Back to the lesson" : "Original"}
+      onClick={() => { if (scrollRef.current) scrollRef.current.scrollTop = 0; setOriginalOf(showOriginal ? null : activeId); }}><FileIcon className="size-3.5" /><span className="sr-only">{showOriginal ? "Lesson" : "Original"}</span></button>
+    : null;
+  // Scrolling to the end of a lesson is reading it. One too short to scroll
+  // is marked read by hand, or by going on to the next lesson from its end.
   const readThrough = () => {
     const main = scrollRef.current;
-    if (!reading || !activeId || activeStatus === "mastered" || !main) return;
+    if (!activeId || activeStatus === "mastered" || activePlanned || !main) return;
     // The old lesson's offset being clamped to the new one's length is not reading it.
     if (Date.now() - switchedAt.current < READ_SWITCH_SETTLE_MS) return;
     if (main.scrollTop + main.clientHeight >= main.scrollHeight - READ_END_SLACK) void markStatus(activeId, "mastered");
   };
-  useEffect(() => {
-    const main = scrollRef.current;
-    if (!reading || !activeId || activeStatus === "mastered" || !main) return;
-    const timer = window.setTimeout(() => { if (main.scrollHeight <= main.clientHeight + READ_END_SLACK) void markStatus(activeId, "mastered"); }, SHORT_LESSON_DWELL_MS);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId, activeStatus, reading]);
   const activeTitle = items[currentIndex]?.title;
+  const activeView = activePlanned ? "planned" : hasText ? (showOriginal ? "original" : "text") : undefined;
   // A comparison tells the conversation which places it puts side by side.
-  const activeCompare = reading && currentIndex >= 0 ? (items[currentIndex] as CourseLesson).compare : undefined;
+  const activeCompare = currentIndex >= 0 ? (items[currentIndex] as CourseLesson).compare : undefined;
   const compareKey = activeCompare ? JSON.stringify(activeCompare.map(({ note: _note, ...place }) => place)) : "";
   useEffect(() => {
-    onLessonChange?.(activeId && activeTitle ? { id: activeId, title: activeTitle, ...(compareKey ? { compare: JSON.parse(compareKey) as ComparePart[] } : {}) } : null);
-  }, [activeId, activeTitle, compareKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    onLessonChange?.(activeId && activeTitle ? { id: activeId, title: activeTitle, ...(compareKey && activeView !== "text" ? { compare: JSON.parse(compareKey) as ComparePart[] } : {}), ...(activeView ? { view: activeView } : {}) } : null);
+  }, [activeId, activeTitle, compareKey, activeView]); // eslint-disable-line react-hooks/exhaustive-deps
   const iconButton = embedded ? RESOURCE_ACTION : "course-pane__close";
   const controls = course ? <>
     <button type="button" data-no-drag className={iconButton} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-4" /><span className="sr-only">Previous</span></button>
     <button type="button" data-no-drag className={iconButton} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-4" /><span className="sr-only">Next</span></button>
-    <button type="button" data-no-drag className={`${iconButton}${activeStatus === "mastered" ? " course-pane__read" : ""}`} title={activeStatus === "mastered" ? (reading ? "Read" : "Mastered") : reading ? "Mark as read" : "Mark as mastered"} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}><Check className="size-3.5" /><span className="sr-only">{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered"}</span></button>
-    <button type="button" data-no-drag className={iconButton} title={reading ? "Test my understanding with the agent" : "Discuss this step with the agent"} onClick={discuss}><MessageSquarePlus className="size-3.5" /><span className="sr-only">{reading ? "Test understanding" : "Discuss step"}</span></button>
+    <button type="button" data-no-drag className={`${iconButton}${activeStatus === "mastered" ? " course-pane__read" : ""}`} title={activeStatus === "mastered" ? "Read" : "Mark as read"} disabled={!activeId || saving.has(activeId) || activeStatus === "mastered"} onClick={() => activeId && void markStatus(activeId, "mastered")}><Check className="size-3.5" /><span className="sr-only">{activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? "Read ✓" : "Mark as read"}</span></button>
+    {originalButton}
+    <button type="button" data-no-drag className={iconButton} title="Test my understanding with the agent" onClick={discuss}><MessageSquarePlus className="size-3.5" /><span className="sr-only">Test understanding</span></button>
   </> : null;
   const [readingWide, setReadingWide] = useReadingWide();
-  const markLabel = activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? (reading ? "Read ✓" : "Mastered ✓") : reading ? "Mark as read" : "Mark as mastered";
+  const markLabel = activeId && saving.has(activeId) ? "Saving…" : activeStatus === "mastered" ? "Read ✓" : "Mark as read";
   // Beside a conversation the header keeps to moving through the course; the
-  // rest waits in a menu, since reaching a lesson's end already marks it read.
+  // rest waits in a menu.
   const overviewControls = course ? <>
     <button type="button" className={RESOURCE_ACTION} title={previousItem ? `Previous: ${previousItem.title}` : "Previous"} disabled={!previousItem} onClick={() => previousItem && select(previousItem.id)}><ChevronLeft className="size-4" /><span className="sr-only">Previous</span></button>
     <button type="button" className={RESOURCE_ACTION} title={nextItem ? `Next: ${nextItem.title}` : "Next"} disabled={!nextItem} onClick={() => nextItem && select(nextItem.id)}><ChevronRight className="size-4" /><span className="sr-only">Next</span></button>
+    {originalButton}
     <LessonMenu trigger={lessonMenu} items={[
-      // A reading is marked read by reaching its end; only steps are marked by hand.
-      ...(reading ? [] : [{ label: markLabel, icon: <Check />, disabled: !activeId || saving.has(activeId) || activeStatus === "mastered", onSelect: () => { if (activeId) void markStatus(activeId, "mastered"); } }]),
-      { label: reading ? "Test my understanding" : "Discuss this step", icon: <ChatQuestion />, onSelect: discuss },
-      ...(reading ? [{ label: "Highlights & notes", icon: <Highlighter />, meta: marks || undefined, disabled: !activeId, onSelect: () => setMarksOpen(true) }] : []),
+      { label: markLabel, icon: <Check />, disabled: !activeId || saving.has(activeId) || activeStatus === "mastered", onSelect: () => { if (activeId) void markStatus(activeId, "mastered"); } },
+      { label: "Test my understanding", icon: <ChatQuestion />, onSelect: discuss },
+      { label: "Highlights & notes", icon: <Highlighter />, meta: marks || undefined, disabled: !activeId, onSelect: () => setMarksOpen(true) },
       { label: "Full-width text", icon: <ArrowHorizontal />, checked: readingWide, separated: true, onSelect: () => setReadingWide(!readingWide) },
     ]} />
   </> : null;
@@ -254,8 +257,15 @@ export function CoursePane({ courseId, agentId, title, sourceSessionId, focused,
     </PaneHeader>
     </>}
     {course ? <ReaderHeaderSlot.Provider value={headerSlot}>
-      <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough} data-reading-scroll><CourseContent course={course} activeId={activeId} onMarks={setMarks}
-        marksList={marksOpen ? { anchor: lessonMenu, onClose: () => setMarksOpen(false), title: "Highlights & notes in this lesson" } : undefined} /></main>{reading ? <CourseToc scrollRef={scrollRef} /> : null}</div>{alerts}</div></div>
+      <div className="course-pane__body">{!embedded ? <CourseOutline course={course} activeId={activeId} onSelect={select} id={sidebarId} hidden={!sidebarOpen} /> : null}<div className="course-pane__right"><div className="course-pane__reader"><main ref={scrollRef} className="course-pane__main" onScroll={readThrough} data-reading-scroll><CourseContent course={course} activeId={activeId} original={showOriginal} onMarks={setMarks}
+        marksList={marksOpen ? { anchor: lessonMenu, onClose: () => setMarksOpen(false), title: "Highlights & notes in this lesson" } : undefined} />
+        {activeId && !activePlanned ? <LessonEnd agentId={agentId} courseId={courseId} lessonId={activeId} next={nextItem}
+          onNext={() => {
+            if (!nextItem) return;
+            // Going on from a lesson's end is having read it.
+            if (activeStatus !== "mastered") void markStatus(activeId, "mastered");
+            if (!(course && lessonPlanned(course, nextItem as CourseLesson) && requestChapter(agentId, course, nextItem.id))) select(nextItem.id);
+          }} /> : null}</main><CourseToc scrollRef={scrollRef} /></div>{alerts}</div></div>
     </ReaderHeaderSlot.Provider> : <div className="course-pane__empty" role={loaded.scope === scope && loaded.error ? "alert" : undefined}><p>{loaded.scope === scope ? loaded.error ?? "Opening course…" : "Opening course…"}</p>{loaded.scope === scope && loaded.error ? <button type="button" className="course-button" onClick={() => setReload((value) => value + 1)}>Retry</button> : null}</div>}
   </aside>;
 }
@@ -311,7 +321,7 @@ function CourseContentsDropdown({ course, activeId, onSelect }: { course: Course
     selected?.scrollIntoView({ block: "nearest" });
   }, [open]);
   const close = () => { setOpen(false); trigger.current?.focus({ preventScroll: true }); };
-  const lessons = course.data.engine === "reading" ? course.data.chapters.flatMap((chapter) => chapter.lessons) : course.data.steps;
+  const lessons = course.data.chapters.flatMap((chapter) => chapter.lessons);
   const lesson = lessons.find((item) => item.id === activeId)?.title;
   const navigate = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
@@ -335,16 +345,88 @@ function CourseContentsDropdown({ course, activeId, onSelect }: { course: Course
 
 type MarksProps = { marksList?: MarksListRequest; onMarks?: (count: number) => void };
 
-function CourseContent({ course, activeId, marksList, onMarks }: { course: CourseWithProgress; activeId: string | null } & MarksProps) {
-  if (course.data.engine === "build-your-own") {
-    const step = course.data.steps.find((item) => item.id === activeId);
-    return step ? <article className="course-pane__content" key={step.id}><h2>{step.title}</h2><p className="course-pane__summary">{step.summary}</p><DiffCard {...step} id={`${course.id}-${step.id}`} /><AgentMarkdown text={step.explanation} wholeDocument /></article> : null;
-  }
+function CourseContent({ course, activeId, original, marksList, onMarks }: { course: CourseWithProgress; activeId: string | null; original: boolean } & MarksProps) {
   const lesson = course.data.chapters.flatMap((chapter) => chapter.lessons).find((item) => item.id === activeId);
   if (!lesson) return null;
+  if (course.bodies?.has(lesson.id) && !original) return <LessonTextContent course={course} lesson={lesson} marksList={marksList} onMarks={onMarks} />;
+  if (lessonPlanned(course, lesson)) return <PlannedLesson course={course} lesson={lesson} />;
   if (lesson.compare) return <CompareContent course={course} lesson={lesson} marksList={marksList} onMarks={onMarks} />;
   return lesson.file !== undefined ? <LessonFile agentId={course.agentId} lesson={lesson} marksList={marksList} onMarks={onMarks} />
     : <LessonDocument agentId={course.agentId} lesson={lesson} marksList={marksList} onMarks={onMarks} />;
+}
+
+/**
+ * The lesson as the mentor wrote it: its own Markdown, with diagrams,
+ * formulas and citations, read and marked like any document. Its highlights
+ * are kept on its file, so they travel with the mentor's folder.
+ */
+function LessonTextContent({ course, lesson, marksList, onMarks }: { course: CourseWithProgress; lesson: CourseLesson } & MarksProps) {
+  const key = JSON.stringify([course.agentId, course.id, lesson.id]);
+  const [loaded, setLoaded] = useState<{ key: string; text?: LessonText | null; error?: string }>({ key: "" });
+  useEffect(() => {
+    let live = true;
+    // A course reload (its file, or a lesson's, changed) reads the text again.
+    loadLessonText(course.agentId, course.id, lesson.id).then((text) => { if (live) setLoaded({ key, text }); },
+      (cause: unknown) => { if (live) setLoaded({ key, error: cause instanceof Error ? cause.message : String(cause) }); });
+    return () => { live = false; };
+  }, [key, course]); // eslint-disable-line react-hooks/exhaustive-deps
+  const text = loaded.key === key ? loaded.text : undefined;
+  const path = text?.path;
+  const markSpec = useMemo((): MarkSpec | undefined => path ? {
+    target: { kind: "file", path },
+    source: (anchor, quote, annotationId) => ({ id: crypto.randomUUID(), kind: "file", path, title: `${course.title}: ${lesson.title}`, quote,
+      anchor, ...(annotationId ? { annotationId } : {}) }),
+  } : undefined, [path, course.title, lesson.title]);
+  const document = useMemo(() => text ? { id: lessonPlaceKey(course.id, lesson.id), title: lesson.title, body: text.body } : undefined,
+    [text, course.id, lesson.id, lesson.title]);
+  if (loaded.key === key && loaded.error) return <article className="course-pane__content"><h2>{lesson.title}</h2><p className="course-error" role="alert">Could not read this lesson: {loaded.error}</p></article>;
+  if (!document || !markSpec) return <p className="course-pane__relations">Opening…</p>;
+  // The mentor's own heading stands as the title; otherwise the course's title does.
+  const titled = /^\s*#\s/.test(document.body);
+  return <article className="course-pane__content course-pane__reading reader-body reader-measure" key={lesson.id} data-lesson-text>
+    {titled ? null : <h2>{lesson.title}</h2>}
+    <DocumentBody document={document} agentId={course.agentId} bare lessonText markSpec={markSpec} marksList={marksList} onMarks={onMarks} />
+  </article>;
+}
+
+/**
+ * The end of a lesson: the questions asked on it, one line each, which open
+ * the conversation at that message; then the next lesson, its title the way on.
+ */
+function LessonEnd({ agentId, courseId, lessonId, next, onNext }: { agentId: string; courseId: string; lessonId: string; next: { id: string; title: string } | null; onNext: () => void }) {
+  const key = JSON.stringify([agentId, courseId, lessonId]);
+  const [asked, setAsked] = useState<{ key: string; list: LessonQuestion[] }>({ key: "", list: [] });
+  useEffect(() => {
+    let live = true;
+    const load = () => void loadLessonQuestions(agentId, { courseId, lessonId, limit: 20 }).then((list) => { if (live) setAsked({ key, list: Array.isArray(list) ? list : [] }); }, () => undefined);
+    load();
+    const changed = (event: Event) => {
+      const detail = (event as CustomEvent<{ agentId: string; courseId: string; lessonId: string }>).detail;
+      if (detail?.agentId === agentId && detail.courseId === courseId && detail.lessonId === lessonId) load();
+    };
+    window.addEventListener(LESSON_QUESTIONS_EVENT, changed);
+    return () => { live = false; window.removeEventListener(LESSON_QUESTIONS_EVENT, changed); };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Oldest first, as they were asked.
+  const questions = asked.key === key ? [...asked.list].reverse() : [];
+  if (!questions.length && !next) return null;
+  return <footer className="course-pane__lesson-end reader-measure" data-lesson-end>
+    {questions.length ? <ul className="course-pane__asked" aria-label="Asked in this lesson">
+      {questions.map((question) => <li key={question.messageId}>
+        <button type="button" title={question.text} onClick={() => openLearningDiscussion({ sessionId: question.sessionId, blockId: question.messageId })}>{question.text}</button>
+      </li>)}
+    </ul> : null}
+    {next ? <nav aria-label="Next lesson" className="course-pane__next"><button type="button" onClick={onNext}>{next.title}</button></nav> : null}
+  </footer>;
+}
+
+/** A lesson that is only a title so far: one step asks for its chapter. */
+function PlannedLesson({ course, lesson }: { course: CourseWithProgress; lesson: CourseLesson }) {
+  const mentor = findAgent(course.agentId)?.name;
+  return <article className="course-pane__content course-pane__planned" key={lesson.id} data-planned-lesson>
+    <h2>{lesson.title}</h2>
+    <button type="button" className="course-button" onClick={() => requestChapter(course.agentId, course, lesson.id)}>{mentor ? `Ask ${mentor} to write this chapter` : "Ask for this chapter"}</button>
+  </article>;
 }
 
 /**

@@ -26,7 +26,7 @@ type Props = {
   /** At the end of the header, such as folding the library away. */
   headerEnd?: ReactNode;
   data: LibraryData;
-  errors: Partial<Record<keyof LibraryData | "habits", string>>;
+  errors: Partial<Record<keyof LibraryData, string>>;
   onRetry: () => void;
   page?: MentorPage;
   lesson?: MentorLesson;

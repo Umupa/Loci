@@ -14,7 +14,7 @@ import { prepareAppTurn } from "./agentTurnContext";
 /** What the turn carries apart from the local time, which goes every agent turn. */
 const appData = (part: string) => !part.startsWith("<local_time>");
 
-const agent: Agent = { id: "agent", avatar: "wisp", color: "#fff", projects: [] };
+const agent: Agent = { id: "agent", avatar: "wisp", color: "#fff" };
 const files = () => ({
   id: "agent",
   dir: "/data/agents/agent",
@@ -60,7 +60,6 @@ it.each([undefined, "  ", "小序", "Wisp"])(
 it.each([
   { name: "小序" },
   { role: "Domain guide" },
-  { projects: ["/code/app"] },
   { workdir: "/home/me/Loci-Dev/wisp" },
 ])("refreshes changed identity data without replacing the provider (%j)", async (change) => {
   const session = { id: "chat", providerSessionId: "native-1", blocks: [] };
@@ -333,13 +332,14 @@ it.each([agent, undefined])("replaces a restored old provider even when a rotati
 
 it("gives a mentor its workdir on its first turn and keeps it", async () => {
   const { createAgent, findAgent } = await import("./agent");
-  const mentor = createAgent([], { name: "Lens" });
+  const mentor = createAgent({ name: "Lens" });
   invoke.mockImplementation(async (command: string, args: { slug?: string; path?: string }) =>
     command === "agent_workdir_create" ? `/home/me/Loci/${args.slug}`
       : command === "agent_workdir_ensure" ? args.path : files());
   const prepared = await prepareAppTurn(mentor, { id: "lens-chat", blocks: [] }, { canRotate: false });
   const identity = JSON.parse(prepared.context[0].match(/<agent>\n([\s\S]*?)\n<\/agent>/)![1]);
-  expect(identity).toMatchObject({ workdir: "/home/me/Loci/lens", folders: [] });
+  expect(identity).toMatchObject({ workdir: "/home/me/Loci/lens" });
+  expect(identity).not.toHaveProperty("folders");
   expect(findAgent(mentor.id)?.workdir).toBe("/home/me/Loci/lens");
 });
 

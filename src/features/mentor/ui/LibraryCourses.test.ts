@@ -17,7 +17,7 @@ let path: LearningPath | null;
 let selected: string | undefined;
 let page: MentorPage | undefined;
 let drafts: string[];
-const agent: Agent = { id: "a", name: "Ada", avatar: "loci", color: "#123456", projects: [] };
+const agent: Agent = { id: "a", name: "Ada", avatar: "loci", color: "#123456" };
 const summary = (id: string, title: string, read: number, total = 2, updatedAt = 1): CourseSummary =>
   ({ id, agentId: agent.id, title, engine: "reading", itemCount: total, masteredCount: read, updatedAt });
 const data = JSON.stringify({ engine: "reading", chapters: [{ title: "Basics", lessons: [

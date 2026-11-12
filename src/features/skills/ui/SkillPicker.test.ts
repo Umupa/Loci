@@ -17,13 +17,8 @@ describe("native command picker", () => {
         ],
         query: "",
         active: 0,
-        creating: false,
-        cwd: "/repo",
         onActive: vi.fn(),
         onPick: vi.fn(),
-        onStartCreate: vi.fn(),
-        onCancelCreate: vi.fn(),
-        onCreate: vi.fn(),
       }),
     );
 

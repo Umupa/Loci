@@ -450,25 +450,6 @@ export async function takeInFlightSessions(): Promise<
   return Array.isArray(rows) ? rows : [];
 }
 
-/**
- * `workspace_set_snapshot` runs off the main thread, so two saves could
- * otherwise finish out of order and keep an older layout.
- */
-let workspaceWrite: Promise<unknown> = Promise.resolve();
-
-export async function saveWorkspaceSnapshot(snapshot: unknown): Promise<void> {
-  const run = workspaceWrite
-    .catch(() => undefined)
-    .then(() => transport.call("workspace_set_snapshot", { snapshot }));
-  workspaceWrite = run;
-  await run;
-}
-
-export async function loadWorkspaceSnapshot(): Promise<unknown | null> {
-  const raw = await transport.call<unknown | null>("workspace_get_snapshot");
-  return raw ?? null;
-}
-
 function sanitizeBlock(
   block: Block,
   options?: { hydrate?: boolean },

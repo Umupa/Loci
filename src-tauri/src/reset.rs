@@ -365,7 +365,6 @@ mod tests {
         store.lock_conn().unwrap().execute_batch(
             "INSERT INTO sessions (id,cwd,harness,model,runtime_mode,title,created_at,updated_at) VALUES ('s','/repo','claude','model','supervised','title',1,1);
              INSERT INTO in_flight_sessions VALUES ('s','/repo',0);
-             INSERT INTO workspace_snapshot VALUES (1,'{}',1);
              INSERT INTO agent_transcript_pages VALUES ('s',0,'b','[]',1);
              INSERT INTO agent_documents (agent_id,id,title,body,created_at,updated_at) VALUES ('a','d','title','body',1,1);
              INSERT INTO notes (id,slug,title,created_at,updated_at) VALUES ('n','note','title',1,1);
@@ -377,6 +376,7 @@ mod tests {
              INSERT INTO mentors (id,folder,added_at) VALUES ('a','/Loci/a',1);
              INSERT INTO mentor_content (agent_id,kind,id,rel_path,title,hash,size,mtime_ns,created_at,updated_at,indexed_at) VALUES ('a','guide','g','guides/g.md','title','h',1,1,1,1,1);
              INSERT INTO lesson_progress VALUES ('a','course','item','learning',1);
+             INSERT INTO lesson_questions VALUES ('a','course','item','s','m','why?',1);
              INSERT INTO mentor_state VALUES ('a','view','{}',1);"
         ).unwrap();
     }
@@ -548,8 +548,8 @@ mod tests {
         let dir = TestDir::new();
         reset_data(&store, &dir.0).unwrap();
         assert!(table_counts(&store).contains(&("legacy_feature".into(), 0)));
-        // The schema itself and the removal of canvases (0.6).
-        assert_eq!(migrations(&store).len(), 2);
+        // The schema itself, the removal of canvases (0.6) and of dead tables (0.10).
+        assert_eq!(migrations(&store).len(), 3);
     }
 
     #[test]

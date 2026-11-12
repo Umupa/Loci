@@ -1,4 +1,4 @@
-import { courseItems, type CourseLesson, type CourseWithProgress, type LearningStatus } from "../../learning/model/course";
+import { courseItems, lessonPlanned, type CourseLesson, type CourseWithProgress, type LearningStatus } from "../../learning/model/course";
 
 /** The four kinds of things the library column shows, one at a time. */
 export const LIBRARY_SEGMENTS = ["courses", "sources", "notes", "files"] as const;
@@ -22,8 +22,10 @@ export function courseProgress(course: Pick<CourseWithProgress, "data" | "progre
  * read lesson (or anywhere). Nothing when every lesson is read. The order is
  * a suggestion; every lesson stays open to read.
  */
-export function nextLesson(course: Pick<CourseWithProgress, "data" | "progress">, activeId?: string | null): { id: string; title: string } | undefined {
-  const items = courseItems(course.data);
+export function nextLesson(course: Pick<CourseWithProgress, "data" | "progress"> & { bodies?: Set<string> }, activeId?: string | null): { id: string; title: string } | undefined {
+  // A planned lesson has nothing to read yet.
+  const bodies = course.bodies;
+  const items = courseItems(course.data).filter((item) => !bodies || !lessonPlanned({ bodies }, item));
   const status = (id: string): LearningStatus => course.progress.get(id) ?? "untouched";
   const active = activeId ? items.find((item) => item.id === activeId) : undefined;
   if (active && status(active.id) !== "mastered") return active;

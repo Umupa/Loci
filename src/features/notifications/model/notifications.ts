@@ -2,11 +2,6 @@ import { transport } from "../../../platform/transport";
 import { agentForSession, agentLook } from "../../agents/model/agent";
 import { HARNESS_TITLE, sessionDisplayTitle, type Session } from "../../sessions/model/session";
 import { loadSoundsEnabled, playCue } from "../../settings/model/sounds";
-import {
-  allowsProjectNotification,
-  type NotificationSubject,
-} from "./notificationPreferences";
-import { knownNotificationProject } from "./notificationProjects";
 
 const KEY = "loci.notifications";
 
@@ -254,22 +249,7 @@ export async function notifySession(
   sessionVisible: boolean,
 ): Promise<boolean> {
 
-  const occurredAt = Date.now();
-  return notifyProjectSession(session, event, sessionVisible, {
-    projectId: notificationProjectId(session),
-    category: event === "finished" ? "agentFinished" : "agentInput",
-    occurredAt,
-  });
-}
-
-/**
- * Agent chats run in the home folder, which is never a project; they share
- * one rule of their own instead of going unannounced.
- */
-export const OUTSIDE_PROJECT_NOTIFICATIONS = "loci:outside-projects";
-
-function notificationProjectId(session: Session): string {
-  return knownNotificationProject(session.cwd)?.id ?? OUTSIDE_PROJECT_NOTIFICATIONS;
+  return notifyProjectSession(session, event, sessionVisible);
 }
 
 /** One policy decision covers both the OS banner and its in-app sound fallback. */
@@ -279,27 +259,15 @@ export async function announceSessionFinished(
 ): Promise<void> {
 
   const occurredAt = Date.now();
-  const subject: NotificationSubject = {
-    projectId: notificationProjectId(session),
-    category: "agentFinished",
-    occurredAt,
-  };
-  const sent = await notifyProjectSession(
-    session,
-    "finished",
-    sessionVisible,
-    subject,
-  );
-  if (!sent) playCue("turnFinished", subject);
+  const sent = await notifyProjectSession(session, "finished", sessionVisible);
+  if (!sent) playCue("turnFinished", { occurredAt });
 }
 
 async function notifyProjectSession(
   session: Session,
   event: NotificationEvent,
   sessionVisible: boolean,
-  subject: NotificationSubject,
 ): Promise<boolean> {
-  if (!allowsProjectNotification(subject)) return false;
   const decision = shouldNotify({
     enabled: loadNotificationsEnabled(),
     permission,

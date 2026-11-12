@@ -1,13 +1,13 @@
 //! An agent's Soul and memory live in its mentor folder (v0.4), beside its
 //! sources and courses; until its 0.3 data has moved there, in the app's
-//! data folder as before. Habits and the heartbeat's state always stay in the
-//! app's data folder: they run things on their own, and a mentor folder
-//! copied or imported from elsewhere must not bring jobs or their state with it.
+//! data folder as before. The heartbeat's state always stays in the app's data
+//! folder: it runs on its own, and a mentor folder copied or imported from
+//! elsewhere must not bring its state with it.
 //!
 //! ```text
 //! ~/Loci/<slug>/                 <app data>/agents/<agent id>/
-//! ├── SOUL.md                    ├── habits.json
-//! ├── MEMORY.md                  └── heartbeat.json
+//! ├── SOUL.md                    └── heartbeat.json
+//! ├── MEMORY.md
 //! └── memory/<topic>.md, archive.md
 //! ```
 //!
@@ -33,7 +33,6 @@ pub(crate) const AGENTS_DIR: &str = "agents";
 const SOUL_FILE: &str = "SOUL.md";
 const MEMORY_FILE: &str = "MEMORY.md";
 const MEMORY_DIR: &str = "memory";
-const HABITS_FILE: &str = "habits.json";
 /// When the heartbeat last looked in and what it raised lately.
 const HEARTBEAT_FILE: &str = "heartbeat.json";
 /// Larger than anything that would load: the soul and memory both have far
@@ -79,11 +78,11 @@ pub struct TopicNote {
     pub hash: String,
 }
 
-/// Where an agent's files are: its Soul and memory, and its habits and heartbeat.
+/// Where an agent's files are: its Soul and memory, and its heartbeat's state.
 #[derive(Debug, Clone)]
 pub struct Dirs {
     pub files: PathBuf,
-    pub habits: PathBuf,
+    pub state: PathBuf,
 }
 
 impl Dirs {
@@ -95,17 +94,17 @@ impl Dirs {
         let dir = root.join(agent);
         Ok(Self {
             files: dir.clone(),
-            habits: dir,
+            state: dir,
         })
     }
 }
 
 /// The files the app reads and writes for an agent, relative to its folder:
-/// SOUL.md, MEMORY.md, habits.json, heartbeat.json, or one `memory/<name>.md`. Nothing nested, nothing
+/// SOUL.md, MEMORY.md, heartbeat.json, or one `memory/<name>.md`. Nothing nested, nothing
 /// hidden, so a path from the agent's CLI can never leave the folder.
 fn resolve_file(dirs: &Dirs, relative: &str) -> Result<PathBuf, String> {
-    if relative == HABITS_FILE || relative == HEARTBEAT_FILE {
-        return Ok(dirs.habits.join(relative));
+    if relative == HEARTBEAT_FILE {
+        return Ok(dirs.state.join(relative));
     }
     let dir = &dirs.files;
     if relative == SOUL_FILE || relative == MEMORY_FILE {
@@ -205,7 +204,7 @@ fn valid_id(id: &str) -> bool {
 fn agent_dir(dirs: &Dirs) -> Result<PathBuf, String> {
     let dir = dirs.files.clone();
     std::fs::create_dir_all(dir.join(MEMORY_DIR)).map_err(|e| format!("{}: {e}", dir.display()))?;
-    std::fs::create_dir_all(&dirs.habits).map_err(|e| format!("{}: {e}", dirs.habits.display()))?;
+    std::fs::create_dir_all(&dirs.state).map_err(|e| format!("{}: {e}", dirs.state.display()))?;
     let memory = dir.join(MEMORY_FILE);
     if !memory.exists() {
         write_atomic(&memory, "")?;
@@ -501,11 +500,17 @@ mod tests {
     }
 
     #[test]
-    fn concurrent_habit_claims_only_save_over_a_version_once() {
+    fn concurrent_saves_only_save_over_a_version_once() {
         use std::sync::{Arc, Barrier};
 
         let root = temp_root();
-        let hash = save(&Dirs::legacy(&root, "m").unwrap(), HABITS_FILE, "[]", None).unwrap();
+        let hash = save(
+            &Dirs::legacy(&root, "m").unwrap(),
+            HEARTBEAT_FILE,
+            "{}",
+            None,
+        )
+        .unwrap();
         let barrier = Arc::new(Barrier::new(8));
         let claims: Vec<_> = (0..8)
             .map(|index| {
@@ -513,11 +518,11 @@ mod tests {
                 let hash = hash.clone();
                 let barrier = barrier.clone();
                 std::thread::spawn(move || {
-                    let text = format!("[{{\"claimedBy\":{index}}}]");
+                    let text = format!("{{\"claimedBy\":{index}}}");
                     barrier.wait();
                     let result = save(
                         &Dirs::legacy(&root, "m").unwrap(),
-                        HABITS_FILE,
+                        HEARTBEAT_FILE,
                         &text,
                         Some(&hash),
                     );
@@ -537,7 +542,7 @@ mod tests {
         for (_, result) in results.iter().filter(|(_, result)| result.is_err()) {
             assert_eq!(result.as_ref().unwrap_err(), CONFLICT);
         }
-        let saved = read(&Dirs::legacy(&root, "m").unwrap(), HABITS_FILE).unwrap();
+        let saved = read(&Dirs::legacy(&root, "m").unwrap(), HEARTBEAT_FILE).unwrap();
         assert_eq!(saved.text.as_ref(), Some(&winners[0].0));
         assert_eq!(saved.hash, content_hash(&winners[0].0));
         std::fs::remove_dir_all(root).unwrap();
@@ -574,13 +579,6 @@ mod tests {
         );
         save(
             &Dirs::legacy(&root, "m").unwrap(),
-            "habits.json",
-            "[]",
-            None,
-        )
-        .unwrap();
-        save(
-            &Dirs::legacy(&root, "m").unwrap(),
             "heartbeat.json",
             "{}",
             None,
@@ -592,6 +590,7 @@ mod tests {
             "memory/a/b.md",
             "memory/.hidden.md",
             "notes.md",
+            "habits.json",
         ] {
             assert!(
                 save(&Dirs::legacy(&root, "m").unwrap(), path, "x", None).is_err(),
@@ -641,20 +640,17 @@ mod tests {
     }
 
     #[test]
-    fn soul_and_memory_live_in_the_mentor_folder_and_habits_and_heartbeat_stay_in_app_data() {
+    fn soul_and_memory_live_in_the_mentor_folder_and_heartbeat_stays_in_app_data() {
         let root = temp_root();
         let dirs = Dirs {
             files: root.join("Loci/repo-lens"),
-            habits: root.join("app/agents/m"),
+            state: root.join("app/agents/m"),
         };
         save(&dirs, SOUL_FILE, "soul", None).unwrap();
         save(&dirs, "memory/kvm.md", "topic", None).unwrap();
-        save(&dirs, HABITS_FILE, "[]", None).unwrap();
         save(&dirs, HEARTBEAT_FILE, "{}", None).unwrap();
         assert!(root.join("Loci/repo-lens/SOUL.md").is_file());
         assert!(root.join("Loci/repo-lens/memory/kvm.md").is_file());
-        assert!(root.join("app/agents/m/habits.json").is_file());
-        assert!(!root.join("Loci/repo-lens/habits.json").exists());
         assert!(root.join("app/agents/m/heartbeat.json").is_file());
         assert!(!root.join("Loci/repo-lens/heartbeat.json").exists());
         let files = load(&dirs, "m").unwrap();

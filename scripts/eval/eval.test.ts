@@ -134,6 +134,31 @@ describe("automatic checks", () => {
     expect(orderProblems(course, sources)).toEqual(['checkpoint ("Checkpointing") comes before concurrency in wal']);
   });
 
+  it("holds a lesson's own text to citations that resolve to first-hand material, and takes a planned lesson as it is", () => {
+    const sources = new Map([["wal", { body: sqliteDoc, kind: "source" }], ["brief", { body: "# Brief\n\nMine.", kind: "guide" }]]);
+    const library = { sources, readFile: () => null, roots: [] };
+    const course = { chapters: [{ title: "WAL", lessons: [
+      { id: "why", title: "Why a log", body: "The writer appends. [readers keep reading](loci://source/wal#section=Concurrency)" },
+      { id: "guide", title: "G", body: "See [my brief](loci://source/brief)." },
+      { id: "bare", title: "B", body: "No citations at all." },
+      { id: "broken", title: "X", body: "[gone](loci://source/nope)" },
+      { id: "later", title: "Checkpoints" },
+      { id: "lost", title: "L", text: true },
+    ] }] };
+    const results = checkLessons(course, library);
+    const by = (id: string) => results.find((lesson: { id: string }) => lesson.id === id);
+    expect(by("why")).toMatchObject({ ok: true, text: true, citations: 1, firstHandCitations: 1 });
+    expect(by("guide").problems.join(" ")).toMatch(/a guide, not a first-hand source/);
+    expect(by("bare").problems).toEqual(["cites no first-hand source"]);
+    expect(by("broken").ok).toBe(false);
+    expect(by("later")).toMatchObject({ ok: true, planned: true });
+    expect(by("lost").problems).toEqual(["its text could not be read"]);
+    const prompt = judgePrompt({ scenario: { opening: "WAL", template: "learning-guide" }, checks: {}, sources: [], turns: [], courses: [{ id: "wal", title: "WAL", ...course }] });
+    expect(prompt).toContain("#### wal/why — Why a log\n\nThe writer appends.");
+    expect(prompt).toContain("**readability**");
+    expect(prompt.match(/The writer appends/g)).toHaveLength(1);
+  });
+
   it("finds citations in a reply and resolves their sections, quotes and lines", () => {
     const sources = new Map([["wal", { body: sqliteDoc }]]);
     const library = { sources, readFile: (path: string) => (path === "/w/a.rs" ? "1\n2\n3" : path === "/w/rel/b.rs" ? "x\ny" : null), roots: ["/w"] };
@@ -328,7 +353,7 @@ describe("the v0.4 sandbox checks", () => {
 });
 
 describe("the judge and the summary", () => {
-  const verdict = { scores: { firstHand: { score: 4, reason: "docs" }, courseStructure: { score: 3, reason: "ok" }, grounding: { score: 2, reason: "few links" }, firstTenMinutes: { score: 5, reason: "fast" }, firstPrinciples: { score: 4, reason: "builds up" } }, worst: "Cite more." };
+  const verdict = { scores: { firstHand: { score: 4, reason: "docs" }, courseStructure: { score: 3, reason: "ok" }, grounding: { score: 2, reason: "few links" }, firstTenMinutes: { score: 5, reason: "fast" }, firstPrinciples: { score: 4, reason: "builds up" }, readability: { score: 3, reason: "two jumps", issues: ["virtio/queue: \"descriptor\" used before it is explained"] } }, worst: "Cite more." };
 
   it("reads a verdict out of plain text, a fenced block or a CLI's JSON envelope, and rejects incomplete ones", () => {
     expect(parseVerdict(`Here you go:\n\`\`\`json\n${JSON.stringify(verdict)}\n\`\`\``)).toEqual(verdict);
@@ -418,7 +443,7 @@ describe("the judge and the summary", () => {
       firstTenMinutes: { firstReplySeconds: 10, firstSourceSeconds: 120, courseSeconds: 200, mentorTurnsBeforeFirstSource: 0, questionsPerReply: [], maxQuestionsInOneReply: 0, nudges: 0 },
       failures: [], sandbox,
     };
-    const verdict = { scores: Object.fromEntries(["firstHand", "courseStructure", "grounding", "firstTenMinutes", "firstPrinciples", "codeEvidence", "path"].map((key) => [key, { score: 4, reason: key }])), worst: "Pin more." };
+    const verdict = { scores: Object.fromEntries(["firstHand", "courseStructure", "grounding", "firstTenMinutes", "firstPrinciples", "readability", "codeEvidence", "path"].map((key) => [key, { score: 4, reason: key }])), worst: "Pin more." };
     const text = summaryMarkdown(meta, [{ scenario: { id: "sandbox-path", template: "learning-guide" }, score, judge: { verdict } }]);
     expect(text).toContain("Sandbox acceptance (v0.4)");
     expect(text).toContain("| Code evidence | Path |");

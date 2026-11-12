@@ -61,20 +61,7 @@ pub fn ensure_tables(conn: &Connection) -> rusqlite::Result<()> {
          CREATE VIRTUAL TABLE IF NOT EXISTS mentor_content_fts USING fts5(
            title, body, content='mentor_content', content_rowid='seq', tokenize='trigram'
          );
-         CREATE TRIGGER IF NOT EXISTS mentor_content_ai AFTER INSERT ON mentor_content BEGIN
-           INSERT INTO mentor_content_fts(rowid, title, body)
-           VALUES (new.seq, new.title, CASE WHEN new.kind IN ('source','guide','note') THEN coalesce(new.body,'') ELSE '' END);
-         END;
-         CREATE TRIGGER IF NOT EXISTS mentor_content_ad AFTER DELETE ON mentor_content BEGIN
-           INSERT INTO mentor_content_fts(mentor_content_fts, rowid, title, body)
-           VALUES ('delete', old.seq, old.title, CASE WHEN old.kind IN ('source','guide','note') THEN coalesce(old.body,'') ELSE '' END);
-         END;
-         CREATE TRIGGER IF NOT EXISTS mentor_content_au AFTER UPDATE ON mentor_content BEGIN
-           INSERT INTO mentor_content_fts(mentor_content_fts, rowid, title, body)
-           VALUES ('delete', old.seq, old.title, CASE WHEN old.kind IN ('source','guide','note') THEN coalesce(old.body,'') ELSE '' END);
-           INSERT INTO mentor_content_fts(rowid, title, body)
-           VALUES (new.seq, new.title, CASE WHEN new.kind IN ('source','guide','note') THEN coalesce(new.body,'') ELSE '' END);
-         END;
+         -- Triggers are made below, by `ensure_text_triggers`.
          -- No foreign key to a course: an editor's save or a git checkout may
          -- take the file away for a moment, and progress must outlive that.
          CREATE TABLE IF NOT EXISTS lesson_progress (
@@ -85,6 +72,20 @@ pub fn ensure_tables(conn: &Connection) -> rusqlite::Result<()> {
            updated_at INTEGER NOT NULL,
            PRIMARY KEY (agent_id, course_id, item_id)
          );
+         -- A message sent while a lesson was open beside the chat: what was
+         -- asked on that lesson, for its end and for the mentor revising it.
+         CREATE TABLE IF NOT EXISTS lesson_questions (
+           agent_id TEXT NOT NULL,
+           course_id TEXT NOT NULL,
+           lesson_id TEXT NOT NULL,
+           session_id TEXT NOT NULL,
+           message_id TEXT NOT NULL,
+           text TEXT NOT NULL,
+           asked_at INTEGER NOT NULL,
+           PRIMARY KEY (agent_id, message_id)
+         );
+         CREATE INDEX IF NOT EXISTS lesson_questions_lesson
+           ON lesson_questions (agent_id, course_id, lesson_id, asked_at);
          CREATE TABLE IF NOT EXISTS mentor_state (
            agent_id TEXT NOT NULL,
            key TEXT NOT NULL,
@@ -92,7 +93,56 @@ pub fn ensure_tables(conn: &Connection) -> rusqlite::Result<()> {
            updated_at INTEGER NOT NULL,
            PRIMARY KEY (agent_id, key)
          );",
-    )
+    )?;
+    ensure_text_triggers(conn)
+}
+
+/// The kinds whose text is searched, as SQL.
+const TEXT_KINDS: &str = "('source','guide','note','lesson')";
+
+/// Keeps the full-text index in step with `mentor_content`. Triggers made by
+/// a version that searched fewer kinds are replaced, and the index rebuilt
+/// once, so every row is indexed the way it will later be removed.
+fn ensure_text_triggers(conn: &Connection) -> rusqlite::Result<()> {
+    let current: Option<String> = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'mentor_content_ai'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if current
+        .as_deref()
+        .is_some_and(|sql| sql.contains(TEXT_KINDS))
+    {
+        return Ok(());
+    }
+    let text = |row: &str| {
+        format!("CASE WHEN {row}.kind IN {TEXT_KINDS} THEN coalesce({row}.body,'') ELSE '' END")
+    };
+    conn.execute_batch(&format!(
+        "DROP TRIGGER IF EXISTS mentor_content_ai;
+         DROP TRIGGER IF EXISTS mentor_content_ad;
+         DROP TRIGGER IF EXISTS mentor_content_au;
+         CREATE TRIGGER mentor_content_ai AFTER INSERT ON mentor_content BEGIN
+           INSERT INTO mentor_content_fts(rowid, title, body) VALUES (new.seq, new.title, {new});
+         END;
+         CREATE TRIGGER mentor_content_ad AFTER DELETE ON mentor_content BEGIN
+           INSERT INTO mentor_content_fts(mentor_content_fts, rowid, title, body)
+           VALUES ('delete', old.seq, old.title, {old});
+         END;
+         CREATE TRIGGER mentor_content_au AFTER UPDATE ON mentor_content BEGIN
+           INSERT INTO mentor_content_fts(mentor_content_fts, rowid, title, body)
+           VALUES ('delete', old.seq, old.title, {old});
+           INSERT INTO mentor_content_fts(rowid, title, body) VALUES (new.seq, new.title, {new});
+         END;
+         INSERT INTO mentor_content_fts(mentor_content_fts) VALUES ('delete-all');
+         INSERT INTO mentor_content_fts(rowid, title, body)
+           SELECT seq, title, {all} FROM mentor_content;",
+        new = text("new"),
+        old = text("old"),
+        all = text("mentor_content"),
+    ))
 }
 
 /// One indexed file.
@@ -197,7 +247,9 @@ fn parse_pdf_source(id: &str, sidecar: &str, pdf_path: &Path) -> Result<Parsed, 
 }
 
 fn parse(kind: Kind, id: &str, text: &str, ctx: &MentorCtx) -> Result<Parsed, String> {
-    if matches!(kind, Kind::Course | Kind::Note) && !ascii_id(id) {
+    if matches!(kind, Kind::Course | Kind::Note) && !ascii_id(id)
+        || kind == Kind::Lesson && !ascii_id(&id.replace('/', ""))
+    {
         return Err(format!(
             "Rename it: {} ids use only ASCII letters, digits, - and _",
             kind.as_str()
@@ -242,6 +294,20 @@ fn parse(kind: Kind, id: &str, text: &str, ctx: &MentorCtx) -> Result<Parsed, St
                 body: Some(body),
                 created_at: meta.created_at,
                 updated_at: meta.updated_at,
+                warning: None,
+            })
+        }
+        // A lesson's text is the mentor's Markdown, with no front matter: its
+        // title and place are the course's.
+        Kind::Lesson => {
+            let (course, lesson) = paths::lesson_parts(id).ok_or("Not a lesson's file")?;
+            Ok(Parsed {
+                title: format::first_heading(text).or_else(|| Some(lesson.to_string())),
+                subject: None,
+                meta: json!({ "course": course, "lesson": lesson }),
+                body: Some(text.to_string()),
+                created_at: None,
+                updated_at: None,
                 warning: None,
             })
         }
@@ -293,13 +359,19 @@ fn row_stamp(
 }
 
 fn rel_path(kind: Kind, path: &Path) -> String {
-    format!(
-        "{}/{}",
-        kind.dir(),
-        path.file_name()
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    if kind == Kind::Lesson {
+        let course = path
+            .parent()
+            .and_then(Path::file_name)
             .and_then(|n| n.to_str())
-            .unwrap_or_default()
-    )
+            .unwrap_or_default();
+        return format!("{}/{course}/{name}", kind.dir());
+    }
+    format!("{}/{name}", kind.dir())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -652,8 +724,18 @@ pub fn reconcile(
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             Err(e) => return Err(format!("{}: {e}", dir.display())),
         };
+        let mut files: Vec<std::path::PathBuf> = Vec::new();
         for entry in entries.flatten() {
-            let path = entry.path();
+            if kind != Kind::Lesson {
+                files.push(entry.path());
+            } else if entry.file_type().is_ok_and(|t| t.is_dir()) {
+                // A course's lesson texts: `courses/<course>/<lesson>.md`.
+                if let Ok(inner) = std::fs::read_dir(entry.path()) {
+                    files.extend(inner.flatten().map(|file| file.path()));
+                }
+            }
+        }
+        for path in files {
             let Some((found, id)) = classify(&ctx.folder, &path) else {
                 continue;
             };
@@ -782,7 +864,7 @@ pub struct Hit {
     pub snippet: String,
 }
 
-/// Full-text search over titles and the text of sources, guides and notes.
+/// Full-text search over titles and the text of sources, guides, lessons and notes.
 /// Any script works (trigram index); a query under three characters falls
 /// back to matching titles and text by substring.
 pub fn search(
@@ -809,22 +891,52 @@ pub fn search(
         let like = format!("%{}%", query.replace(['%', '_'], ""));
         let mut statement = conn.prepare(
             "SELECT agent_id, kind, id, title, substr(coalesce(body, ''), 1, 160) FROM mentor_content
-             WHERE (?1 IS NULL OR agent_id = ?1) AND (title LIKE ?2 OR (kind IN ('source','guide','note') AND body LIKE ?2))
+             WHERE (?1 IS NULL OR agent_id = ?1) AND (title LIKE ?2 OR (kind IN ('source','guide','note','lesson') AND body LIKE ?2))
              ORDER BY updated_at DESC LIMIT ?3",
         )?;
         let rows = statement.query_map(params![agent, like, limit], read)?;
-        return rows.collect();
+        return Ok(with_lesson_titles(conn, rows.collect::<Result<_, _>>()?));
     }
     let phrase = format!("\"{}\"", query.replace('"', "\"\""));
     let mut statement = conn.prepare(
         "SELECT c.agent_id, c.kind, c.id, c.title,
-                snippet(mentor_content_fts, 1, '[', ']', '…', 12)
+                snippet(mentor_content_fts, 1, '[', ']', '…', 48)
          FROM mentor_content_fts f JOIN mentor_content c ON c.seq = f.rowid
          WHERE mentor_content_fts MATCH ?1 AND (?2 IS NULL OR c.agent_id = ?2)
          ORDER BY rank LIMIT ?3",
     )?;
     let rows = statement.query_map(params![phrase, agent, limit], read)?;
-    rows.collect()
+    Ok(with_lesson_titles(conn, rows.collect::<Result<_, _>>()?))
+}
+
+/// A lesson's hit is named as its course names it: the lesson's title.
+fn with_lesson_titles(conn: &Connection, mut hits: Vec<Hit>) -> Vec<Hit> {
+    for hit in hits.iter_mut().filter(|hit| hit.kind == "lesson") {
+        let Some((course, lesson)) = paths::lesson_parts(&hit.id) else {
+            continue;
+        };
+        if let Some(title) = get(conn, &hit.agent_id, Kind::Course, course)
+            .ok()
+            .flatten()
+            .and_then(|row| row.body)
+            .and_then(|body| lesson_title(&body, lesson))
+        {
+            hit.title = title;
+        }
+    }
+    hits
+}
+
+/// A lesson's title in a course's JSON.
+pub fn lesson_title(course_json: &str, lesson: &str) -> Option<String> {
+    let value: Value = serde_json::from_str(course_json).ok()?;
+    value["chapters"]
+        .as_array()?
+        .iter()
+        .flat_map(|chapter| chapter["lessons"].as_array().into_iter().flatten())
+        .find(|entry| entry["id"] == lesson)
+        .and_then(|entry| entry["title"].as_str())
+        .map(str::to_string)
 }
 
 #[cfg(test)]

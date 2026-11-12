@@ -1220,13 +1220,7 @@ mod tests {
         assert!(report
             .other_folders
             .contains(&root.join("ember").to_string_lossy().into_owned()));
-        assert_eq!(
-            report.dead_tables,
-            vec![
-                "feed_item_state".to_string(),
-                "workspace_snapshot".to_string()
-            ]
-        );
+        assert_eq!(report.dead_tables, vec!["feed_item_state".to_string()]);
         assert_eq!(snapshot(&conn), before, "0.3 rows are left as they were");
 
         // Again: nothing to do, nothing written.

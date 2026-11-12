@@ -6,7 +6,8 @@ import { listAgentDocuments, type StoredDocument } from "../../agents/model/agen
 import { AgentAvatar } from "../../agents/ui/AgentAvatar";
 import { loadCourse, loadCourseSummaries, type CourseWithProgress } from "../../learning/model/course";
 import { loadNotes } from "../../notes";
-import { mentorSearchItems, searchMentorItems, type MentorSearchItem, type MentorSearchSources } from "../model/mentorSearch";
+import { searchLibrary, type LibraryHit } from "../../agents/model/mentorStore";
+import { bodyHitItems, mentorSearchItems, searchMentorItems, type MentorSearchItem, type MentorSearchSources } from "../model/mentorSearch";
 import "./MentorSearch.css";
 
 /** Everything the palette searches, read fresh each time it opens. */
@@ -38,10 +39,23 @@ type Props = {
   onClose: () => void;
   /** For tests: what to search instead of loading it. */
   sources?: MentorSearchSources;
+  /** Searches the text of the library; for tests. */
+  searchText?: (query: string) => Promise<LibraryHit[]>;
 };
 
+/** Text search waits for this many characters, and for the typing to pause. */
+const TEXT_MIN = 2;
+const TEXT_DELAY_MS = 150;
+
+/** A snippet with its matched words marked. */
+function Snippet({ text }: { text: string }) {
+  return <>{text.split(/(\[[^\]]+\])/).map((part, index) => part.startsWith("[") && part.endsWith("]")
+    ? <span key={index} className="text-accent-text">{part.slice(1, -1)}</span>
+    : <span key={index}>{part}</span>)}</>;
+}
+
 /** ⌘K: find a mentor, or a course, lesson, source or note it keeps, and open it. */
-export function MentorSearch({ onPick, onClose, sources }: Props) {
+export function MentorSearch({ onPick, onClose, sources, searchText = (query) => searchLibrary(query, undefined, 30) }: Props) {
   const [loaded, setLoaded] = useState<MentorSearchSources | null>(sources ?? null);
   const [error, setError] = useState<string>();
   const [query, setQuery] = useState("");
@@ -58,7 +72,23 @@ export function MentorSearch({ onPick, onClose, sources }: Props) {
   }, [sources]);
   const items = useMemo(() => loaded ? mentorSearchItems(loaded) : [], [loaded]);
   const agents = useMemo(() => new Map((loaded?.agents ?? []).map((agent) => [agent.id, agent])), [loaded]);
-  const results = useMemo(() => searchMentorItems(items, query), [items, query]);
+  const [textHits, setTextHits] = useState<{ query: string; hits: LibraryHit[] }>({ query: "", hits: [] });
+  useEffect(() => {
+    const wanted = query.trim();
+    if (wanted.length < TEXT_MIN) return;
+    let live = true;
+    const timer = window.setTimeout(() => {
+      searchText(wanted).then((hits) => { if (live) setTextHits({ query: wanted, hits }); }, () => undefined);
+    }, TEXT_DELAY_MS);
+    return () => { live = false; window.clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+  const results = useMemo(() => {
+    const byTitle = searchMentorItems(items, query);
+    const wanted = query.trim();
+    if (wanted.length < TEXT_MIN || textHits.query !== wanted) return byTitle;
+    return [...byTitle, ...bodyHitItems(textHits.hits, loaded?.agents ?? [])];
+  }, [items, query, textHits, loaded]);
   useEffect(() => setActive(0), [query]);
   useEffect(() => { list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest" }); }, [active]);
   const pick = (item: MentorSearchItem | undefined) => { if (item) { onPick(item); onClose(); } };
@@ -108,7 +138,7 @@ export function MentorSearch({ onPick, onClose, sources }: Props) {
             <span aria-hidden className="mentor-search-icon">{icon(item)}</span>
             <span className="mentor-search-copy">
               <span className="mentor-search-title"><MatchText text={item.title} positions={matchPositions(item.title, query)} active /></span>
-              <span className="mentor-search-context">{item.context}</span>
+              <span className="mentor-search-context">{item.snippet ? <Snippet text={item.snippet} /> : item.context}</span>
             </span>
             <span className="mentor-search-kind">{KIND_LABEL[item.kind]}</span>
           </button>)}

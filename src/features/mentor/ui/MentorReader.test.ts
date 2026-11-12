@@ -7,7 +7,7 @@ import { MentorReader } from "./MentorReader";
 
 vi.mock("../../files/ui/FilePane", () => ({ FilePane: () => createElement("section", { "data-test-file": true }) }));
 
-const agent: Agent = { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#123456", projects: [] };
+const agent: Agent = { id: "agent-a", sessionId: "chat-a", name: "Ada", avatar: "loci", color: "#123456" };
 
 const base = {
   agent, request: 0, onClose: () => {}, onLessonChange: () => {}, onBeforeLeave: () => {},

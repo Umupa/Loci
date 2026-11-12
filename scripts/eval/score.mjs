@@ -130,8 +130,35 @@ export function lessonFileText(library, file) {
   return library.readFile(file);
 }
 
+/** Whether a citation that resolved names first-hand material: a source (not a guide), or a file. */
+function citesFirstHand(citation, library) {
+  if (!citation.ok) return false;
+  if (citation.kind === "path" || citation.kind === "file") return true;
+  if (citation.kind !== "source") return false;
+  const id = /^loci:\/\/source\/([^#?]+)/.exec(citation.href)?.[1];
+  const found = id ? library.sources.get(decodeURIComponent(id)) : undefined;
+  return (found?.kind ?? (found?.sourceUrl ? "source" : "guide")) === "source";
+}
+
 /**
- * Whether each lesson points at something real: a document in the library and
+ * A lesson the mentor wrote: every citation in its text resolves, and it
+ * cites first-hand material (a source or a file), never only guides. The
+ * text itself is the mentor's by design and is not held against it.
+ */
+export function checkLessonText(body, library) {
+  const citations = citationsIn(body).map((citation) => checkCitation(citation, library));
+  const problems = citations.filter((citation) => !citation.ok).map((citation) => `citation ${citation.href.slice(0, 100)}: ${citation.problems.join("; ")}`);
+  const firstHand = citations.filter((citation) => citesFirstHand(citation, library));
+  for (const citation of citations.filter((entry) => entry.ok && entry.kind === "source" && !citesFirstHand(entry, library)))
+    problems.push(`cites ${citation.href.slice(0, 100)}, a guide, not a first-hand source`);
+  if (!firstHand.length) problems.push("cites no first-hand source");
+  return { citations: citations.length, firstHand: firstHand.length, problems };
+}
+
+/**
+ * Whether each lesson holds up. A lesson with its own text has citations that
+ * resolve to first-hand material; one with only a title is planned. A lesson
+ * that names a source points at something real: a document in the library and
  * its section, or an existing file and a line range inside it. A pinned code
  * lesson is read at its commit through `readPinned` when the caller has it, so
  * the range is checked against the file as the lesson shows it.
@@ -140,6 +167,24 @@ export function lessonFileText(library, file) {
 export function checkLessons(course, library) {
   return lessonsOf(course).map((lesson) => {
     const result = { id: lesson.id, title: lesson.title, chapter: lesson.chapter, ok: true, problems: [], commit: lesson.commit ?? null, lines: lesson.lines ?? null };
+    const hasSource = !!(lesson.document || lesson.file || lesson.compare);
+    if (typeof lesson.body === "string") {
+      result.text = true;
+      const text = checkLessonText(lesson.body, library);
+      result.citations = text.citations;
+      result.firstHandCitations = text.firstHand;
+      if (text.problems.length) { result.ok = false; result.problems.push(...text.problems); }
+      if (!hasSource) return result;
+    } else if (lesson.text) {
+      result.text = true;
+      result.ok = false;
+      result.problems.push("its text could not be read");
+      return result;
+    } else if (!hasSource) {
+      result.planned = true;
+      return result;
+    }
+    if (lesson.compare) return result;
     if (lesson.document) {
       const document = library.sources.get(lesson.document);
       result.target = `source:${lesson.document}`;
@@ -157,7 +202,7 @@ export function checkLessons(course, library) {
         const [first, last] = lesson.lines;
         if (!(first >= 1 && last >= first && last <= count)) { result.ok = false; result.problems.push(`lines ${first}-${last} outside 1-${count}`); }
       }
-    } else { result.ok = false; result.problems.push("no document or file"); }
+    }
     return result;
   });
 }
@@ -455,6 +500,9 @@ export function scoreRun(run, files) {
       lessonsResolved: lessons.filter((lesson) => lesson.ok).length,
       lessonProblems: lessons.filter((lesson) => !lesson.ok).map((lesson) => `${lesson.course}/${lesson.id}: ${lesson.problems.join("; ")}`),
       lessonsOnGuides: lessons.filter((lesson) => lesson.kind === "guide").length,
+      lessonsWithText: lessons.filter((lesson) => lesson.text).length,
+      plannedLessons: lessons.filter((lesson) => lesson.planned).length,
+      textCitations: lessons.reduce((sum, lesson) => sum + (lesson.citations ?? 0), 0),
       lessonsOnFiles: lessons.filter((lesson) => lesson.target?.startsWith("file:")).length,
       orderProblems: order,
     },

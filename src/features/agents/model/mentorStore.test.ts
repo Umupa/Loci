@@ -36,7 +36,7 @@ describe("mentorStore", () => {
     invoke.mockImplementation(async (command: string) => {
       if (command === "storage_migrate") return { mentors: [], done: true };
       if (command === "storage_status") return { ready: true };
-      if (command === "mentors_load") return [{ id: "m1", name: "Old", workdir: "/L/old", folder: "/L/old", projects: [] }];
+      if (command === "mentors_load") return [{ id: "m1", name: "Old", workdir: "/L/old", folder: "/L/old" }];
       if (command === "mentor_state_all") return { m2: { chat: false } };
       return undefined;
     });

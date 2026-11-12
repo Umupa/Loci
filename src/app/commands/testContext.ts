@@ -57,5 +57,5 @@ export function testContext(agents: Agent[] = [], overrides: Partial<CommandCont
 }
 
 export function agent(id: string, name?: string): Agent {
-  return { id, avatar: "nova", color: "#000", projects: [], ...(name ? { name } : {}) };
+  return { id, avatar: "nova", color: "#000", ...(name ? { name } : {}) };
 }

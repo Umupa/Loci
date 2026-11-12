@@ -38,7 +38,7 @@ function fixture(kind: "agent" | "session" = "agent") {
   );
   const host = {
     agentOf: () =>
-      kind === "session" ? undefined : { id: "agent-1", projects: [] },
+      kind === "session" ? undefined : { id: "agent-1" },
     files: { load: agentFiles, write },
   } as unknown as AgentAppHost;
   const run = (action: string, input: Record<string, unknown> = {}) =>

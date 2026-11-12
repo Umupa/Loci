@@ -14,7 +14,7 @@ vi.mock("../../sessions/ui/SessionPane", () => ({
   },
 }));
 
-const agent = { id: "agent", name: "Ada", avatar: "ember", color: "#fff", projects: [] };
+const agent = { id: "agent", name: "Ada", avatar: "ember", color: "#fff" };
 let root: Root;
 let container: HTMLDivElement;
 const onFocus = vi.fn();
