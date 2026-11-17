@@ -10,7 +10,11 @@ extension Store {
 
   /// The text of an article, as stored in `content.md`.
   public func content(of item: EntityID) throws -> String {
-    try readText(itemFolder(item).appending(path: Self.contentFile))
+    try content(inFolder: itemFolder(item))
+  }
+
+  func content(inFolder folder: URL) throws -> String {
+    try readText(folder.appending(path: Self.contentFile))
   }
 
   /// Makes the item's folder with its `item.json` and `content.md`.

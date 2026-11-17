@@ -22,7 +22,8 @@ enum Architecture {
   static let modules: [String: Module] = [
     "LociModel": Module(uses: [], frameworks: ["Foundation"]),
     "LociStore": Module(
-      uses: ["LociModel"], frameworks: ["Foundation", "CoreServices", "Synchronization", "os"], packages: ["Yams"]),
+      uses: ["LociModel"], frameworks: ["Foundation", "CoreServices", "Synchronization", "os"],
+      packages: ["Yams", "GRDB"]),
     "LociAgents": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
     "LociMedia": Module(uses: ["LociModel"], frameworks: ["Foundation", "AVFoundation", "os"]),
     "LociCode": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),

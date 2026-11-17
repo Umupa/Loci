@@ -86,8 +86,26 @@ extension LessonText {
       if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
         insideFence.toggle()
       } else if !insideFence {
-        links += line.matches(of: /loci:\/\/[^\s)\]>"'<]+/).map { String($0.output) }
+        links += Self.links(onLine: line)
       }
+    }
+    return links
+  }
+
+  private static let scheme = "loci://"
+  private static let linkEnds: Set<Character> = [")", "]", ">", "\"", "'", "<"]
+
+  /// A plain scan rather than a regular expression: lessons are long and this runs on every rebuild.
+  private static func links(onLine line: Substring) -> [String] {
+    var links: [String] = []
+    var rest = line
+    while let start = rest.range(of: scheme) {
+      var end = start.upperBound
+      while end < rest.endIndex, !rest[end].isWhitespace, !linkEnds.contains(rest[end]) {
+        end = rest.index(after: end)
+      }
+      links.append(String(rest[start.lowerBound..<end]))
+      rest = rest[end...]
     }
     return links
   }

@@ -17,7 +17,7 @@
 | 模块 | 职责 | 可以引用 |
 |---|---|---|
 | `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应 | 无 |
-| `LociStore` | 文件读写与监听、SQLite、全文索引 | `LociModel`；第三方：Yams |
+| `LociStore` | 文件读写与监听、SQLite、全文索引 | `LociModel`；第三方：Yams、GRDB |
 | `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
 | `LociMedia` | 取回、转录、断句、翻译、章节与重点 | `LociModel` |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |

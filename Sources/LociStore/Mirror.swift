@@ -1,0 +1,83 @@
+import Foundation
+import GRDB
+import LociModel
+
+extension StoreDatabase {
+  /// Replaces every mirror and the search index with what the files say now.
+  ///
+  /// Safe at any time: the result depends only on the files, so rebuilding twice, or rebuilding after
+  /// following changes one by one, gives the same tables.
+  @discardableResult
+  public func rebuild(from store: Store) throws -> [FileProblem] {
+    let snapshot = store.load()
+    let updates =
+      snapshot.mentors.map { MirrorUpdate.mentor($0.mentor.id, $0) }
+      + snapshot.items.map { item in
+        MirrorUpdate.item(
+          item.id, item,
+          content: Self.text(of: item) {
+            try store.content(inFolder: snapshot.itemFolders[item.id] ?? store.itemFolder(item.id))
+          })
+      }
+      + snapshot.notes.map { MirrorUpdate.notes($0.key, $0.value) }
+    try queue.write { db in
+      for table in Schema.mirrorTables { try db.execute(sql: "DELETE FROM \(table)") }
+      for update in updates { try update.write(db) }
+    }
+    return snapshot.problems
+  }
+
+  /// Updates only the rows the changes touch. A change to a lesson or a catalog refreshes that mentor's
+  /// rows, so lessons missing from the catalog keep the same order a rebuild gives them.
+  @discardableResult
+  public func apply(_ changes: Set<StoreChange>, from store: Store) throws -> [FileProblem] {
+    if changes.contains(.everything) { return try rebuild(from: store) }
+    var problems: [FileProblem] = []
+    var mentors = Set<EntityID>()
+    var updates: [MirrorUpdate] = []
+    for change in changes {
+      switch change {
+      case .mentor(let id), .catalog(let id):
+        mentors.insert(id)
+      case .lesson(let lesson):
+        mentors.insert(lesson.mentor)
+      case .item(let id):
+        let item = Self.item(id, in: store, problems: &problems)
+        updates.append(.item(id, item, content: item.flatMap { Self.text(of: $0) { try store.content(of: id) } }))
+      case .notes(let content):
+        let notes = store.notes(on: content)
+        problems += notes.problems
+        updates.append(.notes(content, notes.value))
+      case .everything:
+        continue
+      }
+    }
+    for id in mentors {
+      let loaded = store.loadMentor(id)
+      problems += loaded.problems
+      updates.append(.mentor(id, loaded.value))
+    }
+    try queue.write { db in
+      for update in updates { try update.write(db) }
+    }
+    return problems
+  }
+
+  private static func item(_ id: EntityID, in store: Store, problems: inout [FileProblem]) -> Item? {
+    do {
+      return try store.item(id)
+    } catch StoreError.invalid(let problem) {
+      problems.append(problem)
+      return nil
+    } catch {
+      return nil
+    }
+  }
+
+  private static func text(of item: Item, reading content: () throws -> String) -> String? {
+    switch item.kind {
+    case .article, .paper: try? content()
+    case .video, .audio, .repository: nil
+    }
+  }
+}
