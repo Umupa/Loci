@@ -1,0 +1,4 @@
+{"launch":["--mode","rpc","--approval-mode","yolo","--resume","019a0000-0000-7000-8000-000000000000","--no-extensions","--no-skills","--no-rules","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"exit":1,"stderr":"Error: Session \"019a0000-0000-7000-8000-000000000000\" not found.\nRun `omp --resume` without an argument to pick from recent sessions, or `omp` to start a new one.\n"}
+{"close":true}
