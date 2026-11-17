@@ -41,7 +41,8 @@ final class ScriptedLauncher: ProgramLauncher {
       output: output, diagnostics: diagnostics,
       write: { data in
         self.state.withLock { state in
-          for record in Recording.records(in: data) { self.expect(.to(record), in: &state) }
+          let portable = Data(String(decoding: data, as: UTF8.self).replacing(self.folder.path, with: "$FOLDER").utf8)
+          for record in Recording.records(in: portable) { self.expect(.to(record), in: &state) }
         }
       },
       closeInput: { self.state.withLock { self.expect(.close, in: &$0) } },
