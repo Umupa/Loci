@@ -1,0 +1,11 @@
+{"launch":["acp"]}
+{"to":{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"},"protocolVersion":1}}}
+{"from":{"id":1,"jsonrpc":"2.0","result":{"agentCapabilities":{"loadSession":true,"mcpCapabilities":{"http":true,"sse":true},"promptCapabilities":{"embeddedContext":true,"image":true},"sessionCapabilities":{"close":{},"fork":{},"list":{},"resume":{}}},"agentInfo":{"name":"OpenCode","version":"1.19.6"},"authMethods":[{"description":"Run `opencode auth login` in the terminal","id":"opencode-login","name":"Login with opencode"}],"protocolVersion":1}}}
+{"to":{"id":2,"jsonrpc":"2.0","method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]}}}
+{"from":{"id":2,"jsonrpc":"2.0","result":{"sessionId":"ses_e17582e44ffeP9P6gOUlIhEycN"}}}
+{"to":{"id":3,"jsonrpc":"2.0","method":"session/prompt","params":{"prompt":[{"text":"Reply with exactly one word: pong","type":"text"}],"sessionId":"ses_e17582e44ffeP9P6gOUlIhEycN"}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"ses_e17582e44ffeP9P6gOUlIhEycN","update":{"content":{"text":"pong","type":"text"},"messageId":"msg_1e8a7d227001WKFgvUGJbZAOzY","sessionUpdate":"agent_message_chunk"}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"ses_e17582e44ffeP9P6gOUlIhEycN","update":{"cost":{"amount":0,"currency":"USD"},"sessionUpdate":"usage_update","size":200000,"used":7882}}}}
+{"from":{"id":3,"jsonrpc":"2.0","result":{"_meta":{},"stopReason":"end_turn","usage":{"cachedReadTokens":1792,"inputTokens":6090,"outputTokens":4,"totalTokens":7886}}}}
+{"close":true}
+{"exit":0,"stderr":""}

@@ -1,0 +1,22 @@
+{"launch":["acp"]}
+{"to":{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"},"protocolVersion":1}}}
+{"from":{"id":1,"jsonrpc":"2.0","result":{"agentCapabilities":{"loadSession":true,"mcpCapabilities":{"http":true,"sse":true},"promptCapabilities":{"embeddedContext":true,"image":true},"sessionCapabilities":{"close":{},"fork":{},"list":{},"resume":{}}},"agentInfo":{"name":"OpenCode","version":"1.19.6"},"authMethods":[{"description":"Run `opencode auth login` in the terminal","id":"opencode-login","name":"Login with opencode"}],"protocolVersion":1}}}
+{"to":{"id":2,"jsonrpc":"2.0","method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]}}}
+{"from":{"id":2,"jsonrpc":"2.0","result":{"sessionId":"ses_e175778dfffe5wiErPelA6G40S"}}}
+{"to":{"id":3,"jsonrpc":"2.0","method":"session/prompt","params":{"prompt":[{"text":"Remember this word: quokka. Reply with exactly: OK","type":"text"}],"sessionId":"ses_e175778dfffe5wiErPelA6G40S"}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"ses_e175778dfffe5wiErPelA6G40S","update":{"content":{"text":"OK","type":"text"},"messageId":"msg_1e8a88739001OAydjFO7ifgR5G","sessionUpdate":"agent_message_chunk"}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"ses_e175778dfffe5wiErPelA6G40S","update":{"cost":{"amount":0,"currency":"USD"},"sessionUpdate":"usage_update","size":200000,"used":7879}}}}
+{"from":{"id":3,"jsonrpc":"2.0","result":{"_meta":{},"stopReason":"end_turn","usage":{"cachedReadTokens":1792,"inputTokens":6087,"outputTokens":3,"totalTokens":7882}}}}
+{"close":true}
+{"exit":0,"stderr":""}
+{"launch":["acp"]}
+{"to":{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"},"protocolVersion":1}}}
+{"from":{"id":1,"jsonrpc":"2.0","result":{"agentCapabilities":{"loadSession":true,"mcpCapabilities":{"http":true,"sse":true},"promptCapabilities":{"embeddedContext":true,"image":true},"sessionCapabilities":{"close":{},"fork":{},"list":{},"resume":{}}},"agentInfo":{"name":"OpenCode","version":"1.19.6"},"authMethods":[{"description":"Run `opencode auth login` in the terminal","id":"opencode-login","name":"Login with opencode"}],"protocolVersion":1}}}
+{"to":{"id":2,"jsonrpc":"2.0","method":"session/resume","params":{"cwd":"$FOLDER","mcpServers":[],"sessionId":"ses_e175778dfffe5wiErPelA6G40S"}}}
+{"from":{"id":2,"jsonrpc":"2.0","result":{}}}
+{"to":{"id":3,"jsonrpc":"2.0","method":"session/prompt","params":{"prompt":[{"text":"Which word did I ask you to remember? Reply with just that word.","type":"text"}],"sessionId":"ses_e175778dfffe5wiErPelA6G40S"}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"ses_e175778dfffe5wiErPelA6G40S","update":{"content":{"text":"quokka","type":"text"},"messageId":"msg_1e8a89a5d001iZE7xtGRgLBod7","sessionUpdate":"agent_message_chunk"}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"ses_e175778dfffe5wiErPelA6G40S","update":{"cost":{"amount":0,"currency":"USD"},"sessionUpdate":"usage_update","size":200000,"used":7900}}}}
+{"from":{"id":3,"jsonrpc":"2.0","result":{"_meta":{},"stopReason":"end_turn","usage":{"cachedReadTokens":7808,"inputTokens":92,"outputTokens":4,"totalTokens":7904}}}}
+{"close":true}
+{"exit":0,"stderr":""}

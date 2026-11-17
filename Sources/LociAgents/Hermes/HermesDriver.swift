@@ -8,7 +8,7 @@ extension AcpDriver {
   ) -> AcpDriver {
     AcpDriver(
       provider: .hermes, executable: executable, arguments: { _ in ["acp"] },
-      environment: environment, launcher: launcher, clock: clock, resumeMethod: "session/load",
-      modelViaProtocol: true, mode: { $0.permission == .ask ? "default" : "dont_ask" })
+      environment: environment, launcher: launcher, clock: clock, setModel: true,
+      resumeMethod: "session/load", mode: { $0.permission == .ask ? "default" : "dont_ask" })
   }
 }

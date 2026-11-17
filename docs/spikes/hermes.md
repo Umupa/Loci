@@ -35,7 +35,7 @@
 
 `Sources/LociAgents/Hermes/HermesDriver.swift` 只提供 `AcpDriver.hermes` 的配置：provider、`acp` 参数、恢复方法、权限模式，以及通过 ACP 选模型。可执行文件、环境、启动器、时钟仍从外部传入。
 
-共用 `AcpDriver` 增加 `resumeMethod`、`modelViaProtocol`、`mode` 三个配置，默认保持 Grok 的路径。模型与权限设置失败时关闭进程并返回原始错误，不暴露未配置完成的会话。
+共用 `AcpDriver` 以 `resumeMethod`、`setModel`、`mode` 表达差异，默认保持 Grok 的路径。`setModel` 与 OpenCode 使用同一份模型选择实现。模型与权限设置失败时关闭进程并返回原始错误，不暴露未配置完成的会话。
 
 测试先暴露两处问题再修复：`AcpChannel` 在加载期间不转发历史通知，取消这期间的审批并拒绝未支持的客户端请求；会话配置完成后才开始转发。`AcpDriver` 在切换模型后取所选模型的上下文容量，未知容量保持为空。
 
