@@ -1,0 +1,6 @@
+{"launch":["--print","--output-format","stream-json","--verbose","--input-format","stream-json","--permission-prompt-tool","stdio","--include-partial-messages","--permission-mode","bypassPermissions","--allow-dangerously-skip-permissions","--session-id","c13ce784-7a6a-44df-9607-6fb137aca546","--model","haiku","--effort","low","--max-turns","4","--max-budget-usd","0.50","--setting-sources","user","--settings","{\"disableAllHooks\":true,\"permissions\":{\"ask\":[\"Bash\"]}}","--strict-mcp-config","--mcp-config","{\"mcpServers\":{}}"]}
+{"to":{"request":{"subtype":"initialize"},"request_id":"loci-1","type":"control_request"}}
+{"from":{"response":{"request_id":"loci-1","response":{},"subtype":"success"},"type":"control_response"}}
+{"to":{"message":{"content":[{"text":"Go on","type":"text"}],"role":"user"},"parent_tool_use_id":null,"session_id":"","type":"user"}}
+{"from":{"event":{"delta":{"text":"Half a sentence","type":"text_delta"},"type":"content_block_delta"},"type":"stream_event"}}
+{"exit":9,"stderr":"out of memory"}
