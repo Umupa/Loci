@@ -15,7 +15,10 @@ struct CodexDialog: Sendable {
     self.params = params
   }
 
-  var key: String {
+  var key: String { Self.key(for: id) }
+
+  /// How a request is known to the caller, from its JSON-RPC id.
+  static func key(for id: JSONValue) -> String {
     switch id {
     case .string(let value): "string:\(value)"
     case .number(let value): "number:\(value)"

@@ -72,9 +72,8 @@ actor AcpSession: AgentSession {
     switch outcome {
     case .success(let result):
       switch result["stopReason"]?.string {
-      case "cancelled": end = stopping ? .interrupted : .completed
+      case "end_turn", "cancelled", nil: end = stopping ? .interrupted : .completed
       case "refusal": end = .failed(.provider("The model refused to answer."))
-      case "end_turn", nil: end = stopping ? .interrupted : .completed
       case let reason?: end = stopping ? .interrupted : .failed(.provider("The agent ended the turn (\(reason))."))
       }
     case .failure(let error):

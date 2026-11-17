@@ -137,7 +137,7 @@ public struct AcpDriver: AgentDriver {
   }
 
   private static func isMissing(_ handle: SessionHandle, directory: URL, channel: AcpChannel) async -> Bool {
-    var params: [String: JSONValue] = ["cwd": .string(directory.path)]
+    var params: [String: JSONValue] = ["cwd": .string(directory.path(percentEncoded: false))]
     while let page = try? await channel.request("session/list", .object(params), within: .seconds(30)) {
       guard let sessions = page["sessions"]?.array else { return false }
       if sessions.contains(where: { $0["sessionId"]?.string == handle.value }) { return false }
