@@ -189,7 +189,7 @@ final class RecordingLauncher: ProgramLauncher {
           case "baseUrl": result[member.key] = .string("")
           case "sections": break
           case "hostname", "agentId", "agentInstanceId": result[member.key] = .string("")
-          case "configOptions", "x.ai/sessionConfig": break
+          case "x.ai/sessionConfig": break
           default: result[member.key] = scrubbed(member.value)
           }
         })

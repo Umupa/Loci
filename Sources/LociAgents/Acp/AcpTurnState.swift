@@ -4,8 +4,19 @@ struct AcpTurnState: Sendable {
   private var running: Set<String> = []
   private var finished: Set<String> = []
   private var asking: [String: (id: JSONValue, options: [String])] = [:]
+  private let replyFailure: (@Sendable (String) -> String?)?
+  private var reply = ""
   /// Tokens in the context, as the agent last reported.
   private(set) var used: Int?
+
+  init(replyFailure: (@Sendable (String) -> String?)? = nil) {
+    self.replyFailure = replyFailure
+  }
+
+  var failure: AgentError? {
+    guard inputs.isEmpty, let message = replyFailure?(reply) else { return nil }
+    return .provider(message)
+  }
 
   /// The events in one `session/update` notification's params.
   mutating func receive(_ params: JSONValue) -> [AgentEvent] {
@@ -13,11 +24,15 @@ struct AcpTurnState: Sendable {
     guard let update = params["update"], let kind = update["sessionUpdate"]?.string else { return [] }
     switch kind {
     case "agent_message_chunk":
-      return Self.text(update["content"]).map { [.text($0)] } ?? []
+      guard let text = Self.text(update["content"]) else { return [] }
+      if replyFailure != nil, inputs.isEmpty { reply += text }
+      return [.text(text)]
     case "agent_thought_chunk":
       return Self.text(update["content"]).map { [.thinking($0)] } ?? []
     case "tool_call", "tool_call_update":
       return tool(update)
+    case "usage_update":
+      return [.context(ContextUsage(used: update["used"]?.int, window: update["size"]?.int))]
     default:
       return []
     }
@@ -27,9 +42,11 @@ struct AcpTurnState: Sendable {
   mutating func ask(id: JSONValue, _ params: JSONValue) -> AgentEvent {
     let key = Self.key(id)
     let call = params["toolCall"]
+    let isQuestion = call?["toolCallId"]?.string?.hasPrefix("interaction_") == true
     let options = (params["options"]?.array ?? []).compactMap { option -> PermissionRequest.Option? in
       guard let id = option["optionId"]?.string else { return nil }
-      return PermissionRequest.Option(id: id, role: Self.role(option["kind"]?.string), label: option["name"]?.string)
+      return PermissionRequest.Option(
+        id: id, role: isQuestion ? .choice : Self.role(option["kind"]?.string), label: option["name"]?.string)
     }
     asking[key] = (id, options.map(\.id))
     let title = call?["title"]?.string ?? Self.toolName(call ?? .null) ?? ""
@@ -118,6 +135,7 @@ struct AcpTurnState: Sendable {
   /// content blocks.
   private static func output(_ update: JSONValue) -> String {
     if let printed = update["rawOutput"]?["output_for_prompt"]?.string { return printed }
+    if let printed = update["rawOutput"]?["combinedOutput"]?.string ?? update["rawOutput"]?.string { return printed }
     return (update["content"]?.array ?? []).compactMap { $0["content"]?["text"]?.string }.joined()
   }
 

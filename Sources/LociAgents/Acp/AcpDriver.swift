@@ -10,6 +10,11 @@ public struct AcpDriver: AgentDriver {
   private let environment: [String: String]?
   private let launcher: any ProgramLauncher
   private let clock: any Clock<Duration>
+  var processDirectory: URL?
+  var supportsConfigOptions = false
+  var replyFailure: (@Sendable (String) -> String?)?
+  var configureSession:
+    (@Sendable (AcpChannel, JSONValue, String, SessionConfiguration) async throws(AgentError) -> Void)?
 
   /// - Parameters:
   ///   - arguments: The program's arguments for a session with this configuration.
@@ -52,10 +57,10 @@ public struct AcpDriver: AgentDriver {
     let program = try launcher.launch(
       Invocation(
         executable: executable, arguments: arguments(configuration),
-        workingDirectory: configuration.workingDirectory, environment: environment))
+        workingDirectory: processDirectory ?? configuration.workingDirectory, environment: environment))
     let channel = AcpChannel(program: program, clock: clock)
     do throws(AgentError) {
-      _ = try await channel.request("initialize", Self.initialize, within: .seconds(30))
+      _ = try await channel.request("initialize", initialize, within: .seconds(30))
       let folder = JSONValue.string(configuration.workingDirectory.path(percentEncoded: false))
       var params: [String: JSONValue] = ["cwd": folder, "mcpServers": .array([])]
       let method: String
@@ -69,21 +74,29 @@ public struct AcpDriver: AgentDriver {
       guard let id = setup["sessionId"]?.string ?? configuration.resume?.value else {
         throw AgentError.rejected(method)
       }
+      try await configureSession?(channel, setup, id, configuration)
       return AcpSession(
-        handle: SessionHandle(provider: provider, value: id), channel: channel, window: Self.window(in: setup))
+        handle: SessionHandle(provider: provider, value: id), channel: channel, window: Self.window(in: setup),
+        replyFailure: replyFailure)
     } catch {
       await channel.shutDown(patience: .zero)
       throw error
     }
   }
 
-  private static let initialize = JSONValue.object([
-    "protocolVersion": .number(1),
-    "clientCapabilities": .object([
+  private var initialize: JSONValue {
+    var capabilities: [String: JSONValue] = [
       "fs": .object(["readTextFile": .bool(false), "writeTextFile": .bool(false)]), "terminal": .bool(false),
-    ]),
-    "clientInfo": .object(["name": .string("loci"), "version": .string("1")]),
-  ])
+    ]
+    if supportsConfigOptions {
+      capabilities["session"] = .object(["configOptions": .object(["boolean": .object([:])])])
+    }
+    return .object([
+      "protocolVersion": .number(1),
+      "clientCapabilities": .object(capabilities),
+      "clientInfo": .object(["name": .string("loci"), "version": .string("1")]),
+    ])
+  }
 
   /// The context window of the session's model, when the agent lists its models.
   private static func window(in setup: JSONValue) -> Int? {

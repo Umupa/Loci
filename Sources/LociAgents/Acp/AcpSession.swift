@@ -6,16 +6,18 @@ actor AcpSession: AgentSession {
   private let channel: AcpChannel
   private let session: String
   private let window: Int?
+  private let replyFailure: (@Sendable (String) -> String?)?
   private var running: (state: AcpTurnState, pipe: TurnPipe)?
   /// The caller asked the running turn, or the whole session, to stop.
   private var stopping = false
   private var whenIdle: [CheckedContinuation<Void, Never>] = []
 
-  init(handle: SessionHandle, channel: AcpChannel, window: Int?) {
+  init(handle: SessionHandle, channel: AcpChannel, window: Int?, replyFailure: (@Sendable (String) -> String?)? = nil) {
     self.handle = handle
     self.session = handle.value
     self.channel = channel
     self.window = window
+    self.replyFailure = replyFailure
     Task { await self.listen() }
   }
 
@@ -23,7 +25,7 @@ actor AcpSession: AgentSession {
     guard running == nil else { throw .turnInProgress }
     if let ended = await channel.ended { throw ended }
     let pipe = TurnPipe()
-    running = (AcpTurnState(), pipe)
+    running = (AcpTurnState(replyFailure: replyFailure), pipe)
     stopping = false
     let params = JSONValue.object([
       "sessionId": .string(session),
@@ -55,17 +57,19 @@ actor AcpSession: AgentSession {
 
   /// A turn the agent cancels by itself, as Grok does when a tool is denied, has still completed.
   private func prompt(_ params: JSONValue) async {
-    let end: TurnEnd
+    var end: TurnEnd
     do throws(AgentError) {
       let result = try await channel.request("session/prompt", params, within: nil)
       switch result["stopReason"]?.string {
       case "cancelled": end = stopping ? .interrupted : .completed
       case "refusal": end = .failed(.provider("The model refused to answer."))
-      default: end = stopping ? .interrupted : .completed
+      case "end_turn", nil: end = stopping ? .interrupted : .completed
+      case let reason?: end = stopping ? .interrupted : .failed(.provider("The agent ended the turn (\(reason))."))
       }
     } catch {
       end = stopping ? .interrupted : .failed(Self.providerSide(error))
     }
+    if end == .completed, let failure = running?.state.failure { end = .failed(failure) }
     if let used = running?.state.used {
       running?.pipe.yield(.context(ContextUsage(used: used, window: window)))
     }

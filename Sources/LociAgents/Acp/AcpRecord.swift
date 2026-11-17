@@ -31,7 +31,10 @@ enum AcpRecord: Hashable, Sendable {
   /// The agent's own explanation, preferring the detail in `data` over the bare message.
   private static func failure(_ error: JSONValue) -> AgentError {
     if error["data"]?["code"]?.string == "FS_NOT_FOUND" { return .sessionNotFound }
-    let detail = error["data"]?["message"]?.string ?? error["data"]?.string ?? error["data"]?["detail"]?.string
+    if error["code"]?.int == -32002, error["data"]?["sessionId"]?.string != nil { return .sessionNotFound }
+    let detail =
+      error["data"]?["details"]?.string ?? error["data"]?["message"]?.string
+      ?? error["data"]?.string ?? error["data"]?["detail"]?.string
     let message = error["message"]?.string ?? ""
     let words = [message, detail ?? ""].filter { !$0.isEmpty }.joined(separator: ": ")
     return .rejected(words.isEmpty ? "the agent refused the request" : words)
