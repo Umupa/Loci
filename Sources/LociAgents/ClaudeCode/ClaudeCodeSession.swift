@@ -79,8 +79,9 @@ actor ClaudeCodeSession: AgentSession {
   private func receive(_ record: JSONValue) async {
     if record["type"]?.string == "control_request" {
       guard let dialog = ClaudeCodeDialog(record) else {
-        channel.terminate()
-        finish(.failed(.rejected("Unsupported Claude Code control request")))
+        if let id = record["request_id"]?.string {
+          do { try await channel.send(.refuse(id)) } catch { finish(.failed(error)) }
+        }
         return
       }
       if running != nil, !stopping, !closed {

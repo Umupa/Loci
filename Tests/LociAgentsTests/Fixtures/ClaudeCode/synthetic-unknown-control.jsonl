@@ -1,0 +1,17 @@
+{"launch":["--print","--output-format","stream-json","--verbose","--input-format","stream-json","--permission-prompt-tool","stdio","--include-partial-messages","--permission-mode","bypassPermissions","--allow-dangerously-skip-permissions","--session-id","c13ce784-7a6a-44df-9607-6fb137aca546","--model","haiku","--effort","low","--max-turns","4","--max-budget-usd","0.50","--setting-sources","user","--settings","{\"disableAllHooks\":true,\"permissions\":{\"ask\":[\"Bash\"]}}","--strict-mcp-config","--mcp-config","{\"mcpServers\":{}}"]}
+{"to":{"request":{"subtype":"initialize"},"request_id":"loci-1","type":"control_request"}}
+{"from":{"response":{"request_id":"loci-1","response":{},"subtype":"success"},"type":"control_response"}}
+{"to":{"message":{"content":[{"text":"Go on","type":"text"}],"role":"user"},"parent_tool_use_id":null,"session_id":"","type":"user"}}
+{"from":{"type":"control_request","request_id":"unknown-0","request":{"subtype":"hook_callback"}}}
+{"to":{"type":"control_response","response":{"subtype":"error","request_id":"unknown-0","error":"Unsupported Claude Code control request"}}}
+{"from":{"type":"control_request","request_id":"unknown-1","request":{"subtype":"mcp_message"}}}
+{"to":{"type":"control_response","response":{"subtype":"error","request_id":"unknown-1","error":"Unsupported Claude Code control request"}}}
+{"from":{"type":"control_request","request_id":"unknown-2","request":{"subtype":"elicitation"}}}
+{"to":{"type":"control_response","response":{"subtype":"error","request_id":"unknown-2","error":"Unsupported Claude Code control request"}}}
+{"from":{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"pong"}}}}
+{"from":{"type":"result","subtype":"success"}}
+{"to":{"type":"user","session_id":"","parent_tool_use_id":null,"message":{"role":"user","content":[{"type":"text","text":"Again"}]}}}
+{"from":{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"pong"}}}}
+{"from":{"type":"result","subtype":"success"}}
+{"close":true}
+{"exit":0}

@@ -65,4 +65,16 @@ struct ClaudeCodeReplayTests {
       await #expect(throws: AgentError.unresponsive("initialize")) { try await stage.open() }
     }
   }
+
+  @Test func unknownControlRequestsAreRefusedAndTheConversationContinues() async throws {
+    try await replay("synthetic-unknown-control") { stage in
+      let session = try await stage.open()
+      for text in ["Go on", "Again"] {
+        let events = await Scenario.watch(try await session.send(text))
+        #expect(events.reply == "pong")
+        #expect(events.endings == [.completed])
+      }
+      await session.close()
+    }
+  }
 }
