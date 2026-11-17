@@ -19,11 +19,11 @@ struct PlacedNote: Identifiable {
     return found + placed.filter { $0.range == nil }
   }
 
-  /// The highlight of each note that was found, with a margin mark when there is more than the highlight.
-  static func marks(_ notes: [PlacedNote], pending: Set<EntityID>) -> [ReaderMark] {
+  /// The highlight of each note that was found, with a dot after it when there is more than the highlight.
+  static func marks(_ notes: [PlacedNote]) -> [ReaderMark] {
     notes.compactMap { placed in
       guard let range = placed.range else { return nil }
-      let more = placed.note.thought != nil || !placed.note.exchanges.isEmpty || pending.contains(placed.id)
+      let more = placed.note.thought != nil || !placed.note.exchanges.isEmpty
       return ReaderMark(kind: .note(placed.id, marginMark: more), range: range)
     }
   }

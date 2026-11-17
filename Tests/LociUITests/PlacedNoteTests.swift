@@ -26,17 +26,13 @@ struct PlacedNoteTests {
     #expect(placed.first.flatMap(\.range).map { (text.plain as NSString).substring(with: $0) } == "不合适")
   }
 
-  @Test func onlyNotesWithMoreThanAHighlightGetAMarginMark() throws {
+  @Test func onlyHighlightsWithAThoughtGetADotAfterThem() throws {
     let text = ReadingText(markdown: "先排除不合适的节点，再给节点打分。")
     let plain = try Self.note("不合适")
     let thought = try Self.note("打分", thought: "为什么要分两步？")
-    let asked = try Self.note("节点，")
 
-    let marks = PlacedNote.marks(PlacedNote.place([plain, thought, asked], in: text), pending: [asked.id])
+    let marks = PlacedNote.marks(PlacedNote.place([plain, thought], in: text))
 
-    #expect(
-      marks.map(\.kind) == [
-        .note(plain.id, marginMark: false), .note(asked.id, marginMark: true), .note(thought.id, marginMark: true),
-      ])
+    #expect(marks.map(\.kind) == [.note(plain.id, marginMark: false), .note(thought.id, marginMark: true)])
   }
 }

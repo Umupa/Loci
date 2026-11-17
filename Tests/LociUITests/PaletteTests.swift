@@ -1,4 +1,5 @@
 import AppKit
+import LociModel
 import SwiftUI
 import Testing
 
@@ -7,13 +8,28 @@ import Testing
 /// α1-S9: no text is hard to read, in either appearance.
 @MainActor
 struct PaletteTests {
+  /// The color as it shows, laid over the canvas when it lets the canvas through.
   static func components(of color: Color, in appearance: NSAppearance.Name) -> [Double] {
     var components: [Double] = []
     NSAppearance(named: appearance)?.performAsCurrentDrawingAppearance {
-      guard let resolved = NSColor(color).usingColorSpace(.sRGB) else { return }
-      components = [resolved.redComponent, resolved.greenComponent, resolved.blueComponent].map(Double.init)
+      guard let resolved = NSColor(color).usingColorSpace(.sRGB),
+        let canvas = Tones.canvas.usingColorSpace(.sRGB)
+      else { return }
+      let alpha = resolved.alphaComponent
+      components = zip(
+        [resolved.redComponent, resolved.greenComponent, resolved.blueComponent],
+        [canvas.redComponent, canvas.greenComponent, canvas.blueComponent]
+      ).map { Double($0 * alpha + $1 * (1 - alpha)) }
     }
     return components
+  }
+
+  static func alpha(of color: Color, in appearance: NSAppearance.Name) -> Double {
+    var alpha = 1.0
+    NSAppearance(named: appearance)?.performAsCurrentDrawingAppearance {
+      alpha = Double(NSColor(color).usingColorSpace(.sRGB)?.alphaComponent ?? 1)
+    }
+    return alpha
   }
 
   /// WCAG relative luminance contrast, from 1 (none) to 21.
@@ -36,10 +52,25 @@ struct PaletteTests {
     }
   }
 
+  /// A sign is white lines on the mentor's colour; WCAG asks 3:1 of graphics.
+  @Test func aWhiteSignStandsOutOnEveryMentorColour() {
+    for tone in MentorColor.palette {
+      let ratio = Self.contrast([1, 1, 1], [tone.red, tone.green, tone.blue].map { Double($0) / 255 })
+      #expect(ratio >= 3, "\(tone.description) is \(ratio)")
+    }
+  }
+
   @Test func eachColorHasItsOwnDarkValue() {
     let canvas = (Self.components(of: Palette.canvas, in: .aqua), Self.components(of: Palette.canvas, in: .darkAqua))
 
     #expect(canvas.0 != canvas.1)
     #expect(canvas.1.allSatisfy { $0 < 0.1 })
+  }
+
+  /// What is selected is washed in amber, not filled with it.
+  @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
+  func aSelectionIsAWashOfAmber(appearance: NSAppearance.Name) {
+    #expect(Self.alpha(of: Palette.tint, in: appearance) < 0.2)
+    #expect(Self.alpha(of: Palette.mark, in: appearance) < 0.35)
   }
 }

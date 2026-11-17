@@ -2,7 +2,7 @@ import Foundation
 import LociModel
 
 extension FakeHost {
-  /// Pi and Claude Code installed, the rest missing.
+  /// Pi, Claude Code and Codex installed, the rest missing.
   static let installations: [AgentInstallation] = Mentor.Provider.allCases.map { provider in
     switch provider {
     case .pi:
@@ -14,13 +14,40 @@ extension FakeHost {
         .init(
           provider: .claudeCode, executable: URL(filePath: "/opt/homebrew/bin/claude"),
           version: "2.1.326 (Claude Code)", signIn: .signedIn))
+    case .codex:
+      .installed(
+        .init(
+          provider: .codex, executable: URL(filePath: "/opt/homebrew/bin/codex"), version: "codex-cli 0.167.1",
+          signIn: .unknown))
     default:
       .missing(provider)
     }
   }
 
   func detectAgents(again: Bool) async -> [AgentInstallation] { Self.installations }
-  func newMentorAgent() async throws(HostError) -> AgentChoice { AgentChoice(provider: .pi, model: "deepseek-v4") }
-  func setNewMentorAgent(_ command: SetNewMentorAgent) async throws(HostError) -> AgentChoice { command.choice }
+
+  func agentModels(of provider: Mentor.Provider) async -> [String] {
+    switch provider {
+    case .claudeCode: ["fable", "opus", "sonnet", "haiku"]
+    case .codex: ["gpt-6.1-sol", "gpt-6-luna"]
+    default: []
+    }
+  }
+
+  func agentDefaults() async throws(HostError) -> AgentDefaults {
+    AgentDefaults(provider: .claudeCode, models: [.claudeCode: "opus", .codex: "gpt-6.1-sol"])
+  }
+
+  func setDefaultAgent(_ command: SetDefaultAgent) async throws(HostError) -> AgentDefaults {
+    AgentDefaults(provider: command.provider)
+  }
+
+  func setDefaultModel(_ command: SetDefaultModel) async throws(HostError) -> AgentDefaults {
+    try await agentDefaults()
+  }
+
   func setMentorAgent(_ command: SetMentorAgent) async throws(HostError) -> Mentor { sample.scheduling }
+  func lessonLanguage() async throws(HostError) -> LessonLanguage { .fixed("zh-Hans") }
+  func setLessonLanguage(_ command: SetLessonLanguage) async throws(HostError) -> LessonLanguage { command.language }
+  func dataLocation() async -> URL { URL(filePath: "/Users/someone/Loci Dev") }
 }

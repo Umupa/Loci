@@ -18,6 +18,8 @@ struct ScreenSnapshots {
     #expect(try Data(contentsOf: file).count > 10_000)
   }
 
+  static let wide = CGSize(width: 1240, height: 800)
+
   static func root(_ sample: Sample, at window: WindowState) -> some View {
     RootView(memory: WindowMemory(recall: { window }, remember: { _ in })).lociHost(FakeHost(sample))
   }
@@ -64,33 +66,50 @@ struct ScreenSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func lessonWithSources(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample(problems: false)
-    let window = WindowState(place: .mentor(sample.scheduling.id), pages: [.lesson(sample.filterLesson)])
-    try await Self.shoot("lesson", Self.root(sample, at: window), appearance: appearance)
+    try await Self.shoot(
+      "lesson", Self.root(sample, at: WindowState(place: .lesson(sample.filterLesson))), appearance: appearance,
+      size: Self.wide)
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
-  func notesPanel(appearance: Snapshot.Appearance) async throws {
+  func highlightsPanel(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample(problems: false)
     let text = ReadingText(markdown: sample.lessonText)
+    let notes = PlacedNote.place(sample.notes, in: text)
     let panel = ReaderPanel(
-      content: .lesson(sample.filterLesson), headings: text.headings, notes: PlacedNote.place(sample.notes, in: text),
-      pending: [
-        PendingAnswer(
-          note: sample.notes[0].id, mentor: sample.scheduling.id, question: "可行性检查会看哪些约束？",
-          askedAt: Timestamp(millisecondsSince1970: 1_763_338_000_000), answer: "资源、端口、亲和性", failure: nil)
-      ], tab: .constant(.notes), focusedNote: nil, reveal: { _ in }, extra: { EmptyView() }
+      content: .lesson(sample.filterLesson), mentor: sample.scheduling, conversation: nil, notes: notes,
+      tab: .constant(.highlights), draft: .constant(nil), chosen: ChosenNote(note: notes[1].id, serial: 1),
+      reveal: { _ in }, revealPassage: { _ in }, ask: { _ in }, collapse: {}, extra: { EmptyView() }
     )
     .lociHost(FakeHost(sample))
-    try await Self.shoot("notes-panel", panel, appearance: appearance, size: CGSize(width: 320, height: 640))
+    try await Self.shoot("highlights-panel", panel, appearance: appearance, size: CGSize(width: 384, height: 640))
   }
 
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func selectionBar(appearance: Snapshot.Appearance) async throws {
+    let actions = PassageActions(highlight: { _ in nil }, think: { _, _ in }, ask: { _ in })
+    let bar = PassageBar(actions: actions, range: NSRange(), typing: {}, done: {})
+      .padding(Spacing.xl)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(Palette.canvas)
+    try await Self.shoot("selection-bar", bar, appearance: appearance, size: CGSize(width: 320, height: 120))
+  }
+
+  /// UI-S6, UI-S8: a passage question answered and saved, a reply streaming, a passage waiting to be asked.
   @Test(arguments: Snapshot.Appearance.allCases)
   func conversation(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample(problems: false)
+    let draft = PassageDraft(
+      content: .lesson(sample.filterLesson), locator: sample.notes[0].locator, excerpt: "约束是硬的，偏好是软的。")
+    let mentor = try Mentor(
+      id: sample.scheduling.id, name: sample.scheduling.name, avatar: sample.scheduling.avatar,
+      color: sample.scheduling.color, provider: .claudeCode, model: "opus", effort: .high)
     let view = ConversationView(
-      mentor: sample.scheduling, conversation: try sample.conversation(),
-      send: { (_: String) async throws(HostError) -> Done in Done() }, stop: {}, answer: { _, _ in })
-    try await Self.shoot("conversation", view, appearance: appearance)
+      mentor: mentor, conversation: try sample.conversation(), draft: .constant(draft), revealPassage: { _ in },
+      send: { (_: String, _: Passage?) async throws(HostError) -> Done in Done() }, stop: {}
+    )
+    .lociHost(FakeHost(sample))
+    try await Self.shoot("conversation", view, appearance: appearance, size: CGSize(width: 384, height: 900))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
@@ -110,12 +129,12 @@ struct ScreenSnapshots {
   func itemCitedByALesson(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample(problems: false)
     let window = WindowState(place: .library(nil), pages: [.item(sample.borg.id)])
-    try await Self.shoot("item", Self.root(sample, at: window), appearance: appearance)
+    try await Self.shoot("item", Self.root(sample, at: window), appearance: appearance, size: Self.wide)
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
   func problems(appearance: Snapshot.Appearance) async throws {
-    let list = ProblemList(health: try Sample().health).background(Palette.raised)
+    let list = ProblemList(health: try Sample().health).background(Palette.well)
     try await Self.shoot("problems", list, appearance: appearance)
   }
 
@@ -125,24 +144,33 @@ struct ScreenSnapshots {
     try await Self.shoot("startup-unreadable", view, appearance: appearance)
   }
 
+  /// UI-S10.
   @Test(arguments: Snapshot.Appearance.allCases)
-  func settings(appearance: Snapshot.Appearance) async throws {
-    let view = SettingsView(folder: URL(filePath: "/Users/someone/Loci Dev"), version: "1.0.0-alpha")
-    try await Self.shoot("settings", view, appearance: appearance)
+  func generalSettings(appearance: Snapshot.Appearance) async throws {
+    let view = GeneralSettingsPage().lociHost(FakeHost(try Sample()))
+    try await Self.shoot("settings-general", view, appearance: appearance, size: CGSize(width: 800, height: 600))
   }
-}
 
-extension ScreenSnapshots {
+  /// UI-S10.
   @Test(arguments: Snapshot.Appearance.allCases)
   func agentSettings(appearance: Snapshot.Appearance) async throws {
-    let view = AgentSettings().lociHost(FakeHost(try Sample()))
-    try await Self.shoot("settings-agents", view, appearance: appearance, size: CGSize(width: 520, height: 720))
+    let view = AgentSettingsPage().lociHost(FakeHost(try Sample()))
+    try await Self.shoot("settings-agents", view, appearance: appearance, size: CGSize(width: 800, height: 820))
+  }
+
+  /// UI-S9: the mentor working, its course on the shelf, its memory and its soul.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func mentorPage(appearance: Snapshot.Appearance) async throws {
+    let sample = try Sample()
+    let view = NavigationStack { MentorScreen(mentor: sample.scheduling.id) }.lociHost(FakeHost(sample))
+    try await Self.shoot("mentor-page", view, appearance: appearance, size: CGSize(width: 800, height: 1000))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
-  func mentorSettings(appearance: Snapshot.Appearance) async throws {
+  func mentorSoul(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample()
-    let view = MentorSettings(mentor: sample.scheduling) { _ in }.lociHost(FakeHost(sample))
-    try await Self.shoot("mentor-settings", view, appearance: appearance, size: CGSize(width: 520, height: 300))
+    let view = SoulSheet(soul: sample.mind.soul, file: sample.mind.soulFile, color: sample.scheduling.color)
+      .padding(Spacing.xl).background(Palette.canvas)
+    try await Self.shoot("mentor-soul", view, appearance: appearance, size: CGSize(width: 720, height: 560))
   }
 }

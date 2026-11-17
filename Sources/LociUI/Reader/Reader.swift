@@ -9,6 +9,7 @@ struct Reader: NSViewRepresentable {
   let text: ReadingText
   /// Where to open the first time this text is shown.
   let start: TextQuote?
+  var width = ReadingWidth.comfortable
   var marks: [ReaderMark] = []
   /// A passage to bring into view and flash; a new serial brings it again.
   var reveal: Reveal?
@@ -24,6 +25,7 @@ struct Reader: NSViewRepresentable {
 
   func updateNSView(_ scrollView: NSScrollView, context: Context) {
     context.coordinator.events = events
+    context.coordinator.measure(width)
     context.coordinator.show(text, from: start)
     context.coordinator.mark(marks)
     if let reveal { context.coordinator.reveal(reveal) }
@@ -60,6 +62,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private var reporting: Task<Void, Never>?
   private var endReported = false
   private var marks: [ReaderMark] = []
+  private var marksStale = false
   private let termCard = TermPopover()
   private let passageBar = PassagePopover()
   private var revealed: Int?
@@ -79,6 +82,9 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     let clip = ReaderClipView()
     scrollView.contentView = clip
     scrollView.hasVerticalScroller = true
+    scrollView.autohidesScrollers = true
+    scrollView.scrollerStyle = .overlay
+    scrollView.automaticallyAdjustsContentInsets = false
     scrollView.drawsBackground = true
     scrollView.backgroundColor = Tones.canvas
     let textView = ReaderTextView()
@@ -91,6 +97,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     clip.scrolled = { [weak self] in self?.scrolled() }
     textView.hovered = { [weak self] in self?.hovered(at: $0) }
     textView.selectionEnded = { [weak self] in self?.selectionEnded() }
+    textView.dragEnded = { [weak self] in self?.dragEnded() }
     textView.markClicked = { [weak self] in self?.events.noteClicked($0) }
     return scrollView
   }
@@ -104,6 +111,10 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     textView.layOutViewport()
     pendingStart = keep
     applyPendingStart()
+  }
+
+  func measure(_ width: ReadingWidth) {
+    textView?.readingWidth = width
   }
 
   func mark(_ marks: [ReaderMark]) {
@@ -124,20 +135,35 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     scrollView.reflectScrolledClipView(scrollView.contentView)
     textView.layOutViewport()
     textView.placeMarginMarks(marks)
-    textView.flash(request.range)
     flashing?.cancel()
+    textView.flash(request.range, strength: 1)
     flashing = Task { [weak self] in
-      try? await Task.sleep(for: .milliseconds(900))
+      try? await Task.sleep(for: Motion.flashHold)
+      for step in stride(from: Self.fadeSteps - 1, through: 0, by: -1) {
+        guard !Task.isCancelled else { return }
+        try? await Task.sleep(for: Motion.flashFadeStep)
+        self?.textView?.flash(request.range, strength: CGFloat(step) / CGFloat(Self.fadeSteps))
+      }
       guard !Task.isCancelled, let self else { return }
       self.textView?.show(self.marks)
     }
   }
 
+  private static let fadeSteps = 20
+
+  /// Marks are not moved while a selection is dragged past the window's edge, only once it is let go.
+  private func dragEnded() {
+    guard marksStale else { return }
+    marksStale = false
+    textView?.placeMarginMarks(marks)
+  }
+
   private func selectionEnded() {
     guard let textView, let actions = events.passage else { return }
     let range = textView.selectedRange()
-    guard range.length > 0, let rect = textView.rects(of: range).last else { return }
-    passageBar.show(actions, for: range, at: rect, in: textView)
+    let lines = textView.rects(of: range)
+    guard range.length > 0, !lines.isEmpty else { return }
+    passageBar.show(actions, for: range, over: lines, in: textView)
   }
 
   /// Over a glossary term, its definition appears beside it; moving off the term puts it away.
@@ -185,8 +211,13 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   }
 
   private func scrolled() {
+    passageBar.close()
     checkEnd()
-    textView?.placeMarginMarks(marks)
+    if textView?.selecting == true {
+      marksStale = true
+    } else {
+      textView?.placeMarginMarks(marks)
+    }
     reporting?.cancel()
     reporting = Task { [weak self, settle] in
       try? await Task.sleep(for: settle)

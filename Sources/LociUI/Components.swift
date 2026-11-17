@@ -1,24 +1,6 @@
 import LociModel
 import SwiftUI
 
-/// A mentor's mark: a circle in the mentor's color with the first character of its name.
-struct Avatar: View {
-  let mentor: Mentor
-  let size: CGFloat
-
-  var body: some View {
-    Circle()
-      .fill(mentor.color.color)
-      .frame(width: size, height: size)
-      .overlay {
-        Text(verbatim: mentor.name.first.map(String.init) ?? "")
-          .font(.system(size: size * Size.avatarGlyphRatio, weight: .semibold))
-          .foregroundStyle(Palette.onAccent)
-      }
-      .accessibilityHidden(true)
-  }
-}
-
 /// A small outlined label, such as an item's kind on its card.
 struct Tag: View {
   let text: Text
@@ -43,5 +25,95 @@ struct EmptyMark: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(Palette.canvas)
       .accessibilityHidden(true)
+  }
+}
+
+/// A small capsule segmented control: a light thumb slides under the chosen segment. The system's control
+/// fills the chosen segment with the tint, which would make it a solid amber block.
+struct CapsulePicker<Value: Hashable>: View {
+  @Binding var selection: Value
+  let options: [(value: Value, title: LocalizedStringResource)]
+  @Namespace private var thumb
+
+  var body: some View {
+    HStack(spacing: 0) {
+      ForEach(options, id: \.value) { option in
+        let chosen = option.value == selection
+        Button {
+          withAnimation(Motion.quick) { selection = option.value }
+        } label: {
+          Text(option.title)
+            .font(Typography.control)
+            .foregroundStyle(chosen ? Palette.ink : Palette.inkMuted)
+            .padding(.horizontal, 13)
+            .frame(height: 22)
+            .background {
+              if chosen {
+                Capsule()
+                  .fill(Palette.thumb)
+                  .shadow(color: .black.opacity(0.14), radius: 1.5, y: 1)
+                  .matchedGeometryEffect(id: "thumb", in: thumb)
+              }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(chosen ? .isSelected : [])
+      }
+    }
+    .padding(2)
+    .background(Capsule().fill(Palette.fillStrong))
+    .overlay(Capsule().strokeBorder(Palette.line, lineWidth: Size.hairline))
+  }
+}
+
+/// A button that shrinks a little while pressed.
+struct PressStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .scaleEffect(configuration.isPressed ? Motion.pressScale : 1)
+      .animation(Motion.quick, value: configuration.isPressed)
+  }
+}
+
+/// A pop-up button as System Settings draws one: the chosen title in ink on a light face, sized to that title,
+/// with an amber square holding the up and down arrows. The system's own takes the tint for its text and
+/// sizes itself to its longest choice.
+struct PopupPicker<Value: Hashable>: View {
+  @Binding var selection: Value
+  let options: [(value: Value, title: Text)]
+
+  var body: some View {
+    Menu {
+      Picker(selection: $selection) {
+        ForEach(options.indices, id: \.self) { index in options[index].title.tag(options[index].value) }
+      } label: {
+        EmptyView()
+      }
+      .pickerStyle(.inline)
+      .labelsHidden()
+    } label: {
+      HStack(spacing: Spacing.xs) {
+        (options.first { $0.value == selection }?.title ?? Text(verbatim: ""))
+          .font(.system(size: 12.5))
+          .foregroundStyle(Palette.ink)
+          .lineLimit(1)
+        Image(systemName: Symbols.popup)
+          .font(.system(size: 8, weight: .bold))
+          .foregroundStyle(Palette.onAccent)
+          .frame(width: Spacing.m, height: Spacing.m)
+          .background(RoundedRectangle(cornerRadius: 4).fill(Palette.accent))
+      }
+      .padding(.leading, 9)
+      .padding(.trailing, 3)
+      .frame(height: 22)
+      .background(RoundedRectangle(cornerRadius: 6).fill(Palette.thumb))
+      .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+      .shadow(color: .black.opacity(0.1), radius: 1, y: 1)
+    }
+    .menuStyle(.button)
+    .buttonStyle(.plain)
+    .menuIndicator(.hidden)
+    .fixedSize()
   }
 }

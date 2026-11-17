@@ -12,12 +12,26 @@ final class ReaderTextView: NSTextView {
   var hovered: (CGPoint?) -> Void = { _ in }
   /// Runs when a mouse selection is finished.
   var selectionEnded: () -> Void = {}
-  /// Runs when the margin mark of a note is clicked.
+  /// Runs when the mouse is released, whether or not it selected anything.
+  var dragEnded: () -> Void = {}
+  /// Whether the mouse is down in the text, dragging out a selection.
+  private(set) var selecting = false
+  /// Runs when a highlight, or the dot after it, is clicked.
   var markClicked: (EntityID) -> Void = { _ in }
+  /// How wide the column is; changing it keeps the paragraph at the top where it was.
+  var readingWidth = ReadingWidth.comfortable {
+    didSet {
+      guard readingWidth != oldValue, frame.width > 0 else { return }
+      willResize()
+      setMargin(for: frame.width)
+      resized()
+    }
+  }
   private var tracking: NSTrackingArea?
-  private var marginMarks: [EntityID: MarginMark] = [:]
+  private var noteDots: [EntityID: NoteDot] = [:]
+  private var highlights: [(note: EntityID, range: NSRange, rects: [CGRect], bands: [CGRect])] = []
   private let underlines = Underlines()
-  private static let marginMarkSize: CGFloat = 6
+  private static let noteDotSize: CGFloat = 5
 
   convenience init() {
     let layoutManager = NSTextLayoutManager()
@@ -38,7 +52,7 @@ final class ReaderTextView: NSTextView {
     isHorizontallyResizable = false
     autoresizingMask = [.width]
     maxSize = CGSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
-    selectedTextAttributes = [.backgroundColor: Tones.selection, .foregroundColor: Tones.onSelection]
+    selectedTextAttributes = [.backgroundColor: Tones.selection]
     linkTextAttributes = [.foregroundColor: Tones.accentInk, .cursor: NSCursor.pointingHand]
     textContainerInset = ReadingStyle.inset
     underlines.autoresizingMask = [.width, .height]
@@ -58,10 +72,42 @@ final class ReaderTextView: NSTextView {
     tracking = area
   }
 
-  /// The text view follows the drag itself, so the selection is final when `mouseDown` returns.
+  /// The text view follows the drag itself, so the selection is final when `mouseDown` returns. A click
+  /// that selects nothing on a highlight chooses that highlight.
   override func mouseDown(with event: NSEvent) {
+    selecting = true
     super.mouseDown(with: event)
+    selecting = false
+    dragEnded()
+    let point = convert(event.locationInWindow, from: nil)
+    if selectedRange().length == 0, let hit = highlights.first(where: { $0.rects.contains { $0.contains(point) } }) {
+      markClicked(hit.note)
+      return
+    }
     selectionEnded()
+  }
+
+  /// Highlights are a band of amber under the lower part of the words, drawn behind the text.
+  override func drawBackground(in rect: NSRect) {
+    super.drawBackground(in: rect)
+    Tones.mark.setFill()
+    for band in highlights.flatMap(\.bands) where band.intersects(rect) {
+      NSBezierPath(roundedRect: band, xRadius: 2, yRadius: 2).fill()
+    }
+  }
+
+  /// The lower part of a line's letters, as a marker pen leaves it: from a little above the middle of the
+  /// lowercase letters to just under the baseline. Measured from where TextKit puts the baseline, because a
+  /// line's frame also holds the spacing around it.
+  static func band(under line: CGRect, baseline: CGFloat, font: NSFont) -> CGRect {
+    let top = baseline - font.xHeight * 0.6
+    let bottom = baseline - font.descender * 0.3
+    return CGRect(x: line.minX, y: top, width: line.width, height: bottom - top)
+  }
+
+  private func font(at location: Int) -> NSFont {
+    guard let storage = textStorage, location < storage.length else { return ReadingStyle.body }
+    return storage.attribute(.font, at: location, effectiveRange: nil) as? NSFont ?? ReadingStyle.body
   }
 
   override func mouseMoved(with event: NSEvent) {
@@ -91,28 +137,34 @@ final class ReaderTextView: NSTextView {
     placeMarginMarks(marks)
   }
 
-  /// Puts a small mark in the left margin beside each note that has a thought or questions. Called again
+  /// Lays the highlights, glossary underlines and note dots over the text where it is now. Called again
   /// whenever the text may have moved.
   func placeMarginMarks(_ marks: [ReaderMark]) {
     underlines.frame = bounds
     underlines.lines = marks.flatMap { mark -> [Underlines.Line] in
-      let style: Underlines.Style
-      switch mark.kind {
-      case .term: style = .dotted
-      case .note: style = .highlight
-      case .revised: return []
-      }
-      return rects(of: mark.range).map { Underlines.Line(rect: $0, style: style) }
+      guard case .term = mark.kind else { return [] }
+      return rects(of: mark.range).map { Underlines.Line(rect: $0) }
     }
-    var placed: [EntityID: MarginMark] = [:]
+    let bands = marks.compactMap { mark -> (note: EntityID, range: NSRange, rects: [CGRect], bands: [CGRect])? in
+      guard case .note(let note, _) = mark.kind else { return nil }
+      let lines = segments(of: mark.range)
+      let font = font(at: mark.range.location)
+      return (
+        note, mark.range, lines.map(\.rect), lines.map { Self.band(under: $0.rect, baseline: $0.baseline, font: font) }
+      )
+    }
+    if bands.map(\.bands) != highlights.map(\.bands) {
+      for band in (bands + highlights).flatMap(\.bands) { setNeedsDisplay(band.insetBy(dx: -1, dy: -1)) }
+    }
+    highlights = bands
+    var placed: [EntityID: NoteDot] = [:]
     for mark in marks {
-      guard case .note(let note, marginMark: true) = mark.kind, let line = rects(of: mark.range).first else {
+      guard case .note(let note, marginMark: true) = mark.kind, let line = rects(of: mark.range).last else {
         continue
       }
-      let size = Self.marginMarkSize
-      let frame = CGRect(
-        x: textContainerOrigin.x - Spacing.m - size, y: line.midY - size / 2, width: size, height: size)
-      let view = marginMarks[note] ?? MarginMark(frame: frame)
+      let size = Self.noteDotSize
+      let frame = CGRect(x: line.maxX + 3, y: line.minY + line.height * 0.25 - size / 2, width: size, height: size)
+      let view = noteDots[note] ?? NoteDot(frame: frame)
       if view.superview == nil {
         view.clicked = { [weak self] in self?.markClicked(note) }
         addSubview(view)
@@ -120,26 +172,33 @@ final class ReaderTextView: NSTextView {
       view.frame = frame
       placed[note] = view
     }
-    for (note, view) in marginMarks where placed[note] == nil { view.removeFromSuperview() }
-    marginMarks = placed
+    for (note, view) in noteDots where placed[note] == nil { view.removeFromSuperview() }
+    noteDots = placed
   }
 
-  /// Washes `range` in amber, so the eye finds a passage just jumped to. Showing the marks again ends it.
-  func flash(_ range: NSRange) {
+  /// Washes `range` in amber at `strength` from 0 to 1, so the eye finds a passage just jumped to.
+  func flash(_ range: NSRange, strength: CGFloat) {
     guard let layoutManager = textLayoutManager, let textRange = textRange(range) else { return }
-    layoutManager.addRenderingAttribute(.backgroundColor, value: Tones.selection, for: textRange)
+    layoutManager.removeRenderingAttribute(.backgroundColor, for: textRange)
+    guard strength > 0 else { return }
+    let color = Tones.flash.withAlphaComponent(Tones.flash.alphaComponent * strength)
+    layoutManager.addRenderingAttribute(.backgroundColor, value: color, for: textRange)
   }
 
   /// Keeps the column at its reading width, centered, with a margin when the window is narrow.
   override func setFrameSize(_ newSize: NSSize) {
     let widthChanged = newSize.width != frame.width
     if widthChanged, frame.width > 0 { willResize() }
-    let margin = max(Spacing.xxl, (newSize.width - Typography.readingWidth) / 2)
+    setMargin(for: newSize.width)
+    super.setFrameSize(newSize)
+    if widthChanged, newSize.width > 0 { resized() }
+  }
+
+  private func setMargin(for width: CGFloat) {
+    let margin = readingWidth.margin(in: width)
     if textContainerInset.width != margin {
       textContainerInset = CGSize(width: margin, height: ReadingStyle.inset.height)
     }
-    super.setFrameSize(newSize)
-    if widthChanged, newSize.width > 0 { resized() }
   }
 
   /// Lays out what is on screen now and sizes the view to the text, instead of waiting for the next display.
@@ -168,13 +227,19 @@ final class ReaderTextView: NSTextView {
 
   /// The rectangles that `range` covers, in this view's coordinates.
   func rects(of range: NSRange) -> [CGRect] {
+    segments(of: range).map(\.rect)
+  }
+
+  /// Each line's part of `range` and where its baseline is, in this view's coordinates.
+  func segments(of range: NSRange) -> [(rect: CGRect, baseline: CGFloat)] {
     guard let layoutManager = textLayoutManager, let textRange = textRange(range) else { return [] }
-    var rects: [CGRect] = []
-    layoutManager.enumerateTextSegments(in: textRange, type: .standard, options: []) { _, frame, _, _ in
-      rects.append(frame.offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y))
+    var segments: [(rect: CGRect, baseline: CGFloat)] = []
+    layoutManager.enumerateTextSegments(in: textRange, type: .standard, options: []) { _, frame, baseline, _ in
+      let rect = frame.offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
+      segments.append((rect, rect.minY + baseline))
       return true
     }
-    return rects
+    return segments
   }
 
   func textRange(_ range: NSRange) -> NSTextRange? {
@@ -186,19 +251,12 @@ final class ReaderTextView: NSTextView {
   }
 }
 
-/// Lines under highlighted passages and glossary terms, drawn over the text. TextKit 2 draws background
-/// colors given as rendering attributes but not underlines, so these are drawn here. Clicks pass through.
+/// Lines under glossary terms, drawn over the text. TextKit 2 draws background colors given as rendering
+/// attributes but not underlines, so these are drawn here. Clicks pass through.
 final class Underlines: NSView {
-  enum Style {
-    /// A note's highlight: a thick amber line.
-    case highlight
-    /// A glossary term: a dotted muted line.
-    case dotted
-  }
-
+  /// Under a glossary term: a dotted muted line.
   struct Line: Equatable {
     let rect: CGRect
-    let style: Style
   }
 
   var lines: [Line] = [] {
@@ -213,26 +271,20 @@ final class Underlines: NSView {
 
   override func draw(_ dirtyRect: NSRect) {
     for line in lines where line.rect.intersects(dirtyRect.insetBy(dx: 0, dy: -4)) {
-      let y = line.rect.maxY + 2
+      let y = line.rect.maxY + 1
       let path = NSBezierPath()
       path.move(to: CGPoint(x: line.rect.minX, y: y))
       path.line(to: CGPoint(x: line.rect.maxX, y: y))
-      switch line.style {
-      case .highlight:
-        Tones.accent.setStroke()
-        path.lineWidth = 2
-      case .dotted:
-        Tones.inkMuted.setStroke()
-        path.lineWidth = 1
-        path.setLineDash([1.5, 2.5], count: 2, phase: 0)
-      }
+      Tones.inkFaint.setStroke()
+      path.lineWidth = 1
+      path.setLineDash([1.5, 2.5], count: 2, phase: 0)
       path.stroke()
     }
   }
 }
 
-/// The amber dot beside a note in the margin.
-final class MarginMark: NSView {
+/// The amber dot after a highlight that has a thought or questions.
+final class NoteDot: NSView {
   var clicked: () -> Void = {}
 
   override func draw(_ dirtyRect: NSRect) {

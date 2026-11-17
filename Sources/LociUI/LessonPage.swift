@@ -42,15 +42,13 @@ struct LessonView: View {
   let sources: [Item]
   /// The text the reader saw before the mentor's latest revision.
   let previous: String?
-  @State private var ended = false
 
   var body: some View {
     ContentReader(
-      content: .lesson(page.lesson), markdown: page.text, glossary: page.glossary, previous: previous,
-      reachedEnd: { ended = true }
+      content: .lesson(page.lesson), title: page.title, markdown: page.text, glossary: page.glossary, previous: previous
     ) {
       if !sources.isEmpty {
-        Section {
+        PanelLinks(title: Text(.loci("lesson.sources"))) {
           ForEach(sources, id: \.id) { item in
             NavigationLink(value: Page.item(item.id)) {
               Label {
@@ -60,75 +58,6 @@ struct LessonView: View {
               }
             }
           }
-        } header: {
-          Text(.loci("lesson.sources"))
-        }
-      }
-    }
-    .overlay(alignment: .bottom) {
-      if ended, let next = page.next {
-        NextLessonButton(mentor: page.lesson.mentor, next: next)
-          .padding(.bottom, Spacing.l)
-          .transition(.move(edge: .bottom).combined(with: .opacity))
-      }
-    }
-    .animation(Motion.standard, value: ended)
-    .navigationTitle(Text(verbatim: page.title ?? page.lesson.lesson.description))
-    .toolbar {
-      if previous != nil {
-        ToolbarItem {
-          Label {
-            Text(.loci("lesson.revised"))
-          } icon: {
-            Image(systemName: Symbols.lessonRevised)
-          }
-          .labelStyle(.titleAndIcon)
-          .foregroundStyle(Palette.accentInk)
-        }
-      }
-    }
-  }
-}
-
-/// At the end of a lesson: go on to the next one, or ask the mentor to write it first.
-struct NextLessonButton: View {
-  @Environment(\.host) private var host
-  @Environment(\.openPage) private var openPage
-  let mentor: EntityID
-  let next: LessonPage.Upcoming
-  @State private var asked = false
-
-  var body: some View {
-    Button(action: go) {
-      HStack(spacing: Spacing.xs) {
-        if asked && !next.written {
-          ProgressView().controlSize(.small)
-          Text(.loci("lesson.writing"))
-        } else {
-          Text(next.written ? .loci("lesson.next") : .loci("lesson.askNext"))
-          Text(verbatim: next.lesson.title).fontWeight(.medium)
-          Image(systemName: Symbols.nextLesson)
-        }
-      }
-      .padding(.horizontal, Spacing.xs)
-    }
-    .buttonStyle(.glassProminent)
-    .controlSize(.extraLarge)
-    .tint(Palette.accent)
-    .disabled(asked && !next.written)
-  }
-
-  private func go() {
-    let ref = LessonRef(mentor: mentor, lesson: next.lesson.slug)
-    if next.written {
-      openPage(.lesson(ref), replacing: true)
-    } else {
-      asked = true
-      Task {
-        do throws(HostError) {
-          _ = try await host.run(WriteLesson(lesson: ref))
-        } catch {
-          asked = false
         }
       }
     }

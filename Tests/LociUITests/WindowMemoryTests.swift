@@ -64,7 +64,8 @@ struct WindowMemoryTests {
     let memory = WindowMemory(recall: { gone }, remember: { state in remembered.withLock { $0.append(state) } })
 
     try await Snapshot.render(
-      RootView(memory: memory).lociHost(FakeHost(sample)), named: "reopened-deleted", appearance: .light)
+      RootView(memory: memory).lociHost(FakeHost(sample)), named: "reopened-deleted", appearance: .light,
+      settle: .seconds(1))
 
     #expect(remembered.withLock { $0.last } == WindowState())
   }

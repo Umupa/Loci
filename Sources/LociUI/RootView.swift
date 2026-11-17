@@ -12,6 +12,8 @@ public struct RootView: View {
   @State private var health: Feed<Health>?
   @State private var dialogs = Dialogs()
   @State private var focusRequest = 0
+  @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
+  @AppStorage("sidebarShown") private var sidebarShown = true
   private let startShown: () -> Void
   private let memory: WindowMemory
 
@@ -28,22 +30,27 @@ public struct RootView: View {
   }
 
   public var body: some View {
-    NavigationSplitView {
-      Sidebar(
-        place: placeBinding, mentors: mentors?.value ?? [], kinds: ItemKind.present(in: items?.value ?? []),
-        rename: { dialogs.rename($0) }, configure: { dialogs.configuring = $0 }, delete: { dialogs.deletingMentor = $0 }
-      )
-      .navigationSplitViewColumnWidth(min: Size.sidebarMinimum, ideal: Size.sidebarIdeal)
-    } detail: {
+    HStack(spacing: 0) {
+      if sidebarShown { sidebar.transition(.move(edge: .leading).combined(with: .opacity)) }
       PageStack(pages: $window.pages) {
-        placeView
+        placeView.environment(\.openPlace, openPlace)
       } destination: {
-        pageView($0)
+        pageView($0).environment(\.openPlace, openPlace)
       }
     }
-    .toolbar {
-      ToolbarItem(placement: .primaryAction) { HealthIndicator(health: health?.value) }
+    .overlay(alignment: .topLeading) {
+      if !sidebarShown {
+        SidebarToggle(shown: false, toggle: toggleSidebar)
+          .glassEffect(.regular, in: .capsule)
+          .padding(.leading, Size.sidebarToggleLeading)
+          .padding(.top, Spacing.xs)
+      }
     }
+    .ignoresSafeArea(edges: .top)
+    .background(Palette.canvas)
+    .background(WindowButtons(inset: Size.windowButtons))
+    .toolbar(removing: .title)
+    .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
     .tint(Palette.accent)
     .frame(minWidth: Size.windowMinimum.width, minHeight: Size.windowMinimum.height)
     .subscribing(AllMentors(), into: $mentors)
@@ -59,6 +66,46 @@ public struct RootView: View {
     }
     .focusedSceneValue(\.navigator, navigator)
     .dialogs($dialogs, host: host)
+    .lociAppearance()
+  }
+
+  private var sidebar: some View {
+    Sidebar(
+      place: placeBinding, openLesson: openLesson, mentors: mentors?.value ?? [],
+      kinds: ItemKind.present(in: items?.value ?? []), rename: { dialogs.rename($0) },
+      delete: { dialogs.deletingMentor = $0 }
+    )
+    .scrollContentBackground(.hidden)
+    .safeAreaInset(edge: .top, spacing: 0) {
+      SidebarToggle(shown: true, toggle: toggleSidebar)
+        .frame(maxWidth: .infinity, minHeight: Size.trafficLights, alignment: .trailing)
+        .padding(.trailing, Spacing.xs)
+    }
+    .safeAreaInset(edge: .bottom, alignment: .leading) {
+      HealthIndicator(health: health?.value).padding(.horizontal, Spacing.s).padding(.bottom, Spacing.xs)
+    }
+    .frame(width: PaneWidth.sidebar.clamped(sidebarWidth))
+    .background(Palette.sidebarWash, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+    .padding(Spacing.xs)
+    .overlay(alignment: .trailing) { PaneResizer(pane: .sidebar, width: $sidebarWidth) }
+  }
+
+  private func toggleSidebar() {
+    withAnimation(Motion.fold) { sidebarShown.toggle() }
+  }
+
+  private var openPlace: OpenPlace {
+    OpenPlace { window = WindowState(place: $0) }
+  }
+
+  /// The lesson on screen: a page opened over the place, or the place itself.
+  private var openLesson: LessonRef? {
+    for page in window.pages.reversed() {
+      if case .lesson(let lesson) = page { return lesson }
+    }
+    if case .lesson(let lesson) = window.place { return lesson }
+    return nil
   }
 
   /// What exists, once both lists have arrived.
@@ -81,11 +128,17 @@ public struct RootView: View {
     case .start:
       StartPage(focusRequest: focusRequest, opened: { window = $0 }, failed: { dialogs.failure = $0 })
         .onAppear(perform: startShown)
+    case .lesson(let lesson):
+      LessonScreen(lesson: lesson)
     case .mentor(let id):
       MentorScreen(mentor: id)
     case .library(let kind):
       LibraryScreen(
         kind: kind, opened: { window = $0 }, failed: { dialogs.failure = $0 }, delete: { dialogs.deletingItem = $0 })
+    case .settings(.general):
+      GeneralSettingsPage()
+    case .settings(.agents):
+      AgentSettingsPage()
     }
   }
 
@@ -103,6 +156,8 @@ public struct RootView: View {
         focusRequest += 1
       },
       showLibrary: { window = WindowState(place: .library(nil)) },
+      showSettings: { window = WindowState(place: .settings(.general)) },
+      toggleSidebar: toggleSidebar,
       addFile: { dialogs.importing = true })
   }
 

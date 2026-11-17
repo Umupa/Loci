@@ -27,9 +27,6 @@ struct PageStack<Place: View, Destination: View>: View {
 
   private var opener: OpenPage {
     let pages = $pages
-    return OpenPage { page, replacing in
-      if replacing, !pages.wrappedValue.isEmpty { pages.wrappedValue.removeLast() }
-      pages.wrappedValue.append(page)
-    }
+    return OpenPage { pages.wrappedValue.append($0) }
   }
 }

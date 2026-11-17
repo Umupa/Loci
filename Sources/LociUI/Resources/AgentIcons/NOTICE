@@ -1,0 +1,14 @@
+Agent icons
+
+agent-claude-code.svg, agent-codex.svg, agent-grok.svg, agent-antigravity.svg,
+agent-cursor.svg, agent-hermes.svg and agent-opencode.svg are from LobeHub icons,
+https://github.com/lobehub/lobe-icons/tree/master/packages/static-svg/icons
+(MIT, LICENSE in this folder), by way of Better Icons for Herdr, which simplified
+the SVG wrapper and gave it a 2px margin; paths and colors are unchanged.
+agent-claude-code.svg is claude-color.svg, agent-codex.svg is openai.svg,
+agent-hermes.svg is hermesagent.svg, agent-antigravity.svg is antigravity-color.svg;
+the others use the agent's own name.
+
+agent-pi.svg, agent-omp.svg and agent-fx.svg are original artwork for Loci.
+
+Brand marks identify their products and remain their owners' trademarks.

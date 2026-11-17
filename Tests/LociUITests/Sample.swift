@@ -130,8 +130,7 @@ struct Sample: Sendable {
 
   private static func mentor(_ id: EntityID, _ name: String, _ look: Int) throws -> Mentor {
     try Mentor(
-      id: id, name: name, avatar: Mentor.portraits[look], color: MentorColor.palette[look], provider: .pi,
-      permission: .full)
+      id: id, name: name, avatar: Mentor.Mark.allCases[look].rawValue, color: MentorColor.palette[look], provider: .pi)
   }
 
   private static func item(_ id: EntityID, _ kind: Item.Kind, _ title: String, _ language: String) throws -> Item {

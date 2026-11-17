@@ -5,9 +5,17 @@ import SwiftUI
 /// What the sidebar has selected.
 enum Place: Codable, Hashable {
   case start
+  /// A lesson of a course, read with the course's mentor beside it.
+  case lesson(LessonRef)
   case mentor(EntityID)
   /// `nil` is every kind.
   case library(ItemKind?)
+  case settings(SettingsSection)
+}
+
+/// The sections of settings in the sidebar.
+enum SettingsSection: String, Codable, Hashable, CaseIterable {
+  case general, agents
 }
 
 /// A page opened on top of a place.
@@ -37,8 +45,12 @@ struct WindowState: Codable, Equatable {
   /// Goes back to the start page when the window points at a mentor, lesson or item that no longer
   /// exists, so a remembered place never opens onto a blank page.
   func keeping(mentors: Set<EntityID>, items: Set<EntityID>) -> WindowState {
-    let placeExists: Bool
-    if case .mentor(let id) = place { placeExists = mentors.contains(id) } else { placeExists = true }
+    let placeExists =
+      switch place {
+      case .mentor(let id): mentors.contains(id)
+      case .lesson(let lesson): mentors.contains(lesson.mentor)
+      case .start, .library, .settings: true
+      }
     let pagesExist = pages.allSatisfy { page in
       switch page {
       case .lesson(let lesson): mentors.contains(lesson.mentor)
@@ -53,6 +65,8 @@ struct WindowState: Codable, Equatable {
 struct Navigator {
   let showStart: () -> Void
   let showLibrary: () -> Void
+  let showSettings: () -> Void
+  let toggleSidebar: () -> Void
   let addFile: () -> Void
 }
 

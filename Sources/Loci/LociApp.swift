@@ -14,9 +14,7 @@ struct LociApp: App {
         StartupProblemView(problem: problem, rebuild: launch.rebuild)
       }
     }
+    .windowStyle(.hiddenTitleBar)
     .commands { LociCommands() }
-    Settings {
-      SettingsView(folder: launch.folder, version: Launch.version).lociHost(launch.host)
-    }
   }
 }

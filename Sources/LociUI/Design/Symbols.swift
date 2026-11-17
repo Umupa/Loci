@@ -14,14 +14,15 @@ enum Symbols {
   static let lessonUnread = "circle"
   static let lessonRead = "checkmark.circle.fill"
   static let lessonRevised = "circle.badge.exclamationmark"
-  static let nextLesson = "arrow.right"
-  static let highlight = "highlighter"
+  static let fold = "chevron.right"
+  static let popup = "chevron.up.chevron.down"
+  static let highlight = "pencil.tip"
   static let thought = "text.bubble"
-  static let ask = "questionmark.bubble"
+  static let ask = "bubble.left"
+  static let sidebar = "sidebar.left"
   static let panel = "sidebar.right"
   static let stop = "stop.fill"
   static let done = "checkmark"
-  static let permission = "hand.raised.fill"
 
   static func tool(_ kind: ToolActivity.Kind) -> String {
     switch kind {

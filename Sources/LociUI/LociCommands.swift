@@ -7,6 +7,15 @@ public struct LociCommands: Commands {
   public init() {}
 
   public var body: some Commands {
+    CommandGroup(replacing: .appSettings) {
+      Button {
+        navigator?.showSettings()
+      } label: {
+        Text(.loci("menu.settings"))
+      }
+      .keyboardShortcut(",")
+      .disabled(navigator == nil)
+    }
     CommandGroup(replacing: .newItem) {
       Button {
         navigator?.showStart()
@@ -21,6 +30,15 @@ public struct LociCommands: Commands {
         Text(.loci("menu.addFile"))
       }
       .keyboardShortcut("o")
+      .disabled(navigator == nil)
+    }
+    CommandGroup(replacing: .sidebar) {
+      Button {
+        navigator?.toggleSidebar()
+      } label: {
+        Text(.loci("menu.toggleSidebar"))
+      }
+      .keyboardShortcut("s", modifiers: [.control, .command])
       .disabled(navigator == nil)
     }
     CommandMenu(Text(.loci("menu.go"))) {
@@ -39,6 +57,5 @@ public struct LociCommands: Commands {
       .keyboardShortcut("2")
       .disabled(navigator == nil)
     }
-    SidebarCommands()
   }
 }

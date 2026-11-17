@@ -1,147 +1,107 @@
 import LociModel
 import SwiftUI
 
-/// The conversation with a mentor, sending through the host.
+/// The conversation with a mentor, sending through the host. A passage put in `draft` is asked about with
+/// the next message; `revealPassage` shows a quoted passage where it was read.
 struct ConversationScreen: View {
   @Environment(\.host) private var host
   let mentor: Mentor
   let conversation: Conversation?
+  @Binding var draft: PassageDraft?
+  let revealPassage: @MainActor (Locator) -> Void
+
+  init(
+    mentor: Mentor, conversation: Conversation?, draft: Binding<PassageDraft?>,
+    revealPassage: @escaping @MainActor (Locator) -> Void
+  ) {
+    self.mentor = mentor
+    self.conversation = conversation
+    _draft = draft
+    self.revealPassage = revealPassage
+  }
 
   var body: some View {
     ConversationView(
-      mentor: mentor, conversation: conversation,
-      send: { (text: String) async throws(HostError) -> Done in
-        try await host.run(SendMessage(mentor: mentor.id, text: text))
+      mentor: mentor, conversation: conversation, draft: $draft, revealPassage: revealPassage,
+      send: { (text: String, passage: Passage?) async throws(HostError) -> Done in
+        try await host.run(SendMessage(mentor: mentor.id, text: text, passage: passage))
       },
-      stop: { _ = try? await host.run(StopTurn(mentor: mentor.id)) },
-      answer: { ask, answer in
-        _ = try? await host.run(AnswerPermission(mentor: mentor.id, request: ask.id, answer: answer))
-      })
+      stop: { _ = try? await host.run(StopTurn(mentor: mentor.id)) })
   }
 }
 
-/// Everything said with one mentor, newest at the bottom, with a field to say more.
+/// Everything said with one mentor, newest at the bottom, with the input field floating over its foot.
 ///
-/// Each message is its own row keyed by its id, so a reply that grows while it streams redraws only itself.
+/// Each entry is its own view keyed by its first message, so a reply that grows while it streams redraws
+/// only itself.
 struct ConversationView: View {
   let mentor: Mentor
   let conversation: Conversation?
-  let send: (String) async throws(HostError) -> Done
+  @Binding var draft: PassageDraft?
+  let revealPassage: @MainActor (Locator) -> Void
+  let send: (String, Passage?) async throws(HostError) -> Done
   let stop: () async -> Void
-  let answer: (PermissionAsk, PermissionAsk.Answer) async -> Void
 
   var body: some View {
-    VStack(spacing: 0) {
-      ScrollView {
-        LazyVStack(alignment: .leading, spacing: Spacing.m) {
-          ForEach(messages) { message in
-            MessageRow(mentor: mentor, message: message, answer: answer)
-          }
-          if let turn = conversation?.turn, Self.showsWorking(turn) {
-            ProgressView().controlSize(.small).padding(.leading, Spacing.xxs)
-          }
+    ScrollView {
+      LazyVStack(alignment: .leading, spacing: 14) {
+        ForEach(entries) { entry in
+          row(entry).transition(.opacity.combined(with: .offset(y: 10)))
         }
-        .frame(maxWidth: Typography.readingWidth, alignment: .leading)
-        .padding(.horizontal, Spacing.xl)
-        .padding(.vertical, Spacing.l)
-        .frame(maxWidth: .infinity)
+        if waiting { StepsCard.waiting.transition(.opacity.combined(with: .offset(y: 10))) }
       }
-      .defaultScrollAnchor(.bottom)
-      .safeAreaBar(edge: .bottom) {
-        Composer(busy: conversation?.turn != nil, send: send, stop: stop)
-          .frame(maxWidth: Typography.readingWidth)
-          .padding(.horizontal, Spacing.xl)
-          .padding(.vertical, Spacing.m)
-      }
+      .animation(Motion.rise, value: entries.count)
+      .padding(.horizontal, 18)
+      .padding(.top, 6)
+      .padding(.bottom, Spacing.m)
     }
-    .background(Palette.canvas)
-  }
-
-  private var messages: [Message] {
-    (conversation?.messages ?? []) + (conversation?.turn?.messages ?? [])
-  }
-
-  /// Whether to show that the mentor is working. A reply arriving shows progress by itself, and a
-  /// permission card waiting on the person means the mentor is not working.
-  nonisolated static func showsWorking(_ turn: LiveTurn) -> Bool {
-    guard turn.waiting.isEmpty else { return false }
-    if case .reply = turn.messages.last?.body { return false }
-    return true
-  }
-}
-
-/// The field at the bottom of a conversation. While the mentor works it offers to stop instead of send.
-struct Composer: View {
-  let busy: Bool
-  let send: (String) async throws(HostError) -> Done
-  let stop: () async -> Void
-  @State private var text = ""
-  @State private var stopping = false
-  @FocusState private var focused: Bool
-
-  var body: some View {
-    HStack(alignment: .bottom, spacing: Spacing.xs) {
-      TextField(text: $text, axis: .vertical) {
-        Text(.loci("conversation.prompt"))
-      }
-      .textFieldStyle(.plain)
-      .font(Typography.prompt)
-      .lineLimit(1...8)
-      .focused($focused)
-      .onSubmit(submit)
-      .padding(.vertical, Spacing.xs)
-      if busy {
-        roundButton(Symbols.stop, label: .loci("conversation.stop"), action: halt)
-          .disabled(stopping)
-      } else {
-        roundButton(Symbols.send, label: .loci("conversation.send"), action: submit)
-          .disabled(trimmed.isEmpty)
-      }
+    .defaultScrollAnchor(.bottom)
+    .scrollIndicators(.never)
+    .mask(
+      LinearGradient(
+        stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.03)], startPoint: .top,
+        endPoint: .bottom)
+    )
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      Composer(
+        mentor: mentor, context: conversation?.context, busy: conversation?.turn != nil, draft: $draft, send: send,
+        stop: stop
+      )
+      .padding(.horizontal, Spacing.s)
+      .padding(.bottom, Spacing.s)
+      .padding(.top, Spacing.m)
+      .background(
+        LinearGradient(
+          stops: [.init(color: Palette.well.opacity(0), location: 0), .init(color: Palette.well, location: 0.45)],
+          startPoint: .top, endPoint: .bottom))
     }
-    .padding(.leading, Spacing.m)
-    .padding(.trailing, Spacing.xs)
-    .padding(.vertical, Spacing.xxs)
-    .glassEffect(.regular, in: .capsule)
-    .onAppear { focused = true }
+    .background(Palette.well)
   }
 
-  private var trimmed: String {
-    text.trimmingCharacters(in: .whitespacesAndNewlines)
+  private var entries: [ConversationEntry] {
+    ConversationEntry.layout(
+      (conversation?.messages ?? []) + (conversation?.turn?.messages ?? []), live: conversation?.turn != nil)
   }
 
-  private func roundButton(_ symbol: String, label: LocalizedStringResource, action: @escaping () -> Void)
-    -> some View
-  {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: 13, weight: .semibold))
-        .frame(width: Size.sendButton / 2, height: Size.sendButton / 2)
-    }
-    .buttonStyle(.glassProminent)
-    .buttonBorderShape(.circle)
-    .tint(Palette.accent)
-    .accessibilityLabel(Text(label))
-    .padding(.bottom, Spacing.xxs)
+  /// The mentor is at work but has shown nothing of it yet.
+  private var waiting: Bool {
+    guard let turn = conversation?.turn else { return false }
+    if case .prompt = turn.messages.last?.body { return true }
+    return false
   }
 
-  private func submit() {
-    guard !busy, !trimmed.isEmpty else { return }
-    let sent = trimmed
-    text = ""
-    Task {
-      do throws(HostError) {
-        _ = try await send(sent)
-      } catch {
-        if text.isEmpty { text = sent }
-      }
-    }
-  }
-
-  private func halt() {
-    stopping = true
-    Task {
-      await stop()
-      stopping = false
+  @ViewBuilder private func row(_ entry: ConversationEntry) -> some View {
+    switch entry {
+    case .asked(_, let prompt):
+      AskedMessage(prompt: prompt, revealPassage: revealPassage)
+    case .aside(let message):
+      AsideLine(message: message)
+    case .steps(let steps):
+      StepsCard(steps: steps)
+    case .reply(_, let text, let streaming):
+      ReplyText(text: text, streaming: streaming).padding(.horizontal, 2)
+    case .saved:
+      SavedChip()
     }
   }
 }

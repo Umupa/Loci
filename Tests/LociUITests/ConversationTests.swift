@@ -5,23 +5,58 @@ import Testing
 @testable import LociUI
 
 struct ConversationTests {
-  static func turn(_ bodies: [Message.Body]) -> LiveTurn {
-    LiveTurn(
-      startedAt: Timestamp(millisecondsSince1970: 0),
-      messages: bodies.map { Message(id: EntityID(), at: Timestamp(millisecondsSince1970: 0), body: $0) })
+  private static func message(_ second: Int64, _ body: Message.Body) -> Message {
+    Message(id: EntityID(), at: Timestamp(millisecondsSince1970: second * 1000), body: body)
   }
 
-  static let prompt = Message.Body.prompt(Prompt(text: "演示一下", purpose: .chat))
+  private static let asked = message(0, .prompt(Prompt(text: "演示一下", purpose: .chat)))
+  private static let read = ToolActivity(
+    id: "r", name: "read", kind: .read, subject: "a.md", output: "", state: .succeeded)
 
-  @Test func theMentorShowsAsWorkingUntilItsReplyStartsArriving() {
-    #expect(ConversationView.showsWorking(Self.turn([Self.prompt])))
-    #expect(!ConversationView.showsWorking(Self.turn([Self.prompt, .reply("好")])))
+  private static func steps(_ entries: [ConversationEntry]) -> [[ConversationStep]] {
+    entries.compactMap { if case .steps(let steps) = $0 { steps } else { nil } }
   }
 
-  @Test func aMentorWaitingForPermissionIsNotShownAsWorking() {
-    let ask = PermissionAsk(
-      id: "a", title: "运行 ls", tool: nil, options: [.init(id: "y", role: .allow, label: nil)], answer: nil)
+  @Test func thinkingAndToolsInARowShareOneCardAndAReplySplitsThem() {
+    let entries = ConversationEntry.layout(
+      [
+        Self.asked, Self.message(1, .thinking("想")), Self.message(2, .tool(Self.read)),
+        Self.message(3, .reply("好")), Self.message(4, .tool(Self.read)),
+      ], live: false)
 
-    #expect(!ConversationView.showsWorking(Self.turn([Self.prompt, .permission(ask)])))
+    #expect(Self.steps(entries).map(\.count) == [2, 1])
+  }
+
+  @Test func aStepTakesUntilTheNextMessageAndOneStillGoingHasNoTime() {
+    let finished = ConversationEntry.layout(
+      [Self.asked, Self.message(1, .thinking("想")), Self.message(7, .tool(Self.read)), Self.message(9, .reply("好"))],
+      live: false)
+    let going = ConversationEntry.layout([Self.asked, Self.message(1, .thinking("想"))], live: true)
+
+    #expect(Self.steps(finished).first?.map(\.took) == [.seconds(6), .seconds(2)])
+    #expect(Self.steps(going).first?.map(\.took) == [nil])
+    #expect(Self.steps(going).first?.map(\.isGoing) == [true])
+  }
+
+  @Test func onlyTheLastReplyOfALiveTurnIsStreaming() {
+    let entries = ConversationEntry.layout(
+      [Self.asked, Self.message(1, .reply("一")), Self.message(2, .tool(Self.read)), Self.message(3, .reply("二"))],
+      live: true)
+    let streaming = entries.compactMap { if case .reply(_, _, let streaming) = $0 { streaming } else { nil } }
+
+    #expect(streaming == [false, true])
+  }
+
+  @Test func whatArrivedOfAStreamingReplyIsShownASentenceAtATime() {
+    #expect(ReplyText.settled("第一句。第二句还没", streaming: true) == "第一句。")
+    #expect(ReplyText.settled("One. Two", streaming: true) == "One.")
+    #expect(ReplyText.settled("还没说完", streaming: true) == "")
+    #expect(ReplyText.settled("还没说完", streaming: false) == "还没说完")
+  }
+
+  @Test func contextUsageIsShownInThousands() {
+    #expect(ContextGauge.label(ContextUsage(used: 68_400, window: 200_000)) == "68k / 200k")
+    #expect(ContextGauge.fraction(ContextUsage(used: 50_000, window: 200_000)) == 0.25)
+    #expect(ContextGauge.fraction(ContextUsage(used: 50_000, window: nil)) == nil)
   }
 }

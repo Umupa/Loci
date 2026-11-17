@@ -4,103 +4,129 @@ import SwiftUI
 
 /// The pages of the panel beside text.
 enum PanelTab: Hashable {
-  case contents, notes
+  case conversation, highlights
 }
 
-/// Beside the text: its headings and whatever the page adds under them, or every note left on it.
+/// Beside the text: the conversation with its mentor, or every highlight left on it. Text with no mentor
+/// shows only its highlights.
 struct ReaderPanel<Extra: View>: View {
   let content: ContentRef
-  let headings: [ReadingText.Heading]
+  let mentor: Mentor?
+  let conversation: Conversation?
   let notes: [PlacedNote]
-  let pending: [PendingAnswer]
   @Binding var tab: PanelTab
-  /// The note whose margin mark was clicked last.
-  let focusedNote: EntityID?
+  @Binding var draft: PassageDraft?
+  /// The highlight chosen last, and a serial that changes each time it is chosen again.
+  let chosen: ChosenNote?
   let reveal: (NSRange) -> Void
+  let revealPassage: @MainActor (Locator) -> Void
+  let ask: (PlacedNote) -> Void
+  let collapse: () -> Void
+  /// Shown under the highlights, such as where the text comes from.
   @ViewBuilder let extra: () -> Extra
   @State private var mentors: Feed<[Mentor]>?
 
-  /// The pages scroll under a header of system glass, as an inspector's header does.
   var body: some View {
-    Group {
-      switch tab {
-      case .contents: contents
-      case .notes: notesList
+    VStack(spacing: 0) {
+      header
+      if let mentor, tab == .conversation {
+        ConversationScreen(mentor: mentor, conversation: conversation, draft: $draft, revealPassage: revealPassage)
+      } else {
+        highlights
       }
     }
-    .safeAreaBar(edge: .top) {
-      Picker(selection: $tab) {
-        Text(.loci("panel.contents")).tag(PanelTab.contents)
-        Text(.loci("panel.notes")).tag(PanelTab.notes)
-      } label: {
-        EmptyView()
-      }
-      .pickerStyle(.segmented)
-      .labelsHidden()
-      .padding(Spacing.s)
+    .background(Palette.well)
+    .overlay(alignment: .leading) {
+      Rectangle().fill(Palette.lineStrong).frame(width: Size.hairline)
     }
     .subscribing(AllMentors(), into: $mentors)
   }
 
-  private var contents: some View {
-    List {
-      if !headings.isEmpty {
-        Section {
-          ForEach(headings, id: \.offset) { heading in
-            Button {
-              reveal(NSRange(location: heading.offset, length: (heading.title as NSString).length))
-            } label: {
-              Text(verbatim: heading.title)
-                .foregroundStyle(heading.level <= 2 ? Palette.ink : Palette.inkMuted)
-                .padding(.leading, CGFloat(max(heading.level - 1, 0)) * Spacing.s)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-          }
-        }
+  private var header: some View {
+    ZStack {
+      if mentor != nil {
+        CapsulePicker(
+          selection: $tab,
+          options: [(.conversation, .loci("panel.conversation")), (.highlights, .loci("panel.highlights"))])
       }
-      extra()
+      HStack {
+        Spacer()
+        PanelButton(title: .loci("panel.collapse"), action: collapse)
+      }
     }
-    .scrollContentBackground(.hidden)
+    .padding(.horizontal, Spacing.s)
+    .frame(height: Size.panelHeader)
   }
 
-  private var notesList: some View {
+  private var highlights: some View {
     ScrollViewReader { proxy in
       ScrollView {
-        LazyVStack(alignment: .leading, spacing: Spacing.s) {
+        LazyVStack(alignment: .leading, spacing: Spacing.xs) {
           ForEach(notes) { placed in
             NoteCard(
-              content: content, placed: placed, pending: pending.filter { $0.note == placed.id },
-              mentors: mentors?.value ?? [], focused: placed.id == focusedNote
+              content: content, placed: placed, mentors: mentors?.value ?? [],
+              chosen: chosen?.note == placed.id ? chosen?.serial : nil,
+              ask: mentor == nil || placed.range == nil ? nil : { ask(placed) }
             ) {
               if let range = placed.range { reveal(range) }
             }
             .id(placed.id)
           }
-          ForEach(orphanAnswers, id: \.askedAt) { answer in
-            AnswerView(
-              question: answer.question, answer: answer.answer, mentor: mentor(answer.mentor), failure: answer.failure
-            )
-            .padding(Spacing.s)
-          }
+          extra()
         }
         .padding(.horizontal, Spacing.s)
-        .padding(.bottom, Spacing.s)
+        .padding(.bottom, Spacing.l)
       }
-      .onChange(of: focusedNote) { _, note in
-        if let note { withAnimation(Motion.standard) { proxy.scrollTo(note, anchor: .center) } }
+      .scrollIndicators(.never)
+      .onChange(of: chosen) { _, chosen in
+        if let chosen { withAnimation(Motion.standard) { proxy.scrollTo(chosen.note, anchor: .center) } }
       }
     }
   }
+}
 
-  /// Answers to questions whose note has not arrived yet.
-  private var orphanAnswers: [PendingAnswer] {
-    let known = Set(notes.map(\.id))
-    return pending.filter { !known.contains($0.note) }
+/// A highlight chosen in the text, so its card comes into view and flashes; a new serial does it again.
+struct ChosenNote: Equatable {
+  let note: EntityID
+  let serial: Int
+}
+
+/// The square button that folds the panel away, or brings it back.
+struct PanelButton: View {
+  let title: LocalizedStringResource
+  let action: () -> Void
+  @State private var hovering = false
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: Symbols.panel)
+        .font(.system(size: 14))
+        .foregroundStyle(hovering ? Palette.ink : Palette.inkMuted)
+        .frame(width: Size.iconButton, height: Size.iconButton)
+        .background(RoundedRectangle(cornerRadius: Radius.row).fill(hovering ? Palette.fillStrong : .clear))
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(PressStyle())
+    .onHover { hovering = $0 }
+    .help(Text(title))
+    .accessibilityLabel(Text(title))
   }
+}
 
-  private func mentor(_ id: EntityID) -> Mentor? {
-    mentors?.value?.first { $0.id == id }
+/// Links under the highlights to what the text draws on or is drawn on by.
+struct PanelLinks<Links: View>: View {
+  let title: Text
+  @ViewBuilder let links: () -> Links
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: Spacing.xs) {
+      SidebarLabel(text: title)
+      links()
+    }
+    .buttonStyle(.plain)
+    .font(Typography.body)
+    .foregroundStyle(Palette.ink)
+    .padding(.horizontal, Spacing.xxs)
+    .padding(.top, Spacing.m)
   }
 }

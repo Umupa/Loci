@@ -22,9 +22,9 @@ struct ItemView: View {
   let page: ItemPage
 
   var body: some View {
-    ContentReader(content: .item(page.item.id), markdown: page.text ?? "") {
+    ContentReader(content: .item(page.item.id), title: page.item.title, markdown: page.text ?? "") {
       if !citingLessons.isEmpty {
-        Section {
+        PanelLinks(title: Text(.loci("item.citedBy"))) {
           ForEach(citingLessons, id: \.citation.lesson) { citing in
             NavigationLink(value: Page.lesson(citing.citation.lesson)) {
               VStack(alignment: .leading, spacing: Spacing.xxs) {
@@ -36,12 +36,9 @@ struct ItemView: View {
               }
             }
           }
-        } header: {
-          Text(.loci("item.citedBy"))
         }
       }
     }
-    .navigationTitle(Text(verbatim: page.item.title))
   }
 
   /// One row per lesson, however many places in the item it points to.

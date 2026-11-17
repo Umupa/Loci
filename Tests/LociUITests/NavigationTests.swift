@@ -32,6 +32,21 @@ struct NavigationTests {
     #expect(WindowState(restoring: "{not json") == WindowState())
   }
 
+  @Test(arguments: [Place.settings(.general), .settings(.agents), .library(.paper), .start])
+  func everyPlaceComesBack(place: Place) {
+    #expect(WindowState(restoring: WindowState(place: place).text) == WindowState(place: place))
+  }
+
+  @Test func aLessonComesBackAndGoesWithItsMentor() throws {
+    let sample = try Sample()
+    let lesson = WindowState(place: .lesson(sample.filterLesson), pages: [.item(sample.borg.id)])
+    let allItems = Set(sample.items.map(\.id))
+
+    #expect(WindowState(restoring: lesson.text) == lesson)
+    #expect(lesson.keeping(mentors: [sample.scheduling.id], items: allItems) == lesson)
+    #expect(lesson.keeping(mentors: [sample.sandbox.id], items: allItems) == WindowState())
+  }
+
   @Test func aWindowOnSomethingDeletedGoesBackToStart() throws {
     let sample = try Sample()
     let lesson = WindowState(place: .mentor(sample.scheduling.id), pages: [.lesson(sample.filterLesson)])

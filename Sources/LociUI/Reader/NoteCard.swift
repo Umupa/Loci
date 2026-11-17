@@ -1,84 +1,92 @@
 import LociModel
 import SwiftUI
 
-/// One note in the panel: the words it marks, the thought, and each question with its answer.
+/// One highlight in the panel: the words it marks, the thought, and each question with its answer.
 struct NoteCard: View {
   @Environment(\.host) private var host
   let content: ContentRef
   let placed: PlacedNote
-  let pending: [PendingAnswer]
   let mentors: [Mentor]
-  let focused: Bool
+  /// Changes each time the highlight is chosen in the text, which outlines and flashes the card.
+  let chosen: Int?
+  /// Hands the highlight to the mentor's composer; `nil` where there is no mentor or the words are gone.
+  let ask: (() -> Void)?
   let select: () -> Void
-  @State private var editing: Editing?
+  @State private var editing = false
   @State private var draft = ""
-
-  enum Editing {
-    case thought, question
-  }
+  @State private var flashing = false
+  @State private var hovering = false
 
   var body: some View {
-    VStack(alignment: .leading, spacing: Spacing.xs) {
+    VStack(alignment: .leading, spacing: 9) {
       excerpt
-      if let thought = placed.note.thought, editing != .thought {
-        Text(verbatim: thought).foregroundStyle(Palette.ink)
+      if let thought = placed.note.thought, !editing {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+          Image(systemName: Symbols.thought).font(Typography.caption).foregroundStyle(Palette.inkFaint)
+          Text(verbatim: thought)
+        }
+        .font(Typography.body)
+        .foregroundStyle(Palette.inkMuted)
       }
+      if editing { field }
       ForEach(Array(placed.note.exchanges.enumerated()), id: \.offset) { _, exchange in
-        AnswerView(
-          question: exchange.question, answer: exchange.answer, mentor: mentor(exchange.mentor), failure: nil)
+        ExchangeView(exchange: exchange, mentor: mentors.first { $0.id == exchange.mentor })
       }
-      ForEach(pending, id: \.askedAt) { answer in
-        AnswerView(
-          question: answer.question, answer: answer.answer, mentor: mentor(answer.mentor), failure: answer.failure)
-      }
-      if let editing { field(editing) }
     }
-    .font(Typography.body)
     .textSelection(.enabled)
-    .padding(Spacing.s)
+    .padding(.horizontal, 14)
+    .padding(.vertical, 13)
     .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: Radius.card).fill(Palette.surface))
     .background(
-      RoundedRectangle(cornerRadius: Radius.card).fill(focused ? Palette.selection.opacity(0.5) : Palette.surface)
+      RoundedRectangle(cornerRadius: Radius.card).fill(Palette.flash).opacity(flashing ? 1 : 0).padding(-1)
     )
+    .overlay(
+      RoundedRectangle(cornerRadius: Radius.card).strokeBorder(
+        chosen != nil ? Palette.accent.opacity(0.6) : hovering ? Palette.lineStrong : Palette.line,
+        lineWidth: chosen != nil ? 1 : Size.hairline)
+    )
+    .shadow(color: .black.opacity(hovering || chosen != nil ? 0.06 : 0), radius: 8, y: 4)
     .contentShape(RoundedRectangle(cornerRadius: Radius.card))
     .onTapGesture(perform: select)
+    .onHover { hovering = $0 }
     .contextMenu { menu }
+    .onChange(of: chosen) { _, chosen in
+      guard chosen != nil else { return }
+      flashing = true
+      Task {
+        try? await Task.sleep(for: Motion.flashHold)
+        withAnimation(Motion.flashFade) { flashing = false }
+      }
+    }
   }
 
   private var excerpt: some View {
-    HStack(alignment: .top, spacing: Spacing.xs) {
-      RoundedRectangle(cornerRadius: 1).fill(placed.range == nil ? Palette.line : Palette.accent).frame(width: 2)
-      VStack(alignment: .leading, spacing: Spacing.xxs) {
-        Text(verbatim: placed.note.excerpt ?? placed.note.locator.quote?.text ?? "")
-          .foregroundStyle(Palette.inkMuted)
-          .lineLimit(3)
-        if placed.range == nil {
-          Label {
-            Text(.loci("note.lost"))
-          } icon: {
-            Image(systemName: Symbols.problem)
-          }
-          .font(Typography.caption)
-          .foregroundStyle(Palette.accentInk)
+    VStack(alignment: .leading, spacing: Spacing.xxs) {
+      Quote(text: placed.note.excerpt ?? placed.note.locator.quote?.text ?? "", font: Typography.highlightQuote)
+        .foregroundStyle(Palette.ink)
+      if placed.range == nil {
+        Label {
+          Text(.loci("note.lost"))
+        } icon: {
+          Image(systemName: Symbols.problem)
         }
+        .font(Typography.caption)
+        .foregroundStyle(Palette.accentInk)
       }
     }
-    .fixedSize(horizontal: false, vertical: true)
   }
 
   @ViewBuilder private var menu: some View {
     Button {
       draft = placed.note.thought ?? ""
-      editing = .thought
+      editing = true
     } label: {
       Text(placed.note.thought == nil ? .loci("note.writeThought") : .loci("note.editThought"))
     }
-    if case .lesson = content, placed.range != nil {
-      Button {
-        draft = ""
-        editing = .question
-      } label: {
-        Text(.loci("note.askAgain"))
+    if let ask {
+      Button(action: ask) {
+        Text(.loci("passage.ask"))
       }
     }
     Button(role: .destructive) {
@@ -88,63 +96,56 @@ struct NoteCard: View {
     }
   }
 
-  private func field(_ editing: Editing) -> some View {
+  private var field: some View {
     TextField(text: $draft, axis: .vertical) {
-      Text(editing == .thought ? .loci("passage.thoughtPrompt") : .loci("passage.questionPrompt"))
+      Text(.loci("passage.thoughtPrompt"))
     }
     .textFieldStyle(.plain)
+    .font(Typography.body)
     .lineLimit(1...6)
-    .onSubmit { submit(editing) }
-    .onExitCommand { self.editing = nil }
+    .onSubmit(save)
+    .onExitCommand { editing = false }
   }
 
-  private func submit(_ editing: Editing) {
-    let text = draft
-    self.editing = nil
+  private func save() {
+    let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    editing = false
     Task {
-      switch editing {
-      case .thought:
-        _ = try? await host.run(SetNoteThought(content: content, note: placed.id, thought: text))
-      case .question:
-        guard case .lesson(let lesson) = content, !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        _ = try? await host.run(
-          AskAboutPassage(
-            mentor: lesson.mentor, locator: placed.note.locator, excerpt: placed.note.excerpt, question: text,
-            note: placed.id))
-      }
+      _ = try? await host.run(SetNoteThought(content: content, note: placed.id, thought: text.isEmpty ? nil : text))
     }
-  }
-
-  private func mentor(_ id: EntityID) -> Mentor? {
-    mentors.first { $0.id == id }
   }
 }
 
-/// A question and the mentor's answer, which may still be arriving or may have failed.
-struct AnswerView: View {
-  let question: String
-  let answer: String
-  let mentor: Mentor?
-  let failure: String?
+/// Words quoted from the text: serif, behind an amber bar.
+struct Quote: View {
+  let text: String
+  var font = Typography.quote
 
   var body: some View {
-    VStack(alignment: .leading, spacing: Spacing.xxs) {
-      Text(verbatim: question).font(Typography.bodyEmphasis).foregroundStyle(Palette.ink)
-      HStack(alignment: .top, spacing: Spacing.xs) {
-        if let mentor { Avatar(mentor: mentor, size: Size.avatarSmall) }
-        if let failure {
-          Label {
-            Text(verbatim: failure)
-          } icon: {
-            Image(systemName: Symbols.problem)
-          }
-          .foregroundStyle(Palette.accentInk)
-        } else if answer.isEmpty {
-          ProgressView().controlSize(.small)
-        } else {
-          RichText(markdown: answer, font: Typography.body)
-        }
+    HStack(alignment: .top, spacing: 9) {
+      RoundedRectangle(cornerRadius: 1).fill(Palette.accent.opacity(0.8)).frame(width: 2)
+      Text(verbatim: text).font(font).lineSpacing(3)
+    }
+    .fixedSize(horizontal: false, vertical: true)
+  }
+}
+
+/// A question asked about a highlight and the mentor's answer, under a hairline.
+private struct ExchangeView: View {
+  let exchange: Note.Exchange
+  let mentor: Mentor?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 5) {
+      Text(verbatim: exchange.question).fontWeight(.semibold).foregroundStyle(Palette.ink)
+      HStack(alignment: .top, spacing: 7) {
+        if let mentor { Avatar(mentor: mentor, size: Size.avatarTiny).padding(.top, 2) }
+        RichText(markdown: exchange.answer, font: Typography.body).foregroundStyle(Palette.inkMuted)
       }
     }
+    .font(Typography.body)
+    .padding(.top, 9)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .overlay(alignment: .top) { Rectangle().fill(Palette.line).frame(height: Size.hairline) }
   }
 }

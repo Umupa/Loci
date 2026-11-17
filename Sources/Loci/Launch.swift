@@ -20,7 +20,6 @@ final class Launch {
   let folder: URL
   private var reportedStart = false
 
-  static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
   private static let log = Logger(subsystem: "com.loci.native.dev", category: "launch")
 
   init() {

@@ -55,7 +55,8 @@ private struct MarkdownRenderer {
     case let heading as Heading:
       let title = inline(heading.children, font: ReadingStyle.heading(heading.level))
       headings.append(ReadingText.Heading(level: heading.level, title: title.string, offset: output.length))
-      paragraph(title, in: setting, before: heading.level <= 2 ? ReadingStyle.paragraphSpacing * 1.6 : 6)
+      let spacing = ReadingStyle.headingSpacing(heading.level)
+      paragraph(title, in: setting, before: output.length == 0 ? 0 : spacing.before, after: spacing.after)
     case let paragraph as Paragraph:
       if let latex = Formula.display(in: paragraph.plainText), formulaBlock(latex, in: setting) { return }
       self.paragraph(inline(paragraph.children, font: ReadingStyle.body), in: setting)
@@ -108,10 +109,12 @@ private struct MarkdownRenderer {
     }
   }
 
-  private func paragraph(_ text: NSAttributedString, in setting: Setting, before: CGFloat = 0) {
+  private func paragraph(
+    _ text: NSAttributedString, in setting: Setting, before: CGFloat = 0, after: CGFloat? = nil
+  ) {
     let line = NSMutableAttributedString()
     let paragraphStyle = style(
-      in: setting, spacing: setting.listed ? ReadingStyle.itemSpacing : ReadingStyle.paragraphSpacing)
+      in: setting, spacing: after ?? (setting.listed ? ReadingStyle.itemSpacing : ReadingStyle.paragraphSpacing))
     paragraphStyle.paragraphSpacingBefore = before
     if let marker = setting.marker {
       paragraphStyle.firstLineHeadIndent = setting.indent - ReadingStyle.listIndent
@@ -236,7 +239,7 @@ private struct MarkdownRenderer {
       return NSAttributedString(string: "\u{2028}", attributes: attributes(font: font))
     case let code as InlineCode:
       var codeAttributes = attributes(font: NSFont.monospacedSystemFont(ofSize: font.pointSize - 1.5, weight: .regular))
-      codeAttributes[.backgroundColor] = Tones.raised
+      codeAttributes[.backgroundColor] = Tones.well
       return NSAttributedString(string: code.code, attributes: codeAttributes)
     case let strong as Strong:
       return inline(strong.children, font: ReadingStyle.bold(font))

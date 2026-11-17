@@ -17,7 +17,7 @@ struct PageStackTests {
     let next: Page
 
     var body: some View {
-      Color.clear.onAppear { openPage(next, replacing: true) }
+      Color.clear.onAppear { openPage(next) }
     }
   }
 
@@ -35,9 +35,8 @@ struct PageStackTests {
     }
 
     var body: some View {
-      NavigationSplitView {
+      HStack {
         Color.clear
-      } detail: {
         PageStack(pages: $path) {
           Color.clear
         } destination: { page in
@@ -48,15 +47,15 @@ struct PageStackTests {
     }
   }
 
-  /// α2-S3: the next-lesson button on a pushed lesson page replaces that page with the next lesson. In the
-  /// window's split view, as in the app: there the stack's own environment does not reach its pages.
-  @Test func aPushedPageCanReplaceItselfWithTheNext() async throws {
+  /// A link on a pushed page opens the next page over it. Beside a sidebar, as in the app: there the stack's
+  /// own environment does not reach its pages.
+  @Test func aPushedPageCanOpenTheNextOverItself() async throws {
     let first = Page.lesson(LessonRef(mentor: EntityID(), lesson: Lesson.Slug("one")!))
     let next = Page.lesson(LessonRef(mentor: EntityID(), lesson: Lesson.Slug("two")!))
     let pages = Pages()
 
     try await Snapshot.render(Stack(first: first, next: next, pages: pages), named: "page-stack", appearance: .light)
 
-    #expect(pages.seen.withLock { $0.last } == [next])
+    #expect(pages.seen.withLock { $0.last } == [first, next])
   }
 }

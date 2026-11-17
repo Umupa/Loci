@@ -48,7 +48,7 @@ final class BlockFragment: NSTextLayoutFragment {
       let bottom = closesBlock ? last.maxY + ReadingStyle.codePadding * 0.6 : height
       let x = left + indent - ReadingStyle.codePadding
       let rect = CGRect(x: x, y: point.y + top, width: left + columnWidth - x, height: bottom - top)
-      context.setFillColor(Tones.raised.cgColor)
+      context.setFillColor(Tones.well.cgColor)
       context.addPath(
         Self.path(rect, top: opensBlock ? Self.radius : 0, bottom: closesBlock ? Self.radius : 0))
       context.fillPath()
