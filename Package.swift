@@ -10,6 +10,7 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/jpsim/Yams.git", exact: "6.2.2"),
     .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1"),
+    .package(url: "https://github.com/swiftlang/swift-markdown.git", exact: "0.9.0"),
   ],
   targets: [
     .target(name: "LociModel", swiftSettings: strict),
@@ -22,7 +23,9 @@ let package = Package(
     .target(
       name: "LociAgents", dependencies: ["LociModel"], resources: [.copy("Resources")], swiftSettings: strict),
     .target(name: "LociHost", dependencies: ["LociModel", "LociStore"], swiftSettings: strict),
-    .target(name: "LociUI", dependencies: ["LociModel"], resources: [.process("Resources")], swiftSettings: strict),
+    .target(
+      name: "LociUI", dependencies: ["LociModel", .product(name: "Markdown", package: "swift-markdown")],
+      resources: [.process("Resources")], swiftSettings: strict),
     .executableTarget(name: "Loci", dependencies: ["LociModel", "LociUI", "LociHost"], swiftSettings: strict),
     .testTarget(name: "LociModelTests", dependencies: ["LociModel"], swiftSettings: strict),
     .testTarget(name: "LociStoreTests", dependencies: ["LociStore"], swiftSettings: strict),

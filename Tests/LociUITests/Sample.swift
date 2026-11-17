@@ -23,9 +23,30 @@ struct Sample: Sendable {
     and machine sharing with process-level performance isolation.
     """
   let lessonText = """
-    调度器要回答的问题只有一个：这个任务放在哪台机器上。Borg 把它拆成两步。先做可行性检查，排除不满足约束的机器，剩下的才参与打分。
+    # 过滤与打分
 
-    为什么要分两步？因为约束是硬的，偏好是软的。把两者混在一个分数里，一个极高的偏好分就可能盖过一条本该否决的约束。分开之后，过滤只回答能不能，打分只回答好不好。
+    调度器要回答的问题只有一个：这个任务放在哪台机器上。Borg 把它拆成两步。先做**可行性检查**，排除不满足约束的机器，剩下的才参与打分。
+
+    > 约束是硬的，偏好是软的。
+
+    为什么要分两步？把两者混在一个分数里，一个极高的偏好分就可能盖过一条本该否决的约束。
+
+    ## 打分看什么
+
+    | 偏好 | 为什么 |
+    |---|---|
+    | 已有镜像 | 省下拉取的时间 |
+    | 负载分散 | 一台机器坏了影响小 |
+
+    ```go
+    func schedule(task Task) Machine {
+      feasible := filter(machines, task)
+      return best(feasible, score)
+    }
+    ```
+
+    - 过滤只回答`能不能`
+    - 打分只回答`好不好`
     """
 
   init(problems: Bool = true) throws {

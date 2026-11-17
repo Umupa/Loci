@@ -33,7 +33,10 @@ enum Architecture {
       frameworks: ["Foundation", "os"]),
     "LociUI": Module(
       uses: ["LociModel"],
-      frameworks: ["Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "UniformTypeIdentifiers", "os"]),
+      frameworks: [
+        "Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "UniformTypeIdentifiers", "os",
+      ],
+      packages: ["Markdown"]),
     "LociEval": Module(uses: ["LociModel", "LociHost"], frameworks: ["Foundation"], isExecutable: true),
     "Loci": Module(
       uses: ["LociModel", "LociUI", "LociHost"], frameworks: ["Foundation", "SwiftUI", "os"], isExecutable: true),

@@ -1,0 +1,257 @@
+import AppKit
+import Markdown
+
+/// A lesson's or an item's Markdown, set for reading, with the headings it contains.
+///
+/// The same Markdown always gives the same characters, so a quote taken from the text finds its place
+/// again the next time it is set.
+struct ReadingText {
+  let string: NSAttributedString
+  let headings: [Heading]
+
+  /// A heading, with where it starts in `string` in UTF-16 units.
+  struct Heading: Hashable {
+    let level: Int
+    let title: String
+    let offset: Int
+  }
+
+  init(markdown: String) {
+    var renderer = MarkdownRenderer()
+    renderer.render(Document(parsing: markdown))
+    string = renderer.finished()
+    headings = renderer.headings
+  }
+
+  var plain: String { string.string }
+}
+
+/// Walks a Markdown document and appends each block as one or more paragraphs.
+private struct MarkdownRenderer {
+  private let output = NSMutableAttributedString()
+  private(set) var headings: [ReadingText.Heading] = []
+
+  /// Where a block sits: how far it is indented, whether it is inside a quote, and the list marker its
+  /// first paragraph starts with.
+  private struct Setting {
+    var indent: CGFloat = 0
+    var quoted = false
+    var marker: String?
+    var listed = false
+  }
+
+  mutating func render(_ document: Document) {
+    for child in document.children { block(child, in: Setting()) }
+  }
+
+  func finished() -> NSAttributedString {
+    if output.string.hasSuffix("\n") { output.deleteCharacters(in: NSRange(location: output.length - 1, length: 1)) }
+    return output
+  }
+
+  private mutating func block(_ markup: any Markup, in setting: Setting) {
+    switch markup {
+    case let heading as Heading:
+      let title = inline(heading.children, font: ReadingStyle.heading(heading.level))
+      headings.append(ReadingText.Heading(level: heading.level, title: title.string, offset: output.length))
+      paragraph(title, in: setting, before: heading.level <= 2 ? ReadingStyle.paragraphSpacing * 1.6 : 6)
+    case let paragraph as Paragraph:
+      self.paragraph(inline(paragraph.children, font: ReadingStyle.body), in: setting)
+    case let code as CodeBlock:
+      codeBlock(code.code, in: setting)
+    case let html as HTMLBlock:
+      codeBlock(html.rawHTML, in: setting)
+    case let list as UnorderedList:
+      for item in list.listItems { listItem(item, marker: "•", in: setting) }
+      if !setting.listed { endList() }
+    case let list as OrderedList:
+      for (index, item) in list.listItems.enumerated() {
+        listItem(item, marker: "\(Int(list.startIndex) + index).", in: setting)
+      }
+      if !setting.listed { endList() }
+    case let quote as BlockQuote:
+      var inside = setting
+      inside.indent += ReadingStyle.quoteIndent
+      inside.quoted = true
+      for child in quote.children { block(child, in: inside) }
+    case is ThematicBreak:
+      output.append(
+        NSAttributedString(
+          string: "\n",
+          attributes: attributes(font: ReadingStyle.body, style: style(in: setting), decoration: .rule)))
+    case let table as Markdown.Table:
+      self.table(table, in: setting)
+    default:
+      for child in markup.children { block(child, in: setting) }
+    }
+  }
+
+  private mutating func listItem(_ item: ListItem, marker: String, in setting: Setting) {
+    var inside = setting
+    inside.indent += ReadingStyle.listIndent
+    inside.listed = true
+    switch item.checkbox {
+    case .checked: inside.marker = "☑"
+    case .unchecked: inside.marker = "☐"
+    case nil: inside.marker = marker
+    }
+    for child in item.children {
+      block(child, in: inside)
+      inside.marker = nil
+    }
+  }
+
+  private func paragraph(_ text: NSAttributedString, in setting: Setting, before: CGFloat = 0) {
+    let line = NSMutableAttributedString()
+    let paragraphStyle = style(
+      in: setting, spacing: setting.listed ? ReadingStyle.itemSpacing : ReadingStyle.paragraphSpacing)
+    paragraphStyle.paragraphSpacingBefore = before
+    if let marker = setting.marker {
+      paragraphStyle.firstLineHeadIndent = setting.indent - ReadingStyle.listIndent
+      paragraphStyle.tabStops = [NSTextTab(textAlignment: .left, location: setting.indent)]
+      line.append(NSAttributedString(string: marker + "\t", attributes: attributes(font: ReadingStyle.body)))
+    }
+    line.append(text)
+    line.append(NSAttributedString(string: "\n", attributes: attributes(font: ReadingStyle.body)))
+    line.addAttribute(.paragraphStyle, value: paragraphStyle, range: NSRange(location: 0, length: line.length))
+    if setting.quoted {
+      line.addAttribute(BlockDecoration.key, value: BlockDecoration.quote.rawValue, range: line.fullRange)
+      line.addAttribute(.foregroundColor, value: Tones.inkMuted, range: line.fullRange)
+    }
+    output.append(line)
+  }
+
+  /// Items sit close together; the list as a whole is spaced like a paragraph.
+  private func endList() {
+    guard output.length > 0,
+      let last = output.attribute(.paragraphStyle, at: output.length - 1, effectiveRange: nil) as? NSParagraphStyle,
+      let widened = last.mutableCopy() as? NSMutableParagraphStyle
+    else { return }
+    widened.paragraphSpacing = max(widened.paragraphSpacing, ReadingStyle.paragraphSpacing)
+    let paragraph = (output.string as NSString).paragraphRange(for: NSRange(location: output.length - 1, length: 0))
+    output.addAttribute(.paragraphStyle, value: widened, range: paragraph)
+  }
+
+  private func codeBlock(_ code: String, in setting: Setting) {
+    var lines = code.split(separator: "\n", omittingEmptySubsequences: false)
+    if lines.last?.isEmpty == true { lines.removeLast() }
+    for (index, line) in lines.enumerated() {
+      let decoration = BlockDecoration.code(line: index, of: lines.count)
+      let paragraphStyle = style(in: setting, spacing: 0, lineSpacing: 3)
+      paragraphStyle.firstLineHeadIndent = setting.indent + ReadingStyle.codePadding
+      paragraphStyle.headIndent = setting.indent + ReadingStyle.codePadding
+      paragraphStyle.tailIndent = -ReadingStyle.codePadding
+      paragraphStyle.lineBreakMode = .byCharWrapping
+      if decoration == .codeFirst || decoration == .codeOnly {
+        paragraphStyle.paragraphSpacingBefore = ReadingStyle.codePadding
+      }
+      if decoration == .codeLast || decoration == .codeOnly {
+        paragraphStyle.paragraphSpacing = ReadingStyle.paragraphSpacing + ReadingStyle.codePadding
+      }
+      output.append(
+        NSAttributedString(
+          string: line + "\n",
+          attributes: attributes(font: ReadingStyle.code, style: paragraphStyle, decoration: decoration)))
+    }
+  }
+
+  private func table(_ table: Markdown.Table, in setting: Setting) {
+    let header = Array(table.head.cells.map { inline($0.children, font: ReadingStyle.bold(ReadingStyle.body)) })
+    let rows =
+      [header] + table.body.rows.map { row in Array(row.cells.map { inline($0.children, font: ReadingStyle.body) }) }
+    let columns = rows.map(\.count).max() ?? 0
+    var stops: [NSTextTab] = []
+    var location = setting.indent
+    for column in 0..<max(columns - 1, 0) {
+      let widest = rows.compactMap { $0.indices.contains(column) ? $0[column].size().width : nil }.max() ?? 0
+      location += widest + ReadingStyle.tableGap
+      stops.append(NSTextTab(textAlignment: .left, location: location))
+    }
+    for (index, cells) in rows.enumerated() {
+      let row = NSMutableAttributedString()
+      for (column, cell) in cells.enumerated() {
+        if column > 0 { row.append(NSAttributedString(string: "\t", attributes: attributes(font: ReadingStyle.body))) }
+        row.append(cell)
+      }
+      row.append(NSAttributedString(string: "\n", attributes: attributes(font: ReadingStyle.body)))
+      let paragraphStyle = style(in: setting, spacing: index == rows.count - 1 ? ReadingStyle.paragraphSpacing : 6)
+      paragraphStyle.tabStops = stops
+      paragraphStyle.paragraphSpacingBefore = index == 1 ? 6 : 0
+      row.addAttribute(.paragraphStyle, value: paragraphStyle, range: row.fullRange)
+      if index == 0 {
+        row.addAttribute(BlockDecoration.key, value: BlockDecoration.tableHeader.rawValue, range: row.fullRange)
+      }
+      output.append(row)
+    }
+  }
+
+  private func inline(_ children: MarkupChildren, font: NSFont) -> NSAttributedString {
+    let text = NSMutableAttributedString()
+    for child in children { text.append(inline(child, font: font)) }
+    return text
+  }
+
+  private func inline(_ markup: any Markup, font: NSFont) -> NSAttributedString {
+    switch markup {
+    case let text as Markdown.Text:
+      return NSAttributedString(string: text.string, attributes: attributes(font: font))
+    case is SoftBreak:
+      return NSAttributedString(string: " ", attributes: attributes(font: font))
+    case is LineBreak:
+      return NSAttributedString(string: "\u{2028}", attributes: attributes(font: font))
+    case let code as InlineCode:
+      var codeAttributes = attributes(font: NSFont.monospacedSystemFont(ofSize: font.pointSize - 1.5, weight: .regular))
+      codeAttributes[.backgroundColor] = Tones.raised
+      return NSAttributedString(string: code.code, attributes: codeAttributes)
+    case let strong as Strong:
+      return inline(strong.children, font: ReadingStyle.bold(font))
+    case let emphasis as Emphasis:
+      return inline(emphasis.children, font: ReadingStyle.italic(font))
+    case let strike as Strikethrough:
+      let text = NSMutableAttributedString(attributedString: inline(strike.children, font: font))
+      text.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: text.fullRange)
+      return text
+    case let link as Markdown.Link:
+      let text = NSMutableAttributedString(attributedString: inline(link.children, font: font))
+      if let destination = link.destination, let url = URL(string: destination) {
+        text.addAttribute(.link, value: url, range: text.fullRange)
+      }
+      return text
+    case let image as Markdown.Image:
+      var imageAttributes = attributes(font: font)
+      imageAttributes[.foregroundColor] = Tones.inkMuted
+      return NSAttributedString(string: image.plainText, attributes: imageAttributes)
+    case let html as InlineHTML:
+      return NSAttributedString(string: html.rawHTML, attributes: attributes(font: font))
+    default:
+      let text = NSMutableAttributedString()
+      for child in markup.children { text.append(inline(child, font: font)) }
+      return text
+    }
+  }
+
+  private func style(
+    in setting: Setting, spacing: CGFloat = ReadingStyle.paragraphSpacing,
+    lineSpacing: CGFloat = ReadingStyle.lineSpacing
+  ) -> NSMutableParagraphStyle {
+    let style = NSMutableParagraphStyle()
+    style.lineSpacing = lineSpacing
+    style.paragraphSpacing = spacing
+    style.firstLineHeadIndent = setting.indent
+    style.headIndent = setting.indent
+    return style
+  }
+
+  private func attributes(
+    font: NSFont, style: NSParagraphStyle? = nil, decoration: BlockDecoration? = nil
+  ) -> [NSAttributedString.Key: Any] {
+    var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Tones.ink]
+    if let style { attributes[.paragraphStyle] = style }
+    if let decoration { attributes[BlockDecoration.key] = decoration.rawValue }
+    return attributes
+  }
+}
+
+extension NSAttributedString {
+  var fullRange: NSRange { NSRange(location: 0, length: length) }
+}

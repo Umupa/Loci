@@ -22,8 +22,21 @@ extension LocalHost {
     try attempt { try database.readingState(of: content) }
   }
 
-  public func saveReadingState(_ command: SaveReadingState) async throws(HostError) -> Done {
-    try attempt { try database.save(command.state, for: command.content) }
+  public func saveReadingPosition(_ command: SaveReadingPosition) async throws(HostError) -> Done {
+    try attempt {
+      let finished = try database.readingState(of: command.content)?.finished ?? false
+      try database.save(
+        ReadingState(position: command.position, finished: finished, updatedAt: environment.now()),
+        for: command.content)
+    }
+    return Done()
+  }
+
+  public func markRead(_ content: ContentRef) async throws(HostError) -> Done {
+    try attempt {
+      let position = try database.readingState(of: content)?.position
+      try database.save(ReadingState(position: position, finished: true, updatedAt: environment.now()), for: content)
+    }
     return Done()
   }
 }

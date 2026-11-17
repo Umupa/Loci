@@ -56,6 +56,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
   func citingLessons(of item: EntityID) async throws(HostError) -> [CitingLesson] { sample.citedBy }
   func search(_ command: Search) async throws(HostError) -> [SearchHit] { [] }
   func readingState(of content: ContentRef) async throws(HostError) -> ReadingState? { nil }
-  func saveReadingState(_ command: SaveReadingState) async throws(HostError) -> Done { Done() }
+  func saveReadingPosition(_ command: SaveReadingPosition) async throws(HostError) -> Done { Done() }
+  func markRead(_ content: ContentRef) async throws(HostError) -> Done { Done() }
   func health() async -> Health { sample.health }
 }

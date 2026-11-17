@@ -32,26 +32,6 @@ struct Tag: View {
   }
 }
 
-/// Plain text to read, in a comfortable column.
-struct ReadingView: View {
-  let text: String
-
-  var body: some View {
-    ScrollView {
-      Text(verbatim: text)
-        .font(Typography.reading)
-        .lineSpacing(Typography.readingLineSpacing)
-        .foregroundStyle(Palette.ink)
-        .textSelection(.enabled)
-        .frame(maxWidth: Typography.readingWidth, alignment: .leading)
-        .padding(.horizontal, Spacing.xxl)
-        .padding(.vertical, Spacing.xl)
-        .frame(maxWidth: .infinity)
-    }
-    .background(Palette.canvas)
-  }
-}
-
 /// A large, quiet symbol for a place that has nothing in it yet.
 struct EmptyMark: View {
   let symbol: String

@@ -20,8 +20,6 @@ struct HostCodingTests {
   }
 
   @Test func everyCommandSurvivesJSON() throws {
-    let reading = ReadingState(
-      position: .item(Fixture.item, .quote(try TextQuote("x"))), finished: true, updatedAt: Fixture.instant)
     #expect(try Self.roundTrips(CreateMentor(request: "我想学调度")))
     #expect(try Self.roundTrips(RenameMentor(mentor: Fixture.mentor, name: "调度")))
     #expect(try Self.roundTrips(DeleteMentor(mentor: Fixture.mentor, notes: .delete)))
@@ -36,7 +34,10 @@ struct HostCodingTests {
     #expect(try Self.roundTrips(ItemCitations(item: Fixture.item)))
     #expect(try Self.roundTrips(Search(text: "调度", limit: 10)))
     #expect(try Self.roundTrips(ReadReadingState(content: .lesson(Self.lesson))))
-    #expect(try Self.roundTrips(SaveReadingState(content: .item(Fixture.item), state: reading)))
+    #expect(
+      try Self.roundTrips(
+        SaveReadingPosition(content: .item(Fixture.item), position: .item(Fixture.item, .quote(TextQuote("打分"))))))
+    #expect(try Self.roundTrips(MarkRead(content: .item(Fixture.item))))
   }
 
   @Test func everyReplyAndFeedSurvivesJSON() throws {
@@ -80,7 +81,7 @@ struct HostCodingTests {
       CreateMentor.name, RenameMentor.name, DeleteMentor.name, ListMentors.name, ReadCatalog.name, AddTextItem.name,
       DeleteItem.name, ListItems.name, ReadItemText.name, ReadLessonText.name, LessonCitations.name, ItemCitations.name,
       Search.name,
-      ReadReadingState.name, SaveReadingState.name,
+      ReadReadingState.name, SaveReadingPosition.name, MarkRead.name,
     ]
     let subscriptions = [AllMentors.name, AllItems.name, OneMentor.name, OneItem.name, HealthReport.name]
 

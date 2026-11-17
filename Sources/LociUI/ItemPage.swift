@@ -22,7 +22,7 @@ struct ItemView: View {
   let page: ItemPage
 
   var body: some View {
-    ReadingView(text: page.text ?? "")
+    ContentReader(content: .item(page.item.id), markdown: page.text ?? "")
       .navigationTitle(Text(verbatim: page.item.title))
       .inspector(isPresented: .constant(!citingLessons.isEmpty)) {
         List {

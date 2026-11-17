@@ -11,7 +11,7 @@ struct LessonScreen: View {
   @State private var items: Feed<[Item]>?
 
   var body: some View {
-    LessonView(title: title, text: text, sources: sources)
+    LessonView(lesson: lesson, title: title, text: text, sources: sources)
       .subscribing(OneMentor(mentor: lesson.mentor), into: $mentor)
       .subscribing(AllItems(), into: $items)
       .task(id: lesson) {
@@ -36,12 +36,13 @@ struct LessonScreen: View {
 }
 
 struct LessonView: View {
+  let lesson: LessonRef
   let title: String
   let text: String
   let sources: [Item]
 
   var body: some View {
-    ReadingView(text: text)
+    ContentReader(content: .lesson(lesson), markdown: text)
       .navigationTitle(Text(verbatim: title))
       .inspector(isPresented: .constant(!sources.isEmpty)) {
         List {

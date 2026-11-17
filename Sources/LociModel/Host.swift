@@ -73,6 +73,7 @@ public protocol CommandHandler: Sendable {
   func citingLessons(of item: EntityID) async throws(HostError) -> [CitingLesson]
   func search(_ command: Search) async throws(HostError) -> [SearchHit]
   func readingState(of content: ContentRef) async throws(HostError) -> ReadingState?
-  func saveReadingState(_ command: SaveReadingState) async throws(HostError) -> Done
+  func saveReadingPosition(_ command: SaveReadingPosition) async throws(HostError) -> Done
+  func markRead(_ content: ContentRef) async throws(HostError) -> Done
   func health() async -> Health
 }

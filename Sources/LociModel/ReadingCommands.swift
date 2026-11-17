@@ -68,18 +68,33 @@ public struct ReadReadingState: Command {
   }
 }
 
-/// Remembers where the reader is. The position must point into the same content.
-public struct SaveReadingState: Command {
-  public static let name = "reading.save"
+/// Remembers where the reader is. The position must point into the same content. Whether the content
+/// was read to the end stays as it was.
+public struct SaveReadingPosition: Command {
+  public static let name = "reading.position"
   public let content: ContentRef
-  public let state: ReadingState
+  public let position: Locator
 
-  public init(content: ContentRef, state: ReadingState) {
+  public init(content: ContentRef, position: Locator) {
     self.content = content
-    self.state = state
+    self.position = position
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
-    try await handler.saveReadingState(self)
+    try await handler.saveReadingPosition(self)
+  }
+}
+
+/// Marks content as read to the end. It stays read when the reader goes back up.
+public struct MarkRead: Command {
+  public static let name = "reading.finish"
+  public let content: ContentRef
+
+  public init(content: ContentRef) {
+    self.content = content
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
+    try await handler.markRead(content)
   }
 }

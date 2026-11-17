@@ -13,3 +13,22 @@ extension Locator {
     }
   }
 }
+
+extension Locator {
+  /// Points at a quote in a piece of text content.
+  public init(_ quote: TextQuote, in content: ContentRef) {
+    switch content {
+    case .item(let item): self = .item(item, .quote(quote))
+    case .lesson(let lesson): self = .lesson(lesson, quote)
+    }
+  }
+
+  /// The quoted words this locator points at, if it points by quoting.
+  public var quote: TextQuote? {
+    switch self {
+    case .lesson(_, let quote): quote
+    case .item(_, .quote(let quote)): quote
+    case .item: nil
+    }
+  }
+}

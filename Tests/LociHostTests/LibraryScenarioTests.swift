@@ -87,19 +87,34 @@ struct LibraryScenarioTests {
     try await withHost { host, _, world in
       let item = try await host.run(AddTextItem(fileName: "a.md", text: "# 调度器\n\n过滤与打分\n"))
       let content = ContentRef.item(item.id)
-      let state = ReadingState(
-        position: .item(item.id, .quote(try TextQuote("打分"))), finished: false, updatedAt: TestWorld.instant)
+      let position = Locator.item(item.id, .quote(try TextQuote("打分")))
 
       let hits = try await host.run(Search(text: "调度"))
 
       #expect(Set(hits.map(\.target)) == [.item(item.id)])
       #expect(Set(hits.map(\.field)) == [.title, .body])
       #expect(try await host.run(ReadReadingState(content: content)) == nil)
-      _ = try await host.run(SaveReadingState(content: content, state: state))
-      #expect(try await host.run(ReadReadingState(content: content)) == state)
+      _ = try await host.run(SaveReadingPosition(content: content, position: position))
+      #expect(try await host.run(ReadReadingState(content: content))?.position == position)
       await #expect(throws: HostError.self) {
-        try await host.run(SaveReadingState(content: .item(world.nextID()), state: state))
+        try await host.run(SaveReadingPosition(content: .item(world.nextID()), position: position))
       }
+    }
+  }
+
+  @Test func contentReadToTheEndStaysReadWhenTheReaderGoesBackUp() async throws {
+    try await withHost { host, _, _ in
+      let item = try await host.run(AddTextItem(fileName: "a.md", text: "# 调度器\n\n过滤与打分\n"))
+      let content = ContentRef.item(item.id)
+      let top = Locator.item(item.id, .quote(try TextQuote("调度器")))
+
+      _ = try await host.run(MarkRead(content: content))
+      _ = try await host.run(SaveReadingPosition(content: content, position: top))
+
+      let state = try await host.run(ReadReadingState(content: content))
+      #expect(state?.finished == true)
+      #expect(state?.position == top)
+      #expect(state?.updatedAt == TestWorld.instant)
     }
   }
 }
