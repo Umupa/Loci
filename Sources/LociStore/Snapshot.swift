@@ -86,7 +86,8 @@ extension Store {
       } catch StoreError.notFound {
         continue
       } catch {
-        problems.append(problem(at: folder, error).attributed(to: id(ofFolder: folder).map(subject)))
+        let owner = id(ofFolder: folder) ?? FolderName.id(in: folder.lastPathComponent)
+        problems.append(problem(at: folder, error).attributed(to: owner.map(subject)))
       }
     }
     let preferred = found.sorted { lhs, rhs in

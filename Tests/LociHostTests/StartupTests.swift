@@ -144,4 +144,26 @@ struct StartupTests {
       #expect(restored != nil)
     }
   }
+
+  @Test func aMentorFileThatIsNotJSONShowsUpInHealthAndGoesAwayWhenFixed() async throws {
+    try await withHost { host, place, _ in
+      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      let health = host.subscribe(HealthReport())
+      let file = try place.store.mentorFolder(mentor.id).appending(path: "mentor.json")
+      let original = try Data(contentsOf: file)
+
+      try Data(#"{"id": "\#(mentor.id)", "name": "#.utf8).write(to: file)
+
+      let broken = await value(health) { !$0.fileProblems.isEmpty }
+      #expect(broken?.fileProblems.map(\.subject) == [.mentor(mentor.id)])
+      #expect(broken?.fileProblems.first?.path.hasSuffix("/mentor.json") == true)
+      await #expect(throws: HostError.self) { try await host.run(ReadCatalog(mentor: mentor.id)) }
+
+      try original.write(to: file)
+
+      let healed = await value(health) { $0.fileProblems.isEmpty }
+      #expect(healed != nil)
+      #expect(try await host.run(ListMentors()) == [mentor])
+    }
+  }
 }

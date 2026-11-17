@@ -142,6 +142,23 @@ struct MentorFilesTests {
     }
   }
 
+  @Test func aMentorFileThatIsNotJSONIsReportedNotTreatedAsGone() throws {
+    try withStore { store in
+      let mentor = try Fixture.mentor()
+      try store.create(mentor)
+      let folder = try store.folderName(ofMentor: mentor.id)
+      try store.writeFile("mentors/\(folder)/mentor.json", #"{"id": "\#(mentor.id)", "name": "#)
+
+      let loaded = store.loadMentor(mentor.id)
+
+      #expect(loaded.value == nil)
+      #expect(loaded.problems.map(\.path) == ["mentors/\(folder)/mentor.json"])
+      #expect(loaded.problems.map(\.subject) == [.mentor(mentor.id)])
+      #expect(throws: StoreError.self) { try store.mentor(mentor.id) }
+      #expect(store.loadMentor(Fixture.id(99)).problems.isEmpty)
+    }
+  }
+
   @Test func deletingAMentorGoesThroughTheDiscardItWasGiven() throws {
     let discarded = Mutex<[String]>([])
     let root = temporaryStore().root

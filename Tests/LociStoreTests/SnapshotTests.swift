@@ -106,6 +106,17 @@ struct SnapshotTests {
     }
   }
 
+  @Test func aFileWhoseIDCannotBeReadBelongsToTheIDInItsFolderName() throws {
+    try withStore { store in
+      let mentor = try Fixture.mentor()
+      try store.create(mentor)
+      let folder = try store.folderName(ofMentor: mentor.id)
+      try store.writeFile("mentors/\(folder)/mentor.json", "{")
+
+      #expect(store.load().problems.map(\.subject) == [.mentor(mentor.id)])
+    }
+  }
+
   @Test func eachProblemNamesWhoseFileItIs() throws {
     try withStore { store in
       let mentor = try Fixture.mentor()

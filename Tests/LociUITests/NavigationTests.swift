@@ -32,12 +32,18 @@ struct NavigationTests {
     #expect(WindowState(restoring: "{not json") == WindowState())
   }
 
-  @Test func aWindowOnADeletedMentorGoesBackToStart() throws {
+  @Test func aWindowOnSomethingDeletedGoesBackToStart() throws {
     let sample = try Sample()
-    let window = WindowState(place: .mentor(sample.scheduling.id), pages: [.lesson(sample.filterLesson)])
+    let lesson = WindowState(place: .mentor(sample.scheduling.id), pages: [.lesson(sample.filterLesson)])
+    let item = WindowState(place: .library(nil), pages: [.item(sample.borg.id)])
+    let allItems = Set(sample.items.map(\.id))
 
-    #expect(window.keeping(mentors: [sample.scheduling.id]) == window)
-    #expect(window.keeping(mentors: [sample.sandbox.id]) == WindowState())
+    #expect(lesson.keeping(mentors: [sample.scheduling.id], items: allItems) == lesson)
+    #expect(lesson.keeping(mentors: [sample.sandbox.id], items: allItems) == WindowState())
+    #expect(item.keeping(mentors: [], items: allItems) == item)
+    #expect(item.keeping(mentors: [], items: []) == WindowState())
+    #expect(
+      WindowState(place: .library(.video)).keeping(mentors: [], items: []) == WindowState(place: .library(.video)))
   }
 
   @Test func commandsWaitForTheHostToBeReady() async throws {

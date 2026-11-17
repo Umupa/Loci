@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 /// The content of a Loci window: the sidebar, and whatever it has selected.
 public struct RootView: View {
   @Environment(\.host) private var host
-  @SceneStorage("window") private var stored = ""
   @State private var window = WindowState()
   @State private var restored = false
   @State private var mentors: Feed<[Mentor]>?
@@ -14,17 +13,17 @@ public struct RootView: View {
   @State private var dialogs = Dialogs()
   @State private var focusRequest = 0
   private let startShown: () -> Void
-  private let opening: WindowState
+  private let memory: WindowMemory
 
   /// `startShown` runs when the start page first appears, which is when Loci can be typed into.
   public init(startShown: @escaping () -> Void = {}) {
-    self.init(startShown: startShown, opening: WindowState())
+    self.init(startShown: startShown, memory: .preferences(.standard))
   }
 
-  /// Opens at `opening` unless the window has a place of its own to return to.
-  init(startShown: @escaping () -> Void = {}, opening: WindowState) {
+  /// Opens where `memory` says the window was last, and keeps it told of every move.
+  init(startShown: @escaping () -> Void = {}, memory: WindowMemory) {
     self.startShown = startShown
-    self.opening = opening
+    self.memory = memory
   }
 
   public var body: some View {
@@ -49,15 +48,26 @@ public struct RootView: View {
     .subscribing(AllItems(), into: $items)
     .subscribing(HealthReport(), into: $health)
     .onAppear(perform: restore)
-    .onChange(of: window) { stored = window.text }
-    .onChange(of: mentors?.value.map { Set($0.map(\.id)) }) { _, known in
-      if let known { window = window.keeping(mentors: known) }
+    .onChange(of: window) { memory.remember(window) }
+    .onChange(of: known) { _, known in
+      if let known { window = window.keeping(mentors: known.mentors, items: known.items) }
     }
     .onChange(of: health?.value?.readingStateLost) { _, lost in
       if lost == true { dialogs.readingStateLost = true }
     }
     .focusedSceneValue(\.navigator, navigator)
     .dialogs($dialogs, host: host)
+  }
+
+  /// What exists, once both lists have arrived.
+  private var known: Known? {
+    guard let mentors = mentors?.value, let items = items?.value else { return nil }
+    return Known(mentors: Set(mentors.map(\.id)), items: Set(items.map(\.id)))
+  }
+
+  private struct Known: Equatable {
+    let mentors: Set<EntityID>
+    let items: Set<EntityID>
   }
 
   private var placeBinding: Binding<Place> {
@@ -97,7 +107,7 @@ public struct RootView: View {
   private func restore() {
     guard !restored else { return }
     restored = true
-    window = stored.isEmpty ? opening : WindowState(restoring: stored)
+    window = memory.recall()
   }
 }
 

@@ -18,7 +18,7 @@ struct ScreenSnapshots {
   }
 
   static func root(_ sample: Sample, at window: WindowState) -> some View {
-    RootView(opening: window).lociHost(FakeHost(sample))
+    RootView(memory: WindowMemory(recall: { window }, remember: { _ in })).lociHost(FakeHost(sample))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)

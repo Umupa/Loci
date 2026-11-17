@@ -60,12 +60,18 @@ extension Store {
     (try? folder(holding: id, in: parent, file: file)) != nil
   }
 
+  /// The folder whose file holds `id`. When none does, but a folder named for the id has a file that
+  /// cannot be read, that file's problem is thrown rather than `notFound`: the mentor or item is still
+  /// there, only broken, and whoever asked should hear why.
   private func folder(holding id: EntityID, in parent: URL, file: String) throws -> URL {
     let folders = subfolders(of: parent)
     let named = folders.filter { FolderName.id(in: $0.lastPathComponent) == id }
     let others = folders.filter { FolderName.id(in: $0.lastPathComponent) != id }
     for folder in named + others where self.id(ofFolder: folder) == id {
       return folder
+    }
+    for folder in named {
+      _ = try decodeJSON(IdentifiedFile.self, at: folder.appending(path: file))
     }
     throw StoreError.notFound(id.description)
   }

@@ -34,10 +34,18 @@ struct WindowState: Codable, Equatable {
     (try? String(decoding: JSONEncoder().encode(self), as: UTF8.self)) ?? ""
   }
 
-  /// Leaves whatever the mentor list no longer has, so a deleted mentor does not leave a blank window.
-  func keeping(mentors: Set<EntityID>) -> WindowState {
-    guard case .mentor(let id) = place, !mentors.contains(id) else { return self }
-    return WindowState()
+  /// Goes back to the start page when the window points at a mentor, lesson or item that no longer
+  /// exists, so a remembered place never opens onto a blank page.
+  func keeping(mentors: Set<EntityID>, items: Set<EntityID>) -> WindowState {
+    let placeExists: Bool
+    if case .mentor(let id) = place { placeExists = mentors.contains(id) } else { placeExists = true }
+    let pagesExist = pages.allSatisfy { page in
+      switch page {
+      case .lesson(let lesson): mentors.contains(lesson.mentor)
+      case .item(let item): items.contains(item)
+      }
+    }
+    return placeExists && pagesExist ? self : WindowState()
   }
 }
 
@@ -50,4 +58,22 @@ struct Navigator {
 
 extension FocusedValues {
   @Entry var navigator: Navigator?
+}
+
+/// Where the window was last, kept by Loci itself.
+///
+/// The system restores window state only when windows are kept on quit, which is off by default
+/// ("Close windows when quitting an application"), so `@SceneStorage` loses the place after ⌘Q.
+struct WindowMemory {
+  let recall: @MainActor () -> WindowState
+  let remember: @MainActor (WindowState) -> Void
+
+  static let key = "lastWindow"
+
+  /// Kept in the app's preferences: a convenience of the interface, not part of the user's data.
+  @MainActor static func preferences(_ defaults: UserDefaults) -> WindowMemory {
+    WindowMemory(
+      recall: { WindowState(restoring: defaults.string(forKey: key) ?? "") },
+      remember: { defaults.set($0.text, forKey: key) })
+  }
 }
