@@ -17,6 +17,7 @@ struct StartPage: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(Palette.canvas)
       .acceptingTextFiles(opened: opened, failed: failed)
+      .toolbar(removing: .title)
       .onAppear { focused = true }
       .onChange(of: focusRequest) { focused = true }
   }
