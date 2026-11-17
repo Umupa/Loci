@@ -17,7 +17,7 @@
 | 模块 | 职责 | 可以引用 |
 |---|---|---|
 | `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应 | 无 |
-| `LociStore` | 文件读写与监听、SQLite、全文索引 | `LociModel` |
+| `LociStore` | 文件读写与监听、SQLite、全文索引 | `LociModel`；第三方：Yams |
 | `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
 | `LociMedia` | 取回、转录、断句、翻译、章节与重点 | `LociModel` |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
@@ -27,13 +27,15 @@
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
 | `LociEval` | 评测，不随应用发布 | `LociModel` `LociHost` |
 
-现在已经存在的模块：`LociModel`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
+现在已经存在的模块：`LociModel`、`LociStore`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
 
 ## 三条不变量
 
 1. **界面只认 Host 协议。** `LociUI` 引用不到 `LociStore`、`LociAgents`，它只能发命令、订阅数据。本机和远程因此是同一套界面。
 2. **每条出口只有一个主人。** 磁盘归 `LociStore`，外部程序归 `LociAgents` 和 `LociMedia`，网络归 `LociMedia` 和 `LociRemote`。
 3. **核心不依赖界面。** 除了 `LociUI` 和 `Loci`，没有模块引用 SwiftUI 或 AppKit。关掉窗口，会话照样跑。
+
+第三方依赖也记在这张表里，模块只能引用它那一行列出的包；新增一个之前先问。GCD 只允许出现在 `Sources/LociStore/FileEvents.swift`：FSEvents 只能把回调交给一个队列，那个文件接到回调后立刻转成 `AsyncStream`。
 
 这三条都由 `Tests/ArchitectureTests` 检查。那里的 `Architecture.swift` 是这张表的可执行版本，两处一起改。
 

@@ -7,18 +7,22 @@ enum Architecture {
   struct Module {
     let uses: Set<String>
     let frameworks: Set<String>
+    /// Third-party packages. Each one was approved before it was added; ask before adding another.
+    let packages: Set<String>
     let isExecutable: Bool
 
-    init(uses: Set<String>, frameworks: Set<String>, isExecutable: Bool = false) {
+    init(uses: Set<String>, frameworks: Set<String>, packages: Set<String> = [], isExecutable: Bool = false) {
       self.uses = uses
       self.frameworks = frameworks
+      self.packages = packages
       self.isExecutable = isExecutable
     }
   }
 
   static let modules: [String: Module] = [
     "LociModel": Module(uses: [], frameworks: ["Foundation"]),
-    "LociStore": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
+    "LociStore": Module(
+      uses: ["LociModel"], frameworks: ["Foundation", "CoreServices", "Synchronization", "os"], packages: ["Yams"]),
     "LociAgents": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
     "LociMedia": Module(uses: ["LociModel"], frameworks: ["Foundation", "AVFoundation", "os"]),
     "LociCode": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
@@ -68,9 +72,12 @@ enum Architecture {
       pattern: #"@unchecked\s+Sendable|nonisolated\(unsafe\)|@preconcurrency"#,
       fix: "Fix the isolation: make it an actor, a value type, or keep it on one actor. Do not silence the checker."),
     Restriction(
-      pattern:
-        #"\b(DispatchQueue|DispatchSemaphore|DispatchGroup|NSLock|OperationQueue)\b|Thread\.sleep|Task\.detached"#,
+      pattern: #"\b(DispatchSemaphore|DispatchGroup|NSLock|OperationQueue)\b|Thread\.sleep|Task\.detached"#,
       fix: "Use structured concurrency: async functions, task groups, actors, `Mutex`, `Task.sleep`."),
+    Restriction(
+      pattern: #"\bDispatchQueue\b"#, allowedFiles: ["Sources/LociStore/FileEvents.swift"],
+      fix: "Use structured concurrency. GCD appears only where a system API delivers callbacks on a queue "
+        + "(FSEvents in Sources/LociStore/FileEvents.swift), and the callback goes straight into an AsyncStream."),
     Restriction(
       pattern: #"swift-format-ignore"#,
       fix:
@@ -81,11 +88,14 @@ enum Architecture {
   struct Restriction {
     let pattern: String
     let allowedIn: Set<String>
+    /// Single files allowed to use the construct, for a narrow bridge to a system API.
+    let allowedFiles: Set<String>
     let fix: String
 
-    init(pattern: String, allowedIn: Set<String> = [], fix: String) {
+    init(pattern: String, allowedIn: Set<String> = [], allowedFiles: Set<String> = [], fix: String) {
       self.pattern = pattern
       self.allowedIn = allowedIn
+      self.allowedFiles = allowedFiles
       self.fix = fix
     }
   }

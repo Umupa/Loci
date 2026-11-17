@@ -64,6 +64,24 @@ struct CheckerTests {
     #expect(BoundaryTests.violations(of: Architecture.restricted, in: file).isEmpty)
   }
 
+  @Test func onlyTheNamedBridgeFileMayUseGCD() {
+    let bridge = SourceFile(
+      path: "Sources/LociStore/FileEvents.swift", module: "LociStore", text: "let queue = DispatchQueue(label: \"x\")")
+    let elsewhere = SourceFile(
+      path: "Sources/LociStore/Other.swift", module: "LociStore", text: "let queue = DispatchQueue(label: \"x\")")
+
+    #expect(BoundaryTests.violations(of: Architecture.forbidden, in: bridge).isEmpty)
+    #expect(BoundaryTests.violations(of: Architecture.forbidden, in: elsewhere).map(\.line) == [1])
+  }
+
+  @Test func approvedPackagesMayBeImportedOnlyWhereListed() {
+    let store = SourceFile(path: "Sources/LociStore/Example.swift", module: "LociStore", text: "import Yams")
+    let model = SourceFile(path: "Sources/LociModel/Example.swift", module: "LociModel", text: "import Yams")
+
+    #expect(BoundaryTests.importViolations(in: store).isEmpty)
+    #expect(BoundaryTests.importViolations(in: model).map(\.found) == ["LociModel imports Yams"])
+  }
+
   @Test func flagsPlainCommentsButNotDocumentation() {
     let file = SourceFile(
       path: "Sources/LociModel/Example.swift", module: "LociModel",

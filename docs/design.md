@@ -205,7 +205,8 @@ Loci 的辨识度是纸墨单色加一个导师色，保留。要换的是质感
 │     ├─ glossary.yaml
 │     └─ workspace/          导师的工作目录
 ├─ notes/
-│  └─ <内容 id>.jsonl        这份内容上的笔记，一行一条，只追加
+│  ├─ library/<资料 id>.jsonl          一份资料上的笔记，一行一条，只追加
+│  └─ mentors/<导师 id>/<课>.jsonl    一课上的笔记
 └─ loci.sqlite
 ```
 

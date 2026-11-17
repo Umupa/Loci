@@ -36,17 +36,20 @@ struct BoundaryTests {
           fix: "\(file.module) may use only \(module.uses.sorted()). Move the shared type down into LociModel, "
             + "or reach the behaviour through the Host protocol.")
       }
-      guard !module.frameworks.contains(name) else { return nil }
+      guard !module.frameworks.contains(name), !module.packages.contains(name) else { return nil }
       return Violation(
         file: file.path, line: line, found: "\(file.module) imports \(name)",
-        fix: "\(file.module) may use only \(module.frameworks.sorted()). If \(name) truly belongs here, "
-          + "add it to the map in the same pull request and say why.")
+        fix: "\(file.module) may use only \(module.frameworks.union(module.packages).sorted()). "
+          + "A system framework that truly belongs here goes into the map in the same pull request, with the reason. "
+          + "A third-party package needs approval first.")
     }
   }
 
   static func violations(of restrictions: [Architecture.Restriction], in file: SourceFile) -> [Violation] {
     restrictions.flatMap { restriction -> [Violation] in
-      guard !restriction.allowedIn.contains(file.module), let compiled = try? Regex(restriction.pattern) else {
+      guard !restriction.allowedIn.contains(file.module), !restriction.allowedFiles.contains(file.path),
+        let compiled = try? Regex(restriction.pattern)
+      else {
         return []
       }
       let pattern = compiled.wordBoundaryKind(.simple)
