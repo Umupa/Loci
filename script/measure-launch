@@ -1,23 +1,82 @@
 #!/bin/sh
 # Launches Loci Dev several times against a temporary folder and reports, for each launch, how long the
-# process took to show a start page that can be typed into (α1-S10's budget is 500 ms).
-#   script/measure-launch [runs]   (default 5; builds the app first)
+# process took to show a start page that can be typed into (α1-S10's budget is 500 ms) and the worst of them.
+#   --runs <n>     how many launches to measure (default 5)
+#   --app <path>   the app to measure (default: build the dev app with script/run --no-open)
+#
+# Every launch goes through `open`, the way a person starts the app, and opens at the start page, so it
+# measures the same thing each time; the remembered window is put back afterwards.
 set -eu
 cd "$(dirname "$0")/.."
-runs="${1:-5}"
-app="$(script/run --no-open)"
+. script/toolchain
+
+runs=5
+app=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --runs) runs="$2"; shift ;;
+    --app) app="$2"; shift ;;
+    *)
+      echo "usage: script/measure-launch [--runs <n>] [--app <path>]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+[ -n "$app" ] || app="$(script/run --no-open)"
+app="$(cd "$(dirname "$app")" && pwd)/$(basename "$app")"
+
 binary="$app/Contents/MacOS/Loci"
 root="$(mktemp -d)"
-trap 'rm -rf "$root"' EXIT
+preferences="$(mktemp)"
+restore=no
+pid=""
 
+# Waits for the app to finish quitting, so it has written its preferences before they are put back.
+stop() {
+  if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; fi
+  for _ in $(seq 30); do
+    if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then break; fi
+    sleep 0.1
+  done
+}
+
+trap '
+  stop
+  rm -rf "$root"
+  if [ "$restore" = yes ]; then defaults import com.loci.native.dev "$preferences" >/dev/null 2>&1 || true; fi
+  rm -f "$preferences"
+' EXIT
+if defaults export com.loci.native.dev "$preferences" 2>/dev/null && [ -s "$preferences" ]; then restore=yes; fi
+defaults delete com.loci.native.dev lastWindow 2>/dev/null || true
+
+measured=""
 for run in $(seq "$runs"); do
   since="$(date '+%Y-%m-%d %H:%M:%S')"
-  LOCI_ROOT="$root" "$binary" >/dev/null 2>&1 &
-  pid=$!
-  sleep 3
-  kill "$pid" 2>/dev/null || true
-  wait "$pid" 2>/dev/null || true
-  /usr/bin/log show --start "$since" --style compact \
-    --predicate "subsystem == \"com.loci.native.dev\" AND category == \"launch\" AND processID == $pid" 2>/dev/null |
-    sed -n 's/.*start page shown \([0-9]*\) ms.*/\1/p' | sed "s/^/run $run: /;s/$/ ms/"
+  pid=""
+  open -n --env "LOCI_ROOT=$root" "$app"
+  for _ in $(seq 40); do
+    pid="$(pgrep -n -f "$binary" || true)"
+    if [ -n "$pid" ]; then break; fi
+    sleep 0.1
+  done
+  sleep 2
+  stop
+  elapsed="$(
+    /usr/bin/log show --start "$since" --style compact \
+      --predicate "subsystem == \"com.loci.native.dev\" AND category == \"launch\" AND processID == ${pid:-0}" 2>/dev/null |
+      sed -n 's/.*start page shown \([0-9]*\) ms.*/\1/p'
+  )"
+  if [ -n "$elapsed" ]; then
+    echo "run $run: $elapsed ms"
+    measured="$measured $elapsed"
+  else
+    echo "run $run: no start page was reported"
+  fi
 done
+
+if [ -n "$measured" ]; then
+  echo "worst: $(echo $measured | tr ' ' '\n' | sort -n | tail -1) ms"
+else
+  echo "no launch reported a start page; nothing was measured"
+fi
