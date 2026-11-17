@@ -15,7 +15,7 @@ struct OmpLiveTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let recorder = RecordingLauncher(folder: folder)
     let stage = Stage(
-      driver: OmpDriver(
+      driver: PiDriver.omp(
         executable: URL(filePath: environment["LOCI_OMP"] ?? ""),
         arguments: Self.arguments + ["--session-dir", folder.appending(path: "sessions").path], launcher: recorder),
       folder: folder)

@@ -11,17 +11,14 @@ public struct ClaudeCodeDriver: AgentDriver {
   private let clock: any Clock<Duration>
   private let makeSessionID: @Sendable () -> String
 
-  public init(
+  public static func claudeCode(
     executable: URL, arguments: [String] = [], environment: [String: String]? = nil,
     launcher: any ProgramLauncher = SystemLauncher(), clock: any Clock<Duration> = ContinuousClock(),
     makeSessionID: @escaping @Sendable () -> String = { UUID().uuidString.lowercased() }
-  ) {
-    self.executable = executable
-    self.arguments = arguments
-    self.environment = environment
-    self.launcher = launcher
-    self.clock = clock
-    self.makeSessionID = makeSessionID
+  ) -> ClaudeCodeDriver {
+    ClaudeCodeDriver(
+      executable: executable, arguments: arguments, environment: environment, launcher: launcher, clock: clock,
+      makeSessionID: makeSessionID)
   }
 
   public func open(_ configuration: SessionConfiguration) async throws(AgentError) -> any AgentSession {
@@ -44,7 +41,7 @@ public struct ClaudeCodeDriver: AgentDriver {
       _ = try await channel.request(.control("initialize"), within: .seconds(45))
       return ClaudeCodeSession(handle: handle, channel: channel, clock: clock)
     } catch {
-      await channel.shutDown(patience: .zero)
+      await channel.connection.shutDown(patience: .zero)
       if configuration.resume != nil, case .exited(_, let text) = error,
         text.localizedCaseInsensitiveContains("No conversation found")
       {

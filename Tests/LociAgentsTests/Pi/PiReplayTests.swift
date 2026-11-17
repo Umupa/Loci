@@ -15,7 +15,7 @@ struct PiReplayTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let launcher = try ScriptedLauncher("Pi/\(name)", folder: folder)
     let stage = Stage(
-      driver: PiDriver(
+      driver: PiDriver.pi(
         executable: URL(filePath: "/pi"),
         arguments: PiLiveTests.arguments + ["--session-dir", folder.appending(path: "sessions").path],
         launcher: launcher, clock: clock),

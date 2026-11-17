@@ -14,7 +14,7 @@ struct CodexLiveTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let recorder = RecordingLauncher(folder: folder)
     let stage = Stage(
-      driver: CodexDriver(
+      driver: CodexDriver.codex(
         executable: URL(filePath: environment["LOCI_CODEX"] ?? ""), arguments: Self.arguments, launcher: recorder),
       folder: folder)
     try await scenario(stage)

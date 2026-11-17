@@ -7,32 +7,46 @@ public struct AcpDriver: AgentDriver {
 
   private let executable: URL
   private let arguments: @Sendable (SessionConfiguration) -> [String]
-  private let environment: [String: String]?
+  private let environment: @Sendable (SessionConfiguration) -> [String: String]?
   private let launcher: any ProgramLauncher
   private let clock: any Clock<Duration>
-  var processDirectory: URL?
-  var supportsConfigOptions = false
-  var replyFailure: (@Sendable (String) -> String?)?
-  var configureSession:
-    (@Sendable (AcpChannel, JSONValue, String, SessionConfiguration) async throws(AgentError) -> Void)?
+  private let processDirectory: URL?
+  private let replyFailure: (@Sendable (String) -> String?)?
   private let resumeMethod: String
   private let mode: (@Sendable (SessionConfiguration) -> String)?
-  private let setModel: Bool
+  private let setModel: ModelSelection?
   private let authenticationMethod: String?
   private let clientMetadata: [String: JSONValue]
 
-  /// - Parameters:
-  ///   - arguments: The program's arguments for a session with this configuration.
-  ///   - environment: The program's whole environment; `nil` passes on this process's own.
-  ///   - resumeMethod: The ACP request that reopens an existing session.
-  ///   - setModel: Selects the configured model over ACP instead of through launch arguments.
-  ///   - mode: The approval mode to select over ACP; `nil` leaves it to launch arguments.
-  public init(
+  enum ModelSelection {
+    case preferConfigOption, requireConfigOption
+
+    func selector(in setup: JSONValue) throws(AgentError) -> String? {
+      let options = setup["configOptions"]?.array ?? []
+      switch self {
+      case .preferConfigOption:
+        return options.first { $0["category"]?.string == "model" || $0["id"]?.string == "model" }?["id"]?.string
+      case .requireConfigOption:
+        guard
+          let id =
+            (options.first { $0["id"]?.string == "model" && $0["type"]?.string != "boolean" }
+            ?? options.first {
+              $0["category"]?.string == "model" && $0["id"]?.string != "provider" && $0["type"]?.string != "boolean"
+            })?["id"]?.string
+        else { throw .rejected("Antigravity did not advertise a model selector") }
+        return id
+      }
+    }
+  }
+
+  init(
     provider: Mentor.Provider, executable: URL, arguments: @escaping @Sendable (SessionConfiguration) -> [String],
-    environment: [String: String]? = nil, launcher: any ProgramLauncher = SystemLauncher(),
-    clock: any Clock<Duration> = ContinuousClock(), setModel: Bool = false,
+    environment: @escaping @Sendable (SessionConfiguration) -> [String: String]? = { _ in nil },
+    launcher: any ProgramLauncher = SystemLauncher(),
+    clock: any Clock<Duration> = ContinuousClock(), setModel: ModelSelection? = nil,
     resumeMethod: String = "session/resume", mode: (@Sendable (SessionConfiguration) -> String)? = nil,
-    authenticationMethod: String? = nil, clientMetadata: [String: JSONValue] = [:]
+    authenticationMethod: String? = nil, clientMetadata: [String: JSONValue] = [:],
+    processDirectory: URL? = nil, replyFailure: (@Sendable (String) -> String?)? = nil
   ) {
     self.provider = provider
     self.executable = executable
@@ -45,11 +59,13 @@ public struct AcpDriver: AgentDriver {
     self.setModel = setModel
     self.authenticationMethod = authenticationMethod
     self.clientMetadata = clientMetadata
+    self.processDirectory = processDirectory
+    self.replyFailure = replyFailure
   }
 
-  /// Grok Build through `grok agent stdio`. `extra` goes before the subcommand, after the driver's own.
+  /// Grok Build through `grok agent stdio`. `arguments` goes before the subcommand, after the driver's own.
   public static func grok(
-    executable: URL, extra: [String] = [], environment: [String: String]? = nil,
+    executable: URL, arguments: [String] = [], environment: [String: String]? = nil,
     launcher: any ProgramLauncher = SystemLauncher(), clock: any Clock<Duration> = ContinuousClock()
   ) -> AcpDriver {
     AcpDriver(
@@ -60,11 +76,11 @@ public struct AcpDriver: AgentDriver {
         case .ask: all += ["--permission-mode", "default"]
         case .full: all += ["--always-approve"]
         }
-        all += extra + ["agent", "--no-leader"]
+        all += arguments + ["agent", "--no-leader"]
         if let model = configuration.model { all += ["--model", model] }
         return all + ["stdio"]
       },
-      environment: environment, launcher: launcher, clock: clock)
+      environment: { _ in environment }, launcher: launcher, clock: clock)
   }
 
   public func open(_ configuration: SessionConfiguration) async throws(AgentError) -> any AgentSession {
@@ -72,7 +88,7 @@ public struct AcpDriver: AgentDriver {
     let program = try launcher.launch(
       Invocation(
         executable: executable, arguments: arguments(configuration),
-        workingDirectory: processDirectory ?? configuration.workingDirectory, environment: environment))
+        workingDirectory: processDirectory ?? configuration.workingDirectory, environment: environment(configuration)))
     let channel = AcpChannel(program: program, clock: clock)
     do throws(AgentError) {
       let initialized = try await channel.request("initialize", initialize, within: .seconds(30))
@@ -104,35 +120,41 @@ public struct AcpDriver: AgentDriver {
       guard let id = setup["sessionId"]?.string ?? configuration.resume?.value else {
         throw AgentError.rejected(method)
       }
-      if setModel, let model = configuration.model {
-        let option = setup["configOptions"]?.array?.first {
-          $0["category"]?.string == "model" || $0["id"]?.string == "model"
-        }
-        if let config = option?["id"]?.string {
-          _ = try await channel.request(
-            "session/set_config_option",
-            .object(["sessionId": .string(id), "configId": .string(config), "value": .string(model)]),
-            within: .seconds(30))
-        } else {
-          _ = try await channel.request(
-            "session/set_model", .object(["sessionId": .string(id), "modelId": .string(model)]),
-            within: .seconds(30))
-        }
+      if setModel == .preferConfigOption {
+        try await selectModel(configuration, setup: setup, session: id, channel: channel)
       }
       if let mode {
         _ = try await channel.request(
           "session/set_mode", .object(["sessionId": .string(id), "modeId": .string(mode(configuration))]),
           within: .seconds(20))
       }
-      try await configureSession?(channel, setup, id, configuration)
+      if setModel == .requireConfigOption {
+        try await selectModel(configuration, setup: setup, session: id, channel: channel)
+      }
       await channel.beginSession()
       return AcpSession(
         handle: SessionHandle(provider: provider, value: id), channel: channel,
-        window: Self.window(in: setup, model: setModel ? configuration.model : nil),
+        window: Self.window(in: setup, model: setModel == .preferConfigOption ? configuration.model : nil),
         permission: configuration.permission, clock: clock, replyFailure: replyFailure)
     } catch {
-      await channel.shutDown(patience: .zero)
+      await channel.connection.shutDown(patience: .zero)
       throw error
+    }
+  }
+
+  private func selectModel(
+    _ configuration: SessionConfiguration, setup: JSONValue, session: String, channel: AcpChannel
+  ) async throws(AgentError) {
+    guard let setModel, let model = configuration.model else { return }
+    if let config = try setModel.selector(in: setup) {
+      _ = try await channel.request(
+        "session/set_config_option",
+        .object(["sessionId": .string(session), "configId": .string(config), "value": .string(model)]),
+        within: setModel == .requireConfigOption ? .seconds(15) : .seconds(30))
+    } else {
+      _ = try await channel.request(
+        "session/set_model", .object(["sessionId": .string(session), "modelId": .string(model)]),
+        within: .seconds(30))
     }
   }
 
@@ -151,7 +173,7 @@ public struct AcpDriver: AgentDriver {
     var capabilities: [String: JSONValue] = [
       "fs": .object(["readTextFile": .bool(false), "writeTextFile": .bool(false)]), "terminal": .bool(false),
     ]
-    if supportsConfigOptions {
+    if setModel == .requireConfigOption {
       capabilities["session"] = .object(["configOptions": .object(["boolean": .object([:])])])
     }
     if !clientMetadata.isEmpty { capabilities["_meta"] = .object(clientMetadata) }

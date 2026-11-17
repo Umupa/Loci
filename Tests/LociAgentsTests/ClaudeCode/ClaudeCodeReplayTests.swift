@@ -14,7 +14,7 @@ struct ClaudeCodeReplayTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let launcher = try ScriptedLauncher("ClaudeCode/\(name)", folder: folder)
     let stage = Stage(
-      driver: ClaudeCodeDriver(
+      driver: ClaudeCodeDriver.claudeCode(
         executable: URL(filePath: "/claude"), arguments: arguments,
         launcher: launcher, clock: clock, makeSessionID: { ClaudeCodeScenario.sessionID }), folder: folder)
     try await scenario(stage)

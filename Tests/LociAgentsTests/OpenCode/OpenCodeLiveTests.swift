@@ -22,7 +22,7 @@ struct OpenCodeLiveTests {
     environment["OPENCODE_DISABLE_CLAUDE_CODE"] = "true"
     environment["OPENCODE_DISABLE_DEFAULT_PLUGINS"] = "true"
     let recorder = RecordingLauncher(folder: folder)
-    let driver = OpenCodeDriver(
+    let driver = AcpDriver.opencode(
       executable: URL(filePath: environment["LOCI_OPENCODE"] ?? ""), environment: environment, launcher: recorder)
     try await scenario(Stage(driver: driver, folder: folder))
     if let directory = environment["LOCI_OPENCODE_RECORD"] {

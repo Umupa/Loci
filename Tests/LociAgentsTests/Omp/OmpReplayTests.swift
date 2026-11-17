@@ -11,7 +11,7 @@ struct OmpReplayTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let launcher = try ScriptedLauncher("Omp/\(name)", folder: folder)
     let stage = Stage(
-      driver: OmpDriver(
+      driver: PiDriver.omp(
         executable: URL(filePath: "/omp"),
         arguments: OmpLiveTests.arguments + ["--session-dir", folder.appending(path: "sessions").path],
         launcher: launcher),
@@ -51,14 +51,14 @@ struct OmpReplayTests {
   }
 
   @Test func aPiSessionCannotBeResumedByOmp() async throws {
-    let driver = OmpDriver(executable: URL(filePath: "/missing-omp"))
+    let driver = PiDriver.omp(executable: URL(filePath: "/missing-omp"))
     let configuration = SessionConfiguration(
       workingDirectory: URL(filePath: "/tmp"), permission: .full, resume: Scenario.missingSession)
     await #expect(throws: AgentError.sessionNotFound) { _ = try await driver.open(configuration) }
   }
 
   @Test func anOmpSessionCannotBeResumedByPi() async throws {
-    let driver = PiDriver(executable: URL(filePath: "/missing-pi"))
+    let driver = PiDriver.pi(executable: URL(filePath: "/missing-pi"))
     let configuration = SessionConfiguration(
       workingDirectory: URL(filePath: "/tmp"), permission: .full,
       resume: SessionHandle(provider: .omp, value: "stored-session"))

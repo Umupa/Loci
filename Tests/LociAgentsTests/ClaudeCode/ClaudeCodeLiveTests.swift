@@ -19,7 +19,7 @@ struct ClaudeCodeLiveTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let recorder = RecordingLauncher(folder: folder)
     let stage = Stage(
-      driver: ClaudeCodeDriver(
+      driver: ClaudeCodeDriver.claudeCode(
         executable: URL(filePath: environment["LOCI_CLAUDE_CODE"] ?? ""), arguments: Self.arguments,
         launcher: recorder, makeSessionID: { ClaudeCodeScenario.sessionID }), folder: folder)
     try await scenario(stage)

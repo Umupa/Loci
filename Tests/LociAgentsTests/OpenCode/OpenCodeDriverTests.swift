@@ -16,7 +16,7 @@ struct OpenCodeDriverTests {
 
   @Test func openingUsesACPInTheMentorsDirectoryAndPreservesItsEnvironment() async {
     let launcher = CapturingLauncher()
-    let driver = OpenCodeDriver(
+    let driver = AcpDriver.opencode(
       executable: URL(filePath: "/opencode"), arguments: ["--print-logs"],
       environment: ["PATH": "/bin", "OPENCODE_PERMISSION": #"{"*":"allow"}"#], launcher: launcher)
     let folder = URL(filePath: "/mentor")
@@ -32,7 +32,7 @@ struct OpenCodeDriverTests {
 
   @Test func fullAccessSetsOpenCodesDefaultPermissionToAllow() async {
     let launcher = CapturingLauncher()
-    let driver = OpenCodeDriver(executable: URL(filePath: "/opencode"), environment: [:], launcher: launcher)
+    let driver = AcpDriver.opencode(executable: URL(filePath: "/opencode"), environment: [:], launcher: launcher)
     await #expect(throws: AgentError.cannotLaunch("Captured")) {
       _ = try await driver.open(.init(workingDirectory: URL(filePath: "/mentor"), permission: .full))
     }
@@ -41,7 +41,7 @@ struct OpenCodeDriverTests {
 
   @Test func aHandleFromAnotherProviderIsRejectedBeforeLaunching() async {
     let launcher = CapturingLauncher()
-    let driver = OpenCodeDriver(executable: URL(filePath: "/opencode"), launcher: launcher)
+    let driver = AcpDriver.opencode(executable: URL(filePath: "/opencode"), launcher: launcher)
     await #expect(throws: AgentError.sessionNotFound) {
       _ = try await driver.open(
         .init(

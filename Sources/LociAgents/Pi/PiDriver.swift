@@ -16,11 +16,11 @@ public struct PiDriver: AgentDriver {
   ///   - executable: Where `pi` is installed.
   ///   - arguments: Extra arguments for every session, after the ones the driver chooses.
   ///   - environment: Pi's whole environment; `nil` passes on this process's own.
-  public init(
+  public static func pi(
     executable: URL, arguments: [String] = [], environment: [String: String]? = nil,
     launcher: any ProgramLauncher = SystemLauncher(), clock: any Clock<Duration> = ContinuousClock()
-  ) {
-    self.init(
+  ) -> PiDriver {
+    PiDriver(
       variant: .pi, executable: executable, arguments: arguments, environment: environment, launcher: launcher,
       clock: clock)
   }
@@ -55,7 +55,7 @@ public struct PiDriver: AgentDriver {
         handle: SessionHandle(provider: provider, value: id), channel: channel,
         window: state["model"]?["contextWindow"]?.int, clock: clock)
     } catch {
-      await channel.shutDown(patience: .zero)
+      await channel.connection.shutDown(patience: .zero)
       if configuration.resume != nil, case .exited(_, let said) = error, variant.sessionIsMissing(said) {
         throw .sessionNotFound
       }

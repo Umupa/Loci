@@ -10,7 +10,6 @@ actor PiSession: AgentSession {
   /// The caller asked the running turn, or the whole session, to stop.
   private var stopping = false
   private var closed = false
-  private var whenIdle: [CheckedContinuation<Void, Never>] = []
 
   init(handle: SessionHandle, channel: PiChannel, window: Int?, clock: any Clock<Duration>) {
     self.handle = handle
@@ -47,7 +46,7 @@ actor PiSession: AgentSession {
     }
     defer { deadline.cancel() }
     if stopping {
-      await idle()
+      await running?.pipe.finished.value
       return
     }
     stopping = true
@@ -58,26 +57,26 @@ actor PiSession: AgentSession {
         if !Task.isCancelled { forceInterrupt() }
       }
     }
-    await idle()
+    await running?.pipe.finished.value
     request.cancel()
   }
 
   func answer(_ request: PermissionRequest.ID, with answer: PermissionAnswer) async {
     guard let reply = running?.state.answer(request, with: answer) else { return }
-    await channel.send(reply)
+    do throws(AgentError) { try await channel.send(reply) } catch { finish(.failed(error)) }
   }
 
   func close() async {
     stopping = true
-    await channel.shutDown(patience: .seconds(3))
-    await idle()
+    await channel.connection.shutDown(patience: .seconds(3))
+    await running?.pipe.finished.value
   }
 
   private func listen() async {
     for await record in channel.records {
       await receive(record)
     }
-    let reason = await channel.ended ?? .exited(code: -1, diagnostics: "")
+    let reason = await channel.connection.ended ?? .exited(code: -1, diagnostics: "")
     finish(stopping ? .interrupted : .failed(reason))
   }
 
@@ -97,10 +96,10 @@ actor PiSession: AgentSession {
       if running != nil, !stopping, let event = running?.state.ask(dialog) {
         running?.pipe.yield(event)
       } else {
-        await channel.send(dialog.reply(to: .dismissed))
+        do throws(AgentError) { try await channel.send(dialog.reply(to: .dismissed)) } catch { finish(.failed(error)) }
       }
     case .unanswerable(let id, let title):
-      await channel.send(.reply(dialog: id, .cancelled))
+      do throws(AgentError) { try await channel.send(.reply(dialog: id, .cancelled)) } catch { finish(.failed(error)) }
       if !title.isEmpty { running?.pipe.yield(.notice(.message(title))) }
     case .notice(let notice):
       running?.pipe.yield(.notice(notice))
@@ -122,7 +121,7 @@ actor PiSession: AgentSession {
 
   private func withdraw() async {
     for (reply, event) in running?.state.withdraw() ?? [] {
-      await channel.send(reply)
+      do throws(AgentError) { try await channel.send(reply) } catch { finish(.failed(error)) }
       running?.pipe.yield(event)
     }
   }
@@ -130,7 +129,7 @@ actor PiSession: AgentSession {
   private func forceInterrupt() {
     guard running != nil else { return }
     closed = true
-    channel.terminate()
+    channel.connection.terminate()
     finish(.interrupted)
   }
 
@@ -139,12 +138,5 @@ actor PiSession: AgentSession {
     for (_, event) in running?.state.withdraw() ?? [] { turn.pipe.yield(event) }
     turn.pipe.end(end)
     running = nil
-    for continuation in whenIdle { continuation.resume() }
-    whenIdle = []
-  }
-
-  private func idle() async {
-    guard running != nil else { return }
-    await withCheckedContinuation { whenIdle.append($0) }
   }
 }

@@ -8,7 +8,6 @@ actor CodexSession: AgentSession {
   private var stopping = false
   private var closing = false
   private var generation = 0
-  private var whenIdle: [CheckedContinuation<Void, Never>] = []
 
   init(handle: SessionHandle, channel: CodexChannel, clock: any Clock<Duration>) {
     self.handle = handle
@@ -53,7 +52,7 @@ actor CodexSession: AgentSession {
     }
     defer { deadline.cancel() }
     if stopping {
-      await idle()
+      await running?.pipe.finished.value
       return
     }
     stopping = true
@@ -63,7 +62,7 @@ actor CodexSession: AgentSession {
       guard !Task.isCancelled else { return }
       if let id { await stopTurn(id) }
     }
-    await idle()
+    await running?.pipe.finished.value
     request.cancel()
   }
 
@@ -76,13 +75,13 @@ actor CodexSession: AgentSession {
     closing = true
     stopping = true
     await withdraw()
-    await channel.shutDown(patience: .seconds(3))
-    await idle()
+    await channel.connection.shutDown(patience: .seconds(3))
+    await running?.pipe.finished.value
   }
 
   private func listen() async {
     for await record in channel.records { await receive(record) }
-    let reason = await channel.ended ?? .exited(code: -1, diagnostics: "")
+    let reason = await channel.connection.ended ?? .exited(code: -1, diagnostics: "")
     finish(stopping ? .interrupted : .failed(reason))
   }
 
@@ -153,7 +152,7 @@ actor CodexSession: AgentSession {
   private func forceInterrupt() {
     guard running != nil else { return }
     closing = true
-    channel.terminate()
+    channel.connection.terminate()
     finish(.interrupted)
   }
 
@@ -162,12 +161,5 @@ actor CodexSession: AgentSession {
     for (_, event) in running?.state.withdraw() ?? [] { turn.pipe.yield(event) }
     turn.pipe.end(end)
     running = nil
-    for continuation in whenIdle { continuation.resume() }
-    whenIdle = []
-  }
-
-  private func idle() async {
-    guard running != nil else { return }
-    await withCheckedContinuation { whenIdle.append($0) }
   }
 }

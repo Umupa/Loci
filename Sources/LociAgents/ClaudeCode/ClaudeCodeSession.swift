@@ -7,7 +7,6 @@ actor ClaudeCodeSession: AgentSession {
   private var running: (state: ClaudeCodeTurnState, pipe: TurnPipe)?
   private var stopping = false
   private var closed = false
-  private var whenIdle: [CheckedContinuation<Void, Never>] = []
 
   init(handle: SessionHandle, channel: ClaudeCodeChannel, clock: any Clock<Duration>) {
     self.handle = handle
@@ -40,7 +39,7 @@ actor ClaudeCodeSession: AgentSession {
     }
     defer { deadline.cancel() }
     if stopping {
-      await idle()
+      await running?.pipe.finished.value
       return
     }
     stopping = true
@@ -51,7 +50,7 @@ actor ClaudeCodeSession: AgentSession {
         if !Task.isCancelled { forceInterrupt() }
       }
     }
-    await idle()
+    await running?.pipe.finished.value
     request.cancel()
   }
 
@@ -64,15 +63,15 @@ actor ClaudeCodeSession: AgentSession {
     closed = true
     stopping = true
     await withdraw()
-    await channel.shutDown(patience: .seconds(3))
-    await idle()
+    await channel.connection.shutDown(patience: .seconds(3))
+    await running?.pipe.finished.value
   }
 
   private func listen() async {
     for await record in channel.records {
       if case .message(let message) = record { await receive(message) }
     }
-    let error = await channel.ended ?? .exited(code: -1, diagnostics: "")
+    let error = await channel.connection.ended ?? .exited(code: -1, diagnostics: "")
     finish(stopping ? .interrupted : .failed(error))
   }
 
@@ -87,7 +86,7 @@ actor ClaudeCodeSession: AgentSession {
       if running != nil, !stopping, !closed {
         if let event = running?.state.ask(dialog) { running?.pipe.yield(event) }
       } else {
-        try? await channel.send(dialog.reply(to: .dismissed))
+        do throws(AgentError) { try await channel.send(dialog.reply(to: .dismissed)) } catch { finish(.failed(error)) }
       }
       return
     }
@@ -101,7 +100,7 @@ actor ClaudeCodeSession: AgentSession {
 
   private func withdraw() async {
     for (reply, event) in running?.state.withdraw() ?? [] {
-      try? await channel.send(reply)
+      do throws(AgentError) { try await channel.send(reply) } catch { finish(.failed(error)) }
       running?.pipe.yield(event)
     }
   }
@@ -109,7 +108,7 @@ actor ClaudeCodeSession: AgentSession {
   private func forceInterrupt() {
     guard running != nil else { return }
     closed = true
-    channel.terminate()
+    channel.connection.terminate()
     finish(.interrupted)
   }
 
@@ -118,12 +117,5 @@ actor ClaudeCodeSession: AgentSession {
     for (_, event) in running?.state.withdraw() ?? [] { turn.pipe.yield(event) }
     turn.pipe.end(end)
     running = nil
-    for continuation in whenIdle { continuation.resume() }
-    whenIdle = []
-  }
-
-  private func idle() async {
-    guard running != nil else { return }
-    await withCheckedContinuation { whenIdle.append($0) }
   }
 }

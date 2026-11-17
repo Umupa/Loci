@@ -14,7 +14,6 @@ actor AcpSession: AgentSession {
   /// The caller asked the running turn, or the whole session, to stop.
   private var stopping = false
   private var closed = false
-  private var whenIdle: [CheckedContinuation<Void, Never>] = []
 
   init(
     handle: SessionHandle, channel: AcpChannel, window: Int?, permission: Mentor.Permission, clock: any Clock<Duration>,
@@ -33,7 +32,7 @@ actor AcpSession: AgentSession {
   func send(_ text: String) async throws(AgentError) -> Turn {
     guard !closed else { throw .rejected("Session closed") }
     guard running == nil else { throw .turnInProgress }
-    if let ended = await channel.ended { throw ended }
+    if let ended = await channel.connection.ended { throw ended }
     let pipe = TurnPipe()
     running = (AcpTurnState(replyFailure: replyFailure), pipe)
     stopping = false
@@ -59,29 +58,33 @@ actor AcpSession: AgentSession {
     }
     defer { deadline.cancel() }
     if stopping {
-      await idle()
+      await running?.pipe.finished.value
       return
     }
     stopping = true
     let request = Task {
       await withdraw()
       guard !Task.isCancelled else { return }
-      await channel.notify("session/cancel", .object(["sessionId": .string(session)]))
+      do throws(AgentError) {
+        try await channel.notify("session/cancel", .object(["sessionId": .string(session)]))
+      } catch {
+        finish(.failed(error))
+      }
     }
-    await idle()
+    await running?.pipe.finished.value
     request.cancel()
   }
 
   func answer(_ request: PermissionRequest.ID, with answer: PermissionAnswer) async {
     guard let (id, result) = running?.state.answer(request, with: answer) else { return }
-    await channel.respond(to: id, with: result)
+    do throws(AgentError) { try await channel.respond(to: id, with: result) } catch { finish(.failed(error)) }
   }
 
   func close() async {
     stopping = true
     await withdraw()
-    await channel.shutDown(patience: .seconds(3))
-    await idle()
+    await channel.connection.shutDown(patience: .seconds(3))
+    await running?.pipe.finished.value
   }
 
   /// A turn the agent cancels by itself, as Grok does when a tool is denied, has still completed.
@@ -108,7 +111,7 @@ actor AcpSession: AgentSession {
     for await record in channel.records {
       await receive(record)
     }
-    let reason = await channel.ended ?? .exited(code: -1, diagnostics: "")
+    let reason = await channel.connection.ended ?? .exited(code: -1, diagnostics: "")
     finish(stopping ? .interrupted : .failed(reason))
   }
 
@@ -130,10 +133,12 @@ actor AcpSession: AgentSession {
           running?.pipe.yield(event)
         }
       } else {
-        await channel.respond(to: id, with: AcpTurnState.cancelled)
+        do throws(AgentError) { try await channel.respond(to: id, with: AcpTurnState.cancelled) } catch {
+          finish(.failed(error))
+        }
       }
     case .request(let id, let method, _):
-      await channel.refuse(id, method: method)
+      do throws(AgentError) { try await channel.refuse(id, method: method) } catch { finish(.failed(error)) }
     case .promptFinished(let result):
       settle(result)
     case .notification, .response:
@@ -144,14 +149,14 @@ actor AcpSession: AgentSession {
   private func withdraw() async {
     for (id, result, event) in running?.state.withdraw() ?? [] {
       running?.pipe.yield(event)
-      await channel.respond(to: id, with: result)
+      do throws(AgentError) { try await channel.respond(to: id, with: result) } catch { finish(.failed(error)) }
     }
   }
 
   private func forceInterrupt() {
     guard running != nil else { return }
     closed = true
-    channel.terminate()
+    channel.connection.terminate()
     finish(.interrupted)
   }
 
@@ -160,13 +165,6 @@ actor AcpSession: AgentSession {
     for (_, _, event) in running?.state.withdraw() ?? [] { turn.pipe.yield(event) }
     turn.pipe.end(end)
     running = nil
-    for continuation in whenIdle { continuation.resume() }
-    whenIdle = []
-  }
-
-  private func idle() async {
-    guard running != nil else { return }
-    await withCheckedContinuation { whenIdle.append($0) }
   }
 
   /// A refused prompt is the model's side failing, in the agent's own words.
