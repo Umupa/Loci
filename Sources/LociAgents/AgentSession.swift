@@ -18,4 +18,9 @@ public protocol AgentSession: Sendable {
 public struct Turn: Sendable {
   /// Finishes after exactly one `.ended`, which is always the last element.
   public let events: AsyncStream<AgentEvent>
+
+  /// Drivers make turns with their own pipe; this is for sessions written outside the drivers, such as fakes.
+  public init(events: AsyncStream<AgentEvent>) {
+    self.events = events
+  }
 }

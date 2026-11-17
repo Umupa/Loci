@@ -186,3 +186,19 @@ struct MentorFilesTests {
     }
   }
 }
+
+struct MentorSoulTests {
+  @Test func theSoulIsWrittenOnceAndAgentsFindItUnderTheirOwnName() throws {
+    try withStore { store in
+      let mentor = try Fixture.mentor()
+      try store.create(mentor)
+
+      try store.installSoul("Teach well.", for: mentor.id)
+      try store.installSoul("Overwritten?", for: mentor.id)
+
+      let folder = try store.workingFolder(of: mentor.id)
+      #expect(try String(contentsOf: folder.appending(path: "SOUL.md"), encoding: .utf8) == "Teach well.")
+      #expect(try String(contentsOf: folder.appending(path: "AGENTS.md"), encoding: .utf8) == "Teach well.")
+    }
+  }
+}

@@ -11,12 +11,17 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let database: StoreDatabase
   let environment: HostEnvironment
   let hub: Hub
+  let mentors: MentorRuntime
 
   private init(store: Store, database: StoreDatabase, environment: HostEnvironment, readingStateLost: Bool) {
     self.store = store
     self.database = database
     self.environment = environment
-    hub = Hub(health: Health(database: .rebuilding, readingStateLost: readingStateLost, fileProblems: []))
+    let hub = Hub(health: Health(database: .rebuilding, readingStateLost: readingStateLost, fileProblems: []))
+    self.hub = hub
+    mentors = MentorRuntime(
+      store: store, database: database, environment: environment,
+      follower: Follower(store: store, database: database, hub: hub))
   }
 
   /// Opens the database and starts serving from it at once, while the mirrors are rebuilt from the files
@@ -73,9 +78,11 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     return host
   }
 
-  /// Stops watching the folder. Subscriptions stay open but receive nothing more.
+  /// Stops watching the folder and stops every mentor's agent. Subscriptions stay open but receive nothing
+  /// more.
   public func close() async {
     await hub.stop()
+    await mentors.close()
   }
 
   public func run<C: Command>(_ command: C) async throws(HostError) -> C.Reply {
@@ -112,11 +119,6 @@ public final class LocalHost: LociModel.Host, CommandHandler {
 
   /// Brings the database up to date with changed files, then tells the subscriptions they affect.
   func follow(_ changes: Set<ContentChange>) async {
-    do {
-      await hub.followed(changes, problems: try database.apply(changes, from: store))
-    } catch {
-      await hub.failed(String(describing: error))
-    }
-    await hub.refresh(changes)
+    await Follower(store: store, database: database, hub: hub).follow(changes)
   }
 }

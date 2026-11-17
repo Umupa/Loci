@@ -10,11 +10,13 @@ extension LocalHost {
     let mentor = try attempt {
       try Mentor(
         id: environment.newID(), name: MentorLook.name(from: request), avatar: MentorLook.avatar(after: others),
-        color: MentorLook.color(after: others), provider: environment.defaultProvider, permission: .full,
+        color: MentorLook.color(after: others), provider: environment.defaultProvider, model: environment.defaultModel,
+        permission: .full,
         request: command.request.trimmingCharacters(in: .whitespacesAndNewlines))
     }
     try attempt { try store.create(mentor) }
     await follow([.mentor(mentor.id)])
+    try await begin(mentor)
     return mentor
   }
 
@@ -34,6 +36,7 @@ extension LocalHost {
 
   public func deleteMentor(_ command: DeleteMentor) async throws(HostError) -> Done {
     let lessons = store.loadMentor(command.mentor).value?.writtenLessons ?? []
+    await mentors.forget(command.mentor)
     try attempt { try store.deleteMentor(command.mentor, notes: command.notes) }
     var changes: Set<ContentChange> = [.mentor(command.mentor)]
     if command.notes == .delete {
