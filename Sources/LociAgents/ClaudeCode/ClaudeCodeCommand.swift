@@ -40,12 +40,4 @@ enum ClaudeCodeCommand: Hashable, Sendable {
       ])
     }
   }
-
-  func line(id: String) -> Data {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    var data = (try? encoder.encode(record(id: id))) ?? Data()
-    data.append(0x0A)
-    return data
-  }
 }

@@ -35,7 +35,7 @@ actor CodexChannel {
     let outcome = await withCheckedContinuation { continuation in
       waiting[id] = continuation
       do {
-        try program.write(CodexCommand.line(CodexCommand.request(method, params: params, id: id)))
+        try program.write(CodexCommand.request(method, params: params, id: id).line)
       } catch {
         resolve(id, .failure(.rejected(error.localizedDescription)))
       }
@@ -46,7 +46,7 @@ actor CodexChannel {
 
   func send(_ record: JSONValue) throws(AgentError) {
     if let ended { throw ended }
-    do { try program.write(CodexCommand.line(record)) } catch { throw .rejected(error.localizedDescription) }
+    do { try program.write(record.line) } catch { throw .rejected(error.localizedDescription) }
   }
 
   nonisolated func terminate() {

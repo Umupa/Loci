@@ -64,10 +64,6 @@ enum AcpOutgoing {
   }
 
   private static func line(_ members: [String: JSONValue]) -> Data {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    var data = (try? encoder.encode(JSONValue.object(members))) ?? Data()
-    data.append(0x0A)
-    return data
+    JSONValue.object(members).line
   }
 }

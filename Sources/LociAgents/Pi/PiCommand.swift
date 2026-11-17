@@ -36,13 +36,4 @@ enum PiCommand: Hashable, Sendable {
     }
     return .object(members)
   }
-
-  /// One line of JSON, ending in a line feed.
-  func line(id: String) -> Data {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    var data = (try? encoder.encode(record(id: id))) ?? Data()
-    data.append(0x0A)
-    return data
-  }
 }

@@ -38,7 +38,7 @@ actor ClaudeCodeChannel {
     }
     let outcome = await withCheckedContinuation { continuation in
       waiting[id] = continuation
-      do { try program.write(command.line(id: id)) } catch {
+      do { try program.write(command.record(id: id).line) } catch {
         resolve(id, .failure(.rejected(String(describing: error))))
       }
     }
@@ -49,7 +49,7 @@ actor ClaudeCodeChannel {
   /// Sends a record that has no control response.
   func send(_ command: ClaudeCodeCommand) throws(AgentError) {
     if let ended { throw ended }
-    do { try program.write(command.line(id: "")) } catch { throw .rejected(String(describing: error)) }
+    do { try program.write(command.record(id: "").line) } catch { throw .rejected(String(describing: error)) }
   }
 
   nonisolated func terminate() {

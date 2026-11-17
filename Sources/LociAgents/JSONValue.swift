@@ -35,6 +35,17 @@ public enum JSONValue: Hashable, Sendable {
   }
 }
 
+extension JSONValue {
+  /// The value as one line of JSON Lines: keys sorted, ending in a line feed.
+  var line: Data {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    var data = (try? encoder.encode(self)) ?? Data()
+    data.append(0x0A)
+    return data
+  }
+}
+
 extension JSONValue: Codable {
   public init(from decoder: any Decoder) throws {
     let container = try decoder.singleValueContainer()
