@@ -9,7 +9,7 @@ extension AcpDriver {
     AcpDriver(
       provider: .cursor, executable: executable, arguments: { _ in extra + ["acp"] },
       environment: environment, launcher: launcher, clock: clock, setModel: true,
-      authenticationMethod: "cursor_login", resumeMethod: "session/load",
+      resumeMethod: "session/load", authenticationMethod: "cursor_login",
       clientMetadata: ["parameterizedModelPicker": .bool(true)])
   }
 }

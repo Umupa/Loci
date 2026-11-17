@@ -10,20 +10,24 @@ public struct AcpDriver: AgentDriver {
   private let environment: [String: String]?
   private let launcher: any ProgramLauncher
   private let clock: any Clock<Duration>
+  private let resumeMethod: String
+  private let mode: (@Sendable (SessionConfiguration) -> String)?
   private let setModel: Bool
   private let authenticationMethod: String?
-  private let resumeMethod: String
   private let clientMetadata: [String: JSONValue]
 
   /// - Parameters:
   ///   - arguments: The program's arguments for a session with this configuration.
   ///   - environment: The program's whole environment; `nil` passes on this process's own.
+  ///   - resumeMethod: The ACP request that reopens an existing session.
+  ///   - setModel: Selects the configured model over ACP instead of through launch arguments.
+  ///   - mode: The approval mode to select over ACP; `nil` leaves it to launch arguments.
   public init(
     provider: Mentor.Provider, executable: URL, arguments: @escaping @Sendable (SessionConfiguration) -> [String],
     environment: [String: String]? = nil, launcher: any ProgramLauncher = SystemLauncher(),
     clock: any Clock<Duration> = ContinuousClock(), setModel: Bool = false,
-    authenticationMethod: String? = nil, resumeMethod: String = "session/resume",
-    clientMetadata: [String: JSONValue] = [:]
+    resumeMethod: String = "session/resume", mode: (@Sendable (SessionConfiguration) -> String)? = nil,
+    authenticationMethod: String? = nil, clientMetadata: [String: JSONValue] = [:]
   ) {
     self.provider = provider
     self.executable = executable
@@ -31,9 +35,10 @@ public struct AcpDriver: AgentDriver {
     self.environment = environment
     self.launcher = launcher
     self.clock = clock
+    self.resumeMethod = resumeMethod
+    self.mode = mode
     self.setModel = setModel
     self.authenticationMethod = authenticationMethod
-    self.resumeMethod = resumeMethod
     self.clientMetadata = clientMetadata
   }
 
@@ -110,9 +115,15 @@ public struct AcpDriver: AgentDriver {
             within: .seconds(30))
         }
       }
-      await channel.acceptUpdates()
+      if let mode {
+        _ = try await channel.request(
+          "session/set_mode", .object(["sessionId": .string(id), "modeId": .string(mode(configuration))]),
+          within: .seconds(20))
+      }
+      await channel.beginSession()
       return AcpSession(
-        handle: SessionHandle(provider: provider, value: id), channel: channel, window: Self.window(in: setup),
+        handle: SessionHandle(provider: provider, value: id), channel: channel,
+        window: Self.window(in: setup, model: setModel ? configuration.model : nil),
         permission: configuration.permission)
     } catch {
       await channel.shutDown(patience: .zero)
@@ -143,10 +154,10 @@ public struct AcpDriver: AgentDriver {
   }
 
   /// The context window of the session's model, when the agent lists its models.
-  private static func window(in setup: JSONValue) -> Int? {
-    let current = setup["models"]?["currentModelId"]?.string
+  private static func window(in setup: JSONValue, model selected: String?) -> Int? {
+    let current = selected ?? setup["models"]?["currentModelId"]?.string
     let models = setup["models"]?["availableModels"]?.array ?? []
-    let model = models.first { $0["modelId"]?.string == current } ?? models.first
+    let model = models.first { $0["modelId"]?.string == current } ?? (current == nil ? models.first : nil)
     return model?["_meta"]?["totalContextTokens"]?.int
   }
 }

@@ -1,0 +1,30 @@
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"}}}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true}}}}
+{"to":{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]}}}
+{"from":{"jsonrpc":"2.0","id":2,"result":{"sessionId":"hermes-session-1","models":{"currentModelId":"default-model"}}}}
+{"to":{"jsonrpc":"2.0","id":3,"method":"session/set_mode","params":{"sessionId":"hermes-session-1","modeId":"dont_ask"}}}
+{"from":{"jsonrpc":"2.0","id":3,"result":{}}}
+{"to":{"jsonrpc":"2.0","id":4,"method":"session/prompt","params":{"sessionId":"hermes-session-1","prompt":[{"type":"text","text":"Remember this word: quokka. Reply with exactly: OK"}]}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"OK"}}}}}
+{"from":{"jsonrpc":"2.0","id":4,"result":{"stopReason":"end_turn"}}}
+{"close":true}
+{"exit":0,"stderr":""}
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"}}}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true}}}}
+{"to":{"jsonrpc":"2.0","id":2,"method":"session/load","params":{"cwd":"$FOLDER","mcpServers":[],"sessionId":"hermes-session-1"}}}
+{"from":{"jsonrpc":"2.0","id":90,"method":"fs/read_text_file","params":{"sessionId":"hermes-session-1","path":"notes.txt"}}}
+{"to":{"jsonrpc":"2.0","id":90,"error":{"code":-32601,"message":"Method not found: fs/read_text_file"}}}
+{"from":{"jsonrpc":"2.0","id":91,"method":"session/request_permission","params":{"sessionId":"hermes-session-1","toolCall":{"toolCallId":"old-tool","title":"Old command"},"options":[{"optionId":"allow_once","kind":"allow_once"}]}}}
+{"to":{"jsonrpc":"2.0","id":91,"result":{"outcome":{"outcome":"cancelled"}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"Old question"}}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Old answer that must not appear in the next turn"}}}}}
+{"from":{"jsonrpc":"2.0","id":2,"result":{"models":{"currentModelId":"default-model"}}}}
+{"to":{"jsonrpc":"2.0","id":3,"method":"session/set_mode","params":{"sessionId":"hermes-session-1","modeId":"dont_ask"}}}
+{"from":{"jsonrpc":"2.0","id":3,"result":{}}}
+{"to":{"jsonrpc":"2.0","id":4,"method":"session/prompt","params":{"sessionId":"hermes-session-1","prompt":[{"type":"text","text":"Which word did I ask you to remember? Reply with just that word."}]}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"quokka"}}}}}
+{"from":{"jsonrpc":"2.0","id":4,"result":{"stopReason":"end_turn"}}}
+{"close":true}
+{"exit":0,"stderr":""}

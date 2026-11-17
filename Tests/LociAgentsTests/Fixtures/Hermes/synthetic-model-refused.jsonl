@@ -1,0 +1,9 @@
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"}}}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true}}}}
+{"to":{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]}}}
+{"from":{"jsonrpc":"2.0","id":2,"result":{"sessionId":"hermes-session-1","models":{"currentModelId":"default-model"}}}}
+{"to":{"jsonrpc":"2.0","id":3,"method":"session/set_model","params":{"sessionId":"hermes-session-1","modelId":"unknown"}}}
+{"from":{"jsonrpc":"2.0","id":3,"error":{"code":-32602,"message":"Unknown model"}}}
+{"close":true}
+{"exit":0,"stderr":""}
