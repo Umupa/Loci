@@ -38,7 +38,13 @@ extension LocalHost {
   public func deleteMentor(_ command: DeleteMentor) async throws(HostError) -> Done {
     let lessons = store.loadMentor(command.mentor).value?.writtenLessons ?? []
     await mentors.forget(command.mentor)
-    try attempt { try store.deleteMentor(command.mentor, notes: command.notes) }
+    do throws(HostError) {
+      try attempt { try store.deleteMentor(command.mentor, notes: command.notes) }
+      await mentors.forgotten(command.mentor)
+    } catch {
+      await mentors.forgotten(command.mentor)
+      throw error
+    }
     var changes: Set<ContentChange> = [.mentor(command.mentor)]
     if command.notes == .delete {
       for lesson in lessons { changes.insert(.notes(.lesson(LessonRef(mentor: command.mentor, lesson: lesson)))) }

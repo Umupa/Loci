@@ -26,7 +26,7 @@ struct ConversationScenarioTests {
   @Test func aReplyStreamsIntoTheConversation() async throws {
     try await withHost(agent: Self.quiet) { host, _, _ in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = await settled(host, mentor.id)
+      _ = try #require(await settled(host, mentor.id))
       let feed = host.subscribe(MentorConversation(mentor: mentor.id))
 
       _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))
@@ -56,7 +56,7 @@ struct ConversationScenarioTests {
     let agent = FakeAgent { prompt in prompt == "Run it" ? .askToRun : .reply("Ready.") }
     try await withHost(agent: agent) { host, _, _ in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = await settled(host, mentor.id)
+      _ = try #require(await settled(host, mentor.id))
       let feed = host.subscribe(MentorConversation(mentor: mentor.id))
 
       _ = try await host.run(SendMessage(mentor: mentor.id, text: "Run it"))
@@ -79,7 +79,7 @@ struct ConversationScenarioTests {
     let agent = FakeAgent { prompt in prompt == "Take your time" ? .hang : .reply("Ready.") }
     try await withHost(agent: agent) { host, _, _ in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = await settled(host, mentor.id)
+      _ = try #require(await settled(host, mentor.id))
       _ = try await host.run(SendMessage(mentor: mentor.id, text: "Take your time"))
 
       _ = try await host.run(StopTurn(mentor: mentor.id))
@@ -105,7 +105,7 @@ struct ConversationScenarioTests {
     let second = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
     let after = try await second.conversation(of: mentor.id)
     _ = try await second.run(SendMessage(mentor: mentor.id, text: "Still there?"))
-    _ = await settled(second, mentor.id, turns: 2)
+    _ = try #require(await settled(second, mentor.id, turns: 2))
     await second.close()
 
     #expect(after.messages == before?.messages)
@@ -115,7 +115,7 @@ struct ConversationScenarioTests {
   @Test func aMentorWhoseAgentIsMissingSaysSo() async throws {
     try await withHost { host, place, world in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = await settled(host, mentor.id)
+      _ = try #require(await settled(host, mentor.id))
       let grok = try Mentor(
         id: mentor.id, name: mentor.name, avatar: mentor.avatar, color: mentor.color, provider: .grok,
         permission: .full)
@@ -131,11 +131,26 @@ struct ConversationScenarioTests {
   @Test func deletingAMentorDeletesItsConversation() async throws {
     try await withHost(agent: Self.quiet) { host, _, _ in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = await settled(host, mentor.id)
+      _ = try #require(await settled(host, mentor.id))
 
       _ = try await host.run(DeleteMentor(mentor: mentor.id, notes: .delete))
 
       await #expect(throws: HostError.self) { try await host.conversation(of: mentor.id) }
+    }
+  }
+
+  /// While a mentor is being deleted its files are still there, and a refresh then must not bring its
+  /// conversation back.
+  @Test func aMentorBeingDeletedGetsNoNewConversation() async throws {
+    try await withHost(agent: Self.quiet) { host, _, _ in
+      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      _ = try #require(await settled(host, mentor.id))
+
+      await host.mentors.forget(mentor.id)
+
+      await #expect(throws: HostError.notFound(mentor.id.description)) { try await host.conversation(of: mentor.id) }
+      await host.mentors.forgotten(mentor.id)
+      #expect(try await host.conversation(of: mentor.id).messages.isEmpty)
     }
   }
 }
