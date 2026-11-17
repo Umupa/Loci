@@ -33,6 +33,11 @@ actor MentorRuntime {
     await questions.close(mentor)
   }
 
+  /// Applies a mentor's new agent settings to its live sessions. A mentor with no run has nothing open.
+  func settingsChanged(_ mentor: Mentor) async {
+    await runs[mentor.id]?.settingsChanged(to: mentor)
+  }
+
   /// The deletion is over: the files are gone, or deleting them failed and the mentor stays.
   func forgotten(_ mentor: EntityID) {
     leaving.remove(mentor)

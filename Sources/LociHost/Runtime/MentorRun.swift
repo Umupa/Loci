@@ -122,8 +122,22 @@ actor MentorRun {
   }
 
   private func dropSession() async {
-    await session?.close()
+    let closing = session
     session = nil
+    openedFor = nil
+    await closing?.close()
+  }
+
+  /// The mentor's agent, model or permission was changed. A session opened with other settings is closed
+  /// now rather than at the next message. A turn running with full access for a mentor that must now ask
+  /// is stopped, so not one more tool runs without asking; other changes wait for the turn to end.
+  func settingsChanged(to mentor: Mentor) async {
+    guard let openedFor, openedFor != (mentor.provider, mentor.model, mentor.permission) else { return }
+    if turn != nil {
+      guard openedFor.permission == .full, mentor.permission == .ask else { return }
+      await stop()
+    }
+    await dropSession()
   }
 
   /// The live session, resuming the conversation's own when the agent still has it.
@@ -157,6 +171,11 @@ actor MentorRun {
       throw TurnFailure(reason: error.explanation)
     }
     try record(opened.handle, provider: mentor.provider)
+    let now = try TurnFailure.from { () throws(HostError) in try attempt { try store.mentor(self.mentor) } }
+    guard (now.provider, now.model, now.permission) == (mentor.provider, mentor.model, mentor.permission) else {
+      await opened.close()
+      return try await openSession()
+    }
     session = opened
     openedFor = (mentor.provider, mentor.model, mentor.permission)
     return opened

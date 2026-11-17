@@ -28,6 +28,7 @@ extension LocalHost {
       try store.save(changed)
       return changed
     }
+    await mentors.settingsChanged(changed)
     await follow([.mentor(changed.id)])
     return changed
   }
