@@ -34,7 +34,8 @@ enum Architecture {
     "LociUI": Module(
       uses: ["LociModel"],
       frameworks: ["Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "UniformTypeIdentifiers", "os"]),
-    "LociEval": Module(uses: ["LociModel", "LociHost"], frameworks: ["Foundation"], isExecutable: true),
+    "LociEval": Module(
+      uses: ["LociModel", "LociHost", "LociAgents"], frameworks: ["Foundation"], isExecutable: true),
     "Loci": Module(
       uses: ["LociModel", "LociUI", "LociHost"], frameworks: ["Foundation", "SwiftUI", "os"], isExecutable: true),
   ]
@@ -46,7 +47,7 @@ enum Architecture {
       pattern: #"\bProcess\("#, allowedIn: ["LociAgents", "LociMedia"],
       fix: "Only LociAgents and LociMedia start other programs. Ask for the result through the Host instead."),
     Restriction(
-      pattern: #"\bFileManager\b"#, allowedIn: ["LociStore"],
+      pattern: #"\bFileManager\b"#, allowedIn: ["LociStore", "LociEval"],
       fix: "Only LociStore touches the disk. Add what you need to the store and call that."),
     Restriction(
       pattern: #"\bURLSession\b"#, allowedIn: ["LociMedia", "LociRemote"],

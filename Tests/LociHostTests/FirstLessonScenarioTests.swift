@@ -17,15 +17,17 @@ struct FirstLessonScenarioTests {
     """
 
   /// Writes the catalog and the first lesson when asked to begin, and any lesson it is asked to write.
-  private static let author = FakeAgent { prompt in
-    if prompt.contains("new mentor") {
-      return .write(
-        ["catalog.yaml": catalog, "lessons/why-schedule.md": "Pods need a node.\n"], reply: "The course is ready.")
+  private static var author: FakeAgent {
+    FakeAgent { prompt in
+      if prompt.contains("new mentor") {
+        return .write(
+          ["catalog.yaml": catalog, "lessons/why-schedule.md": "Pods need a node.\n"], reply: "The course is ready.")
+      }
+      if prompt.contains("`filters`") {
+        return .write(["lessons/filters.md": "First filter, then score.\n"], reply: "Written.")
+      }
+      return .reply("Ready.")
     }
-    if prompt.contains("`filters`") {
-      return .write(["lessons/filters.md": "First filter, then score.\n"], reply: "Written.")
-    }
-    return .reply("Ready.")
   }
 
   /// α2-S1: a sentence makes a mentor that writes its catalog and then its first lesson.

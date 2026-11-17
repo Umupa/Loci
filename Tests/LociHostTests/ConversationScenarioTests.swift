@@ -6,8 +6,8 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct ConversationScenarioTests {
-  private static let quiet = FakeAgent { prompt in
-    prompt.contains("new mentor") ? .reply("Ready.") : .reply("Hello there.")
+  private static var quiet: FakeAgent {
+    FakeAgent { prompt in prompt.contains("new mentor") ? .reply("Ready.") : .reply("Hello there.") }
   }
 
   /// Waits for the mentor's first turn, which every new mentor starts with, to end.

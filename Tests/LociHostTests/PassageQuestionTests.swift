@@ -6,8 +6,10 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct PassageQuestionTests {
-  private static let agent = FakeAgent { prompt in
-    prompt.contains("asks about this passage") ? .reply("Because nodes differ.") : .reply("Ready.")
+  private static var agent: FakeAgent {
+    FakeAgent { prompt in
+      prompt.contains("asks about this passage") ? .reply("Because nodes differ.") : .reply("Ready.")
+    }
   }
 
   private func eventually(_ condition: () -> Bool) async -> Bool {

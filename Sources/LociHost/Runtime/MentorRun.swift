@@ -83,6 +83,7 @@ actor MentorRun {
       let session = try await openSession()
       if !stopping {
         let started = try await TurnFailure.awaiting { () async throws(AgentError) in try await session.send(text) }
+        if stopping { Task { await session.interrupt() } }
         for await event in started.events {
           turn?.apply(event, at: context.environment.now())
           if case .ended(.failed(.exited)) = event { await dropSession() }

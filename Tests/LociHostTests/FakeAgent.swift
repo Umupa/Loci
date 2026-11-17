@@ -51,6 +51,7 @@ private actor FakeSession: AgentSession {
   private var answers: [String: CheckedContinuation<PermissionAnswer, Never>] = [:]
   private var interrupted: CheckedContinuation<Void, Never>?
   private var busy = false
+  private var wasInterrupted = false
 
   init(handle: SessionHandle, folder: URL, agent: FakeAgent) {
     self.handle = handle
@@ -61,6 +62,7 @@ private actor FakeSession: AgentSession {
   func send(_ text: String) async throws(AgentError) -> Turn {
     guard !busy else { throw .turnInProgress }
     busy = true
+    wasInterrupted = false
     let (events, out) = AsyncStream.makeStream(of: AgentEvent.self)
     let behavior = agent.behavior(for: text)
     Task {
@@ -73,6 +75,7 @@ private actor FakeSession: AgentSession {
   }
 
   func interrupt() async {
+    if busy { wasInterrupted = true }
     interrupted?.resume()
     interrupted = nil
     for (_, waiting) in answers { waiting.resume(returning: .dismissed) }
@@ -116,7 +119,7 @@ private actor FakeSession: AgentSession {
       return .completed
     case .hang:
       out.yield(.text("Working"))
-      await withCheckedContinuation { interrupted = $0 }
+      if !wasInterrupted { await withCheckedContinuation { interrupted = $0 } }
       return .interrupted
     case .write(let files, let reply):
       for (path, text) in files.sorted(by: { $0.key < $1.key }) {
