@@ -3,6 +3,7 @@ struct AcpTurnState: Sendable {
   private var inputs: [String: JSONValue] = [:]
   private var running: Set<String> = []
   private var finished: Set<String> = []
+  private var outputs: [String: String] = [:]
   private var asking: [String: (id: JSONValue, options: [String])] = [:]
   private let replyFailure: (@Sendable (String) -> String?)?
   private var reply = ""
@@ -32,7 +33,12 @@ struct AcpTurnState: Sendable {
     case "tool_call", "tool_call_update":
       return tool(update)
     case "usage_update":
-      return [.context(ContextUsage(used: update["used"]?.int, window: update["size"]?.int))]
+      return [.context(.init(used: update["used"]?.int, window: update["size"]?.int))]
+    case "session_info_update":
+      if update["_meta"]?["opencode/compaction"]?["status"]?.string == "started" {
+        return [.notice(.compacting)]
+      }
+      return []
     default:
       return []
     }
@@ -84,6 +90,7 @@ struct AcpTurnState: Sendable {
 
   private mutating func tool(_ update: JSONValue) -> [AgentEvent] {
     guard let id = update["toolCallId"]?.string else { return [] }
+    guard !finished.contains(id) else { return [] }
     var events: [AgentEvent] = []
     let input = update["rawInput"].flatMap { if case .object = $0 { $0 } else { nil } }
     if let known = inputs[id] {
@@ -97,7 +104,8 @@ struct AcpTurnState: Sendable {
       let name = Self.toolName(update) ?? "tool"
       events.append(.toolCall(ToolCall(id: .init(id), name: name, kind: Self.kind(update), input: given)))
     }
-    guard !finished.contains(id) else { return events }
+    let previousOutput = outputs[id]
+    if update["content"] != nil || update["rawOutput"] != nil { outputs[id] = Self.output(update) }
     switch update["status"]?.string {
     case "in_progress":
       if running.insert(id).inserted { events.append(.toolCallChanged(.init(id), .running)) }
@@ -105,9 +113,12 @@ struct AcpTurnState: Sendable {
       finished.insert(id)
       events.append(
         .toolCallChanged(
-          .init(id), .finished(output: Self.output(update), failed: update["status"]?.string == "failed")))
+          .init(id), .finished(output: outputs[id] ?? "", failed: update["status"]?.string == "failed")))
     default:
       break
+    }
+    if !finished.contains(id), let output = outputs[id], output != previousOutput {
+      events.append(.toolCallChanged(.init(id), .output(output)))
     }
     return events
   }

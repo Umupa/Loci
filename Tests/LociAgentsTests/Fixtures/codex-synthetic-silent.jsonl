@@ -1,0 +1,4 @@
+{"launch":["app-server","-c","model_reasoning_effort=\"low\""]}
+{"to":{"id":"loci-1","method":"initialize","params":{"capabilities":{"experimentalApi":false},"clientInfo":{"name":"loci","version":"0.1.0"}}}}
+{"close":true}
+{"exit":0,"stderr":""}

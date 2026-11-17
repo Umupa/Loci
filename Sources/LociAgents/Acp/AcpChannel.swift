@@ -10,6 +10,7 @@ actor AcpChannel {
   private let incoming: AsyncStream<AcpRecord>.Continuation
   private var framer = LineFramer()
   private var sent = 0
+  private var promptID: Int?
   private var waiting: [Int: CheckedContinuation<Result<JSONValue, AgentError>, Never>] = [:]
   private var diagnostics = Data()
   private var open = (output: true, diagnostics: true)
@@ -50,6 +51,18 @@ actor AcpChannel {
     try? program.write(AcpOutgoing.notification(method: method, params: params))
   }
 
+  func prompt(_ params: JSONValue) throws(AgentError) {
+    if let ended { throw ended }
+    sent += 1
+    promptID = sent
+    do {
+      try program.write(AcpOutgoing.request(id: sent, method: "session/prompt", params: params))
+    } catch {
+      promptID = nil
+      throw .rejected(error.localizedDescription)
+    }
+  }
+
   func respond(to id: JSONValue, with result: JSONValue) {
     try? program.write(AcpOutgoing.result(id: id, result))
   }
@@ -80,7 +93,12 @@ actor AcpChannel {
       for line in framer.receive(chunk) {
         guard let record = AcpRecord(line: line) else { continue }
         if case .response(let id, let outcome) = record {
-          resolve(id, outcome)
+          if id == promptID {
+            promptID = nil
+            incoming.yield(.promptFinished(outcome))
+          } else {
+            resolve(id, outcome)
+          }
         } else {
           incoming.yield(record)
         }

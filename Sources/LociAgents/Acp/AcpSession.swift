@@ -31,7 +31,12 @@ actor AcpSession: AgentSession {
       "sessionId": .string(session),
       "prompt": .array([.object(["type": .string("text"), "text": .string(text)])]),
     ])
-    Task { await self.prompt(params) }
+    do {
+      try await channel.prompt(params)
+    } catch {
+      finish(.failed(error))
+      throw error
+    }
     return pipe.turn
   }
 
@@ -56,17 +61,17 @@ actor AcpSession: AgentSession {
   }
 
   /// A turn the agent cancels by itself, as Grok does when a tool is denied, has still completed.
-  private func prompt(_ params: JSONValue) async {
+  private func settle(_ outcome: Result<JSONValue, AgentError>) {
     var end: TurnEnd
-    do throws(AgentError) {
-      let result = try await channel.request("session/prompt", params, within: nil)
+    switch outcome {
+    case .success(let result):
       switch result["stopReason"]?.string {
       case "cancelled": end = stopping ? .interrupted : .completed
       case "refusal": end = .failed(.provider("The model refused to answer."))
       case "end_turn", nil: end = stopping ? .interrupted : .completed
       case let reason?: end = stopping ? .interrupted : .failed(.provider("The agent ended the turn (\(reason))."))
       }
-    } catch {
+    case .failure(let error):
       end = stopping ? .interrupted : .failed(Self.providerSide(error))
     }
     if end == .completed, let failure = running?.state.failure { end = .failed(failure) }
@@ -87,15 +92,20 @@ actor AcpSession: AgentSession {
   private func receive(_ record: AcpRecord) async {
     switch record {
     case .notification("session/update", let params):
+      guard params["sessionId"]?.string == session else { return }
       for event in running?.state.receive(params) ?? [] { running?.pipe.yield(event) }
     case .request(let id, "session/request_permission", let params):
-      if running != nil, !stopping, let event = running?.state.ask(id: id, params) {
+      if params["sessionId"]?.string == session, running != nil, !stopping,
+        let event = running?.state.ask(id: id, params)
+      {
         running?.pipe.yield(event)
       } else {
         await channel.respond(to: id, with: AcpTurnState.cancelled)
       }
     case .request(let id, let method, _):
       await channel.refuse(id, method: method)
+    case .promptFinished(let result):
+      settle(result)
     case .notification, .response:
       break
     }
@@ -103,8 +113,8 @@ actor AcpSession: AgentSession {
 
   private func withdraw() async {
     for (id, result, event) in running?.state.withdraw() ?? [] {
-      await channel.respond(to: id, with: result)
       running?.pipe.yield(event)
+      await channel.respond(to: id, with: result)
     }
   }
 
