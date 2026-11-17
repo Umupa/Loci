@@ -1,0 +1,4 @@
+{"launch":["--mode","rpc","--approval-mode","yolo","--model","nope/none","--no-extensions","--no-skills","--no-rules","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"exit":1,"stderr":"Warning: Unknown compat key in $OMP_AGENT/models.yml: providers.magpie.compat.sendSessionAffinityHeaders (configuration still loaded).\nModel \"nope/none\" not found\n\nRun `omp models find <pattern>` to search, or `omp models` to list all.\n"}
+{"close":true}

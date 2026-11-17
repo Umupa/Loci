@@ -7,6 +7,7 @@ enum AcpRecord: Hashable, Sendable {
   /// The agent asks the client something and waits for the answer.
   case request(id: JSONValue, method: String, params: JSONValue)
   case notification(method: String, params: JSONValue)
+  case promptFinished(Result<JSONValue, AgentError>)
 
   init?(line: Data) {
     guard let record = try? JSONDecoder().decode(JSONValue.self, from: line) else { return nil }
@@ -31,7 +32,10 @@ enum AcpRecord: Hashable, Sendable {
   /// The agent's own explanation, preferring the detail in `data` over the bare message.
   private static func failure(_ error: JSONValue) -> AgentError {
     if error["data"]?["code"]?.string == "FS_NOT_FOUND" { return .sessionNotFound }
-    let detail = error["data"]?["message"]?.string ?? error["data"]?.string ?? error["data"]?["detail"]?.string
+    if error["code"]?.int == -32002, error["data"]?["sessionId"]?.string != nil { return .sessionNotFound }
+    let detail =
+      error["data"]?["details"]?.string ?? error["data"]?["message"]?.string
+      ?? error["data"]?.string ?? error["data"]?["detail"]?.string
     let message = error["message"]?.string ?? ""
     let words = [message, detail ?? ""].filter { !$0.isEmpty }.joined(separator: ": ")
     return .rejected(words.isEmpty ? "the agent refused the request" : words)
@@ -60,10 +64,6 @@ enum AcpOutgoing {
   }
 
   private static func line(_ members: [String: JSONValue]) -> Data {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    var data = (try? encoder.encode(JSONValue.object(members))) ?? Data()
-    data.append(0x0A)
-    return data
+    JSONValue.object(members).line
   }
 }

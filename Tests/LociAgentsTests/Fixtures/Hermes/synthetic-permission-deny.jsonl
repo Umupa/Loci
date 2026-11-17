@@ -1,0 +1,16 @@
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"}}}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true}}}}
+{"to":{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]}}}
+{"from":{"jsonrpc":"2.0","id":2,"result":{"sessionId":"hermes-session-1","models":{"currentModelId":"default-model"}}}}
+{"to":{"jsonrpc":"2.0","id":3,"method":"session/set_mode","params":{"sessionId":"hermes-session-1","modeId":"default"}}}
+{"from":{"jsonrpc":"2.0","id":3,"result":{}}}
+{"to":{"jsonrpc":"2.0","id":4,"method":"session/prompt","params":{"sessionId":"hermes-session-1","prompt":[{"type":"text","text":"Use your terminal tool to run exactly this command: echo loci-$((6*7))\nThen tell me what it printed."}]}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"tool_call_update","toolCallId":"tool-1","status":"pending","kind":"execute","title":"Run command","rawInput":{"command":"echo loci-$((6*7))"}}}}}
+{"from":{"jsonrpc":"2.0","id":91,"method":"session/request_permission","params":{"sessionId":"hermes-session-1","toolCall":{"toolCallId":"tool-1","title":"Run command","kind":"execute"},"options":[{"optionId":"allow_once","name":"Allow once","kind":"allow_once"},{"optionId":"deny","name":"Deny","kind":"reject_once"}]}}}
+{"to":{"jsonrpc":"2.0","id":91,"result":{"outcome":{"outcome":"selected","optionId":"deny"}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"tool_call_update","toolCallId":"tool-1","status":"failed","kind":"execute","title":"Run command","rawInput":{"command":"echo loci-$((6*7))"},"content":[{"type":"content","content":{"type":"text","text":"User denied execution"}}]}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Denied"}}}}}
+{"from":{"jsonrpc":"2.0","id":4,"result":{"stopReason":"end_turn"}}}
+{"close":true}
+{"exit":0,"stderr":""}

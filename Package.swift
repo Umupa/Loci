@@ -22,17 +22,21 @@ let package = Package(
       swiftSettings: strict),
     .target(
       name: "LociAgents", dependencies: ["LociModel"], resources: [.copy("Resources")], swiftSettings: strict),
-    .target(name: "LociHost", dependencies: ["LociModel", "LociStore"], swiftSettings: strict),
+    .target(
+      name: "LociHost", dependencies: ["LociModel", "LociStore", "LociAgents"], resources: [.copy("Resources")],
+      swiftSettings: strict),
     .target(
       name: "LociUI", dependencies: ["LociModel", .product(name: "Markdown", package: "swift-markdown")],
       resources: [.process("Resources")], swiftSettings: strict),
+    .executableTarget(name: "LociEval", dependencies: ["LociModel", "LociHost", "LociAgents"], swiftSettings: strict),
     .executableTarget(name: "Loci", dependencies: ["LociModel", "LociUI", "LociHost"], swiftSettings: strict),
     .testTarget(name: "LociModelTests", dependencies: ["LociModel"], swiftSettings: strict),
     .testTarget(name: "LociStoreTests", dependencies: ["LociStore"], swiftSettings: strict),
     .testTarget(
       name: "LociAgentsTests", dependencies: ["LociAgents"], resources: [.copy("Fixtures")], swiftSettings: strict),
-    .testTarget(name: "LociHostTests", dependencies: ["LociHost", "LociStore"], swiftSettings: strict),
+    .testTarget(name: "LociHostTests", dependencies: ["LociHost", "LociStore", "LociAgents"], swiftSettings: strict),
     .testTarget(name: "LociUITests", dependencies: ["LociUI"], swiftSettings: strict),
+    .testTarget(name: "LociEvalTests", dependencies: ["LociEval", "LociModel"], swiftSettings: strict),
     .testTarget(name: "ArchitectureTests", swiftSettings: strict),
   ]
 )

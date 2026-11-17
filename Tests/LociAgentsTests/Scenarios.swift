@@ -17,6 +17,13 @@ struct Stage {
   }
 }
 
+/// A clock whose every wait is over at once, for scenarios about giving up on a silent program.
+struct ImpatientClock: Clock {
+  var now: ContinuousClock.Instant { .now }
+  var minimumResolution: Duration { .zero }
+  func sleep(until deadline: ContinuousClock.Instant, tolerance: Duration?) async throws {}
+}
+
 extension [AgentEvent] {
   var reply: String {
     self.reduce(into: "") { text, event in
@@ -49,7 +56,7 @@ extension [AgentEvent] {
   }
 }
 
-/// The behaviours the driver promises. Each runs unchanged against the real Pi and against its recording.
+/// The behaviours the driver promises. Each runs unchanged against a real agent and against its recording.
 enum Scenario {
   static let missingSession = SessionHandle(provider: .pi, value: "019a0000-0000-7000-8000-000000000000")
 

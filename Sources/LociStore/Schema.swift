@@ -21,7 +21,29 @@ enum Schema {
           )
           """)
     }
-    migrator.registerMigration("2 seen_lesson") { db in
+    migrator.registerMigration("2 conversation") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE conversation (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            mentor_id TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            session TEXT,
+            started_at TEXT NOT NULL
+          );
+          CREATE INDEX conversation_mentor ON conversation(mentor_id);
+          CREATE TABLE message (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            conversation_id TEXT NOT NULL REFERENCES conversation(id),
+            at TEXT NOT NULL,
+            body TEXT NOT NULL
+          );
+          CREATE INDEX message_conversation ON message(conversation_id);
+          """)
+    }
+    migrator.registerMigration("3 seen_lesson") { db in
       try db.execute(
         sql: """
           CREATE TABLE seen_lesson (

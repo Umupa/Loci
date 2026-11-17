@@ -4,21 +4,24 @@ import Testing
 
 @testable import LociAgents
 
-/// Stands in for Pi by replaying a recording: it says what Pi said, and waits wherever the driver
+/// Stands in for an agent by replaying a recording: it says what the agent said, and waits wherever the driver
 /// wrote something until the driver writes the same thing again.
 final class ScriptedLauncher: ProgramLauncher {
   private struct State {
     var steps: [Step]
     var problems: [String] = []
+    var terminations = 0
     var output: AsyncStream<Data>.Continuation?
     var diagnostics: AsyncStream<Data>.Continuation?
     var exits: AsyncStream<Int32>.Continuation?
   }
 
+  private let exitOnTermination: Bool
   private let folder: URL
   private let state: Mutex<State>
 
-  init(_ fixture: String, folder: URL) throws {
+  init(_ fixture: String, folder: URL, exitOnTermination: Bool = true) throws {
+    self.exitOnTermination = exitOnTermination
     self.folder = folder
     self.state = Mutex(State(steps: try Recording.load(fixture)))
   }
@@ -45,9 +48,16 @@ final class ScriptedLauncher: ProgramLauncher {
         }
       },
       closeInput: { self.state.withLock { self.expect(.close, in: &$0) } },
-      terminate: { self.state.withLock { self.end(15, "", in: &$0) } },
+      terminate: {
+        self.state.withLock {
+          $0.terminations += 1
+          if self.exitOnTermination { self.end(15, "", in: &$0) }
+        }
+      },
       exit: { await status.value })
   }
+
+  var terminations: Int { state.withLock { $0.terminations } }
 
   /// What the driver wrote, with the folder named the way recordings name it.
   private func portable(_ data: Data) -> Data {
@@ -64,7 +74,7 @@ final class ScriptedLauncher: ProgramLauncher {
   }
 
   /// Checks one thing the driver did against the recording. Where the recording has the driver writing
-  /// several records in a row, they may come in any order: Pi said nothing in between to order them by.
+  /// several records in a row, they may come in any order: the agent said nothing in between to order them by.
   private func expect(_ step: Step, in state: inout State) {
     let writes = state.steps.prefix { if case .to = $0 { true } else { false } }
     if state.steps.first == step {

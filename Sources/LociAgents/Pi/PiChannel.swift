@@ -38,7 +38,7 @@ actor PiChannel {
     }
     let outcome = await withCheckedContinuation { continuation in
       waiting[id] = continuation
-      try? program.write(command.line(id: id))
+      try? program.write(command.record(id: id).line)
     }
     deadline.cancel()
     return try outcome.get()
@@ -46,7 +46,7 @@ actor PiChannel {
 
   /// Sends a record Pi does not respond to.
   func send(_ command: PiCommand) {
-    try? program.write(command.line(id: ""))
+    try? program.write(command.record(id: "").line)
   }
 
   nonisolated func terminate() {

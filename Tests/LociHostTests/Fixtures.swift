@@ -10,10 +10,16 @@ import Testing
 final class TestWorld: Sendable {
   private let created = Mutex<UInt64>(0)
   static let instant = Timestamp(millisecondsSince1970: 1_763_337_600_123)
+  let agent: FakeAgent
+
+  init(agent: FakeAgent = FakeAgent()) {
+    self.agent = agent
+  }
 
   var environment: HostEnvironment {
     HostEnvironment(
-      newID: { [self] in self.nextID() }, now: { Self.instant }, defaultProvider: .pi, discard: .permanently)
+      newID: { [self] in self.nextID() }, now: { Self.instant }, defaultProvider: .pi, discard: .permanently,
+      agents: { [agent] provider in provider == .pi ? agent : nil })
   }
 
   func nextID() -> EntityID {
@@ -47,10 +53,12 @@ struct Place {
 }
 
 /// Runs `body` against a host started in a new temporary place, then closes it and deletes the place.
-func withHost(_ body: (LocalHost, Place, TestWorld) async throws -> Void) async throws {
+func withHost(
+  agent: FakeAgent = FakeAgent(), _ body: (LocalHost, Place, TestWorld) async throws -> Void
+) async throws {
   let place = Place()
   defer { place.remove() }
-  let world = TestWorld()
+  let world = TestWorld(agent: agent)
   let host = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
   do {
     try await body(host, place, world)

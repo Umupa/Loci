@@ -25,7 +25,7 @@
 | `LociHost` | 命令层的实现：本机和远程 | 以上全部 |
 | `LociUI` | 界面与设计系统 | `LociModel` |
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
-| `LociEval` | 评测，不随应用发布 | `LociModel` `LociHost` |
+| `LociEval` | 评测，不随应用发布 | `LociModel` `LociHost` `LociAgents`（评分用的 agent 不属于任何导师） |
 
 现在已经存在的模块：`LociModel`、`LociStore`、`LociAgents`、`LociHost`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
 
@@ -75,7 +75,8 @@ output/                       构建产物、截图、日志（不提交）
 
 真实的 agent CLI、真实的网络只出现在评测和黑盒里，`script/check` 不依赖它们。
 
-两个例外，都在 `Tests/LociAgentsTests`：
+以下例外都在 `Tests/LociAgentsTests`：
 
 - `SystemLauncherTests` 会启动 `/bin/cat` 和 `/bin/sh`。把管道接成 `AsyncStream` 的那一层只有对着真实进程才测得出问题（退出与最后一块输出的先后、写给已经退出的进程），这两个程序每台 Mac 都有，不碰网络。别的测试不启动程序。
 - `PiLiveTests` 对着真实的 pi 跑，默认跳过，`LOCI_PI=<pi 的路径>` 时才跑，会花一点额度。加上 `LOCI_PI_RECORD=<目录>`，它把每段对话录成 fixture；`PiReplayTests` 在 `script/check` 里回放这些录音。pi 升级后重录一遍，就知道协议变了没有。
+- `OmpLiveTests` 同样默认跳过，用 `LOCI_OMP=<omp 的路径>` 开启、`LOCI_OMP_RECORD=<目录>` 录制；`OmpReplayTests` 离线回放 omp 的真实录音。

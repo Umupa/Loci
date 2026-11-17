@@ -1,0 +1,25 @@
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false,"_meta":{"parameterizedModelPicker":true}},"clientInfo":{"name":"loci","version":"1"}},"id":1}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}}
+{"to":{"jsonrpc":"2.0","method":"authenticate","params":{"methodId":"cursor_login"},"id":2}}
+{"from":{"jsonrpc":"2.0","id":2,"result":{}}}
+{"to":{"jsonrpc":"2.0","method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]},"id":3}}
+{"from":{"jsonrpc":"2.0","id":3,"result":{"sessionId":"cursor-1"}}}
+{"to":{"jsonrpc":"2.0","method":"session/prompt","params":{"sessionId":"cursor-1","prompt":[{"type":"text","text":"Remember this word: quokka. Reply with exactly: OK"}]},"id":4}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"cursor-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"OK"}}}}}
+{"from":{"jsonrpc":"2.0","id":4,"result":{"stopReason":"end_turn"}}}
+{"close":true}
+{"exit":0,"stderr":""}
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false,"_meta":{"parameterizedModelPicker":true}},"clientInfo":{"name":"loci","version":"1"}},"id":1}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}}
+{"to":{"jsonrpc":"2.0","method":"authenticate","params":{"methodId":"cursor_login"},"id":2}}
+{"from":{"jsonrpc":"2.0","id":2,"result":{}}}
+{"to":{"jsonrpc":"2.0","method":"session/load","params":{"cwd":"$FOLDER","mcpServers":[],"sessionId":"cursor-1"},"id":3}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"cursor-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Old text must not appear in the new turn."}}}}}
+{"from":{"jsonrpc":"2.0","id":3,"result":{}}}
+{"to":{"jsonrpc":"2.0","method":"session/prompt","params":{"sessionId":"cursor-1","prompt":[{"type":"text","text":"Which word did I ask you to remember? Reply with just that word."}]},"id":4}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"cursor-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"quokka"}}}}}
+{"from":{"jsonrpc":"2.0","id":4,"result":{"stopReason":"end_turn"}}}
+{"close":true}
+{"exit":0,"stderr":""}
