@@ -35,7 +35,9 @@ struct FirstLessonScenarioTests {
     try await withHost(agent: Self.author) { host, _, world in
       let mentor = try await host.run(CreateMentor(request: "想学 Kubernetes 调度"))
 
-      let page = await value(host.subscribe(OneMentor(mentor: mentor.id))) { $0.writtenLessons.count == 1 }
+      let page = await value(host.subscribe(OneMentor(mentor: mentor.id))) {
+        $0.writtenLessons.count == 1 && $0.catalog?.chapters.isEmpty == false
+      }
       #expect(page?.catalog?.chapters.first?.lessons.map(\.slug.description) == ["why-schedule", "filters"])
       #expect(page?.writtenLessons.map(\.description) == ["why-schedule"])
       let first = try #require(await value(host.subscribe(MentorConversation(mentor: mentor.id))) { $0.turn == nil })
