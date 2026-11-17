@@ -10,11 +10,13 @@ actor AcpChannel {
   private let incoming: AsyncStream<AcpRecord>.Continuation
   private var framer = LineFramer()
   private var sent = 0
+  private var promptID: Int?
   private var waiting: [Int: CheckedContinuation<Result<JSONValue, AgentError>, Never>] = [:]
   private var diagnostics = Data()
   private var open = (output: true, diagnostics: true)
   private var status: Int32?
   private var whenEnded: [CheckedContinuation<Void, Never>] = []
+  private var forwarding = false
   /// Why the channel is over, once it is.
   private(set) var ended: AgentError?
 
@@ -25,6 +27,11 @@ actor AcpChannel {
     Task { await self.read() }
     Task { await self.readDiagnostics() }
     Task { await self.watchExit() }
+  }
+
+  /// Delivers live updates after setup, leaving history replayed during session loading behind.
+  func beginSession() {
+    forwarding = true
   }
 
   /// Sends a request and waits for the response, for at most `limit` when one is given.
@@ -48,6 +55,18 @@ actor AcpChannel {
 
   func notify(_ method: String, _ params: JSONValue) {
     try? program.write(AcpOutgoing.notification(method: method, params: params))
+  }
+
+  func prompt(_ params: JSONValue) throws(AgentError) {
+    if let ended { throw ended }
+    sent += 1
+    promptID = sent
+    do {
+      try program.write(AcpOutgoing.request(id: sent, method: "session/prompt", params: params))
+    } catch {
+      promptID = nil
+      throw .rejected(error.localizedDescription)
+    }
   }
 
   func respond(to id: JSONValue, with result: JSONValue) {
@@ -80,9 +99,20 @@ actor AcpChannel {
       for line in framer.receive(chunk) {
         guard let record = AcpRecord(line: line) else { continue }
         if case .response(let id, let outcome) = record {
-          resolve(id, outcome)
-        } else {
+          if id == promptID {
+            promptID = nil
+            incoming.yield(.promptFinished(outcome))
+          } else {
+            resolve(id, outcome)
+          }
+        } else if forwarding {
           incoming.yield(record)
+        } else if case .request(let id, let method, _) = record {
+          if method == "session/request_permission" {
+            respond(to: id, with: AcpTurnState.cancelled)
+          } else {
+            refuse(id, method: method)
+          }
         }
       }
     }

@@ -1,0 +1,14 @@
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"}}}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true}}}}
+{"to":{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]}}}
+{"from":{"jsonrpc":"2.0","id":2,"result":{"sessionId":"hermes-session-1","models":{"currentModelId":"default-model"}}}}
+{"to":{"jsonrpc":"2.0","id":3,"method":"session/set_mode","params":{"sessionId":"hermes-session-1","modeId":"dont_ask"}}}
+{"from":{"jsonrpc":"2.0","id":3,"result":{}}}
+{"to":{"jsonrpc":"2.0","id":4,"method":"session/prompt","params":{"sessionId":"hermes-session-1","prompt":[{"type":"text","text":"Read the file notes.txt with your file reading tool, then tell me the secret word."}]}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"tool_call","toolCallId":"tool-1","status":"in_progress","kind":"read","title":"Read notes","rawInput":{"path":"notes.txt"}}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"tool_call_update","toolCallId":"tool-1","status":"completed","kind":"read","title":"Read notes","rawInput":{"path":"notes.txt"},"content":[{"type":"content","content":{"type":"text","text":"The secret word is marmalade."}}]}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"marmalade"}}}}}
+{"from":{"jsonrpc":"2.0","id":4,"result":{"stopReason":"end_turn"}}}
+{"close":true}
+{"exit":0,"stderr":""}

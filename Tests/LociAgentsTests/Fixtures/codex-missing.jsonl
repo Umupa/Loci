@@ -1,0 +1,9 @@
+{"launch":["app-server","-c","model_reasoning_effort=\"low\""]}
+{"to":{"id":"loci-1","method":"initialize","params":{"capabilities":{"experimentalApi":false},"clientInfo":{"name":"loci","version":"0.1.0"}}}}
+{"from":{"id":"loci-1","result":{"codexHome":"$HOME/.codex","platformFamily":"unix","platformOs":"macos","userAgent":"loci/0.167.1 (Mac OS 27.2.0; arm64) ghostty (loci; 0.1.0)"}}}
+{"from":{"emittedAtMs":1794903511788,"method":"remoteControl/status/changed","params":{"environmentId":null,"installationId":"$INSTALLATION","serverName":"$HOST","status":"disabled"}}}
+{"to":{"method":"initialized"}}
+{"to":{"id":"loci-2","method":"thread/resume","params":{"approvalPolicy":"never","approvalsReviewer":"user","cwd":"$FOLDER","sandbox":"danger-full-access","threadId":"019a0000-0000-7000-8000-000000000000"}}}
+{"from":{"error":{"code":-32600,"message":"no rollout found for thread id 019a0000-0000-7000-8000-000000000000"},"id":"loci-2"}}
+{"close":true}
+{"exit":0,"stderr":""}

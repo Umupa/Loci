@@ -3,13 +3,14 @@ import LociModel
 
 /// Drives Pi through `pi --mode rpc`.
 public struct PiDriver: AgentDriver {
-  public let provider = Mentor.Provider.pi
+  public var provider: Mentor.Provider { variant.provider }
 
   private let executable: URL
   private let arguments: [String]
   private let environment: [String: String]?
   private let launcher: any ProgramLauncher
   private let clock: any Clock<Duration>
+  private let variant: PiVariant
 
   /// - Parameters:
   ///   - executable: Where `pi` is installed.
@@ -19,11 +20,21 @@ public struct PiDriver: AgentDriver {
     executable: URL, arguments: [String] = [], environment: [String: String]? = nil,
     launcher: any ProgramLauncher = SystemLauncher(), clock: any Clock<Duration> = ContinuousClock()
   ) {
+    self.init(
+      variant: .pi, executable: executable, arguments: arguments, environment: environment, launcher: launcher,
+      clock: clock)
+  }
+
+  init(
+    variant: PiVariant, executable: URL, arguments: [String], environment: [String: String]?,
+    launcher: any ProgramLauncher, clock: any Clock<Duration>
+  ) {
     self.executable = executable
     self.arguments = arguments
     self.environment = environment
     self.launcher = launcher
     self.clock = clock
+    self.variant = variant
   }
 
   /// The extension that makes Pi ask before a tool changes anything; Pi has no permission system of its own.
@@ -41,11 +52,11 @@ public struct PiDriver: AgentDriver {
       let state = try await channel.request(.getState, within: .seconds(45))
       guard let id = state["sessionId"]?.string else { throw AgentError.rejected("get_state") }
       return PiSession(
-        handle: SessionHandle(provider: .pi, value: id), channel: channel,
+        handle: SessionHandle(provider: provider, value: id), channel: channel,
         window: state["model"]?["contextWindow"]?.int)
     } catch {
       await channel.shutDown(patience: .zero)
-      if configuration.resume != nil, case .exited(_, let said) = error, said.contains("No session found") {
+      if configuration.resume != nil, case .exited(_, let said) = error, variant.sessionIsMissing(said) {
         throw .sessionNotFound
       }
       throw error
@@ -53,10 +64,10 @@ public struct PiDriver: AgentDriver {
   }
 
   private func arguments(for configuration: SessionConfiguration) throws(AgentError) -> [String] {
-    var all = ["--mode", "rpc"]
+    var all = variant.launchArguments
     if let resume = configuration.resume {
-      guard resume.provider == .pi else { throw .sessionNotFound }
-      all += ["--session", resume.value]
+      guard resume.provider == provider else { throw .sessionNotFound }
+      all += [variant.resumeFlag, resume.value]
     }
     if let model = configuration.model { all += ["--model", model] }
     if configuration.permission == .ask {
