@@ -15,9 +15,10 @@ public struct RootView: View {
   private let startShown: () -> Void
   private let memory: WindowMemory
 
-  /// `startShown` runs when the start page first appears, which is when Loci can be typed into.
-  public init(startShown: @escaping () -> Void = {}) {
-    self.init(startShown: startShown, memory: .preferences(.standard))
+  /// `folder` is the data folder the host serves, so each folder reopens where it was left. `startShown`
+  /// runs when the start page first appears, which is when Loci can be typed into.
+  public init(folder: URL, startShown: @escaping () -> Void = {}) {
+    self.init(startShown: startShown, memory: .preferences(.standard, folder: folder))
   }
 
   /// Opens where `memory` says the window was last, and keeps it told of every move.
