@@ -34,22 +34,20 @@ actor AcpChannel {
     forwarding = true
   }
 
-  /// Sends a request and waits for the response, for at most `limit` when one is given.
-  func request(_ method: String, _ params: JSONValue, within limit: Duration?) async throws(AgentError) -> JSONValue {
+  /// Sends a request and waits for the response, for at most `limit`.
+  func request(_ method: String, _ params: JSONValue, within limit: Duration) async throws(AgentError) -> JSONValue {
     if let ended { throw ended }
     sent += 1
     let id = sent
-    let deadline = limit.map { limit in
-      Task { [clock] in
-        do { try await clock.sleep(for: limit) } catch { return }
-        self.resolve(id, .failure(.unresponsive(method)))
-      }
+    let deadline = Task { [clock] in
+      do { try await clock.sleep(for: limit) } catch { return }
+      self.resolve(id, .failure(.unresponsive(method)))
     }
     let outcome = await withCheckedContinuation { continuation in
       waiting[id] = continuation
       try? program.write(AcpOutgoing.request(id: id, method: method, params: params))
     }
-    deadline?.cancel()
+    deadline.cancel()
     return try outcome.get()
   }
 
