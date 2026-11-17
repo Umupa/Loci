@@ -4,6 +4,6 @@ User-visible changes to the native app. The Tauri app's history is on `main`.
 
 ## Unreleased
 
-- Add the native Codex app-server driver with streamed replies, tool calls, approvals, interruption and session resume.
+- 原生版接入 Codex app-server，支持流式回复、工具调用、权限询问、停止与会话恢复。
 
 - The native app opens to a start page: type a sentence to make a mentor, or drop a text file to add it to the library; browse mentors, lessons and items, with each lesson's sources and each item's citing lessons beside them. Warm-night look in light and dark, English and Chinese.

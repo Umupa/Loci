@@ -79,4 +79,8 @@ struct CodexReplayTests {
     }
   }
 
+  @Test func anApprovalArrivingAfterInterruptionIsDismissedUnseen() async throws {
+    try await replay("synthetic-late-request", CodexScenario.interruptedWhileAsking)
+  }
+
 }

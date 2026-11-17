@@ -77,4 +77,35 @@ struct CodexTurnStateTests {
     #expect(dialog.reply(to: .chosen("accept"))["result"]?["scope"] == .string("turn"))
     #expect(dialog.reply(to: .dismissed)["result"]?["permissions"] == .object([:]))
   }
+
+  @Test func reasoningArrivesSeparatelyFromTheReply() throws {
+    var state = CodexTurnState()
+    let delta = try json(#"{"itemId":"r","delta":"Thinking"}"#)
+    #expect(state.receive("item/reasoning/summaryTextDelta", delta) == [.thinking("Thinking")])
+    let completed = try json(#"{"item":{"type":"reasoning","id":"r","summary":["Thinking"]}}"#)
+    #expect(state.receive("item/completed", completed).isEmpty)
+  }
+
+  @Test func contextUsageDescribesTheLatestTurnRatherThanLifetimeTotals() throws {
+    var state = CodexTurnState()
+    let usage = try json(
+      #"{"tokenUsage":{"last":{"totalTokens":42},"total":{"totalTokens":1000},"modelContextWindow":8000}}"#)
+    #expect(state.receive("thread/tokenUsage/updated", usage) == [.context(.init(used: 42, window: 8000))])
+  }
+
+  @Test func fileEditsAndMcpResultsKeepTheirToolKindsAndFailures() throws {
+    var state = CodexTurnState()
+    let file = try json(#"{"item":{"type":"fileChange","id":"f","changes":[],"status":"declined"}}"#)
+    let events = state.receive("item/completed", file)
+    #expect(events.calls.first?.kind == .edit)
+    #expect(events.outputs.first?.failed == true)
+    let mcp = try json(
+      #"{"item":{"type":"mcpToolCall","id":"m","tool":"lookup","status":"completed","result":{"content":[{"type":"text","text":"Found"}]}}}"#
+    )
+    let result = state.receive("item/completed", mcp)
+    #expect(result.calls.first?.name == "lookup")
+    #expect(result.outputs.first?.text == "Found")
+    #expect(result.outputs.first?.failed == false)
+  }
+
 }

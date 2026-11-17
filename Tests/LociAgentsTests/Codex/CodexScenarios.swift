@@ -78,6 +78,7 @@ enum CodexScenario {
       await session.interrupt()
     }
     let id = try #require(asked)
+    #expect(events.filter { if case .permission = $0 { true } else { false } }.count == 1)
     #expect(events.contains(.permissionClosed(id)))
     #expect(events.endings == [.interrupted])
     #expect(!FileManager.default.fileExists(atPath: stage.folder.appending(path: "approval-marker").path))
