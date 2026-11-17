@@ -40,6 +40,14 @@ struct EntityIDTests {
     }
   }
 
+  @Test func canonicalParsingAcceptsOnlyTheLowercaseForm() {
+    let id = EntityID()
+
+    #expect(EntityID(canonical: id.description) == id)
+    #expect(EntityID(canonical: id.description.uppercased()) == nil)
+    #expect(EntityID(id.description.uppercased()) == id)
+  }
+
   @Test func sameInstantStillYieldsDistinctIdentifiers() {
     var entropy = SeededGenerator(seed: 3)
     let instant = Date(timeIntervalSince1970: 1_000)

@@ -33,29 +33,19 @@ extension EntityID: Comparable {
   }
 }
 
-extension EntityID: LosslessStringConvertible {
-  /// Parses the canonical form. Returns `nil` for anything that is not a version 7 UUID.
+extension EntityID: TextCodable {
+  /// Parses a version 7 UUID in either case. Returns `nil` for anything else.
   public init?(_ description: String) {
     guard let uuid = UUID(uuidString: description), (uuid.high >> 12) & 0xF == 7 else { return nil }
     self.uuid = uuid
   }
 
   public var description: String { uuid.uuidString.lowercased() }
-}
 
-extension EntityID: Codable {
-  public init(from decoder: any Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    let text = try container.decode(String.self)
-    guard let id = EntityID(text) else {
-      throw DecodingError.dataCorruptedError(in: container, debugDescription: "Not a version 7 UUID: \(text)")
-    }
+  /// Parses only the canonical lowercase form, for text that must read back exactly as it was written.
+  public init?(canonical text: String) {
+    guard let id = EntityID(text), id.description == text else { return nil }
     self = id
-  }
-
-  public func encode(to encoder: any Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(description)
   }
 }
 
