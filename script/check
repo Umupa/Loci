@@ -1,0 +1,24 @@
+#!/bin/sh
+# The one gate. CI runs exactly this. Quiet when everything passes; on a
+# failure it prints what failed and how to fix it.
+set -eu
+cd "$(dirname "$0")/.."
+. script/toolchain
+mkdir -p output
+
+step() {
+  name=$1
+  shift
+  if "$@" >output/check.log 2>&1; then
+    echo "ok    $name"
+  else
+    echo "FAIL  $name"
+    grep -E -A3 'recorded an issue|error:|warning:' output/check.log || cat output/check.log
+    echo "full log: output/check.log"
+    exit 1
+  fi
+}
+
+step format swift format lint --strict --recursive --parallel Package.swift Sources Tests
+step build swift build --build-tests
+step test swift test --skip-build

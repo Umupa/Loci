@@ -1,0 +1,5 @@
+# Sourced by the other scripts. Uses the installed Xcode when the active
+# developer directory is only the command line tools, which cannot run tests.
+if [ -z "${DEVELOPER_DIR:-}" ] && ! xcodebuild -version >/dev/null 2>&1 && [ -d /Applications/Xcode.app ]; then
+  export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+fi

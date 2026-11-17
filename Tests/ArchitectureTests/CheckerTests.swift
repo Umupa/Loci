@@ -1,0 +1,74 @@
+import Testing
+
+/// The checks above are only as good as the reader underneath them.
+struct CheckerTests {
+  @Test func tellsCommentsFromCodeAndStrings() {
+    let lines = SourceFile.parse(
+      """
+      let site = "https://loci.app" // trailing
+      /// Promises something.
+      let slashes = "// not a comment"
+      /* block
+      still */ let after = 1
+      let text = \"\"\"
+        // inside a string
+        \"\"\"
+      """)
+
+    #expect(lines.map(\.remark) == [.plain, .documentation, nil, .plain, .plain, nil, nil, nil])
+    #expect(lines[0].code.contains("let site"))
+    #expect(!lines[2].code.contains("not a comment"))
+    #expect(lines[4].code.contains("let after"))
+  }
+
+  @Test func readsImports() {
+    let file = SourceFile(
+      path: "Sources/LociUI/Example.swift", module: "LociUI",
+      text: """
+        import SwiftUI
+        @testable import LociModel
+        import struct Foundation.URL
+        let note = "import Nothing"
+        """)
+
+    #expect(file.imports.map(\.name) == ["SwiftUI", "LociModel", "Foundation"])
+  }
+
+  @Test func flagsAnImportAcrossTheBoundary() {
+    let file = SourceFile(
+      path: "Sources/LociUI/Example.swift", module: "LociUI", text: "import LociStore\nimport GRDB\nimport SwiftUI")
+
+    let found = BoundaryTests.importViolations(in: file).map(\.found)
+
+    #expect(found == ["LociUI imports LociStore", "LociUI imports GRDB"])
+  }
+
+  @Test func flagsForbiddenAndRestrictedConstructs() {
+    let file = SourceFile(
+      path: "Sources/LociUI/Example.swift", module: "LociUI",
+      text: """
+        let data = try! load()
+        let message = "print(x) and try! are fine inside a string"
+        let files = FileManager.default
+        DispatchQueue.main.async {}
+        """)
+
+    #expect(BoundaryTests.violations(of: Architecture.forbidden, in: file).map(\.line) == [1, 4])
+    #expect(BoundaryTests.violations(of: Architecture.restricted, in: file).map(\.line) == [3])
+  }
+
+  @Test func ownersMayUseWhatTheyOwn() {
+    let file = SourceFile(
+      path: "Sources/LociStore/Example.swift", module: "LociStore", text: "let files = FileManager.default")
+
+    #expect(BoundaryTests.violations(of: Architecture.restricted, in: file).isEmpty)
+  }
+
+  @Test func flagsPlainCommentsButNotDocumentation() {
+    let file = SourceFile(
+      path: "Sources/LociModel/Example.swift", module: "LociModel",
+      text: "/// Kept.\nlet a = 1\n// removed\nlet b = 2 // also removed")
+
+    #expect(CodeRuleTests.commentViolations(in: file).map(\.line) == [3, 4])
+  }
+}

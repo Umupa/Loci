@@ -1,15 +1,14 @@
-## What and why
+## 做了什么，为什么
 
-<!-- What does this change, and why? Link the issue it closes, if there is one: "Closes #123". -->
+## 场景
 
-## How you checked it
+<!-- docs/features.md 里的编号，每条怎么验证的。界面改动附亮色和暗色的图。 -->
 
-<!-- Tests you added, and anything you tried in the running app. Mention the OS and the agent CLI if they matter. -->
+## 没做的、没验证的
 
-## Checklist
+## 留下的检查
 
-- [ ] `npm run check` passes
-- [ ] New behavior has tests, and a bug fix has a test that fails without it
-- [ ] User-visible changes are noted under *Unreleased* in `CHANGELOG.md` (that text becomes the release notes and the update prompt)
-- [ ] Docs are updated (`README.md` and `README.zh-CN.md` together, if either changed)
-- [ ] Platform-specific code still compiles on the other platforms
+<!-- 这次被纠正的地方，变成了哪条类型约束、架构规则或测试。没有就写「无」。 -->
+
+- [ ] `script/check` 通过
+- [ ] 用户看得到的变化写进了 `CHANGELOG.md`

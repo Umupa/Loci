@@ -1,0 +1,6 @@
+#!/bin/sh
+# Rewrites the sources in the project style.
+set -eu
+cd "$(dirname "$0")/.."
+. script/toolchain
+swift format --in-place --recursive --parallel Package.swift Sources Tests

@@ -1,325 +1,74 @@
-# Architecture
+# 架构
 
-How Loci is put together, for people who want to change it. It covers the moving parts and the rules that are easy to break by accident.
+设计的来龙去脉在 [design.md](design.md)。这一页只说代码怎么分，以及哪些是工具强制的。
 
-## The shape of the app
+## 模块
 
-Loci is a [Tauri 2](https://v2.tauri.app/) app: a Rust host process and the system WebView running a React 19 single-page app.
-
-- **Rust (`src-tauri/src`)** owns what a WebView cannot do: starting and killing agent processes with pipes, files and clipboard, SQLite, notifications, window chrome, and the local control channel.
-- **TypeScript (`src`)** owns the product: the agent protocols, the session model, every screen. The Rust commands are generic (`harness_spawn`, `harness_write`, `harness_kill`, `read_text_file`, ...), so protocol work rarely needs a Rust change.
-
-```text
-┌──────────────────────────── Loci window ─────────────────────────────┐
-│ WebView (React)                           Rust host (src-tauri)       │
-│  app/  features/  integrations/harness     processes · files · SQLite │
-│        │  invoke / events  ◀────────────▶  notifications · control    │
-└────────┼──────────────────────────────────────────────┬──────────────┘
-         │ HarnessEvent stream                          │ spawn, stdio pipes
-         ▼                                              ▼
-   session UI, notes                      agent CLI (claude, codex, ...)
-                                                        │ `loci app` (loopback + per-turn token)
-                                                        ▼
-                                            control.rs ──▶ the owning window
+```
+            Loci（应用）          LociEval（评测）
+           ╱           ╲              │
+       LociUI          LociHost ──────┘
+           ╲       ╱   │   │   │   ╲
+            ╲  Store Agents Media Code Remote
+             ╲    ╲    │    │    │    ╱
+                    LociModel
 ```
 
-## Agent CLIs
+| 模块 | 职责 | 可以引用 |
+|---|---|---|
+| `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应 | 无 |
+| `LociStore` | 文件读写与监听、SQLite、全文索引 | `LociModel` |
+| `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
+| `LociMedia` | 取回、转录、断句、翻译、章节与重点 | `LociModel` |
+| `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
+| `LociRemote` | 配对、加密通道、中继 | `LociModel` |
+| `LociHost` | 命令层的实现：本机和远程 | 以上全部 |
+| `LociUI` | 界面与设计系统 | `LociModel` |
+| `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
+| `LociEval` | 评测，不随应用发布 | `LociModel` `LociHost` |
 
-Everything about talking to an agent lives in `src/integrations/harness`.
+现在已经存在的模块：`LociModel`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
 
-- `core/` is provider-neutral: the adapter registry, the `HarnessEvent` stream every provider emits, the JSON-RPC and ACP clients, the process bridge to Rust (`child.ts`), CLI availability and sign-in checks.
-- `providers/<name>/` has one directory per CLI. It turns the CLI's protocol into `HarnessEvent`s, and turns Loci's inputs (model, permission mode, attachments, MCP servers) into that CLI's flags or requests. Claude Code is driven through its stream-json control protocol, Codex through `app-server` JSON-RPC, and Cursor, Grok Build, fx, Hermes Agent and Antigravity through the shared ACP client.
-- An adapter implements `HarnessAdapter` (`core/registry.ts`) and is registered in `core/register.ts`. `providers/fx` is a compact example to copy from.
+## 三条不变量
 
-Agent processes are children of Loci. On exit Loci kills them, and each is started with `LOCI_HARNESS_PARENT` set to Loci's process id so that cleanup only touches processes this copy of Loci started and never agents that belong to another app. On Windows a job object also kills the tree if Loci crashes.
+1. **界面只认 Host 协议。** `LociUI` 引用不到 `LociStore`、`LociAgents`，它只能发命令、订阅数据。本机和远程因此是同一套界面。
+2. **每条出口只有一个主人。** 磁盘归 `LociStore`，外部程序归 `LociAgents` 和 `LociMedia`，网络归 `LociMedia` 和 `LociRemote`。
+3. **核心不依赖界面。** 除了 `LociUI` 和 `Loci`，没有模块引用 SwiftUI 或 AppKit。关掉窗口，会话照样跑。
 
-Permission modes are not enforced by Loci's own sandbox. Loci answers the CLI's approval requests according to the mode (or leaves them to you), so what a mode really allows is decided by the CLI.
+这三条都由 `Tests/ArchitectureTests` 检查。那里的 `Architecture.swift` 是这张表的可执行版本，两处一起改。
 
-## Sessions and the window
+## 目录
 
-- `features/sessions` holds the session model (a list of typed blocks), transcript rendering, the composer, slash commands and the submission pipeline (`app/hooks/useSessionSubmission.ts`).
-- The window is a rail of mentors (`app/shell/MentorRail.tsx`) beside the open mentor's workspace (`features/mentor`), or Settings. There are no tabs and no split panes: everything opens in the mentor's one reader. `app/hooks/useActiveMentor.ts` keeps which mentor is open (`loci:active-mentor.v1`, so a restart opens it again) and `useMentorView.ts` what each one shows.
-- `app/hooks/useSessionStore.ts` holds the sessions the window has in memory: mentors' conversations, the sessions they start and whatever the reader shows. Sessions that belong to no mentor are not listed anywhere; a link, an approval toast or `sessions.start --reveal` shows one in the reader. `useIdleSessionDetach.ts` saves and releases idle sessions that are not on screen.
-- Quit and restart keep only what resumes interrupted turns (`in_flight_sessions`). Keys are in `app/model/appKeys.ts` and `src-tauri/src/menu.rs`: ⌘T opens the start page (the template gallery is a step from it), ⌘W closes the reader (the window when it is empty), ⌘1–9 and ⇧⌘[ ] switch mentors, ⌘B and ⌘J fold the library and the conversation (over a lesson being read, ⌘B opens the outline over its strip and ⌘J unfolds the conversation, remembered apart), ⌘K opens the mentor search palette (`features/mentor/ui/MentorSearch.tsx`), which finds mentors and the titles of what they keep, and (from two characters) words in the text of sources, guides, lessons and notes through `library_search`; a text match shows its snippet and opens the reader at the matched words.
-- `features/agents`, `features/mentor`, `features/notes`, `features/learning`, `features/projects`, `features/settings`, `features/skills` and `features/notifications` are feature folders. Code shared by several features lives in `shared/`, and the thin wrappers over Tauri commands in `platform/tauri/`.
-
-## Source context and reading
-
-`features/learning` adds source metadata and local highlights and notes to ordinary sessions and agent conversations. These surfaces do not require a separate learning mode. `model/learningContext.ts` appends only provider-neutral source data to submitted prompts; the visible user block keeps its question and typed metadata separately. Queued messages and drafts carry the same metadata.
-
-
-
-PDF.js renders selectable text in `features/files/ui/PdfView.tsx`. `model/pdfAnnotations.ts` measures selected text nodes, excludes page-container rectangles, and stores page-normalized rectangles across lines and pages. Highlights use pointer-transparent overlays; collapsed clicks are hit-tested by the page so dragging remains native text selection. `FilePane.tsx` registers the canonical document path and fingerprint, prepares sourced questions, edits local annotation notes and restores passages from annotation links. Locate file changes a document's path only when its fingerprint matches. OCR is outside this version.
-
-Every reader shares one highlight and note model (`Annotation`): a mark names its target (a PDF, a library document or a text file) and, for text, a `TextAnchor` (the quote with 32 characters of context each side, an offset hint, the headings above it and, in a file, its lines). `model/textAnchor.ts` describes a DOM selection and finds it again: at its old place, else the repeat whose context fits best, else ignoring white space and case; a mark whose words are gone is kept and listed as changed, never deleted. `ui/useTextHighlights.ts` paints marks with the CSS Custom Highlight API, so rendered Markdown and code are never rewritten, and hit-tests clicks; `ui/useReadingMarks.tsx` is what each reader wires in (Ask, Highlight, Note, the popover and the list), and `ui/ReadingSelectionMenu.tsx` is the one selection menu (Ask <mentor> · Highlight · Note; ⌘L Quote and ⌥⌘M Comment as shortcuts). `DocumentBody` (library documents and lesson documents), `FilePane` (text, Markdown preview, PDF) and a lesson's code excerpt use them. PDF marks keep their page rectangles and, when new, a `TextAnchor` too. `model/annotationCounts.ts` gives per-lesson counts for the outline badge and the `annotations` commands.
-
-The reader column reports where the learner is: readers mark their text with `data-reading-text` (and `data-reading-lines-from` for file lines), and `mentor/ui/useReadingPlace.ts` reads off the section, the first visible paragraph, the PDF page or the visible lines, and the reader's selection, which survives focus moving to the composer. `agents/model/agentReading.ts` adds them to `<reading_now>` as `place`, within hard limits (3 headings of 80 characters, 280 for the paragraph, 600 for the selection, 1.5 KB in all), and sends `"selection":"attached"` when the message already carries it as a source.
-
-`LearningSource` describes a file, PDF passage, library document passage, web excerpt or conversation message. Sources are registered by id, rendered as chips, and linked with `loci://source/<id>`, optionally with a place: `#section=…&quote=…`, `#p7` or `#L12-40` (`shared/lib/appResourceLinks.ts` validates the fragment strictly). Navigation resolves the source in the trusted host, using the current registered PDF path after relocation; an id that is not a registered source names a document in the library of the mentor on screen. A document opens in the reader, or stays in the lesson already showing it; the reader scrolls to the quote (within the section when one is named), flashes it, and falls back to the section with a notice when the words changed. A PDF source opens in the PDF reader at `#p7`, and its `quote` is found in that page's text layer and flashed when the words are there. Sending a question about a saved annotation links it to the submitted user block; merely preparing a draft does not. Web-source entry takes a pasted passage and URL without fetching the page. See [learning.md](learning.md) for the workflow and authoring API.
-
-### Code reading
-
-`src-tauri/src/code/` reads code in a mentor's cloned repositories, read-only, local and without an LSP:
-
-- `git.rs` runs `git` (no prompt, no optional locks, no network, a 10 s limit): the work tree of a file (the nearest `.git` above it), `show <sha>:<path>`, whether the file changed since a commit (`diff --quiet <sha>`, so uncommitted edits count), and where a pinned line range is now (the hunks of `diff -U0`).
-- `lang.rs` has tree-sitter grammars for Go, Rust, C, TypeScript/TSX, JavaScript and Python, compiled into the app (+7.8 MB to the release binary; C++ would have made it +11.3 MB, so it is not included). Its own definition queries (specific patterns first, so a Go `type T struct` is a struct, not a type) give a file's symbols, nested by range; a Go method names its receiver type.
-- `nav.rs` answers definition and references by name with nothing indexed ahead: `git grep -l -w -F` lists the files of the language family where the name occurs (at a commit, or in the work tree with untracked files), the texts come from disk or one `git cat-file --batch`, and tree-sitter reads definitions or identifier nodes in each, in parallel. Definitions rank real definitions before C prototypes, the project before `vendor/`, `third_party/` and the like, then the same file, folder and language. References report `match: "name"`. A common name in a 3–4k-file repository takes 0.2–0.6 s.
-- `commands.rs`: `code_read`, `code_pin_status` (`current`, `moved`, `changed` with `currentLines`, `missing-commit`, `missing-file`, `no-repo`), `code_resolve`, `code_symbols`, `code_definition`, `code_references`. `src/app/commands/code.ts` puts them behind `loci code …`, confined to the mentor's folders.
-
-A lesson pins code with `commit` beside `file` (the work-tree path, so marks, places and the reading context are unchanged); the course file writes it as `repos/<repo>@<sha>:path#L…`. `course_upsert` resolves folder-relative files and the shorthand and expands short commits before it locks the database. `learning/ui/usePinnedCode.tsx` reads a pinned lesson at its commit and shows how the pin stands. `files/ui/useCodeNavigation.tsx` adds ⌘-click, Definition and References on a selection, the result chooser and the Symbols outline to `FilePane` and to a lesson's excerpt; a `file` page may carry `commit` (read-only). A comparison lesson has no place of its own but `compare`, 2–4 parts each shaped like a lesson's place (`file`/`lines`/`commit`, `document`/`section`, or `pages` of a PDF source or PDF file) with a `label` and an optional mentor `note`; the YAML, `course_upsert`, `expand_pins` and `code.pins` treat each part as a lesson. `learning/ui/CompareLesson.tsx` stacks the parts on one page: `CoursePane`'s `LessonFile` and `LessonDocument` render each one as a part (compact header, foldable), so pins, marks, selection and code navigation are the same as in a single lesson. Parts are marked `data-compare-part`, so `useReadingPlace` reports the part in view as `place.part`; the course reading carries the parts as `compare`; `learning/model/compareView.ts` keeps what each part shows for `reader.show`. `useMentorView` keeps a back and forward stack per mentor (in memory, 50 deep): every replacement of the page is pushed, with the line a jump left; ‹ › appear in the reader header, and ⌘[ ⌘] go back and forward.
-
-## Storage
-
-A mentor's content lives as files in its own folder; SQLite (`rusqlite`, bundled, `loci.db` in the app data folder `com.loci.desktop`) keeps what changes often or is not portable, and an index of the folders. Remote access moves none of this: a connected device reads and writes these stores through the host's own command handlers and keeps only its own cache under `<app data>/remote-cache/` (see [Remote access](#remote-access)).
-
-### Mentor folders
-
-Each mentor is a folder under the mentors root: `~/Loci` for the installed app, `~/Loci-Dev` for Loci Dev, `~/Loci-Dev-<suffix>` for any other build (a QA bundle), or `LOCI_MENTORS_ROOT` in builds other than the installed app. A folder directly under the root is a mentor when, and only when, it holds `mentor.json`; `repos/` (the shared clone root of 0.3) and anything else are ignored.
-
-```text
-~/Loci/<slug>/
-├─ mentor.json               who it is: schemaVersion, id, name, role, avatar, color,
-│                            workdir (only when it is a folder of the user's), folders, defaults
-├─ SOUL.md  MEMORY.md  memory/<topic>.md
-├─ sources/<id>.md           first-hand text, verbatim after YAML front-matter
-│                            (title, sourceUrl, version, fetchedAt, subject, createdAt)
-├─ sources/<id>.pdf          a first-hand PDF, unchanged
-├─ sources/<id>.pdf.yaml     its sidecar (title, sourceUrl, version, fetchedAt,
-│                            subject, pages), plain YAML
-├─ guides/<id>.md            the mentor's own guides (title, subject; never sourceUrl)
-├─ courses/<id>.yaml         the course JSON as YAML; lesson files relative to the folder,
-│                            code pinned as repos/<repo>@<sha>:path#L12-40
-├─ courses/<id>/<lesson>.md  a lesson's own text: the mentor's Markdown, no front matter
-├─ notes/<id>.md             title, slug, tags, createdAt, updatedAt, sourceSession
-│  notes/assets/<id>/        the pictures that note shows, linked relatively
-└─ repos/  lab/              cloned source and experiments; never indexed or watched
+```
+Package.swift                 目标和依赖
+Sources/<模块>/                一个文件一个类型或一件事
+Tests/<模块>Tests/             模块的行为
+Tests/ArchitectureTests/      架构规则和它自己的测试
+Tests/LociUITests/Snapshot    把界面渲染成图
+script/                       check · format · run
+docs/                         路线、设计、架构、功能地图
+docs/agents/                  派活、审阅、黑盒测试的说明
+docs/spikes/                  验证的结论
+output/                       构建产物、截图、日志（不提交）
 ```
 
-The code is in `src-tauri/src/mentor_store/`: `paths.rs` (the root, names, NFC ids, paths that cannot leave the folder), `format.rs` (the formats; unknown keys are kept on rewrite, a newer `schemaVersion` is read and never rewritten), `fsio.rs` (atomic writes), `index.rs`, `registry.rs`, `migrate.rs`, `watch.rs`, `bundle.rs` (export and import) and `commands.rs`.
-
-- **Rust owns the files.** The commands the window always called (`agent_documents_*`, `course_*`, `notes_*`, `agent_load/read/save`) keep their names and payloads. For a mentor whose content is in its folder they read and write files; for anything else (a note with no mentor, a mentor not migrated yet) they use the tables as before. A read re-checks its file, so an edit made outside the app is what the next read shows.
-- **Mentors may edit their files.** The tool guide says so; `library.check` lists files that could not be read and why. Soul and memory still change only through `soul.*` and `memory.*`, which date, redact and archive.
-- **Conflicts.** Editors name the hash they read. A note saved over a file that changed on disk keeps the disk version beside it as `notes/<id>.conflict-<time>.md`; Soul and memory refuse with `conflict`. When the open note changes on disk, the editor follows it silently if it has no unsaved edits, and otherwise shows a one-line bar, **Changed on disk — Reload · Keep mine**: Reload takes the disk version, Keep mine saves the editor's text with the disk version kept as the conflict copy. Whole-document writes by id from the mentor (`courses.write`, `documents.write`) replace, as they always have.
-- **The index.** `mentor_content` has one row per content file (title, metadata, text of sources, guides, lessons and notes, the course JSON), with its hash, size and time; `mentor_content_fts` is a trigram FTS5 index for search in any script (its triggers name the kinds whose text is searched; older triggers are replaced and the index refilled once). Listing never touches the disk. At start, and when a folder is newly watched, each mentor's content folders are walked, with each course's folder of lesson texts, and only changed files re-read.
-- **Lesson texts.** Kind `lesson`, id `<course>/<lesson>`, file `courses/<course>/<lesson>.md` (`paths::classify` reads that one nesting and no other). `course_get` returns the course with `bodies`, the lessons that have text; `course_lesson_get` / `course_lesson_set` read and write one; `course_upsert` takes `bodies` (Markdown or an absolute path per lesson id), checked before anything is written. A revision drops the texts of lessons it removed, and deleting a course removes its folder. A lesson with neither text nor source is planned. Search names a lesson hit by its title in the course. The watcher follows each course's folder and reports a lesson change as a change to its course. A file that stops parsing keeps its last good row and gains an `error`.
-- **Glossary.** `glossary.yaml` in the folder, read and written whole by `glossary.rs` (`glossary_read/write/remove`, one write at a time); it is not indexed or watched, so the reader reads it again when a lesson opens or the glossary changes through the app. Terms are underlined with the CSS Highlight API (`::highlight(loci-term)`) and hit-tested from the caret under the pointer, so the lesson's DOM is never rewritten.
-- **Questions and revisions.** `lesson_questions` keeps each question's passage (`anchor`, a text anchor as JSON), the thread it follows (`thread_id`) and the reply (`answer_id`, `answer`, saved when the turn ends, so a margin note outlives the chat's paging). `lesson_revisions` keeps the text a lesson had before its last revision and whether it was looked at; the index writes it whenever a lesson's indexed text changes, so an edit to the file counts as one. Both are SQLite rows removed with the mentor.
-- **Chapters stand on chapters.** A chapter may carry an `id` and `after` (ids of earlier chapters), so the course reads as a tree; `after` may name only earlier chapters, so it cannot loop. A `courses/_path.yaml` left by 0.10 is not content and is never read.
-- **PDF sources.** A PDF is indexed through its sidecar (`mentor_store/pdf.rs`): the sidecar supplies the title and address, and the PDF's text is extracted locally with `pdf-extract` (pure Rust, no network) into the row's body, so `library search` and `documents.read` have the paper's words; the page count comes from the PDF. Either file changing re-reads the pair. A PDF without a sidecar is not a source yet, and a sidecar without its PDF keeps its row with an `error`; `library check` names both. The reader opens the PDF in `FilePane`, so highlights, notes and page links work as on any other PDF.
-- **The watcher.** `watch.rs` follows the root, each mentor folder, its content folders and `memory/`, each non-recursively (FSEvents on macOS). Changes settle for 200 ms, are indexed, and reach every window as `loci:mentor-content-changed`, which `mentorStore.ts` turns into the refresh events the UI already listens to. The app's own writes are indexed when made, so their echo reports nothing.
-- **The roster.** `mentors` holds the half of the roster that is not portable (conversation id, rail position, local flags) and each mentor's folder. `features/agents/model/mentorStore.ts` loads it at boot and sends every change; localStorage keeps a copy, so `listAgents()` stays synchronous and an older Loci still finds the roster. A new mentor gets a folder named like 0.3 workdirs, which follows its name until it is first used. Deleting a mentor (`mentor_store/removal.rs`) moves its folder to the system trash, only when it is a folder directly in the root, and deletes its rows from every table (registry, index, progress, view state, its conversation, and the annotations and reading records of its documents and files); the folders it was given, a workdir outside its folder and the shared `repos/` are not touched. A folder outside the root keeps its place, its `mentor.json` renamed to `mentor.removed.json` as Loci before 0.6 did for every removal. A folder with `mentor.json` copied (or put back from the trash) into the root is adopted.
-- **Defaults.** `mentor.json` `defaults` keeps the chat's provider, model, effort and permission mode; the window updates them whenever the mentor's chat changes any of them. Every new conversation of that mentor starts from them, including a reset, a mentor just imported, and the empty conversation a command made that was released again instead of saved. The stored model id is kept even before its provider's catalog has loaded.
-- **A workdir of the user's** stays where it is: the mentor's content goes into its own folder in the root, and `mentor.json` names the workdir. The app never writes content into a folder the user chose.
-
-### Tables
-
-| Table | Rust module | Holds |
-| --- | --- | --- |
-| `sessions`, `in_flight_sessions` | `session_store.rs` | session transcripts, and which sessions were still running at quit |
-| `agent_transcript_pages` | `agent_transcript.rs` | older turns of an agent's conversation, moved out of its session |
-| `mentors`, `mentor_content`, `mentor_content_fts`, `lesson_progress`, `lesson_questions`, `mentor_state` | `mentor_store/` | the registry, the index of mentor folders and its full-text index, course progress (no foreign key, so it outlives a file's brief absence), the messages sent while a lesson was open (course, lesson, session and message id, the question's first line), view state |
-| `learning_sources`, `reading_documents`, `pdf_annotations` | `learning.rs` | source references, PDF identities and every reader's marks (a mark on a file in a mentor's folder is keyed `mentorFile` `<agent>/<path in the folder>`, so it follows the folder) |
-| `notes` | `notes.rs` | notes with no mentor; 0.3 rows of mentors, kept as they were |
-| `agent_documents`, `courses`, `course_progress` | | 0.3 data, kept unchanged since the migration; read only for a mentor not migrated yet |
-| `schema_migrations` | `session_store.rs` | the baseline version, `40` once 0.3 data is in mentor folders, `60` once canvases are gone, and `100` once the tables of removed features (`workspace_snapshot`, `feed_item_state`, `session_reminders`, `learning_widgets`) are dropped |
-
-The heartbeat's state stays in `<app data>/agents/<id>/heartbeat.json`: it runs on its own, and a folder imported from elsewhere must not bring it. A `habits.json` left there by 0.9 is not read.
-
-Tables are created on demand with `CREATE TABLE IF NOT EXISTS`. There is no migration framework, so a change to an existing table has to keep reading databases written by older versions.
-
-Canvases were removed in 0.6. At start `mentor_store/canvas_removal.rs` drops `canvases` and `canvas_checkpoints`, forgets indexed drawings and deletes each registered mentor's `canvases/` folder, then records version `60`. Every step is safe to repeat, so a start that stops halfway finishes on the next one.
-
-### From 0.3
-
-At start the window hands its 0.3 roster and view state to `storage_migrate` (`loci storage migrate --dry-run` reports without writing). Before the first real run it copies `loci.db` (`VACUUM INTO`), `agents/` and the roster to `<app data>/backups/v0.4-migration-<time>/`. Each mentor's documents, courses, notes, Soul and memory are written into its folder (0.3 canvases are skipped), and its progress into `lesson_progress`; old rows, old files, localStorage keys and the user's folders are not changed. A file already holding the same text is done; one holding other text is kept, and the 0.3 version goes beside it as `<id>.from-0.3.<ext>`. A mentor is marked migrated only when all of its files are written, so an interrupted run resumes; a mentor that fails keeps using the old tables and the others go on. The same pass runs at every start: rows an older Loci changed after a downgrade come back as files (or `.from-0.3` copies), and a mentor it added is migrated.
-
-Downgrading to 0.3 works: it reads the old tables (as they were at migration) and the roster copy in localStorage. Content written by 0.4 is in the folders, which 0.3 does not read.
-
-Workspace reset clears the tables and app data as before and forgets every mentor; their folders stay, and `loci mentors import --folder` brings one back.
-
-### Export and import
-
-`bundle.rs` zips a mentor's folder (without `repos/` and `lab/` unless asked) with a `manifest.json` (format `loci-mentor`, each file's SHA-256, the repositories with their remote and commit) and `.loci-state/state.json` (progress, marks on its documents and files, view state). Import checks every path and hash, refuses links and archives over 2 GB, extracts into a new folder in the root and gives the mentor a new id when the install already has one with its id. Conversations are not exported.
-
-Loci reads Cursor's own store to recover sub-agent activity its ACP stream omits (`cursor_store.rs`), and writes none of it.
-
-## The control channel
-
-`control.rs` is an authenticated loopback transport. Windows own execution; a caller never receives arbitrary Tauri command access or direct database write access.
-
-1. When a turn starts, Loci gives that session a grant: an endpoint and a token, passed to the agent process as `LOCI_APP_ENDPOINT` and `LOCI_APP_TOKEN`. Credentials travel by environment variable and never appear on a command line.
-2. The grant works only while that turn is active.
-3. Requests are routed by namespace, and each namespace has its own rule:
-
-| Namespace | Used by | Rule |
-| --- | --- | --- |
-| `app` | agents, through the `app` subcommand of the desktop executable (`control_cli.rs`) | an agent's conversation and its heartbeat's runs always have access |
-| `cli` | `loci <noun> <verb>` from a terminal outside Loci (`external_cli.rs`) | the local token in `<app data>/control/cli-token`, while **Settings → General → Command line** is on |
-
-The `cli` namespace is not tied to a turn. A running Loci writes where it listens to `<app data>/control/endpoint.json` and keeps a token in `cli-token` beside it, both readable only by the user (`cli_access.rs`). The token is the only credential that opens `cli`, and it opens nothing else. The host answers `status` and the token commands itself. Every other command goes to the main window, or to the first window whose listener is up; when none is, the main window is shown or opened. Each build has its own data folder, so `loci --app <identifier>` reaches Loci Dev or a QA build and never the installed app by accident. See [cli.md](cli.md).
-
-A provider may start its process under a generation-scoped id (`<session>#<n>`, as Antigravity does); the credential is looked up by the session that owns the process.
-
-## Remote access
-
-Loci can serve its workspace to another Loci. The device holding the data is the **host**; an installed Loci on another device opens a **connected** window that shows the host's mentors, courses, conversations, notes and PDFs. The host keeps everything: its mentor folders, `loci.db`, agent CLIs and model configuration. Nothing is synced, and there is no account service. A connected window sends actions; the host carries them out. Remote access is off until it is turned on in **Settings → Remote access**, which writes `remote.json` in the app data folder.
-
-Every installation can host and connect. `remote_page` in `src-tauri/src/lib.rs` opens a connected window for `?remote=device:<deviceId>` (from **Connect** in Settings, **File → Connect To**, a finished pairing, or at launch for the last host when **Open the last computer at startup** is on and that host is online) or `?remote=loopback` (a development window into this process's own gateway). `src/platform/transport.ts` chooses the `Transport` while it loads, before any call, and `src/main.tsx` boots `src/remoteBootstrap.tsx` in such a window instead of `bootstrap.tsx`. The client bootstrap does not migrate mentors, resume interrupted turns or probe CLIs; it connects, then reads the host's `home_dir`. `src/app/remote/RemoteWorkspace.tsx` lays out the host's workspace with the same rail, reader and conversation components, and `src/app/remote/remoteSessions.ts` keeps the mirror. A second request for a page that a window already shows focuses that window instead (`window::open_new_window`). Session actions arrive as intents; reads and writes are forwarded commands. Window, menu, clipboard and notification calls act on the device showing the window and stay outside the transport (`src/platform/native.ts`).
-
-### Transport
-
-`src/platform/transport.ts` defines `Transport`: `call(command, args)`, `listen(event, handler)` and `fileUrl(path)` for a URL the webview can load. A local window uses `tauriTransport`, which forwards to `invoke` and `convertFileSrc`; a connected window uses `createRemoteTransport` from `src/platform/remoteTransport.ts`. Remote `fileUrl` reads the whole file with `read_binary_file`, keeps it in a cache per path and returns a blob URL; there is no ranged read.
-
-`src-tauri/src/remote_catalog.rs` gives every registered command exactly one class. A Rust test reads the names in `generate_handler!` and fails when a command is missing or listed twice (194 commands in this version):
-
-| Class | What a connected device gets |
-| --- | --- |
-| `Read` | Forwarded and run on the host; reads host data. |
-| `Write` | Forwarded and run on the host; changes host data. |
-| `SessionAction` | Routed to the host window; a device cannot run it against the database itself. |
-| `OnHost` | Forwarded and carried out on the host machine, such as revealing a file or opening a host browser. |
-| `ClientLocal` | Run by the client against its own machine, never forwarded. |
-| `Never` | Refused for every connected device; this includes every `harness_*`, the control channel and the workspace reset. |
-
-The client copy of the `ClientLocal` list lives in `src/platform/remoteTransport.ts` and a test keeps the two lists equal. A name with a dot is an intent and goes to the host window; everything else that is not a registered `Read`, `Write` or `OnHost` command is refused with `<command> is not available to connected devices`. `harness_*` is also rejected in the client before it leaves the machine.
-
-### Sessions: the host window drives
-
-The host's main window is the only session driver. It owns the CLI processes and the in-memory sessions, and it saves them to `loci.db`; a connected device cannot start a turn itself. Its input arrives as intents, and the window runs them through the same table its own panes use (`src/app/remote/sessionIntents.ts`), so a message, stop, approval, question answer, model change and mentor reset behave the same from either side. `src/app/hooks/useSessionHost.ts` starts and stops with the `remote-status-changed` event, listens for `loci-remote-intent`, runs the intent and answers with `remote_intent_reply`. It remembers the last 256 `requestId`s, so a device that resends after a lost connection runs an intent once. `agent.reset`, `agent.remove` and `session.delete` must carry `{ "confirmed": true }` from the device that asked, because the host never opens a confirmation dialog for another device. Only the `main` window hosts.
-
-The window publishes its sessions as a feed (`src/app/remote/sessionFeed.ts`) through `remote_session_publish`. A **snapshot** carries every shared session and the host's shared settings; a **patch** carries changed sessions and blocks, and a **settings** message carries changed shared settings. `epoch` is this page load of the host window, and `seq` counts what it has sent since, including settings, so one sequence covers both. Changes within 50 ms coalesce into one patch. A block that only grew text at its end is sent as an `append`; attachment bytes and preview URLs are stripped. Hidden heartbeat sessions (`ephemeral`) are not sent.
-
-`src-tauri/src/remote/session_master.rs` keeps the last 8 MiB of patches. A device subscribes with `{epoch, seq}`: an epoch it knows and a position the buffer covers replay the missed patches, otherwise the gateway asks the window for `session.snapshot`. The window's intents time out after 120 s, at most 64 wait at once, and closing or reloading the window fails those pending. A dropped connection fails its pending intents at once and sends an empty `session.view` on its behalf, so its leases are released. A device also sends `session.view` for the sessions it shows every 30 s; the union of every device's leases keeps those sessions in memory and out of the idle detacher and transcript pager (`useIdleSessionDetach`, `useAgents`).
-
-On the client side, `RemoteSessionClient` applies snapshots and patches in order. A patch at an applied position is discarded; another epoch or a gap in `seq` triggers a new subscribe, which asks for a snapshot when the buffer cannot cover it. It reconnects with backoff from 1 s to 30 s, sends the leases, and keeps the mirror for offline use. Intent results, the host's shared settings and the host's model catalog come back through the same connection; `session.models` asks the host to probe its own CLIs.
-
-### Gateway
-
-`src-tauri/src/remote/gateway.rs` is the host's end of a connected device. After the secure channel, every message is one frame: a JSON object (starts with `{`) or a blob chunk (starts with `0x01`).
-
-| Direction | Frame | Meaning |
-| --- | --- | --- |
-| Device → host | `call` | A registered command with `args`, or an intent with a `requestId`. |
-| Device → host | `subscribe` | Start the session feed after `{epoch, seq}`, or from a snapshot when omitted. |
-| Device → host | `upload` | A file name and size; its bytes follow as chunks led by `0x01` and the upload id. |
-| Host → device | `result` | `ok` with a value, or an error; a byte reply announces `blob` and its chunks follow. |
-| Host → device | `event` | Feed messages, named `session.feed`. |
-
-`Read`, `Write` and `OnHost` commands run on the host through `remote::invoke_command`, which hands the request to the main window's own invoke handler; arguments, state, the workspace-reset guard and the ACL are the same as for a local call. Intents and `SessionAction` commands are passed to the host window. Blob chunks are at most 1 MiB. An upload is at most 100 MiB, and one connection may have at most that much announced and not yet sent. The host saves an upload with `fs::save_uploaded_file` beside pasted attachments, in its own folder and with its original name, readable only by the owner.
-
-### Tunnels
-
-`src-tauri/src/remote/tunnel.rs` separates transport from meaning. A `Tunnel` starts hosting with `listen()` and dials with `dial()`; both ends of a `Connection` exchange opaque byte messages, and dropping either end closes both directions. Status is `Connecting`, `Online`, `Retrying { attempt }` or `Stopped { reason }`.
-
-- `LoopbackTunnel` (`loopback.rs`) joins two windows of one process in memory. It runs the same secure channel and gateway as a remote connection and is the development path.
-- `AlmaRelayTunnel` (`alma_relay.rs`) is the deployed tunnel. The host dials out to `wss://<relay>/agent?th=<tokenHash>`, registers protocol 2 and falls back to protocol 1 on older relays. Clients reach `/c/<routing token>/__loci__`; the relay bridges each client WebSocket over the host's socket (`wopen`/`wmsg`/`wclose`). Only those bridged sockets are served: plain HTTP gets 403. The host retries with backoff from 1 s to 60 s and stops for good when the relay reports its code taken (4000) or the registration refused. The routing token is a one-way derivation of the connection code, so the relay never sees the code, and everything above the tunnel is encrypted.
-
-### Secure channel
-
-`src-tauri/src/remote/secure_channel.rs` encrypts every message end to end, whichever tunnel carries it. Each device has an Ed25519 key: the private key is in the system keychain (service is the app identifier; account `remote-device-key`), and devices are known by the public key. A host also has a 256-bit connection code.
-
-The handshake uses fresh X25519 keys per connection for forward secrecy and HKDF-SHA256 for every key. `psk = HKDF(code)`, and the code is mixed into every derived key, so a peer without it cannot open the second message; each side then signs a transcript hash with its device key. The host sends an empty encrypted record once it accepts the client, so the client only counts as connected after the host has checked it; a host that turns the client away closes. Records are AES-256-GCM with `nonce = counter` and one key per direction. A record holds at most 1 MiB of plaintext; a bigger message is split into records, up to 64 MiB. A replayed, reordered, dropped or altered record fails to decrypt and ends the channel.
-
-For a host in a device group, the connection code is derived from the group secret and that host's `deviceId`; every member can compute it, and neither the registry nor the relay can. A host without a group generates a random code, which only a loopback client can know.
-
-### Device group and registry
-
-`src-tauri/src/remote/device_group.rs` implements the `Identity` trait (`devices`, `join`, `remove`). A group is a 32-byte secret held by every member. `src-tauri/src/remote/setup.rs` exposes creating a group, joining with `loci-group:<secret>?registry=<url>`, leaving, listing devices and removing one. The group's Ed25519 signing key is derived from the secret with HKDF, and `groupId` is its public key. A device's `deviceId` is the first 22 base64url characters of SHA-256 over its public key.
-
-The member list is kept by the separate Worker in `services/device-registry`, one Durable Object with SQLite per group. It stores signed device records and signed removal tombstones; every member verifies them again after reading. Heartbeats go every 30 s and carry the host's relay route when it is serving; the list is read again every 60 s, and a device is shown as online when it was heard from within 90 s. Joining needs no approval: the new device writes its signed record, and the host accepts it after the next list refresh. A rejected handshake makes the host refresh once, at most every 5 s, so a just-joined device usually gets in on its second attempt. Removing a device writes a signed tombstone; that `deviceId` cannot join again, and the host drops the device's open connections when its verified list changes. Other hosts learn of the removal within one refresh, up to 60 s. Leaving the group also writes a removal, deletes the group secret and generates a new device key, which is the only way back in. The device key and group secret are kept in the system keychain and read only once remote access has been set up; `remote.json` holds the on/off switch, the device name (the computer's name when unset), the user's own relay and registry with their keys, the hosts this device connected to and whether to open the last one at launch.
-
-A build can carry a relay and a registry: `LOCI_RELAY_URL`, `LOCI_RELAY_KEY`, `LOCI_REGISTRY_URL` and `LOCI_REGISTRY_KEY` are read with `option_env!` when it compiles (`BUILT_IN` in `src-tauri/src/remote/mod.rs`; releases get them from Actions secrets, see [releasing.md](releasing.md)). An address in `remote.json` replaces the built-in one together with its key. The settings page learns only whether each is built in, never the value.
-
-### Pairing
-
-`src-tauri/src/remote/pairing.rs` lets a device join with a code instead of the group secret. **Add device** on the host creates the group if there is none, turns remote access on and shows an 8-character Crockford base32 code (`K7QM-2XPA`) for 10 minutes. The host registers a temporary relay tunnel whose connection code is derived from the code's first three characters; the device dials it. The relay sees that tunnel's routing token and could work out those 15 bits, and nothing more: SPAKE2 (Ed25519 group) runs over the whole code, each side proves the shared key with an HMAC over the transcript before anything else is sent, and then the host sends the group secret and registry sealed with AES-256-GCM under that key. The device joins the registry as it would with the group key and says so; the host reads the member list again before answering, so the device's first connection is accepted. The first device to arrive spends the code whatever happens, and the tunnel closes on success, failure, expiry or **Cancel**. A recording of the exchange does not let anyone test a guess; an active guesser gets one try per code, 2^-25 at worst. `remote_pairing_start`, `remote_pairing_cancel` and `remote_pairing_status` serve the host; the outcome is the event `remote-pairing-changed`. `remote_pairing_redeem` joins, remembers the host, turns **Open the last computer at startup** on the first time, and opens the host's window. The pairing runs over whichever relay each side uses, so a self-hosted host and device must name the same one.
-
-**File → Connect To** (macOS) lists the members that are online and have a route, and is filled again on every heartbeat and every change to the group.
-
-### Settings
-
-`src/platform/hostSettings.ts` names the 15 settings that decide what the host does: default access, learning language, default and last models, model parameters, provider visibility and accounts, CLI paths, follow-up behavior, Claude hooks, disabled skills and recent projects. The host keeps the authoritative copy. Clients keep a mirror under the same localStorage keys, so existing synchronous readers work unchanged. The snapshot and `settings` feed messages carry these values; a client change is a `settings.set` intent, checked against the same list and a 64 KiB limit, and the host's saved value comes back in the feed. Appearance, layout, panel state, theme, fonts and window shortcuts stay per device. The mentor roster is read with the ordinary `mentors_load` command, and the host's model catalog through `session.models`.
-
-### Files and uploads
-
-A connected window's file picker is not the system dialog: `src/platform/dialog.ts` routes open, save and folder choices to `src/app/remote/HostFileDialog.tsx`, which browses the host with `list_dir` and `stat_files`, starting at the host's home or a suggested path. `src/platform/upload.ts` exports `toHostPaths`, which uploads paths that name files on the client, one at a time, through `remote_client_upload`; the returned host paths are what attachments, dropped files, clipboard files, note pictures and files copied into a project use. Screenshots and other bytes without a path already go through `write_attachment` and are written on the host.
-
-### Offline cache
-
-`src-tauri/src/remote/cache.rs` keeps what a connected window has read from one host under `<app data>/remote-cache/<host>/`, one file per reply, keyed by a hash of the command and its arguments. Replies to `Read` commands are kept, up to 256 MiB per host, with 32 MiB for one entry and least-recently-used eviction. The session mirror is written by the client through `remote_client_cache_put` after 2 s of quiet, and read back with `remote_client_cache_get`.
-
-With no connection, a `Read` command is answered from that cache or with `NOT_KEPT`; anything else, including every intent, is refused with `HOST_OFFLINE`. An intent already sent when the connection dropped keeps its `requestId` and is sent again if the connection returns within 10 s, so the host's deduplication still runs it once; nothing is queued. Conversation panes, including a conversation opened in the reader, are wrapped in a disabled `fieldset`, and the rest of the library stays readable. On reconnect the feed catches up from `{epoch, seq}` and the window reloads the roster, models and open content from the host. Removing a device deletes what this device kept for it; leaving the group deletes the whole cache.
-
-### Keeping the host awake
-
-`src-tauri/src/power.rs` holds `KeepAwake`, which runs `caffeinate -s -w <pid>` on macOS while the gateway is serving and drops it when remote access stops. It prevents idle system sleep only on AC power; on battery, or with the lid closed, the machine can still sleep, and clients reconnect when it wakes.
-
-### Trust boundaries
-
-A connected device is treated as **Full access** on the host. It can read and write every mentor's content, run every `Read`, `Write` and `OnHost` command, drive any session through an intent, and change the host-shared settings. There is no per-device permission and no read-only role: the device group is the whole authorization model, so anyone holding the group secret can add a device that does all of this. The connection code is a second gate, not a substitute for device signatures; a removed device may still know the group secret and reach the relay, and the host refuses it at the handshake.
-
-The relay and the device registry are outside the trust boundary. Their addresses and keys built into a public release can be read out of it; they keep strangers off the services and protect nothing on a device. The relay sees ciphertext, the routing token and connection metadata, and writes nothing; it cannot open the channel or read a frame. The registry sees plaintext metadata — device names, platform, public keys, last-seen times and IPs — and can withhold or roll back a list or refuse service, but records are signed by the group key, so it cannot forge a member, and the host enforces removals at the handshake. The client's front end is installed locally and trusted; the host never sends front-end code over the relay. `remote_catalog.rs` is the allow list that keeps everything else — the CLI drivers, the control channel and the workspace reset — off the wire.
-
-## Agents
-
-An agent, shown to the user as a mentor, is long-lived and belongs to no project: a name, a hand-drawn Notionists face on a card in its own color, one conversation that never ends, and a working folder of its own. Each one has a face on the mentor rail. The code is in `src/features/agents`, with the wiring in `src/app/hooks/useAgents.ts`, `useAgentHeartbeat.ts` and `useAgentDelegation.ts`.
-
-- **Roster.** `model/agent.ts` reads the agents from a localStorage copy (`loci:agent-roster`) of the registry and `mentor.json` files (see [Mentor folders](#mentor-folders)). An agent's conversation is an ordinary session whose permission mode starts at the default for new mentors, Full access unless changed in Settings → Your mentors. A saved conversation from before that default switches to Full access once, when the mentor is next opened; `accessMigrated` on the roster records the switch, so a mode later chosen in the mentor's settings, its composer or through the app CLI is kept. The sessions a mentor starts through the app CLI inherit its mode. A `projects` key left on an older roster entry is ignored: a mentor works in its workdir only. The conversation is shown in the conversation column of its workspace.
-- **Workdir.** Each agent has a working folder the user can see (`Agent.workdir`, `model/agentWorkdir.ts`): cloned source under `repos/`, experiments under `lab/`. It is the mentor's own folder, `~/Loci/<slug>` (`~/Loci-Dev/<slug>` for Loci Dev, so development never writes into the real folder), where the slug comes from the agent's name and falls back to `mentor-<id>`. `agent_workdir_create` (`agent.rs`) only ever makes a new, empty folder: if the name is taken it tries `<slug>-2`, `-3`, and so on. The user can point an agent at any existing folder in its settings; `agent_workdir_ensure` uses such a folder as it is and creates nothing in it. The app never moves or deletes files there. A new conversation, and a conversation started by Reset, runs in the workdir. A saved conversation keeps the folder it started in, because the CLIs tie a resumable conversation to it: older agents keep running in the home folder, which already holds the default workdir, and move into it on their next reset. The workdir is not treated as a project (no project-location sync, notes are not filed under it). `ui/AgentFilesSection.tsx` lists the workdir with the shared file tree; it is the Files segment of the mentor's library, where the library's filter drives the tree's file search and the tree's folder actions (new file or folder, import, refresh, collapse all, hidden files, reveal) sit in one "…" menu.
-- **Files.** `agent.rs` keeps `SOUL.md`, `MEMORY.md` and `memory/<topic>.md` in the mentor's folder (in `<app data>/agents/<id>/` until it is migrated) and `heartbeat.json` in `<app data>/agents/<id>/`. The folder is not a repository; cloned source lives in its `repos/`, each a repository of its own, so a pull request there cannot reach the Soul. Paths are checked against that short list, writes are atomic and owner-only, and a save names the hash it read, so the user and the agent cannot overwrite each other. The same check is how two windows avoid running one heartbeat twice.
-- **What a turn carries.** `model/agentFiles.ts` wraps three layers in `<loci_context>`. The **Soul** (`<soul>`, with factual identity in `<agent>`: name, role, `workdir` and `folder`) says only how the agent teaches; it is the user's file and changes only when they or the agent edit it. The **tool guide** (`<tools>`) says how Loci works, the same for every agent: the CLI, what a source and a guide are, course and lesson anchors, pinned code lessons, comparison lessons and paths, the citation formats, reading together, folders, memory, and that Loci has no scores or review schedules. It ships with the app, so a format change reaches every mentor at once; it does not direct session creation or delegation. **Per-turn context** (`model/agentTurnContext.ts`): `<language>`, the local time and `<reading_now>` go every turn, memory when it changes. The built-in templates (`templates/*.md`) hold Souls only. A Soul still exactly as a template once shipped it (`templates/retiredSouls.ts` lists their hashes) was never edited, and `loadAgentFiles` moves it to the template's current text, saving over the hash it read so an edit is never replaced. A provider conversation receives its Soul once and memory when it changes; `planAgentContext` records the provider conversation and file hashes. Format references are available explicitly through `app --help` from `src-tauri/resources/app-formats.md`.
-- **Rotation.** At 80% of the reported context window an agent starts a fresh provider conversation, carrying factual excerpts of the last two exchanges and one line for each earlier exchange. The full transcript stays readable in the chat. `prepareAppTurn` also replaces old agent and ordinary provider conversations once to remove previously injected global policies. Edits retain their provider and defer that cleanup; a model switch to a fresh provider completes it. This migration uses the existing context receipt and rotation store, without a database migration.
-- **Paging.** The transcript itself would also grow without bound. Past 60 turns an idle chat that is not in view moves its oldest turns, down to 40, into `agent_transcript_pages` (`agent_transcript.rs`, `model/agentTranscript.ts`). The page is written before the session is trimmed and is keyed by its first block, so a crash in between archives nothing twice. The view offers the pages back with "Show archived history", above the transcript's own window of recent turns, and the agent's own `sessions.read` reaches into them. Pages are deleted with their session.
-- **The app CLI.** An agent's conversation has `app` access in every turn, plus actions an ordinary thread does not have: `soul.*`, `memory.*`, `documents.*`, `sessions.stop`, `sessions.archive`, `sessions.delete`, and `"project"` on the session actions, limited to its workdir. Memory is changed only through the CLI, which dates entries, redacts common credential formats and moves old entries to an archive once `MEMORY.md` passes what loads into a turn.
-- **Progress.** While a mentor's turn runs, `model/turnProgress.ts` turns its tool calls into one plain line each: saving a source or guide, cloning a repository, fetching a page, writing a course, reading a file. `ui/TurnProgress.tsx` shows the newest three under the turn's status line, expandable; the conversation header names the newest one in the same words, and `mentors turn` and `mentors send --wait --stream` expose the same entries to a terminal. An adapter that reports no tool calls leaves the spinner and "Working". The library marks a source, guide, course or note saved during the turn as New (`mentor/model/libraryNovelty.ts`) until the learner opens it or the turn ends.
-- **Questions.** The Soul and current user request determine questioning behavior. CLIs can use their native question tool or emit a fenced `loci-question` JSON block; `features/sessions/model/standingQuestion.ts` renders it as a form. Such a question is standing: no provider request waits on it, so it outlives its turn and a restart, and the choice goes out as the next user message. This works in every session. The application does not set question counts or require a profile interview.
-- **Cards.** A card is a fenced block in a reply that `features/sessions/ui/AgentMarkdown.tsx` draws as something better than code: `loci-question` (a form), `loci-document`, `loci-todo`, `loci-mindmap`, and `mermaid`. Parsing is in `features/sessions/model/cards.ts`; components are in `ui/cards/` and `features/learning/ui/`. Any agent CLI can produce the text format. A card in a message that is folded into the turn's work stays in view (`cardsOnly`). A ticked checklist item bubbles a `loci-card-reply` event that `SessionPane` submits as the user's next message.
-- **Library.** As soon as a message of an agent's conversation is complete, `useAgents.ts` saves its `loci-document` blocks (and `useSessionSubmission.ts` does so again when the turn ends) into its folder (`agent_documents.rs`): `sources/<id>.md` or `guides/<id>.md`, so writing the same id again revises it. There are two kinds: first-hand **sources** taken in verbatim from a file by `documents.write` (with `source_url`), and the mentor's own **guides** (`loci-document` blocks and `guides.write`, without). A source may be a PDF instead of Markdown: `documents.write` copies it in as `sources/<id>.pdf` with a `sources/<id>.pdf.yaml` sidecar, and its row lists in Sources with a PDF icon and its page count. Rows carry `kind` when read; one kind is refused over the other's id. A Markdown document opens in its reader (`ui/AgentDocumentReader.tsx`) and can be saved as an agent-owned note; a PDF source opens in `FilePane`, the PDF reader, at a page when a link names one. The agent reads its library back with `documents.list` and `documents.read`, and writes a guide from a file with `guides.write`. Deleting an agent forgets it and its conversation; its folder stays on disk.
-- **Creation.** The plus beside Agents directly opens a blank agent, without starting a model. New agents carry the editable default Soul and factual identity, with no hidden initialization or automatic naming instructions. The user's first message supplies the purpose or task. Model and effort controls sit beneath the agent composer; profile and permission controls live in the settings dialog. Existing agents keep their own Soul.
-- **Window headers.** On macOS the mentor workspace's title bar shares the native 40px titlebar; when the rail is collapsed it starts with room for the window's buttons and a Back button. The reader's and the conversation's own headers sit below it. `shared/ui/PaneHeader.tsx` and `shared/ui/ResourceHeader.tsx` provide those headers for agents, conversations, documents, courses and files.
-- **Courses.** Courses are scoped by agent and saved through `courses.write`; a stable course/lesson ID retains reading progress across revisions. A lesson's text is the mentor's own (see Lesson texts); `learning/ui/CoursePane.tsx` renders it through `DocumentBody` (Markdown, Mermaid, math, code, `loci://` citations, highlights and blocks), with highlights kept on the lesson's file, so they travel with the folder. A lesson may also name a saved document, a local file or PDF pages, or a comparison as its source: with text the reader's File button shows it in place of the text ("Original"), without text it is shown itself. A planned lesson (only a title) is shown faded in both outlines; choosing it puts a request for its chapter in the composer (`learning/model/chapterRequest.ts`) and marks nothing. A link to a lesson's file (a highlight's note, a citation) opens the lesson (`learning/model/lessonLinks.ts`). `<reading_now>` says whether the lesson's text, its original or a planned lesson is shown (`view`). A message sent while a lesson is open (and not planned, and the reader not dismissed for that turn) is recorded on it (`prepareAppTurn` returns the lesson; `useSessionSubmission` calls `lesson_question_add` once the turn is accepted). A lesson's end lists those questions, each opening the conversation at its message, and then the next lesson, which marks this one read. Courses open in the mentor's reader.
-- **Coming back.** `mentor/model/mentorReturn.ts` keeps, per device, when the learner was last with each mentor (`loci:mentor-active-at`, touched each minute the window is focused on it). Opening a mentor six hours or more after that puts a card over the reader (`mentor/ui/ReturnCard.tsx`): the lesson left on (else the one last asked about), the last question, and the lesson one click opens. No model is asked. Each turn also carries `<since_last_message>`, the time since the learner's previous message. The library's Courses segment (`mentor/ui/LibraryCourses.tsx`) shows one course at a time: a switcher whose menu lists the mentor's courses and ends with asking the mentor for a new one (a sentence started in the composer, not sent), the read count, a Continue card for the lesson `nextLesson` (`mentor/model/libraryCourse.ts`) suggests, and the outline (`mentor/ui/LibraryOutline.tsx`), which marks the open lesson and keeps it in view, ticks read lessons, half-fills begun ones and folds chapters (a wholly read chapter starts folded). Picking a course in the switcher opens it at that lesson. The reader's own outline is `learning/ui/CourseOutline.tsx`. The order is only a suggestion; there are no gates. Questions go to the owning agent conversation. Teaching style stays in the Soul.
-- **Mentor workspace and settings.** `features/mentor/ui/MentorWorkspace.tsx` shows one agent as three columns with no title bar of their own: each column's 40px header is the window's top row (the library's segments and its fold button; the reader's page title with its actions, plus the library and Chat buttons once those columns are folded; the conversation's name, status, settings and ✕). The library on the left (`MentorLibrary`: four segments, one shown at a time, the chosen one a labelled pill and the others icons: Courses, Sources, Notes and Files, the mentor's working folder; Sources, Notes and Files have a filter for that list only, and arrow keys move between segments and rows), the reader in the middle (`MentorReader`) and the conversation on the right. Opening anything replaces what the reader showed; Close empties it. The left and right columns can be hidden and resized, and narrow windows lay them over the reader. `app/hooks/useMentorView.ts` keeps each agent's columns, the library's segment and course, and the page it was reading (identifiers only, plus the lesson in a course; the library's filter lasts for the window only) in `localStorage` under the same key the earlier overview used (mirrored into `mentor_state`), so coming back to a mentor, or restarting, reopens the lesson; a remembered page that has since been removed leaves the reader empty. General, Soul and editable Memory live in a separate settings dialog with left navigation, grouped properties and an avatar/color popover. Agent replies use quiet prose with a speaker signature and compact course/document chips, while ordinary sessions retain their existing layout preferences.
-- **Agent notes.** Notes created from the library, a document reader or the agent CLI belong to their mentor: `notes/<id>.md` in its folder (0.3 notes carry `notes.agent_id`). A mentor note's pictures live in `notes/assets/<id>/` and are linked relative to the note; pictures still in `<app data>/note-assets/<id>/` are copied beside the note at start (the originals stay), and the note's copy travels in an export. The association does not depend on the current conversation ID. Notes without an agent association (written before agents owned notes) are found with ⌘K and open in the open mentor's reader without being reassigned. The nullable column is added to older databases without changing their content. Note editors share one save queue; opening something else waits for pending edits and stays on the editor if saving fails.
-- **Heartbeat.** `useAgentHeartbeat.ts` checks every minute while the app is open. Once a mentor's chat has sat idle for its interval, the heartbeat runs in a hidden session (`ephemeral`: never saved, never shown, never counted; `model/agentWake.ts` holds the plumbing). With Codex the run uses an ephemeral thread, so it leaves nothing in the user's own Codex history; other CLIs keep whatever record they normally keep. Its last reply is posted to the agent's chat, or nothing when the reply is `NOTHING_TO_REPORT`. An approval the run asks for is put to the user in the agent's chat and the answer routed back. A run may work for an hour; one runs at a time. The first look after the app starts runs the model even when nothing moved, if a whole interval passed since the last run (it missed runs while the app was closed), and tells it how long ago the learner last wrote. Posts carry `agentHabit` (the field keeps the name from 0.9's habits, whose old posts still show).
-- **Delegation.** A session an agent starts reports back by default. The ones started in the same agent turn form a group (`model/agentSessionCompletion.ts`); when that turn has ended and all of them have stopped, the agent is sent their results as one new turn, once it is idle and the user has nothing queued (`useAgentDelegation.ts`). Reports waiting to be delivered live in memory only, so they do not survive a restart.
-
-Everything an agent can reach goes through the same control channel and the same window-side handlers as its `app` CLI. The terminal's `loci` reaches the same handlers: a library command for a mentor (`loci courses write --mentor M`) runs the `app` action as that mentor's own conversation would. Widening what agents can do deserves the same care as any other change there. `sessions.delete` asks the user to confirm; an agent cannot remove a conversation on its own.
-
-## The command layer
-
-`src/app/commands` defines every command of the `loci` command line once: its name, its fields, who may call it (a terminal, a mentor's own turn, or both) and the function it runs. That function is the one the UI calls (`useAgents.create`, `mentorView.show`, `setLessonStatus`, the composer's `changeModel`, ...). `useCommandContext.ts` gives commands the window's hooks, and `useAppControl.ts` routes `cli` requests, and mentors' `reader.*` requests, to them. `npm run gen:cli` writes `src-tauri/resources/cli-commands.json` from the definitions. The Rust client reads it to parse arguments and print help without the app, and a test keeps it current. A new feature adds its command in the same place.
-
-## Links between objects
-
-Replies can link to notes (`loci://note/<id>`), registered sources (`loci://source/<id>`), sessions and files. `shared/lib/appResourceLinks.ts` parses and builds them; the chat sanitizer allows only the `loci` scheme beyond its defaults, and checks resource kinds and ids before URL normalization. Links are handled by the current window and are not registered with the operating system.
-
-## Platform code
-
-- macOS: `macos.rs` (window chrome and background blur), notifications through `UNUserNotificationCenter`.
-- Windows: `windows.rs` (job object so child processes die with the app), `tray.rs` (the way back to a window that closing hid).
-- Linux: notifications through `notify-rust`, Wayland-aware clipboard reads.
-- `src-tauri/tauri.conf.json` is the base configuration. Tauri merges `tauri.linux.conf.json` or `tauri.windows.conf.json` over it. `tauri.stable.conf.json` is only for `npm run tauri:stable`; `tauri.dev.conf.json` makes a release build of Loci Dev (`script/build_and_run.sh`); `tauri.release.conf.json` adds the signed update artifacts the release workflow uploads. Debug builds always run as Loci Dev (`src-tauri/src/flavor.rs`), and only the installed app registers the updater ([releasing.md](releasing.md)).
-
-## Network and trust boundaries
-
-- The WebView has a strict Content Security Policy (`'self'` for scripts, no remote frames) and the asset protocol is scoped to the app data folder. Frames are disabled by `frame-src 'none'`.
-- The Rust host makes only three kinds of outbound request outside remote access: link previews (public hosts only, and every redirect is revalidated), the Claude Code usage endpoint (with the local token, which never leaves the host process), and loopback HTTP to servers that agent CLIs start (`harness_http` refuses anything that is not loopback).
-- Remote access adds outbound WebSockets to the relay and accepts encrypted connections from devices in the group. A connected device is Full access on the host, and the relay and registry are outside the trust boundary; see [Remote access](#remote-access).
-- Agent processes run with the user's permissions. Anything that widens what an agent can reach, such as a new control namespace, a new bridge, or a new place a token is passed, needs the same care as a security change. See [SECURITY.md](../SECURITY.md).
-
-## Testing
-
-- `npm test` runs Vitest over `src/**/*.test.ts`. Pure logic has plain unit tests.
-- `cargo test` covers the Rust modules.
-- [`scripts/acceptance/`](../scripts/acceptance/README.md) holds probes that talk to real CLIs. They are run by hand and are not part of CI; the `*Live.test.ts` files use mocks and do not replace them.
-
-## Out of scope
-
-Loci was extracted from a larger coding-focused app by removing what an agent shell does not need. These were removed on purpose and are not planned: source control and worktree views, a code editor and file tree, an application terminal, inbox and chat-platform integrations, application-level multi-agent orchestration, standalone scheduled automations, remote hosts over SSH, an auto-updater, and any telemetry. Agents are the exception that came back in a narrower form: an agent has a heartbeat and can start sessions that report to it, but there is no orchestration view, no automation list outside an agent, and nothing runs while the app is closed. If you think one belongs back, open an issue to discuss it before writing code.
-
-## Known limitations
-
-- A `/btw` side question whose whole answer is a plan, with no text, ends with "returned an empty side answer". This was observed with Codex and is inherited from the code Loci was derived from.
-- Agent CLIs are the ten built-in adapters. The ACP client is a reusable core, but there is no settings screen for adding your own ACP server.
-- Windows has not been built or tried (see [Platform support](../README.md#platform-support)).
+## 工程选择
+
+- **只用 SwiftPM，没有 Xcode 工程。** 工程文件在多个 worktree 并行时总是冲突，也没法审阅。应用包由 `script/run` 组装。
+- **Swift 6 语言模式，警告即错误。** 并发问题在编译期解决。
+- **测试用 Swift Testing。**
+- **格式用工具链自带的 `swift format`**，配置在 `.swift-format`。
+- **架构规则写成测试**，不依赖额外的 lint 工具，报错信息直接给出改法。
+
+## 测试分层
+
+| 层 | 测什么 | 在哪 |
+|---|---|---|
+| 行为 | 一个模块对外承诺的事，不碰真实磁盘、网络、外部程序 | `Tests/<模块>Tests` |
+| 架构 | 边界与禁用写法 | `Tests/ArchitectureTests` |
+| 界面 | 渲染成图，亮暗两套 | `Tests/LociUITests` |
+| 场景 | `features.md` 里的场景，经 Host 走完整条路 | `Tests/LociHostTests`（模块出现后） |
+| 评测 | 导师写课的质量，用 Pi 跑 | `LociEval`（模块出现后） |
+| 黑盒 | 不读源码，只按场景操作真实应用 | 按 [agents/blackbox.md](agents/blackbox.md) 派出去做 |
+
+真实的 agent CLI、真实的网络只出现在评测和黑盒里，`script/check` 不依赖它们。
