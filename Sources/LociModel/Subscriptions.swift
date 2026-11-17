@@ -12,7 +12,7 @@ public struct AllMentors: Subscription {
     changes.contains { change in
       switch change {
       case .mentor, .everything: true
-      case .catalog, .lesson, .item, .notes, .conversation, .mind, .reading: false
+      case .catalog, .lesson, .item, .notes, .conversation, .mind, .reading, .job: false
       }
     }
   }
@@ -32,7 +32,7 @@ public struct AllItems: Subscription {
     changes.contains { change in
       switch change {
       case .item, .everything: true
-      case .mentor, .catalog, .lesson, .notes, .conversation, .mind, .reading: false
+      case .mentor, .catalog, .lesson, .notes, .conversation, .mind, .reading, .job: false
       }
     }
   }
@@ -58,7 +58,7 @@ public struct OneMentor: Subscription {
       case .lesson(let lesson): lesson.mentor == mentor
       case .reading(.lesson(let lesson)): lesson.mentor == mentor
       case .everything: true
-      case .item, .notes, .conversation, .mind, .reading: false
+      case .item, .notes, .conversation, .mind, .reading, .job: false
       }
     }
   }
@@ -83,7 +83,7 @@ public struct OneItem: Subscription {
       switch change {
       case .item(let id): id == item
       case .mentor, .catalog, .lesson, .everything: true
-      case .notes, .conversation, .mind, .reading: false
+      case .notes, .conversation, .mind, .reading, .job: false
       }
     }
   }

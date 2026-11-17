@@ -16,6 +16,9 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case mind(EntityID)
   /// What the reader has read or seen of this content changed. It lives in the database only.
   case reading(ContentRef)
+  /// An item's job moved on: a stage started, progressed, waited, failed or finished. Nothing on disk to
+  /// read again until a stage finishes, which also reports `item`.
+  case job(EntityID)
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }

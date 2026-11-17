@@ -48,7 +48,7 @@ public struct MentorMind: Subscription {
       switch change {
       case .mind(let id), .mentor(let id): id == mentor
       case .everything: true
-      case .catalog, .lesson, .item, .notes, .conversation, .reading: false
+      case .catalog, .lesson, .item, .notes, .conversation, .reading, .job: false
       }
     }
   }
