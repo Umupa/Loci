@@ -14,7 +14,25 @@ actor PassageQuestions {
 
   private let context: RunContext
   private var asked: [Asked] = []
-  private var sessions: [EntityID: any AgentSession] = [:]
+  private var sessions: [EntityID: SideSession] = [:]
+
+  /// A side session and what it was opened with, so a mentor moved to another agent, model or permission
+  /// is answered in a new one.
+  private struct SideSession {
+    let session: any AgentSession
+    let choice: AgentChoice
+    let permission: Mentor.Permission
+
+    init(_ session: any AgentSession, for mentor: Mentor) {
+      self.session = session
+      choice = AgentChoice(provider: mentor.provider, model: mentor.model)
+      permission = mentor.permission
+    }
+
+    func suits(_ mentor: Mentor) -> Bool {
+      choice == AgentChoice(provider: mentor.provider, model: mentor.model) && permission == mentor.permission
+    }
+  }
   private var queues: [EntityID: Task<Void, Never>] = [:]
   /// Moves on when a mentor's questions are closed; work begun in an earlier epoch quits without a trace.
   private var epochs: [EntityID: Int] = [:]
@@ -54,7 +72,7 @@ actor PassageQuestions {
     asked.removeAll { leaving.contains($0.pending.mentor) }
     let work = leaving.compactMap { queues.removeValue(forKey: $0) }
     for id in leaving {
-      await sessions.removeValue(forKey: id)?.close()
+      await sessions.removeValue(forKey: id)?.session.close()
     }
     for task in work {
       task.cancel()
@@ -127,7 +145,11 @@ actor PassageQuestions {
   /// The mentor's side session. One that finishes opening after its mentor's questions were closed is
   /// closed again at once.
   private func session(of mentor: Mentor, epoch: Int) async throws(TurnFailure) -> any AgentSession {
-    if let session = sessions[mentor.id] { return session }
+    if let side = sessions[mentor.id] {
+      guard !side.suits(mentor) else { return side.session }
+      sessions[mentor.id] = nil
+      await side.session.close()
+    }
     guard let driver = await context.environment.agents(mentor.provider) else {
       throw TurnFailure(reason: "\(mentor.provider.rawValue) is not installed on this Mac.")
     }
@@ -146,7 +168,7 @@ actor PassageQuestions {
       await session.close()
       throw TurnFailure(reason: "The mentor was deleted.")
     }
-    sessions[mentor.id] = session
+    sessions[mentor.id] = SideSession(session, for: mentor)
     return session
   }
 

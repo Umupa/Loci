@@ -89,4 +89,8 @@ public protocol CommandHandler: Sendable {
   func askAboutPassage(_ command: AskAboutPassage) async throws(HostError) -> EntityID
   func conversation(of mentor: EntityID) async throws(HostError) -> Conversation
   func pendingAnswers(on content: ContentRef) async -> [PendingAnswer]
+  func detectAgents(again: Bool) async -> [AgentInstallation]
+  func newMentorAgent() async throws(HostError) -> AgentChoice
+  func setNewMentorAgent(_ command: SetNewMentorAgent) async throws(HostError) -> AgentChoice
+  func setMentorAgent(_ command: SetMentorAgent) async throws(HostError) -> Mentor
 }

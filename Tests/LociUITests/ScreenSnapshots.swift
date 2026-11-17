@@ -131,3 +131,18 @@ struct ScreenSnapshots {
     try await Self.shoot("settings", view, appearance: appearance)
   }
 }
+
+extension ScreenSnapshots {
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func agentSettings(appearance: Snapshot.Appearance) async throws {
+    let view = AgentSettings().lociHost(FakeHost(try Sample()))
+    try await Self.shoot("settings-agents", view, appearance: appearance, size: CGSize(width: 520, height: 720))
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func mentorSettings(appearance: Snapshot.Appearance) async throws {
+    let sample = try Sample()
+    let view = MentorSettings(mentor: sample.scheduling) { _ in }.lociHost(FakeHost(sample))
+    try await Self.shoot("mentor-settings", view, appearance: appearance, size: CGSize(width: 520, height: 300))
+  }
+}

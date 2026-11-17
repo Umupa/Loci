@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct Dialogs {
   var renaming: Mentor?
   var newName = ""
+  var configuring: Mentor?
   var deletingMentor: Mentor?
   var deletingItem: Item?
   var importing = false
@@ -44,6 +45,11 @@ private struct DialogsModifier: ViewModifier {
         Button(role: .cancel) {
         } label: {
           Text(.loci("dialog.cancel"))
+        }
+      }
+      .sheet(isPresented: present(\.configuring)) {
+        if let mentor = dialogs.configuring {
+          MentorSettings(mentor: mentor) { dialogs.failure = $0 }
         }
       }
       .alert(Text(.loci("dialog.failed")), isPresented: present(\.failure), presenting: dialogs.failure) { _ in

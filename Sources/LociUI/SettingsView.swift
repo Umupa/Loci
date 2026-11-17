@@ -22,6 +22,15 @@ public struct SettingsView: View {
           Image(systemName: Symbols.settings)
         }
       }
+      Tab {
+        AgentSettings()
+      } label: {
+        Label {
+          Text(.loci("settings.agents"))
+        } icon: {
+          Image(systemName: Symbols.agents)
+        }
+      }
     }
     .frame(width: Size.settingsWidth)
     .tint(Palette.accent)

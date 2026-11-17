@@ -7,10 +7,11 @@ extension LocalHost {
     let request = command.request.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     guard !request.isEmpty else { throw .invalidRequest("say what the mentor should teach") }
     let others = try attempt { try database.mentors() }
+    let agent = try await newMentorAgent()
     let mentor = try attempt {
       try Mentor(
         id: environment.newID(), name: MentorLook.name(from: request), avatar: MentorLook.avatar(after: others),
-        color: MentorLook.color(after: others), provider: environment.defaultProvider, model: environment.defaultModel,
+        color: MentorLook.color(after: others), provider: agent.provider, model: agent.model,
         permission: .full,
         request: command.request.trimmingCharacters(in: .whitespacesAndNewlines))
     }

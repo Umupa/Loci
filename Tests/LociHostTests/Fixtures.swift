@@ -9,6 +9,14 @@ import Testing
 /// Identifiers in a fixed sequence and a clock that never moves.
 final class TestWorld: Sendable {
   private let created = Mutex<UInt64>(0)
+  private let looks = Mutex<[Bool]>([])
+  /// What the Mac seems to have installed: Pi only.
+  static let installed: [AgentInstallation] = Mentor.Provider.allCases.map { provider in
+    provider == .pi
+      ? .installed(
+        .init(provider: .pi, executable: URL(filePath: "/usr/local/bin/pi"), version: "0.62.0", signIn: .unknown))
+      : .missing(provider)
+  }
   static let instant = Timestamp(millisecondsSince1970: 1_763_337_600_123)
   let agent: FakeAgent
 
@@ -19,8 +27,15 @@ final class TestWorld: Sendable {
   var environment: HostEnvironment {
     HostEnvironment(
       newID: { [self] in self.nextID() }, now: { Self.instant }, defaultProvider: .pi, discard: .permanently,
-      agents: { [agent] provider in provider == .pi ? agent : nil })
+      agents: { [agent] provider in provider == .pi ? agent : nil },
+      detectAgents: { [self] again in
+        self.looks.withLock { $0.append(again) }
+        return Self.installed
+      })
   }
+
+  /// Each time the host looked for agents, whether it was asked to look again.
+  var lookedAgain: [Bool] { looks.withLock { $0 } }
 
   func nextID() -> EntityID {
     let seed = created.withLock { count in

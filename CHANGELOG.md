@@ -4,6 +4,7 @@ User-visible changes to the native app. The Tauri app's history is on `main`.
 
 ## Unreleased
 
+- 设置窗口新增「Agent」页：列出本机装了哪些 agent CLI、路径、版本、登录状态，可重新检测；可选新导师默认用的 agent 和模型。导师右键菜单和导师页工具栏可进入导师设置，改 agent、模型和权限（每次询问 / Full access）。
 - 段落提问失败时关闭对应的 agent 会话，避免后台进程遗留。
 
 - 评测的一手来源计分按仓库路径边界匹配，不再把相似仓库名算作一手来源。

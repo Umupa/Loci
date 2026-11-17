@@ -9,6 +9,7 @@ enum Symbols {
   static let link = "link"
   static let lesson = "doc.plaintext"
   static let settings = "gearshape"
+  static let agents = "terminal"
   static let lessonUnwritten = "circle.dashed"
   static let lessonUnread = "circle"
   static let lessonRead = "checkmark.circle.fill"

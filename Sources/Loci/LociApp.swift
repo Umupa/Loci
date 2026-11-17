@@ -16,7 +16,7 @@ struct LociApp: App {
     }
     .commands { LociCommands() }
     Settings {
-      SettingsView(folder: launch.folder, version: Launch.version)
+      SettingsView(folder: launch.folder, version: Launch.version).lociHost(launch.host)
     }
   }
 }

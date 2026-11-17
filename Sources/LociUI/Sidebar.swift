@@ -9,6 +9,7 @@ struct Sidebar: View {
   let mentors: [Mentor]
   let kinds: [ItemKind]
   let rename: (Mentor) -> Void
+  let configure: (Mentor) -> Void
   let delete: (Mentor) -> Void
 
   var body: some View {
@@ -25,6 +26,11 @@ struct Sidebar: View {
                 rename(mentor)
               } label: {
                 Text(.loci("mentor.rename"))
+              }
+              Button {
+                configure(mentor)
+              } label: {
+                Text(.loci("mentor.settings"))
               }
               Button(role: .destructive) {
                 delete(mentor)

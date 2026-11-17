@@ -12,6 +12,8 @@ struct MentorScreen: View {
   @State private var feed: Feed<MentorPage>?
   @State private var conversation: Feed<Conversation>?
   @State private var tab = MentorTab.catalog
+  @State private var configuring = false
+  @State private var failure: HostError?
 
   var body: some View {
     Group {
@@ -40,6 +42,35 @@ struct MentorScreen: View {
         .pickerStyle(.segmented)
         .labelsHidden()
       }
+      ToolbarItem {
+        Button {
+          configuring = true
+        } label: {
+          Label {
+            Text(.loci("mentor.settings"))
+          } icon: {
+            Image(systemName: Symbols.settings)
+          }
+        }
+        .help(Text(.loci("mentor.settings")))
+        .disabled(feed?.value == nil)
+      }
+    }
+    .sheet(isPresented: $configuring) {
+      if let page = feed?.value {
+        MentorSettings(mentor: page.mentor) { failure = $0 }
+      }
+    }
+    .alert(
+      Text(.loci("dialog.failed")), isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } }),
+      presenting: failure
+    ) { _ in
+      Button(role: .cancel) {
+      } label: {
+        Text(.loci("dialog.ok"))
+      }
+    } message: { failure in
+      Text(Messages.describe(failure))
     }
     .subscribing(OneMentor(mentor: mentor), into: $feed)
     .subscribing(MentorConversation(mentor: mentor), into: $conversation)

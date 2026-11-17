@@ -31,7 +31,7 @@ public struct RootView: View {
     NavigationSplitView {
       Sidebar(
         place: placeBinding, mentors: mentors?.value ?? [], kinds: ItemKind.present(in: items?.value ?? []),
-        rename: { dialogs.rename($0) }, delete: { dialogs.deletingMentor = $0 }
+        rename: { dialogs.rename($0) }, configure: { dialogs.configuring = $0 }, delete: { dialogs.deletingMentor = $0 }
       )
       .navigationSplitViewColumnWidth(min: Size.sidebarMinimum, ideal: Size.sidebarIdeal)
     } detail: {
