@@ -1,0 +1,83 @@
+#!/bin/sh
+# Builds a release Loci Dev.app, signs it with a Developer ID, notarizes it and
+# writes output/Loci-Dev-<version>.dmg and its checksum. Prints the dmg's path;
+# everything else goes to stderr, so `dmg="$(script/release)"` picks it up.
+#
+# On a Mac without the identity, and in CI without the secrets, it signs ad hoc
+# and skips notarization instead of failing: the dmg is still built, and macOS
+# asks to confirm its first open.
+#
+# Environment:
+#   LOCI_SIGN_IDENTITY   the codesign identity to sign with
+#                        (default: this Mac's "Developer ID Application")
+#   LOCI_NOTARY_PROFILE  a `xcrun notarytool store-credentials` profile, or
+#   APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD  one Apple ID's notary credentials
+#   LOCI_VERSION         CFBundleShortVersionString (default: 1.0.0-alpha)
+#   LOCI_BUILD           CFBundleVersion (default: 1)
+#   LOCI_ARCHS           architectures to build, space separated (default: this Mac's)
+set -eu
+cd "$(dirname "$0")/.."
+. script/toolchain
+
+version="${LOCI_VERSION:-1.0.0-alpha}"
+build="${LOCI_BUILD:-1}"
+arches=""
+for arch in ${LOCI_ARCHS:-}; do arches="$arches --arch $arch"; done
+
+identity="${LOCI_SIGN_IDENTITY:-$(
+  security find-identity -v -p codesigning |
+    sed -n 's/.*"\(Developer ID Application[^"]*\)".*/\1/p' | head -1
+)}"
+credentials=""
+if [ -n "${LOCI_NOTARY_PROFILE:-}" ]; then
+  credentials="--keychain-profile $LOCI_NOTARY_PROFILE"
+elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ] && [ -n "${APPLE_APP_PASSWORD:-}" ]; then
+  credentials="--apple-id $APPLE_ID --team-id $APPLE_TEAM_ID --password $APPLE_APP_PASSWORD"
+fi
+
+app="$(script/bundle --configuration release --version "$version" --build "$build" $arches)"
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+if [ -n "$identity" ]; then
+  echo "release: signing with \"$identity\"." >&2
+  codesign --force --options runtime --timestamp --sign "$identity" "$app"
+else
+  echo "release: no Developer ID Application identity on this Mac, so the build is signed ad hoc." >&2
+  echo "release: it is not notarized, and macOS asks to confirm its first open." >&2
+  codesign --force --sign - "$app"
+fi
+codesign --verify --strict "$app"
+
+if [ -n "$identity" ] && [ -n "$credentials" ]; then
+  echo "release: notarizing the app (the first of two round trips, a few minutes)." >&2
+  ditto -c -k --keepParent "$app" "$work/app.zip"
+  xcrun notarytool submit "$work/app.zip" $credentials --wait --progress >&2
+  xcrun stapler staple "$app" >&2
+elif [ -n "$identity" ]; then
+  echo "release: no notary credentials here, so the build is signed but not notarized." >&2
+fi
+
+stage="$work/dmg"
+mkdir "$stage"
+cp -R "$app" "$stage/Loci Dev.app"
+ln -s /Applications "$stage/Applications"
+dmg="output/Loci-Dev-$version.dmg"
+rm -f "$dmg"
+hdiutil create -quiet -volname "Loci Dev $version" -srcfolder "$stage" -ov -format UDZO "$dmg"
+
+if [ -n "$identity" ]; then
+  codesign --force --timestamp --sign "$identity" "$dmg"
+  if [ -n "$credentials" ]; then
+    echo "release: notarizing the dmg (the second round trip, a few minutes)." >&2
+    xcrun notarytool submit "$dmg" $credentials --wait --progress >&2
+    xcrun stapler staple "$dmg" >&2
+    xcrun stapler validate "$dmg" >&2
+  fi
+fi
+
+hash="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+echo "$hash  $(basename "$dmg")" >"$dmg.sha256"
+echo "release: wrote $dmg." >&2
+echo "$dmg"
