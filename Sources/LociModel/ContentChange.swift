@@ -1,5 +1,5 @@
-/// What changed on disk. A change says only what to read again, never the new contents, so hearing
-/// about the same change twice does no harm.
+/// What changed, on disk or in what the host keeps in memory. A change says only what to read again,
+/// never the new contents, so hearing about the same change twice does no harm.
 public enum ContentChange: Hashable, Codable, Sendable {
   /// `mentor.json`, or the whole folder appeared or went away.
   case mentor(EntityID)
@@ -9,6 +9,10 @@ public enum ContentChange: Hashable, Codable, Sendable {
   /// `item.json` or `content.md`, or the whole folder.
   case item(EntityID)
   case notes(ContentRef)
+  /// A mentor's conversation grew or its turn moved on. Nothing on disk to read again.
+  case conversation(EntityID)
+  /// Answers to questions about this content arrived, finished or failed. Nothing on disk to read again.
+  case answers(ContentRef)
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }
