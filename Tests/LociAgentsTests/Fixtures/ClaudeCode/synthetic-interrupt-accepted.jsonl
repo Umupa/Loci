@@ -1,0 +1,8 @@
+{"launch":["--print","--output-format","stream-json","--verbose","--input-format","stream-json","--permission-prompt-tool","stdio","--include-partial-messages","--permission-mode","bypassPermissions","--allow-dangerously-skip-permissions","--session-id","session-1"]}
+{"to":{"type":"control_request","request_id":"loci-1","request":{"subtype":"initialize"}}}
+{"from":{"type":"control_response","response":{"subtype":"success","request_id":"loci-1","response":{}}}}
+{"to":{"type":"user","session_id":"","parent_tool_use_id":null,"message":{"role":"user","content":[{"type":"text","text":"Go on"}]}}}
+{"to":{"type":"control_request","request_id":"loci-2","request":{"subtype":"interrupt"}}}
+{"from":{"type":"control_response","response":{"subtype":"success","request_id":"loci-2","response":{}}}}
+{"close":true}
+{"exit":0}

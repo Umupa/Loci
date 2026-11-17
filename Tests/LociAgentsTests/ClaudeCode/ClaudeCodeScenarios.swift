@@ -4,22 +4,12 @@ import Testing
 
 @testable import LociAgents
 
-struct ClaudeCodeStage {
-  static let id = "c13ce784-7a6a-44df-9607-6fb137aca546"
-  let driver: ClaudeCodeDriver
-  let folder: URL
-
-  func open(_ permission: Mentor.Permission = .full, resume: SessionHandle? = nil) async throws(AgentError)
-    -> any AgentSession
-  {
-    try await driver.open(.init(workingDirectory: folder, permission: permission, resume: resume))
-  }
-}
-
 enum ClaudeCodeScenario {
+  /// The id every new session gets, so recordings replay with the same one.
+  static let sessionID = "c13ce784-7a6a-44df-9607-6fb137aca546"
   static let shell = "Use Bash to run exactly: echo loci-$((6*7)). Do not use any other tools. Report its output."
 
-  static func reply(_ stage: ClaudeCodeStage) async throws {
+  static func reply(_ stage: Stage) async throws {
     let session = try await stage.open()
     let turn = try await session.send("Reply with exactly one word: pong")
     await #expect(throws: AgentError.turnInProgress) { try await session.send("Again") }
@@ -33,7 +23,7 @@ enum ClaudeCodeScenario {
     await #expect(throws: AgentError.rejected("Session closed")) { try await session.send("Again") }
   }
 
-  static func tool(_ stage: ClaudeCodeStage) async throws {
+  static func tool(_ stage: Stage) async throws {
     try Data("The secret word is marmalade.\n".utf8).write(to: stage.folder.appending(path: "notes.txt"))
     let session = try await stage.open()
     let events = await Scenario.watch(
@@ -45,10 +35,10 @@ enum ClaudeCodeScenario {
     await session.close()
   }
 
-  static func allowed(_ stage: ClaudeCodeStage) async throws { try await permission(stage, allow: true) }
-  static func denied(_ stage: ClaudeCodeStage) async throws { try await permission(stage, allow: false) }
+  static func allowed(_ stage: Stage) async throws { try await permission(stage, allow: true) }
+  static func denied(_ stage: Stage) async throws { try await permission(stage, allow: false) }
 
-  private static func permission(_ stage: ClaudeCodeStage, allow: Bool) async throws {
+  private static func permission(_ stage: Stage, allow: Bool) async throws {
     let session = try await stage.open(.ask)
     var asked: [PermissionRequest] = []
     let events = await Scenario.watch(try await session.send(shell)) { event in
@@ -71,7 +61,7 @@ enum ClaudeCodeScenario {
     await session.close()
   }
 
-  static func interrupted(_ stage: ClaudeCodeStage) async throws {
+  static func interrupted(_ stage: Stage) async throws {
     let session = try await stage.open()
     let deadline = Task {
       try? await Task.sleep(for: .seconds(90))
@@ -100,7 +90,7 @@ enum ClaudeCodeScenario {
     await session.close()
   }
 
-  static func interruptedAsking(_ stage: ClaudeCodeStage) async throws {
+  static func interruptedAsking(_ stage: Stage) async throws {
     let session = try await stage.open(.ask)
     var asked: [PermissionRequest.ID] = []
     let events = await Scenario.watch(try await session.send(shell)) { event in
@@ -115,7 +105,7 @@ enum ClaudeCodeScenario {
     await session.close()
   }
 
-  static func resumed(_ stage: ClaudeCodeStage) async throws {
+  static func resumed(_ stage: Stage) async throws {
     let first = try await stage.open()
     let events = await Scenario.watch(try await first.send("Remember this word: quokka. Reply with exactly: OK"))
     #expect(events.endings == [.completed])
@@ -129,7 +119,7 @@ enum ClaudeCodeScenario {
     await second.close()
   }
 
-  static func missing(_ stage: ClaudeCodeStage) async throws {
+  static func missing(_ stage: Stage) async throws {
     let handle = SessionHandle(provider: .claudeCode, value: "019a0000-0000-7000-8000-000000000000")
     await #expect(throws: AgentError.sessionNotFound) { try await stage.open(resume: handle) }
   }

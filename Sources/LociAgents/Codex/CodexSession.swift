@@ -3,15 +3,17 @@ import Foundation
 actor CodexSession: AgentSession {
   nonisolated let handle: SessionHandle
   private let channel: CodexChannel
+  private let clock: any Clock<Duration>
   private var running: (state: CodexTurnState, pipe: TurnPipe)?
   private var stopping = false
   private var closing = false
   private var generation = 0
   private var whenIdle: [CheckedContinuation<Void, Never>] = []
 
-  init(handle: SessionHandle, channel: CodexChannel) {
+  init(handle: SessionHandle, channel: CodexChannel, clock: any Clock<Duration>) {
     self.handle = handle
     self.channel = channel
+    self.clock = clock
     Task { await self.listen() }
   }
 
@@ -44,11 +46,25 @@ actor CodexSession: AgentSession {
 
   func interrupt() async {
     guard running != nil else { return }
+    let deadline = Task { [clock] in
+      do { try await clock.sleep(for: .seconds(30)) } catch { return }
+      guard !Task.isCancelled else { return }
+      forceInterrupt()
+    }
+    defer { deadline.cancel() }
+    if stopping {
+      await idle()
+      return
+    }
     stopping = true
-    let id = running?.state.id
-    await withdraw()
-    if let id { await stopTurn(id) }
+    let request = Task {
+      let id = running?.state.id
+      await withdraw()
+      guard !Task.isCancelled else { return }
+      if let id { await stopTurn(id) }
+    }
     await idle()
+    request.cancel()
   }
 
   func answer(_ request: PermissionRequest.ID, with answer: PermissionAnswer) async {
@@ -114,13 +130,16 @@ actor CodexSession: AgentSession {
   }
 
   private func stopTurn(_ id: String) async {
+    let sent = generation
     do {
       _ = try await channel.request(
         "turn/interrupt",
         params: .object([
           "threadId": .string(handle.value), "turnId": .string(id),
         ]), within: .seconds(15))
-    } catch { channel.terminate() }
+    } catch {
+      if generation == sent, !Task.isCancelled { forceInterrupt() }
+    }
   }
 
   private func withdraw() async {
@@ -129,6 +148,13 @@ actor CodexSession: AgentSession {
       running?.pipe.yield(event)
       do { try await channel.send(reply) } catch { finish(.failed(error)) }
     }
+  }
+
+  private func forceInterrupt() {
+    guard running != nil else { return }
+    closing = true
+    channel.terminate()
+    finish(.interrupted)
   }
 
   private func finish(_ end: TurnEnd) {

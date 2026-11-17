@@ -10,7 +10,7 @@ struct GrokReplayTests {
     let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-grok-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: folder) }
-    let launcher = try ScriptedLauncher("grok-\(name)", folder: folder)
+    let launcher = try ScriptedLauncher("Grok/\(name)", folder: folder)
     let stage = Stage(driver: AcpDriver.grok(executable: URL(filePath: "/grok"), launcher: launcher), folder: folder)
 
     try await scenario(stage)

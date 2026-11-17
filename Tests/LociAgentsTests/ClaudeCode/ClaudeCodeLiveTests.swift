@@ -12,16 +12,16 @@ struct ClaudeCodeLiveTests {
     "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}",
   ]
 
-  private func live(_ name: String, _ scenario: (ClaudeCodeStage) async throws -> Void) async throws {
+  private func live(_ name: String, _ scenario: (Stage) async throws -> Void) async throws {
     let environment = ProcessInfo.processInfo.environment
     let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-claude-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: folder) }
     let recorder = RecordingLauncher(folder: folder)
-    let stage = ClaudeCodeStage(
+    let stage = Stage(
       driver: ClaudeCodeDriver(
         executable: URL(filePath: environment["LOCI_CLAUDE_CODE"] ?? ""), arguments: Self.arguments,
-        launcher: recorder, makeSessionID: { ClaudeCodeStage.id }), folder: folder)
+        launcher: recorder, makeSessionID: { ClaudeCodeScenario.sessionID }), folder: folder)
     try await scenario(stage)
     if let directory = environment["LOCI_CLAUDE_CODE_RECORD"] {
       try await recorder.save(name, to: URL(filePath: directory))

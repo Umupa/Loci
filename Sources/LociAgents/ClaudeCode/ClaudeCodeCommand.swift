@@ -3,13 +3,14 @@ import Foundation
 enum ClaudeCodeCommand: Hashable, Sendable {
   case control(String)
   case prompt(String)
+  case refuse(String)
   case reply(ClaudeCodeDialog, allow: Bool)
 
   var name: String {
     switch self {
     case .control(let subtype): subtype
     case .prompt: "user"
-    case .reply: "control_response"
+    case .reply, .refuse: "control_response"
     }
   }
 
@@ -27,6 +28,14 @@ enum ClaudeCodeCommand: Hashable, Sendable {
           "role": .string("user"), "content": .array([.object(["type": .string("text"), "text": .string(text)])]),
         ]),
       ])
+    case .refuse(let request):
+      return .object([
+        "type": .string("control_response"),
+        "response": .object([
+          "subtype": .string("error"), "request_id": .string(request),
+          "error": .string("Unsupported Claude Code control request"),
+        ]),
+      ])
     case .reply(let dialog, let allow):
       let response: JSONValue =
         allow
@@ -39,13 +48,5 @@ enum ClaudeCodeCommand: Hashable, Sendable {
         ]),
       ])
     }
-  }
-
-  func line(id: String) -> Data {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    var data = (try? encoder.encode(record(id: id))) ?? Data()
-    data.append(0x0A)
-    return data
   }
 }

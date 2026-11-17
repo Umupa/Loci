@@ -5,18 +5,12 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct CodexReplayTests {
-  private struct ImpatientClock: Clock {
-    var now: ContinuousClock.Instant { .now }
-    var minimumResolution: Duration { .zero }
-    func sleep(until deadline: ContinuousClock.Instant, tolerance: Duration?) async throws {}
-  }
-
   private func replay(
-    _ name: String, clock: any Clock<Duration> = ContinuousClock(), _ scenario: (CodexStage) async throws -> Void
+    _ name: String, clock: any Clock<Duration> = ContinuousClock(), _ scenario: (Stage) async throws -> Void
   ) async throws {
     let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-codex-\(UUID().uuidString)")
-    let launcher = try ScriptedLauncher("codex-\(name)", folder: folder)
-    let stage = CodexStage(
+    let launcher = try ScriptedLauncher("Codex/\(name)", folder: folder)
+    let stage = Stage(
       driver: CodexDriver(
         executable: URL(filePath: "/codex"), arguments: CodexLiveTests.arguments, launcher: launcher, clock: clock),
       folder: folder)

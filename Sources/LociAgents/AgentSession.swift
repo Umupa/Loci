@@ -5,7 +5,8 @@ public protocol AgentSession: Sendable {
   /// Starts a turn. Throws `.turnInProgress` while another one is running.
   func send(_ text: String) async throws(AgentError) -> Turn
 
-  /// Stops the running turn and returns once it has ended. Does nothing when no turn is running.
+  /// Ends the running turn and returns within 30 seconds, terminating the program if needed.
+  /// Does nothing when no turn is running.
   func interrupt() async
 
   /// Answers a permission request from the running turn. An unknown or already answered request is ignored.

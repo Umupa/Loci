@@ -1,0 +1,7 @@
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false,"_meta":{"parameterizedModelPicker":true}},"clientInfo":{"name":"loci","version":"1"}},"id":1}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}}
+{"to":{"jsonrpc":"2.0","method":"authenticate","params":{"methodId":"cursor_login"},"id":2}}
+{"from":{"jsonrpc":"2.0","id":2,"error":{"code":-32602,"message":"Sign in to Cursor"}}}
+{"close":true}
+{"exit":0,"stderr":""}

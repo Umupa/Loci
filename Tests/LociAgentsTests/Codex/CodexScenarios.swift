@@ -4,19 +4,8 @@ import Testing
 
 @testable import LociAgents
 
-struct CodexStage {
-  let driver: CodexDriver
-  let folder: URL
-
-  func open(_ permission: Mentor.Permission = .full, resume: SessionHandle? = nil) async throws(AgentError)
-    -> any AgentSession
-  {
-    try await driver.open(.init(workingDirectory: folder, permission: permission, resume: resume))
-  }
-}
-
 enum CodexScenario {
-  static func reply(_ stage: CodexStage) async throws {
+  static func reply(_ stage: Stage) async throws {
     let session = try await stage.open()
     let events = await Scenario.watch(try await session.send("Reply with exactly one word: pong"))
     #expect(events.reply.lowercased().contains("pong"))
@@ -25,7 +14,7 @@ enum CodexScenario {
     await session.close()
   }
 
-  static func tool(_ stage: CodexStage) async throws {
+  static func tool(_ stage: Stage) async throws {
     let session = try await stage.open()
     let events = await Scenario.watch(
       try await session.send("Run exactly this shell command: printf loci-42. Then tell me its output."))
@@ -39,7 +28,7 @@ enum CodexScenario {
   static let shellPrompt =
     "Run exactly this shell command: touch approval-marker. Do not use any other tools or commands."
 
-  static func permission(_ stage: CodexStage, allow: Bool) async throws {
+  static func permission(_ stage: Stage, allow: Bool) async throws {
     let session = try await stage.open(.ask)
     var asked = 0
     let events = await Scenario.watch(try await session.send(shellPrompt)) { event in
@@ -55,7 +44,7 @@ enum CodexScenario {
     await session.close()
   }
 
-  static func interrupted(_ stage: CodexStage) async throws {
+  static func interrupted(_ stage: Stage) async throws {
     let session = try await stage.open()
     let events = await Scenario.watch(
       try await session.send("Run exactly this shell command: sleep 30")
@@ -69,7 +58,7 @@ enum CodexScenario {
     await session.close()
   }
 
-  static func interruptedWhileAsking(_ stage: CodexStage) async throws {
+  static func interruptedWhileAsking(_ stage: Stage) async throws {
     let session = try await stage.open(.ask)
     var asked: PermissionRequest.ID?
     let events = await Scenario.watch(try await session.send(shellPrompt)) { event in
@@ -85,7 +74,7 @@ enum CodexScenario {
     await session.close()
   }
 
-  static func resumed(_ stage: CodexStage) async throws {
+  static func resumed(_ stage: Stage) async throws {
     let first = try await stage.open()
     let taught = await Scenario.watch(try await first.send("Remember this word: quokka. Reply with exactly: OK"))
     #expect(taught.endings == [.completed])
@@ -99,7 +88,7 @@ enum CodexScenario {
     await second.close()
   }
 
-  static func missing(_ stage: CodexStage) async throws {
+  static func missing(_ stage: Stage) async throws {
     await #expect(throws: AgentError.sessionNotFound) {
       try await stage.open(resume: .init(provider: .codex, value: "019a0000-0000-7000-8000-000000000000"))
     }

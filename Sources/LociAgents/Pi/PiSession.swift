@@ -4,20 +4,24 @@ actor PiSession: AgentSession {
   nonisolated let handle: SessionHandle
 
   private let channel: PiChannel
+  private let clock: any Clock<Duration>
   private let window: Int?
   private var running: (state: PiTurnState, pipe: TurnPipe)?
   /// The caller asked the running turn, or the whole session, to stop.
   private var stopping = false
+  private var closed = false
   private var whenIdle: [CheckedContinuation<Void, Never>] = []
 
-  init(handle: SessionHandle, channel: PiChannel, window: Int?) {
+  init(handle: SessionHandle, channel: PiChannel, window: Int?, clock: any Clock<Duration>) {
     self.handle = handle
     self.channel = channel
+    self.clock = clock
     self.window = window
     Task { await self.listen() }
   }
 
   func send(_ text: String) async throws(AgentError) -> Turn {
+    guard !closed else { throw .rejected("Session closed") }
     guard running == nil else { throw .turnInProgress }
     let pipe = TurnPipe()
     running = (PiTurnState(), pipe)
@@ -36,14 +40,26 @@ actor PiSession: AgentSession {
 
   func interrupt() async {
     guard running != nil else { return }
+    let deadline = Task { [clock] in
+      do { try await clock.sleep(for: .seconds(30)) } catch { return }
+      guard !Task.isCancelled else { return }
+      forceInterrupt()
+    }
+    defer { deadline.cancel() }
+    if stopping {
+      await idle()
+      return
+    }
     stopping = true
-    await withdraw()
-    do {
-      _ = try await channel.request(.abort, within: .seconds(30))
-    } catch {
-      channel.terminate()
+    let request = Task {
+      await withdraw()
+      guard !Task.isCancelled else { return }
+      do { _ = try await channel.request(.abort, within: .seconds(30)) } catch {
+        if !Task.isCancelled { forceInterrupt() }
+      }
     }
     await idle()
+    request.cancel()
   }
 
   func answer(_ request: PermissionRequest.ID, with answer: PermissionAnswer) async {
@@ -109,6 +125,13 @@ actor PiSession: AgentSession {
       await channel.send(reply)
       running?.pipe.yield(event)
     }
+  }
+
+  private func forceInterrupt() {
+    guard running != nil else { return }
+    closed = true
+    channel.terminate()
+    finish(.interrupted)
   }
 
   private func finish(_ end: TurnEnd) {

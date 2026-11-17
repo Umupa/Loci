@@ -25,12 +25,9 @@ struct CodexTurnState: Sendable {
       guard let usage = params["tokenUsage"] else { return [] }
       return [.context(.init(used: usage["last"]?["totalTokens"]?.int, window: usage["modelContextWindow"]?.int))]
     case "serverRequest/resolved":
-      guard let id = params["requestId"],
-        let dialog = CodexDialog(
-          id: id, method: "item/commandExecution/requestApproval", params: .null),
-        asking.removeValue(forKey: dialog.key) != nil
+      guard let id = params["requestId"].map(CodexDialog.key(for:)), asking.removeValue(forKey: id) != nil
       else { return [] }
-      return [.permissionClosed(.init(dialog.key))]
+      return [.permissionClosed(.init(id))]
     case "error":
       guard params["willRetry"]?.bool == true, let message = params["error"]?["message"]?.string else { return [] }
       return [.notice(.message(message))]

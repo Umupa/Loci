@@ -5,7 +5,7 @@ import Testing
 
 @Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["LOCI_OPENCODE"] != nil), .timeLimit(.minutes(3)))
 struct OpenCodeLiveTests {
-  private func live(_ name: String, _ scenario: (OpenCodeDriver, URL) async throws -> Void) async throws {
+  private func live(_ name: String, _ scenario: (Stage) async throws -> Void) async throws {
     var environment = ProcessInfo.processInfo.environment
     let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-opencode-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -24,7 +24,7 @@ struct OpenCodeLiveTests {
     let recorder = RecordingLauncher(folder: folder)
     let driver = OpenCodeDriver(
       executable: URL(filePath: environment["LOCI_OPENCODE"] ?? ""), environment: environment, launcher: recorder)
-    try await scenario(driver, folder)
+    try await scenario(Stage(driver: driver, folder: folder))
     if let directory = environment["LOCI_OPENCODE_RECORD"] {
       try await recorder.save(name, to: URL(filePath: directory))
       let file = URL(filePath: directory).appending(path: "\(name).jsonl")
@@ -50,16 +50,16 @@ struct OpenCodeLiveTests {
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await live("reply", OpenCodeScenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await live("tool", OpenCodeScenario.tool) }
   @Test func anAllowedToolRuns() async throws {
-    try await live("permission-allow") { try await OpenCodeScenario.permission($0, $1, allow: true) }
+    try await live("permission-allow") { try await OpenCodeScenario.permission($0, allow: true) }
   }
   @Test func aDeniedToolDoesNotRun() async throws {
-    try await live("permission-deny") { try await OpenCodeScenario.permission($0, $1, allow: false) }
+    try await live("permission-deny") { try await OpenCodeScenario.permission($0, allow: false) }
   }
   @Test func interruptingStopsTheTurnAndAllowsAnotherReply() async throws {
-    try await live("interrupt") { try await OpenCodeScenario.interrupt($0, $1, asking: false) }
+    try await live("interrupt") { try await OpenCodeScenario.interrupt($0, asking: false) }
   }
   @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await live("interrupt-asking") { try await OpenCodeScenario.interrupt($0, $1, asking: true) }
+    try await live("interrupt-asking") { try await OpenCodeScenario.interrupt($0, asking: true) }
   }
   @Test func aResumedSessionRemembersWithoutReplayingOldText() async throws {
     try await live("resume", OpenCodeScenario.resume)
