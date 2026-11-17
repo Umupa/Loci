@@ -25,10 +25,10 @@ public struct MentorSnapshot: Sendable {
 extension Store {
   public func load() -> Snapshot {
     var problems: [FileProblem] = []
-    let mentors = unique(subfolders(of: mentorsFolder), problems: &problems) { folder in
+    let mentors = unique(subfolders(of: mentorsFolder), as: FileProblem.Subject.mentor, problems: &problems) { folder in
       try decodeJSON(Mentor.self, at: folder.appending(path: Self.mentorFile))
     }
-    let items = unique(subfolders(of: libraryFolder), problems: &problems) { folder in
+    let items = unique(subfolders(of: libraryFolder), as: FileProblem.Subject.item, problems: &problems) { folder in
       try decodeJSON(Item.self, at: folder.appending(path: Self.itemFile))
     }
     let snapshots = mentors.map { mentor, folder in snapshot(of: mentor, in: folder, problems: &problems) }
@@ -49,24 +49,26 @@ extension Store {
     } catch StoreError.notFound {
       return Loaded(value: nil, problems: [])
     } catch {
-      return Loaded(value: nil, problems: [problem(at: mentorsFolder, error)])
+      return Loaded(value: nil, problems: [problem(at: mentorsFolder, error).attributed(to: .mentor(id))])
     }
   }
 
   private func snapshot(of mentor: Mentor, in folder: URL, problems: inout [FileProblem]) -> MentorSnapshot {
-    let catalog = catalog(in: folder, problems: &problems)
+    var own: [FileProblem] = []
+    defer { problems += own.map { $0.attributed(to: .mentor(mentor.id)) } }
+    let catalog = catalog(in: folder, problems: &own)
     var written: [Lesson.Slug] = []
     var citations: [Citation] = []
     for file in files(in: folder.appending(path: Self.lessonsFolder), withExtension: "md") {
       let name = file.deletingPathExtension().lastPathComponent
       guard let slug = Lesson.Slug(name) else {
-        problems.append(
+        own.append(
           FileProblem(path: relativePath(of: file), kind: .misnamed, reason: "\(name) is not a lesson slug"))
         continue
       }
       written.append(slug)
       let ref = LessonRef(mentor: mentor.id, lesson: slug)
-      citations += self.citations(inFile: file, of: ref, problems: &problems) ?? []
+      citations += self.citations(inFile: file, of: ref, problems: &own) ?? []
     }
     return MentorSnapshot(mentor: mentor, catalog: catalog, writtenLessons: written, citations: citations)
   }
@@ -74,7 +76,8 @@ extension Store {
   /// Reads each folder, keeping the first folder for each id: one whose name ends in the id, else the
   /// first by name. Later folders with the same id are reported as duplicates.
   private func unique<Value: Identified>(
-    _ folders: [URL], problems: inout [FileProblem], read: (URL) throws -> Value
+    _ folders: [URL], as subject: (EntityID) -> FileProblem.Subject, problems: inout [FileProblem],
+    read: (URL) throws -> Value
   ) -> [(value: Value, folder: URL)] {
     var found: [(value: Value, folder: URL)] = []
     for folder in folders {
@@ -83,7 +86,7 @@ extension Store {
       } catch StoreError.notFound {
         continue
       } catch {
-        problems.append(problem(at: folder, error))
+        problems.append(problem(at: folder, error).attributed(to: id(ofFolder: folder).map(subject)))
       }
     }
     let preferred = found.sorted { lhs, rhs in
@@ -100,7 +103,7 @@ extension Store {
         problems.append(
           FileProblem(
             path: relativePath(of: entry.folder), kind: .duplicateID,
-            reason: "another folder already holds \(entry.value.id)"))
+            reason: "another folder already holds \(entry.value.id)", subject: subject(entry.value.id)))
       }
     }
     return kept.sorted { $0.folder.lastPathComponent < $1.folder.lastPathComponent }

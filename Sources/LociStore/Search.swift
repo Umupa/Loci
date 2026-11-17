@@ -2,31 +2,6 @@ import Foundation
 import GRDB
 import LociModel
 
-/// One place a search found: what it is, which part of it matched, and the words around the match.
-public struct SearchHit: Hashable, Sendable {
-  public let target: Target
-  public let field: Field
-  /// The original text around the first match, on one line.
-  public let snippet: String
-  /// For a match in an item's text, a quote locator for the matched words; for a note, the note's own
-  /// locator. `nil` for names and titles.
-  public let locator: Locator?
-
-  public enum Target: Hashable, Sendable {
-    case mentor(EntityID)
-    case lesson(LessonRef)
-    case item(EntityID)
-    case note(EntityID, on: ContentRef)
-  }
-
-  public enum Field: String, Hashable, Sendable {
-    case name
-    case title
-    case body
-    case note
-  }
-}
-
 extension StoreDatabase {
   /// Finds mentors by name, lessons by title, items by title and text, and notes by anything written in
   /// them. Every word must match; Chinese, Japanese and Korean match as substrings, and the last Latin

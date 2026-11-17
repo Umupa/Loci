@@ -1,0 +1,122 @@
+import Foundation
+import LociModel
+import LociStore
+
+/// The host in this process, over the Loci folder and its database.
+///
+/// Commands run concurrently: the store and the database are values, and the database serializes its
+/// own writes. All mutable state lives in the `Hub`.
+public final class LocalHost: LociModel.Host, CommandHandler {
+  let store: Store
+  let database: StoreDatabase
+  let environment: HostEnvironment
+  let hub: Hub
+
+  private init(store: Store, database: StoreDatabase, environment: HostEnvironment, readingStateLost: Bool) {
+    self.store = store
+    self.database = database
+    self.environment = environment
+    hub = Hub(health: Health(database: .rebuilding, readingStateLost: readingStateLost, fileProblems: []))
+  }
+
+  /// Opens the database and starts serving from it at once, while the mirrors are rebuilt from the files
+  /// in the background. A database that cannot be used is reported, not repaired.
+  public static func start(root: URL, database url: URL, environment: HostEnvironment)
+    async throws(HostStartError) -> LocalHost
+  {
+    let database: StoreDatabase
+    do throws(DatabaseOpenError) {
+      database = try StoreDatabase.open(at: url)
+    } catch {
+      switch error {
+      case .unreadable(let reason): throw .databaseUnreadable(reason)
+      case .newerVersion(let unknown): throw .databaseFromNewerVersion(unknownMigrations: unknown)
+      }
+    }
+    return await begin(
+      store: Store(root: root, discard: environment.discard), database: database, environment: environment,
+      readingStateLost: false)
+  }
+
+  /// Starts with a new database, setting the unusable one aside. Reading positions are lost, and `Health`
+  /// says so.
+  public static func startReplacingDatabase(root: URL, database url: URL, environment: HostEnvironment)
+    async throws(HostStartError) -> LocalHost
+  {
+    let database: StoreDatabase
+    do {
+      database = try StoreDatabase.replace(at: url, now: environment.now()).database
+    } catch {
+      throw .storage(String(describing: error))
+    }
+    return await begin(
+      store: Store(root: root, discard: environment.discard), database: database, environment: environment,
+      readingStateLost: true)
+  }
+
+  /// Watching starts before the rebuild, and changes wait in order until it is done: a change made while
+  /// the rebuild was reading is applied after the rebuild has written, never overwritten by it.
+  static func begin(
+    store: Store, database: StoreDatabase, environment: HostEnvironment, readingStateLost: Bool,
+    rebuild: @escaping @Sendable (Store, StoreDatabase) async throws -> [FileProblem] = { store, database in
+      try database.rebuild(from: store)
+    }
+  ) async -> LocalHost {
+    let host = LocalHost(
+      store: store, database: database, environment: environment, readingStateLost: readingStateLost)
+    let changes = store.changes()
+    let work = Task {
+      await host.rebuild(using: rebuild)
+      for await batch in changes { await host.follow(batch) }
+    }
+    await host.hub.hold(work)
+    return host
+  }
+
+  /// Stops watching the folder. Subscriptions stay open but receive nothing more.
+  public func close() async {
+    await hub.stop()
+  }
+
+  public func run<C: Command>(_ command: C) async throws(HostError) -> C.Reply {
+    try await command.run(on: self)
+  }
+
+  public func subscribe<S: Subscription>(_ subscription: S) -> AsyncStream<Feed<S.Value>> {
+    let (feed, continuation) = AsyncStream.makeStream(of: Feed<S.Value>.self)
+    let watcher = Watcher(subscription, handler: self, continuation: continuation)
+    let hub = hub
+    let registration = Task {
+      let id = await hub.add(watcher)
+      await watcher.refresh()
+      return id
+    }
+    continuation.onTermination = { _ in
+      Task { await hub.remove(await registration.value) }
+    }
+    return feed
+  }
+
+  public func health() async -> Health {
+    await hub.current()
+  }
+
+  private func rebuild(using rebuild: @Sendable (Store, StoreDatabase) async throws -> [FileProblem]) async {
+    do {
+      await hub.rebuilt(problems: try await rebuild(store, database))
+    } catch {
+      await hub.failed(String(describing: error))
+    }
+    await hub.refresh([.everything])
+  }
+
+  /// Brings the database up to date with changed files, then tells the subscriptions they affect.
+  func follow(_ changes: Set<ContentChange>) async {
+    do {
+      await hub.followed(changes, problems: try database.apply(changes, from: store))
+    } catch {
+      await hub.failed(String(describing: error))
+    }
+    await hub.refresh(changes)
+  }
+}

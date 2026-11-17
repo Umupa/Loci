@@ -41,9 +41,3 @@ public struct Discard: Sendable {
   /// Removes it for good.
   public static let permanently = Discard { try FileManager.default.removeItem(at: $0) }
 }
-
-/// What a caller decides about the notes on content it deletes.
-public enum NotesOnDelete: Sendable {
-  case keep
-  case delete
-}

@@ -1,5 +1,5 @@
 /// One piece of content a reader can open: an item in the library, or a mentor's lesson.
-public enum ContentRef: Hashable, Sendable {
+public enum ContentRef: Hashable, Codable, Sendable {
   case item(EntityID)
   case lesson(LessonRef)
 }

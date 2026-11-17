@@ -9,6 +9,14 @@ extension StoreDatabase {
   /// following changes one by one, gives the same tables.
   @discardableResult
   public func rebuild(from store: Store) throws -> [FileProblem] {
+    let read = readMirrors(from: store)
+    try replaceMirrors(with: read.updates)
+    return read.problems
+  }
+
+  /// Everything a rebuild writes, read from the files. Reading and writing are separate steps so the
+  /// order of a rebuild against concurrent changes can be tested.
+  func readMirrors(from store: Store) -> (updates: [MirrorUpdate], problems: [FileProblem]) {
     let snapshot = store.load()
     let updates =
       snapshot.mentors.map { MirrorUpdate.mentor($0.mentor.id, $0) }
@@ -20,17 +28,20 @@ extension StoreDatabase {
           })
       }
       + snapshot.notes.map { MirrorUpdate.notes($0.key, $0.value) }
+    return (updates, snapshot.problems)
+  }
+
+  func replaceMirrors(with updates: [MirrorUpdate]) throws {
     try queue.write { db in
       for table in Schema.mirrorTables { try db.execute(sql: "DELETE FROM \(table)") }
       for update in updates { try update.write(db) }
     }
-    return snapshot.problems
   }
 
   /// Updates only the rows the changes touch. A change to a lesson or a catalog refreshes that mentor's
   /// rows, so lessons missing from the catalog keep the same order a rebuild gives them.
   @discardableResult
-  public func apply(_ changes: Set<StoreChange>, from store: Store) throws -> [FileProblem] {
+  public func apply(_ changes: Set<ContentChange>, from store: Store) throws -> [FileProblem] {
     if changes.contains(.everything) { return try rebuild(from: store) }
     var problems: [FileProblem] = []
     var mentors = Set<EntityID>()
@@ -67,7 +78,7 @@ extension StoreDatabase {
     do {
       return try store.item(id)
     } catch StoreError.invalid(let problem) {
-      problems.append(problem)
+      problems.append(problem.attributed(to: .item(id)))
       return nil
     } catch {
       return nil

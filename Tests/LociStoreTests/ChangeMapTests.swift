@@ -11,7 +11,7 @@ struct ChangeMapTests {
   static let itemFolder = "library/borg-\(item)"
 
   static func changes(_ paths: [String], files: [String: EntityID] = [mentorFolder: mentor, itemFolder: item])
-    -> Set<StoreChange>
+    -> Set<ContentChange>
   {
     var map = ChangeMap(folders: [:])
     return map.changes(at: paths) { files[$0] }
@@ -19,7 +19,7 @@ struct ChangeMapTests {
 
   @Test func eachKindOfFileNamesWhatChanged() {
     let lesson = LessonRef(mentor: Self.mentor, lesson: Fixture.slug("intro"))
-    let expected: [(String, StoreChange)] = [
+    let expected: [(String, ContentChange)] = [
       ("\(Self.mentorFolder)/mentor.json", .mentor(Self.mentor)),
       (Self.mentorFolder, .mentor(Self.mentor)),
       ("\(Self.mentorFolder)/catalog.yaml", .catalog(Self.mentor)),

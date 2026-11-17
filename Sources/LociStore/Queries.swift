@@ -53,3 +53,46 @@ extension StoreDatabase {
     return Citation(lesson: lesson, item: item, anchor: anchor)
   }
 }
+
+extension StoreDatabase {
+  /// Every mentor, by name.
+  public func mentors() throws -> [Mentor] {
+    try documents(Mentor.self, sql: "SELECT document FROM mentor ORDER BY name, id")
+  }
+
+  /// Every item, newest first.
+  public func items() throws -> [Item] {
+    try documents(Item.self, sql: "SELECT document FROM item ORDER BY id DESC")
+  }
+
+  /// Every lesson that cites the item, with its mentor's name and its title.
+  public func citingLessons(of item: EntityID) throws -> [CitingLesson] {
+    let labels = try queue.read { db in
+      try Row.fetchAll(
+        db,
+        sql: """
+          SELECT DISTINCT c.mentor_id, c.slug, m.name, l.title FROM citation c
+          JOIN mentor m ON m.id = c.mentor_id
+          LEFT JOIN lesson l ON l.mentor_id = c.mentor_id AND l.slug = c.slug
+          WHERE c.item_id = ?
+          """,
+        arguments: [item.description])
+    }
+    var names: [LessonRef: (mentor: String, lesson: String?)] = [:]
+    for row in labels {
+      guard let mentor = EntityID(canonical: row["mentor_id"]), let slug = Lesson.Slug(row["slug"]) else { continue }
+      names[LessonRef(mentor: mentor, lesson: slug)] = (row["name"], row["title"])
+    }
+    return try citations(of: item).compactMap { citation in
+      names[citation.lesson].map {
+        CitingLesson(citation: citation, mentorName: $0.mentor, lessonTitle: $0.lesson)
+      }
+    }
+  }
+
+  private func documents<Value: Decodable>(_ type: Value.Type, sql: String) throws -> [Value] {
+    try queue.read { db in
+      try String.fetchAll(db, sql: sql).map { try JSONDecoder().decode(type, from: Data($0.utf8)) }
+    }
+  }
+}

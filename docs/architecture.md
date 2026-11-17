@@ -27,7 +27,7 @@
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
 | `LociEval` | 评测，不随应用发布 | `LociModel` `LociHost` |
 
-现在已经存在的模块：`LociModel`、`LociStore`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
+现在已经存在的模块：`LociModel`、`LociStore`、`LociHost`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
 
 ## 三条不变量
 

@@ -1,22 +1,7 @@
 import Foundation
 import LociModel
 
-/// What changed on disk. A change says only what to read again, never the new contents, so hearing
-/// about the same change twice does no harm.
-public enum StoreChange: Hashable, Sendable {
-  /// `mentor.json`, or the whole folder appeared or went away.
-  case mentor(EntityID)
-  case catalog(EntityID)
-  /// A lesson file was written, changed or removed.
-  case lesson(LessonRef)
-  /// `item.json` or `content.md`, or the whole folder.
-  case item(EntityID)
-  case notes(ContentRef)
-  /// Events were lost or a change could not be placed; read everything again with `load()`.
-  case everything
-}
-
-/// Turns changed paths into `StoreChange`s.
+/// Turns changed paths into `ContentChange`s.
 ///
 /// It remembers which id each folder held, so a folder that was deleted or renamed away can still be
 /// named. This memory belongs to one watcher; nothing else reads or changes it.
@@ -28,11 +13,11 @@ struct ChangeMap {
   }
 
   /// `identify` reads the id written in a folder (`mentors/<name>`), or returns `nil` when it cannot.
-  mutating func changes(at relativePaths: [String], identify: (String) -> EntityID?) -> Set<StoreChange> {
+  mutating func changes(at relativePaths: [String], identify: (String) -> EntityID?) -> Set<ContentChange> {
     Set(relativePaths.compactMap { change(at: $0, identify: identify) })
   }
 
-  private mutating func change(at path: String, identify: (String) -> EntityID?) -> StoreChange? {
+  private mutating func change(at path: String, identify: (String) -> EntityID?) -> ContentChange? {
     let parts = path.split(separator: "/").map(String.init)
     guard parts.count >= 2 else { return nil }
     let rest = Array(parts.dropFirst(2))
@@ -47,9 +32,9 @@ struct ChangeMap {
       }
     case "library":
       guard rest.isEmpty || rest == [Store.itemFile] || rest == [Store.contentFile] else { return nil }
-      return id(ofFolder: "library/\(parts[1])", identify: identify).map(StoreChange.item) ?? .everything
+      return id(ofFolder: "library/\(parts[1])", identify: identify).map(ContentChange.item) ?? .everything
     case "notes":
-      return Self.notes(Array(parts.dropFirst())).map(StoreChange.notes)
+      return Self.notes(Array(parts.dropFirst())).map(ContentChange.notes)
     default:
       return nil
     }

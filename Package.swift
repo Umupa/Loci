@@ -18,10 +18,12 @@ let package = Package(
         "LociModel", .product(name: "Yams", package: "Yams"), .product(name: "GRDB", package: "GRDB.swift"),
       ],
       swiftSettings: strict),
+    .target(name: "LociHost", dependencies: ["LociModel", "LociStore"], swiftSettings: strict),
     .target(name: "LociUI", dependencies: ["LociModel"], swiftSettings: strict),
     .executableTarget(name: "Loci", dependencies: ["LociUI"], swiftSettings: strict),
     .testTarget(name: "LociModelTests", dependencies: ["LociModel"], swiftSettings: strict),
     .testTarget(name: "LociStoreTests", dependencies: ["LociStore"], swiftSettings: strict),
+    .testTarget(name: "LociHostTests", dependencies: ["LociHost", "LociStore"], swiftSettings: strict),
     .testTarget(name: "LociUITests", dependencies: ["LociUI"], swiftSettings: strict),
     .testTarget(name: "ArchitectureTests", swiftSettings: strict),
   ]

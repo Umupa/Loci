@@ -5,16 +5,16 @@ extension Store {
   /// Changes made to the folder by anyone, this process included, in batches.
   ///
   /// Watching starts when this is called and stops when the stream is dropped or its task is cancelled.
-  public func changes() -> AsyncStream<Set<StoreChange>> {
+  public func changes() -> AsyncStream<Set<ContentChange>> {
     try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     let resolvedRoot = Self.resolved(root)
     let events = FileEvents.stream(under: resolvedRoot)
     let store = self
-    let (changes, continuation) = AsyncStream.makeStream(of: Set<StoreChange>.self)
+    let (changes, continuation) = AsyncStream.makeStream(of: Set<ContentChange>.self)
     let task = Task {
       var map = ChangeMap(folders: store.knownFolders())
       for await event in events {
-        let found: Set<StoreChange>
+        let found: Set<ContentChange>
         switch event {
         case .rescan:
           found = [.everything]

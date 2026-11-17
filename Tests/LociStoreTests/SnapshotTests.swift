@@ -98,9 +98,30 @@ struct SnapshotTests {
       #expect(snapshot.mentors.map(\.mentor) == [mentor])
       #expect(
         snapshot.problems == [
-          FileProblem(path: "mentors/a copy", kind: .duplicateID, reason: "another folder already holds \(mentor.id)")
+          FileProblem(
+            path: "mentors/a copy", kind: .duplicateID, reason: "another folder already holds \(mentor.id)",
+            subject: .mentor(mentor.id))
         ])
       #expect(try store.folderName(ofMentor: mentor.id) == original)
+    }
+  }
+
+  @Test func eachProblemNamesWhoseFileItIs() throws {
+    try withStore { store in
+      let mentor = try Fixture.mentor()
+      let item = try Fixture.item()
+      try store.create(mentor)
+      try store.add(item, content: "text")
+      let folder = try store.folderName(ofMentor: mentor.id)
+      let itemFolder = try store.itemFolder(item.id).lastPathComponent
+      try store.writeFile("mentors/\(folder)/catalog.yaml", "chapters: [")
+      try store.writeFile("library/\(itemFolder)/item.json", #"{"id":"\#(item.id)","kind":"podcast","title":"x"}"#)
+      try store.writeFile("notes/library/\(item.id).jsonl", "{\n")
+
+      let subjects = Set(store.load().problems.map(\.subject))
+
+      #expect(subjects == [.mentor(mentor.id), .item(item.id), .notes(.item(item.id))])
+      #expect(store.loadMentor(mentor.id).problems.map(\.subject) == [.mentor(mentor.id)])
     }
   }
 }

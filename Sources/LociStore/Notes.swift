@@ -28,7 +28,7 @@ extension Store {
     } catch StoreError.notFound {
       return Loaded(value: [], problems: [])
     } catch {
-      return Loaded(value: [], problems: [problem(at: url, error)])
+      return Loaded(value: [], problems: [problem(at: url, error).attributed(to: .notes(content))])
     }
     var entries: [NoteEntry] = []
     var problems: [FileProblem] = []
@@ -47,7 +47,7 @@ extension Store {
         problems.append(FileProblem(path: path, kind: .invalid, reason: "line \(index + 1): \(Formats.reason(error))"))
       }
     }
-    return Loaded(value: Note.current(in: entries), problems: problems)
+    return Loaded(value: Note.current(in: entries), problems: problems.map { $0.attributed(to: .notes(content)) })
   }
 
   /// Adds one line to the content's notes file. The file is only ever appended to.
