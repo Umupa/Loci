@@ -10,6 +10,11 @@ public struct AcpDriver: AgentDriver {
   private let environment: [String: String]?
   private let launcher: any ProgramLauncher
   private let clock: any Clock<Duration>
+  var processDirectory: URL?
+  var supportsConfigOptions = false
+  var replyFailure: (@Sendable (String) -> String?)?
+  var configureSession:
+    (@Sendable (AcpChannel, JSONValue, String, SessionConfiguration) async throws(AgentError) -> Void)?
   private let resumeMethod: String
   private let mode: (@Sendable (SessionConfiguration) -> String)?
   private let setModel: Bool
@@ -67,11 +72,10 @@ public struct AcpDriver: AgentDriver {
     let program = try launcher.launch(
       Invocation(
         executable: executable, arguments: arguments(configuration),
-        workingDirectory: configuration.workingDirectory, environment: environment))
+        workingDirectory: processDirectory ?? configuration.workingDirectory, environment: environment))
     let channel = AcpChannel(program: program, clock: clock)
     do throws(AgentError) {
-      let initialized = try await channel.request(
-        "initialize", Self.initialize(metadata: clientMetadata), within: .seconds(30))
+      let initialized = try await channel.request("initialize", initialize, within: .seconds(30))
       if let authenticationMethod {
         _ = try await channel.request(
           "authenticate", .object(["methodId": .string(authenticationMethod)]), within: .seconds(30))
@@ -120,11 +124,12 @@ public struct AcpDriver: AgentDriver {
           "session/set_mode", .object(["sessionId": .string(id), "modeId": .string(mode(configuration))]),
           within: .seconds(20))
       }
+      try await configureSession?(channel, setup, id, configuration)
       await channel.beginSession()
       return AcpSession(
         handle: SessionHandle(provider: provider, value: id), channel: channel,
         window: Self.window(in: setup, model: setModel ? configuration.model : nil),
-        permission: configuration.permission)
+        permission: configuration.permission, replyFailure: replyFailure)
     } catch {
       await channel.shutDown(patience: .zero)
       throw error
@@ -142,13 +147,17 @@ public struct AcpDriver: AgentDriver {
     return false
   }
 
-  private static func initialize(metadata: [String: JSONValue]) -> JSONValue {
+  private var initialize: JSONValue {
     var capabilities: [String: JSONValue] = [
       "fs": .object(["readTextFile": .bool(false), "writeTextFile": .bool(false)]), "terminal": .bool(false),
     ]
-    if !metadata.isEmpty { capabilities["_meta"] = .object(metadata) }
+    if supportsConfigOptions {
+      capabilities["session"] = .object(["configOptions": .object(["boolean": .object([:])])])
+    }
+    if !clientMetadata.isEmpty { capabilities["_meta"] = .object(clientMetadata) }
     return .object([
-      "protocolVersion": .number(1), "clientCapabilities": .object(capabilities),
+      "protocolVersion": .number(1),
+      "clientCapabilities": .object(capabilities),
       "clientInfo": .object(["name": .string("loci"), "version": .string("1")]),
     ])
   }

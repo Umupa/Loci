@@ -187,7 +187,7 @@ final class RecordingLauncher: ProgramLauncher {
         members.reduce(into: [:]) { result, member in
           switch member.key {
           case "baseUrl": result[member.key] = .string("")
-          case "sections", "systemPrompt", "dumpTools", "configOptions", "x.ai/sessionConfig": break
+          case "sections", "systemPrompt", "dumpTools", "x.ai/sessionConfig": break
           case "hostname", "agentId", "agentInstanceId": result[member.key] = .string("")
           default: result[member.key] = scrubbed(member.value)
           }
