@@ -25,7 +25,8 @@ enum Architecture {
       uses: ["LociModel"], frameworks: ["Foundation", "CoreServices", "Synchronization", "os"],
       packages: ["Yams", "GRDB"]),
     "LociAgents": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
-    "LociMedia": Module(uses: ["LociModel"], frameworks: ["Foundation", "AVFoundation", "os"]),
+    "LociMedia": Module(
+      uses: ["LociModel"], frameworks: ["Foundation", "AVFoundation", "NaturalLanguage", "WebKit", "os"]),
     "LociCode": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
     "LociRemote": Module(uses: ["LociModel"], frameworks: ["Foundation", "CryptoKit", "Network", "os"]),
     "LociHost": Module(
