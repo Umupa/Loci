@@ -41,12 +41,19 @@ final class ScriptedLauncher: ProgramLauncher {
       output: output, diagnostics: diagnostics,
       write: { data in
         self.state.withLock { state in
-          for record in Recording.records(in: data) { self.expect(.to(record), in: &state) }
+          for record in Recording.records(in: self.portable(data)) { self.expect(.to(record), in: &state) }
         }
       },
       closeInput: { self.state.withLock { self.expect(.close, in: &$0) } },
       terminate: { self.state.withLock { self.end(15, "", in: &$0) } },
       exit: { await status.value })
+  }
+
+  /// What the driver wrote, with the folder named the way recordings name it.
+  private func portable(_ data: Data) -> Data {
+    let text = String(decoding: data, as: UTF8.self)
+      .replacing(folder.resolvingSymlinksInPath().path, with: "$FOLDER").replacing(folder.path, with: "$FOLDER")
+    return Data(text.utf8)
   }
 
   /// Fails the test if the driver said anything the recording does not have, or left part of it unplayed.

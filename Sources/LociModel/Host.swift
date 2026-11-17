@@ -76,4 +76,11 @@ public protocol CommandHandler: Sendable {
   func saveReadingPosition(_ command: SaveReadingPosition) async throws(HostError) -> Done
   func markRead(_ content: ContentRef) async throws(HostError) -> Done
   func health() async -> Health
+  func sendMessage(_ command: SendMessage) async throws(HostError) -> Done
+  func stopTurn(_ command: StopTurn) async throws(HostError) -> Done
+  func answerPermission(_ command: AnswerPermission) async throws(HostError) -> Done
+  func writeLesson(_ command: WriteLesson) async throws(HostError) -> Done
+  func askAboutPassage(_ command: AskAboutPassage) async throws(HostError) -> EntityID
+  func conversation(of mentor: EntityID) async throws(HostError) -> Conversation
+  func pendingAnswers(on content: ContentRef) async -> [PendingAnswer]
 }
