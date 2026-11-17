@@ -4,6 +4,8 @@ User-visible changes to the native app. The Tauri app's history is on `main`.
 
 ## Unreleased
 
+- 评测的一手来源计分按仓库路径边界匹配，不再把相似仓库名算作一手来源。
+
 - 同一笔记同时提出多个问题时，各条待答记录分别更新，完成一个回答不会移除另一个问题。
 
 - 新增 Grok（ACP）驱动，支持流式回复、工具调用、权限询问、中断和会话恢复；其余 ACP 系 agent 只需提供启动参数。

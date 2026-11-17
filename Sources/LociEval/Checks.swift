@@ -47,7 +47,9 @@ struct Checks: Hashable, Codable, Sendable {
     guard let url = URL(string: link), let host = url.host()?.lowercased() else { return false }
     let address = host + url.path()
     return sites.contains { site in
-      if site.contains("/") { return address.hasPrefix(site) }
+      if site.contains("/") {
+        return address == site || address.hasPrefix(site.hasSuffix("/") ? site : site + "/")
+      }
       return host == site || host.hasSuffix("." + site)
     }
   }
