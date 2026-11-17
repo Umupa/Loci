@@ -10,6 +10,10 @@ public struct AcpDriver: AgentDriver {
   private let environment: [String: String]?
   private let launcher: any ProgramLauncher
   private let clock: any Clock<Duration>
+  private let setModel: Bool
+  private let authenticationMethod: String?
+  private let resumeMethod: String
+  private let clientMetadata: [String: JSONValue]
 
   /// - Parameters:
   ///   - arguments: The program's arguments for a session with this configuration.
@@ -17,7 +21,9 @@ public struct AcpDriver: AgentDriver {
   public init(
     provider: Mentor.Provider, executable: URL, arguments: @escaping @Sendable (SessionConfiguration) -> [String],
     environment: [String: String]? = nil, launcher: any ProgramLauncher = SystemLauncher(),
-    clock: any Clock<Duration> = ContinuousClock()
+    clock: any Clock<Duration> = ContinuousClock(), setModel: Bool = false,
+    authenticationMethod: String? = nil, resumeMethod: String = "session/resume",
+    clientMetadata: [String: JSONValue] = [:]
   ) {
     self.provider = provider
     self.executable = executable
@@ -25,6 +31,10 @@ public struct AcpDriver: AgentDriver {
     self.environment = environment
     self.launcher = launcher
     self.clock = clock
+    self.setModel = setModel
+    self.authenticationMethod = authenticationMethod
+    self.resumeMethod = resumeMethod
+    self.clientMetadata = clientMetadata
   }
 
   /// Grok Build through `grok agent stdio`. `extra` goes before the subcommand, after the driver's own.
@@ -55,25 +65,37 @@ public struct AcpDriver: AgentDriver {
         workingDirectory: configuration.workingDirectory, environment: environment))
     let channel = AcpChannel(program: program, clock: clock)
     do throws(AgentError) {
-      _ = try await channel.request("initialize", Self.initialize(for: provider), within: .seconds(30))
-      if provider == .cursor {
+      let initialized = try await channel.request(
+        "initialize", Self.initialize(metadata: clientMetadata), within: .seconds(30))
+      if let authenticationMethod {
         _ = try await channel.request(
-          "authenticate", .object(["methodId": .string("cursor_login")]), within: .seconds(30))
+          "authenticate", .object(["methodId": .string(authenticationMethod)]), within: .seconds(30))
       }
       let folder = JSONValue.string(configuration.workingDirectory.path(percentEncoded: false))
       var params: [String: JSONValue] = ["cwd": folder, "mcpServers": .array([])]
       let method: String
       if let resume = configuration.resume {
-        method = provider == .cursor ? "session/load" : "session/resume"
+        method = resumeMethod
         params["sessionId"] = .string(resume.value)
       } else {
         method = "session/new"
       }
-      let setup = try await channel.request(method, .object(params), within: .seconds(60))
+      let setup: JSONValue
+      do {
+        setup = try await channel.request(method, .object(params), within: .seconds(60))
+      } catch {
+        if case .rejected = error, let resume = configuration.resume,
+          initialized["agentCapabilities"]?["sessionCapabilities"]?["list"] != nil,
+          await Self.isMissing(resume, directory: configuration.workingDirectory, channel: channel)
+        {
+          throw .sessionNotFound
+        }
+        throw error
+      }
       guard let id = setup["sessionId"]?.string ?? configuration.resume?.value else {
         throw AgentError.rejected(method)
       }
-      if provider == .cursor, let model = configuration.model {
+      if setModel, let model = configuration.model {
         let option = setup["configOptions"]?.array?.first {
           $0["category"]?.string == "model" || $0["id"]?.string == "model"
         }
@@ -98,13 +120,22 @@ public struct AcpDriver: AgentDriver {
     }
   }
 
-  private static func initialize(for provider: Mentor.Provider) -> JSONValue {
+  private static func isMissing(_ handle: SessionHandle, directory: URL, channel: AcpChannel) async -> Bool {
+    var params: [String: JSONValue] = ["cwd": .string(directory.path)]
+    while let page = try? await channel.request("session/list", .object(params), within: .seconds(30)) {
+      guard let sessions = page["sessions"]?.array else { return false }
+      if sessions.contains(where: { $0["sessionId"]?.string == handle.value }) { return false }
+      guard let cursor = page["nextCursor"]?.string else { return true }
+      params["cursor"] = .string(cursor)
+    }
+    return false
+  }
+
+  private static func initialize(metadata: [String: JSONValue]) -> JSONValue {
     var capabilities: [String: JSONValue] = [
       "fs": .object(["readTextFile": .bool(false), "writeTextFile": .bool(false)]), "terminal": .bool(false),
     ]
-    if provider == .cursor {
-      capabilities["_meta"] = .object(["parameterizedModelPicker": .bool(true)])
-    }
+    if !metadata.isEmpty { capabilities["_meta"] = .object(metadata) }
     return .object([
       "protocolVersion": .number(1), "clientCapabilities": .object(capabilities),
       "clientInfo": .object(["name": .string("loci"), "version": .string("1")]),

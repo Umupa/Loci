@@ -1,0 +1,12 @@
+{"launch":["--mode","rpc","--approval-mode","yolo","--no-extensions","--no-skills","--no-rules","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"from":{"command":"get_state","data":{"model":{"contextWindow":1000},"sessionId":"omp-session"},"id":"loci-1","success":true,"type":"response"}}
+{"to":{"id":"loci-2","message":"Go on","type":"prompt"}}
+{"from":{"command":"prompt","data":{},"id":"loci-2","success":true,"type":"response"}}
+{"from":{"id":"approval","message":"Continue?","method":"confirm","title":"Run tool?","type":"extension_ui_request"}}
+{"from":{"id":"cancel-approval","method":"cancel","targetId":"approval","type":"extension_ui_request"}}
+{"from":{"type":"session_settled"}}
+{"to":{"id":"loci-3","type":"get_session_stats"}}
+{"from":{"command":"get_session_stats","data":{"contextUsage":{"contextWindow":1000,"tokens":42}},"id":"loci-3","success":true,"type":"response"}}
+{"close":true}
+{"exit":0,"stderr":""}

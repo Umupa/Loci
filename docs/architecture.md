@@ -75,7 +75,8 @@ output/                       构建产物、截图、日志（不提交）
 
 真实的 agent CLI、真实的网络只出现在评测和黑盒里，`script/check` 不依赖它们。
 
-两个例外，都在 `Tests/LociAgentsTests`：
+以下例外都在 `Tests/LociAgentsTests`：
 
 - `SystemLauncherTests` 会启动 `/bin/cat` 和 `/bin/sh`。把管道接成 `AsyncStream` 的那一层只有对着真实进程才测得出问题（退出与最后一块输出的先后、写给已经退出的进程），这两个程序每台 Mac 都有，不碰网络。别的测试不启动程序。
 - `PiLiveTests` 对着真实的 pi 跑，默认跳过，`LOCI_PI=<pi 的路径>` 时才跑，会花一点额度。加上 `LOCI_PI_RECORD=<目录>`，它把每段对话录成 fixture；`PiReplayTests` 在 `script/check` 里回放这些录音。pi 升级后重录一遍，就知道协议变了没有。
+- `OmpLiveTests` 同样默认跳过，用 `LOCI_OMP=<omp 的路径>` 开启、`LOCI_OMP_RECORD=<目录>` 录制；`OmpReplayTests` 离线回放 omp 的真实录音。

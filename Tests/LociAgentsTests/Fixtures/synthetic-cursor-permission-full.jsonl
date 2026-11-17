@@ -7,6 +7,9 @@
 {"from":{"jsonrpc":"2.0","id":3,"result":{"sessionId":"cursor-1"}}}
 {"to":{"jsonrpc":"2.0","method":"session/prompt","params":{"sessionId":"cursor-1","prompt":[{"type":"text","text":"Use the bash tool to run exactly this command: echo loci-$((6*7))\nThen tell me what it printed."}]},"id":4}}
 {"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"cursor-1","update":{"sessionUpdate":"tool_call","toolCallId":"call-1","title":"Run echo","kind":"execute","status":"pending","rawInput":{"command":"echo loci-$((6*7))"}}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"another-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Foreign reply"}}}}}
+{"from":{"jsonrpc":"2.0","id":"foreign-permission","method":"session/request_permission","params":{"sessionId":"another-session","toolCall":{"toolCallId":"call-1","title":"Run echo","kind":"execute"},"options":[{"optionId":"allow-once","kind":"allow_once","name":"Yes"},{"optionId":"allow-always","kind":"allow_always","name":"Always"},{"optionId":"reject-once","kind":"reject_once","name":"No"}]}}}
+{"to":{"jsonrpc":"2.0","id":"foreign-permission","result":{"outcome":{"outcome":"cancelled"}}}}
 {"from":{"jsonrpc":"2.0","id":"cursor-permission-1","method":"session/request_permission","params":{"sessionId":"cursor-1","toolCall":{"toolCallId":"call-1","title":"Run echo","kind":"execute"},"options":[{"optionId":"allow-once","kind":"allow_once","name":"Yes"},{"optionId":"allow-always","kind":"allow_always","name":"Always"},{"optionId":"reject-once","kind":"reject_once","name":"No"}]}}}
 {"to":{"jsonrpc":"2.0","id":"cursor-permission-1","result":{"outcome":{"outcome":"selected","optionId":"allow-always"}}}}
 {"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"cursor-1","update":{"sessionUpdate":"tool_call_update","toolCallId":"call-1","status":"completed","rawOutput":"loci-42\n"}}}}

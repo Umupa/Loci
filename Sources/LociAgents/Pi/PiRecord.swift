@@ -4,6 +4,7 @@ import Foundation
 enum PiRecord: Hashable, Sendable {
   case response(id: String?, command: String, outcome: Result<JSONValue, AgentError>)
   case dialog(PiDialog)
+  case dialogClosed(String)
   /// A dialog that needs typed text, which Loci cannot answer yet.
   case unanswerable(id: String, title: String)
   case notice(Notice)
@@ -31,6 +32,8 @@ enum PiRecord: Hashable, Sendable {
     guard let id = record["id"]?.string, let method = record["method"]?.string else { return nil }
     let title = record["title"]?.string ?? ""
     switch method {
+    case "cancel":
+      return record["targetId"]?.string.map(PiRecord.dialogClosed)
     case "confirm":
       return .dialog(PiDialog(id: id, kind: .confirm, title: title, message: record["message"]?.string ?? ""))
     case "select":
@@ -64,6 +67,7 @@ enum PiEvent: Hashable, Sendable {
   case extensionFailed(String)
   /// Pi will do nothing more on its own for this prompt.
   case settled(aborted: Bool)
+  case promptResult(invoked: Bool, aborted: Bool, failure: String?)
   case other
 
   init(type: String, record: JSONValue) {
@@ -85,7 +89,11 @@ enum PiEvent: Hashable, Sendable {
         .toolFinished(id: id, text: Self.text(record["result"]), failed: record["isError"]?.bool == true)
       }
     case "agent_end": self = .runEnded(willRetry: record["willRetry"]?.bool == true)
-    case "agent_settled": self = .settled(aborted: record["aborted"]?.bool == true)
+    case "agent_settled", "session_settled": self = .settled(aborted: record["aborted"]?.bool == true)
+    case "prompt_result":
+      self = .promptResult(
+        invoked: record["agentInvoked"]?.bool == true, aborted: record["status"]?.string == "aborted",
+        failure: record["status"]?.string == "error" ? record["error"]?["message"]?.string : nil)
     case "auto_retry_start":
       self = .retrying(attempt: record["attempt"]?.int ?? 1, of: record["maxAttempts"]?.int ?? 1)
     case "compaction_start": self = .compacting

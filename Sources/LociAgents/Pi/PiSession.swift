@@ -24,7 +24,9 @@ actor PiSession: AgentSession {
     stopping = false
     do throws(AgentError) {
       let accepted = try await channel.request(.prompt(text), within: .seconds(15))
-      if accepted["disposition"]?.string == "handled" { finish(.completed) }
+      if accepted["disposition"]?.string == "handled" || accepted["agentInvoked"]?.bool == false {
+        finish(.completed)
+      }
     } catch {
       finish(.failed(error))
       throw error
@@ -67,6 +69,12 @@ actor PiSession: AgentSession {
     switch record {
     case .event(.settled(let aborted)):
       await settle(aborted: aborted)
+    case .event(.promptResult(let invoked, let aborted, let failure)):
+      if let failure { _ = running?.state.receive(.replyFailed(failure)) }
+      if aborted { stopping = true }
+      if !invoked { await settle(aborted: aborted) }
+    case .dialogClosed(let id):
+      if running?.state.cancelDialog(id) == true { running?.pipe.yield(.permissionClosed(.init(id))) }
     case .event(let event):
       for event in running?.state.receive(event) ?? [] { running?.pipe.yield(event) }
     case .dialog(let dialog):

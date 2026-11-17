@@ -8,6 +8,8 @@ extension AcpDriver {
   ) -> AcpDriver {
     AcpDriver(
       provider: .cursor, executable: executable, arguments: { _ in extra + ["acp"] },
-      environment: environment, launcher: launcher, clock: clock)
+      environment: environment, launcher: launcher, clock: clock, setModel: true,
+      authenticationMethod: "cursor_login", resumeMethod: "session/load",
+      clientMetadata: ["parameterizedModelPicker": .bool(true)])
   }
 }

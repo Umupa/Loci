@@ -7,6 +7,7 @@ enum AcpRecord: Hashable, Sendable {
   /// The agent asks the client something and waits for the answer.
   case request(id: JSONValue, method: String, params: JSONValue)
   case notification(method: String, params: JSONValue)
+  case promptFinished(Result<JSONValue, AgentError>)
 
   init?(line: Data) {
     guard let record = try? JSONDecoder().decode(JSONValue.self, from: line) else { return nil }

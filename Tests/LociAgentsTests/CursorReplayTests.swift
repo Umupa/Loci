@@ -72,11 +72,12 @@ struct CursorReplayTests {
       }
     }
   }
-  @Test func fullPermissionAnswersUsingTheAgentsAllowOption() async throws {
+  @Test func fullPermissionAnswersOnlyRequestsFromItsOwnSession() async throws {
     try await replay("permission-full") { stage in
       let session = try await stage.open(.full)
       let events = await Scenario.watch(try await session.send(Scenario.shellPrompt))
       #expect(!events.contains { if case .permission = $0 { true } else { false } })
+      #expect(events.reply == "loci-42")
       #expect(events.outputs.contains { $0.text.contains("loci-42") && !$0.failed })
       #expect(events.last == .ended(.completed))
       await session.close()
