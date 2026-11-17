@@ -47,7 +47,7 @@ Sources/<模块>/                一个文件一个类型或一件事
 Tests/<模块>Tests/             模块的行为
 Tests/ArchitectureTests/      架构规则和它自己的测试
 Tests/LociUITests/Snapshot    把界面渲染成图
-script/                       check · format · run
+script/                       check · format · bundle · run · release · measure-launch
 docs/                         路线、设计、架构、功能地图
 docs/agents/                  派活、审阅、黑盒测试的说明
 docs/spikes/                  验证的结论
