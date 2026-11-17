@@ -133,7 +133,9 @@ final class RecordingLauncher: ProgramLauncher {
   /// Writes the conversation, without this machine's details or Pi's system prompt, as `<name>.jsonl` in `directory`.
   func save(_ name: String, to directory: URL) async throws {
     for run in runs.withLock({ $0 }) { await run.drained?.value }
-    let lines = runs.withLock { $0 }.flatMap(\.steps).map { Recording.line(Self.scrubbed($0.json)) }
+    let lines = runs.withLock { $0 }.flatMap(\.steps).filter { !Self.isNoise($0) }.map {
+      Recording.line(Self.scrubbed($0.json))
+    }
     var text = lines.joined(separator: "\n")
       .replacing(folder.resolvingSymlinksInPath().path, with: "$FOLDER")
       .replacing(folder.path, with: "$FOLDER")
@@ -144,8 +146,23 @@ final class RecordingLauncher: ProgramLauncher {
     try Data((text + "\n").utf8).write(to: directory.appending(path: "\(name).jsonl"))
   }
 
+  /// Records the drivers ignore that only say how this machine is set up: Grok's own notifications and
+  /// its list of slash commands.
+  private static func isNoise(_ step: Step) -> Bool {
+    guard case .from(let record) = step else { return false }
+    if record["method"]?.string?.hasPrefix("_x.ai/") == true { return true }
+    return record["params"]?["update"]?["sessionUpdate"]?.string == "available_commands_update"
+  }
+
   /// The names of the model and of whoever serves it, which say how this machine is set up.
   private static func modelNames(_ step: Step) -> [(String, String)] {
+    if case .from(let record) = step,
+      let current = record["result"]?["models"]?["currentModelId"]?.string
+        ?? record["result"]?["_meta"]?["modelState"]?["currentModelId"]?.string
+    {
+      let served = current.split(separator: "/").dropFirst().joined(separator: "/")
+      return [(current, "some-model")] + (served.isEmpty ? [] : [(served, "some-model")])
+    }
     guard case .from(let record) = step, record["command"]?.string == "get_state", let model = record["data"]?["model"]
     else { return [] }
     return [("id", "some-model"), ("name", "Some Model"), ("provider", "some-provider")].compactMap { key, stand in
@@ -155,12 +172,24 @@ final class RecordingLauncher: ProgramLauncher {
 
   private static func scrubbed(_ value: JSONValue) -> JSONValue {
     switch value {
+    case .object(let members) where members["availableModels"] != nil:
+      .object(
+        members.mapValues(scrubbed).merging(
+          [
+            "availableModels": .array(
+              (members["availableModels"]?.array ?? []).filter { model in
+                model["modelId"] == members["currentModelId"]
+              }.map(scrubbed))
+          ]
+        ) { $1 })
     case .object(let members):
       .object(
         members.reduce(into: [:]) { result, member in
           switch member.key {
           case "baseUrl": result[member.key] = .string("")
           case "sections": break
+          case "hostname", "agentId", "agentInstanceId": result[member.key] = .string("")
+          case "configOptions", "x.ai/sessionConfig": break
           default: result[member.key] = scrubbed(member.value)
           }
         })
