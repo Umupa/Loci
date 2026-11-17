@@ -160,7 +160,7 @@ final class RecordingLauncher: ProgramLauncher {
         members.reduce(into: [:]) { result, member in
           switch member.key {
           case "baseUrl": result[member.key] = .string("")
-          case "sections": break
+          case "sections", "systemPrompt", "dumpTools": break
           default: result[member.key] = scrubbed(member.value)
           }
         })

@@ -35,7 +35,7 @@ struct PiTurnState: Sendable {
       return [.notice(.compacting)]
     case .extensionFailed(let message):
       return message.isEmpty ? [] : [.notice(.message(message))]
-    case .settled, .other:
+    case .settled, .promptResult, .other:
       return []
     }
   }
@@ -55,6 +55,10 @@ struct PiTurnState: Sendable {
   /// The reply to send Pi, or `nil` when nothing is waiting on that request.
   mutating func answer(_ request: PermissionRequest.ID, with answer: PermissionAnswer) -> PiCommand? {
     asking.removeValue(forKey: request.value)?.reply(to: answer)
+  }
+
+  mutating func cancelDialog(_ id: String) -> Bool {
+    asking.removeValue(forKey: id) != nil
   }
 
   /// Dismisses every request still waiting.

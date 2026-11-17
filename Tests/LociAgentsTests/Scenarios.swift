@@ -6,7 +6,7 @@ import Testing
 
 /// Where a scenario plays out: against the real Pi or against a recording of it.
 struct Stage {
-  let driver: PiDriver
+  let driver: any AgentDriver
   let folder: URL
 
   func open(
