@@ -15,6 +15,7 @@ actor AcpChannel {
   private var open = (output: true, diagnostics: true)
   private var status: Int32?
   private var whenEnded: [CheckedContinuation<Void, Never>] = []
+  private var forwarding = false
   /// Why the channel is over, once it is.
   private(set) var ended: AgentError?
 
@@ -25,6 +26,11 @@ actor AcpChannel {
     Task { await self.read() }
     Task { await self.readDiagnostics() }
     Task { await self.watchExit() }
+  }
+
+  /// Delivers live updates after setup, leaving history replayed during session loading behind.
+  func beginSession() {
+    forwarding = true
   }
 
   /// Sends a request and waits for the response, for at most `limit` when one is given.
@@ -81,8 +87,14 @@ actor AcpChannel {
         guard let record = AcpRecord(line: line) else { continue }
         if case .response(let id, let outcome) = record {
           resolve(id, outcome)
-        } else {
+        } else if forwarding {
           incoming.yield(record)
+        } else if case .request(let id, let method, _) = record {
+          if method == "session/request_permission" {
+            respond(to: id, with: AcpTurnState.cancelled)
+          } else {
+            refuse(id, method: method)
+          }
         }
       }
     }
