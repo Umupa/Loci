@@ -5,19 +5,37 @@ import Testing
 @testable import LociStore
 
 struct SettingsTests {
-  @Test func aFolderWithoutSettingsHasNoChosenAgent() throws {
+  @Test func aFolderWithoutSettingsHasNoChoices() throws {
     try withStore { store in
-      let chosen = try store.newMentorAgent()
+      let settings = try store.settings()
 
-      #expect(chosen == nil)
+      #expect(settings == HostSettings())
     }
   }
 
-  @Test func theAgentForNewMentorsReadsBackAfterSaving() throws {
+  @Test func settingsReadBackAfterSaving() throws {
     try withStore { store in
-      try store.save(newMentorAgent: AgentChoice(provider: .grok, model: "grok-4"))
+      try store.changeSettings { settings in
+        settings.agent = .grok
+        settings.models = [.grok: "grok-4", .pi: "deepseek"]
+        settings.lessonLanguage = .fixed("zh-Hans")
+      }
 
-      #expect(try store.newMentorAgent() == AgentChoice(provider: .grok, model: "grok-4"))
+      let read = try store.settings()
+      #expect(read.agent == .grok)
+      #expect(read.models == [.grok: "grok-4", .pi: "deepseek"])
+      #expect(read.lessonLanguage == .fixed("zh-Hans"))
+    }
+  }
+
+  /// Settings written before each agent had its own model keep the agent and its model.
+  @Test func theEarlierChoiceForNewMentorsStillReads() throws {
+    try withStore { store in
+      try store.writeFile("settings.json", #"{"newMentors":{"provider":"grok","model":"grok-4"}}"#)
+
+      let read = try store.settings()
+      #expect(read.agent == .grok)
+      #expect(read.models == [.grok: "grok-4"])
     }
   }
 
@@ -25,7 +43,7 @@ struct SettingsTests {
     try withStore { store in
       try store.writeFile("settings.json", "{ not json")
 
-      #expect(throws: StoreError.self) { try store.newMentorAgent() }
+      #expect(throws: StoreError.self) { try store.settings() }
     }
   }
 
@@ -33,9 +51,9 @@ struct SettingsTests {
     try withStore { store in
       try store.writeFile("settings.json", "{ not json")
 
-      try store.save(newMentorAgent: AgentChoice(provider: .pi))
+      try store.changeSettings { $0.agent = .pi }
 
-      #expect(try store.newMentorAgent() == AgentChoice(provider: .pi))
+      #expect(try store.settings().agent == .pi)
     }
   }
 }

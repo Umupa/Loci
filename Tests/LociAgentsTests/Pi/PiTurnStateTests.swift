@@ -109,9 +109,4 @@ struct PiDialogTests {
     #expect(select.reply(to: .chosen("1")) == .reply(dialog: "s", .value("b")))
     #expect(select.reply(to: .chosen("7")) == .reply(dialog: "s", .cancelled))
   }
-
-  @Test func theBundledExtensionIsThere() throws {
-    let gate = try #require(PiDriver.askBeforeTools)
-    #expect(try String(contentsOf: gate, encoding: .utf8).contains(PiDialog.ownTitle))
-  }
 }

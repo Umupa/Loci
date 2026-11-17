@@ -28,22 +28,6 @@ enum CodexScenario {
   static let shellPrompt =
     "Run exactly this shell command: touch approval-marker. Do not use any other tools or commands."
 
-  static func permission(_ stage: Stage, allow: Bool) async throws {
-    let session = try await stage.open(.ask)
-    var asked = 0
-    let events = await Scenario.watch(try await session.send(shellPrompt)) { event in
-      guard case .permission(let request) = event else { return }
-      asked += 1
-      #expect(request.toolCall != nil)
-      await session.answer(request.id, with: .chosen(allow ? "accept" : "decline"))
-      await session.answer(request.id, with: .chosen("accept"))
-    }
-    #expect(asked > 0)
-    #expect(events.outputs.contains { !$0.failed } == allow)
-    #expect(events.endings == [.completed])
-    await session.close()
-  }
-
   static func interrupted(_ stage: Stage) async throws {
     let session = try await stage.open()
     let events = await Scenario.watch(
@@ -55,22 +39,6 @@ enum CodexScenario {
     let next = await Scenario.watch(try await session.send("Reply with exactly one word: pong"))
     #expect(next.reply.lowercased().contains("pong"))
     #expect(next.endings == [.completed])
-    await session.close()
-  }
-
-  static func interruptedWhileAsking(_ stage: Stage) async throws {
-    let session = try await stage.open(.ask)
-    var asked: PermissionRequest.ID?
-    let events = await Scenario.watch(try await session.send(shellPrompt)) { event in
-      guard case .permission(let request) = event else { return }
-      asked = request.id
-      await session.interrupt()
-    }
-    let id = try #require(asked)
-    #expect(events.filter { if case .permission = $0 { true } else { false } }.count == 1)
-    #expect(events.contains(.permissionClosed(id)))
-    #expect(events.endings == [.interrupted])
-    #expect(!FileManager.default.fileExists(atPath: stage.folder.appending(path: "approval-marker").path))
     await session.close()
   }
 

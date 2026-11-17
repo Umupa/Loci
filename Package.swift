@@ -24,7 +24,7 @@ let package = Package(
       ],
       swiftSettings: strict),
     .target(
-      name: "LociAgents", dependencies: ["LociModel"], resources: [.copy("Resources")], swiftSettings: strict),
+      name: "LociAgents", dependencies: ["LociModel"], swiftSettings: strict),
     .target(
       name: "LociHost", dependencies: ["LociModel", "LociStore", "LociAgents"], resources: [.copy("Resources")],
       swiftSettings: strict),

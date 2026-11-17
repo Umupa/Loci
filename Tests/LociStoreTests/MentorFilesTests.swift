@@ -29,7 +29,6 @@ struct MentorFilesTests {
             "color" : "#b5523b",
             "id" : "\(mentor.id)",
             "name" : "调度",
-            "permission" : "full",
             "provider" : "claude-code"
           }
 
@@ -73,7 +72,7 @@ struct MentorFilesTests {
       let mentor = try Fixture.mentor()
       try store.create(mentor)
       let renamed = try Mentor(
-        id: mentor.id, name: "Scheduling", avatar: "owl", color: mentor.color, provider: .pi, permission: .ask)
+        id: mentor.id, name: "Scheduling", avatar: "owl", color: mentor.color, provider: .pi)
       try store.save(renamed)
 
       #expect(try store.mentor(mentor.id) == renamed)

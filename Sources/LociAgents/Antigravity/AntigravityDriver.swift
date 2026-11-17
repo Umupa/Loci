@@ -9,7 +9,7 @@ extension AcpDriver {
     AcpDriver(
       provider: .antigravity, executable: executable, arguments: { _ in arguments },
       environment: { _ in environment }, launcher: launcher, clock: clock, setModel: .requireConfigOption,
-      mode: { $0.permission == .full ? "yolo" : "default" },
+      mode: "yolo",
       processDirectory: executable.deletingLastPathComponent(),
       replyFailure: { text in
         let message = text.trimmingCharacters(in: .whitespacesAndNewlines)

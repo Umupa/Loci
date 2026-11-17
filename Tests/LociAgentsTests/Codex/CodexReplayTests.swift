@@ -20,17 +20,8 @@ struct CodexReplayTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await replay("reply", CodexScenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await replay("tool", CodexScenario.tool) }
-  @Test func anAllowedToolRuns() async throws {
-    try await replay("allow") { try await CodexScenario.permission($0, allow: true) }
-  }
-  @Test func aDeniedToolDoesNotRun() async throws {
-    try await replay("deny") { try await CodexScenario.permission($0, allow: false) }
-  }
   @Test func interruptingStopsTheTurnAndAllowsAnother() async throws {
     try await replay("interrupt", CodexScenario.interrupted)
-  }
-  @Test func interruptingWithdrawsThePermission() async throws {
-    try await replay("interrupt-asking", CodexScenario.interruptedWhileAsking)
   }
   @Test func aResumedSessionRemembers() async throws { try await replay("resume", CodexScenario.resumed) }
   @Test func resumingAMissingSessionFails() async throws { try await replay("missing", CodexScenario.missing) }
@@ -72,9 +63,4 @@ struct CodexReplayTests {
       await session.close()
     }
   }
-
-  @Test func anApprovalArrivingAfterInterruptionIsDismissedUnseen() async throws {
-    try await replay("synthetic-late-request", CodexScenario.interruptedWhileAsking)
-  }
-
 }

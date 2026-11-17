@@ -37,11 +37,6 @@ public struct PiDriver: AgentDriver {
     self.variant = variant
   }
 
-  /// The extension that makes Pi ask before a tool changes anything; Pi has no permission system of its own.
-  public static var askBeforeTools: URL? {
-    Bundle.module.url(forResource: "ask-before-tools", withExtension: "ts", subdirectory: "Resources")
-  }
-
   public func open(_ configuration: SessionConfiguration) async throws(AgentError) -> any AgentSession {
     let program = try launcher.launch(
       Invocation(
@@ -70,10 +65,7 @@ public struct PiDriver: AgentDriver {
       all += [variant.resumeFlag, resume.value]
     }
     if let model = configuration.model { all += ["--model", model] }
-    if configuration.permission == .ask {
-      guard let gate = Self.askBeforeTools else { throw .cannotLaunch("ask-before-tools.ts") }
-      all += ["--extension", gate.path]
-    }
+    if let effort = configuration.effort, provider.efforts.contains(effort) { all += ["--thinking", effort.rawValue] }
     return all + arguments
   }
 }

@@ -66,10 +66,7 @@ enum Recording {
 
   /// Arguments with this machine's paths replaced by names, so a recording made here replays anywhere.
   static func portable(_ arguments: [String], folder: URL) -> [String] {
-    arguments.map { argument in
-      if argument == PiDriver.askBeforeTools?.path { return "$GATE" }
-      return argument.replacing(folder.path, with: "$FOLDER")
-    }
+    arguments.map { $0.replacing(folder.path, with: "$FOLDER") }
   }
 }
 

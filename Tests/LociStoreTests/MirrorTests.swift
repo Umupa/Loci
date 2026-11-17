@@ -41,7 +41,7 @@ struct MirrorTests {
       try followed.rebuild(from: store)
 
       let renamed = try Mentor(
-        id: library.first.id, name: "排程", avatar: "owl", color: library.first.color, provider: .pi, permission: .ask)
+        id: library.first.id, name: "排程", avatar: "owl", color: library.first.color, provider: .pi)
       try store.save(renamed)
       try store.save(
         try Catalog(chapters: [

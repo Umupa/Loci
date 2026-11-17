@@ -4,15 +4,13 @@ public struct MentorColor: Hashable, Sendable, TextCodable {
   public let green: UInt8
   public let blue: UInt8
 
-  /// The colors new mentors are given, in order.
-  ///
-  /// Carried over from the previous version; the palette is retuned with the visual design.
+  /// The colours new mentors are given: warm and muted, each dark enough under a white sign.
   public static let palette = [
-    MentorColor(red: 0x45, green: 0x9B, blue: 0xF7), MentorColor(red: 0xEA, green: 0x60, blue: 0x3E),
-    MentorColor(red: 0xF4, green: 0xC0, blue: 0x25), MentorColor(red: 0x39, green: 0xC6, blue: 0x6D),
-    MentorColor(red: 0xE2, green: 0x5A, blue: 0x9E), MentorColor(red: 0xB0, green: 0x69, blue: 0xD3),
-    MentorColor(red: 0x37, green: 0xBE, blue: 0xB3), MentorColor(red: 0xEF, green: 0x85, blue: 0x39),
-    MentorColor(red: 0x6E, green: 0x63, blue: 0xE9),
+    MentorColor(red: 0xB0, green: 0x7A, blue: 0x2A), MentorColor(red: 0xB4, green: 0x5A, blue: 0x3C),
+    MentorColor(red: 0x76, green: 0x7A, blue: 0x34), MentorColor(red: 0x4D, green: 0x6A, blue: 0x8C),
+    MentorColor(red: 0x7D, green: 0x48, blue: 0x68), MentorColor(red: 0x58, green: 0x78, blue: 0x49),
+    MentorColor(red: 0xA6, green: 0x52, blue: 0x68), MentorColor(red: 0x3C, green: 0x76, blue: 0x70),
+    MentorColor(red: 0x8A, green: 0x5F, blue: 0x3E), MentorColor(red: 0x67, green: 0x59, blue: 0x8C),
   ]
 
   public init(red: UInt8, green: UInt8, blue: UInt8) {

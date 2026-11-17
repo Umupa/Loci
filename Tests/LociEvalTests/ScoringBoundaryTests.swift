@@ -70,7 +70,6 @@ struct ScoringBoundaryTests {
         scenario: Scenario.all[0], catalog: nil, lessons: [], conversation: messages, catalogAfter: nil,
         firstLessonAfter: nil, stoppedFirstTurn: true, probeAnswer: ""))
     #expect(checks.failedTurns == 0)
-    #expect(checks.permissionAsks == 0)
   }
 
   @Test func unknownRubricItemsDoNotChangeTheMean() throws {

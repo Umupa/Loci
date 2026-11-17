@@ -8,9 +8,9 @@ extension AcpDriver {
   ) -> AcpDriver {
     AcpDriver(
       provider: .opencode, executable: executable, arguments: { _ in ["acp"] + arguments },
-      environment: { configuration in
+      environment: { _ in
         var environment = environment ?? ProcessInfo.processInfo.environment
-        environment["OPENCODE_PERMISSION"] = configuration.permission == .ask ? #"{"*":"ask"}"# : #"{"*":"allow"}"#
+        environment["OPENCODE_PERMISSION"] = #"{"*":"allow"}"#
         return environment
       }, launcher: launcher, clock: clock, setModel: .preferConfigOption)
   }

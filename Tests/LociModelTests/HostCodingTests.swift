@@ -43,7 +43,7 @@ struct HostCodingTests {
   @Test func everyReplyAndFeedSurvivesJSON() throws {
     let mentor = try Mentor(
       id: Fixture.mentor, name: "调度", avatar: "ember", color: MentorColor.palette[0], provider: .pi,
-      permission: .full, request: "我想学调度")
+      request: "我想学调度")
     let item = try Item(id: Fixture.item, kind: .video(duration: .seconds(90)), title: "Talk")
     let citation = Citation(lesson: Self.lesson, item: Fixture.item, anchor: .time(try TimeSpan(start: .seconds(3))))
     let problem = FileProblem(
@@ -87,11 +87,6 @@ struct HostCodingTests {
 
     #expect(Set(commands).count == commands.count)
     #expect(Set(subscriptions).count == subscriptions.count)
-  }
-
-  @Test func newMentorsHaveDistinctLooksToChooseFrom() {
-    #expect(Set(Mentor.portraits).count == Mentor.portraits.count)
-    #expect(Set(MentorColor.palette).count == MentorColor.palette.count)
   }
 
   @Test func eachSubscriptionListensOnlyToWhatItShows() {

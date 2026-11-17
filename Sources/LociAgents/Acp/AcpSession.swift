@@ -9,14 +9,13 @@ actor AcpSession: AgentSession {
   private let session: String
   private let window: Int?
   private let replyFailure: (@Sendable (String) -> String?)?
-  private let permission: Mentor.Permission
   private var running: (state: AcpTurnState, pipe: TurnPipe)?
   /// The caller asked the running turn, or the whole session, to stop.
   private var stopping = false
   private var closed = false
 
   init(
-    handle: SessionHandle, channel: AcpChannel, window: Int?, permission: Mentor.Permission, clock: any Clock<Duration>,
+    handle: SessionHandle, channel: AcpChannel, window: Int?, clock: any Clock<Duration>,
     replyFailure: (@Sendable (String) -> String?)? = nil
   ) {
     self.handle = handle
@@ -25,7 +24,6 @@ actor AcpSession: AgentSession {
     self.clock = clock
     self.window = window
     self.replyFailure = replyFailure
-    self.permission = permission
     Task { await self.listen() }
   }
 
@@ -124,7 +122,7 @@ actor AcpSession: AgentSession {
       if params["sessionId"]?.string == session, running != nil, !stopping,
         let event = running?.state.ask(id: id, params)
       {
-        if permission == .full, case .permission(let request) = event,
+        if case .permission(let request) = event,
           let allow = request.options.first(where: { $0.role == .allow })
             ?? request.options.first(where: { $0.role == .allowAlways })
         {

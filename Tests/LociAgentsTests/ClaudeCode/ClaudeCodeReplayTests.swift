@@ -23,13 +23,8 @@ struct ClaudeCodeReplayTests {
 
   @Test func aReplyArrivesAndCompletes() async throws { try await replay("reply", ClaudeCodeScenario.reply) }
   @Test func aToolRunsAndReturnsItsResult() async throws { try await replay("tool", ClaudeCodeScenario.tool) }
-  @Test func anAllowedToolRuns() async throws { try await replay("allow", ClaudeCodeScenario.allowed) }
-  @Test func aDeniedToolDoesNotRun() async throws { try await replay("deny", ClaudeCodeScenario.denied) }
   @Test func interruptingLeavesTheSessionUsable() async throws {
     try await replay("interrupt", ClaudeCodeScenario.interrupted)
-  }
-  @Test func interruptingClosesPermission() async throws {
-    try await replay("interrupt-asking", ClaudeCodeScenario.interruptedAsking)
   }
   @Test func aResumedSessionRemembers() async throws { try await replay("resume", ClaudeCodeScenario.resumed) }
   @Test func aMissingSessionFails() async throws { try await replay("missing", ClaudeCodeScenario.missing) }

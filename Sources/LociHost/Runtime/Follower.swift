@@ -8,7 +8,7 @@ struct Follower: Sendable {
   let hub: Hub
 
   func follow(_ changes: Set<ContentChange>) async {
-    let onDisk = changes.filter { !$0.isInMemory }
+    let onDisk = changes.filter { !$0.leavesMirrorsAlone }
     if !onDisk.isEmpty {
       do {
         await hub.followed(onDisk, problems: try database.apply(onDisk, from: store))
@@ -21,10 +21,11 @@ struct Follower: Sendable {
 }
 
 extension ContentChange {
-  /// Changes to what the host keeps in memory, which leave the files and their mirrors as they were.
-  var isInMemory: Bool {
+  /// Changes that leave the database's mirrors as they were: what the host keeps in memory, and files that
+  /// are read afresh each time.
+  var leavesMirrorsAlone: Bool {
     switch self {
-    case .conversation, .answers, .reading: true
+    case .conversation, .mind, .reading: true
     case .mentor, .catalog, .lesson, .item, .notes, .everything: false
     }
   }

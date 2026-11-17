@@ -49,17 +49,8 @@ struct OpenCodeLiveTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await live("reply", OpenCodeScenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await live("tool", OpenCodeScenario.tool) }
-  @Test func anAllowedToolRuns() async throws {
-    try await live("permission-allow") { try await OpenCodeScenario.permission($0, allow: true) }
-  }
-  @Test func aDeniedToolDoesNotRun() async throws {
-    try await live("permission-deny") { try await OpenCodeScenario.permission($0, allow: false) }
-  }
   @Test func interruptingStopsTheTurnAndAllowsAnotherReply() async throws {
-    try await live("interrupt") { try await OpenCodeScenario.interrupt($0, asking: false) }
-  }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await live("interrupt-asking") { try await OpenCodeScenario.interrupt($0, asking: true) }
+    try await live("interrupt") { try await OpenCodeScenario.interrupt($0) }
   }
   @Test func aResumedSessionRemembersWithoutReplayingOldText() async throws {
     try await live("resume", OpenCodeScenario.resume)

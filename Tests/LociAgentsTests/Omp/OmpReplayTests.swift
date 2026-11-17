@@ -24,12 +24,7 @@ struct OmpReplayTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await replay("reply", Scenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await replay("tool", Scenario.tool) }
-  @Test func anAllowedToolRuns() async throws { try await replay("permission-allow", Scenario.permissionAllowed) }
-  @Test func aDeniedToolDoesNotRun() async throws { try await replay("permission-deny", Scenario.permissionDenied) }
   @Test func interruptingStopsTheTurn() async throws { try await replay("interrupt", Scenario.interrupted) }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await replay("interrupt-asking", Scenario.interruptedWhileAsking)
-  }
   @Test func aResumedSessionRemembers() async throws { try await replay("resume", Scenario.resumed) }
   @Test func resumingAMissingSessionFails() async throws {
     try await replay("resume-missing") { stage in
@@ -39,28 +34,17 @@ struct OmpReplayTests {
   }
   @Test func anUnknownModelFails() async throws { try await replay("bad-model", Scenario.unknownModel) }
 
-  @Test func theReplyArrivesInPieces() async throws {
-    try await replay("permission-deny") { stage in
-      let session = try await stage.open(.ask)
-      let events = await Scenario.watch(try await session.send(Scenario.shellPrompt)) { event in
-        if case .permission(let request) = event { await session.answer(request.id, with: .chosen("deny")) }
-      }
-      #expect(events.filter { if case .text = $0 { true } else { false } }.count > 3)
-      await session.close()
-    }
-  }
-
   @Test func aPiSessionCannotBeResumedByOmp() async throws {
     let driver = PiDriver.omp(executable: URL(filePath: "/missing-omp"))
     let configuration = SessionConfiguration(
-      workingDirectory: URL(filePath: "/tmp"), permission: .full, resume: Scenario.missingSession)
+      workingDirectory: URL(filePath: "/tmp"), resume: Scenario.missingSession)
     await #expect(throws: AgentError.sessionNotFound) { _ = try await driver.open(configuration) }
   }
 
   @Test func anOmpSessionCannotBeResumedByPi() async throws {
     let driver = PiDriver.pi(executable: URL(filePath: "/missing-pi"))
     let configuration = SessionConfiguration(
-      workingDirectory: URL(filePath: "/tmp"), permission: .full,
+      workingDirectory: URL(filePath: "/tmp"),
       resume: SessionHandle(provider: .omp, value: "stored-session"))
     await #expect(throws: AgentError.sessionNotFound) { _ = try await driver.open(configuration) }
   }

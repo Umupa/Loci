@@ -29,6 +29,7 @@ struct ChangeMap {
       case .mentor: return .mentor(mentor)
       case .catalog: return .catalog(mentor)
       case .lesson(let slug): return .lesson(LessonRef(mentor: mentor, lesson: slug))
+      case .mind: return .mind(mentor)
       }
     case "library":
       guard rest.isEmpty || rest == [Store.itemFile] || rest == [Store.contentFile] else { return nil }
@@ -44,6 +45,7 @@ struct ChangeMap {
     case mentor
     case catalog
     case lesson(Lesson.Slug)
+    case mind
   }
 
   private static func mentorFile(_ rest: [String]) -> MentorFile? {
@@ -51,6 +53,8 @@ struct ChangeMap {
     case 0: return .mentor
     case 1 where rest[0] == Store.mentorFile: return .mentor
     case 1 where rest[0] == Store.catalogFile || rest[0] == Store.glossaryFile: return .catalog
+    case 1 where rest[0] == Store.soulFile: return .mind
+    case 1... where rest[0] == Store.memoryFolder: return .mind
     case 2 where rest[0] == Store.lessonsFolder && rest[1].hasSuffix(".md"):
       return Lesson.Slug(String(rest[1].dropLast(3))).map(MentorFile.lesson)
     default: return nil

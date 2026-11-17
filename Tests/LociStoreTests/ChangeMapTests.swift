@@ -25,6 +25,10 @@ struct ChangeMapTests {
       ("\(Self.mentorFolder)/catalog.yaml", .catalog(Self.mentor)),
       ("\(Self.mentorFolder)/glossary.yaml", .catalog(Self.mentor)),
       ("\(Self.mentorFolder)/lessons/intro.md", .lesson(lesson)),
+      ("\(Self.mentorFolder)/SOUL.md", .mind(Self.mentor)),
+      ("\(Self.mentorFolder)/memory/learner.md", .mind(Self.mentor)),
+      ("\(Self.mentorFolder)/memory/topics/syscalls.md", .mind(Self.mentor)),
+      ("\(Self.mentorFolder)/memory", .mind(Self.mentor)),
       ("\(Self.itemFolder)/item.json", .item(Self.item)),
       ("\(Self.itemFolder)/content.md", .item(Self.item)),
       (Self.itemFolder, .item(Self.item)),
@@ -39,7 +43,7 @@ struct ChangeMapTests {
   @Test func filesTheStoreDoesNotReadAreIgnored() {
     #expect(
       Self.changes([
-        "\(Self.mentorFolder)/SOUL.md", "\(Self.mentorFolder)/workspace/notes.txt",
+        "\(Self.mentorFolder)/AGENTS.md", "\(Self.mentorFolder)/workspace/notes.txt",
         "\(Self.mentorFolder)/lessons/Intro.md",
         "\(Self.mentorFolder)/.DS_Store", "\(Self.itemFolder)/media.mp4", "notes/library/x.jsonl", "loci.sqlite",
         "mentors",

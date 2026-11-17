@@ -61,8 +61,7 @@ struct StartupTests {
     defer { place.remove() }
     let world = TestWorld()
     let mentor = try Mentor(
-      id: world.nextID(), name: "Before", avatar: "ember", color: MentorColor.palette[0], provider: .pi,
-      permission: .full)
+      id: world.nextID(), name: "Before", avatar: "ember", color: MentorColor.palette[0], provider: .pi)
     try place.store.create(mentor)
     let file = try place.store.mentorFolder(mentor.id).appending(path: "mentor.json")
 

@@ -16,7 +16,7 @@ enum Fixture {
   static func mentor(_ seed: UInt64 = 1, name: String = "调度") throws -> Mentor {
     try Mentor(
       id: id(seed), name: name, avatar: "owl", color: MentorColor(red: 0xB5, green: 0x52, blue: 0x3B),
-      provider: .claudeCode, permission: .full)
+      provider: .claudeCode)
   }
 
   static func item(_ seed: UInt64 = 2, title: String = "Large-scale cluster management at Google with Borg") throws

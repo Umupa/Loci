@@ -10,10 +10,9 @@ struct Stage {
   let folder: URL
 
   func open(
-    _ permission: Mentor.Permission = .full, model: String? = nil, resume: SessionHandle? = nil
+    model: String? = nil, effort: ThinkingEffort? = nil, resume: SessionHandle? = nil
   ) async throws(AgentError) -> any AgentSession {
-    try await driver.open(
-      SessionConfiguration(workingDirectory: folder, model: model, permission: permission, resume: resume))
+    try await driver.open(SessionConfiguration(workingDirectory: folder, model: model, effort: effort, resume: resume))
   }
 }
 
@@ -104,42 +103,6 @@ enum Scenario {
   static let shellPrompt =
     "Use the bash tool to run exactly this command: echo loci-$((6*7))\nThen tell me what it printed."
 
-  static func permissionAllowed(_ stage: Stage) async throws {
-    let session = try await stage.open(.ask)
-    var asked: [PermissionRequest] = []
-
-    let events = await watch(try await session.send(shellPrompt)) { event in
-      guard case .permission(let request) = event else { return }
-      asked.append(request)
-      await session.answer(request.id, with: .chosen(request.options.first { $0.role == .allow }?.id ?? ""))
-    }
-
-    let request = try #require(asked.first)
-    #expect(request.title == "bash")
-    #expect(request.toolCall == events.calls.first?.id)
-    #expect(request.options.map(\.role) == [.allow, .deny])
-    #expect(events.outputs.contains { $0.text.contains("loci-42") && !$0.failed })
-    #expect(events.last == .ended(.completed))
-    await session.close()
-  }
-
-  static func permissionDenied(_ stage: Stage) async throws {
-    let session = try await stage.open(.ask)
-    var asked = 0
-
-    let events = await watch(try await session.send(shellPrompt)) { event in
-      guard case .permission(let request) = event else { return }
-      asked += 1
-      await session.answer(request.id, with: .chosen(request.options.first { $0.role == .deny }?.id ?? ""))
-    }
-
-    #expect(asked >= 1)
-    #expect(!events.outputs.isEmpty)
-    #expect(events.outputs.allSatisfy { $0.failed && !$0.text.contains("loci-42") })
-    #expect(events.last == .ended(.completed))
-    await session.close()
-  }
-
   static func interrupted(_ stage: Stage) async throws {
     let session = try await stage.open()
     let started = ContinuousClock.now
@@ -155,23 +118,6 @@ enum Scenario {
     let next = await watch(try await session.send("Reply with exactly one word: pong"))
     #expect(next.reply.lowercased().contains("pong"))
     #expect(next.last == .ended(.completed))
-    await session.close()
-  }
-
-  static func interruptedWhileAsking(_ stage: Stage) async throws {
-    let session = try await stage.open(.ask)
-    var asked: [PermissionRequest.ID] = []
-
-    let events = await watch(try await session.send(shellPrompt)) { event in
-      guard case .permission(let request) = event else { return }
-      asked.append(request.id)
-      await session.interrupt()
-    }
-
-    let request = try #require(asked.first)
-    #expect(events.contains(.permissionClosed(request)))
-    #expect(!events.outputs.contains { $0.text.contains("loci-42") })
-    #expect(events.last == .ended(.interrupted))
     await session.close()
   }
 

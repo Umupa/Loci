@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 import Testing
 
 @testable import LociAgents
@@ -19,15 +20,8 @@ struct HermesReplayTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await replay("reply", HermesScenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await replay("tool", HermesScenario.tool) }
-  @Test func anAllowedToolRuns() async throws { try await replay("permission-allow", HermesScenario.permissionAllowed) }
-  @Test func aDeniedToolDoesNotRun() async throws {
-    try await replay("permission-deny", HermesScenario.permissionDenied)
-  }
   @Test func interruptingStopsTheTurnAndAllowsAnother() async throws {
     try await replay("interrupt", HermesScenario.interrupted)
-  }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await replay("interrupt-asking", HermesScenario.interruptedWhileAsking)
   }
   @Test func aResumedSessionRemembersWithoutRepeatingHistory() async throws {
     try await replay("resume") { stage in
@@ -46,9 +40,9 @@ struct HermesReplayTests {
     }
   }
 
-  @Test func theRequestedModelAndPermissionAreSetBeforeTheFirstPrompt() async throws {
+  @Test func theRequestedModelAndModeAreSetBeforeTheFirstPrompt() async throws {
     try await replay("model") { stage in
-      let session = try await stage.open(.ask, model: "some-model")
+      let session = try await stage.open(model: "some-model")
       #expect(session.handle.provider == .hermes)
       let events = await Scenario.watch(try await session.send("Reply with exactly one word: pong"))
       #expect(events.reply == "pong")
@@ -58,17 +52,17 @@ struct HermesReplayTests {
     }
   }
 
+  @Test func aFailedModeSelectionDoesNotExposeAnUnconfiguredSession() async throws {
+    try await replay("mode-refused") { stage in
+      await #expect(throws: AgentError.rejected("Unsupported mode")) { _ = try await stage.open() }
+    }
+  }
+
   @Test func aFailedLoadDoesNotCreateANewConversation() async throws {
     try await replay("resume-missing") { stage in
       await #expect(throws: AgentError.rejected("Session not found")) {
         _ = try await stage.open(resume: .init(provider: .hermes, value: "missing"))
       }
-    }
-  }
-
-  @Test func aFailedModeSelectionDoesNotExposeAnUnconfiguredSession() async throws {
-    try await replay("mode-refused") { stage in
-      await #expect(throws: AgentError.rejected("Unsupported mode")) { _ = try await stage.open(.ask) }
     }
   }
 
@@ -83,7 +77,7 @@ struct HermesReplayTests {
     await #expect(throws: AgentError.sessionNotFound) {
       _ = try await driver.open(
         SessionConfiguration(
-          workingDirectory: URL(filePath: "/tmp"), permission: .ask, resume: .init(provider: .grok, value: "other")))
+          workingDirectory: URL(filePath: "/tmp"), resume: .init(provider: .grok, value: "other")))
     }
   }
 }

@@ -21,20 +21,20 @@ struct OpenCodeDriverTests {
       environment: ["PATH": "/bin", "OPENCODE_PERMISSION": #"{"*":"allow"}"#], launcher: launcher)
     let folder = URL(filePath: "/mentor")
     await #expect(throws: AgentError.cannotLaunch("Captured")) {
-      _ = try await driver.open(.init(workingDirectory: folder, permission: .ask))
+      _ = try await driver.open(.init(workingDirectory: folder))
     }
     let invocation = launcher.invocations.withLock { $0.first }
     #expect(invocation?.executable == URL(filePath: "/opencode"))
     #expect(invocation?.arguments == ["acp", "--print-logs"])
     #expect(invocation?.workingDirectory == folder)
-    #expect(invocation?.environment == ["PATH": "/bin", "OPENCODE_PERMISSION": #"{"*":"ask"}"#])
+    #expect(invocation?.environment == ["PATH": "/bin", "OPENCODE_PERMISSION": #"{"*":"allow"}"#])
   }
 
   @Test func fullAccessSetsOpenCodesDefaultPermissionToAllow() async {
     let launcher = CapturingLauncher()
     let driver = AcpDriver.opencode(executable: URL(filePath: "/opencode"), environment: [:], launcher: launcher)
     await #expect(throws: AgentError.cannotLaunch("Captured")) {
-      _ = try await driver.open(.init(workingDirectory: URL(filePath: "/mentor"), permission: .full))
+      _ = try await driver.open(.init(workingDirectory: URL(filePath: "/mentor")))
     }
     #expect(launcher.invocations.withLock { $0.first?.environment?["OPENCODE_PERMISSION"] } == #"{"*":"allow"}"#)
   }
@@ -45,7 +45,7 @@ struct OpenCodeDriverTests {
     await #expect(throws: AgentError.sessionNotFound) {
       _ = try await driver.open(
         .init(
-          workingDirectory: URL(filePath: "/mentor"), permission: .full, resume: .init(provider: .pi, value: "old")))
+          workingDirectory: URL(filePath: "/mentor"), resume: .init(provider: .pi, value: "old")))
     }
     #expect(launcher.invocations.withLock { $0.isEmpty })
   }

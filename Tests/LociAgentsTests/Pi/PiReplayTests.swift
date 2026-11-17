@@ -28,28 +28,12 @@ struct PiReplayTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await replay("reply", Scenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await replay("tool", Scenario.tool) }
-  @Test func anAllowedToolRuns() async throws { try await replay("permission-allow", Scenario.permissionAllowed) }
-  @Test func aDeniedToolDoesNotRun() async throws { try await replay("permission-deny", Scenario.permissionDenied) }
   @Test func interruptingStopsTheTurn() async throws { try await replay("interrupt", Scenario.interrupted) }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await replay("interrupt-asking", Scenario.interruptedWhileAsking)
-  }
   @Test func aResumedSessionRemembers() async throws { try await replay("resume", Scenario.resumed) }
   @Test func resumingAMissingSessionFails() async throws {
     try await replay("resume-missing", Scenario.resumedMissing)
   }
   @Test func anUnknownModelFails() async throws { try await replay("bad-model", Scenario.unknownModel) }
-
-  @Test func theReplyArrivesInPiecesNotAllAtOnce() async throws {
-    try await replay("permission-deny") { stage in
-      let session = try await stage.open(.ask)
-      let events = await Scenario.watch(try await session.send(Scenario.shellPrompt)) { event in
-        if case .permission(let request) = event { await session.answer(request.id, with: .chosen("deny")) }
-      }
-      #expect(events.filter { if case .text = $0 { true } else { false } }.count > 3)
-      await session.close()
-    }
-  }
 
   @Test func whenPiDiesTheTurnFailsWithItsLastWords() async throws {
     try await replay("synthetic-died") { stage in
@@ -98,26 +82,6 @@ struct PiReplayTests {
       #expect(
         events == [
           .notice(.message("Heads up")), .notice(.message("Your name?")), .permission(branches), .ended(.completed),
-        ])
-      await session.close()
-    }
-  }
-
-  @Test func aRequestThatArrivesAfterInterruptingIsDismissedUnseen() async throws {
-    try await replay("synthetic-late-request") { stage in
-      let session = try await stage.open()
-
-      let events = await Scenario.watch(try await session.send("Go on")) { event in
-        if case .permission = event { await session.interrupt() }
-      }
-
-      let first = PermissionRequest(
-        id: .init("first"), title: "Run it?",
-        options: [.init(id: "allow", role: .allow), .init(id: "deny", role: .deny)])
-      #expect(
-        events == [
-          .permission(first), .permissionClosed(first.id), .context(ContextUsage(used: 12, window: 1000)),
-          .ended(.interrupted),
         ])
       await session.close()
     }

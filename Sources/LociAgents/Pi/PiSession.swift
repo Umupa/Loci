@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 actor PiSession: AgentSession {
   nonisolated let handle: SessionHandle

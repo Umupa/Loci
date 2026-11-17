@@ -12,8 +12,8 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case notes(ContentRef)
   /// A mentor's conversation grew or its turn moved on. Nothing on disk to read again.
   case conversation(EntityID)
-  /// Answers to questions about this content arrived, finished or failed. Nothing on disk to read again.
-  case answers(ContentRef)
+  /// `SOUL.md` or a file under `memory/`.
+  case mind(EntityID)
   /// What the reader has read or seen of this content changed. It lives in the database only.
   case reading(ContentRef)
   /// Events were lost or a change could not be placed; read everything again.

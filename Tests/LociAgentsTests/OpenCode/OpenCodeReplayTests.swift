@@ -18,17 +18,8 @@ struct OpenCodeReplayTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await replay("reply", OpenCodeScenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await replay("tool", OpenCodeScenario.tool) }
-  @Test func anAllowedToolRuns() async throws {
-    try await replay("permission-allow") { try await OpenCodeScenario.permission($0, allow: true) }
-  }
-  @Test func aDeniedToolDoesNotRun() async throws {
-    try await replay("permission-deny") { try await OpenCodeScenario.permission($0, allow: false) }
-  }
   @Test func interruptingStopsTheTurnAndAllowsAnotherReply() async throws {
-    try await replay("interrupt") { try await OpenCodeScenario.interrupt($0, asking: false) }
-  }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await replay("interrupt-asking") { try await OpenCodeScenario.interrupt($0, asking: true) }
+    try await replay("interrupt") { try await OpenCodeScenario.interrupt($0) }
   }
   @Test func aResumedSessionRemembersWithoutReplayingOldText() async throws {
     try await replay("resume", OpenCodeScenario.resume)
@@ -65,16 +56,6 @@ struct OpenCodeReplayTests {
       #expect(events.reply == "last")
       #expect(events.endings == [.completed])
       #expect(events.last == .ended(.completed))
-      await session.close()
-    }
-  }
-
-  @Test func anUnexpectedExitWithdrawsEveryPermissionRequest() async throws {
-    try await replay("synthetic-died-asking") { stage in
-      let session = try await stage.open(.ask)
-      let events = await Scenario.watch(try await session.send("Reply with exactly one word: pong"))
-      #expect(events.contains(.permissionClosed(.init("7"))))
-      #expect(events.endings == [.failed(.exited(code: 9, diagnostics: "broken"))])
       await session.close()
     }
   }

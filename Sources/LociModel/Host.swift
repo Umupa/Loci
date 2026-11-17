@@ -1,3 +1,5 @@
+import Foundation
+
 /// What the interface talks to: commands that do one thing, and subscriptions that keep one view's data
 /// current. The same protocol is served in-process and, later, over an encrypted channel, so everything
 /// that crosses it is a plain `Codable` value.
@@ -84,13 +86,16 @@ public protocol CommandHandler: Sendable {
   func health() async -> Health
   func sendMessage(_ command: SendMessage) async throws(HostError) -> Done
   func stopTurn(_ command: StopTurn) async throws(HostError) -> Done
-  func answerPermission(_ command: AnswerPermission) async throws(HostError) -> Done
   func writeLesson(_ command: WriteLesson) async throws(HostError) -> Done
-  func askAboutPassage(_ command: AskAboutPassage) async throws(HostError) -> EntityID
   func conversation(of mentor: EntityID) async throws(HostError) -> Conversation
-  func pendingAnswers(on content: ContentRef) async -> [PendingAnswer]
+  func mind(of mentor: EntityID) async throws(HostError) -> Mind
   func detectAgents(again: Bool) async -> [AgentInstallation]
-  func newMentorAgent() async throws(HostError) -> AgentChoice
-  func setNewMentorAgent(_ command: SetNewMentorAgent) async throws(HostError) -> AgentChoice
+  func agentModels(of provider: Mentor.Provider) async -> [String]
+  func agentDefaults() async throws(HostError) -> AgentDefaults
+  func setDefaultAgent(_ command: SetDefaultAgent) async throws(HostError) -> AgentDefaults
+  func setDefaultModel(_ command: SetDefaultModel) async throws(HostError) -> AgentDefaults
+  func lessonLanguage() async throws(HostError) -> LessonLanguage
+  func setLessonLanguage(_ command: SetLessonLanguage) async throws(HostError) -> LessonLanguage
+  func dataLocation() async -> URL
   func setMentorAgent(_ command: SetMentorAgent) async throws(HostError) -> Mentor
 }

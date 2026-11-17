@@ -23,15 +23,6 @@ struct CursorLiveTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await live("reply", CursorScenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await live("tool", CursorScenario.tool) }
-  @Test func anAllowedToolRuns() async throws {
-    try await live("permission-allow", CursorScenario.permissionAllowed)
-  }
-  @Test func aDeniedToolDoesNotRun() async throws {
-    try await live("permission-deny", CursorScenario.permissionDenied)
-  }
   @Test func interruptingStopsTheTurn() async throws { try await live("interrupt", Scenario.interrupted) }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await live("interrupt-asking", Scenario.interruptedWhileAsking)
-  }
   @Test func aResumedSessionRemembers() async throws { try await live("resume", CursorScenario.resumed) }
 }

@@ -13,8 +13,6 @@ struct PiDialog: Hashable, Sendable {
     case cancelled
   }
 
-  /// The title Loci's own extension gives its dialogs; their message is JSON naming the tool call.
-  static let ownTitle = "loci:permission"
   private static let allow = "allow"
   private static let deny = "deny"
 
@@ -30,11 +28,6 @@ struct PiDialog: Hashable, Sendable {
       options = [.init(id: Self.allow, role: .allow), .init(id: Self.deny, role: .deny)]
     case .select(let labels):
       options = labels.enumerated().map { .init(id: String($0.offset), role: .choice, label: $0.element.plain) }
-    }
-    if title == Self.ownTitle, let own = try? JSONDecoder().decode(JSONValue.self, from: Data(message.utf8)),
-      let tool = own["toolName"]?.string, let call = own["toolCallId"]?.string
-    {
-      return PermissionRequest(id: .init(id), title: tool, toolCall: .init(call), options: options)
     }
     let text = [title, message].filter { !$0.isEmpty }.joined(separator: " — ")
     return PermissionRequest(id: .init(id), title: text.plain, options: options)

@@ -5,7 +5,7 @@
 {"from":{"jsonrpc":"2.0","id":2,"result":{"sessionId":"hermes-session-1","models":{"currentModelId":"default-model","availableModels":[{"modelId":"default-model","_meta":{"totalContextTokens":10}},{"modelId":"some-model","_meta":{"totalContextTokens":999}}]}}}}
 {"to":{"jsonrpc":"2.0","id":3,"method":"session/set_model","params":{"sessionId":"hermes-session-1","modelId":"some-model"}}}
 {"from":{"jsonrpc":"2.0","id":3,"result":{}}}
-{"to":{"jsonrpc":"2.0","id":4,"method":"session/set_mode","params":{"sessionId":"hermes-session-1","modeId":"default"}}}
+{"to":{"jsonrpc":"2.0","id":4,"method":"session/set_mode","params":{"sessionId":"hermes-session-1","modeId":"dont_ask"}}}
 {"from":{"jsonrpc":"2.0","id":4,"result":{}}}
 {"to":{"jsonrpc":"2.0","id":5,"method":"session/prompt","params":{"sessionId":"hermes-session-1","prompt":[{"type":"text","text":"Reply with exactly one word: pong"}]}}}
 {"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"hermes-session-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"pong"}},"_meta":{"totalTokens":7}}}}

@@ -50,27 +50,36 @@ struct ConversationScenarioTests {
     }
   }
 
-  /// α2-S6: a command runs only after the person allows it.
-  @Test(arguments: [("allow", true), ("deny", false)])
-  func aCommandRunsOnlyWhenAllowed(choice: String, runs: Bool) async throws {
+  /// UI-S10: every mentor runs with full access; an agent that still asks is allowed, and nothing waits on
+  /// the person.
+  @Test func aCommandTheAgentAsksAboutRunsWithoutAsking() async throws {
     let agent = FakeAgent { prompt in prompt == "Run it" ? .askToRun : .reply("Ready.") }
     try await withHost(agent: agent) { host, _, _ in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
       _ = try #require(await settled(host, mentor.id))
-      let feed = host.subscribe(MentorConversation(mentor: mentor.id))
 
       _ = try await host.run(SendMessage(mentor: mentor.id, text: "Run it"))
-      let asking = try #require(await value(feed) { $0.turn?.waiting.isEmpty == false })
-      let ask = try #require(asking.turn?.waiting.first)
-      #expect(ask.options.map(\.role) == [.allow, .deny])
-      #expect(asking.turn?.latestTool?.subject == "echo hi")
-      _ = try await host.run(AnswerPermission(mentor: mentor.id, request: ask.id, answer: .chosen(choice)))
 
       let done = try #require(await settled(host, mentor.id, turns: 2))
       let tool = done.messages.compactMap { if case .tool(let tool) = $0.body { tool } else { nil } }.last
-      #expect(tool?.state == (runs ? .succeeded : .failed))
-      let answered = done.messages.compactMap { if case .permission(let ask) = $0.body { ask.answer } else { nil } }
-      #expect(answered == [.chosen(choice)])
+      #expect(tool?.state == .succeeded)
+      #expect(bodies(done).last == .reply("It printed hi."))
+    }
+  }
+
+  /// UI-S8: what the agent says about its context window is in the conversation.
+  @Test func theContextUsageTheAgentReportsIsShown() async throws {
+    try await withManualHost { host, _, _, agent in
+      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      _ = try #require(await settled(host, mentor.id))
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))
+      let session = try #require(await agent.sessions.last)
+
+      await session.emit(.context(ContextUsage(used: 68_000, window: 200_000)))
+
+      let reported = await value(host.subscribe(MentorConversation(mentor: mentor.id))) { $0.context != nil }
+      #expect(reported?.context == ContextUsage(used: 68_000, window: 200_000))
+      await session.finish()
     }
   }
 
@@ -117,8 +126,7 @@ struct ConversationScenarioTests {
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
       _ = try #require(await settled(host, mentor.id))
       let grok = try Mentor(
-        id: mentor.id, name: mentor.name, avatar: mentor.avatar, color: mentor.color, provider: .grok,
-        permission: .full)
+        id: mentor.id, name: mentor.name, avatar: mentor.avatar, color: mentor.color, provider: .grok)
       try place.store.save(grok)
 
       _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))

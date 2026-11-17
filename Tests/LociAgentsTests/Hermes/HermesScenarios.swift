@@ -32,36 +32,6 @@ enum HermesScenario {
     await session.close()
   }
 
-  static func permissionAllowed(_ stage: Stage) async throws {
-    try await permission(stage, allow: true)
-  }
-
-  static func permissionDenied(_ stage: Stage) async throws {
-    try await permission(stage, allow: false)
-  }
-
-  private static func permission(_ stage: Stage, allow: Bool) async throws {
-    let session = try await stage.open(.ask)
-    var asked: [PermissionRequest] = []
-    let events = await Scenario.watch(try await session.send(shellPrompt)) { event in
-      guard case .permission(let request) = event else { return }
-      asked.append(request)
-      let option = request.options.first { $0.role == (allow ? .allow : .deny) }
-      #expect(option != nil)
-      await session.answer(request.id, with: .chosen(option?.id ?? ""))
-    }
-    let request = try #require(asked.first)
-    #expect(request.toolCall == events.calls.first?.id)
-    if allow {
-      #expect(events.outputs.contains { $0.text.contains("loci-42") && !$0.failed })
-    } else {
-      #expect(!events.outputs.contains { $0.text.contains("loci-42") && !$0.failed })
-    }
-    #expect(events.endings == [.completed])
-    #expect(events.last == .ended(.completed))
-    await session.close()
-  }
-
   static func interrupted(_ stage: Stage) async throws {
     let session = try await stage.open()
     let events = await Scenario.watch(
@@ -75,22 +45,6 @@ enum HermesScenario {
     #expect(next.reply.lowercased().contains("pong"))
     #expect(next.endings == [.completed])
     #expect(next.last == .ended(.completed))
-    await session.close()
-  }
-
-  static func interruptedWhileAsking(_ stage: Stage) async throws {
-    let session = try await stage.open(.ask)
-    var asked: [PermissionRequest.ID] = []
-    let events = await Scenario.watch(try await session.send(shellPrompt)) { event in
-      guard case .permission(let request) = event else { return }
-      asked.append(request.id)
-      await session.interrupt()
-    }
-    let request = try #require(asked.first)
-    #expect(events.contains(.permissionClosed(request)))
-    #expect(!events.outputs.contains { $0.text.contains("loci-42") })
-    #expect(events.endings == [.interrupted])
-    #expect(events.last == .ended(.interrupted))
     await session.close()
   }
 }

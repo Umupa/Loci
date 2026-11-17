@@ -11,16 +11,18 @@ public struct SessionConfiguration: Hashable, Sendable {
   public var workingDirectory: URL
   /// The provider's own name for the model; `nil` leaves the choice to the provider.
   public var model: String?
-  public var permission: Mentor.Permission
+  /// `nil` leaves it to the provider. Drivers whose provider offers no efforts ignore it.
+  public var effort: ThinkingEffort?
   /// An earlier session to continue instead of starting a new one.
   public var resume: SessionHandle?
 
+  /// Every session runs with full access: the agent does not stop to ask before using a tool.
   public init(
-    workingDirectory: URL, model: String? = nil, permission: Mentor.Permission, resume: SessionHandle? = nil
+    workingDirectory: URL, model: String? = nil, effort: ThinkingEffort? = nil, resume: SessionHandle? = nil
   ) {
     self.workingDirectory = workingDirectory
     self.model = model
-    self.permission = permission
+    self.effort = effort
     self.resume = resume
   }
 }

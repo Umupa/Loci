@@ -1,3 +1,5 @@
+import LociModel
+
 public enum AgentEvent: Hashable, Sendable {
   /// More of the reply.
   case text(String)
@@ -26,15 +28,4 @@ public enum Notice: Hashable, Sendable {
   case compacting
   /// The provider's or an extension's own words.
   case message(String)
-}
-
-/// How full the model's context window is, in tokens.
-public struct ContextUsage: Hashable, Sendable {
-  public let used: Int?
-  public let window: Int?
-
-  public init(used: Int?, window: Int?) {
-    self.used = used
-    self.window = window
-  }
 }

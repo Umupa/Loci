@@ -14,10 +14,9 @@ struct MentorScenarioTests {
 
       #expect(mentor.name == "我想搞懂 Kubernetes 的调度器到底是怎")
       #expect(mentor.request == "我想搞懂 Kubernetes 的调度器到底是怎么把 Pod 放到节点上的")
-      #expect(mentor.avatar == Mentor.portraits[0])
+      #expect(mentor.avatar == Mentor.Mark.allCases[0].rawValue)
       #expect(mentor.color == MentorColor.palette[0])
       #expect(mentor.provider == .pi)
-      #expect(mentor.permission == .full)
       let listed = await value(mentors) { $0 == [mentor] }
       #expect(listed != nil)
       let page = try await host.run(ReadCatalog(mentor: mentor.id))
@@ -40,10 +39,30 @@ struct MentorScenarioTests {
       let first = try await host.run(CreateMentor(request: "Scheduling"))
       let second = try await host.run(CreateMentor(request: "Storage engines"))
 
-      #expect(second.avatar == Mentor.portraits[1])
+      #expect(second.avatar == Mentor.Mark.allCases[1].rawValue)
       #expect(second.color == MentorColor.palette[1])
       #expect(first.avatar != second.avatar)
     }
+  }
+
+  @Test func aNewMentorIsGivenARandomSignAndColourNoOtherMentorHas() throws {
+    let worn = try Mentor(
+      id: EntityID(), name: "Scheduling", avatar: "key",
+      color: MentorColor.palette.last ?? .init(red: 0, green: 0, blue: 0),
+      provider: .pi)
+
+    #expect(MentorLook.mark(after: [worn], pick: { $0 - 1 }) == .sage)
+    #expect(MentorLook.color(after: [worn], pick: { $0 - 1 }) == MentorColor.palette.dropLast().last)
+    #expect(MentorLook.mark(after: [worn], pick: { _ in 0 }) == .ember)
+  }
+
+  @Test func onceEverySignIsWornANewMentorMayShareOne() throws {
+    let everyone = try Mentor.Mark.allCases.map { mark in
+      try Mentor(
+        id: EntityID(), name: "Scheduling", avatar: mark.rawValue, color: MentorColor.palette[0], provider: .pi)
+    }
+
+    #expect(MentorLook.mark(after: everyone, pick: { $0 - 1 }) == .key)
   }
 
   @Test func anEmptySentenceIsRefused() async throws {

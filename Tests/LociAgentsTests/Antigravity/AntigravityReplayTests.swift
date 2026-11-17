@@ -21,16 +21,7 @@ struct AntigravityReplayTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await replay("reply", Scenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await replay("tool", AntigravityScenario.tool) }
-  @Test func anAllowedToolRuns() async throws {
-    try await replay("permission-allow", AntigravityScenario.permissionAllowed)
-  }
-  @Test func aDeniedToolDoesNotRun() async throws {
-    try await replay("permission-deny", AntigravityScenario.permissionDenied)
-  }
   @Test func interruptingStopsTheTurn() async throws { try await replay("interrupt", Scenario.interrupted) }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await replay("interrupt-asking", AntigravityScenario.interruptedWhileAsking)
-  }
   @Test func aResumedSessionRemembers() async throws { try await replay("resume", Scenario.resumed) }
   @Test func resumingAMissingSessionFails() async throws {
     try await replay("resume-missing", AntigravityScenario.resumedMissing)
@@ -59,30 +50,17 @@ struct AntigravityReplayTests {
     }
   }
 
-  @Test func aReplyIsDeliveredInSeveralPieces() async throws {
-    try await replay("permission-deny") { stage in
-      let session = try await stage.open(.ask)
-      let events = await Scenario.watch(try await session.send(AntigravityScenario.shellPrompt)) { event in
-        guard case .permission(let request) = event else { return }
-        await session.answer(request.id, with: .chosen(request.options.first { $0.role == .deny }?.id ?? ""))
-      }
-      #expect(events.filter { if case .text = $0 { true } else { false } }.count > 3)
-      #expect(events.last == .ended(.completed))
-      await session.close()
-    }
-  }
-
   @Test func aHandleFromAnotherProviderIsRejectedBeforeLaunching() async {
     let driver = AcpDriver.antigravity(executable: URL(filePath: "/not-installed"))
     let configuration = SessionConfiguration(
-      workingDirectory: URL(filePath: "/tmp"), permission: .ask,
+      workingDirectory: URL(filePath: "/tmp"),
       resume: SessionHandle(provider: .pi, value: "other-session"))
     await #expect(throws: AgentError.sessionNotFound) { _ = try await driver.open(configuration) }
   }
 
   @Test func aCapacityErrorSentAsReplyTextFailsTheTurn() async throws {
     try await replay("capacity-error") { stage in
-      let session = try await stage.open(.ask)
+      let session = try await stage.open()
       let events = await Scenario.watch(try await session.send(AntigravityScenario.shellPrompt))
       #expect(events.endings == [.failed(.provider("No capacity available for model some-model on the server"))])
       await session.close()

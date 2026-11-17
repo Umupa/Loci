@@ -15,7 +15,6 @@ struct Checks: Hashable, Codable, Sendable {
   let firstLessonAfterSeconds: Double?
   let stoppedFirstTurn: Bool
   let failedTurns: Int
-  let permissionAsks: Int
   let probeAnswered: Bool
 
   init(_ evidence: Evidence) {
@@ -30,7 +29,6 @@ struct Checks: Hashable, Codable, Sendable {
     firstLessonAfterSeconds = evidence.firstLessonAfter
     stoppedFirstTurn = evidence.stoppedFirstTurn
     failedTurns = evidence.conversation.count { if case .ended(.failed) = $0.body { true } else { false } }
-    permissionAsks = evidence.conversation.count { if case .permission = $0.body { true } else { false } }
     probeAnswered = !evidence.probeAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 

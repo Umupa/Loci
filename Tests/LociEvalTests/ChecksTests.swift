@@ -42,19 +42,13 @@ struct ChecksTests {
     #expect(!Checks.isFirstParty("https://notsqlite.org/wal.html", ["sqlite.org"]))
   }
 
-  @Test func failedTurnsAndPermissionAsksAreCounted() throws {
+  @Test func failedTurnsAreCounted() throws {
     let at = Timestamp(millisecondsSince1970: 0)
-    let conversation = [
-      Message(id: EntityID(), at: at, body: .ended(.failed("quota"))),
-      Message(
-        id: EntityID(), at: at,
-        body: .permission(PermissionAsk(id: "1", title: "bash", tool: nil, options: [], answer: .dismissed))),
-    ]
+    let conversation = [Message(id: EntityID(), at: at, body: .ended(.failed("quota")))]
     let checks = Checks(try evidence(catalog: 30, lessons: [], conversation: conversation))
 
     #expect(!checks.lessonsInRange)
     #expect(checks.failedTurns == 1)
-    #expect(checks.permissionAsks == 1)
   }
 }
 

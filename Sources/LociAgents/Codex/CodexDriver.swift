@@ -35,11 +35,13 @@ public struct CodexDriver: AgentDriver {
       try await channel.send(.object(["method": .string("initialized")]))
       var params: [String: JSONValue] = [
         "cwd": .string(configuration.workingDirectory.path),
-        "approvalPolicy": .string(configuration.permission == .ask ? "untrusted" : "never"),
-        "approvalsReviewer": .string("user"),
-        "sandbox": .string(configuration.permission == .ask ? "read-only" : "danger-full-access"),
+        "approvalPolicy": .string("never"), "approvalsReviewer": .string("user"),
+        "sandbox": .string("danger-full-access"),
       ]
       if let model = configuration.model { params["model"] = .string(model) }
+      if let effort = configuration.effort, provider.efforts.contains(effort) {
+        params["config"] = .object(["model_reasoning_effort": .string(effort.rawValue)])
+      }
       if let resume = configuration.resume { params["threadId"] = .string(resume.value) }
       let method = configuration.resume == nil ? "thread/start" : "thread/resume"
       let result: JSONValue

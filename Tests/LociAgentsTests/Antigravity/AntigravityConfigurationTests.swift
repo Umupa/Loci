@@ -10,7 +10,7 @@ struct AntigravityConfigurationTests {
     let fixture = selectorMissing ? "synthetic-model-selector-missing" : "synthetic-model-selector"
     let launcher = try ScriptedLauncher("Antigravity/\(fixture)", folder: folder)
     let driver = AcpDriver.antigravity(executable: URL(filePath: "/server/agy_acp_server.par"), launcher: launcher)
-    let configuration = SessionConfiguration(workingDirectory: folder, model: "gemini-3.8-flash-low", permission: .full)
+    let configuration = SessionConfiguration(workingDirectory: folder, model: "gemini-3.8-flash-low")
     if selectorMissing {
       await #expect(throws: AgentError.rejected("Antigravity did not advertise a model selector")) {
         _ = try await driver.open(configuration)

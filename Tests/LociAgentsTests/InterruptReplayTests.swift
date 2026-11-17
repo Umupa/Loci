@@ -35,7 +35,7 @@ struct InterruptReplayTests {
       "\(agent.rawValue)/synthetic-interrupt-\(accepted ? "accepted" : "silent")",
       folder: folder, exitOnTermination: false)
     let session = try await agent.driver(launcher: launcher, clock: AcceleratedClock()).open(
-      SessionConfiguration(workingDirectory: folder, permission: .full))
+      SessionConfiguration(workingDirectory: folder))
     let turn = try await session.send("Go on")
     let rescue = Task {
       do { try await Task.sleep(for: .seconds(2)) } catch { return }

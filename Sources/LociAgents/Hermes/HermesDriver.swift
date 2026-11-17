@@ -9,6 +9,6 @@ extension AcpDriver {
     AcpDriver(
       provider: .hermes, executable: executable, arguments: { _ in ["acp"] + arguments },
       environment: { _ in environment }, launcher: launcher, clock: clock, setModel: .preferConfigOption,
-      resumeMethod: "session/load", mode: { $0.permission == .ask ? "default" : "dont_ask" })
+      resumeMethod: "session/load", mode: "dont_ask")
   }
 }

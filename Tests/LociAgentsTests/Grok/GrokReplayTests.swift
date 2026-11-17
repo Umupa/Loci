@@ -20,14 +20,7 @@ struct GrokReplayTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await replay("reply", Scenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await replay("tool", GrokScenario.tool) }
-  @Test func anAllowedToolRuns() async throws { try await replay("permission-allow", GrokScenario.permissionAllowed) }
-  @Test func aDeniedToolDoesNotRun() async throws {
-    try await replay("permission-deny", GrokScenario.permissionDenied)
-  }
   @Test func interruptingStopsTheTurn() async throws { try await replay("interrupt", Scenario.interrupted) }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await replay("interrupt-asking", Scenario.interruptedWhileAsking)
-  }
   @Test func aResumedSessionRemembers() async throws { try await replay("resume", Scenario.resumed) }
   @Test func resumingAMissingSessionFails() async throws {
     try await replay("resume-missing", GrokScenario.resumedMissing)

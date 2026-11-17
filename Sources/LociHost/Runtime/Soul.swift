@@ -12,7 +12,7 @@ enum Soul {
     return template.replacing("{{topic}}", with: mentor.request ?? mentor.name)
   }
 
-  static func begin(_ mentor: Mentor) -> Prompt {
+  static func begin(_ mentor: Mentor, in language: LessonLanguage) -> Prompt {
     let topic = mentor.request ?? mentor.name
     return Prompt(
       text: """
@@ -21,28 +21,36 @@ enum Soul {
         Start now. First write `catalog.yaml` with the whole course, then write the first lesson in \
         `lessons/<slug>.md`. Save the catalog before you start the lesson, so the learner sees the course \
         while you write.
-        """,
+        """ + instruction(for: language),
       purpose: .begin)
   }
 
-  static func write(_ lesson: Lesson) -> Prompt {
+  static func write(_ lesson: Lesson, in language: LessonLanguage) -> Prompt {
     Prompt(
       text: """
         Write the lesson `\(lesson.slug)` ("\(lesson.title)") from your catalog now, in \
         `lessons/\(lesson.slug).md`.
-        """,
+        """ + instruction(for: language),
       purpose: .writeLesson(lesson.slug))
   }
 
-  static func question(_ question: String, about locator: Locator, excerpt: String?) -> String {
-    let passage = excerpt.map { "\n\n> " + $0.replacing("\n", with: "\n> ") } ?? ""
+  /// What the person chose for lessons, said to the mentor; nothing when lessons follow the learner.
+  private static func instruction(for language: LessonLanguage) -> String {
+    switch language {
+    case .learners: ""
+    case .fixed(let tag): "\n\nWrite the catalog titles and the lessons in the language with BCP 47 tag `\(tag)`."
+    }
+  }
+
+  /// A question about a passage, with the passage quoted so the mentor sees what the learner sees.
+  static func ask(_ question: String, about passage: Passage) -> String {
+    let quoted = "> " + passage.excerpt.replacing("\n", with: "\n> ")
     return """
-      The learner is reading and asks about this passage (\(locator)):\(passage)
+      I am reading this passage (\(passage.locator)):
+
+      \(quoted)
 
       \(question)
-
-      Answer in the language of the question, directly and briefly: the answer is shown beside the passage. \
-      Do not change any files.
       """
   }
 }

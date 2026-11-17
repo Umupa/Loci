@@ -7,12 +7,12 @@ extension LocalHost {
     let request = command.request.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     guard !request.isEmpty else { throw .invalidRequest("say what the mentor should teach") }
     let others = try attempt { try database.mentors() }
-    let agent = try await newMentorAgent()
+    let agent = try await agentDefaults().forNewMentors
     let mentor = try attempt {
       try Mentor(
-        id: environment.newID(), name: MentorLook.name(from: request), avatar: MentorLook.avatar(after: others),
-        color: MentorLook.color(after: others), provider: agent.provider, model: agent.model,
-        permission: .full,
+        id: environment.newID(), name: MentorLook.name(from: request),
+        avatar: MentorLook.mark(after: others, pick: environment.pick).rawValue,
+        color: MentorLook.color(after: others, pick: environment.pick), provider: agent.provider, model: agent.model,
         request: command.request.trimmingCharacters(in: .whitespacesAndNewlines))
     }
     try attempt { try store.create(mentor) }
@@ -26,7 +26,7 @@ extension LocalHost {
       let mentor = try store.mentor(command.mentor)
       let renamed = try Mentor(
         id: mentor.id, name: command.name.trimmingCharacters(in: .whitespacesAndNewlines), avatar: mentor.avatar,
-        color: mentor.color, provider: mentor.provider, model: mentor.model, permission: mentor.permission,
+        color: mentor.color, provider: mentor.provider, model: mentor.model, effort: mentor.effort,
         request: mentor.request)
       try store.save(renamed)
       return renamed
@@ -91,15 +91,21 @@ enum MentorLook {
     character.isASCII && (character.isLetter || character.isNumber)
   }
 
-  /// A portrait no other mentor wears yet, or the next one in turn once all are worn.
-  static func avatar(after others: [Mentor]) -> String {
-    let worn = Set(others.map(\.avatar))
-    return Mentor.portraits.first { !worn.contains($0) } ?? Mentor.portraits[others.count % Mentor.portraits.count]
+  /// A sign no other mentor wears yet, or any sign once all are worn.
+  static func mark(after others: [Mentor], pick: (Int) -> Int) -> Mentor.Mark {
+    choose(from: Mentor.Mark.allCases, avoiding: Set(others.map(\.mark)), pick: pick)
   }
 
-  static func color(after others: [Mentor]) -> MentorColor {
-    let used = Set(others.map(\.color))
-    return MentorColor.palette.first { !used.contains($0) }
-      ?? MentorColor.palette[others.count % MentorColor.palette.count]
+  /// A colour no other mentor has yet, or any colour once all are taken.
+  static func color(after others: [Mentor], pick: (Int) -> Int) -> MentorColor {
+    choose(from: MentorColor.palette, avoiding: Set(others.map(\.color.nearestInPalette)), pick: pick)
+  }
+
+  private static func choose<Look: Hashable>(from looks: [Look], avoiding taken: Set<Look>, pick: (Int) -> Int)
+    -> Look
+  {
+    let free = looks.filter { !taken.contains($0) }
+    let choices = free.isEmpty ? looks : free
+    return choices[pick(choices.count)]
   }
 }

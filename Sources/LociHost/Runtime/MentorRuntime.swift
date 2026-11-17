@@ -8,11 +8,9 @@ actor MentorRuntime {
   /// Mentors being deleted. Their files are still on disk for a moment, so without this a refresh in that
   /// moment would make them a new run that outlives the deletion.
   private var leaving: Set<EntityID> = []
-  let questions: PassageQuestions
 
   init(store: Store, database: StoreDatabase, environment: HostEnvironment, follower: Follower) {
     context = RunContext(store: store, database: database, environment: environment, follower: follower)
-    questions = PassageQuestions(context: context)
   }
 
   func run(of mentor: EntityID) throws(HostError) -> MentorRun {
@@ -30,7 +28,6 @@ actor MentorRuntime {
     let run = runs.removeValue(forKey: mentor)
     await run?.close(forget: true)
     if run == nil { try? context.database.deleteConversations(of: mentor) }
-    await questions.close(mentor)
   }
 
   /// Applies a mentor's new agent settings to its live sessions. A mentor with no run has nothing open.
@@ -46,6 +43,5 @@ actor MentorRuntime {
   func close() async {
     for run in runs.values { await run.close(forget: false) }
     runs = [:]
-    await questions.close()
   }
 }

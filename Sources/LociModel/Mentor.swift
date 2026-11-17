@@ -4,19 +4,21 @@ import Foundation
 public struct Mentor: Hashable, Sendable {
   public let id: EntityID
   public let name: String
-  /// The name of one of the built-in ink portraits.
+  /// The name of the mentor's sign, one of `Mark`; a name from an earlier version is still kept.
   public let avatar: String
   public let color: MentorColor
   public let provider: Provider
   /// The model to ask the provider for; `nil` leaves the choice to the provider.
   public let model: String?
-  public let permission: Permission
+  /// How hard the agent thinks; `nil` leaves it to the provider. Always one of `provider.efforts`: an effort the
+  /// provider does not offer is dropped when the mentor is made.
+  public let effort: ThinkingEffort?
   /// The sentence the mentor was created from: what the person wants to learn.
   public let request: String?
 
   public init(
     id: EntityID, name: String, avatar: String, color: MentorColor, provider: Provider, model: String? = nil,
-    permission: Permission, request: String? = nil
+    effort: ThinkingEffort? = nil, request: String? = nil
   ) throws {
     self.id = id
     self.name = try name.requiringText("name")
@@ -24,20 +26,12 @@ public struct Mentor: Hashable, Sendable {
     self.color = color
     self.provider = provider
     self.model = try model.requiringText("model")
-    self.permission = permission
+    self.effort = effort.flatMap { provider.efforts.contains($0) ? $0 : nil }
     self.request = try request.requiringText("request")
   }
 
-  /// The names of the built-in portraits, in the order new mentors are given them.
-  ///
-  /// Carried over from the previous version; the set is redrawn with the visual design.
-  public static let portraits = [
-    "ember", "wisp", "dew", "moss", "nimbus", "pebble", "luna", "nova", "flint", "tide", "juniper", "wren", "ash",
-    "quill",
-  ]
-
   /// The agent command-line program that runs the mentor.
-  public enum Provider: String, CaseIterable, Codable, Hashable, Sendable {
+  public enum Provider: String, CaseIterable, Codable, CodingKeyRepresentable, Hashable, Sendable {
     case pi
     case omp
     case grok
@@ -49,17 +43,11 @@ public struct Mentor: Hashable, Sendable {
     case codex
     case opencode
   }
-
-  /// How much the mentor may do without asking.
-  public enum Permission: String, CaseIterable, Codable, Hashable, Sendable {
-    case ask
-    case full
-  }
 }
 
 extension Mentor: Codable {
   private enum CodingKeys: String, CodingKey {
-    case id, name, avatar, color, provider, model, permission, request
+    case id, name, avatar, color, provider, model, effort, request
   }
 
   public init(from decoder: any Decoder) throws {
@@ -70,11 +58,11 @@ extension Mentor: Codable {
     let color = try container.decode(MentorColor.self, forKey: .color)
     let provider = try container.decode(Provider.self, forKey: .provider)
     let model = try container.decodeIfPresent(String.self, forKey: .model)
-    let permission = try container.decode(Permission.self, forKey: .permission)
+    let effort = try container.decodeIfPresent(ThinkingEffort.self, forKey: .effort)
     let request = try container.decodeIfPresent(String.self, forKey: .request)
     self = try decoder.validated {
       try Mentor(
-        id: id, name: name, avatar: avatar, color: color, provider: provider, model: model, permission: permission,
+        id: id, name: name, avatar: avatar, color: color, provider: provider, model: model, effort: effort,
         request: request)
     }
   }
@@ -87,7 +75,7 @@ extension Mentor: Codable {
     try container.encode(color, forKey: .color)
     try container.encode(provider, forKey: .provider)
     try container.encodeIfPresent(model, forKey: .model)
-    try container.encode(permission, forKey: .permission)
+    try container.encodeIfPresent(effort, forKey: .effort)
     try container.encodeIfPresent(request, forKey: .request)
   }
 }

@@ -3,7 +3,7 @@
 {"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true}}}}
 {"to":{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]}}}
 {"from":{"jsonrpc":"2.0","id":2,"result":{"sessionId":"hermes-session-1","models":{"currentModelId":"default-model"}}}}
-{"to":{"jsonrpc":"2.0","id":3,"method":"session/set_mode","params":{"sessionId":"hermes-session-1","modeId":"default"}}}
+{"to":{"jsonrpc":"2.0","id":3,"method":"session/set_mode","params":{"sessionId":"hermes-session-1","modeId":"dont_ask"}}}
 {"from":{"jsonrpc":"2.0","id":3,"error":{"code":-32602,"message":"Unsupported mode"}}}
 {"close":true}
 {"exit":0,"stderr":""}

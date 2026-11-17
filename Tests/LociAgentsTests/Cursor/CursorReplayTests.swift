@@ -22,17 +22,8 @@ struct CursorReplayTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await replay("reply", CursorScenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await replay("tool", CursorScenario.tool) }
-  @Test func anAllowedToolRuns() async throws {
-    try await replay("permission-allow", CursorScenario.permissionAllowed)
-  }
-  @Test func aDeniedToolDoesNotRun() async throws {
-    try await replay("permission-deny", CursorScenario.permissionDenied)
-  }
   @Test func interruptingStopsTheTurnAndTheSessionCanContinue() async throws {
     try await replay("interrupt", Scenario.interrupted)
-  }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await replay("interrupt-asking", Scenario.interruptedWhileAsking)
   }
   @Test func aLoadedSessionRemembersWithoutReplayingOldText() async throws {
     try await replay("resume", CursorScenario.resumed)
@@ -74,7 +65,7 @@ struct CursorReplayTests {
   }
   @Test func fullPermissionAnswersOnlyRequestsFromItsOwnSession() async throws {
     try await replay("permission-full") { stage in
-      let session = try await stage.open(.full)
+      let session = try await stage.open()
       let events = await Scenario.watch(try await session.send(Scenario.shellPrompt))
       #expect(!events.contains { if case .permission = $0 { true } else { false } })
       #expect(events.reply == "loci-42")
@@ -93,7 +84,7 @@ struct CursorReplayTests {
 
   @Test func fullPermissionFallsBackToPermanentApprovalWhenItIsTheOnlyAllowOption() async throws {
     try await replay("permission-full-always") { stage in
-      let session = try await stage.open(.full)
+      let session = try await stage.open()
       let events = await Scenario.watch(try await session.send(Scenario.shellPrompt))
       #expect(events.reply == "loci-42")
       #expect(events.endings == [.completed])

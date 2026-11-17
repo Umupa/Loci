@@ -52,7 +52,7 @@ public struct OneLesson: Subscription {
       case .lesson(let changed): changed.mentor == lesson.mentor
       case .mentor(let mentor), .catalog(let mentor): mentor == lesson.mentor
       case .everything: true
-      case .item, .notes, .conversation, .answers, .reading: false
+      case .item, .notes, .conversation, .mind, .reading: false
       }
     }
   }

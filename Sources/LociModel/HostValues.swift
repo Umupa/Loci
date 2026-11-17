@@ -22,6 +22,16 @@ public struct MentorPage: Hashable, Codable, Sendable {
   }
 }
 
+extension MentorPage {
+  /// The lesson to open for the course: the first written lesson not yet read, in catalog order, or else the
+  /// last written one; `nil` while none is written.
+  public var currentLesson: Lesson.Slug? {
+    let written = Set(writtenLessons)
+    let lessons = (catalog?.chapters.flatMap(\.lessons) ?? []).map(\.slug).filter(written.contains)
+    return lessons.first { !readLessons.contains($0) } ?? lessons.last
+  }
+}
+
 /// An item with its text and the lessons that cite it, as one view shows it.
 public struct ItemPage: Hashable, Codable, Sendable {
   public let item: Item

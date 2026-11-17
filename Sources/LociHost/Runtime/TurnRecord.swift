@@ -4,11 +4,13 @@ import LociModel
 /// The messages of one turn as they grow. Agent events go in; the turn as the interface shows it comes out.
 struct TurnRecord: Sendable {
   let startedAt: Timestamp
+  let prompt: Prompt
   private(set) var messages: [Message]
   private let newID: @Sendable () -> EntityID
 
   init(prompt: Prompt, at time: Timestamp, newID: @escaping @Sendable () -> EntityID) {
     startedAt = time
+    self.prompt = prompt
     self.newID = newID
     messages = [Message(id: newID(), at: time, body: .prompt(prompt))]
   }
@@ -33,13 +35,9 @@ struct TurnRecord: Sendable {
       add(.tool(Self.activity(call)), at: time)
     case .toolCallChanged(let id, let change):
       updateTool(id.value) { tool in Self.applying(change, to: tool) }
-    case .permission(let request):
-      add(.permission(Self.ask(request)), at: time)
-    case .permissionClosed(let id):
-      answer(id.value, .dismissed)
     case .notice(.message(let words)):
       add(.notice(words), at: time)
-    case .notice, .context, .ended(.completed):
+    case .permission, .permissionClosed, .notice, .context, .ended(.completed):
       break
     case .ended(.interrupted):
       add(.ended(.interrupted), at: time)
@@ -48,17 +46,28 @@ struct TurnRecord: Sendable {
     }
   }
 
-  /// Records the answer to a waiting request. Returns whether one was waiting.
-  @discardableResult
-  mutating func answer(_ request: String, _ answer: PermissionAsk.Answer) -> Bool {
-    guard
-      let index = messages.lastIndex(where: { message in
-        if case .permission(let ask) = message.body { ask.id == request && ask.answer == nil } else { false }
-      }), case .permission(let ask) = messages[index].body
-    else { return false }
-    let answered = PermissionAsk(id: ask.id, title: ask.title, tool: ask.tool, options: ask.options, answer: answer)
-    messages[index] = Message(id: messages[index].id, at: messages[index].at, body: .permission(answered))
-    return true
+  /// The reply of a turn that ended as it should, its parts joined; `nil` while there is none, or when the
+  /// turn was stopped or failed.
+  var answer: String? {
+    var parts: [String] = []
+    for message in messages {
+      switch message.body {
+      case .reply(let text): parts.append(text.trimmingCharacters(in: .whitespacesAndNewlines))
+      case .ended: return nil
+      default: continue
+      }
+    }
+    let answer = parts.filter { !$0.isEmpty }.joined(separator: "\n\n")
+    return answer.isEmpty ? nil : answer
+  }
+
+  /// Says that the question and its answer went into a note.
+  mutating func saved(in note: EntityID, at time: Timestamp) {
+    add(.savedToNote(note), at: time)
+  }
+
+  mutating func couldNotSave(_ reason: String, at time: Timestamp) {
+    add(.notice(reason), at: time)
   }
 
   /// Ends the turn with a reason of Loci's own, such as an agent that would not start.
@@ -127,22 +136,6 @@ struct TurnRecord: Sendable {
       if let value = input[key]?.string, !value.isEmpty { return value }
     }
     return nil
-  }
-
-  private static func ask(_ request: PermissionRequest) -> PermissionAsk {
-    PermissionAsk(
-      id: request.id.value, title: request.title, tool: request.toolCall?.value,
-      options: request.options.map { option in
-        let role: PermissionAsk.Role =
-          switch option.role {
-          case .allow: .allow
-          case .allowAlways: .allowAlways
-          case .deny: .deny
-          case .denyAlways: .denyAlways
-          case .choice: .choice
-          }
-        return PermissionAsk.Option(id: option.id, role: role, label: option.label)
-      }, answer: nil)
   }
 }
 

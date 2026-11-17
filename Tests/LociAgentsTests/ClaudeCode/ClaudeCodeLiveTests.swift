@@ -30,13 +30,8 @@ struct ClaudeCodeLiveTests {
 
   @Test func aReplyArrivesAndCompletes() async throws { try await live("reply", ClaudeCodeScenario.reply) }
   @Test func aToolRunsAndReturnsItsResult() async throws { try await live("tool", ClaudeCodeScenario.tool) }
-  @Test func anAllowedToolRuns() async throws { try await live("allow", ClaudeCodeScenario.allowed) }
-  @Test func aDeniedToolDoesNotRun() async throws { try await live("deny", ClaudeCodeScenario.denied) }
   @Test func interruptingLeavesTheSessionUsable() async throws {
     try await live("interrupt", ClaudeCodeScenario.interrupted)
-  }
-  @Test func interruptingClosesPermission() async throws {
-    try await live("interrupt-asking", ClaudeCodeScenario.interruptedAsking)
   }
   @Test func aResumedSessionRemembers() async throws { try await live("resume", ClaudeCodeScenario.resumed) }
   @Test func aMissingSessionFails() async throws { try await live("missing", ClaudeCodeScenario.missing) }

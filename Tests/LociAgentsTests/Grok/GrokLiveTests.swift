@@ -27,12 +27,7 @@ struct GrokLiveTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await live("reply", Scenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await live("tool", GrokScenario.tool) }
-  @Test func anAllowedToolRuns() async throws { try await live("permission-allow", GrokScenario.permissionAllowed) }
-  @Test func aDeniedToolDoesNotRun() async throws { try await live("permission-deny", GrokScenario.permissionDenied) }
   @Test func interruptingStopsTheTurn() async throws { try await live("interrupt", Scenario.interrupted) }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await live("interrupt-asking", Scenario.interruptedWhileAsking)
-  }
   @Test func aResumedSessionRemembers() async throws { try await live("resume", Scenario.resumed) }
   @Test func resumingAMissingSessionFails() async throws {
     try await live("resume-missing", GrokScenario.resumedMissing)

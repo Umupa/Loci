@@ -17,14 +17,16 @@ struct RunContext: Sendable {
 /// ends, so the stored conversation only ever grows by whole turns.
 actor MentorRun {
   let mentor: EntityID
-  private let context: RunContext
+  let context: RunContext
   private var stored: [Message]
   private var conversation: ConversationRecord?
   private var session: (any AgentSession)?
-  /// What the live session was opened for. A mentor whose agent, model or permission changed since gets a
-  /// new session.
-  private var openedFor: (provider: Mentor.Provider, model: String?, permission: Mentor.Permission)?
+  /// What the live session was opened for. A mentor whose agent, model or effort changed since gets a new
+  /// session.
+  private var openedFor: AgentChoice?
   private var turn: TurnRecord?
+  /// What the agent last said about its context window. Kept only while the host runs.
+  private var usage: ContextUsage?
   private var running: Task<Void, Never>?
   private var stopping = false
 
@@ -39,17 +41,20 @@ actor MentorRun {
   var isIdle: Bool { turn == nil }
 
   func snapshot() -> Conversation {
-    Conversation(mentor: mentor, messages: stored, turn: turn?.live)
+    Conversation(mentor: mentor, messages: stored, turn: turn?.live, context: usage)
   }
 
-  /// Starts a turn and returns at once; the turn goes on in the background.
-  func send(_ prompt: Prompt) async throws(HostError) {
-    guard turn == nil else { throw .invalidRequest("the mentor is still working on the last message") }
+  /// Starts a turn and returns at once; the turn goes on in the background. The agent is told `text`, which
+  /// is the prompt's own text unless Loci adds to what the person wrote.
+  func send(_ prompt: Prompt, saying text: String? = nil) async throws(HostError) {
+    guard turn == nil else { throw .invalidRequest(Self.busy) }
     turn = TurnRecord(prompt: prompt, at: context.environment.now(), newID: context.environment.newID)
     stopping = false
-    running = Task { await self.run(prompt.text) }
+    running = Task { await self.run(text ?? prompt.text) }
     await changed()
   }
+
+  static let busy = "the mentor is still working on the last message"
 
   /// Stops the running turn and returns once it has ended.
   func stop() async {
@@ -57,17 +62,6 @@ actor MentorRun {
     stopping = true
     await session?.interrupt()
     await running?.value
-  }
-
-  func answer(_ request: String, with answer: PermissionAsk.Answer) async {
-    guard turn?.answer(request, answer) == true else { return }
-    let reply: PermissionAnswer =
-      switch answer {
-      case .chosen(let option): .chosen(option)
-      case .dismissed: .dismissed
-      }
-    await session?.answer(PermissionRequest.ID(request), with: reply)
-    await changed()
   }
 
   /// Stops the turn and the agent. With `forget`, the conversation is deleted too.
@@ -85,7 +79,15 @@ actor MentorRun {
         let started = try await TurnFailure.awaiting { () async throws(AgentError) in try await session.send(text) }
         if stopping { Task { await session.interrupt() } }
         for await event in started.events {
-          turn?.apply(event, at: context.environment.now())
+          switch event {
+          case .permission(let request):
+            await session.answer(request.id, with: Self.allowing(request))
+            continue
+          case .context(let reported):
+            usage = reported
+          default:
+            turn?.apply(event, at: context.environment.now())
+          }
           if case .ended(.failed(.exited)) = event { await dropSession() }
           await changed()
         }
@@ -98,8 +100,16 @@ actor MentorRun {
     await finish()
   }
 
+  /// Every mentor runs with full access, so a request the agent still makes is allowed.
+  private static func allowing(_ request: PermissionRequest) -> PermissionAnswer {
+    let roles: [PermissionRequest.Option.Role] = [.allow, .allowAlways]
+    let option = roles.lazy.compactMap { role in request.options.first { $0.role == role } }.first
+    return option.map { .chosen($0.id) } ?? .dismissed
+  }
+
   private func finish() async {
-    guard let turn else { return }
+    guard var turn else { return }
+    await saveAnswer(of: &turn)
     do {
       try context.database.append(turn.messages, to: try storedConversation().id)
     } catch {
@@ -128,23 +138,22 @@ actor MentorRun {
     await closing?.close()
   }
 
-  /// The mentor's agent, model or permission was changed. A session opened with other settings is closed
-  /// now rather than at the next message. A turn running with full access for a mentor that must now ask
-  /// is stopped, so not one more tool runs without asking; other changes wait for the turn to end.
+  /// The mentor's agent, model or effort was changed. A session opened with other settings is closed now
+  /// rather than at the next message; a running turn finishes as it began.
   func settingsChanged(to mentor: Mentor) async {
-    guard let openedFor, openedFor != (mentor.provider, mentor.model, mentor.permission) else { return }
-    if turn != nil {
-      guard openedFor.permission == .full, mentor.permission == .ask else { return }
-      await stop()
-    }
+    guard let openedFor, openedFor != Self.choice(of: mentor), turn == nil else { return }
     await dropSession()
+  }
+
+  private static func choice(of mentor: Mentor) -> AgentChoice {
+    AgentChoice(provider: mentor.provider, model: mentor.model, effort: mentor.effort)
   }
 
   /// The live session, resuming the conversation's own when the agent still has it.
   private func openSession() async throws(TurnFailure) -> any AgentSession {
     let store = context.store
     let mentor = try TurnFailure.from { () throws(HostError) in try attempt { try store.mentor(self.mentor) } }
-    if let session, let openedFor, openedFor == (mentor.provider, mentor.model, mentor.permission) { return session }
+    if let session, openedFor == Self.choice(of: mentor) { return session }
     await dropSession()
     guard let driver = await context.environment.agents(mentor.provider) else {
       throw TurnFailure(reason: "\(mentor.provider.rawValue) is not installed on this Mac.")
@@ -156,8 +165,7 @@ actor MentorRun {
         return try store.workingFolder(of: mentor.id)
       }
     }
-    var configuration = SessionConfiguration(
-      workingDirectory: folder, model: mentor.model, permission: mentor.permission)
+    var configuration = SessionConfiguration(workingDirectory: folder, model: mentor.model, effort: mentor.effort)
     if let conversation, conversation.provider == mentor.provider, let id = conversation.session {
       configuration.resume = SessionHandle(provider: mentor.provider, value: id)
     }
@@ -173,12 +181,12 @@ actor MentorRun {
     }
     try record(opened.handle, provider: mentor.provider)
     let now = try TurnFailure.from { () throws(HostError) in try attempt { try store.mentor(self.mentor) } }
-    guard (now.provider, now.model, now.permission) == (mentor.provider, mentor.model, mentor.permission) else {
+    guard Self.choice(of: now) == Self.choice(of: mentor) else {
       await opened.close()
       return try await openSession()
     }
     session = opened
-    openedFor = (mentor.provider, mentor.model, mentor.permission)
+    openedFor = Self.choice(of: mentor)
     return opened
   }
 

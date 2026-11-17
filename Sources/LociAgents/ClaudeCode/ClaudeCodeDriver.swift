@@ -26,12 +26,14 @@ public struct ClaudeCodeDriver: AgentDriver {
     let handle = configuration.resume ?? SessionHandle(provider: provider, value: makeSessionID())
     var arguments = [
       "--print", "--output-format", "stream-json", "--verbose", "--input-format", "stream-json",
-      "--permission-prompt-tool", "stdio", "--include-partial-messages", "--permission-mode",
-      configuration.permission == .full ? "bypassPermissions" : "default",
+      "--permission-prompt-tool", "stdio", "--include-partial-messages", "--permission-mode", "bypassPermissions",
+      "--allow-dangerously-skip-permissions",
     ]
-    if configuration.permission == .full { arguments += ["--allow-dangerously-skip-permissions"] }
     arguments += [configuration.resume == nil ? "--session-id" : "--resume", handle.value]
     if let model = configuration.model { arguments += ["--model", model] }
+    if let effort = configuration.effort, provider.efforts.contains(effort) {
+      arguments += ["--effort", effort.rawValue]
+    }
     let program = try launcher.launch(
       Invocation(
         executable: executable, arguments: arguments + self.arguments,

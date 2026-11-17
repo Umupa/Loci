@@ -4,107 +4,143 @@ import Testing
 
 @testable import LociHost
 
+/// UI-S6: asking about a passage happens in the conversation, and the answer is saved in the highlight.
 @Suite(.timeLimit(.minutes(1)))
 struct PassageQuestionTests {
   private static var agent: FakeAgent {
-    FakeAgent { prompt in
-      prompt.contains("asks about this passage") ? .reply("Because nodes differ.") : .reply("Ready.")
+    FakeAgent { prompt in prompt.contains("new mentor") ? .reply("Ready.") : .reply("Because nodes differ.") }
+  }
+
+  private func settled(_ host: LocalHost, _ mentor: EntityID, turns: Int = 1) async -> Conversation? {
+    await value(host.subscribe(MentorConversation(mentor: mentor))) { conversation in
+      conversation.turn == nil
+        && conversation.messages.count { if case .prompt = $0.body { true } else { false } } == turns
     }
   }
 
-  private func eventually(_ condition: () -> Bool) async -> Bool {
-    for _ in 0..<500 {
-      if condition() { return true }
-      try? await Task.sleep(for: .milliseconds(10))
-    }
-    return false
+  private func passage(_ mentor: EntityID) throws -> Passage {
+    Passage(
+      locator: .lesson(LessonRef(mentor: mentor, lesson: Lesson.Slug("why-schedule")!), try TextQuote("Pods need")),
+      excerpt: "Pods need a node.")
   }
 
-  private func lessonLocator(_ mentor: EntityID) throws -> Locator {
-    .lesson(LessonRef(mentor: mentor, lesson: Lesson.Slug("why-schedule")!), try TextQuote("Pods need a node."))
-  }
-
-  /// α2-S4: a question about a sentence becomes a note, and the answer arrives in it.
-  @Test func aQuestionBecomesANoteAndItsAnswerArrives() async throws {
+  @Test func askingAboutAPassageShowsTheQuestionWithItsPassageInTheConversation() async throws {
     try await withHost(agent: Self.agent) { host, place, world in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      let locator = try lessonLocator(mentor.id)
-      let pending = host.subscribe(PendingAnswers(content: locator.content))
+      _ = try #require(await settled(host, mentor.id))
+      let passage = try passage(mentor.id)
 
-      let note = try await host.run(
-        AskAboutPassage(mentor: mentor.id, locator: locator, excerpt: "Pods need a node.", question: "Why?"))
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: " Why? ", passage: passage))
 
-      let streaming = await value(pending) { $0.first?.answer == "Because" }
-      #expect(streaming?.first?.note == note)
-      let finished = await value(pending) { $0.isEmpty }
-      #expect(finished != nil)
-      let saved = try #require(place.store.notes(on: locator.content).value.first)
-      #expect(saved.id == note)
-      #expect(saved.excerpt == "Pods need a node.")
-      #expect(saved.exchanges.map(\.question) == ["Why?"])
-      #expect(saved.exchanges.map(\.answer) == ["Because nodes differ."])
-      #expect(saved.exchanges.map(\.mentor) == [mentor.id])
-      #expect(world.agent.prompts.contains { $0.contains("> Pods need a node.") && $0.contains("Why?") })
+      let done = try #require(await settled(host, mentor.id, turns: 2))
+      let note = try #require(place.store.notes(on: passage.locator.content).value.first)
+      let asked = done.messages.compactMap { if case .prompt(let prompt) = $0.body { prompt } else { nil } }.last
+      #expect(
+        asked
+          == Prompt(
+            text: "Why?", purpose: .chat,
+            passage: QuotedPassage(
+              locator: passage.locator, excerpt: "Pods need a node.", note: note.id)))
+      #expect(world.agent.prompts.last?.contains("> Pods need a node.") == true)
+      #expect(world.agent.prompts.last?.hasSuffix("Why?") == true)
     }
   }
 
-  @Test func aSecondQuestionOnTheSameNoteIsAddedToIt() async throws {
+  @Test func theAnswerIsSavedInTheHighlightWhenTheTurnEnds() async throws {
     try await withHost(agent: Self.agent) { host, place, _ in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      let locator = try lessonLocator(mentor.id)
-      let pending = host.subscribe(PendingAnswers(content: locator.content))
-      let note = try await host.run(
-        AskAboutPassage(mentor: mentor.id, locator: locator, excerpt: nil, question: "Why?"))
-      _ = await value(pending) { $0.isEmpty }
+      _ = try #require(await settled(host, mentor.id))
+      let passage = try passage(mentor.id)
 
-      _ = try await host.run(
-        AskAboutPassage(mentor: mentor.id, locator: locator, excerpt: nil, question: "And then?", note: note))
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Why?", passage: passage))
 
-      let asked = await eventually { place.store.notes(on: locator.content).value.first?.exchanges.count == 2 }
-      #expect(asked)
-      let notes = place.store.notes(on: locator.content).value
-      #expect(notes.count == 1)
+      let done = try #require(await settled(host, mentor.id, turns: 2))
+      let note = try #require(place.store.notes(on: passage.locator.content).value.first)
+      #expect(note.excerpt == "Pods need a node.")
+      #expect(note.exchanges.map(\.question) == ["Why?"])
+      #expect(note.exchanges.map(\.answer) == ["Because nodes differ."])
+      #expect(note.exchanges.map(\.mentor) == [mentor.id])
+      #expect(done.messages.last?.body == .savedToNote(note.id))
+    }
+  }
+
+  @Test func askingAgainAboutTheSamePassageAddsToTheSameHighlight() async throws {
+    try await withHost(agent: Self.agent) { host, place, _ in
+      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      _ = try #require(await settled(host, mentor.id))
+      let passage = try passage(mentor.id)
+      let highlight = try await host.run(AddNote(locator: passage.locator, excerpt: passage.excerpt, thought: "Hm"))
+
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Why?", passage: passage))
+      _ = try #require(await settled(host, mentor.id, turns: 2))
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: "And then?", passage: passage))
+      _ = try #require(await settled(host, mentor.id, turns: 3))
+
+      let notes = place.store.notes(on: passage.locator.content).value
+      #expect(notes.map(\.id) == [highlight.id])
+      #expect(notes.first?.thought == "Hm")
       #expect(notes.first?.exchanges.map(\.question) == ["Why?", "And then?"])
     }
   }
 
-  @Test func aQuestionAnsweredWhileTheMentorIsBusyStillArrives() async throws {
-    let agent = FakeAgent { prompt in prompt.contains("asks about this passage") ? .reply("Yes.") : .hang }
+  @Test func aStoppedAnswerIsNotSaved() async throws {
+    let agent = FakeAgent { prompt in prompt.contains("new mentor") ? .reply("Ready.") : .hang }
     try await withHost(agent: agent) { host, place, _ in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      let locator = try lessonLocator(mentor.id)
+      _ = try #require(await settled(host, mentor.id))
+      let passage = try passage(mentor.id)
 
-      _ = try await host.run(AskAboutPassage(mentor: mentor.id, locator: locator, excerpt: nil, question: "Really?"))
-
-      _ = await value(host.subscribe(PendingAnswers(content: locator.content))) { $0.isEmpty }
-      #expect(place.store.notes(on: locator.content).value.first?.exchanges.first?.answer == "Yes.")
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Why?", passage: passage))
       _ = try await host.run(StopTurn(mentor: mentor.id))
+
+      let done = try #require(await settled(host, mentor.id, turns: 2))
+      #expect(place.store.notes(on: passage.locator.content).value.first?.exchanges.isEmpty == true)
+      #expect(!done.messages.contains { if case .savedToNote = $0.body { true } else { false } })
     }
   }
 
-  @Test func aQuestionWhoseAgentIsMissingFailsVisibly() async throws {
+  @Test func aFailedAnswerIsNotSaved() async throws {
     try await withHost { host, place, _ in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      _ = try #require(await settled(host, mentor.id))
       try place.store.save(
-        try Mentor(
-          id: mentor.id, name: mentor.name, avatar: mentor.avatar, color: mentor.color, provider: .grok,
-          permission: .full))
-      let locator = try lessonLocator(mentor.id)
+        try Mentor(id: mentor.id, name: mentor.name, avatar: mentor.avatar, color: mentor.color, provider: .grok))
+      let passage = try passage(mentor.id)
 
-      _ = try await host.run(AskAboutPassage(mentor: mentor.id, locator: locator, excerpt: nil, question: "Why?"))
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Why?", passage: passage))
 
-      let failed = await value(host.subscribe(PendingAnswers(content: locator.content))) { $0.first?.failure != nil }
-      #expect(failed?.first?.failure == "grok is not installed on this Mac.")
+      let done = try #require(await settled(host, mentor.id, turns: 2))
+      #expect(done.messages.last?.body == .ended(.failed("grok is not installed on this Mac.")))
+      #expect(place.store.notes(on: passage.locator.content).value.first?.exchanges.isEmpty == true)
     }
   }
 
-  @Test func anEmptyQuestionIsRefused() async throws {
-    try await withHost { host, _, _ in
+  @Test func aDeletedHighlightIsNotBroughtBack() async throws {
+    try await withManualHost { host, place, _, agent in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      _ = try #require(await settled(host, mentor.id))
+      let passage = try passage(mentor.id)
+
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Why?", passage: passage))
+      let note = try #require(place.store.notes(on: passage.locator.content).value.first)
+      _ = try await host.run(DeleteNote(content: passage.locator.content, note: note.id))
+      await agent.sessions.last?.finish()
+
+      _ = try #require(await settled(host, mentor.id, turns: 2))
+      #expect(place.store.notes(on: passage.locator.content).value.isEmpty)
+    }
+  }
+
+  @Test func aPassageQuestionWhileTheMentorIsWorkingIsRefusedWithoutAHighlight() async throws {
+    try await withHost(agent: FakeAgent { _ in .hang }) { host, place, _ in
+      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      let passage = try passage(mentor.id)
+
       await #expect(throws: HostError.self) {
-        try await host.run(
-          AskAboutPassage(mentor: mentor.id, locator: try lessonLocator(mentor.id), excerpt: nil, question: "  "))
+        try await host.run(SendMessage(mentor: mentor.id, text: "Why?", passage: passage))
       }
+      #expect(place.store.notes(on: passage.locator.content).value.isEmpty)
+      _ = try await host.run(StopTurn(mentor: mentor.id))
     }
   }
 }

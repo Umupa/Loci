@@ -29,46 +29,12 @@ enum OpenCodeScenario {
     await session.close()
   }
 
-  static func permission(_ stage: Stage, allow: Bool) async throws {
-    let session = try await stage.open(.ask)
-    var asked: [PermissionRequest] = []
-    let events = await Scenario.watch(
-      try await session.send(
-        "Use the bash tool to run exactly: echo loci-42. Do not use other tools. If denied, stop and reply denied.")
-    ) { event in
-      guard case .permission(let request) = event else { return }
-      asked.append(request)
-      let role: PermissionRequest.Option.Role = allow ? .allow : .deny
-      await session.answer(request.id, with: .chosen(request.options.first { $0.role == role }?.id ?? ""))
-    }
-    #expect(!asked.isEmpty)
-    #expect(asked.first?.options.map(\.role) == [.allow, .allowAlways, .deny])
-    #expect(asked.allSatisfy { request in events.calls.contains { $0.id == request.toolCall } })
-    if allow {
-      #expect(events.outputs.contains { $0.text.contains("loci-42") && !$0.failed })
-    } else {
-      #expect(!events.outputs.isEmpty)
-      #expect(events.outputs.allSatisfy { $0.failed && !$0.text.contains("loci-42") })
-    }
-    #expect(events.endings == [.completed])
-    await session.close()
-  }
-
-  static func interrupt(_ stage: Stage, asking: Bool) async throws {
-    let session = try await stage.open(asking ? .ask : .full)
-    var requests: [PermissionRequest.ID] = []
+  static func interrupt(_ stage: Stage) async throws {
+    let session = try await stage.open()
     var interrupted = false
     let events = await Scenario.watch(try await session.send("Use the bash tool to run exactly: sleep 30")) { event in
-      let stop: Bool
-      if case .permission(let request) = event {
-        requests.append(request.id)
-        stop = asking
-      } else if case .toolCallChanged(_, .running) = event {
-        stop = !asking
-      } else {
-        stop = false
-      }
-      if stop, !interrupted {
+      guard case .toolCallChanged(_, .running) = event else { return }
+      if !interrupted {
         interrupted = true
         let started = ContinuousClock.now
         await session.interrupt()
@@ -77,7 +43,6 @@ enum OpenCodeScenario {
     }
     #expect(interrupted)
     #expect(events.endings == [.interrupted])
-    #expect(requests.allSatisfy { events.contains(.permissionClosed($0)) })
     let next = await Scenario.watch(try await session.send("Reply with exactly one word: pong. Do not use tools."))
     #expect(next.reply.lowercased().contains("pong"))
     #expect(next.endings == [.completed])
@@ -89,7 +54,7 @@ enum OpenCodeScenario {
     let taught = await Scenario.watch(try await first.send("Remember this word: quokka. Reply with exactly: OK"))
     #expect(taught.endings == [.completed])
     await first.close()
-    let second = try await stage.open(.full, resume: first.handle)
+    let second = try await stage.open(resume: first.handle)
     #expect(second.handle == first.handle)
     let asked = await Scenario.watch(
       try await second.send("Which word did I ask you to remember? Reply with just that word."))

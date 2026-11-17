@@ -6,17 +6,27 @@ extension LocalHost {
   public func sendMessage(_ command: SendMessage) async throws(HostError) -> Done {
     let text = command.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { throw .invalidRequest("the message is empty") }
-    try await mentors.run(of: command.mentor).send(Prompt(text: text, purpose: .chat))
+    let run = try await mentors.run(of: command.mentor)
+    guard let passage = command.passage else {
+      try await run.send(Prompt(text: text, purpose: .chat))
+      return Done()
+    }
+    guard await run.isIdle else { throw .invalidRequest(MentorRun.busy) }
+    let quoted = QuotedPassage(
+      locator: passage.locator, excerpt: passage.excerpt, note: try await note(on: passage).id)
+    try await run.send(Prompt(text: text, purpose: .chat, passage: quoted), saying: Soul.ask(text, about: passage))
     return Done()
+  }
+
+  /// The note on exactly this passage, made now when there is none.
+  private func note(on passage: Passage) async throws(HostError) -> Note {
+    let notes = store.notes(on: passage.locator.content).value
+    if let existing = notes.first(where: { $0.locator == passage.locator }) { return existing }
+    return try await addNote(AddNote(locator: passage.locator, excerpt: passage.excerpt))
   }
 
   public func stopTurn(_ command: StopTurn) async throws(HostError) -> Done {
     await (try mentors.run(of: command.mentor)).stop()
-    return Done()
-  }
-
-  public func answerPermission(_ command: AnswerPermission) async throws(HostError) -> Done {
-    await (try mentors.run(of: command.mentor)).answer(command.request, with: command.answer)
     return Done()
   }
 
@@ -27,39 +37,16 @@ extension LocalHost {
       throw .invalidRequest("\(ref.lesson) is not in the catalog")
     }
     guard !page.writtenLessons.contains(ref.lesson) else { throw .invalidRequest("\(ref.lesson) is already written") }
-    try await mentors.run(of: ref.mentor).send(Soul.write(lesson))
+    try await mentors.run(of: ref.mentor).send(Soul.write(lesson, in: try await lessonLanguage()))
     return Done()
-  }
-
-  public func askAboutPassage(_ command: AskAboutPassage) async throws(HostError) -> EntityID {
-    let question = command.question.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !question.isEmpty else { throw .invalidRequest("the question is empty") }
-    let mentor = try attempt { try store.mentor(command.mentor) }
-    let content = command.locator.content
-    let note: EntityID
-    if let existing = command.note {
-      guard store.notes(on: content).value.contains(where: { $0.id == existing }) else {
-        throw .notFound(existing.description)
-      }
-      note = existing
-    } else {
-      note = try await addNote(AddNote(locator: command.locator, excerpt: command.excerpt)).id
-    }
-    await mentors.questions.ask(
-      question, of: mentor, about: command.locator, excerpt: command.excerpt, note: note)
-    return note
   }
 
   public func conversation(of mentor: EntityID) async throws(HostError) -> Conversation {
     await (try mentors.run(of: mentor)).snapshot()
   }
 
-  public func pendingAnswers(on content: ContentRef) async -> [PendingAnswer] {
-    await mentors.questions.pending(on: content)
-  }
-
   /// A new mentor's first turn: the catalog, then the first lesson.
   func begin(_ mentor: Mentor) async throws(HostError) {
-    try await mentors.run(of: mentor.id).send(Soul.begin(mentor))
+    try await mentors.run(of: mentor.id).send(Soul.begin(mentor, in: try await lessonLanguage()))
   }
 }

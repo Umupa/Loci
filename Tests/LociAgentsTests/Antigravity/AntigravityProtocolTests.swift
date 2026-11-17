@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 import Testing
 
 @testable import LociAgents

@@ -48,7 +48,7 @@ enum Judge {
       case .tool(let tool): "_tool \(tool.name): \(tool.subject ?? "")_"
       case .ended(.failed(let why)): "_turn failed: \(why)_"
       case .ended(.interrupted): "_turn stopped_"
-      case .thinking, .permission, .notice: nil
+      case .thinking, .savedToNote, .notice: nil
       }
     }.joined(separator: "\n\n")
     return """
@@ -97,7 +97,7 @@ enum Judge {
 
   /// Asks the judge in an empty folder, so it sees nothing but the prompt.
   static func verdict(_ prompt: String, driver: any AgentDriver, model: String?, folder: URL) async throws -> Verdict {
-    let session = try await driver.open(SessionConfiguration(workingDirectory: folder, model: model, permission: .full))
+    let session = try await driver.open(SessionConfiguration(workingDirectory: folder, model: model))
     defer { Task { await session.close() } }
     var reply = ""
     for await event in try await session.send(prompt).events {

@@ -46,6 +46,24 @@ struct ConversationFailureTests {
     #expect(try database.messages(of: mentor) == [messages[0], messages[4]])
   }
 
+  /// Conversations from before every mentor ran with full access may hold permission cards; they are left out.
+  @Test func oldPermissionMessagesAreSkipped() throws {
+    let database = try StoreDatabase.inMemory()
+    try database.start(conversation, at: Fixture.instant)
+    let messages = (20...21).map { Message(id: Fixture.id(UInt64($0)), at: Fixture.instant, body: .reply("\($0)")) }
+    try database.append(messages, to: conversation.id)
+    try database.queue.write { db in
+      try db.execute(
+        sql: "UPDATE message SET body = ? WHERE id = ?",
+        arguments: [
+          #"{"permission":{"_0":{"id":"ask","title":"bash","options":[],"answer":{"dismissed":{}}}}}"#,
+          messages[1].id.description,
+        ])
+    }
+
+    #expect(try database.messages(of: mentor) == [messages[0]])
+  }
+
   @Test func everyMessageBodyAndTheSessionSurviveReopening() throws {
     try DatabaseOpenTests.withFolder { folder in
       let url = folder.appending(path: "loci.sqlite")
@@ -55,10 +73,12 @@ struct ConversationFailureTests {
         .prompt(Prompt(text: "write", purpose: .writeLesson(Fixture.slug("intro")))),
         .thinking("consider"), .reply("answer"), .notice("notice"),
         .tool(ToolActivity(id: "tool", name: "read", kind: .read, subject: "a.md", output: "text", state: .failed)),
-        .permission(
-          PermissionAsk(
-            id: "ask", title: "read", tool: "tool", options: [.init(id: "yes", role: .allowAlways, label: "Yes")],
-            answer: .chosen("yes"))),
+        .prompt(
+          Prompt(
+            text: "why", purpose: .chat,
+            passage: QuotedPassage(
+              locator: .item(Fixture.id(30), .quote(try TextQuote("a"))), excerpt: "a b", note: Fixture.id(31)))),
+        .savedToNote(Fixture.id(31)),
         .ended(.failed("quota")), .ended(.interrupted),
       ]
       let messages = bodies.enumerated().map {

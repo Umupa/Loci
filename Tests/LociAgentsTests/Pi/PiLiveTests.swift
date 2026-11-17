@@ -33,12 +33,7 @@ struct PiLiveTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await live("reply", Scenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await live("tool", Scenario.tool) }
-  @Test func anAllowedToolRuns() async throws { try await live("permission-allow", Scenario.permissionAllowed) }
-  @Test func aDeniedToolDoesNotRun() async throws { try await live("permission-deny", Scenario.permissionDenied) }
   @Test func interruptingStopsTheTurn() async throws { try await live("interrupt", Scenario.interrupted) }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await live("interrupt-asking", Scenario.interruptedWhileAsking)
-  }
   @Test func aResumedSessionRemembers() async throws { try await live("resume", Scenario.resumed) }
   @Test func resumingAMissingSessionFails() async throws { try await live("resume-missing", Scenario.resumedMissing) }
   @Test func anUnknownModelFails() async throws { try await live("bad-model", Scenario.unknownModel) }

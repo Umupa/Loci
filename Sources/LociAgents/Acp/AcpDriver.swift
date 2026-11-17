@@ -13,7 +13,8 @@ public struct AcpDriver: AgentDriver {
   private let processDirectory: URL?
   private let replyFailure: (@Sendable (String) -> String?)?
   private let resumeMethod: String
-  private let mode: (@Sendable (SessionConfiguration) -> String)?
+  /// The session mode that lets the agent work without asking, when it has modes.
+  private let mode: String?
   private let setModel: ModelSelection?
   private let authenticationMethod: String?
   private let clientMetadata: [String: JSONValue]
@@ -44,7 +45,7 @@ public struct AcpDriver: AgentDriver {
     environment: @escaping @Sendable (SessionConfiguration) -> [String: String]? = { _ in nil },
     launcher: any ProgramLauncher = SystemLauncher(),
     clock: any Clock<Duration> = ContinuousClock(), setModel: ModelSelection? = nil,
-    resumeMethod: String = "session/resume", mode: (@Sendable (SessionConfiguration) -> String)? = nil,
+    resumeMethod: String = "session/resume", mode: String? = nil,
     authenticationMethod: String? = nil, clientMetadata: [String: JSONValue] = [:],
     processDirectory: URL? = nil, replyFailure: (@Sendable (String) -> String?)? = nil
   ) {
@@ -71,11 +72,7 @@ public struct AcpDriver: AgentDriver {
     AcpDriver(
       provider: .grok, executable: executable,
       arguments: { configuration in
-        var all = ["--no-auto-update"]
-        switch configuration.permission {
-        case .ask: all += ["--permission-mode", "default"]
-        case .full: all += ["--always-approve"]
-        }
+        var all = ["--no-auto-update", "--always-approve"]
         all += arguments + ["agent", "--no-leader"]
         if let model = configuration.model { all += ["--model", model] }
         return all + ["stdio"]
@@ -125,7 +122,7 @@ public struct AcpDriver: AgentDriver {
       }
       if let mode {
         _ = try await channel.request(
-          "session/set_mode", .object(["sessionId": .string(id), "modeId": .string(mode(configuration))]),
+          "session/set_mode", .object(["sessionId": .string(id), "modeId": .string(mode)]),
           within: .seconds(20))
       }
       if setModel == .requireConfigOption {
@@ -135,7 +132,7 @@ public struct AcpDriver: AgentDriver {
       return AcpSession(
         handle: SessionHandle(provider: provider, value: id), channel: channel,
         window: Self.window(in: setup, model: setModel == .preferConfigOption ? configuration.model : nil),
-        permission: configuration.permission, clock: clock, replyFailure: replyFailure)
+        clock: clock, replyFailure: replyFailure)
     } catch {
       await channel.connection.shutDown(patience: .zero)
       throw error

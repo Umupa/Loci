@@ -21,6 +21,29 @@ struct MentorTests {
     #expect(try Fixture.roundTrip(mentor) == mentor)
   }
 
+  /// Mentors from before every mentor ran with full access still load; the old choice is dropped.
+  @Test func aMentorFileWithAPermissionStillReads() throws {
+    let mentor = try Fixture.decode(Mentor.self, Self.json())
+    let written = String(decoding: try JSONEncoder().encode(mentor), as: UTF8.self)
+
+    #expect(!written.contains("permission"))
+  }
+
+  @Test func theThinkingEffortIsKeptWhenGiven() throws {
+    let json = Self.json().replacing(#""permission":"full""#, with: #""effort":"high""#)
+    let mentor = try Fixture.decode(Mentor.self, json)
+
+    #expect(mentor.effort == .high)
+    #expect(try Fixture.roundTrip(mentor) == mentor)
+  }
+
+  @Test func onlySomeAgentsOfferThinkingEfforts() {
+    #expect(Mentor.Provider.claudeCode.efforts == [.low, .medium, .high, .xhigh, .max])
+    #expect(Mentor.Provider.codex.efforts == [.low, .medium, .high, .xhigh, .max])
+    #expect(Mentor.Provider.pi.efforts == [.off, .minimal, .low, .medium, .high, .xhigh, .max])
+    #expect(Mentor.Provider.grok.efforts.isEmpty)
+  }
+
   @Test func colorIsWrittenInLowercase() {
     #expect(MentorColor("#C0FFEE")?.description == "#c0ffee")
     #expect(MentorColor(red: 1, green: 2, blue: 3).description == "#010203")
@@ -45,10 +68,10 @@ struct MentorTests {
   @Test func blankFieldsAreRefused() {
     let color = MentorColor(red: 0, green: 0, blue: 0)
     #expect(throws: ModelError.self) {
-      try Mentor(id: Fixture.mentor, name: "x", avatar: "", color: color, provider: .pi, permission: .ask)
+      try Mentor(id: Fixture.mentor, name: "x", avatar: "", color: color, provider: .pi)
     }
     #expect(throws: ModelError.self) {
-      try Mentor(id: Fixture.mentor, name: "x", avatar: "owl", color: color, provider: .pi, model: "", permission: .ask)
+      try Mentor(id: Fixture.mentor, name: "x", avatar: "owl", color: color, provider: .pi, model: "")
     }
   }
 }

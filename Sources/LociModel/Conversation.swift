@@ -7,11 +7,14 @@ public struct Conversation: Hashable, Codable, Sendable {
   public let messages: [Message]
   /// `nil` while the mentor is idle.
   public let turn: LiveTurn?
+  /// How full the agent's context window was when it last said; `nil` until it says.
+  public let context: ContextUsage?
 
-  public init(mentor: EntityID, messages: [Message], turn: LiveTurn?) {
+  public init(mentor: EntityID, messages: [Message], turn: LiveTurn?, context: ContextUsage? = nil) {
     self.mentor = mentor
     self.messages = messages
     self.turn = turn
+    self.context = context
   }
 }
 
@@ -25,14 +28,6 @@ public struct LiveTurn: Hashable, Codable, Sendable {
   public init(startedAt: Timestamp, messages: [Message]) {
     self.startedAt = startedAt
     self.messages = messages
-  }
-
-  /// Permission requests the turn is waiting on, in the order they were asked.
-  public var waiting: [PermissionAsk] {
-    messages.compactMap { message in
-      guard case .permission(let ask) = message.body, ask.answer == nil else { return nil }
-      return ask
-    }
   }
 
   /// The tool the mentor used last: what it is doing, or did most recently.
@@ -62,7 +57,8 @@ public struct Message: Hashable, Codable, Sendable, Identifiable {
     case reply(String)
     case thinking(String)
     case tool(ToolActivity)
-    case permission(PermissionAsk)
+    /// The question and its answer were saved in this note on the passage the question was about.
+    case savedToNote(EntityID)
     /// Something the agent reported that is not part of the reply: a retry, compaction, a warning.
     case notice(String)
     /// How a turn ended, when it did not simply finish.
@@ -73,10 +69,13 @@ public struct Message: Hashable, Codable, Sendable, Identifiable {
 public struct Prompt: Hashable, Codable, Sendable {
   public let text: String
   public let purpose: Purpose
+  /// The passage the person asked about, when they asked about one.
+  public let passage: QuotedPassage?
 
-  public init(text: String, purpose: Purpose) {
+  public init(text: String, purpose: Purpose, passage: QuotedPassage? = nil) {
     self.text = text
     self.purpose = purpose
+    self.passage = passage
   }
 
   /// Why the prompt was sent. Only `.chat` was typed by the person; the others Loci wrote for them.
@@ -97,7 +96,7 @@ public enum TurnEnding: Hashable, Codable, Sendable {
 
 /// A tool the mentor ran during a turn.
 public struct ToolActivity: Hashable, Codable, Sendable {
-  /// The provider's identifier for the call; permission requests refer to it.
+  /// The provider's identifier for the call.
   public let id: String
   /// The provider's own name for the tool.
   public let name: String
@@ -129,71 +128,26 @@ public struct ToolActivity: Hashable, Codable, Sendable {
   }
 }
 
-/// The mentor asks before going on. The turn waits until it is answered with `AnswerPermission`.
-public struct PermissionAsk: Hashable, Codable, Sendable {
-  public let id: String
-  public let title: String
-  /// The tool call waiting on this answer, when the provider says which one.
-  public let tool: String?
-  public let options: [Option]
-  /// `nil` while waiting.
-  public let answer: Answer?
+/// A passage quoted in a question, and the note the answer goes into.
+public struct QuotedPassage: Hashable, Codable, Sendable {
+  public let locator: Locator
+  public let excerpt: String
+  public let note: EntityID
 
-  public init(id: String, title: String, tool: String?, options: [Option], answer: Answer?) {
-    self.id = id
-    self.title = title
-    self.tool = tool
-    self.options = options
-    self.answer = answer
-  }
-
-  public struct Option: Hashable, Codable, Sendable {
-    public let id: String
-    public let role: Role
-    /// The provider's own wording, when it has one.
-    public let label: String?
-
-    public init(id: String, role: Role, label: String?) {
-      self.id = id
-      self.role = role
-      self.label = label
-    }
-  }
-
-  public enum Role: String, Hashable, Codable, Sendable {
-    case allow, allowAlways, deny, denyAlways
-    /// One of several answers with no allow or deny meaning.
-    case choice
-  }
-
-  public enum Answer: Hashable, Codable, Sendable {
-    /// The `id` of one of the options.
-    case chosen(String)
-    /// Withdrawn without a choice: the turn was stopped, or the agent no longer needs it.
-    case dismissed
+  public init(locator: Locator, excerpt: String, note: EntityID) {
+    self.locator = locator
+    self.excerpt = excerpt
+    self.note = note
   }
 }
 
-/// A question about a passage whose answer is still arriving. Once it has arrived it is saved in the
-/// note as an exchange and leaves this list.
-public struct PendingAnswer: Hashable, Codable, Sendable {
-  public let note: EntityID
-  public let mentor: EntityID
-  public let question: String
-  public let askedAt: Timestamp
-  /// The answer so far.
-  public let answer: String
-  /// Why no answer will come. The question stays listed so the person sees it failed.
-  public let failure: String?
+/// How full an agent's context window is, in tokens.
+public struct ContextUsage: Hashable, Codable, Sendable {
+  public let used: Int?
+  public let window: Int?
 
-  public init(
-    note: EntityID, mentor: EntityID, question: String, askedAt: Timestamp, answer: String, failure: String?
-  ) {
-    self.note = note
-    self.mentor = mentor
-    self.question = question
-    self.askedAt = askedAt
-    self.answer = answer
-    self.failure = failure
+  public init(used: Int?, window: Int?) {
+    self.used = used
+    self.window = window
   }
 }

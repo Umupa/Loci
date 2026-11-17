@@ -54,23 +54,20 @@ struct TurnRecordTests {
     #expect(turn.live.latestTool?.id == "b")
   }
 
-  @Test func aWithdrawnPermissionCannotBeAnsweredAgain() {
+  @Test func theAnswerIsTheRepliesOfATurnThatEndedAsItShould() {
     var turn = record(TestWorld())
-    turn.apply(
-      .permission(PermissionRequest(id: .init("ask"), title: "bash", options: [.init(id: "deny", role: .deny)])), at: at
-    )
-    #expect(turn.live.waiting.count == 1)
-    turn.apply(.permissionClosed(.init("ask")), at: at)
-    #expect(turn.live.waiting.isEmpty)
-    let answered = turn.answer("ask", .chosen("deny"))
-    let unknown = turn.answer("missing", .dismissed)
-    #expect(!answered)
-    #expect(!unknown)
-    #expect(
-      turn.messages.last?.body
-        == .permission(
-          PermissionAsk(
-            id: "ask", title: "bash", tool: nil, options: [.init(id: "deny", role: .deny, label: nil)],
-            answer: .dismissed)))
+    turn.apply(.text("First part."), at: at)
+    turn.apply(.toolCall(ToolCall(id: .init("t"), name: "read", kind: .read, input: .object([:]))), at: at)
+    turn.apply(.text(" Second part. "), at: at)
+    #expect(turn.answer == "First part.\n\nSecond part.")
+
+    turn.apply(.ended(.interrupted), at: at)
+    #expect(turn.answer == nil)
+  }
+
+  @Test func aTurnWithoutAReplyHasNoAnswer() {
+    var turn = record(TestWorld())
+    turn.apply(.thinking("Hmm"), at: at)
+    #expect(turn.answer == nil)
   }
 }

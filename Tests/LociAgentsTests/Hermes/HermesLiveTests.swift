@@ -25,13 +25,8 @@ struct HermesLiveTests {
 
   @Test func aReplyArrivesAndTheTurnCompletes() async throws { try await live("reply", HermesScenario.reply) }
   @Test func aToolCallIsSeenFromStartToResult() async throws { try await live("tool", HermesScenario.tool) }
-  @Test func anAllowedToolRuns() async throws { try await live("permission-allow", HermesScenario.permissionAllowed) }
-  @Test func aDeniedToolDoesNotRun() async throws { try await live("permission-deny", HermesScenario.permissionDenied) }
   @Test func interruptingStopsTheTurnAndAllowsAnother() async throws {
     try await live("interrupt", HermesScenario.interrupted)
-  }
-  @Test func interruptingWithdrawsAnUnansweredRequest() async throws {
-    try await live("interrupt-asking", HermesScenario.interruptedWhileAsking)
   }
   @Test func aResumedSessionRemembers() async throws { try await live("resume", Scenario.resumed) }
   @Test func aMissingSessionFailsInsteadOfStartingAnother() async throws {

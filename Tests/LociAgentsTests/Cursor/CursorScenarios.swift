@@ -43,35 +43,4 @@ enum CursorScenario {
     #expect(events.last == .ended(.completed))
     await session.close()
   }
-
-  static func permissionAllowed(_ stage: Stage) async throws {
-    let session = try await stage.open(.ask)
-    var asked: [PermissionRequest] = []
-    let events = await Scenario.watch(try await session.send(Scenario.shellPrompt)) { event in
-      guard case .permission(let request) = event else { return }
-      asked.append(request)
-      await session.answer(request.id, with: .chosen(request.options.first { $0.role == .allow }?.id ?? ""))
-    }
-    let request = try #require(asked.first)
-    #expect(request.toolCall == events.calls.first?.id)
-    #expect(request.options.contains { $0.role == .allow })
-    #expect(request.options.contains { $0.role == .deny })
-    #expect(events.outputs.contains { $0.text.contains("loci-42") && !$0.failed })
-    #expect(events.last == .ended(.completed))
-    await session.close()
-  }
-
-  static func permissionDenied(_ stage: Stage) async throws {
-    let session = try await stage.open(.ask)
-    var asked = 0
-    let events = await Scenario.watch(try await session.send(Scenario.shellPrompt)) { event in
-      guard case .permission(let request) = event else { return }
-      asked += 1
-      await session.answer(request.id, with: .chosen(request.options.first { $0.role == .deny }?.id ?? ""))
-    }
-    #expect(asked >= 1)
-    #expect(!events.outputs.contains { $0.text.contains("loci-42") })
-    #expect(events.last == .ended(.completed))
-    await session.close()
-  }
 }

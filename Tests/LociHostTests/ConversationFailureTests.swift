@@ -24,8 +24,7 @@ struct ConversationFailureTests {
   @Test func aMissingSavedSessionStartsAFreshConversationAndKeepsTheHistory() async throws {
     try await withManualHost { host, place, world, agent in
       let mentor = try Mentor(
-        id: world.nextID(), name: "Scheduling", avatar: "owl", color: MentorColor.palette[0], provider: .pi,
-        permission: .full)
+        id: world.nextID(), name: "Scheduling", avatar: "owl", color: MentorColor.palette[0], provider: .pi)
       try place.store.create(mentor)
       let old = ConversationRecord(id: world.nextID(), mentor: mentor.id, provider: .pi, session: "gone")
       try host.database.start(old, at: TestWorld.instant)
@@ -77,27 +76,26 @@ struct ConversationFailureTests {
     }
   }
 
-  @Test func duplicateAndUnknownPermissionAnswersAreIgnored() async throws {
+  /// A request with an allow option is allowed; one without is dismissed, and neither shows in the turn.
+  @Test func permissionRequestsAreAnsweredWithoutThePerson() async throws {
     try await withManualHost { host, _, _, agent in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
       _ = try await idle(host, mentor.id)
       _ = try await host.run(SendMessage(mentor: mentor.id, text: "Ask"))
       try await working(host, mentor.id)
       let session = try #require(await agent.sessions.first)
+
       await session.emit(
-        .permission(PermissionRequest(id: .init("ask"), title: "bash", options: [.init(id: "allow", role: .allow)])))
-      let asking = await value(host.subscribe(MentorConversation(mentor: mentor.id))) { $0.turn?.waiting.count == 1 }
-      #expect(asking != nil)
-      _ = try await host.run(AnswerPermission(mentor: mentor.id, request: "unknown", answer: .chosen("allow")))
-      _ = try await host.run(AnswerPermission(mentor: mentor.id, request: "ask", answer: .dismissed))
-      _ = try await host.run(AnswerPermission(mentor: mentor.id, request: "ask", answer: .chosen("allow")))
-      #expect(await session.answers == [.dismissed])
+        .permission(
+          PermissionRequest(
+            id: .init("ask"), title: "bash",
+            options: [.init(id: "no", role: .deny), .init(id: "always", role: .allowAlways)])))
+      await session.emit(.permission(PermissionRequest(id: .init("pick"), title: "which", options: [])))
       await session.finish()
+
       let done = try await idle(host, mentor.id, prompts: 2)
-      let answers: [PermissionAsk.Answer] = done.messages.compactMap {
-        if case .permission(let ask) = $0.body { ask.answer } else { nil }
-      }
-      #expect(answers == [.dismissed])
+      #expect(await session.answers == [.chosen("always"), .dismissed])
+      #expect(done.messages.suffix(2).map(\.body) == [.prompt(Prompt(text: "Ask", purpose: .chat)), .reply("Waiting")])
     }
   }
 
@@ -135,8 +133,7 @@ struct ConversationFailureTests {
   @Test func deletingAnUnopenedMentorAlsoDeletesItsSavedConversation() async throws {
     try await withHost { host, place, world in
       let mentor = try Mentor(
-        id: world.nextID(), name: "Scheduling", avatar: "owl", color: MentorColor.palette[0], provider: .pi,
-        permission: .full)
+        id: world.nextID(), name: "Scheduling", avatar: "owl", color: MentorColor.palette[0], provider: .pi)
       try place.store.create(mentor)
       let conversation = ConversationRecord(id: world.nextID(), mentor: mentor.id, provider: .pi, session: "saved")
       try host.database.start(conversation, at: TestWorld.instant)
