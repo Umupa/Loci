@@ -15,15 +15,21 @@ public struct AcpDriver: AgentDriver {
   var replyFailure: (@Sendable (String) -> String?)?
   var configureSession:
     (@Sendable (AcpChannel, JSONValue, String, SessionConfiguration) async throws(AgentError) -> Void)?
+  private let resumeMethod: String
+  private let mode: (@Sendable (SessionConfiguration) -> String)?
   private let setModel: Bool
 
   /// - Parameters:
   ///   - arguments: The program's arguments for a session with this configuration.
   ///   - environment: The program's whole environment; `nil` passes on this process's own.
+  ///   - resumeMethod: The ACP request that reopens an existing session.
+  ///   - setModel: Selects the configured model over ACP instead of through launch arguments.
+  ///   - mode: The approval mode to select over ACP; `nil` leaves it to launch arguments.
   public init(
     provider: Mentor.Provider, executable: URL, arguments: @escaping @Sendable (SessionConfiguration) -> [String],
     environment: [String: String]? = nil, launcher: any ProgramLauncher = SystemLauncher(),
-    clock: any Clock<Duration> = ContinuousClock(), setModel: Bool = false
+    clock: any Clock<Duration> = ContinuousClock(), setModel: Bool = false,
+    resumeMethod: String = "session/resume", mode: (@Sendable (SessionConfiguration) -> String)? = nil
   ) {
     self.provider = provider
     self.executable = executable
@@ -31,6 +37,8 @@ public struct AcpDriver: AgentDriver {
     self.environment = environment
     self.launcher = launcher
     self.clock = clock
+    self.resumeMethod = resumeMethod
+    self.mode = mode
     self.setModel = setModel
   }
 
@@ -67,7 +75,7 @@ public struct AcpDriver: AgentDriver {
       var params: [String: JSONValue] = ["cwd": folder, "mcpServers": .array([])]
       let method: String
       if let resume = configuration.resume {
-        method = "session/resume"
+        method = resumeMethod
         params["sessionId"] = .string(resume.value)
       } else {
         method = "session/new"
@@ -87,17 +95,20 @@ public struct AcpDriver: AgentDriver {
       guard let id = setup["sessionId"]?.string ?? configuration.resume?.value else {
         throw AgentError.rejected(method)
       }
-      try await configureSession?(channel, setup, id, configuration)
       if setModel, let model = configuration.model {
         _ = try await channel.request(
-          "session/set_model",
-          .object([
-            "sessionId": .string(id), "modelId": .string(model),
-          ]), within: .seconds(30))
+          "session/set_model", .object(["sessionId": .string(id), "modelId": .string(model)]), within: .seconds(30))
       }
+      if let mode {
+        _ = try await channel.request(
+          "session/set_mode", .object(["sessionId": .string(id), "modeId": .string(mode(configuration))]),
+          within: .seconds(20))
+      }
+      try await configureSession?(channel, setup, id, configuration)
+      await channel.beginSession()
       return AcpSession(
-        handle: SessionHandle(provider: provider, value: id), channel: channel, window: Self.window(in: setup),
-        replyFailure: replyFailure)
+        handle: SessionHandle(provider: provider, value: id), channel: channel,
+        window: Self.window(in: setup, model: setModel ? configuration.model : nil), replyFailure: replyFailure)
     } catch {
       await channel.shutDown(patience: .zero)
       throw error
@@ -130,10 +141,10 @@ public struct AcpDriver: AgentDriver {
   }
 
   /// The context window of the session's model, when the agent lists its models.
-  private static func window(in setup: JSONValue) -> Int? {
-    let current = setup["models"]?["currentModelId"]?.string
+  private static func window(in setup: JSONValue, model selected: String?) -> Int? {
+    let current = selected ?? setup["models"]?["currentModelId"]?.string
     let models = setup["models"]?["availableModels"]?.array ?? []
-    let model = models.first { $0["modelId"]?.string == current } ?? models.first
+    let model = models.first { $0["modelId"]?.string == current } ?? (current == nil ? models.first : nil)
     return model?["_meta"]?["totalContextTokens"]?.int
   }
 }

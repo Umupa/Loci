@@ -1,0 +1,7 @@
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"}}}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":true}}}}
+{"to":{"jsonrpc":"2.0","id":2,"method":"session/load","params":{"cwd":"$FOLDER","mcpServers":[],"sessionId":"missing"}}}
+{"from":{"jsonrpc":"2.0","id":2,"error":{"code":-32602,"message":"Session not found"}}}
+{"close":true}
+{"exit":0,"stderr":""}

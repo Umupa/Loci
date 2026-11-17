@@ -8,7 +8,8 @@ extension AcpDriver {
   ) -> AcpDriver {
     var driver = AcpDriver(
       provider: .antigravity, executable: executable, arguments: { _ in extra },
-      environment: environment, launcher: launcher, clock: clock)
+      environment: environment, launcher: launcher, clock: clock,
+      mode: { $0.permission == .full ? "yolo" : "default" })
     driver.processDirectory = executable.deletingLastPathComponent()
     driver.supportsConfigOptions = true
     driver.configureSession = configureAntigravity
@@ -23,11 +24,6 @@ extension AcpDriver {
   private static func configureAntigravity(
     _ channel: AcpChannel, _ setup: JSONValue, _ session: String, _ configuration: SessionConfiguration
   ) async throws(AgentError) {
-    _ = try await channel.request(
-      "session/set_mode",
-      .object([
-        "sessionId": .string(session), "modeId": .string(configuration.permission == .full ? "yolo" : "default"),
-      ]), within: .seconds(15))
     if let model = configuration.model {
       let options = setup["configOptions"]?.array ?? []
       guard
