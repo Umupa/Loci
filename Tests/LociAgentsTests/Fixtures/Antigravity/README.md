@@ -7,6 +7,7 @@
 - 本机目录替换为 `$FOLDER`/`$HOME`，当前模型替换为 `some-model`。保留配置选项、工具请求与输出；含账户信息的标准错误日志全部移除。
 - 输入关闭后三秒仍未退出时发送 SIGTERM；保留 Foundation 报告的实际退出状态。
 - `reply`、`tool`、`permission-allow`、`permission-deny`、`interrupt`、`interrupt-asking`、`resume`、`resume-missing`、`bad-model` 均为真实录音，覆盖回复、工具、权限允许/拒绝、停止后续聊、等待权限时停止、恢复及错误。
+- `capacity-error` 来自复跑权限允许场景：服务端把容量不足作为普通文本返回，随后仍发送 `end_turn`。回放要求该回合失败。
 - 文件读取的完成通知可能没有正文；命令输出在 `rawOutput.combinedOutput`，拒绝的说明在字符串 `rawOutput`。
 - `synthetic-*` 基于真实握手构造失败或配置分支，不是实际服务端输出：权限模式设置失败、指定模型、回复达到 token 限制。
 
