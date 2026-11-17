@@ -6,6 +6,7 @@ import Testing
 enum OpenCodeScenario {
   static func reply(_ driver: OpenCodeDriver, _ folder: URL) async throws {
     let session = try await driver.open(.init(workingDirectory: folder, permission: .full))
+    #expect(session is AcpSession)
     let turn = try await session.send("Reply with exactly one word: pong")
     await #expect(throws: AgentError.turnInProgress) { try await session.send("And again") }
     let events = await Scenario.watch(turn)

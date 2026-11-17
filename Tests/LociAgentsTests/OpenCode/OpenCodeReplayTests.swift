@@ -11,7 +11,7 @@ struct OpenCodeReplayTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let launcher = try ScriptedLauncher("OpenCode/\(name)", folder: folder)
     let driver = OpenCodeDriver(
-      executable: URL(filePath: "/opencode"), launcher: OpenCodeFixtureLauncher(launcher: launcher, folder: folder))
+      executable: URL(filePath: "/opencode"), launcher: launcher)
     try await scenario(driver, folder)
     launcher.verify()
   }
@@ -58,6 +58,17 @@ struct OpenCodeReplayTests {
     }
   }
 
+  @Test func aFinalReplyIsDeliveredBeforeAnExitThatFollowsItsCompletion() async throws {
+    try await replay("synthetic-result-before-exit") { driver, folder in
+      let session = try await driver.open(.init(workingDirectory: folder, permission: .full))
+      let events = await Scenario.watch(try await session.send("Reply with exactly one word: pong"))
+      #expect(events.reply == "last")
+      #expect(events.endings == [.completed])
+      #expect(events.last == .ended(.completed))
+      await session.close()
+    }
+  }
+
   @Test func anUnexpectedExitWithdrawsEveryPermissionRequest() async throws {
     try await replay("synthetic-died-asking") { driver, folder in
       let session = try await driver.open(.init(workingDirectory: folder, permission: .ask))
@@ -81,21 +92,5 @@ struct OpenCodeReplayTests {
 
   @Test func allSessionListPagesAreCheckedBeforeDeclaringASessionMissing() async throws {
     try await replay("synthetic-missing-paginated", OpenCodeScenario.missingSession)
-  }
-}
-
-private struct OpenCodeFixtureLauncher: ProgramLauncher {
-  let launcher: ScriptedLauncher
-  let folder: URL
-
-  func launch(_ invocation: Invocation) throws(AgentError) -> RunningProgram {
-    let program = try launcher.launch(invocation)
-    return RunningProgram(
-      output: program.output, diagnostics: program.diagnostics,
-      write: { data in
-        let text = String(decoding: data, as: UTF8.self).replacing(self.folder.path, with: "$FOLDER")
-        try program.write(Data(text.utf8))
-      },
-      closeInput: program.closeInput, terminate: program.terminate, exit: program.exit)
   }
 }
