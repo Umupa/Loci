@@ -122,8 +122,8 @@ actor AcpSession: AgentSession {
         let event = running?.state.ask(id: id, params)
       {
         if permission == .full, case .permission(let request) = event,
-          let allow = request.options.first(where: { $0.role == .allowAlways })
-            ?? request.options.first(where: { $0.role == .allow })
+          let allow = request.options.first(where: { $0.role == .allow })
+            ?? request.options.first(where: { $0.role == .allowAlways })
         {
           await answer(request.id, with: .chosen(allow.id))
         } else {

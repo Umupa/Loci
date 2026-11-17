@@ -1,0 +1,19 @@
+{"launch":["acp"]}
+{"to":{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false,"_meta":{"parameterizedModelPicker":true}},"clientInfo":{"name":"loci","version":"1"}},"id":1}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}}
+{"to":{"jsonrpc":"2.0","method":"authenticate","params":{"methodId":"cursor_login"},"id":2}}
+{"from":{"jsonrpc":"2.0","id":2,"result":{}}}
+{"to":{"jsonrpc":"2.0","method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]},"id":3}}
+{"from":{"jsonrpc":"2.0","id":3,"result":{"sessionId":"cursor-1"}}}
+{"to":{"jsonrpc":"2.0","method":"session/prompt","params":{"sessionId":"cursor-1","prompt":[{"type":"text","text":"Use the bash tool to run exactly this command: echo loci-$((6*7))\nThen tell me what it printed."}]},"id":4}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"cursor-1","update":{"sessionUpdate":"tool_call","toolCallId":"call-1","title":"Run echo","kind":"execute","status":"pending","rawInput":{"command":"echo loci-$((6*7))"}}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"another-session","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Foreign reply"}}}}}
+{"from":{"jsonrpc":"2.0","id":"foreign-permission","method":"session/request_permission","params":{"sessionId":"another-session","toolCall":{"toolCallId":"call-1","title":"Run echo","kind":"execute"},"options":[{"optionId":"allow-always","kind":"allow_always","name":"Always"},{"optionId":"reject-once","kind":"reject_once","name":"No"}]}}}
+{"to":{"jsonrpc":"2.0","id":"foreign-permission","result":{"outcome":{"outcome":"cancelled"}}}}
+{"from":{"jsonrpc":"2.0","id":"cursor-permission-1","method":"session/request_permission","params":{"sessionId":"cursor-1","toolCall":{"toolCallId":"call-1","title":"Run echo","kind":"execute"},"options":[{"optionId":"allow-always","kind":"allow_always","name":"Always"},{"optionId":"reject-once","kind":"reject_once","name":"No"}]}}}
+{"to":{"jsonrpc":"2.0","id":"cursor-permission-1","result":{"outcome":{"outcome":"selected","optionId":"allow-always"}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"cursor-1","update":{"sessionUpdate":"tool_call_update","toolCallId":"call-1","status":"completed","rawOutput":"loci-42\n"}}}}
+{"from":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"cursor-1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"loci-42"}}}}}
+{"from":{"jsonrpc":"2.0","id":4,"result":{"stopReason":"end_turn"}}}
+{"close":true}
+{"exit":0,"stderr":""}

@@ -90,4 +90,15 @@ struct CursorReplayTests {
       }
     }
   }
+
+  @Test func fullPermissionFallsBackToPermanentApprovalWhenItIsTheOnlyAllowOption() async throws {
+    try await replay("permission-full-always") { stage in
+      let session = try await stage.open(.full)
+      let events = await Scenario.watch(try await session.send(Scenario.shellPrompt))
+      #expect(events.reply == "loci-42")
+      #expect(events.endings == [.completed])
+      #expect(!events.contains { if case .permission = $0 { true } else { false } })
+      await session.close()
+    }
+  }
 }
