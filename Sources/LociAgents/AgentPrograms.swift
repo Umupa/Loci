@@ -28,19 +28,19 @@ public struct AgentPrograms: Sendable {
     else { return nil }
     switch provider {
     case .pi:
-      return PiDriver(executable: executable, environment: environment, launcher: launcher)
+      return PiDriver.pi(executable: executable, environment: environment, launcher: launcher)
     case .omp:
-      return OmpDriver(executable: executable, environment: environment, launcher: launcher)
+      return PiDriver.omp(executable: executable, environment: environment, launcher: launcher)
     case .grok:
       return AcpDriver.grok(executable: executable, environment: environment, launcher: launcher)
     case .hermes:
       return AcpDriver.hermes(executable: executable, environment: environment, launcher: launcher)
     case .claudeCode:
-      return ClaudeCodeDriver(executable: executable, environment: environment, launcher: launcher)
+      return ClaudeCodeDriver.claudeCode(executable: executable, environment: environment, launcher: launcher)
     case .codex:
-      return CodexDriver(executable: executable, environment: environment, launcher: launcher)
+      return CodexDriver.codex(executable: executable, environment: environment, launcher: launcher)
     case .opencode:
-      return OpenCodeDriver(executable: executable, environment: environment, launcher: launcher)
+      return AcpDriver.opencode(executable: executable, environment: environment, launcher: launcher)
     case .antigravity:
       return AcpDriver.antigravity(executable: executable, environment: environment, launcher: launcher)
     case .cursor:

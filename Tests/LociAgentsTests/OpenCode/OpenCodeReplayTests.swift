@@ -10,7 +10,7 @@ struct OpenCodeReplayTests {
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: folder) }
     let launcher = try ScriptedLauncher("OpenCode/\(name)", folder: folder)
-    let driver = OpenCodeDriver(
+    let driver = AcpDriver.opencode(
       executable: URL(filePath: "/opencode"), launcher: launcher)
     try await scenario(Stage(driver: driver, folder: folder))
     launcher.verify()

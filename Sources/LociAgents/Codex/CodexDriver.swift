@@ -10,15 +10,12 @@ public struct CodexDriver: AgentDriver {
   private let launcher: any ProgramLauncher
   private let clock: any Clock<Duration>
 
-  public init(
+  public static func codex(
     executable: URL, arguments: [String] = [], environment: [String: String]? = nil,
     launcher: any ProgramLauncher = SystemLauncher(), clock: any Clock<Duration> = ContinuousClock()
-  ) {
-    self.executable = executable
-    self.arguments = arguments
-    self.environment = environment
-    self.launcher = launcher
-    self.clock = clock
+  ) -> CodexDriver {
+    CodexDriver(
+      executable: executable, arguments: arguments, environment: environment, launcher: launcher, clock: clock)
   }
 
   public func open(_ configuration: SessionConfiguration) async throws(AgentError) -> any AgentSession {
@@ -59,7 +56,7 @@ public struct CodexDriver: AgentDriver {
       guard let id = result["thread"]?["id"]?.string else { throw .rejected(method) }
       return CodexSession(handle: .init(provider: .codex, value: id), channel: channel, clock: clock)
     } catch {
-      await channel.shutDown(patience: .zero)
+      await channel.connection.shutDown(patience: .zero)
       throw error
     }
   }

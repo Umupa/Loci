@@ -15,15 +15,15 @@ struct InterruptReplayTests {
       let executable = URL(filePath: "/agent")
       switch self {
       case .pi:
-        return PiDriver(executable: executable, launcher: launcher, clock: clock)
+        return PiDriver.pi(executable: executable, launcher: launcher, clock: clock)
       case .acp:
         return AcpDriver(
           provider: .grok, executable: executable, arguments: { _ in [] }, launcher: launcher, clock: clock)
       case .claudeCode:
-        return ClaudeCodeDriver(
+        return ClaudeCodeDriver.claudeCode(
           executable: executable, launcher: launcher, clock: clock, makeSessionID: { "session-1" })
       case .codex:
-        return CodexDriver(executable: executable, launcher: launcher, clock: clock)
+        return CodexDriver.codex(executable: executable, launcher: launcher, clock: clock)
       }
     }
   }

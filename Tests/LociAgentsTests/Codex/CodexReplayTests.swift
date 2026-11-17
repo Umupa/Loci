@@ -11,7 +11,7 @@ struct CodexReplayTests {
     let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-codex-\(UUID().uuidString)")
     let launcher = try ScriptedLauncher("Codex/\(name)", folder: folder)
     let stage = Stage(
-      driver: CodexDriver(
+      driver: CodexDriver.codex(
         executable: URL(filePath: "/codex"), arguments: CodexLiveTests.arguments, launcher: launcher, clock: clock),
       folder: folder)
     try await scenario(stage)

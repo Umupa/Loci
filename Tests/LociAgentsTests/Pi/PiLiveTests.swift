@@ -19,7 +19,7 @@ struct PiLiveTests {
     let sessions = folder.appending(path: "sessions").path
     let recorder = RecordingLauncher(folder: folder)
     let stage = Stage(
-      driver: PiDriver(
+      driver: PiDriver.pi(
         executable: URL(filePath: environment["LOCI_PI"] ?? ""),
         arguments: Self.arguments + ["--session-dir", sessions], launcher: recorder),
       folder: folder)
