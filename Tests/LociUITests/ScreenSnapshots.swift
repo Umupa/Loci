@@ -85,6 +85,15 @@ struct ScreenSnapshots {
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
+  func conversation(appearance: Snapshot.Appearance) async throws {
+    let sample = try Sample(problems: false)
+    let view = ConversationView(
+      mentor: sample.scheduling, conversation: try sample.conversation(),
+      send: { (_: String) async throws(HostError) -> Done in Done() }, stop: {}, answer: { _, _ in })
+    try await Self.shoot("conversation", view, appearance: appearance)
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
   func library(appearance: Snapshot.Appearance) async throws {
     try await Self.shoot(
       "library", Self.root(try Sample(problems: false), at: WindowState(place: .library(nil))), appearance: appearance)

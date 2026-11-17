@@ -27,6 +27,7 @@ enum Size {
   static let promptHeight: CGFloat = 44
   static let panelWidth: CGFloat = 260
   static let termCardWidth: CGFloat = 280
+  static let toolOutputHeight: CGFloat = 220
   static let avatarSmall: CGFloat = 18
   static let avatarMedium: CGFloat = 24
   static let avatarLarge: CGFloat = 64

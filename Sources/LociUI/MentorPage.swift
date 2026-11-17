@@ -1,20 +1,44 @@
 import LociModel
 import SwiftUI
 
+/// What a mentor's page shows: its catalog, or the conversation with it.
+enum MentorTab: Hashable {
+  case catalog, conversation
+}
+
 struct MentorScreen: View {
   @Environment(\.host) private var host
   let mentor: EntityID
   @State private var feed: Feed<MentorPage>?
   @State private var conversation: Feed<Conversation>?
+  @State private var tab = MentorTab.catalog
 
   var body: some View {
     Group {
       if let page = feed?.value {
-        MentorView(page: page, turn: conversation?.value?.turn) { lesson in
-          Task { _ = try? await host.run(WriteLesson(lesson: LessonRef(mentor: mentor, lesson: lesson.slug))) }
+        switch tab {
+        case .catalog:
+          MentorView(page: page, turn: conversation?.value?.turn) { lesson in
+            Task { _ = try? await host.run(WriteLesson(lesson: LessonRef(mentor: mentor, lesson: lesson.slug))) }
+          }
+        case .conversation:
+          ConversationScreen(mentor: page.mentor, conversation: conversation?.value)
+            .navigationTitle(Text(verbatim: page.mentor.name))
         }
       } else {
         Palette.canvas
+      }
+    }
+    .toolbar {
+      ToolbarItem(placement: .principal) {
+        Picker(selection: $tab) {
+          Text(.loci("mentor.catalog")).tag(MentorTab.catalog)
+          Text(.loci("mentor.conversation")).tag(MentorTab.conversation)
+        } label: {
+          EmptyView()
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
       }
     }
     .subscribing(OneMentor(mentor: mentor), into: $feed)

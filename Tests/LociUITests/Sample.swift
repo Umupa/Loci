@@ -145,7 +145,7 @@ struct Sample: Sendable {
 
   private enum SampleError: Error { case badSlug }
 
-  private struct Seeded: RandomNumberGenerator {
+  struct Seeded: RandomNumberGenerator {
     var state: UInt64 = 7
     mutating func next() -> UInt64 {
       state &+= 0x9E37_79B9_7F4A_7C15

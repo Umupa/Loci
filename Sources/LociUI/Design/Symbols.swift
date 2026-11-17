@@ -18,7 +18,19 @@ enum Symbols {
   static let thought = "text.bubble"
   static let ask = "questionmark.bubble"
   static let panel = "sidebar.right"
-  static let lostNote = "link.badge.plus"
+  static let stop = "stop.fill"
+  static let done = "checkmark"
+  static let permission = "hand.raised.fill"
+
+  static func tool(_ kind: ToolActivity.Kind) -> String {
+    switch kind {
+    case .read: "doc.text.magnifyingglass"
+    case .edit: "pencil"
+    case .execute: "terminal"
+    case .search: "magnifyingglass"
+    case .other: "wrench.and.screwdriver"
+    }
+  }
 
   static func kind(_ kind: ItemKind) -> String {
     switch kind {
