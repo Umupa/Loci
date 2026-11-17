@@ -8,12 +8,28 @@ actor ManualAgent: AgentDriver {
   private(set) var opened: [SessionConfiguration] = []
   private(set) var sessions: [ManualSession] = []
   let openingFailure: AgentError?
+  /// How many more sessions open at once; the ones after wait for `letOpen()`.
+  private var opensFreely: Int
+  private var held: [CheckedContinuation<Void, Never>] = []
 
-  init(openingFailure: AgentError? = nil) {
+  init(openingFailure: AgentError? = nil, opensFreely: Int = .max) {
     self.openingFailure = openingFailure
+    self.opensFreely = opensFreely
+  }
+
+  var waitingToOpen: Int { held.count }
+
+  func letOpen() {
+    for opening in held { opening.resume() }
+    held = []
   }
 
   func open(_ configuration: SessionConfiguration) async throws(AgentError) -> any AgentSession {
+    if opensFreely > 0 {
+      opensFreely -= 1
+    } else {
+      await withCheckedContinuation { held.append($0) }
+    }
     opened.append(configuration)
     if let openingFailure { throw openingFailure }
     if configuration.resume != nil { throw .sessionNotFound }
