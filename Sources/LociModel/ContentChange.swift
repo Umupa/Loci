@@ -19,6 +19,10 @@ public enum ContentChange: Hashable, Codable, Sendable {
   /// An item's job moved on: a stage started, progressed, waited, failed or finished. Nothing on disk to
   /// read again until a stage finishes, which also reports `item`.
   case job(EntityID)
+  /// The conversation on an item, with whichever mentors answered there, grew or its turn moved on.
+  case itemConversation(EntityID)
+  /// Components, speech models or media settings changed; they belong to no item.
+  case media
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }

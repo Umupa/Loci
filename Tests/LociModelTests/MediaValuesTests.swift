@@ -100,7 +100,7 @@ struct MediaValuesTests {
       .queued, .running(progress: nil), .running(progress: Fraction(0.42)), .waiting(.component(.ytDlp)),
       .waiting(.speechModel(.base)), .waiting(.login(site: "bilibili.com")), .waiting(.agent),
       .failed(Job.Failure(reason: "HTTP 403", remedy: .updateComponent(.ytDlp))), .failed(Job.Failure(reason: "x")),
-      .done,
+      .stopped, .done,
     ]
     for state in states {
       let job = Job(item: Fixture.item, stage: .transcribe, state: state)

@@ -59,7 +59,7 @@ extension StoreDatabase {
         let notes = store.notes(on: content)
         problems += notes.problems
         updates.append(.notes(content, notes.value))
-      case .everything, .conversation, .mind, .reading, .job:
+      case .everything, .conversation, .mind, .reading, .job, .itemConversation, .media:
         continue
       }
     }

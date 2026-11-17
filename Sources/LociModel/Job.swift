@@ -31,6 +31,8 @@ public struct Job: Hashable, Codable, Sendable {
     /// Carries on by itself once the need is met.
     case waiting(Need)
     case failed(Failure)
+    /// Stopped by the reader; what was made so far is kept, and retrying carries on from there.
+    case stopped
     case done
   }
 

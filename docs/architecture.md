@@ -19,7 +19,7 @@
 | `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应 | 无 |
 | `LociStore` | 文件读写与监听、SQLite、全文索引 | `LociModel`；第三方：Yams、GRDB |
 | `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
-| `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、转录、断句；系统框架可用 AVFoundation、NaturalLanguage、WebKit（在不显示的网页里取正文） | `LociModel` |
+| `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、转录、断句；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、NaturalLanguage、WebKit（在不显示的网页里取正文）、Synchronization | `LociModel` |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
 | `LociRemote` | 配对、加密通道、中继 | `LociModel` |
 | `LociHost` | 命令层的实现：本机和远程 | 以上全部 |

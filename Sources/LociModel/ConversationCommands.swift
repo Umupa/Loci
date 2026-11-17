@@ -70,7 +70,7 @@ public struct MentorConversation: Subscription {
       switch change {
       case .conversation(let id), .mentor(let id): id == mentor
       case .everything: true
-      case .catalog, .lesson, .item, .notes, .mind, .reading, .job: false
+      case .catalog, .lesson, .item, .notes, .mind, .reading, .job, .itemConversation, .media: false
       }
     }
   }
