@@ -4,7 +4,7 @@ import Testing
 
 @testable import LociAgents
 
-/// Stands in for Pi by replaying a recording: it says what Pi said, and waits wherever the driver
+/// Stands in for an agent by replaying a recording: it says what the agent said, and waits wherever the driver
 /// wrote something until the driver writes the same thing again.
 final class ScriptedLauncher: ProgramLauncher {
   private struct State {
@@ -64,7 +64,7 @@ final class ScriptedLauncher: ProgramLauncher {
   }
 
   /// Checks one thing the driver did against the recording. Where the recording has the driver writing
-  /// several records in a row, they may come in any order: Pi said nothing in between to order them by.
+  /// several records in a row, they may come in any order: the agent said nothing in between to order them by.
   private func expect(_ step: Step, in state: inout State) {
     let writes = state.steps.prefix { if case .to = $0 { true } else { false } }
     if state.steps.first == step {

@@ -21,7 +21,7 @@ struct GrokLiveTests {
     try await scenario(stage)
 
     if let directory = environment["LOCI_GROK_RECORD"] {
-      try await recorder.save("grok-\(name)", to: URL(filePath: directory))
+      try await recorder.save(name, to: URL(filePath: directory))
     }
   }
 

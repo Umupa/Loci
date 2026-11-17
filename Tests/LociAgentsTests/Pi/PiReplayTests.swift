@@ -7,19 +7,13 @@ import Testing
 /// ones, named `synthetic-`, for things the real Pi will not do on request.
 @Suite(.timeLimit(.minutes(1)))
 struct PiReplayTests {
-  private struct ImpatientClock: Clock {
-    var now: ContinuousClock.Instant { .now }
-    var minimumResolution: Duration { .zero }
-    func sleep(until deadline: ContinuousClock.Instant, tolerance: Duration?) async throws {}
-  }
-
   private func replay(
     _ name: String, clock: any Clock<Duration> = ContinuousClock(), _ scenario: (Stage) async throws -> Void
   ) async throws {
     let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-pi-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: folder) }
-    let launcher = try ScriptedLauncher(name, folder: folder)
+    let launcher = try ScriptedLauncher("Pi/\(name)", folder: folder)
     let stage = Stage(
       driver: PiDriver(
         executable: URL(filePath: "/pi"),

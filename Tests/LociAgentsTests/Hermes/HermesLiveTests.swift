@@ -19,7 +19,7 @@ struct HermesLiveTests {
     if let directory = environment["LOCI_HERMES_RECORD"] {
       let destination = URL(filePath: directory)
       try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-      try await recorder.save("hermes-\(name)", to: destination)
+      try await recorder.save(name, to: destination)
     }
   }
 

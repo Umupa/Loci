@@ -3,17 +3,17 @@ import Synchronization
 
 @testable import LociAgents
 
-/// One step of a recorded session with Pi, in the order it happened.
+/// One step of a recorded session with an agent, in the order it happened.
 enum Step: Equatable {
-  /// Pi was started with these arguments.
+  /// The agent was started with these arguments.
   case launch([String])
   /// The driver wrote this record.
   case to(JSONValue)
-  /// Pi wrote this record.
+  /// The agent wrote this record.
   case from(JSONValue)
-  /// The driver closed Pi's input.
+  /// The driver closed the agent's input.
   case close
-  /// Pi ended, having written this to standard error.
+  /// The agent ended, having written this to standard error.
   case exit(Int32, String)
 
   init?(_ value: JSONValue) {
@@ -130,7 +130,7 @@ final class RecordingLauncher: ProgramLauncher {
       terminate: real.terminate, exit: real.exit)
   }
 
-  /// Writes the conversation, without this machine's details or Pi's system prompt, as `<name>.jsonl` in `directory`.
+  /// Writes the conversation, without this machine's details or the agent's system prompt, as `<name>.jsonl` in `directory`.
   func save(_ name: String, to directory: URL) async throws {
     for run in runs.withLock({ $0 }) { await run.drained?.value }
     let lines = runs.withLock { $0 }.flatMap(\.steps).filter { !Self.isNoise($0) }.map {

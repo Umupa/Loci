@@ -5,24 +5,18 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct ClaudeCodeReplayTests {
-  private struct ImpatientClock: Clock {
-    var now: ContinuousClock.Instant { .now }
-    var minimumResolution: Duration { .zero }
-    func sleep(until deadline: ContinuousClock.Instant, tolerance: Duration?) async throws {}
-  }
-
   private func replay(
     _ name: String, arguments: [String] = ClaudeCodeLiveTests.arguments,
-    clock: any Clock<Duration> = ContinuousClock(), _ scenario: (ClaudeCodeStage) async throws -> Void
+    clock: any Clock<Duration> = ContinuousClock(), _ scenario: (Stage) async throws -> Void
   ) async throws {
     let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-claude-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: folder) }
     let launcher = try ScriptedLauncher("ClaudeCode/\(name)", folder: folder)
-    let stage = ClaudeCodeStage(
+    let stage = Stage(
       driver: ClaudeCodeDriver(
         executable: URL(filePath: "/claude"), arguments: arguments,
-        launcher: launcher, clock: clock, makeSessionID: { ClaudeCodeStage.id }), folder: folder)
+        launcher: launcher, clock: clock, makeSessionID: { ClaudeCodeScenario.sessionID }), folder: folder)
     try await scenario(stage)
     launcher.verify()
   }

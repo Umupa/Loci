@@ -17,7 +17,7 @@ struct CursorLiveTests {
       folder: folder)
     try await scenario(stage)
     if let directory = environment["LOCI_CURSOR_RECORD"] {
-      try await recorder.save("cursor-\(name)", to: URL(filePath: directory))
+      try await recorder.save(name, to: URL(filePath: directory))
     }
   }
 

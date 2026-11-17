@@ -11,7 +11,7 @@ struct CursorReplayTests {
     let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-cursor-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: folder) }
-    let launcher = try ScriptedLauncher("synthetic-cursor-\(name)", folder: folder)
+    let launcher = try ScriptedLauncher("Cursor/synthetic-\(name)", folder: folder)
     let stage = Stage(
       driver: AcpDriver.cursor(executable: URL(filePath: "/cursor-agent"), launcher: launcher), folder: folder)
 

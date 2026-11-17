@@ -7,13 +7,13 @@ import Testing
 struct CodexLiveTests {
   static let arguments = ["-c", "model_reasoning_effort=\"low\""]
 
-  private func live(_ name: String, _ scenario: (CodexStage) async throws -> Void) async throws {
+  private func live(_ name: String, _ scenario: (Stage) async throws -> Void) async throws {
     let environment = ProcessInfo.processInfo.environment
     let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-codex-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: folder) }
     let recorder = RecordingLauncher(folder: folder)
-    let stage = CodexStage(
+    let stage = Stage(
       driver: CodexDriver(
         executable: URL(filePath: environment["LOCI_CODEX"] ?? ""), arguments: Self.arguments, launcher: recorder),
       folder: folder)
@@ -23,7 +23,7 @@ struct CodexLiveTests {
         FileManager.default.fileExists(atPath: folder.appending(path: "approval-marker").path) == (name == "allow"))
     }
     if let directory = environment["LOCI_CODEX_RECORD"] {
-      try await recorder.save("codex-\(name)", to: URL(filePath: directory))
+      try await recorder.save(name, to: URL(filePath: directory))
     }
   }
 
