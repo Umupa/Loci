@@ -1,0 +1,9 @@
+{"launch":["--mode","rpc","--no-extensions","--no-skills","--no-context-files","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"from":{"command":"get_state","data":{"model":{"contextWindow":1000},"sessionId":"01a1e85e-0000-7000-8000-000000000001"},"id":"loci-1","success":true,"type":"response"}}
+{"to":{"id":"loci-2","message":"Go on","type":"prompt"}}
+{"from":{"command":"prompt","error":"No model selected","id":"loci-2","success":false,"type":"response"}}
+{"to":{"id":"loci-3","message":"/handled","type":"prompt"}}
+{"from":{"command":"prompt","data":{"disposition":"handled"},"id":"loci-3","success":true,"type":"response"}}
+{"close":true}
+{"exit":0,"stderr":""}

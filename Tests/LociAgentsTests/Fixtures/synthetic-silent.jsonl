@@ -1,0 +1,4 @@
+{"launch":["--mode","rpc","--no-extensions","--no-skills","--no-context-files","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"close":true}
+{"exit":0,"stderr":""}

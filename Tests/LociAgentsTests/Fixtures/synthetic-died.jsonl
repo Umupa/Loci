@@ -1,0 +1,8 @@
+{"launch":["--mode","rpc","--no-extensions","--no-skills","--no-context-files","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"from":{"command":"get_state","data":{"model":{"contextWindow":1000},"sessionId":"01a1e85e-0000-7000-8000-000000000001"},"id":"loci-1","success":true,"type":"response"}}
+{"to":{"id":"loci-2","message":"Go on","type":"prompt"}}
+{"from":{"command":"prompt","data":{"disposition":"started"},"id":"loci-2","success":true,"type":"response"}}
+{"from":{"type":"agent_start"}}
+{"from":{"assistantMessageEvent":{"contentIndex":0,"delta":"Half a sen","type":"text_delta"},"type":"message_update"}}
+{"exit":9,"stderr":"\u001b[31mfatal:\u001b[0m out of memory\n"}

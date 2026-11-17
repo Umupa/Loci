@@ -1,0 +1,16 @@
+{"launch":["--mode","rpc","--no-extensions","--no-skills","--no-context-files","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"from":{"command":"get_state","data":{"model":{"contextWindow":1000},"sessionId":"01a1e85e-0000-7000-8000-000000000001"},"id":"loci-1","success":true,"type":"response"}}
+{"to":{"id":"loci-2","message":"Go on","type":"prompt"}}
+{"from":{"command":"prompt","data":{"disposition":"started"},"id":"loci-2","success":true,"type":"response"}}
+{"from":{"id":"note","message":"\u001b[33mHeads up\u001b[0m","method":"notify","type":"extension_ui_request"}}
+{"from":{"id":"status","method":"setStatus","statusKey":"x","statusText":"busy","type":"extension_ui_request"}}
+{"from":{"id":"typed","method":"input","title":"Your name?","type":"extension_ui_request"}}
+{"to":{"cancelled":true,"id":"typed","type":"extension_ui_response"}}
+{"from":{"id":"pick","method":"select","options":["main","\u001b[1mnative\u001b[0m"],"title":"Which branch?","type":"extension_ui_request"}}
+{"to":{"id":"pick","type":"extension_ui_response","value":"\u001b[1mnative\u001b[0m"}}
+{"from":{"aborted":false,"type":"agent_settled"}}
+{"to":{"id":"loci-3","type":"get_session_stats"}}
+{"from":{"command":"get_session_stats","data":{},"id":"loci-3","success":true,"type":"response"}}
+{"close":true}
+{"exit":0,"stderr":""}

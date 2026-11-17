@@ -1,0 +1,119 @@
+import Foundation
+
+actor PiSession: AgentSession {
+  nonisolated let handle: SessionHandle
+
+  private let channel: PiChannel
+  private let window: Int?
+  private var running: (state: PiTurnState, pipe: TurnPipe)?
+  /// The caller asked the running turn, or the whole session, to stop.
+  private var stopping = false
+  private var whenIdle: [CheckedContinuation<Void, Never>] = []
+
+  init(handle: SessionHandle, channel: PiChannel, window: Int?) {
+    self.handle = handle
+    self.channel = channel
+    self.window = window
+    Task { await self.listen() }
+  }
+
+  func send(_ text: String) async throws(AgentError) -> Turn {
+    guard running == nil else { throw .turnInProgress }
+    let pipe = TurnPipe()
+    running = (PiTurnState(), pipe)
+    stopping = false
+    do throws(AgentError) {
+      let accepted = try await channel.request(.prompt(text), within: .seconds(15))
+      if accepted["disposition"]?.string == "handled" { finish(.completed) }
+    } catch {
+      finish(.failed(error))
+      throw error
+    }
+    return pipe.turn
+  }
+
+  func interrupt() async {
+    guard running != nil else { return }
+    stopping = true
+    await withdraw()
+    do {
+      _ = try await channel.request(.abort, within: .seconds(30))
+    } catch {
+      channel.terminate()
+    }
+    await idle()
+  }
+
+  func answer(_ request: PermissionRequest.ID, with answer: PermissionAnswer) async {
+    guard let reply = running?.state.answer(request, with: answer) else { return }
+    await channel.send(reply)
+  }
+
+  func close() async {
+    stopping = true
+    await channel.shutDown(patience: .seconds(3))
+    await idle()
+  }
+
+  private func listen() async {
+    for await record in channel.records {
+      await receive(record)
+    }
+    let reason = await channel.ended ?? .exited(code: -1, diagnostics: "")
+    finish(stopping ? .interrupted : .failed(reason))
+  }
+
+  private func receive(_ record: PiRecord) async {
+    switch record {
+    case .event(.settled(let aborted)):
+      await settle(aborted: aborted)
+    case .event(let event):
+      for event in running?.state.receive(event) ?? [] { running?.pipe.yield(event) }
+    case .dialog(let dialog):
+      if running != nil, !stopping, let event = running?.state.ask(dialog) {
+        running?.pipe.yield(event)
+      } else {
+        await channel.send(dialog.reply(to: .dismissed))
+      }
+    case .unanswerable(let id, let title):
+      await channel.send(.reply(dialog: id, .cancelled))
+      if !title.isEmpty { running?.pipe.yield(.notice(.message(title))) }
+    case .notice(let notice):
+      running?.pipe.yield(.notice(notice))
+    case .response:
+      break
+    }
+  }
+
+  private func settle(aborted: Bool) async {
+    guard let end = running?.state.end(interrupted: aborted || stopping) else { return }
+    if let stats = try? await channel.request(.getSessionStats, within: .seconds(4)),
+      let used = stats["contextUsage"]?["tokens"]?.int
+    {
+      running?.pipe.yield(
+        .context(ContextUsage(used: used, window: stats["contextUsage"]?["contextWindow"]?.int ?? window)))
+    }
+    finish(end)
+  }
+
+  private func withdraw() async {
+    for (reply, event) in running?.state.withdraw() ?? [] {
+      await channel.send(reply)
+      running?.pipe.yield(event)
+    }
+  }
+
+  private func finish(_ end: TurnEnd) {
+    guard let turn = running else { return }
+    for (_, event) in running?.state.withdraw() ?? [] { turn.pipe.yield(event) }
+    turn.pipe.end(end)
+    running = nil
+    for continuation in whenIdle { continuation.resume() }
+    whenIdle = []
+  }
+
+  private func idle() async {
+    guard running != nil else { return }
+    await withCheckedContinuation { whenIdle.append($0) }
+  }
+}

@@ -1,0 +1,4 @@
+{"launch":["--mode","rpc","--model","nope/none","--no-extensions","--no-skills","--no-context-files","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"exit":1,"stderr":"Error: Model \"nope/none\" not found. Use --list-models to see available models.\n"}
+{"close":true}

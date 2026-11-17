@@ -1,0 +1,16 @@
+{"launch":["--mode","rpc","--no-extensions","--no-skills","--no-context-files","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"from":{"command":"get_state","data":{"model":{"contextWindow":1000},"sessionId":"01a1e85e-0000-7000-8000-000000000001"},"id":"loci-1","success":true,"type":"response"}}
+{"to":{"id":"loci-2","message":"Go on","type":"prompt"}}
+{"from":{"command":"prompt","data":{"disposition":"started"},"id":"loci-2","success":true,"type":"response"}}
+{"from":{"id":"first","message":"","method":"confirm","title":"Run it?","type":"extension_ui_request"}}
+{"to":{"cancelled":true,"id":"first","type":"extension_ui_response"}}
+{"to":{"id":"loci-3","type":"abort"}}
+{"from":{"id":"second","message":"","method":"confirm","title":"Run the other one?","type":"extension_ui_request"}}
+{"to":{"cancelled":true,"id":"second","type":"extension_ui_response"}}
+{"from":{"aborted":true,"type":"agent_settled"}}
+{"from":{"command":"abort","id":"loci-3","success":true,"type":"response"}}
+{"to":{"id":"loci-4","type":"get_session_stats"}}
+{"from":{"command":"get_session_stats","data":{"contextUsage":{"contextWindow":null,"tokens":12}},"id":"loci-4","success":true,"type":"response"}}
+{"close":true}
+{"exit":0,"stderr":""}

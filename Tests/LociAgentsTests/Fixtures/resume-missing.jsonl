@@ -1,0 +1,4 @@
+{"launch":["--mode","rpc","--session","019a0000-0000-7000-8000-000000000000","--no-extensions","--no-skills","--no-context-files","--thinking","low","--session-dir","$FOLDER/sessions"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"exit":1,"stderr":"No session found matching '019a0000-0000-7000-8000-000000000000'\n"}
+{"close":true}
