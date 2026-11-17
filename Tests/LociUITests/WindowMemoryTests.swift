@@ -9,6 +9,8 @@ import Testing
 /// α1-S4: after quitting, Loci reopens where it was, without the system's window restoration.
 @MainActor
 struct WindowMemoryTests {
+  static let folder = URL(filePath: "/Users/someone/Loci Dev")
+
   @Test func aPlaceRememberedByOneLaunchIsRecalledByTheNext() throws {
     let suite = "loci-window-memory-\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
@@ -16,8 +18,8 @@ struct WindowMemoryTests {
     let sample = try Sample()
     let window = WindowState(place: .mentor(sample.scheduling.id), pages: [.lesson(sample.filterLesson)])
 
-    WindowMemory.preferences(defaults).remember(window)
-    let nextLaunch = WindowMemory.preferences(try #require(UserDefaults(suiteName: suite)))
+    WindowMemory.preferences(defaults, folder: Self.folder).remember(window)
+    let nextLaunch = WindowMemory.preferences(try #require(UserDefaults(suiteName: suite)), folder: Self.folder)
 
     #expect(nextLaunch.recall() == window)
   }
@@ -27,7 +29,20 @@ struct WindowMemoryTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
 
-    #expect(WindowMemory.preferences(defaults).recall() == WindowState())
+    #expect(WindowMemory.preferences(defaults, folder: Self.folder).recall() == WindowState())
+  }
+
+  /// α1-S1: a data folder opened for the first time starts at the start page, whatever another folder left.
+  @Test func aNewDataFolderOpensAtStartWhateverAnotherFolderRemembers() throws {
+    let suite = "loci-window-memory-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+
+    WindowMemory.preferences(defaults, folder: Self.folder).remember(WindowState(place: .library(nil)))
+    let other = WindowMemory.preferences(defaults, folder: URL(filePath: "/tmp/loci-blackbox-empty"))
+
+    #expect(other.recall() == WindowState())
+    #expect(WindowMemory.preferences(defaults, folder: Self.folder).recall() == WindowState(place: .library(nil)))
   }
 
   @Test func theWindowOpensWhereItWasAndKeepsTheMemoryCurrent() async throws {

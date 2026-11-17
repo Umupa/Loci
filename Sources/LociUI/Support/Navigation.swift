@@ -68,12 +68,16 @@ struct WindowMemory {
   let recall: @MainActor () -> WindowState
   let remember: @MainActor (WindowState) -> Void
 
-  static let key = "lastWindow"
-
-  /// Kept in the app's preferences: a convenience of the interface, not part of the user's data.
-  @MainActor static func preferences(_ defaults: UserDefaults) -> WindowMemory {
-    WindowMemory(
+  /// Kept in the app's preferences, one place per data folder: a convenience of the interface, not part of
+  /// the user's data. A folder never opened before has nothing remembered and opens at the start page.
+  @MainActor static func preferences(_ defaults: UserDefaults, folder: URL) -> WindowMemory {
+    let key = key(for: folder)
+    return WindowMemory(
       recall: { WindowState(restoring: defaults.string(forKey: key) ?? "") },
       remember: { defaults.set($0.text, forKey: key) })
+  }
+
+  static func key(for folder: URL) -> String {
+    "lastWindow " + folder.standardizedFileURL.path(percentEncoded: false)
   }
 }
