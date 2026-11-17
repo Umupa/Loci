@@ -1,4 +1,5 @@
 import Foundation
+import LociModel
 
 actor AcpSession: AgentSession {
   nonisolated let handle: SessionHandle
@@ -7,17 +8,22 @@ actor AcpSession: AgentSession {
   private let session: String
   private let window: Int?
   private let replyFailure: (@Sendable (String) -> String?)?
+  private let permission: Mentor.Permission
   private var running: (state: AcpTurnState, pipe: TurnPipe)?
   /// The caller asked the running turn, or the whole session, to stop.
   private var stopping = false
   private var whenIdle: [CheckedContinuation<Void, Never>] = []
 
-  init(handle: SessionHandle, channel: AcpChannel, window: Int?, replyFailure: (@Sendable (String) -> String?)? = nil) {
+  init(
+    handle: SessionHandle, channel: AcpChannel, window: Int?, permission: Mentor.Permission,
+    replyFailure: (@Sendable (String) -> String?)? = nil
+  ) {
     self.handle = handle
     self.session = handle.value
     self.channel = channel
     self.window = window
     self.replyFailure = replyFailure
+    self.permission = permission
     Task { await self.listen() }
   }
 
@@ -98,7 +104,14 @@ actor AcpSession: AgentSession {
       if params["sessionId"]?.string == session, running != nil, !stopping,
         let event = running?.state.ask(id: id, params)
       {
-        running?.pipe.yield(event)
+        if permission == .full, case .permission(let request) = event,
+          let allow = request.options.first(where: { $0.role == .allowAlways })
+            ?? request.options.first(where: { $0.role == .allow })
+        {
+          await answer(request.id, with: .chosen(allow.id))
+        } else {
+          running?.pipe.yield(event)
+        }
       } else {
         await channel.respond(to: id, with: AcpTurnState.cancelled)
       }

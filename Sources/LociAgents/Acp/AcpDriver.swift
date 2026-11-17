@@ -18,6 +18,8 @@ public struct AcpDriver: AgentDriver {
   private let resumeMethod: String
   private let mode: (@Sendable (SessionConfiguration) -> String)?
   private let setModel: Bool
+  private let authenticationMethod: String?
+  private let clientMetadata: [String: JSONValue]
 
   /// - Parameters:
   ///   - arguments: The program's arguments for a session with this configuration.
@@ -29,7 +31,8 @@ public struct AcpDriver: AgentDriver {
     provider: Mentor.Provider, executable: URL, arguments: @escaping @Sendable (SessionConfiguration) -> [String],
     environment: [String: String]? = nil, launcher: any ProgramLauncher = SystemLauncher(),
     clock: any Clock<Duration> = ContinuousClock(), setModel: Bool = false,
-    resumeMethod: String = "session/resume", mode: (@Sendable (SessionConfiguration) -> String)? = nil
+    resumeMethod: String = "session/resume", mode: (@Sendable (SessionConfiguration) -> String)? = nil,
+    authenticationMethod: String? = nil, clientMetadata: [String: JSONValue] = [:]
   ) {
     self.provider = provider
     self.executable = executable
@@ -40,6 +43,8 @@ public struct AcpDriver: AgentDriver {
     self.resumeMethod = resumeMethod
     self.mode = mode
     self.setModel = setModel
+    self.authenticationMethod = authenticationMethod
+    self.clientMetadata = clientMetadata
   }
 
   /// Grok Build through `grok agent stdio`. `extra` goes before the subcommand, after the driver's own.
@@ -71,6 +76,10 @@ public struct AcpDriver: AgentDriver {
     let channel = AcpChannel(program: program, clock: clock)
     do throws(AgentError) {
       let initialized = try await channel.request("initialize", initialize, within: .seconds(30))
+      if let authenticationMethod {
+        _ = try await channel.request(
+          "authenticate", .object(["methodId": .string(authenticationMethod)]), within: .seconds(30))
+      }
       let folder = JSONValue.string(configuration.workingDirectory.path(percentEncoded: false))
       var params: [String: JSONValue] = ["cwd": folder, "mcpServers": .array([])]
       let method: String
@@ -96,8 +105,19 @@ public struct AcpDriver: AgentDriver {
         throw AgentError.rejected(method)
       }
       if setModel, let model = configuration.model {
-        _ = try await channel.request(
-          "session/set_model", .object(["sessionId": .string(id), "modelId": .string(model)]), within: .seconds(30))
+        let option = setup["configOptions"]?.array?.first {
+          $0["category"]?.string == "model" || $0["id"]?.string == "model"
+        }
+        if let config = option?["id"]?.string {
+          _ = try await channel.request(
+            "session/set_config_option",
+            .object(["sessionId": .string(id), "configId": .string(config), "value": .string(model)]),
+            within: .seconds(30))
+        } else {
+          _ = try await channel.request(
+            "session/set_model", .object(["sessionId": .string(id), "modelId": .string(model)]),
+            within: .seconds(30))
+        }
       }
       if let mode {
         _ = try await channel.request(
@@ -108,7 +128,8 @@ public struct AcpDriver: AgentDriver {
       await channel.beginSession()
       return AcpSession(
         handle: SessionHandle(provider: provider, value: id), channel: channel,
-        window: Self.window(in: setup, model: setModel ? configuration.model : nil), replyFailure: replyFailure)
+        window: Self.window(in: setup, model: setModel ? configuration.model : nil),
+        permission: configuration.permission, replyFailure: replyFailure)
     } catch {
       await channel.shutDown(patience: .zero)
       throw error
@@ -133,6 +154,7 @@ public struct AcpDriver: AgentDriver {
     if supportsConfigOptions {
       capabilities["session"] = .object(["configOptions": .object(["boolean": .object([:])])])
     }
+    if !clientMetadata.isEmpty { capabilities["_meta"] = .object(clientMetadata) }
     return .object([
       "protocolVersion": .number(1),
       "clientCapabilities": .object(capabilities),
