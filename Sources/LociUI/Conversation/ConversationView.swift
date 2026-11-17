@@ -63,7 +63,7 @@ struct ConversationView: View {
 
   /// Whether to show that the mentor is working. A reply arriving shows progress by itself, and a
   /// permission card waiting on the person means the mentor is not working.
-  static func showsWorking(_ turn: LiveTurn) -> Bool {
+  nonisolated static func showsWorking(_ turn: LiveTurn) -> Bool {
     guard turn.waiting.isEmpty else { return false }
     if case .reply = turn.messages.last?.body { return false }
     return true
