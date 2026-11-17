@@ -60,6 +60,9 @@ struct LibraryScenarioTests {
           Citation(lesson: lesson, item: item.id, anchor: .quote(try TextQuote("feasibility checking"))),
         ])
       #expect(try await host.run(ItemCitations(item: item.id)).count == 2)
+      #expect(
+        try await host.run(ReadLessonText(lesson: lesson))
+          == "[原文](loci://library/\(item.id)#quote=feasibility%20checking)\n")
     }
   }
 

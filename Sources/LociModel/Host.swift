@@ -68,6 +68,7 @@ public protocol CommandHandler: Sendable {
   func listItems() async throws(HostError) -> [Item]
   func itemText(_ item: EntityID) async throws(HostError) -> String
   func itemPage(_ item: EntityID) async throws(HostError) -> ItemPage
+  func lessonText(_ lesson: LessonRef) async throws(HostError) -> String
   func lessonCitations(_ lesson: LessonRef) async throws(HostError) -> [Citation]
   func citingLessons(of item: EntityID) async throws(HostError) -> [CitingLesson]
   func search(_ command: Search) async throws(HostError) -> [SearchHit]

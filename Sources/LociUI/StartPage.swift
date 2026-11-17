@@ -1,0 +1,117 @@
+import LociModel
+import SwiftUI
+
+/// One field: a sentence makes a mentor; a text file dropped anywhere on the page becomes an item.
+struct StartPage: View {
+  @Environment(\.host) private var host
+  let focusRequest: Int
+  let opened: (WindowState) -> Void
+  let failed: (HostError) -> Void
+  @State private var text = ""
+  @FocusState private var focused: Bool
+
+  var body: some View {
+    PromptField(text: $text, submit: submit)
+      .focused($focused)
+      .padding(Spacing.xxl)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(Palette.canvas)
+      .acceptingTextFiles(opened: opened, failed: failed)
+      .onAppear { focused = true }
+      .onChange(of: focusRequest) { focused = true }
+  }
+
+  private func submit() {
+    guard case .sentence(let request) = PromptInput(text) else { return }
+    Task {
+      do throws(HostError) {
+        let mentor = try await host.run(CreateMentor(request: request))
+        text = ""
+        opened(WindowState(place: .mentor(mentor.id)))
+      } catch {
+        failed(error)
+      }
+    }
+  }
+}
+
+struct PromptField: View {
+  @Binding var text: String
+  let submit: () -> Void
+
+  var body: some View {
+    let input = PromptInput(text)
+    HStack(spacing: Spacing.s) {
+      TextField(text: $text, prompt: Text(.loci("start.prompt"))) { Text(.loci("start.prompt")) }
+        .textFieldStyle(.plain)
+        .font(Typography.prompt)
+        .foregroundStyle(Palette.ink)
+        .onSubmit(submit)
+      SendButton(input: input, submit: submit)
+    }
+    .padding(.leading, Spacing.l)
+    .padding(.trailing, Spacing.xs)
+    .frame(height: Size.promptHeight)
+    .frame(maxWidth: Size.promptMaximumWidth)
+    .background(Capsule().fill(Palette.surface))
+    .overlay(Capsule().strokeBorder(Palette.line, lineWidth: Size.hairline))
+  }
+}
+
+private struct SendButton: View {
+  let input: PromptInput
+  let submit: () -> Void
+
+  private var ready: Bool {
+    if case .sentence = input { return true }
+    return false
+  }
+
+  var body: some View {
+    Button(action: submit) {
+      Image(systemName: input == .link ? Symbols.link : Symbols.send)
+        .font(Typography.bodyEmphasis)
+        .foregroundStyle(ready ? Palette.onAccent : Palette.inkMuted)
+        .frame(width: Size.sendButton, height: Size.sendButton)
+        .background(Circle().fill(ready ? Palette.accent : Color.clear))
+    }
+    .buttonStyle(.plain)
+    .disabled(!ready)
+    .help(input == .link ? Text(.loci("start.linkNotYet")) : Text(.loci("start.send")))
+    .accessibilityLabel(Text(.loci("start.send")))
+  }
+}
+
+extension View {
+  /// Turns text files dropped on the view into items, then opens the last one.
+  func acceptingTextFiles(opened: @escaping (WindowState) -> Void, failed: @escaping (HostError) -> Void)
+    -> some View
+  {
+    modifier(AcceptingTextFiles(opened: opened, failed: failed))
+  }
+}
+
+private struct AcceptingTextFiles: ViewModifier {
+  @Environment(\.host) private var host
+  let opened: (WindowState) -> Void
+  let failed: (HostError) -> Void
+
+  func body(content: Content) -> some View {
+    content.dropDestination(for: TextFile.self) { files, _ in
+      Task { await add(files) }
+      return !files.isEmpty
+    }
+  }
+
+  private func add(_ files: [TextFile]) async {
+    var last: Item?
+    for file in files {
+      do throws(HostError) {
+        last = try await host.run(AddTextItem(fileName: file.fileName, text: file.text))
+      } catch {
+        failed(error)
+      }
+    }
+    if let last { opened(WindowState(place: .library(nil), pages: [.item(last.id)])) }
+  }
+}

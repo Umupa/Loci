@@ -30,6 +30,8 @@ enum FileEvents {
 
     private let continuation: AsyncStream<FileEvent>.Continuation
     private let stream = Mutex<FSEventStreamRef?>(nil)
+    /// Callbacks arrive here, and the stream is stopped here too, so stopping never overlaps a callback.
+    private let queue = DispatchQueue(label: "app.loci.store.file-events")
 
     init(_ continuation: AsyncStream<FileEvent>.Continuation) {
       self.continuation = continuation
@@ -43,7 +45,8 @@ enum FileEvents {
     func start(watching root: String, latency: TimeInterval) -> Bool {
       stream.withLock { current in
         var context = FSEventStreamContext(
-          version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
+          version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: Self.retain, release: Self.release,
+          copyDescription: nil)
         let flags = FSEventStreamCreateFlags(
           kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagWatchRoot)
         guard
@@ -51,7 +54,7 @@ enum FileEvents {
             nil, Self.callback, &context, [root] as CFArray, FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             latency, flags)
         else { return false }
-        FSEventStreamSetDispatchQueue(created, DispatchQueue(label: "app.loci.store.file-events"))
+        FSEventStreamSetDispatchQueue(created, queue)
         FSEventStreamStart(created)
         current = created
         return true
@@ -59,13 +62,27 @@ enum FileEvents {
     }
 
     func stop() {
-      stream.withLock { current in
-        guard let held = current else { return }
-        FSEventStreamStop(held)
-        FSEventStreamInvalidate(held)
-        FSEventStreamRelease(held)
-        current = nil
+      queue.async { [self] in
+        stream.withLock { current in
+          guard let held = current else { return }
+          FSEventStreamStop(held)
+          FSEventStreamInvalidate(held)
+          FSEventStreamRelease(held)
+          current = nil
+        }
       }
+    }
+
+    /// FSEvents holds the sink for as long as the stream lives, so a callback never finds it gone.
+    private static let retain: CFAllocatorRetainCallBack = { info in
+      guard let info else { return nil }
+      _ = Unmanaged<Sink>.fromOpaque(info).retain()
+      return info
+    }
+
+    private static let release: CFAllocatorReleaseCallBack = { info in
+      guard let info else { return }
+      Unmanaged<Sink>.fromOpaque(info).release()
     }
 
     private func receive(count: Int, paths: UnsafeMutableRawPointer, flags: UnsafePointer<FSEventStreamEventFlags>) {

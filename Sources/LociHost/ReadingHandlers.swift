@@ -2,6 +2,10 @@ import LociModel
 import LociStore
 
 extension LocalHost {
+  public func lessonText(_ lesson: LessonRef) async throws(HostError) -> String {
+    try attempt { try store.lesson(lesson).body }
+  }
+
   public func lessonCitations(_ lesson: LessonRef) async throws(HostError) -> [Citation] {
     try attempt { try database.citations(in: lesson) }
   }

@@ -1,0 +1,23 @@
+#!/bin/sh
+# Launches Loci Dev several times against a temporary folder and reports, for each launch, how long the
+# process took to show a start page that can be typed into (α1-S10's budget is 500 ms).
+#   script/measure-launch [runs]   (default 5; builds the app first)
+set -eu
+cd "$(dirname "$0")/.."
+runs="${1:-5}"
+app="$(script/run --no-open)"
+binary="$app/Contents/MacOS/Loci"
+root="$(mktemp -d)"
+trap 'rm -rf "$root"' EXIT
+
+for run in $(seq "$runs"); do
+  since="$(date '+%Y-%m-%d %H:%M:%S')"
+  LOCI_ROOT="$root" "$binary" >/dev/null 2>&1 &
+  pid=$!
+  sleep 3
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  /usr/bin/log show --start "$since" --style compact \
+    --predicate "subsystem == \"com.loci.native.dev\" AND category == \"launch\" AND processID == $pid" 2>/dev/null |
+    sed -n 's/.*start page shown \([0-9]*\) ms.*/\1/p' | sed "s/^/run $run: /;s/$/ ms/"
+done

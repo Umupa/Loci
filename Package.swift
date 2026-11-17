@@ -5,6 +5,7 @@ let strict: [SwiftSetting] = [.treatAllWarnings(as: .error)]
 
 let package = Package(
   name: "Loci",
+  defaultLocalization: "en",
   platforms: [.macOS(.v26)],
   dependencies: [
     .package(url: "https://github.com/jpsim/Yams.git", exact: "6.2.2"),
@@ -19,8 +20,8 @@ let package = Package(
       ],
       swiftSettings: strict),
     .target(name: "LociHost", dependencies: ["LociModel", "LociStore"], swiftSettings: strict),
-    .target(name: "LociUI", dependencies: ["LociModel"], swiftSettings: strict),
-    .executableTarget(name: "Loci", dependencies: ["LociUI"], swiftSettings: strict),
+    .target(name: "LociUI", dependencies: ["LociModel"], resources: [.process("Resources")], swiftSettings: strict),
+    .executableTarget(name: "Loci", dependencies: ["LociModel", "LociUI", "LociHost"], swiftSettings: strict),
     .testTarget(name: "LociModelTests", dependencies: ["LociModel"], swiftSettings: strict),
     .testTarget(name: "LociStoreTests", dependencies: ["LociStore"], swiftSettings: strict),
     .testTarget(name: "LociHostTests", dependencies: ["LociHost", "LociStore"], swiftSettings: strict),

@@ -1,14 +1,31 @@
 #!/bin/sh
-# Builds Loci Dev.app into output/ and opens it. Pass --no-open to only build.
+# Builds Loci Dev.app into output/ and opens it.
+#   --no-open        only build
+#   --root <folder>  run with LOCI_ROOT=<folder> instead of ~/Loci Dev
 set -eu
 cd "$(dirname "$0")/.."
 . script/toolchain
 
+open_app=yes
+root=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-open) open_app=no ;;
+    --root) root="$2"; shift ;;
+    *) echo "usage: script/run [--no-open] [--root <folder>]" >&2; exit 2 ;;
+  esac
+  shift
+done
+
 swift build --product Loci >/dev/null
+bin="$(swift build --show-bin-path)"
 app="output/Loci Dev.app"
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS"
-cp "$(swift build --show-bin-path)/Loci" "$app/Contents/MacOS/Loci"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+cp "$bin/Loci" "$app/Contents/MacOS/Loci"
+for bundle in "$bin"/*.bundle; do
+  [ -e "$bundle" ] && cp -R "$bundle" "$app/Contents/Resources/"
+done
 cat >"$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -20,11 +37,18 @@ cat >"$app/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0.0-alpha</string>
   <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
 PLIST
-codesign --force --sign - "$app" 2>/dev/null
+codesign --force --deep --sign - "$app" 2>/dev/null
 echo "$app"
-[ "${1:-}" = "--no-open" ] || open "$app"
+[ "$open_app" = yes ] || exit 0
+if [ -n "$root" ]; then
+  open -n --env "LOCI_ROOT=$root" "$app"
+else
+  open "$app"
+fi

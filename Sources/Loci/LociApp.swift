@@ -3,9 +3,20 @@ import SwiftUI
 
 @main
 struct LociApp: App {
+  @State private var launch = Launch()
+
   var body: some Scene {
     WindowGroup {
-      RootView()
+      switch launch.state {
+      case .running:
+        RootView(startShown: launch.startShown).lociHost(launch.host)
+      case .problem(let problem):
+        StartupProblemView(problem: problem, rebuild: launch.rebuild)
+      }
+    }
+    .commands { LociCommands() }
+    Settings {
+      SettingsView(folder: launch.folder, version: Launch.version)
     }
   }
 }

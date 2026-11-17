@@ -33,9 +33,10 @@ enum Architecture {
       frameworks: ["Foundation", "os"]),
     "LociUI": Module(
       uses: ["LociModel"],
-      frameworks: ["Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "os"]),
+      frameworks: ["Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "UniformTypeIdentifiers", "os"]),
     "LociEval": Module(uses: ["LociModel", "LociHost"], frameworks: ["Foundation"], isExecutable: true),
-    "Loci": Module(uses: ["LociModel", "LociUI", "LociHost"], frameworks: ["SwiftUI"], isExecutable: true),
+    "Loci": Module(
+      uses: ["LociModel", "LociUI", "LociHost"], frameworks: ["Foundation", "SwiftUI", "os"], isExecutable: true),
   ]
 
   /// Constructs that only some modules may use, because each one is a way out

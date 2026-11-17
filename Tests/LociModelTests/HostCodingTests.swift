@@ -31,6 +31,7 @@ struct HostCodingTests {
     #expect(try Self.roundTrips(DeleteItem(item: Fixture.item, notes: .keep)))
     #expect(try Self.roundTrips(ListItems()))
     #expect(try Self.roundTrips(ReadItemText(item: Fixture.item)))
+    #expect(try Self.roundTrips(ReadLessonText(lesson: Self.lesson)))
     #expect(try Self.roundTrips(LessonCitations(lesson: Self.lesson)))
     #expect(try Self.roundTrips(ItemCitations(item: Fixture.item)))
     #expect(try Self.roundTrips(Search(text: "调度", limit: 10)))
@@ -77,7 +78,8 @@ struct HostCodingTests {
   @Test func commandAndSubscriptionNamesAreUnique() {
     let commands = [
       CreateMentor.name, RenameMentor.name, DeleteMentor.name, ListMentors.name, ReadCatalog.name, AddTextItem.name,
-      DeleteItem.name, ListItems.name, ReadItemText.name, LessonCitations.name, ItemCitations.name, Search.name,
+      DeleteItem.name, ListItems.name, ReadItemText.name, ReadLessonText.name, LessonCitations.name, ItemCitations.name,
+      Search.name,
       ReadReadingState.name, SaveReadingState.name,
     ]
     let subscriptions = [AllMentors.name, AllItems.name, OneMentor.name, OneItem.name, HealthReport.name]

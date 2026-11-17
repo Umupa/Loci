@@ -1,3 +1,17 @@
+/// The text of a written lesson, without its front matter.
+public struct ReadLessonText: Command {
+  public static let name = "lesson.text"
+  public let lesson: LessonRef
+
+  public init(lesson: LessonRef) {
+    self.lesson = lesson
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> String {
+    try await handler.lessonText(lesson)
+  }
+}
+
 /// What one lesson cites, in the order it cites it.
 public struct LessonCitations: Command {
   public static let name = "lesson.citations"
