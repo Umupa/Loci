@@ -41,7 +41,11 @@ public struct AgentPrograms: Sendable {
       return CodexDriver(executable: executable, environment: environment, launcher: launcher)
     case .opencode:
       return OpenCodeDriver(executable: executable, environment: environment, launcher: launcher)
-    case .antigravity, .cursor, .fx:
+    case .antigravity:
+      return AcpDriver.antigravity(executable: executable, environment: environment, launcher: launcher)
+    case .cursor:
+      return AcpDriver.cursor(executable: executable, environment: environment, launcher: launcher)
+    case .fx:
       return nil
     }
   }
