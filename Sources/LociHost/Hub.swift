@@ -27,9 +27,12 @@ actor Hub {
     tasks.append(task)
   }
 
-  func stop() {
-    for task in tasks { task.cancel() }
+  /// Cancels the background work and returns once it has ended, so nothing writes to the database after.
+  func stop() async {
+    let stopping = tasks
     tasks = []
+    for task in stopping { task.cancel() }
+    for task in stopping { await task.value }
   }
 
   /// A full rebuild knows every problem there is.
