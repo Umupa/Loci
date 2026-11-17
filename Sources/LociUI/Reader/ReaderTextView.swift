@@ -7,6 +7,9 @@ final class ReaderTextView: NSTextView {
   var willResize: () -> Void = {}
   /// Runs after each change of width, once the column has its final size.
   var resized: () -> Void = {}
+  /// Runs as the pointer moves over the text, with where it is; `nil` when it leaves.
+  var hovered: (CGPoint?) -> Void = { _ in }
+  private var tracking: NSTrackingArea?
 
   convenience init() {
     let layoutManager = NSTextLayoutManager()
@@ -34,6 +37,43 @@ final class ReaderTextView: NSTextView {
 
   var contentStorage: NSTextContentStorage? {
     textLayoutManager?.textContentManager as? NSTextContentStorage
+  }
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    if let tracking { removeTrackingArea(tracking) }
+    let area = NSTrackingArea(
+      rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self)
+    addTrackingArea(area)
+    tracking = area
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    super.mouseMoved(with: event)
+    hovered(convert(event.locationInWindow, from: nil))
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    super.mouseExited(with: event)
+    hovered(nil)
+  }
+
+  /// Draws marks over the text without changing it; earlier marks are cleared.
+  func show(_ marks: [ReaderMark]) {
+    guard let layoutManager = textLayoutManager else { return }
+    let keys: [NSAttributedString.Key] = [.backgroundColor, .underlineStyle, .underlineColor]
+    for key in keys { layoutManager.removeRenderingAttribute(key, for: layoutManager.documentRange) }
+    for mark in marks {
+      guard let range = textRange(mark.range) else { continue }
+      switch mark.kind {
+      case .revised:
+        layoutManager.addRenderingAttribute(.backgroundColor, value: Tones.revised, for: range)
+      case .term:
+        layoutManager.addRenderingAttribute(
+          .underlineStyle, value: NSUnderlineStyle([.single, .patternDot]).rawValue, for: range)
+        layoutManager.addRenderingAttribute(.underlineColor, value: Tones.inkMuted, for: range)
+      }
+    }
   }
 
   /// Keeps the column at its reading width, centered, with a margin when the window is narrow.

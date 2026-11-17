@@ -3,6 +3,7 @@
 public enum ContentChange: Hashable, Codable, Sendable {
   /// `mentor.json`, or the whole folder appeared or went away.
   case mentor(EntityID)
+  /// `catalog.yaml` or `glossary.yaml`.
   case catalog(EntityID)
   /// A lesson file was written, changed or removed.
   case lesson(LessonRef)
@@ -13,6 +14,8 @@ public enum ContentChange: Hashable, Codable, Sendable {
   case conversation(EntityID)
   /// Answers to questions about this content arrived, finished or failed. Nothing on disk to read again.
   case answers(ContentRef)
+  /// What the reader has read or seen of this content changed. It lives in the database only.
+  case reading(ContentRef)
   /// Events were lost or a change could not be placed; read everything again.
   case everything
 }

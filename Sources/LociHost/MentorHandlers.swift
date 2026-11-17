@@ -54,8 +54,10 @@ extension LocalHost {
       if let problem = loaded.problems.first { throw .invalidFile(problem) }
       throw .notFound(mentor.description)
     }
+    let marks = readingMarks(of: mentor)
     return MentorPage(
-      mentor: snapshot.mentor, catalog: snapshot.catalog, writtenLessons: snapshot.writtenLessons)
+      mentor: snapshot.mentor, catalog: snapshot.catalog, writtenLessons: snapshot.writtenLessons,
+      readLessons: marks.read, revisedLessons: marks.revised)
   }
 }
 

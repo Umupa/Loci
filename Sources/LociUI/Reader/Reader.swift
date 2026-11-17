@@ -9,6 +9,7 @@ struct Reader: NSViewRepresentable {
   let text: ReadingText
   /// Where to open the first time this text is shown.
   let start: TextQuote?
+  var marks: [ReaderMark] = []
   let events: ReaderEvents
 
   func makeCoordinator() -> ReaderCoordinator {
@@ -22,6 +23,7 @@ struct Reader: NSViewRepresentable {
   func updateNSView(_ scrollView: NSScrollView, context: Context) {
     context.coordinator.events = events
     context.coordinator.show(text, from: start)
+    context.coordinator.mark(marks)
   }
 }
 
@@ -32,6 +34,8 @@ struct ReaderEvents {
   /// The end of the text has been on screen.
   var reachedEnd: () -> Void = {}
   var openLink: (URL) -> Void = { _ in }
+  /// Opens the lesson that teaches a glossary term.
+  var openTerm: (Glossary.Term) -> Void = { _ in }
 }
 
 @MainActor
@@ -43,6 +47,8 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private var pendingStart: TextQuote?
   private var reporting: Task<Void, Never>?
   private var endReported = false
+  private var marks: [ReaderMark] = []
+  private let termCard = TermPopover()
   /// How long the reader stays still before its place is remembered.
   private let settle: Duration
   private static let quoteLength = 40
@@ -68,6 +74,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     textView.willResize = { [weak self] in self?.holdPlace() }
     textView.resized = { [weak self] in self?.applyPendingStart() }
     clip.scrolled = { [weak self] in self?.scrolled() }
+    textView.hovered = { [weak self] in self?.hovered(at: $0) }
     return scrollView
   }
 
@@ -76,9 +83,34 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     let keep = shown == nil ? start : topQuote()
     shown = text.plain
     textView.textStorage?.setAttributedString(text.string)
+    textView.show(marks)
     textView.layOutViewport()
     pendingStart = keep
     applyPendingStart()
+  }
+
+  func mark(_ marks: [ReaderMark]) {
+    guard marks != self.marks else { return }
+    self.marks = marks
+    textView?.show(marks)
+  }
+
+  /// Over a glossary term, its definition appears beside it; moving off the term puts it away.
+  private func hovered(at point: CGPoint?) {
+    guard let textView, let point else {
+      termCard.closeSoon()
+      return
+    }
+    let index = textView.characterIndexForInsertion(at: point)
+    for mark in marks {
+      guard case .term(let term) = mark.kind,
+        NSLocationInRange(index, mark.range) || index == NSMaxRange(mark.range),
+        let rect = textView.rects(of: mark.range).first(where: { $0.insetBy(dx: -2, dy: -2).contains(point) })
+      else { continue }
+      termCard.show(term, at: rect, in: textView) { [weak self] in self?.events.openTerm(term) }
+      return
+    }
+    termCard.closeSoon()
   }
 
   /// A new width lays the text out again from estimates, which would leave the reader somewhere else; the

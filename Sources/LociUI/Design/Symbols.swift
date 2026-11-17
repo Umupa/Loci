@@ -9,6 +9,11 @@ enum Symbols {
   static let link = "link"
   static let lesson = "doc.plaintext"
   static let settings = "gearshape"
+  static let lessonUnwritten = "circle.dashed"
+  static let lessonUnread = "circle"
+  static let lessonRead = "checkmark.circle.fill"
+  static let lessonRevised = "circle.badge.exclamationmark"
+  static let nextLesson = "arrow.right"
 
   static func kind(_ kind: ItemKind) -> String {
     switch kind {

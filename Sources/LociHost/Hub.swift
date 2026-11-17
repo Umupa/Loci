@@ -69,7 +69,7 @@ extension ContentChange {
     case .lesson(let lesson): .mentor(lesson.mentor)
     case .item(let id): .item(id)
     case .notes(let content): .notes(content)
-    case .everything, .conversation, .answers: nil
+    case .everything, .conversation, .answers, .reading: nil
     }
   }
 }

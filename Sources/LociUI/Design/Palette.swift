@@ -22,6 +22,8 @@ enum Palette {
   static let onAccent = Color(nsColor: Tones.onAccent)
   static let selection = Color(nsColor: Tones.selection)
   static let onSelection = Color(nsColor: Tones.onSelection)
+  /// Behind a paragraph the mentor changed since the reader last saw it. Fainter than a selection.
+  static let revised = Color(nsColor: Tones.revised)
 
   /// The pairs of text and background the interface uses, for checking contrast.
   static let readablePairs: [(text: Color, background: Color, name: String)] = [
@@ -29,7 +31,7 @@ enum Palette {
     (inkMuted, canvas, "muted on canvas"), (inkMuted, surface, "muted on surface"),
     (inkMuted, raised, "muted on raised"),
     (accentInk, canvas, "amber text on canvas"), (accentInk, raised, "amber text on raised"),
-    (onAccent, accent, "text on amber"), (onSelection, selection, "selected text"),
+    (onAccent, accent, "text on amber"), (onSelection, selection, "selected text"), (ink, revised, "revised text"),
   ]
 }
 
@@ -46,6 +48,7 @@ enum Tones {
   static let onAccent = NSColor(dark: 0x1A1206, light: 0x1A1206)
   static let selection = NSColor(dark: 0x3A2D17, light: 0xF3DDB0)
   static let onSelection = NSColor(dark: 0xF5D9A0, light: 0x1B1916)
+  static let revised = NSColor(dark: 0x241C10, light: 0xFAEDD3)
 }
 
 extension Color {

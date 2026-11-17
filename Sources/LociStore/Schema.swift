@@ -21,6 +21,15 @@ enum Schema {
           )
           """)
     }
+    migrator.registerMigration("2 seen_lesson") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE seen_lesson (
+            content TEXT PRIMARY KEY NOT NULL,
+            text TEXT NOT NULL
+          )
+          """)
+    }
     return migrator
   }
 

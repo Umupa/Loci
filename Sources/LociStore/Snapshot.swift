@@ -57,6 +57,7 @@ extension Store {
     var own: [FileProblem] = []
     defer { problems += own.map { $0.attributed(to: .mentor(mentor.id)) } }
     let catalog = catalog(in: folder, problems: &own)
+    checkGlossary(in: folder, problems: &own)
     var written: [Lesson.Slug] = []
     var citations: [Citation] = []
     for file in files(in: folder.appending(path: Self.lessonsFolder), withExtension: "md") {
@@ -118,6 +119,18 @@ extension Store {
     } catch {
       problems.append(problem(at: folder.appending(path: Self.catalogFile), error))
       return nil
+    }
+  }
+
+  /// The glossary is not mirrored; reading it here only reports a file that cannot be used.
+  private func checkGlossary(in folder: URL, problems: inout [FileProblem]) {
+    let url = folder.appending(path: Self.glossaryFile)
+    do {
+      _ = try decodeYAML(Glossary.self, at: url)
+    } catch StoreError.notFound {
+      return
+    } catch {
+      problems.append(problem(at: url, error))
     }
   }
 

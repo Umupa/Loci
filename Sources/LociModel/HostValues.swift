@@ -5,11 +5,20 @@ public struct MentorPage: Hashable, Codable, Sendable {
   public let catalog: Catalog?
   /// Lessons that have text, whether or not the catalog lists them.
   public let writtenLessons: [Lesson.Slug]
+  /// Lessons read to the end.
+  public let readLessons: Set<Lesson.Slug>
+  /// Lessons the mentor revised since the reader last saw them.
+  public let revisedLessons: Set<Lesson.Slug>
 
-  public init(mentor: Mentor, catalog: Catalog?, writtenLessons: [Lesson.Slug]) {
+  public init(
+    mentor: Mentor, catalog: Catalog?, writtenLessons: [Lesson.Slug], readLessons: Set<Lesson.Slug> = [],
+    revisedLessons: Set<Lesson.Slug> = []
+  ) {
     self.mentor = mentor
     self.catalog = catalog
     self.writtenLessons = writtenLessons
+    self.readLessons = readLessons
+    self.revisedLessons = revisedLessons
   }
 }
 

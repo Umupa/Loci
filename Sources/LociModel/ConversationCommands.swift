@@ -110,7 +110,7 @@ public struct MentorConversation: Subscription {
       switch change {
       case .conversation(let id), .mentor(let id): id == mentor
       case .everything: true
-      case .catalog, .lesson, .item, .notes, .answers: false
+      case .catalog, .lesson, .item, .notes, .answers, .reading: false
       }
     }
   }

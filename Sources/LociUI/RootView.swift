@@ -38,7 +38,12 @@ public struct RootView: View {
         placeView
           .navigationDestination(for: Page.self) { pageView($0) }
       }
-      .environment(\.openPage, OpenPage { window.pages.append($0) })
+      .environment(
+        \.openPage,
+        OpenPage { page, replacing in
+          if replacing, !window.pages.isEmpty { window.pages.removeLast() }
+          window.pages.append(page)
+        })
     }
     .toolbar {
       ToolbarItem(placement: .primaryAction) { HealthIndicator(health: health?.value) }

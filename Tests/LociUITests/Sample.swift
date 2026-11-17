@@ -12,6 +12,8 @@ struct Sample: Sendable {
   let pages: [EntityID: MentorPage]
   let citedBy: [CitingLesson]
   let filterLesson: LessonRef
+  let glossary: Glossary
+  let next: LessonPage.Upcoming
   var health: Health
   let text = """
     Large-scale cluster management at Google with Borg
@@ -77,10 +79,16 @@ struct Sample: Sendable {
           try Lesson(slug: try Self.slug("kube-scheduler"), title: "kube-scheduler 的插件框架"),
         ]),
     ])
+    next = LessonPage.Upcoming(lesson: catalog.chapters[1].lessons[0], written: false)
+    glossary = try Glossary(terms: [
+      .init(term: "可行性检查", definition: "排除不满足硬约束的机器，只回答能不能放。", lesson: try Self.slug("why-a-scheduler")),
+      .init(term: "Borg", definition: "Google 内部的集群管理系统，Kubernetes 的前身。", lesson: try Self.slug("borg")),
+    ])
     pages = [
       scheduling.id: MentorPage(
         mentor: scheduling, catalog: catalog,
-        writtenLessons: [try Self.slug("why-a-scheduler"), filterLesson.lesson]),
+        writtenLessons: [try Self.slug("why-a-scheduler"), filterLesson.lesson],
+        readLessons: [try Self.slug("why-a-scheduler")], revisedLessons: [filterLesson.lesson]),
       sandbox.id: MentorPage(mentor: sandbox, catalog: try Catalog(chapters: []), writtenLessons: []),
     ]
     citedBy = [

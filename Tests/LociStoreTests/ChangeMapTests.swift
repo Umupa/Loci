@@ -23,6 +23,7 @@ struct ChangeMapTests {
       ("\(Self.mentorFolder)/mentor.json", .mentor(Self.mentor)),
       (Self.mentorFolder, .mentor(Self.mentor)),
       ("\(Self.mentorFolder)/catalog.yaml", .catalog(Self.mentor)),
+      ("\(Self.mentorFolder)/glossary.yaml", .catalog(Self.mentor)),
       ("\(Self.mentorFolder)/lessons/intro.md", .lesson(lesson)),
       ("\(Self.itemFolder)/item.json", .item(Self.item)),
       ("\(Self.itemFolder)/content.md", .item(Self.item)),

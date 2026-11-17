@@ -4,6 +4,7 @@ import LociModel
 extension Store {
   static let catalogFile = "catalog.yaml"
   static let lessonsFolder = "lessons"
+  static let glossaryFile = "glossary.yaml"
 
   public func mentor(_ id: EntityID) throws -> Mentor {
     try decodeJSON(Mentor.self, at: mentorFolder(id).appending(path: Self.mentorFile))
@@ -16,6 +17,15 @@ extension Store {
       return try decodeYAML(Catalog.self, at: url)
     } catch StoreError.notFound {
       return try Catalog(chapters: [])
+    }
+  }
+
+  /// A mentor without a `glossary.yaml` has an empty glossary.
+  public func glossary(of mentor: EntityID) throws -> Glossary {
+    do {
+      return try decodeYAML(Glossary.self, at: try mentorFolder(mentor).appending(path: Self.glossaryFile))
+    } catch StoreError.notFound {
+      return .empty
     }
   }
 
@@ -50,6 +60,10 @@ extension Store {
 
   public func save(_ catalog: Catalog, of mentor: EntityID) throws {
     try write(Data(Formats.yaml(catalog).utf8), to: mentorFolder(mentor).appending(path: Self.catalogFile))
+  }
+
+  public func save(_ glossary: Glossary, of mentor: EntityID) throws {
+    try write(Data(Formats.yaml(glossary).utf8), to: mentorFolder(mentor).appending(path: Self.glossaryFile))
   }
 
   public func save(_ lesson: LessonText, as ref: LessonRef) throws {

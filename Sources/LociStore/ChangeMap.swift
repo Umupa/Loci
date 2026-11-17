@@ -50,7 +50,7 @@ struct ChangeMap {
     switch rest.count {
     case 0: return .mentor
     case 1 where rest[0] == Store.mentorFile: return .mentor
-    case 1 where rest[0] == Store.catalogFile: return .catalog
+    case 1 where rest[0] == Store.catalogFile || rest[0] == Store.glossaryFile: return .catalog
     case 2 where rest[0] == Store.lessonsFolder && rest[1].hasSuffix(".md"):
       return Lesson.Slug(String(rest[1].dropLast(3))).map(MentorFile.lesson)
     default: return nil

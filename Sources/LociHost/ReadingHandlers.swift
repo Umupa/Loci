@@ -37,6 +37,7 @@ extension LocalHost {
       let position = try database.readingState(of: content)?.position
       try database.save(ReadingState(position: position, finished: true, updatedAt: environment.now()), for: content)
     }
+    await hub.refresh([.reading(content)])
     return Done()
   }
 }
