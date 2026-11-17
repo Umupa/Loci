@@ -51,15 +51,16 @@ public struct Glossary: Hashable, Sendable {
     public let range: Range<String.Index>
   }
 
-  /// The first use of each term in `text`, by its name or an alias, ignoring case, in the order they appear.
+  /// The first use of each of a term's names in `text`, ignoring case, in the order they appear: an alias
+  /// such as "watches" is marked where it first appears even after the term itself was.
   ///
   /// The lesson that teaches a term does not mark it. A Latin name matches only whole words, so "pod" is
   /// not found inside "tripod"; names in Chinese match anywhere.
   public func firstUses(in text: String, in lesson: Lesson.Slug? = nil) -> [Use] {
     var uses: [Use] = []
     for term in terms where term.lesson == nil || term.lesson != lesson {
-      let found = term.names.compactMap { Self.firstWord($0, in: text) }.min { $0.lowerBound < $1.lowerBound }
-      if let found, !uses.contains(where: { $0.range.overlaps(found) }) {
+      for found in term.names.compactMap({ Self.firstWord($0, in: text) })
+      where !uses.contains(where: { $0.range.overlaps(found) }) {
         uses.append(Use(term: term, range: found))
       }
     }

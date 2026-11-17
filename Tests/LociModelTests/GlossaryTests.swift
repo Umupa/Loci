@@ -25,6 +25,10 @@ struct GlossaryTests {
     #expect(try Self.used("Two Pods share a node.") == ["Pods"])
   }
 
+  @Test func anAliasIsMarkedEvenAfterTheTermWas() throws {
+    #expect(try Self.used("A pod, then two pods; more pods.") == ["pod", "pods"])
+  }
+
   @Test func aLatinTermMatchesOnlyWholeWords() throws {
     #expect(try Self.used("A tripod is not a pod.") == ["pod"])
     #expect(try Self.used("podcast") == [])
