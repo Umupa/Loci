@@ -7,6 +7,7 @@ import LociStore
 /// mentor busy writing a lesson still answers. One mentor answers one question at a time, in order.
 actor PassageQuestions {
   private struct Asked {
+    let id: EntityID
     let content: ContentRef
     var pending: PendingAnswer
   }
@@ -29,13 +30,14 @@ actor PassageQuestions {
     let pending = PendingAnswer(
       note: note, mentor: mentor.id, question: question, askedAt: context.environment.now(), answer: "",
       failure: nil)
-    asked.append(Asked(content: locator.content, pending: pending))
+    let id = context.environment.newID()
+    asked.append(Asked(id: id, content: locator.content, pending: pending))
     await changed(locator.content)
     let prompt = Soul.question(question, about: locator, excerpt: excerpt)
     let before = queues[mentor.id]
     queues[mentor.id] = Task {
       await before?.value
-      await self.answer(prompt, by: mentor, for: pending, on: locator.content)
+      await self.answer(prompt, by: mentor, for: pending, on: locator.content, id: id)
     }
   }
 
@@ -48,7 +50,9 @@ actor PassageQuestions {
     }
   }
 
-  private func answer(_ prompt: String, by mentor: Mentor, for pending: PendingAnswer, on content: ContentRef) async {
+  private func answer(
+    _ prompt: String, by mentor: Mentor, for pending: PendingAnswer, on content: ContentRef, id: EntityID
+  ) async {
     do throws(TurnFailure) {
       let session = try await session(of: mentor)
       let turn = try await TurnFailure.awaiting { () async throws(AgentError) in try await session.send(prompt) }
@@ -57,7 +61,7 @@ actor PassageQuestions {
         switch event {
         case .text(let more):
           text += more
-          update(pending) { $0.answer = text }
+          update(id) { $0.answer = text }
           await changed(content)
         case .permission(let request):
           await session.answer(request.id, with: .dismissed)
@@ -71,10 +75,10 @@ actor PassageQuestions {
         }
       }
       try save(text, for: pending, on: content)
-      asked.removeAll { $0.pending.note == pending.note && $0.pending.askedAt == pending.askedAt }
+      asked.removeAll { $0.id == id }
       await context.follower.follow([.notes(content), .answers(content)])
     } catch {
-      update(pending) { $0.failure = error.reason }
+      update(id) { $0.failure = error.reason }
       await changed(content)
     }
   }
@@ -118,9 +122,9 @@ actor PassageQuestions {
     return session
   }
 
-  private func update(_ pending: PendingAnswer, _ change: (inout Draft) -> Void) {
+  private func update(_ id: EntityID, _ change: (inout Draft) -> Void) {
     guard
-      let index = asked.firstIndex(where: { $0.pending.note == pending.note && $0.pending.askedAt == pending.askedAt })
+      let index = asked.firstIndex(where: { $0.id == id })
     else { return }
     let current = asked[index].pending
     var draft = Draft(answer: current.answer, failure: current.failure)

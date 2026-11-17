@@ -4,6 +4,8 @@ User-visible changes to the native app. The Tauri app's history is on `main`.
 
 ## Unreleased
 
+- 同一笔记同时提出多个问题时，各条待答记录分别更新，完成一个回答不会移除另一个问题。
+
 - 新增 Grok（ACP）驱动，支持流式回复、工具调用、权限询问、中断和会话恢复；其余 ACP 系 agent 只需提供启动参数。
 - 新建的导师会立刻开始工作：先写目录，再写第一课；目录里未写的课可以请导师写。
 - 和导师对话：回复流式出现，可以停止、回答权限询问；对话记录只追加，重开应用后都在。
