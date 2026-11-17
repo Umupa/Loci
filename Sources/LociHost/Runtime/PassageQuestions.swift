@@ -66,6 +66,7 @@ actor PassageQuestions {
         case .permission(let request):
           await session.answer(request.id, with: .dismissed)
         case .ended(.failed(let error)):
+          await session.close()
           sessions[mentor.id] = nil
           throw TurnFailure(reason: error.explanation)
         case .ended(.interrupted):

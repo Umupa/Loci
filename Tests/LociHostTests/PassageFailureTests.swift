@@ -65,12 +65,14 @@ struct PassageFailureTests {
       let locator = try locator(mentor.id)
       _ = try await ask(host, mentor.id, locator)
       try await started(host, locator.content)
-      await agent.sessions.last?.finish(.failed(.provider("quota")))
+      let session = try #require(await agent.sessions.last)
+      await session.finish(.failed(.provider("quota")))
 
       let failed = await value(host.subscribe(PendingAnswers(content: locator.content))) {
         $0.first?.failure == "quota"
       }
       #expect(failed?.first?.answer == "Waiting")
+      #expect(await session.closed)
       #expect(place.store.notes(on: locator.content).value.first?.exchanges.isEmpty == true)
     }
   }

@@ -4,6 +4,8 @@ User-visible changes to the native app. The Tauri app's history is on `main`.
 
 ## Unreleased
 
+- 段落提问失败时关闭对应的 agent 会话，避免后台进程遗留。
+
 - 评测的一手来源计分按仓库路径边界匹配，不再把相似仓库名算作一手来源。
 
 - 同一笔记同时提出多个问题时，各条待答记录分别更新，完成一个回答不会移除另一个问题。
