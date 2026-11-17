@@ -56,6 +56,11 @@ public struct OpenCodeDriver: AgentDriver {
           {
             throw .sessionNotFound
           }
+          if initialized["agentCapabilities"]?["sessionCapabilities"]?["list"] != nil,
+            await isMissing(resume, directory: configuration.workingDirectory, channel: channel)
+          {
+            throw .sessionNotFound
+          }
           throw error
         }
         handle = resume
@@ -77,5 +82,16 @@ public struct OpenCodeDriver: AgentDriver {
       await channel.shutDown(patience: .zero)
       throw error
     }
+  }
+
+  private func isMissing(_ handle: SessionHandle, directory: URL, channel: OpenCodeChannel) async -> Bool {
+    var params: [String: JSONValue] = ["cwd": .string(directory.path)]
+    while let page = try? await channel.request("session/list", .object(params)) {
+      guard let sessions = page["sessions"]?.array else { return false }
+      if sessions.contains(where: { $0["sessionId"]?.string == handle.value }) { return false }
+      guard let cursor = page["nextCursor"]?.string else { return true }
+      params["cursor"] = .string(cursor)
+    }
+    return false
   }
 }

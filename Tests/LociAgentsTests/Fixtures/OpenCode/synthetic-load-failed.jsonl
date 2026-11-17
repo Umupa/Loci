@@ -1,0 +1,9 @@
+{"launch":["acp"]}
+{"to":{"id":"loci-1","jsonrpc":"2.0","method":"initialize","params":{"clientCapabilities":{},"clientInfo":{"name":"Loci","version":"1.0"},"protocolVersion":1}}}
+{"from":{"id":"loci-1","jsonrpc":"2.0","result":{"agentCapabilities":{"loadSession":true,"mcpCapabilities":{"http":true,"sse":true},"promptCapabilities":{"embeddedContext":true,"image":true},"sessionCapabilities":{"close":{},"fork":{},"list":{},"resume":{}}},"agentInfo":{"name":"OpenCode","version":"1.19.6"},"authMethods":[{"description":"Run `opencode auth login` in the terminal","id":"opencode-login","name":"Login with opencode"}],"protocolVersion":1}}}
+{"to":{"id":"loci-2","jsonrpc":"2.0","method":"session/load","params":{"cwd":"$FOLDER","mcpServers":[],"sessionId":"ses_00000000000000000000000000"}}}
+{"from":{"error":{"code":-32603,"data":{"service":"session"},"message":"Internal error: OpenCode service failure"},"id":"loci-2","jsonrpc":"2.0"}}
+{"to":{"id":"loci-3","jsonrpc":"2.0","method":"session/list","params":{"cwd":"$FOLDER"}}}
+{"from":{"id":"loci-3","jsonrpc":"2.0","result":{"sessions":[{"sessionId":"ses_00000000000000000000000000"}]}}}
+{"close":true}
+{"exit":0,"stderr":""}
