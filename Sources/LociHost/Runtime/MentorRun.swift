@@ -164,11 +164,12 @@ actor MentorRun {
     let opened: any AgentSession
     do {
       opened = try await driver.open(configuration)
-    } catch .sessionNotFound where configuration.resume != nil {
+    } catch {
+      guard error == .sessionNotFound, configuration.resume != nil else {
+        throw TurnFailure(reason: error.explanation)
+      }
       configuration.resume = nil
       opened = try await TurnFailure.awaiting { () async throws(AgentError) in try await driver.open(configuration) }
-    } catch {
-      throw TurnFailure(reason: error.explanation)
     }
     try record(opened.handle, provider: mentor.provider)
     let now = try TurnFailure.from { () throws(HostError) in try attempt { try store.mentor(self.mentor) } }

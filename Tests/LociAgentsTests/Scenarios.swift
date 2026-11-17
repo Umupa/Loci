@@ -196,12 +196,16 @@ enum Scenario {
   }
 
   static func unknownModel(_ stage: Stage) async throws {
+    let failure: AgentError
     do {
       _ = try await stage.open(model: "nope/none")
       Issue.record("opening with an unknown model should fail")
-    } catch .exited(let code, let said) {
-      #expect(code == 1)
-      #expect(said.contains("nope/none"))
+      return
+    } catch {
+      failure = error
     }
+    guard case .exited(let code, let said) = failure else { throw failure }
+    #expect(code == 1)
+    #expect(said.contains("nope/none"))
   }
 }
