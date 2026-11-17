@@ -23,7 +23,7 @@
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
 | `LociRemote` | 配对、加密通道、中继 | `LociModel` |
 | `LociHost` | 命令层的实现：本机和远程 | 以上全部 |
-| `LociUI` | 界面与设计系统 | `LociModel` |
+| `LociUI` | 界面与设计系统 | `LociModel`；第三方：swift-markdown、Textual、HighlightSwift、SwiftMath |
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
 | `LociEval` | 评测，不随应用发布 | `LociModel` `LociHost` `LociAgents`（评分用的 agent 不属于任何导师） |
 
@@ -35,7 +35,18 @@
 2. **每条出口只有一个主人。** 磁盘归 `LociStore`，外部程序归 `LociAgents` 和 `LociMedia`，网络归 `LociMedia` 和 `LociRemote`。
 3. **核心不依赖界面。** 除了 `LociUI` 和 `Loci`，没有模块引用 SwiftUI 或 AppKit。关掉窗口，会话照样跑。
 
-第三方依赖也记在这张表里，模块只能引用它那一行列出的包；新增一个之前先问。GCD 只允许出现在 `Sources/LociStore/FileEvents.swift`：FSEvents 只能把回调交给一个队列，那个文件接到回调后立刻转成 `AsyncStream`。
+第三方依赖也记在这张表里，模块只能引用它那一行列出的包；新增一个之前先问。版本都钉死在 `Package.swift` 里：
+
+| 包 | 版本 | 模块 | 用在哪 |
+|---|---|---|---|
+| Yams | 6.2.2 | `LociStore` | `catalog.yaml`、`glossary.yaml`、课文开头的出处 |
+| GRDB | 7.11.1 | `LociStore` | SQLite 与全文索引 |
+| swift-markdown | 0.9.0 | `LociUI` | 课文阅读器把 Markdown 解析成 TextKit 2 的文字 |
+| Textual | 0.5.0 | `LociUI` | 对话里导师的回复、笔记面板里的回答（流式 Markdown） |
+| HighlightSwift（swift-highlight） | 0.1.1 | `LociUI` | 课文代码块的语法高亮，纯 Swift，不跑 JavaScript |
+| SwiftMath | 1.7.3 | `LociUI` | 课文里的公式排版 |
+
+Textual 自带 swiftui-math、swift-concurrency-extras 两个传递依赖。GCD 只允许出现在 `Sources/LociStore/FileEvents.swift`：FSEvents 只能把回调交给一个队列，那个文件接到回调后立刻转成 `AsyncStream`。
 
 这三条都由 `Tests/ArchitectureTests` 检查。那里的 `Architecture.swift` 是这张表的可执行版本，两处一起改。
 

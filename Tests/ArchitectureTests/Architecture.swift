@@ -36,7 +36,7 @@ enum Architecture {
       frameworks: [
         "Foundation", "Observation", "SwiftUI", "AppKit", "PDFKit", "AVKit", "UniformTypeIdentifiers", "os",
       ],
-      packages: ["Markdown"]),
+      packages: ["Markdown", "Textual", "HighlightSwift", "SwiftMath"]),
     "LociEval": Module(
       uses: ["LociModel", "LociHost", "LociAgents"], frameworks: ["Foundation"], isExecutable: true),
     "Loci": Module(

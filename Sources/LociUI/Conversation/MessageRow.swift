@@ -14,12 +14,7 @@ struct MessageRow: View {
     case .reply(let text):
       HStack(alignment: .top, spacing: Spacing.s) {
         Avatar(mentor: mentor, size: Size.avatarMedium)
-        Text(Self.markdown(text))
-          .font(Typography.reading)
-          .lineSpacing(Typography.readingLineSpacing / 2)
-          .foregroundStyle(Palette.ink)
-          .textSelection(.enabled)
-          .frame(maxWidth: .infinity, alignment: .leading)
+        RichText(markdown: text)
       }
     case .thinking(let text):
       ThinkingRow(text: text)
@@ -42,13 +37,6 @@ struct MessageRow: View {
       .font(Typography.body)
       .foregroundStyle(Palette.accentInk)
     }
-  }
-
-  /// Inline Markdown only: emphasis, code and links. Text that is not valid Markdown shows as written.
-  static func markdown(_ text: String) -> AttributedString {
-    (try? AttributedString(
-      markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-      ?? AttributedString(text)
   }
 }
 

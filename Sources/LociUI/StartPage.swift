@@ -54,8 +54,7 @@ struct PromptField: View {
     .padding(.trailing, Spacing.xs)
     .frame(height: Size.promptHeight)
     .frame(maxWidth: Size.promptMaximumWidth)
-    .background(Capsule().fill(Palette.surface))
-    .overlay(Capsule().strokeBorder(Palette.line, lineWidth: Size.hairline))
+    .glassEffect(.regular, in: .capsule)
   }
 }
 
@@ -72,11 +71,11 @@ private struct SendButton: View {
     Button(action: submit) {
       Image(systemName: input == .link ? Symbols.link : Symbols.send)
         .font(Typography.bodyEmphasis)
-        .foregroundStyle(ready ? Palette.onAccent : Palette.inkMuted)
-        .frame(width: Size.sendButton, height: Size.sendButton)
-        .background(Circle().fill(ready ? Palette.accent : Color.clear))
+        .frame(width: Size.sendButton / 2, height: Size.sendButton / 2)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.glassProminent)
+    .buttonBorderShape(.circle)
+    .tint(Palette.accent)
     .disabled(!ready)
     .help(input == .link ? Text(.loci("start.linkNotYet")) : Text(.loci("start.send")))
     .accessibilityLabel(Text(.loci("start.send")))

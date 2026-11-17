@@ -25,6 +25,14 @@ enum Palette {
   /// Behind a paragraph the mentor changed since the reader last saw it. Fainter than a selection.
   static let revised = Color(nsColor: Tones.revised)
 
+  /// Code, colored by what each word is. Code sits on `raised`.
+  enum Code {
+    static let keyword = Color(nsColor: Tones.codeKeyword)
+    static let string = Color(nsColor: Tones.codeString)
+    static let number = Color(nsColor: Tones.codeNumber)
+    static let name = Color(nsColor: Tones.codeName)
+  }
+
   /// The pairs of text and background the interface uses, for checking contrast.
   static let readablePairs: [(text: Color, background: Color, name: String)] = [
     (ink, canvas, "ink on canvas"), (ink, surface, "ink on surface"), (ink, raised, "ink on raised"),
@@ -32,6 +40,8 @@ enum Palette {
     (inkMuted, raised, "muted on raised"),
     (accentInk, canvas, "amber text on canvas"), (accentInk, raised, "amber text on raised"),
     (onAccent, accent, "text on amber"), (onSelection, selection, "selected text"), (ink, revised, "revised text"),
+    (Code.keyword, raised, "code keyword"), (Code.string, raised, "code string"),
+    (Code.number, raised, "code number"), (Code.name, raised, "code name"), (inkMuted, raised, "code comment"),
   ]
 }
 
@@ -49,6 +59,10 @@ enum Tones {
   static let selection = NSColor(dark: 0x3A2D17, light: 0xF3DDB0)
   static let onSelection = NSColor(dark: 0xF5D9A0, light: 0x1B1916)
   static let revised = NSColor(dark: 0x241C10, light: 0xFAEDD3)
+  static let codeKeyword = NSColor(dark: 0xE09A6A, light: 0x9C4524)
+  static let codeString = NSColor(dark: 0xA9C27C, light: 0x4F6A22)
+  static let codeNumber = NSColor(dark: 0xDDB86E, light: 0x7E5600)
+  static let codeName = NSColor(dark: 0x93B9CC, light: 0x2C5F78)
 }
 
 extension Color {

@@ -62,13 +62,12 @@ struct MentorView: View {
   @ViewBuilder private var content: some View {
     if let catalog = page.catalog, !catalog.chapters.isEmpty {
       CatalogTree(page: page, catalog: catalog, write: write, mentorBusy: turn != nil)
-        .safeAreaInset(edge: .top, spacing: 0) {
+        .safeAreaBar(edge: .top) {
           if let turn {
             ActivityLine(turn: turn)
               .padding(.horizontal, Spacing.l)
               .padding(.vertical, Spacing.xs)
               .frame(maxWidth: .infinity, alignment: .leading)
-              .background(Palette.canvas)
           }
         }
     } else if page.catalog == nil {

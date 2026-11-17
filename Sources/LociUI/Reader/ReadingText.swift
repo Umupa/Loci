@@ -1,4 +1,5 @@
 import AppKit
+import HighlightSwift
 import Markdown
 
 /// A lesson's or an item's Markdown, set for reading, with the headings it contains.
@@ -56,11 +57,17 @@ private struct MarkdownRenderer {
       headings.append(ReadingText.Heading(level: heading.level, title: title.string, offset: output.length))
       paragraph(title, in: setting, before: heading.level <= 2 ? ReadingStyle.paragraphSpacing * 1.6 : 6)
     case let paragraph as Paragraph:
+      if let latex = Formula.display(in: paragraph.plainText), formulaBlock(latex, in: setting) { return }
       self.paragraph(inline(paragraph.children, font: ReadingStyle.body), in: setting)
     case let code as CodeBlock:
-      codeBlock(code.code, in: setting)
+      if let language = code.language?.lowercased(), Formula.blockLanguages.contains(language),
+        formulaBlock(code.code, in: setting)
+      {
+        return
+      }
+      codeBlock(code.code, language: code.language, in: setting)
     case let html as HTMLBlock:
-      codeBlock(html.rawHTML, in: setting)
+      codeBlock(html.rawHTML, language: "html", in: setting)
     case let list as UnorderedList:
       for item in list.listItems { listItem(item, marker: "•", in: setting) }
       if !setting.listed { endList() }
@@ -132,7 +139,21 @@ private struct MarkdownRenderer {
     output.addAttribute(.paragraphStyle, value: widened, range: paragraph)
   }
 
-  private func codeBlock(_ code: String, in setting: Setting) {
+  /// A formula on a line of its own, centered. Returns `false` when it cannot be set, so it shows as code.
+  private func formulaBlock(_ latex: String, in setting: Setting) -> Bool {
+    guard let formula = Formula.attachment(latex, display: true, size: ReadingStyle.bodySize) else { return false }
+    let line = NSMutableAttributedString(attributedString: formula)
+    line.append(NSAttributedString(string: "\n", attributes: attributes(font: ReadingStyle.body)))
+    let paragraphStyle = style(in: setting)
+    paragraphStyle.alignment = .center
+    paragraphStyle.paragraphSpacingBefore = ReadingStyle.paragraphSpacing / 2
+    line.addAttribute(.paragraphStyle, value: paragraphStyle, range: line.fullRange)
+    output.append(line)
+    return true
+  }
+
+  private func codeBlock(_ code: String, language: String?, in setting: Setting) {
+    let start = output.length
     var lines = code.split(separator: "\n", omittingEmptySubsequences: false)
     if lines.last?.isEmpty == true { lines.removeLast() }
     for (index, line) in lines.enumerated() {
@@ -152,6 +173,11 @@ private struct MarkdownRenderer {
         NSAttributedString(
           string: line + "\n",
           attributes: attributes(font: ReadingStyle.code, style: paragraphStyle, decoration: decoration)))
+    }
+    for (range, color) in CodeColors.colors(of: code, language: language) {
+      let shifted = NSRange(location: start + range.location, length: range.length)
+      guard NSMaxRange(shifted) <= output.length else { continue }
+      output.addAttribute(.foregroundColor, value: color, range: shifted)
     }
   }
 
@@ -194,7 +220,16 @@ private struct MarkdownRenderer {
   private func inline(_ markup: any Markup, font: NSFont) -> NSAttributedString {
     switch markup {
     case let text as Markdown.Text:
-      return NSAttributedString(string: text.string, attributes: attributes(font: font))
+      let run = NSMutableAttributedString()
+      for piece in Formula.split(text.string) {
+        if piece.isFormula, let formula = Formula.attachment(piece.text, display: false, size: font.pointSize) {
+          run.append(formula)
+        } else {
+          let written = piece.isFormula ? "$\(piece.text)$" : piece.text
+          run.append(NSAttributedString(string: written, attributes: attributes(font: font)))
+        }
+      }
+      return run
     case is SoftBreak:
       return NSAttributedString(string: " ", attributes: attributes(font: font))
     case is LineBreak:

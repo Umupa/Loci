@@ -20,8 +20,15 @@ struct ReaderPanel<Extra: View>: View {
   @ViewBuilder let extra: () -> Extra
   @State private var mentors: Feed<[Mentor]>?
 
+  /// The pages scroll under a header of system glass, as an inspector's header does.
   var body: some View {
-    VStack(spacing: 0) {
+    Group {
+      switch tab {
+      case .contents: contents
+      case .notes: notesList
+      }
+    }
+    .safeAreaBar(edge: .top) {
       Picker(selection: $tab) {
         Text(.loci("panel.contents")).tag(PanelTab.contents)
         Text(.loci("panel.notes")).tag(PanelTab.notes)
@@ -31,12 +38,7 @@ struct ReaderPanel<Extra: View>: View {
       .pickerStyle(.segmented)
       .labelsHidden()
       .padding(Spacing.s)
-      switch tab {
-      case .contents: contents
-      case .notes: notesList
-      }
     }
-    .background(Palette.raised)
     .subscribing(AllMentors(), into: $mentors)
   }
 

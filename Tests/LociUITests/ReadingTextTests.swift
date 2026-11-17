@@ -101,4 +101,34 @@ struct ReadingTextTests {
   @Test func theSameMarkdownAlwaysGivesTheSameText() {
     #expect(ReadingText(markdown: Self.lesson).plain == ReadingText(markdown: Self.lesson).plain)
   }
+
+  @Test func codeWithALanguageIsColoredByWhatEachWordIs() {
+    let text = ReadingText(markdown: "```go\nfunc filter() string {\n  return \"ok\"\n}\n```")
+    let plain = text.plain as NSString
+    func color(of word: String) -> NSColor? {
+      text.string.attribute(.foregroundColor, at: plain.range(of: word).location, effectiveRange: nil) as? NSColor
+    }
+
+    #expect(color(of: "return") == Tones.codeKeyword)
+    #expect(color(of: "filter") == Tones.codeName)
+    #expect(color(of: "\"ok\"") == Tones.codeString)
+  }
+
+  @Test func codeWithoutALanguageStaysOneColor() {
+    let text = ReadingText(markdown: "```\nfunc filter() {}\n```")
+
+    #expect(text.string.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor == Tones.ink)
+  }
+
+  @Test func formulasAreSetInPlaceOfTheirSource() {
+    let block = ReadingText(markdown: "前文\n\n```math\n\\frac{a}{b}\n```\n\n$$x^2$$\n\n面积是 $\\pi r^2$。")
+
+    #expect(block.plain == "前文\n\u{FFFC}\n\u{FFFC}\n面积是 \u{FFFC}。")
+    #expect(block.string.attribute(.attachment, at: 3, effectiveRange: nil) is NSTextAttachment)
+  }
+
+  @Test func dollarsThatAreNotFormulasStayAsWritten() {
+    #expect(ReadingText(markdown: "从 $5 涨到 $6。").plain == "从 $5 涨到 $6。")
+    #expect(ReadingText(markdown: "```math\n\\frac{\n```").plain == "\\frac{")
+  }
 }

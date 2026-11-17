@@ -24,9 +24,4 @@ struct ConversationTests {
 
     #expect(!ConversationView.showsWorking(Self.turn([Self.prompt, .permission(ask)])))
   }
-
-  @Test func repliesKeepInlineMarkdownAndFallBackToTheTextAsWritten() {
-    #expect(String(MessageRow.markdown("先写**目录**").characters) == "先写目录")
-    #expect(String(MessageRow.markdown("[未闭合").characters) == "[未闭合")
-  }
 }

@@ -47,10 +47,12 @@ struct ConversationView: View {
         .frame(maxWidth: .infinity)
       }
       .defaultScrollAnchor(.bottom)
-      Composer(busy: conversation?.turn != nil, send: send, stop: stop)
-        .frame(maxWidth: Typography.readingWidth)
-        .padding(.horizontal, Spacing.xl)
-        .padding(.bottom, Spacing.l)
+      .safeAreaBar(edge: .bottom) {
+        Composer(busy: conversation?.turn != nil, send: send, stop: stop)
+          .frame(maxWidth: Typography.readingWidth)
+          .padding(.horizontal, Spacing.xl)
+          .padding(.vertical, Spacing.m)
+      }
     }
     .background(Palette.canvas)
   }
@@ -99,8 +101,7 @@ struct Composer: View {
     .padding(.leading, Spacing.m)
     .padding(.trailing, Spacing.xs)
     .padding(.vertical, Spacing.xxs)
-    .background(Capsule().fill(Palette.surface))
-    .overlay(Capsule().strokeBorder(Palette.line, lineWidth: Size.hairline))
+    .glassEffect(.regular, in: .capsule)
     .onAppear { focused = true }
   }
 
@@ -114,11 +115,11 @@ struct Composer: View {
     Button(action: action) {
       Image(systemName: symbol)
         .font(.system(size: 13, weight: .semibold))
-        .frame(width: Size.sendButton, height: Size.sendButton)
-        .foregroundStyle(Palette.onAccent)
-        .background(Circle().fill(Palette.accent))
+        .frame(width: Size.sendButton / 2, height: Size.sendButton / 2)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.glassProminent)
+    .buttonBorderShape(.circle)
+    .tint(Palette.accent)
     .accessibilityLabel(Text(label))
     .padding(.bottom, Spacing.xxs)
   }

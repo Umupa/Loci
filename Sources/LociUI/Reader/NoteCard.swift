@@ -142,7 +142,7 @@ struct AnswerView: View {
         } else if answer.isEmpty {
           ProgressView().controlSize(.small)
         } else {
-          Text(verbatim: answer).foregroundStyle(Palette.ink)
+          RichText(markdown: answer, font: Typography.body)
         }
       }
     }

@@ -110,12 +110,11 @@ struct NextLessonButton: View {
           Image(systemName: Symbols.nextLesson)
         }
       }
-      .padding(.horizontal, Spacing.m)
-      .frame(height: Size.promptHeight)
-      .foregroundStyle(Palette.onAccent)
-      .background(Capsule().fill(Palette.accent))
+      .padding(.horizontal, Spacing.xs)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.glassProminent)
+    .controlSize(.extraLarge)
+    .tint(Palette.accent)
     .disabled(asked && !next.written)
   }
 
