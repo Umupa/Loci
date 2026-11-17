@@ -10,15 +10,18 @@ final class ScriptedLauncher: ProgramLauncher {
   private struct State {
     var steps: [Step]
     var problems: [String] = []
+    var terminations = 0
     var output: AsyncStream<Data>.Continuation?
     var diagnostics: AsyncStream<Data>.Continuation?
     var exits: AsyncStream<Int32>.Continuation?
   }
 
+  private let exitOnTermination: Bool
   private let folder: URL
   private let state: Mutex<State>
 
-  init(_ fixture: String, folder: URL) throws {
+  init(_ fixture: String, folder: URL, exitOnTermination: Bool = true) throws {
+    self.exitOnTermination = exitOnTermination
     self.folder = folder
     self.state = Mutex(State(steps: try Recording.load(fixture)))
   }
@@ -45,9 +48,16 @@ final class ScriptedLauncher: ProgramLauncher {
         }
       },
       closeInput: { self.state.withLock { self.expect(.close, in: &$0) } },
-      terminate: { self.state.withLock { self.end(15, "", in: &$0) } },
+      terminate: {
+        self.state.withLock {
+          $0.terminations += 1
+          if self.exitOnTermination { self.end(15, "", in: &$0) }
+        }
+      },
       exit: { await status.value })
   }
+
+  var terminations: Int { state.withLock { $0.terminations } }
 
   /// What the driver wrote, with the folder named the way recordings name it.
   private func portable(_ data: Data) -> Data {

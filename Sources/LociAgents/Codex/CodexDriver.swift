@@ -57,7 +57,7 @@ public struct CodexDriver: AgentDriver {
         throw error
       }
       guard let id = result["thread"]?["id"]?.string else { throw .rejected(method) }
-      return CodexSession(handle: .init(provider: .codex, value: id), channel: channel)
+      return CodexSession(handle: .init(provider: .codex, value: id), channel: channel, clock: clock)
     } catch {
       await channel.shutDown(patience: .zero)
       throw error

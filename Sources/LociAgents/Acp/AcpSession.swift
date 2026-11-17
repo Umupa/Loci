@@ -5,6 +5,7 @@ actor AcpSession: AgentSession {
   nonisolated let handle: SessionHandle
 
   private let channel: AcpChannel
+  private let clock: any Clock<Duration>
   private let session: String
   private let window: Int?
   private let replyFailure: (@Sendable (String) -> String?)?
@@ -12,15 +13,17 @@ actor AcpSession: AgentSession {
   private var running: (state: AcpTurnState, pipe: TurnPipe)?
   /// The caller asked the running turn, or the whole session, to stop.
   private var stopping = false
+  private var closed = false
   private var whenIdle: [CheckedContinuation<Void, Never>] = []
 
   init(
-    handle: SessionHandle, channel: AcpChannel, window: Int?, permission: Mentor.Permission,
+    handle: SessionHandle, channel: AcpChannel, window: Int?, permission: Mentor.Permission, clock: any Clock<Duration>,
     replyFailure: (@Sendable (String) -> String?)? = nil
   ) {
     self.handle = handle
     self.session = handle.value
     self.channel = channel
+    self.clock = clock
     self.window = window
     self.replyFailure = replyFailure
     self.permission = permission
@@ -28,6 +31,7 @@ actor AcpSession: AgentSession {
   }
 
   func send(_ text: String) async throws(AgentError) -> Turn {
+    guard !closed else { throw .rejected("Session closed") }
     guard running == nil else { throw .turnInProgress }
     if let ended = await channel.ended { throw ended }
     let pipe = TurnPipe()
@@ -48,10 +52,24 @@ actor AcpSession: AgentSession {
 
   func interrupt() async {
     guard running != nil else { return }
+    let deadline = Task { [clock] in
+      do { try await clock.sleep(for: .seconds(30)) } catch { return }
+      guard !Task.isCancelled else { return }
+      forceInterrupt()
+    }
+    defer { deadline.cancel() }
+    if stopping {
+      await idle()
+      return
+    }
     stopping = true
-    await withdraw()
-    await channel.notify("session/cancel", .object(["sessionId": .string(session)]))
+    let request = Task {
+      await withdraw()
+      guard !Task.isCancelled else { return }
+      await channel.notify("session/cancel", .object(["sessionId": .string(session)]))
+    }
     await idle()
+    request.cancel()
   }
 
   func answer(_ request: PermissionRequest.ID, with answer: PermissionAnswer) async {
@@ -128,6 +146,13 @@ actor AcpSession: AgentSession {
       running?.pipe.yield(event)
       await channel.respond(to: id, with: result)
     }
+  }
+
+  private func forceInterrupt() {
+    guard running != nil else { return }
+    closed = true
+    channel.terminate()
+    finish(.interrupted)
   }
 
   private func finish(_ end: TurnEnd) {

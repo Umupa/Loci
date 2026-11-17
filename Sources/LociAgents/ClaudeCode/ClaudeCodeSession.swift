@@ -33,19 +33,26 @@ actor ClaudeCodeSession: AgentSession {
 
   func interrupt() async {
     guard running != nil else { return }
+    let deadline = Task { [clock] in
+      do { try await clock.sleep(for: .seconds(30)) } catch { return }
+      guard !Task.isCancelled else { return }
+      forceInterrupt()
+    }
+    defer { deadline.cancel() }
     if stopping {
       await idle()
       return
     }
     stopping = true
-    await withdraw()
-    let deadline = Task { [clock, channel] in
-      do { try await clock.sleep(for: .seconds(30)) } catch { return }
-      channel.terminate()
+    let request = Task {
+      await withdraw()
+      guard !Task.isCancelled else { return }
+      do { _ = try await channel.request(.control("interrupt"), within: .seconds(15)) } catch {
+        if !Task.isCancelled { forceInterrupt() }
+      }
     }
-    do { _ = try await channel.request(.control("interrupt"), within: .seconds(15)) } catch { channel.terminate() }
     await idle()
-    deadline.cancel()
+    request.cancel()
   }
 
   func answer(_ request: PermissionRequest.ID, with answer: PermissionAnswer) async {
@@ -96,6 +103,13 @@ actor ClaudeCodeSession: AgentSession {
       try? await channel.send(reply)
       running?.pipe.yield(event)
     }
+  }
+
+  private func forceInterrupt() {
+    guard running != nil else { return }
+    closed = true
+    channel.terminate()
+    finish(.interrupted)
   }
 
   private func finish(_ end: TurnEnd) {

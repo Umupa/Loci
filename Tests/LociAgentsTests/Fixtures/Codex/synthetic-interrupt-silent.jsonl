@@ -1,0 +1,11 @@
+{"launch":["app-server"]}
+{"to":{"id":"loci-1","method":"initialize","params":{"clientInfo":{"name":"loci","version":"0.1.0"},"capabilities":{"experimentalApi":false}}}}
+{"from":{"id":"loci-1","result":{}}}
+{"to":{"method":"initialized"}}
+{"to":{"id":"loci-2","method":"thread/start","params":{"cwd":"$FOLDER","approvalPolicy":"never","approvalsReviewer":"user","sandbox":"danger-full-access"}}}
+{"from":{"id":"loci-2","result":{"thread":{"id":"session-1"}}}}
+{"to":{"id":"loci-3","method":"turn/start","params":{"threadId":"session-1","input":[{"type":"text","text":"Go on"}]}}}
+{"from":{"id":"loci-3","result":{"turn":{"id":"turn-1"}}}}
+{"to":{"id":"loci-4","method":"turn/interrupt","params":{"threadId":"session-1","turnId":"turn-1"}}}
+{"close":true}
+{"exit":0}

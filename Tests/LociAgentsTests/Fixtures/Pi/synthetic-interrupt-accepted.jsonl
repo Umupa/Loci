@@ -1,0 +1,9 @@
+{"launch":["--mode","rpc"]}
+{"to":{"id":"loci-1","type":"get_state"}}
+{"from":{"type":"response","id":"loci-1","command":"get_state","success":true,"data":{"sessionId":"session-1"}}}
+{"to":{"id":"loci-2","type":"prompt","message":"Go on"}}
+{"from":{"type":"response","id":"loci-2","command":"prompt","success":true,"data":{"disposition":"started"}}}
+{"to":{"id":"loci-3","type":"abort"}}
+{"from":{"type":"response","id":"loci-3","command":"abort","success":true}}
+{"close":true}
+{"exit":0}

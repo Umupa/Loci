@@ -53,7 +53,7 @@ public struct PiDriver: AgentDriver {
       guard let id = state["sessionId"]?.string else { throw AgentError.rejected("get_state") }
       return PiSession(
         handle: SessionHandle(provider: provider, value: id), channel: channel,
-        window: state["model"]?["contextWindow"]?.int)
+        window: state["model"]?["contextWindow"]?.int, clock: clock)
     } catch {
       await channel.shutDown(patience: .zero)
       if configuration.resume != nil, case .exited(_, let said) = error, variant.sessionIsMissing(said) {

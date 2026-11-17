@@ -129,7 +129,7 @@ public struct AcpDriver: AgentDriver {
       return AcpSession(
         handle: SessionHandle(provider: provider, value: id), channel: channel,
         window: Self.window(in: setup, model: setModel ? configuration.model : nil),
-        permission: configuration.permission, replyFailure: replyFailure)
+        permission: configuration.permission, clock: clock, replyFailure: replyFailure)
     } catch {
       await channel.shutDown(patience: .zero)
       throw error

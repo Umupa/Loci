@@ -1,0 +1,9 @@
+{"launch":[]}
+{"to":{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":false,"writeTextFile":false},"terminal":false},"clientInfo":{"name":"loci","version":"1"}}}}
+{"from":{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1}}}
+{"to":{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"$FOLDER","mcpServers":[]}}}
+{"from":{"jsonrpc":"2.0","id":2,"result":{"sessionId":"session-1"}}}
+{"to":{"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"session-1","prompt":[{"type":"text","text":"Go on"}]}}}
+{"to":{"jsonrpc":"2.0","method":"session/cancel","params":{"sessionId":"session-1"}}}
+{"close":true}
+{"exit":0}
