@@ -55,12 +55,16 @@ public struct AcpDriver: AgentDriver {
         workingDirectory: configuration.workingDirectory, environment: environment))
     let channel = AcpChannel(program: program, clock: clock)
     do throws(AgentError) {
-      _ = try await channel.request("initialize", Self.initialize, within: .seconds(30))
+      _ = try await channel.request("initialize", Self.initialize(for: provider), within: .seconds(30))
+      if provider == .cursor {
+        _ = try await channel.request(
+          "authenticate", .object(["methodId": .string("cursor_login")]), within: .seconds(30))
+      }
       let folder = JSONValue.string(configuration.workingDirectory.path(percentEncoded: false))
       var params: [String: JSONValue] = ["cwd": folder, "mcpServers": .array([])]
       let method: String
       if let resume = configuration.resume {
-        method = "session/resume"
+        method = provider == .cursor ? "session/load" : "session/resume"
         params["sessionId"] = .string(resume.value)
       } else {
         method = "session/new"
@@ -69,21 +73,43 @@ public struct AcpDriver: AgentDriver {
       guard let id = setup["sessionId"]?.string ?? configuration.resume?.value else {
         throw AgentError.rejected(method)
       }
+      if provider == .cursor, let model = configuration.model {
+        let option = setup["configOptions"]?.array?.first {
+          $0["category"]?.string == "model" || $0["id"]?.string == "model"
+        }
+        if let config = option?["id"]?.string {
+          _ = try await channel.request(
+            "session/set_config_option",
+            .object(["sessionId": .string(id), "configId": .string(config), "value": .string(model)]),
+            within: .seconds(30))
+        } else {
+          _ = try await channel.request(
+            "session/set_model", .object(["sessionId": .string(id), "modelId": .string(model)]),
+            within: .seconds(30))
+        }
+      }
+      await channel.acceptUpdates()
       return AcpSession(
-        handle: SessionHandle(provider: provider, value: id), channel: channel, window: Self.window(in: setup))
+        handle: SessionHandle(provider: provider, value: id), channel: channel, window: Self.window(in: setup),
+        permission: configuration.permission)
     } catch {
       await channel.shutDown(patience: .zero)
       throw error
     }
   }
 
-  private static let initialize = JSONValue.object([
-    "protocolVersion": .number(1),
-    "clientCapabilities": .object([
+  private static func initialize(for provider: Mentor.Provider) -> JSONValue {
+    var capabilities: [String: JSONValue] = [
       "fs": .object(["readTextFile": .bool(false), "writeTextFile": .bool(false)]), "terminal": .bool(false),
-    ]),
-    "clientInfo": .object(["name": .string("loci"), "version": .string("1")]),
-  ])
+    ]
+    if provider == .cursor {
+      capabilities["_meta"] = .object(["parameterizedModelPicker": .bool(true)])
+    }
+    return .object([
+      "protocolVersion": .number(1), "clientCapabilities": .object(capabilities),
+      "clientInfo": .object(["name": .string("loci"), "version": .string("1")]),
+    ])
+  }
 
   /// The context window of the session's model, when the agent lists its models.
   private static func window(in setup: JSONValue) -> Int? {

@@ -118,6 +118,7 @@ struct AcpTurnState: Sendable {
   /// content blocks.
   private static func output(_ update: JSONValue) -> String {
     if let printed = update["rawOutput"]?["output_for_prompt"]?.string { return printed }
+    if let printed = update["rawOutput"]?.string { return printed }
     return (update["content"]?.array ?? []).compactMap { $0["content"]?["text"]?.string }.joined()
   }
 
