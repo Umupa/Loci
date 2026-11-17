@@ -37,3 +37,28 @@ jobs:
             output/check.log
             output/snapshots
           if-no-files-found: ignore
+
+  package:
+    name: Dmg
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Use the newest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+
+      # No secrets on a pull request: this runs the ad-hoc branch of script/release, which has to keep
+      # producing a dmg. The signed and notarized one is built by the release workflow from a tag.
+      - name: Build the dmg
+        run: script/release
+
+      - name: Keep the dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: |
+            output/*.dmg
+            output/*.sha256
+          retention-days: 7
+          if-no-files-found: error
