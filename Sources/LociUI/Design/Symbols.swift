@@ -14,6 +14,11 @@ enum Symbols {
   static let lessonRead = "checkmark.circle.fill"
   static let lessonRevised = "circle.badge.exclamationmark"
   static let nextLesson = "arrow.right"
+  static let highlight = "highlighter"
+  static let thought = "text.bubble"
+  static let ask = "questionmark.bubble"
+  static let panel = "sidebar.right"
+  static let lostNote = "link.badge.plus"
 
   static func kind(_ kind: ItemKind) -> String {
     switch kind {

@@ -59,6 +59,10 @@ final class FakeHost: LociModel.Host, CommandHandler {
   func saveReadingPosition(_ command: SaveReadingPosition) async throws(HostError) -> Done { Done() }
   func markRead(_ content: ContentRef) async throws(HostError) -> Done { Done() }
   func seeLesson(_ lesson: LessonRef) async throws(HostError) -> String? { nil }
+  func notes(on content: ContentRef) async throws(HostError) -> [Note] { sample.notes }
+  func addNote(_ command: AddNote) async throws(HostError) -> Note { sample.notes[0] }
+  func setNoteThought(_ command: SetNoteThought) async throws(HostError) -> Note { sample.notes[0] }
+  func deleteNote(_ command: DeleteNote) async throws(HostError) -> Done { Done() }
 
   func lessonPage(_ lesson: LessonRef) async throws(HostError) -> LessonPage {
     LessonPage(

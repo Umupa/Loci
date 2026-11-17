@@ -48,7 +48,23 @@ struct LessonView: View {
     ContentReader(
       content: .lesson(page.lesson), markdown: page.text, glossary: page.glossary, previous: previous,
       reachedEnd: { ended = true }
-    )
+    ) {
+      if !sources.isEmpty {
+        Section {
+          ForEach(sources, id: \.id) { item in
+            NavigationLink(value: Page.item(item.id)) {
+              Label {
+                Text(verbatim: item.title)
+              } icon: {
+                Image(systemName: Symbols.kind(ItemKind(item.kind)))
+              }
+            }
+          }
+        } header: {
+          Text(.loci("lesson.sources"))
+        }
+      }
+    }
     .overlay(alignment: .bottom) {
       if ended, let next = page.next {
         NextLessonButton(mentor: page.lesson.mentor, next: next)
@@ -70,27 +86,6 @@ struct LessonView: View {
           .foregroundStyle(Palette.accentInk)
         }
       }
-    }
-    .inspector(isPresented: .constant(!sources.isEmpty)) {
-      List {
-        Section {
-          ForEach(sources, id: \.id) { item in
-            NavigationLink(value: Page.item(item.id)) {
-              Label {
-                Text(verbatim: item.title)
-              } icon: {
-                Image(systemName: Symbols.kind(ItemKind(item.kind)))
-              }
-            }
-          }
-        } header: {
-          Text(.loci("lesson.sources"))
-        }
-      }
-      .scrollContentBackground(.hidden)
-      .background(Palette.raised)
-      .tint(Palette.accent)
-      .inspectorColumnWidth(Size.panelWidth)
     }
   }
 }

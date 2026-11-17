@@ -143,3 +143,18 @@ extension Note.Exchange: Codable {
     try container.encode(askedAt, forKey: .askedAt)
   }
 }
+
+/// A note on the wire has the same shape as the line that saved it.
+extension Note: Codable {
+  public init(from decoder: any Decoder) throws {
+    guard case .saved(let note) = try NoteEntry(from: decoder) else {
+      throw DecodingError.dataCorrupted(
+        .init(codingPath: decoder.codingPath, debugDescription: "a deletion, not a note"))
+    }
+    self = note
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    try NoteEntry.saved(self).encode(to: encoder)
+  }
+}

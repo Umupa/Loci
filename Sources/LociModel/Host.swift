@@ -77,6 +77,10 @@ public protocol CommandHandler: Sendable {
   func markRead(_ content: ContentRef) async throws(HostError) -> Done
   func lessonPage(_ lesson: LessonRef) async throws(HostError) -> LessonPage
   func seeLesson(_ lesson: LessonRef) async throws(HostError) -> String?
+  func notes(on content: ContentRef) async throws(HostError) -> [Note]
+  func addNote(_ command: AddNote) async throws(HostError) -> Note
+  func setNoteThought(_ command: SetNoteThought) async throws(HostError) -> Note
+  func deleteNote(_ command: DeleteNote) async throws(HostError) -> Done
   func health() async -> Health
   func sendMessage(_ command: SendMessage) async throws(HostError) -> Done
   func stopTurn(_ command: StopTurn) async throws(HostError) -> Done

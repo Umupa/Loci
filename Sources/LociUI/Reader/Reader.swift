@@ -10,6 +10,8 @@ struct Reader: NSViewRepresentable {
   /// Where to open the first time this text is shown.
   let start: TextQuote?
   var marks: [ReaderMark] = []
+  /// A passage to bring into view and flash; a new serial brings it again.
+  var reveal: Reveal?
   let events: ReaderEvents
 
   func makeCoordinator() -> ReaderCoordinator {
@@ -24,7 +26,14 @@ struct Reader: NSViewRepresentable {
     context.coordinator.events = events
     context.coordinator.show(text, from: start)
     context.coordinator.mark(marks)
+    if let reveal { context.coordinator.reveal(reveal) }
   }
+}
+
+/// A request to show a passage of the reading text, in UTF-16 units.
+struct Reveal: Equatable {
+  let range: NSRange
+  let serial: Int
 }
 
 /// What the reader tells the page around it.
@@ -36,6 +45,9 @@ struct ReaderEvents {
   var openLink: (URL) -> Void = { _ in }
   /// Opens the lesson that teaches a glossary term.
   var openTerm: (Glossary.Term) -> Void = { _ in }
+  /// What a selected passage offers; `nil` offers nothing.
+  var passage: PassageActions?
+  var noteClicked: (EntityID) -> Void = { _ in }
 }
 
 @MainActor
@@ -49,6 +61,9 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private var endReported = false
   private var marks: [ReaderMark] = []
   private let termCard = TermPopover()
+  private let passageBar = PassagePopover()
+  private var revealed: Int?
+  private var flashing: Task<Void, Never>?
   /// How long the reader stays still before its place is remembered.
   private let settle: Duration
   private static let quoteLength = 40
@@ -75,6 +90,8 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     textView.resized = { [weak self] in self?.applyPendingStart() }
     clip.scrolled = { [weak self] in self?.scrolled() }
     textView.hovered = { [weak self] in self?.hovered(at: $0) }
+    textView.selectionEnded = { [weak self] in self?.selectionEnded() }
+    textView.markClicked = { [weak self] in self?.events.noteClicked($0) }
     return scrollView
   }
 
@@ -93,6 +110,34 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     guard marks != self.marks else { return }
     self.marks = marks
     textView?.show(marks)
+  }
+
+  /// Scrolls the passage a third of the way down the window and flashes it.
+  func reveal(_ request: Reveal) {
+    guard request.serial != revealed, let textView, let scrollView, shown != nil, textView.frame.width > 0,
+      let top = textView.top(of: request.range.location)
+    else { return }
+    revealed = request.serial
+    textView.layOutViewport()
+    let y = max(0, top - scrollView.contentSize.height / 3)
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: y))
+    scrollView.reflectScrolledClipView(scrollView.contentView)
+    textView.layOutViewport()
+    textView.placeMarginMarks(marks)
+    textView.flash(request.range)
+    flashing?.cancel()
+    flashing = Task { [weak self] in
+      try? await Task.sleep(for: .milliseconds(900))
+      guard !Task.isCancelled, let self else { return }
+      self.textView?.show(self.marks)
+    }
+  }
+
+  private func selectionEnded() {
+    guard let textView, let actions = events.passage else { return }
+    let range = textView.selectedRange()
+    guard range.length > 0, let rect = textView.rects(of: range).last else { return }
+    passageBar.show(actions, for: range, at: rect, in: textView)
   }
 
   /// Over a glossary term, its definition appears beside it; moving off the term puts it away.
@@ -123,7 +168,10 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   /// Scrolls to where the reader should open, once the column has a width to lay the text out in.
   private func applyPendingStart() {
     guard let textView, let scrollView, textView.frame.width > 0 else { return }
-    defer { checkEnd() }
+    defer {
+      checkEnd()
+      textView.placeMarginMarks(marks)
+    }
     guard let start = pendingStart else { return }
     pendingStart = nil
     let plain = textView.string
@@ -138,6 +186,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
 
   private func scrolled() {
     checkEnd()
+    textView?.placeMarginMarks(marks)
     reporting?.cancel()
     reporting = Task { [weak self, settle] in
       try? await Task.sleep(for: settle)

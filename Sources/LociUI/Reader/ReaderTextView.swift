@@ -1,4 +1,5 @@
 import AppKit
+import LociModel
 
 /// The reader's text: TextKit 2, read-only and selectable, set in one column centered in the window.
 final class ReaderTextView: NSTextView {
@@ -9,7 +10,14 @@ final class ReaderTextView: NSTextView {
   var resized: () -> Void = {}
   /// Runs as the pointer moves over the text, with where it is; `nil` when it leaves.
   var hovered: (CGPoint?) -> Void = { _ in }
+  /// Runs when a mouse selection is finished.
+  var selectionEnded: () -> Void = {}
+  /// Runs when the margin mark of a note is clicked.
+  var markClicked: (EntityID) -> Void = { _ in }
   private var tracking: NSTrackingArea?
+  private var marginMarks: [EntityID: MarginMark] = [:]
+  private let underlines = Underlines()
+  private static let marginMarkSize: CGFloat = 6
 
   convenience init() {
     let layoutManager = NSTextLayoutManager()
@@ -33,6 +41,8 @@ final class ReaderTextView: NSTextView {
     selectedTextAttributes = [.backgroundColor: Tones.selection, .foregroundColor: Tones.onSelection]
     linkTextAttributes = [.foregroundColor: Tones.accentInk, .cursor: NSCursor.pointingHand]
     textContainerInset = ReadingStyle.inset
+    underlines.autoresizingMask = [.width, .height]
+    addSubview(underlines)
   }
 
   var contentStorage: NSTextContentStorage? {
@@ -46,6 +56,12 @@ final class ReaderTextView: NSTextView {
       rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self)
     addTrackingArea(area)
     tracking = area
+  }
+
+  /// The text view follows the drag itself, so the selection is final when `mouseDown` returns.
+  override func mouseDown(with event: NSEvent) {
+    super.mouseDown(with: event)
+    selectionEnded()
   }
 
   override func mouseMoved(with event: NSEvent) {
@@ -68,12 +84,50 @@ final class ReaderTextView: NSTextView {
       switch mark.kind {
       case .revised:
         layoutManager.addRenderingAttribute(.backgroundColor, value: Tones.revised, for: range)
-      case .term:
-        layoutManager.addRenderingAttribute(
-          .underlineStyle, value: NSUnderlineStyle([.single, .patternDot]).rawValue, for: range)
-        layoutManager.addRenderingAttribute(.underlineColor, value: Tones.inkMuted, for: range)
+      case .term, .note:
+        continue
       }
     }
+    placeMarginMarks(marks)
+  }
+
+  /// Puts a small mark in the left margin beside each note that has a thought or questions. Called again
+  /// whenever the text may have moved.
+  func placeMarginMarks(_ marks: [ReaderMark]) {
+    underlines.frame = bounds
+    underlines.lines = marks.flatMap { mark -> [Underlines.Line] in
+      let style: Underlines.Style
+      switch mark.kind {
+      case .term: style = .dotted
+      case .note: style = .highlight
+      case .revised: return []
+      }
+      return rects(of: mark.range).map { Underlines.Line(rect: $0, style: style) }
+    }
+    var placed: [EntityID: MarginMark] = [:]
+    for mark in marks {
+      guard case .note(let note, marginMark: true) = mark.kind, let line = rects(of: mark.range).first else {
+        continue
+      }
+      let size = Self.marginMarkSize
+      let frame = CGRect(
+        x: textContainerOrigin.x - Spacing.m - size, y: line.midY - size / 2, width: size, height: size)
+      let view = marginMarks[note] ?? MarginMark(frame: frame)
+      if view.superview == nil {
+        view.clicked = { [weak self] in self?.markClicked(note) }
+        addSubview(view)
+      }
+      view.frame = frame
+      placed[note] = view
+    }
+    for (note, view) in marginMarks where placed[note] == nil { view.removeFromSuperview() }
+    marginMarks = placed
+  }
+
+  /// Washes `range` in amber, so the eye finds a passage just jumped to. Showing the marks again ends it.
+  func flash(_ range: NSRange) {
+    guard let layoutManager = textLayoutManager, let textRange = textRange(range) else { return }
+    layoutManager.addRenderingAttribute(.backgroundColor, value: Tones.selection, for: textRange)
   }
 
   /// Keeps the column at its reading width, centered, with a margin when the window is narrow.
@@ -129,6 +183,69 @@ final class ReaderTextView: NSTextView {
       let end = storage.location(start, offsetBy: range.length)
     else { return nil }
     return NSTextRange(location: start, end: end)
+  }
+}
+
+/// Lines under highlighted passages and glossary terms, drawn over the text. TextKit 2 draws background
+/// colors given as rendering attributes but not underlines, so these are drawn here. Clicks pass through.
+final class Underlines: NSView {
+  enum Style {
+    /// A note's highlight: a thick amber line.
+    case highlight
+    /// A glossary term: a dotted muted line.
+    case dotted
+  }
+
+  struct Line: Equatable {
+    let rect: CGRect
+    let style: Style
+  }
+
+  var lines: [Line] = [] {
+    didSet { if lines != oldValue { needsDisplay = true } }
+  }
+
+  override var isFlipped: Bool { true }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    nil
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    for line in lines where line.rect.intersects(dirtyRect.insetBy(dx: 0, dy: -4)) {
+      let y = line.rect.maxY + 2
+      let path = NSBezierPath()
+      path.move(to: CGPoint(x: line.rect.minX, y: y))
+      path.line(to: CGPoint(x: line.rect.maxX, y: y))
+      switch line.style {
+      case .highlight:
+        Tones.accent.setStroke()
+        path.lineWidth = 2
+      case .dotted:
+        Tones.inkMuted.setStroke()
+        path.lineWidth = 1
+        path.setLineDash([1.5, 2.5], count: 2, phase: 0)
+      }
+      path.stroke()
+    }
+  }
+}
+
+/// The amber dot beside a note in the margin.
+final class MarginMark: NSView {
+  var clicked: () -> Void = {}
+
+  override func draw(_ dirtyRect: NSRect) {
+    Tones.accent.setFill()
+    NSBezierPath(ovalIn: bounds).fill()
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    clicked()
+  }
+
+  override func resetCursorRects() {
+    addCursorRect(bounds, cursor: .pointingHand)
   }
 }
 

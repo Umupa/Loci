@@ -13,6 +13,7 @@ struct Sample: Sendable {
   let citedBy: [CitingLesson]
   let filterLesson: LessonRef
   let glossary: Glossary
+  let notes: [Note]
   let next: LessonPage.Upcoming
   var health: Health
   let text = """
@@ -79,6 +80,22 @@ struct Sample: Sendable {
           try Lesson(slug: try Self.slug("kube-scheduler"), title: "kube-scheduler 的插件框架"),
         ]),
     ])
+    notes = [
+      try Note(
+        id: id(10), locator: .lesson(filterLesson, try TextQuote("先做可行性检查")), excerpt: "先做可行性检查",
+        savedAt: Timestamp(millisecondsSince1970: 1_763_337_700_000)),
+      try Note(
+        id: id(11), locator: .lesson(filterLesson, try TextQuote("约束是硬的，偏好是软的。")), excerpt: "约束是硬的，偏好是软的。",
+        thought: "和数据库查询里先 WHERE 再 ORDER BY 是一回事。",
+        exchanges: [
+          try Note.Exchange(
+            question: "如果没有机器通过过滤呢？", answer: "任务进入等待队列；Borg 会考虑抢占优先级更低的任务来腾出位置。", mentor: scheduling.id,
+            askedAt: Timestamp(millisecondsSince1970: 1_763_337_800_000))
+        ], savedAt: Timestamp(millisecondsSince1970: 1_763_337_800_000)),
+      try Note(
+        id: id(12), locator: .lesson(filterLesson, try TextQuote("已经删掉的一句话")), excerpt: "已经删掉的一句话",
+        savedAt: Timestamp(millisecondsSince1970: 1_763_337_900_000)),
+    ]
     next = LessonPage.Upcoming(lesson: catalog.chapters[1].lessons[0], written: false)
     glossary = try Glossary(terms: [
       .init(term: "可行性检查", definition: "排除不满足硬约束的机器，只回答能不能放。", lesson: try Self.slug("why-a-scheduler")),

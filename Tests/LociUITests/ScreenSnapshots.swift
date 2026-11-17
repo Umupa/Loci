@@ -10,10 +10,11 @@ import Testing
 @Suite(.serialized)
 struct ScreenSnapshots {
   static func shoot(
-    _ name: String, _ view: some View, appearance: Snapshot.Appearance, english: Bool = false
+    _ name: String, _ view: some View, appearance: Snapshot.Appearance, english: Bool = false,
+    size: CGSize = Snapshot.windowSize
   ) async throws {
     let file = try await Snapshot.render(
-      view, named: name, appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"))
+      view, named: name, size: size, appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"))
     #expect(try Data(contentsOf: file).count > 10_000)
   }
 
@@ -65,6 +66,22 @@ struct ScreenSnapshots {
     let sample = try Sample(problems: false)
     let window = WindowState(place: .mentor(sample.scheduling.id), pages: [.lesson(sample.filterLesson)])
     try await Self.shoot("lesson", Self.root(sample, at: window), appearance: appearance)
+  }
+
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func notesPanel(appearance: Snapshot.Appearance) async throws {
+    let sample = try Sample(problems: false)
+    let text = ReadingText(markdown: sample.lessonText)
+    let panel = ReaderPanel(
+      content: .lesson(sample.filterLesson), headings: text.headings, notes: PlacedNote.place(sample.notes, in: text),
+      pending: [
+        PendingAnswer(
+          note: sample.notes[0].id, mentor: sample.scheduling.id, question: "可行性检查会看哪些约束？",
+          askedAt: Timestamp(millisecondsSince1970: 1_763_338_000_000), answer: "资源、端口、亲和性", failure: nil)
+      ], tab: .constant(.notes), focusedNote: nil, reveal: { _ in }, extra: { EmptyView() }
+    )
+    .lociHost(FakeHost(sample))
+    try await Self.shoot("notes-panel", panel, appearance: appearance, size: CGSize(width: 320, height: 640))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)

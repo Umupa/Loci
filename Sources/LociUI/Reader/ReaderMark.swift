@@ -7,6 +7,8 @@ struct ReaderMark: Equatable {
   enum Kind: Equatable {
     case term(Glossary.Term)
     case revised
+    /// A note's highlight. A note with a thought or questions also gets a mark in the margin.
+    case note(EntityID, marginMark: Bool)
   }
 
   let kind: Kind
