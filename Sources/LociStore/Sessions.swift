@@ -58,18 +58,24 @@ public struct SessionRecord: Hashable, Sendable {
 }
 
 extension StoreDatabase {
-  public func start(_ session: SessionRecord) throws {
+  /// Starts a session, taking over `messages` already stored in another of the owner's sessions, such as
+  /// the prompt of the turn it is opened for. A session the move leaves with no messages is gone.
+  public func start(_ session: SessionRecord, taking messages: [EntityID] = []) throws {
+    let ids = messages.map(\.description)
+    let marks = ids.map { _ in "?" }.joined(separator: ", ")
     try queue.write { db in
+      try Self.insert(session, in: db)
+      guard !ids.isEmpty else { return }
+      let left = try String.fetchAll(
+        db, sql: "SELECT DISTINCT session_id FROM message WHERE id IN (\(marks))", arguments: StatementArguments(ids))
       try db.execute(
-        sql: """
-          INSERT INTO session (id, owner, provider, model, effort, handle, instructions, sent, started_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          """,
-        arguments: [
-          session.id.description, session.owner.key, session.runtime.provider.rawValue, session.runtime.model,
-          session.runtime.effort?.rawValue, session.handle, session.instructions, try MirrorUpdate.json(session.sent),
-          session.startedAt.description,
-        ])
+        sql: "UPDATE message SET session_id = ? WHERE id IN (\(marks))",
+        arguments: StatementArguments([session.id.description] + ids))
+      for id in left {
+        try db.execute(
+          sql: "DELETE FROM session WHERE id = ? AND NOT EXISTS (SELECT 1 FROM message WHERE session_id = ?)",
+          arguments: [id, id])
+      }
     }
   }
 
@@ -168,6 +174,19 @@ extension StoreDatabase {
           """,
         arguments: [start.description, end.description]) ?? 0
     }
+  }
+
+  private static func insert(_ session: SessionRecord, in db: Database) throws {
+    try db.execute(
+      sql: """
+        INSERT INTO session (id, owner, provider, model, effort, handle, instructions, sent, started_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+      arguments: [
+        session.id.description, session.owner.key, session.runtime.provider.rawValue, session.runtime.model,
+        session.runtime.effort?.rawValue, session.handle, session.instructions, try MirrorUpdate.json(session.sent),
+        session.startedAt.description,
+      ])
   }
 
   static func message(_ row: Row) -> Message? {

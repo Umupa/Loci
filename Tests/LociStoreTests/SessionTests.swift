@@ -35,6 +35,25 @@ struct SessionTests {
     #expect(try database.latestSession(of: .review(Day("2026-11-18")!)) == nil)
   }
 
+  @Test func aNewSessionTakesOverAPromptAndASessionLeftEmptyIsGone() throws {
+    let database = try StoreDatabase.inMemory()
+    try database.start(Self.session(10))
+    try database.append([Self.message(30, Self.hi), Self.message(31, .reply("Hello"))], to: Fixture.id(10))
+    try database.start(Self.session(11))
+    try database.append([Self.message(32, Self.hi)], to: Fixture.id(11))
+
+    try database.start(Self.session(12), taking: [Fixture.id(32)])
+    try database.append([Self.message(33, .reply("Again"))], to: Fixture.id(12))
+    try database.start(Self.session(13), taking: [Fixture.id(33)])
+
+    #expect(
+      try database.messages(of: .conversation(.main)).map(\.body) == [
+        Self.hi, .reply("Hello"), Self.hi, .reply("Again"),
+      ])
+    let left = try database.queue.read { db in try String.fetchAll(db, sql: "SELECT id FROM session ORDER BY seq") }
+    #expect(left == [Fixture.id(10), Fixture.id(12), Fixture.id(13)].map(\.description))
+  }
+
   @Test func aSessionKeepsItsHandleAndWhatItWasShown() throws {
     let database = try StoreDatabase.inMemory()
     try database.start(Self.session(10, .review(Day("2026-11-18")!)))

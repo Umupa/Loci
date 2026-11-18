@@ -23,15 +23,18 @@ struct AgentContext: Sendable {
 
 /// One owner's turns, a conversation's or a day's review, over the agent sessions underneath.
 ///
-/// One turn runs at a time. A turn's messages are kept in memory while it runs and stored together when it
-/// ends, so what is stored only ever grows by whole turns. Before each turn the run decides whether the
-/// session goes on or a new one starts; the person sees one conversation either way.
+/// One turn runs at a time. A turn's prompt is stored as soon as it is sent; the rest is kept in memory while
+/// the turn runs and stored together when it ends. A turn the app quit during is stored as stopped when the
+/// conversation is next opened. Before each turn the run decides whether the session goes on or a new one
+/// starts; the person sees one conversation either way.
 actor AgentRun {
   let owner: SessionOwner
   let context: AgentContext
   private var stored: [Message]
   /// The session to go on with; `nil` when there is none, or the person started over.
   private var session: SessionRecord?
+  /// Where a prompt is stored while there is no session to go on with, until the agent's session takes it.
+  private var holding: SessionRecord?
   private var live: (any AgentSession)?
   private var wear = SessionRotation.Wear()
   private var turn: TurnRecord?
@@ -48,9 +51,17 @@ actor AgentRun {
   init(owner: SessionOwner, context: AgentContext) throws(HostError) {
     self.owner = owner
     self.context = context
-    let stored = try attempt { try context.database.messages(of: owner) }
+    var stored = try attempt { try context.database.messages(of: owner) }
+    let session =
+      stored.last?.body == .startedOver ? nil : try attempt { try context.database.latestSession(of: owner) }
+    if let cut = stored.last, case .prompt = cut.body, let session {
+      let stopped = Message(id: context.environment.newID(), at: cut.at, body: .ended(.interrupted))
+      try attempt { try context.database.append([stopped], to: session.id) }
+      Self.mirror([cut, stopped], of: session, context: context)
+      stored.append(stopped)
+    }
     self.stored = stored
-    session = stored.last?.body == .startedOver ? nil : try attempt { try context.database.latestSession(of: owner) }
+    self.session = session
   }
 
   static let busy = "Loci is still answering the last message here"
@@ -64,7 +75,9 @@ actor AgentRun {
   /// adds to what the person wrote when they asked about a passage.
   func send(_ prompt: Prompt, saying text: String) async throws(HostError) {
     guard turn == nil else { throw .invalidRequest(Self.busy) }
-    turn = TurnRecord(prompt: prompt, at: context.environment.now(), newID: context.environment.newID)
+    let started = TurnRecord(prompt: prompt, at: context.environment.now(), newID: context.environment.newID)
+    try attempt { try context.database.append(started.messages, to: try holdingSession().id) }
+    turn = started
     stopping = false
     running = Task { await self.run(text) }
     await changed(ended: false)
@@ -217,8 +230,10 @@ actor AgentRun {
         id: context.environment.newID(), owner: owner, runtime: runtime, handle: opened.handle.value,
         instructions: fingerprint, startedAt: context.environment.now())
       let database = context.database
-      try TurnFailure.from { () throws(HostError) in try attempt { try database.start(fresh) } }
+      let prompt = turn?.messages.prefix(1).map(\.id) ?? []
+      try TurnFailure.from { () throws(HostError) in try attempt { try database.start(fresh, taking: prompt) } }
       session = fresh
+      holding = nil
       wear = SessionRotation.Wear()
     }
     live = opened
@@ -230,7 +245,7 @@ actor AgentRun {
     if case .conversation = owner { await saveAnswer(of: &turn) }
     do {
       let record = try sessionForStoring()
-      try context.database.append(turn.messages, to: record.id)
+      try context.database.append(Array(turn.messages.dropFirst()), to: record.id)
       mirror(turn.messages, of: record)
     } catch {
       await context.follower.hub.failed(String(describing: error))
@@ -245,16 +260,29 @@ actor AgentRun {
   /// The session to store a turn in. A turn whose agent never started still needs one.
   private func sessionForStoring() throws -> SessionRecord {
     if let session { return session }
+    let record = try holdingSession()
+    session = record
+    holding = nil
+    return record
+  }
+
+  /// The session to go on with, or, while there is none, one that holds what is said until there is.
+  private func holdingSession() throws -> SessionRecord {
+    if let record = session ?? holding { return record }
     let fresh = SessionRecord(
       id: context.environment.newID(), owner: owner, runtime: context.runtime, instructions: "",
       startedAt: context.environment.now())
     try context.database.start(fresh)
-    session = fresh
+    holding = fresh
     return fresh
   }
 
-  /// A copy that cannot be written loses nothing the app needs; it is logged and the turn stands.
   private func mirror(_ messages: [Message], of session: SessionRecord) {
+    Self.mirror(messages, of: session, context: context)
+  }
+
+  /// A copy that cannot be written loses nothing the app needs; it is logged and the turn stands.
+  private static func mirror(_ messages: [Message], of session: SessionRecord, context: AgentContext) {
     do {
       try context.store.mirror(messages, of: session, in: context.environment.timeZone)
     } catch {
