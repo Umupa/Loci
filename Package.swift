@@ -8,7 +8,7 @@ let package = Package(
   defaultLocalization: "en",
   platforms: [.macOS(.v26)],
   dependencies: [
-    .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1"),
+    .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.12.0"),
     .package(url: "https://github.com/swiftlang/swift-markdown.git", exact: "0.9.0"),
     .package(url: "https://github.com/gonzalezreal/textual.git", exact: "0.5.0"),
     .package(url: "https://github.com/yukihiratype2/swift-highlight.git", exact: "0.1.1"),
