@@ -168,7 +168,7 @@ Loci                主对话；再点一次进 Loci 页：Soul、记忆、日�
 - **Mermaid 和公式**先用 WKWebView 小岛兜底，渲染成图后贴进正文。
 - **状态**用 `@Observable` 和 Swift Concurrency，不引入额外的架构框架。
 - **分发**走 Developer ID 签名公证加 Sparkle 更新，不上 Mac App Store：要启动用户自己装的 agent CLI，不能进沙盒。
-- **仓库**：原生版在 `native` 分支，从一开始就不带 Tauri 代码；Tauri 版留在 `main`，只作行为参考。1.0 发布时 `native` 成为 `main`。
+- **仓库**：原生版不带 Tauri 代码。2026-11-18 起原生版就是 `main`；Tauri 版留在 `tauri` 标签上，只作行为参考。
 - **工程**：只用 SwiftPM，没有 Xcode 工程；应用包由脚本组装。
 
 ## 数据

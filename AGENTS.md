@@ -1,6 +1,6 @@
 # 在这个仓库里工作
 
-Loci 是给工程师的 AI native 学习工作台，这个分支是它的原生 Swift 版（macOS 26+）。要做什么看 [docs/roadmap.md](docs/roadmap.md) 和 [docs/design.md](docs/design.md)，功能叫什么、怎样算做对看 [docs/features.md](docs/features.md)，模块怎么分看 [docs/architecture.md](docs/architecture.md)。
+Loci 是给工程师的 AI native 学习工作台，原生 Swift 写成（macOS 26+）。要做什么看 [docs/roadmap.md](docs/roadmap.md) 和 [docs/design.md](docs/design.md)，功能叫什么、怎样算做对看 [docs/features.md](docs/features.md)，模块怎么分看 [docs/architecture.md](docs/architecture.md)。
 
 ## 一条命令
 
@@ -22,7 +22,7 @@ script/check
 
 - 不合并临时补丁、绕过、占位实现、「以后再说」。做不完就缩小范围，把没做的写在交付说明里。
 - 验证用的一次性代码放在 `spike/*` 分支，不合并；合并的只有结论（`docs/spikes/<名字>.md`）。
-- 旧的 Tauri 版在 `main` 分支。它只说明**行为**（一个功能应该做什么、协议长什么样），可以用 `git show main:<路径>` 查；它的结构、命名、写法不要搬过来。
+- 旧的 Tauri 版留在 `tauri` 标签上。它只说明**行为**（一个功能应该做什么、协议长什么样），可以用 `git show tauri:<路径>` 查；它的结构、命名、写法不要搬过来。
 
 ## 工具替你守住的
 
