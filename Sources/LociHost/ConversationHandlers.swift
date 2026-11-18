@@ -52,9 +52,14 @@ extension LocalHost {
 
   /// The events the main conversation shows; an event about an item that is gone is left out.
   private func events() async throws(HostError) -> [WorldEvent] {
+    let events = try attempt { try database.events() }.filter { logged in
+      if case .highlighted = logged.event { return false }
+      return true
+    }
+    let items = store.items(withIDs: Set(events.map(\.event.item)))
     var shown: [WorldEvent] = []
-    for logged in try attempt({ try database.events() }) {
-      guard let item = try? store.item(logged.event.item) else { continue }
+    for logged in events {
+      guard let item = items[logged.event.item] else { continue }
       switch logged.event {
       case .finishedReading:
         shown.append(WorldEvent(id: logged.id, at: logged.at, kind: .finishedReading(item)))
