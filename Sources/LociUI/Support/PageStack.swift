@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Pages opened over a place, each able to open the next.
+/// Pages opened over a place, each able to open the next. The system's back button is hidden: as a toolbar
+/// item it turns the window's top edge into a bar. The window draws its own.
 ///
 /// The opener is handed to the place and to every page itself: values set on a `NavigationStack` do not
 /// reach the pages it pushes, so a page would otherwise get the opener that does nothing.
@@ -21,7 +22,9 @@ struct PageStack<Place: View, Destination: View>: View {
     NavigationStack(path: $pages) {
       place
         .environment(\.openPage, opener)
-        .navigationDestination(for: Page.self) { destination($0).environment(\.openPage, opener) }
+        .navigationDestination(for: Page.self) {
+          destination($0).environment(\.openPage, opener).navigationBarBackButtonHidden()
+        }
     }
   }
 

@@ -1,0 +1,189 @@
+import LociModel
+import SwiftUI
+
+/// The videos a channel or list page links to, each with a check; those not yet in the library start checked.
+struct VideoPicker: View {
+  let videos: [FoundVideo]
+  let library: [Item]
+  let download: ([URL]) -> Void
+  @State private var chosen: Set<URL>
+
+  init(videos: [FoundVideo], library: [Item], download: @escaping ([URL]) -> Void) {
+    self.videos = videos
+    self.library = library
+    self.download = download
+    let had = Set(library.compactMap { $0.source.map(PageAddress.init) })
+    _chosen = State(initialValue: Set(videos.map(\.url).filter { !had.contains(PageAddress($0)) }))
+  }
+
+  var body: some View {
+    VStack(spacing: 0) {
+      ScrollView {
+        VStack(spacing: 0) {
+          ForEach(videos) { video in row(video) }
+        }
+      }
+      .scrollBounceBehavior(.basedOnSize)
+      .frame(maxHeight: 420)
+      .fixedSize(horizontal: false, vertical: true)
+      Rectangle().fill(Palette.lineStrong).frame(height: Size.hairline).padding(.top, Spacing.xxs)
+      HStack {
+        Spacer()
+        PrimaryButton(
+          action: { download(videos.map(\.url).filter(chosen.contains)) },
+          label: {
+            Text(
+              joining: Text(.loci("browser.downloadSome")), Text(verbatim: " \(chosen.count) "),
+              Text(.loci("browser.videos")))
+          }
+        )
+        .disabled(chosen.isEmpty)
+        .opacity(chosen.isEmpty ? 0.5 : 1)
+      }
+      .padding(.horizontal, Spacing.xs)
+      .padding(.top, 10)
+      .padding(.bottom, 6)
+    }
+    .padding(6)
+    .frame(width: Size.videoPicker)
+    .background(
+      RoundedRectangle(cornerRadius: Spacing.m, style: .continuous).fill(Palette.floating)
+        .shadow(color: .black.opacity(0.28), radius: 30, y: 24)
+        .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: Spacing.m, style: .continuous).strokeBorder(
+        Palette.lineStrong, lineWidth: Size.hairline)
+    )
+  }
+
+  private func row(_ video: FoundVideo) -> some View {
+    let on = chosen.contains(video.url)
+    return Button {
+      if on { chosen.remove(video.url) } else { chosen.insert(video.url) }
+    } label: {
+      HStack(spacing: 10) {
+        Check(on: on)
+        AsyncImage(url: video.thumbnail) { image in
+          image.resizable().scaledToFill()
+        } placeholder: {
+          Palette.coverBackdrop
+        }
+        .frame(width: Size.pickerThumbnail, height: Size.pickerThumbnail * 9 / 16)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.thumbnail, style: .continuous))
+        .overlay(
+          RoundedRectangle(cornerRadius: Radius.thumbnail, style: .continuous)
+            .strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+        VStack(alignment: .leading, spacing: 5) {
+          Text(verbatim: video.title)
+            .font(.system(size: 12.5, weight: .semibold))
+            .foregroundStyle(Palette.ink)
+            .lineLimit(2)
+            .lineSpacing(1)
+          if let duration = video.duration {
+            Text(verbatim: duration).font(Typography.mono).foregroundStyle(Palette.inkFaint)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .padding(.horizontal, Spacing.xs)
+      .padding(.vertical, 7)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+  }
+}
+
+/// A round check, amber when on.
+struct Check: View {
+  let on: Bool
+
+  var body: some View {
+    ZStack {
+      if on {
+        Circle().fill(Palette.accent)
+        Image(systemName: Symbols.done).font(.system(size: 9, weight: .bold)).foregroundStyle(Palette.onAccent)
+      } else {
+        Circle().strokeBorder(Palette.lineStrong, lineWidth: 1).background(Circle().fill(Palette.thumb))
+      }
+    }
+    .overlay(Circle().strokeBorder(.black.opacity(on ? 0.15 : 0), lineWidth: Size.hairline))
+    .frame(width: 18, height: 18)
+    .frame(width: 22)
+  }
+}
+
+/// The browser before any page: one field that takes an address or a search, and sites to start from.
+struct BrowserStart: View {
+  let go: (String) -> Void
+  @State private var text = ""
+
+  var body: some View {
+    VStack(spacing: 34) {
+      HStack(spacing: Spacing.s) {
+        Image(systemName: Symbols.search).font(.system(size: 15)).foregroundStyle(Palette.inkFaint)
+        TextField(text: $text, prompt: Text(.loci("browser.prompt")).foregroundStyle(Palette.inkFaint)) {
+          Text(.loci("browser.prompt"))
+        }
+        .textFieldStyle(.plain)
+        .font(.system(size: 16))
+        .onSubmit { go(text) }
+      }
+      .padding(.horizontal, 20)
+      .frame(width: Size.browserField.width, height: Size.browserField.height)
+      .background(
+        Capsule().fill(Palette.surface)
+          .shadow(color: Color(nsColor: NSColor(rgb: 0x281905)).opacity(0.1), radius: 22, y: 14)
+          .shadow(color: .black.opacity(0.05), radius: 1, y: 1)
+      )
+      .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+      HStack(spacing: 30) {
+        ForEach(StartSite.all, id: \.address) { site in
+          Button {
+            go(site.address)
+          } label: {
+            VStack(spacing: Spacing.xs) {
+              RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(LinearGradient(colors: [site.top, site.bottom], startPoint: .top, endPoint: .bottom))
+                .overlay(site.mark.font(.system(size: 24, weight: .medium)).foregroundStyle(.white))
+                .overlay(
+                  RoundedRectangle(cornerRadius: 15, style: .continuous).strokeBorder(
+                    .black.opacity(0.12), lineWidth: Size.hairline)
+                )
+                .shadow(color: .black.opacity(0.12), radius: 6, y: 4)
+                .frame(width: Size.siteTile, height: Size.siteTile)
+              Text(site.name).font(.system(size: 12)).foregroundStyle(Palette.inkMuted)
+            }
+          }
+          .buttonStyle(PressStyle())
+        }
+      }
+    }
+    .padding(.bottom, 80)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+}
+
+/// A site the browser's start page offers.
+private struct StartSite {
+  let name: LocalizedStringResource
+  let address: String
+  let mark: Image
+  let top: Color
+  let bottom: Color
+
+  static let all = [
+    StartSite(
+      name: .loci("site.youtube"), address: "https://www.youtube.com", mark: Image(systemName: "play.rectangle"),
+      top: Color(nsColor: NSColor(rgb: 0xF0503F)), bottom: Color(nsColor: NSColor(rgb: 0xC9271B))),
+    StartSite(
+      name: .loci("site.bilibili"), address: "https://www.bilibili.com", mark: Image(systemName: "tv"),
+      top: Color(nsColor: NSColor(rgb: 0x3FB4E8)), bottom: Color(nsColor: NSColor(rgb: 0x1C8CC4))),
+    StartSite(
+      name: .loci("site.xiaoyuzhou"), address: "https://www.xiaoyuzhoufm.com", mark: Image(systemName: "circle.circle"),
+      top: Color(nsColor: NSColor(rgb: 0x3A3A3C)), bottom: Color(nsColor: NSColor(rgb: 0x121214))),
+    StartSite(
+      name: .loci("site.arxiv"), address: "https://arxiv.org", mark: Image(systemName: "character"),
+      top: Color(nsColor: NSColor(rgb: 0xC24A35)), bottom: Color(nsColor: NSColor(rgb: 0x8E2B1D))),
+  ]
+}

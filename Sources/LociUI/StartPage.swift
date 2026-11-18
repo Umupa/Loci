@@ -17,13 +17,25 @@ struct StartPage: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(Palette.canvas)
       .acceptingTextFiles(opened: opened, failed: failed)
+      .acceptingLinks(opened: opened, failed: failed)
       .toolbar(removing: .title)
       .onAppear { focused = true }
       .onChange(of: focusRequest) { focused = true }
   }
 
   private func submit() {
-    guard case .sentence(let request) = PromptInput(text) else { return }
+    switch PromptInput(text) {
+    case .empty: return
+    case .link(let url):
+      Task {
+        if await host.addLink(url, opened: opened, failed: failed) { text = "" }
+      }
+    case .sentence(let request):
+      make(request)
+    }
+  }
+
+  private func make(_ request: String) {
     Task {
       do throws(HostError) {
         let mentor = try await host.run(CreateMentor(request: request))
@@ -63,13 +75,17 @@ private struct SendButton: View {
   let submit: () -> Void
 
   private var ready: Bool {
-    if case .sentence = input { return true }
+    input != .empty
+  }
+
+  private var isLink: Bool {
+    if case .link = input { return true }
     return false
   }
 
   var body: some View {
     Button(action: submit) {
-      Image(systemName: input == .link ? Symbols.link : Symbols.send)
+      Image(systemName: isLink ? Symbols.link : Symbols.send)
         .font(Typography.bodyEmphasis)
         .frame(width: Size.sendButton / 2, height: Size.sendButton / 2)
     }
@@ -77,7 +93,7 @@ private struct SendButton: View {
     .buttonBorderShape(.circle)
     .tint(Palette.accent)
     .disabled(!ready)
-    .help(input == .link ? Text(.loci("start.linkNotYet")) : Text(.loci("start.send")))
+    .help(isLink ? Text(.loci("start.addLink")) : Text(.loci("start.send")))
     .accessibilityLabel(Text(.loci("start.send")))
   }
 }

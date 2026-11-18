@@ -23,6 +23,28 @@ enum Symbols {
   static let panel = "sidebar.right"
   static let stop = "stop.fill"
   static let done = "checkmark"
+  static let browser = "safari"
+  static let media = "play.square.stack"
+  static let play = "play.fill"
+  static let pause = "pause.fill"
+  static let back5 = "gobackward.5"
+  static let forward5 = "goforward.5"
+  static let fullScreen = "arrow.up.left.and.arrow.down.right"
+  static let subtitles = "captions.bubble"
+  static let external = "arrow.up.forward.square"
+  static let backToPlaying = "arrow.up"
+  static let download = "arrow.down.to.line"
+  static let add = "plus"
+  static let lock = "lock"
+  static let reload = "arrow.clockwise"
+  static let back = "chevron.left"
+  static let forward = "chevron.right"
+  static let search = "magnifyingglass"
+  static let more = "ellipsis"
+  static let cancel = "xmark"
+  static let attach = "paperclip"
+  static let recognizing = "waveform"
+  static let thoughtSmall = "text.bubble"
 
   static func tool(_ kind: ToolActivity.Kind) -> String {
     switch kind {
@@ -39,7 +61,7 @@ enum Symbols {
     case .article: "doc.text"
     case .paper: "doc.richtext"
     case .video: "play.rectangle"
-    case .audio: "waveform"
+    case .audio: "mic"
     case .repository: "chevron.left.forwardslash.chevron.right"
     }
   }
@@ -47,13 +69,16 @@ enum Symbols {
 
 /// An item's kind without what the kind carries, for grouping and filtering.
 enum ItemKind: String, CaseIterable, Codable, Hashable {
-  case article, paper, video, audio, repository
+  case video, audio, article, paper, repository
 
-  /// Kinds that have at least one item, in a fixed order. Empty kinds are not listed.
-  static func present(in items: [Item]) -> [ItemKind] {
+  /// The kinds the sidebar lists, in a fixed order: video, podcasts and articles always, as the places links
+  /// are added to; papers and repositories once there is one.
+  static func listed(in items: [Item]) -> [ItemKind] {
     let present = Set(items.map { ItemKind($0.kind) })
-    return allCases.filter(present.contains)
+    return allCases.filter { always.contains($0) || present.contains($0) }
   }
+
+  private static let always: Set<ItemKind> = [.video, .audio, .article]
 
   init(_ kind: Item.Kind) {
     switch kind {

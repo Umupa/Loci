@@ -17,8 +17,13 @@ struct ReadingText {
     let offset: Int
   }
 
-  init(markdown: String) {
-    var renderer = MarkdownRenderer()
+  /// `byline` goes under the title. Pictures named in `images` by their address in the Markdown stand on lines of
+  /// their own; the rest show their description. An article reads in the serif.
+  init(
+    markdown: String, byline: NSAttributedString? = nil, images: [String: NSImage] = [:], serif: Bool = false
+  ) {
+    var renderer = MarkdownRenderer(
+      byline: byline, images: images, serif: serif)
     renderer.render(Document(parsing: markdown))
     string = renderer.finished()
     headings = renderer.headings
@@ -29,6 +34,10 @@ struct ReadingText {
 
 /// Walks a Markdown document and appends each block as one or more paragraphs.
 private struct MarkdownRenderer {
+  let byline: NSAttributedString?
+  let images: [String: NSImage]
+  let serif: Bool
+  private var body: NSFont { serif ? NSFont.serif(ofSize: ReadingStyle.bodySize) : ReadingStyle.body }
   private let output = NSMutableAttributedString()
   private(set) var headings: [ReadingText.Heading] = []
 
@@ -53,13 +62,27 @@ private struct MarkdownRenderer {
   private mutating func block(_ markup: any Markup, in setting: Setting) {
     switch markup {
     case let heading as Heading:
-      let title = inline(heading.children, font: ReadingStyle.heading(heading.level))
+      let title = inline(
+        heading.children,
+        font: heading.level == 1 && serif
+          ? NSFont.serif(ofSize: ReadingStyle.articleTitleSize, weight: .semibold) : ReadingStyle.heading(heading.level)
+      )
       headings.append(ReadingText.Heading(level: heading.level, title: title.string, offset: output.length))
       let spacing = ReadingStyle.headingSpacing(heading.level)
-      paragraph(title, in: setting, before: output.length == 0 ? 0 : spacing.before, after: spacing.after)
+      let first = output.length == 0
+      let underTitle = first && heading.level == 1 ? byline : nil
+      paragraph(
+        title, in: setting, before: first ? 0 : spacing.before, after: underTitle == nil ? spacing.after : 12)
+      if let underTitle { self.paragraph(underTitle, in: setting, after: 30) }
     case let paragraph as Paragraph:
+      if paragraph.childCount == 1, let picture = paragraph.child(at: 0) as? Markdown.Image,
+        let source = picture.source, let image = images[source]
+      {
+        figure(image, in: setting)
+        return
+      }
       if let latex = Formula.display(in: paragraph.plainText), formulaBlock(latex, in: setting) { return }
-      self.paragraph(inline(paragraph.children, font: ReadingStyle.body), in: setting)
+      self.paragraph(inline(paragraph.children, font: body), in: setting)
     case let code as CodeBlock:
       if let language = code.language?.lowercased(), Formula.blockLanguages.contains(language),
         formulaBlock(code.code, in: setting)
@@ -119,10 +142,10 @@ private struct MarkdownRenderer {
     if let marker = setting.marker {
       paragraphStyle.firstLineHeadIndent = setting.indent - ReadingStyle.listIndent
       paragraphStyle.tabStops = [NSTextTab(textAlignment: .left, location: setting.indent)]
-      line.append(NSAttributedString(string: marker + "\t", attributes: attributes(font: ReadingStyle.body)))
+      line.append(NSAttributedString(string: marker + "\t", attributes: attributes(font: body)))
     }
     line.append(text)
-    line.append(NSAttributedString(string: "\n", attributes: attributes(font: ReadingStyle.body)))
+    line.append(NSAttributedString(string: "\n", attributes: attributes(font: body)))
     line.addAttribute(.paragraphStyle, value: paragraphStyle, range: NSRange(location: 0, length: line.length))
     if setting.quoted {
       line.addAttribute(BlockDecoration.key, value: BlockDecoration.quote.rawValue, range: line.fullRange)
@@ -142,11 +165,32 @@ private struct MarkdownRenderer {
     output.addAttribute(.paragraphStyle, value: widened, range: paragraph)
   }
 
+  /// A picture on a line of its own, as wide as the column at most, with rounded corners.
+  private func figure(_ image: NSImage, in setting: Setting) {
+    let width = min(image.size.width, Typography.readingWidth - setting.indent)
+    let size = CGSize(width: width, height: image.size.height * width / max(image.size.width, 1))
+    let rounded = NSImage(size: size, flipped: false) { frame in
+      NSBezierPath(roundedRect: frame, xRadius: Radius.group, yRadius: Radius.group).addClip()
+      image.draw(in: frame)
+      return true
+    }
+    let attachment = NSTextAttachment()
+    attachment.image = rounded
+    attachment.bounds = CGRect(origin: .zero, size: size)
+    let line = NSMutableAttributedString(attachment: attachment)
+    line.append(NSAttributedString(string: "\n", attributes: attributes(font: body)))
+    let paragraphStyle = style(in: setting)
+    paragraphStyle.paragraphSpacingBefore = 4
+    paragraphStyle.paragraphSpacing = 24
+    line.addAttribute(.paragraphStyle, value: paragraphStyle, range: line.fullRange)
+    output.append(line)
+  }
+
   /// A formula on a line of its own, centered. Returns `false` when it cannot be set, so it shows as code.
   private func formulaBlock(_ latex: String, in setting: Setting) -> Bool {
     guard let formula = Formula.attachment(latex, display: true, size: ReadingStyle.bodySize) else { return false }
     let line = NSMutableAttributedString(attributedString: formula)
-    line.append(NSAttributedString(string: "\n", attributes: attributes(font: ReadingStyle.body)))
+    line.append(NSAttributedString(string: "\n", attributes: attributes(font: body)))
     let paragraphStyle = style(in: setting)
     paragraphStyle.alignment = .center
     paragraphStyle.paragraphSpacingBefore = ReadingStyle.paragraphSpacing / 2
@@ -185,9 +229,9 @@ private struct MarkdownRenderer {
   }
 
   private func table(_ table: Markdown.Table, in setting: Setting) {
-    let header = Array(table.head.cells.map { inline($0.children, font: ReadingStyle.bold(ReadingStyle.body)) })
+    let header = Array(table.head.cells.map { inline($0.children, font: ReadingStyle.bold(body)) })
     let rows =
-      [header] + table.body.rows.map { row in Array(row.cells.map { inline($0.children, font: ReadingStyle.body) }) }
+      [header] + table.body.rows.map { row in Array(row.cells.map { inline($0.children, font: body) }) }
     let columns = rows.map(\.count).max() ?? 0
     var stops: [NSTextTab] = []
     var location = setting.indent
@@ -199,10 +243,10 @@ private struct MarkdownRenderer {
     for (index, cells) in rows.enumerated() {
       let row = NSMutableAttributedString()
       for (column, cell) in cells.enumerated() {
-        if column > 0 { row.append(NSAttributedString(string: "\t", attributes: attributes(font: ReadingStyle.body))) }
+        if column > 0 { row.append(NSAttributedString(string: "\t", attributes: attributes(font: body))) }
         row.append(cell)
       }
-      row.append(NSAttributedString(string: "\n", attributes: attributes(font: ReadingStyle.body)))
+      row.append(NSAttributedString(string: "\n", attributes: attributes(font: body)))
       let paragraphStyle = style(in: setting, spacing: index == rows.count - 1 ? ReadingStyle.paragraphSpacing : 6)
       paragraphStyle.tabStops = stops
       paragraphStyle.paragraphSpacingBefore = index == 1 ? 6 : 0

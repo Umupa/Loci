@@ -41,11 +41,34 @@ struct ConversationView: View {
   let revealPassage: @MainActor (Locator) -> Void
   let send: (String, Passage?) async throws(HostError) -> Done
   let stop: () async -> Void
+  /// On a conversation several mentors took part in, who answered each reply; it is named above it.
+  var answeredBy: ((Message) -> Mentor?)?
+  /// The day and time over the first message of each sitting, and a short conversation reads from the top.
+  var showsDays = false
+  /// The composer keeps to the field and send, without the agent's menus.
+  var plainComposer = false
 
   var body: some View {
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 14) {
-        ForEach(entries) { entry in
+        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+          if showsDays, let day = Sitting.start(of: entry, after: index > 0 ? entries[index - 1] : nil) {
+            Sitting.label(day, now: Date())
+              .font(.system(size: 11, weight: .medium))
+              .foregroundStyle(Palette.inkFaint)
+              .frame(maxWidth: .infinity)
+          }
+          if let answeredBy, case .reply(let message, _, _) = entry, let mentor = answeredBy(message),
+            Self.startsAnswer(entries, at: index)
+          {
+            HStack(spacing: 7) {
+              Avatar(mentor: mentor, size: Size.avatarTiny)
+              Text(verbatim: mentor.name)
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Palette.inkMuted)
+            .padding(.bottom, -6)
+          }
           row(entry).transition(.opacity.combined(with: .offset(y: 10)))
         }
         if waiting { StepsCard.waiting.transition(.opacity.combined(with: .offset(y: 10))) }
@@ -55,7 +78,8 @@ struct ConversationView: View {
       .padding(.top, 6)
       .padding(.bottom, Spacing.m)
     }
-    .defaultScrollAnchor(.bottom)
+    .defaultScrollAnchor(showsDays ? .top : .bottom, for: .alignment)
+    .defaultScrollAnchor(.bottom, for: .initialOffset)
     .scrollIndicators(.never)
     .mask(
       LinearGradient(
@@ -65,7 +89,7 @@ struct ConversationView: View {
     .safeAreaInset(edge: .bottom, spacing: 0) {
       Composer(
         mentor: mentor, context: conversation?.context, busy: conversation?.turn != nil, draft: $draft, send: send,
-        stop: stop
+        stop: stop, plain: plainComposer
       )
       .padding(.horizontal, Spacing.s)
       .padding(.bottom, Spacing.s)
@@ -81,6 +105,18 @@ struct ConversationView: View {
   private var entries: [ConversationEntry] {
     ConversationEntry.layout(
       (conversation?.messages ?? []) + (conversation?.turn?.messages ?? []), live: conversation?.turn != nil)
+  }
+
+  /// The first reply after a question, where the name of who answered goes.
+  private static func startsAnswer(_ entries: [ConversationEntry], at index: Int) -> Bool {
+    for earlier in entries[..<index].reversed() {
+      switch earlier {
+      case .reply: return false
+      case .asked: return true
+      case .aside, .steps, .saved: continue
+      }
+    }
+    return true
   }
 
   /// The mentor is at work but has shown nothing of it yet.
@@ -102,6 +138,40 @@ struct ConversationView: View {
       ReplyText(text: text, streaming: streaming).padding(.horizontal, 2)
     case .saved:
       SavedChip()
+    }
+  }
+}
+
+/// Messages more than an hour apart belong to different sittings, each headed by when it began.
+enum Sitting {
+  static let gap: TimeInterval = 3600
+
+  static func start(of entry: ConversationEntry, after earlier: ConversationEntry?) -> Date? {
+    let at = entry.at.date
+    guard let earlier else { return at }
+    return at.timeIntervalSince(earlier.at.date) > gap ? at : nil
+  }
+
+  /// `今天 21:04`, `昨天 22:30`, or the date for anything older.
+  static func label(_ date: Date, now: Date, calendar: Calendar = .current) -> Text {
+    let time = Text(date, format: .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    if calendar.isDate(date, inSameDayAs: now) {
+      return Text(joining: Text(.loci("day.today")), Text(verbatim: " "), time)
+    }
+    if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday)
+    {
+      return Text(joining: Text(.loci("day.yesterday")), Text(verbatim: " "), time)
+    }
+    return Text(joining: Text(date, format: .dateTime.month().day()), Text(verbatim: " "), time)
+  }
+}
+
+extension ConversationEntry {
+  /// When the message it begins with was said.
+  var at: Timestamp {
+    switch self {
+    case .asked(let message, _), .aside(let message), .reply(let message, _, _), .saved(let message, _): message.at
+    case .steps(let steps): steps[0].at
     }
   }
 }

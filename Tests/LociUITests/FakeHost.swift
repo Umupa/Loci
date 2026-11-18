@@ -6,9 +6,15 @@ import LociModel
 /// A host with fixed sample data, so the interface can be rendered and tested without a disk.
 final class FakeHost: LociModel.Host, CommandHandler {
   let sample: Sample
+  /// The design's library; when given, it is the library and the mentors this host serves.
+  let library: SampleLibrary?
+  /// The library's video is still having its speech recognized.
+  let recognizing: Bool
 
-  init(_ sample: Sample) {
+  init(_ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false) {
     self.sample = sample
+    self.library = library
+    self.recognizing = recognizing
   }
 
   func run<C: Command>(_ command: C) async throws(HostError) -> C.Reply {
@@ -30,7 +36,7 @@ final class FakeHost: LociModel.Host, CommandHandler {
   func createMentor(_ command: CreateMentor) async throws(HostError) -> Mentor { sample.scheduling }
   func renameMentor(_ command: RenameMentor) async throws(HostError) -> Mentor { sample.scheduling }
   func deleteMentor(_ command: DeleteMentor) async throws(HostError) -> Done { Done() }
-  func listMentors() async throws(HostError) -> [Mentor] { sample.mentors }
+  func listMentors() async throws(HostError) -> [Mentor] { library?.mentors ?? sample.mentors }
 
   func mentorPage(_ mentor: EntityID) async throws(HostError) -> MentorPage {
     guard let page = sample.pages[mentor] else { throw .notFound(mentor.description) }
@@ -39,10 +45,13 @@ final class FakeHost: LociModel.Host, CommandHandler {
 
   func addTextItem(_ command: AddTextItem) async throws(HostError) -> Item { sample.items[0] }
   func deleteItem(_ command: DeleteItem) async throws(HostError) -> Done { Done() }
-  func listItems() async throws(HostError) -> [Item] { sample.items }
+  func listItems() async throws(HostError) -> [Item] { library?.items ?? sample.items }
   func itemText(_ item: EntityID) async throws(HostError) -> String { sample.text }
 
   func itemPage(_ item: EntityID) async throws(HostError) -> ItemPage {
+    if let library, let found = library.items.first(where: { $0.id == item }) {
+      return ItemPage(item: found, text: found.id == library.article.id ? SampleLibrary.articleText : nil, citedBy: [])
+    }
     guard let found = sample.items.first(where: { $0.id == item }) else { throw .notFound(item.description) }
     return ItemPage(item: found, text: sample.text, citedBy: found.id == sample.borg.id ? sample.citedBy : [])
   }
@@ -55,11 +64,17 @@ final class FakeHost: LociModel.Host, CommandHandler {
 
   func citingLessons(of item: EntityID) async throws(HostError) -> [CitingLesson] { sample.citedBy }
   func search(_ command: Search) async throws(HostError) -> [SearchHit] { [] }
-  func readingState(of content: ContentRef) async throws(HostError) -> ReadingState? { nil }
+  func readingState(of content: ContentRef) async throws(HostError) -> ReadingState? {
+    guard case .item(let item) = content else { return nil }
+    return library?.states[item]
+  }
   func saveReadingPosition(_ command: SaveReadingPosition) async throws(HostError) -> Done { Done() }
   func markRead(_ content: ContentRef) async throws(HostError) -> Done { Done() }
   func seeLesson(_ lesson: LessonRef) async throws(HostError) -> String? { nil }
-  func notes(on content: ContentRef) async throws(HostError) -> [Note] { sample.notes }
+  func notes(on content: ContentRef) async throws(HostError) -> [Note] {
+    if let library, case .item(let item) = content { return (try? library.notes(on: item)) ?? [] }
+    return sample.notes
+  }
   func addNote(_ command: AddNote) async throws(HostError) -> Note { sample.notes[0] }
   func setNoteThought(_ command: SetNoteThought) async throws(HostError) -> Note { sample.notes[0] }
   func deleteNote(_ command: DeleteNote) async throws(HostError) -> Done { Done() }

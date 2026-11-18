@@ -8,6 +8,7 @@ import SwiftUI
 struct ContentReader<Extra: View>: View {
   @Environment(\.host) private var host
   @Environment(\.openPage) private var openPage
+  @Environment(\.standIns) private var standIns
   let content: ContentRef
   /// Set over the text, unless the text starts with a title of its own.
   let title: String?
@@ -15,6 +16,12 @@ struct ContentReader<Extra: View>: View {
   let glossary: Glossary
   /// The Markdown the reader saw before the mentor's latest revision; what changed since is marked.
   let previous: String?
+  /// Under an item's title: who wrote it, where, when, and a link to the original.
+  let byline: NSAttributedString?
+  /// Pictures the Markdown names, by the address it names them with.
+  let images: [String: NSImage]
+  let serif: Bool
+  let pane: PaneWidth
   /// Shown under the highlights in the panel.
   let extra: () -> Extra
   @State private var text: ReadingText?
@@ -22,12 +29,14 @@ struct ContentReader<Extra: View>: View {
   @State private var notes: Feed<[Note]>?
   @State private var mentor: Feed<MentorPage>?
   @State private var conversation: Feed<Conversation>?
+  @State private var companion: Feed<ItemConversation>?
+  @State private var mentors: Feed<[Mentor]>?
   @State private var reveal: Reveal?
   @State private var tab = PanelTab.conversation
   @State private var chosen: ChosenNote?
   @State private var panelShown = true
   @State private var available = CGFloat.infinity
-  @AppStorage(PaneWidth.panel.key) private var panelWidth = Double(PaneWidth.panel.ideal)
+  @AppStorage private var panelWidth: Double
   @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
   @State private var draft: PassageDraft?
   @State private var marks: [ReaderMark] = []
@@ -35,8 +44,14 @@ struct ContentReader<Extra: View>: View {
 
   init(
     content: ContentRef, title: String?, markdown: String, glossary: Glossary = .empty, previous: String? = nil,
+    byline: NSAttributedString? = nil, images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel,
     @ViewBuilder extra: @escaping () -> Extra
   ) {
+    self.byline = byline
+    self.images = images
+    self.serif = serif
+    self.pane = pane
+    _panelWidth = AppStorage(wrappedValue: Double(pane.ideal), pane.key)
     self.content = content
     self.title = title
     self.markdown = Self.titled(markdown, title)
@@ -50,15 +65,15 @@ struct ContentReader<Extra: View>: View {
       reader
       if panelShown {
         ReaderPanel(
-          content: content, mentor: mentor?.value?.mentor, conversation: conversation?.value, notes: placedNotes,
+          content: content, mentor: mentor?.value?.mentor, conversation: conversation?.value,
+          companion: companionPanel, notes: placedNotes,
           tab: $tab, draft: $draft, chosen: chosen, reveal: show, revealPassage: show,
           ask: { placed in ask(placed.note.locator, excerpt: placed.note.excerpt) },
           collapse: { withAnimation(Motion.fold) { panelShown = false } }, extra: extra
         )
-        .frame(width: PaneWidth.panel.fitting(panelWidth, in: available))
+        .frame(width: pane.fitting(panelWidth, in: available))
         .overlay(alignment: .leading) {
-          PaneResizer(
-            pane: .panel, width: $panelWidth, maximum: PaneWidth.panel.fitting(.infinity, in: available))
+          PaneResizer(pane: pane, width: $panelWidth, maximum: pane.fitting(.infinity, in: available))
         }
         .transition(.move(edge: .trailing))
       }
@@ -76,20 +91,28 @@ struct ContentReader<Extra: View>: View {
       }
     }
     .task(id: content) {
+      if standIns?.moment?.panel == .highlights { tab = .highlights }
       start = (try? await host.run(ReadReadingState(content: content)))?.position?.quote
-      text = ReadingText(markdown: markdown)
+      text = setText()
       remark()
     }
     .onChange(of: markdown) {
       guard text != nil else { return }
-      text = ReadingText(markdown: markdown)
+      text = setText()
+      remark()
+    }
+    .onChange(of: images.keys.sorted()) {
+      guard text != nil else { return }
+      text = setText()
       remark()
     }
     .onChange(of: previous) { remark() }
     .onChange(of: glossary) { remark() }
     .onChange(of: notes) { remark() }
     .subscribing(NotesOn(content: content), into: $notes)
-    .modifier(MentorFeeds(content: content, mentor: $mentor, conversation: $conversation))
+    .modifier(
+      MentorFeeds(
+        content: content, mentor: $mentor, conversation: $conversation, companion: $companion, mentors: $mentors))
   }
 
   @ViewBuilder private var reader: some View {
@@ -98,6 +121,16 @@ struct ContentReader<Extra: View>: View {
     } else {
       Palette.canvas
     }
+  }
+
+  private func setText() -> ReadingText {
+    ReadingText(markdown: markdown, byline: byline, images: images, serif: serif)
+  }
+
+  /// An item's conversation, with the mentors who can read along.
+  private var companionPanel: CompanionPanel? {
+    guard case .item(let item) = content, let all = mentors?.value, !all.isEmpty else { return nil }
+    return CompanionPanel(item: item, conversation: companion?.value, mentors: all)
   }
 
   private static func titled(_ markdown: String, _ title: String?) -> String {
@@ -162,7 +195,7 @@ struct ContentReader<Extra: View>: View {
       think: { note, thought in
         Task { _ = try? await host.run(SetNoteThought(content: content, note: note, thought: thought)) }
       },
-      ask: mentor?.value == nil
+      ask: mentor?.value == nil && companionPanel == nil
         ? nil
         : { range in
           guard let passage = passage(range) else { return }
@@ -185,19 +218,24 @@ struct ContentReader<Extra: View>: View {
   }
 }
 
-/// A lesson's mentor and the conversation with it; an item has neither.
+/// A lesson's mentor and the conversation with it; an item's conversation and the mentors who can read along.
 private struct MentorFeeds: ViewModifier {
   let content: ContentRef
   @Binding var mentor: Feed<MentorPage>?
   @Binding var conversation: Feed<Conversation>?
+  @Binding var companion: Feed<ItemConversation>?
+  @Binding var mentors: Feed<[Mentor]>?
 
   func body(content view: Content) -> some View {
-    if case .lesson(let lesson) = content {
+    switch content {
+    case .lesson(let lesson):
       view
         .subscribing(OneMentor(mentor: lesson.mentor), into: $mentor)
         .subscribing(MentorConversation(mentor: lesson.mentor), into: $conversation)
-    } else {
+    case .item(let item):
       view
+        .subscribing(CompanionConversation(item: item), into: $companion)
+        .subscribing(AllMentors(), into: $mentors)
     }
   }
 }

@@ -23,7 +23,7 @@
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
 | `LociRemote` | 配对、加密通道、中继 | `LociModel` |
 | `LociHost` | 命令层的实现：本机和远程 | 以上全部 |
-| `LociUI` | 界面与设计系统 | `LociModel`；第三方：swift-markdown、Textual、HighlightSwift、SwiftMath |
+| `LociUI` | 界面与设计系统；系统框架可用 AVKit、AVFoundation（播放）、PDFKit（论文）、WebKit（内置浏览器） | `LociModel`；第三方：swift-markdown、Textual、HighlightSwift、SwiftMath |
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
 | `LociEval` | 评测，不随应用发布 | `LociModel` `LociHost` `LociAgents`（评分用的 agent 不属于任何导师） |
 

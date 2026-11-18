@@ -22,6 +22,12 @@ enum Radius {
   static let card: CGFloat = 14
   /// A message bubble and the composer.
   static let bubble: CGFloat = 20
+  /// A cover in a list, and a menu's rows.
+  static let thumbnail: CGFloat = 6
+  /// A cover on its own, and the video player.
+  static let cover: CGFloat = 10
+  /// A push button, as System Settings draws one.
+  static let push: CGFloat = 6
 }
 
 enum Size {
@@ -60,10 +66,49 @@ enum Size {
   static let sendButton: CGFloat = 28
   static let problemListWidth: CGFloat = 380
   static let settingsWidth: CGFloat = 600
+  static let wideSettingsWidth: CGFloat = 640
   static let hairline: CGFloat = 0.5
   /// From the top of the window to the first line of a lesson; the title sits within 40 of the edge.
   static let readingTop: CGFloat = 34
   static let windowMinimum = CGSize(width: 720, height: 460)
+
+  /// The library's covers: a row of the ones being watched, over a list.
+  static let shelfHeight: CGFloat = 214
+  static let shelfGap: CGFloat = 16
+  /// The first cover on the shelf is this much wider than the other two.
+  static let shelfLead: CGFloat = 1.35
+  static let listThumbnail: CGFloat = 84
+  static let listStatus: CGFloat = 250
+  static let meter: CGFloat = 96
+  static let meterHeight: CGFloat = 4
+  static let pushHeight: CGFloat = 22
+  /// The empty library's field, as on the start page.
+  static let startFieldWidth: CGFloat = 600
+
+  /// The panel beside a video, a podcast or an article.
+  static let mediaPanel: CGFloat = 372
+  static let scrubberHeight: CGFloat = 22
+  static let knob: CGFloat = 12
+  static let diamond: CGFloat = 7
+  static let controlButton: CGFloat = 32
+  static let podcastCover: CGFloat = 300
+  static let podcastColumn: CGFloat = 460
+  static let podcastPlay: CGFloat = 52
+  static let podcastButton: CGFloat = 38
+  /// The column a transcript keeps for the time of each sentence.
+  static let timeColumn: CGFloat = 40
+
+  static let addressHeight: CGFloat = 32
+  static let primaryHeight: CGFloat = 30
+  static let browserField = CGSize(width: 560, height: 52)
+  static let siteTile: CGFloat = 58
+  static let videoPicker: CGFloat = 372
+  static let pickerThumbnail: CGFloat = 96
+
+  static let settingsTile: CGFloat = 38
+  static let componentTile: CGFloat = 28
+  static let radio: CGFloat = 16
+  static let dot: CGFloat = 6
 }
 
 /// How things move. Selection and hover change at once and use none of these.

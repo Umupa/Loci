@@ -11,23 +11,39 @@ extension FakeHost {
   }
 
   func cancelJob(_ item: EntityID) async throws(HostError) -> Done { Done() }
-  func jobs() async throws(HostError) -> [Job] { [] }
-  func job(of item: EntityID) async throws(HostError) -> Job? { nil }
+  func jobs() async throws(HostError) -> [Job] { (library?.jobs ?? []) + (recognizing ? [recognition] : []) }
+
+  func job(of item: EntityID) async throws(HostError) -> Job? {
+    try await jobs().first { $0.item == item }
+  }
+
+  private var recognition: Job {
+    Job(item: library?.video.id ?? sample.borg.id, stage: .transcribe, state: .running(progress: Fraction(0.63)))
+  }
 
   func mediaPage(_ item: EntityID) async throws(HostError) -> MediaPage {
-    MediaPage(transcript: nil, translations: [], outline: nil, hasCover: false, downloaded: false)
+    if let library {
+      if item == library.video.id, let page = try? library.videoPage(recognizing: recognizing) { return page }
+      if item == library.podcast.id, let page = try? library.podcastPage() { return page }
+    }
+    return MediaPage(transcript: nil, translations: [], outline: nil, hasCover: false, downloaded: false)
   }
 
   func playback(_ command: ReadPlayback) async throws(HostError) -> Playback {
     throw .notFound("media of \(command.item)")
   }
 
-  func cover(of item: EntityID) async throws(HostError) -> Data? { nil }
+  func cover(of item: EntityID) async throws(HostError) -> Data? { library?.cover(of: item) }
   func itemPDF(_ item: EntityID) async throws(HostError) -> Data { throw .notFound("content.pdf") }
-  func itemImage(_ command: ReadItemImage) async throws(HostError) -> Data { throw .notFound(command.name) }
+
+  func itemImage(_ command: ReadItemImage) async throws(HostError) -> Data {
+    guard library != nil, let data = SampleLibrary.picture("pingora") else { throw .notFound(command.name) }
+    return data
+  }
 
   func mediaSetup() async throws(HostError) -> MediaSetup {
-    MediaSetup(
+    if let setup = library?.setup { return setup }
+    return MediaSetup(
       components: await detectComponents(again: false), componentWork: [],
       speechModels: SpeechModel.allCases.map { SpeechModelStatus(model: $0, state: .absent) },
       speechModel: .recommended, browserLogin: .none)

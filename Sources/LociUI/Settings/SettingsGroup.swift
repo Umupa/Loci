@@ -4,6 +4,10 @@ import SwiftUI
 struct SettingsPage<Content: View>: View {
   let symbol: String
   let title: LocalizedStringResource
+  /// The tile's colors, top to bottom.
+  var tile: (Color, Color) = (Color(nsColor: NSColor(rgb: 0x5C5A57)), Color(nsColor: NSColor(rgb: 0x2E2C2A)))
+  /// Wider for a page with a table in it.
+  var width = Size.settingsWidth
   @ViewBuilder let content: Content
 
   var body: some View {
@@ -16,7 +20,7 @@ struct SettingsPage<Content: View>: View {
             .frame(width: 38, height: 38)
             .background(
               RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(LinearGradient(colors: [Self.tileTop, Self.tileBottom], startPoint: .top, endPoint: .bottom))
+                .fill(LinearGradient(colors: [tile.0, tile.1], startPoint: .top, endPoint: .bottom))
             )
             .shadow(color: .black.opacity(0.18), radius: 1.5, y: 1)
           Text(title).font(.system(size: 20, weight: .bold)).foregroundStyle(Palette.ink)
@@ -27,14 +31,11 @@ struct SettingsPage<Content: View>: View {
       .padding(.horizontal, Spacing.xl)
       .padding(.top, 30)
       .padding(.bottom, 60)
-      .frame(maxWidth: Size.settingsWidth)
+      .frame(maxWidth: width)
       .frame(maxWidth: .infinity)
     }
     .background(Palette.canvas)
   }
-
-  private static var tileTop: Color { Color(nsColor: NSColor(rgb: 0x5C5A57)) }
-  private static var tileBottom: Color { Color(nsColor: NSColor(rgb: 0x2E2C2A)) }
 }
 
 /// A titled group of rows on a card, with thin lines between them.

@@ -81,11 +81,17 @@ private struct DialogsModifier: ViewModifier {
   }
 
   private func importing(_ content: some View) -> some View {
-    content.fileImporter(isPresented: $dialogs.importing, allowedContentTypes: [.text], allowsMultipleSelection: true) {
-      result in
-      let files = ((try? result.get()) ?? []).compactMap { try? TextFile(reading: $0) }
+    content.fileImporter(
+      isPresented: $dialogs.importing, allowedContentTypes: [.text, .audiovisualContent], allowsMultipleSelection: true
+    ) { result in
+      let chosen = (try? result.get()) ?? []
+      let media = chosen.filter {
+        UTType(filenameExtension: $0.pathExtension)?.conforms(to: .audiovisualContent) == true
+      }
+      let files = chosen.filter { !media.contains($0) }.compactMap { try? TextFile(reading: $0) }
       perform {
         for file in files { _ = try await host.run(AddTextItem(fileName: file.fileName, text: file.text)) }
+        for file in media { _ = try await host.run(ImportMediaFile(file: file, mode: .copy)) }
       }
     }
   }

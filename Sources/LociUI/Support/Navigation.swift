@@ -10,12 +10,14 @@ enum Place: Codable, Hashable {
   case mentor(EntityID)
   /// `nil` is every kind.
   case library(ItemKind?)
+  /// The built-in browser, for finding things to add.
+  case browser
   case settings(SettingsSection)
 }
 
 /// The sections of settings in the sidebar.
 enum SettingsSection: String, Codable, Hashable, CaseIterable {
-  case general, agents
+  case general, agents, media
 }
 
 /// A page opened on top of a place.
@@ -49,7 +51,7 @@ struct WindowState: Codable, Equatable {
       switch place {
       case .mentor(let id): mentors.contains(id)
       case .lesson(let lesson): mentors.contains(lesson.mentor)
-      case .start, .library, .settings: true
+      case .start, .library, .browser, .settings: true
       }
     let pagesExist = pages.allSatisfy { page in
       switch page {

@@ -11,6 +11,7 @@ extension FakeHost {
   }
 
   func itemConversation(on item: EntityID) async throws(HostError) -> ItemConversation {
-    ItemConversation(item: item, companion: sample.mentors.first?.id, messages: [], turn: nil)
+    if let library, let conversation = try? library.conversation(on: item) { return conversation }
+    return ItemConversation(item: item, companion: sample.mentors.first?.id, messages: [], turn: nil)
   }
 }

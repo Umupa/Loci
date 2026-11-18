@@ -57,6 +57,7 @@ enum ConversationEntry: Identifiable {
 /// A thought or a tool, and how long it took.
 struct ConversationStep: Identifiable {
   let id: EntityID
+  let at: Timestamp
   let kind: Kind
   /// Until the next message; `nil` while it is still going or nothing came after it.
   let took: Duration?
@@ -70,6 +71,7 @@ struct ConversationStep: Identifiable {
 
   init(message: Message, kind: Kind, next: Message?, isGoing: Bool) {
     id = message.id
+    at = message.at
     self.kind = kind
     self.isGoing = isGoing
     took = next.map { .milliseconds($0.at.millisecondsSince1970 - message.at.millisecondsSince1970) }

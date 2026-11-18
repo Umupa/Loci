@@ -35,6 +35,23 @@ enum Typography {
   /// The words of a highlight on its card.
   static let highlightQuote = Font.system(size: 14, design: .serif)
 
+  /// An item's title in the library's list, and a mentor's reply heading in a card.
+  static let rowTitle = Font.system(size: 14, weight: .semibold, design: .serif)
+  /// An item's title over its cover on the shelf.
+  static let shelfTitle = Font.system(size: 17, weight: .semibold, design: .serif)
+  /// The title under a player.
+  static let mediaTitle = Font.system(size: 22, weight: .semibold, design: .serif)
+  /// A chapter's name between the sentences of a transcript.
+  static let chapterTitle = Font.system(size: 15.5, weight: .semibold, design: .serif)
+  /// A sentence of a transcript, and its translation under it.
+  static let transcript = Font.system(size: 14)
+  static let transcriptTranslation = Font.system(size: 13)
+  /// The clock under a player.
+  static let clock = Font.system(size: 11.5).monospaced()
+  /// A small button's words.
+  static let button = Font.system(size: 12.5, weight: .medium)
+  static let buttonStrong = Font.system(size: 13, weight: .semibold)
+
   /// Plain text of items and lessons.
   static let reading = Font.system(size: readingSize)
   static let readingSize: CGFloat = 16

@@ -29,8 +29,8 @@ struct TextFile: Transferable {
 enum PromptInput: Equatable {
   case empty
   case sentence(String)
-  /// Opening links comes later; for now a link is recognised and not acted on.
-  case link
+  /// Goes into the library and opens.
+  case link(URL)
 
   init(_ text: String) {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -39,7 +39,7 @@ enum PromptInput: Equatable {
     } else if !trimmed.contains(where: \.isWhitespace), let url = URL(string: trimmed),
       ["http", "https"].contains(url.scheme?.lowercased()), url.host?.isEmpty == false
     {
-      self = .link
+      self = .link(url)
     } else {
       self = .sentence(trimmed)
     }

@@ -33,6 +33,7 @@ struct Sidebar: View {
         ForEach(kinds, id: \.self) { kind in
           row(.library(kind), Text(Messages.name(of: kind))) { SidebarSymbol(name: Symbols.kind(kind)) }
         }
+        row(.browser, Text(.loci("sidebar.browser"))) { SidebarSymbol(name: Symbols.browser) }
       } header: {
         SidebarLabel(text: Text(.loci("sidebar.library")))
       }
@@ -62,6 +63,7 @@ struct Sidebar: View {
       Section {
         row(.settings(.general), Text(.loci("settings.general"))) { SidebarSymbol(name: Symbols.settings) }
         row(.settings(.agents), Text(.loci("settings.agents"))) { SidebarSymbol(name: Symbols.agents) }
+        row(.settings(.media), Text(.loci("settings.media"))) { SidebarSymbol(name: Symbols.media) }
       } header: {
         SidebarLabel(text: Text(.loci("sidebar.settings")))
       }

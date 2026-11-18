@@ -10,6 +10,8 @@ struct Composer: View {
   @Binding var draft: PassageDraft?
   let send: (String, Passage?) async throws(HostError) -> Done
   let stop: () async -> Void
+  /// Only the field and send, for asking alongside an item.
+  var plain = false
   @State private var text = ""
   @State private var stopping = false
   @FocusState private var focused: Bool
@@ -17,13 +19,22 @@ struct Composer: View {
   var body: some View {
     VStack(alignment: .leading, spacing: Spacing.xs) {
       if let draft { quoted(draft) }
-      field
-      HStack(spacing: 2) {
-        AgentChoiceMenu(mentor: mentor, parts: .agent)
-        AgentChoiceMenu(mentor: mentor, parts: .model)
-        Spacer(minLength: Spacing.xxs)
-        if let context, ContextGauge.fraction(context) != nil { ContextGauge(usage: context) }
-        sendOrStop.padding(.leading, Spacing.xxs)
+      if plain {
+        HStack(alignment: .bottom, spacing: Spacing.xs) {
+          field.padding(.bottom, 4)
+          sendOrStop
+        }
+      } else {
+        field
+      }
+      if !plain {
+        HStack(spacing: 2) {
+          AgentChoiceMenu(mentor: mentor, parts: .agent)
+          AgentChoiceMenu(mentor: mentor, parts: .model)
+          Spacer(minLength: Spacing.xxs)
+          if let context, ContextGauge.fraction(context) != nil { ContextGauge(usage: context) }
+          sendOrStop.padding(.leading, Spacing.xxs)
+        }
       }
     }
     .padding(.leading, 14)

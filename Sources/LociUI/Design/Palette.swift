@@ -55,6 +55,16 @@ enum Palette {
   /// Behind a paragraph the mentor changed since the reader last saw it. Fainter than a selection.
   static let revised = Color(nsColor: Tones.revised)
 
+  /// Behind a cover while it loads, and under a player.
+  static let coverBackdrop = Color(nsColor: Tones.coverBackdrop)
+  /// Words over a cover or a picture, the same in light and dark because the picture is.
+  static let onCover = Color(nsColor: NSColor(rgb: 0xFFF6EA))
+  static let onCoverMuted = Color(nsColor: NSColor(rgb: 0xFFF0E0)).opacity(0.7)
+  /// The dark wash a cover's title sits on.
+  static let coverShade = Color(nsColor: NSColor(rgb: 0x0E0A07))
+  /// Menus and bars that float over the page.
+  static let floating = Color(nsColor: Tones.floating)
+
   /// Code, colored by what each word is. Code sits on `well`.
   enum Code {
     static let keyword = Color(nsColor: Tones.codeKeyword)
@@ -105,6 +115,8 @@ enum Tones {
   static let ready = NSColor(dark: 0x6CC783, light: 0x34A853)
   static let thumb = NSColor(dark: 0x5A544D, light: 0xFFFFFF)
   static let revised = NSColor(dark: 0x241C10, light: 0xFAEDD3)
+  static let coverBackdrop = NSColor(dark: 0x2A2420, light: 0x2A2420)
+  static let floating = NSColor(dark: 0x2C2824, light: 0xFDFBF8, alpha: (dark: 0.96, light: 0.96))
   static let codeKeyword = NSColor(dark: 0xE09A6A, light: 0x9C4524)
   static let codeString = NSColor(dark: 0xA9C27C, light: 0x4F6A22)
   static let codeNumber = NSColor(dark: 0xDDB86E, light: 0x7E5600)

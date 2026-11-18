@@ -6,6 +6,8 @@ enum ReadingStyle {
   static var body: NSFont { NSFont.systemFont(ofSize: bodySize) }
   static var code: NSFont { NSFont.monospacedSystemFont(ofSize: 13, weight: .regular) }
   static let lineSpacing: CGFloat = 10
+  /// An article's title, a little smaller than a lesson's.
+  static let articleTitleSize: CGFloat = 30
   static let paragraphSpacing: CGFloat = 18
   static let itemSpacing: CGFloat = 4
   static let listIndent: CGFloat = 22

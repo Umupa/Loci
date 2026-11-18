@@ -63,8 +63,11 @@ struct NoteCard: View {
 
   private var excerpt: some View {
     VStack(alignment: .leading, spacing: Spacing.xxs) {
-      Quote(text: placed.note.excerpt ?? placed.note.locator.quote?.text ?? "", font: Typography.highlightQuote)
-        .foregroundStyle(Palette.ink)
+      Quote(
+        text: placed.note.excerpt ?? placed.note.locator.quote?.text ?? "", font: Typography.highlightQuote,
+        at: placed.note.locator.time.map { MediaTime.text($0.start) }
+      )
+      .foregroundStyle(Palette.ink)
       if placed.range == nil {
         Label {
           Text(.loci("note.lost"))
@@ -120,11 +123,21 @@ struct NoteCard: View {
 struct Quote: View {
   let text: String
   var font = Typography.quote
+  /// Where in a video or audio item the words are said, before them.
+  var at: String?
 
   var body: some View {
     HStack(alignment: .top, spacing: 9) {
       RoundedRectangle(cornerRadius: 1).fill(Palette.accent.opacity(0.8)).frame(width: 2)
-      Text(verbatim: text).font(font).lineSpacing(3)
+      if let at {
+        Text(
+          joining: Text(verbatim: at + " ").font(Typography.mono).foregroundStyle(Palette.accentInk),
+          Text(verbatim: text).font(font)
+        )
+        .lineSpacing(3)
+      } else {
+        Text(verbatim: text).font(font).lineSpacing(3)
+      }
     }
     .fixedSize(horizontal: false, vertical: true)
   }
@@ -147,5 +160,13 @@ private struct ExchangeView: View {
     .padding(.top, 9)
     .frame(maxWidth: .infinity, alignment: .leading)
     .overlay(alignment: .top) { Rectangle().fill(Palette.line).frame(height: Size.hairline) }
+  }
+}
+
+extension Locator {
+  /// The stretch of a video or audio item it points at.
+  var time: TimeSpan? {
+    if case .item(_, .time(let span)) = self { return span }
+    return nil
   }
 }

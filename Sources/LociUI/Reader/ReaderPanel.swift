@@ -13,6 +13,8 @@ struct ReaderPanel<Extra: View>: View {
   let content: ContentRef
   let mentor: Mentor?
   let conversation: Conversation?
+  /// An item's conversation, read along with the mentor chosen at its top.
+  var companion: CompanionPanel?
   let notes: [PlacedNote]
   @Binding var tab: PanelTab
   @Binding var draft: PassageDraft?
@@ -29,7 +31,11 @@ struct ReaderPanel<Extra: View>: View {
   var body: some View {
     VStack(spacing: 0) {
       header
-      if let mentor, tab == .conversation {
+      if let companion, tab == .conversation {
+        CompanionThread(
+          item: companion.item, conversation: companion.conversation, mentors: companion.mentors, draft: $draft,
+          revealPassage: revealPassage)
+      } else if let mentor, tab == .conversation {
         ConversationScreen(mentor: mentor, conversation: conversation, draft: $draft, revealPassage: revealPassage)
       } else {
         highlights
@@ -44,7 +50,7 @@ struct ReaderPanel<Extra: View>: View {
 
   private var header: some View {
     ZStack {
-      if mentor != nil {
+      if mentor != nil || companion != nil {
         CapsulePicker(
           selection: $tab,
           options: [(.conversation, .loci("panel.conversation")), (.highlights, .loci("panel.highlights"))])
@@ -66,7 +72,7 @@ struct ReaderPanel<Extra: View>: View {
             NoteCard(
               content: content, placed: placed, mentors: mentors?.value ?? [],
               chosen: chosen?.note == placed.id ? chosen?.serial : nil,
-              ask: mentor == nil || placed.range == nil ? nil : { ask(placed) }
+              ask: mentor == nil && companion == nil || placed.range == nil ? nil : { ask(placed) }
             ) {
               if let range = placed.range { reveal(range) }
             }
@@ -129,4 +135,11 @@ struct PanelLinks<Links: View>: View {
     .padding(.horizontal, Spacing.xxs)
     .padding(.top, Spacing.m)
   }
+}
+
+/// What the panel needs to hold an item's conversation.
+struct CompanionPanel {
+  let item: EntityID
+  let conversation: ItemConversation?
+  let mentors: [Mentor]
 }

@@ -12,6 +12,8 @@ public struct RootView: View {
   @State private var health: Feed<Health>?
   @State private var dialogs = Dialogs()
   @State private var focusRequest = 0
+  @State private var covers = Covers()
+  @State private var browser: BrowserSession
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
   @AppStorage("sidebarShown") private var sidebarShown = true
   private let startShown: () -> Void
@@ -24,9 +26,10 @@ public struct RootView: View {
   }
 
   /// Opens where `memory` says the window was last, and keeps it told of every move.
-  init(startShown: @escaping () -> Void = {}, memory: WindowMemory) {
+  init(startShown: @escaping () -> Void = {}, memory: WindowMemory, browser: BrowserSession = BrowserSession()) {
     self.startShown = startShown
     self.memory = memory
+    _browser = State(initialValue: browser)
   }
 
   public var body: some View {
@@ -39,12 +42,16 @@ public struct RootView: View {
       }
     }
     .overlay(alignment: .topLeading) {
-      if !sidebarShown {
-        SidebarToggle(shown: false, toggle: toggleSidebar)
-          .glassEffect(.regular, in: .capsule)
-          .padding(.leading, Size.sidebarToggleLeading)
-          .padding(.top, Spacing.xs)
+      HStack(spacing: Spacing.xxs) {
+        if !sidebarShown {
+          SidebarToggle(shown: false, toggle: toggleSidebar).glassEffect(.regular, in: .capsule)
+        }
+        if !window.pages.isEmpty {
+          PageBack { window.pages.removeLast() }
+        }
       }
+      .padding(.leading, sidebarShown ? sidebarEdge + Spacing.s : Size.sidebarToggleLeading)
+      .padding(.top, Spacing.xs)
     }
     .ignoresSafeArea(edges: .top)
     .background(Palette.canvas)
@@ -66,13 +73,16 @@ public struct RootView: View {
     }
     .focusedSceneValue(\.navigator, navigator)
     .dialogs($dialogs, host: host)
+    .environment(\.covers, covers)
+    .environment(\.browser, browser)
+    .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
     .lociAppearance()
   }
 
   private var sidebar: some View {
     Sidebar(
       place: placeBinding, openLesson: openLesson, mentors: mentors?.value ?? [],
-      kinds: ItemKind.present(in: items?.value ?? []), rename: { dialogs.rename($0) },
+      kinds: ItemKind.listed(in: items?.value ?? []), rename: { dialogs.rename($0) },
       delete: { dialogs.deletingMentor = $0 }
     )
     .scrollContentBackground(.hidden)
@@ -89,6 +99,11 @@ public struct RootView: View {
     .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     .padding(Spacing.xs)
     .overlay(alignment: .trailing) { PaneResizer(pane: .sidebar, width: $sidebarWidth) }
+  }
+
+  /// Where the sidebar's floating card ends.
+  private var sidebarEdge: CGFloat {
+    PaneWidth.sidebar.clamped(sidebarWidth) + Spacing.xs * 2
   }
 
   private func toggleSidebar() {
@@ -119,8 +134,16 @@ public struct RootView: View {
     let items: Set<EntityID>
   }
 
+  /// The place the sidebar shows as chosen: an item open over the library chooses its kind.
   private var placeBinding: Binding<Place> {
-    Binding(get: { window.place }, set: { window = WindowState(place: $0) })
+    Binding(get: { shownPlace }, set: { window = WindowState(place: $0) })
+  }
+
+  private var shownPlace: Place {
+    guard case .library = window.place, case .item(let id)? = window.pages.last,
+      let item = items?.value?.first(where: { $0.id == id })
+    else { return window.place }
+    return .library(ItemKind(item.kind))
   }
 
   @ViewBuilder private var placeView: some View {
@@ -135,10 +158,14 @@ public struct RootView: View {
     case .library(let kind):
       LibraryScreen(
         kind: kind, opened: { window = $0 }, failed: { dialogs.failure = $0 }, delete: { dialogs.deletingItem = $0 })
+    case .browser:
+      BrowserScreen(session: browser, opened: { window = $0 }, failed: { dialogs.failure = $0 })
     case .settings(.general):
       GeneralSettingsPage()
     case .settings(.agents):
       AgentSettingsPage()
+    case .settings(.media):
+      MediaSettingsPage()
     }
   }
 

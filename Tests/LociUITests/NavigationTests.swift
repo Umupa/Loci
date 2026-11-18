@@ -8,19 +8,28 @@ struct NavigationTests {
   @Test(arguments: [
     ("", PromptInput.empty), ("   \n", .empty),
     ("我想搞懂调度器", .sentence("我想搞懂调度器")), ("  learn Rust ", .sentence("learn Rust")),
-    ("https://research.google/pubs/borg/", .link), ("http://example.com", .link),
+    ("https://research.google/pubs/borg/", .link(URL(filePath: "/"))),
+    ("http://example.com", .link(URL(filePath: "/"))),
     ("see https://example.com", .sentence("see https://example.com")), ("example.com", .sentence("example.com")),
     ("ftp://example.com/file", .sentence("ftp://example.com/file")),
   ])
   func theFieldTellsASentenceFromALink(text: String, input: PromptInput) {
-    #expect(PromptInput(text) == input)
+    #expect(PromptInput(text).withoutAddress == input.withoutAddress)
   }
 
-  @Test func theSidebarListsOnlyKindsThatHaveItems() throws {
+  @Test func aLinkKeepsItsAddress() {
+    #expect(PromptInput(" https://example.com/post ") == .link(URL(string: "https://example.com/post")!))
+  }
+
+  @Test func theSidebarAlwaysListsVideoPodcastsAndArticlesAndPapersOnceThereIsOne() throws {
     let sample = try Sample()
 
-    #expect(ItemKind.present(in: sample.items) == [.article, .paper])
-    #expect(ItemKind.present(in: []).isEmpty)
+    #expect(ItemKind.listed(in: sample.items) == [.video, .audio, .article, .paper])
+    #expect(ItemKind.listed(in: []) == [.video, .audio, .article])
+  }
+
+  @Test func theSidebarListsVideoAndPodcastsBeforeText() throws {
+    #expect(Array(ItemKind.allCases.prefix(3)) == [.video, .audio, .article])
   }
 
   @Test func aWindowComesBackWhereItWas() throws {
@@ -68,5 +77,16 @@ struct NavigationTests {
     await deferred.resolve(FakeHost(sample))
 
     #expect(try await mentors == sample.mentors)
+  }
+}
+
+extension PromptInput {
+  /// The case alone, so cases can be compared without spelling out addresses.
+  fileprivate var withoutAddress: String {
+    switch self {
+    case .empty: "empty"
+    case .sentence(let text): "sentence " + text
+    case .link: "link"
+    }
   }
 }
