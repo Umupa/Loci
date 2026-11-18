@@ -55,6 +55,7 @@ enum Symbols {
     case .read: "doc.text.magnifyingglass"
     case .edit: "pencil"
     case .create: "doc.badge.plus"
+    case .delete: "trash"
     case .execute: "terminal"
     case .search: "magnifyingglass"
     case .other: "wrench.and.screwdriver"

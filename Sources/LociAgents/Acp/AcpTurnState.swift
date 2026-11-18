@@ -135,7 +135,8 @@ struct AcpTurnState: Sendable {
   private static func kind(_ update: JSONValue) -> ToolCall.Kind {
     switch update["_meta"]?["x.ai/tool"]?["kind"]?.string ?? update["kind"]?.string {
     case "read": .read
-    case "edit", "delete", "move": .edit
+    case "edit", "move": .edit
+    case "delete": .delete
     case "execute": .execute
     case "search", "fetch": .search
     default: .other

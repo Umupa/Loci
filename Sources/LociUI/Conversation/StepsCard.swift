@@ -243,7 +243,7 @@ private struct StepRow: View {
     switch title.action {
     case .ran: Symbols.tool(.execute)
     case .searched: Symbols.web
-    case .read, .edited, .created, .used: Symbols.tool(kind)
+    case .read, .edited, .created, .deleted, .used: Symbols.tool(kind)
     }
   }
 

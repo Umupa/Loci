@@ -13,6 +13,8 @@ public struct ToolCall: Hashable, Sendable {
     case edit
     /// Writes a file that was not there.
     case create
+    /// Removes a file.
+    case delete
     case execute
     case search
     case other

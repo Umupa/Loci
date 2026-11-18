@@ -57,6 +57,24 @@ struct ChatTests {
     #expect(ToolTitle(Self.tool(.create, "/w/cleanup.py")).object == "cleanup.py")
   }
 
+  @Test func aDeletedFileReadsAsDeletedAndIsCountedAsADeletion() {
+    let deleted = Self.tool(.delete, "/w/qa_r2_file_event.txt", name: "fileChange")
+    let tally = ToolTally([deleted, Self.tool(.create, "/w/qa_r2_file_event.txt")])
+
+    #expect(ToolTitle(deleted).action == .deleted)
+    #expect(ToolTitle(deleted).object == "qa_r2_file_event.txt")
+    #expect(tally.deleted == 1)
+    #expect(tally.edited == 0)
+  }
+
+  @Test func aCodeBlocksCopyButtonShowsOnlyWhileThePointerIsOverIt() {
+    let block = CGRect(x: 0, y: 200, width: 360, height: 80)
+
+    #expect(CodePointer.isOver(block, CGPoint(x: 340, y: 210)))
+    #expect(!CodePointer.isOver(block, CGPoint(x: 340, y: 120)))
+    #expect(!CodePointer.isOver(block, nil))
+  }
+
   @Test func toolsInARowFoldIntoOneRowCountedByAction() {
     let entries = ConversationEntry.layout(
       [

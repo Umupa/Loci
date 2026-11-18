@@ -122,6 +122,18 @@ struct CodexTurnStateTests {
     #expect(state.receive("item/started", updated).calls.first?.kind == .edit)
   }
 
+  @Test func aFileChangeThatOnlyDeletesFilesIsADeletion() throws {
+    var state = CodexTurnState()
+    let deleted = try json(
+      #"{"item":{"type":"fileChange","id":"d","changes":[{"path":"/w/qa.txt","kind":{"type":"delete"},"diff":""}]}}"#)
+    let mixed = try json(
+      #"{"item":{"type":"fileChange","id":"m","changes":[{"path":"/w/a.txt","kind":{"type":"delete"}},{"path":"/w/b.txt","kind":{"type":"add"}}]}}"#
+    )
+
+    #expect(state.receive("item/started", deleted).calls.first?.kind == .delete)
+    #expect(state.receive("item/started", mixed).calls.first?.kind == .edit)
+  }
+
   @Test func aWebSearchTellsItsQueryWhenItCompletes() throws {
     var state = CodexTurnState()
     _ = state.receive("item/started", try json(#"{"item":{"type":"webSearch","id":"w","query":""}}"#))

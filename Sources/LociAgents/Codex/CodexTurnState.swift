@@ -75,8 +75,8 @@ struct CodexTurnState: Sendable {
     case "fileChange":
       name = type
       let changes = item["changes"]?.array ?? []
-      let created = !changes.isEmpty && changes.allSatisfy { $0["kind"]?["type"]?.string == "add" }
-      kind = created ? .create : .edit
+      let kinds = Set(changes.map { $0["kind"]?["type"]?.string })
+      kind = kinds == ["add"] ? .create : kinds == ["delete"] ? .delete : .edit
     case "mcpToolCall", "dynamicToolCall":
       name = item["tool"]?.string ?? type
       kind = .other

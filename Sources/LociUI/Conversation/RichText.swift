@@ -15,5 +15,6 @@ struct RichText: View {
       .textual.structuredTextStyle(.default)
       .textual.textSelection(.enabled)
       .frame(maxWidth: .infinity, alignment: .leading)
+      .followsPointerForCode()
   }
 }

@@ -6,7 +6,7 @@ struct ToolTitle: Equatable {
   enum Action: Equatable {
     /// The command itself is the title.
     case ran
-    case read, edited, created, searched
+    case read, edited, created, deleted, searched
     /// A tool Loci has no word for, under the agent's own name for it.
     case used(String)
   }
@@ -30,6 +30,9 @@ struct ToolTitle: Equatable {
     case .create:
       action = .created
       object = subject.map(Self.fileName)
+    case .delete:
+      action = .deleted
+      object = subject.map(Self.fileName)
     case .search where Self.isWebSearch(tool.name):
       action = .searched
       object = subject
@@ -49,6 +52,7 @@ struct ToolTitle: Equatable {
     case .read: .loci("tool.read")
     case .edited: .loci("tool.edited")
     case .created: .loci("tool.created")
+    case .deleted: .loci("tool.deleted")
     case .searched: .loci("tool.searched")
     case .used: nil
     }
@@ -58,7 +62,7 @@ struct ToolTitle: Equatable {
   var isCode: Bool {
     switch action {
     case .ran, .used: true
-    case .read, .edited, .created, .searched: false
+    case .read, .edited, .created, .deleted, .searched: false
     }
   }
 
@@ -95,6 +99,7 @@ struct ToolTally: Equatable {
   var read = 0
   var edited = 0
   var created = 0
+  var deleted = 0
   var searched = 0
   var used = 0
 
@@ -105,6 +110,7 @@ struct ToolTally: Equatable {
       case .read: read += 1
       case .edited: edited += 1
       case .created: created += 1
+      case .deleted: deleted += 1
       case .searched: searched += 1
       case .used: used += 1
       }
@@ -117,6 +123,7 @@ struct ToolTally: Equatable {
     if ran > 0 { phrases.append(.loci("tools.ran \(ran)")) }
     if read > 0 { phrases.append(.loci("tools.read \(read)")) }
     if created > 0 { phrases.append(.loci("tools.created \(created)")) }
+    if deleted > 0 { phrases.append(.loci("tools.deleted \(deleted)")) }
     if edited > 0 { phrases.append(.loci("tools.edited \(edited)")) }
     if searched > 0 { phrases.append(.loci("tools.searched \(searched)")) }
     if used > 0 { phrases.append(.loci("tools.used \(used)")) }

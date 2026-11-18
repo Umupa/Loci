@@ -119,8 +119,8 @@ public struct ToolActivity: Hashable, Codable, Sendable {
   }
 
   public enum Kind: String, Hashable, Codable, Sendable {
-    /// `edit` changes a file that was there; `create` writes one that was not.
-    case read, edit, create, execute, search, other
+    /// `edit` changes a file that was there, `create` writes one that was not, `delete` removes one.
+    case read, edit, create, delete, execute, search, other
   }
 
   public enum State: String, Hashable, Codable, Sendable {

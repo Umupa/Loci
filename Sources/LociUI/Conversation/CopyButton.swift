@@ -49,16 +49,67 @@ struct CopyableCodeBlock: StructuredText.CodeBlockStyle {
 private struct CodeBlockView: View {
   let configuration: StructuredText.CodeBlockStyleConfiguration
   @Environment(\.showsCopyButtons) private var showsCopyButtons
-  @State private var hovering = false
+  @Environment(\.codePointer) private var pointer
+  @State private var frame = CGRect.zero
 
   var body: some View {
+    let shown = showsCopyButtons || CodePointer.isOver(frame, pointer?.location)
     StructuredText.DefaultCodeBlockStyle().makeBody(configuration: configuration)
       .overlay(alignment: .topTrailing) {
         CopyButton { configuration.codeBlock.copyToPasteboard() }
           .background(RoundedRectangle(cornerRadius: Radius.small, style: .continuous).fill(Palette.surface))
           .padding(Spacing.xxs)
-          .opacity(hovering || showsCopyButtons ? 1 : 0)
+          .opacity(shown ? 1 : 0)
+          .allowsHitTesting(shown)
+          .animation(Motion.quick, value: shown)
       }
-      .onHover { hovering = $0 }
+      .onGeometryChange(for: CGRect.self) {
+        $0.frame(in: .named(CodePointer.space))
+      } action: {
+        frame = $0
+      }
+  }
+}
+
+/// Where the pointer is over a reply, for its code blocks to show their copy buttons.
+///
+/// Textual lays a view for selecting text over everything it draws, and that view takes the hover from what
+/// is under it, so a code block cannot notice the pointer itself. The pointer is followed from outside the
+/// text instead, and each code block compares it with its own frame. Only the code blocks read the
+/// location, so moving the pointer does not draw the text again.
+@MainActor @Observable final class CodePointer {
+  var location: CGPoint?
+
+  static let space = "codePointer"
+
+  nonisolated static func isOver(_ frame: CGRect, _ location: CGPoint?) -> Bool {
+    location.map { frame.contains($0) } ?? false
+  }
+}
+
+extension EnvironmentValues {
+  @Entry var codePointer: CodePointer?
+}
+
+extension View {
+  /// Follows the pointer over this Markdown so that its code blocks show their copy buttons under it.
+  func followsPointerForCode() -> some View {
+    modifier(FollowsPointer())
+  }
+}
+
+private struct FollowsPointer: ViewModifier {
+  @State private var pointer = CodePointer()
+
+  func body(content: Content) -> some View {
+    content
+      .environment(\.codePointer, pointer)
+      .coordinateSpace(.named(CodePointer.space))
+      .onContinuousHover(coordinateSpace: .named(CodePointer.space)) { phase in
+        switch phase {
+        case .active(let location): pointer.location = location
+        case .ended: pointer.location = nil
+        }
+      }
   }
 }

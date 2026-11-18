@@ -15,6 +15,7 @@ struct ReplyText: View {
       if progress < 1 { Self.rendered(shown) }
       Self.rendered(arriving).opacity(progress)
     }
+    .followsPointerForCode()
     .onAppear {
       arriving = Self.settled(text, streaming: streaming)
       shown = arriving

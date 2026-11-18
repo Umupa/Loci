@@ -123,6 +123,7 @@ struct TurnRecord: Sendable {
       case .read: .read
       case .edit: .edit
       case .create: .create
+      case .delete: .delete
       case .execute: .execute
       case .search: .search
       case .other: .other
