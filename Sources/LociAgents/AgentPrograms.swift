@@ -21,6 +21,15 @@ public struct AgentPrograms: Sendable {
     self.launcher = launcher
   }
 
+  /// Why there is no driver for a provider: its program is nowhere to be found, or it is there and cannot
+  /// be run.
+  public func unavailability(of provider: Mentor.Provider) -> AgentStartFailure {
+    guard let cli = AgentCLI.all.first(where: { $0.provider == provider }), search.isBlocked(named: cli.names) else {
+      return .notInstalled
+    }
+    return .wouldNotStart
+  }
+
   /// The driver for a provider, or `nil` when its program is not installed or Loci cannot drive it yet.
   public func driver(for provider: Mentor.Provider) -> (any AgentDriver)? {
     guard let cli = AgentCLI.all.first(where: { $0.provider == provider }),

@@ -1,6 +1,8 @@
 public enum AgentError: Error, Hashable, Sendable {
   /// The program is missing or would not start.
   case cannotLaunch(String)
+  /// The program is there but would not start: this Mac did not let it run, or it is broken.
+  case wouldNotStart
   /// The session to resume no longer exists.
   case sessionNotFound
   case turnInProgress

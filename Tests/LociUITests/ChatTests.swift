@@ -140,6 +140,14 @@ struct ChatTests {
     if case .aside(let line) = entries.last { #expect(line.body == .startedOver) } else { Issue.record() }
   }
 
+  @Test func startingOverOnAnItemShowsOneLineForEveryMentorWhoAnsweredThere() {
+    let entries = ConversationEntry.layout(
+      [Self.asked, Self.message(1, .reply("一")), Self.message(2, .startedOver), Self.message(2, .startedOver)],
+      live: false)
+
+    #expect(entries.count { if case .aside = $0 { true } else { false } } == 1)
+  }
+
   @Test func scrollingUpStopsFollowingAndOffersTheWayBack() {
     var follow = Following()
     #expect(!follow.offersLatest)

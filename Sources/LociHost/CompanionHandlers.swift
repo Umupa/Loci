@@ -29,6 +29,19 @@ extension LocalHost {
     return Done()
   }
 
+  /// Every mentor who answered on the item starts afresh there. A mentor deleted since has no session to
+  /// end.
+  public func startOverCompanion(_ command: StartOverCompanion) async throws(HostError) -> Done {
+    _ = try attempt { try store.item(command.item) }
+    guard !(await mentors.isBusy(on: command.item)) else { throw .invalidRequest(MentorRun.busyOnItem) }
+    let answered = Set(try attempt { try database.messages(on: command.item) }.map(\.mentor))
+    let present = Set(try await listMentors().map(\.id))
+    for mentor in answered.intersection(present) {
+      try await mentors.run(of: mentor, scope: .item(command.item)).startOver()
+    }
+    return Done()
+  }
+
   public func chooseCompanion(_ command: ChooseCompanion) async throws(HostError) -> ItemConversation {
     try await checkCompanion(command.mentor, on: command.item)
     try remember(command.mentor, on: command.item)

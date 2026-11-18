@@ -19,4 +19,18 @@ struct AgentProgramsTests {
     #expect(programs.driver(for: .pi) == nil)
     #expect(programs.driver(for: .fx) == nil)
   }
+
+  @Test func aProgramThatIsThereButCannotRunIsToldApartFromAMissingOne() throws {
+    let folder = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-programs-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    try Data("#!/bin/sh\n".utf8).write(to: folder.appending(path: "codex"))
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o644], ofItemAtPath: folder.appending(path: "codex").path)
+    let programs = AgentPrograms(search: AgentSearch(directories: [folder]))
+
+    #expect(programs.driver(for: .codex) == nil)
+    #expect(programs.unavailability(of: .codex) == .wouldNotStart)
+    #expect(programs.unavailability(of: .grok) == .notInstalled)
+  }
 }

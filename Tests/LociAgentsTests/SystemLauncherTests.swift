@@ -18,6 +18,20 @@ struct SystemLauncherTests {
     return String(decoding: all, as: UTF8.self)
   }
 
+  @Test func aProgramThatIsThereButWillNotRunIsToldApartFromAMissingOne() throws {
+    let script = URL(filePath: NSTemporaryDirectory()).appending(path: "loci-unrunnable-\(UUID().uuidString)")
+    try Data("#!/bin/sh\n".utf8).write(to: script)
+    try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: script.path)
+    defer { try? FileManager.default.removeItem(at: script) }
+
+    #expect(throws: AgentError.wouldNotStart) { _ = try launch(script.path) }
+    #expect {
+      _ = try launch("/nonexistent/loci-program")
+    } throws: { error in
+      if case .cannotLaunch = error as? AgentError { true } else { false }
+    }
+  }
+
   @Test func whatIsWrittenComesBackAndClosingInputEndsTheProgram() async throws {
     let cat = try launch("/bin/cat")
     try cat.write(Data("one\n".utf8))

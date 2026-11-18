@@ -47,6 +47,7 @@ enum Judge {
       case .reply(let text): "**Mentor:** \(text)"
       case .tool(let tool): "_tool \(tool.name): \(tool.subject ?? "")_"
       case .ended(.failed(let why)): "_turn failed: \(why)_"
+      case .ended(.unstarted(let provider, let why)): "_\(provider.rawValue) did not start: \(why)_"
       case .ended(.interrupted): "_turn stopped_"
       case .startedOver: "_started over_"
       case .thinking, .savedToNote, .notice: nil

@@ -41,6 +41,22 @@ public struct StopCompanion: Command {
   }
 }
 
+/// Starts the item's conversation over: the next question asked on it goes to a fresh agent session, for
+/// every mentor who answered there before. Every message stays, with a line where it started over. Does
+/// nothing on an item with no messages yet; refused while a mentor is answering there.
+public struct StartOverCompanion: Command {
+  public static let name = "companion.startOver"
+  public let item: EntityID
+
+  public init(item: EntityID) {
+    self.item = item
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
+    try await handler.startOverCompanion(self)
+  }
+}
+
 /// Makes a mentor the item's companion without asking it anything. Remembered for the item, and offered
 /// on items where no companion was chosen yet.
 public struct ChooseCompanion: Command {

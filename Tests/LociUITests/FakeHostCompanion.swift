@@ -5,6 +5,7 @@ import LociModel
 extension FakeHost {
   func askCompanion(_ command: AskCompanion) async throws(HostError) -> Done { Done() }
   func stopCompanion(_ command: StopCompanion) async throws(HostError) -> Done { Done() }
+  func startOverCompanion(_ command: StartOverCompanion) async throws(HostError) -> Done { Done() }
 
   func chooseCompanion(_ command: ChooseCompanion) async throws(HostError) -> ItemConversation {
     ItemConversation(item: command.item, companion: command.mentor, messages: [], turn: nil)

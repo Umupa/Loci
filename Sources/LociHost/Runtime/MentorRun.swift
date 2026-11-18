@@ -43,6 +43,12 @@ actor MentorRun {
   private var stopping = false
   /// A session just opened afresh on an item has not been told about the item yet.
   private var needsIntroduction = false
+  /// What the turn did since it was last shown, waiting to be shown with what comes after it.
+  private var showing: Task<Void, Never>?
+
+  /// How long what a turn does is held before it is shown, so a reply streaming a word at a time is
+  /// shown a few words at a time.
+  static let showEvery = Duration.milliseconds(50)
 
   init(mentor: EntityID, scope: RunScope = .course, context: RunContext) throws(HostError) {
     self.mentor = mentor
@@ -126,13 +132,13 @@ actor MentorRun {
             turn?.apply(event, at: context.environment.now())
           }
           if case .ended(.failed(.exited)) = event { await dropSession() }
-          await changed()
+          changedSoon()
         }
       } else {
         turn?.apply(.ended(.interrupted), at: context.environment.now())
       }
     } catch {
-      turn?.fail(error.reason, at: context.environment.now())
+      turn?.end(error.ending, at: context.environment.now())
     }
     await finish()
   }
@@ -194,7 +200,7 @@ actor MentorRun {
     if let session, openedFor == Self.choice(of: mentor) { return session }
     await dropSession()
     guard let driver = await context.environment.agents(mentor.provider) else {
-      throw TurnFailure(reason: "\(mentor.provider.rawValue) is not installed on this Mac.")
+      throw TurnFailure(.unstarted(mentor.provider, await context.environment.unavailability(mentor.provider)))
     }
     let soul = try TurnFailure.from { () throws(HostError) in try Soul.text(for: mentor) }
     let folder = try TurnFailure.from { () throws(HostError) in
@@ -212,10 +218,14 @@ actor MentorRun {
       opened = try await driver.open(configuration)
     } catch {
       guard error == .sessionNotFound, configuration.resume != nil else {
-        throw TurnFailure(reason: error.explanation)
+        throw TurnFailure(starting: mentor.provider, error)
       }
       configuration.resume = nil
-      opened = try await TurnFailure.awaiting { () async throws(AgentError) in try await driver.open(configuration) }
+      do {
+        opened = try await driver.open(configuration)
+      } catch {
+        throw TurnFailure(starting: mentor.provider, error)
+      }
     }
     try record(opened.handle, provider: mentor.provider)
     needsIntroduction = scope.item != nil && opened.handle != configuration.resume
@@ -249,6 +259,21 @@ actor MentorRun {
     conversation = fresh
   }
 
+  /// Shows what changed once the moment is over, together with whatever else changes until then.
+  private func changedSoon() {
+    guard showing == nil else { return }
+    let wait = context.environment.wait
+    showing = Task {
+      await wait(Self.showEvery)
+      await self.show()
+    }
+  }
+
+  private func show() async {
+    showing = nil
+    await changed()
+  }
+
   private func changed() async {
     switch scope {
     case .course: await context.follower.follow([.conversation(mentor)])
@@ -257,15 +282,28 @@ actor MentorRun {
   }
 }
 
-/// Why a turn could not run, in words for the person.
+/// Why a turn could not run, as the conversation tells it.
 struct TurnFailure: Error {
-  let reason: String
+  let ending: TurnEnding
+
+  init(_ ending: TurnEnding) {
+    self.ending = ending
+  }
+
+  /// Opening the provider's agent failed: it would not start, or it started and then failed.
+  init(starting provider: Mentor.Provider, _ error: AgentError) {
+    switch error {
+    case .wouldNotStart: ending = .unstarted(provider, .wouldNotStart)
+    case .cannotLaunch: ending = .unstarted(provider, .notInstalled)
+    default: ending = .failed(error.explanation)
+    }
+  }
 
   static func from<Value>(_ body: () throws(HostError) -> Value) throws(TurnFailure) -> Value {
     do {
       return try body()
     } catch {
-      throw TurnFailure(reason: String(describing: error))
+      throw TurnFailure(.failed(String(describing: error)))
     }
   }
 
@@ -273,7 +311,7 @@ struct TurnFailure: Error {
     do {
       return try await body()
     } catch {
-      throw TurnFailure(reason: error.explanation)
+      throw TurnFailure(.failed(error.explanation))
     }
   }
 }

@@ -33,7 +33,7 @@ public struct SystemLauncher: ProgramLauncher {
       try process.run()
     } catch {
       exited.finish()
-      throw .cannotLaunch(error.localizedDescription)
+      throw Self.isThere(invocation.executable) ? .wouldNotStart : .cannotLaunch(error.localizedDescription)
     }
     let identifier = process.processIdentifier
 
@@ -44,6 +44,12 @@ public struct SystemLauncher: ProgramLauncher {
       closeInput: { try? writer.close() },
       terminate: { kill(identifier, SIGTERM) },
       exit: { await status.value })
+  }
+
+  /// Whether there is a file at `path`, even one the system would not let Loci look at. `Process` reports
+  /// every program it could not start as missing, so this tells the two apart.
+  static func isThere(_ path: URL) -> Bool {
+    access(path.path, F_OK) == 0 || errno == EPERM || errno == EACCES
   }
 
   private static func chunks(from handle: FileHandle) -> AsyncStream<Data> {

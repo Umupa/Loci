@@ -59,7 +59,7 @@ struct ConversationView: View {
   var body: some View {
     ScrollView {
       let answers = ConversationEntry.answers(entries)
-      LazyVStack(alignment: .leading, spacing: 14) {
+      LazyVStack(alignment: .leading, spacing: Self.spacing) {
         ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
           if showsDays, let day = Sitting.start(of: entry, after: index > 0 ? entries[index - 1] : nil) {
             Sitting.label(day, now: Date())
@@ -136,6 +136,17 @@ struct ConversationView: View {
     .background(Palette.well)
   }
 
+  private static let spacing: CGFloat = 14
+
+  /// The pointer came over an answer's last reply or its actions, or left them.
+  private func point(_ inside: Bool, at answer: EntityID) {
+    if inside {
+      pointedAnswer = answer
+    } else if pointedAnswer == answer {
+      pointedAnswer = nil
+    }
+  }
+
   /// Questions the person has asked; one more means the conversation goes to its end to show the answer.
   private var questions: Int {
     entries.count { if case .asked = $0 { true } else { false } }
@@ -174,14 +185,13 @@ struct ConversationView: View {
     case .steps(let steps):
       StepsCard(steps: steps)
     case .reply(let message, let text, let streaming):
+      ReplyText(text: text, streaming: streaming, spacing: Self.spacing)
+        .padding(.horizontal, 2)
+        .onHover { if answer != nil { point($0, at: message.id) } }
       if let answer {
-        VStack(alignment: .leading, spacing: Spacing.xxs) {
-          ReplyText(text: text, streaming: streaming).padding(.horizontal, 2)
-          AnswerActions(text: answer, shown: pointedAnswer == message.id)
-        }
-        .onHover { pointedAnswer = $0 ? message.id : nil }
-      } else {
-        ReplyText(text: text, streaming: streaming).padding(.horizontal, 2)
+        AnswerActions(text: answer, shown: pointedAnswer == message.id)
+          .padding(.top, Spacing.xxs - Self.spacing)
+          .onHover { point($0, at: message.id) }
       }
     case .saved:
       SavedChip()

@@ -20,6 +20,7 @@ struct CompanionThread: View {
           try await host.run(AskCompanion(item: item, mentor: companion.id, text: text, passage: passage))
         },
         stop: { _ = try? await host.run(StopCompanion(item: item)) },
+        startOver: { () async throws(HostError) -> Done in try await host.run(StartOverCompanion(item: item)) },
         answeredBy: { message in answerer[message.id] }, showsDays: true, plainComposer: true
       )
       .safeAreaInset(edge: .top, spacing: 0) {

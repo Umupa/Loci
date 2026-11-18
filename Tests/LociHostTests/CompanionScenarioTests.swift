@@ -117,6 +117,61 @@ struct CompanionScenarioTests {
     #expect(world.agent.prompts.last == "Two?")
   }
 
+  /// C-13: starting over on an item keeps what was said there, and every mentor who answered there takes
+  /// the next question in a fresh session that is told about the item again.
+  @Test func startingOverOnAnItemKeepsItsMessagesAndTheNextQuestionGoesToAFreshSession() async throws {
+    try await withHost(agent: Self.agent) { host, _, world in
+      let setup = try await Self.setUp(host)
+      _ = try await host.run(AskCompanion(item: setup.item.id, mentor: setup.ada.id, text: "One?"))
+      _ = try #require(await Self.settled(host, on: setup.item.id, questions: 1))
+      _ = try await host.run(AskCompanion(item: setup.item.id, mentor: setup.alan.id, text: "Two?"))
+      _ = try #require(await Self.settled(host, on: setup.item.id, questions: 2))
+      let opened = world.agent.opened.count
+
+      _ = try await host.run(StartOverCompanion(item: setup.item.id))
+      _ = try await host.run(AskCompanion(item: setup.item.id, mentor: setup.ada.id, text: "Three?"))
+
+      let done = try #require(await Self.settled(host, on: setup.item.id, questions: 3))
+      let bodies = done.messages.map(\.message.body)
+      #expect(bodies.count { $0 == .startedOver } >= 1)
+      #expect(bodies.firstIndex(of: .startedOver).map { $0 > 3 } == true)
+      #expect(world.agent.opened.count == opened + 1)
+      #expect(world.agent.opened.last?.resume == nil)
+      #expect(world.agent.prompts.last?.contains("read along") == true)
+    }
+  }
+
+  @Test func anItemThatStartedOverStartsFreshForEveryMentorAfterARestart() async throws {
+    let place = Place()
+    defer { place.remove() }
+    let world = TestWorld(agent: Self.agent)
+    let first = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
+    let setup = try await Self.setUp(first)
+    _ = try await first.run(AskCompanion(item: setup.item.id, mentor: setup.ada.id, text: "One?"))
+    _ = try #require(await Self.settled(first, on: setup.item.id, questions: 1))
+    _ = try await first.run(StartOverCompanion(item: setup.item.id))
+    await first.close()
+
+    let second = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
+    _ = try await second.run(AskCompanion(item: setup.item.id, mentor: setup.ada.id, text: "Two?"))
+    _ = try #require(await Self.settled(second, on: setup.item.id, questions: 2))
+    await second.close()
+
+    #expect(world.agent.opened.last?.resume == nil)
+  }
+
+  @Test func startingOverWhileAMentorAnswersOnTheItemIsRefused() async throws {
+    try await withHost(agent: Self.agent) { host, _, _ in
+      let setup = try await Self.setUp(host)
+      _ = try await host.run(AskCompanion(item: setup.item.id, mentor: setup.ada.id, text: "hang"))
+
+      await #expect(throws: HostError.invalidRequest(MentorRun.busyOnItem)) {
+        try await host.run(StartOverCompanion(item: setup.item.id))
+      }
+      _ = try await host.run(StopCompanion(item: setup.item.id))
+    }
+  }
+
   @Test func theChosenCompanionIsRememberedAndOfferedOnOtherItems() async throws {
     try await withHost(agent: Self.agent) { host, _, _ in
       let setup = try await Self.setUp(host)
@@ -214,7 +269,7 @@ struct CompanionScenarioTests {
       _ = try await host.run(AskCompanion(item: setup.item.id, mentor: setup.ada.id, text: "One?"))
 
       let done = try #require(await Self.settled(host, on: setup.item.id, questions: 1))
-      #expect(done.messages.last?.message.body == .ended(.failed("grok is not installed on this Mac.")))
+      #expect(done.messages.last?.message.body == .ended(.unstarted(.grok, .notInstalled)))
     }
   }
 }

@@ -120,6 +120,7 @@ public protocol CommandHandler: Sendable {
   func handOverBrowserCookies(_ cookies: [BrowserCookie]) async throws(HostError) -> Done
   func askCompanion(_ command: AskCompanion) async throws(HostError) -> Done
   func stopCompanion(_ command: StopCompanion) async throws(HostError) -> Done
+  func startOverCompanion(_ command: StartOverCompanion) async throws(HostError) -> Done
   func chooseCompanion(_ command: ChooseCompanion) async throws(HostError) -> ItemConversation
   func itemConversation(on item: EntityID) async throws(HostError) -> ItemConversation
 }

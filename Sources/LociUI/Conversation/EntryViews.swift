@@ -54,6 +54,18 @@ struct QuotedLine: View {
   }
 }
 
+extension AsideLine {
+  /// Why the mentor's agent did not start, beginning with the agent's name.
+  static func unstarted(_ provider: Mentor.Provider, _ failure: AgentStartFailure) -> Text {
+    let said: LocalizedStringResource =
+      switch failure {
+      case .notInstalled: .loci("conversation.agentNotInstalled")
+      case .wouldNotStart: .loci("conversation.agentWouldNotStart")
+      }
+    return Text(joining: Text(verbatim: Agents.name(of: provider) + " "), Text(said))
+  }
+}
+
 /// Under a finished answer: copy all of it. Shows while the pointer is over the answer.
 struct AnswerActions: View {
   let text: String
@@ -107,6 +119,13 @@ struct AsideLine: View {
       case .ended(.failed(let reason)):
         Label {
           Text(verbatim: reason)
+        } icon: {
+          Image(systemName: Symbols.problem)
+        }
+        .foregroundStyle(Palette.accentInk)
+      case .ended(.unstarted(let provider, let failure)):
+        Label {
+          Self.unstarted(provider, failure)
         } icon: {
           Image(systemName: Symbols.problem)
         }

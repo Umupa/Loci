@@ -92,8 +92,18 @@ public struct Prompt: Hashable, Codable, Sendable {
 public enum TurnEnding: Hashable, Codable, Sendable {
   /// Stopped on the person's request.
   case interrupted
-  /// The agent could not go on. Carries its own words, or why it would not start.
+  /// The agent could not go on. Carries its own words.
   case failed(String)
+  /// The mentor's agent did not start.
+  case unstarted(Mentor.Provider, AgentStartFailure)
+}
+
+/// Why an agent's program did not start.
+public enum AgentStartFailure: Hashable, Codable, Sendable {
+  /// No program for it was found on this Mac.
+  case notInstalled
+  /// The program is there but would not start: this Mac did not let Loci run it, or it is broken.
+  case wouldNotStart
 }
 
 /// A tool the mentor ran during a turn.

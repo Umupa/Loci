@@ -28,7 +28,12 @@ struct Checks: Hashable, Codable, Sendable {
     catalogAfterSeconds = evidence.catalogAfter
     firstLessonAfterSeconds = evidence.firstLessonAfter
     stoppedFirstTurn = evidence.stoppedFirstTurn
-    failedTurns = evidence.conversation.count { if case .ended(.failed) = $0.body { true } else { false } }
+    failedTurns = evidence.conversation.count { message in
+      switch message.body {
+      case .ended(.failed), .ended(.unstarted): true
+      default: false
+      }
+    }
     probeAnswered = !evidence.probeAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 

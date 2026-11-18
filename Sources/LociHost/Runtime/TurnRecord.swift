@@ -71,8 +71,8 @@ struct TurnRecord: Sendable {
   }
 
   /// Ends the turn with a reason of Loci's own, such as an agent that would not start.
-  mutating func fail(_ reason: String, at time: Timestamp) {
-    add(.ended(.failed(reason)), at: time)
+  mutating func end(_ ending: TurnEnding, at time: Timestamp) {
+    add(.ended(ending), at: time)
   }
 
   private mutating func add(_ body: Message.Body, at time: Timestamp) {
@@ -153,6 +153,7 @@ extension AgentError {
   var explanation: String {
     switch self {
     case .cannotLaunch(let why): "The agent could not start: \(why)"
+    case .wouldNotStart: "The agent is installed but would not start."
     case .sessionNotFound: "The earlier session could not be found."
     case .turnInProgress: "The agent is still working on the previous message."
     case .rejected(let words), .provider(let words): words

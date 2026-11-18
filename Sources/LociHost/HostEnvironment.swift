@@ -16,6 +16,8 @@ public struct HostEnvironment: Sendable {
   public let discard: Discard
   /// The driver for a provider's program, or `nil` when it cannot be run here.
   public let agents: @Sendable (Mentor.Provider) async -> (any AgentDriver)?
+  /// Why a provider has no driver: its program is not installed, or it is there and cannot be run.
+  public let unavailability: @Sendable (Mentor.Provider) async -> AgentStartFailure
   /// What each provider is on this Mac. `again` looks afresh, so a program installed since is found and
   /// can be driven; otherwise what was found last may be given.
   public let detectAgents: @Sendable (_ again: Bool) async -> [AgentInstallation]
@@ -25,14 +27,19 @@ public struct HostEnvironment: Sendable {
   public let pick: @Sendable (Int) -> Int
   /// The programs, network and recognizer the library uses to fetch and transcribe.
   public let media: MediaEnvironment
+  /// Waits a moment: how long a running turn holds what it said before showing it, so that the words
+  /// streaming in are shown a few at a time.
+  public let wait: @Sendable (Duration) async -> Void
 
   public init(
     newID: @escaping @Sendable () -> EntityID, now: @escaping @Sendable () -> Timestamp,
     defaultProvider: Mentor.Provider, defaultModel: String? = nil, discard: Discard,
     agents: @escaping @Sendable (Mentor.Provider) async -> (any AgentDriver)?,
+    unavailability: @escaping @Sendable (Mentor.Provider) async -> AgentStartFailure = { _ in .notInstalled },
     detectAgents: @escaping @Sendable (_ again: Bool) async -> [AgentInstallation] = { _ in [] },
     models: @escaping @Sendable (Mentor.Provider) async -> [String] = { _ in [] },
-    pick: @escaping @Sendable (Int) -> Int = { _ in 0 }, media: MediaEnvironment = .disconnected
+    pick: @escaping @Sendable (Int) -> Int = { _ in 0 }, media: MediaEnvironment = .disconnected,
+    wait: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
   ) {
     self.newID = newID
     self.now = now
@@ -40,10 +47,12 @@ public struct HostEnvironment: Sendable {
     self.defaultModel = defaultModel
     self.discard = discard
     self.agents = agents
+    self.unavailability = unavailability
     self.detectAgents = detectAgents
     self.models = models
     self.pick = pick
     self.media = media
+    self.wait = wait
   }
 
   /// The real clock, fresh identifiers, random looks, the Trash, and the agent programs installed on this Mac.
@@ -52,7 +61,8 @@ public struct HostEnvironment: Sendable {
     return HostEnvironment(
       newID: { EntityID() }, now: { Timestamp(.now) }, defaultProvider: defaultProvider, defaultModel: defaultModel,
       discard: .toTrash, agents: { await installed.driver(for: $0) },
-      detectAgents: { await installed.detect(again: $0) }, models: { await installed.models(of: $0) },
+      unavailability: { await installed.unavailability(of: $0) }, detectAgents: { await installed.detect(again: $0) },
+      models: { await installed.models(of: $0) },
       pick: { Int.random(in: 0..<$0) }, media: .system(agents: { await installed.driver(for: $0) }))
   }
 }
@@ -74,6 +84,10 @@ actor InstalledAgents {
 
   func driver(for provider: Mentor.Provider) async -> (any AgentDriver)? {
     AgentPrograms(search: await currentSearch()).driver(for: provider)
+  }
+
+  func unavailability(of provider: Mentor.Provider) async -> AgentStartFailure {
+    AgentPrograms(search: await currentSearch()).unavailability(of: provider)
   }
 
   func detect(again: Bool) async -> [AgentInstallation] {

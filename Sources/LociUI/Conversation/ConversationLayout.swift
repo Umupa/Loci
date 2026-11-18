@@ -44,7 +44,11 @@ enum ConversationEntry: Identifiable {
       case .savedToNote(let note):
         close()
         entries.append(.saved(message, note: note))
-      case .prompt, .notice, .ended, .startedOver:
+      case .startedOver:
+        close()
+        if case .aside(let line) = entries.last, line.body == .startedOver { continue }
+        entries.append(.aside(message))
+      case .prompt, .notice, .ended:
         close()
         entries.append(.aside(message))
       }

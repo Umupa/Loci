@@ -115,10 +115,13 @@ struct HostCodingTests {
     #expect(
       try Self.roundTrips(AskCompanion(item: Fixture.item, mentor: Fixture.mentor, text: "Why?", passage: passage)))
     #expect(try Self.roundTrips(StopCompanion(item: Fixture.item)))
+    #expect(try Self.roundTrips(StartOverCompanion(item: Fixture.item)))
     #expect(try Self.roundTrips(ChooseCompanion(item: Fixture.item, mentor: Fixture.mentor)))
     #expect(try Self.roundTrips(CompanionConversation(item: Fixture.item)))
     #expect(try Self.roundTrips(Feed<ItemConversation>.value(conversation)))
-    let names = [AskCompanion.name, StopCompanion.name, ChooseCompanion.name, CompanionConversation.name]
+    let names = [
+      AskCompanion.name, StopCompanion.name, StartOverCompanion.name, ChooseCompanion.name, CompanionConversation.name,
+    ]
     #expect(Set(names).count == names.count)
   }
 

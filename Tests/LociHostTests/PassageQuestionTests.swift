@@ -110,7 +110,7 @@ struct PassageQuestionTests {
       _ = try await host.run(SendMessage(mentor: mentor.id, text: "Why?", passage: passage))
 
       let done = try #require(await settled(host, mentor.id, turns: 2))
-      #expect(done.messages.last?.body == .ended(.failed("grok is not installed on this Mac.")))
+      #expect(done.messages.last?.body == .ended(.unstarted(.grok, .notInstalled)))
       #expect(place.store.notes(on: passage.locator.content).value.first?.exchanges.isEmpty == true)
     }
   }

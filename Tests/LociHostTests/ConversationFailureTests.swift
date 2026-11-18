@@ -50,7 +50,7 @@ struct ConversationFailureTests {
       host, _, _, agent in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
       let done = try await idle(host, mentor.id)
-      #expect(done.messages.last?.body == .ended(.failed("The agent could not start: missing executable")))
+      #expect(done.messages.last?.body == .ended(.unstarted(.pi, .notInstalled)))
       #expect(try host.database.messages(of: mentor.id) == done.messages)
       #expect(try host.database.latestConversation(of: mentor.id)?.session == nil)
       #expect(await agent.opened.count == 1)

@@ -3909,6 +3909,40 @@
           }
         }
       }
+    },
+    "conversation.agentNotInstalled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "is not installed on this Mac."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有安装在这台 Mac 上。"
+          }
+        }
+      }
+    },
+    "conversation.agentWouldNotStart": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "is installed but would not start. macOS may not be letting Loci run it; check its permissions."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已经安装，但无法启动。可能是 macOS 不允许 Loci 运行它，请检查权限设置。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

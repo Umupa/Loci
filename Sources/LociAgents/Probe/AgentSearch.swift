@@ -19,6 +19,17 @@ public struct AgentSearch: Hashable, Sendable {
     return nil
   }
 
+  /// Whether a program under one of `names` is there but cannot be run: it is not executable, or the system
+  /// would not even let Loci look at it.
+  func isBlocked(named names: [String]) -> Bool {
+    directories.contains { directory in
+      names.contains { name in
+        let candidate = directory.appending(path: name)
+        return SystemLauncher.isThere(candidate) && !Self.isExecutable(candidate)
+      }
+    }
+  }
+
   /// Where a program can be on this Mac: the login shell's PATH, the PATH this process inherited, then the
   /// folders the installers use that a window opened from Finder never hears about.
   public static func forThisMac(

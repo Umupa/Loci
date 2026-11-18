@@ -137,6 +137,24 @@ struct ScreenSnapshots {
     try await Self.shoot("chat", view, appearance: appearance, size: CGSize(width: 420, height: 980))
   }
 
+  /// UI-S17: an agent that is not installed, and one that is there but would not start, in both languages.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func agentUnavailable(appearance: Snapshot.Appearance) async throws {
+    let lines = VStack(spacing: Spacing.m) {
+      ForEach([AgentStartFailure.notInstalled, .wouldNotStart], id: \.self) { failure in
+        AsideLine(
+          message: Message(
+            id: EntityID(), at: Timestamp(millisecondsSince1970: 0), body: .ended(.unstarted(.codex, failure))))
+      }
+    }
+    .padding(Spacing.l)
+    .frame(maxHeight: .infinity)
+    .background(Palette.well)
+    let size = CGSize(width: 420, height: 140)
+    try await Self.shoot("agent-unavailable", lines, appearance: appearance, size: size)
+    try await Self.shoot("agent-unavailable-en", lines, appearance: appearance, english: true, size: size)
+  }
+
   /// UI-S12: tools in a row, folded and opened, with one failed and the last still running.
   @Test(arguments: Snapshot.Appearance.allCases)
   func toolRun(appearance: Snapshot.Appearance) async throws {

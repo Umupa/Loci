@@ -1,5 +1,7 @@
 import Foundation
+import LociAgents
 import LociModel
+import Synchronization
 import Testing
 
 @testable import LociHost
@@ -24,20 +26,23 @@ struct ConversationScenarioTests {
 
   /// α2-S6: the reply arrives in pieces into one message, and the conversation keeps it.
   @Test func aReplyStreamsIntoTheConversation() async throws {
-    try await withHost(agent: Self.quiet) { host, _, _ in
+    try await withManualHost { host, _, _, agent in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))
       _ = try #require(await settled(host, mentor.id))
       let feed = host.subscribe(MentorConversation(mentor: mentor.id))
-
       _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))
+      let session = try #require(await agent.sessions.last)
 
+      await session.emit(.text(", hello"))
       let partial = await value(feed) { conversation in
-        conversation.turn?.messages.contains { if case .reply(let text) = $0.body { text == "Hello" } else { false } }
-          == true
+        conversation.turn?.messages.contains { $0.body == .reply("Waiting, hello") } == true
       }
+      await session.emit(.text(" there."))
+      await session.finish()
+
       #expect(partial != nil)
       let done = await settled(host, mentor.id, turns: 2)
-      #expect(bodies(done).suffix(2) == [.prompt(Prompt(text: "Hi", purpose: .chat)), .reply("Hello there.")])
+      #expect(bodies(done).suffix(2) == [.prompt(Prompt(text: "Hi", purpose: .chat)), .reply("Waiting, hello there.")])
     }
   }
 
@@ -79,6 +84,30 @@ struct ConversationScenarioTests {
 
       let reported = await value(host.subscribe(MentorConversation(mentor: mentor.id))) { $0.context != nil }
       #expect(reported?.context == ContextUsage(used: 68_000, window: 200_000))
+      await session.finish()
+    }
+  }
+
+  /// PERF-S1: a reply streaming in a word at a time reaches the window a few words at a time.
+  @Test func aReplyStreamingAWordAtATimeIsShownAFewWordsAtATime() async throws {
+    try await withManualHost { host, _, _, agent in
+      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      _ = try #require(await settled(host, mentor.id))
+      let feed = host.subscribe(MentorConversation(mentor: mentor.id))
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))
+      let session = try #require(await agent.sessions.last)
+      let words = (1...40).map { "w\($0) " }
+
+      for word in words { await session.emit(.text(word)) }
+
+      let shown = Shown()
+      let whole = await value(feed) { conversation in
+        let reply = conversation.turn?.messages.compactMap { if case .reply(let text) = $0.body { text } else { nil } }
+        if let reply = reply?.last { shown.add(reply) }
+        return reply?.last == "Waiting" + words.joined()
+      }
+      #expect(whole != nil)
+      #expect(shown.count < words.count / 4)
       await session.finish()
     }
   }
@@ -193,7 +222,24 @@ struct ConversationScenarioTests {
       _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))
 
       let failed = await settled(host, mentor.id, turns: 2)
-      #expect(bodies(failed).last == .ended(.failed("grok is not installed on this Mac.")))
+      #expect(bodies(failed).last == .ended(.unstarted(.grok, .notInstalled)))
+    }
+  }
+
+  /// C-12: an agent that would not start says whether it is not installed or is there and would not run.
+  @Test func anAgentThatWouldNotStartSaysWhy() async throws {
+    for (failure, said) in [
+      (AgentError.wouldNotStart, AgentStartFailure.wouldNotStart),
+      (.cannotLaunch("The file “codex” doesn’t exist."), .notInstalled),
+    ] {
+      try await withManualHost(agent: ManualAgent(openingFailure: failure)) { host, _, _, _ in
+        let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+
+        let failed = await value(host.subscribe(MentorConversation(mentor: mentor.id))) {
+          $0.turn == nil && !$0.messages.isEmpty
+        }
+        #expect(bodies(failed).last == .ended(.unstarted(.pi, said)))
+      }
     }
   }
 
@@ -222,4 +268,12 @@ struct ConversationScenarioTests {
       #expect(try await host.conversation(of: mentor.id).messages.isEmpty)
     }
   }
+}
+
+/// The replies a subscriber was shown, counted.
+private final class Shown: Sendable {
+  private let replies = Mutex<Set<String>>([])
+
+  func add(_ reply: String) { replies.withLock { _ = $0.insert(reply) } }
+  var count: Int { replies.withLock(\.count) }
 }
