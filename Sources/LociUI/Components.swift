@@ -28,30 +28,32 @@ struct EmptyMark: View {
   }
 }
 
-/// A small capsule segmented control: a light thumb slides under the chosen segment. The system's control
+/// A small capsule segmented control: a thumb the color of a card slides under the chosen segment. The system's control
 /// fills the chosen segment with the tint, which would make it a solid amber block.
 struct CapsulePicker<Value: Hashable>: View {
   @Binding var selection: Value
   let options: [(value: Value, title: LocalizedStringResource)]
+  /// Smaller words and segments, for the head of a narrow panel.
+  var compact = false
   @Namespace private var thumb
 
   var body: some View {
-    HStack(spacing: 0) {
+    HStack(spacing: 2) {
       ForEach(options, id: \.value) { option in
         let chosen = option.value == selection
         Button {
           withAnimation(Motion.quick) { selection = option.value }
         } label: {
           Text(option.title)
-            .font(Typography.control)
+            .font(.system(size: compact ? 12 : 13, weight: chosen ? .medium : .regular))
             .foregroundStyle(chosen ? Palette.ink : Palette.inkMuted)
-            .padding(.horizontal, 13)
-            .frame(height: 22)
+            .padding(.horizontal, compact ? 10 : 13)
+            .padding(.vertical, compact ? 4 : 5)
             .background {
               if chosen {
                 Capsule()
-                  .fill(Palette.thumb)
-                  .shadow(color: .black.opacity(0.14), radius: 1.5, y: 1)
+                  .fill(Palette.surface)
+                  .cardShadow(Capsule())
                   .matchedGeometryEffect(id: "thumb", in: thumb)
               }
             }
@@ -63,7 +65,6 @@ struct CapsulePicker<Value: Hashable>: View {
     }
     .padding(2)
     .background(Capsule().fill(Palette.fillStrong))
-    .overlay(Capsule().strokeBorder(Palette.line, lineWidth: Size.hairline))
   }
 }
 

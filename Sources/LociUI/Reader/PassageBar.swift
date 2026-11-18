@@ -7,13 +7,13 @@ struct PassageActions {
   /// Highlights the passage at once and says which highlight it made, or `nil` when it could not.
   var highlight: (NSRange) async -> EntityID?
   var think: (EntityID, String) -> Void
-  /// Hands the passage to the mentor's composer; `nil` where there is no mentor to ask.
+  /// Hands the passage to Loci's composer; `nil` where it cannot be asked about.
   var ask: ((NSRange) -> Void)?
   /// Whether the Mac behind the window can take changes now; the bar's buttons are off while it cannot.
   var changes = true
 }
 
-/// The glass capsule over a selection: highlight it, or ask the mentor. Highlighting turns the capsule into
+/// The glass capsule over a selection: highlight it, or ask Loci. Highlighting turns the capsule into
 /// a field for a thought, which may be left empty.
 struct PassageBar: View {
   let actions: PassageActions

@@ -94,7 +94,7 @@ private struct NearbyRow: View {
   var body: some View {
     Button(action: choose) {
       HStack(spacing: 10) {
-        MachineGlyph(model: mac.model, size: 17).frame(width: Size.avatarSmall)
+        MachineGlyph(model: mac.model, size: 17).frame(width: 20)
         Text(verbatim: mac.name).font(Typography.body).foregroundStyle(Palette.ink)
         Spacer(minLength: 0)
         Image(systemName: Symbols.forward)

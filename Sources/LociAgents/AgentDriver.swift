@@ -3,7 +3,7 @@ import LociModel
 
 /// One agent command-line program. Opens sessions and holds no session state itself.
 public protocol AgentDriver: Sendable {
-  var provider: Mentor.Provider { get }
+  var provider: Provider { get }
   func open(_ configuration: SessionConfiguration) async throws(AgentError) -> any AgentSession
 }
 
@@ -29,10 +29,10 @@ public struct SessionConfiguration: Hashable, Sendable {
 
 /// What a provider needs to find a session again. Callers store it with the conversation and never look inside.
 public struct SessionHandle: Hashable, Codable, Sendable {
-  public let provider: Mentor.Provider
+  public let provider: Provider
   public let value: String
 
-  public init(provider: Mentor.Provider, value: String) {
+  public init(provider: Provider, value: String) {
     self.provider = provider
     self.value = value
   }

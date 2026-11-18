@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Each agent's own logo on a light tile, or a dark one in the dark, the same wherever an agent is named.
 struct AgentMark: View {
-  let provider: Mentor.Provider
+  let provider: Provider
   var size: CGFloat = 26
   /// Greyed out, for an agent that is not installed.
   var faded = false
@@ -32,7 +32,7 @@ struct AgentMark: View {
   }
 
   /// The logos drawn in their makers' colours; the rest take the ink of the tile they sit on.
-  private static let inColor: Set<Mentor.Provider> = [.claudeCode, .antigravity]
+  private static let inColor: Set<Provider> = [.claudeCode, .antigravity]
   private static let lightTile = [Color(nsColor: NSColor(rgb: 0xFFFFFF)), Color(nsColor: NSColor(rgb: 0xF2EFEA))]
   private static let darkTile = [Color(nsColor: NSColor(rgb: 0x3A3735)), Color(nsColor: NSColor(rgb: 0x2A2826))]
   private static let darkInk = Color(nsColor: NSColor(rgb: 0x1F1D1B))

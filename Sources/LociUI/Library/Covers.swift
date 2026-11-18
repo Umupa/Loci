@@ -37,6 +37,8 @@ struct Cover: View {
   var squareInset: CGFloat = 0.08
   var squareCorner: CGFloat = 4
   var dimmed = false
+  /// The kind's symbol shown while there is no cover.
+  var symbolSize = Size.thumbnailSymbol
 
   var body: some View {
     Rectangle()
@@ -69,7 +71,7 @@ struct Cover: View {
       }
     } else {
       Image(systemName: Symbols.kind(ItemKind(item.kind)))
-        .font(.system(size: Size.thumbnailSymbol, weight: .light))
+        .font(.system(size: symbolSize, weight: .light))
         .foregroundStyle(Palette.inkFaint)
     }
   }

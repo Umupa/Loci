@@ -35,25 +35,16 @@ private struct IdentifiedFile: Decodable {
 }
 
 extension Store {
-  static let mentorFile = "mentor.json"
   static let itemFile = "item.json"
-
-  func mentorFolder(_ id: EntityID) throws -> URL {
-    try folder(holding: id, in: mentorsFolder, file: Self.mentorFile)
-  }
 
   func itemFolder(_ id: EntityID) throws -> URL {
     try folder(holding: id, in: libraryFolder, file: Self.itemFile)
   }
 
-  /// The id written in a mentor's or item's folder, even when the rest of the file is invalid.
+  /// The id written in an item's folder, even when the rest of the file is invalid.
   func id(ofFolder folder: URL) -> EntityID? {
-    for file in [Self.mentorFile, Self.itemFile] {
-      if let data = try? read(folder.appending(path: file)) {
-        return (try? JSONDecoder().decode(IdentifiedFile.self, from: data))?.id
-      }
-    }
-    return nil
+    guard let data = try? read(folder.appending(path: Self.itemFile)) else { return nil }
+    return (try? JSONDecoder().decode(IdentifiedFile.self, from: data))?.id
   }
 
   func folderExists(holding id: EntityID, in parent: URL, file: String) -> Bool {
@@ -61,7 +52,7 @@ extension Store {
   }
 
   /// The folder whose file holds `id`. When none does, but a folder named for the id has a file that
-  /// cannot be read, that file's problem is thrown rather than `notFound`: the mentor or item is still
+  /// cannot be read, that file's problem is thrown rather than `notFound`: the item is still
   /// there, only broken, and whoever asked should hear why.
   private func folder(holding id: EntityID, in parent: URL, file: String) throws -> URL {
     let folders = subfolders(of: parent)

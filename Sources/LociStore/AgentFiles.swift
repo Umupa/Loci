@@ -1,0 +1,133 @@
+import Foundation
+import LociModel
+
+/// `agent/`: Loci's soul, what it remembers, its notes and diary, its picture, and the instructions every
+/// session starts from. Loci and the person both write these files; the app only reads them, except where
+/// the person edits through the app.
+extension Store {
+  static let agentFolderName = "agent"
+  static let soulFile = "SOUL.md"
+  static let profileFile = "USER.md"
+  static let memoryFile = "MEMORY.md"
+  static let instructionsFile = "AGENTS.md"
+  /// Claude Code reads its own name rather than `AGENTS.md`, so it is given a link to the same file.
+  static let claudeInstructionsFile = "CLAUDE.md"
+  static let dayNotesFolder = "notes"
+  static let diaryFolder = "diary"
+  static let workspaceFolder = "workspace"
+  static let avatarName = "avatar"
+
+  /// Gives Loci the files it starts from. A file that is there already, the person's or Loci's, stays as
+  /// it is.
+  public func prepareAgent(soul: String) throws {
+    for folder in [Self.dayNotesFolder, Self.diaryFolder, Self.workspaceFolder, Self.conversationsFolder] {
+      try FileManager.default.createDirectory(
+        at: agentFolder.appending(path: folder, directoryHint: .isDirectory), withIntermediateDirectories: true)
+    }
+    let starts = [(Self.soulFile, soul), (Self.profileFile, "# User\n"), (Self.memoryFile, "# Memory\n")]
+    for (name, text) in starts {
+      let url = agentFolder.appending(path: name)
+      if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) {
+        try write(Data(text.utf8), to: url)
+      }
+    }
+  }
+
+  /// The text of `SOUL.md`, `USER.md` or `MEMORY.md`; empty when the file is missing.
+  public func agentText(_ file: AgentFile) throws -> String {
+    do {
+      return try readText(agentFolder.appending(path: file.name))
+    } catch StoreError.notFound {
+      return ""
+    }
+  }
+
+  public func saveAgentText(_ text: String, as file: AgentFile) throws {
+    try write(Data(text.utf8), to: agentFolder.appending(path: file.name))
+  }
+
+  /// `notes/<day>.md`, empty when nothing was noted that day.
+  public func dayNotes(of day: Day) throws -> String {
+    try optionalText(at: dayNotesFile(of: day)) ?? ""
+  }
+
+  public func dayNotesFile(of day: Day) -> URL {
+    agentFolder.appending(path: Self.dayNotesFolder).appending(path: "\(day).md")
+  }
+
+  /// `diary/<day>.md`; `notFound` when Loci wrote none that day.
+  public func diary(of day: Day) throws -> String {
+    try readText(diaryFile(of: day))
+  }
+
+  public func diaryFile(of day: Day) -> URL {
+    agentFolder.appending(path: Self.diaryFolder).appending(path: "\(day).md")
+  }
+
+  /// The days Loci wrote a diary for, newest first.
+  public func diaryDays() -> [Day] {
+    files(in: agentFolder.appending(path: Self.diaryFolder), withExtension: "md")
+      .compactMap { Day($0.deletingPathExtension().lastPathComponent) }.sorted(by: >)
+  }
+
+  /// Writes `AGENTS.md`, and links `CLAUDE.md` to it unless the person put a file of their own there.
+  public func writeInstructions(_ text: String) throws {
+    try write(Data(text.utf8), to: agentFolder.appending(path: Self.instructionsFile))
+    let link = agentFolder.appending(path: Self.claudeInstructionsFile).path(percentEncoded: false)
+    let exists = (try? FileManager.default.attributesOfItem(atPath: link)) != nil
+    if !exists {
+      try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: Self.instructionsFile)
+    }
+  }
+
+  /// The picture the person chose; `nil` when they chose none.
+  public func avatar() throws -> Avatar? {
+    guard let url = avatarFiles().first else { return nil }
+    do {
+      return try Avatar(data: try read(url), format: url.pathExtension)
+    } catch let error as ModelError {
+      throw StoreError.invalid(FileProblem(path: relativePath(of: url), kind: .invalid, reason: error.description))
+    }
+  }
+
+  /// Keeps the picture as `avatar.<format>` in place of any other.
+  public func setAvatar(_ avatar: Avatar) throws {
+    let url = agentFolder.appending(path: "\(Self.avatarName).\(avatar.format)")
+    try write(avatar.data, to: url)
+    for other in avatarFiles() where other.lastPathComponent != url.lastPathComponent {
+      try FileManager.default.removeItem(at: other)
+    }
+  }
+
+  public func resetAvatar() throws {
+    for file in avatarFiles() { try FileManager.default.removeItem(at: file) }
+  }
+
+  private func avatarFiles() -> [URL] {
+    Avatar.formats.sorted().map { agentFolder.appending(path: "\(Self.avatarName).\($0)") }
+      .filter { FileManager.default.fileExists(atPath: $0.path(percentEncoded: false)) }
+  }
+
+  func optionalText(at url: URL) throws -> String? {
+    do {
+      return try readText(url)
+    } catch StoreError.notFound {
+      return nil
+    }
+  }
+}
+
+/// The three files of who Loci is and what it knows.
+public enum AgentFile: Sendable {
+  case soul
+  case profile
+  case memory
+
+  var name: String {
+    switch self {
+    case .soul: Store.soulFile
+    case .profile: Store.profileFile
+    case .memory: Store.memoryFile
+    }
+  }
+}

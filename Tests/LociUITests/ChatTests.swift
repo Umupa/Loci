@@ -6,6 +6,10 @@ import Testing
 @testable import LociUI
 
 struct ChatTests {
+  private static func layout(_ messages: [Message], live: Bool) -> [ConversationEntry] {
+    ConversationEntry.layout(messages.map { .message($0) }, live: live)
+  }
+
   private static func message(_ second: Int64, _ body: Message.Body) -> Message {
     Message(id: EntityID(), at: Timestamp(millisecondsSince1970: second * 1000), body: body)
   }
@@ -76,7 +80,7 @@ struct ChatTests {
   }
 
   @Test func toolsInARowFoldIntoOneRowCountedByAction() {
-    let entries = ConversationEntry.layout(
+    let entries = Self.layout(
       [
         Self.asked, Self.message(1, .thinking("想")),
         Self.message(2, .tool(Self.tool(.execute, "ls"))), Self.message(3, .tool(Self.tool(.execute, "pwd"))),
@@ -99,14 +103,14 @@ struct ChatTests {
   @Test func aFinishedAnswerIsCopiedWholeFromUnderItsLastReply() throws {
     let first = Self.message(2, .reply("一"))
     let last = Self.message(4, .reply("二"))
-    let entries = ConversationEntry.layout(
+    let entries = Self.layout(
       [Self.asked, first, Self.message(3, .tool(Self.tool(.read, "a.md"))), last], live: false)
 
     #expect(ConversationEntry.answers(entries) == [last.id: "一\n\n二"])
   }
 
   @Test func anAnswerStillStreamingCannotBeCopiedYet() {
-    let entries = ConversationEntry.layout([Self.asked, Self.message(1, .reply("一"))], live: true)
+    let entries = Self.layout([Self.asked, Self.message(1, .reply("一"))], live: true)
 
     #expect(ConversationEntry.answers(entries).isEmpty)
   }
@@ -134,18 +138,10 @@ struct ChatTests {
   }
 
   @Test func startingOverShowsAsALineBetweenTheMessages() {
-    let entries = ConversationEntry.layout(
+    let entries = Self.layout(
       [Self.asked, Self.message(1, .reply("一")), Self.message(2, .startedOver)], live: false)
 
     if case .aside(let line) = entries.last { #expect(line.body == .startedOver) } else { Issue.record() }
-  }
-
-  @Test func startingOverOnAnItemShowsOneLineForEveryMentorWhoAnsweredThere() {
-    let entries = ConversationEntry.layout(
-      [Self.asked, Self.message(1, .reply("一")), Self.message(2, .startedOver), Self.message(2, .startedOver)],
-      live: false)
-
-    #expect(entries.count { if case .aside = $0 { true } else { false } } == 1)
   }
 
   @Test func scrollingUpStopsFollowingAndOffersTheWayBack() {

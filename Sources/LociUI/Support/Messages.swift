@@ -19,9 +19,7 @@ enum Messages {
     case .unreadable: .loci("problem.unreadable")
     case .invalid: .loci("problem.invalid")
     case .duplicateID: .loci("problem.duplicateID")
-    case .misnamed: .loci("problem.misnamed")
     case .misplacedNote: .loci("problem.misplacedNote")
-    case .brokenLocator: .loci("problem.brokenLocator")
     }
   }
 

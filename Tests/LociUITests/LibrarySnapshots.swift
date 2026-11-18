@@ -11,15 +11,19 @@ import Testing
 @MainActor
 @Suite(.serialized)
 struct LibrarySnapshots {
-  static let window = CGSize(width: 1240, height: 800)
+  /// The design's window.
+  static let window = CGSize(width: 1280, height: 800)
 
   static func shoot(
     _ name: String, _ library: SampleLibrary, at place: WindowState, appearance: Snapshot.Appearance,
-    recognizing: Bool = false, standIns: StandIns? = nil, browser: BrowserSession = BrowserSession(),
-    english: Bool = false, size: CGSize = window
+    recognizing: Bool = false, working: Bool = false, avatar: Avatar? = nil, standIns: StandIns? = nil,
+    browser: BrowserSession = BrowserSession(), english: Bool = false, size: CGSize = window
   ) async throws {
     let view = MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in }), browser: browser)
-      .lociHost(FakeHost(try Sample(problems: false), library: library, recognizing: recognizing))
+      .lociHost(
+        FakeHost(
+          try Sample(problems: false), library: library, recognizing: recognizing, working: working, avatar: avatar)
+      )
       .environment(\.standIns, standIns)
     let file = try await Snapshot.render(
       view, named: name, size: size, appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"),
@@ -100,7 +104,7 @@ struct LibrarySnapshots {
       standIns: StandIns(moment: MediaMoment()))
   }
 
-  /// L-S8: the mentor reading along, named over its answer.
+  /// L-S8: Loci reading along beside a podcast.
   @Test(arguments: Snapshot.Appearance.allCases)
   func podcastConversation(appearance: Snapshot.Appearance) async throws {
     let library = try SampleLibrary()
@@ -109,7 +113,7 @@ struct LibrarySnapshots {
       standIns: StandIns(moment: MediaMoment(panel: .conversation)))
   }
 
-  /// L-S8: answers from two mentors on one article, each marked.
+  /// L-S8: Loci reading along beside an article, as the design's third scene.
   @Test(arguments: Snapshot.Appearance.allCases)
   func article(appearance: Snapshot.Appearance) async throws {
     let library = try SampleLibrary()

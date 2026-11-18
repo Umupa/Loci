@@ -4,12 +4,9 @@ import LociModel
 
 @testable import LociUI
 
-/// The library the design draws: three mentors, a dozen items in every state, the video, podcast and
-/// article it opens, and the media settings.
+/// The library the design draws: a dozen items in every state, the video, podcast and article it opens, and
+/// the media settings.
 struct SampleLibrary: Sendable {
-  let system: Mentor
-  let scheduling: Mentor
-  let network: Mentor
   var items: [Item]
   let covers: [EntityID: String]
   var jobs: [Job]
@@ -22,17 +19,12 @@ struct SampleLibrary: Sendable {
   /// Lets later parts of the sample number their messages and notes after the items.
   var entropy = Sample.Seeded(state: 99)
 
-  var mentors: [Mentor] { [system, scheduling, network] }
-
-  /// `empty` keeps the mentors and drops every item.
+  /// `empty` drops every item.
   init(empty: Bool = false) throws {
     var entropy = Sample.Seeded(state: 1234)
     func id(_ offset: Double) -> EntityID {
       EntityID(at: Date(timeIntervalSince1970: 1_763_000_000 + offset), entropy: &entropy)
     }
-    system = try Self.mentor(id(1), "系统底层", "hello 背后的调用链", 0xE8734A, .ember)
-    scheduling = try Self.mentor(id(2), "调度", "Kubernetes 调度", 0x4F7FD9, .north)
-    network = try Self.mentor(id(3), "网络", "网络", 0x3E9C84, .iris)
     func link(_ text: String) -> URL? { URL(string: text) }
     func minutes(_ text: String) -> Duration {
       .seconds(text.split(separator: ":").reduce(0) { $0 * 60 + (Int($1) ?? 0) })
@@ -139,15 +131,6 @@ struct SampleLibrary: Sendable {
       return nil
     }
     return try? Data(contentsOf: url)
-  }
-
-  private static func mentor(
-    _ id: EntityID, _ name: String, _ course: String, _ color: UInt32, _ mark: Mentor.Mark
-  ) throws -> Mentor {
-    try Mentor(
-      id: id, name: name, avatar: mark.rawValue,
-      color: MentorColor(red: UInt8(color >> 16 & 0xFF), green: UInt8(color >> 8 & 0xFF), blue: UInt8(color & 0xFF)),
-      provider: .pi, request: course)
   }
 }
 

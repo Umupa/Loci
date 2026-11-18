@@ -5,9 +5,9 @@
 ## 模块
 
 ```
-            Loci（应用）          LociEval（评测）
-           ╱           ╲              │
-       LociUI          LociHost ──────┘
+                 Loci（应用）
+           ╱           ╲
+       LociUI          LociHost
            ╲       ╱   │   │   │   ╲
             ╲  Store Agents Media Code Remote
              ╲    ╲    │    │    │    ╱
@@ -17,15 +17,14 @@
 | 模块 | 职责 | 可以引用 |
 |---|---|---|
 | `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应、线路注册表；系统框架可用 CryptoKit（`MachineID` 是公钥的指纹，邀请链接带校验和） | 无 |
-| `LociStore` | 文件读写与监听、SQLite、全文索引；配对名单与别的 Mac 的缓存；系统框架可用 Security（设备私钥放钥匙串）、CryptoKit（缓存文件名） | `LociModel`；第三方：Yams、GRDB |
+| `LociStore` | 文件读写与监听、SQLite、全文索引、Loci 的 `agent/` 文件夹；配对名单与别的 Mac 的缓存；系统框架可用 Security（设备私钥放钥匙串）、CryptoKit（缓存文件名） | `LociModel`；第三方：GRDB |
 | `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
 | `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、转录、断句；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、NaturalLanguage、WebKit（在不显示的网页里取正文）、Synchronization | `LociModel` |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
 | `LociRemote` | 配对、加密通道（Noise）、中继（alma-relay 协议）、局域网发现（Bonjour）；系统框架可用 CryptoKit、Network | `LociModel` |
-| `LociHost` | 命令层的实现：本机和远程；系统框架可用 IOKit（有已配对的 Mac 时阻止空闲睡眠，读机型） | 以上全部 |
+| `LociHost` | 命令层的实现：本机和远程；Loci 的会话、上下文拼装与每日回顾；系统框架可用 IOKit（有已配对的 Mac 时阻止空闲睡眠，读机型） | 以上全部 |
 | `LociUI` | 界面与设计系统；系统框架可用 AVKit、AVFoundation（播放）、PDFKit（论文）、WebKit（内置浏览器） | `LociModel`；第三方：swift-markdown、Textual、HighlightSwift、SwiftMath |
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
-| `LociEval` | 评测，不随应用发布 | `LociModel` `LociHost` `LociAgents`（评分用的 agent 不属于任何导师） |
 
 现在已经存在的模块：`LociModel`、`LociStore`、`LociAgents`、`LociMedia`、`LociRemote`、`LociHost`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
 
@@ -39,10 +38,9 @@
 
 | 包 | 版本 | 模块 | 用在哪 |
 |---|---|---|---|
-| Yams | 6.2.2 | `LociStore` | `catalog.yaml`、`glossary.yaml`、课文开头的出处 |
 | GRDB | 7.11.1 | `LociStore` | SQLite 与全文索引 |
 | swift-markdown | 0.9.0 | `LociUI` | 课文阅读器把 Markdown 解析成 TextKit 2 的文字 |
-| Textual | 0.5.0 | `LociUI` | 对话里导师的回复、笔记面板里的回答（流式 Markdown） |
+| Textual | 0.5.0 | `LociUI` | 对话里 Loci 的回复、笔记面板里的回答（流式 Markdown） |
 | HighlightSwift（swift-highlight） | 0.1.1 | `LociUI` | 课文代码块的语法高亮，纯 Swift，不跑 JavaScript |
 | SwiftMath | 1.7.3 | `LociUI` | 课文里的公式排版 |
 | whisper.cpp（`whisper.xcframework`） | b5454（与 v1.9.5 同一次构建，校验和钉在 `Package.swift`） | `LociMedia` | 本机语音识别（Metal），逐词时间 |
@@ -83,7 +81,6 @@ output/                       构建产物、截图、日志（不提交）
 | 架构 | 边界与禁用写法 | `Tests/ArchitectureTests` |
 | 界面 | 渲染成图，亮暗两套 | `Tests/LociUITests` |
 | 场景 | `features.md` 里的场景，经 Host 走完整条路 | `Tests/LociHostTests`（模块出现后） |
-| 评测 | 导师写课的质量，用 Pi 跑 | `LociEval`（模块出现后） |
 | 黑盒 | 不读源码，只按场景操作真实应用 | 按 [agents/blackbox.md](agents/blackbox.md) 派出去做 |
 
 真实的 agent CLI、真实的网络只出现在评测和黑盒里，`script/check` 不依赖它们。

@@ -1,4 +1,5 @@
 import Foundation
+import LociAgents
 import LociModel
 import LociStore
 import Synchronization
@@ -6,19 +7,23 @@ import Testing
 
 @testable import LociHost
 
-/// Identifiers in a fixed sequence and a clock that never moves.
+/// Identifiers in a fixed sequence, a clock that moves only when told, and ticks that come only when sent.
 final class TestWorld: Sendable {
   private let created = Mutex<UInt64>(0)
   private let looks = Mutex<[Bool]>([])
+  private let clock = Mutex<Timestamp>(TestWorld.instant)
+  private let ticking = AsyncStream.makeStream(of: Void.self)
   /// What the Mac seems to have installed: Pi only.
-  static let installed: [AgentInstallation] = Mentor.Provider.allCases.map { provider in
+  static let installed: [AgentInstallation] = Provider.allCases.map { provider in
     provider == .pi
       ? .installed(
         .init(
           provider: .pi, executable: HostPath(URL(filePath: "/usr/local/bin/pi")), version: "0.62.0", signIn: .unknown))
       : .missing(provider)
   }
+  /// 2025-11-17 08:00:00.123 in Shanghai, a Monday morning.
   static let instant = Timestamp(millisecondsSince1970: 1_763_337_600_123)
+  static let timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .gmt
   let agent: FakeAgent
 
   init(agent: FakeAgent = FakeAgent()) {
@@ -26,13 +31,38 @@ final class TestWorld: Sendable {
   }
 
   var environment: HostEnvironment {
+    environment(running: { [agent] provider in provider == .pi ? agent : nil })
+  }
+
+  func environment(running agents: @escaping @Sendable (Provider) async -> (any AgentDriver)?) -> HostEnvironment {
     HostEnvironment(
-      newID: { [self] in self.nextID() }, now: { Self.instant }, defaultProvider: .pi, discard: .permanently,
-      agents: { [agent] provider in provider == .pi ? agent : nil },
+      newID: { [self] in self.nextID() }, now: { [self] in self.now }, timeZone: Self.timeZone,
+      defaultRuntime: Runtime(provider: .pi), discard: .permanently, agents: agents,
       detectAgents: { [self] again in
         self.looks.withLock { $0.append(again) }
         return Self.installed
-      })
+      }, ticks: { [ticking] in ticking.stream })
+  }
+
+  var now: Timestamp { clock.withLock { $0 } }
+
+  func advance(minutes: Int64) {
+    clock.withLock { $0 = Timestamp(millisecondsSince1970: $0.millisecondsSince1970 + minutes * 60_000) }
+  }
+
+  /// Sets the clock to a time of day in Shanghai on the day it shows now, or on later days.
+  func set(to time: String, daysLater: Int = 0) {
+    let day = Day(containing: now, in: Self.timeZone).adding(days: daysLater)
+    let clock = TimeOfDay(time) ?? TimeOfDay(of: now, in: Self.timeZone)
+    let start = day.start(in: Self.timeZone).millisecondsSince1970
+    self.clock.withLock {
+      $0 = Timestamp(millisecondsSince1970: start + Int64(clock.hour * 60 + clock.minute) * 60_000)
+    }
+  }
+
+  /// What the app's clock does once a minute.
+  func tick() {
+    ticking.continuation.yield()
   }
 
   /// Each time the host looked for agents, whether it was asked to look again.
@@ -129,4 +159,40 @@ struct SeededGenerator: RandomNumberGenerator {
     mixed = (mixed ^ (mixed >> 27)) &* 0x94D0_49BB_1331_11EB
     return mixed ^ (mixed >> 31)
   }
+}
+
+/// The conversation once no turn runs and the person has sent `prompts` messages.
+func settled(_ host: LocalHost, _ conversation: ConversationRef = .main, prompts: Int = 1) async -> Conversation? {
+  await value(host.subscribe(OneConversation(conversation))) { conversation in
+    conversation.turn == nil && conversation.messages.count { $0.isTyped } == prompts
+  }
+}
+
+extension Conversation {
+  var messages: [Message] {
+    entries.compactMap { entry in
+      if case .message(let message) = entry { message } else { nil }
+    }
+  }
+
+  var bodies: [Message.Body] { messages.map(\.body) }
+}
+
+extension String {
+  /// What the person typed, after the context the app put in front of it.
+  var typed: String {
+    components(separatedBy: "</loci-context>\n\n").last ?? self
+  }
+}
+
+enum Fixture {
+  /// An article to read and mark.
+  static let schedulingText = "# 调度\n\n调度器先排除不合适的节点，再给剩下的节点打分。\n"
+}
+
+/// Waits until a manual agent's session has started answering in the conversation.
+func working(_ host: LocalHost, _ conversation: ConversationRef = .main) async -> Bool {
+  await value(host.subscribe(OneConversation(conversation))) {
+    $0.turn?.messages.contains { $0.body == .reply("Waiting") } == true
+  } != nil
 }

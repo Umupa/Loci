@@ -2,21 +2,14 @@ import Foundation
 import GRDB
 import LociModel
 
-/// What the files say about one mentor, item or notes file, read before the write transaction starts.
+/// What the files say about one item or notes file, read before the write transaction starts.
 /// Rebuilding and following changes both write through these, so they cannot drift apart.
 enum MirrorUpdate: Sendable {
-  case mentor(EntityID, MentorSnapshot?)
   case item(EntityID, Item?, content: String?)
   case notes(ContentRef, [Note])
 
   func write(_ db: Database) throws {
     switch self {
-    case .mentor(let id, let snapshot):
-      try db.execute(sql: "DELETE FROM mentor WHERE id = ?", arguments: [id.description])
-      try db.execute(sql: "DELETE FROM lesson WHERE mentor_id = ?", arguments: [id.description])
-      try db.execute(sql: "DELETE FROM citation WHERE mentor_id = ?", arguments: [id.description])
-      try Self.unindex(owner: ContentKey.mentor(id), db)
-      if let snapshot { try Self.insert(snapshot, db) }
     case .item(let id, let item, let content):
       try db.execute(sql: "DELETE FROM item WHERE id = ?", arguments: [id.description])
       try Self.unindex(owner: ContentKey.key(.item(id)), db)
@@ -26,47 +19,6 @@ enum MirrorUpdate: Sendable {
       try db.execute(sql: "DELETE FROM note WHERE content = ?", arguments: [key])
       try Self.unindex(owner: ContentKey.notes(content), db)
       for (position, note) in notes.enumerated() { try Self.insert(note, on: content, at: position, db) }
-    }
-  }
-
-  private static func insert(_ snapshot: MentorSnapshot, _ db: Database) throws {
-    let id = snapshot.mentor.id
-    try db.execute(
-      sql: "INSERT INTO mentor (id, name, catalog_valid, document) VALUES (?, ?, ?, ?)",
-      arguments: [id.description, snapshot.mentor.name, snapshot.catalog != nil, try json(snapshot.mentor)])
-    try index(owner: ContentKey.mentor(id), target: ContentKey.mentor(id), field: .name, snapshot.mentor.name, db)
-    var listed: [(chapter: Int?, chapterTitle: String?, lesson: Lesson.Slug, title: String?)] = []
-    for (chapterIndex, chapter) in (snapshot.catalog?.chapters ?? []).enumerated() {
-      listed += chapter.lessons.map { (chapterIndex, chapter.title, $0.slug, $0.title) }
-    }
-    let catalogued = Set(listed.map(\.lesson))
-    listed += snapshot.writtenLessons.filter { !catalogued.contains($0) }.map { (nil, nil, $0, nil) }
-    let written = Set(snapshot.writtenLessons)
-    for (position, entry) in listed.enumerated() {
-      try db.execute(
-        sql: """
-          INSERT INTO lesson (mentor_id, slug, chapter, chapter_title, position, title, written)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-          """,
-        arguments: [
-          id.description, entry.lesson.description, entry.chapter, entry.chapterTitle, position, entry.title,
-          written.contains(entry.lesson),
-        ])
-      if let title = entry.title {
-        let target = ContentKey.key(.lesson(LessonRef(mentor: id, lesson: entry.lesson)))
-        try index(owner: ContentKey.mentor(id), target: target, field: .title, title, db)
-      }
-    }
-    var positions: [Lesson.Slug: Int] = [:]
-    for citation in snapshot.citations {
-      let position = positions[citation.lesson.lesson, default: 0]
-      positions[citation.lesson.lesson] = position + 1
-      try db.execute(
-        sql: "INSERT INTO citation (mentor_id, slug, position, item_id, anchor) VALUES (?, ?, ?, ?, ?)",
-        arguments: [
-          id.description, citation.lesson.lesson.description, position, citation.item.description,
-          citation.anchor.map { Locator.item(citation.item, $0).description },
-        ])
     }
   }
 

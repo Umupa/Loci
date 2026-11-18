@@ -5,40 +5,6 @@ import Testing
 @testable import LociStore
 
 struct QueryTests {
-  @Test func aLessonsCitationsComeInTheOrderItMakesThem() throws {
-    try withStore { store in
-      let library = try Library(store: store)
-      let database = try StoreDatabase.inMemory()
-      try database.rebuild(from: store)
-
-      #expect(
-        try database.citations(in: library.firstLesson) == [
-          Citation(lesson: library.firstLesson, item: library.article.id, anchor: nil),
-          Citation(
-            lesson: library.firstLesson, item: library.article.id,
-            anchor: .quote(try TextQuote("feasibility checking"))),
-          Citation(
-            lesson: library.firstLesson, item: library.video.id,
-            anchor: .time(try TimeSpan(start: .seconds(60), end: .seconds(90)))),
-        ])
-    }
-  }
-
-  @Test func anItemShowsEveryLessonThatCitesItAcrossMentors() throws {
-    try withStore { store in
-      let library = try Library(store: store)
-      let database = try StoreDatabase.inMemory()
-      try database.rebuild(from: store)
-
-      #expect(
-        Set(try database.citations(of: library.article.id).map(\.lesson)) == [
-          library.firstLesson, library.secondLesson,
-        ])
-      #expect(try database.citations(of: library.video.id).map(\.lesson) == [library.firstLesson])
-      #expect(try database.citations(of: Fixture.id(99)).isEmpty)
-    }
-  }
-
   @Test func notesAreFoundByTheirContent() throws {
     try withStore { store in
       let library = try Library(store: store)
@@ -46,7 +12,7 @@ struct QueryTests {
       try database.rebuild(from: store)
 
       #expect(try database.notes(on: .item(library.article.id)) == [library.note])
-      #expect(try database.notes(on: .lesson(library.firstLesson)).isEmpty)
+      #expect(try database.notes(on: .item(library.video.id)).isEmpty)
     }
   }
 
@@ -63,6 +29,17 @@ struct QueryTests {
     #expect(try database.readingState(of: content) == state)
     try database.save(finished, for: content)
     #expect(try database.readingState(of: content) == finished)
+  }
+
+  @Test func theLatestReadingIsTheOneUpdatedLast() throws {
+    let database = try StoreDatabase.inMemory()
+    let later = Timestamp(millisecondsSince1970: Fixture.instant.millisecondsSince1970 + 1)
+    try database.save(ReadingState(position: nil, finished: false, updatedAt: later), for: .item(Fixture.id(4)))
+    try database.save(
+      ReadingState(position: nil, finished: true, updatedAt: Fixture.instant), for: .item(Fixture.id(3)))
+
+    #expect(try database.latestReading()?.content == .item(Fixture.id(4)))
+    #expect(try database.latestReading()?.at == later)
   }
 
   @Test func aPositionInOtherContentIsRefused() throws {

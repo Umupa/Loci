@@ -5,12 +5,40 @@ extension FakeHost {
   func sendMessage(_ command: SendMessage) async throws(HostError) -> Done { Done() }
   func stopTurn(_ command: StopTurn) async throws(HostError) -> Done { Done() }
   func startOver(_ command: StartOver) async throws(HostError) -> Done { Done() }
-  func writeLesson(_ command: WriteLesson) async throws(HostError) -> Done { Done() }
 
-  func conversation(of mentor: EntityID) async throws(HostError) -> Conversation {
-    let empty = Conversation(mentor: mentor, messages: [], turn: nil)
-    return mentor == sample.scheduling.id ? (try? sample.conversation()) ?? empty : empty
+  func conversation(_ conversation: ConversationRef) async throws(HostError) -> Conversation {
+    let empty = Conversation(ref: conversation, entries: [], turn: nil)
+    switch conversation {
+    case .main:
+      if let library { return library.mainConversation(working: working) }
+      return (try? sample.chat()) ?? empty
+    case .item(let item):
+      if let library { return (try? library.conversation(on: item)) ?? empty }
+      return item == sample.borg.id ? (try? sample.conversation()) ?? empty : empty
+    }
   }
 
-  func mind(of mentor: EntityID) async throws(HostError) -> Mind { sample.mind }
+  func lociStatus() async -> LociStatus { LociStatus(working: working) }
+
+  func lociPage() async throws(HostError) -> LociPage {
+    do {
+      return try (library ?? SampleLibrary()).lociPage
+    } catch {
+      throw .storage(String(describing: error))
+    }
+  }
+
+  func diary(of day: Day) async throws(HostError) -> Diary {
+    do {
+      return try (library ?? SampleLibrary()).diary(of: day)
+    } catch {
+      throw .notFound(day.description)
+    }
+  }
+
+  func saveSoul(_ command: SaveSoul) async throws(HostError) -> Soul { Soul(core: command.core, traits: []) }
+  func forget(_ command: Forget) async throws(HostError) -> Done { Done() }
+  func avatar() async throws(HostError) -> Avatar? { avatar }
+  func setAvatar(_ command: SetAvatar) async throws(HostError) -> Done { Done() }
+  func resetAvatar() async throws(HostError) -> Done { Done() }
 }

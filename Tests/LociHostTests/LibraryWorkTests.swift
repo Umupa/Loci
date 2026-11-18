@@ -7,12 +7,11 @@ import Testing
 
 /// Translation and outlines by an agent, articles and papers, and the media settings (L-S1, L-S2, L-S14).
 struct LibraryWorkTests {
-  /// Translations follow the lessons' language and are skipped when the transcript is in it already.
-  @Test func translationsFollowTheLessonsLanguage() async throws {
-    try await withMediaHost(transcriber: FakeTranscriber(spoken)) { host, world in
+  /// Translations are into the reader's language and are skipped when the transcript is in it already.
+  @Test func translationsAreIntoTheReadersLanguage() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken), readerLanguage: "ja") { host, world in
       try world.installModel()
       world.programs.site(Links.bilibili, FakeSite(title: "Scheduling"))
-      _ = try await host.run(SetLessonLanguage(.fixed("ja")))
 
       let item = try await host.run(AddLink(url: Links.url(Links.bilibili)))
 
@@ -24,11 +23,10 @@ struct LibraryWorkTests {
     }
   }
 
-  @Test func aTranscriptAlreadyInTheLessonsLanguageIsNotTranslated() async throws {
-    try await withMediaHost(transcriber: FakeTranscriber(spoken)) { host, world in
+  @Test func aTranscriptAlreadyInTheReadersLanguageIsNotTranslated() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken), readerLanguage: "en-GB") { host, world in
       try world.installModel()
       world.programs.site(Links.bilibili, FakeSite(title: "Scheduling"))
-      _ = try await host.run(SetLessonLanguage(.fixed("en-GB")))
 
       let item = try await host.run(AddLink(url: Links.url(Links.bilibili)))
 

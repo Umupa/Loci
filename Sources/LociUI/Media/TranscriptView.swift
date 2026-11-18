@@ -135,7 +135,7 @@ struct TranscriptView: View {
       HStack(alignment: .firstTextBaseline, spacing: Spacing.xxs) {
         Text(verbatim: MediaTime.text(chapter.start)).font(Typography.mono).foregroundStyle(Palette.inkFaint)
           .frame(width: Size.timeColumn, alignment: .leading)
-        Text(verbatim: chapter.title).font(Typography.chapterTitle).foregroundStyle(Palette.ink)
+        Text(serif: chapter.title, Typography.chapterTitle).foregroundStyle(Palette.ink)
       }
       .padding(.top, 18)
       .padding(.bottom, Spacing.xxs)

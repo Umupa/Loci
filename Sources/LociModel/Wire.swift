@@ -2,20 +2,14 @@
 /// used remotely, and the architecture check fails until it is added.
 public enum Wire {
   public static let commands: [CommandRoute] = [
-    .writes(CreateMentor.self), .writes(RenameMentor.self), .writes(DeleteMentor.self), .reads(ListMentors.self),
-    .writes(SetMentorAgent.self), .reads(ReadCatalog.self),
+    .writes(SendMessage.self), .writes(StopTurn.self), .writes(StartOver.self),
+    .reads(ReadRuntime.self), .writes(SetRuntime.self), .reads(DetectAgents.self), .reads(AgentModels.self),
+    .writes(SaveSoul.self), .writes(Forget.self), .writes(SetAvatar.self, lane: .data), .writes(ResetAvatar.self),
     .writes(AddTextItem.self), .writes(AddLink.self), .writes(ImportMediaFile.self), .writes(DeleteItem.self),
-    .reads(ListItems.self), .reads(ReadItemText.self), .reads(ItemCitations.self),
-    .reads(ReadLessonText.self), .reads(LessonCitations.self), .writes(SeeLesson.self), .writes(WriteLesson.self),
-    .reads(Search.self),
+    .reads(ListItems.self), .reads(ReadItemText.self), .reads(Search.self),
     .reads(ReadReadingState.self), .writes(SaveReadingPosition.self), .writes(MarkRead.self),
     .writes(AddNote.self), .writes(SetNoteThought.self), .writes(DeleteNote.self),
-    .writes(SendMessage.self), .writes(StopTurn.self), .writes(StartOver.self),
-    .writes(AskCompanion.self), .writes(StopCompanion.self), .writes(ChooseCompanion.self),
-    .writes(StartOverCompanion.self),
-    .reads(DetectAgents.self), .reads(AgentModels.self), .reads(ReadAgentDefaults.self),
-    .writes(SetDefaultAgent.self), .writes(SetDefaultModel.self),
-    .reads(ReadLessonLanguage.self), .writes(SetLessonLanguage.self), .reads(DataLocation.self),
+    .reads(DataLocation.self),
     .writes(RetryJob.self), .writes(CancelJob.self), .reads(ListJobs.self),
     .reads(ReadMediaPage.self), .reads(ReadPlayback.self), .reads(ReadMediaSetup.self),
     .reads(DetectComponents.self), .writes(InstallComponent.self),
@@ -27,9 +21,9 @@ public enum Wire {
   ]
 
   public static let subscriptions: [any Subscription.Type] = [
-    AllMentors.self, OneMentor.self, MentorMind.self, MentorConversation.self, OneLesson.self, AllItems.self,
-    OneItem.self, NotesOn.self, CompanionConversation.self, AllJobs.self, ItemJob.self, ItemMedia.self,
-    MediaSettings.self, HealthReport.self,
+    OneConversation.self, LociWorking.self, CurrentRuntime.self, LociHome.self, OneDiary.self, LociAvatar.self,
+    AllItems.self, OneItem.self, NotesOn.self, AllJobs.self, ItemJob.self, ItemMedia.self, MediaSettings.self,
+    HealthReport.self,
   ]
 
   /// The route of a command type, or `nil` when it is not registered.

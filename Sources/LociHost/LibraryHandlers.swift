@@ -17,6 +17,7 @@ extension LocalHost {
     try attempt { try store.addPending(item) }
     await follow([.item(item.id)])
     if let first = Job.Stage.all(for: item).first { await library.queue.begin(item.id, at: first) }
+    await happened(.saved(item.id))
     return item
   }
 
@@ -45,6 +46,7 @@ extension LocalHost {
     }
     await follow([.item(item.id)])
     await library.queue.begin(item.id, at: .transcribe)
+    await happened(.saved(item.id))
     return item
   }
 

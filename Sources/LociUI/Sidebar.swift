@@ -1,133 +1,112 @@
 import LociModel
 import SwiftUI
 
+/// Loci at the top, the library under it, settings at the foot.
+///
 /// The sidebar draws its own selection: an amber wash, the same whether or not the sidebar has keyboard
 /// focus. The system's list selection follows the system accent color and turns gray when focus is
-/// elsewhere, which `.tint` cannot change, so the list itself selects nothing.
+/// elsewhere.
 struct Sidebar: View {
   @Binding var place: Place
-  /// The lesson on screen, whether the place or a page opened over it.
-  let openLesson: LessonRef?
-  let mentors: [Mentor]
-  let kinds: [ItemKind]
-  let rename: (Mentor) -> Void
-  let delete: (Mentor) -> Void
-  @State private var expanded: Set<EntityID> = []
+  /// Whether the main conversation or Loci's page is on screen.
+  let lociChosen: Bool
+  /// Whether Loci is working on anything.
+  let working: Bool
+  let chooseLoci: () -> Void
 
   var body: some View {
-    List {
-      row(.start, Text(.loci("sidebar.start"))) { SidebarSymbol(name: Symbols.start) }
-      if !mentors.isEmpty {
-        Section {
-          ForEach(mentors, id: \.id) { mentor in
-            SidebarCourse(
-              mentor: mentor, open: openLesson?.mentor == mentor.id ? openLesson?.lesson : nil,
-              expanded: expandedBinding(mentor.id), go: { place = $0 })
-          }
-        } header: {
-          SidebarLabel(text: Text(.loci("sidebar.courses")))
-        }
+    VStack(alignment: .leading, spacing: 2) {
+      SidebarLoci(chosen: lociChosen, working: working, choose: chooseLoci)
+        .padding(.top, 14)
+        .padding(.bottom, Spacing.xs)
+      SidebarLabel(text: Text(.loci("sidebar.library")))
+      row(.library(nil), Text(.loci("sidebar.allItems")), symbol: Symbols.library)
+      ForEach(ItemKind.listed, id: \.self) { kind in
+        row(.library(kind), Text(Messages.name(of: kind)), symbol: Symbols.kind(kind))
       }
-      Section {
-        row(.library(nil), Text(.loci("sidebar.allItems"))) { SidebarSymbol(name: Symbols.library) }
-        ForEach(kinds, id: \.self) { kind in
-          row(.library(kind), Text(Messages.name(of: kind))) { SidebarSymbol(name: Symbols.kind(kind)) }
-        }
-        row(.browser, Text(.loci("sidebar.browser"))) { SidebarSymbol(name: Symbols.browser) }
-      } header: {
-        SidebarLabel(text: Text(.loci("sidebar.library")))
-      }
-      if !mentors.isEmpty {
-        Section {
-          ForEach(mentors, id: \.id) { mentor in
-            row(.mentor(mentor.id), Text(verbatim: mentor.name)) {
-              Avatar(mentor: mentor, size: Size.avatarSmall)
-            }
-            .contextMenu {
-              Group {
-                Button {
-                  rename(mentor)
-                } label: {
-                  Text(.loci("mentor.rename"))
-                }
-                Button(role: .destructive) {
-                  delete(mentor)
-                } label: {
-                  Text(.loci("mentor.delete"))
-                }
-              }
-              .changesData()
-            }
-          }
-        } header: {
-          SidebarLabel(text: Text(.loci("sidebar.mentors")))
-        }
-      }
-      Section {
-        row(.settings(.general), Text(.loci("settings.general"))) { SidebarSymbol(name: Symbols.settings) }
-        row(.settings(.agents), Text(.loci("settings.agents"))) { SidebarSymbol(name: Symbols.agents) }
-        row(.settings(.media), Text(.loci("settings.media"))) { SidebarSymbol(name: Symbols.media) }
-        row(.settings(.remote), Text(.loci("settings.remote"))) { SidebarSymbol(name: Symbols.remote) }
-      } header: {
-        SidebarLabel(text: Text(.loci("sidebar.settings")))
-      }
+      row(.browser, Text(.loci("sidebar.browser")), symbol: Symbols.browser)
+      Spacer(minLength: 0)
+      SidebarLabel(text: Text(.loci("sidebar.settings")))
+      row(.settings(.general), Text(.loci("settings.general")), symbol: Symbols.settings)
+      row(.settings(.agents), Text(.loci("settings.agents")), symbol: Symbols.agents)
+      row(.settings(.media), Text(.loci("settings.media")), symbol: Symbols.media)
+      row(.settings(.remote), Text(.loci("settings.remote")), symbol: Symbols.remote)
     }
-    .listStyle(.sidebar)
-    .onChange(of: openLesson?.mentor, initial: true) { _, mentor in
-      if let mentor { expanded.insert(mentor) }
-    }
+    .padding(.horizontal, 10)
   }
 
-  private func row(_ target: Place, _ title: Text, @ViewBuilder icon: () -> some View) -> some View {
-    SidebarRow(selected: place == target, title: title, icon: icon()) { place = target }
-  }
-
-  private func expandedBinding(_ mentor: EntityID) -> Binding<Bool> {
-    Binding(
-      get: { expanded.contains(mentor) },
-      set: { open in
-        if open { expanded.insert(mentor) } else { expanded.remove(mentor) }
-      })
+  private func row(_ target: Place, _ title: Text, symbol: String) -> some View {
+    SidebarRow(selected: place == target, title: title, symbol: symbol) { place = target }
   }
 }
 
-/// One row of the sidebar: a symbol or avatar, a title, and what trails it.
-struct SidebarRow<Icon: View, Trailing: View>: View {
-  let selected: Bool
-  let title: Text
-  let icon: Icon
-  var trailing: Trailing
+/// Loci at the top of the sidebar: its face and name, and an amber dot breathing while it works.
+private struct SidebarLoci: View {
+  let chosen: Bool
+  let working: Bool
   let choose: () -> Void
   @State private var hovering = false
 
   var body: some View {
     Button(action: choose) {
-      HStack(spacing: Spacing.xs) {
-        icon.frame(width: Size.avatarSmall)
-        title.lineLimit(1).fontWeight(selected ? .semibold : .regular)
+      HStack(spacing: 11) {
+        LociAvatar(size: 36)
+        Text(verbatim: "Loci").font(.system(size: 16.5, weight: .semibold, design: .serif))
         Spacer(minLength: 0)
-        trailing
+        Circle()
+          .fill(Palette.accent)
+          .frame(width: 7, height: 7)
+          .breathing(working, period: 1.6)
+          .opacity(working ? 1 : 0)
+          .animation(.easeInOut(duration: 0.3), value: working)
+          .accessibilityHidden(true)
       }
-      .font(Typography.body)
       .foregroundStyle(Palette.ink)
-      .padding(.horizontal, Spacing.xs)
-      .frame(height: Size.rowHeight)
+      .padding(Spacing.xs)
       .background(
-        RoundedRectangle(cornerRadius: Radius.row).fill(
+        RoundedRectangle(cornerRadius: Radius.sidebarLoci, style: .continuous).fill(
+          chosen ? Palette.tint : hovering ? Palette.fill : .clear)
+      )
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .onHover { hovering = $0 }
+    .accessibilityAddTraits(chosen ? .isSelected : [])
+    .accessibilityValue(working ? Text(.loci("sidebar.working")) : Text(verbatim: ""))
+  }
+}
+
+/// One row of the sidebar: an amber symbol and a title.
+private struct SidebarRow: View {
+  let selected: Bool
+  let title: Text
+  let symbol: String
+  let choose: () -> Void
+  @State private var hovering = false
+
+  var body: some View {
+    Button(action: choose) {
+      HStack(spacing: 10) {
+        Image(systemName: symbol)
+          .font(.system(size: 14))
+          .foregroundStyle(Palette.accent)
+          .frame(width: 17, height: 17)
+        title.lineLimit(1).fontWeight(selected ? .medium : .regular)
+        Spacer(minLength: 0)
+      }
+      .font(.system(size: 13.5))
+      .foregroundStyle(Palette.ink)
+      .padding(.vertical, 6)
+      .padding(.horizontal, 10)
+      .background(
+        RoundedRectangle(cornerRadius: Radius.sidebarRow, style: .continuous).fill(
           selected ? Palette.tint : hovering ? Palette.fill : Color.clear)
       )
       .contentShape(Rectangle())
     }
-    .buttonStyle(PressStyle())
+    .buttonStyle(.plain)
     .onHover { hovering = $0 }
-    .listRowInsets(EdgeInsets())
     .accessibilityAddTraits(selected ? .isSelected : [])
-  }
-}
-
-extension SidebarRow where Trailing == EmptyView {
-  init(selected: Bool, title: Text, icon: Icon, choose: @escaping () -> Void) {
-    self.init(selected: selected, title: title, icon: icon, trailing: EmptyView(), choose: choose)
   }
 }
 
@@ -136,15 +115,11 @@ struct SidebarLabel: View {
   let text: Text
 
   var body: some View {
-    text.font(Typography.sectionLabel).foregroundStyle(Palette.inkFaint)
-  }
-}
-
-/// A sidebar symbol in amber, as the design draws them.
-struct SidebarSymbol: View {
-  let name: String
-
-  var body: some View {
-    Image(systemName: name).foregroundStyle(Palette.accent)
+    text
+      .font(.system(size: 11.5, weight: .medium))
+      .foregroundStyle(Palette.sidebarInkMuted)
+      .padding(.top, 14)
+      .padding(.horizontal, 10)
+      .padding(.bottom, 5)
   }
 }

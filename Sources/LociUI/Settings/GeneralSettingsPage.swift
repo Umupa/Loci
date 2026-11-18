@@ -2,13 +2,12 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// How the app looks, which languages it and the lessons use, and where its data is.
+/// How the app looks, which language it speaks, and where its data is.
 struct GeneralSettingsPage: View {
   @Environment(\.host) private var host
   @AppStorage(AppearanceChoice.key) private var appearance = AppearanceChoice.auto
   @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
   @State private var interface = InterfaceLanguage.current
-  @State private var lessons: LessonLanguage?
   @State private var folder: HostPath?
   @State private var revealable: LocalFile?
 
@@ -38,17 +37,6 @@ struct GeneralSettingsPage: View {
         } trailing: {
           PopupPicker(selection: $interface, options: InterfaceLanguage.allCases.map { ($0, Text($0.name)) })
         }
-        SettingsRow {
-          Text(.loci("settings.lessons"))
-        } trailing: {
-          if let lessons {
-            PopupPicker(
-              selection: lessonBinding(lessons),
-              options: LessonLanguages.offered(keeping: lessons).map { ($0, Text(LessonLanguages.name($0))) }
-            )
-            .changesData()
-          }
-        }
       }
       SettingsGroup(title: .loci("settings.data")) {
         SettingsRow {
@@ -71,18 +59,8 @@ struct GeneralSettingsPage: View {
     }
     .onChange(of: interface) { interface.apply() }
     .task {
-      lessons = try? await host.run(ReadLessonLanguage())
       folder = try? await host.run(DataLocation())
       revealable = await host.localFile(.dataFolder)
-    }
-  }
-
-  private func lessonBinding(_ current: LessonLanguage) -> Binding<LessonLanguage> {
-    Binding {
-      current
-    } set: { language in
-      lessons = language
-      Task { _ = try? await host.run(SetLessonLanguage(language)) }
     }
   }
 }
@@ -184,23 +162,6 @@ enum InterfaceLanguage: String, CaseIterable {
       UserDefaults.standard.removeObject(forKey: Self.key)
     } else {
       UserDefaults.standard.set([rawValue], forKey: Self.key)
-    }
-  }
-}
-
-/// The languages lessons can be written in.
-enum LessonLanguages {
-  static func offered(keeping current: LessonLanguage) -> [LessonLanguage] {
-    let offered: [LessonLanguage] = [.learners, .fixed("zh-Hans"), .fixed("en")]
-    return offered.contains(current) ? offered : offered + [current]
-  }
-
-  static func name(_ language: LessonLanguage) -> LocalizedStringResource {
-    switch language {
-    case .learners: .loci("language.learners")
-    case .fixed("zh-Hans"): "简体中文"
-    case .fixed("en"): "English"
-    case .fixed(let tag): LocalizedStringResource(stringLiteral: tag)
     }
   }
 }

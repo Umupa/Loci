@@ -1,7 +1,8 @@
 import Foundation
 import LociModel
 
-/// The Loci folder: mentors, the library and notes, kept as files that people and agents can read and write.
+/// The Loci folder: Loci's own files, the library and the highlights, kept as files that people and agents
+/// can read and write.
 ///
 /// A store knows only where the folder is and how to discard things. Every call goes to the disk, so it
 /// always sees what an agent wrote last, and copies of a store never disagree.
@@ -14,7 +15,7 @@ public struct Store: Sendable {
     self.discard = discard
   }
 
-  var mentorsFolder: URL { root.appending(path: "mentors", directoryHint: .isDirectory) }
+  public var agentFolder: URL { root.appending(path: "agent", directoryHint: .isDirectory) }
   var libraryFolder: URL { root.appending(path: "library", directoryHint: .isDirectory) }
   var notesFolder: URL { root.appending(path: "notes", directoryHint: .isDirectory) }
 
@@ -27,7 +28,7 @@ public struct Store: Sendable {
   }
 }
 
-/// How a store gets rid of a deleted mentor, item or notes file.
+/// How a store gets rid of a deleted item or notes file.
 public struct Discard: Sendable {
   let remove: @Sendable (URL) throws -> Void
 

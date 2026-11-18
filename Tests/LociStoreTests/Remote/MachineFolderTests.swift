@@ -37,14 +37,14 @@ struct MachineFolderTests {
     try Self.withFolder { folder in
       let studio = Self.peer("Mac Studio", key: 1).machine.id
       let imac = Self.peer("iMac", key: 2).machine.id
-      try folder.cache(Data("studio".utf8), as: "mentors", request: Data("{}".utf8), on: studio)
-      try folder.cache(Data("imac".utf8), as: "mentors", request: Data("{}".utf8), on: imac)
+      try folder.cache(Data("studio".utf8), as: "item.list", request: Data("{}".utf8), on: studio)
+      try folder.cache(Data("imac".utf8), as: "item.list", request: Data("{}".utf8), on: imac)
 
-      #expect(folder.cached("mentors", request: Data("{}".utf8), on: studio) == Data("studio".utf8))
-      #expect(folder.cached("mentors", request: Data("{\"x\":1}".utf8), on: studio) == nil)
+      #expect(folder.cached("item.list", request: Data("{}".utf8), on: studio) == Data("studio".utf8))
+      #expect(folder.cached("item.list", request: Data("{\"x\":1}".utf8), on: studio) == nil)
       try folder.forget(studio)
-      #expect(folder.cached("mentors", request: Data("{}".utf8), on: studio) == nil)
-      #expect(folder.cached("mentors", request: Data("{}".utf8), on: imac) == Data("imac".utf8))
+      #expect(folder.cached("item.list", request: Data("{}".utf8), on: studio) == nil)
+      #expect(folder.cached("item.list", request: Data("{}".utf8), on: imac) == Data("imac".utf8))
     }
   }
 

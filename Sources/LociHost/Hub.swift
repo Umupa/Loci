@@ -80,11 +80,9 @@ actor Hub {
 extension ContentChange {
   var problemSubject: FileProblem.Subject? {
     switch self {
-    case .mentor(let id), .catalog(let id): .mentor(id)
-    case .lesson(let lesson): .mentor(lesson.mentor)
     case .item(let id): .item(id)
     case .notes(let content): .notes(content)
-    case .everything, .conversation, .mind, .reading, .job, .itemConversation, .media: nil
+    case .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: nil
     }
   }
 }

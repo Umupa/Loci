@@ -3,7 +3,7 @@ import LociModel
 
 /// Drives Codex through the app-server's standard input and output.
 public struct CodexDriver: AgentDriver {
-  public let provider = Mentor.Provider.codex
+  public let provider = Provider.codex
   private let executable: URL
   private let arguments: [String]
   private let environment: [String: String]?

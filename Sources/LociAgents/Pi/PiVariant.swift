@@ -5,7 +5,7 @@ enum PiVariant: Sendable {
   case pi
   case omp
 
-  var provider: Mentor.Provider {
+  var provider: Provider {
     switch self {
     case .pi: .pi
     case .omp: .omp

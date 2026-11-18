@@ -1,10 +1,15 @@
 import LociModel
 import SwiftUI
 
-/// The card floating at the foot of the conversation: the passage being asked about, the field, and a row
-/// with the agent, the model and thinking effort, how full the context is, and send or stop.
+/// The glass card floating at the foot of a conversation: the passage being asked about, the field, and a
+/// row with adding a file, what Loci runs on, how full the context is, and send or stop.
 struct Composer: View {
-  let mentor: Mentor
+  /// The main conversation, or the one beside something read, which asks rather than talks and has no
+  /// room for adding files.
+  enum Style {
+    case talk, companion
+  }
+
   let context: ContextUsage?
   let busy: Bool
   @Binding var draft: PassageDraft?
@@ -12,52 +17,40 @@ struct Composer: View {
   let stop: () async -> Void
   /// What `/new` does: start the conversation over. Without it, `/new` is sent like any message.
   var startOver: (() async throws(HostError) -> Done)?
-  /// Only the field and send, for asking alongside an item.
-  var plain = false
+  var style = Style.talk
+  /// What the plus button does; without it there is none.
+  var attach: (() -> Void)?
+  /// Changes each time the field should take the keyboard; the main conversation's field takes it when it
+  /// first shows.
+  var focusRequest = 0
   @State private var text = ""
   @State private var selection: TextSelection?
   @State private var stopping = false
   @FocusState private var focused: Bool
 
   var body: some View {
+    let shape = RoundedRectangle(cornerRadius: Radius.composer, style: .continuous)
     VStack(alignment: .leading, spacing: Spacing.xs) {
       if let draft { quoted(draft) }
-      if plain {
-        HStack(alignment: .bottom, spacing: Spacing.xs) {
-          field.padding(.bottom, 4)
-          sendOrStop
+      field
+      HStack(spacing: 6) {
+        if let attach {
+          PlusButton(action: attach)
         }
-      } else {
-        field
-      }
-      if !plain {
-        HStack(spacing: 2) {
-          AgentChoiceMenu(mentor: mentor, parts: .agent)
-          AgentChoiceMenu(mentor: mentor, parts: .model)
-          Spacer(minLength: Spacing.xxs)
-          if let context, ContextGauge.fraction(context) != nil { ContextGauge(usage: context) }
-          sendOrStop.padding(.leading, Spacing.xxs)
-        }
+        RuntimeMenu(namesAgent: style == .talk)
+        Spacer(minLength: Spacing.xxs)
+        if let context, ContextGauge.fraction(context) != nil { ContextGauge(usage: context) }
+        sendOrStop
       }
     }
-    .padding(.leading, 14)
-    .padding(.trailing, 8)
-    .padding(.top, 11)
-    .padding(.bottom, 8)
-    .background(
-      RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous).fill(Palette.surface)
-        .shadow(color: .black.opacity(0.08), radius: 15, y: 8)
-    )
-    .overlay {
-      RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous)
-        .strokeBorder(Palette.lineStrong, lineWidth: Size.hairline)
-    }
-    .background {
-      RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous)
-        .stroke(Palette.accent.opacity(focused ? 0.3 : 0), lineWidth: 7)
-        .animation(Motion.quick, value: focused)
-    }
+    .padding(.leading, Spacing.m)
+    .padding([.top, .bottom, .trailing], 10)
+    .glassEffect(.regular, in: shape)
+    .overlay(shape.strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
+    .shadow(color: .black.opacity(0.10), radius: 15, y: 10)
     .onChange(of: draft) { if draft != nil { focused = true } }
+    .onChange(of: focusRequest) { focused = true }
+    .onAppear { if style == .talk { focused = true } }
   }
 
   private func quoted(_ draft: PassageDraft) -> some View {
@@ -76,10 +69,12 @@ struct Composer: View {
 
   private var field: some View {
     TextField(text: $text, selection: $selection, axis: .vertical) {
-      Text(.loci("conversation.prompt"))
+      Text(.loci(style == .talk ? "talk.prompt" : "companion.prompt"))
     }
     .textFieldStyle(.plain)
-    .font(.system(size: 14))
+    .font(.system(size: 14.5))
+    .lineSpacing(3)
+    .frame(minHeight: 22)
     .lineLimit(1...8)
     .focused($focused)
     .onSubmit(submit)
@@ -177,7 +172,7 @@ enum ComposerKey: Equatable {
   }
 }
 
-/// The amber circle that sends, or stops the mentor while it works.
+/// The amber circle that sends, or stops Loci while it works.
 private struct RoundButton: View {
   let symbol: String
   let label: LocalizedStringResource
@@ -187,15 +182,43 @@ private struct RoundButton: View {
   var body: some View {
     Button(action: action) {
       Image(systemName: symbol)
-        .font(.system(size: 11, weight: .bold))
+        .font(.system(size: 13, weight: .bold))
         .foregroundStyle(Palette.onAccent)
         .frame(width: Size.sendButton, height: Size.sendButton)
-        .background(Circle().fill(Palette.accent.gradient))
-        .overlay(Circle().strokeBorder(.black.opacity(0.12), lineWidth: Size.hairline))
-        .opacity(enabled ? 1 : 0.45)
+        .background(Circle().fill(Palette.accent))
+        .opacity(enabled ? 1 : 0.35)
     }
-    .buttonStyle(PressStyle())
+    .buttonStyle(SendPressStyle())
     .accessibilityLabel(Text(label))
+  }
+}
+
+/// Sending gives under the finger a little more than other buttons do.
+private struct SendPressStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .scaleEffect(configuration.isPressed ? 0.94 : 1)
+      .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+  }
+}
+
+/// Adds a file, as dropping one does.
+private struct PlusButton: View {
+  let action: () -> Void
+  @State private var hovering = false
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: Symbols.add)
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(Palette.inkMuted)
+        .frame(width: Size.iconButton, height: Size.iconButton)
+        .background(Circle().fill(hovering ? Palette.fill : .clear))
+        .contentShape(Circle())
+    }
+    .buttonStyle(.plain)
+    .onHover { hovering = $0 }
+    .accessibilityLabel(Text(.loci("talk.add")))
   }
 }
 

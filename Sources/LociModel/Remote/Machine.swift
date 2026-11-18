@@ -24,7 +24,7 @@ public enum MachineModel: String, Hashable, Codable, Sendable, CaseIterable {
   case laptop, mini, iMac, studio, pro, other
 }
 
-/// A Mac whose courses, library and mentors the window can show.
+/// A Mac whose Loci and library the window can show.
 public struct Machine: Hashable, Codable, Sendable, Identifiable {
   public let id: MachineID
   public let name: String

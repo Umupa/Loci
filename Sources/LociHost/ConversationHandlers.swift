@@ -6,15 +6,19 @@ extension LocalHost {
   public func sendMessage(_ command: SendMessage) async throws(HostError) -> Done {
     let text = command.text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { throw .invalidRequest("the message is empty") }
-    let run = try await mentors.run(of: command.mentor)
+    let run = try await loci.run(of: command.conversation)
     guard let passage = command.passage else {
-      try await run.send(Prompt(text: text, purpose: .chat))
+      try await run.send(Prompt(text: text, purpose: .chat), saying: text)
       return Done()
     }
-    guard await run.isIdle else { throw .invalidRequest(MentorRun.busy) }
+    guard case .item(let item) = command.conversation, passage.locator.content == .item(item) else {
+      throw .invalidRequest("the passage is not in this item")
+    }
+    guard await run.isIdle else { throw .invalidRequest(AgentRun.busy) }
     let quoted = QuotedPassage(
       locator: passage.locator, excerpt: passage.excerpt, note: try await note(on: passage).id)
-    try await run.send(Prompt(text: text, purpose: .chat, passage: quoted), saying: Soul.ask(text, about: passage))
+    try await run.send(
+      Prompt(text: text, purpose: .chat, passage: quoted), saying: Prompts.ask(text, about: passage))
     return Done()
   }
 
@@ -26,32 +30,61 @@ extension LocalHost {
   }
 
   public func stopTurn(_ command: StopTurn) async throws(HostError) -> Done {
-    await (try mentors.run(of: command.mentor)).stop()
+    await loci.existingRun(of: command.conversation)?.stop()
     return Done()
   }
 
   public func startOver(_ command: StartOver) async throws(HostError) -> Done {
-    try await (try mentors.run(of: command.mentor)).startOver()
+    try await loci.run(of: command.conversation).startOver()
     return Done()
   }
 
-  public func writeLesson(_ command: WriteLesson) async throws(HostError) -> Done {
-    let ref = command.lesson
-    let page = try await mentorPage(ref.mentor)
-    guard let lesson = page.catalog?.chapters.flatMap(\.lessons).first(where: { $0.slug == ref.lesson }) else {
-      throw .invalidRequest("\(ref.lesson) is not in the catalog")
+  /// The stored messages and the running turn come from the run; the main conversation adds what happened
+  /// in the library, in the order it happened.
+  public func conversation(_ ref: ConversationRef) async throws(HostError) -> Conversation {
+    let snapshot = await (try loci.run(of: ref)).snapshot
+    var entries = snapshot.messages.map(Conversation.Entry.message)
+    if ref == .main {
+      entries = Self.merging(entries, try await events())
     }
-    guard !page.writtenLessons.contains(ref.lesson) else { throw .invalidRequest("\(ref.lesson) is already written") }
-    try await mentors.run(of: ref.mentor).send(Soul.write(lesson, in: try await lessonLanguage()))
-    return Done()
+    return Conversation(ref: ref, entries: entries, turn: snapshot.turn, context: snapshot.context)
   }
 
-  public func conversation(of mentor: EntityID) async throws(HostError) -> Conversation {
-    await (try mentors.run(of: mentor)).snapshot()
+  /// The events the main conversation shows; an event about an item that is gone is left out.
+  private func events() async throws(HostError) -> [WorldEvent] {
+    var shown: [WorldEvent] = []
+    for logged in try attempt({ try database.events() }) {
+      guard let item = try? store.item(logged.event.item) else { continue }
+      switch logged.event {
+      case .finishedReading:
+        shown.append(WorldEvent(id: logged.id, at: logged.at, kind: .finishedReading(item)))
+      case .saved:
+        let job = await library.queue.job(of: item.id)
+        shown.append(WorldEvent(id: logged.id, at: logged.at, kind: .saved(item, job: job)))
+      case .highlighted:
+        continue
+      }
+    }
+    return shown
   }
 
-  /// A new mentor's first turn: the catalog, then the first lesson.
-  func begin(_ mentor: Mentor) async throws(HostError) {
-    try await mentors.run(of: mentor.id).send(Soul.begin(mentor, in: try await lessonLanguage()))
+  /// Both lists are in time order; an event goes after the messages of the same moment.
+  static func merging(_ messages: [Conversation.Entry], _ events: [WorldEvent]) -> [Conversation.Entry] {
+    var merged: [Conversation.Entry] = []
+    var rest = events[...]
+    for message in messages {
+      while let event = rest.first, event.at < message.at {
+        merged.append(.event(event))
+        rest = rest.dropFirst()
+      }
+      merged.append(message)
+    }
+    return merged + rest.map(Conversation.Entry.event)
+  }
+
+  /// Logs something that happened in the library and tells the main conversation.
+  func happened(_ event: LibraryEvent) async {
+    try? database.log(LoggedEvent(id: environment.newID(), at: environment.now(), event: event))
+    await follow([.events])
   }
 }

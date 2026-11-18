@@ -8,29 +8,12 @@ import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct ConversationScenarioTests {
-  private static var quiet: FakeAgent {
-    FakeAgent { prompt in prompt.contains("new mentor") ? .reply("Ready.") : .reply("Hello there.") }
-  }
-
-  /// Waits for the mentor's first turn, which every new mentor starts with, to end.
-  private func settled(_ host: LocalHost, _ mentor: EntityID, turns: Int = 1) async -> Conversation? {
-    await value(host.subscribe(MentorConversation(mentor: mentor))) { conversation in
-      conversation.turn == nil
-        && conversation.messages.count { if case .prompt = $0.body { true } else { false } } == turns
-    }
-  }
-
-  private func bodies(_ conversation: Conversation?) -> [Message.Body] {
-    conversation?.messages.map(\.body) ?? []
-  }
-
-  /// α2-S6: the reply arrives in pieces into one message, and the conversation keeps it.
-  @Test func aReplyStreamsIntoTheConversation() async throws {
+  /// L-S1: the reply arrives in pieces into one message, and the main conversation keeps it.
+  @Test func aReplyStreamsIntoTheMainConversation() async throws {
     try await withManualHost { host, _, _, agent in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await settled(host, mentor.id))
-      let feed = host.subscribe(MentorConversation(mentor: mentor.id))
-      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))
+      let feed = host.subscribe(OneConversation(.main))
+      _ = try await host.run(SendMessage(to: .main, text: "在吗"))
+      #expect(await working(host))
       let session = try #require(await agent.sessions.last)
 
       await session.emit(.text(", hello"))
@@ -41,60 +24,17 @@ struct ConversationScenarioTests {
       await session.finish()
 
       #expect(partial != nil)
-      let done = await settled(host, mentor.id, turns: 2)
-      #expect(bodies(done).suffix(2) == [.prompt(Prompt(text: "Hi", purpose: .chat)), .reply("Waiting, hello there.")])
-    }
-  }
-
-  @Test func aMessageWhileTheMentorWorksIsRefused() async throws {
-    try await withHost(agent: FakeAgent { _ in .hang }) { host, _, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-
-      await #expect(throws: HostError.self) { try await host.run(SendMessage(mentor: mentor.id, text: "Hi")) }
-      _ = try await host.run(StopTurn(mentor: mentor.id))
-    }
-  }
-
-  /// UI-S10: every mentor runs with full access; an agent that still asks is allowed, and nothing waits on
-  /// the person.
-  @Test func aCommandTheAgentAsksAboutRunsWithoutAsking() async throws {
-    let agent = FakeAgent { prompt in prompt == "Run it" ? .askToRun : .reply("Ready.") }
-    try await withHost(agent: agent) { host, _, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await settled(host, mentor.id))
-
-      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Run it"))
-
-      let done = try #require(await settled(host, mentor.id, turns: 2))
-      let tool = done.messages.compactMap { if case .tool(let tool) = $0.body { tool } else { nil } }.last
-      #expect(tool?.state == .succeeded)
-      #expect(bodies(done).last == .reply("It printed hi."))
-    }
-  }
-
-  /// UI-S8: what the agent says about its context window is in the conversation.
-  @Test func theContextUsageTheAgentReportsIsShown() async throws {
-    try await withManualHost { host, _, _, agent in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await settled(host, mentor.id))
-      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))
-      let session = try #require(await agent.sessions.last)
-
-      await session.emit(.context(ContextUsage(used: 68_000, window: 200_000)))
-
-      let reported = await value(host.subscribe(MentorConversation(mentor: mentor.id))) { $0.context != nil }
-      #expect(reported?.context == ContextUsage(used: 68_000, window: 200_000))
-      await session.finish()
+      let done = await settled(host)
+      #expect(done?.bodies == [.prompt(Prompt(text: "在吗", purpose: .chat)), .reply("Waiting, hello there.")])
     }
   }
 
   /// PERF-S1: a reply streaming in a word at a time reaches the window a few words at a time.
   @Test func aReplyStreamingAWordAtATimeIsShownAFewWordsAtATime() async throws {
     try await withManualHost { host, _, _, agent in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await settled(host, mentor.id))
-      let feed = host.subscribe(MentorConversation(mentor: mentor.id))
-      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))
+      let feed = host.subscribe(OneConversation(.main))
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
+      #expect(await working(host))
       let session = try #require(await agent.sessions.last)
       let words = (1...40).map { "w\($0) " }
 
@@ -112,60 +52,101 @@ struct ConversationScenarioTests {
     }
   }
 
-  /// α2-S7: stopping ends the turn, and the conversation goes on.
-  @Test func stoppingEndsTheTurnAndTheConversationGoesOn() async throws {
-    let agent = FakeAgent { prompt in prompt == "Take your time" ? .hang : .reply("Ready.") }
-    try await withHost(agent: agent) { host, _, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await settled(host, mentor.id))
-      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Take your time"))
+  @Test func aMessageWhileLociAnswersThereIsRefused() async throws {
+    try await withHost(agent: FakeAgent { _ in .hang }) { host, _, _ in
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
 
-      _ = try await host.run(StopTurn(mentor: mentor.id))
-
-      let stopped = await settled(host, mentor.id, turns: 2)
-      #expect(bodies(stopped).last == .ended(.interrupted))
-      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Again"))
-      #expect(bodies(await settled(host, mentor.id, turns: 3)).last == .reply("Ready."))
+      await #expect(throws: HostError.self) { try await host.run(SendMessage(to: .main, text: "Hi")) }
+      _ = try await host.run(StopTurn(in: .main))
     }
   }
 
-  /// α2-S8: after a restart the conversation is all there, and the agent's session is resumed.
+  @Test func anEmptyMessageIsRefused() async throws {
+    try await withHost { host, _, _ in
+      await #expect(throws: HostError.self) { try await host.run(SendMessage(to: .main, text: "  \n")) }
+    }
+  }
+
+  /// Every session runs with full access; an agent that still asks is allowed, and nothing waits on the
+  /// person.
+  @Test func aCommandTheAgentAsksAboutRunsWithoutAsking() async throws {
+    try await withHost(agent: FakeAgent { _ in .askToRun }) { host, _, _ in
+      _ = try await host.run(SendMessage(to: .main, text: "Run it"))
+
+      let done = try #require(await settled(host))
+      let tool = done.messages.compactMap { if case .tool(let tool) = $0.body { tool } else { nil } }.last
+      #expect(tool?.state == .succeeded)
+      #expect(done.bodies.last == .reply("It printed hi."))
+    }
+  }
+
+  /// What the agent says about its context window is in the conversation.
+  @Test func theContextUsageTheAgentReportsIsShown() async throws {
+    try await withManualHost { host, _, _, agent in
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
+      #expect(await working(host))
+      let session = try #require(await agent.sessions.last)
+
+      await session.emit(.context(ContextUsage(used: 68_000, window: 200_000)))
+
+      let reported = await value(host.subscribe(OneConversation(.main))) { $0.context != nil }
+      #expect(reported?.context == ContextUsage(used: 68_000, window: 200_000))
+      await session.finish()
+    }
+  }
+
+  /// Stopping ends the turn, and the conversation goes on.
+  @Test func stoppingEndsTheTurnAndTheConversationGoesOn() async throws {
+    let agent = FakeAgent { prompt in prompt.typed == "Take your time" ? .hang : .reply("Ready.") }
+    try await withHost(agent: agent) { host, _, _ in
+      _ = try await host.run(SendMessage(to: .main, text: "Take your time"))
+
+      _ = try await host.run(StopTurn(in: .main))
+
+      #expect(await settled(host)?.bodies.last == .ended(.interrupted))
+      _ = try await host.run(SendMessage(to: .main, text: "Again"))
+      #expect(await settled(host, prompts: 2)?.bodies.last == .reply("Ready."))
+    }
+  }
+
+  /// After a restart the conversation is all there, and the agent's session is resumed.
   @Test func theConversationSurvivesARestart() async throws {
     let place = Place()
     defer { place.remove() }
     let agent = FakeAgent { _ in .reply("Ready.") }
     let world = TestWorld(agent: agent)
     let first = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
-    let mentor = try await first.run(CreateMentor(request: "Scheduling"))
-    let before = await settled(first, mentor.id)
+    _ = try await first.run(SendMessage(to: .main, text: "Hi"))
+    let before = await settled(first)
     await first.close()
 
     let second = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
-    let after = try await second.conversation(of: mentor.id)
-    _ = try await second.run(SendMessage(mentor: mentor.id, text: "Still there?"))
-    _ = try #require(await settled(second, mentor.id, turns: 2))
+    let after = try await second.conversation(.main)
+    _ = try await second.run(SendMessage(to: .main, text: "Still there?"))
+    _ = try #require(await settled(second, prompts: 2))
     await second.close()
 
     #expect(after.messages == before?.messages)
     #expect(agent.opened.last?.resume?.value == "fake-1")
   }
 
-  /// UI-S11: `/new` starts over. Every message stays, a line marks the place, and the next message goes to
-  /// an agent session that remembers nothing before it.
-  @Test func startingOverKeepsTheMessagesAndTheNextMessageGoesToAFreshSession() async throws {
+  /// L-S2: `/new` keeps every message, leaves a line, and the next message goes to a session that is told
+  /// nothing of what was said before.
+  @Test func startingOverKeepsTheMessagesAndTheNextSessionStartsClean() async throws {
     let agent = FakeAgent { _ in .reply("Ready.") }
     try await withHost(agent: agent) { host, _, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      let before = try #require(await settled(host, mentor.id))
+      _ = try await host.run(SendMessage(to: .main, text: "Remember the word cobalt"))
+      let before = try #require(await settled(host))
 
-      _ = try await host.run(StartOver(mentor: mentor.id))
-      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Again"))
+      _ = try await host.run(StartOver(in: .main))
+      _ = try await host.run(SendMessage(to: .main, text: "Again"))
 
-      let after = try #require(await settled(host, mentor.id, turns: 2))
+      let after = try #require(await settled(host, prompts: 2))
       #expect(Array(after.messages.prefix(before.messages.count)) == before.messages)
       #expect(after.messages[before.messages.count].body == .startedOver)
       #expect(agent.opened.count == 2)
       #expect(agent.opened.last?.resume == nil)
+      #expect(agent.prompts.last?.contains("cobalt") == false)
     }
   }
 
@@ -175,54 +156,50 @@ struct ConversationScenarioTests {
     let agent = FakeAgent { _ in .reply("Ready.") }
     let world = TestWorld(agent: agent)
     let first = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
-    let mentor = try await first.run(CreateMentor(request: "Scheduling"))
-    _ = await settled(first, mentor.id)
-    _ = try await first.run(StartOver(mentor: mentor.id))
+    _ = try await first.run(SendMessage(to: .main, text: "Hi"))
+    _ = await settled(first)
+    _ = try await first.run(StartOver(in: .main))
     await first.close()
 
     let second = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
-    _ = try await second.run(SendMessage(mentor: mentor.id, text: "Still there?"))
-    let after = try #require(await settled(second, mentor.id, turns: 2))
+    _ = try await second.run(SendMessage(to: .main, text: "Still there?"))
+    let after = try #require(await settled(second, prompts: 2))
     await second.close()
 
     #expect(after.messages.contains { $0.body == .startedOver })
     #expect(agent.opened.last?.resume == nil)
   }
 
-  @Test func startingOverTwiceLeavesOneLine() async throws {
-    try await withHost(agent: Self.quiet) { host, _, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await settled(host, mentor.id))
+  @Test func startingOverTwiceOrOnNothingLeavesAtMostOneLine() async throws {
+    try await withHost { host, _, _ in
+      _ = try await host.run(StartOver(in: .main))
+      #expect(try await host.conversation(.main).entries.isEmpty)
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
+      _ = await settled(host)
 
-      _ = try await host.run(StartOver(mentor: mentor.id))
-      _ = try await host.run(StartOver(mentor: mentor.id))
+      _ = try await host.run(StartOver(in: .main))
+      _ = try await host.run(StartOver(in: .main))
 
-      let conversation = try await host.conversation(of: mentor.id)
-      #expect(conversation.messages.count { $0.body == .startedOver } == 1)
+      #expect(try await host.conversation(.main).messages.count { $0.body == .startedOver } == 1)
     }
   }
 
-  @Test func startingOverWhileTheMentorWorksIsRefused() async throws {
+  @Test func startingOverWhileLociAnswersIsRefused() async throws {
     try await withHost(agent: FakeAgent { _ in .hang }) { host, _, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
 
-      await #expect(throws: HostError.self) { try await host.run(StartOver(mentor: mentor.id)) }
-      _ = try await host.run(StopTurn(mentor: mentor.id))
+      await #expect(throws: HostError.self) { try await host.run(StartOver(in: .main)) }
+      _ = try await host.run(StopTurn(in: .main))
     }
   }
 
-  @Test func aMentorWhoseAgentIsMissingSaysSo() async throws {
-    try await withHost { host, place, world in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await settled(host, mentor.id))
-      let grok = try Mentor(
-        id: mentor.id, name: mentor.name, avatar: mentor.avatar, color: mentor.color, provider: .grok)
-      try place.store.save(grok)
+  @Test func aRuntimeThatIsNotInstalledSaysSo() async throws {
+    try await withHost { host, _, _ in
+      _ = try await host.run(SetRuntime(Runtime(provider: .grok)))
 
-      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Hi"))
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
 
-      let failed = await settled(host, mentor.id, turns: 2)
-      #expect(bodies(failed).last == .ended(.unstarted(.grok, .notInstalled)))
+      #expect(await settled(host)?.bodies.last == .ended(.unstarted(.grok, .notInstalled)))
     }
   }
 
@@ -233,39 +210,41 @@ struct ConversationScenarioTests {
       (.cannotLaunch("The file “codex” doesn’t exist."), .notInstalled),
     ] {
       try await withManualHost(agent: ManualAgent(openingFailure: failure)) { host, _, _, _ in
-        let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+        _ = try await host.run(SendMessage(to: .main, text: "Hi"))
 
-        let failed = await value(host.subscribe(MentorConversation(mentor: mentor.id))) {
-          $0.turn == nil && !$0.messages.isEmpty
-        }
-        #expect(bodies(failed).last == .ended(.unstarted(.pi, said)))
+        #expect(await settled(host)?.bodies.last == .ended(.unstarted(.pi, said)))
       }
     }
   }
 
-  @Test func deletingAMentorDeletesItsConversation() async throws {
-    try await withHost(agent: Self.quiet) { host, _, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await settled(host, mentor.id))
+  /// Every session works in Loci's folder, which holds the instructions it reads.
+  @Test func sessionsWorkInLocisFolderUnderItsInstructions() async throws {
+    let agent = FakeAgent { _ in .reply("Ready.") }
+    try await withHost(agent: agent) { host, place, _ in
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
+      _ = await settled(host)
 
-      _ = try await host.run(DeleteMentor(mentor: mentor.id, notes: .delete))
-
-      await #expect(throws: HostError.self) { try await host.conversation(of: mentor.id) }
+      let folder = place.root.appending(path: "agent")
+      #expect(agent.opened.first?.workingDirectory.standardizedFileURL == folder.standardizedFileURL)
+      let instructions = try String(contentsOf: folder.appending(path: "AGENTS.md"), encoding: .utf8)
+      #expect(instructions.contains("# How Loci works"))
+      #expect(instructions.contains("You are Loci."))
+      #expect(instructions.contains("# The person (USER.md)"))
     }
   }
 
-  /// While a mentor is being deleted its files are still there, and a refresh then must not bring its
-  /// conversation back.
-  @Test func aMentorBeingDeletedGetsNoNewConversation() async throws {
-    try await withHost(agent: Self.quiet) { host, _, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await settled(host, mentor.id))
+  /// What was said is copied, as text, where Loci can search it.
+  @Test func eachTurnIsCopiedIntoLocisConversations() async throws {
+    try await withHost { host, place, _ in
+      _ = try await host.run(SendMessage(to: .main, text: "我上次说了什么"))
+      _ = await settled(host)
 
-      await host.mentors.forget(mentor.id)
-
-      await #expect(throws: HostError.notFound(mentor.id.description)) { try await host.conversation(of: mentor.id) }
-      await host.mentors.forgotten(mentor.id)
-      #expect(try await host.conversation(of: mentor.id).messages.isEmpty)
+      let day = place.root.appending(path: "agent/conversations/2025-11-17")
+      let copies = try FileManager.default.contentsOfDirectory(at: day, includingPropertiesForKeys: nil)
+      #expect(copies.count == 1)
+      let text = try String(contentsOf: try #require(copies.first), encoding: .utf8)
+      #expect(text.contains("我上次说了什么") && text.contains("Hello there."))
+      #expect(!text.contains("loci-context"))
     }
   }
 }

@@ -13,10 +13,9 @@ struct StartupTests {
     defer { place.remove() }
     let world = TestWorld()
     let first = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
-    let mentor = try await first.run(CreateMentor(request: "Scheduling"))
-    let item = try await first.run(AddTextItem(fileName: "borg.md", text: "# Borg\n"))
-    let lesson = LessonRef(mentor: mentor.id, lesson: Lesson.Slug("intro")!)
-    try place.store.save(LessonText(front: try Lesson.Front(sources: [.item(item.id)]), body: ""), as: lesson)
+    let item = try await first.run(AddTextItem(fileName: "borg.md", text: "# Borg\n\nfeasibility\n"))
+    let note = try await first.run(
+      AddNote(locator: .item(item.id, .quote(try TextQuote("feasibility"))), excerpt: "feasibility"))
     await first.close()
     try FileManager.default.removeItem(at: place.database)
 
@@ -25,9 +24,9 @@ struct StartupTests {
 
     let ready = await value(health) { $0.database == .ready }
     #expect(ready != nil)
-    #expect(try await second.run(ListMentors()) == [mentor])
     #expect(try await second.run(ListItems()) == [item])
-    #expect(try await second.run(ItemCitations(item: item.id)).map(\.citation.lesson) == [lesson])
+    #expect(
+      try await second.run(Search(text: "feasibility")).map(\.target).contains(.note(note.id, on: .item(item.id))))
     await second.close()
   }
 
@@ -36,7 +35,7 @@ struct StartupTests {
     defer { place.remove() }
     let world = TestWorld()
     let gate = AsyncStream.makeStream(of: Void.self)
-    let host = await LocalHost.begin(
+    let host = try await LocalHost.begin(
       store: place.store, database: try StoreDatabase.open(at: place.database), environment: world.environment,
       readingStateLost: false
     ) { store, database in
@@ -47,7 +46,7 @@ struct StartupTests {
 
     let rebuilding = await value(health) { $0.database == .rebuilding }
     #expect(rebuilding != nil)
-    #expect(try await host.run(ListMentors()).isEmpty)
+    #expect(try await host.run(ListItems()).isEmpty)
     gate.continuation.yield()
     let ready = await value(health) { $0.database == .ready }
     #expect(ready != nil)
@@ -60,12 +59,11 @@ struct StartupTests {
     let place = Place()
     defer { place.remove() }
     let world = TestWorld()
-    let mentor = try Mentor(
-      id: world.nextID(), name: "Before", avatar: "ember", color: MentorColor.palette[0], provider: .pi)
-    try place.store.create(mentor)
-    let file = try place.store.mentorFolder(mentor.id).appending(path: "mentor.json")
+    let item = try Item(id: world.nextID(), kind: .article, title: "Before")
+    try place.store.add(item, content: "text")
+    let file = try place.store.itemFolder(item.id).appending(path: "item.json")
 
-    let host = await LocalHost.begin(
+    let host = try await LocalHost.begin(
       store: place.store, database: try StoreDatabase.open(at: place.database), environment: world.environment,
       readingStateLost: false
     ) { store, database in
@@ -78,10 +76,10 @@ struct StartupTests {
     let rebuilt = await value(host.subscribe(HealthReport()), within: .seconds(8)) { $0.database == .ready }
     #expect(rebuilt != nil)
 
-    let mentors = host.subscribe(AllMentors())
-    let caughtUp = await value(mentors) { $0.map(\.name) == ["After"] }
+    let items = host.subscribe(AllItems())
+    let caughtUp = await value(items) { $0.map(\.title) == ["After"] }
     #expect(caughtUp != nil)
-    #expect(try await host.run(ListMentors()).map(\.name) == ["After"])
+    #expect(try await host.run(ListItems()).map(\.title) == ["After"])
     await host.close()
   }
 
@@ -123,46 +121,22 @@ struct StartupTests {
 
   @Test func aBrokenFileShowsUpInHealthAndGoesAwayWhenFixed() async throws {
     try await withHost { host, place, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      let item = try await host.run(AddTextItem(fileName: "borg.md", text: "# Borg\n"))
       let health = host.subscribe(HealthReport())
-      let page = host.subscribe(OneMentor(mentor: mentor.id))
-      let catalog = try place.store.mentorFolder(mentor.id).appending(path: "catalog.yaml")
-
-      try Data("chapters: [".utf8).write(to: catalog)
-
-      let broken = await value(health) { !$0.fileProblems.isEmpty }
-      #expect(broken?.fileProblems.map(\.subject) == [.mentor(mentor.id)])
-      let catalogLost = await value(page) { $0.catalog == nil }
-      #expect(catalogLost != nil)
-
-      try Data("chapters: []\n".utf8).write(to: catalog)
-
-      let healed = await value(health) { $0.fileProblems.isEmpty }
-      #expect(healed != nil)
-      let restored = await value(page) { $0.catalog != nil }
-      #expect(restored != nil)
-    }
-  }
-
-  @Test func aMentorFileThatIsNotJSONShowsUpInHealthAndGoesAwayWhenFixed() async throws {
-    try await withHost { host, place, _ in
-      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
-      let health = host.subscribe(HealthReport())
-      let file = try place.store.mentorFolder(mentor.id).appending(path: "mentor.json")
+      let file = try place.store.itemFolder(item.id).appending(path: "item.json")
       let original = try Data(contentsOf: file)
 
-      try Data(#"{"id": "\#(mentor.id)", "name": "#.utf8).write(to: file)
+      try Data(#"{"id": "\#(item.id)", "title": "#.utf8).write(to: file)
 
       let broken = await value(health) { !$0.fileProblems.isEmpty }
-      #expect(broken?.fileProblems.map(\.subject) == [.mentor(mentor.id)])
-      #expect(broken?.fileProblems.first?.path.hasSuffix("/mentor.json") == true)
-      await #expect(throws: HostError.self) { try await host.run(ReadCatalog(mentor: mentor.id)) }
+      #expect(broken?.fileProblems.map(\.subject) == [.item(item.id)])
+      #expect(broken?.fileProblems.first?.path.hasSuffix("/item.json") == true)
 
       try original.write(to: file)
 
       let healed = await value(health) { $0.fileProblems.isEmpty }
       #expect(healed != nil)
-      #expect(try await host.run(ListMentors()) == [mentor])
+      #expect(try await host.run(ListItems()) == [item])
     }
   }
 }

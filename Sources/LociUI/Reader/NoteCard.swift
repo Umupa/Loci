@@ -6,10 +6,9 @@ struct NoteCard: View {
   @Environment(\.host) private var host
   let content: ContentRef
   let placed: PlacedNote
-  let mentors: [Mentor]
   /// Changes each time the highlight is chosen in the text, which outlines and flashes the card.
   let chosen: Int?
-  /// Hands the highlight to the mentor's composer; `nil` where there is no mentor or the words are gone.
+  /// Hands the highlight to Loci's composer; `nil` where the words are gone.
   let ask: (() -> Void)?
   let select: () -> Void
   @State private var editing = false
@@ -30,7 +29,7 @@ struct NoteCard: View {
       }
       if editing { field }
       ForEach(Array(placed.note.exchanges.enumerated()), id: \.offset) { _, exchange in
-        ExchangeView(exchange: exchange, mentor: mentors.first { $0.id == exchange.mentor })
+        ExchangeView(exchange: exchange)
       }
     }
     .textSelection(.enabled)
@@ -132,27 +131,26 @@ struct Quote: View {
       if let at {
         Text(
           joining: Text(verbatim: at + " ").font(Typography.mono).foregroundStyle(Palette.accentInk),
-          Text(verbatim: text).font(font)
+          Text(serif: text, font)
         )
         .lineSpacing(3)
       } else {
-        Text(verbatim: text).font(font).lineSpacing(3)
+        Text(serif: text, font).lineSpacing(3)
       }
     }
     .fixedSize(horizontal: false, vertical: true)
   }
 }
 
-/// A question asked about a highlight and the mentor's answer, under a hairline.
+/// A question asked about a highlight and Loci's answer, under a hairline.
 private struct ExchangeView: View {
   let exchange: Note.Exchange
-  let mentor: Mentor?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 5) {
       Text(verbatim: exchange.question).fontWeight(.semibold).foregroundStyle(Palette.ink)
       HStack(alignment: .top, spacing: 7) {
-        if let mentor { Avatar(mentor: mentor, size: Size.avatarTiny).padding(.top, 2) }
+        LociAvatar(size: Size.avatarTiny).padding(.top, 2)
         RichText(markdown: exchange.answer, font: Typography.body).foregroundStyle(Palette.inkMuted)
       }
     }

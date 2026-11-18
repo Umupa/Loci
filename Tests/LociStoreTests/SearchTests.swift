@@ -18,19 +18,14 @@ struct SearchTests {
     try Self.searching { database, library in
       let hits = try database.search("调度")
 
-      #expect(hits.contains { $0.target == .mentor(library.first.id) && $0.field == .name })
       #expect(hits.contains { $0.target == .item(library.article.id) && $0.field == .body })
-      #expect(hits.contains { $0.target == .lesson(library.firstLesson) && $0.field == .title } == false)
     }
   }
 
   @Test func eachKindOfTextCanBeFound() throws {
     try Self.searching { database, library in
-      let titles = try database.search("打分")
       let note = try database.search("漏斗")
 
-      #expect(try database.search("Distributed").map(\.target) == [.mentor(library.second.id)])
-      #expect(titles.contains { $0.target == .lesson(library.firstLesson) && $0.field == .title })
       #expect(try database.search("Omega").map(\.field) == [.title])
       #expect(
         note == [

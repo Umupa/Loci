@@ -17,13 +17,16 @@ struct LongConversationTests {
 
   private struct Window: View {
     let feed: Feed
-    let mentor: Mentor
 
     var body: some View {
       ConversationView(
-        mentor: mentor, conversation: feed.conversation, draft: .constant(nil), revealPassage: { _ in },
+        conversation: feed.conversation, draft: .constant(nil), revealPassage: { _ in },
         send: { (_: String, _: Passage?) async throws(HostError) -> Done in Done() }, stop: {})
     }
+  }
+
+  private static func conversation(_ said: [Message], turn: LiveTurn? = nil) -> Conversation {
+    Conversation(ref: .main, entries: said.map { .message($0) }, turn: turn)
   }
 
   private static func reply(_ question: Int, sections: Int) -> String {
@@ -56,10 +59,10 @@ struct LongConversationTests {
         message(.reply(Self.reply(question, sections: question % 3 + 1))),
       ]
     }
-    let feed = Feed(Conversation(mentor: sample.scheduling.id, messages: history, turn: nil))
+    let feed = Feed(Self.conversation(history))
     let size = CGSize(width: 420, height: 800)
     let host = NSHostingView(
-      rootView: Window(feed: feed, mentor: sample.scheduling).frame(width: size.width, height: size.height)
+      rootView: Window(feed: feed).frame(width: size.width, height: size.height)
         .lociHost(FakeHost(sample)))
     let window = NSWindow(
       contentRect: CGRect(origin: CGPoint(x: -20_000, y: -20_000), size: size), styleMask: [.titled],
@@ -78,13 +81,12 @@ struct LongConversationTests {
       repeat {
         end = answer.index(end, offsetBy: 80, limitedBy: answer.endIndex) ?? answer.endIndex
         let partial = Message(id: id, at: asked.at, body: .reply(String(answer[..<end])))
-        feed.conversation = Conversation(
-          mentor: sample.scheduling.id, messages: history,
-          turn: LiveTurn(startedAt: asked.at, messages: [asked, partial]))
+        feed.conversation = Self.conversation(
+          history, turn: LiveTurn(startedAt: asked.at, messages: [asked, partial]))
         try await Task.sleep(for: .milliseconds(10))
       } while end < answer.endIndex
       history += [asked, Message(id: id, at: asked.at, body: .reply(answer))]
-      feed.conversation = Conversation(mentor: sample.scheduling.id, messages: history, turn: nil)
+      feed.conversation = Self.conversation(history)
       try await Task.sleep(for: .milliseconds(300))
       if Self.isBlank(host) { blank.append(question) }
     }

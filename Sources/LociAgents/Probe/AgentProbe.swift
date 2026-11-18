@@ -1,7 +1,7 @@
 import Foundation
 import LociModel
 
-/// Looks for the agent command-line programs a mentor can run, and asks each one it finds for its version.
+/// Looks for the agent command-line programs Loci can run on, and asks each one it finds for its version.
 public struct AgentProbe: Sendable {
   private let launcher: any ProgramLauncher
   private let clock: any Clock<Duration>
@@ -20,7 +20,7 @@ public struct AgentProbe: Sendable {
     self.patience = patience
   }
 
-  /// What each of the ten providers is on this Mac, in `Mentor.Provider.allCases` order.
+  /// What each of the ten providers is on this Mac, in `Provider.allCases` order.
   public func installations() async -> [AgentInstallation] {
     var found: [AgentInstallation] = []
     for cli in AgentCLI.all {

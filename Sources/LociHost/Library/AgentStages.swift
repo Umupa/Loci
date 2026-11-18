@@ -5,7 +5,7 @@ import LociStore
 
 /// The stages an agent does: translating the transcript and finding chapters and highlights.
 extension JobRun {
-  /// Translates into the lessons' language, unless the transcript is in it already or a translation fits.
+  /// Translates into the reader's language, unless the transcript is in it already or a translation fits.
   func translate(_ item: Item) async throws(StageStop) {
     guard let transcript = try stored({ try context.store.transcript(of: item.id) }), !transcript.segments.isEmpty
     else { return }
@@ -49,7 +49,7 @@ extension JobRun {
 
   private func agent() throws(StageStop) -> any TranscriptAgent {
     guard let make = context.media.transcriptAgent else { throw .wait(.agent) }
-    return make(context.agentChoice)
+    return make(context.runtime)
   }
 
   static func primary(_ tag: String) -> String {

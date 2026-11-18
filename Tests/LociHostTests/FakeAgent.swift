@@ -12,11 +12,15 @@ final class FakeAgent: AgentDriver, Sendable {
     case askToRun
     /// Works until interrupted.
     case hang
-    /// Writes these files, relative to the mentor's folder, then replies.
+    /// Writes these files, relative to Loci's folder, then replies.
     case write([String: String], reply: String)
+    /// Says how full its context window is, then replies.
+    case report(ContextUsage, reply: String)
+    /// Compacts its context, then replies.
+    case compact(reply: String)
   }
 
-  let provider = Mentor.Provider.pi
+  let provider = Provider.pi
   private let behave: @Sendable (String) -> Behavior
   private let state = Mutex<(prompts: [String], opened: [SessionConfiguration], sessions: Int)>(([], [], 0))
 
@@ -127,6 +131,14 @@ private actor FakeSession: AgentSession {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? Data(text.utf8).write(to: url)
       }
+      out.yield(.text(reply))
+      return .completed
+    case .report(let usage, let reply):
+      out.yield(.context(usage))
+      out.yield(.text(reply))
+      return .completed
+    case .compact(let reply):
+      out.yield(.notice(.compacting))
       out.yield(.text(reply))
       return .completed
     }

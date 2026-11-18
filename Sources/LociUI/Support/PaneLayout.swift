@@ -37,7 +37,7 @@ struct PaneWidth {
 
   static let sidebar = PaneWidth(side: .leading, range: 200...360, ideal: Size.sidebarIdeal, key: "sidebarWidth")
   static let panel = PaneWidth(side: .trailing, range: 300...2_000, ideal: Size.panelWidth, key: "panelWidth")
-  /// Beside an item: a little narrower than beside a lesson, as the player or the article wants the room.
+  /// Beside an item: a little narrower than beside other text, as the player or the article wants the room.
   static let itemPanel = PaneWidth(side: .trailing, range: 300...2_000, ideal: Size.mediaPanel, key: "itemPanelWidth")
 
   func clamped(_ width: CGFloat) -> CGFloat {

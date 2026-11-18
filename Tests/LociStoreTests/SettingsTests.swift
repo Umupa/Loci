@@ -16,26 +16,33 @@ struct SettingsTests {
   @Test func settingsReadBackAfterSaving() throws {
     try withStore { store in
       try store.changeSettings { settings in
-        settings.agent = .grok
-        settings.models = [.grok: "grok-4", .pi: "deepseek"]
-        settings.lessonLanguage = .fixed("zh-Hans")
+        settings.runtime = Runtime(provider: .codex, model: "gpt-5", effort: .high)
+        settings.speechModel = .recommended
       }
 
       let read = try store.settings()
-      #expect(read.agent == .grok)
-      #expect(read.models == [.grok: "grok-4", .pi: "deepseek"])
-      #expect(read.lessonLanguage == .fixed("zh-Hans"))
+      #expect(read.runtime == Runtime(provider: .codex, model: "gpt-5", effort: .high))
+      #expect(read.speechModel == .recommended)
     }
   }
 
-  /// Settings written before each agent had its own model keep the agent and its model.
-  @Test func theEarlierChoiceForNewMentorsStillReads() throws {
+  /// Settings an earlier version wrote, for mentors, are left unchosen; the rest still reads.
+  @Test func choicesForMentorsAreForgottenAndTheRestKept() throws {
     try withStore { store in
-      try store.writeFile("settings.json", #"{"newMentors":{"provider":"grok","model":"grok-4"}}"#)
+      try store.writeFile(
+        "settings.json", #"{"agent":"grok","models":{"grok":"grok-4"},"lessonLanguage":"en","browserLogin":"chrome"}"#)
 
       let read = try store.settings()
-      #expect(read.agent == .grok)
-      #expect(read.models == [.grok: "grok-4"])
+      #expect(read.runtime == nil)
+      #expect(read.browserLogin == .chrome)
+    }
+  }
+
+  @Test func aRuntimeThatCannotBeReadIsLeftUnchosen() throws {
+    try withStore { store in
+      try store.writeFile("settings.json", #"{"runtime":{"provider":"nobody"}}"#)
+
+      #expect(try store.settings().runtime == nil)
     }
   }
 
@@ -51,9 +58,9 @@ struct SettingsTests {
     try withStore { store in
       try store.writeFile("settings.json", "{ not json")
 
-      try store.changeSettings { $0.agent = .pi }
+      try store.changeSettings { $0.runtime = Runtime(provider: .pi) }
 
-      #expect(try store.settings().agent == .pi)
+      #expect(try store.settings().runtime == Runtime(provider: .pi))
     }
   }
 }

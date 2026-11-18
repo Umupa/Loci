@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Text to read in one column: opens at a quote, and says where the reader is as they scroll.
 ///
-/// When the text changes while it is shown, such as a lesson the mentor revised, the reader stays where it was.
+/// When the text changes while it is shown, the reader stays where it was.
 struct Reader: NSViewRepresentable {
   let text: ReadingText
   /// Where to open the first time this text is shown.
@@ -49,8 +49,6 @@ struct ReaderEvents {
   /// The end of the text has been on screen.
   var reachedEnd: () -> Void = {}
   var openLink: (URL) -> Void = { _ in }
-  /// Opens the lesson that teaches a glossary term.
-  var openTerm: (Glossary.Term) -> Void = { _ in }
   /// What a selected passage offers; `nil` offers nothing.
   var passage: PassageActions?
   var noteClicked: (EntityID) -> Void = { _ in }
@@ -68,7 +66,6 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   private var endReported = false
   private var marks: [ReaderMark] = []
   private var marksStale = false
-  private let termCard = TermPopover()
   private let passageBar = PassagePopover()
   private var revealed: Int?
   private var selecting: String?
@@ -102,7 +99,6 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     textView.willResize = { [weak self] in self?.holdPlace() }
     textView.resized = { [weak self] in self?.applyPendingStart() }
     clip.scrolled = { [weak self] in self?.scrolled() }
-    textView.hovered = { [weak self] in self?.hovered(at: $0) }
     textView.selectionEnded = { [weak self] in self?.selectionEnded() }
     textView.joinedWindow = { [weak self] in Task { self?.selectWanted() } }
     textView.dragEnded = { [weak self] in self?.dragEnded() }
@@ -115,7 +111,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     let keep = shown == nil ? start : topQuote()
     shown = text.plain
     textView.textStorage?.setAttributedString(text.string)
-    textView.show(marks)
+    textView.placeMarginMarks(marks)
     textView.layOutViewport()
     pendingStart = keep
     applyPendingStart()
@@ -128,7 +124,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   func mark(_ marks: [ReaderMark]) {
     guard marks != self.marks else { return }
     self.marks = marks
-    textView?.show(marks)
+    textView?.placeMarginMarks(marks)
   }
 
   /// Scrolls the passage a third of the way down the window and flashes it.
@@ -153,7 +149,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
         self?.textView?.flash(request.range, strength: CGFloat(step) / CGFloat(Self.fadeSteps))
       }
       guard !Task.isCancelled, let self else { return }
-      self.textView?.show(self.marks)
+      self.textView?.placeMarginMarks(self.marks)
     }
   }
 
@@ -175,39 +171,35 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     selectWanted()
   }
 
+  /// Tries again until the words are laid out and the bar is over them; scrolling the text closes the bar, so
+  /// a scroll while the words are wanted brings them back.
   private func selectWanted() {
     guard let words = selecting, let textView, textView.window != nil else { return }
     let range = (textView.string as NSString).range(of: words)
     guard range.location != NSNotFound else { return }
-    selecting = nil
     textView.setSelectedRange(range)
-    selectionEnded()
+    if offerPassage() {
+      selecting = nil
+    } else {
+      Task { [weak self] in
+        try? await Task.sleep(for: .milliseconds(50))
+        self?.selectWanted()
+      }
+    }
   }
 
   private func selectionEnded() {
-    guard let textView, let actions = events.passage else { return }
-    let range = textView.selectedRange()
-    let lines = textView.rects(of: range)
-    guard range.length > 0, !lines.isEmpty else { return }
-    passageBar.show(actions, for: range, over: lines, in: textView, locale: locale)
+    offerPassage()
   }
 
-  /// Over a glossary term, its definition appears beside it; moving off the term puts it away.
-  private func hovered(at point: CGPoint?) {
-    guard let textView, let point else {
-      termCard.closeSoon()
-      return
-    }
-    let index = textView.characterIndexForInsertion(at: point)
-    for mark in marks {
-      guard case .term(let term) = mark.kind,
-        NSLocationInRange(index, mark.range) || index == NSMaxRange(mark.range),
-        let rect = textView.rects(of: mark.range).first(where: { $0.insetBy(dx: -2, dy: -2).contains(point) })
-      else { continue }
-      termCard.show(term, at: rect, in: textView) { [weak self] in self?.events.openTerm(term) }
-      return
-    }
-    termCard.closeSoon()
+  /// Floats the bar over the selected passage. Whether it is shown.
+  @discardableResult private func offerPassage() -> Bool {
+    guard let textView, let actions = events.passage else { return false }
+    let range = textView.selectedRange()
+    let lines = textView.rects(of: range)
+    guard range.length > 0, !lines.isEmpty else { return false }
+    passageBar.show(actions, for: range, over: lines, in: textView, locale: locale)
+    return true
   }
 
   /// A new width lays the text out again from estimates, which would leave the reader somewhere else; the
@@ -239,6 +231,10 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
 
   private func scrolled() {
     passageBar.close()
+    if let selected, selecting == nil {
+      selecting = selected
+      Task { selectWanted() }
+    }
     checkEnd()
     if textView?.selecting == true {
       marksStale = true

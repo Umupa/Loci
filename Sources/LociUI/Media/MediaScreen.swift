@@ -6,8 +6,8 @@ enum MediaTab: Hashable {
   case transcript, conversation, highlights
 }
 
-/// A video or audio item: the player on the left, and beside it the transcript, the conversation with the
-/// mentor reading along, and the highlights. Space plays and pauses, ← → jump five seconds, < > change speed.
+/// A video or audio item: the player on the left, and beside it the transcript, the conversation with Loci
+/// reading along, and the highlights. Space plays and pauses, ← → jump five seconds, < > change speed.
 struct MediaScreen: View {
   @Environment(\.host) private var host
   @Environment(\.standIns) private var standIns
@@ -20,8 +20,6 @@ struct MediaScreen: View {
   @State private var media: Feed<MediaPage>?
   @State private var job: Feed<Job?>?
   @State private var notes: Feed<[Note]>?
-  @State private var conversation: Feed<ItemConversation>?
-  @State private var mentors: Feed<[Mentor]>?
   @State private var tab = MediaTab.transcript
   @AppStorage("subtitleMode") private var subtitles = SubtitleMode.both
   @AppStorage("subtitlesShown") private var subtitlesShown = true
@@ -93,8 +91,6 @@ struct MediaScreen: View {
     .subscribing(ItemMedia(item: item.id), into: $media)
     .subscribing(ItemJob(item: item.id), into: $job)
     .subscribing(NotesOn(content: .item(item.id)), into: $notes)
-    .subscribing(CompanionConversation(item: item.id), into: $conversation)
-    .subscribing(AllMentors(), into: $mentors)
     .task(id: item.id) { await open() }
     .task(id: playable) { await load() }
     .onDisappear { player.close() }
@@ -120,42 +116,30 @@ struct MediaScreen: View {
 
   private var panel: some View {
     VStack(spacing: 0) {
-      ZStack {
-        CapsulePicker(selection: $tab, options: tabs)
-        HStack {
-          Spacer()
-          PanelButton(title: .loci("panel.collapse")) {
-            withAnimation(Motion.fold) {
-              panelShown = false
-              panelOver = false
-            }
-          }
+      CompanionHeader(tab: $tab, tabs: tabs) {
+        withAnimation(Motion.fold) {
+          panelShown = false
+          panelOver = false
         }
       }
-      .padding(.horizontal, Spacing.s)
-      .frame(height: Size.panelHeader)
       Group {
         switch tab {
         case .transcript: transcriptPage
         case .conversation:
-          CompanionThread(
-            item: item.id, conversation: conversation?.value, mentors: mentors?.value ?? [], draft: $draft,
-            revealPassage: reveal)
+          ConversationScreen(ref: .item(item.id), draft: $draft, revealPassage: reveal)
         case .highlights: highlightsPage
         }
       }
       .frame(maxHeight: .infinity)
     }
-    .background(Palette.well)
+    .background(Palette.canvas)
     .overlay(alignment: .leading) { Rectangle().fill(Palette.lineStrong).frame(width: Size.hairline) }
   }
 
-  private var tabs: [(value: MediaTab, title: LocalizedStringResource)] {
-    var tabs: [(value: MediaTab, title: LocalizedStringResource)] = [(.transcript, .loci("panel.transcript"))]
-    if mentors?.value?.isEmpty == false { tabs.append((.conversation, .loci("panel.conversation"))) }
-    tabs.append((.highlights, .loci("panel.highlights")))
-    return tabs
-  }
+  private let tabs: [(value: MediaTab, title: LocalizedStringResource)] = [
+    (.transcript, .loci("panel.transcript")), (.conversation, .loci("panel.conversation")),
+    (.highlights, .loci("panel.highlights")),
+  ]
 
   @ViewBuilder private var transcriptPage: some View {
     if let readable {
@@ -191,7 +175,7 @@ struct MediaScreen: View {
       LazyVStack(alignment: .leading, spacing: Spacing.xs) {
         ForEach(placed) { note in
           NoteCard(
-            content: .item(item.id), placed: note, mentors: mentors?.value ?? [], chosen: nil,
+            content: .item(item.id), placed: note, chosen: nil,
             ask: { ask(note.note.locator, excerpt: note.note.excerpt ?? "") }
           ) {
             if let time = note.note.locator.time { player.seek(to: time.start) }
@@ -231,11 +215,10 @@ struct MediaScreen: View {
       think: { note, thought in
         Task { _ = try? await host.run(SetNoteThought(content: .item(item.id), note: note, thought: thought)) }
       },
-      ask: mentors?.value?.isEmpty == false
-        ? { range in
-          guard let passage = passage(range, in: readable) else { return }
-          ask(passage.locator, excerpt: passage.excerpt)
-        } : nil, changes: changesAllowed)
+      ask: { range in
+        guard let passage = passage(range, in: readable) else { return }
+        ask(passage.locator, excerpt: passage.excerpt)
+      }, changes: changesAllowed)
   }
 
   /// The sentences chosen, as a stretch of time and their words.

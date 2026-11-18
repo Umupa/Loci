@@ -54,7 +54,7 @@ struct SelectionTests {
     let text = ReadingText(markdown: ReaderTests.long)
     coordinator.show(text, from: nil)
     let range = (text.plain as NSString).range(of: "第 2 段")
-    let marks = [ReaderMark(kind: .note(EntityID(), marginMark: false), range: range)]
+    let marks = [ReaderMark(note: EntityID(), marginMark: false, range: range)]
     coordinator.mark(marks)
     let textView = try #require(scrollView.documentView as? ReaderTextView)
     textView.displayIfNeeded()

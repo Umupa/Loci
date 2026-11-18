@@ -80,7 +80,7 @@ private struct CodeBlockView: View {
 @MainActor @Observable final class CodePointer {
   var location: CGPoint?
 
-  static let space = "codePointer"
+  nonisolated static let space = "codePointer"
 
   nonisolated static func isOver(_ frame: CGRect, _ location: CGPoint?) -> Bool {
     location.map { frame.contains($0) } ?? false

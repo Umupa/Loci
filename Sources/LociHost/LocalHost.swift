@@ -11,18 +11,21 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let database: StoreDatabase
   let environment: HostEnvironment
   let hub: Hub
-  let mentors: MentorRuntime
+  let loci: LociAgent
   let library: LibraryRuntime
 
-  private init(store: Store, database: StoreDatabase, environment: HostEnvironment, readingStateLost: Bool) {
+  private init(
+    store: Store, database: StoreDatabase, environment: HostEnvironment, prompts: Prompts, readingStateLost: Bool
+  ) {
     self.store = store
     self.database = database
     self.environment = environment
     let hub = Hub(health: Health(database: .rebuilding, readingStateLost: readingStateLost, fileProblems: []))
     self.hub = hub
-    mentors = MentorRuntime(
-      store: store, database: database, environment: environment,
-      follower: Follower(store: store, database: database, hub: hub))
+    loci = LociAgent(
+      context: AgentContext(
+        store: store, database: database, environment: environment,
+        follower: Follower(store: store, database: database, hub: hub), prompts: prompts))
     library = LibraryRuntime(
       store: store, database: database, environment: environment,
       follower: Follower(store: store, database: database, hub: hub))
@@ -42,7 +45,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       case .newerVersion(let unknown): throw .databaseFromNewerVersion(unknownMigrations: unknown)
       }
     }
-    return await begin(
+    return try await begin(
       store: Store(root: root, discard: environment.discard), database: database, environment: environment,
       readingStateLost: false)
   }
@@ -58,37 +61,49 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     } catch {
       throw .storage(String(describing: error))
     }
-    return await begin(
+    return try await begin(
       store: Store(root: root, discard: environment.discard), database: database, environment: environment,
       readingStateLost: true)
   }
 
-  /// Watching starts before the rebuild, and changes wait in order until it is done: a change made while
-  /// the rebuild was reading is applied after the rebuild has written, never overwritten by it.
+  /// Gives Loci its folder before anything else, so the first turn finds its soul. Watching starts before
+  /// the rebuild, and changes wait in order until it is done: a change made while the rebuild was reading is
+  /// applied after the rebuild has written, never overwritten by it.
   static func begin(
     store: Store, database: StoreDatabase, environment: HostEnvironment, readingStateLost: Bool,
     rebuild: @escaping @Sendable (Store, StoreDatabase) async throws -> [FileProblem] = { store, database in
       try database.rebuild(from: store)
     }
-  ) async -> LocalHost {
+  ) async throws(HostStartError) -> LocalHost {
+    let prompts: Prompts
+    do {
+      prompts = try Prompts.bundled()
+      try store.prepareAgent(soul: prompts.soul)
+    } catch {
+      throw .storage(String(describing: error))
+    }
     let host = LocalHost(
-      store: store, database: database, environment: environment, readingStateLost: readingStateLost)
+      store: store, database: database, environment: environment, prompts: prompts, readingStateLost: readingStateLost)
     let changes = store.changes()
     let work = Task {
       await host.rebuild(using: rebuild)
       for await batch in changes { await host.follow(batch) }
     }
+    let ticks = environment.ticks()
+    let reviews = Task {
+      for await _ in ticks { await host.loci.considerReview() }
+    }
     await host.hub.hold(work)
+    await host.hub.hold(reviews)
     await host.library.queue.resume()
     return host
   }
 
-  /// Stops watching the folder and stops every mentor's agent. Subscriptions stay open but receive nothing
-  /// more.
+  /// Stops watching the folder and stops Loci. Subscriptions stay open but receive nothing more.
   public func close() async {
     await library.queue.close()
+    await loci.close()
     await hub.stop()
-    await mentors.close()
   }
 
   public func run<C: Command>(_ command: C) async throws(HostError) -> C.Reply {
@@ -120,7 +135,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let url: URL?
     switch place {
     case .dataFolder: url = store.root
-    case .soul(let mentor): url = try? store.soulFile(of: mentor)
+    case .agentFolder: url = store.agentFolder
     case .media(let item): url = try? store.mediaFile(of: item)
     }
     return url.map(LocalFile.init)

@@ -12,11 +12,11 @@ struct MachineFoot: View {
     if let choice, !choice.roster.paired.isEmpty {
       let lit = hovering || choice.menuOpen || standIns?.pointerOnMachineFoot == true
       Button(action: choice.openMenu) {
-        HStack(spacing: Spacing.xs) {
+        HStack(spacing: 10) {
           Image(systemName: Symbols.machine(choice.shown.model))
             .font(.system(size: 14))
             .foregroundStyle(Palette.inkFaint)
-            .frame(width: Size.avatarSmall)
+            .frame(width: 17, height: 17)
           HStack(spacing: 7) {
             Text(verbatim: choice.shown.name).lineLimit(1)
             if let link = choice.link, link != .connected { LinkDot(link: link) }
@@ -28,17 +28,19 @@ struct MachineFoot: View {
             .frame(width: Spacing.m)
             .opacity(lit ? 1 : 0)
         }
-        .font(Typography.lessonRow)
+        .font(.system(size: 13.5))
         .foregroundStyle(Palette.sidebarInkMuted)
-        .padding(.leading, Spacing.xs)
+        .padding(.vertical, 6)
+        .padding(.leading, 10)
         .padding(.trailing, 6)
-        .frame(height: Size.rowHeight)
-        .background(RoundedRectangle(cornerRadius: Radius.row).fill(lit ? Palette.fill : .clear))
+        .background(
+          RoundedRectangle(cornerRadius: Radius.sidebarRow, style: .continuous).fill(lit ? Palette.fill : .clear)
+        )
         .contentShape(Rectangle())
       }
       .buttonStyle(PressStyle())
       .onHover { hovering = $0 }
-      .padding(.horizontal, Spacing.xs)
+      .padding(.horizontal, 10)
       .padding(.top, Spacing.xxs)
       .padding(.bottom, Spacing.xs)
       .accessibilityLabel(Text(verbatim: choice.shown.name))

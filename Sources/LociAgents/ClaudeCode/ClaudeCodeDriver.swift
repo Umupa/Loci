@@ -3,7 +3,7 @@ import LociModel
 
 /// Drives Claude Code through its bidirectional JSON Lines protocol.
 public struct ClaudeCodeDriver: AgentDriver {
-  public let provider = Mentor.Provider.claudeCode
+  public let provider = Provider.claudeCode
   private let executable: URL
   private let arguments: [String]
   private let environment: [String: String]?

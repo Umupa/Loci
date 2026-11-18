@@ -9,7 +9,6 @@ enum Fixture {
   }
 
   static let item = id(1)
-  static let mentor = id(2)
   static let commit = CommitID(String(repeating: "ab12", count: 10))!
   static let instant = Timestamp(millisecondsSince1970: 1_763_337_600_123)
 

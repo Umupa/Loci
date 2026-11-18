@@ -13,7 +13,9 @@ extension LocalHost {
         id: environment.newID(), locator: command.locator, excerpt: command.excerpt.flatMap(Self.text),
         thought: command.thought.flatMap(Self.text), savedAt: environment.now())
     }
-    return try await save(note)
+    let saved = try await save(note)
+    if case .item(let item) = note.locator.content { await happened(.highlighted(item, note: note.id)) }
+    return saved
   }
 
   public func setNoteThought(_ command: SetNoteThought) async throws(HostError) -> Note {

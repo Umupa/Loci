@@ -1,24 +1,50 @@
-/// Everything said between the person and one mentor, oldest first, and the turn running now.
+/// Which conversation: the one main conversation, or the one on an item.
+public enum ConversationRef: Hashable, Codable, Sendable {
+  case main
+  case item(EntityID)
+}
+
+/// Everything said in one conversation, oldest first, and the turn running now.
 ///
-/// Messages are only ever added: a turn's messages move from `turn` to `messages` when it ends, and a
-/// stored message never changes.
+/// It only ever grows: a turn's messages move from `turn` to `entries` when it ends. The agent sessions
+/// underneath change without a trace, except `/new`, which leaves a `.startedOver` line.
 public struct Conversation: Hashable, Codable, Sendable {
-  public let mentor: EntityID
-  public let messages: [Message]
-  /// `nil` while the mentor is idle.
+  public let ref: ConversationRef
+  public let entries: [Entry]
+  /// `nil` while Loci is not answering here.
   public let turn: LiveTurn?
-  /// How full the agent's context window was when it last said; `nil` until it says.
+  /// How full the current session's context window was when the agent last said; `nil` until it says.
   public let context: ContextUsage?
 
-  public init(mentor: EntityID, messages: [Message], turn: LiveTurn?, context: ContextUsage? = nil) {
-    self.mentor = mentor
-    self.messages = messages
+  public init(ref: ConversationRef, entries: [Entry], turn: LiveTurn?, context: ContextUsage? = nil) {
+    self.ref = ref
+    self.entries = entries
     self.turn = turn
     self.context = context
   }
+
+  public enum Entry: Hashable, Codable, Sendable, Identifiable {
+    case message(Message)
+    /// Only in the main conversation.
+    case event(WorldEvent)
+
+    public var id: EntityID {
+      switch self {
+      case .message(let message): message.id
+      case .event(let event): event.id
+      }
+    }
+
+    public var at: Timestamp {
+      switch self {
+      case .message(let message): message.at
+      case .event(let event): event.at
+      }
+    }
+  }
 }
 
-/// The turn the mentor is working on.
+/// The turn Loci is working on.
 public struct LiveTurn: Hashable, Codable, Sendable {
   public let startedAt: Timestamp
   /// What the turn has produced so far, starting with its prompt. The last reply, thinking or tool may
@@ -30,7 +56,7 @@ public struct LiveTurn: Hashable, Codable, Sendable {
     self.messages = messages
   }
 
-  /// The tool the mentor used last: what it is doing, or did most recently.
+  /// The tool Loci used last: what it is doing, or did most recently.
   public var latestTool: ToolActivity? {
     messages.reversed().lazy.compactMap { message in
       guard case .tool(let tool) = message.body else { return nil }
@@ -51,9 +77,9 @@ public struct Message: Hashable, Codable, Sendable, Identifiable {
   }
 
   public enum Body: Hashable, Codable, Sendable {
-    /// What the mentor was asked, by the person or by Loci.
+    /// What Loci was asked, by the person or by the app.
     case prompt(Prompt)
-    /// Part of the mentor's reply. A reply interrupted by tool calls is several messages.
+    /// Part of Loci's reply. A reply interrupted by tool calls is several messages.
     case reply(String)
     case thinking(String)
     case tool(ToolActivity)
@@ -65,6 +91,13 @@ public struct Message: Hashable, Codable, Sendable, Identifiable {
     case ended(TurnEnding)
     /// The person started over: the agent remembers nothing said before this, which still shows.
     case startedOver
+  }
+}
+
+extension Message {
+  /// Whether the person wrote it, rather than the app.
+  public var isTyped: Bool {
+    if case .prompt(let prompt) = body { prompt.purpose == .chat } else { false }
   }
 }
 
@@ -80,12 +113,12 @@ public struct Prompt: Hashable, Codable, Sendable {
     self.passage = passage
   }
 
-  /// Why the prompt was sent. Only `.chat` was typed by the person; the others Loci wrote for them.
+  /// Why the prompt was sent.
   public enum Purpose: Hashable, Codable, Sendable {
+    /// Typed by the person.
     case chat
-    /// A new mentor's first work: the catalog, then the first lesson.
-    case begin
-    case writeLesson(Lesson.Slug)
+    /// The app asking Loci to look back on a day. It belongs to no conversation.
+    case review(Day)
   }
 }
 
@@ -94,8 +127,8 @@ public enum TurnEnding: Hashable, Codable, Sendable {
   case interrupted
   /// The agent could not go on. Carries its own words.
   case failed(String)
-  /// The mentor's agent did not start.
-  case unstarted(Mentor.Provider, AgentStartFailure)
+  /// Loci's agent program did not start.
+  case unstarted(Provider, AgentStartFailure)
 }
 
 /// Why an agent's program did not start.
@@ -106,7 +139,7 @@ public enum AgentStartFailure: Hashable, Codable, Sendable {
   case wouldNotStart
 }
 
-/// A tool the mentor ran during a turn.
+/// A tool Loci ran during a turn.
 public struct ToolActivity: Hashable, Codable, Sendable {
   /// The provider's identifier for the call.
   public let id: String

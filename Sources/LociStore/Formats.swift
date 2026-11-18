@@ -1,5 +1,4 @@
 import Foundation
-import Yams
 
 enum Formats {
   static func document(_ value: some Encodable) throws -> Data {
@@ -12,17 +11,6 @@ enum Formats {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     return try encoder.encode(value) + Data("\n".utf8)
-  }
-
-  static func yaml(_ value: some Encodable) throws -> String {
-    let encoder = YAMLEncoder()
-    encoder.options.allowUnicode = true
-    return try encoder.encode(value)
-  }
-
-  static func fromYAML<Value: Decodable>(_ type: Value.Type, _ text: String) throws -> Value {
-    let isBlank = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    return try YAMLDecoder().decode(type, from: isBlank ? "{}" : text)
   }
 
   /// One line saying which field is wrong and why.

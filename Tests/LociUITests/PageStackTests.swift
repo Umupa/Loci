@@ -50,8 +50,8 @@ struct PageStackTests {
   /// A link on a pushed page opens the next page over it. Beside a sidebar, as in the app: there the stack's
   /// own environment does not reach its pages.
   @Test func aPushedPageCanOpenTheNextOverItself() async throws {
-    let first = Page.lesson(LessonRef(mentor: EntityID(), lesson: Lesson.Slug("one")!))
-    let next = Page.lesson(LessonRef(mentor: EntityID(), lesson: Lesson.Slug("two")!))
+    let first = Page.item(EntityID())
+    let next = Page.item(EntityID())
     let pages = Pages()
 
     try await Snapshot.render(Stack(first: first, next: next, pages: pages), named: "page-stack", appearance: .light)

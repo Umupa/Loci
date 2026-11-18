@@ -5,11 +5,11 @@ import Testing
 @testable import LociUI
 
 struct PlacedNoteTests {
-  static let lesson = LessonRef(mentor: EntityID(), lesson: Lesson.Slug("filter")!)
+  static let item = EntityID()
 
   static func note(_ quote: String, thought: String? = nil) throws -> Note {
     try Note(
-      id: EntityID(), locator: .lesson(lesson, try TextQuote(quote)), excerpt: quote, thought: thought,
+      id: EntityID(), locator: .item(item, .quote(try TextQuote(quote))), excerpt: quote, thought: thought,
       savedAt: Timestamp(millisecondsSince1970: 0))
   }
 
@@ -33,6 +33,7 @@ struct PlacedNoteTests {
 
     let marks = PlacedNote.marks(PlacedNote.place([plain, thought], in: text))
 
-    #expect(marks.map(\.kind) == [.note(plain.id, marginMark: false), .note(thought.id, marginMark: true)])
+    #expect(marks.map(\.note) == [plain.id, thought.id])
+    #expect(marks.map(\.marginMark) == [false, true])
   }
 }

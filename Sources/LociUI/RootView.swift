@@ -8,7 +8,7 @@ import SwiftUI
 public struct RootView: View {
   private let machines: any Machines
   private let memory: @MainActor (MachineID?) -> WindowMemory
-  private let startShown: () -> Void
+  private let talkShown: () -> Void
   @State private var roster: Roster?
   /// `nil` is this Mac.
   @State private var current: MachineID?
@@ -18,26 +18,26 @@ public struct RootView: View {
   @State private var browser: BrowserSession
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
 
-  /// `folder` is the data folder this Mac serves, so each folder reopens where it was left. `startShown` runs
-  /// when the start page first appears, which is when Loci can be typed into.
-  public init(folder: URL, machines: any Machines, startShown: @escaping () -> Void = {}) {
+  /// `folder` is the data folder this Mac serves, so each folder reopens where it was left. `talkShown` runs
+  /// when the main conversation first appears, which is when Loci can be typed into.
+  public init(folder: URL, machines: any Machines, talkShown: @escaping () -> Void = {}) {
     self.init(
       machines: machines,
       memory: { machine in
         machine.map { .preferences(.standard, remote: $0) } ?? .preferences(.standard, folder: folder)
-      }, startShown: startShown)
+      }, talkShown: talkShown)
   }
 
   /// Opens each Mac where `memory` says it was last. `current`, `menuOpen` and `sheet` start the window
   /// part way through, for a snapshot.
   init(
     machines: any Machines, memory: @escaping @MainActor (MachineID?) -> WindowMemory,
-    startShown: @escaping () -> Void = {}, current: MachineID? = nil, menuOpen: Bool = false,
+    talkShown: @escaping () -> Void = {}, current: MachineID? = nil, menuOpen: Bool = false,
     sheet: RemoteSheetState? = nil, browser: BrowserSession = BrowserSession()
   ) {
     self.machines = machines
     self.memory = memory
-    self.startShown = startShown
+    self.talkShown = talkShown
     _current = State(initialValue: current)
     _menuOpen = State(initialValue: menuOpen)
     _sheet = State(initialValue: sheet)
@@ -49,7 +49,7 @@ public struct RootView: View {
       if let roster {
         let shown = roster.all.first { $0.id == current } ?? roster.this
         MachineWindow(
-          startShown: startShown, memory: memory(shown == roster.this ? nil : shown.id), browser: browser
+          talkShown: talkShown, memory: memory(shown == roster.this ? nil : shown.id), browser: browser
         )
         .id(shown.id)
         .lociHost(machines.open(shown.id))

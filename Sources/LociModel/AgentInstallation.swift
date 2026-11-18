@@ -3,12 +3,12 @@ import Foundation
 /// What the probe found for one provider on the host's Mac.
 public enum AgentInstallation: Hashable, Codable, Sendable {
   /// Nothing was found under the names this provider's installer uses.
-  case missing(Mentor.Provider)
+  case missing(Provider)
   case installed(Installed)
 
   /// A program that was found, with what it said about itself.
   public struct Installed: Hashable, Codable, Sendable {
-    public let provider: Mentor.Provider
+    public let provider: Provider
     public let executable: HostPath
     /// What the program printed for its version, trimmed; `nil` when it has no version flag, printed no
     /// version, or never answered.
@@ -16,7 +16,7 @@ public enum AgentInstallation: Hashable, Codable, Sendable {
     /// Whether the program holds credentials, as far as it can say before a session starts.
     public let signIn: SignIn
 
-    public init(provider: Mentor.Provider, executable: HostPath, version: String?, signIn: SignIn) {
+    public init(provider: Provider, executable: HostPath, version: String?, signIn: SignIn) {
       self.provider = provider
       self.executable = executable
       self.version = version
@@ -33,7 +33,7 @@ public enum AgentInstallation: Hashable, Codable, Sendable {
     case unknown
   }
 
-  public var provider: Mentor.Provider {
+  public var provider: Provider {
     switch self {
     case .missing(let provider): provider
     case .installed(let installed): installed.provider

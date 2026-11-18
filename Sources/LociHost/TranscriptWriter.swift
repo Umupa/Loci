@@ -3,23 +3,23 @@ import LociAgents
 import LociModel
 import LociStore
 
-/// The app's `TranscriptAgent`: one-off turns on the default agent, belonging to no mentor, each in an
+/// The app's `TranscriptAgent`: one-off turns on Loci's runtime, without Loci's soul or memory, each in an
 /// empty folder so the agent sees only what it is sent. The transcript goes in pieces; each answer is JSON
 /// whose shape is checked, and a piece whose answer does not fit is asked once more before giving up.
 public struct AgentTranscriptAgent: TranscriptAgent {
-  private let choice: AgentChoice
-  private let agents: @Sendable (Mentor.Provider) async -> (any AgentDriver)?
+  private let runtime: Runtime
+  private let agents: @Sendable (Provider) async -> (any AgentDriver)?
   private let folder: @Sendable () throws -> ScratchFolder
   private let translationPiece: Int
   private let outlinePiece: Int
 
   /// `translationPiece` and `outlinePiece` are how many segments go in one turn.
   public init(
-    choice: AgentChoice, agents: @escaping @Sendable (Mentor.Provider) async -> (any AgentDriver)?,
+    runtime: Runtime, agents: @escaping @Sendable (Provider) async -> (any AgentDriver)?,
     folder: @escaping @Sendable () throws -> ScratchFolder = { try ScratchFolder() }, translationPiece: Int = 60,
     outlinePiece: Int = 200
   ) {
-    self.choice = choice
+    self.runtime = runtime
     self.agents = agents
     self.folder = folder
     self.translationPiece = max(1, translationPiece)
@@ -80,14 +80,14 @@ public struct AgentTranscriptAgent: TranscriptAgent {
 
   /// An agent that cannot answer at all is not asked again.
   private func ask(_ prompt: String) async throws(HostError) -> String {
-    guard let driver = await agents(choice.provider) else {
-      throw .invalidRequest("\(choice.provider.rawValue) is not installed on this Mac.")
+    guard let driver = await agents(runtime.provider) else {
+      throw .invalidRequest("\(runtime.provider.rawValue) is not installed on this Mac.")
     }
     let scratch = try attempt { try folder() }
     defer { scratch.remove() }
     do throws(AgentError) {
       let session = try await driver.open(
-        SessionConfiguration(workingDirectory: scratch.url, model: choice.model, effort: choice.effort))
+        SessionConfiguration(workingDirectory: scratch.url, model: runtime.model, effort: runtime.effort))
       defer { Task { await session.close() } }
       var reply = ""
       for await event in try await session.send(prompt).events {

@@ -33,10 +33,8 @@ extension Store {
 
   private func knownFolders() -> [String: EntityID] {
     var known: [String: EntityID] = [:]
-    for (parent, name) in [(mentorsFolder, "mentors"), (libraryFolder, "library")] {
-      for folder in subfolders(of: parent) {
-        known["\(name)/\(folder.lastPathComponent)"] = id(ofFolder: folder)
-      }
+    for folder in subfolders(of: libraryFolder) {
+      known["library/\(folder.lastPathComponent)"] = id(ofFolder: folder)
     }
     return known
   }

@@ -52,14 +52,6 @@ struct PaletteTests {
     }
   }
 
-  /// A sign is white lines on the mentor's colour; WCAG asks 3:1 of graphics.
-  @Test func aWhiteSignStandsOutOnEveryMentorColour() {
-    for tone in MentorColor.palette {
-      let ratio = Self.contrast([1, 1, 1], [tone.red, tone.green, tone.blue].map { Double($0) / 255 })
-      #expect(ratio >= 3, "\(tone.description) is \(ratio)")
-    }
-  }
-
   @Test func eachColorHasItsOwnDarkValue() {
     let canvas = (Self.components(of: Palette.canvas, in: .aqua), Self.components(of: Palette.canvas, in: .darkAqua))
 

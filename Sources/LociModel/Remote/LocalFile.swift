@@ -25,8 +25,8 @@ public struct HostPath: Hashable, Codable, Sendable, CustomStringConvertible {
 /// Things on the host's Mac the interface can hand to the system, when the host is this Mac.
 public enum LocalPlace: Hashable, Sendable {
   case dataFolder
-  /// A mentor's `SOUL.md`.
-  case soul(EntityID)
+  /// Loci's `agent` folder: its Soul, memory, notes and diary.
+  case agentFolder
   /// The downloaded or imported media of a video or audio item.
   case media(EntityID)
 }

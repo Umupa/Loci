@@ -3,17 +3,11 @@ import LociModel
 
 extension Store {
   static let libraryNotesFolder = "library"
-  static let mentorNotesFolder = "mentors"
 
-  /// `notes/library/<item id>.jsonl`, or `notes/mentors/<mentor id>/<slug>.jsonl`: slugs are unique only
-  /// within one mentor.
+  /// `notes/library/<item id>.jsonl`.
   func notesFile(on content: ContentRef) -> URL {
     switch content {
-    case .item(let item):
-      notesFolder.appending(path: Self.libraryNotesFolder).appending(path: "\(item).jsonl")
-    case .lesson(let lesson):
-      notesFolder.appending(path: Self.mentorNotesFolder).appending(path: lesson.mentor.description)
-        .appending(path: "\(lesson.lesson).jsonl")
+    case .item(let item): notesFolder.appending(path: Self.libraryNotesFolder).appending(path: "\(item).jsonl")
     }
   }
 

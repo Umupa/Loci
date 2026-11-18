@@ -3,7 +3,7 @@ import LociModel
 
 /// Drives an agent that speaks the Agent Client Protocol over standard input and output.
 public struct AcpDriver: AgentDriver {
-  public let provider: Mentor.Provider
+  public let provider: Provider
 
   private let executable: URL
   private let arguments: @Sendable (SessionConfiguration) -> [String]
@@ -41,7 +41,7 @@ public struct AcpDriver: AgentDriver {
   }
 
   init(
-    provider: Mentor.Provider, executable: URL, arguments: @escaping @Sendable (SessionConfiguration) -> [String],
+    provider: Provider, executable: URL, arguments: @escaping @Sendable (SessionConfiguration) -> [String],
     environment: @escaping @Sendable (SessionConfiguration) -> [String: String]? = { _ in nil },
     launcher: any ProgramLauncher = SystemLauncher(),
     clock: any Clock<Duration> = ContinuousClock(), setModel: ModelSelection? = nil,

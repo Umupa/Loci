@@ -35,7 +35,7 @@ public protocol Subscription: Codable, Hashable, Sendable {
 /// What a subscription delivers. A value is sent first and again only when it differs from the last one.
 public enum Feed<Value: Codable & Sendable>: Sendable {
   case value(Value)
-  /// The data cannot be had right now, such as a mentor that was deleted. A value follows if it comes back.
+  /// The data cannot be had right now, such as an item that was deleted. A value follows if it comes back.
   case unavailable(HostError)
 }
 
@@ -67,25 +67,15 @@ public enum HostStartError: Error, Hashable, Codable, Sendable {
 
 /// Carries out commands. Each command calls exactly one of these, so a command cannot go unhandled.
 public protocol CommandHandler: Sendable {
-  func createMentor(_ command: CreateMentor) async throws(HostError) -> Mentor
-  func renameMentor(_ command: RenameMentor) async throws(HostError) -> Mentor
-  func deleteMentor(_ command: DeleteMentor) async throws(HostError) -> Done
-  func listMentors() async throws(HostError) -> [Mentor]
-  func mentorPage(_ mentor: EntityID) async throws(HostError) -> MentorPage
   func addTextItem(_ command: AddTextItem) async throws(HostError) -> Item
   func deleteItem(_ command: DeleteItem) async throws(HostError) -> Done
   func listItems() async throws(HostError) -> [Item]
   func itemText(_ item: EntityID) async throws(HostError) -> String
   func itemPage(_ item: EntityID) async throws(HostError) -> ItemPage
-  func lessonText(_ lesson: LessonRef) async throws(HostError) -> String
-  func lessonCitations(_ lesson: LessonRef) async throws(HostError) -> [Citation]
-  func citingLessons(of item: EntityID) async throws(HostError) -> [CitingLesson]
   func search(_ command: Search) async throws(HostError) -> [SearchHit]
   func readingState(of content: ContentRef) async throws(HostError) -> ReadingState?
   func saveReadingPosition(_ command: SaveReadingPosition) async throws(HostError) -> Done
   func markRead(_ content: ContentRef) async throws(HostError) -> Done
-  func lessonPage(_ lesson: LessonRef) async throws(HostError) -> LessonPage
-  func seeLesson(_ lesson: LessonRef) async throws(HostError) -> String?
   func notes(on content: ContentRef) async throws(HostError) -> [Note]
   func addNote(_ command: AddNote) async throws(HostError) -> Note
   func setNoteThought(_ command: SetNoteThought) async throws(HostError) -> Note
@@ -94,18 +84,20 @@ public protocol CommandHandler: Sendable {
   func sendMessage(_ command: SendMessage) async throws(HostError) -> Done
   func stopTurn(_ command: StopTurn) async throws(HostError) -> Done
   func startOver(_ command: StartOver) async throws(HostError) -> Done
-  func writeLesson(_ command: WriteLesson) async throws(HostError) -> Done
-  func conversation(of mentor: EntityID) async throws(HostError) -> Conversation
-  func mind(of mentor: EntityID) async throws(HostError) -> Mind
+  func conversation(_ conversation: ConversationRef) async throws(HostError) -> Conversation
+  func lociStatus() async -> LociStatus
+  func lociPage() async throws(HostError) -> LociPage
+  func diary(of day: Day) async throws(HostError) -> Diary
+  func saveSoul(_ command: SaveSoul) async throws(HostError) -> Soul
+  func forget(_ command: Forget) async throws(HostError) -> Done
+  func avatar() async throws(HostError) -> Avatar?
+  func setAvatar(_ command: SetAvatar) async throws(HostError) -> Done
+  func resetAvatar() async throws(HostError) -> Done
   func detectAgents(again: Bool) async -> [AgentInstallation]
-  func agentModels(of provider: Mentor.Provider) async -> [String]
-  func agentDefaults() async throws(HostError) -> AgentDefaults
-  func setDefaultAgent(_ command: SetDefaultAgent) async throws(HostError) -> AgentDefaults
-  func setDefaultModel(_ command: SetDefaultModel) async throws(HostError) -> AgentDefaults
-  func lessonLanguage() async throws(HostError) -> LessonLanguage
-  func setLessonLanguage(_ command: SetLessonLanguage) async throws(HostError) -> LessonLanguage
+  func agentModels(of provider: Provider) async -> [String]
+  func runtime() async throws(HostError) -> Runtime
+  func setRuntime(_ command: SetRuntime) async throws(HostError) -> Runtime
   func dataLocation() async -> HostPath
-  func setMentorAgent(_ command: SetMentorAgent) async throws(HostError) -> Mentor
   func addLink(_ command: AddLink) async throws(HostError) -> Item
   func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item
   func retryJob(_ item: EntityID) async throws(HostError) -> Job
@@ -127,9 +119,4 @@ public protocol CommandHandler: Sendable {
   func setSpeechModel(_ model: SpeechModel) async throws(HostError) -> MediaSetup
   func setBrowserLogin(_ login: BrowserLogin) async throws(HostError) -> MediaSetup
   func handOverBrowserCookies(_ cookies: [BrowserCookie]) async throws(HostError) -> Done
-  func askCompanion(_ command: AskCompanion) async throws(HostError) -> Done
-  func stopCompanion(_ command: StopCompanion) async throws(HostError) -> Done
-  func startOverCompanion(_ command: StartOverCompanion) async throws(HostError) -> Done
-  func chooseCompanion(_ command: ChooseCompanion) async throws(HostError) -> ItemConversation
-  func itemConversation(on item: EntityID) async throws(HostError) -> ItemConversation
 }

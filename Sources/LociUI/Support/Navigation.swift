@@ -4,10 +4,10 @@ import SwiftUI
 
 /// What the sidebar has selected.
 enum Place: Codable, Hashable {
-  case start
-  /// A lesson of a course, read with the course's mentor beside it.
-  case lesson(LessonRef)
-  case mentor(EntityID)
+  /// The main conversation with Loci.
+  case talk
+  /// Loci's own page: its face, Soul, memory and diary.
+  case loci
   /// `nil` is every kind.
   case library(ItemKind?)
   /// The built-in browser, for finding things to add.
@@ -22,16 +22,15 @@ enum SettingsSection: String, Codable, Hashable, CaseIterable {
 
 /// A page opened on top of a place.
 enum Page: Codable, Hashable {
-  case lesson(LessonRef)
   case item(EntityID)
 }
 
 /// Where a window is, as text the system can keep across launches.
 struct WindowState: Codable, Equatable {
-  var place: Place = .start
+  var place: Place = .talk
   var pages: [Page] = []
 
-  init(place: Place = .start, pages: [Page] = []) {
+  init(place: Place = .talk, pages: [Page] = []) {
     self.place = place
     self.pages = pages
   }
@@ -44,28 +43,27 @@ struct WindowState: Codable, Equatable {
     (try? String(decoding: JSONEncoder().encode(self), as: UTF8.self)) ?? ""
   }
 
-  /// Goes back to the start page when the window points at a mentor, lesson or item that no longer
-  /// exists, so a remembered place never opens onto a blank page.
-  func keeping(mentors: Set<EntityID>, items: Set<EntityID>) -> WindowState {
-    let placeExists =
-      switch place {
-      case .mentor(let id): mentors.contains(id)
-      case .lesson(let lesson): mentors.contains(lesson.mentor)
-      case .start, .library, .browser, .settings: true
-      }
+  /// Goes back to the main conversation when the window points at an item that no longer exists, so a
+  /// remembered place never opens onto a blank page.
+  func keeping(items: Set<EntityID>) -> WindowState {
     let pagesExist = pages.allSatisfy { page in
       switch page {
-      case .lesson(let lesson): mentors.contains(lesson.mentor)
       case .item(let item): items.contains(item)
       }
     }
-    return placeExists && pagesExist ? self : WindowState()
+    return pagesExist ? self : WindowState()
+  }
+
+  /// Where choosing Loci at the top of the sidebar goes: from the main conversation to Loci's page, and
+  /// from anywhere else back to the main conversation.
+  func choosingLoci() -> WindowState {
+    WindowState(place: place == .talk && pages.isEmpty ? .loci : .talk)
   }
 }
 
 /// What the menu bar can ask of the frontmost window.
 struct Navigator {
-  let showStart: () -> Void
+  let showTalk: () -> Void
   let showLibrary: () -> Void
   let showSettings: () -> Void
   let toggleSidebar: () -> Void
@@ -88,7 +86,7 @@ struct WindowMemory {
   let remember: @MainActor (WindowState) -> Void
 
   /// Kept in the app's preferences, one place per data folder: a convenience of the interface, not part of
-  /// the user's data. A folder never opened before has nothing remembered and opens at the start page.
+  /// the user's data. A folder never opened before has nothing remembered and opens at the main conversation.
   @MainActor static func preferences(_ defaults: UserDefaults, folder: URL) -> WindowMemory {
     stored(defaults, key: key(for: folder))
   }

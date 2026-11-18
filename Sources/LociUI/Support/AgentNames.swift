@@ -4,7 +4,7 @@ import LociModel
 /// How providers are named and which of them can be picked.
 enum Agents {
   /// The program's own name, the same in every language.
-  static func name(of provider: Mentor.Provider) -> String {
+  static func name(of provider: Provider) -> String {
     switch provider {
     case .pi: "Pi"
     case .omp: "Oh My Pi"
@@ -20,13 +20,13 @@ enum Agents {
   }
 
   /// Pi and Grok, which Loci is tested with, every provider found installed, and the one in use even if it is
-  /// gone, so a picker never loses its selection. In `Mentor.Provider.allCases` order.
-  static func choosable(_ installations: [AgentInstallation], keeping current: Mentor.Provider) -> [Mentor.Provider] {
-    let installed = installations.compactMap { installation -> Mentor.Provider? in
+  /// gone, so a picker never loses its selection. In `Provider.allCases` order.
+  static func choosable(_ installations: [AgentInstallation], keeping current: Provider) -> [Provider] {
+    let installed = installations.compactMap { installation -> Provider? in
       if case .installed(let found) = installation { found.provider } else { nil }
     }
     let offered = Set(installed + [.pi, .grok, current])
-    return Mentor.Provider.allCases.filter(offered.contains)
+    return Provider.allCases.filter(offered.contains)
   }
 
   /// The models a picker offers: what the agent lists, and the one in use even if it does not list it.
@@ -53,7 +53,7 @@ enum Agents {
     }
   }
 
-  /// Installed agents first, then the missing ones, each in `Mentor.Provider.allCases` order.
+  /// Installed agents first, then the missing ones, each in `Provider.allCases` order.
   static func installedFirst(_ installations: [AgentInstallation]) -> [AgentInstallation] {
     let installed = installations.filter { if case .installed = $0 { true } else { false } }
     return installed + installations.filter { if case .missing = $0 { true } else { false } }

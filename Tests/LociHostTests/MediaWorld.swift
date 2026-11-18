@@ -41,7 +41,7 @@ struct MediaWorld {
     transcriber: FakeTranscriber, agent: Bool = true, text: Bool = true, readerLanguage: String = "zh-Hans"
   ) -> HostEnvironment {
     let writer: any TranscriptAgent = self.agent
-    var make: (@Sendable (AgentChoice) -> any TranscriptAgent)?
+    var make: (@Sendable (Runtime) -> any TranscriptAgent)?
     if agent { make = { _ in writer } }
     let fetcher: (any TextFetching)? = text ? FakeTextFetcher() : nil
     let media = MediaEnvironment(
@@ -49,7 +49,8 @@ struct MediaWorld {
       readerLanguage: readerLanguage, textFetching: fetcher,
       transcriptAgent: make)
     return HostEnvironment(
-      newID: { [world] in world.nextID() }, now: { TestWorld.instant }, defaultProvider: .pi, discard: .permanently,
+      newID: { [world] in world.nextID() }, now: { TestWorld.instant }, defaultRuntime: Runtime(provider: .pi),
+      discard: .permanently,
       agents: { _ in nil }, media: media)
   }
 
@@ -66,13 +67,14 @@ struct MediaWorld {
 /// Runs `body` against a host over a new media world, then closes the host and deletes the world.
 func withMediaHost(
   transcriber: FakeTranscriber = FakeTranscriber([]), agent: Bool = true, text: Bool = true,
-  components: [Component] = Component.allCases,
+  components: [Component] = Component.allCases, readerLanguage: String = "zh-Hans",
   _ body: (LocalHost, MediaWorld) async throws -> Void
 ) async throws {
   let world = MediaWorld()
   defer { world.place.remove() }
   try world.install(components)
-  let host = try await world.start(transcriber: transcriber, agent: agent, text: text)
+  let host = try await world.start(
+    transcriber: transcriber, agent: agent, text: text, readerLanguage: readerLanguage)
   do {
     try await body(host, world)
   } catch {

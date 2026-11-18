@@ -14,12 +14,12 @@ struct OpenCodeDriverTests {
     }
   }
 
-  @Test func openingUsesACPInTheMentorsDirectoryAndPreservesItsEnvironment() async {
+  @Test func openingUsesACPInTheAgentsDirectoryAndPreservesItsEnvironment() async {
     let launcher = CapturingLauncher()
     let driver = AcpDriver.opencode(
       executable: URL(filePath: "/opencode"), arguments: ["--print-logs"],
       environment: ["PATH": "/bin", "OPENCODE_PERMISSION": #"{"*":"allow"}"#], launcher: launcher)
-    let folder = URL(filePath: "/mentor")
+    let folder = URL(filePath: "/agent")
     await #expect(throws: AgentError.cannotLaunch("Captured")) {
       _ = try await driver.open(.init(workingDirectory: folder))
     }
@@ -34,7 +34,7 @@ struct OpenCodeDriverTests {
     let launcher = CapturingLauncher()
     let driver = AcpDriver.opencode(executable: URL(filePath: "/opencode"), environment: [:], launcher: launcher)
     await #expect(throws: AgentError.cannotLaunch("Captured")) {
-      _ = try await driver.open(.init(workingDirectory: URL(filePath: "/mentor")))
+      _ = try await driver.open(.init(workingDirectory: URL(filePath: "/agent")))
     }
     #expect(launcher.invocations.withLock { $0.first?.environment?["OPENCODE_PERMISSION"] } == #"{"*":"allow"}"#)
   }
@@ -45,7 +45,7 @@ struct OpenCodeDriverTests {
     await #expect(throws: AgentError.sessionNotFound) {
       _ = try await driver.open(
         .init(
-          workingDirectory: URL(filePath: "/mentor"), resume: .init(provider: .pi, value: "old")))
+          workingDirectory: URL(filePath: "/agent"), resume: .init(provider: .pi, value: "old")))
     }
     #expect(launcher.invocations.withLock { $0.isEmpty })
   }

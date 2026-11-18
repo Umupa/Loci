@@ -1,13 +1,13 @@
 import LociModel
 import SwiftUI
 
-/// What the person said: a card on the right, with the passage it asks about above it.
+/// What the person said, under the passage it asks about; the passage shows where it was read.
 struct AskedMessage: View {
   let prompt: Prompt
   let revealPassage: @MainActor (Locator) -> Void
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 7) {
+    VStack(alignment: .leading, spacing: 6) {
       if let passage = prompt.passage {
         Button {
           revealPassage(passage.locator)
@@ -15,23 +15,10 @@ struct AskedMessage: View {
           QuotedLine(text: passage.excerpt)
         }
         .buttonStyle(.plain)
+        .padding(.top, 2)
       }
-      Text(verbatim: prompt.text)
-        .font(.system(size: 14))
-        .foregroundStyle(Palette.ink)
-        .lineSpacing(3)
-        .textSelection(.enabled)
+      Text(verbatim: prompt.text).textSelection(.enabled)
     }
-    .padding(.horizontal, 15)
-    .padding(.vertical, 10)
-    .background(
-      RoundedRectangle(cornerRadius: Radius.bubble, style: .continuous).fill(Palette.surface)
-        .shadow(color: .black.opacity(0.08), radius: 1, y: 1)
-        .shadow(color: .black.opacity(0.06), radius: 7, y: 4)
-    )
-    .containerRelativeFrame(.horizontal, alignment: .trailing) { width, _ in width * 0.88 }
-    .fixedSize(horizontal: false, vertical: true)
-    .frame(maxWidth: .infinity, alignment: .trailing)
   }
 }
 
@@ -41,9 +28,8 @@ struct QuotedLine: View {
 
   var body: some View {
     HStack(alignment: .top, spacing: 9) {
-      RoundedRectangle(cornerRadius: 1).fill(Palette.accent.opacity(0.8)).frame(width: 2)
-      Text(verbatim: text)
-        .font(Typography.quote)
+      Rectangle().fill(Palette.accent).frame(width: 2)
+      Text(serif: text, Typography.quote)
         .foregroundStyle(Palette.inkMuted)
         .lineSpacing(3)
         .multilineTextAlignment(.leading)
@@ -55,8 +41,8 @@ struct QuotedLine: View {
 }
 
 extension AsideLine {
-  /// Why the mentor's agent did not start, beginning with the agent's name.
-  static func unstarted(_ provider: Mentor.Provider, _ failure: AgentStartFailure) -> Text {
+  /// Why Loci's agent did not start, beginning with the agent's name.
+  static func unstarted(_ provider: Provider, _ failure: AgentStartFailure) -> Text {
     let said: LocalizedStringResource =
       switch failure {
       case .notInstalled: .loci("conversation.agentNotInstalled")
@@ -66,7 +52,7 @@ extension AsideLine {
   }
 }
 
-/// Under a finished answer: copy all of it. Shows while the pointer is over the answer.
+/// Beside the last bubble of a finished answer: copy all of it. Shows while the pointer is over the answer.
 struct AnswerActions: View {
   let text: String
   let shown: Bool
@@ -74,9 +60,7 @@ struct AnswerActions: View {
 
   var body: some View {
     CopyButton { CopyButton.put(text) }
-      .padding(.leading, -4)
       .opacity(shown || showsCopyButtons ? 1 : 0)
-      .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
@@ -95,23 +79,13 @@ struct SavedChip: View {
   }
 }
 
-/// What Loci asked for, or how a turn went, between the messages.
+/// How a turn went, or where the conversation started over, between the messages.
 struct AsideLine: View {
   let message: Message
 
   var body: some View {
     Group {
       switch message.body {
-      case .prompt(let prompt):
-        switch prompt.purpose {
-        case .writeLesson(let lesson):
-          HStack(spacing: Spacing.xxs) {
-            Text(.loci("conversation.writeLesson"))
-            Text(verbatim: lesson.description).font(Typography.mono)
-          }
-        case .begin, .chat:
-          Text(.loci("conversation.begin"))
-        }
       case .notice(let text):
         Text(verbatim: text)
       case .ended(.interrupted):
@@ -137,7 +111,7 @@ struct AsideLine: View {
           Rectangle().fill(Palette.line).frame(height: Size.hairline)
         }
         .padding(.vertical, Spacing.xs)
-      case .reply, .thinking, .tool, .savedToNote:
+      case .prompt, .reply, .thinking, .tool, .savedToNote:
         EmptyView()
       }
     }

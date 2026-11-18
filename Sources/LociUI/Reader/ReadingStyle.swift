@@ -6,7 +6,7 @@ enum ReadingStyle {
   static var body: NSFont { NSFont.systemFont(ofSize: bodySize) }
   static var code: NSFont { NSFont.monospacedSystemFont(ofSize: 13, weight: .regular) }
   static let lineSpacing: CGFloat = 10
-  /// An article's title, a little smaller than a lesson's.
+  /// An article's title.
   static let articleTitleSize: CGFloat = 30
   static let paragraphSpacing: CGFloat = 18
   static let itemSpacing: CGFloat = 4
@@ -17,7 +17,7 @@ enum ReadingStyle {
   /// Room above and below the column, so the first and last lines do not touch the window's edges.
   static let inset = CGSize(width: 0, height: Size.readingTop)
 
-  /// A lesson's title and its sections are set in the serif; smaller headings in the sans-serif.
+  /// Titles and sections are set in the serif; smaller headings in the sans-serif.
   static func heading(_ level: Int) -> NSFont {
     switch level {
     case 1: NSFont.serif(ofSize: 32, weight: .semibold)

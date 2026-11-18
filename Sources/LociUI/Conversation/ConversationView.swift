@@ -1,42 +1,36 @@
 import LociModel
 import SwiftUI
 
-/// The conversation with a mentor, sending through the host. A passage put in `draft` is asked about with
-/// the next message; `revealPassage` shows a quoted passage where it was read.
+/// A conversation with Loci, sending through the host. A passage put in `draft` is asked about with the
+/// next message; `revealPassage` shows a quoted passage where it was read.
 struct ConversationScreen: View {
   @Environment(\.host) private var host
-  let mentor: Mentor
-  let conversation: Conversation?
+  let ref: ConversationRef
   @Binding var draft: PassageDraft?
   let revealPassage: @MainActor (Locator) -> Void
-
-  init(
-    mentor: Mentor, conversation: Conversation?, draft: Binding<PassageDraft?>,
-    revealPassage: @escaping @MainActor (Locator) -> Void
-  ) {
-    self.mentor = mentor
-    self.conversation = conversation
-    _draft = draft
-    self.revealPassage = revealPassage
-  }
+  var attach: (() -> Void)?
+  var focusRequest = 0
+  @State private var conversation: Feed<Conversation>?
 
   var body: some View {
     ConversationView(
-      mentor: mentor, conversation: conversation, draft: $draft, revealPassage: revealPassage,
+      conversation: conversation?.value, draft: $draft, revealPassage: revealPassage,
       send: { (text: String, passage: Passage?) async throws(HostError) -> Done in
-        try await host.run(SendMessage(mentor: mentor.id, text: text, passage: passage))
+        try await host.run(SendMessage(to: ref, text: text, passage: passage))
       },
-      stop: { _ = try? await host.run(StopTurn(mentor: mentor.id)) },
-      startOver: { () async throws(HostError) -> Done in try await host.run(StartOver(mentor: mentor.id)) })
+      stop: { _ = try? await host.run(StopTurn(in: ref)) },
+      startOver: { () async throws(HostError) -> Done in try await host.run(StartOver(in: ref)) },
+      scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest
+    )
+    .subscribing(OneConversation(ref), into: $conversation)
   }
 }
 
-/// Everything said with one mentor, newest at the bottom, with the input field floating over its foot.
+/// Everything said with Loci as a chat, newest at the bottom, with the input field floating over its foot.
 ///
-/// Each entry is its own view keyed by its first message, so a reply that grows while it streams redraws
-/// only itself.
+/// Each row is its own view keyed by its message and part, so a reply that grows while it streams redraws
+/// only its last bubble.
 struct ConversationView: View {
-  let mentor: Mentor
   let conversation: Conversation?
   @Binding var draft: PassageDraft?
   let revealPassage: @MainActor (Locator) -> Void
@@ -44,12 +38,11 @@ struct ConversationView: View {
   let stop: () async -> Void
   /// What `/new` in the composer does; without it, `/new` is sent like any message.
   var startOver: (() async throws(HostError) -> Done)?
-  /// On a conversation several mentors took part in, who answered each reply; it is named above it.
-  var answeredBy: ((Message) -> Mentor?)?
-  /// The day and time over the first message of each sitting, and a short conversation reads from the top.
-  var showsDays = false
-  /// The composer keeps to the field and send, without the agent's menus.
-  var plainComposer = false
+  var scale = TalkScale.main
+  /// What the composer's plus button does.
+  var attach: (() -> Void)?
+  /// Changes each time the composer should take the keyboard.
+  var focusRequest = 0
   /// Starts keeping the newest line in view.
   @State var follow = Following()
   @State private var position = ScrollPosition(edge: .bottom)
@@ -58,36 +51,18 @@ struct ConversationView: View {
 
   var body: some View {
     ScrollView {
-      let answers = ConversationEntry.answers(entries)
-      LazyVStack(alignment: .leading, spacing: Self.spacing) {
-        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-          if showsDays, let day = Sitting.start(of: entry, after: index > 0 ? entries[index - 1] : nil) {
-            Sitting.label(day, now: Date())
-              .font(.system(size: 11, weight: .medium))
-              .foregroundStyle(Palette.inkFaint)
-              .frame(maxWidth: .infinity)
-          }
-          if let answeredBy, case .reply(let message, _, _) = entry, let mentor = answeredBy(message),
-            Self.startsAnswer(entries, at: index)
-          {
-            HStack(spacing: 7) {
-              Avatar(mentor: mentor, size: Size.avatarTiny)
-              Text(verbatim: mentor.name)
-            }
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Palette.inkMuted)
-            .padding(.bottom, -6)
-          }
-          row(entry, answer: answers[entry.id]).transition(.opacity.combined(with: .offset(y: 10)))
+      LazyVStack(alignment: .leading, spacing: 0) {
+        ForEach(rows) { row in
+          view(of: row).arriving()
         }
-        if waiting { StepsCard.waiting.transition(.opacity.combined(with: .offset(y: 10))) }
       }
-      .animation(Motion.rise, value: entries.count)
-      .padding(.horizontal, 18)
-      .padding(.top, 6)
-      .padding(.bottom, Spacing.m)
+      .animatingArrivals(rows.count)
+      .padding(.horizontal, scale == .main ? 28 : Spacing.m)
+      .frame(maxWidth: scale == .main ? 640 : .infinity)
+      .padding(.top, scale == .main ? Spacing.l : 0)
+      .frame(maxWidth: .infinity)
     }
-    .defaultScrollAnchor(showsDays ? .top : .bottom, for: .alignment)
+    .defaultScrollAnchor(.top, for: .alignment)
     .defaultScrollAnchor(.bottom, for: .initialOffset)
     .scrollPosition($position)
     .onScrollPhaseChange { _, phase in
@@ -104,15 +79,11 @@ struct ConversationView: View {
       withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
     }
     .scrollIndicators(.never)
-    .mask(
-      LinearGradient(
-        stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.03)], startPoint: .top,
-        endPoint: .bottom)
-    )
     .safeAreaInset(edge: .bottom, spacing: 0) {
       Composer(
-        mentor: mentor, context: conversation?.context, busy: conversation?.turn != nil, draft: $draft, send: send,
-        stop: stop, startOver: startOver, plain: plainComposer
+        context: conversation?.context, busy: conversation?.turn != nil, draft: $draft, send: send,
+        stop: stop, startOver: startOver, style: scale == .main ? .talk : .companion,
+        attach: scale == .main ? attach : nil, focusRequest: focusRequest
       )
       .overlay(alignment: .top) {
         if follow.offersLatest {
@@ -125,28 +96,13 @@ struct ConversationView: View {
         }
       }
       .animation(Motion.quick, value: follow.offersLatest)
-      .padding(.horizontal, Spacing.s)
-      .padding(.bottom, Spacing.s)
-      .padding(.top, Spacing.m)
-      .background(
-        LinearGradient(
-          stops: [.init(color: Palette.well.opacity(0), location: 0), .init(color: Palette.well, location: 0.45)],
-          startPoint: .top, endPoint: .bottom)
-      )
-      .offlineLineInstead()
+      .frame(maxWidth: scale == .main ? 640 : .infinity)
+      .padding(.horizontal, scale == .main ? 28 : 14)
+      .padding(.bottom, scale == .main ? 18 : 14)
+      .padding(.top, Spacing.l)
+      .offlineLineInstead(ruled: scale != .main)
     }
-    .background(Palette.well)
-  }
-
-  private static let spacing: CGFloat = 14
-
-  /// The pointer came over an answer's last reply or its actions, or left them.
-  private func point(_ inside: Bool, at answer: EntityID) {
-    if inside {
-      pointedAnswer = answer
-    } else if pointedAnswer == answer {
-      pointedAnswer = nil
-    }
+    .background(Palette.canvas)
   }
 
   /// Questions the person has asked; one more means the conversation goes to its end to show the answer.
@@ -156,48 +112,65 @@ struct ConversationView: View {
 
   private var entries: [ConversationEntry] {
     ConversationEntry.layout(
-      (conversation?.messages ?? []) + (conversation?.turn?.messages ?? []), live: conversation?.turn != nil)
+      (conversation?.entries ?? []) + (conversation?.turn?.messages ?? []).map { .message($0) },
+      live: conversation?.turn != nil)
   }
 
-  /// The first reply after a question, where the name of who answered goes.
-  private static func startsAnswer(_ entries: [ConversationEntry], at index: Int) -> Bool {
-    for earlier in entries[..<index].reversed() {
-      switch earlier {
-      case .reply: return false
-      case .asked: return true
-      case .aside, .steps, .saved: continue
-      }
-    }
-    return true
+  private var rows: [TalkRow] {
+    TalkRow.rows(entries, waiting: waiting)
   }
 
-  /// The mentor is at work but has shown nothing of it yet.
+  /// Loci is at work but has shown nothing of it yet.
   private var waiting: Bool {
     guard let turn = conversation?.turn else { return false }
     if case .prompt = turn.messages.last?.body { return true }
     return false
   }
 
-  @ViewBuilder private func row(_ entry: ConversationEntry, answer: String?) -> some View {
-    switch entry {
-    case .asked(_, let prompt):
-      AskedMessage(prompt: prompt, revealPassage: revealPassage)
-    case .aside(let message):
-      AsideLine(message: message)
+  @ViewBuilder private func view(of row: TalkRow) -> some View {
+    switch row.kind {
+    case .day(let day):
+      DayDivider(label: Sitting.label(day, now: Date()))
+    case .asked(let prompt):
+      bubble(row) { AskedMessage(prompt: prompt, revealPassage: revealPassage) }
+    case .said(let words, let answer):
+      BubbleRow(
+        speaker: .loci, position: row.position ?? .alone, turn: row.turn, scale: scale,
+        words: {
+          VStack(alignment: .leading, spacing: 0) { ReplyText(text: words, streaming: false, size: scale.fontSize) }
+        },
+        beside: {
+          if let answer { AnswerActions(text: answer, shown: pointedAnswer == row.reply) }
+        }
+      )
+      .onHover { pointedAnswer = $0 ? row.reply : nil }
+    case .typing:
+      bubble(row) { TypingDots() }
     case .steps(let steps):
-      StepsCard(steps: steps)
-    case .reply(let message, let text, let streaming):
-      ReplyText(text: text, streaming: streaming, spacing: Self.spacing)
-        .padding(.horizontal, 2)
-        .onHover { if answer != nil { point($0, at: message.id) } }
-      if let answer {
-        AnswerActions(text: answer, shown: pointedAnswer == message.id)
-          .padding(.top, Spacing.xxs - Self.spacing)
-          .onHover { point($0, at: message.id) }
-      }
+      StepsCard(steps: steps).padding(.leading, scale.indent).padding(.vertical, 6)
+    case .aside(let message):
+      AsideLine(message: message).padding(.vertical, 10)
     case .saved:
-      SavedChip()
+      SavedChip().padding(.leading, scale.indent).padding(.vertical, 6)
+    case .finished(let item, let at):
+      EventPill(
+        words: Text(joining: Text(.loci("talk.finished")), Text(verbatim: " · " + item.title)),
+        time: Text(at, format: .dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+      ) {
+        Cover(item: item, corner: 0, symbolSize: 11)
+      }
+    case .task(let item, let job):
+      SavingCard(item: item, job: job, indent: scale.indent)
+    case .cards(let items):
+      ItemCardRow(indent: scale.indent) {
+        ForEach(items, id: \.id) { item in SavedItemCard(item: item) }
+      }
     }
+  }
+
+  private func bubble(_ row: TalkRow, @ViewBuilder words: () -> some View) -> some View {
+    BubbleRow(
+      speaker: row.speaker ?? .loci, position: row.position ?? .alone, turn: row.turn, scale: scale, words: words)
   }
 }
 
@@ -231,6 +204,7 @@ extension ConversationEntry {
     switch self {
     case .asked(let message, _), .aside(let message), .reply(let message, _, _), .saved(let message, _): message.at
     case .steps(let steps): steps[0].at
+    case .event(let event): event.at
     }
   }
 }

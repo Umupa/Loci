@@ -2,36 +2,26 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// A lesson's or an item's Markdown in the reader with the panel beside it. It opens where the reader last
-/// was, remembers where they go and whether they reached the end, and shows the highlights left on it. A
-/// lesson's panel also holds the conversation with its mentor.
-struct ContentReader<Extra: View>: View {
+/// An item's Markdown in the reader with Loci's panel beside it. It opens where the reader last was,
+/// remembers where they go and whether they reached the end, and shows the highlights left on it.
+struct ContentReader: View {
   @Environment(\.host) private var host
   @Environment(\.openPage) private var openPage
   @Environment(\.standIns) private var standIns
   @Environment(\.changesAllowed) private var changesAllowed
-  let content: ContentRef
+  let item: EntityID
   /// Set over the text, unless the text starts with a title of its own.
   let title: String?
   let markdown: String
-  let glossary: Glossary
-  /// The Markdown the reader saw before the mentor's latest revision; what changed since is marked.
-  let previous: String?
   /// Under an item's title: who wrote it, where, when, and a link to the original.
   let byline: NSAttributedString?
   /// Pictures the Markdown names, by the address it names them with.
   let images: [String: NSImage]
   let serif: Bool
   let pane: PaneWidth
-  /// Shown under the highlights in the panel.
-  let extra: () -> Extra
   @State private var text: ReadingText?
   @State private var start: TextQuote?
   @State private var notes: Feed<[Note]>?
-  @State private var mentor: Feed<MentorPage>?
-  @State private var conversation: Feed<Conversation>?
-  @State private var companion: Feed<ItemConversation>?
-  @State private var mentors: Feed<[Mentor]>?
   @State private var reveal: Reveal?
   @State private var tab = PanelTab.conversation
   @State private var chosen: ChosenNote?
@@ -44,33 +34,29 @@ struct ContentReader<Extra: View>: View {
   @State private var placedNotes: [PlacedNote] = []
 
   init(
-    content: ContentRef, title: String?, markdown: String, glossary: Glossary = .empty, previous: String? = nil,
-    byline: NSAttributedString? = nil, images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel,
-    @ViewBuilder extra: @escaping () -> Extra
+    item: EntityID, title: String?, markdown: String, byline: NSAttributedString? = nil,
+    images: [String: NSImage] = [:], serif: Bool = false, pane: PaneWidth = .panel
   ) {
     self.byline = byline
     self.images = images
     self.serif = serif
     self.pane = pane
     _panelWidth = AppStorage(wrappedValue: Double(pane.ideal), pane.key)
-    self.content = content
+    self.item = item
     self.title = title
     self.markdown = Self.titled(markdown, title)
-    self.glossary = glossary
-    self.previous = previous.map { Self.titled($0, title) }
-    self.extra = extra
   }
+
+  private var content: ContentRef { .item(item) }
 
   var body: some View {
     HStack(spacing: 0) {
       reader
       if panelShown {
         ReaderPanel(
-          content: content, mentor: mentor?.value?.mentor, conversation: conversation?.value,
-          companion: companionPanel, notes: placedNotes,
-          tab: $tab, draft: $draft, chosen: chosen, reveal: show, revealPassage: show,
-          ask: { placed in ask(placed.note.locator, excerpt: placed.note.excerpt) },
-          collapse: { withAnimation(Motion.fold) { panelShown = false } }, extra: extra
+          item: item, notes: placedNotes, tab: $tab, draft: $draft, chosen: chosen, reveal: show,
+          revealPassage: show, ask: { placed in ask(placed.note.locator, excerpt: placed.note.excerpt) },
+          collapse: { withAnimation(Motion.fold) { panelShown = false } }
         )
         .frame(width: pane.fitting(panelWidth, in: available))
         .overlay(alignment: .leading) {
@@ -107,13 +93,8 @@ struct ContentReader<Extra: View>: View {
       text = setText()
       remark()
     }
-    .onChange(of: previous) { remark() }
-    .onChange(of: glossary) { remark() }
     .onChange(of: notes) { remark() }
     .subscribing(NotesOn(content: content), into: $notes)
-    .modifier(
-      MentorFeeds(
-        content: content, mentor: $mentor, conversation: $conversation, companion: $companion, mentors: $mentors))
   }
 
   @ViewBuilder private var reader: some View {
@@ -130,12 +111,6 @@ struct ContentReader<Extra: View>: View {
     ReadingText(markdown: markdown, byline: byline, images: images, serif: serif)
   }
 
-  /// An item's conversation, with the mentors who can read along.
-  private var companionPanel: CompanionPanel? {
-    guard case .item(let item) = content, let all = mentors?.value, !all.isEmpty else { return nil }
-    return CompanionPanel(item: item, conversation: companion?.value, mentors: all)
-  }
-
   private static func titled(_ markdown: String, _ title: String?) -> String {
     guard let title, !markdown.hasPrefix("# ") else { return markdown }
     return "# \(title)\n\n" + markdown
@@ -144,11 +119,8 @@ struct ContentReader<Extra: View>: View {
   /// Works out again where highlights sit and what to mark, after the text or anything marked on it changed.
   private func remark() {
     guard let text else { return }
-    var lesson: Lesson.Slug?
-    if case .lesson(let ref) = content { lesson = ref.lesson }
     placedNotes = PlacedNote.place(notes?.value ?? [], in: text)
-    let revised = previous.map { ReaderMark.revisions(from: ReadingText(markdown: $0), to: text) } ?? []
-    marks = revised + ReaderMark.terms(of: glossary, in: text, lesson: lesson) + PlacedNote.marks(placedNotes)
+    marks = PlacedNote.marks(placedNotes)
   }
 
   private func show(_ range: NSRange) {
@@ -175,10 +147,6 @@ struct ContentReader<Extra: View>: View {
           NSWorkspace.shared.open(url)
         }
       },
-      openTerm: { term in
-        guard case .lesson(let ref) = content, let lesson = term.lesson else { return }
-        openPage(.lesson(LessonRef(mentor: ref.mentor, lesson: lesson)))
-      },
       passage: passageActions,
       noteClicked: { note in
         withAnimation(Motion.fold) { panelShown = true }
@@ -188,7 +156,7 @@ struct ContentReader<Extra: View>: View {
       })
   }
 
-  /// Highlighting with an optional thought, and, where there is a mentor, asking it.
+  /// Highlighting with an optional thought, and asking Loci about it.
   private var passageActions: PassageActions {
     PassageActions(
       highlight: { range in
@@ -198,15 +166,13 @@ struct ContentReader<Extra: View>: View {
       think: { note, thought in
         Task { _ = try? await host.run(SetNoteThought(content: content, note: note, thought: thought)) }
       },
-      ask: mentor?.value == nil && companionPanel == nil
-        ? nil
-        : { range in
-          guard let passage = passage(range) else { return }
-          ask(passage.locator, excerpt: passage.excerpt)
-        }, changes: changesAllowed)
+      ask: { range in
+        guard let passage = passage(range) else { return }
+        ask(passage.locator, excerpt: passage.excerpt)
+      }, changes: changesAllowed)
   }
 
-  /// Puts the passage above the mentor's composer and turns the panel to the conversation.
+  /// Puts the passage above Loci's composer and turns the panel to the conversation.
   private func ask(_ locator: Locator, excerpt: String?) {
     draft = PassageDraft(content: content, locator: locator, excerpt: excerpt ?? locator.quote?.text ?? "")
     tab = .conversation
@@ -221,33 +187,10 @@ struct ContentReader<Extra: View>: View {
   }
 }
 
-/// A lesson's mentor and the conversation with it; an item's conversation and the mentors who can read along.
-private struct MentorFeeds: ViewModifier {
-  let content: ContentRef
-  @Binding var mentor: Feed<MentorPage>?
-  @Binding var conversation: Feed<Conversation>?
-  @Binding var companion: Feed<ItemConversation>?
-  @Binding var mentors: Feed<[Mentor]>?
-
-  func body(content view: Content) -> some View {
-    switch content {
-    case .lesson(let lesson):
-      view
-        .subscribing(OneMentor(mentor: lesson.mentor), into: $mentor)
-        .subscribing(MentorConversation(mentor: lesson.mentor), into: $conversation)
-    case .item(let item):
-      view
-        .subscribing(CompanionConversation(item: item), into: $companion)
-        .subscribing(AllMentors(), into: $mentors)
-    }
-  }
-}
-
 extension Page {
   init(_ content: ContentRef) {
     switch content {
     case .item(let item): self = .item(item)
-    case .lesson(let lesson): self = .lesson(lesson)
     }
   }
 }
@@ -261,7 +204,7 @@ struct OpenPage {
   }
 }
 
-/// Goes to a place in the sidebar, as choosing a course on a mentor's shelf does.
+/// Goes to a place in the sidebar, as a fix for stopped work does.
 struct OpenPlace {
   let action: (Place) -> Void
 

@@ -1,43 +1,44 @@
 import LociModel
 import SwiftUI
 
-/// Every agent this Mac might run: which are installed and at what version, the one new mentors run on,
-/// and the model each is asked for.
+/// What Loci runs on: every agent this Mac might run, which are installed and at what version, the one
+/// chosen, and its model and thinking effort. One setting for the whole app.
 struct AgentSettingsPage: View {
   @Environment(\.host) private var host
   @State private var installations: [AgentInstallation]?
-  @State private var defaults: AgentDefaults?
-  @State private var models: [Mentor.Provider: [String]] = [:]
+  @State private var runtime: Feed<Runtime>?
+  @State private var models: [String] = []
 
   var body: some View {
     SettingsPage(symbol: Symbols.agents, title: .loci("settings.agents")) {
       Group {
-        if let installations, let defaults {
-          SettingsGroup(title: .loci("agents.newMentors"), inset: 48) {
+        if let installations, let current = runtime?.value {
+          SettingsGroup(title: .loci("agents.runsOn"), inset: 48) {
             ForEach(Agents.installedFirst(installations), id: \.provider) { installation in
-              AgentRow(installation: installation, isDefault: installation.provider == defaults.provider) {
-                Task { self.defaults = try? await host.run(SetDefaultAgent(installation.provider)) }
+              AgentRow(installation: installation, isDefault: installation.provider == current.provider) {
+                change(Runtime(provider: installation.provider))
               }
             }
           }
-          let listing = installations.compactMap { installation -> Mentor.Provider? in
-            guard case .installed = installation, models[installation.provider]?.isEmpty == false else { return nil }
-            return installation.provider
-          }
-          if !listing.isEmpty {
-            SettingsGroup(title: .loci("agents.defaultModels"), inset: 48) {
-              ForEach(listing, id: \.self) { provider in
-                SettingsRow {
-                  AgentMark(provider: provider)
-                  Text(verbatim: Agents.name(of: provider))
-                } trailing: {
-                  PopupPicker(
-                    selection: model(of: provider, in: defaults),
-                    options: [(String?.none, Text(.loci("agents.anyModel")))]
-                      + Agents.offered(models[provider] ?? [], keeping: defaults.models[provider]).map {
-                        (String?.some($0), Text(verbatim: Agents.modelName($0)))
-                      })
-                }
+          SettingsGroup(title: LocalizedStringResource(stringLiteral: Agents.name(of: current.provider))) {
+            SettingsRow {
+              Text(.loci("agents.model"))
+            } trailing: {
+              PopupPicker(
+                selection: model(current),
+                options: [(String?.none, Text(.loci("agents.anyModel")))]
+                  + Agents.offered(models, keeping: current.model).map {
+                    (String?.some($0), Text(verbatim: Agents.modelName($0)))
+                  })
+            }
+            if !current.provider.efforts.isEmpty {
+              SettingsRow {
+                Text(.loci("conversation.thinking"))
+              } trailing: {
+                PopupPicker(
+                  selection: effort(current),
+                  options: [(ThinkingEffort?.none, Text(.loci("agents.anyModel")))]
+                    + current.provider.efforts.map { (ThinkingEffort?.some($0), Text(Agents.effortName($0))) })
               }
             }
           }
@@ -47,26 +48,36 @@ struct AgentSettingsPage: View {
       }
       .changesData()
     }
-    .task {
-      defaults = try? await host.run(ReadAgentDefaults())
-      let found = (try? await host.run(DetectAgents())) ?? []
-      installations = found
-      for case .installed(let installed) in found {
-        models[installed.provider] = (try? await host.run(AgentModels(provider: installed.provider))) ?? []
-      }
+    .subscribing(CurrentRuntime(), into: $runtime)
+    .task { installations = (try? await host.run(DetectAgents())) ?? [] }
+    .task(id: runtime?.value?.provider) {
+      guard let provider = runtime?.value?.provider else { return }
+      models = (try? await host.run(AgentModels(provider: provider))) ?? []
     }
   }
 
-  private func model(of provider: Mentor.Provider, in defaults: AgentDefaults) -> Binding<String?> {
+  private func model(_ current: Runtime) -> Binding<String?> {
     Binding {
-      defaults.models[provider]
+      current.model
     } set: { model in
-      Task { self.defaults = try? await host.run(SetDefaultModel(provider: provider, model: model)) }
+      change(Runtime(provider: current.provider, model: model, effort: current.effort))
     }
+  }
+
+  private func effort(_ current: Runtime) -> Binding<ThinkingEffort?> {
+    Binding {
+      current.effort
+    } set: { effort in
+      change(Runtime(provider: current.provider, model: current.model, effort: effort))
+    }
+  }
+
+  private func change(_ runtime: Runtime) {
+    Task { _ = try? await host.run(SetRuntime(runtime)) }
   }
 }
 
-/// One agent: its mark, name and version; a check on the one new mentors run on, a green dot on the
+/// One agent: its mark, name and version; a check on the one Loci runs on, a green dot on the
 /// others that are installed. One that is missing is greyed out.
 private struct AgentRow: View {
   let installation: AgentInstallation

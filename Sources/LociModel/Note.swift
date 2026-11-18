@@ -1,6 +1,6 @@
 import Foundation
 
-/// Something left while reading: a place, and optionally a thought and questions answered by mentors.
+/// Something left while reading: a place, and optionally a thought and questions Loci answered.
 ///
 /// A note with neither is a plain highlight.
 public struct Note: Hashable, Sendable {
@@ -27,17 +27,15 @@ public struct Note: Hashable, Sendable {
     self.savedAt = savedAt
   }
 
-  /// A question about the place and the answer one mentor gave.
+  /// A question about the place and Loci's answer.
   public struct Exchange: Hashable, Sendable {
     public let question: String
     public let answer: String
-    public let mentor: EntityID
     public let askedAt: Timestamp
 
-    public init(question: String, answer: String, mentor: EntityID, askedAt: Timestamp) throws {
+    public init(question: String, answer: String, askedAt: Timestamp) throws {
       self.question = try question.requiringText("question")
       self.answer = try answer.requiringText("answer")
-      self.mentor = mentor
       self.askedAt = askedAt
     }
   }
@@ -121,17 +119,16 @@ extension NoteEntry: Codable {
 
 extension Note.Exchange: Codable {
   private enum CodingKeys: String, CodingKey {
-    case question, answer, mentor, askedAt
+    case question, answer, askedAt
   }
 
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let question = try container.decode(String.self, forKey: .question)
     let answer = try container.decode(String.self, forKey: .answer)
-    let mentor = try container.decode(EntityID.self, forKey: .mentor)
     let askedAt = try container.decode(Timestamp.self, forKey: .askedAt)
     self = try decoder.validated {
-      try Note.Exchange(question: question, answer: answer, mentor: mentor, askedAt: askedAt)
+      try Note.Exchange(question: question, answer: answer, askedAt: askedAt)
     }
   }
 
@@ -139,7 +136,6 @@ extension Note.Exchange: Codable {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(question, forKey: .question)
     try container.encode(answer, forKey: .answer)
-    try container.encode(mentor, forKey: .mentor)
     try container.encode(askedAt, forKey: .askedAt)
   }
 }

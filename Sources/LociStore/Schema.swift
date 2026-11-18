@@ -6,7 +6,7 @@ import GRDB
 /// Mirrors of the files are rebuilt instead: when `mirrorVersion` changes they are dropped and created
 /// again, empty, until the next rebuild fills them.
 enum Schema {
-  static let mirrorVersion = 1
+  static let mirrorVersion = 2
 
   static var migrator: DatabaseMigrator {
     var migrator = DatabaseMigrator()
@@ -75,10 +75,56 @@ enum Schema {
           );
           """)
     }
+    migrator.registerMigration("6 loci") { db in
+      try db.execute(
+        sql: """
+          DROP TABLE message;
+          DROP TABLE conversation;
+          DROP TABLE companion;
+          DROP TABLE seen_lesson;
+          CREATE TABLE session (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            owner TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            model TEXT,
+            effort TEXT,
+            handle TEXT,
+            instructions TEXT NOT NULL,
+            sent TEXT NOT NULL,
+            started_at TEXT NOT NULL
+          );
+          CREATE INDEX session_owner ON session(owner);
+          CREATE TABLE message (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            session_id TEXT NOT NULL REFERENCES session(id),
+            at TEXT NOT NULL,
+            typed INTEGER NOT NULL,
+            body TEXT NOT NULL
+          );
+          CREATE INDEX message_session ON message(session_id);
+          CREATE TABLE event (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            at TEXT NOT NULL,
+            item_id TEXT NOT NULL,
+            body TEXT NOT NULL
+          );
+          CREATE INDEX event_item ON event(item_id);
+          CREATE TABLE review (
+            day TEXT PRIMARY KEY NOT NULL,
+            started_at TEXT NOT NULL,
+            outcome TEXT
+          );
+          """)
+    }
     return migrator
   }
 
-  static let mirrorTables = ["mentor", "lesson", "citation", "item", "note", "search", "search_owner"]
+  static let mirrorTables = ["item", "note", "search", "search_owner"]
+  /// Mirrors an earlier version kept, dropped with the others when `mirrorVersion` changes.
+  static let retiredMirrorTables = ["mentor", "lesson", "citation"]
 
   static func prepare(_ queue: DatabaseQueue) throws {
     let migrator = migrator
@@ -91,7 +137,7 @@ enum Schema {
     try migrator.migrate(queue)
     try queue.write { db in
       guard try Int.fetchOne(db, sql: "PRAGMA user_version") != mirrorVersion else { return }
-      for table in mirrorTables { try db.execute(sql: "DROP TABLE IF EXISTS \(table)") }
+      for table in mirrorTables + retiredMirrorTables { try db.execute(sql: "DROP TABLE IF EXISTS \(table)") }
       try createMirrors(db)
       try db.execute(sql: "PRAGMA user_version = \(mirrorVersion)")
     }
@@ -100,31 +146,6 @@ enum Schema {
   private static func createMirrors(_ db: Database) throws {
     try db.execute(
       sql: """
-        CREATE TABLE mentor (
-          id TEXT PRIMARY KEY NOT NULL,
-          name TEXT NOT NULL,
-          catalog_valid INTEGER NOT NULL,
-          document TEXT NOT NULL
-        );
-        CREATE TABLE lesson (
-          mentor_id TEXT NOT NULL,
-          slug TEXT NOT NULL,
-          chapter INTEGER,
-          chapter_title TEXT,
-          position INTEGER NOT NULL,
-          title TEXT,
-          written INTEGER NOT NULL,
-          PRIMARY KEY (mentor_id, slug)
-        );
-        CREATE TABLE citation (
-          mentor_id TEXT NOT NULL,
-          slug TEXT NOT NULL,
-          position INTEGER NOT NULL,
-          item_id TEXT NOT NULL,
-          anchor TEXT,
-          PRIMARY KEY (mentor_id, slug, position)
-        );
-        CREATE INDEX citation_item ON citation(item_id);
         CREATE TABLE item (
           id TEXT PRIMARY KEY NOT NULL,
           kind TEXT NOT NULL,

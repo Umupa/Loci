@@ -8,23 +8,23 @@ import LociStore
 public struct HostEnvironment: Sendable {
   public let newID: @Sendable () -> EntityID
   public let now: @Sendable () -> Timestamp
-  /// The agent new mentors run on until one is chosen in the settings.
-  public let defaultProvider: Mentor.Provider
-  /// The model new mentors ask their agent for until one is chosen; `nil` leaves the choice to the agent.
-  public let defaultModel: String?
-  /// How deleted mentors and items leave the disk.
+  /// Where the person is, which decides what day it is for notes, diaries and the daily review.
+  public let timeZone: TimeZone
+  /// What Loci runs on until one is chosen in the settings.
+  public let defaultRuntime: Runtime
+  /// How deleted items leave the disk.
   public let discard: Discard
   /// The driver for a provider's program, or `nil` when it cannot be run here.
-  public let agents: @Sendable (Mentor.Provider) async -> (any AgentDriver)?
+  public let agents: @Sendable (Provider) async -> (any AgentDriver)?
   /// Why a provider has no driver: its program is not installed, or it is there and cannot be run.
-  public let unavailability: @Sendable (Mentor.Provider) async -> AgentStartFailure
+  public let unavailability: @Sendable (Provider) async -> AgentStartFailure
   /// What each provider is on this Mac. `again` looks afresh, so a program installed since is found and
   /// can be driven; otherwise what was found last may be given.
   public let detectAgents: @Sendable (_ again: Bool) async -> [AgentInstallation]
   /// The models a provider's program offers, in the names it takes.
-  public let models: @Sendable (Mentor.Provider) async -> [String]
-  /// An index below the count it is given: a random one in the app, so new mentors look different.
-  public let pick: @Sendable (Int) -> Int
+  public let models: @Sendable (Provider) async -> [String]
+  /// When to see whether the daily review is due: every minute in the app.
+  public let ticks: @Sendable () -> AsyncStream<Void>
   /// The programs, network and recognizer the library uses to fetch and transcribe.
   public let media: MediaEnvironment
   /// Waits a moment: how long a running turn holds what it said before showing it, so that the words
@@ -32,38 +32,51 @@ public struct HostEnvironment: Sendable {
   public let wait: @Sendable (Duration) async -> Void
 
   public init(
-    newID: @escaping @Sendable () -> EntityID, now: @escaping @Sendable () -> Timestamp,
-    defaultProvider: Mentor.Provider, defaultModel: String? = nil, discard: Discard,
-    agents: @escaping @Sendable (Mentor.Provider) async -> (any AgentDriver)?,
-    unavailability: @escaping @Sendable (Mentor.Provider) async -> AgentStartFailure = { _ in .notInstalled },
+    newID: @escaping @Sendable () -> EntityID, now: @escaping @Sendable () -> Timestamp, timeZone: TimeZone = .gmt,
+    defaultRuntime: Runtime, discard: Discard, agents: @escaping @Sendable (Provider) async -> (any AgentDriver)?,
+    unavailability: @escaping @Sendable (Provider) async -> AgentStartFailure = { _ in .notInstalled },
     detectAgents: @escaping @Sendable (_ again: Bool) async -> [AgentInstallation] = { _ in [] },
-    models: @escaping @Sendable (Mentor.Provider) async -> [String] = { _ in [] },
-    pick: @escaping @Sendable (Int) -> Int = { _ in 0 }, media: MediaEnvironment = .disconnected,
+    models: @escaping @Sendable (Provider) async -> [String] = { _ in [] },
+    ticks: @escaping @Sendable () -> AsyncStream<Void> = { AsyncStream { $0.finish() } },
+    media: MediaEnvironment = .disconnected,
     wait: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
   ) {
     self.newID = newID
     self.now = now
-    self.defaultProvider = defaultProvider
-    self.defaultModel = defaultModel
+    self.timeZone = timeZone
+    self.defaultRuntime = defaultRuntime
     self.discard = discard
     self.agents = agents
     self.unavailability = unavailability
     self.detectAgents = detectAgents
     self.models = models
-    self.pick = pick
+    self.ticks = ticks
     self.media = media
     self.wait = wait
   }
 
-  /// The real clock, fresh identifiers, random looks, the Trash, and the agent programs installed on this Mac.
-  public static func system(defaultProvider: Mentor.Provider, defaultModel: String? = nil) -> HostEnvironment {
+  /// The real clock and time zone, fresh identifiers, the Trash, and the agent programs installed on this Mac.
+  public static func system(defaultRuntime: Runtime) -> HostEnvironment {
     let installed = InstalledAgents()
     return HostEnvironment(
-      newID: { EntityID() }, now: { Timestamp(.now) }, defaultProvider: defaultProvider, defaultModel: defaultModel,
+      newID: { EntityID() }, now: { Timestamp(.now) }, timeZone: .current, defaultRuntime: defaultRuntime,
       discard: .toTrash, agents: { await installed.driver(for: $0) },
-      unavailability: { await installed.unavailability(of: $0) }, detectAgents: { await installed.detect(again: $0) },
-      models: { await installed.models(of: $0) },
-      pick: { Int.random(in: 0..<$0) }, media: .system(agents: { await installed.driver(for: $0) }))
+      unavailability: { await installed.unavailability(of: $0) },
+      detectAgents: { await installed.detect(again: $0) }, models: { await installed.models(of: $0) },
+      ticks: { everyMinute() }, media: .system(agents: { await installed.driver(for: $0) }))
+  }
+
+  private static func everyMinute() -> AsyncStream<Void> {
+    AsyncStream { continuation in
+      let task = Task {
+        while !Task.isCancelled {
+          continuation.yield()
+          try? await Task.sleep(for: .seconds(60))
+        }
+        continuation.finish()
+      }
+      continuation.onTermination = { _ in task.cancel() }
+    }
   }
 }
 
@@ -72,21 +85,21 @@ public struct HostEnvironment: Sendable {
 actor InstalledAgents {
   private var search: Task<AgentSearch, Never>?
   private var found: [AgentInstallation]?
-  private var listed: [Mentor.Provider: [String]] = [:]
+  private var listed: [Provider: [String]] = [:]
 
   /// Asked once per provider; a program that listed nothing is asked again next time.
-  func models(of provider: Mentor.Provider) async -> [String] {
+  func models(of provider: Provider) async -> [String] {
     if let models = listed[provider] { return models }
     let models = await ModelList(search: await currentSearch()).models(of: provider)
     if !models.isEmpty { listed[provider] = models }
     return models
   }
 
-  func driver(for provider: Mentor.Provider) async -> (any AgentDriver)? {
+  func driver(for provider: Provider) async -> (any AgentDriver)? {
     AgentPrograms(search: await currentSearch()).driver(for: provider)
   }
 
-  func unavailability(of provider: Mentor.Provider) async -> AgentStartFailure {
+  func unavailability(of provider: Provider) async -> AgentStartFailure {
     AgentPrograms(search: await currentSearch()).unavailability(of: provider)
   }
 

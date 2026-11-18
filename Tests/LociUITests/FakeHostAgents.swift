@@ -3,7 +3,7 @@ import LociModel
 
 extension FakeHost {
   /// Pi, Claude Code and Codex installed, the rest missing.
-  static let installations: [AgentInstallation] = Mentor.Provider.allCases.map { provider in
+  static let installations: [AgentInstallation] = Provider.allCases.map { provider in
     switch provider {
     case .pi:
       .installed(
@@ -28,7 +28,7 @@ extension FakeHost {
 
   func detectAgents(again: Bool) async -> [AgentInstallation] { Self.installations }
 
-  func agentModels(of provider: Mentor.Provider) async -> [String] {
+  func agentModels(of provider: Provider) async -> [String] {
     switch provider {
     case .claudeCode: ["fable", "opus", "sonnet", "haiku"]
     case .codex: ["gpt-6.1-sol", "gpt-6-luna"]
@@ -36,20 +36,7 @@ extension FakeHost {
     }
   }
 
-  func agentDefaults() async throws(HostError) -> AgentDefaults {
-    AgentDefaults(provider: .claudeCode, models: [.claudeCode: "opus", .codex: "gpt-6.1-sol"])
-  }
-
-  func setDefaultAgent(_ command: SetDefaultAgent) async throws(HostError) -> AgentDefaults {
-    AgentDefaults(provider: command.provider)
-  }
-
-  func setDefaultModel(_ command: SetDefaultModel) async throws(HostError) -> AgentDefaults {
-    try await agentDefaults()
-  }
-
-  func setMentorAgent(_ command: SetMentorAgent) async throws(HostError) -> Mentor { sample.scheduling }
-  func lessonLanguage() async throws(HostError) -> LessonLanguage { .fixed("zh-Hans") }
-  func setLessonLanguage(_ command: SetLessonLanguage) async throws(HostError) -> LessonLanguage { command.language }
+  func runtime() async throws(HostError) -> Runtime { sample.runtime }
+  func setRuntime(_ command: SetRuntime) async throws(HostError) -> Runtime { command.runtime }
   func dataLocation() async -> HostPath { HostPath(URL(filePath: "/Users/someone/Loci Dev")) }
 }

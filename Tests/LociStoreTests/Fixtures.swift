@@ -9,16 +9,6 @@ enum Fixture {
     return EntityID(at: Date(timeIntervalSince1970: 1_763_337_600 + Double(seed)), entropy: &entropy)
   }
 
-  static func slug(_ text: String) -> Lesson.Slug {
-    Lesson.Slug(text)!
-  }
-
-  static func mentor(_ seed: UInt64 = 1, name: String = "调度") throws -> Mentor {
-    try Mentor(
-      id: id(seed), name: name, avatar: "owl", color: MentorColor(red: 0xB5, green: 0x52, blue: 0x3B),
-      provider: .claudeCode)
-  }
-
   static func item(_ seed: UInt64 = 2, title: String = "Large-scale cluster management at Google with Borg") throws
     -> Item
   {
@@ -51,9 +41,6 @@ extension Store {
     try readText(root.appending(path: relativePath))
   }
 
-  func folderName(ofMentor id: EntityID) throws -> String {
-    try mentorFolder(id).lastPathComponent
-  }
 }
 
 struct SeededGenerator: RandomNumberGenerator {

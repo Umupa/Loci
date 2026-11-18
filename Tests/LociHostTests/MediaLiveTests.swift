@@ -19,7 +19,7 @@ struct MediaLiveTests {
       searchPaths: ComponentLocator.systemSearchPaths(environment: ProcessInfo.processInfo.environment),
       proxy: { SystemProxy.current() }, readerLanguage: "zh-Hans")
     return HostEnvironment(
-      newID: { EntityID() }, now: { Timestamp(.now) }, defaultProvider: .pi, discard: .permanently,
+      newID: { EntityID() }, now: { Timestamp(.now) }, defaultRuntime: Runtime(provider: .pi), discard: .permanently,
       agents: { _ in nil }, media: media)
   }
 

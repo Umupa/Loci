@@ -59,17 +59,17 @@ final class Launch {
     start(replacingDatabase: true)
   }
 
-  /// Records how long the process took to reach a start page that can be typed into.
-  func startShown() {
+  /// Records how long the process took to reach a main conversation that can be typed into.
+  func talkShown() {
     guard !reportedStart, let elapsed = ProcessClock.millisecondsSinceStart() else { return }
     reportedStart = true
-    Self.log.notice("start page shown \(elapsed, privacy: .public) ms after launch")
+    Self.log.notice("main conversation shown \(elapsed, privacy: .public) ms after launch")
   }
 
   private func start(replacingDatabase: Bool) {
     let root = folder
     let database = DataFolder.database(in: root)
-    let environment = HostEnvironment.system(defaultProvider: .pi)
+    let environment = HostEnvironment.system(defaultRuntime: Runtime(provider: .pi))
     Task {
       do throws(HostStartError) {
         let local =

@@ -4,7 +4,7 @@ import LociHost
 import LociModel
 
 actor ManualAgent: AgentDriver {
-  nonisolated let provider = Mentor.Provider.pi
+  nonisolated let provider = Provider.pi
   private(set) var opened: [SessionConfiguration] = []
   private(set) var sessions: [ManualSession] = []
   let openingFailure: AgentError?
@@ -54,14 +54,8 @@ actor ManualSession: AgentSession {
     guard output == nil else { throw .turnInProgress }
     prompts.append(text)
     let (stream, continuation) = AsyncStream.makeStream(of: AgentEvent.self)
-    if text.contains("new mentor") {
-      continuation.yield(.text("Ready."))
-      continuation.yield(.ended(.completed))
-      continuation.finish()
-    } else {
-      output = continuation
-      continuation.yield(.text("Waiting"))
-    }
+    output = continuation
+    continuation.yield(.text("Waiting"))
     return Turn(events: stream)
   }
 
@@ -94,9 +88,7 @@ func withManualHost(
   let place = Place()
   defer { place.remove() }
   let world = TestWorld()
-  let environment = HostEnvironment(
-    newID: { world.nextID() }, now: { TestWorld.instant }, defaultProvider: .pi, discard: .permanently,
-    agents: { _ in agent })
+  let environment = world.environment(running: { _ in agent })
   let host = try await LocalHost.start(root: place.root, database: place.database, environment: environment)
   do {
     try await body(host, place, world, agent)

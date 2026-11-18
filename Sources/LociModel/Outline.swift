@@ -23,7 +23,7 @@ public struct Outline: Hashable, Sendable {
     }
   }
 
-  /// A stretch a mentor picked out, with why it is worth hearing.
+  /// A stretch Loci picked out, with why it is worth hearing.
   public struct Highlight: Hashable, Codable, Sendable {
     public let span: TimeSpan
     public let title: String

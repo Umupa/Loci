@@ -10,14 +10,22 @@ extension LocalHost {
     let item = try attempt { try Item(id: environment.newID(), kind: .article, title: title) }
     try attempt { try store.add(item, content: command.text) }
     await follow([.item(item.id)])
+    await happened(.saved(item.id))
     return item
   }
 
   public func deleteItem(_ command: DeleteItem) async throws(HostError) -> Done {
-    try attempt { try store.deleteItem(command.item, notes: command.notes) }
+    await loci.forget(item: command.item)
+    do throws(HostError) {
+      try attempt { try store.deleteItem(command.item, notes: command.notes) }
+      await loci.forgotten(item: command.item)
+    } catch {
+      await loci.forgotten(item: command.item)
+      throw error
+    }
     await library.queue.forget(command.item)
-    await mentors.forget(item: command.item)
-    var changes: Set<ContentChange> = [.item(command.item), .itemConversation(command.item)]
+    try? database.deleteEvents(about: command.item)
+    var changes: Set<ContentChange> = [.item(command.item), .conversation(.item(command.item)), .events]
     if command.notes == .delete { changes.insert(.notes(.item(command.item))) }
     await follow(changes)
     return Done()
@@ -39,7 +47,7 @@ extension LocalHost {
         case .article: try store.fetchedContent(of: id)
         case .paper, .video, .audio, .repository: nil
         }
-      return ItemPage(item: item, text: text, citedBy: try database.citingLessons(of: id))
+      return ItemPage(item: item, text: text)
     }
   }
 }

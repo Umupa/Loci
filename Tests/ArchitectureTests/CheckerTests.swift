@@ -75,11 +75,11 @@ struct CheckerTests {
   }
 
   @Test func approvedPackagesMayBeImportedOnlyWhereListed() {
-    let store = SourceFile(path: "Sources/LociStore/Example.swift", module: "LociStore", text: "import Yams")
-    let model = SourceFile(path: "Sources/LociModel/Example.swift", module: "LociModel", text: "import Yams")
+    let store = SourceFile(path: "Sources/LociStore/Example.swift", module: "LociStore", text: "import GRDB")
+    let model = SourceFile(path: "Sources/LociModel/Example.swift", module: "LociModel", text: "import GRDB")
 
     #expect(BoundaryTests.importViolations(in: store).isEmpty)
-    #expect(BoundaryTests.importViolations(in: model).map(\.found) == ["LociModel imports Yams"])
+    #expect(BoundaryTests.importViolations(in: model).map(\.found) == ["LociModel imports GRDB"])
   }
 
   @Test func flagsPlainCommentsButNotDocumentation() {

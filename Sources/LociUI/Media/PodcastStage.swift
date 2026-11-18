@@ -23,8 +23,7 @@ struct PodcastStage: View {
           .shadow(color: .black.opacity(0.15), radius: 4, y: 3)
       }
       .frame(width: Size.podcastCover, height: Size.podcastCover)
-      Text(verbatim: model.item.title)
-        .font(Typography.mediaTitle)
+      Text(serif: model.item.title, Typography.mediaTitle)
         .foregroundStyle(Palette.ink)
         .multilineTextAlignment(.center)
         .frame(maxWidth: Size.podcastColumn)

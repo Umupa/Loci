@@ -21,62 +21,51 @@ struct NavigationTests {
     #expect(PromptInput(" https://example.com/post ") == .link(URL(string: "https://example.com/post")!))
   }
 
-  @Test func theSidebarAlwaysListsVideoPodcastsAndArticlesAndPapersOnceThereIsOne() throws {
-    let sample = try Sample()
-
-    #expect(ItemKind.listed(in: sample.items) == [.video, .audio, .article, .paper])
-    #expect(ItemKind.listed(in: []) == [.video, .audio, .article])
-  }
-
-  @Test func theSidebarListsVideoAndPodcastsBeforeText() throws {
-    #expect(Array(ItemKind.allCases.prefix(3)) == [.video, .audio, .article])
-  }
-
   @Test func aWindowComesBackWhereItWas() throws {
     let sample = try Sample()
-    let window = WindowState(place: .mentor(sample.scheduling.id), pages: [.lesson(sample.filterLesson)])
+    let window = WindowState(place: .library(.article), pages: [.item(sample.borg.id)])
 
     #expect(WindowState(restoring: window.text) == window)
     #expect(WindowState(restoring: "") == WindowState())
     #expect(WindowState(restoring: "{not json") == WindowState())
   }
 
-  @Test(arguments: [Place.settings(.general), .settings(.agents), .library(.paper), .start])
+  @Test(arguments: [Place.settings(.general), .settings(.agents), .library(.paper), .talk, .loci])
   func everyPlaceComesBack(place: Place) {
     #expect(WindowState(restoring: WindowState(place: place).text) == WindowState(place: place))
   }
 
-  @Test func aLessonComesBackAndGoesWithItsMentor() throws {
-    let sample = try Sample()
-    let lesson = WindowState(place: .lesson(sample.filterLesson), pages: [.item(sample.borg.id)])
-    let allItems = Set(sample.items.map(\.id))
-
-    #expect(WindowState(restoring: lesson.text) == lesson)
-    #expect(lesson.keeping(mentors: [sample.scheduling.id], items: allItems) == lesson)
-    #expect(lesson.keeping(mentors: [sample.sandbox.id], items: allItems) == WindowState())
+  @Test(arguments: [#"{"place":{"start":{}},"pages":[]}"#, #"{"place":{"mentor":{"_0":"x"}},"pages":[]}"#])
+  func aPlaceFromBeforeLociOpensTheMainConversation(remembered: String) {
+    #expect(WindowState(restoring: remembered) == WindowState(place: .talk))
   }
 
-  @Test func aWindowOnSomethingDeletedGoesBackToStart() throws {
+  @Test func aWindowOnADeletedItemGoesBackToTheMainConversation() throws {
     let sample = try Sample()
-    let lesson = WindowState(place: .mentor(sample.scheduling.id), pages: [.lesson(sample.filterLesson)])
     let item = WindowState(place: .library(nil), pages: [.item(sample.borg.id)])
-    let allItems = Set(sample.items.map(\.id))
 
-    #expect(lesson.keeping(mentors: [sample.scheduling.id], items: allItems) == lesson)
-    #expect(lesson.keeping(mentors: [sample.sandbox.id], items: allItems) == WindowState())
-    #expect(item.keeping(mentors: [], items: allItems) == item)
-    #expect(item.keeping(mentors: [], items: []) == WindowState())
+    #expect(item.keeping(items: Set(sample.items.map(\.id))) == item)
+    #expect(item.keeping(items: []) == WindowState(place: .talk))
+    #expect(WindowState(place: .library(.video)).keeping(items: []) == WindowState(place: .library(.video)))
+  }
+
+  @Test func choosingLociFromTheMainConversationOpensItsPageAndFromAnywhereElseTheConversation() throws {
+    let sample = try Sample()
+
+    #expect(WindowState(place: .talk).choosingLoci() == WindowState(place: .loci))
+    #expect(WindowState(place: .loci).choosingLoci() == WindowState(place: .talk))
+    #expect(WindowState(place: .library(nil)).choosingLoci() == WindowState(place: .talk))
     #expect(
-      WindowState(place: .library(.video)).keeping(mentors: [], items: []) == WindowState(place: .library(.video)))
+      WindowState(place: .library(nil), pages: [.item(sample.borg.id)]).choosingLoci() == WindowState(place: .talk))
   }
 
   @Test func commandsWaitForTheHostToBeReady() async throws {
     let deferred = DeferredHost()
     let sample = try Sample()
-    async let mentors = deferred.run(ListMentors())
+    async let runtime = deferred.run(ReadRuntime())
     await deferred.resolve(FakeHost(sample))
 
-    #expect(try await mentors == sample.mentors)
+    #expect(try await runtime == sample.runtime)
   }
 }
 

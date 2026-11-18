@@ -34,7 +34,7 @@ struct StepsCard: View {
     }
   }
 
-  static func segments(_ steps: [ConversationStep]) -> [Segment] {
+  nonisolated static func segments(_ steps: [ConversationStep]) -> [Segment] {
     var segments: [Segment] = []
     var tools: [ConversationStep] = []
     func close() {
@@ -281,7 +281,7 @@ private struct StepRow: View {
   }
 }
 
-/// The four-pointed star that marks thinking, turning while the mentor thinks.
+/// The four-pointed star that marks thinking, turning while Loci thinks.
 struct SparkleMark: View {
   let spinning: Bool
 

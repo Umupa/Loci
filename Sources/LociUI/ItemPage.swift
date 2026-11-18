@@ -24,7 +24,7 @@ struct ItemScreen: View {
   }
 }
 
-/// An item's text, with its byline under the title, its pictures, and the lessons that cite it beside it.
+/// An item's text, with its byline under the title and its pictures, and Loci beside it.
 struct ItemView: View {
   @Environment(\.host) private var host
   let page: ItemPage
@@ -35,11 +35,8 @@ struct ItemView: View {
     Group {
       if let text = page.text {
         ContentReader(
-          content: .item(page.item.id), title: page.item.title, markdown: text, byline: Byline.of(page.item),
-          images: images, serif: true, pane: .itemPanel
-        ) {
-          CitingLessons(page: page)
-        }
+          item: page.item.id, title: page.item.title, markdown: text, byline: Byline.of(page.item), images: images,
+          serif: true, pane: .itemPanel)
       } else {
         FetchingItem(item: page.item, job: job?.value ?? nil)
       }
@@ -61,34 +58,6 @@ struct ItemView: View {
   }
 }
 
-/// The lessons that cite an item, one row per lesson however many places it cites.
-struct CitingLessons: View {
-  let page: ItemPage
-
-  var body: some View {
-    if !citing.isEmpty {
-      PanelLinks(title: Text(.loci("item.citedBy"))) {
-        ForEach(citing, id: \.citation.lesson) { citing in
-          NavigationLink(value: Page.lesson(citing.citation.lesson)) {
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-              Text(verbatim: citing.lessonTitle ?? citing.citation.lesson.lesson.description)
-                .foregroundStyle(Palette.ink)
-              Text(verbatim: citing.mentorName)
-                .font(Typography.caption)
-                .foregroundStyle(Palette.inkMuted)
-            }
-          }
-        }
-      }
-    }
-  }
-
-  private var citing: [CitingLesson] {
-    var seen = Set<LessonRef>()
-    return page.citedBy.filter { seen.insert($0.citation.lesson).inserted }
-  }
-}
-
 /// An item whose text has not arrived: what is happening to it, or what would fix it.
 struct FetchingItem: View {
   @Environment(\.host) private var host
@@ -101,8 +70,7 @@ struct FetchingItem: View {
 
   var body: some View {
     VStack(spacing: Spacing.s) {
-      Text(verbatim: item.title)
-        .font(Typography.mediaTitle)
+      Text(serif: item.title, Typography.mediaTitle)
         .foregroundStyle(Palette.ink)
         .multilineTextAlignment(.center)
       JobDetail(line: JobLine(job)) { fix in

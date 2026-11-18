@@ -8,49 +8,62 @@ import Testing
 /// R-S5, R-S6, R-S7, R-S9, R-S11: working on another Mac through the relay.
 @Suite(.timeLimit(.minutes(1)))
 struct RemoteHostScenarioTests {
-  static let agent = FakeAgent { prompt in prompt.contains("new mentor") ? .reply("Ready.") : .reply("Hello there.") }
-
-  static func settled(_ host: any LociModel.Host, _ mentor: EntityID, turns: Int) async -> Conversation? {
-    await value(host.subscribe(MentorConversation(mentor: mentor))) { conversation in
+  static func settled(_ host: any LociModel.Host, prompts: Int) async -> Conversation? {
+    await value(host.subscribe(OneConversation(.main))) { conversation in
       conversation.turn == nil
-        && conversation.messages.count { if case .prompt = $0.body { true } else { false } } == turns
+        && conversation.messages.count { if case .prompt = $0.body { true } else { false } } == prompts
     }
   }
 
-  /// R-S5: a mentor on the studio answers the laptop, and the reply streams in while it is written.
-  @Test func aRemoteMentorsReplyStreamsIn() async throws {
-    let agent = FakeAgent { prompt in prompt.contains("new mentor") ? .reply("Ready.") : .hang }
-    try await TwoMacs.with(agent: agent) { macs in
+  /// R-S5: Loci on the studio answers the laptop, and the reply streams in while it is written.
+  @Test func theOtherMacsLociAnswersAndTheReplyStreamsIn() async throws {
+    try await TwoMacs.with(agent: FakeAgent { _ in .hang }) { macs in
       try await macs.pair()
       let studio = macs.laptop.service.open(macs.studio.machine.id)
-      let mentor = try await studio.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await Self.settled(studio, mentor.id, turns: 1))
 
-      _ = try await studio.run(SendMessage(mentor: mentor.id, text: "Hi"))
+      _ = try await studio.run(SendMessage(to: .main, text: "Hi"))
 
-      let partial = await value(studio.subscribe(MentorConversation(mentor: mentor.id))) { conversation in
+      let partial = await value(studio.subscribe(OneConversation(.main))) { conversation in
         conversation.turn?.messages.contains { if case .reply(let text) = $0.body { text == "Working" } else { false } }
           == true
       }
       #expect(partial != nil)
-      _ = try await studio.run(StopTurn(mentor: mentor.id))
-      #expect(await Self.settled(studio, mentor.id, turns: 2) != nil)
+      _ = try await studio.run(StopTurn(in: .main))
+      #expect(await Self.settled(studio, prompts: 1) != nil)
     }
   }
 
   /// R-S9: the studio's own window and the laptop follow the same conversation.
   @Test func bothMacsSeeTheSameConversation() async throws {
-    try await TwoMacs.with(agent: Self.agent) { macs in
+    try await TwoMacs.with { macs in
       try await macs.pair()
       let remote = macs.laptop.service.open(macs.studio.machine.id)
-      let mentor = try await macs.studio.local.run(CreateMentor(request: "Scheduling"))
-      _ = try #require(await Self.settled(macs.studio.local, mentor.id, turns: 1))
 
-      _ = try await remote.run(SendMessage(mentor: mentor.id, text: "Hi"))
+      _ = try await remote.run(SendMessage(to: .main, text: "Hi"))
 
-      let here = try #require(await Self.settled(macs.studio.local, mentor.id, turns: 2))
-      let there = try #require(await Self.settled(remote, mentor.id, turns: 2))
+      let here = try #require(await Self.settled(macs.studio.local, prompts: 1))
+      let there = try #require(await Self.settled(remote, prompts: 1))
       #expect(here.messages == there.messages)
+      #expect(try await macs.laptop.local.conversation(.main).entries.isEmpty)
+    }
+  }
+
+  /// Loci lives on its Mac: the laptop sees and changes the studio's Loci, and its own stays as it was.
+  @Test func theOtherMacsLociIsTheOneOnThatMac() async throws {
+    try await TwoMacs.with { macs in
+      try await macs.pair()
+      let remote = macs.laptop.service.open(macs.studio.machine.id)
+
+      _ = try await remote.run(SaveSoul(core: "You are the studio's Loci."))
+
+      let there = await value(remote.subscribe(LociHome())) { $0.soul.core == "You are the studio's Loci." }
+      #expect(there != nil)
+      let soul = "agent/SOUL.md"
+      let studio = try String(contentsOf: macs.studio.place.root.appending(path: soul), encoding: .utf8)
+      let laptop = try String(contentsOf: macs.laptop.place.root.appending(path: soul), encoding: .utf8)
+      #expect(studio.contains("You are the studio's Loci."))
+      #expect(!laptop.contains("the studio's"))
+      #expect(await remote.localFile(.agentFolder) == nil)
     }
   }
 
@@ -58,14 +71,14 @@ struct RemoteHostScenarioTests {
     try await TwoMacs.with { macs in
       try await macs.pair()
       let remote = macs.laptop.service.open(macs.studio.machine.id)
-      let mentors = remote.subscribe(AllMentors())
-      #expect(await value(mentors) { $0.isEmpty } != nil)
+      let items = remote.subscribe(AllItems())
+      #expect(await value(items) { $0.isEmpty } != nil)
 
       await macs.relay.restart()
       #expect(await macs.connected(macs.laptop, to: macs.studio))
-      _ = try await macs.studio.local.run(CreateMentor(request: "Scheduling"))
+      _ = try await macs.studio.local.run(AddTextItem(fileName: "cfs.md", text: "# CFS"))
 
-      #expect(await value(mentors) { $0.count == 1 } != nil)
+      #expect(await value(items) { $0.count == 1 } != nil)
     }
   }
 
@@ -74,16 +87,19 @@ struct RemoteHostScenarioTests {
     try await TwoMacs.with { macs in
       try await macs.pair()
       let remote = macs.laptop.service.open(macs.studio.machine.id)
-      let mentor = try await remote.run(CreateMentor(request: "Scheduling"))
-      #expect(await value(remote.subscribe(AllMentors())) { $0.count == 1 } != nil)
-      let page = try await remote.run(ListMentors())
+      let item = try await remote.run(AddTextItem(fileName: "cfs.md", text: "# CFS"))
+      #expect(await value(remote.subscribe(AllItems())) { $0.count == 1 } != nil)
+      let page = try await remote.run(ListItems())
+      _ = try await remote.run(SendMessage(to: .main, text: "Hi"))
+      let said = try #require(await Self.settled(remote, prompts: 1))
 
       await macs.studio.service.stop()
       #expect(await macs.connected(macs.laptop, to: macs.studio, link: .offline))
 
-      #expect(try await remote.run(ListMentors()) == page)
-      #expect(await value(remote.subscribe(AllMentors())) { $0.map(\.id) == [mentor.id] } != nil)
-      await #expect(throws: HostError.offline) { _ = try await remote.run(SendMessage(mentor: mentor.id, text: "Hi")) }
+      #expect(try await remote.run(ListItems()) == page)
+      #expect(await value(remote.subscribe(AllItems())) { $0.map(\.id) == [item.id] } != nil)
+      #expect(await value(remote.subscribe(OneConversation(.main))) { $0.messages == said.messages } != nil)
+      await #expect(throws: HostError.offline) { _ = try await remote.run(SendMessage(to: .main, text: "Hi")) }
     }
   }
 
@@ -101,15 +117,16 @@ struct RemoteHostScenarioTests {
 
   /// R-S11: the relay carries only ciphertext.
   @Test func theRelaySeesNoTextFromTheMacs() async throws {
-    try await TwoMacs.with(agent: Self.agent) { macs in
+    try await TwoMacs.with { macs in
       try await macs.pair()
       let remote = macs.laptop.service.open(macs.studio.machine.id)
-      let mentor = try await remote.run(CreateMentor(request: "Teach me the Linux scheduler"))
-      _ = try #require(await Self.settled(remote, mentor.id, turns: 1))
+
+      _ = try await remote.run(SendMessage(to: .main, text: "Teach me the Linux scheduler"))
+      _ = try #require(await Self.settled(remote, prompts: 1))
 
       let seen = await macs.relay.traffic.reduce(Data(), +)
       #expect(seen.range(of: Data("Linux scheduler".utf8)) == nil)
-      #expect(seen.range(of: Data("Ready.".utf8)) == nil)
+      #expect(seen.range(of: Data("Hello there.".utf8)) == nil)
       #expect(seen.range(of: Data("Mac Studio".utf8)) == nil)
     }
   }
@@ -138,10 +155,10 @@ struct RemoteHostScenarioTests {
     try await TwoMacs.with { macs in
       try await macs.pair()
       let remote = macs.laptop.service.open(macs.studio.machine.id)
-      let mentor = try await remote.run(CreateMentor(request: "Scheduling"))
+      let item = try await remote.run(AddTextItem(fileName: "cfs.md", text: "# CFS"))
 
-      async let image = try? remote.run(ReadItemImage(item: mentor.id, name: "missing.png"))
-      for _ in 0..<5 { _ = try await remote.run(ReadCatalog(mentor: mentor.id)) }
+      async let image = try? remote.run(ReadItemImage(item: item.id, name: "missing.png"))
+      for _ in 0..<5 { _ = try await remote.run(ListItems()) }
       _ = await image
 
       #expect(await macs.relay.clientDials(to: macs.studio.key.routeToken) == 3)

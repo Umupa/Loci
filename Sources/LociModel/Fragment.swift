@@ -1,7 +1,7 @@
 /// The `key=value&…` part of a locator after `#`.
 ///
 /// Values are percent-encoded only where needed: ASCII outside a small safe set is escaped, other
-/// characters stay as written so a locator in a lesson stays readable.
+/// characters stay as written so a locator written in Markdown stays readable.
 struct Fragment {
   private var values: [String: String] = [:]
 

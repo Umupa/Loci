@@ -6,7 +6,7 @@ import Testing
 struct AntigravityConfigurationTests {
   @Test(arguments: [false, true])
   func selectingAModelSkipsBooleanAndProviderOptions(selectorMissing: Bool) async throws {
-    let folder = URL(filePath: "/mentor")
+    let folder = URL(filePath: "/agent")
     let fixture = selectorMissing ? "synthetic-model-selector-missing" : "synthetic-model-selector"
     let launcher = try ScriptedLauncher("Antigravity/\(fixture)", folder: folder)
     let driver = AcpDriver.antigravity(executable: URL(filePath: "/server/agy_acp_server.par"), launcher: launcher)

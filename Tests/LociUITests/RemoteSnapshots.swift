@@ -87,24 +87,32 @@ struct RemoteSnapshots {
       "reconnecting", try Self.machines(studio: .reconnecting), current: FakeMachines.studio, appearance: appearance)
   }
 
-  /// R-S7: the lesson reads as before; where the field was, one line says the Mac is offline.
+  /// R-S7: the article reads as before; where Loci's field was, one line says the Mac is offline.
   @Test(arguments: Snapshot.Appearance.allCases)
   func offline(appearance: Snapshot.Appearance) async throws {
-    let sample = try Sample(problems: false)
+    let library = try SampleLibrary()
     try await Self.shoot(
-      "offline", try Self.machines(studio: .offline), current: FakeMachines.studio,
-      at: WindowState(place: .lesson(sample.filterLesson)), appearance: appearance)
+      "offline", try Self.machines(studio: .offline, studioLibrary: true), current: FakeMachines.studio,
+      at: LibrarySnapshots.reading(library.article.id), appearance: appearance)
   }
 
   /// R-S7: a passage can still be selected, but not highlighted or asked about.
   @Test(arguments: Snapshot.Appearance.allCases)
   func offlineSelection(appearance: Snapshot.Appearance) async throws {
-    let sample = try Sample(problems: false)
+    let library = try SampleLibrary()
     try await Self.shoot(
-      "offline-selection", try Self.machines(studio: .offline), current: FakeMachines.studio,
-      at: WindowState(place: .lesson(sample.filterLesson)),
-      standIns: StandIns(selection: "把两者混在一个分数里，一个极高的偏好分就可能盖过一条本该否决的约束。"),
+      "offline-selection", try Self.machines(studio: .offline, studioLibrary: true), current: FakeMachines.studio,
+      at: LibrarySnapshots.reading(library.article.id),
+      standIns: StandIns(selection: "NGINX hands each request to a single worker process"),
       appearance: appearance, shows: { !($0.childWindows ?? []).isEmpty })
+  }
+
+  /// R-S12: Loci's page is the other Mac's Loci, readable offline, with nothing on it that would change it.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func offlineLoci(appearance: Snapshot.Appearance) async throws {
+    try await Self.shoot(
+      "offline-loci", try Self.machines(studio: .offline), current: FakeMachines.studio,
+      at: WindowState(place: .loci), appearance: appearance)
   }
 
   /// R-S7: the library reads as before; downloading, retrying and adding wait for the Mac.
@@ -123,10 +131,11 @@ struct RemoteSnapshots {
       appearance: appearance)
   }
 
+  /// R-S7: the main conversation of the other Mac, with one line where the field was.
   @Test(arguments: Snapshot.Appearance.allCases)
-  func offlineStart(appearance: Snapshot.Appearance) async throws {
+  func offlineTalk(appearance: Snapshot.Appearance) async throws {
     try await Self.shoot(
-      "offline-start", try Self.machines(studio: .offline), current: FakeMachines.studio, at: WindowState(),
+      "offline-talk", try Self.machines(studio: .offline), current: FakeMachines.studio, at: WindowState(),
       appearance: appearance, english: true)
   }
 

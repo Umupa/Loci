@@ -2,136 +2,127 @@ import AppKit
 import LociModel
 import SwiftUI
 
-/// Changes what a mentor runs on from a chip: the agent, the model and thinking effort, or all three.
-struct AgentChoiceMenu: View {
+/// Changes what Loci runs on from a chip under the input field: the agent, the model and thinking effort.
+/// It is one setting for the whole app.
+struct RuntimeMenu: View {
   @Environment(\.host) private var host
   @Environment(\.colorScheme) private var scheme
-  let mentor: Mentor
-  let parts: Parts
+  /// Whether the chip names the agent too, or only the model.
+  let namesAgent: Bool
+  @State private var runtime: Feed<Runtime>?
   @State private var installations: [AgentInstallation] = []
   @State private var models: [String] = []
 
-  enum Parts {
-    /// The agent, with its mark.
-    case agent
-    /// The model, and the thinking effort when the agent has one.
-    case model
-    /// All three, named together.
-    case all
-  }
-
   var body: some View {
-    choices.changesData()
+    ZStack {
+      if let current = runtime?.value { menu(current).changesData() }
+    }
+    .subscribing(CurrentRuntime(), into: $runtime)
   }
 
-  private var choices: some View {
+  private func menu(_ current: Runtime) -> some View {
     Menu {
-      if parts != .model {
-        Picker(selection: agent) {
-          ForEach(Agents.choosable(installations, keeping: mentor.provider), id: \.self) { provider in
-            Label {
-              Text(verbatim: Agents.name(of: provider))
-            } icon: {
-              AgentMark.image(provider, in: scheme).map { Image(nsImage: $0) }
-            }
-            .tag(provider)
+      Picker(selection: provider(current)) {
+        ForEach(Agents.choosable(installations, keeping: current.provider), id: \.self) { provider in
+          Label {
+            Text(verbatim: Agents.name(of: provider))
+          } icon: {
+            AgentMark.image(provider, in: scheme).map { Image(nsImage: $0) }
           }
-        } label: {
-          Text(.loci("agents.provider"))
+          .tag(provider)
         }
-        .pickerStyle(.inline)
+      } label: {
+        Text(.loci("agents.provider"))
       }
-      if parts != .agent {
-        Picker(selection: model) {
-          Text(.loci("agents.anyModel")).tag(String?.none)
-          ForEach(Agents.offered(models, keeping: mentor.model), id: \.self) { model in
-            Text(verbatim: Agents.modelName(model)).tag(String?.some(model))
+      .pickerStyle(.inline)
+      Picker(selection: model(current)) {
+        Text(.loci("agents.anyModel")).tag(String?.none)
+        ForEach(Agents.offered(models, keeping: current.model), id: \.self) { model in
+          Text(verbatim: Agents.modelName(model)).tag(String?.some(model))
+        }
+      } label: {
+        Text(.loci("agents.model"))
+      }
+      .pickerStyle(.inline)
+      if !current.provider.efforts.isEmpty {
+        Picker(selection: effort(current)) {
+          Text(.loci("agents.anyModel")).tag(ThinkingEffort?.none)
+          ForEach(current.provider.efforts, id: \.self) { effort in
+            Text(Agents.effortName(effort)).tag(ThinkingEffort?.some(effort))
           }
         } label: {
-          Text(.loci("agents.model"))
+          Text(.loci("conversation.thinking"))
         }
         .pickerStyle(.inline)
-        if !mentor.provider.efforts.isEmpty {
-          Picker(selection: effort) {
-            Text(.loci("agents.anyModel")).tag(ThinkingEffort?.none)
-            ForEach(mentor.provider.efforts, id: \.self) { effort in
-              Text(Agents.effortName(effort)).tag(ThinkingEffort?.some(effort))
-            }
-          } label: {
-            Text(.loci("conversation.thinking"))
-          }
-          .pickerStyle(.inline)
-        }
       }
     } label: {
-      label
+      label(current)
     }
     .menuStyle(.button)
     .buttonStyle(ChipStyle())
     .menuIndicator(.hidden)
     .fixedSize()
-    .task(id: mentor.provider) {
-      if parts != .model { installations = (try? await host.run(DetectAgents())) ?? [] }
-      if parts != .agent { models = (try? await host.run(AgentModels(provider: mentor.provider))) ?? [] }
+    .task(id: current.provider) {
+      installations = (try? await host.run(DetectAgents())) ?? []
+      models = (try? await host.run(AgentModels(provider: current.provider))) ?? []
     }
   }
 
-  private var label: some View {
-    HStack(spacing: 4) {
-      if parts != .model {
-        AgentMark(provider: mentor.provider, size: 16).padding(.trailing, 1)
-        Text(verbatim: Agents.name(of: mentor.provider))
-      }
-      if parts == .all { Text(verbatim: "·") }
-      if parts != .agent {
-        if let model = mentor.model {
+  private func label(_ current: Runtime) -> some View {
+    HStack(spacing: 6) {
+      AgentMark(provider: current.provider, size: 16)
+      HStack(spacing: Spacing.xxs) {
+        if namesAgent {
+          Text(verbatim: Agents.name(of: current.provider))
+          Text(verbatim: "·")
+        }
+        if let model = current.model {
           Text(verbatim: Agents.modelName(model))
         } else {
           Text(.loci("agents.anyModel"))
         }
+        if let effort = current.effort {
+          Text(verbatim: "·")
+          Text(Agents.effortName(effort))
+        }
       }
-      if parts == .model, let effort = mentor.effort {
-        Text(verbatim: "·")
-        Text(Agents.effortName(effort))
-      }
-      Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).opacity(0.6).padding(.leading, 1)
     }
   }
 
-  private var agent: Binding<Mentor.Provider> {
+  private func provider(_ current: Runtime) -> Binding<Provider> {
     Binding {
-      mentor.provider
+      current.provider
     } set: { provider in
       Task {
-        let defaults = try? await host.run(ReadAgentDefaults())
-        change(AgentChoice(provider: provider, model: defaults?.models[provider], effort: mentor.effort))
+        let models = (try? await host.run(AgentModels(provider: provider))) ?? []
+        let kept = current.model.flatMap { models.contains($0) ? $0 : nil }
+        change(Runtime(provider: provider, model: kept, effort: current.effort))
       }
     }
   }
 
-  private var model: Binding<String?> {
+  private func model(_ current: Runtime) -> Binding<String?> {
     Binding {
-      mentor.model
+      current.model
     } set: { model in
-      change(AgentChoice(provider: mentor.provider, model: model, effort: mentor.effort))
+      change(Runtime(provider: current.provider, model: model, effort: current.effort))
     }
   }
 
-  private var effort: Binding<ThinkingEffort?> {
+  private func effort(_ current: Runtime) -> Binding<ThinkingEffort?> {
     Binding {
-      mentor.effort
+      current.effort
     } set: { effort in
-      change(AgentChoice(provider: mentor.provider, model: mentor.model, effort: effort))
+      change(Runtime(provider: current.provider, model: current.model, effort: effort))
     }
   }
 
-  private func change(_ choice: AgentChoice) {
-    let command = SetMentorAgent(mentor: mentor.id, choice: choice)
-    Task { _ = try? await host.run(command) }
+  private func change(_ runtime: Runtime) {
+    Task { _ = try? await host.run(SetRuntime(runtime)) }
   }
 }
 
-/// A quiet capsule button, darker on hover, like the chips under the input field.
+/// A quiet button under the input field, washed on hover.
 struct ChipStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     ChipBody(configuration: configuration)
@@ -143,12 +134,12 @@ struct ChipStyle: ButtonStyle {
 
     var body: some View {
       configuration.label
-        .font(Typography.control)
-        .foregroundStyle(hovering ? Palette.ink : Palette.inkMuted)
-        .padding(.horizontal, 8)
-        .frame(height: 26)
-        .background(Capsule().fill(hovering ? Palette.fillStrong : .clear))
-        .contentShape(Capsule())
+        .font(.system(size: 12))
+        .foregroundStyle(Palette.inkMuted)
+        .padding(.horizontal, Spacing.xs)
+        .padding(.vertical, Spacing.xxs)
+        .background(RoundedRectangle(cornerRadius: Radius.row).fill(hovering ? Palette.fill : .clear))
+        .contentShape(RoundedRectangle(cornerRadius: Radius.row))
         .scaleEffect(configuration.isPressed ? Motion.pressScale : 1)
         .onHover { hovering = $0 }
     }
@@ -157,7 +148,7 @@ struct ChipStyle: ButtonStyle {
 
 extension AgentMark {
   /// The mark as a picture, for menus, which draw images but not views.
-  @MainActor static func image(_ provider: Mentor.Provider, in scheme: ColorScheme) -> NSImage? {
+  @MainActor static func image(_ provider: Provider, in scheme: ColorScheme) -> NSImage? {
     let renderer = ImageRenderer(content: AgentMark(provider: provider, size: 16).environment(\.colorScheme, scheme))
     renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
     return renderer.nsImage

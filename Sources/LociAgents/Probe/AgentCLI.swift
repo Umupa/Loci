@@ -2,13 +2,13 @@ import LociModel
 
 /// One agent command-line program: the names it is installed under, and how it says its version.
 struct AgentCLI: Hashable, Sendable {
-  let provider: Mentor.Provider
+  let provider: Provider
   /// The names the program is installed under, the likeliest first.
   let names: [String]
   /// The arguments that make the program print its version; `nil` when it has no such flag.
   let versionArguments: [String]?
 
-  /// The ten programs a mentor can run, in the order `Mentor.Provider` lists them.
+  /// The ten programs Loci can run on, in the order `Provider` lists them.
   static let all: [AgentCLI] = [
     AgentCLI(provider: .pi, names: ["pi-coding-agent", "pi"], versionArguments: ["--version"]),
     AgentCLI(provider: .omp, names: ["omp"], versionArguments: ["--version"]),

@@ -18,3 +18,9 @@ extension String? {
     try map { try $0.requiringText(field) }
   }
 }
+
+extension String {
+  func leftPadded(to width: Int) -> String {
+    String(repeating: "0", count: max(0, width - count)) + self
+  }
+}

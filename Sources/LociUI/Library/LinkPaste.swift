@@ -18,7 +18,7 @@ extension LociModel.Host {
   }
 }
 
-/// The empty library: the start page's field, which makes a mentor from a sentence or adds a link.
+/// The empty library: a field that adds a link, or says a sentence to Loci in the main conversation.
 struct LibraryStart: View {
   @Environment(\.host) private var host
   @FocusedValue(\.navigator) private var navigator
@@ -69,9 +69,9 @@ struct LibraryStart: View {
     case .sentence(let request):
       Task {
         do throws(HostError) {
-          let mentor = try await host.run(CreateMentor(request: request))
+          _ = try await host.run(SendMessage(to: .main, text: request))
           text = ""
-          opened(WindowState(place: .mentor(mentor.id)))
+          opened(WindowState(place: .talk))
         } catch {
           failed(error)
         }
@@ -132,6 +132,6 @@ struct RoundSendButton: View {
     }
     .buttonStyle(PressStyle())
     .disabled(!ready)
-    .accessibilityLabel(Text(.loci("start.send")))
+    .accessibilityLabel(Text(.loci("library.send")))
   }
 }

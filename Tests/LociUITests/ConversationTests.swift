@@ -5,6 +5,10 @@ import Testing
 @testable import LociUI
 
 struct ConversationTests {
+  private static func layout(_ messages: [Message], live: Bool) -> [ConversationEntry] {
+    ConversationEntry.layout(messages.map { .message($0) }, live: live)
+  }
+
   private static func message(_ second: Int64, _ body: Message.Body) -> Message {
     Message(id: EntityID(), at: Timestamp(millisecondsSince1970: second * 1000), body: body)
   }
@@ -18,7 +22,7 @@ struct ConversationTests {
   }
 
   @Test func thinkingAndToolsInARowShareOneCardAndAReplySplitsThem() {
-    let entries = ConversationEntry.layout(
+    let entries = Self.layout(
       [
         Self.asked, Self.message(1, .thinking("想")), Self.message(2, .tool(Self.read)),
         Self.message(3, .reply("好")), Self.message(4, .tool(Self.read)),
@@ -28,10 +32,10 @@ struct ConversationTests {
   }
 
   @Test func aStepTakesUntilTheNextMessageAndOneStillGoingHasNoTime() {
-    let finished = ConversationEntry.layout(
+    let finished = Self.layout(
       [Self.asked, Self.message(1, .thinking("想")), Self.message(7, .tool(Self.read)), Self.message(9, .reply("好"))],
       live: false)
-    let going = ConversationEntry.layout([Self.asked, Self.message(1, .thinking("想"))], live: true)
+    let going = Self.layout([Self.asked, Self.message(1, .thinking("想"))], live: true)
 
     #expect(Self.steps(finished).first?.map(\.took) == [.seconds(6), .seconds(2)])
     #expect(Self.steps(going).first?.map(\.took) == [nil])
@@ -39,7 +43,7 @@ struct ConversationTests {
   }
 
   @Test func onlyTheLastReplyOfALiveTurnIsStreaming() {
-    let entries = ConversationEntry.layout(
+    let entries = Self.layout(
       [Self.asked, Self.message(1, .reply("一")), Self.message(2, .tool(Self.read)), Self.message(3, .reply("二"))],
       live: true)
     let streaming = entries.compactMap { if case .reply(_, _, let streaming) = $0 { streaming } else { nil } }

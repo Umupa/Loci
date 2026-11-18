@@ -24,7 +24,7 @@ struct PlacedNote: Identifiable {
     notes.compactMap { placed in
       guard let range = placed.range else { return nil }
       let more = placed.note.thought != nil || !placed.note.exchanges.isEmpty
-      return ReaderMark(kind: .note(placed.id, marginMark: more), range: range)
+      return ReaderMark(note: placed.id, marginMark: more, range: range)
     }
   }
 }

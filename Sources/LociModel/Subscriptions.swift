@@ -1,23 +1,3 @@
-/// Every mentor, by name.
-public struct AllMentors: Subscription {
-  public static let name = "mentors"
-
-  public init() {}
-
-  public func value(from handler: any CommandHandler) async throws(HostError) -> [Mentor] {
-    try await handler.listMentors()
-  }
-
-  public func isAffected(by changes: Set<ContentChange>) -> Bool {
-    changes.contains { change in
-      switch change {
-      case .mentor, .everything: true
-      case .catalog, .lesson, .item, .notes, .conversation, .mind, .reading, .job, .itemConversation, .media: false
-      }
-    }
-  }
-}
-
 /// Every item, newest first.
 public struct AllItems: Subscription {
   public static let name = "items"
@@ -32,39 +12,13 @@ public struct AllItems: Subscription {
     changes.contains { change in
       switch change {
       case .item, .everything: true
-      case .mentor, .catalog, .lesson, .notes, .conversation, .mind, .reading, .job, .itemConversation, .media: false
+      case .notes, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
       }
     }
   }
 }
 
-/// One mentor with its catalog.
-public struct OneMentor: Subscription {
-  public static let name = "mentor"
-  public let mentor: EntityID
-
-  public init(mentor: EntityID) {
-    self.mentor = mentor
-  }
-
-  public func value(from handler: any CommandHandler) async throws(HostError) -> MentorPage {
-    try await handler.mentorPage(mentor)
-  }
-
-  public func isAffected(by changes: Set<ContentChange>) -> Bool {
-    changes.contains { change in
-      switch change {
-      case .mentor(let id), .catalog(let id): id == mentor
-      case .lesson(let lesson): lesson.mentor == mentor
-      case .reading(.lesson(let lesson)): lesson.mentor == mentor
-      case .everything: true
-      case .item, .notes, .conversation, .mind, .reading, .job, .itemConversation, .media: false
-      }
-    }
-  }
-}
-
-/// One item with its text and the lessons that cite it.
+/// One item with its text.
 public struct OneItem: Subscription {
   public static let name = "item"
   public let item: EntityID
@@ -77,13 +31,12 @@ public struct OneItem: Subscription {
     try await handler.itemPage(item)
   }
 
-  /// Any mentor or lesson may start or stop citing the item, or rename itself.
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains { change in
       switch change {
       case .item(let id): id == item
-      case .mentor, .catalog, .lesson, .everything: true
-      case .notes, .conversation, .mind, .reading, .job, .itemConversation, .media: false
+      case .everything: true
+      case .notes, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime: false
       }
     }
   }

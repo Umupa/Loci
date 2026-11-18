@@ -51,13 +51,13 @@ struct RelayLiveTests {
     var times: [Duration] = []
     for _ in 0..<7 {
       let started = ContinuousClock.now
-      _ = try await remote.run(ListMentors())
+      _ = try await remote.run(ListItems())
       times.append(ContinuousClock.now - started)
     }
-    let mentors = remote.subscribe(AllMentors())
-    #expect(await value(mentors, within: .seconds(20)) { $0.isEmpty } != nil)
-    _ = try await studio.local.run(CreateMentor(request: "Scheduling"))
-    #expect(await value(mentors, within: .seconds(20)) { $0.count == 1 } != nil)
+    let items = remote.subscribe(AllItems())
+    #expect(await value(items, within: .seconds(20)) { $0.isEmpty } != nil)
+    _ = try await studio.local.run(AddTextItem(fileName: "cfs.md", text: "# CFS"))
+    #expect(await value(items, within: .seconds(20)) { $0.count == 1 } != nil)
 
     let sorted = times.sorted()
     print("relay round trip: median \(sorted[sorted.count / 2]), fastest \(sorted[0]), slowest \(sorted.last ?? .zero)")

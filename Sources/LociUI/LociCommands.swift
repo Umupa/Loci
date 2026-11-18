@@ -18,13 +18,6 @@ public struct LociCommands: Commands {
     }
     CommandGroup(replacing: .newItem) {
       Button {
-        navigator?.showStart()
-      } label: {
-        Text(.loci("menu.newMentor"))
-      }
-      .keyboardShortcut("n")
-      .disabled(navigator == nil)
-      Button {
         navigator?.addFile?()
       } label: {
         Text(.loci("menu.addFile"))
@@ -51,9 +44,9 @@ public struct LociCommands: Commands {
     }
     CommandMenu(Text(.loci("menu.go"))) {
       Button {
-        navigator?.showStart()
+        navigator?.showTalk()
       } label: {
-        Text(.loci("sidebar.start"))
+        Text(verbatim: "Loci")
       }
       .keyboardShortcut("1")
       .disabled(navigator == nil)

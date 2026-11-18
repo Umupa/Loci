@@ -45,11 +45,11 @@ struct LocalFileTests {
     }
   }
 
-  @Test func aMentorsSoulIsALocalFile() async throws {
-    try await withHost { host, _, _ in
-      let mentor = try await host.run(CreateMentor(request: "Teach me scheduling"))
+  @Test func locisFolderIsALocalFile() async throws {
+    try await withHost { host, place, _ in
+      let folder = await host.localFile(.agentFolder)
 
-      #expect(await host.localFile(.soul(mentor.id))?.url.lastPathComponent == "SOUL.md")
+      #expect(folder?.url.standardizedFileURL == place.root.appending(path: "agent").standardizedFileURL)
     }
   }
 }

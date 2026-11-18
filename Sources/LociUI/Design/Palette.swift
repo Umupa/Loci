@@ -25,7 +25,7 @@ enum Palette {
   static let inkMuted = Color(nsColor: Tones.inkMuted)
   /// Muted text in the sidebar, a little darker in light so it stays readable where the sidebar is grayest.
   static let sidebarInkMuted = Color(nsColor: Tones.sidebarInkMuted)
-  /// Section labels, glyphs and lessons not yet written; never for text that must be read.
+  /// Section labels, dates and glyphs; never for text that must be read.
   static let inkFaint = Color(nsColor: Tones.inkFaint)
   /// Hairlines between things and around cards.
   static let line = Color(nsColor: Tones.line)
@@ -52,14 +52,22 @@ enum Palette {
   static let ready = Color(nsColor: Tones.ready)
   /// The thumb of a segmented control and the face of a push button.
   static let thumb = Color(nsColor: Tones.thumb)
-  /// Behind a paragraph the mentor changed since the reader last saw it. Fainter than a selection.
-  static let revised = Color(nsColor: Tones.revised)
+  /// The light ring around a small avatar, lifting it off whatever it sits on.
+  static let ring = Color(nsColor: Tones.ring)
+  /// Around a card in dark, where a shadow would not show.
+  static let cardEdge = Color(nsColor: NSColor(rgb: 0xFFF5E6)).opacity(0.06)
+  /// The brown a card's shadow is tinted, so it reads warm on the paper.
+  static let warmShadow = Color(nsColor: NSColor(rgb: 0x281E0F))
+  /// The brown under Loci's portrait.
+  static let portraitShadow = Color(nsColor: NSColor(rgb: 0x78460A))
 
   /// Behind a cover while it loads, and under a player.
   static let coverBackdrop = Color(nsColor: Tones.coverBackdrop)
   /// Words over a cover or a picture, the same in light and dark because the picture is.
   static let onCover = Color(nsColor: NSColor(rgb: 0xFFF6EA))
   static let onCoverMuted = Color(nsColor: NSColor(rgb: 0xFFF0E0)).opacity(0.7)
+  /// The word on the label marking the item to start with, on `onCover`.
+  static let firstInk = Color(nsColor: NSColor(rgb: 0x94590A))
   /// The dark wash a cover's title sits on.
   static let coverShade = Color(nsColor: NSColor(rgb: 0x0E0A07))
   /// The face of a menu or a sheet Loci draws itself: the color of `floating`, but solid, so nothing under it
@@ -88,7 +96,7 @@ enum Palette {
     (ink, tint, "selected text"), (ink, selection, "text selected in the reader"), (ink, mark, "highlighted text"),
     (inkMuted, canvas, "muted on canvas"), (inkMuted, surface, "muted on surface"),
     (accentInk, canvas, "amber text on canvas"), (accentInk, surface, "amber text on surface"),
-    (onAccent, accent, "text on amber"), (ink, revised, "revised text"),
+    (onAccent, accent, "text on amber"),
     (Code.keyword, well, "code keyword"), (Code.string, well, "code string"),
     (Code.number, well, "code number"), (Code.name, well, "code name"),
   ]
@@ -119,7 +127,7 @@ enum Tones {
   static let flash = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.6, light: 0.6))
   static let ready = NSColor(dark: 0x6CC783, light: 0x34A853)
   static let thumb = NSColor(dark: 0x5A544D, light: 0xFFFFFF)
-  static let revised = NSColor(dark: 0x241C10, light: 0xFAEDD3)
+  static let ring = NSColor(dark: 0xFFF5E6, light: 0xFFFFFF, alpha: (dark: 0.14, light: 0.9))
   static let coverBackdrop = NSColor(dark: 0x2A2420, light: 0x2A2420)
   static let menuFace = NSColor(dark: 0x2C2824, light: 0xFDFBF8)
   static let scrim = NSColor(dark: 0x000000, light: 0x281C0C, alpha: (dark: 0.32, light: 0.10))
@@ -151,11 +159,5 @@ extension NSColor {
     self.init(
       srgbRed: CGFloat((rgb >> 16) & 0xFF) / 255, green: CGFloat((rgb >> 8) & 0xFF) / 255,
       blue: CGFloat(rgb & 0xFF) / 255, alpha: 1)
-  }
-}
-
-extension MentorColor {
-  var color: Color {
-    Color(nsColor: NSColor(rgb: UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)))
   }
 }

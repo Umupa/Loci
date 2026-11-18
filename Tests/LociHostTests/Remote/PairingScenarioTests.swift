@@ -93,13 +93,13 @@ struct PairingScenarioTests {
     try await TwoMacs.with { macs in
       try await macs.pair()
       let studioHost = macs.laptop.service.open(macs.studio.machine.id)
-      _ = try await studioHost.run(ListMentors())
+      _ = try await studioHost.run(ListItems())
 
       await macs.studio.service.remove(macs.laptop.machine.id)
 
       #expect(await macs.roster(of: macs.studio) { $0.paired.isEmpty } != nil)
       #expect(await macs.roster(of: macs.laptop) { $0.paired.isEmpty } != nil)
-      await #expect(throws: HostError.offline) { _ = try await studioHost.run(ListMentors()) }
+      await #expect(throws: HostError.offline) { _ = try await studioHost.run(ListItems()) }
     }
   }
 
@@ -110,11 +110,11 @@ struct PairingScenarioTests {
       let studio = macs.studio.machine.id
       await macs.laptop.service.remove(studio)
 
-      await macs.laptop.service.keep(Data("[]".utf8), as: ListMentors.name, request: Data("{}".utf8), on: studio)
+      await macs.laptop.service.keep(Data("[]".utf8), as: ListItems.name, request: Data("{}".utf8), on: studio)
 
-      #expect(macs.laptop.machineFolder.cached(ListMentors.name, request: Data("{}".utf8), on: studio) == nil)
+      #expect(macs.laptop.machineFolder.cached(ListItems.name, request: Data("{}".utf8), on: studio) == nil)
       await #expect(throws: HostError.offline) {
-        _ = try await macs.laptop.service.open(studio).run(ListMentors())
+        _ = try await macs.laptop.service.open(studio).run(ListItems())
       }
     }
   }

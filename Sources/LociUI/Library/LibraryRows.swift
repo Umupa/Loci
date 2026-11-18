@@ -22,8 +22,7 @@ struct ShelfCover: View {
 
   private var caption: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(verbatim: item.title)
-        .font(Typography.shelfTitle)
+      Text(serif: item.title, Typography.shelfTitle)
         .foregroundStyle(Palette.onCover)
         .lineLimit(2)
         .lineSpacing(1)
@@ -86,8 +85,7 @@ struct LibraryRow: View {
         )
         .frame(width: Size.listThumbnail, height: Size.listThumbnail * 9 / 16)
       VStack(alignment: .leading, spacing: 5) {
-        Text(verbatim: item.title)
-          .font(Typography.rowTitle)
+        Text(serif: item.title, Typography.rowTitle)
           .foregroundStyle(Palette.ink)
           .lineLimit(1)
         Text(verbatim: item.byline)

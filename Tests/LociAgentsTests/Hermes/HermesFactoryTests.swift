@@ -8,7 +8,7 @@ struct HermesFactoryTests {
     let driver = AcpDriver.hermes(
       executable: URL(filePath: "/hermes"), arguments: ["--verbose"], launcher: LaunchCheck())
     await #expect(throws: AgentError.cannotLaunch("Captured")) {
-      _ = try await driver.open(.init(workingDirectory: URL(filePath: "/mentor")))
+      _ = try await driver.open(.init(workingDirectory: URL(filePath: "/agent")))
     }
   }
 

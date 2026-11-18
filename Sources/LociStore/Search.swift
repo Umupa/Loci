@@ -3,8 +3,7 @@ import GRDB
 import LociModel
 
 extension StoreDatabase {
-  /// Finds mentors by name, lessons by title, items by title and text, and notes by anything written in
-  /// them. Every word must match; Chinese, Japanese and Korean match as substrings, and the last Latin
+  /// Finds items by title and text, and notes by anything written in them. Every word must match; Chinese, Japanese and Korean match as substrings, and the last Latin
   /// word as a prefix. Titles rank above text.
   public func search(_ text: String, limit: Int = 50) throws -> [SearchHit] {
     guard let query = SearchText.query(text) else { return [] }
@@ -41,12 +40,8 @@ extension StoreDatabase {
       guard let id = EntityID(canonical: String(text.dropFirst(5))), let noteLocator else { return nil }
       return .note(id, on: noteLocator.content)
     }
-    if text.hasPrefix("mentor/"), !text.contains("/lesson/") {
-      return EntityID(canonical: String(text.dropFirst(7))).map(SearchHit.Target.mentor)
-    }
     switch ContentKey.content(text) {
     case .item(let item): return .item(item)
-    case .lesson(let lesson): return .lesson(lesson)
     case nil: return nil
     }
   }

@@ -32,15 +32,6 @@ extension Store {
     }
   }
 
-  func decodeYAML<Value: Decodable>(_ type: Value.Type, at url: URL) throws -> Value {
-    let text = try readText(url)
-    do {
-      return try Formats.fromYAML(type, text)
-    } catch {
-      throw StoreError.invalid(problem(at: url, error))
-    }
-  }
-
   func problem(at url: URL, _ error: any Error) -> FileProblem {
     if case StoreError.invalid(let problem) = error { return problem }
     return FileProblem(path: relativePath(of: url), kind: .invalid, reason: Formats.reason(error))

@@ -2,18 +2,6 @@ import LociModel
 import LociStore
 
 extension LocalHost {
-  public func lessonText(_ lesson: LessonRef) async throws(HostError) -> String {
-    try attempt { try store.lesson(lesson).body }
-  }
-
-  public func lessonCitations(_ lesson: LessonRef) async throws(HostError) -> [Citation] {
-    try attempt { try database.citations(in: lesson) }
-  }
-
-  public func citingLessons(of item: EntityID) async throws(HostError) -> [CitingLesson] {
-    try attempt { try database.citingLessons(of: item) }
-  }
-
   public func search(_ command: Search) async throws(HostError) -> [SearchHit] {
     try attempt { try database.search(command.text, limit: command.limit) }
   }
@@ -32,12 +20,15 @@ extension LocalHost {
     return Done()
   }
 
+  /// Reading something to the end for the first time is something that happened.
   public func markRead(_ content: ContentRef) async throws(HostError) -> Done {
+    let before = try attempt { try database.readingState(of: content) }
     try attempt {
-      let position = try database.readingState(of: content)?.position
-      try database.save(ReadingState(position: position, finished: true, updatedAt: environment.now()), for: content)
+      try database.save(
+        ReadingState(position: before?.position, finished: true, updatedAt: environment.now()), for: content)
     }
     await hub.refresh([.reading(content)])
+    if before?.finished != true, case .item(let item) = content { await happened(.finishedReading(item)) }
     return Done()
   }
 }

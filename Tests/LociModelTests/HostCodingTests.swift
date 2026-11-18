@@ -5,8 +5,6 @@ import Testing
 
 /// Everything that crosses the host protocol must survive the trip a remote host will give it.
 struct HostCodingTests {
-  static let lesson = LessonRef(mentor: Fixture.mentor, lesson: Lesson.Slug("intro")!)
-
   static func roundTrips<Value: Codable>(_ value: Value) throws -> Bool {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .sortedKeys
@@ -19,71 +17,122 @@ struct HostCodingTests {
     try JSONDecoder().decode(Value.self, from: JSONEncoder().encode(value)) == value
   }
 
+  static let day = Day("2026-11-18")!
+
   @Test func everyCommandSurvivesJSON() throws {
-    #expect(try Self.roundTrips(CreateMentor(request: "我想学调度")))
-    #expect(try Self.roundTrips(RenameMentor(mentor: Fixture.mentor, name: "调度")))
-    #expect(try Self.roundTrips(DeleteMentor(mentor: Fixture.mentor, notes: .delete)))
-    #expect(try Self.roundTrips(ListMentors()))
-    #expect(try Self.roundTrips(ReadCatalog(mentor: Fixture.mentor)))
+    let passage = Passage(locator: .item(Fixture.item, .quote(try TextQuote("打分"))), excerpt: "打分")
     #expect(try Self.roundTrips(AddTextItem(fileName: "a.md", text: "# A\n")))
     #expect(try Self.roundTrips(DeleteItem(item: Fixture.item, notes: .keep)))
     #expect(try Self.roundTrips(ListItems()))
     #expect(try Self.roundTrips(ReadItemText(item: Fixture.item)))
-    #expect(try Self.roundTrips(ReadLessonText(lesson: Self.lesson)))
-    #expect(try Self.roundTrips(LessonCitations(lesson: Self.lesson)))
-    #expect(try Self.roundTrips(ItemCitations(item: Fixture.item)))
     #expect(try Self.roundTrips(Search(text: "调度", limit: 10)))
-    #expect(try Self.roundTrips(ReadReadingState(content: .lesson(Self.lesson))))
+    #expect(try Self.roundTrips(ReadReadingState(content: .item(Fixture.item))))
     #expect(
       try Self.roundTrips(
         SaveReadingPosition(content: .item(Fixture.item), position: .item(Fixture.item, .quote(TextQuote("打分"))))))
     #expect(try Self.roundTrips(MarkRead(content: .item(Fixture.item))))
+    #expect(try Self.roundTrips(SendMessage(to: .item(Fixture.item), text: "Why?", passage: passage)))
+    #expect(try Self.roundTrips(SendMessage(to: .main, text: "在吗")))
+    #expect(try Self.roundTrips(StopTurn(in: .main)))
+    #expect(try Self.roundTrips(StartOver(in: .item(Fixture.item))))
+    #expect(try Self.roundTrips(SetRuntime(Runtime(provider: .claudeCode, model: "opus", effort: .high))))
+    #expect(try Self.roundTrips(ReadRuntime()))
+    #expect(try Self.roundTrips(SaveSoul(core: "# Soul\n\nYou are Loci.")))
+    #expect(try Self.roundTrips(Forget("- 2026-11-02 先给结论", in: .memory)))
+    #expect(try Self.roundTrips(SetAvatar(try Avatar(data: Data([1, 2, 3]), format: "PNG"))))
+    #expect(try Self.roundTrips(ResetAvatar()))
   }
 
   @Test func everyReplyAndFeedSurvivesJSON() throws {
-    let mentor = try Mentor(
-      id: Fixture.mentor, name: "调度", avatar: "ember", color: MentorColor.palette[0], provider: .pi,
-      request: "我想学调度")
     let item = try Item(id: Fixture.item, kind: .video(duration: .seconds(90)), title: "Talk")
-    let citation = Citation(lesson: Self.lesson, item: Fixture.item, anchor: .time(try TimeSpan(start: .seconds(3))))
-    let problem = FileProblem(
-      path: "mentors/x/catalog.yaml", kind: .invalid, reason: "bad", subject: .mentor(mentor.id))
-    let page = MentorPage(
-      mentor: mentor, catalog: try Catalog(chapters: []), writtenLessons: [Lesson.Slug("intro")!])
-    let itemPage = ItemPage(
-      item: item, text: nil, citedBy: [CitingLesson(citation: citation, mentorName: "调度", lessonTitle: nil)])
+    let problem = FileProblem(path: "library/x/item.json", kind: .invalid, reason: "bad", subject: .item(item.id))
     let health = Health(database: .failed("disk full"), readingStateLost: true, fileProblems: [problem])
-    let hit = SearchHit(
-      target: .note(Fixture.item, on: .lesson(Self.lesson)), field: .note, snippet: "…", locator: nil)
+    let hit = SearchHit(target: .note(Fixture.item, on: .item(Fixture.item)), field: .note, snippet: "…", locator: nil)
 
-    #expect(try Self.roundTrips(page))
-    #expect(try Self.roundTrips(itemPage))
+    #expect(try Self.roundTrips(ItemPage(item: item, text: nil)))
     #expect(try Self.roundTrips(health))
     #expect(try Self.roundTrips([hit]))
-    #expect(try Self.roundTrips(Citation(lesson: Self.lesson, item: Fixture.item, anchor: nil)))
     #expect(try Self.roundTrips(Done()))
-    #expect(try Self.roundTrips(Feed<MentorPage>.value(page)))
     #expect(try Self.roundTrips(Feed<[Item]>.unavailable(.invalidFile(problem))))
     #expect(try Self.roundTrips(Optional<ReadingState>.none))
-    #expect(try Self.decodesEqual(Set<ContentChange>([.lesson(Self.lesson), .item(Fixture.item), .everything])))
+    #expect(
+      try Self.decodesEqual(
+        Set<ContentChange>([.item(Fixture.item), .conversation(.main), .loci(.soul), .turnEnded(.item(item.id))])))
     #expect(try Self.roundTrips(HostStartError.databaseFromNewerVersion(unknownMigrations: ["9 x"])))
   }
 
-  @Test func aCitationAnchoredInAnotherItemIsRejected() {
-    let json =
-      #"{"item":"\#(Fixture.item)","lesson":{"lesson":"intro","mentor":"\#(Fixture.mentor)"},"anchor":"loci://library/\#(Fixture.mentor)#t=1"}"#
+  @Test func aConversationWithEventsSurvivesJSON() throws {
+    let item = try Item(id: Fixture.item, kind: .article, title: "How we built Pingora")
+    let prompt = Message(id: Fixture.id(20), at: Fixture.instant, body: .prompt(Prompt(text: "在吗", purpose: .chat)))
+    let job = Job(item: item.id, stage: .download, state: .running(progress: nil))
+    let conversation = Conversation(
+      ref: .main,
+      entries: [
+        .message(prompt), .event(WorldEvent(id: Fixture.id(21), at: Fixture.instant, kind: .finishedReading(item))),
+        .event(WorldEvent(id: Fixture.id(22), at: Fixture.instant, kind: .saved(item, job: job))),
+        .message(Message(id: Fixture.id(23), at: Fixture.instant, body: .startedOver)),
+      ],
+      turn: LiveTurn(startedAt: Fixture.instant, messages: [prompt]), context: ContextUsage(used: 10, window: 100))
 
-    #expect(throws: DecodingError.self) { try JSONDecoder().decode(Citation.self, from: Data(json.utf8)) }
+    #expect(try Self.roundTrips(Feed<Conversation>.value(conversation)))
+    #expect(conversation.entries.map(\.id) == [Fixture.id(20), Fixture.id(21), Fixture.id(22), Fixture.id(23)])
+    #expect(try Self.roundTrips(Prompt(text: "look back", purpose: .review(Self.day))))
+    for ending in [
+      TurnEnding.interrupted, .failed("quota"), .unstarted(.codex, .notInstalled), .unstarted(.pi, .wouldNotStart),
+    ] {
+      #expect(try Self.roundTrips(Message.Body.ended(ending)))
+    }
+  }
+
+  @Test func theLociPageSurvivesJSON() throws {
+    let locator = Locator.item(Fixture.item, .quote(try TextQuote("term")))
+    let entry = MemoryEntry(
+      day: Self.day, text: "混淆过 term 和 index", source: .init(locator: locator, itemTitle: "Raft"), line: "- …")
+    let page = LociPage(
+      soul: Soul(core: "You are Loci.", traits: [.entry(Trait(day: Self.day, text: "爱画图")), .text("??")]),
+      memory: [.entry(entry), .text("## 杂项")], profile: [],
+      today: DayNotes(
+        day: Self.day,
+        notes: [.entry(DayNote(time: TimeOfDay("09:12"), text: "图画好了", from: .item(Fixture.item, title: nil)))]),
+      diaries: [Diary.Heading(day: Self.day, writtenAt: TimeOfDay("23:48"), title: "一点十分")],
+      together: Together(days: 17, messages: 214, itemsReadTogether: 38))
+
+    #expect(try Self.roundTrips(Feed<LociPage>.value(page)))
+    #expect(try Self.roundTrips(Diary(heading: page.diaries[0], body: "今天…", toRemember: ["地基"])))
+    #expect(try Self.roundTrips(LociStatus(working: true)))
+    #expect(try Self.roundTrips(Feed<Avatar?>.value(nil)))
+  }
+
+  @Test func anAvatarIsAPictureOfAKnownFormatAndSize() throws {
+    #expect(try Avatar(data: Data([1]), format: "JPG").format == "jpg")
+    #expect(throws: ModelError.self) { try Avatar(data: Data([1]), format: "svg") }
+    #expect(throws: ModelError.self) { try Avatar(data: Data(), format: "png") }
+    #expect(throws: ModelError.self) { try Avatar(data: Data(count: Avatar.largest + 1), format: "png") }
+    let json = #"{"data":"AQ==","format":"exe"}"#
+    #expect(throws: DecodingError.self) { try JSONDecoder().decode(Avatar.self, from: Data(json.utf8)) }
+  }
+
+  @Test func aRuntimeKeepsOnlyWhatItsProviderTakes() throws {
+    let runtime = Runtime(provider: .grok, model: "  ", effort: .high)
+
+    #expect(runtime.model == nil)
+    #expect(runtime.effort == nil)
+    #expect(Runtime(provider: .pi, model: " m ", effort: .off) == Runtime(provider: .pi, model: "m", effort: .off))
+    let json = #"{"provider":"codex","effort":"off"}"#
+    #expect(try JSONDecoder().decode(Runtime.self, from: Data(json.utf8)).effort == nil)
   }
 
   @Test func commandAndSubscriptionNamesAreUnique() {
     let commands = [
-      CreateMentor.name, RenameMentor.name, DeleteMentor.name, ListMentors.name, ReadCatalog.name, AddTextItem.name,
-      DeleteItem.name, ListItems.name, ReadItemText.name, ReadLessonText.name, LessonCitations.name, ItemCitations.name,
-      Search.name,
-      ReadReadingState.name, SaveReadingPosition.name, MarkRead.name,
+      AddTextItem.name, DeleteItem.name, ListItems.name, ReadItemText.name, Search.name, ReadReadingState.name,
+      SaveReadingPosition.name, MarkRead.name, SendMessage.name, StopTurn.name, StartOver.name, ReadRuntime.name,
+      SetRuntime.name, DetectAgents.name, AgentModels.name, DataLocation.name, SaveSoul.name, Forget.name,
+      SetAvatar.name, ResetAvatar.name,
     ]
-    let subscriptions = [AllMentors.name, AllItems.name, OneMentor.name, OneItem.name, HealthReport.name]
+    let subscriptions = [
+      AllItems.name, OneItem.name, HealthReport.name, OneConversation.name, CurrentRuntime.name, LociWorking.name,
+      LociHome.name, OneDiary.name, LociAvatar.name,
+    ]
 
     #expect(Set(commands).count == commands.count)
     #expect(Set(subscriptions).count == subscriptions.count)
@@ -91,45 +140,32 @@ struct HostCodingTests {
 
   @Test func eachSubscriptionListensOnlyToWhatItShows() {
     let other = Fixture.id(9)
-    #expect(AllMentors().isAffected(by: [.mentor(other)]))
-    #expect(!AllMentors().isAffected(by: [.catalog(other), .notes(.item(other))]))
     #expect(AllItems().isAffected(by: [.item(other)]))
-    #expect(!AllItems().isAffected(by: [.mentor(other)]))
-    #expect(OneMentor(mentor: Fixture.mentor).isAffected(by: [.lesson(Self.lesson)]))
-    #expect(!OneMentor(mentor: other).isAffected(by: [.lesson(Self.lesson), .item(Fixture.item)]))
-    #expect(OneItem(item: Fixture.item).isAffected(by: [.lesson(Self.lesson)]))
+    #expect(!AllItems().isAffected(by: [.conversation(.main), .loci(.soul)]))
     #expect(!OneItem(item: Fixture.item).isAffected(by: [.item(other), .notes(.item(Fixture.item))]))
-    #expect(OneMentor(mentor: other).isAffected(by: [.everything]))
+    #expect(OneItem(item: other).isAffected(by: [.everything]))
+    #expect(LociHome().isAffected(by: [.loci(.memory)]))
+    #expect(LociHome().isAffected(by: [.turnEnded(.main)]))
+    #expect(!LociHome().isAffected(by: [.loci(.avatar), .conversation(.main)]))
+    #expect(LociAvatar().isAffected(by: [.loci(.avatar)]))
+    #expect(!LociAvatar().isAffected(by: [.loci(.soul)]))
+    #expect(OneDiary(day: Self.day).isAffected(by: [.loci(.diary)]))
+    #expect(LociWorking().isAffected(by: [.review]))
+    #expect(!LociWorking().isAffected(by: [.events]))
+    #expect(CurrentRuntime().isAffected(by: [.runtime]))
   }
 
-  @Test func companionCommandsAndTheirValuesSurviveJSON() throws {
-    let passage = Passage(locator: .item(Fixture.item, .quote(try TextQuote("打分"))), excerpt: "打分")
-    let prompt = Message(
-      id: Fixture.id(20), at: Fixture.instant, body: .prompt(Prompt(text: "Why?", purpose: .chat)))
-    let conversation = ItemConversation(
-      item: Fixture.item, companion: Fixture.mentor,
-      messages: [AttributedMessage(mentor: Fixture.mentor, message: prompt)],
-      turn: CompanionTurn(mentor: Fixture.mentor, turn: LiveTurn(startedAt: Fixture.instant, messages: [prompt])),
-      context: ContextUsage(used: 10, window: 100))
-
-    #expect(
-      try Self.roundTrips(AskCompanion(item: Fixture.item, mentor: Fixture.mentor, text: "Why?", passage: passage)))
-    #expect(try Self.roundTrips(StopCompanion(item: Fixture.item)))
-    #expect(try Self.roundTrips(StartOverCompanion(item: Fixture.item)))
-    #expect(try Self.roundTrips(ChooseCompanion(item: Fixture.item, mentor: Fixture.mentor)))
-    #expect(try Self.roundTrips(CompanionConversation(item: Fixture.item)))
-    #expect(try Self.roundTrips(Feed<ItemConversation>.value(conversation)))
-    let names = [
-      AskCompanion.name, StopCompanion.name, StartOverCompanion.name, ChooseCompanion.name, CompanionConversation.name,
-    ]
-    #expect(Set(names).count == names.count)
-  }
-
-  @Test func anItemsConversationListensToItsItemAndToMentors() {
+  @Test func theMainConversationListensToTheLibraryAndAnItemsOnlyToItself() {
     let other = Fixture.id(9)
-    let subscription = CompanionConversation(item: Fixture.item)
-    #expect(subscription.isAffected(by: [.itemConversation(Fixture.item)]))
-    #expect(subscription.isAffected(by: [.mentor(other)]))
-    #expect(!subscription.isAffected(by: [.itemConversation(other), .conversation(Fixture.mentor)]))
+    let main = OneConversation(.main)
+    let onItem = OneConversation(.item(Fixture.item))
+
+    #expect(main.isAffected(by: [.events]))
+    #expect(main.isAffected(by: [.job(other)]))
+    #expect(main.isAffected(by: [.item(other)]))
+    #expect(!main.isAffected(by: [.conversation(.item(Fixture.item))]))
+    #expect(onItem.isAffected(by: [.conversation(.item(Fixture.item))]))
+    #expect(onItem.isAffected(by: [.item(Fixture.item)]))
+    #expect(!onItem.isAffected(by: [.events, .job(Fixture.item), .item(other), .conversation(.main)]))
   }
 }

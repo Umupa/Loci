@@ -13,7 +13,7 @@ struct NoteTests {
   }
 
   @Test func aSavedNoteSurvivesOneLineOfJSON() throws {
-    let exchange = try Note.Exchange(question: "为什么?", answer: "因为……", mentor: Fixture.mentor, askedAt: Fixture.instant)
+    let exchange = try Note.Exchange(question: "为什么?", answer: "因为……", askedAt: Fixture.instant)
     let note = try Note(
       id: Fixture.id(5), locator: Self.locator, excerpt: "过滤", thought: "像漏斗", exchanges: [exchange],
       savedAt: Fixture.instant)
@@ -22,6 +22,14 @@ struct NoteTests {
     #expect(!line.contains("\n"))
     #expect(line.contains(#""savedAt":"2025-11-17T00:00:00.123Z""#))
     #expect(try Fixture.roundTrip(NoteEntry.saved(note)) == .saved(note))
+  }
+
+  @Test func anExchangeSavedByAnEarlierVersionStillReads() throws {
+    let line =
+      #"{"event":"saved","id":"\#(Fixture.id(5))","locator":"\#(Self.locator)","savedAt":"2025-11-17T00:00:00.123Z","exchanges":[{"question":"q","answer":"a","mentor":"\#(Fixture.id(2))","askedAt":"2025-11-17T00:00:00.123Z"}]}"#
+
+    guard case .saved(let note) = try Fixture.decode(NoteEntry.self, line) else { throw ModelError("not saved") }
+    #expect(note.exchanges == [try Note.Exchange(question: "q", answer: "a", askedAt: Fixture.instant)])
   }
 
   @Test func aDeletionSurvivesJSON() throws {
@@ -43,7 +51,7 @@ struct NoteTests {
     #"{"event":"saved","id":"\#(Fixture.id(5))","locator":"loci://nowhere","savedAt":"2025-11-17T00:00:00.123Z"}"#,
     #"{"event":"saved","id":"\#(Fixture.id(5))","locator":"\#(locator)","savedAt":1763337600}"#,
     #"{"event":"saved","id":"\#(Fixture.id(5))","locator":"\#(locator)","thought":"","savedAt":"2025-11-17T00:00:00.123Z"}"#,
-    #"{"event":"saved","id":"\#(Fixture.id(5))","locator":"\#(locator)","savedAt":"2025-11-17T00:00:00.123Z","exchanges":[{"question":"q","answer":"","mentor":"\#(Fixture.mentor)","askedAt":"2025-11-17T00:00:00.123Z"}]}"#,
+    #"{"event":"saved","id":"\#(Fixture.id(5))","locator":"\#(locator)","savedAt":"2025-11-17T00:00:00.123Z","exchanges":[{"question":"q","answer":"","askedAt":"2025-11-17T00:00:00.123Z"}]}"#,
   ]
 
   @Test(arguments: broken)

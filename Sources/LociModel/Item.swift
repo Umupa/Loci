@@ -1,6 +1,6 @@
 import Foundation
 
-/// A piece of material someone else wrote; the contents of `item.json`. It belongs to no mentor.
+/// A piece of material someone else wrote; the contents of `item.json`. It belongs to the library.
 public struct Item: Hashable, Sendable {
   public let id: EntityID
   public let kind: Kind

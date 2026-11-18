@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import LociModel
 import SwiftUI
@@ -16,7 +17,7 @@ struct WindowMemoryTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let sample = try Sample()
-    let window = WindowState(place: .mentor(sample.scheduling.id), pages: [.lesson(sample.filterLesson)])
+    let window = WindowState(place: .library(.article), pages: [.item(sample.borg.id)])
 
     WindowMemory.preferences(defaults, folder: Self.folder).remember(window)
     let nextLaunch = WindowMemory.preferences(try #require(UserDefaults(suiteName: suite)), folder: Self.folder)
@@ -24,7 +25,7 @@ struct WindowMemoryTests {
     #expect(nextLaunch.recall() == window)
   }
 
-  @Test func withNothingRememberedTheWindowOpensAtStart() throws {
+  @Test func withNothingRememberedTheWindowOpensAtTheMainConversation() throws {
     let suite = "loci-window-memory-\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -32,8 +33,9 @@ struct WindowMemoryTests {
     #expect(WindowMemory.preferences(defaults, folder: Self.folder).recall() == WindowState())
   }
 
-  /// α1-S1: a data folder opened for the first time starts at the start page, whatever another folder left.
-  @Test func aNewDataFolderOpensAtStartWhateverAnotherFolderRemembers() throws {
+  /// α1-S1: a data folder opened for the first time starts at the main conversation, whatever another folder
+  /// left.
+  @Test func aNewDataFolderOpensAtTheMainConversationWhateverAnotherFolderRemembers() throws {
     let suite = "loci-window-memory-\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -51,7 +53,7 @@ struct WindowMemoryTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let sample = try Sample()
-    let here = WindowState(place: .mentor(sample.scheduling.id))
+    let here = WindowState(place: .loci)
     let studio = WindowState(place: .library(nil), pages: [.item(sample.borg.id)])
 
     WindowMemory.preferences(defaults, folder: Self.folder).remember(here)
@@ -77,9 +79,9 @@ struct WindowMemoryTests {
     #expect(remembered.withLock { $0 } == [last])
   }
 
-  @Test func aRememberedMentorThatWasDeletedOpensAtStart() async throws {
+  @Test func aRememberedItemThatWasDeletedOpensTheMainConversation() async throws {
     let sample = try Sample()
-    let gone = WindowState(place: .mentor(EntityID()))
+    let gone = WindowState(place: .library(nil), pages: [.item(EntityID())])
     let remembered = Mutex<[WindowState]>([])
     let memory = WindowMemory(recall: { gone }, remember: { state in remembered.withLock { $0.append(state) } })
 

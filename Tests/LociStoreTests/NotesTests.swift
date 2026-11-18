@@ -51,20 +51,6 @@ struct NotesTests {
     }
   }
 
-  @Test func lessonsWithTheSameSlugUnderTwoMentorsKeepSeparateNotes() throws {
-    try withStore { store in
-      let first = LessonRef(mentor: Fixture.id(1), lesson: Fixture.slug("intro"))
-      let second = LessonRef(mentor: Fixture.id(5), lesson: Fixture.slug("intro"))
-      let firstNote = try Self.note(10, locator: .lesson(first, try TextQuote("a")))
-      let secondNote = try Self.note(11, locator: .lesson(second, try TextQuote("b")))
-      try store.append(.saved(firstNote), on: .lesson(first))
-      try store.append(.saved(secondNote), on: .lesson(second))
-
-      #expect(store.notes(on: .lesson(first)).value == [firstNote])
-      #expect(store.notes(on: .lesson(second)).value == [secondNote])
-    }
-  }
-
   @Test func badLinesAreSkippedAndReportedWhileTheRestCount() throws {
     try withStore { store in
       let path = "notes/library/\(Self.item).jsonl"

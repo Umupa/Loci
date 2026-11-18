@@ -5,7 +5,6 @@ import Testing
 
 struct LocatorTests {
   static let item = Fixture.item.description
-  static let mentor = Fixture.mentor.description
   static let commit = Fixture.commit.description
 
   static let canonical = [
@@ -17,7 +16,6 @@ struct LocatorTests {
     "loci://library/\(item)#page=3&rect=72,-10.5,200.25,14",
     "loci://library/\(item)#path=src/vm.rs&L=12-40&rev=\(commit)",
     "loci://library/\(item)#path=README.md&L=7&rev=\(commit)",
-    "loci://mentor/\(mentor)/lesson/k8s-scheduling-01#quote=过滤与打分",
   ]
 
   @Test(arguments: canonical)
@@ -29,7 +27,6 @@ struct LocatorTests {
   }
 
   @Test func eachFormParsesToWhatItSays() throws {
-    let lesson = LessonRef(mentor: Fixture.mentor, lesson: try #require(Lesson.Slug("intro")))
     let expected: [(String, Locator)] = [
       (
         "loci://library/\(Self.item)#t=204.1,207.8",
@@ -47,7 +44,6 @@ struct LocatorTests {
         "loci://library/\(Self.item)#path=a/b.swift&L=3-5&rev=\(Self.commit)",
         .item(Fixture.item, .lines(try CodeLines(path: "a/b.swift", lines: 3...5, commit: Fixture.commit)))
       ),
-      ("loci://mentor/\(Self.mentor)/lesson/intro#quote=x", .lesson(lesson, try TextQuote("x"))),
     ]
     for (text, locator) in expected {
       #expect(Locator(text) == locator)
@@ -95,10 +91,7 @@ struct LocatorTests {
     "loci://library/3f2b8c1e-9d4a-4b6f-8a1c-2e5d7f9b0c3a#t=1",
     "loci://library/\(item.uppercased())#t=1",
     "loci://library/\(item)/extra#t=1",
-    "loci://mentor/\(mentor)/lesson/intro#t=1",
-    "loci://mentor/\(mentor)/lesson/Intro#quote=x",
-    "loci://mentor/\(mentor)/lesson/-intro#quote=x",
-    "loci://mentor/\(mentor)/lessons/intro#quote=x",
+    "loci://mentor/\(Fixture.id(2))/lesson/intro#quote=x",
     "loci://library/\(item)#t=1&t=2",
     "loci://library/\(item)#t=1&quote=x",
     "loci://library/\(item)#t=1&color=red",

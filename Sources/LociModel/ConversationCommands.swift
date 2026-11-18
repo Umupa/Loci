@@ -1,18 +1,19 @@
-/// Says something to a mentor. The reply arrives through `MentorConversation`.
+/// Says something to Loci in a conversation. The reply arrives through `OneConversation`.
 ///
-/// With a passage, the message is a question about it: the passage gets a note unless it has one, and when
-/// the turn ends with a reply, the question and the reply are saved in that note.
+/// With a passage, the message is a question about it: the passage gets a note unless it has one, and
+/// when the turn ends with a reply, the question and the reply are saved in that note. A passage is
+/// taken only in an item's conversation, and only from that item.
 ///
-/// Refused while the mentor is still working on a turn. A mentor whose agent cannot start still gets
-/// the message; the turn then ends at once with `.failed` saying why.
+/// Refused while the conversation has a turn running. A runtime that cannot start still takes the
+/// message; the turn then ends at once with `.failed` saying why.
 public struct SendMessage: Command {
   public static let name = "conversation.send"
-  public let mentor: EntityID
+  public let conversation: ConversationRef
   public let text: String
   public let passage: Passage?
 
-  public init(mentor: EntityID, text: String, passage: Passage? = nil) {
-    self.mentor = mentor
+  public init(to conversation: ConversationRef, text: String, passage: Passage? = nil) {
+    self.conversation = conversation
     self.text = text
     self.passage = passage
   }
@@ -22,13 +23,13 @@ public struct SendMessage: Command {
   }
 }
 
-/// Stops the mentor's running turn and returns once it has stopped. Does nothing when it is idle.
+/// Stops the conversation's running turn and returns once it has stopped. Does nothing when none runs.
 public struct StopTurn: Command {
   public static let name = "conversation.stop"
-  public let mentor: EntityID
+  public let conversation: ConversationRef
 
-  public init(mentor: EntityID) {
-    self.mentor = mentor
+  public init(in conversation: ConversationRef) {
+    self.conversation = conversation
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
@@ -36,15 +37,15 @@ public struct StopTurn: Command {
   }
 }
 
-/// Starts the conversation over: the mentor's next message goes to a fresh agent session that remembers
-/// nothing said before. Every message stays, with a line where it started over. Does nothing on a
-/// conversation with no messages yet; refused while the mentor is working on a turn.
+/// `/new`: the conversation's next message opens a fresh session that remembers nothing said before.
+/// Every message stays, with a `.startedOver` line. Does nothing on an empty conversation or right after
+/// another start over; refused while a turn runs.
 public struct StartOver: Command {
   public static let name = "conversation.startOver"
-  public let mentor: EntityID
+  public let conversation: ConversationRef
 
-  public init(mentor: EntityID) {
-    self.mentor = mentor
+  public init(in conversation: ConversationRef) {
+    self.conversation = conversation
   }
 
   public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
@@ -52,41 +53,29 @@ public struct StartOver: Command {
   }
 }
 
-/// Asks the mentor to write a lesson its catalog lists but that has no text yet.
-///
-/// Refused for a lesson that is not in the catalog, one already written, or while the mentor is busy.
-public struct WriteLesson: Command {
-  public static let name = "lesson.write"
-  public let lesson: LessonRef
-
-  public init(lesson: LessonRef) {
-    self.lesson = lesson
-  }
-
-  public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
-    try await handler.writeLesson(self)
-  }
-}
-
-/// A mentor's conversation, kept current as the mentor works.
-public struct MentorConversation: Subscription {
+/// One conversation, kept current as Loci answers and, for the main one, as things happen in the
+/// library. An item's conversation is unavailable once the item is deleted.
+public struct OneConversation: Subscription {
   public static let name = "conversation"
-  public let mentor: EntityID
+  public let conversation: ConversationRef
 
-  public init(mentor: EntityID) {
-    self.mentor = mentor
+  public init(_ conversation: ConversationRef) {
+    self.conversation = conversation
   }
 
   public func value(from handler: any CommandHandler) async throws(HostError) -> Conversation {
-    try await handler.conversation(of: mentor)
+    try await handler.conversation(conversation)
   }
 
+  /// The main conversation shows events, with the items and jobs they are about.
   public func isAffected(by changes: Set<ContentChange>) -> Bool {
     changes.contains { change in
       switch change {
-      case .conversation(let id), .mentor(let id): id == mentor
+      case .conversation(let changed), .turnEnded(let changed): changed == conversation
       case .everything: true
-      case .catalog, .lesson, .item, .notes, .mind, .reading, .job, .itemConversation, .media: false
+      case .events, .job: conversation == .main
+      case .item(let item): conversation == .main || conversation == .item(item)
+      case .notes, .reading, .media, .review, .loci, .runtime: false
       }
     }
   }

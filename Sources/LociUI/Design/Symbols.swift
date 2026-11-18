@@ -2,18 +2,12 @@ import LociModel
 
 /// The SF Symbols the interface uses, by meaning.
 enum Symbols {
-  static let start = "square.and.pencil"
   static let library = "books.vertical"
   static let problem = "exclamationmark.triangle.fill"
   static let send = "arrow.up"
   static let link = "link"
-  static let lesson = "doc.plaintext"
   static let settings = "gearshape"
   static let agents = "terminal"
-  static let lessonUnwritten = "circle.dashed"
-  static let lessonUnread = "circle"
-  static let lessonRead = "checkmark.circle.fill"
-  static let lessonRevised = "circle.badge.exclamationmark"
   static let fold = "chevron.right"
   static let popup = "chevron.up.chevron.down"
   static let highlight = "pencil.tip"
@@ -35,6 +29,7 @@ enum Symbols {
   static let backToPlaying = "arrow.up"
   static let download = "arrow.down.to.line"
   static let add = "plus"
+  static let camera = "camera"
   static let lock = "lock"
   static let reload = "arrow.clockwise"
   static let back = "chevron.left"
@@ -88,14 +83,8 @@ enum Symbols {
 enum ItemKind: String, CaseIterable, Codable, Hashable {
   case video, audio, article, paper, repository
 
-  /// The kinds the sidebar lists, in a fixed order: video, podcasts and articles always, as the places links
-  /// are added to; papers and repositories once there is one.
-  static func listed(in items: [Item]) -> [ItemKind] {
-    let present = Set(items.map { ItemKind($0.kind) })
-    return allCases.filter { always.contains($0) || present.contains($0) }
-  }
-
-  private static let always: Set<ItemKind> = [.video, .audio, .article]
+  /// The kinds the sidebar lists, in a fixed order.
+  static let listed: [ItemKind] = [.video, .audio, .article, .paper]
 
   init(_ kind: Item.Kind) {
     switch kind {

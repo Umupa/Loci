@@ -7,20 +7,17 @@ import Testing
 struct WatchTests {
   /// The one test against real FSEvents. It checks that a change arrives, not how fast; the one-second
   /// promise of α1-S5 is checked in the running app.
-  @Test func anOutsideEditToMentorJSONIsReported() async throws {
+  @Test func anOutsideEditToSoulIsReported() async throws {
     let store = temporaryStore()
     defer { try? FileManager.default.removeItem(at: store.root) }
-    let mentor = try Fixture.mentor()
-    try store.create(mentor)
-    let file = try store.mentorFolder(mentor.id).appending(path: Store.mentorFile)
+    try store.prepareAgent(soul: "You are Loci.\n")
     let changes = store.changes()
 
-    let edited = try String(contentsOf: file, encoding: .utf8).replacing("调度", with: "排程")
-    try Data(edited.utf8).write(to: file)
+    try Data("You are someone else.\n".utf8).write(to: store.agentFolder.appending(path: "SOUL.md"))
 
     let heard = await withTaskGroup(of: Bool.self) { group in
       group.addTask {
-        for await batch in changes where batch.contains(.mentor(mentor.id)) { return true }
+        for await batch in changes where batch.contains(.loci(.soul)) { return true }
         return false
       }
       group.addTask {
@@ -33,6 +30,6 @@ struct WatchTests {
     }
 
     #expect(heard)
-    #expect(try store.mentor(mentor.id).name == "排程")
+    #expect(try store.agentText(.soul) == "You are someone else.\n")
   }
 }

@@ -19,8 +19,7 @@ extension StoreDatabase {
   func readMirrors(from store: Store) -> (updates: [MirrorUpdate], problems: [FileProblem]) {
     let snapshot = store.load()
     let updates =
-      snapshot.mentors.map { MirrorUpdate.mentor($0.mentor.id, $0) }
-      + snapshot.items.map { item in
+      snapshot.items.map { item in
         MirrorUpdate.item(
           item.id, item,
           content: Self.text(of: item) {
@@ -38,20 +37,14 @@ extension StoreDatabase {
     }
   }
 
-  /// Updates only the rows the changes touch. A change to a lesson or a catalog refreshes that mentor's
-  /// rows, so lessons missing from the catalog keep the same order a rebuild gives them.
+  /// Updates only the rows the changes touch.
   @discardableResult
   public func apply(_ changes: Set<ContentChange>, from store: Store) throws -> [FileProblem] {
     if changes.contains(.everything) { return try rebuild(from: store) }
     var problems: [FileProblem] = []
-    var mentors = Set<EntityID>()
     var updates: [MirrorUpdate] = []
     for change in changes {
       switch change {
-      case .mentor(let id), .catalog(let id):
-        mentors.insert(id)
-      case .lesson(let lesson):
-        mentors.insert(lesson.mentor)
       case .item(let id):
         let item = Self.item(id, in: store, problems: &problems)
         updates.append(.item(id, item, content: item.flatMap { Self.text(of: $0) { try store.content(of: id) } }))
@@ -59,14 +52,9 @@ extension StoreDatabase {
         let notes = store.notes(on: content)
         problems += notes.problems
         updates.append(.notes(content, notes.value))
-      case .everything, .conversation, .mind, .reading, .job, .itemConversation, .media:
+      case .everything, .reading, .job, .media, .conversation, .turnEnded, .review, .events, .loci, .runtime:
         continue
       }
-    }
-    for id in mentors {
-      let loaded = store.loadMentor(id)
-      problems += loaded.problems
-      updates.append(.mentor(id, loaded.value))
     }
     try queue.write { db in
       for update in updates { try update.write(db) }

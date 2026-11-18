@@ -2,7 +2,7 @@ import AppKit
 import HighlightSwift
 import Markdown
 
-/// A lesson's or an item's Markdown, set for reading, with the headings it contains.
+/// An item's Markdown, set for reading, with the headings it contains.
 ///
 /// The same Markdown always gives the same characters, so a quote taken from the text finds its place
 /// again the next time it is set.
@@ -56,6 +56,7 @@ private struct MarkdownRenderer {
 
   func finished() -> NSAttributedString {
     if output.string.hasSuffix("\n") { output.deleteCharacters(in: NSRange(location: output.length - 1, length: 1)) }
+    Serif.setCJKFonts(in: output)
     return output
   }
 

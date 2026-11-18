@@ -8,11 +8,11 @@ struct FrameTests {
   @Test func everyFrameRoundTrips() {
     let bytes = Data((0..<300).map { UInt8($0 % 256) })
     let frames: [Frame] = [
-      .call(id: 1, name: "mentor.create", body: Data("{}".utf8)),
+      .call(id: 1, name: "conversation.send", body: Data("{}".utf8)),
       .reply(id: 2, body: bytes),
-      .failure(id: 3, .notFound("mentor")),
+      .failure(id: 3, .notFound("item")),
       .cancel(id: 4),
-      .subscribe(id: 5, name: "conversation", body: Data("{\"mentor\":1}".utf8)),
+      .subscribe(id: 5, name: "conversation", body: Data("{\"conversation\":\"main\"}".utf8)),
       .feed(id: 6, body: bytes),
       .delta(id: 7, body: Data()),
       .unsubscribe(id: .max),
@@ -28,7 +28,7 @@ struct FrameTests {
   }
 
   @Test func aTruncatedFrameIsRejected() {
-    let frame = Frame.call(id: 1, name: "mentor.create", body: Data()).encoded
+    let frame = Frame.call(id: 1, name: "conversation.send", body: Data()).encoded
 
     #expect(Frame(frame.prefix(8)) == nil)
     #expect(Frame(Data([99, 0, 0, 0, 1])) == nil)

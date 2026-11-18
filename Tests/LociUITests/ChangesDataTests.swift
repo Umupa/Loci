@@ -5,7 +5,7 @@ import Testing
 struct ChangesDataTests {
   /// What the reader changes just by reading: where they are, what they have read. These are sent quietly and
   /// wait for the Mac to come back; no control sends them.
-  static let byReading: Set = ["MarkRead", "SaveReadingPosition", "SeeLesson"]
+  static let byReading: Set = ["MarkRead", "SaveReadingPosition"]
 
   /// A file that sends a command `Wire` marks as a write has to say how its control goes quiet: marked
   /// `.changesData()`, reading `changesAllowed`, or with an `OfflineLine` standing in its place.

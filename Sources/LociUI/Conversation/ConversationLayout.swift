@@ -4,38 +4,51 @@ import LociModel
 enum ConversationEntry: Identifiable {
   /// What the person said, with the passage they asked about.
   case asked(Message, Prompt)
-  /// What Loci asked for, or how a turn went, said quietly between the messages.
+  /// How a turn went, or where the conversation started over, said quietly between the messages.
   case aside(Message)
   /// The thinking and tools between two replies, in one card.
   case steps([ConversationStep])
   case reply(Message, String, streaming: Bool)
   case saved(Message, note: EntityID)
+  /// Something that happened in the library.
+  case event(WorldEvent)
 
   var id: EntityID {
     switch self {
     case .asked(let message, _), .aside(let message), .reply(let message, _, _), .saved(let message, _): message.id
     case .steps(let steps): steps[0].id
+    case .event(let event): event.id
     }
   }
 
-  /// The messages of a conversation, oldest first, as the conversation shows them. With `live`, the last
-  /// message belongs to the turn running now.
-  static func layout(_ messages: [Message], live: Bool) -> [ConversationEntry] {
+  /// A conversation's messages and events, oldest first, as the conversation shows them. With `live`, the
+  /// last one belongs to the turn running now.
+  static func layout(_ said: [Conversation.Entry], live: Bool) -> [ConversationEntry] {
     var entries: [ConversationEntry] = []
     var steps: [ConversationStep] = []
     func close() {
       if !steps.isEmpty { entries.append(.steps(steps)) }
       steps = []
     }
-    for (index, message) in messages.enumerated() {
-      let next = messages.indices.contains(index + 1) ? messages[index + 1] : nil
-      let isLast = next == nil && live
+    for (index, entry) in said.enumerated() {
+      let message: Message
+      switch entry {
+      case .event(let event):
+        close()
+        entries.append(.event(event))
+        continue
+      case .message(let said):
+        message = said
+      }
+      let next: Message? =
+        if said.indices.contains(index + 1), case .message(let following) = said[index + 1] { following } else { nil }
+      let isLast = index == said.count - 1 && live
       switch message.body {
       case .thinking(let text):
         steps.append(ConversationStep(message: message, kind: .thinking(text), next: next, isGoing: isLast))
       case .tool(let tool):
         steps.append(ConversationStep(message: message, kind: .tool(tool), next: next, isGoing: isLast))
-      case .prompt(let prompt) where prompt.purpose == .chat:
+      case .prompt(let prompt):
         close()
         entries.append(.asked(message, prompt))
       case .reply(let text):
@@ -44,11 +57,7 @@ enum ConversationEntry: Identifiable {
       case .savedToNote(let note):
         close()
         entries.append(.saved(message, note: note))
-      case .startedOver:
-        close()
-        if case .aside(let line) = entries.last, line.body == .startedOver { continue }
-        entries.append(.aside(message))
-      case .prompt, .notice, .ended:
+      case .notice, .ended, .startedOver:
         close()
         entries.append(.aside(message))
       }
@@ -78,14 +87,14 @@ extension ConversationEntry {
         close()
       case .aside(let message):
         switch message.body {
-        case .prompt, .startedOver: close()
+        case .startedOver: close()
         default: break
         }
       case .reply(let message, let text, let going):
         texts.append(text)
         last = message.id
         streaming = going
-      case .steps, .saved:
+      case .steps, .saved, .event:
         break
       }
     }

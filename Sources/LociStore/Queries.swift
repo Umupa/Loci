@@ -3,33 +3,6 @@ import GRDB
 import LociModel
 
 extension StoreDatabase {
-  /// What one lesson cites, in the order the lesson cites it.
-  public func citations(in lesson: LessonRef) throws -> [Citation] {
-    try queue.read { db in
-      try Row.fetchAll(
-        db, sql: "SELECT item_id, anchor FROM citation WHERE mentor_id = ? AND slug = ? ORDER BY position",
-        arguments: [lesson.mentor.description, lesson.lesson.description]
-      ).compactMap { Self.citation(in: lesson, $0) }
-    }
-  }
-
-  /// Every lesson, of any mentor, that cites the item.
-  public func citations(of item: EntityID) throws -> [Citation] {
-    try queue.read { db in
-      try Row.fetchAll(
-        db,
-        sql:
-          "SELECT mentor_id, slug, item_id, anchor FROM citation WHERE item_id = ? ORDER BY mentor_id, slug, position",
-        arguments: [item.description]
-      ).compactMap { row in
-        guard let mentor = EntityID(canonical: row["mentor_id"]), let slug = Lesson.Slug(row["slug"]) else {
-          return nil
-        }
-        return Self.citation(in: LessonRef(mentor: mentor, lesson: slug), row)
-      }
-    }
-  }
-
   /// The notes on one piece of content, in the order they were first saved.
   public func notes(on content: ContentRef) throws -> [Note] {
     try queue.read { db in
@@ -44,50 +17,12 @@ extension StoreDatabase {
       }
     }
   }
-
-  private static func citation(in lesson: LessonRef, _ row: Row) -> Citation? {
-    guard let item = EntityID(canonical: row["item_id"]) else { return nil }
-    let anchorText: String? = row["anchor"]
-    guard let anchorText else { return Citation(lesson: lesson, item: item, anchor: nil) }
-    guard case .item(_, let anchor) = Locator(anchorText) else { return nil }
-    return Citation(lesson: lesson, item: item, anchor: anchor)
-  }
 }
 
 extension StoreDatabase {
-  /// Every mentor, by name.
-  public func mentors() throws -> [Mentor] {
-    try documents(Mentor.self, sql: "SELECT document FROM mentor ORDER BY name, id")
-  }
-
   /// Every item, newest first.
   public func items() throws -> [Item] {
     try documents(Item.self, sql: "SELECT document FROM item ORDER BY id DESC")
-  }
-
-  /// Every lesson that cites the item, with its mentor's name and its title.
-  public func citingLessons(of item: EntityID) throws -> [CitingLesson] {
-    let labels = try queue.read { db in
-      try Row.fetchAll(
-        db,
-        sql: """
-          SELECT DISTINCT c.mentor_id, c.slug, m.name, l.title FROM citation c
-          JOIN mentor m ON m.id = c.mentor_id
-          LEFT JOIN lesson l ON l.mentor_id = c.mentor_id AND l.slug = c.slug
-          WHERE c.item_id = ?
-          """,
-        arguments: [item.description])
-    }
-    var names: [LessonRef: (mentor: String, lesson: String?)] = [:]
-    for row in labels {
-      guard let mentor = EntityID(canonical: row["mentor_id"]), let slug = Lesson.Slug(row["slug"]) else { continue }
-      names[LessonRef(mentor: mentor, lesson: slug)] = (row["name"], row["title"])
-    }
-    return try citations(of: item).compactMap { citation in
-      names[citation.lesson].map {
-        CitingLesson(citation: citation, mentorName: $0.mentor, lessonTitle: $0.lesson)
-      }
-    }
   }
 
   private func documents<Value: Decodable>(_ type: Value.Type, sql: String) throws -> [Value] {

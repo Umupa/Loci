@@ -4,9 +4,6 @@ import UniformTypeIdentifiers
 
 /// The questions and notices a window can show, one value so the root view keeps them in one place.
 struct Dialogs {
-  var renaming: Mentor?
-  var newName = ""
-  var deletingMentor: Mentor?
   var deletingItem: Item?
   var importing = false
   /// What went wrong. A change refused because the Mac is offline is not told: the window already says so.
@@ -14,11 +11,6 @@ struct Dialogs {
     didSet { if case .offline? = failure { failure = nil } }
   }
   var readingStateLost = false
-
-  mutating func rename(_ mentor: Mentor) {
-    renaming = mentor
-    newName = mentor.name
-  }
 }
 
 extension View {
@@ -37,19 +29,6 @@ private struct DialogsModifier: ViewModifier {
 
   private func questions(_ content: Content) -> some View {
     content
-      .alert(Text(.loci("mentor.rename")), isPresented: present(\.renaming), presenting: dialogs.renaming) { mentor in
-        TextField(text: $dialogs.newName) { Text(.loci("mentor.name")) }
-        Button {
-          rename(mentor)
-        } label: {
-          Text(.loci("mentor.rename"))
-        }
-        .changesData()
-        Button(role: .cancel) {
-        } label: {
-          Text(.loci("dialog.cancel"))
-        }
-      }
       .alert(Text(.loci("dialog.failed")), isPresented: present(\.failure), presenting: dialogs.failure) { _ in
         Button(role: .cancel) {
         } label: {
@@ -68,13 +47,6 @@ private struct DialogsModifier: ViewModifier {
 
   private func deleting(_ content: some View) -> some View {
     content
-      .confirmationDialog(
-        Text(.loci("mentor.deleteQuestion")), isPresented: present(\.deletingMentor), presenting: dialogs.deletingMentor
-      ) { mentor in
-        DeleteChoices { notes in
-          perform { _ = try await host.run(DeleteMentor(mentor: mentor.id, notes: notes)) }
-        }
-      }
       .confirmationDialog(
         Text(.loci("item.deleteQuestion")), isPresented: present(\.deletingItem), presenting: dialogs.deletingItem
       ) { item in
@@ -101,11 +73,6 @@ private struct DialogsModifier: ViewModifier {
         }
       }
     }
-  }
-
-  private func rename(_ mentor: Mentor) {
-    let name = dialogs.newName
-    perform { _ = try await host.run(RenameMentor(mentor: mentor.id, name: name)) }
   }
 
   private func perform(_ work: @escaping @MainActor () async throws -> Void) {

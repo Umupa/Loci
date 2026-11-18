@@ -28,11 +28,11 @@ struct TranscriptAgentTests {
       })
   }
 
-  static func writer(_ agent: FakeAgent, translationPiece: Int = 60, provider: Mentor.Provider = .pi)
+  static func writer(_ agent: FakeAgent, translationPiece: Int = 60, provider: Provider = .pi)
     -> AgentTranscriptAgent
   {
     AgentTranscriptAgent(
-      choice: AgentChoice(provider: provider), agents: { $0 == .pi ? agent : nil }, translationPiece: translationPiece)
+      runtime: Runtime(provider: provider), agents: { $0 == .pi ? agent : nil }, translationPiece: translationPiece)
   }
 
   /// Translates by echoing each line of the prompt's JSON with a mark.

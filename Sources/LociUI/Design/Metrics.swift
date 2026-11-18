@@ -12,9 +12,9 @@ enum Spacing {
 }
 
 enum Radius {
-  /// Tags and small badges, and a lesson's row in the sidebar.
+  /// Tags and small badges.
   static let small: CGFloat = 7
-  /// A row in the sidebar.
+  /// A small button's wash, and a chip under the input field.
   static let row: CGFloat = 8
   /// Grouped rows in settings, code blocks and steps of a reply.
   static let group: CGFloat = 12
@@ -28,12 +28,20 @@ enum Radius {
   static let cover: CGFloat = 10
   /// A push button, as System Settings draws one.
   static let push: CGFloat = 6
+  /// The round corners of a message, and the tighter ones where it meets the next from the same speaker.
+  static let message: CGFloat = 18
+  static let messageJoin: CGFloat = 6
+  /// The field at the foot of a conversation.
+  static let composer: CGFloat = 22
+  /// A row of the sidebar, and Loci's own row at its top.
+  static let sidebarRow: CGFloat = 9
+  static let sidebarLoci: CGFloat = 12
   /// A sheet dropped over the window.
   static let sheet: CGFloat = 24
 }
 
 enum Size {
-  static let sidebarIdeal: CGFloat = 236
+  static let sidebarIdeal: CGFloat = 228
   /// Room at the top of the sidebar for the window's close, minimize and zoom buttons.
   static let trafficLights: CGFloat = 36
   /// Where the close button sits: inside the floating sidebar, as far from its edge as the panel is from the
@@ -41,8 +49,6 @@ enum Size {
   static let windowButtons = CGPoint(x: 22, y: 22)
   static let cardMinimumWidth: CGFloat = 200
   static let cardThumbnailRatio: CGFloat = 16 / 9
-  static let promptMaximumWidth: CGFloat = 560
-  static let promptHeight: CGFloat = 44
   static let panelWidth: CGFloat = 384
   /// The strip along a pane's edge that drags it wider.
   static let resizer: CGFloat = 8
@@ -50,22 +56,13 @@ enum Size {
   static let sidebarToggleLeading: CGFloat = 84
   /// The narrowest the reading column gets when the panel beside it is dragged wide.
   static let readerMinimum: CGFloat = 320
-  /// The row at the top of the panel beside the text.
-  static let panelHeader: CGFloat = 52
-  static let termCardWidth: CGFloat = 280
   static let thoughtFieldWidth: CGFloat = 300
   static let toolOutputHeight: CGFloat = 220
-  static let rowHeight: CGFloat = 30
-  static let lessonRowHeight: CGFloat = 26
-  static let lessonGlyph: CGFloat = 12
   static let iconButton: CGFloat = 28
-  static let avatarSmall: CGFloat = 20
   static let avatarTiny: CGFloat = 16
-  static let avatarMedium: CGFloat = 24
-  static let avatarLarge: CGFloat = 64
   static let thumbnailSymbol: CGFloat = 30
   static let emptySymbol: CGFloat = 44
-  static let sendButton: CGFloat = 28
+  static let sendButton: CGFloat = 30
   static let problemListWidth: CGFloat = 380
   static let settingsWidth: CGFloat = 600
   static let wideSettingsWidth: CGFloat = 640
@@ -86,7 +83,7 @@ enum Size {
   static let meter: CGFloat = 96
   static let meterHeight: CGFloat = 4
   static let pushHeight: CGFloat = 22
-  /// The empty library's field, as on the start page.
+  /// The empty library's field.
   static let startFieldWidth: CGFloat = 600
 
   /// The panel beside a video, a podcast or an article.
@@ -131,7 +128,7 @@ enum Size {
 enum Motion {
   static let standard = Animation.spring(duration: 0.35, bounce: 0.12)
   static let quick = Animation.snappy(duration: 0.2)
-  /// Opening and closing a course in the sidebar, or the panel beside the text.
+  /// Opening and closing the sidebar, or the panel beside the text.
   static let fold = Animation.spring(duration: 0.3, bounce: 0.1)
   /// A new message or card rising into place.
   static let rise = Animation.spring(response: 0.28, dampingFraction: 0.67)
@@ -143,6 +140,14 @@ enum Motion {
   static let flashFade = Animation.easeOut(duration: 1)
   /// The flash in the reader fades in steps this long, over about a second.
   static let flashFadeStep = Duration.milliseconds(50)
+  /// A message, event or card arriving: it rises into place as it fades in.
+  static let arrive = Animation.timingCurve(0.28, 0.67, 0.32, 1, duration: 0.45)
+  /// Loci's dot while it works, and the step of a task going on now: fading to `breathLow` and back once
+  /// every `period` seconds.
+  static func breathe(_ period: Double) -> Animation {
+    .easeInOut(duration: period / 2).repeatForever(autoreverses: true)
+  }
+  static let breathLow = 0.3
   /// A rebuild finishing sooner than this is not shown at all, so nothing flickers.
   static let quietDelay = Duration.milliseconds(300)
 }

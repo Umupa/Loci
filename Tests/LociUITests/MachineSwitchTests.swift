@@ -21,7 +21,7 @@ struct MachineSwitchTests {
   }
 
   /// Opens a window on `current` and says which Mac's memory it read and what it kept there, once it has kept a
-  /// place and the data it asked for has arrived, so a place it would give up for a missing mentor is gone too.
+  /// place and the data it asked for has arrived, so a place it would give up for a missing item is gone too.
   static func open(_ machines: FakeMachines, current: MachineID?, places: [MachineID?: WindowState]) async throws
     -> (asked: [MachineID?], kept: [MachineID?: WindowState])
   {
@@ -42,9 +42,8 @@ struct MachineSwitchTests {
   }
 
   @Test func aPairedMacOpensWhereItWasLeftWithoutTouchingThisMacsPlace() async throws {
-    let sample = try Sample()
     let studio = FakeMachines.studio.id
-    let there = WindowState(place: .mentor(sample.scheduling.id))
+    let there = WindowState(place: .loci)
 
     let opened = try await Self.open(
       try Self.machines(), current: studio, places: [nil: WindowState(place: .library(nil)), studio: there])
@@ -87,7 +86,7 @@ struct MachineSwitchTests {
     var dialogs = Dialogs()
     dialogs.failure = .offline
     #expect(dialogs.failure == nil)
-    dialogs.failure = .notFound("mentor")
+    dialogs.failure = .notFound("item")
     #expect(dialogs.failure != nil)
   }
 }

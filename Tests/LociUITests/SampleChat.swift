@@ -51,7 +51,7 @@ extension Sample {
       (33, .reply("lstrip 只从左边开始。")),
     ]
     return Conversation(
-      mentor: scheduling.id, messages: messages.map { Self.chatMessage($0.0, $0.1, &entropy) }, turn: nil,
+      ref: .main, entries: messages.map { .message(Self.chatMessage($0.0, $0.1, &entropy)) }, turn: nil,
       context: ContextUsage(used: 30_000, window: 200_000))
   }
 
@@ -67,7 +67,9 @@ extension Sample {
       Self.tool("f", "commandExecution", .execute, "/bin/zsh -lc 'pytest -q'", state: .running),
     ]
     let messages = bodies.enumerated().map { Self.chatMessage(Double($0.offset) * 2, $0.element, &entropy) }
-    guard case .steps(let steps) = ConversationEntry.layout(messages, live: true).first else { return [] }
+    guard case .steps(let steps) = ConversationEntry.layout(messages.map { .message($0) }, live: true).first else {
+      return []
+    }
     return steps
   }
 }

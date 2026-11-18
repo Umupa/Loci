@@ -19,20 +19,11 @@ struct LibraryContext: Sendable {
 
   var settings: HostSettings { (try? store.settings()) ?? HostSettings() }
 
-  /// The language transcripts are translated into: the lessons' language, or the reader's own.
-  var targetLanguage: String {
-    switch settings.lessonLanguage {
-    case .fixed(let tag): tag
-    case .learners: media.readerLanguage
-    }
-  }
+  /// The language transcripts are translated into: the reader's own.
+  var targetLanguage: String { media.readerLanguage }
 
-  /// The agent chosen in the settings, with its model.
-  var agentChoice: AgentChoice {
-    let settings = settings
-    let provider = settings.agent ?? environment.defaultProvider
-    return AgentChoice(provider: provider, model: settings.models[provider] ?? environment.defaultModel)
-  }
+  /// What Loci runs on.
+  var runtime: Runtime { settings.runtime ?? environment.defaultRuntime }
 
   var speechModel: SpeechModel { settings.speechModel ?? .recommended }
 }

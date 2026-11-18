@@ -22,7 +22,7 @@ public struct ModelList: Sendable {
 
   /// The models in the program's own order; empty when it is not installed, cannot list its models, or
   /// answers with something Loci cannot read.
-  public func models(of provider: Mentor.Provider) async -> [String] {
+  public func models(of provider: Provider) async -> [String] {
     guard let cli = AgentCLI.all.first(where: { $0.provider == provider }),
       let executable = search.executable(named: cli.names)
     else { return [] }

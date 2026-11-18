@@ -3,7 +3,7 @@ import LociModel
 
 /// Drives Pi through `pi --mode rpc`.
 public struct PiDriver: AgentDriver {
-  public var provider: Mentor.Provider { variant.provider }
+  public var provider: Provider { variant.provider }
 
   private let executable: URL
   private let arguments: [String]
