@@ -1,7 +1,9 @@
 import Foundation
 
 /// The script run in every page of the built-in browser. It reports, after the page loads and again whenever
-/// it changes, the single videos linked from it and whether it holds a readable body of text.
+/// it changes, the single videos linked from it and whether it holds a readable body of text. A video is a
+/// link with a title, a thumbnail or a length; buttons such as a playlist's "Play all" and "Shuffle" link to a
+/// video too, and are left out.
 enum PageScript {
   static let channel = "loci"
 
@@ -39,11 +41,13 @@ enum PageScript {
         const here = watch(new URL(location.href));
         const found = new Map();
         for (const a of document.querySelectorAll('a[href]')) {
+          if (a.closest('button, [role=button], [class*="button"], [class*="Button"]')) continue;
           let u; try { u = new URL(a.href, location.href); } catch { continue; }
           const key = watch(u);
           if (!key || key === here) continue;
           const v = found.get(key) || { url: key };
-          const named = a.getAttribute('title') || a.getAttribute('aria-label') || textOf(a.querySelector('#video-title, h3, .title'));
+          const titled = a.getAttribute('title') || textOf(a.querySelector('#video-title, h3, .title'));
+          const named = titled || a.getAttribute('aria-label');
           const written = a.querySelector('img') ? '' : textOf(a);
           if (named && named.length < 300 && !v.named) { v.title = named; v.named = true; }
           if (!v.title && written && written.length < 300) v.title = written;
@@ -51,6 +55,7 @@ enum PageScript {
           if (!v.thumbnail && img && img.src && img.src.startsWith('http')) v.thumbnail = img.src;
           const time = textOf(a.querySelector('.badge-shape-wiz__text, ytd-thumbnail-overlay-time-status-renderer, .bili-video-card__stats__duration, .duration'));
           if (!v.duration && /^\d{1,2}(:\d{2}){1,2}$/.test(time)) v.duration = time;
+          if (titled || v.thumbnail || v.duration) v.card = true;
           found.set(key, v);
           if (found.size >= 60) break;
         }
@@ -58,7 +63,7 @@ enum PageScript {
         const longest = Math.max(0, ...blocks.map((b) => [...b.querySelectorAll('p')].map(textOf).join('').length));
         const cjk = /[぀-ヿ㐀-鿿]/.test(document.title + textOf(document.querySelector('p')));
         window.webkit.messageHandlers.loci.postMessage({
-          videos: [...found.values()].filter((v) => v.title),
+          videos: [...found.values()].filter((v) => v.title && v.card),
           article: longest >= (cjk ? 500 : 1500),
         });
       };

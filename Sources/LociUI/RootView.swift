@@ -35,6 +35,34 @@ public struct RootView: View {
   }
 
   public var body: some View {
+    layout
+      .background(WindowButtons(inset: Size.windowButtons))
+      .background(LinkPasteKey(paste: linkPaste))
+      .toolbar(removing: .title)
+      .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+      .tint(Palette.accent)
+      .frame(minWidth: Size.windowMinimum.width, minHeight: Size.windowMinimum.height)
+      .subscribing(AllMentors(), into: $mentors)
+      .subscribing(AllItems(), into: $items)
+      .subscribing(HealthReport(), into: $health)
+      .onAppear(perform: restore)
+      .onChange(of: window) { memory.remember(window) }
+      .onChange(of: known) { _, known in
+        if let known { window = window.keeping(mentors: known.mentors, items: known.items) }
+      }
+      .onChange(of: health?.value?.readingStateLost) { _, lost in
+        if lost == true { dialogs.readingStateLost = true }
+      }
+      .focusedSceneValue(\.navigator, navigator)
+      .dialogs($dialogs, host: host)
+      .environment(\.covers, covers)
+      .environment(\.browser, browser)
+      .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
+      .lociAppearance()
+  }
+
+  /// The sidebar beside the place and the pages over it, with the buttons that float at the top.
+  private var layout: some View {
     HStack(spacing: 0) {
       if sidebarShown { sidebar.transition(.move(edge: .leading).combined(with: .opacity)) }
       PageStack(pages: $window.pages) {
@@ -64,28 +92,6 @@ public struct RootView: View {
     }
     .ignoresSafeArea(edges: .top)
     .background(Palette.canvas)
-    .background(WindowButtons(inset: Size.windowButtons))
-    .toolbar(removing: .title)
-    .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-    .tint(Palette.accent)
-    .frame(minWidth: Size.windowMinimum.width, minHeight: Size.windowMinimum.height)
-    .subscribing(AllMentors(), into: $mentors)
-    .subscribing(AllItems(), into: $items)
-    .subscribing(HealthReport(), into: $health)
-    .onAppear(perform: restore)
-    .onChange(of: window) { memory.remember(window) }
-    .onChange(of: known) { _, known in
-      if let known { window = window.keeping(mentors: known.mentors, items: known.items) }
-    }
-    .onChange(of: health?.value?.readingStateLost) { _, lost in
-      if lost == true { dialogs.readingStateLost = true }
-    }
-    .focusedSceneValue(\.navigator, navigator)
-    .dialogs($dialogs, host: host)
-    .environment(\.covers, covers)
-    .environment(\.browser, browser)
-    .environment(\.showFailure, ShowFailure { dialogs.failure = $0 })
-    .lociAppearance()
   }
 
   private var sidebar: some View {
@@ -213,7 +219,29 @@ public struct RootView: View {
       showLibrary: { window = WindowState(place: .library(nil)) },
       showSettings: { window = WindowState(place: .settings(.general)) },
       toggleSidebar: toggleSidebar,
-      addFile: { dialogs.importing = true })
+      addFile: { dialogs.importing = true },
+      pasteLink: linkPaste.map { paste in { _ = paste() } })
+  }
+
+  /// What ⌘V does with a link where the window takes one.
+  private var linkPaste: (@MainActor () -> Bool)? {
+    takesLinks ? pasteLink : nil
+  }
+
+  /// The start page and the library take a pasted link, but not a page opened over them.
+  private var takesLinks: Bool {
+    guard window.pages.isEmpty else { return false }
+    switch window.place {
+    case .start, .library: return true
+    case .lesson, .mentor, .browser, .settings: return false
+    }
+  }
+
+  /// Adds the link on the pasteboard and opens it. Whether there was one.
+  private func pasteLink() -> Bool {
+    guard let url = PastedLink.on(.general) else { return false }
+    Task { _ = await host.addLink(url, opened: { window = $0 }, failed: { dialogs.failure = $0 }) }
+    return true
   }
 
   private func restore() {

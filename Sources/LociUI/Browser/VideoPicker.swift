@@ -2,6 +2,7 @@ import LociModel
 import SwiftUI
 
 /// The videos a channel or list page links to, each with a check; those not yet in the library start checked.
+/// One switch checks them all, or clears them all once all are checked.
 struct VideoPicker: View {
   let videos: [FoundVideo]
   let library: [Item]
@@ -28,6 +29,16 @@ struct VideoPicker: View {
       .fixedSize(horizontal: false, vertical: true)
       Rectangle().fill(Palette.lineStrong).frame(height: Size.hairline).padding(.top, Spacing.xxs)
       HStack {
+        Button {
+          chosen = Self.toggledAll(chosen, of: videos)
+        } label: {
+          Text(chosen.isSuperset(of: videos.map(\.url)) ? .loci("browser.selectNone") : .loci("browser.selectAll"))
+            .font(Typography.button)
+            .foregroundStyle(Palette.inkMuted)
+            .padding(.horizontal, Spacing.xxs)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
         Spacer()
         PrimaryButton(
           action: { download(videos.map(\.url).filter(chosen.contains)) },
@@ -55,6 +66,12 @@ struct VideoPicker: View {
       RoundedRectangle(cornerRadius: Spacing.m, style: .continuous).strokeBorder(
         Palette.lineStrong, lineWidth: Size.hairline)
     )
+  }
+
+  /// Every video when any is unchecked; none when all are checked.
+  nonisolated static func toggledAll(_ chosen: Set<URL>, of videos: [FoundVideo]) -> Set<URL> {
+    let all = Set(videos.map(\.url))
+    return chosen.isSuperset(of: all) ? [] : all
   }
 
   private func row(_ video: FoundVideo) -> some View {

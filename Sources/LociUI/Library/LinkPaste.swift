@@ -18,42 +18,6 @@ extension LociModel.Host {
   }
 }
 
-extension View {
-  /// ⌘V with a link on the pasteboard, or a link dropped on the view, adds it to the library and opens it.
-  func acceptingLinks(opened: @escaping (WindowState) -> Void, failed: @escaping (HostError) -> Void) -> some View {
-    modifier(AcceptingLinks(opened: opened, failed: failed))
-  }
-}
-
-private struct AcceptingLinks: ViewModifier {
-  @Environment(\.host) private var host
-  let opened: (WindowState) -> Void
-  let failed: (HostError) -> Void
-
-  func body(content: Content) -> some View {
-    content
-      .onPasteCommand(of: [.url, .plainText]) { _ in
-        if let url = Self.link(on: .general) { add(url) }
-      }
-      .dropDestination(for: URL.self) { urls, _ in
-        let links = urls.filter(\.isWebLink)
-        for url in links { add(url) }
-        return !links.isEmpty
-      }
-  }
-
-  private func add(_ url: URL) {
-    Task { _ = await host.addLink(url, opened: opened, failed: failed) }
-  }
-
-  /// A web link copied as a link, or as text that is nothing but one.
-  static func link(on pasteboard: NSPasteboard) -> URL? {
-    if let url = pasteboard.readObjects(forClasses: [NSURL.self])?.first as? URL, url.isWebLink { return url }
-    guard let text = pasteboard.string(forType: .string), case .link(let url) = PromptInput(text) else { return nil }
-    return url
-  }
-}
-
 /// The empty library: the start page's field, which makes a mentor from a sentence or adds a link.
 struct LibraryStart: View {
   @Environment(\.host) private var host

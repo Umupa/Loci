@@ -131,6 +131,26 @@ struct MediaScenarioTests {
     }
   }
 
+  /// L-S13: a card that shows the fetched title already has its cover; the window reads a cover once per
+  /// version of the item, so a cover arriving later would not show until the app restarts.
+  @Test func theFetchedTitleArrivesWithTheCover() async throws {
+    try await withMediaHost(transcriber: FakeTranscriber(spoken)) { host, world in
+      try world.installModel()
+      world.programs.site(Links.youtube, FakeSite(title: "Me at the zoo", site: "jawed", duration: 19))
+      await world.network.images.close()
+      let items = host.subscribe(AllItems())
+
+      let item = try await host.run(AddLink(url: Links.url(Links.youtube)))
+      Task {
+        try? await Task.sleep(for: .milliseconds(300))
+        await world.network.images.open()
+      }
+
+      #expect(await value(items) { $0.first?.title == "Me at the zoo" } != nil)
+      #expect(try await host.run(ReadCover(item: item.id)) == Data("jpeg".utf8))
+    }
+  }
+
   /// A video or audio file on this Mac is copied or linked, and its speech recognized.
   @Test(arguments: [ImportMode.copy, .link])
   func anImportedFilePlaysFromWhereItIsAndIsRecognized(mode: ImportMode) async throws {

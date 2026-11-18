@@ -120,7 +120,9 @@ struct YtDlpTests {
       .cookiesUnreadable
     ),
     ("WARNING: [youtube] No supported JavaScript runtime could be found. n challenge solving failed", .needsJavaScript),
-    ("ERROR: unable to download webpage: <urlopen error timed out>", .other),
+    ("ERROR: unable to download webpage: <urlopen error timed out>", .network),
+    ("ERROR: [youtube] O_zcc6XI12g: This video is unavailable", .unavailable),
+    ("ERROR: Postprocessing: Conversion failed!", .other),
   ])
   func failuresAreSortedByWhatTheReaderCanDo(said: String, kind: MediaError.Kind) {
     let error = MediaError.fromYtDlp("WARNING: something\n\(said)\n")

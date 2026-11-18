@@ -50,10 +50,13 @@ public struct Job: Hashable, Codable, Sendable {
     public let reason: String
     /// What the reader can do about it, when there is something.
     public let remedy: Remedy?
+    /// What kind of trouble it was, when it could be told; the reader is told this rather than the reason.
+    public let cause: Cause?
 
-    public init(reason: String, remedy: Remedy? = nil) {
+    public init(reason: String, remedy: Remedy? = nil, cause: Cause? = nil) {
       self.reason = reason
       self.remedy = remedy
+      self.cause = cause
     }
   }
 
@@ -61,6 +64,20 @@ public struct Job: Hashable, Codable, Sendable {
     case updateComponent(Component)
     case retry
     case chooseBrowserLogin
+    /// Nothing in Loci will help; the original page may say why.
+    case openSource
+  }
+
+  /// The kinds of trouble a fetch runs into that the reader can be told about in their own language.
+  public enum Cause: String, Hashable, Codable, Sendable {
+    /// Removed, private, or not offered where the reader is.
+    case unavailable
+    /// The site could not be reached.
+    case network
+    /// A component no longer understands the site.
+    case outdated
+    /// The browser's sign-in could not be read.
+    case cookiesUnreadable
   }
 }
 

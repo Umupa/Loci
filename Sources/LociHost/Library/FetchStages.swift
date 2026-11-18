@@ -22,9 +22,9 @@ extension JobRun {
         title: info.title, authors: item.authors, source: source, language: item.language,
         contentHash: item.contentHash, site: info.site ?? item.site, published: info.published.map(Timestamp.init))
     }
+    await saveCover(from: info.thumbnail)
     try stored { try context.store.retitle(resolved, from: item.title) }
     await context.notify([.item(item.id)])
-    await saveCover(from: info.thumbnail)
     if !info.chapters.isEmpty, try stored({ try context.store.outline(of: item.id) }) == nil {
       try stored { try context.store.save(try Outline(chapters: info.chapters, highlights: []), of: item.id) }
     }
@@ -66,7 +66,8 @@ extension JobRun {
     return .video(duration: duration)
   }
 
-  /// A cover that cannot be had is left out; the item is still readable.
+  /// Saved before the resolved item is announced: the window reads an item's cover once per version of the
+  /// item, and the cover's arrival alone does not change the item. A cover that cannot be had is left out.
   private func saveCover(from thumbnail: URL?) async {
     guard let thumbnail, (try? context.store.coverFile(of: item)) == nil,
       let (data, response) = try? await context.media.network.data(for: URLRequest(url: thumbnail))
@@ -74,7 +75,6 @@ extension JobRun {
     let fromType = response.mimeType.flatMap { $0.hasPrefix("image/") ? String($0.dropFirst(6)) : nil }
     let fileExtension = (fromType ?? thumbnail.pathExtension).replacingOccurrences(of: "jpeg", with: "jpg")
     try? context.store.saveCover(data, extension: fileExtension.isEmpty ? "jpg" : fileExtension, of: item)
-    await context.notify([.item(item)])
   }
 
   /// Subtitles that cannot be had are left to recognition.

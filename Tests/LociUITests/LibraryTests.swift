@@ -31,15 +31,15 @@ import Testing
     #expect(JobLine(Job(item: item, stage: .transcribe, state: .running(progress: nil))) == .working(.recognizing, nil))
     #expect(
       JobLine(Job(item: item, stage: .resolve, state: .waiting(.component(.ytDlp))))
-        == .action(.downloadComponent(.ytDlp), reason: nil))
+        == .action(.downloadComponent(.ytDlp), nil))
     #expect(
       JobLine(Job(item: item, stage: .transcribe, state: .waiting(.speechModel(.largeV3TurboQuantized))))
-        == .action(.downloadModel(.largeV3TurboQuantized), reason: nil))
+        == .action(.downloadModel(.largeV3TurboQuantized), nil))
     let outdated = Job.Failure(reason: "Sign in to confirm", remedy: .updateComponent(.ytDlp))
     #expect(
       JobLine(Job(item: item, stage: .resolve, state: .failed(outdated)))
-        == .action(.update(.ytDlp), reason: "Sign in to confirm"))
-    #expect(JobLine(Job(item: item, stage: .resolve, state: .stopped)) == .action(.resume, reason: nil))
+        == .action(.update(.ytDlp), JobLine.Problem(stage: .resolve, cause: nil, reason: "Sign in to confirm")))
+    #expect(JobLine(Job(item: item, stage: .resolve, state: .stopped)) == .action(.resume, nil))
   }
 
   @Test func finishedWorkSaysNothing() {
@@ -48,10 +48,41 @@ import Testing
   }
 
   @Test func aFailureWithoutARemedyCanBeRetried() {
-    let failure = Job.Failure(reason: "Video unavailable")
+    let failure = Job.Failure(reason: "Conversion failed!")
     #expect(
-      JobLine(Job(item: video.id, stage: .resolve, state: .failed(failure)))
-        == .action(.retry, reason: "Video unavailable"))
+      JobLine(Job(item: video.id, stage: .download, state: .failed(failure)))
+        == .action(.retry, JobLine.Problem(stage: .download, cause: nil, reason: "Conversion failed!")))
+  }
+
+  /// L-S11: a video that is gone offers its original page instead of a retry that cannot help, and says so in
+  /// the reader's words rather than yt-dlp's.
+  @Test func anUnavailableVideoOffersItsPageAndSaysWhyInPlainWords() {
+    let said = "[youtube] O_zcc6XI12g: This video is unavailable"
+    let failure = Job.Failure(reason: said, remedy: .openSource, cause: .unavailable)
+    let line = JobLine(Job(item: video.id, stage: .resolve, state: .failed(failure)))
+
+    guard case .action(let fix, let problem?) = line else {
+      Issue.record("expected a fix")
+      return
+    }
+    #expect(fix == .openSource)
+    #expect(problem.reason == said)
+    #expect(String(localized: problem.summary) != said)
+    #expect(problem.explanation != nil)
+  }
+
+  /// L-S11: a failure whose kind is not known is named by the step that failed; the program's words are kept
+  /// for the details.
+  @Test func anUnknownFailureIsNamedByItsStep() {
+    let failure = Job.Failure(reason: "Conversion failed!")
+    let line = JobLine(Job(item: video.id, stage: .translate, state: .failed(failure)))
+
+    guard case .action(_, let problem?) = line else {
+      Issue.record("expected a fix")
+      return
+    }
+    #expect(problem.summary.key == "job.failedTranslate")
+    #expect(problem.explanation == nil)
   }
 
   @Test func theShelfHoldsWhatIsStartedAndUnfinishedLatestFirst() throws {
@@ -102,6 +133,18 @@ import Testing
       FoundVideo(url: URL(string: "https://youtube.com/watch?v=\($0)")!, title: "v\($0)", thumbnail: nil, duration: nil)
     }
     #expect(offer("https://www.youtube.com/@cncf/videos", PageFacts(videos: videos)) == .videos(videos))
+  }
+
+  /// L-S15: picking a few videos from a long channel starts from none rather than unchecking the rest.
+  @Test func theSwitchChecksEveryVideoOrClearsThemAll() throws {
+    let videos = (1...3).map {
+      FoundVideo(url: URL(string: "https://youtube.com/watch?v=\($0)")!, title: "v\($0)", thumbnail: nil, duration: nil)
+    }
+    let all = Set(videos.map(\.url))
+
+    #expect(VideoPicker.toggledAll(all, of: videos).isEmpty)
+    #expect(VideoPicker.toggledAll([videos[0].url], of: videos) == all)
+    #expect(VideoPicker.toggledAll([], of: videos) == all)
   }
 
   @Test func episodesPapersPDFsAndArticlesOfferToBeAdded() {

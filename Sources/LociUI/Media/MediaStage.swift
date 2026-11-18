@@ -19,16 +19,17 @@ struct VideoStage: View {
 
   var body: some View {
     GeometryReader { frame in
-      let width = max(frame.size.width - 52, 200)
+      let width = max(frame.size.width - 52, 0)
       VStack(alignment: .leading, spacing: 0) {
         picture.frame(width: width, height: width * 9 / 16)
         Scrubber(timeline: model.timeline, time: model.player.time, seek: model.player.seek)
           .padding(.horizontal, 2)
           .padding(.top, Spacing.m)
-        controls.padding(.top, 6)
+        controls(compact: width < Self.compactWidth).padding(.top, 6)
         Text(verbatim: model.item.title)
           .font(Typography.mediaTitle)
           .foregroundStyle(Palette.ink)
+          .fixedSize(horizontal: false, vertical: true)
           .padding(.horizontal, 2)
           .padding(.top, 18)
           .padding(.bottom, 7)
@@ -66,20 +67,28 @@ struct VideoStage: View {
     return transcript.lines(index, mode: model.subtitles)
   }
 
-  private var controls: some View {
+  /// Below this the picture is too narrow for every control; skipping, the chapter and the speed fold away
+  /// and the subtitle chip keeps only its symbol.
+  static let compactWidth: CGFloat = 520
+
+  private func controls(compact: Bool) -> some View {
     HStack(spacing: Spacing.xxs) {
       RoundIconButton(
         symbol: model.player.playing ? Symbols.pause : Symbols.play,
         title: model.player.playing ? .loci("player.pause") : .loci("player.play"), symbolSize: 18
       ) { model.player.toggle() }
-      RoundIconButton(symbol: Symbols.back5, title: .loci("player.back")) { model.player.skip(by: .seconds(-5)) }
-      RoundIconButton(symbol: Symbols.forward5, title: .loci("player.forward")) { model.player.skip(by: .seconds(5)) }
+      if !compact {
+        RoundIconButton(symbol: Symbols.back5, title: .loci("player.back")) { model.player.skip(by: .seconds(-5)) }
+        RoundIconButton(symbol: Symbols.forward5, title: .loci("player.forward")) {
+          model.player.skip(by: .seconds(5))
+        }
+      }
       Text(verbatim: MediaTime.progress(at: model.player.time, of: model.timeline.length))
         .font(Typography.clock)
         .foregroundStyle(Palette.inkMuted)
         .padding(.leading, Spacing.xs)
         .fixedSize()
-      if let chapter = model.timeline.chapter(at: model.player.time) {
+      if !compact, let chapter = model.timeline.chapter(at: model.player.time) {
         Text(verbatim: chapter.title)
           .font(.system(size: 12))
           .foregroundStyle(Palette.inkFaint)
@@ -87,8 +96,8 @@ struct VideoStage: View {
           .padding(.leading, Spacing.xs)
       }
       Spacer(minLength: Spacing.xs)
-      SpeedChip(player: model.player)
-      SubtitleChip(model: model, symbol: true)
+      if !compact { SpeedChip(player: model.player) }
+      SubtitleChip(model: model, symbol: true, named: !compact)
       RoundIconButton(symbol: Symbols.fullScreen, title: .loci("player.fullScreen"), symbolSize: 15) {
         NSApp.keyWindow?.toggleFullScreen(nil)
       }
@@ -114,11 +123,13 @@ struct SpeedChip: View {
 struct SubtitleChip: View {
   let model: StageModel
   let symbol: Bool
+  /// Says which subtitles show; a narrow stage leaves only the symbol.
+  var named = true
 
   var body: some View {
     Chip(open: model.menuOpen, action: { withAnimation(Motion.quick) { model.menuOpen.toggle() } }) {
       if symbol { Image(systemName: Symbols.subtitles).font(.system(size: 13)) }
-      Text(model.subtitlesShown || !symbol ? shown.name : .loci("subtitles.off"))
+      if named || !symbol { Text(model.subtitlesShown || !symbol ? shown.name : .loci("subtitles.off")) }
       ChipChevron()
     }
     .overlay(alignment: .bottomTrailing) {

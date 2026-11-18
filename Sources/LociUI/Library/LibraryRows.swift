@@ -2,10 +2,13 @@ import LociModel
 import SwiftUI
 
 /// A cover on the shelf: large, with the title and its length and source over the foot of the picture, and a
-/// thin amber line along the bottom for how much has been watched.
+/// thin amber line along the bottom for how much has been watched. Work going on or stopped shows under the
+/// title as it does in the list.
 struct ShelfCover: View {
   let item: Item
   let share: Double?
+  var job: Job?
+  var act: (JobLine.Fix) -> Void = { _ in }
 
   var body: some View {
     Cover(item: item, corner: Radius.card, squareInset: 0.11, squareCorner: Size.shelfHeight * 0.78 * 0.05)
@@ -28,6 +31,9 @@ struct ShelfCover: View {
         .font(Typography.mono)
         .foregroundStyle(Palette.onCoverMuted)
         .lineLimit(1)
+      if JobLine(job) != .none {
+        JobStatus(line: JobLine(job), act: act, onCover: true).padding(.top, 4)
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.horizontal, Spacing.m)
@@ -109,6 +115,8 @@ extension JobLine {
 struct JobStatus: View {
   let line: JobLine
   let act: (JobLine.Fix) -> Void
+  /// Over the foot of a cover, where the words are light on the dark shade.
+  var onCover = false
 
   var body: some View {
     HStack(spacing: 10) {
@@ -122,14 +130,15 @@ struct JobStatus: View {
             joining: Text(activity.name), Text(verbatim: progress.map { " \(Int(($0.value * 100).rounded()))%" } ?? "")
           )
           .font(Typography.mono)
-          .foregroundStyle(Palette.inkMuted)
+          .foregroundStyle(onCover ? Palette.onCoverMuted : Palette.inkMuted)
         }
         .fixedSize()
         if let progress { Meter(share: progress.value) }
-      case .action(let fix, let reason):
-        if let why = fix.why(reason) {
-          why.font(.system(size: 12)).foregroundStyle(Palette.inkMuted).lineLimit(1).truncationMode(.tail)
-            .help(reason.map { Text(verbatim: $0) } ?? why)
+      case .action(let fix, let problem):
+        if let why = fix.why(problem) {
+          why.font(.system(size: 12)).foregroundStyle(onCover ? Palette.onCoverMuted : Palette.inkMuted).lineLimit(1)
+            .fixedSize()
+            .help(problem.map { Text(verbatim: $0.reason) } ?? why)
         }
         Button(action: { act(fix) }) { fix.label }.buttonStyle(PushStyle()).fixedSize()
       }

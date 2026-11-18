@@ -47,6 +47,25 @@ struct PageReaderTests {
     #expect(!extraction.markdown.contains("newsletter"))
   }
 
+  /// L-S1: a figure that is also the page's cover image stays in the text, where the page shows it. Martin
+  /// Fowler's TechnicalDebt sketch is both.
+  @Test(.timeLimit(.minutes(1)))
+  func aFigureThatIsAlsoTheCoverStaysInTheText() async throws {
+    let fixture = try #require(Bundle.module.url(forResource: "Fixtures/technical-debt", withExtension: "html"))
+    let html = try String(contentsOf: fixture, encoding: .utf8)
+
+    let extraction = try await PageReader.read(
+      .html(html, base: URL(string: "https://martinfowler.com/bliki/TechnicalDebt.html")!), timeout: .seconds(20),
+      store: .nonPersistent())
+
+    let markdown = extraction.markdown
+    let sketch = try #require(markdown.range(of: "https://martinfowler.com/bliki/images/tech-debt/sketch.png"))
+    let interest = try #require(markdown.range(of: "interest paid on the debt"))
+    let imagine = try #require(markdown.range(of: "Imagine I have a confusing module structure"))
+    #expect(interest.upperBound < sketch.lowerBound)
+    #expect(sketch.upperBound < imagine.lowerBound)
+  }
+
   @Test func beingSentToASignInPageIsTold() {
     let asked = URL(string: "https://medium.com/@a/post-1")!
     #expect(PageReader.isSignInPage(URL(string: "https://medium.com/m/signin?redirect=x")!, requested: asked))

@@ -32,6 +32,14 @@ public struct LociCommands: Commands {
       .keyboardShortcut("o")
       .disabled(navigator == nil)
     }
+    CommandGroup(after: .pasteboard) {
+      Button {
+        navigator?.pasteLink?()
+      } label: {
+        Text(.loci("menu.pasteLink"))
+      }
+      .disabled(navigator?.pasteLink == nil)
+    }
     CommandGroup(replacing: .sidebar) {
       Button {
         navigator?.toggleSidebar()

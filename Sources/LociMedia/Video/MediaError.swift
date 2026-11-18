@@ -20,7 +20,9 @@ public struct MediaError: Error, Hashable, Sendable {
     case cookiesUnreadable
     /// Gone, private, or not there; trying again will not help.
     case unavailable
-    /// Anything else, such as the network.
+    /// The site could not be reached: no connection, a refused or timed-out request, a broken proxy.
+    case network
+    /// Anything else.
     case other
   }
 
@@ -42,7 +44,8 @@ public struct MediaError: Error, Hashable, Sendable {
     {
       kind = .needsLogin
     } else if [
-      "video unavailable", "has been removed", "private video", "does not exist", "http error 404", "unsupported url",
+      "video unavailable", "video is unavailable", "has been removed", "private video", "does not exist",
+      "http error 404", "unsupported url", "available in your country", "has been terminated",
     ]
     .contains(where: text.contains) {
       kind = .unavailable
@@ -50,6 +53,12 @@ public struct MediaError: Error, Hashable, Sendable {
       .contains(where: text.contains)
     {
       kind = .outdated
+    } else if [
+      "unable to download webpage", "timed out", "connection refused", "connection reset", "network is unreachable",
+      "name resolution", "nodename nor servname", "failed to resolve", "ssl:", "urlopen error",
+    ]
+    .contains(where: text.contains) {
+      kind = .network
     } else {
       kind = .other
     }

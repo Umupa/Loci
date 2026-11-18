@@ -16,13 +16,13 @@ struct LibrarySnapshots {
   static func shoot(
     _ name: String, _ library: SampleLibrary, at place: WindowState, appearance: Snapshot.Appearance,
     recognizing: Bool = false, standIns: StandIns? = nil, browser: BrowserSession = BrowserSession(),
-    english: Bool = false
+    english: Bool = false, size: CGSize = window
   ) async throws {
     let view = RootView(memory: WindowMemory(recall: { place }, remember: { _ in }), browser: browser)
       .lociHost(FakeHost(try Sample(problems: false), library: library, recognizing: recognizing))
       .environment(\.standIns, standIns)
     let file = try await Snapshot.render(
-      view, named: name, size: window, appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"),
+      view, named: name, size: size, appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"),
       settle: .milliseconds(1500))
     #expect(try Data(contentsOf: file).count > 10_000)
   }
@@ -197,5 +197,65 @@ extension LibrarySnapshots {
     try await Self.shoot(
       "video-needs-model", library, at: Self.reading(tokenizer.id), appearance: appearance,
       standIns: StandIns(moment: MediaMoment(playing: false)))
+  }
+}
+
+extension LibrarySnapshots {
+  /// L-S11, L-S13: a video that is gone keeps saying so on the shelf, with the button that helps.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func shelfWithAFailure(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary().withUnavailableVideo()
+    try await Self.shoot("library-failed", library, at: WindowState(place: .library(nil)), appearance: appearance)
+  }
+
+  /// L-S11: the page of a video that is gone says why in the reader's words, with the original page to open.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func videoUnavailable(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary().withUnavailableVideo()
+    guard let gone = library.items.last else { return }
+    try await Self.shoot(
+      "video-unavailable", library, at: Self.reading(gone.id), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment(playing: false)))
+  }
+
+  /// A small window: the transcript panel folds away and the controls keep inside the page.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func videoInASmallWindow(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary()
+    try await Self.shoot(
+      "video-small", library, at: Self.reading(library.video.id), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment()), size: CGSize(width: 840, height: 560))
+  }
+
+  /// The smallest window: the controls fold to the ones that matter.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func videoInTheSmallestWindow(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary()
+    try await Self.shoot(
+      "video-smallest", library, at: Self.reading(library.video.id), appearance: appearance,
+      standIns: StandIns(moment: MediaMoment()), size: Size.windowMinimum)
+  }
+}
+
+extension SampleLibrary {
+  /// Adds a YouTube video that is gone: it was opened, so it sits first on the shelf, and having never been
+  /// fetched it has no cover and its address for a title.
+  func withUnavailableVideo() throws -> SampleLibrary {
+    var library = self
+    var entropy = Sample.Seeded(state: 77)
+    let gone = try Item(
+      id: EntityID(at: Date(timeIntervalSince1970: 1_763_000_100), entropy: &entropy), kind: .video(duration: nil),
+      title: "youtube.com/watch?v=O_zcc6XI12g", source: URL(string: "https://www.youtube.com/watch?v=O_zcc6XI12g"))
+    library.items.append(gone)
+    library.jobs.append(
+      Job(
+        item: gone.id, stage: .resolve,
+        state: .failed(
+          Job.Failure(
+            reason: "[youtube] O_zcc6XI12g: This video is unavailable", remedy: .openSource, cause: .unavailable))))
+    library.states[gone.id] = ReadingState(
+      position: .item(gone.id, .time(try TimeSpan(start: .zero))), finished: false,
+      updatedAt: Timestamp(millisecondsSince1970: 1_763_337_700_000))
+    return library
   }
 }

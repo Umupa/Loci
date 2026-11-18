@@ -1,0 +1,105 @@
+import AppKit
+import LociModel
+import SwiftUI
+import UniformTypeIdentifiers
+
+/// What a drag from Finder, a browser or another app brings that Loci can add.
+enum Dropped: Equatable, Sendable {
+  case link(URL)
+  case textFile(TextFile)
+
+  /// The kinds of drag a page accepts: a file, a link, or text that is a link.
+  static let types: [UTType] = [.fileURL, .url, .plainText]
+
+  /// Starts reading each dragged thing during the drop, while it can still be read: a file as a text file, a
+  /// link as itself, text when it holds one link. Anything else comes to nothing.
+  static func reading(_ providers: [NSItemProvider]) -> [AsyncStream<Dropped>] {
+    providers.map(reading)
+  }
+
+  /// What was read, in the order it was dragged.
+  static func collect(_ reading: [AsyncStream<Dropped>]) async -> [Dropped] {
+    var dropped: [Dropped] = []
+    for stream in reading {
+      for await one in stream { dropped.append(one) }
+    }
+    return dropped
+  }
+
+  private static func reading(_ provider: NSItemProvider) -> AsyncStream<Dropped> {
+    let (stream, continuation) = AsyncStream.makeStream(of: Dropped.self)
+    func load<Value: Transferable>(_ type: Value.Type, as made: @escaping @Sendable (Value) -> Dropped?) {
+      _ = provider.loadTransferable(type: type) { result in
+        if let value = try? result.get(), let dropped = made(value) { continuation.yield(dropped) }
+        continuation.finish()
+      }
+    }
+    if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+      load(URL.self) { file in file.isFileURL ? (try? TextFile(reading: file)).map(Dropped.textFile) : nil }
+    } else if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+      load(URL.self) { url in url.isWebLink ? .link(url) : nil }
+    } else if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+      load(String.self) { text in link(in: text).map(Dropped.link) }
+    } else {
+      continuation.finish()
+    }
+    return stream
+  }
+
+  /// Text that is a link, or holds exactly one among other words.
+  static func link(in text: String) -> URL? {
+    if case .link(let url) = PromptInput(text) { return url }
+    guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
+    let links = detector.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap(\.url)
+      .filter(\.isWebLink)
+    return links.count == 1 ? links[0] : nil
+  }
+}
+
+extension View {
+  /// A text file or a link dropped anywhere on the view becomes an item, and the last one opens. While
+  /// something is dragged over it the view is outlined in amber.
+  func acceptingDrops(opened: @escaping (WindowState) -> Void, failed: @escaping (HostError) -> Void) -> some View {
+    modifier(AcceptingDrops(opened: opened, failed: failed))
+  }
+}
+
+private struct AcceptingDrops: ViewModifier {
+  @Environment(\.host) private var host
+  let opened: (WindowState) -> Void
+  let failed: (HostError) -> Void
+  @State private var targeted = false
+
+  func body(content: Content) -> some View {
+    content
+      .overlay {
+        if targeted {
+          RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+            .fill(Palette.accent.opacity(0.06))
+            .strokeBorder(Palette.accent, lineWidth: 2)
+            .padding(Spacing.xs)
+            .allowsHitTesting(false)
+        }
+      }
+      .onDrop(of: Dropped.types, isTargeted: $targeted) { providers in
+        let reading = Dropped.reading(providers)
+        Task { await add(await Dropped.collect(reading)) }
+        return true
+      }
+  }
+
+  private func add(_ dropped: [Dropped]) async {
+    var last: Item?
+    for each in dropped {
+      do throws(HostError) {
+        switch each {
+        case .link(let url): last = try await host.run(AddLink(url: url))
+        case .textFile(let file): last = try await host.run(AddTextItem(fileName: file.fileName, text: file.text))
+        }
+      } catch {
+        failed(error)
+      }
+    }
+    if let last { opened(WindowState(place: .library(nil), pages: [.item(last.id)])) }
+  }
+}

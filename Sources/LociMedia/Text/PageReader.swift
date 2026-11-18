@@ -109,7 +109,11 @@ final class PageReader: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     return extraction
   }
 
+  /// defuddle takes the page's cover image out of the text, expecting it to be shown above the article. Loci
+  /// shows no cover there, so the cover is not named and a figure that is also the cover stays where it is.
   private static let extraction = """
+    for (const meta of document.querySelectorAll(
+      'meta[property="og:image"], meta[name="twitter:image"], meta[name="sailthru.image.full"]')) meta.remove();
     const result = new Defuddle(document, { url: location.href, separateMarkdown: true }).parse();
     return JSON.stringify({
       title: result.title, author: result.author, site: result.site, published: result.published,

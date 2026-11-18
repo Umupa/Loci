@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 /// A text file the person dropped or chose. Only its name and contents go to the host, so a remote host
 /// receives the same thing a local one does.
-struct TextFile: Transferable {
+struct TextFile: Transferable, Equatable, Sendable {
   let fileName: String
   let text: String
 

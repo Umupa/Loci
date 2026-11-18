@@ -3,7 +3,7 @@ import LociModel
 import SwiftUI
 
 /// The library: what is being watched on a shelf of large covers, and every item in a list below with the work
-/// on it. An empty library is the start page's field. Pasting a link adds it.
+/// on it. An empty library is the start page's field. Pasting or dropping a link adds it.
 struct LibraryScreen: View {
   @Environment(\.host) private var host
   @Environment(\.openPlace) private var openPlace
@@ -31,8 +31,7 @@ struct LibraryScreen: View {
     }
     .background(Palette.canvas)
     .navigationTitle(kind.map { Text(Messages.name(of: $0)) } ?? Text(.loci("sidebar.library")))
-    .acceptingTextFiles(opened: opened, failed: failed)
-    .acceptingLinks(opened: opened, failed: failed)
+    .acceptingDrops(opened: opened, failed: failed)
     .subscribing(AllItems(), into: $feed)
     .subscribing(AllJobs(), into: $jobs)
     .task(id: feed?.value?.map(\.id)) { await readProgress() }
@@ -58,7 +57,7 @@ struct LibraryScreen: View {
 
   private func act(_ fix: JobLine.Fix, on item: Item) {
     JobFixes(host: host, openPlace: openPlace, browser: browser, failed: ShowFailure(action: failed)).apply(
-      fix, to: item.id)
+      fix, to: item)
   }
 }
 
@@ -81,7 +80,7 @@ struct LibraryList: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 0) {
         if !shelf.isEmpty {
-          ShelfRow(items: shelf, progress: progress)
+          ShelfRow(items: shelf, jobs: jobs, progress: progress, act: act)
             .padding(.bottom, 26)
         }
         let rows = items.filter { item in !shelf.contains { $0.id == item.id } }
@@ -131,7 +130,9 @@ struct LibraryList: View {
 /// Up to three large covers, the first a little wider than the others.
 struct ShelfRow: View {
   let items: [Item]
+  let jobs: [EntityID: Job]
   let progress: Progress
+  let act: (JobLine.Fix, Item) -> Void
 
   var body: some View {
     GeometryReader { frame in
@@ -140,7 +141,7 @@ struct ShelfRow: View {
       HStack(spacing: Size.shelfGap) {
         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
           NavigationLink(value: Page.item(item.id)) {
-            ShelfCover(item: item, share: progress.share(of: item))
+            ShelfCover(item: item, share: progress.share(of: item), job: jobs[item.id]) { act($0, item) }
           }
           .buttonStyle(PressStyle())
           .frame(width: index == 0 ? unit * Size.shelfLead : unit)

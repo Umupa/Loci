@@ -104,10 +104,9 @@ struct FetchingItem: View {
         .font(Typography.mediaTitle)
         .foregroundStyle(Palette.ink)
         .multilineTextAlignment(.center)
-      JobStatus(line: JobLine(job)) { fix in
-        JobFixes(host: host, openPlace: openPlace, browser: browser, failed: showFailure).apply(fix, to: item.id)
+      JobDetail(line: JobLine(job)) { fix in
+        JobFixes(host: host, openPlace: openPlace, browser: browser, failed: showFailure).apply(fix, to: item)
       }
-      .fixedSize()
     }
     .padding(Spacing.xxl)
     .frame(maxWidth: .infinity, maxHeight: .infinity)

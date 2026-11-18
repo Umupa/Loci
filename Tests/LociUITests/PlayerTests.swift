@@ -5,6 +5,16 @@ import Testing
 @testable import LociUI
 
 @Suite struct PlayerTests {
+  /// An 840-point window with the sidebar open leaves about 590 for the page: the transcript panel folds away
+  /// rather than squeezing the video under the sidebar, and opens over the video when asked for.
+  @Test func aNarrowPageFoldsThePanelAndOpensItOverTheVideo() {
+    #expect(!MediaLayout(width: 588, panelShown: true, panelOver: false).besideStage)
+    #expect(MediaLayout(width: 588, panelShown: true, panelOver: true).overStage)
+    #expect(MediaLayout(width: 1028, panelShown: true, panelOver: false).besideStage)
+    #expect(!MediaLayout(width: 1028, panelShown: true, panelOver: true).overStage)
+    #expect(!MediaLayout(width: 1028, panelShown: false, panelOver: false).besideStage)
+  }
+
   @Test func theClockShowsMinutesAndSecondsAndHoursOnceThereAreAny() {
     #expect(MediaTime.text(.seconds(680)) == "11:20")
     #expect(MediaTime.text(.seconds(3825)) == "1:03:45")

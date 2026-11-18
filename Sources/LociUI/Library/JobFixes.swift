@@ -11,7 +11,7 @@ struct JobFixes {
   let browser: BrowserSession?
   let failed: ShowFailure
 
-  func apply(_ fix: JobLine.Fix, to item: EntityID) {
+  func apply(_ fix: JobLine.Fix, to item: Item) {
     switch fix {
     case .downloadComponent(let component), .update(let component):
       run(InstallComponent(component))
@@ -24,8 +24,11 @@ struct JobFixes {
       openPlace(.settings(.agents))
     case .chooseBrowserLogin:
       openPlace(.settings(.media))
+    case .openSource:
+      browser?.open(item.source)
+      openPlace(.browser)
     case .retry, .resume:
-      run(RetryJob(item: item))
+      run(RetryJob(item: item.id))
     }
   }
 

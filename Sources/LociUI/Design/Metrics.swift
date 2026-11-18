@@ -79,6 +79,8 @@ enum Size {
   static let shelfLead: CGFloat = 1.35
   static let listThumbnail: CGFloat = 84
   static let listStatus: CGFloat = 250
+  /// What went wrong, told in full on an item's own page.
+  static let jobDetail: CGFloat = 320
   static let meter: CGFloat = 96
   static let meterHeight: CGFloat = 4
   static let pushHeight: CGFloat = 22

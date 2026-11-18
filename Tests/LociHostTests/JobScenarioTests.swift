@@ -152,12 +152,13 @@ struct JobScenarioTests {
   @Test(arguments: [
     (
       "ERROR: [youtube] x: Unable to extract nsig function; please report this issue",
-      Job.Remedy?.some(.updateComponent(.ytDlp))
+      Job.Remedy.updateComponent(.ytDlp), Job.Cause?.some(.outdated)
     ),
-    ("ERROR: unable to download webpage: timed out", .some(.retry)),
-    ("ERROR: [youtube] x: Video unavailable", nil),
+    ("ERROR: unable to download webpage: timed out", .retry, .network),
+    ("ERROR: [youtube] x: This video is unavailable", .openSource, .unavailable),
+    ("ERROR: Postprocessing: Conversion failed!", .retry, nil),
   ])
-  func aFailedFetchSaysWhyAndWhatHelps(said: String, remedy: Job.Remedy?) async throws {
+  func aFailedFetchSaysWhyAndWhatHelps(said: String, remedy: Job.Remedy, cause: Job.Cause?) async throws {
     try await withMediaHost { host, world in
       world.programs.site(Links.youtube, FakeSite(title: "x", refusal: said))
 
@@ -171,6 +172,7 @@ struct JobScenarioTests {
         return
       }
       #expect(failure.remedy == remedy)
+      #expect(failure.cause == cause)
       #expect(!failure.reason.hasPrefix("ERROR"))
     }
   }

@@ -22,12 +22,13 @@ extension LibraryContext {
   func stop(_ error: MediaError, at source: URL) async -> StageStop {
     switch error.kind {
     case .needsLogin: .wait(.login(site: source.host() ?? source.absoluteString))
-    case .outdated: .failed(error.reason, .updateComponent(.ytDlp))
+    case .outdated: .failed(error.reason, .updateComponent(.ytDlp), .outdated)
     case .needsJavaScript:
       await equipment.executable(.quickJS) == nil
-        ? .wait(.component(.quickJS)) : .failed(error.reason, .updateComponent(.quickJS))
-    case .cookiesUnreadable: .failed(error.reason, .chooseBrowserLogin)
-    case .unavailable: .failed(error.reason, nil)
+        ? .wait(.component(.quickJS)) : .failed(error.reason, .updateComponent(.quickJS), .outdated)
+    case .cookiesUnreadable: .failed(error.reason, .chooseBrowserLogin, .cookiesUnreadable)
+    case .unavailable: .failed(error.reason, .openSource, .unavailable)
+    case .network: .failed(error.reason, .retry, .network)
     case .other: .failed(error.reason)
     }
   }

@@ -29,6 +29,9 @@ struct MediaScreen: View {
   @State private var chosen: ClosedRange<Int>?
   @State private var draft: PassageDraft?
   @State private var panelShown = true
+  /// Opened over the stage in a window too narrow to have it beside.
+  @State private var panelOver = false
+  @State private var width: CGFloat = 0
   @State private var opened = false
   @FocusState private var focused: Bool
 
@@ -43,17 +46,25 @@ struct MediaScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .onTapGesture { menuOpen = false }
-      if panelShown {
+      if layout.besideStage {
         panel.frame(width: Size.mediaPanel).transition(.move(edge: .trailing))
       }
     }
+    .overlay(alignment: .trailing) {
+      if layout.overStage {
+        panel.frame(width: Size.mediaPanel)
+          .shadow(color: .black.opacity(0.18), radius: 24, x: -6)
+          .transition(.move(edge: .trailing))
+      }
+    }
     .overlay(alignment: .topTrailing) {
-      if !panelShown {
-        PanelButton(title: .loci("panel.expand")) { withAnimation(Motion.fold) { panelShown = true } }
+      if !layout.besideStage && !layout.overStage {
+        PanelButton(title: .loci("panel.expand")) { withAnimation(Motion.fold) { openPanel() } }
           .glassEffect(.regular, in: .capsule)
           .padding(Spacing.s)
       }
     }
+    .onGeometryChange(for: CGFloat.self, of: \.size.width) { width = $0 }
     .background(Palette.canvas)
     .focusable()
     .focusEffectDisabled()
@@ -112,7 +123,12 @@ struct MediaScreen: View {
         CapsulePicker(selection: $tab, options: tabs)
         HStack {
           Spacer()
-          PanelButton(title: .loci("panel.collapse")) { withAnimation(Motion.fold) { panelShown = false } }
+          PanelButton(title: .loci("panel.collapse")) {
+            withAnimation(Motion.fold) {
+              panelShown = false
+              panelOver = false
+            }
+          }
         }
       }
       .padding(.horizontal, Spacing.s)
@@ -154,7 +170,7 @@ struct MediaScreen: View {
       }
     } else {
       TranscriptPending(job: job?.value ?? nil) { fix in
-        JobFixes(host: host, openPlace: openPlace, browser: browser, failed: showFailure).apply(fix, to: item.id)
+        JobFixes(host: host, openPlace: openPlace, browser: browser, failed: showFailure).apply(fix, to: item)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -235,7 +251,19 @@ struct MediaScreen: View {
     chosen = nil
     withAnimation(Motion.fold) {
       tab = .conversation
+      openPanel()
+    }
+  }
+
+  private var layout: MediaLayout {
+    MediaLayout(width: width, panelShown: panelShown, panelOver: panelOver)
+  }
+
+  private func openPanel() {
+    if MediaLayout(width: width, panelShown: true, panelOver: false).besideStage {
       panelShown = true
+    } else {
+      panelOver = true
     }
   }
 
@@ -297,18 +325,11 @@ private struct TranscriptPending: View {
   let act: (JobLine.Fix) -> Void
 
   var body: some View {
-    VStack(spacing: Spacing.s) {
-      switch JobLine(job) {
-      case .working(let activity, let progress):
-        ActivityMark(activity: activity, progress: progress)
-        Text(activity.name).font(.system(size: 12)).foregroundStyle(Palette.inkMuted)
-      case .action(let fix, let reason):
-        if let why = fix.why(reason) {
-          why.font(.system(size: 12)).foregroundStyle(Palette.inkMuted).multilineTextAlignment(.center)
-        }
-        Button(action: { act(fix) }) { fix.label }.buttonStyle(PushStyle()).fixedSize()
-      case .none:
+    Group {
+      if case .none = JobLine(job) {
         Image(systemName: Symbols.recognizing).font(.system(size: 22, weight: .light)).foregroundStyle(Palette.inkFaint)
+      } else {
+        JobDetail(line: JobLine(job), act: act)
       }
     }
     .padding(Spacing.l)

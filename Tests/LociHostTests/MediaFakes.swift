@@ -116,6 +116,7 @@ final class FakePrograms: ProgramRunner {
 final class FakeNetwork: Network {
   private let asked = Mutex<[URL]>([])
   let downloads = Latch(open: true)
+  let images = Latch(open: true)
   let folder: URL
 
   init(folder: URL) {
@@ -127,6 +128,7 @@ final class FakeNetwork: Network {
   func data(for request: URLRequest) async throws(FetchError) -> (Data, HTTPURLResponse) {
     let url = request.url ?? URL(filePath: "/")
     asked.withLock { $0.append(url) }
+    await images.wait()
     let response = HTTPURLResponse(
       url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "image/jpeg"])
     return (Data("jpeg".utf8), response ?? HTTPURLResponse())

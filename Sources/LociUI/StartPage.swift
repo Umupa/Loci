@@ -1,7 +1,7 @@
 import LociModel
 import SwiftUI
 
-/// One field: a sentence makes a mentor; a text file dropped anywhere on the page becomes an item.
+/// One field: a sentence makes a mentor; a text file or a link dropped anywhere on the page becomes an item.
 struct StartPage: View {
   @Environment(\.host) private var host
   let focusRequest: Int
@@ -16,8 +16,7 @@ struct StartPage: View {
       .padding(Spacing.xxl)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(Palette.canvas)
-      .acceptingTextFiles(opened: opened, failed: failed)
-      .acceptingLinks(opened: opened, failed: failed)
+      .acceptingDrops(opened: opened, failed: failed)
       .toolbar(removing: .title)
       .onAppear { focused = true }
       .onChange(of: focusRequest) { focused = true }
@@ -95,39 +94,5 @@ private struct SendButton: View {
     .disabled(!ready)
     .help(isLink ? Text(.loci("start.addLink")) : Text(.loci("start.send")))
     .accessibilityLabel(Text(.loci("start.send")))
-  }
-}
-
-extension View {
-  /// Turns text files dropped on the view into items, then opens the last one.
-  func acceptingTextFiles(opened: @escaping (WindowState) -> Void, failed: @escaping (HostError) -> Void)
-    -> some View
-  {
-    modifier(AcceptingTextFiles(opened: opened, failed: failed))
-  }
-}
-
-private struct AcceptingTextFiles: ViewModifier {
-  @Environment(\.host) private var host
-  let opened: (WindowState) -> Void
-  let failed: (HostError) -> Void
-
-  func body(content: Content) -> some View {
-    content.dropDestination(for: TextFile.self) { files, _ in
-      Task { await add(files) }
-      return !files.isEmpty
-    }
-  }
-
-  private func add(_ files: [TextFile]) async {
-    var last: Item?
-    for file in files {
-      do throws(HostError) {
-        last = try await host.run(AddTextItem(fileName: file.fileName, text: file.text))
-      } catch {
-        failed(error)
-      }
-    }
-    if let last { opened(WindowState(place: .library(nil), pages: [.item(last.id)])) }
   }
 }

@@ -10,10 +10,10 @@ struct SampleLibrary: Sendable {
   let system: Mentor
   let scheduling: Mentor
   let network: Mentor
-  let items: [Item]
+  var items: [Item]
   let covers: [EntityID: String]
-  let jobs: [Job]
-  let states: [EntityID: ReadingState]
+  var jobs: [Job]
+  var states: [EntityID: ReadingState]
   let video: Item
   let podcast: Item
   let article: Item

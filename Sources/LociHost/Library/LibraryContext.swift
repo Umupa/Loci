@@ -58,8 +58,8 @@ enum StageStop: Error {
   case wait(Job.Need)
   case fail(Job.Failure)
 
-  static func failed(_ reason: String, _ remedy: Job.Remedy? = .retry) -> StageStop {
-    .fail(Job.Failure(reason: reason, remedy: remedy))
+  static func failed(_ reason: String, _ remedy: Job.Remedy? = .retry, _ cause: Job.Cause? = nil) -> StageStop {
+    .fail(Job.Failure(reason: reason, remedy: remedy, cause: cause))
   }
 }
 

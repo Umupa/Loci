@@ -70,6 +70,8 @@ struct Navigator {
   let showSettings: () -> Void
   let toggleSidebar: () -> Void
   let addFile: () -> Void
+  /// Adds the link on the pasteboard; `nil` on a page that does not take links.
+  let pasteLink: (() -> Void)?
 }
 
 extension FocusedValues {
