@@ -35,28 +35,38 @@ struct PageScriptTests {
     #expect(!facts.hasArticle)
   }
 
-  /// L-S15: a playlist's "Play all" and "Shuffle" link to videos in it, but are controls, not videos.
-  @Test func aPlaylistPageReportsItsVideosAndNotItsPlayButtons() async throws {
-    let header = """
-      <div class="metadata-action-bar">
-        <yt-button-shape><a class="yt-spec-button-shape-next" href="/watch?v=a1&list=PL1&pp=sAgC" aria-label="全部播放">全部播放</a></yt-button-shape>
-        <yt-button-shape><a class="yt-spec-button-shape-next" href="/watch?v=a3&list=PL1&start_radio=1" aria-label="随机播放">随机播放</a></yt-button-shape>
-      </div>
-      <a href="/watch?v=a9&list=PL1&start_radio=1">随机播放</a>
-      """
-    let entries = ["First talk", "Second talk", "Third talk"].enumerated().map { index, title in
-      """
-      <ytd-playlist-video-renderer>
-        <a id="thumbnail" href="/watch?v=a\(index + 1)&list=PL1&index=\(index + 1)"><img src="https://i.ytimg.com/vi/a\(index + 1)/hq.jpg"><div class="badge-shape-wiz__text">4:0\(index)</div></a>
-        <a id="video-title" href="/watch?v=a\(index + 1)&list=PL1&index=\(index + 1)" title="\(title)">\(title)</a>
-      </ytd-playlist-video-renderer>
-      """
-    }
+  /// A YouTube page as the built-in browser saw it, with its scripts taken out.
+  static func youtube(_ name: String) throws -> String {
+    let url = try #require(Bundle.module.url(forResource: "Fixtures/youtube-\(name)", withExtension: "html"))
+    return try String(contentsOf: url, encoding: .utf8)
+  }
+
+  /// L-S15: a real channel page. Its video cards carry classes that mention a menu button, and the title link
+  /// is named with the length spoken after it; neither may cost a video or spoil its title.
+  @Test func aRealChannelPageReportsItsVideos() async throws {
     let facts = try await Self.facts(
-      of: "<html><body>\(header)\(entries.joined())</body></html>",
-      at: "https://www.youtube.com/playlist?list=PL1")
-    #expect(facts.videos.map(\.title) == ["First talk", "Second talk", "Third talk"])
-    #expect(facts.videos.map(\.duration) == ["4:00", "4:01", "4:02"])
+      of: try Self.youtube("channel"), at: "https://www.youtube.com/@RickAstleyYT/videos")
+
+    #expect(
+      facts.videos.map(\.title) == [
+        "Rick Astley - Angels On My Side (Live at The O2, London, April 2026)",
+        "Rick Astley - Dance (Live at The O2, London, April 2026)",
+        "Rick Astley - Keep Singing (Live at The O2, London, April 2026)",
+      ])
+    #expect(facts.videos.map(\.duration) == ["3:51", "3:54", "4:08"])
+    #expect(facts.videos.allSatisfy { $0.thumbnail != nil })
+  }
+
+  /// L-S15: a real playlist page reports its videos, and not "Play all", "Shuffle" or the playlist's own title,
+  /// which link to a video in it too.
+  @Test func aRealPlaylistPageReportsItsVideosAndNotItsControls() async throws {
+    let facts = try await Self.facts(
+      of: try Self.youtube("playlist"), at: "https://www.youtube.com/playlist?list=UUuAXFkgsw1L7xaCfnd5JJOw")
+
+    #expect(facts.videos.count == 10)
+    #expect(facts.videos.first?.title.hasPrefix("Recording an audiobook is a lot harder than you think") == true)
+    #expect(!facts.videos.contains { ["全部播放", "随机播放"].contains($0.title) || $0.title.hasPrefix("来自") })
+    #expect(facts.videos.allSatisfy { $0.duration != nil })
   }
 
   @Test func aPageWithALongBodyOfTextReportsAnArticle() async throws {

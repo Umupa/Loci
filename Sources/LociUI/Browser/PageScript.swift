@@ -2,8 +2,9 @@ import Foundation
 
 /// The script run in every page of the built-in browser. It reports, after the page loads and again whenever
 /// it changes, the single videos linked from it and whether it holds a readable body of text. A video is a
-/// link with a title, a thumbnail or a length; buttons such as a playlist's "Play all" and "Shuffle" link to a
-/// video too, and are left out.
+/// link with a title, a thumbnail or a length. Buttons such as a playlist's "Play all" and "Shuffle", and the
+/// header of a playlist, link to a video too and are left out; they are told by the shape of the button or the
+/// header, never by a class that merely mentions a button, which YouTube's video cards also do.
 enum PageScript {
   static let channel = "loci"
 
@@ -36,24 +37,30 @@ enum PageScript {
         if (host.endsWith('bilibili.com') && bili) return 'https://www.bilibili.com' + bili[0];
         return null;
       };
+      const controls = [
+        'button', '[role=button]', 'yt-button-shape', 'ytd-button-renderer', 'button-view-model',
+        '[class*="ButtonShape"]', '[class*="button-shape"]', 'header', 'ytd-playlist-header-renderer',
+        'ytd-playlist-sidebar-renderer', 'yt-page-header-renderer',
+      ].join(', ');
       const textOf = (el) => (el && el.textContent || '').replace(/\s+/g, ' ').trim();
       const report = () => {
         const here = watch(new URL(location.href));
         const found = new Map();
         for (const a of document.querySelectorAll('a[href]')) {
-          if (a.closest('button, [role=button], [class*="button"], [class*="Button"]')) continue;
+          if (a.closest(controls)) continue;
           let u; try { u = new URL(a.href, location.href); } catch { continue; }
           const key = watch(u);
           if (!key || key === here) continue;
           const v = found.get(key) || { url: key };
-          const titled = a.getAttribute('title') || textOf(a.querySelector('#video-title, h3, .title'));
+          const titled = a.getAttribute('title') || textOf(a.querySelector('#video-title, h3, .title'))
+            || (a.closest('h3, #video-title') ? textOf(a) : '');
           const named = titled || a.getAttribute('aria-label');
           const written = a.querySelector('img') ? '' : textOf(a);
           if (named && named.length < 300 && !v.named) { v.title = named; v.named = true; }
           if (!v.title && written && written.length < 300) v.title = written;
           const img = a.querySelector('img');
           if (!v.thumbnail && img && img.src && img.src.startsWith('http')) v.thumbnail = img.src;
-          const time = textOf(a.querySelector('.badge-shape-wiz__text, ytd-thumbnail-overlay-time-status-renderer, .bili-video-card__stats__duration, .duration'));
+          const time = textOf(a.querySelector('[class*="BadgeShapeHost"], .badge-shape-wiz__text, ytd-thumbnail-overlay-time-status-renderer, .bili-video-card__stats__duration, .duration'));
           if (!v.duration && /^\d{1,2}(:\d{2}){1,2}$/.test(time)) v.duration = time;
           if (titled || v.thumbnail || v.duration) v.card = true;
           found.set(key, v);
