@@ -45,11 +45,16 @@ enum Symbols {
   static let attach = "paperclip"
   static let recognizing = "waveform"
   static let thoughtSmall = "text.bubble"
+  static let copy = "doc.on.doc"
+  static let latest = "arrow.down"
+  static let tools = "square.stack.3d.up"
+  static let web = "globe"
 
   static func tool(_ kind: ToolActivity.Kind) -> String {
     switch kind {
     case .read: "doc.text.magnifyingglass"
     case .edit: "pencil"
+    case .create: "doc.badge.plus"
     case .execute: "terminal"
     case .search: "magnifyingglass"
     case .other: "wrench.and.screwdriver"

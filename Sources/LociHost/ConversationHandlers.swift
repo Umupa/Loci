@@ -30,6 +30,11 @@ extension LocalHost {
     return Done()
   }
 
+  public func startOver(_ command: StartOver) async throws(HostError) -> Done {
+    try await (try mentors.run(of: command.mentor)).startOver()
+    return Done()
+  }
+
   public func writeLesson(_ command: WriteLesson) async throws(HostError) -> Done {
     let ref = command.lesson
     let page = try await mentorPage(ref.mentor)

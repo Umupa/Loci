@@ -50,7 +50,9 @@ actor MentorRun {
     self.context = context
     _ = try attempt { try context.store.mentor(mentor) }
     stored = try attempt { try context.database.messages(of: mentor, on: scope.item) }
-    conversation = try attempt { try context.database.latestConversation(of: mentor, on: scope.item) }
+    conversation =
+      stored.last?.body == .startedOver
+      ? nil : try attempt { try context.database.latestConversation(of: mentor, on: scope.item) }
   }
 
   var isIdle: Bool { turn == nil }
@@ -81,6 +83,19 @@ actor MentorRun {
     stopping = true
     await session?.interrupt()
     await running?.value
+  }
+
+  /// Closes the agent's session and marks the place in the conversation; the next turn opens a fresh one.
+  func startOver() async throws(HostError) {
+    guard turn == nil else { throw .invalidRequest(Self.busy) }
+    guard let conversation, stored.last?.body != .startedOver else { return }
+    let line = Message(id: context.environment.newID(), at: context.environment.now(), body: .startedOver)
+    try attempt { try context.database.append([line], to: conversation.id) }
+    stored.append(line)
+    self.conversation = nil
+    needsIntroduction = false
+    await dropSession()
+    await changed()
   }
 
   /// Stops the turn and the agent. With `forget`, a course conversation is deleted too; what was said on an

@@ -9,7 +9,10 @@ public struct ToolCall: Hashable, Sendable {
 
   public enum Kind: Hashable, Sendable {
     case read
+    /// Changes a file that was there.
     case edit
+    /// Writes a file that was not there.
+    case create
     case execute
     case search
     case other

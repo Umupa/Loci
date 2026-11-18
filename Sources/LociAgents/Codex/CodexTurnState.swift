@@ -74,7 +74,9 @@ struct CodexTurnState: Sendable {
       }
     case "fileChange":
       name = type
-      kind = .edit
+      let changes = item["changes"]?.array ?? []
+      let created = !changes.isEmpty && changes.allSatisfy { $0["kind"]?["type"]?.string == "add" }
+      kind = created ? .create : .edit
     case "mcpToolCall", "dynamicToolCall":
       name = item["tool"]?.string ?? type
       kind = .other
@@ -89,6 +91,7 @@ struct CodexTurnState: Sendable {
       events.append(.toolCallChanged(.init(id), .running))
     }
     if completed, finished.insert(id).inserted {
+      events.append(.toolCallChanged(.init(id), .input(item)))
       let status = item["status"]?.string
       let failed =
         status == "failed" || status == "declined" || item["success"]?.bool == false

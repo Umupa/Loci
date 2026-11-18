@@ -36,6 +36,22 @@ public struct StopTurn: Command {
   }
 }
 
+/// Starts the conversation over: the mentor's next message goes to a fresh agent session that remembers
+/// nothing said before. Every message stays, with a line where it started over. Does nothing on a
+/// conversation with no messages yet; refused while the mentor is working on a turn.
+public struct StartOver: Command {
+  public static let name = "conversation.startOver"
+  public let mentor: EntityID
+
+  public init(mentor: EntityID) {
+    self.mentor = mentor
+  }
+
+  public func run(on handler: any CommandHandler) async throws(HostError) -> Done {
+    try await handler.startOver(self)
+  }
+}
+
 /// Asks the mentor to write a lesson its catalog lists but that has no text yet.
 ///
 /// Refused for a lesson that is not in the catalog, one already written, or while the mentor is busy.

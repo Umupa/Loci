@@ -48,6 +48,7 @@ enum Judge {
       case .tool(let tool): "_tool \(tool.name): \(tool.subject ?? "")_"
       case .ended(.failed(let why)): "_turn failed: \(why)_"
       case .ended(.interrupted): "_turn stopped_"
+      case .startedOver: "_started over_"
       case .thinking, .savedToNote, .notice: nil
       }
     }.joined(separator: "\n\n")

@@ -121,6 +121,67 @@ struct ConversationScenarioTests {
     #expect(agent.opened.last?.resume?.value == "fake-1")
   }
 
+  /// UI-S11: `/new` starts over. Every message stays, a line marks the place, and the next message goes to
+  /// an agent session that remembers nothing before it.
+  @Test func startingOverKeepsTheMessagesAndTheNextMessageGoesToAFreshSession() async throws {
+    let agent = FakeAgent { _ in .reply("Ready.") }
+    try await withHost(agent: agent) { host, _, _ in
+      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      let before = try #require(await settled(host, mentor.id))
+
+      _ = try await host.run(StartOver(mentor: mentor.id))
+      _ = try await host.run(SendMessage(mentor: mentor.id, text: "Again"))
+
+      let after = try #require(await settled(host, mentor.id, turns: 2))
+      #expect(Array(after.messages.prefix(before.messages.count)) == before.messages)
+      #expect(after.messages[before.messages.count].body == .startedOver)
+      #expect(agent.opened.count == 2)
+      #expect(agent.opened.last?.resume == nil)
+    }
+  }
+
+  @Test func aConversationThatStartedOverStartsFreshAfterARestart() async throws {
+    let place = Place()
+    defer { place.remove() }
+    let agent = FakeAgent { _ in .reply("Ready.") }
+    let world = TestWorld(agent: agent)
+    let first = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
+    let mentor = try await first.run(CreateMentor(request: "Scheduling"))
+    _ = await settled(first, mentor.id)
+    _ = try await first.run(StartOver(mentor: mentor.id))
+    await first.close()
+
+    let second = try await LocalHost.start(root: place.root, database: place.database, environment: world.environment)
+    _ = try await second.run(SendMessage(mentor: mentor.id, text: "Still there?"))
+    let after = try #require(await settled(second, mentor.id, turns: 2))
+    await second.close()
+
+    #expect(after.messages.contains { $0.body == .startedOver })
+    #expect(agent.opened.last?.resume == nil)
+  }
+
+  @Test func startingOverTwiceLeavesOneLine() async throws {
+    try await withHost(agent: Self.quiet) { host, _, _ in
+      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+      _ = try #require(await settled(host, mentor.id))
+
+      _ = try await host.run(StartOver(mentor: mentor.id))
+      _ = try await host.run(StartOver(mentor: mentor.id))
+
+      let conversation = try await host.conversation(of: mentor.id)
+      #expect(conversation.messages.count { $0.body == .startedOver } == 1)
+    }
+  }
+
+  @Test func startingOverWhileTheMentorWorksIsRefused() async throws {
+    try await withHost(agent: FakeAgent { _ in .hang }) { host, _, _ in
+      let mentor = try await host.run(CreateMentor(request: "Scheduling"))
+
+      await #expect(throws: HostError.self) { try await host.run(StartOver(mentor: mentor.id)) }
+      _ = try await host.run(StopTurn(mentor: mentor.id))
+    }
+  }
+
   @Test func aMentorWhoseAgentIsMissingSaysSo() async throws {
     try await withHost { host, place, world in
       let mentor = try await host.run(CreateMentor(request: "Scheduling"))

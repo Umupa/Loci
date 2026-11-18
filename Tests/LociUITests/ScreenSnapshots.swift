@@ -71,6 +71,15 @@ struct ScreenSnapshots {
       size: Self.wide)
   }
 
+  /// UI-S16: in a narrow window the lesson's sidebar steps aside for the conversation.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func lessonInANarrowWindow(appearance: Snapshot.Appearance) async throws {
+    let sample = try Sample(problems: false)
+    try await Self.shoot(
+      "lesson-narrow", Self.root(sample, at: WindowState(place: .lesson(sample.filterLesson))), appearance: appearance,
+      size: CGSize(width: 890, height: 700))
+  }
+
   @Test(arguments: Snapshot.Appearance.allCases)
   func highlightsPanel(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample(problems: false)
@@ -110,6 +119,36 @@ struct ScreenSnapshots {
     )
     .lociHost(FakeHost(sample))
     try await Self.shoot("conversation", view, appearance: appearance, size: CGSize(width: 384, height: 900))
+  }
+
+  /// UI-S11 to UI-S14: a display formula, a code block and an answer with their copy buttons, tools folded into
+  /// one row, a line where the conversation started over, and the way back to the latest.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func chat(appearance: Snapshot.Appearance) async throws {
+    let sample = try Sample(problems: false)
+    var away = Following()
+    away.scrolled(to: 600)
+    let view = ConversationView(
+      mentor: sample.scheduling, conversation: try sample.chat(), draft: .constant(nil), revealPassage: { _ in },
+      send: { (_: String, _: Passage?) async throws(HostError) -> Done in Done() }, stop: {}, follow: away
+    )
+    .environment(\.showsCopyButtons, true)
+    .lociHost(FakeHost(sample))
+    try await Self.shoot("chat", view, appearance: appearance, size: CGSize(width: 420, height: 980))
+  }
+
+  /// UI-S12: tools in a row, folded and opened, with one failed and the last still running.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func toolRun(appearance: Snapshot.Appearance) async throws {
+    let steps = try Sample(problems: false).toolRun()
+    let cards = VStack(spacing: Spacing.l) {
+      StepsCard(steps: steps)
+      StepsCard(steps: steps, opened: true)
+    }
+    .padding(Spacing.m)
+    .frame(maxHeight: .infinity, alignment: .top)
+    .background(Palette.well)
+    try await Self.shoot("tool-run", cards, appearance: appearance, size: CGSize(width: 420, height: 420))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)

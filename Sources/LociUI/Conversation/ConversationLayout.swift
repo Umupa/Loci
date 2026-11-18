@@ -44,13 +44,49 @@ enum ConversationEntry: Identifiable {
       case .savedToNote(let note):
         close()
         entries.append(.saved(message, note: note))
-      case .prompt, .notice, .ended:
+      case .prompt, .notice, .ended, .startedOver:
         close()
         entries.append(.aside(message))
       }
     }
     close()
     return entries
+  }
+}
+
+extension ConversationEntry {
+  /// The whole text of each finished answer, under the last reply in it, which is where it is copied from.
+  /// An answer is every reply between one prompt and the next.
+  static func answers(_ entries: [ConversationEntry]) -> [EntityID: String] {
+    var answers: [EntityID: String] = [:]
+    var texts: [String] = []
+    var last: EntityID?
+    var streaming = false
+    func close() {
+      if let last, !streaming { answers[last] = texts.joined(separator: "\n\n") }
+      texts = []
+      last = nil
+      streaming = false
+    }
+    for entry in entries {
+      switch entry {
+      case .asked:
+        close()
+      case .aside(let message):
+        switch message.body {
+        case .prompt, .startedOver: close()
+        default: break
+        }
+      case .reply(let message, let text, let going):
+        texts.append(text)
+        last = message.id
+        streaming = going
+      case .steps, .saved:
+        break
+      }
+    }
+    close()
+    return answers
   }
 }
 

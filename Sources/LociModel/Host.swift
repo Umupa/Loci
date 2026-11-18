@@ -86,6 +86,7 @@ public protocol CommandHandler: Sendable {
   func health() async -> Health
   func sendMessage(_ command: SendMessage) async throws(HostError) -> Done
   func stopTurn(_ command: StopTurn) async throws(HostError) -> Done
+  func startOver(_ command: StartOver) async throws(HostError) -> Done
   func writeLesson(_ command: WriteLesson) async throws(HostError) -> Done
   func conversation(of mentor: EntityID) async throws(HostError) -> Conversation
   func mind(of mentor: EntityID) async throws(HostError) -> Mind

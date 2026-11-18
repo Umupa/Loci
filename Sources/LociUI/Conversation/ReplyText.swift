@@ -30,11 +30,12 @@ struct ReplyText: View {
   private static let fade = 0.45
 
   private static func rendered(_ markdown: String) -> some View {
-    StructuredText(markdown: markdown, syntaxExtensions: [.math])
+    StructuredText(markdown: DisplayMath.fenced(markdown), syntaxExtensions: [.math])
       .font(.system(size: 14))
       .foregroundStyle(Palette.ink)
       .textual.headingStyle(ReplyHeading())
       .textual.orderedListMarker(AmberNumber())
+      .textual.codeBlockStyle(CopyableCodeBlock())
       .textual.structuredTextStyle(.default)
       .textual.textSelection(.enabled)
       .frame(maxWidth: .infinity, alignment: .leading)

@@ -10,9 +10,12 @@ struct Composer: View {
   @Binding var draft: PassageDraft?
   let send: (String, Passage?) async throws(HostError) -> Done
   let stop: () async -> Void
+  /// What `/new` does: start the conversation over. Without it, `/new` is sent like any message.
+  var startOver: (() async throws(HostError) -> Done)?
   /// Only the field and send, for asking alongside an item.
   var plain = false
   @State private var text = ""
+  @State private var selection: TextSelection?
   @State private var stopping = false
   @FocusState private var focused: Bool
 
@@ -72,7 +75,7 @@ struct Composer: View {
   }
 
   private var field: some View {
-    TextField(text: $text, axis: .vertical) {
+    TextField(text: $text, selection: $selection, axis: .vertical) {
       Text(.loci("conversation.prompt"))
     }
     .textFieldStyle(.plain)
@@ -80,6 +83,18 @@ struct Composer: View {
     .lineLimit(1...8)
     .focused($focused)
     .onSubmit(submit)
+    .onKeyPress(.return, phases: .down) { press in
+      switch ComposerKey(press.modifiers) {
+      case .newLine:
+        (text, selection) = ComposerKey.newLine(in: text, at: selection)
+        return .handled
+      case .send:
+        submit()
+        return .handled
+      case .field:
+        return .ignored
+      }
+    }
   }
 
   @ViewBuilder private var sendOrStop: some View {
@@ -96,6 +111,17 @@ struct Composer: View {
 
   private func submit() {
     guard !busy, !trimmed.isEmpty else { return }
+    if let startOver, ComposerKey.isStartOver(trimmed) {
+      text = ""
+      Task {
+        do throws(HostError) {
+          _ = try await startOver()
+        } catch {
+          if text.isEmpty { text = "/new" }
+        }
+      }
+      return
+    }
     let sent = trimmed
     let asked = draft
     text = ""
@@ -116,6 +142,38 @@ struct Composer: View {
       await stop()
       stopping = false
     }
+  }
+}
+
+/// What Return does in the field with these keys held: Shift makes a new line, Command sends, and
+/// without either the field sends on its own once any input method has finished.
+enum ComposerKey: Equatable {
+  case newLine, send, field
+
+  init(_ modifiers: EventModifiers) {
+    if modifiers.contains(.shift) {
+      self = .newLine
+    } else if modifiers.contains(.command) {
+      self = .send
+    } else {
+      self = .field
+    }
+  }
+
+  /// The text with a line break in place of what is selected, and the caret after it.
+  static func newLine(in text: String, at selection: TextSelection?) -> (String, TextSelection) {
+    var range = text.endIndex..<text.endIndex
+    if case .selection(let picked) = selection?.indices { range = picked }
+    var changed = text
+    changed.replaceSubrange(range, with: "\n")
+    let caret = changed.index(
+      changed.startIndex, offsetBy: text.distance(from: text.startIndex, to: range.lowerBound) + 1)
+    return (changed, TextSelection(insertionPoint: caret))
+  }
+
+  /// `/new` on its own starts the conversation over.
+  static func isStartOver(_ text: String) -> Bool {
+    text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "/new"
   }
 }
 

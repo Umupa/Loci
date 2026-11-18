@@ -120,7 +120,7 @@ struct WorkingChip: View {
   private var verb: LocalizedStringResource {
     switch tool?.kind {
     case .read: .loci("activity.read")
-    case .edit: .loci("activity.edit")
+    case .edit, .create: .loci("activity.edit")
     case .execute: .loci("activity.execute")
     case .search: .loci("activity.search")
     case .other, nil: .loci("activity.thinking")

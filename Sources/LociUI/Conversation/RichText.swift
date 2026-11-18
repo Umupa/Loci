@@ -8,9 +8,10 @@ struct RichText: View {
   var font = Typography.reading
 
   var body: some View {
-    StructuredText(markdown: markdown, syntaxExtensions: [.math])
+    StructuredText(markdown: DisplayMath.fenced(markdown), syntaxExtensions: [.math])
       .font(font)
       .foregroundStyle(Palette.ink)
+      .textual.codeBlockStyle(CopyableCodeBlock())
       .textual.structuredTextStyle(.default)
       .textual.textSelection(.enabled)
       .frame(maxWidth: .infinity, alignment: .leading)

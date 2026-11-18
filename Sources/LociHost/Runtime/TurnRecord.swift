@@ -122,6 +122,7 @@ struct TurnRecord: Sendable {
       switch call.kind {
       case .read: .read
       case .edit: .edit
+      case .create: .create
       case .execute: .execute
       case .search: .search
       case .other: .other
@@ -130,8 +131,15 @@ struct TurnRecord: Sendable {
       id: call.id.value, name: call.name, kind: kind, subject: subject(of: call.input), output: "", state: .running)
   }
 
-  /// What a tool works on, from the arguments agents commonly give it.
+  /// What a tool works on, from the arguments agents commonly give it: the file a command reads or a change
+  /// writes, else the command, the path or the query.
   static func subject(of input: JSONValue) -> String? {
+    if let action = input["commandActions"]?.array?.first, action["type"]?.string == "read",
+      let path = action["path"]?.string ?? action["name"]?.string, !path.isEmpty
+    {
+      return path
+    }
+    if let path = input["changes"]?.array?.first?["path"]?.string, !path.isEmpty { return path }
     for key in ["command", "path", "file_path", "filePath", "pattern", "query", "url"] {
       if let value = input[key]?.string, !value.isEmpty { return value }
     }

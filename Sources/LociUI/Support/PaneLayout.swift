@@ -81,3 +81,37 @@ struct PaneResizer: View {
       .accessibilityHidden(true)
   }
 }
+
+/// Whether the sidebar shows. It shows as the person left it, except that in a narrow window a page with
+/// text and the panel beside it takes the sidebar's room, so the conversation stays wide enough to read.
+/// Opened again there, it stays until the window changes between narrow and wide.
+struct SidebarFit: Equatable {
+  /// Narrower than this, a reading page takes the sidebar's room.
+  static let narrow: CGFloat = 1000
+
+  private(set) var stepsAside = false
+  private var keptOpen = false
+
+  mutating func fit(width: CGFloat, reading: Bool) {
+    let aside = reading && width < Self.narrow
+    guard aside != stepsAside else { return }
+    stepsAside = aside
+    keptOpen = false
+  }
+
+  func shows(_ preferred: Bool) -> Bool {
+    preferred && (!stepsAside || keptOpen)
+  }
+
+  /// The person's choice after they toggle the sidebar. Hiding it where it only stepped aside for now keeps
+  /// it wanted elsewhere.
+  mutating func toggle(_ preferred: Bool) -> Bool {
+    guard stepsAside else { return !preferred }
+    if shows(preferred) {
+      keptOpen = false
+      return preferred
+    }
+    keptOpen = true
+    return true
+  }
+}

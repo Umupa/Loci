@@ -15,7 +15,9 @@ public struct RootView: View {
   @State private var covers = Covers()
   @State private var browser: BrowserSession
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
-  @AppStorage("sidebarShown") private var sidebarShown = true
+  @AppStorage("sidebarShown") private var sidebarPreferred = true
+  @State private var fit = SidebarFit()
+  @State private var width = CGFloat.infinity
   private let startShown: () -> Void
   private let memory: WindowMemory
 
@@ -41,6 +43,13 @@ public struct RootView: View {
         pageView($0).environment(\.openPlace, openPlace)
       }
     }
+    .onGeometryChange(for: CGFloat.self) {
+      $0.size.width
+    } action: {
+      width = $0
+    }
+    .onChange(of: width) { refit() }
+    .onChange(of: reading) { refit() }
     .overlay(alignment: .topLeading) {
       HStack(spacing: Spacing.xxs) {
         if !sidebarShown {
@@ -106,8 +115,27 @@ public struct RootView: View {
     PaneWidth.sidebar.clamped(sidebarWidth) + Spacing.xs * 2
   }
 
+  private var sidebarShown: Bool { fit.shows(sidebarPreferred) }
+
   private func toggleSidebar() {
-    withAnimation(Motion.fold) { sidebarShown.toggle() }
+    withAnimation(Motion.fold) { sidebarPreferred = fit.toggle(sidebarPreferred) }
+  }
+
+  /// A lesson or an item is open, with the panel beside its text.
+  private var reading: Bool {
+    switch window.pages.last {
+    case .lesson, .item: return true
+    case nil:
+      if case .lesson = window.place { return true }
+      return false
+    }
+  }
+
+  private func refit() {
+    var next = fit
+    next.fit(width: width, reading: reading)
+    guard next != fit else { return }
+    withAnimation(Motion.fold) { fit = next }
   }
 
   private var openPlace: OpenPlace {

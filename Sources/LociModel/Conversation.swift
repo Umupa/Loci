@@ -63,6 +63,8 @@ public struct Message: Hashable, Codable, Sendable, Identifiable {
     case notice(String)
     /// How a turn ended, when it did not simply finish.
     case ended(TurnEnding)
+    /// The person started over: the agent remembers nothing said before this, which still shows.
+    case startedOver
   }
 }
 
@@ -117,7 +119,8 @@ public struct ToolActivity: Hashable, Codable, Sendable {
   }
 
   public enum Kind: String, Hashable, Codable, Sendable {
-    case read, edit, execute, search, other
+    /// `edit` changes a file that was there; `create` writes one that was not.
+    case read, edit, create, execute, search, other
   }
 
   public enum State: String, Hashable, Codable, Sendable {

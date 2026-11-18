@@ -34,7 +34,10 @@ struct CodexTurnStateTests {
       state.receive("item/commandExecution/outputDelta", second) == [.toolCallChanged(.init("c"), .output("onetwo"))])
     let end = try json(#"{"item":{"type":"commandExecution","id":"c","exitCode":1,"aggregatedOutput":"onetwo"}}"#)
     #expect(
-      state.receive("item/completed", end) == [.toolCallChanged(.init("c"), .finished(output: "onetwo", failed: true))])
+      state.receive("item/completed", end) == [
+        .toolCallChanged(.init("c"), .input(try #require(end["item"]))),
+        .toolCallChanged(.init("c"), .finished(output: "onetwo", failed: true)),
+      ])
     #expect(state.receive("item/completed", end).isEmpty)
     #expect(state.receive("item/commandExecution/outputDelta", second).isEmpty)
   }
@@ -106,5 +109,24 @@ struct CodexTurnStateTests {
     #expect(result.calls.first?.name == "lookup")
     #expect(result.outputs.first?.text == "Found")
     #expect(result.outputs.first?.failed == false)
+  }
+
+  @Test func aFileChangeThatOnlyAddsFilesIsACreation() throws {
+    var state = CodexTurnState()
+    let added = try json(
+      #"{"item":{"type":"fileChange","id":"f","changes":[{"path":"/w/cleanup.py","kind":{"type":"add"}}]}}"#)
+    let updated = try json(
+      #"{"item":{"type":"fileChange","id":"g","changes":[{"path":"/w/cleanup.py","kind":{"type":"update"}}]}}"#)
+
+    #expect(state.receive("item/started", added).calls.first?.kind == .create)
+    #expect(state.receive("item/started", updated).calls.first?.kind == .edit)
+  }
+
+  @Test func aWebSearchTellsItsQueryWhenItCompletes() throws {
+    var state = CodexTurnState()
+    _ = state.receive("item/started", try json(#"{"item":{"type":"webSearch","id":"w","query":""}}"#))
+    let done = try json(#"{"item":{"type":"webSearch","id":"w","query":"python str.strip"}}"#)
+
+    #expect(state.receive("item/completed", done).changes.contains(.input(try #require(done["item"]))))
   }
 }

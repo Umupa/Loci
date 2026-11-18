@@ -26,7 +26,8 @@ struct ConversationScreen: View {
       send: { (text: String, passage: Passage?) async throws(HostError) -> Done in
         try await host.run(SendMessage(mentor: mentor.id, text: text, passage: passage))
       },
-      stop: { _ = try? await host.run(StopTurn(mentor: mentor.id)) })
+      stop: { _ = try? await host.run(StopTurn(mentor: mentor.id)) },
+      startOver: { () async throws(HostError) -> Done in try await host.run(StartOver(mentor: mentor.id)) })
   }
 }
 
@@ -41,15 +42,23 @@ struct ConversationView: View {
   let revealPassage: @MainActor (Locator) -> Void
   let send: (String, Passage?) async throws(HostError) -> Done
   let stop: () async -> Void
+  /// What `/new` in the composer does; without it, `/new` is sent like any message.
+  var startOver: (() async throws(HostError) -> Done)?
   /// On a conversation several mentors took part in, who answered each reply; it is named above it.
   var answeredBy: ((Message) -> Mentor?)?
   /// The day and time over the first message of each sitting, and a short conversation reads from the top.
   var showsDays = false
   /// The composer keeps to the field and send, without the agent's menus.
   var plainComposer = false
+  /// Starts keeping the newest line in view.
+  @State var follow = Following()
+  @State private var position = ScrollPosition(edge: .bottom)
+  @State private var scrolling = false
+  @State private var pointedAnswer: EntityID?
 
   var body: some View {
     ScrollView {
+      let answers = ConversationEntry.answers(entries)
       LazyVStack(alignment: .leading, spacing: 14) {
         ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
           if showsDays, let day = Sitting.start(of: entry, after: index > 0 ? entries[index - 1] : nil) {
@@ -69,7 +78,7 @@ struct ConversationView: View {
             .foregroundStyle(Palette.inkMuted)
             .padding(.bottom, -6)
           }
-          row(entry).transition(.opacity.combined(with: .offset(y: 10)))
+          row(entry, answer: answers[entry.id]).transition(.opacity.combined(with: .offset(y: 10)))
         }
         if waiting { StepsCard.waiting.transition(.opacity.combined(with: .offset(y: 10))) }
       }
@@ -80,6 +89,20 @@ struct ConversationView: View {
     }
     .defaultScrollAnchor(showsDays ? .top : .bottom, for: .alignment)
     .defaultScrollAnchor(.bottom, for: .initialOffset)
+    .scrollPosition($position)
+    .onScrollPhaseChange { _, phase in
+      scrolling = phase == .tracking || phase == .interacting || phase == .decelerating
+    }
+    .onScrollGeometryChange(for: CGFloat.self, of: Following.distanceFromEnd) { _, distance in
+      if scrolling { follow.scrolled(to: distance) }
+    }
+    .onScrollGeometryChange(for: CGFloat.self, of: \.contentSize.height) { _, _ in
+      if follow.isOn && !scrolling { position.scrollTo(edge: .bottom) }
+    }
+    .onChange(of: questions) {
+      follow.asked()
+      withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
+    }
     .scrollIndicators(.never)
     .mask(
       LinearGradient(
@@ -89,8 +112,19 @@ struct ConversationView: View {
     .safeAreaInset(edge: .bottom, spacing: 0) {
       Composer(
         mentor: mentor, context: conversation?.context, busy: conversation?.turn != nil, draft: $draft, send: send,
-        stop: stop, plain: plainComposer
+        stop: stop, startOver: startOver, plain: plainComposer
       )
+      .overlay(alignment: .top) {
+        if follow.offersLatest {
+          LatestButton(busy: conversation?.turn != nil) {
+            follow.returned()
+            withAnimation(Motion.standard) { position.scrollTo(edge: .bottom) }
+          }
+          .offset(y: -(LatestButton.size + Spacing.s))
+          .transition(.opacity.combined(with: .scale(scale: 0.8)))
+        }
+      }
+      .animation(Motion.quick, value: follow.offersLatest)
       .padding(.horizontal, Spacing.s)
       .padding(.bottom, Spacing.s)
       .padding(.top, Spacing.m)
@@ -100,6 +134,11 @@ struct ConversationView: View {
           startPoint: .top, endPoint: .bottom))
     }
     .background(Palette.well)
+  }
+
+  /// Questions the person has asked; one more means the conversation goes to its end to show the answer.
+  private var questions: Int {
+    entries.count { if case .asked = $0 { true } else { false } }
   }
 
   private var entries: [ConversationEntry] {
@@ -126,7 +165,7 @@ struct ConversationView: View {
     return false
   }
 
-  @ViewBuilder private func row(_ entry: ConversationEntry) -> some View {
+  @ViewBuilder private func row(_ entry: ConversationEntry, answer: String?) -> some View {
     switch entry {
     case .asked(_, let prompt):
       AskedMessage(prompt: prompt, revealPassage: revealPassage)
@@ -134,8 +173,16 @@ struct ConversationView: View {
       AsideLine(message: message)
     case .steps(let steps):
       StepsCard(steps: steps)
-    case .reply(_, let text, let streaming):
-      ReplyText(text: text, streaming: streaming).padding(.horizontal, 2)
+    case .reply(let message, let text, let streaming):
+      if let answer {
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
+          ReplyText(text: text, streaming: streaming).padding(.horizontal, 2)
+          AnswerActions(text: answer, shown: pointedAnswer == message.id)
+        }
+        .onHover { pointedAnswer = $0 ? message.id : nil }
+      } else {
+        ReplyText(text: text, streaming: streaming).padding(.horizontal, 2)
+      }
     case .saved:
       SavedChip()
     }

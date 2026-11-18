@@ -70,4 +70,20 @@ struct TurnRecordTests {
     turn.apply(.thinking("Hmm"), at: at)
     #expect(turn.answer == nil)
   }
+
+  @Test func aCommandThatReadsAFileIsAboutThatFile() {
+    let action: JSONValue = .object([
+      "type": .string("read"), "name": .string("cleanup.py"), "path": .string("/w/cleanup.py"),
+    ])
+    let read: JSONValue = .object([
+      "command": .string("/bin/zsh -lc 'cat cleanup.py'"), "commandActions": .array([action]),
+    ])
+    #expect(TurnRecord.subject(of: read) == "/w/cleanup.py")
+  }
+
+  @Test func aFileChangeIsAboutTheFileItChanges() {
+    let added: JSONValue = .object(["path": .string("/w/cleanup.py"), "kind": .object(["type": .string("add")])])
+    let change: JSONValue = .object(["changes": .array([added])])
+    #expect(TurnRecord.subject(of: change) == "/w/cleanup.py")
+  }
 }

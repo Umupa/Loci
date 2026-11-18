@@ -54,6 +54,20 @@ struct QuotedLine: View {
   }
 }
 
+/// Under a finished answer: copy all of it. Shows while the pointer is over the answer.
+struct AnswerActions: View {
+  let text: String
+  let shown: Bool
+  @Environment(\.showsCopyButtons) private var showsCopyButtons
+
+  var body: some View {
+    CopyButton { CopyButton.put(text) }
+      .padding(.leading, -4)
+      .opacity(shown || showsCopyButtons ? 1 : 0)
+      .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
 /// The question and its answer went into the highlight.
 struct SavedChip: View {
   var body: some View {
@@ -97,6 +111,13 @@ struct AsideLine: View {
           Image(systemName: Symbols.problem)
         }
         .foregroundStyle(Palette.accentInk)
+      case .startedOver:
+        HStack(spacing: Spacing.s) {
+          Rectangle().fill(Palette.line).frame(height: Size.hairline)
+          Text(.loci("conversation.startedOver")).fixedSize()
+          Rectangle().fill(Palette.line).frame(height: Size.hairline)
+        }
+        .padding(.vertical, Spacing.xs)
       case .reply, .thinking, .tool, .savedToNote:
         EmptyView()
       }
