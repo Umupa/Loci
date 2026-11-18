@@ -101,4 +101,32 @@ struct HostCodingTests {
     #expect(!OneItem(item: Fixture.item).isAffected(by: [.item(other), .notes(.item(Fixture.item))]))
     #expect(OneMentor(mentor: other).isAffected(by: [.everything]))
   }
+
+  @Test func companionCommandsAndTheirValuesSurviveJSON() throws {
+    let passage = Passage(locator: .item(Fixture.item, .quote(try TextQuote("打分"))), excerpt: "打分")
+    let prompt = Message(
+      id: Fixture.id(20), at: Fixture.instant, body: .prompt(Prompt(text: "Why?", purpose: .chat)))
+    let conversation = ItemConversation(
+      item: Fixture.item, companion: Fixture.mentor,
+      messages: [AttributedMessage(mentor: Fixture.mentor, message: prompt)],
+      turn: CompanionTurn(mentor: Fixture.mentor, turn: LiveTurn(startedAt: Fixture.instant, messages: [prompt])),
+      context: ContextUsage(used: 10, window: 100))
+
+    #expect(
+      try Self.roundTrips(AskCompanion(item: Fixture.item, mentor: Fixture.mentor, text: "Why?", passage: passage)))
+    #expect(try Self.roundTrips(StopCompanion(item: Fixture.item)))
+    #expect(try Self.roundTrips(ChooseCompanion(item: Fixture.item, mentor: Fixture.mentor)))
+    #expect(try Self.roundTrips(CompanionConversation(item: Fixture.item)))
+    #expect(try Self.roundTrips(Feed<ItemConversation>.value(conversation)))
+    let names = [AskCompanion.name, StopCompanion.name, ChooseCompanion.name, CompanionConversation.name]
+    #expect(Set(names).count == names.count)
+  }
+
+  @Test func anItemsConversationListensToItsItemAndToMentors() {
+    let other = Fixture.id(9)
+    let subscription = CompanionConversation(item: Fixture.item)
+    #expect(subscription.isAffected(by: [.itemConversation(Fixture.item)]))
+    #expect(subscription.isAffected(by: [.mentor(other)]))
+    #expect(!subscription.isAffected(by: [.itemConversation(other), .conversation(Fixture.mentor)]))
+  }
 }

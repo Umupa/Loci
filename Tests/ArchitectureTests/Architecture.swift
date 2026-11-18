@@ -29,7 +29,8 @@ enum Architecture {
       uses: ["LociModel"],
       frameworks: [
         "Foundation", "AVFoundation", "CoreMedia", "CoreGraphics", "NaturalLanguage", "WebKit", "Synchronization", "os",
-      ]),
+      ],
+      packages: ["whisper"]),
     "LociCode": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
     "LociRemote": Module(uses: ["LociModel"], frameworks: ["Foundation", "CryptoKit", "Network", "os"]),
     "LociHost": Module(

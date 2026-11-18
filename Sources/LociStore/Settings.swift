@@ -8,13 +8,16 @@ public struct HostSettings: Hashable, Sendable {
   /// The model new mentors ask each agent for.
   public var models: [Mentor.Provider: String] = [:]
   public var lessonLanguage: LessonLanguage = .learners
+  /// The Whisper model recognition uses; `nil` until one is chosen.
+  public var speechModel: SpeechModel?
+  public var browserLogin: BrowserLogin = .none
 
   public init() {}
 }
 
 extension HostSettings: Codable {
   private enum CodingKeys: String, CodingKey {
-    case agent, models, lessonLanguage, newMentors
+    case agent, models, lessonLanguage, newMentors, speechModel, browserLogin
   }
 
   public init(from decoder: any Decoder) throws {
@@ -23,6 +26,8 @@ extension HostSettings: Codable {
     models = try container.decodeIfPresent([Mentor.Provider: String].self, forKey: .models) ?? [:]
     let language = try container.decodeIfPresent(String.self, forKey: .lessonLanguage)
     lessonLanguage = language.map(LessonLanguage.fixed) ?? .learners
+    speechModel = try? container.decodeIfPresent(SpeechModel.self, forKey: .speechModel)
+    browserLogin = (try? container.decodeIfPresent(BrowserLogin.self, forKey: .browserLogin)) ?? BrowserLogin.none
     if agent == nil, let earlier = try container.decodeIfPresent(AgentChoice.self, forKey: .newMentors) {
       agent = earlier.provider
       if let model = earlier.model { models[earlier.provider] = model }
@@ -34,6 +39,8 @@ extension HostSettings: Codable {
     try container.encodeIfPresent(agent, forKey: .agent)
     if !models.isEmpty { try container.encode(models, forKey: .models) }
     if case .fixed(let tag) = lessonLanguage { try container.encode(tag, forKey: .lessonLanguage) }
+    try container.encodeIfPresent(speechModel, forKey: .speechModel)
+    if browserLogin != .none { try container.encode(browserLogin, forKey: .browserLogin) }
   }
 }
 

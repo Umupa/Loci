@@ -19,7 +19,7 @@ extension LocalHost {
   }
 
   /// The note on exactly this passage, made now when there is none.
-  private func note(on passage: Passage) async throws(HostError) -> Note {
+  func note(on passage: Passage) async throws(HostError) -> Note {
     let notes = store.notes(on: passage.locator.content).value
     if let existing = notes.first(where: { $0.locator == passage.locator }) { return existing }
     return try await addNote(AddNote(locator: passage.locator, excerpt: passage.excerpt))

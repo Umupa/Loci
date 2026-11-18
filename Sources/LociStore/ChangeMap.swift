@@ -32,12 +32,25 @@ struct ChangeMap {
       case .mind: return .mind(mentor)
       }
     case "library":
-      guard rest.isEmpty || rest == [Store.itemFile] || rest == [Store.contentFile] else { return nil }
+      guard rest.isEmpty || Self.isItemFile(rest) else { return nil }
       return id(ofFolder: "library/\(parts[1])", identify: identify).map(ContentChange.item) ?? .everything
     case "notes":
       return Self.notes(Array(parts.dropFirst())).map(ContentChange.notes)
     default:
       return nil
+    }
+  }
+
+  /// The files a reader sees of an item; work in progress under `.work/` is not one of them.
+  private static func isItemFile(_ rest: [String]) -> Bool {
+    switch rest.count {
+    case 1:
+      let stem = (rest[0] as NSString).deletingPathExtension
+      return [Store.itemFile, Store.contentFile, Store.pdfFile, Store.transcriptFile, Store.outlineFile].contains(
+        rest[0])
+        || [Store.mediaName, Store.coverName].contains(stem)
+    case 2: return rest[0] == Store.translationsFolder || rest[0] == Store.imagesFolder
+    default: return false
     }
   }
 

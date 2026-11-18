@@ -15,7 +15,9 @@ extension LocalHost {
 
   public func deleteItem(_ command: DeleteItem) async throws(HostError) -> Done {
     try attempt { try store.deleteItem(command.item, notes: command.notes) }
-    var changes: Set<ContentChange> = [.item(command.item)]
+    await library.queue.forget(command.item)
+    await mentors.forget(item: command.item)
+    var changes: Set<ContentChange> = [.item(command.item), .itemConversation(command.item)]
     if command.notes == .delete { changes.insert(.notes(.item(command.item))) }
     await follow(changes)
     return Done()
@@ -34,8 +36,8 @@ extension LocalHost {
       let item = try store.item(id)
       let text: String? =
         switch item.kind {
-        case .article, .paper: try store.content(of: id)
-        case .video, .audio, .repository: nil
+        case .article: try store.fetchedContent(of: id)
+        case .paper, .video, .audio, .repository: nil
         }
       return ItemPage(item: item, text: text, citedBy: try database.citingLessons(of: id))
     }

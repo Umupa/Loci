@@ -1,0 +1,24 @@
+{
+ "id": "1000802251165",
+ "title": "Finally, a Vaccine for Cancer",
+ "series": "The Daily",
+ "duration": 1358,
+ "upload_date": "20261116",
+ "timestamp": 1794825900,
+ "extractor_key": "ApplePodcasts",
+ "webpage_url": "https://podcasts.apple.com/us/podcast/finally-a-vaccine-for-cancer/id1200361736?i=1000802251165",
+ "webpage_url_domain": "podcasts.apple.com",
+ "thumbnail": "https://is1-ssl.mzstatic.com/image/thumb/Podcasts211/v4/33/c3/7b/33c37bc4-84fa-201c-c80f-eac6c92eecd0/mza_3907987834512826199.jpg/1200x1200ECA.PESS01-60.jpg?imgShow=Podcasts221/v4/ab/64/66/ab6466a9-9a7d-e20e-7a3d-bc5be37d29ce/mza_15084852813176276273.jpg",
+ "url": "https://pfx.vpixl.com/6qj4J/tracking.swap.fm/track/4jdbJYYRKqK96EGqOzQb/nyt.simplecastaudio.com/03d8b493-87fc-4bd1-931f-8a8e9b945d8a/episodes/cfacb2c0-58cc-4a37-b24f-4fe14fce220e/audio/128/default.mp3?aid=rss_feed&awCollectionId=03d8b493-87fc-4bd1-931f-8a8e9b945d8a&awEpisodeId=cfacb2c0-58cc-4a37-b24f-4fe14fce220e&feed=Sl5CSM3S",
+ "ext": "mp3",
+ "vcodec": "none",
+ "acodec": "mp3",
+ "http_headers": {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-us,en;q=0.5",
+  "Sec-Fetch-Mode": "navigate"
+ },
+ "description": "An experimental vaccine has been found to prevent recurrence of melanoma. Scient",
+ "_type": "video"
+}

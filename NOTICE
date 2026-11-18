@@ -31,3 +31,8 @@ in src/features/settings/model/omarchyThemes.generated.ts. The wallpapers,
 resized and re-encoded as WebP, are in public/themes next to a copy of Omarchy's
 license; the Omarchy repository does not record who made each image. Loci is not
 affiliated with Omarchy.
+
+Loci reads web articles with defuddle 0.19.6 by Steph Ango
+(https://github.com/kepano/defuddle), released under the MIT License. Its
+browser build (dist/index.full.js from the npm package) is bundled unchanged as
+Sources/LociMedia/Resources/defuddle.js, next to a copy of its license.

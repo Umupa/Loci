@@ -6,41 +6,50 @@ import LociModel
 public struct ConversationRecord: Hashable, Sendable {
   public let id: EntityID
   public let mentor: EntityID
+  /// The item the mentor is answering about, or `nil` for the mentor's own conversation.
+  public let item: EntityID?
   public let provider: Mentor.Provider
   /// The provider's own name for the session, once it has started.
   public let session: String?
 
-  public init(id: EntityID, mentor: EntityID, provider: Mentor.Provider, session: String?) {
+  public init(id: EntityID, mentor: EntityID, item: EntityID? = nil, provider: Mentor.Provider, session: String?) {
     self.id = id
     self.mentor = mentor
+    self.item = item
     self.provider = provider
     self.session = session
   }
 }
 
 extension StoreDatabase {
-  /// The mentor's most recent conversation.
-  public func latestConversation(of mentor: EntityID) throws -> ConversationRecord? {
+  /// The mentor's most recent conversation of its own, or on `item` when one is given.
+  public func latestConversation(of mentor: EntityID, on item: EntityID? = nil) throws -> ConversationRecord? {
     try queue.read { db in
       guard
         let row = try Row.fetchOne(
-          db, sql: "SELECT id, provider, session FROM conversation WHERE mentor_id = ? ORDER BY seq DESC LIMIT 1",
-          arguments: [mentor.description])
+          db,
+          sql: """
+            SELECT id, provider, session FROM conversation WHERE mentor_id = ? AND item_id IS ?
+            ORDER BY seq DESC LIMIT 1
+            """,
+          arguments: [mentor.description, item?.description])
       else { return nil }
       let id: String = row["id"]
       let provider: String = row["provider"]
       guard let id = EntityID(canonical: id), let provider = Mentor.Provider(rawValue: provider) else { return nil }
-      return ConversationRecord(id: id, mentor: mentor, provider: provider, session: row["session"])
+      return ConversationRecord(id: id, mentor: mentor, item: item, provider: provider, session: row["session"])
     }
   }
 
   public func start(_ conversation: ConversationRecord, at time: Timestamp) throws {
     try queue.write { db in
       try db.execute(
-        sql: "INSERT INTO conversation (id, mentor_id, provider, session, started_at) VALUES (?, ?, ?, ?, ?)",
+        sql: """
+          INSERT INTO conversation (id, mentor_id, item_id, provider, session, started_at) VALUES (?, ?, ?, ?, ?, ?)
+          """,
         arguments: [
-          conversation.id.description, conversation.mentor.description, conversation.provider.rawValue,
-          conversation.session, time.description,
+          conversation.id.description, conversation.mentor.description, conversation.item?.description,
+          conversation.provider.rawValue, conversation.session, time.description,
         ])
     }
   }
@@ -66,36 +75,42 @@ extension StoreDatabase {
     }
   }
 
-  /// Every message of every one of the mentor's conversations, oldest first. A row that cannot be read is
-  /// left out rather than hiding the rest.
-  public func messages(of mentor: EntityID) throws -> [Message] {
+  /// Every message of every one of the mentor's own conversations, or of its conversations on `item` when
+  /// one is given, oldest first. A row that cannot be read is left out rather than hiding the rest.
+  public func messages(of mentor: EntityID, on item: EntityID? = nil) throws -> [Message] {
     try queue.read { db in
       try Row.fetchAll(
         db,
         sql: """
           SELECT m.id, m.at, m.body FROM message m JOIN conversation c ON c.id = m.conversation_id
-          WHERE c.mentor_id = ? ORDER BY m.seq
+          WHERE c.mentor_id = ? AND c.item_id IS ? ORDER BY m.seq
           """,
-        arguments: [mentor.description]
-      ).compactMap { row in
-        let id: String = row["id"]
-        let at: String = row["at"]
-        let body: String = row["body"]
-        guard let id = EntityID(canonical: id), let at = Timestamp(at),
-          let body = try? JSONDecoder().decode(Message.Body.self, from: Data(body.utf8))
-        else { return nil }
-        return Message(id: id, at: at, body: body)
-      }
+        arguments: [mentor.description, item?.description]
+      ).compactMap(Self.message)
     }
   }
 
-  /// Conversations go only when their mentor does.
+  static func message(_ row: Row) -> Message? {
+    let id: String = row["id"]
+    let at: String = row["at"]
+    let body: String = row["body"]
+    guard let id = EntityID(canonical: id), let at = Timestamp(at),
+      let body = try? JSONDecoder().decode(Message.Body.self, from: Data(body.utf8))
+    else { return nil }
+    return Message(id: id, at: at, body: body)
+  }
+
+  /// A mentor's own conversations go only when it does. What it answered on items stays with the items.
   public func deleteConversations(of mentor: EntityID) throws {
     try queue.write { db in
       try db.execute(
-        sql: "DELETE FROM message WHERE conversation_id IN (SELECT id FROM conversation WHERE mentor_id = ?)",
+        sql: """
+          DELETE FROM message WHERE conversation_id IN
+          (SELECT id FROM conversation WHERE mentor_id = ? AND item_id IS NULL)
+          """,
         arguments: [mentor.description])
-      try db.execute(sql: "DELETE FROM conversation WHERE mentor_id = ?", arguments: [mentor.description])
+      try db.execute(
+        sql: "DELETE FROM conversation WHERE mentor_id = ? AND item_id IS NULL", arguments: [mentor.description])
     }
   }
 }

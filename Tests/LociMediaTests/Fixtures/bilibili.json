@@ -1,0 +1,295 @@
+{
+ "id": "BV1GJ411x7h7",
+ "title": "【官方 MV】Never Gonna Give You Up - Rick Astley",
+ "uploader": "索尼音乐中国",
+ "duration": 212.393,
+ "upload_date": "20191231",
+ "timestamp": 1577835803,
+ "extractor_key": "BiliBili",
+ "webpage_url": "https://www.bilibili.com/video/BV1GJ411x7h7",
+ "webpage_url_domain": "bilibili.com",
+ "language": null,
+ "thumbnail": "http://i1.hdslb.com/bfs/archive/5242750857121e05146d5d5b13a47a2a6dd36e98.jpg",
+ "chapters": null,
+ "subtitles": {},
+ "formats": [
+  {
+   "format_id": "30216",
+   "ext": "m4a",
+   "vcodec": "none",
+   "acodec": "mp4a.40.5",
+   "protocol": "https",
+   "height": null,
+   "url": "https://xy112x17x39x11xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-30216.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&bw=",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 43.962
+  },
+  {
+   "format_id": "30232",
+   "ext": "m4a",
+   "vcodec": "none",
+   "acodec": "mp4a.40.2",
+   "protocol": "https",
+   "height": null,
+   "url": "https://xy120x241x226x27xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-30232.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&b",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 102.931
+  },
+  {
+   "format_id": "30280",
+   "ext": "m4a",
+   "vcodec": "none",
+   "acodec": "mp4a.40.2",
+   "protocol": "https",
+   "height": null,
+   "url": "https://xy183x232x159x19xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-30280.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&b",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 203.786
+  },
+  {
+   "format_id": "30016",
+   "ext": "mp4",
+   "vcodec": "avc1.64001E",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 360,
+   "url": "https://xy120x237x56x187xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-30016.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&b",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 350.253
+  },
+  {
+   "format_id": "100109",
+   "ext": "mp4",
+   "vcodec": "hev1.1.6.L120.90",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 360,
+   "url": "https://xy58x144x144x26xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2x1-1-100109.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 153.22
+  },
+  {
+   "format_id": "100022",
+   "ext": "mp4",
+   "vcodec": "av01.0.08M.08.0.110.01.01.01.0",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 360,
+   "url": "https://xy171x43x247x140xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-100022.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 155.867
+  },
+  {
+   "format_id": "30032",
+   "ext": "mp4",
+   "vcodec": "avc1.64001F",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 480,
+   "url": "https://xy36x152x200x40xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-30032.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&bw",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 786.766
+  },
+  {
+   "format_id": "100110",
+   "ext": "mp4",
+   "vcodec": "hev1.1.6.L120.90",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 480,
+   "url": "https://xy36x97x228x228xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2x1-1-100110.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 218.55
+  },
+  {
+   "format_id": "100023",
+   "ext": "mp4",
+   "vcodec": "av01.0.08M.08.0.110.01.01.01.0",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 480,
+   "url": "https://xy183x234x98x183xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-100023.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 184.371
+  },
+  {
+   "format_id": "30064",
+   "ext": "mp4",
+   "vcodec": "avc1.640028",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 720,
+   "url": "https://r5uw39t.edge.mountaintoys.cn:4483/upgcxcode/99/91/137649199/137649199_da2-1-30064.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8B",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 1752.673
+  },
+  {
+   "format_id": "100111",
+   "ext": "mp4",
+   "vcodec": "hev1.1.6.L120.90",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 720,
+   "url": "https://xy106x227x71x162xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2x1-1-100111.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vo",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 358.814
+  },
+  {
+   "format_id": "100024",
+   "ext": "mp4",
+   "vcodec": "av01.0.08M.08.0.110.01.01.01.0",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 720,
+   "url": "https://xy120x237x56x188xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-100024.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 292.136
+  },
+  {
+   "format_id": "30080",
+   "ext": "mp4",
+   "vcodec": "avc1.640032",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 1080,
+   "url": "https://xy120x241x226x27xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-30080.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&b",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 2629.444
+  },
+  {
+   "format_id": "100113",
+   "ext": "mp4",
+   "vcodec": "hev1.1.6.L150.90",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 1080,
+   "url": "https://xy39x174x255x5xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2x1-1-100113.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 749.418
+  },
+  {
+   "format_id": "100026",
+   "ext": "mp4",
+   "vcodec": "av01.0.08M.08.0.110.01.01.01.0",
+   "acodec": "none",
+   "protocol": "https",
+   "height": 1080,
+   "url": "https://xy120x241x226x27xy.mcdn.bilivideo.cn:8082/v1/resource/upgcxcode/99/91/137649199/137649199_da2-1-100026.m4s?V=v3.1.2&agrr=0&build=0&buvid=B99A0209-92C7-717C-81D6-D9C7BA9A9E9515263infoc&bvc=vod&",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-us,en;q=0.5",
+    "Sec-Fetch-Mode": "navigate",
+    "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+   },
+   "filesize": null,
+   "tbr": 603.657
+  }
+ ],
+ "ext": "mp4",
+ "vcodec": "av01.0.08M.08.0.110.01.01.01.0",
+ "acodec": "mp4a.40.2",
+ "http_headers": {
+  "Referer": "https://www.bilibili.com/video/BV1GJ411x7h7"
+ },
+ "description": "-",
+ "_type": "video"
+}

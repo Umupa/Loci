@@ -1,0 +1,137 @@
+import Foundation
+import LociHost
+import LociMedia
+import LociModel
+import Testing
+
+/// A temporary Loci folder with fake programs, network, recognition and agent for the library to use.
+struct MediaWorld {
+  let place = Place()
+  let world = TestWorld()
+  let programs = FakePrograms()
+  let network: FakeNetwork
+  let agent = FakeTranscriptAgent()
+
+  init() {
+    network = FakeNetwork(folder: place.root.appending(path: ".downloads"))
+  }
+
+  var support: URL { place.root.appending(path: ".support") }
+  var bin: URL { place.root.appending(path: ".bin") }
+
+  /// Puts components where the host looks for ones already on this Mac.
+  func install(_ components: [Component] = Component.allCases) throws {
+    try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+    guard !components.isEmpty else { return }
+    for component in components {
+      let name = ["ytDlp": "yt-dlp", "ffmpeg": "ffmpeg", "quickJS": "qjs"][component.rawValue] ?? ""
+      let file = bin.appending(path: name)
+      try Data("#!/bin/sh\n".utf8).write(to: file)
+      try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+    }
+  }
+
+  func installModel(_ model: SpeechModel = .recommended) throws {
+    let models = support.appending(path: "models")
+    try FileManager.default.createDirectory(at: models, withIntermediateDirectories: true)
+    try Data("ggml".utf8).write(to: models.appending(path: model.fileName))
+  }
+
+  func environment(
+    transcriber: FakeTranscriber, agent: Bool = true, text: Bool = true, readerLanguage: String = "zh-Hans"
+  ) -> HostEnvironment {
+    let writer: any TranscriptAgent = self.agent
+    var make: (@Sendable (AgentChoice) -> any TranscriptAgent)?
+    if agent { make = { _ in writer } }
+    let fetcher: (any TextFetching)? = text ? FakeTextFetcher() : nil
+    let media = MediaEnvironment(
+      support: support, runner: programs, network: network, transcriber: transcriber, searchPaths: [bin],
+      readerLanguage: readerLanguage, textFetching: fetcher,
+      transcriptAgent: make)
+    return HostEnvironment(
+      newID: { [world] in world.nextID() }, now: { TestWorld.instant }, defaultProvider: .pi, discard: .permanently,
+      agents: { _ in nil }, media: media)
+  }
+
+  func start(
+    transcriber: FakeTranscriber = FakeTranscriber([]), agent: Bool = true, text: Bool = true,
+    readerLanguage: String = "zh-Hans"
+  ) async throws -> LocalHost {
+    try await LocalHost.start(
+      root: place.root, database: place.database,
+      environment: environment(transcriber: transcriber, agent: agent, text: text, readerLanguage: readerLanguage))
+  }
+}
+
+/// Runs `body` against a host over a new media world, then closes the host and deletes the world.
+func withMediaHost(
+  transcriber: FakeTranscriber = FakeTranscriber([]), agent: Bool = true, text: Bool = true,
+  components: [Component] = Component.allCases,
+  _ body: (LocalHost, MediaWorld) async throws -> Void
+) async throws {
+  let world = MediaWorld()
+  defer { world.place.remove() }
+  try world.install(components)
+  let host = try await world.start(transcriber: transcriber, agent: agent, text: text)
+  do {
+    try await body(host, world)
+  } catch {
+    await host.close()
+    throw error
+  }
+  await host.close()
+}
+
+/// The job once it reaches a state `match` accepts, or `nil` after a few seconds.
+func job(_ host: LocalHost, _ item: EntityID, where match: @escaping @Sendable (Job?) -> Bool) async -> Job?? {
+  let feed = host.subscribe(ItemJob(item: item))
+  let found = await first(feed) { delivered in
+    if case .value(let job) = delivered { return match(job) }
+    return false
+  }
+  guard case .value(let job) = found else { return nil }
+  return .some(job)
+}
+
+func isDone(_ job: Job?) -> Bool { job == nil }
+
+func state(_ expected: Job.State) -> @Sendable (Job?) -> Bool {
+  { $0?.state == expected }
+}
+
+func isRunning(_ stage: Job.Stage) -> @Sendable (Job?) -> Bool {
+  { job in
+    guard let job, job.stage == stage, case .running = job.state else { return false }
+    return true
+  }
+}
+
+enum Links {
+  static let youtube = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+  static let bilibili = "https://www.bilibili.com/video/BV1GJ411x7h7"
+  static let episode = "https://podcasts.apple.com/us/podcast/x/id1200361736?i=1000802251165"
+  static let article = "https://queue.acm.org/detail.cfm?id=2898444"
+  static let paper = "https://arxiv.org/abs/1234.5678"
+
+  static func url(_ link: String) -> URL { URL(string: link)! }
+}
+
+let zooSubtitles = """
+  WEBVTT
+
+  00:00:01.000 --> 00:00:04.000
+  All right, so here we are in front of the elephants
+
+  00:00:04.000 --> 00:00:08.000
+  the cool thing about these guys is that they have really long trunks
+  """
+
+let spoken: [Heard] = [
+  .language("en"),
+  FakeTranscriber.words("The scheduler filters nodes.", from: 0),
+  .progress(Fraction(0.4)),
+  FakeTranscriber.words("Then it scores them.", from: 2),
+  .progress(Fraction(0.8)),
+  FakeTranscriber.words("Finally it binds the pod.", from: 4),
+  .progress(Fraction(1)),
+]

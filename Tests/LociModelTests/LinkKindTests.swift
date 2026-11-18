@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import LociMedia
+@testable import LociModel
 
 struct LinkKindTests {
   static let cases: [(String, LinkKind)] = [

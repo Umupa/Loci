@@ -45,7 +45,8 @@ struct ChangeMapTests {
       Self.changes([
         "\(Self.mentorFolder)/AGENTS.md", "\(Self.mentorFolder)/workspace/notes.txt",
         "\(Self.mentorFolder)/lessons/Intro.md",
-        "\(Self.mentorFolder)/.DS_Store", "\(Self.itemFolder)/media.mp4", "notes/library/x.jsonl", "loci.sqlite",
+        "\(Self.mentorFolder)/.DS_Store", "\(Self.itemFolder)/.work/media.mp4.part", "notes/library/x.jsonl",
+        "loci.sqlite",
         "mentors",
       ]).isEmpty)
   }

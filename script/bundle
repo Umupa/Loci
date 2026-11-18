@@ -39,6 +39,17 @@ cp "$bin/Loci" "$app/Contents/MacOS/Loci"
 for bundle in "$bin"/*.bundle; do
   if [ -d "$bundle" ]; then cp -R "$bundle" "$app/Contents/Resources/"; fi
 done
+# Frameworks from binary targets (whisper.cpp) go where the executable looks
+# for them; SwiftPM itself links them next to the binary.
+for framework in "$bin"/*.framework; do
+  if [ -d "$framework" ]; then
+    mkdir -p "$app/Contents/Frameworks"
+    cp -R "$framework" "$app/Contents/Frameworks/"
+  fi
+done
+if [ -d "$app/Contents/Frameworks" ]; then
+  install_name_tool -add_rpath @executable_path/../Frameworks "$app/Contents/MacOS/Loci" 2>/dev/null || true
+fi
 cat >"$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

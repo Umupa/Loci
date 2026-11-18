@@ -52,6 +52,29 @@ enum Schema {
           )
           """)
     }
+    migrator.registerMigration("4 job") { db in
+      try db.execute(
+        sql: """
+          CREATE TABLE job (
+            item_id TEXT PRIMARY KEY NOT NULL,
+            stage TEXT NOT NULL,
+            state TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          )
+          """)
+    }
+    migrator.registerMigration("5 item conversation") { db in
+      try db.execute(
+        sql: """
+          ALTER TABLE conversation ADD COLUMN item_id TEXT;
+          CREATE INDEX conversation_item ON conversation(item_id);
+          CREATE TABLE companion (
+            item_id TEXT PRIMARY KEY NOT NULL,
+            mentor_id TEXT NOT NULL,
+            chosen_at TEXT NOT NULL
+          );
+          """)
+    }
     return migrator
   }
 

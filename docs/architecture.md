@@ -45,6 +45,8 @@
 | Textual | 0.5.0 | `LociUI` | 对话里导师的回复、笔记面板里的回答（流式 Markdown） |
 | HighlightSwift（swift-highlight） | 0.1.1 | `LociUI` | 课文代码块的语法高亮，纯 Swift，不跑 JavaScript |
 | SwiftMath | 1.7.3 | `LociUI` | 课文里的公式排版 |
+| whisper.cpp（`whisper.xcframework`） | b5454（与 v1.9.5 同一次构建，校验和钉在 `Package.swift`） | `LociMedia` | 本机语音识别（Metal），逐词时间 |
+| defuddle | 0.19.6 | `LociMedia`（资源） | 在不显示的网页里取正文转 Markdown。npm `defuddle@0.19.6` 的 `dist/index.full.js` 原样放在 `Sources/LociMedia/Resources/defuddle.js`，许可证在旁边；升级时换这两个文件并改这里的版本 |
 
 Textual 自带 swiftui-math、swift-concurrency-extras 两个传递依赖。GCD 只允许出现在 `Sources/LociStore/FileEvents.swift`：FSEvents 只能把回调交给一个队列，那个文件接到回调后立刻转成 `AsyncStream`。
 

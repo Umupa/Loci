@@ -25,7 +25,13 @@ let package = Package(
       swiftSettings: strict),
     .target(
       name: "LociAgents", dependencies: ["LociModel"], swiftSettings: strict),
-    .target(name: "LociMedia", dependencies: ["LociModel"], swiftSettings: strict),
+    .binaryTarget(
+      name: "whisper",
+      url: "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-b5454-xcframework.zip",
+      checksum: "e57f8c48933000acabc13bb913fbe82805d483a2deff692cc6738836bd92393b"),
+    .target(
+      name: "LociMedia", dependencies: ["LociModel", "whisper"], resources: [.copy("Resources")],
+      swiftSettings: strict),
     .target(
       name: "LociHost", dependencies: ["LociModel", "LociStore", "LociAgents", "LociMedia"],
       resources: [.copy("Resources")],
@@ -45,8 +51,10 @@ let package = Package(
     .testTarget(name: "LociStoreTests", dependencies: ["LociStore"], swiftSettings: strict),
     .testTarget(
       name: "LociAgentsTests", dependencies: ["LociAgents"], resources: [.copy("Fixtures")], swiftSettings: strict),
-    .testTarget(name: "LociMediaTests", dependencies: ["LociMedia"], swiftSettings: strict),
-    .testTarget(name: "LociHostTests", dependencies: ["LociHost", "LociStore", "LociAgents"], swiftSettings: strict),
+    .testTarget(
+      name: "LociMediaTests", dependencies: ["LociMedia"], resources: [.copy("Fixtures")], swiftSettings: strict),
+    .testTarget(
+      name: "LociHostTests", dependencies: ["LociHost", "LociStore", "LociAgents", "LociMedia"], swiftSettings: strict),
     .testTarget(name: "LociUITests", dependencies: ["LociUI"], swiftSettings: strict),
     .testTarget(name: "LociEvalTests", dependencies: ["LociEval", "LociModel"], swiftSettings: strict),
     .testTarget(name: "ArchitectureTests", swiftSettings: strict),

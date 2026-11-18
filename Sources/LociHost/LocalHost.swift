@@ -12,6 +12,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   let environment: HostEnvironment
   let hub: Hub
   let mentors: MentorRuntime
+  let library: LibraryRuntime
 
   private init(store: Store, database: StoreDatabase, environment: HostEnvironment, readingStateLost: Bool) {
     self.store = store
@@ -20,6 +21,9 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     let hub = Hub(health: Health(database: .rebuilding, readingStateLost: readingStateLost, fileProblems: []))
     self.hub = hub
     mentors = MentorRuntime(
+      store: store, database: database, environment: environment,
+      follower: Follower(store: store, database: database, hub: hub))
+    library = LibraryRuntime(
       store: store, database: database, environment: environment,
       follower: Follower(store: store, database: database, hub: hub))
   }
@@ -75,12 +79,14 @@ public final class LocalHost: LociModel.Host, CommandHandler {
       for await batch in changes { await host.follow(batch) }
     }
     await host.hub.hold(work)
+    await host.library.queue.resume()
     return host
   }
 
   /// Stops watching the folder and stops every mentor's agent. Subscriptions stay open but receive nothing
   /// more.
   public func close() async {
+    await library.queue.close()
     await hub.stop()
     await mentors.close()
   }

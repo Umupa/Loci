@@ -98,4 +98,27 @@ public protocol CommandHandler: Sendable {
   func setLessonLanguage(_ command: SetLessonLanguage) async throws(HostError) -> LessonLanguage
   func dataLocation() async -> URL
   func setMentorAgent(_ command: SetMentorAgent) async throws(HostError) -> Mentor
+  func addLink(_ command: AddLink) async throws(HostError) -> Item
+  func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item
+  func retryJob(_ item: EntityID) async throws(HostError) -> Job
+  func cancelJob(_ item: EntityID) async throws(HostError) -> Done
+  func jobs() async throws(HostError) -> [Job]
+  func job(of item: EntityID) async throws(HostError) -> Job?
+  func mediaPage(_ item: EntityID) async throws(HostError) -> MediaPage
+  func playback(_ command: ReadPlayback) async throws(HostError) -> Playback
+  func cover(of item: EntityID) async throws(HostError) -> Data?
+  func itemPDF(_ item: EntityID) async throws(HostError) -> Data
+  func itemImage(_ command: ReadItemImage) async throws(HostError) -> Data
+  func mediaSetup() async throws(HostError) -> MediaSetup
+  func detectComponents(again: Bool) async -> [ComponentStatus]
+  func installComponent(_ component: Component) async throws(HostError) -> Done
+  func downloadSpeechModel(_ model: SpeechModel) async throws(HostError) -> Done
+  func deleteSpeechModel(_ model: SpeechModel) async throws(HostError) -> Done
+  func setSpeechModel(_ model: SpeechModel) async throws(HostError) -> MediaSetup
+  func setBrowserLogin(_ login: BrowserLogin) async throws(HostError) -> MediaSetup
+  func handOverBrowserCookies(_ cookies: [BrowserCookie]) async throws(HostError) -> Done
+  func askCompanion(_ command: AskCompanion) async throws(HostError) -> Done
+  func stopCompanion(_ command: StopCompanion) async throws(HostError) -> Done
+  func chooseCompanion(_ command: ChooseCompanion) async throws(HostError) -> ItemConversation
+  func itemConversation(on item: EntityID) async throws(HostError) -> ItemConversation
 }

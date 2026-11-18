@@ -11,12 +11,24 @@ struct RunContext: Sendable {
   let follower: Follower
 }
 
-/// One mentor's conversation: its agent session, the turn running now, and the messages before it.
+/// What a mentor's conversation is about: its own course, or one item it reads along on.
+enum RunScope: Hashable, Sendable {
+  case course
+  case item(EntityID)
+
+  var item: EntityID? {
+    if case .item(let item) = self { item } else { nil }
+  }
+}
+
+/// One mentor's conversation in one scope: its agent session, the turn running now, and the messages
+/// before it.
 ///
 /// One turn runs at a time. A turn's messages are kept in memory while it runs and stored together when it
 /// ends, so the stored conversation only ever grows by whole turns.
 actor MentorRun {
   let mentor: EntityID
+  let scope: RunScope
   let context: RunContext
   private var stored: [Message]
   private var conversation: ConversationRecord?
@@ -29,16 +41,22 @@ actor MentorRun {
   private var usage: ContextUsage?
   private var running: Task<Void, Never>?
   private var stopping = false
+  /// A session just opened afresh on an item has not been told about the item yet.
+  private var needsIntroduction = false
 
-  init(mentor: EntityID, context: RunContext) throws(HostError) {
+  init(mentor: EntityID, scope: RunScope = .course, context: RunContext) throws(HostError) {
     self.mentor = mentor
+    self.scope = scope
     self.context = context
     _ = try attempt { try context.store.mentor(mentor) }
-    stored = try attempt { try context.database.messages(of: mentor) }
-    conversation = try attempt { try context.database.latestConversation(of: mentor) }
+    stored = try attempt { try context.database.messages(of: mentor, on: scope.item) }
+    conversation = try attempt { try context.database.latestConversation(of: mentor, on: scope.item) }
   }
 
   var isIdle: Bool { turn == nil }
+
+  /// The turn running now, and what the agent last said about its context window.
+  var live: (turn: LiveTurn?, context: ContextUsage?) { (turn?.live, usage) }
 
   func snapshot() -> Conversation {
     Conversation(mentor: mentor, messages: stored, turn: turn?.live, context: usage)
@@ -55,6 +73,7 @@ actor MentorRun {
   }
 
   static let busy = "the mentor is still working on the last message"
+  static let busyOnItem = "a mentor is still answering on this item"
 
   /// Stops the running turn and returns once it has ended.
   func stop() async {
@@ -64,19 +83,22 @@ actor MentorRun {
     await running?.value
   }
 
-  /// Stops the turn and the agent. With `forget`, the conversation is deleted too.
+  /// Stops the turn and the agent. With `forget`, a course conversation is deleted too; what was said on an
+  /// item stays with the item.
   func close(forget: Bool) async {
     await stop()
     await session?.close()
     session = nil
-    if forget { try? context.database.deleteConversations(of: mentor) }
+    if forget, scope == .course { try? context.database.deleteConversations(of: mentor) }
   }
 
   private func run(_ text: String) async {
     do throws(TurnFailure) {
       let session = try await openSession()
       if !stopping {
-        let started = try await TurnFailure.awaiting { () async throws(AgentError) in try await session.send(text) }
+        let said = needsIntroduction ? introduction() + text : text
+        needsIntroduction = false
+        let started = try await TurnFailure.awaiting { () async throws(AgentError) in try await session.send(said) }
         if stopping { Task { await session.interrupt() } }
         for await event in started.events {
           switch event {
@@ -125,7 +147,8 @@ actor MentorRun {
   private func storedConversation() throws -> ConversationRecord {
     if let conversation { return conversation }
     let provider = (try? context.store.mentor(mentor).provider) ?? context.environment.defaultProvider
-    let fresh = ConversationRecord(id: context.environment.newID(), mentor: mentor, provider: provider, session: nil)
+    let fresh = ConversationRecord(
+      id: context.environment.newID(), mentor: mentor, item: scope.item, provider: provider, session: nil)
     try context.database.start(fresh, at: context.environment.now())
     conversation = fresh
     return fresh
@@ -180,6 +203,7 @@ actor MentorRun {
       opened = try await TurnFailure.awaiting { () async throws(AgentError) in try await driver.open(configuration) }
     }
     try record(opened.handle, provider: mentor.provider)
+    needsIntroduction = scope.item != nil && opened.handle != configuration.resume
     let now = try TurnFailure.from { () throws(HostError) in try attempt { try store.mentor(self.mentor) } }
     guard Self.choice(of: now) == Self.choice(of: mentor) else {
       await opened.close()
@@ -200,18 +224,21 @@ actor MentorRun {
         try attempt { try database.bind(session: handle.value, to: conversation.id) }
       }
       self.conversation = ConversationRecord(
-        id: conversation.id, mentor: mentor, provider: provider, session: handle.value)
+        id: conversation.id, mentor: mentor, item: scope.item, provider: provider, session: handle.value)
       return
     }
     let fresh = ConversationRecord(
-      id: context.environment.newID(), mentor: mentor, provider: provider, session: handle.value)
+      id: context.environment.newID(), mentor: mentor, item: scope.item, provider: provider, session: handle.value)
     let now = context.environment.now()
     try TurnFailure.from { () throws(HostError) in try attempt { try database.start(fresh, at: now) } }
     conversation = fresh
   }
 
   private func changed() async {
-    await context.follower.follow([.conversation(mentor)])
+    switch scope {
+    case .course: await context.follower.follow([.conversation(mentor)])
+    case .item(let item): await context.follower.follow([.itemConversation(item)])
+    }
   }
 }
 
