@@ -10,8 +10,11 @@ struct JobFixes {
   let openPlace: OpenPlace
   let browser: BrowserSession?
   let failed: ShowFailure
+  /// Whether the Mac behind the window can take changes now; a fix that would change something waits until it can.
+  let changesAllowed: Bool
 
   func apply(_ fix: JobLine.Fix, to item: Item) {
+    guard changesAllowed || !fix.changesData else { return }
     switch fix {
     case .downloadComponent(let component), .update(let component):
       run(InstallComponent(component))
@@ -39,6 +42,16 @@ struct JobFixes {
       } catch {
         failed(error)
       }
+    }
+  }
+}
+
+extension JobLine.Fix {
+  /// Whether the fix changes the data of the Mac behind the window, rather than going somewhere to look.
+  var changesData: Bool {
+    switch self {
+    case .downloadComponent, .downloadModel, .update, .retry, .resume: true
+    case .signIn, .chooseAgent, .chooseBrowserLogin, .openSource: false
     }
   }
 }

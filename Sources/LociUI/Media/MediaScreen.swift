@@ -11,6 +11,7 @@ enum MediaTab: Hashable {
 struct MediaScreen: View {
   @Environment(\.host) private var host
   @Environment(\.standIns) private var standIns
+  @Environment(\.changesAllowed) private var changesAllowed
   @Environment(\.openPlace) private var openPlace
   @Environment(\.browser) private var browser
   @Environment(\.showFailure) private var showFailure
@@ -170,7 +171,9 @@ struct MediaScreen: View {
       }
     } else {
       TranscriptPending(job: job?.value ?? nil) { fix in
-        JobFixes(host: host, openPlace: openPlace, browser: browser, failed: showFailure).apply(fix, to: item)
+        JobFixes(
+          host: host, openPlace: openPlace, browser: browser, failed: showFailure, changesAllowed: changesAllowed
+        ).apply(fix, to: item)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -232,7 +235,7 @@ struct MediaScreen: View {
         ? { range in
           guard let passage = passage(range, in: readable) else { return }
           ask(passage.locator, excerpt: passage.excerpt)
-        } : nil)
+        } : nil, changes: changesAllowed)
   }
 
   /// The sentences chosen, as a stretch of time and their words.
@@ -288,15 +291,20 @@ struct MediaScreen: View {
       Task { _ = try? await host.run(SaveReadingPosition(content: .item(id), position: .item(id, .time(span)))) }
     }
     player.reachedEnd = { Task { _ = try? await host.run(MarkRead(content: .item(id))) } }
-    player.refresh = { try? await host.run(ReadPlayback(item: id, refresh: true)) }
+    player.refresh = {
+      guard let playback = try? await host.run(ReadPlayback(item: id, refresh: true)) else { return nil }
+      return await PlayerSource.of(playback, item: id, on: host)
+    }
     if let moment = standIns?.moment { show(moment) } else { focused = true }
   }
 
   /// Plays once the host can say where from: at once for a downloaded file, after the link is resolved for
   /// a stream.
   private func load() async {
-    guard standIns == nil, let playback = try? await host.run(ReadPlayback(item: item.id)) else { return }
-    player.load(playback)
+    guard standIns == nil, let playback = try? await host.run(ReadPlayback(item: item.id)),
+      let source = await PlayerSource.of(playback, item: item.id, on: host)
+    else { return }
+    player.load(source)
   }
 
   /// What may change where the media plays from.

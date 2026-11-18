@@ -13,43 +13,46 @@ struct MediaSettingsPage: View {
       tile: (Color(nsColor: NSColor(rgb: 0xF0B455)), Color(nsColor: NSColor(rgb: 0xD08414))),
       width: Size.wideSettingsWidth
     ) {
-      if let setup = feed?.value {
-        VStack(alignment: .leading, spacing: 6) {
-          SettingsGroup(title: .loci("media.components"), inset: 50) {
-            ForEach(setup.components, id: \.component) { status in
-              ComponentRow(
-                status: status, work: setup.componentWork.first { $0.component == status.component }?.state,
-                install: { run(InstallComponent(status.component)) })
+      Group {
+        if let setup = feed?.value {
+          VStack(alignment: .leading, spacing: 6) {
+            SettingsGroup(title: .loci("media.components"), inset: 50) {
+              ForEach(setup.components, id: \.component) { status in
+                ComponentRow(
+                  status: status, work: setup.componentWork.first { $0.component == status.component }?.state,
+                  install: { run(InstallComponent(status.component)) })
+              }
             }
-          }
-          HStack {
-            Spacer()
-            Button {
-              run(DetectComponents(again: true))
-            } label: {
-              Text(.loci("media.detectAgain")).font(Typography.button).foregroundStyle(Palette.accentInk)
+            HStack {
+              Spacer()
+              Button {
+                run(DetectComponents(again: true))
+              } label: {
+                Text(.loci("media.detectAgain")).font(Typography.button).foregroundStyle(Palette.accentInk)
+              }
+              .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 6)
+            .padding(.top, 2)
           }
-          .padding(.horizontal, 6)
-          .padding(.top, 2)
-        }
-        SpeechModels(setup: setup)
-        SettingsGroup(title: .loci("media.network")) {
-          SettingsRow {
-            Text(.loci("media.browserLogin"))
-          } trailing: {
-            PopupPicker(
-              selection: Binding(get: { setup.browserLogin }, set: { run(SetBrowserLogin($0)) }),
-              options: BrowserLogin.allCases.map { ($0, $0.name) })
-          }
-          SettingsRow {
-            Text(.loci("media.proxy"))
-          } trailing: {
-            Text(.loci("media.proxySystem")).font(.system(size: 12.5)).foregroundStyle(Palette.inkMuted)
+          SpeechModels(setup: setup)
+          SettingsGroup(title: .loci("media.network")) {
+            SettingsRow {
+              Text(.loci("media.browserLogin"))
+            } trailing: {
+              PopupPicker(
+                selection: Binding(get: { setup.browserLogin }, set: { run(SetBrowserLogin($0)) }),
+                options: BrowserLogin.allCases.map { ($0, $0.name) })
+            }
+            SettingsRow {
+              Text(.loci("media.proxy"))
+            } trailing: {
+              Text(.loci("media.proxySystem")).font(.system(size: 12.5)).foregroundStyle(Palette.inkMuted)
+            }
           }
         }
       }
+      .changesData()
     }
     .subscribing(MediaSettings(), into: $feed)
   }

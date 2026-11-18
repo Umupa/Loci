@@ -17,20 +17,41 @@ final class Launch {
 
   private(set) var state = State.running
   let host = DeferredHost()
+  /// The Macs the window can show: this one and the ones paired through the relay, or only this one in a build
+  /// without a relay or when the device key cannot be kept.
+  let machines: any Machines
   let folder: URL
   private var reportedStart = false
 
   private static let log = Logger(subsystem: "com.loci.native.dev", category: "launch")
 
   init() {
-    switch DataFolder.choose(environment: ProcessInfo.processInfo.environment, home: URL.homeDirectory) {
+    let service: MachinesService?
+    let choice = DataFolder.choose(environment: ProcessInfo.processInfo.environment, home: URL.homeDirectory)
+    switch choice {
     case .use(let root):
       folder = root
-      start(replacingDatabase: false)
+      service = Self.service(serving: host)
     case .refuse(let path):
       folder = URL(filePath: path)
-      state = .problem(.refusedFolder(path))
+      service = nil
     }
+    machines = service ?? SingleMachine(name: ThisMac.name, model: ThisMac.model, host: host)
+    switch choice {
+    case .use: start(replacingDatabase: false)
+    case .refuse(let path): state = .problem(.refusedFolder(path))
+    }
+    if let service { Task { await service.start() } }
+  }
+
+  /// The relay's address and key are written into the app's Info.plist when it is built.
+  private static func service(serving host: DeferredHost) -> MachinesService? {
+    guard let address = (Bundle.main.object(forInfoDictionaryKey: "LociRelayURL") as? String).flatMap(URL.init),
+      let key = Bundle.main.object(forInfoDictionaryKey: "LociRelayKey") as? String, !key.isEmpty
+    else { return nil }
+    return MachinesService.onThisMac(
+      relay: address, registrationKey: key, local: host,
+      support: URL.applicationSupportDirectory.appending(path: DataFolder.developmentName))
   }
 
   func rebuild() {

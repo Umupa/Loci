@@ -10,9 +10,8 @@ struct LibraryCodingTests {
   }
 
   @Test func everyLibraryCommandSurvivesJSON() throws {
-    let file = URL(filePath: "/Users/me/Movies/talk.mov")
     #expect(try Self.roundTrips(AddLink(url: URL(string: "https://youtu.be/x")!)))
-    #expect(try Self.roundTrips(ImportMediaFile(file: file, mode: .link)))
+    #expect(try Self.roundTrips(ImportMediaFile(upload: Upload(id: Fixture.item), mode: .link)))
     #expect(try Self.roundTrips(RetryJob(item: Fixture.item)))
     #expect(try Self.roundTrips(CancelJob(item: Fixture.item)))
     #expect(try Self.roundTrips(ListJobs()))
@@ -22,6 +21,8 @@ struct LibraryCodingTests {
     #expect(try Self.roundTrips(ReadItemImage(item: Fixture.item, name: "images/a.png")))
     #expect(try Self.roundTrips(ReadMediaPage(item: Fixture.item)))
     #expect(try Self.roundTrips(ReadMediaSetup()))
+    #expect(try Self.roundTrips(ReadMediaFileInfo(item: Fixture.item)))
+    #expect(try Self.roundTrips(ReadMediaBytes(item: Fixture.item, offset: 1 << 33, length: 65_536)))
     #expect(try Self.roundTrips(DetectComponents(again: true)))
     #expect(try Self.roundTrips(InstallComponent(.quickJS)))
     #expect(try Self.roundTrips(DownloadSpeechModel(.base)))
@@ -61,7 +62,8 @@ struct LibraryCodingTests {
       speechModel: .base, browserLogin: .safari)
 
     #expect(try Self.roundTrips(Playback.online(stream)))
-    #expect(try Self.roundTrips(Playback.file(URL(filePath: "/Loci/library/x/media.mp4"))))
+    #expect(try Self.roundTrips(Playback.downloaded))
+    #expect(try Self.roundTrips(MediaFileInfo(byteCount: 1 << 33, fileExtension: "mp4")))
     #expect(try Self.roundTrips(page))
     #expect(try Self.roundTrips(setup))
     #expect(try Self.roundTrips(Feed<[Job]>.value([Job(item: Fixture.item, stage: .download, state: .stopped)])))

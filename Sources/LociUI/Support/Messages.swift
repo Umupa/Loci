@@ -10,6 +10,7 @@ enum Messages {
     case .invalidFile(let problem): describe(problem.kind)
     case .invalidRequest: .loci("error.invalidRequest")
     case .storage: .loci("error.storage")
+    case .offline: .loci("error.offline")
     }
   }
 

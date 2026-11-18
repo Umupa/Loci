@@ -141,6 +141,7 @@ struct JobStatus: View {
             .help(problem.map { Text(verbatim: $0.reason) } ?? why)
         }
         Button(action: { act(fix) }) { fix.label }.buttonStyle(PushStyle()).fixedSize()
+          .changesData(fix.changesData)
       }
     }
   }

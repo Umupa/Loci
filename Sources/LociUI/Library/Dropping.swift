@@ -66,6 +66,7 @@ extension View {
 
 private struct AcceptingDrops: ViewModifier {
   @Environment(\.host) private var host
+  @Environment(\.changesAllowed) private var changesAllowed
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
   @State private var targeted = false
@@ -81,7 +82,7 @@ private struct AcceptingDrops: ViewModifier {
             .allowsHitTesting(false)
         }
       }
-      .onDrop(of: Dropped.types, isTargeted: $targeted) { providers in
+      .onDrop(of: changesAllowed ? Dropped.types : [], isTargeted: $targeted) { providers in
         let reading = Dropped.reading(providers)
         Task { await add(await Dropped.collect(reading)) }
         return true

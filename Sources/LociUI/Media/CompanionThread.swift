@@ -27,6 +27,7 @@ struct CompanionThread: View {
         CompanionPicker(companion: companion, mentors: mentors) { chosen in
           Task { _ = try? await host.run(ChooseCompanion(item: item, mentor: chosen.id)) }
         }
+        .changesData()
         .padding(.horizontal, 18)
         .padding(.bottom, 2)
         .frame(maxWidth: .infinity, alignment: .leading)

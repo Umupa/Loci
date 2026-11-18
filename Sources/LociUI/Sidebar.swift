@@ -44,16 +44,19 @@ struct Sidebar: View {
               Avatar(mentor: mentor, size: Size.avatarSmall)
             }
             .contextMenu {
-              Button {
-                rename(mentor)
-              } label: {
-                Text(.loci("mentor.rename"))
+              Group {
+                Button {
+                  rename(mentor)
+                } label: {
+                  Text(.loci("mentor.rename"))
+                }
+                Button(role: .destructive) {
+                  delete(mentor)
+                } label: {
+                  Text(.loci("mentor.delete"))
+                }
               }
-              Button(role: .destructive) {
-                delete(mentor)
-              } label: {
-                Text(.loci("mentor.delete"))
-              }
+              .changesData()
             }
           }
         } header: {
@@ -64,6 +67,7 @@ struct Sidebar: View {
         row(.settings(.general), Text(.loci("settings.general"))) { SidebarSymbol(name: Symbols.settings) }
         row(.settings(.agents), Text(.loci("settings.agents"))) { SidebarSymbol(name: Symbols.agents) }
         row(.settings(.media), Text(.loci("settings.media"))) { SidebarSymbol(name: Symbols.media) }
+        row(.settings(.remote), Text(.loci("settings.remote"))) { SidebarSymbol(name: Symbols.remote) }
       } header: {
         SidebarLabel(text: Text(.loci("sidebar.settings")))
       }

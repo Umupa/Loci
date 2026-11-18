@@ -9,7 +9,8 @@ struct GeneralSettingsPage: View {
   @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
   @State private var interface = InterfaceLanguage.current
   @State private var lessons: LessonLanguage?
-  @State private var folder: URL?
+  @State private var folder: HostPath?
+  @State private var revealable: LocalFile?
 
   var body: some View {
     SettingsPage(symbol: Symbols.settings, title: .loci("settings.general")) {
@@ -43,26 +44,28 @@ struct GeneralSettingsPage: View {
           if let lessons {
             PopupPicker(
               selection: lessonBinding(lessons),
-              options: LessonLanguages.offered(keeping: lessons).map { ($0, Text(LessonLanguages.name($0))) })
+              options: LessonLanguages.offered(keeping: lessons).map { ($0, Text(LessonLanguages.name($0))) }
+            )
+            .changesData()
           }
         }
       }
       SettingsGroup(title: .loci("settings.data")) {
         SettingsRow {
           Text(
-            verbatim: folder.map { NSString(string: $0.path(percentEncoded: false)).abbreviatingWithTildeInPath } ?? ""
+            verbatim: folder.map { NSString(string: $0.text).abbreviatingWithTildeInPath } ?? ""
           )
           .lineLimit(1)
           .truncationMode(.middle)
           .textSelection(.enabled)
         } trailing: {
           Button {
-            if let folder { NSWorkspace.shared.activateFileViewerSelecting([folder]) }
+            if let revealable { NSWorkspace.shared.activateFileViewerSelecting([revealable.url]) }
           } label: {
             Text(.loci("settings.reveal"))
           }
           .buttonStyle(PushStyle())
-          .disabled(folder == nil)
+          .disabled(revealable == nil)
         }
       }
     }
@@ -70,6 +73,7 @@ struct GeneralSettingsPage: View {
     .task {
       lessons = try? await host.run(ReadLessonLanguage())
       folder = try? await host.run(DataLocation())
+      revealable = await host.localFile(.dataFolder)
     }
   }
 

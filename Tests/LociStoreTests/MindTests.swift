@@ -24,7 +24,7 @@ struct MindTests {
       let mind = try store.mind(of: mentor.id)
 
       #expect(mind.soul == "# Soul")
-      #expect(mind.soulFile.lastPathComponent == "SOUL.md")
+      #expect(try store.soulFile(of: mentor.id).lastPathComponent == "SOUL.md")
       #expect(mind.memory.map(\.name) == ["topics/syscalls.md", "learner.md"])
       #expect(mind.memory.map(\.text) == ["Asked twice.", "Knows Go."])
     }

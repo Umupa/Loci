@@ -23,6 +23,7 @@ struct JobDetail: View {
             .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }
         Button(action: { act(fix) }) { fix.label }.buttonStyle(PushStyle()).fixedSize()
+          .changesData(fix.changesData)
         if let problem { raw(problem.reason) }
       case .none:
         EmptyView()

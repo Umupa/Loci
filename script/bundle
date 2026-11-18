@@ -6,6 +6,9 @@
 #   --version <string>               CFBundleShortVersionString (default: 1.0.0-alpha)
 #   --build <string>                 CFBundleVersion (default: 1)
 #   --arch <arch>                    an architecture to build; repeat for a universal app
+# Environment:
+#   LOCI_RELAY_URL, LOCI_RELAY_KEY   the relay that remote access goes through, and its registration key.
+#                                    Without them the app has no remote access. Never commit their values.
 set -eu
 cd "$(dirname "$0")/.."
 . script/toolchain
@@ -50,6 +53,11 @@ done
 if [ -d "$app/Contents/Frameworks" ]; then
   install_name_tool -add_rpath @executable_path/../Frameworks "$app/Contents/MacOS/Loci" 2>/dev/null || true
 fi
+relay=""
+if [ -n "${LOCI_RELAY_URL:-}" ] && [ -n "${LOCI_RELAY_KEY:-}" ]; then
+  relay="<key>LociRelayURL</key><string>$LOCI_RELAY_URL</string>
+  <key>LociRelayKey</key><string>$LOCI_RELAY_KEY</string>"
+fi
 cat >"$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -65,6 +73,9 @@ cat >"$app/Contents/Info.plist" <<PLIST
   <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSLocalNetworkUsageDescription</key><string>Loci finds your other Macs on this network so you can pair them.</string>
+  <key>NSBonjourServices</key><array><string>_loci._tcp</string></array>
+  $relay
 </dict>
 </plist>
 PLIST

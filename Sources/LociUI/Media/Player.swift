@@ -25,7 +25,9 @@ final class Player {
   @ObservationIgnored var remember: (Duration) -> Void = { _ in }
   @ObservationIgnored var reachedEnd: () -> Void = {}
   /// Asks the host for a fresh address after the site's one stopped working.
-  @ObservationIgnored var refresh: () async -> Playback? = { nil }
+  @ObservationIgnored var refresh: () async -> PlayerSource? = { nil }
+  /// What reads the bytes of media on another Mac. The asset holds its reader weakly, so the player keeps it.
+  @ObservationIgnored private var ranged: RangedMedia?
 
   init(start: Duration, length: Duration?) {
     time = start
@@ -33,11 +35,16 @@ final class Player {
   }
 
   /// Starts from where the clock is. A stream with headers sends them with every request.
-  func load(_ playback: Playback) {
+  func load(_ source: PlayerSource) {
     let asset: AVURLAsset
-    switch playback {
-    case .file(let url):
-      asset = AVURLAsset(url: url)
+    ranged = nil
+    switch source {
+    case .file(let file):
+      asset = AVURLAsset(url: file.url)
+      streamsPicture = true
+    case .ranges(let media):
+      ranged = media
+      asset = media.asset()
       streamsPicture = true
     case .online(let stream):
       asset = AVURLAsset(url: stream.url, options: ["AVURLAssetHTTPHeaderFieldsKey": stream.headers])
@@ -136,5 +143,24 @@ final class Player {
 
   private static func cmTime(_ duration: Duration) -> CMTime {
     CMTime(value: CMTimeValue(duration.roundedMilliseconds), timescale: 1000)
+  }
+}
+
+/// What the player opens: a file on this Mac, media downloaded on another Mac, or the site's stream.
+enum PlayerSource {
+  case file(LocalFile)
+  case ranges(RangedMedia)
+  case online(OnlineStream)
+
+  /// `nil` when the host can say neither where the file is nor how big it is.
+  @MainActor
+  static func of(_ playback: Playback, item: EntityID, on host: any LociModel.Host) async -> PlayerSource? {
+    switch playback {
+    case .downloaded:
+      if let file = await host.localFile(.media(item)) { return .file(file) }
+      guard let info = try? await host.run(ReadMediaFileInfo(item: item)) else { return nil }
+      return RangedMedia(item: item, info: info, host: host).map(PlayerSource.ranges)
+    case .online(let stream): return .online(stream)
+    }
   }
 }

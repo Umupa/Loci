@@ -4,11 +4,13 @@ import SwiftUI
 /// A mentor's page: who it is and what it runs on, what it is doing, its courses on a shelf, and its
 /// memory and soul as it wrote them.
 struct MentorScreen: View {
+  @Environment(\.host) private var host
   let mentor: EntityID
   @State private var page: Feed<MentorPage>?
   @State private var conversation: Feed<Conversation>?
   @State private var mind: Feed<Mind>?
   @State private var tab = MindTab.memory
+  @State private var soulFile: LocalFile?
 
   var body: some View {
     ScrollView {
@@ -26,7 +28,7 @@ struct MentorScreen: View {
           if let mind = mind?.value {
             switch tab {
             case .memory: MemoryList(files: mind.memory)
-            case .soul: SoulSheet(soul: mind.soul, file: mind.soulFile, color: page.mentor.tone)
+            case .soul: SoulSheet(soul: mind.soul, file: soulFile, color: page.mentor.tone)
             }
           }
         }
@@ -42,6 +44,7 @@ struct MentorScreen: View {
     .subscribing(OneMentor(mentor: mentor), into: $page)
     .subscribing(MentorConversation(mentor: mentor), into: $conversation)
     .subscribing(MentorMind(mentor: mentor), into: $mind)
+    .task(id: mentor) { soulFile = await host.localFile(.soul(mentor)) }
   }
 }
 

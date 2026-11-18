@@ -4,6 +4,7 @@ import SwiftUI
 /// One field: a sentence makes a mentor; a text file or a link dropped anywhere on the page becomes an item.
 struct StartPage: View {
   @Environment(\.host) private var host
+  @Environment(\.changesAllowed) private var changesAllowed
   let focusRequest: Int
   let opened: (WindowState) -> Void
   let failed: (HostError) -> Void
@@ -13,13 +14,20 @@ struct StartPage: View {
   var body: some View {
     PromptField(text: $text, submit: submit)
       .focused($focused)
+      .offlineLineInstead(ruled: false)
       .padding(Spacing.xxl)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .background(Palette.canvas)
       .acceptingDrops(opened: opened, failed: failed)
       .toolbar(removing: .title)
-      .onAppear { focused = true }
-      .onChange(of: focusRequest) { focused = true }
+      .onAppear(perform: focus)
+      .onChange(of: focusRequest, focus)
+  }
+
+  /// Puts the keyboard in the field, when there is a field: offline there is only a line, and the focus would
+  /// land on whatever else takes it.
+  private func focus() {
+    if changesAllowed { focused = true }
   }
 
   private func submit() {

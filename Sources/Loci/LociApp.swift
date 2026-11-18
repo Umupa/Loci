@@ -9,7 +9,7 @@ struct LociApp: App {
     WindowGroup {
       switch launch.state {
       case .running:
-        RootView(folder: launch.folder, startShown: launch.startShown).lociHost(launch.host)
+        RootView(folder: launch.folder, machines: launch.machines, startShown: launch.startShown)
       case .problem(let problem):
         StartupProblemView(problem: problem, rebuild: launch.rebuild)
       }

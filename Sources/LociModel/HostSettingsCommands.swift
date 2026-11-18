@@ -33,13 +33,13 @@ public enum LessonLanguage: Hashable, Codable, Sendable {
   case fixed(String)
 }
 
-/// Where the host keeps its files.
+/// Where the host keeps its files, to show. Revealing the folder goes through `Host.localFile`.
 public struct DataLocation: Command {
   public static let name = "settings.dataLocation"
 
   public init() {}
 
-  public func run(on handler: any CommandHandler) async throws(HostError) -> URL {
+  public func run(on handler: any CommandHandler) async throws(HostError) -> HostPath {
     await handler.dataLocation()
   }
 }

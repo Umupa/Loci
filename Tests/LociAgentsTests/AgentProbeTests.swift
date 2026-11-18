@@ -18,7 +18,7 @@ struct AgentProbeTests {
       Issue.record("pi is installed in \(folder.path)")
       return
     }
-    #expect(installed.executable.path == pi.path)
+    #expect(installed.executable == HostPath(pi))
     #expect(installed.version == "0.62.0")
     #expect(installed.signIn == .unknown)
   }
@@ -53,7 +53,7 @@ struct AgentProbeTests {
       Issue.record("pi is installed in \(folder.path)")
       return
     }
-    #expect(installed.executable.path == named.path)
+    #expect(installed.executable == HostPath(named))
   }
 
   @Test func aProgramInstalledAsALinkIsFound() async throws {
@@ -75,7 +75,7 @@ struct AgentProbeTests {
       Issue.record("the Claude Code CLI is linked in \(folder.path)")
       return
     }
-    #expect(installedProgram.executable.path == folder.appending(path: "claude").path)
+    #expect(installedProgram.executable == HostPath(folder.appending(path: "claude")))
     #expect(installedProgram.version == "2.1.326 (Claude Code)")
   }
 

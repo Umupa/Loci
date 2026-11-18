@@ -45,14 +45,34 @@ struct WindowMemoryTests {
     #expect(WindowMemory.preferences(defaults, folder: Self.folder).recall() == WindowState(place: .library(nil)))
   }
 
+  /// R-S4: each Mac keeps its own last place, so switching back to one returns to where it was.
+  @Test func eachMacRemembersItsOwnPlace() throws {
+    let suite = "loci-window-memory-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let sample = try Sample()
+    let here = WindowState(place: .mentor(sample.scheduling.id))
+    let studio = WindowState(place: .library(nil), pages: [.item(sample.borg.id)])
+
+    WindowMemory.preferences(defaults, folder: Self.folder).remember(here)
+    WindowMemory.preferences(defaults, remote: "studio").remember(studio)
+
+    #expect(WindowMemory.preferences(defaults, folder: Self.folder).recall() == here)
+    #expect(WindowMemory.preferences(defaults, remote: "studio").recall() == studio)
+    #expect(WindowMemory.preferences(defaults, remote: "mini").recall() == WindowState())
+  }
+
   @Test func theWindowOpensWhereItWasAndKeepsTheMemoryCurrent() async throws {
     let sample = try Sample()
     let last = WindowState(place: .library(nil), pages: [.item(sample.borg.id)])
     let remembered = Mutex<[WindowState]>([])
     let memory = WindowMemory(recall: { last }, remember: { state in remembered.withLock { $0.append(state) } })
 
+    let host = FakeHost(sample)
+    let quiet = Quiet(host.activity)
     try await Snapshot.render(
-      RootView(memory: memory).lociHost(FakeHost(sample)), named: "reopened", appearance: .light)
+      MachineWindow(memory: memory).lociHost(host), named: "reopened", appearance: .light,
+      until: { _ in quiet.settled() && !remembered.withLock { $0.isEmpty } })
 
     #expect(remembered.withLock { $0 } == [last])
   }
@@ -64,8 +84,8 @@ struct WindowMemoryTests {
     let memory = WindowMemory(recall: { gone }, remember: { state in remembered.withLock { $0.append(state) } })
 
     try await Snapshot.render(
-      RootView(memory: memory).lociHost(FakeHost(sample)), named: "reopened-deleted", appearance: .light,
-      settle: .seconds(1))
+      MachineWindow(memory: memory).lociHost(FakeHost(sample)), named: "reopened-deleted", appearance: .light,
+      until: { _ in remembered.withLock { $0.last } == WindowState() })
 
     #expect(remembered.withLock { $0.last } == WindowState())
   }

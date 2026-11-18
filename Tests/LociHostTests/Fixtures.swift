@@ -14,7 +14,8 @@ final class TestWorld: Sendable {
   static let installed: [AgentInstallation] = Mentor.Provider.allCases.map { provider in
     provider == .pi
       ? .installed(
-        .init(provider: .pi, executable: URL(filePath: "/usr/local/bin/pi"), version: "0.62.0", signIn: .unknown))
+        .init(
+          provider: .pi, executable: HostPath(URL(filePath: "/usr/local/bin/pi")), version: "0.62.0", signIn: .unknown))
       : .missing(provider)
   }
   static let instant = Timestamp(millisecondsSince1970: 1_763_337_600_123)

@@ -20,9 +20,10 @@ enum Architecture {
   }
 
   static let modules: [String: Module] = [
-    "LociModel": Module(uses: [], frameworks: ["Foundation"]),
+    "LociModel": Module(uses: [], frameworks: ["Foundation", "CryptoKit"]),
     "LociStore": Module(
-      uses: ["LociModel"], frameworks: ["Foundation", "CoreServices", "Synchronization", "os"],
+      uses: ["LociModel"],
+      frameworks: ["Foundation", "CoreServices", "CryptoKit", "Security", "Synchronization", "os"],
       packages: ["Yams", "GRDB"]),
     "LociAgents": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
     "LociMedia": Module(
@@ -35,7 +36,7 @@ enum Architecture {
     "LociRemote": Module(uses: ["LociModel"], frameworks: ["Foundation", "CryptoKit", "Network", "os"]),
     "LociHost": Module(
       uses: ["LociModel", "LociStore", "LociAgents", "LociMedia", "LociCode", "LociRemote"],
-      frameworks: ["Foundation", "os"]),
+      frameworks: ["Foundation", "IOKit", "os"]),
     "LociUI": Module(
       uses: ["LociModel"],
       frameworks: [
@@ -87,9 +88,12 @@ enum Architecture {
       pattern: #"\b(DispatchSemaphore|DispatchGroup|NSLock|OperationQueue)\b|Thread\.sleep|Task\.detached"#,
       fix: "Use structured concurrency: async functions, task groups, actors, `Mutex`, `Task.sleep`."),
     Restriction(
-      pattern: #"\bDispatchQueue\b"#, allowedFiles: ["Sources/LociStore/FileEvents.swift"],
+      pattern: #"\bDispatchQueue\b"#,
+      allowedFiles: ["Sources/LociStore/FileEvents.swift", "Sources/LociUI/Media/RangedMedia.swift"],
       fix: "Use structured concurrency. GCD appears only where a system API delivers callbacks on a queue "
-        + "(FSEvents in Sources/LociStore/FileEvents.swift), and the callback goes straight into an AsyncStream."),
+        + "(FSEvents in Sources/LociStore/FileEvents.swift, AVAssetResourceLoader in "
+        + "Sources/LociUI/Media/RangedMedia.swift), and the callback goes straight to an AsyncStream or the main actor."
+    ),
     Restriction(
       pattern: #"swift-format-ignore"#,
       fix:
@@ -113,4 +117,7 @@ enum Architecture {
   }
 
   static let longestSourceFile = 400
+
+  /// Where every `Command` and `Subscription` is listed, so another Mac can call it.
+  static let wireRegistry = "Sources/LociModel/Wire.swift"
 }

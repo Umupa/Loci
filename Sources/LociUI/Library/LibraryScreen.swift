@@ -6,6 +6,7 @@ import SwiftUI
 /// on it. An empty library is the start page's field. Pasting or dropping a link adds it.
 struct LibraryScreen: View {
   @Environment(\.host) private var host
+  @Environment(\.changesAllowed) private var changesAllowed
   @Environment(\.openPlace) private var openPlace
   @Environment(\.browser) private var browser
   let kind: ItemKind?
@@ -47,17 +48,22 @@ struct LibraryScreen: View {
     Dictionary((jobs?.value ?? []).map { ($0.item, $0) }, uniquingKeysWith: { _, latest in latest })
   }
 
+  /// Waits for the list itself: read before it arrives, the progress would be empty, the list would show at once
+  /// and the shelf would push it down a moment later.
   private func readProgress() async {
+    guard let feed else { return }
     var states: [EntityID: ReadingState] = [:]
-    for item in feed?.value ?? [] {
+    for item in feed.value ?? [] {
       if let state = try? await host.run(ReadReadingState(content: .item(item.id))) { states[item.id] = state }
     }
     progress = Progress(states: states)
   }
 
   private func act(_ fix: JobLine.Fix, on item: Item) {
-    JobFixes(host: host, openPlace: openPlace, browser: browser, failed: ShowFailure(action: failed)).apply(
-      fix, to: item)
+    JobFixes(
+      host: host, openPlace: openPlace, browser: browser, failed: ShowFailure(action: failed),
+      changesAllowed: changesAllowed
+    ).apply(fix, to: item)
   }
 }
 
@@ -101,7 +107,7 @@ struct LibraryList: View {
           }
           .buttonStyle(.plain)
           .onHover { inside in pointing = inside ? item.id : (pointing == item.id ? nil : pointing) }
-          .contextMenu { menu(for: item) }
+          .contextMenu { menu(for: item).changesData() }
         }
       }
       .padding(.horizontal, 28)

@@ -1,8 +1,11 @@
+import Foundation
 import LociModel
 
-/// The host's only mutable state: who is subscribed, the current health, and the background tasks.
+/// The host's only mutable state: who is subscribed, the current health, the background tasks, and the
+/// files handed over for commands still to come.
 actor Hub {
   private var watchers: [Int: any Refreshing] = [:]
+  private var uploads: [EntityID: URL] = [:]
   private var nextWatcher = 0
   private var health: Health
   private var tasks: [Task<Void, Never>] = []
@@ -21,6 +24,15 @@ actor Hub {
 
   func remove(_ watcher: Int) {
     watchers[watcher] = nil
+  }
+
+  func keep(_ file: URL, as upload: EntityID) {
+    uploads[upload] = file
+  }
+
+  /// The file an upload names, once; a second command with the same upload finds nothing.
+  func takeUpload(_ upload: EntityID) -> URL? {
+    uploads.removeValue(forKey: upload)
   }
 
   func hold(_ task: Task<Void, Never>) {

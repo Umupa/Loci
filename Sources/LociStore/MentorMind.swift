@@ -4,6 +4,11 @@ import LociModel
 extension Store {
   static let memoryFolder = "memory"
 
+  /// Where the mentor's `SOUL.md` is, whether or not it has been written.
+  public func soulFile(of mentor: EntityID) throws -> URL {
+    try mentorFolder(mentor).appending(path: Self.soulFile)
+  }
+
   /// The mentor's `SOUL.md` and every text file under `memory/`, newest first. Hidden files and files that
   /// are not UTF-8 text are left out.
   public func mind(of mentor: EntityID) throws -> Mind {
@@ -25,6 +30,6 @@ extension Store {
       return MemoryFile(
         name: String(name), text: text, modifiedAt: Timestamp(values.contentModificationDate ?? .distantPast))
     }
-    return Mind(soul: soul, soulFile: soulFile, memory: read.sorted { $0.modifiedAt > $1.modifiedAt })
+    return Mind(soul: soul, memory: read.sorted { $0.modifiedAt > $1.modifiedAt })
   }
 }

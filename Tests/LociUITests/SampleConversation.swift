@@ -71,7 +71,6 @@ extension Sample {
         - **Anchor on what they know.** Bridge from a concept they already work with to the new one.
         - **Numbers before mechanisms.** Give the order of magnitude first, then how it works.
         """,
-      soulFile: URL(filePath: "/Users/someone/Loci Dev/mentors/diao-du/SOUL.md"),
       memory: [
         MemoryFile(
           name: "learner.md",

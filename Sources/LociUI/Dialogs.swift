@@ -9,7 +9,10 @@ struct Dialogs {
   var deletingMentor: Mentor?
   var deletingItem: Item?
   var importing = false
-  var failure: HostError?
+  /// What went wrong. A change refused because the Mac is offline is not told: the window already says so.
+  var failure: HostError? {
+    didSet { if case .offline? = failure { failure = nil } }
+  }
   var readingStateLost = false
 
   mutating func rename(_ mentor: Mentor) {
@@ -41,6 +44,7 @@ private struct DialogsModifier: ViewModifier {
         } label: {
           Text(.loci("mentor.rename"))
         }
+        .changesData()
         Button(role: .cancel) {
         } label: {
           Text(.loci("dialog.cancel"))
@@ -91,7 +95,10 @@ private struct DialogsModifier: ViewModifier {
       let files = chosen.filter { !media.contains($0) }.compactMap { try? TextFile(reading: $0) }
       perform {
         for file in files { _ = try await host.run(AddTextItem(fileName: file.fileName, text: file.text)) }
-        for file in media { _ = try await host.run(ImportMediaFile(file: file, mode: .copy)) }
+        for file in media {
+          let upload = try await host.upload(LocalFile(file))
+          _ = try await host.run(ImportMediaFile(upload: upload, mode: .copy))
+        }
       }
     }
   }
@@ -128,11 +135,13 @@ private struct DeleteChoices: View {
     } label: {
       Text(.loci("delete.keepNotes"))
     }
+    .changesData()
     Button(role: .destructive) {
       choose(.delete)
     } label: {
       Text(.loci("delete.withNotes"))
     }
+    .changesData()
     Button(role: .cancel) {
     } label: {
       Text(.loci("dialog.cancel"))

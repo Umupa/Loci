@@ -32,6 +32,14 @@ public final class DeferredHost: LociModel.Host {
     return feed
   }
 
+  public func upload(_ file: LocalFile) async throws(HostError) -> Upload {
+    try await ready.host().upload(file)
+  }
+
+  public func localFile(_ place: LocalPlace) async -> LocalFile? {
+    await ready.host().localFile(place)
+  }
+
   private actor Readiness {
     private var resolved: (any LociModel.Host)?
     private var waiting: [CheckedContinuation<any LociModel.Host, Never>] = []

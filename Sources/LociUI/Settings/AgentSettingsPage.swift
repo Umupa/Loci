@@ -11,38 +11,41 @@ struct AgentSettingsPage: View {
 
   var body: some View {
     SettingsPage(symbol: Symbols.agents, title: .loci("settings.agents")) {
-      if let installations, let defaults {
-        SettingsGroup(title: .loci("agents.newMentors"), inset: 48) {
-          ForEach(Agents.installedFirst(installations), id: \.provider) { installation in
-            AgentRow(installation: installation, isDefault: installation.provider == defaults.provider) {
-              Task { self.defaults = try? await host.run(SetDefaultAgent(installation.provider)) }
-            }
-          }
-        }
-        let listing = installations.compactMap { installation -> Mentor.Provider? in
-          guard case .installed = installation, models[installation.provider]?.isEmpty == false else { return nil }
-          return installation.provider
-        }
-        if !listing.isEmpty {
-          SettingsGroup(title: .loci("agents.defaultModels"), inset: 48) {
-            ForEach(listing, id: \.self) { provider in
-              SettingsRow {
-                AgentMark(provider: provider)
-                Text(verbatim: Agents.name(of: provider))
-              } trailing: {
-                PopupPicker(
-                  selection: model(of: provider, in: defaults),
-                  options: [(String?.none, Text(.loci("agents.anyModel")))]
-                    + Agents.offered(models[provider] ?? [], keeping: defaults.models[provider]).map {
-                      (String?.some($0), Text(verbatim: Agents.modelName($0)))
-                    })
+      Group {
+        if let installations, let defaults {
+          SettingsGroup(title: .loci("agents.newMentors"), inset: 48) {
+            ForEach(Agents.installedFirst(installations), id: \.provider) { installation in
+              AgentRow(installation: installation, isDefault: installation.provider == defaults.provider) {
+                Task { self.defaults = try? await host.run(SetDefaultAgent(installation.provider)) }
               }
             }
           }
+          let listing = installations.compactMap { installation -> Mentor.Provider? in
+            guard case .installed = installation, models[installation.provider]?.isEmpty == false else { return nil }
+            return installation.provider
+          }
+          if !listing.isEmpty {
+            SettingsGroup(title: .loci("agents.defaultModels"), inset: 48) {
+              ForEach(listing, id: \.self) { provider in
+                SettingsRow {
+                  AgentMark(provider: provider)
+                  Text(verbatim: Agents.name(of: provider))
+                } trailing: {
+                  PopupPicker(
+                    selection: model(of: provider, in: defaults),
+                    options: [(String?.none, Text(.loci("agents.anyModel")))]
+                      + Agents.offered(models[provider] ?? [], keeping: defaults.models[provider]).map {
+                        (String?.some($0), Text(verbatim: Agents.modelName($0)))
+                      })
+                }
+              }
+            }
+          }
+        } else {
+          ProgressView().controlSize(.small).frame(maxWidth: .infinity)
         }
-      } else {
-        ProgressView().controlSize(.small).frame(maxWidth: .infinity)
       }
+      .changesData()
     }
     .task {
       defaults = try? await host.run(ReadAgentDefaults())

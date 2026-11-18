@@ -9,6 +9,8 @@ struct PassageActions {
   var think: (EntityID, String) -> Void
   /// Hands the passage to the mentor's composer; `nil` where there is no mentor to ask.
   var ask: ((NSRange) -> Void)?
+  /// Whether the Mac behind the window can take changes now; the bar's buttons are off while it cannot.
+  var changes = true
 }
 
 /// The glass capsule over a selection: highlight it, or ask the mentor. Highlighting turns the capsule into
@@ -59,23 +61,25 @@ struct PassageBar: View {
       }
     }
     .padding(Spacing.xxs)
-    .glassEffect(.regular, in: .capsule)
+    .solidGlass(in: Capsule())
     .fixedSize()
   }
 
   private func button(_ title: LocalizedStringResource, _ symbol: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       HStack(spacing: 6) {
-        Image(systemName: symbol).font(Typography.body).foregroundStyle(Palette.accent)
+        Image(systemName: symbol).font(Typography.body).foregroundStyle(
+          actions.changes ? Palette.accent : Palette.inkFaint)
         Text(title)
       }
       .font(Typography.bodyEmphasis)
-      .foregroundStyle(Palette.ink)
+      .foregroundStyle(actions.changes ? Palette.ink : Palette.inkFaint)
       .padding(.horizontal, Spacing.s)
       .frame(height: Size.iconButton)
       .contentShape(Capsule())
     }
     .buttonStyle(PressStyle())
+    .disabled(!actions.changes)
   }
 
   private func finish(_ note: EntityID) {
@@ -106,10 +110,14 @@ final class PassagePopover {
     return CGRect(origin: CGPoint(x: x, y: fitsAbove ? above : last.maxY + Spacing.xxs), size: size)
   }
 
-  func show(_ actions: PassageActions, for range: NSRange, over lines: [CGRect], in view: NSView) {
+  /// `locale` is the window's, which a panel of its own does not inherit.
+  func show(
+    _ actions: PassageActions, for range: NSRange, over lines: [CGRect], in view: NSView, locale: Locale
+  ) {
     close()
     guard let window = view.window else { return }
     let panel = PassagePanel()
+    panel.appearance = window.effectiveAppearance
     let place = { [weak view, weak panel] (size: CGSize) in
       guard let view, let panel else { return }
       let frame = Self.frame(of: size, over: lines, within: view.visibleRect)
@@ -119,7 +127,8 @@ final class PassagePopover {
       rootView: PassageBar(actions: actions, range: range, typing: { [weak panel] in panel?.makeKey() }) {
         [weak self] in self?.close()
       }
-      .onGeometryChange(for: CGSize.self, of: \.size) { size in place(size) })
+      .onGeometryChange(for: CGSize.self, of: \.size) { size in place(size) }
+      .environment(\.locale, locale))
     host.sizingOptions = [.intrinsicContentSize]
     panel.contentView = host
     place(host.fittingSize)
@@ -131,6 +140,8 @@ final class PassagePopover {
       return event
     }
   }
+
+  var isShown: Bool { panel != nil }
 
   func close() {
     if let monitor { NSEvent.removeMonitor(monitor) }

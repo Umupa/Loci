@@ -92,6 +92,7 @@ struct CitingLessons: View {
 /// An item whose text has not arrived: what is happening to it, or what would fix it.
 struct FetchingItem: View {
   @Environment(\.host) private var host
+  @Environment(\.changesAllowed) private var changesAllowed
   @Environment(\.openPlace) private var openPlace
   @Environment(\.browser) private var browser
   @Environment(\.showFailure) private var showFailure
@@ -105,7 +106,9 @@ struct FetchingItem: View {
         .foregroundStyle(Palette.ink)
         .multilineTextAlignment(.center)
       JobDetail(line: JobLine(job)) { fix in
-        JobFixes(host: host, openPlace: openPlace, browser: browser, failed: showFailure).apply(fix, to: item)
+        JobFixes(
+          host: host, openPlace: openPlace, browser: browser, failed: showFailure, changesAllowed: changesAllowed
+        ).apply(fix, to: item)
       }
     }
     .padding(Spacing.xxl)

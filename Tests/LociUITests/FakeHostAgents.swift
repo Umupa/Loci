@@ -8,16 +8,18 @@ extension FakeHost {
     case .pi:
       .installed(
         .init(
-          provider: .pi, executable: URL(filePath: "/Users/me/.local/bin/pi"), version: "0.62.0", signIn: .unknown))
+          provider: .pi, executable: HostPath(URL(filePath: "/Users/me/.local/bin/pi")), version: "0.62.0",
+          signIn: .unknown))
     case .claudeCode:
       .installed(
         .init(
-          provider: .claudeCode, executable: URL(filePath: "/opt/homebrew/bin/claude"),
+          provider: .claudeCode, executable: HostPath(URL(filePath: "/opt/homebrew/bin/claude")),
           version: "2.1.326 (Claude Code)", signIn: .signedIn))
     case .codex:
       .installed(
         .init(
-          provider: .codex, executable: URL(filePath: "/opt/homebrew/bin/codex"), version: "codex-cli 0.167.1",
+          provider: .codex, executable: HostPath(URL(filePath: "/opt/homebrew/bin/codex")),
+          version: "codex-cli 0.167.1",
           signIn: .unknown))
     default:
       .missing(provider)
@@ -49,5 +51,5 @@ extension FakeHost {
   func setMentorAgent(_ command: SetMentorAgent) async throws(HostError) -> Mentor { sample.scheduling }
   func lessonLanguage() async throws(HostError) -> LessonLanguage { .fixed("zh-Hans") }
   func setLessonLanguage(_ command: SetLessonLanguage) async throws(HostError) -> LessonLanguage { command.language }
-  func dataLocation() async -> URL { URL(filePath: "/Users/someone/Loci Dev") }
+  func dataLocation() async -> HostPath { HostPath(URL(filePath: "/Users/someone/Loci Dev")) }
 }

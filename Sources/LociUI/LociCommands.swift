@@ -25,12 +25,12 @@ public struct LociCommands: Commands {
       .keyboardShortcut("n")
       .disabled(navigator == nil)
       Button {
-        navigator?.addFile()
+        navigator?.addFile?()
       } label: {
         Text(.loci("menu.addFile"))
       }
       .keyboardShortcut("o")
-      .disabled(navigator == nil)
+      .disabled(navigator?.addFile == nil)
     }
     CommandGroup(after: .pasteboard) {
       Button {

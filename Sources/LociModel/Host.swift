@@ -1,12 +1,17 @@
 import Foundation
 
 /// What the interface talks to: commands that do one thing, and subscriptions that keep one view's data
-/// current. The same protocol is served in-process and, later, over an encrypted channel, so everything
-/// that crosses it is a plain `Codable` value.
+/// current. The same protocol is served in-process and over an encrypted channel to another Mac, so
+/// everything that crosses it is a plain `Codable` value. Files on this Mac go through `upload` and
+/// `localFile`, which never cross.
 public protocol Host: Sendable {
   func run<C: Command>(_ command: C) async throws(HostError) -> C.Reply
   /// The view's data now, then again each time it changes. Dropping the stream ends the subscription.
   func subscribe<S: Subscription>(_ subscription: S) -> AsyncStream<Feed<S.Value>>
+  /// Makes a file on this Mac available to the host's commands; a remote host receives its bytes.
+  func upload(_ file: LocalFile) async throws(HostError) -> Upload
+  /// `nil` unless the host is this Mac and the place exists.
+  func localFile(_ place: LocalPlace) async -> LocalFile?
 }
 
 /// One thing the host can be asked to do, with the type of its reply.
@@ -47,6 +52,8 @@ public enum HostError: Error, Hashable, Codable, Sendable {
   case invalidRequest(String)
   /// Reading or writing failed, with the system's reason.
   case storage(String)
+  /// The host is another Mac that cannot be reached now. Nothing was changed, as far as this Mac knows.
+  case offline
 }
 
 /// Why a host could not start. Nothing on disk is changed when this is thrown.
@@ -97,7 +104,7 @@ public protocol CommandHandler: Sendable {
   func setDefaultModel(_ command: SetDefaultModel) async throws(HostError) -> AgentDefaults
   func lessonLanguage() async throws(HostError) -> LessonLanguage
   func setLessonLanguage(_ command: SetLessonLanguage) async throws(HostError) -> LessonLanguage
-  func dataLocation() async -> URL
+  func dataLocation() async -> HostPath
   func setMentorAgent(_ command: SetMentorAgent) async throws(HostError) -> Mentor
   func addLink(_ command: AddLink) async throws(HostError) -> Item
   func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item
@@ -107,6 +114,8 @@ public protocol CommandHandler: Sendable {
   func job(of item: EntityID) async throws(HostError) -> Job?
   func mediaPage(_ item: EntityID) async throws(HostError) -> MediaPage
   func playback(_ command: ReadPlayback) async throws(HostError) -> Playback
+  func mediaFileInfo(of item: EntityID) async throws(HostError) -> MediaFileInfo
+  func mediaBytes(_ command: ReadMediaBytes) async throws(HostError) -> Data
   func cover(of item: EntityID) async throws(HostError) -> Data?
   func itemPDF(_ item: EntityID) async throws(HostError) -> Data
   func itemImage(_ command: ReadItemImage) async throws(HostError) -> Data

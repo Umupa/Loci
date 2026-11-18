@@ -21,7 +21,7 @@ struct ScreenSnapshots {
   static let wide = CGSize(width: 1240, height: 800)
 
   static func root(_ sample: Sample, at window: WindowState) -> some View {
-    RootView(memory: WindowMemory(recall: { window }, remember: { _ in })).lociHost(FakeHost(sample))
+    MachineWindow(memory: WindowMemory(recall: { window }, remember: { _ in })).lociHost(FakeHost(sample))
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
@@ -226,8 +226,11 @@ struct ScreenSnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func mentorSoul(appearance: Snapshot.Appearance) async throws {
     let sample = try Sample()
-    let view = SoulSheet(soul: sample.mind.soul, file: sample.mind.soulFile, color: sample.scheduling.color)
-      .padding(Spacing.xl).background(Palette.canvas)
+    let view = SoulSheet(
+      soul: sample.mind.soul, file: LocalFile(URL(filePath: "/Users/someone/Loci Dev/mentors/diao-du/SOUL.md")),
+      color: sample.scheduling.color
+    )
+    .padding(Spacing.xl).background(Palette.canvas)
     try await Self.shoot("mentor-soul", view, appearance: appearance, size: CGSize(width: 720, height: 560))
   }
 }

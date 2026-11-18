@@ -8,6 +8,11 @@ struct StandIns {
   var moment: MediaMoment?
   /// The list of a page's videos is open.
   var videoPickerOpen = false
+  /// The pointer rests on the sidebar's foot, or on the first Mac in settings' list.
+  var pointerOnMachineFoot = false
+  var pointerOnFirstPairedMac = false
+  /// Words of the reading text selected, with the bar over them.
+  var selection: String?
 }
 
 /// A reader of a video or audio item caught part way through.

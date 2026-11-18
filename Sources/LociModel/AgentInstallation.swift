@@ -9,14 +9,14 @@ public enum AgentInstallation: Hashable, Codable, Sendable {
   /// A program that was found, with what it said about itself.
   public struct Installed: Hashable, Codable, Sendable {
     public let provider: Mentor.Provider
-    public let executable: URL
+    public let executable: HostPath
     /// What the program printed for its version, trimmed; `nil` when it has no version flag, printed no
     /// version, or never answered.
     public let version: String?
     /// Whether the program holds credentials, as far as it can say before a session starts.
     public let signIn: SignIn
 
-    public init(provider: Mentor.Provider, executable: URL, version: String?, signIn: SignIn) {
+    public init(provider: Mentor.Provider, executable: HostPath, version: String?, signIn: SignIn) {
       self.provider = provider
       self.executable = executable
       self.version = version

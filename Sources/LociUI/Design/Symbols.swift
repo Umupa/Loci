@@ -49,6 +49,17 @@ enum Symbols {
   static let latest = "arrow.down"
   static let tools = "square.stack.3d.up"
   static let web = "globe"
+  static let remote = "dot.radiowaves.left.and.right"
+
+  static func machine(_ model: MachineModel) -> String {
+    switch model {
+    case .laptop: "laptopcomputer"
+    case .mini: "macmini"
+    case .iMac, .other: "desktopcomputer"
+    case .studio: "macstudio"
+    case .pro: "macpro.gen3"
+    }
+  }
 
   static func tool(_ kind: ToolActivity.Kind) -> String {
     switch kind {

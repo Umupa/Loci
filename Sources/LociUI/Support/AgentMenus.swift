@@ -21,6 +21,10 @@ struct AgentChoiceMenu: View {
   }
 
   var body: some View {
+    choices.changesData()
+  }
+
+  private var choices: some View {
     Menu {
       if parts != .model {
         Picker(selection: agent) {

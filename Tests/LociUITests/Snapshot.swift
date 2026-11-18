@@ -21,8 +21,58 @@ enum Snapshot {
   @discardableResult
   static func render(
     _ view: some View, named name: String, size: CGSize = windowSize, appearance: Appearance,
-    locale: Locale = Locale(identifier: "zh-Hans"), settle: Duration = .milliseconds(400)
+    locale: Locale = Locale(identifier: "zh-Hans"), settle: Duration = .milliseconds(400),
+    until ready: (@MainActor (NSWindow) -> Bool)? = nil, steady: Bool = false
   ) async throws -> URL {
+    let (host, window) = show(view, size: size, appearance: appearance, locale: locale)
+    defer { window.orderOut(nil) }
+    let bitmap: NSBitmapImageRep
+    if let ready, steady {
+      bitmap = try await self.steady(host, in: window, named: name, when: ready)
+    } else if let ready {
+      try await eventually("\(name) to be ready") { ready(window) }
+      bitmap = try picture(of: host, in: window)
+    } else {
+      try await Task.sleep(for: settle)
+      bitmap = try picture(of: host, in: window)
+    }
+    guard let png = bitmap.representation(using: .png, properties: [:]) else { throw RenderingFailed() }
+
+    let file = directory.appending(path: "\(name)-\(appearance.rawValue).png")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try png.write(to: file)
+    return file
+  }
+
+  /// The picture once `ready` holds and the picture has stopped changing: the same three times in a row, 50 ms
+  /// apart. What a view shows after its data arrives, such as covers asked for once a list appears, changes the
+  /// picture, so the wait goes on until it is all drawn. A view that keeps moving never settles; snapshots set
+  /// `standIns`, which holds spinners and pulses still.
+  private static func steady(
+    _ host: NSView, in window: NSWindow, named name: String, when ready: @MainActor (NSWindow) -> Bool
+  ) async throws -> NSBitmapImageRep {
+    let deadline = ContinuousClock.now + .seconds(30)
+    var last: (bitmap: NSBitmapImageRep, data: Data)?
+    var streak = 0
+    while true {
+      guard ContinuousClock.now < deadline else { throw TimedOut(waitingFor: "\(name) to settle") }
+      try await Task.sleep(for: .milliseconds(50))
+      guard ready(window) else {
+        streak = 0
+        continue
+      }
+      let bitmap = try picture(of: host, in: window)
+      guard let pixels = bitmap.bitmapData else { throw RenderingFailed() }
+      let data = Data(bytes: pixels, count: bitmap.bytesPerPlane)
+      streak = data == last?.data ? streak + 1 : 0
+      last = (bitmap, data)
+      if streak >= 2 { return bitmap }
+    }
+  }
+
+  private static func show(
+    _ view: some View, size: CGSize, appearance: Appearance, locale: Locale
+  ) -> (NSView, NSWindow) {
     let host = NSHostingView(
       rootView: view.frame(width: size.width, height: size.height).environment(\.locale, locale))
     let window = NSWindow(
@@ -31,18 +81,31 @@ enum Snapshot {
     window.appearance = NSAppearance(named: appearance.name)
     window.contentView = host
     window.orderBack(nil)
-    defer { window.orderOut(nil) }
-    try await Task.sleep(for: settle)
-    host.layoutSubtreeIfNeeded()
+    return (host, window)
+  }
 
+  private static func picture(of host: NSView, in window: NSWindow) throws -> NSBitmapImageRep {
+    host.layoutSubtreeIfNeeded()
     guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { throw RenderingFailed() }
     host.cacheDisplay(in: host.bounds, to: bitmap)
-    guard let png = bitmap.representation(using: .png, properties: [:]) else { throw RenderingFailed() }
+    drawChildWindows(of: window, onto: bitmap)
+    return bitmap
+  }
 
-    let file = directory.appending(path: "\(name)-\(appearance.rawValue).png")
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    try png.write(to: file)
-    return file
+  /// Panels a view floats over the window, such as the bar over a selection, drawn where they sit.
+  private static func drawChildWindows(of window: NSWindow, onto bitmap: NSBitmapImageRep) {
+    guard let children = window.childWindows, !children.isEmpty else { return }
+    NSGraphicsContext.saveGraphicsState()
+    defer { NSGraphicsContext.restoreGraphicsState() }
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+    for child in children {
+      guard let view = child.contentView, let picture = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+      else { continue }
+      view.cacheDisplay(in: view.bounds, to: picture)
+      picture.draw(
+        in: window.convertFromScreen(child.frame), from: .zero, operation: .sourceOver, fraction: 1,
+        respectFlipped: true, hints: nil)
+    }
   }
 
   private static var directory: URL {

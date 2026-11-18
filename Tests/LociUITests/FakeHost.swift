@@ -10,20 +10,29 @@ final class FakeHost: LociModel.Host, CommandHandler {
   let library: SampleLibrary?
   /// The library's video is still having its speech recognized.
   let recognizing: Bool
+  /// Counts what is asked and answered, so a test can wait for the view's data.
+  let activity: Activity
 
-  init(_ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false) {
+  init(
+    _ sample: Sample, library: SampleLibrary? = nil, recognizing: Bool = false, activity: Activity = Activity()
+  ) {
     self.sample = sample
     self.library = library
     self.recognizing = recognizing
+    self.activity = activity
   }
 
   func run<C: Command>(_ command: C) async throws(HostError) -> C.Reply {
-    try await command.run(on: self)
+    activity.begin()
+    defer { activity.end() }
+    return try await command.run(on: self)
   }
 
   func subscribe<S: Subscription>(_ subscription: S) -> AsyncStream<Feed<S.Value>> {
     let (feed, continuation) = AsyncStream.makeStream(of: Feed<S.Value>.self)
-    Task {
+    activity.begin()
+    Task { [activity] in
+      defer { activity.end() }
       do throws(HostError) {
         continuation.yield(.value(try await subscription.value(from: self)))
       } catch {
@@ -32,6 +41,9 @@ final class FakeHost: LociModel.Host, CommandHandler {
     }
     return feed
   }
+
+  func upload(_ file: LocalFile) async throws(HostError) -> Upload { Upload(id: sample.items[0].id) }
+  func localFile(_ place: LocalPlace) async -> LocalFile? { nil }
 
   func createMentor(_ command: CreateMentor) async throws(HostError) -> Mentor { sample.scheduling }
   func renameMentor(_ command: RenameMentor) async throws(HostError) -> Mentor { sample.scheduling }

@@ -18,6 +18,7 @@ struct SpeechModels: View {
           row(status)
         }
       }
+      .changesData()
     }
   }
 

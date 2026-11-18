@@ -9,6 +9,7 @@ struct ContentReader<Extra: View>: View {
   @Environment(\.host) private var host
   @Environment(\.openPage) private var openPage
   @Environment(\.standIns) private var standIns
+  @Environment(\.changesAllowed) private var changesAllowed
   let content: ContentRef
   /// Set over the text, unless the text starts with a title of its own.
   let title: String?
@@ -117,7 +118,9 @@ struct ContentReader<Extra: View>: View {
 
   @ViewBuilder private var reader: some View {
     if let text {
-      Reader(text: text, start: start, width: readingWidth, marks: marks, reveal: reveal, events: events)
+      Reader(
+        text: text, start: start, width: readingWidth, marks: marks, reveal: reveal, selected: standIns?.selection,
+        events: events)
     } else {
       Palette.canvas
     }
@@ -200,7 +203,7 @@ struct ContentReader<Extra: View>: View {
         : { range in
           guard let passage = passage(range) else { return }
           ask(passage.locator, excerpt: passage.excerpt)
-        })
+        }, changes: changesAllowed)
   }
 
   /// Puts the passage above the mentor's composer and turns the panel to the conversation.

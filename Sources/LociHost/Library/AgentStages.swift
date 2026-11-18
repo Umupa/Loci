@@ -62,6 +62,7 @@ extension JobRun {
     case .invalidRequest(let reason), .storage(let reason): reason
     case .alreadyExists(let id): "already exists: \(id)"
     case .invalidFile(let problem): problem.reason
+    case .offline: "the Mac is offline"
     }
   }
 }

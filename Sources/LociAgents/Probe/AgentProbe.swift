@@ -33,7 +33,7 @@ public struct AgentProbe: Sendable {
     guard let executable = search.executable(named: cli.names) else { return .missing(cli.provider) }
     let version = await version(of: executable, listed: cli.versionArguments)
     return .installed(
-      .init(provider: cli.provider, executable: executable, version: version, signIn: .unknown))
+      .init(provider: cli.provider, executable: HostPath(executable), version: version, signIn: .unknown))
   }
 
   private func version(of executable: URL, listed arguments: [String]?) async -> String? {

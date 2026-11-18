@@ -88,6 +88,8 @@ jobs:
           APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+          LOCI_RELAY_URL: ${{ secrets.LOCI_RELAY_URL }}
+          LOCI_RELAY_KEY: ${{ secrets.LOCI_RELAY_KEY }}
         run: |
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then
             export LOCI_VERSION="${GITHUB_REF_NAME#v}"

@@ -6,13 +6,13 @@ struct CopyTests {
   static let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     .deletingLastPathComponent()
 
-  /// The interface's source files. A number put into a key, as in `.loci("tools.ran \(count)")`, reads as
-  /// the catalog writes it: `tools.ran %lld`.
+  /// The interface's source files. A value put into a key, as in `.loci("tools.ran \(count)")`, reads as
+  /// `tools.ran %arg`, whether the catalog writes it `%lld` for a number or `%@` for text.
   static func sources() throws -> [(path: String, text: String)] {
     let folder = root.appending(path: "Sources/LociUI")
     let files = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil)?.compactMap { $0 as? URL }
     return try (files ?? []).filter { $0.pathExtension == "swift" }.map {
-      ($0.lastPathComponent, try String(contentsOf: $0, encoding: .utf8).replacing(/\\\([^)"]*\)/, with: "%lld"))
+      ($0.lastPathComponent, try String(contentsOf: $0, encoding: .utf8).replacing(/\\\([^)"]*\)/, with: "%arg"))
     }
   }
 
@@ -20,9 +20,10 @@ struct CopyTests {
     let url = root.appending(path: "Sources/LociUI/Resources/Localizable.xcstrings")
     let json = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
     let strings = json?["strings"] as? [String: [String: Any]] ?? [:]
-    return strings.mapValues { entry in
-      Set((entry["localizations"] as? [String: Any] ?? [:]).keys)
-    }
+    return Dictionary(
+      strings.map { key, entry in
+        (key.replacing(/%(lld|@)/, with: "%arg"), Set((entry["localizations"] as? [String: Any] ?? [:]).keys))
+      }, uniquingKeysWith: { first, _ in first })
   }
 
   @Test func everyKeyUsedIsTranslatedIntoBothLanguages() throws {
@@ -37,7 +38,7 @@ struct CopyTests {
 
   @Test func theCatalogHasNoUnusedKeys() throws {
     let used = Set(
-      try Self.sources().flatMap { $0.text.matches(of: /"([a-z]+\.[A-Za-z]+(?: %lld)*)"/).map { String($0.1) } })
+      try Self.sources().flatMap { $0.text.matches(of: /"([a-z]+\.[A-Za-z]+(?: %arg)*)"/).map { String($0.1) } })
 
     #expect(Set(try Self.catalog().keys).subtracting(used).isEmpty)
   }

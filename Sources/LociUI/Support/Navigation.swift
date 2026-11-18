@@ -17,7 +17,7 @@ enum Place: Codable, Hashable {
 
 /// The sections of settings in the sidebar.
 enum SettingsSection: String, Codable, Hashable, CaseIterable {
-  case general, agents, media
+  case general, agents, media, remote
 }
 
 /// A page opened on top of a place.
@@ -69,7 +69,8 @@ struct Navigator {
   let showLibrary: () -> Void
   let showSettings: () -> Void
   let toggleSidebar: () -> Void
-  let addFile: () -> Void
+  /// Picks a file to add; `nil` while the Mac behind the window cannot take changes.
+  let addFile: (() -> Void)?
   /// Adds the link on the pasteboard; `nil` on a page that does not take links.
   let pasteLink: (() -> Void)?
 }
@@ -89,8 +90,18 @@ struct WindowMemory {
   /// Kept in the app's preferences, one place per data folder: a convenience of the interface, not part of
   /// the user's data. A folder never opened before has nothing remembered and opens at the start page.
   @MainActor static func preferences(_ defaults: UserDefaults, folder: URL) -> WindowMemory {
-    let key = key(for: folder)
-    return WindowMemory(
+    stored(defaults, key: key(for: folder))
+  }
+
+  /// Kept for another Mac, by its identity, so switching back to it returns to where it was.
+  @MainActor static func preferences(_ defaults: UserDefaults, remote machine: some CustomStringConvertible)
+    -> WindowMemory
+  {
+    stored(defaults, key: "lastWindow remote " + machine.description)
+  }
+
+  @MainActor private static func stored(_ defaults: UserDefaults, key: String) -> WindowMemory {
+    WindowMemory(
       recall: { WindowState(restoring: defaults.string(forKey: key) ?? "") },
       remember: { defaults.set($0.text, forKey: key) })
   }

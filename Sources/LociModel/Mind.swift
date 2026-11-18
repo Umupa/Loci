@@ -4,14 +4,11 @@ import Foundation
 public struct Mind: Hashable, Codable, Sendable {
   /// `nil` until the mentor's first session writes it.
   public let soul: String?
-  /// Where `SOUL.md` is, on the host's Mac, for opening it in an editor there.
-  public let soulFile: URL
   /// Newest first.
   public let memory: [MemoryFile]
 
-  public init(soul: String?, soulFile: URL, memory: [MemoryFile]) {
+  public init(soul: String?, memory: [MemoryFile]) {
     self.soul = soul
-    self.soulFile = soulFile
     self.memory = memory
   }
 }

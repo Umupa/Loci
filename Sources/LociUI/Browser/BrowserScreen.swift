@@ -21,7 +21,7 @@ struct BrowserScreen: View {
       } else {
         VStack(spacing: 0) {
           AddressBar(session: session) {
-            if let offer { OfferButton(offer: offer, take: take) }
+            if let offer { OfferButton(offer: offer, take: take).changesData() }
           }
           page
             .clipShape(RoundedRectangle(cornerRadius: Radius.group, style: .continuous))
@@ -37,6 +37,7 @@ struct BrowserScreen: View {
               picking = false
               Task { await add(chosen) }
             }
+            .changesData()
             .padding(.top, 50)
             .padding(.trailing, 14)
             .transition(.scale(scale: 0.96, anchor: .topTrailing).combined(with: .opacity))

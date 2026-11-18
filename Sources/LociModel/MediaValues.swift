@@ -2,8 +2,9 @@ import Foundation
 
 /// Where a video or audio item plays from.
 public enum Playback: Hashable, Codable, Sendable {
-  /// The downloaded file on the host.
-  case file(URL)
+  /// The file is on the host: this Mac plays it from `Host.localFile(.media(item))`, another Mac reads it
+  /// in ranges with `ReadMediaBytes`.
+  case downloaded
   /// Straight from the site while the download runs.
   case online(OnlineStream)
 }

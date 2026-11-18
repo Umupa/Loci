@@ -36,10 +36,8 @@ struct MediaScenarioTests {
       await world.programs.downloads.open()
 
       #expect(await job(host, item.id, where: isDone) != nil)
-      guard case .file(let file) = try await host.run(ReadPlayback(item: item.id)) else {
-        Issue.record("expected the downloaded file")
-        return
-      }
+      #expect(try await host.run(ReadPlayback(item: item.id)) == .downloaded)
+      let file = try #require(await host.localFile(.media(item.id))).url
       #expect(file.lastPathComponent == "media.mp4")
       #expect(world.programs.calls(with: "--merge-output-format").count == 1)
     }
@@ -62,10 +60,8 @@ struct MediaScenarioTests {
       #expect(try await host.run(ReadCover(item: item.id)) != nil)
       let download = try #require(world.programs.calls(with: "--print").first)
       #expect(download.arguments.contains("-x"))
-      guard case .file(let file) = try await host.run(ReadPlayback(item: item.id)) else {
-        Issue.record("expected the downloaded file")
-        return
-      }
+      #expect(try await host.run(ReadPlayback(item: item.id)) == .downloaded)
+      let file = try #require(await host.localFile(.media(item.id))).url
       #expect(file.lastPathComponent == "media.m4a")
     }
   }
@@ -160,16 +156,14 @@ struct MediaScenarioTests {
       try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
       try Silence.wav(seconds: 1).write(to: file)
 
-      let item = try await host.run(ImportMediaFile(file: file, mode: mode))
+      let item = try await host.run(ImportMediaFile(upload: try await host.upload(LocalFile(file)), mode: mode))
 
       #expect(item.title == "scheduling talk")
       #expect(item.kind == .audio(duration: .seconds(1)))
       #expect(await job(host, item.id, where: isDone) != nil)
       #expect(try await host.run(ReadMediaPage(item: item.id)).transcript?.segments.count == 3)
-      guard case .file(let media) = try await host.run(ReadPlayback(item: item.id)) else {
-        Issue.record("expected a file")
-        return
-      }
+      #expect(try await host.run(ReadPlayback(item: item.id)) == .downloaded)
+      let media = try #require(await host.localFile(.media(item.id))).url
       #expect(media.lastPathComponent == "media.wav")
       let isLink = (try? FileManager.default.destinationOfSymbolicLink(atPath: media.path)) != nil
       #expect(isLink == (mode == .link))
@@ -182,7 +176,9 @@ struct MediaScenarioTests {
       try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
       try Data("text".utf8).write(to: file)
 
-      await #expect(throws: HostError.self) { try await host.run(ImportMediaFile(file: file, mode: .copy)) }
+      await #expect(throws: HostError.self) {
+        try await host.run(ImportMediaFile(upload: try await host.upload(LocalFile(file)), mode: .copy))
+      }
       #expect(try await host.run(ListItems()).isEmpty)
     }
   }

@@ -40,14 +40,17 @@ struct SettingsPage<Content: View>: View {
 
 /// A titled group of rows on a card, with thin lines between them.
 struct SettingsGroup<Content: View>: View {
-  let title: LocalizedStringResource
+  /// `nil` for a list that needs no name, such as the only one on its page.
+  let title: LocalizedStringResource?
   /// Where the line between rows starts: under the text, past a leading mark when rows have one.
   var inset: CGFloat = 12
   @ViewBuilder let content: Content
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.ink).padding(.leading, 10)
+      if let title {
+        Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.ink).padding(.leading, 10)
+      }
       VStack(spacing: 0) {
         Group(subviews: content) { rows in
           ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in

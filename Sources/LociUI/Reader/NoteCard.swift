@@ -50,7 +50,7 @@ struct NoteCard: View {
     .contentShape(RoundedRectangle(cornerRadius: Radius.card))
     .onTapGesture(perform: select)
     .onHover { hovering = $0 }
-    .contextMenu { menu }
+    .contextMenu { menu.changesData() }
     .onChange(of: chosen) { _, chosen in
       guard chosen != nil else { return }
       flashing = true

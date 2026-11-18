@@ -18,11 +18,11 @@ public struct AddLink: Command {
 /// Adds a video or audio file on the host to the library, and starts recognizing what is said in it.
 public struct ImportMediaFile: Command {
   public static let name = "library.importMedia"
-  public let file: URL
+  public let upload: Upload
   public let mode: ImportMode
 
-  public init(file: URL, mode: ImportMode) {
-    self.file = file
+  public init(upload: Upload, mode: ImportMode) {
+    self.upload = upload
     self.mode = mode
   }
 

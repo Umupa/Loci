@@ -77,7 +77,7 @@ struct MediaLiveTests {
 
   private static func describe(_ playback: Playback) -> String {
     switch playback {
-    case .file: "file"
+    case .downloaded: "file"
     case .online(let stream): stream.audioOnly ? "online, sound first" : "online"
     }
   }

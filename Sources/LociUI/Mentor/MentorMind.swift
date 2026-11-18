@@ -68,10 +68,11 @@ private struct MemoryRow: View {
   }
 }
 
-/// `SOUL.md` as one page of a manuscript, with a pencil that opens the file in the Mac's editor.
+/// `SOUL.md` as one page of a manuscript, with a pencil that opens the file in the Mac's editor when the
+/// mentor lives on this Mac.
 struct SoulSheet: View {
   let soul: String?
-  let file: URL
+  let file: LocalFile?
   let color: MentorColor
 
   var body: some View {
@@ -87,17 +88,19 @@ struct SoulSheet: View {
         .padding(.horizontal, 56)
         .padding(.bottom, 48)
         .frame(maxWidth: .infinity, alignment: .leading)
-      Button {
-        NSWorkspace.shared.open(file)
-      } label: {
-        Image(systemName: "pencil").font(.system(size: 15)).foregroundStyle(Palette.inkMuted).frame(
-          width: 28, height: 28)
+      if let file {
+        Button {
+          NSWorkspace.shared.open(file.url)
+        } label: {
+          Image(systemName: "pencil").font(.system(size: 15)).foregroundStyle(Palette.inkMuted).frame(
+            width: 28, height: 28)
+        }
+        .buttonStyle(PressStyle())
+        .help(Text(.loci("mentor.editSoul")))
+        .accessibilityLabel(Text(.loci("mentor.editSoul")))
+        .padding(14)
+        .disabled(soul == nil)
       }
-      .buttonStyle(PressStyle())
-      .help(Text(.loci("mentor.editSoul")))
-      .accessibilityLabel(Text(.loci("mentor.editSoul")))
-      .padding(14)
-      .disabled(soul == nil)
     }
     .background(
       RoundedRectangle(cornerRadius: 6).fill(Palette.surface).shadow(color: .black.opacity(0.08), radius: 20, y: 14)

@@ -37,7 +37,7 @@ struct LibraryStart: View {
       .frame(height: 28)
       .onSubmit(submit)
       HStack(spacing: Spacing.xxs) {
-        IconButton(symbol: Symbols.attach, title: .loci("library.attach")) { navigator?.addFile() }
+        IconButton(symbol: Symbols.attach, title: .loci("library.attach")) { navigator?.addFile?() }
         Spacer()
         RoundSendButton(ready: PromptInput(text) != .empty, action: submit)
       }
@@ -55,6 +55,7 @@ struct LibraryStart: View {
       RoundedRectangle(cornerRadius: Spacing.l, style: .continuous)
         .strokeBorder(Palette.lineStrong, lineWidth: Size.hairline)
     )
+    .offlineLineInstead(ruled: false)
     .padding(.bottom, 60)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }

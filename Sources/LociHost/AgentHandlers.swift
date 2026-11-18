@@ -48,8 +48,8 @@ extension LocalHost {
     try attempt { try store.changeSettings { $0.lessonLanguage = command.language } }.lessonLanguage
   }
 
-  public func dataLocation() async -> URL {
-    store.root
+  public func dataLocation() async -> HostPath {
+    HostPath(store.root)
   }
 
   private func defaults(from settings: HostSettings) -> AgentDefaults {

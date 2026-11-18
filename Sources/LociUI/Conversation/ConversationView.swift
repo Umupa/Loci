@@ -131,7 +131,9 @@ struct ConversationView: View {
       .background(
         LinearGradient(
           stops: [.init(color: Palette.well.opacity(0), location: 0), .init(color: Palette.well, location: 0.45)],
-          startPoint: .top, endPoint: .bottom))
+          startPoint: .top, endPoint: .bottom)
+      )
+      .offlineLineInstead()
     }
     .background(Palette.well)
   }

@@ -21,7 +21,7 @@ extension LocalHost {
   }
 
   public func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item {
-    let file = command.file
+    guard let file = await hub.takeUpload(command.upload.id) else { throw .notFound("upload \(command.upload.id)") }
     let probe = await MediaProbe.of(file)
     let kind: Item.Kind
     if let probe {
@@ -82,9 +82,18 @@ extension LocalHost {
     }
   }
 
+  public func mediaFileInfo(of item: EntityID) async throws(HostError) -> MediaFileInfo {
+    guard let info = try attempt({ try store.mediaFileInfo(of: item) }) else { throw .notFound("media of \(item)") }
+    return info
+  }
+
+  public func mediaBytes(_ command: ReadMediaBytes) async throws(HostError) -> Data {
+    try attempt { try store.mediaBytes(of: command.item, offset: command.offset, length: command.length) }
+  }
+
   public func playback(_ command: ReadPlayback) async throws(HostError) -> Playback {
     let id = command.item
-    if let media = try attempt({ try store.mediaFile(of: id) }) { return .file(media) }
+    if try attempt({ try store.mediaFile(of: id) }) != nil { return .downloaded }
     if !command.refresh, let stream = await library.context.streams.stream(for: id, at: environment.now()) {
       return .online(stream)
     }

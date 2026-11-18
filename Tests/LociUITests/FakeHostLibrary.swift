@@ -33,6 +33,14 @@ extension FakeHost {
     throw .notFound("media of \(command.item)")
   }
 
+  func mediaFileInfo(of item: EntityID) async throws(HostError) -> MediaFileInfo {
+    throw .notFound("media of \(item)")
+  }
+
+  func mediaBytes(_ command: ReadMediaBytes) async throws(HostError) -> Data {
+    throw .notFound("media of \(command.item)")
+  }
+
   func cover(of item: EntityID) async throws(HostError) -> Data? { library?.cover(of: item) }
   func itemPDF(_ item: EntityID) async throws(HostError) -> Data { throw .notFound("content.pdf") }
 

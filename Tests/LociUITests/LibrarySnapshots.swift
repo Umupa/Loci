@@ -18,7 +18,7 @@ struct LibrarySnapshots {
     recognizing: Bool = false, standIns: StandIns? = nil, browser: BrowserSession = BrowserSession(),
     english: Bool = false, size: CGSize = window
   ) async throws {
-    let view = RootView(memory: WindowMemory(recall: { place }, remember: { _ in }), browser: browser)
+    let view = MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in }), browser: browser)
       .lociHost(FakeHost(try Sample(problems: false), library: library, recognizing: recognizing))
       .environment(\.standIns, standIns)
     let file = try await Snapshot.render(

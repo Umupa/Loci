@@ -12,6 +12,8 @@ final class ReaderTextView: NSTextView {
   var hovered: (CGPoint?) -> Void = { _ in }
   /// Runs when a mouse selection is finished.
   var selectionEnded: () -> Void = {}
+  /// Runs once the text is in a window, where things can float over it.
+  var joinedWindow: () -> Void = {}
   /// Runs when the mouse is released, whether or not it selected anything.
   var dragEnded: () -> Void = {}
   /// Whether the mouse is down in the text, dragging out a selection.
@@ -28,6 +30,11 @@ final class ReaderTextView: NSTextView {
     }
   }
   private var tracking: NSTrackingArea?
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if window != nil { joinedWindow() }
+  }
   private var noteDots: [EntityID: NoteDot] = [:]
   private var highlights: [(note: EntityID, range: NSRange, rects: [CGRect], bands: [CGRect])] = []
   private let underlines = Underlines()

@@ -16,18 +16,18 @@
 
 | 模块 | 职责 | 可以引用 |
 |---|---|---|
-| `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应 | 无 |
-| `LociStore` | 文件读写与监听、SQLite、全文索引 | `LociModel`；第三方：Yams、GRDB |
+| `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应、线路注册表；系统框架可用 CryptoKit（`MachineID` 是公钥的指纹，邀请链接带校验和） | 无 |
+| `LociStore` | 文件读写与监听、SQLite、全文索引；配对名单与别的 Mac 的缓存；系统框架可用 Security（设备私钥放钥匙串）、CryptoKit（缓存文件名） | `LociModel`；第三方：Yams、GRDB |
 | `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
 | `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、转录、断句；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、NaturalLanguage、WebKit（在不显示的网页里取正文）、Synchronization | `LociModel` |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |
-| `LociRemote` | 配对、加密通道、中继 | `LociModel` |
-| `LociHost` | 命令层的实现：本机和远程 | 以上全部 |
+| `LociRemote` | 配对、加密通道（Noise）、中继（alma-relay 协议）、局域网发现（Bonjour）；系统框架可用 CryptoKit、Network | `LociModel` |
+| `LociHost` | 命令层的实现：本机和远程；系统框架可用 IOKit（有已配对的 Mac 时阻止空闲睡眠，读机型） | 以上全部 |
 | `LociUI` | 界面与设计系统；系统框架可用 AVKit、AVFoundation（播放）、PDFKit（论文）、WebKit（内置浏览器） | `LociModel`；第三方：swift-markdown、Textual、HighlightSwift、SwiftMath |
 | `Loci` | 应用入口，把界面接到 Host 上 | `LociModel` `LociUI` `LociHost` |
 | `LociEval` | 评测，不随应用发布 | `LociModel` `LociHost` `LociAgents`（评分用的 agent 不属于任何导师） |
 
-现在已经存在的模块：`LociModel`、`LociStore`、`LociAgents`、`LociMedia`、`LociHost`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
+现在已经存在的模块：`LociModel`、`LociStore`、`LociAgents`、`LociMedia`、`LociRemote`、`LociHost`、`LociUI`、`Loci`。其余在用到时创建，创建时照这张表。
 
 ## 三条不变量
 

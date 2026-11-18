@@ -119,7 +119,8 @@ struct AgentSettingsTests {
     try await withHost { host, place, _ in
       let location = try await host.run(DataLocation())
 
-      #expect(location == place.root)
+      #expect(location == HostPath(place.root))
+      #expect(await host.localFile(.dataFolder) == LocalFile(place.root))
     }
   }
 

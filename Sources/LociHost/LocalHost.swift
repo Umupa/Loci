@@ -110,6 +110,22 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     return feed
   }
 
+  public func upload(_ file: LocalFile) async throws(HostError) -> Upload {
+    let upload = Upload(id: environment.newID())
+    await hub.keep(file.url, as: upload.id)
+    return upload
+  }
+
+  public func localFile(_ place: LocalPlace) async -> LocalFile? {
+    let url: URL?
+    switch place {
+    case .dataFolder: url = store.root
+    case .soul(let mentor): url = try? store.soulFile(of: mentor)
+    case .media(let item): url = try? store.mediaFile(of: item)
+    }
+    return url.map(LocalFile.init)
+  }
+
   public func health() async -> Health {
     await hub.current()
   }

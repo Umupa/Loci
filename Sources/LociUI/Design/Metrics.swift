@@ -28,6 +28,8 @@ enum Radius {
   static let cover: CGFloat = 10
   /// A push button, as System Settings draws one.
   static let push: CGFloat = 6
+  /// A sheet dropped over the window.
+  static let sheet: CGFloat = 24
 }
 
 enum Size {
@@ -111,6 +113,18 @@ enum Size {
   static let componentTile: CGFloat = 28
   static let radio: CGFloat = 16
   static let dot: CGFloat = 6
+
+  /// From the bottom of the sidebar to the menu of Macs that rises from its foot.
+  static let machineMenuLift: CGFloat = 40
+  /// A row of a grouped list, in settings and in sheets.
+  static let settingsRow: CGFloat = 44
+  static let machineGlyph: CGFloat = 54
+  static let pairingCode: CGFloat = 44
+  static let remoteSheetWidth: CGFloat = 400
+  /// From the top of the window to a sheet dropped over it.
+  static let remoteSheetTop: CGFloat = 64
+  /// Where the field of a conversation would be, while its Mac is offline.
+  static let offlineLine: CGFloat = 56
 }
 
 /// How things move. Selection and hover change at once and use none of these.
