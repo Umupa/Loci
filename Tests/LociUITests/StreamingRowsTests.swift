@@ -87,4 +87,17 @@ struct StreamingRowsTests {
     _ = settled(SaidSoFar(history + [.message(asked), .message(reply)], turn: nil))
     #expect(laidOut == 2)
   }
+
+  @Test func onlyTheFirstBubbleOfAMessageArrives() {
+    let asked = Self.message(0, .prompt(Prompt(text: "问", purpose: .chat)))
+    let id = EntityID()
+    func arrivals(_ reply: String?) -> Int {
+      let answer = reply.map { [Message(id: id, at: asked.at, body: .reply($0))] } ?? []
+      return TalkRow.live(LiveTurn(startedAt: asked.at, messages: [asked] + answer)).count(where: \.arrives)
+    }
+
+    #expect(arrivals(nil) == 1)
+    #expect(arrivals("一。") == 1)
+    #expect(arrivals("一。\n\n二。\n\n三。") == 1)
+  }
 }

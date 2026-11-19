@@ -67,7 +67,7 @@ struct ConversationView: View {
           view(of: row).arriving()
         }
       }
-      .animatingArrivals(said.count + live.count)
+      .animatingArrivals(said.count(where: \.arrives) + live.count(where: \.arrives))
       .padding(.horizontal, scale == .main ? 28 : Spacing.m)
       .frame(maxWidth: scale == .main ? 640 : .infinity)
       .padding(.top, scale == .main ? Spacing.l : 0)

@@ -37,6 +37,10 @@ struct TalkRow: Identifiable {
   /// For a part of a reply, the reply it belongs to, so hovering any part offers to copy the answer.
   var reply: EntityID?
 
+  /// Whether it rises into place when it appears. The later bubbles of a reply appear where they are
+  /// written, since a reply being written brings new ones several times a second.
+  var arrives: Bool { id.part < 1 }
+
   var speaker: Speaker? {
     switch kind {
     case .asked: .person
