@@ -54,7 +54,9 @@ if [ -n "$notarizable" ]; then
   set -- --options runtime --timestamp --sign "$identity"
 elif [ -n "$identity" ]; then
   echo "release: signing with \"$identity\", which Apple does not notarize; macOS asks to confirm the first open." >&2
-  set -- --options runtime --timestamp=none --sign "$identity"
+  # No hardened runtime: its library validation loads only frameworks signed by the app's Apple team, and a
+  # self-signed identity has none, so the app could not load whisper.framework.
+  set -- --timestamp=none --sign "$identity"
 else
   echo "release: no signing identity on this Mac, so the build is signed ad hoc and is not notarized." >&2
   set -- --sign -
