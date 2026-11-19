@@ -117,6 +117,13 @@ actor AgentRun {
     await dropLive()
   }
 
+  /// Says in the running turn that Loci put an item into the library; nothing when no turn is running.
+  func saved(_ item: EntityID) {
+    guard turn != nil else { return }
+    turn?.saved(item, at: context.environment.now())
+    changedSoon()
+  }
+
   private func run(_ text: String) async {
     do throws(TurnFailure) {
       let (agent, opening) = try await openSession()
@@ -206,7 +213,8 @@ actor AgentRun {
     let store = context.store
     try TurnFailure.from { () throws(HostError) in try attempt { try store.writeInstructions(instructions) } }
     var configuration = SessionConfiguration(
-      workingDirectory: store.agentFolder, model: runtime.model, effort: runtime.effort)
+      workingDirectory: store.agentFolder, model: runtime.model, effort: runtime.effort,
+      environment: owner.toolEnvironment)
     if reason == nil, let handle = session?.handle {
       configuration.resume = SessionHandle(provider: runtime.provider, value: handle)
     }
@@ -361,6 +369,16 @@ struct TurnFailure: Error {
       return try await body()
     } catch {
       throw TurnFailure(.failed(error.explanation))
+    }
+  }
+}
+
+extension SessionOwner {
+  /// What the `loci` command is told about the session it runs in: which conversation it is.
+  fileprivate var toolEnvironment: [String: String] {
+    switch self {
+    case .conversation(let conversation): [LocalCall.sessionVariable: conversation.tag]
+    case .review: [:]
     }
   }
 }

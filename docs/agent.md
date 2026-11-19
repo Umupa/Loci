@@ -46,7 +46,9 @@ Loci/
 │  ├─ diary/<日期>.md     日记，每日回顾写
 │  ├─ avatar.*           用户换的头像，可选；没有就用应用自带的
 │  ├─ conversations/     对话原文的只读镜像，按天按会话，供它查原话
+│  ├─ .claude/skills/loci/、.agents/skills/loci/   应用生成的 `loci` skill，正文就是 `loci help`
 │  └─ workspace/         它的工作目录：下载、clone、实验
+├─ run/loci.sock         应用听 `loci` 命令的 socket；`run/` 只有本用户能进
 └─ library/
 ```
 
@@ -103,9 +105,15 @@ Loci 和用户有一个共同的世界。应用把发生的事实附在每轮前
 
 ## 6. 它怎么改自己的状态
 
-没有命令行，agent 和应用之间通过文件协作：改笔记、改 `USER.md`、写日记、整理记忆、加特质，都是改 `agent/` 下的文件。应用监听这些文件，页面跟着变；格式不对的行原样显示，不丢。
+它自己的东西直接写文件：改笔记、改 `USER.md`、写日记、整理记忆、加特质，都是改 `agent/` 下的文件。应用监听这些文件，页面跟着变；格式不对的行原样显示，不丢。
 
-代价是：查原话只能 grep `conversations/`，没有 Alma 的会话检索那样方便。可以接受；不够用时再考虑。
+应用的东西读文件，查和写用 `loci` 命令。资料库的正文、`item.json`、划线照旧从 `../library/`、`../notes/library/` 读；全文搜索、存链接、导入它写的 Markdown 或下好的音视频、等任务跑完，走 `loci`。为什么不让它直接往 `library/` 里写文件：一份资料要有 id、要排任务、要进索引、要告诉界面，这些是应用的不变量，文件格式守不住。
+
+`loci` 很薄。它是随应用打包的小程序（`Contents/Helpers/loci`），经 `LOCI_SOCKET` 指的本机 socket 发现成的 Host 命令，应用只放行 `search`、`show`、`save`、`import`、`wait` 用到的那几个。应用启动 agent 程序时把它的目录放在 PATH 最前，`LOCI` 给出它的完整路径（agent CLI 用登录 shell 跑命令时，用户的 profile 可能把别的 `loci` 排到前面），并用 `LOCI_SESSION` 告诉它在哪条对话（`main` 或 `library/<id>`，和笔记的标签一样）；这样 `save`、`import` 存进的资料会作为这一轮的一条消息出现在那条对话里，显示成卡片。它自己存的不再算「资料库里发生的事」：主对话不出事件，下一轮的上下文也不再告诉它。
+
+用法只写一份：`loci help` 的文字。`rules.md` 只说「读用文件、查和写用 `loci`、用法看 `loci help`」；支持 skill 的 runtime 另有一份内容相同的 `SKILL.md`。
+
+查原话仍只能 grep `conversations/`，没有 Alma 的会话检索那样方便。可以接受；不够用时再考虑。
 
 ## 7. 通用行为规则
 

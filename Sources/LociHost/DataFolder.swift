@@ -28,6 +28,11 @@ public enum DataFolder: Equatable, Sendable {
     root.appending(path: databaseName)
   }
 
+  /// Where the app listens for the `loci` command. Its folder is the user's alone.
+  public static func socket(in root: URL) -> URL {
+    root.appending(path: "run/loci.sock")
+  }
+
   private static func canonical(_ url: URL) -> String {
     let path = url.standardizedFileURL.resolvingSymlinksInPath().path(percentEncoded: false)
     return path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path

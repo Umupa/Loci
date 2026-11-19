@@ -1,0 +1,178 @@
+import Foundation
+import LociAgents
+import LociModel
+import LociRemote
+import Testing
+
+@testable import LociHost
+
+/// L-S12: Loci puts things into the library with the `loci` command.
+@Suite(.timeLimit(.minutes(1)))
+struct ToolScenarioTests {
+  private actor Replies {
+    var all: [LocalReply] = []
+    func add(_ reply: LocalReply) { all.append(reply) }
+  }
+
+  /// The replies the gateway sends to one call.
+  private func answer(_ call: LocalCall, on host: LocalHost) async -> [LocalReply] {
+    let replies = Replies()
+    await ToolGateway.answer(call, on: host) { await replies.add($0) }
+    return await replies.all
+  }
+
+  private func command<C: Command>(_ command: C, in conversation: ConversationRef? = .main) throws -> LocalCall {
+    LocalCall(conversation: conversation, request: .command(name: C.name, body: try JSONEncoder().encode(command)))
+  }
+
+  private func item(_ replies: [LocalReply]) throws -> Item {
+    guard case .value(let data) = try #require(replies.first) else {
+      Issue.record("expected an item, got \(replies)")
+      throw HostError.invalidRequest("no item")
+    }
+    return try JSONDecoder().decode(Item.self, from: data)
+  }
+
+  @Test func savingALinkShowsInTheTurnLociSavedItIn() async throws {
+    try await withManualHost { host, _, _, agent in
+      _ = try await host.run(SendMessage(to: .main, text: "Save this for me"))
+      #expect(await working(host))
+      let url = try #require(URL(string: "https://example.com/borg"))
+
+      let saved = try item(await answer(try command(AddLink(url: url)), on: host))
+
+      let shown = await value(host.subscribe(OneConversation(.main))) { conversation in
+        conversation.turn?.messages.contains { $0.body == .savedItem(saved.id) } == true
+      }
+      #expect(shown != nil)
+      await agent.sessions.first?.finish()
+      let settledConversation = try #require(await settled(host))
+      #expect(settledConversation.bodies.contains(.savedItem(saved.id)))
+    }
+  }
+
+  @Test func whatLociSavedIsNotAnEventAndWhatThePersonSavedIs() async throws {
+    try await withManualHost { host, _, world, agent in
+      _ = try await host.run(SendMessage(to: .main, text: "Write it up"))
+      #expect(await working(host))
+      world.advance(minutes: 1)
+
+      _ = try item(
+        await answer(try command(AddTextItem(fileName: "notes.md", text: "# Borg\n", authors: ["Loci"])), on: host))
+      let byPerson = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n"))
+      await agent.sessions.first?.finish()
+      _ = try #require(await settled(host))
+
+      let events = try await host.conversation(.main).entries.compactMap { entry -> EntityID? in
+        if case .event(let event) = entry, case .saved(let item, _) = event.kind { item.id } else { nil }
+      }
+      #expect(events == [byPerson.id])
+      _ = try await host.run(SendMessage(to: .main, text: "Next"))
+      #expect(await working(host))
+      let told = try #require(await agent.sessions.first?.prompts.last)
+      #expect(told.contains("\"Raft\""))
+      #expect(!told.contains("\"Borg\""))
+    }
+  }
+
+  @Test func savingInAnItemsConversationShowsThere() async throws {
+    try await withManualHost { host, _, _, agent in
+      let open = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n"))
+      _ = try await host.run(SendMessage(to: .item(open.id), text: "Find the paper"))
+      #expect(await working(host, .item(open.id)))
+      let url = try #require(URL(string: "https://example.com/raft.pdf"))
+
+      let saved = try item(await answer(try command(AddLink(url: url), in: .item(open.id)), on: host))
+
+      await agent.sessions.first?.finish()
+      let conversation = try #require(await settled(host, .item(open.id)))
+      #expect(conversation.bodies.contains(.savedItem(saved.id)))
+      #expect(try await host.conversation(.main).bodies.allSatisfy { $0 != .savedItem(saved.id) })
+    }
+  }
+
+  @Test func anArticleLociWroteHasLociAsItsAuthorAndNoSource() async throws {
+    try await withHost { host, _, _ in
+      let saved = try item(
+        await answer(
+          try command(AddTextItem(fileName: "a.md", text: "# Old\n", title: "Borg in brief", authors: ["Loci"])),
+          on: host))
+
+      #expect(saved.title == "Borg in brief")
+      #expect(saved.authors == ["Loci"])
+      #expect(saved.source == nil)
+    }
+  }
+
+  @Test func onlyTheCommandsLociNeedsAreOpen() async throws {
+    try await withHost { host, _, _ in
+      let item = try await host.run(AddTextItem(fileName: "a.md", text: "# A\n"))
+
+      let deleting = await answer(try command(DeleteItem(item: item.id, notes: .delete)), on: host)
+      let following = await answer(
+        LocalCall(
+          conversation: nil, request: .follow(name: AllItems.name, body: try JSONEncoder().encode(AllItems()))),
+        on: host)
+
+      #expect(deleting == [.failed(.invalidRequest("loci cannot run \(DeleteItem.name)"))])
+      #expect(following == [.failed(.invalidRequest("loci cannot follow \(AllItems.name)"))])
+      #expect(try await host.run(ListItems()) == [item])
+    }
+  }
+
+  @Test func anItemsFolderIsGivenFromLocisFolder() async throws {
+    try await withHost { host, _, _ in
+      let item = try await host.run(AddTextItem(fileName: "a.md", text: "# Borg\n"))
+
+      let replies = await answer(LocalCall(conversation: nil, request: .itemFolder(item.id)), on: host)
+
+      let expected = try JSONEncoder().encode("../library/borg-\(item.id)/")
+      #expect(replies == [.value(expected)])
+    }
+  }
+
+  @Test func theAppAnswersOnItsSocketAndWritesTheSkill() async throws {
+    let place = Place()
+    defer { place.remove() }
+    let socket = URL(filePath: "/tmp/loci-\(UUID().uuidString.prefix(8))/loci.sock")
+    defer { try? FileManager.default.removeItem(at: socket.deletingLastPathComponent()) }
+    let world = TestWorld()
+    let environment = world.environment(
+      running: { _ in nil },
+      tool: AgentTool(folder: URL(filePath: "/Applications/Loci.app/Contents/Helpers"), socket: socket))
+    let host = try await LocalHost.start(root: place.root, database: place.database, environment: environment)
+    _ = try await host.run(AddTextItem(fileName: "a.md", text: "# 调度\n\n过滤与打分\n"))
+    let call = LocalCall(
+      conversation: nil, request: .command(name: Search.name, body: try JSONEncoder().encode(Search(text: "调度"))))
+
+    var reply: LocalReply?
+    for _ in 0..<100 where reply == nil {
+      reply = try? await LocalSocket.call(call, at: socket)
+      if reply == nil { try await Task.sleep(for: .milliseconds(20)) }
+    }
+
+    guard case .value(let data) = try #require(reply) else { throw HostError.invalidRequest("no hits") }
+    #expect(try JSONDecoder().decode([SearchHit].self, from: data).isEmpty == false)
+    let folder = try FileManager.default.attributesOfItem(atPath: socket.deletingLastPathComponent().path)
+    #expect((folder[.posixPermissions] as? Int) == 0o700)
+    let skill = place.root.appending(path: "agent/.claude/skills/loci/SKILL.md")
+    #expect(try String(contentsOf: skill, encoding: .utf8) == ToolGuide.skill)
+    let codexSkill = place.root.appending(path: "agent/.agents/skills/loci/SKILL.md")
+    #expect(try String(contentsOf: codexSkill, encoding: .utf8) == ToolGuide.skill)
+    await host.close()
+  }
+
+  @Test func eachConversationsSessionIsToldWhichConversationItIs() async throws {
+    try await withManualHost { host, _, _, agent in
+      let open = try await host.run(AddTextItem(fileName: "raft.md", text: "# Raft\n"))
+      _ = try await host.run(SendMessage(to: .main, text: "Hi"))
+      _ = try await host.run(SendMessage(to: .item(open.id), text: "Hi"))
+      #expect(await working(host))
+      #expect(await working(host, .item(open.id)))
+
+      let told = await agent.opened.map { $0.environment[LocalCall.sessionVariable] }
+
+      #expect(Set(told) == ["main", "library/\(open.id)"])
+    }
+  }
+}

@@ -4,13 +4,19 @@ import LociStore
 
 extension LocalHost {
   public func addTextItem(_ command: AddTextItem) async throws(HostError) -> Item {
-    guard let title = ItemTitle.of(command.text, fileName: command.fileName) else {
+    try await addTextItem(command, by: .person)
+  }
+
+  func addTextItem(_ command: AddTextItem, by saver: Saver) async throws(HostError) -> Item {
+    guard let title = command.title ?? ItemTitle.of(command.text, fileName: command.fileName) else {
       throw .invalidRequest("the file has neither a heading nor a name")
     }
-    let item = try attempt { try Item(id: environment.newID(), kind: .article, title: title) }
+    let item = try attempt {
+      try Item(id: environment.newID(), kind: .article, title: title, authors: command.authors)
+    }
     try attempt { try store.add(item, content: command.text) }
     await follow([.item(item.id)])
-    await happened(.saved(item.id))
+    await saved(item.id, by: saver)
     return item
   }
 

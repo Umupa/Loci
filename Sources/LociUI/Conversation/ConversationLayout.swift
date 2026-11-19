@@ -10,6 +10,8 @@ enum ConversationEntry: Identifiable {
   case steps([ConversationStep])
   case reply(Message, String, streaming: Bool)
   case saved(Message, note: EntityID)
+  /// Items Loci put into the library, under the steps that put them there.
+  case savedItems([Message])
   /// Something that happened in the library.
   case event(WorldEvent)
 
@@ -17,6 +19,7 @@ enum ConversationEntry: Identifiable {
     switch self {
     case .asked(let message, _), .aside(let message), .reply(let message, _, _), .saved(let message, _): message.id
     case .steps(let steps): steps[0].id
+    case .savedItems(let messages): messages[0].id
     case .event(let event): event.id
     }
   }
@@ -26,10 +29,14 @@ enum ConversationEntry: Identifiable {
   static func layout(_ said: [Conversation.Entry], live: Bool) -> [ConversationEntry] {
     var entries: [ConversationEntry] = []
     var steps: [ConversationStep] = []
+    var savedItems: [Message] = []
     func close() {
       if !steps.isEmpty { entries.append(.steps(steps)) }
+      if !savedItems.isEmpty { entries.append(.savedItems(savedItems)) }
       steps = []
+      savedItems = []
     }
+    let going = said.lastIndex { !$0.isSavedItem }
     for (index, entry) in said.enumerated() {
       let message: Message
       switch entry {
@@ -40,9 +47,8 @@ enum ConversationEntry: Identifiable {
       case .message(let said):
         message = said
       }
-      let next: Message? =
-        if said.indices.contains(index + 1), case .message(let following) = said[index + 1] { following } else { nil }
-      let isLast = index == said.count - 1 && live
+      let next = Self.next(after: index, in: said)
+      let isLast = live && index == going
       switch message.body {
       case .thinking(let text):
         steps.append(ConversationStep(message: message, kind: .thinking(text), next: next, isGoing: isLast))
@@ -57,6 +63,8 @@ enum ConversationEntry: Identifiable {
       case .savedToNote(let note):
         close()
         entries.append(.saved(message, note: note))
+      case .savedItem:
+        savedItems.append(message)
       case .notice, .ended, .startedOver:
         close()
         entries.append(.aside(message))
@@ -64,6 +72,19 @@ enum ConversationEntry: Identifiable {
     }
     close()
     return entries
+  }
+}
+
+extension ConversationEntry {
+  /// The message after the one at `index` that is not an item put into the library, which is what a step
+  /// lasts until.
+  fileprivate static func next(after index: Int, in said: [Conversation.Entry]) -> Message? {
+    for entry in said[(index + 1)...] {
+      guard case .message(let message) = entry else { return nil }
+      if entry.isSavedItem { continue }
+      return message
+    }
+    return nil
   }
 }
 
@@ -94,7 +115,7 @@ extension ConversationEntry {
         texts.append(text)
         last = message.id
         streaming = going
-      case .steps, .saved, .event:
+      case .steps, .saved, .savedItems, .event:
         break
       }
     }
@@ -124,5 +145,11 @@ struct ConversationStep: Identifiable {
     self.kind = kind
     self.isGoing = isGoing
     took = next.map { .milliseconds($0.at.millisecondsSince1970 - message.at.millisecondsSince1970) }
+  }
+}
+
+extension Conversation.Entry {
+  fileprivate var isSavedItem: Bool {
+    if case .message(let message) = self, case .savedItem = message.body { true } else { false }
   }
 }

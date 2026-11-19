@@ -5,6 +5,10 @@ import LociStore
 
 extension LocalHost {
   public func addLink(_ command: AddLink) async throws(HostError) -> Item {
+    try await addLink(command, by: .person)
+  }
+
+  func addLink(_ command: AddLink, by saver: Saver) async throws(HostError) -> Item {
     let url = command.url
     let kind: Item.Kind =
       switch LinkKind(url) {
@@ -17,11 +21,15 @@ extension LocalHost {
     try attempt { try store.addPending(item) }
     await follow([.item(item.id)])
     if let first = Job.Stage.all(for: item).first { await library.queue.begin(item.id, at: first) }
-    await happened(.saved(item.id))
+    await saved(item.id, by: saver)
     return item
   }
 
   public func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item {
+    try await importMediaFile(command, by: .person)
+  }
+
+  func importMediaFile(_ command: ImportMediaFile, by saver: Saver) async throws(HostError) -> Item {
     guard let file = await hub.takeUpload(command.upload.id) else { throw .notFound("upload \(command.upload.id)") }
     let probe = await MediaProbe.of(file)
     let kind: Item.Kind
@@ -46,7 +54,7 @@ extension LocalHost {
     }
     await follow([.item(item.id)])
     await library.queue.begin(item.id, at: .transcribe)
-    await happened(.saved(item.id))
+    await saved(item.id, by: saver)
     return item
   }
 

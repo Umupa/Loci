@@ -4,19 +4,26 @@ import LociModel
 /// The agent programs installed on this Mac, ready to drive.
 ///
 /// Programs started from a window opened in the Finder inherit only launchd's bare PATH, so `node` and the
-/// like are missing; every program gets the PATH the person's own terminal has instead.
+/// like are missing; every program gets the PATH the person's own terminal has instead, with the `loci`
+/// command first when the app has one. A login shell may put another `loci` first again, so its full path
+/// is in `LOCI` too.
 public struct AgentPrograms: Sendable {
   private let search: AgentSearch
   private let environment: [String: String]
   private let launcher: any ProgramLauncher
 
   public init(
-    search: AgentSearch, environment: [String: String] = ProcessInfo.processInfo.environment,
+    search: AgentSearch, tool: AgentTool? = nil, environment: [String: String] = ProcessInfo.processInfo.environment,
     launcher: any ProgramLauncher = SystemLauncher()
   ) {
     self.search = search
     var environment = environment
-    environment["PATH"] = search.directories.map { $0.path(percentEncoded: false) }.joined(separator: ":")
+    let directories = (tool.map { [$0.folder] } ?? []) + search.directories
+    environment["PATH"] = directories.map { $0.path(percentEncoded: false) }.joined(separator: ":")
+    if let tool {
+      environment[LocalCall.socketVariable] = tool.socket.path(percentEncoded: false)
+      environment[LocalCall.commandVariable] = tool.folder.appending(path: "loci").path(percentEncoded: false)
+    }
     self.environment = environment
     self.launcher = launcher
   }

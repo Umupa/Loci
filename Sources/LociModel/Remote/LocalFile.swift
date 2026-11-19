@@ -29,6 +29,8 @@ public enum LocalPlace: Hashable, Sendable {
   case agentFolder
   /// The downloaded or imported media of a video or audio item.
   case media(EntityID)
+  /// The folder an item's files are in.
+  case item(EntityID)
 }
 
 /// A file made available to the host before a command uses it. A remote host has received its bytes.

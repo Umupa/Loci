@@ -66,6 +66,11 @@ struct TurnRecord: Sendable {
     add(.savedToNote(note), at: time)
   }
 
+  /// Says that Loci put an item into the library.
+  mutating func saved(_ item: EntityID, at time: Timestamp) {
+    add(.savedItem(item), at: time)
+  }
+
   mutating func couldNotSave(_ reason: String, at time: Timestamp) {
     add(.notice(reason), at: time)
   }

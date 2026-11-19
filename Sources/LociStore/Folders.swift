@@ -37,7 +37,8 @@ private struct IdentifiedFile: Decodable {
 extension Store {
   static let itemFile = "item.json"
 
-  func itemFolder(_ id: EntityID) throws -> URL {
+  /// The folder holding the item's `item.json` and its content.
+  public func itemFolder(_ id: EntityID) throws -> URL {
     try folder(holding: id, in: libraryFolder, file: Self.itemFile)
   }
 

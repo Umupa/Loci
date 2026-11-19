@@ -41,7 +41,7 @@ public struct PiDriver: AgentDriver {
     let program = try launcher.launch(
       Invocation(
         executable: executable, arguments: try self.arguments(for: configuration),
-        workingDirectory: configuration.workingDirectory, environment: environment))
+        workingDirectory: configuration.workingDirectory, environment: configuration.environment(over: environment)))
     let channel = PiChannel(program: program, clock: clock)
     do throws(AgentError) {
       let state = try await channel.request(.getState, within: .seconds(45))

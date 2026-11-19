@@ -98,14 +98,16 @@ private struct AmberNumber: StructuredText.OrderedListMarker {
   }
 }
 
-/// Text that a light sweeps across, for work still going on.
+/// Text that a light sweeps across, for work still going on. A snapshot holds the light still, half way.
 struct Shimmer: View {
   let text: Text
+  @Environment(\.standIns) private var standIns
 
   var body: some View {
-    TimelineView(.animation) { timeline in
+    TimelineView(.animation(paused: standIns != nil)) { timeline in
       let phase =
-        timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
+        standIns != nil
+        ? 0.5 : timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period
       text.foregroundStyle(
         LinearGradient(
           colors: [Palette.inkFaint, Palette.ink, Palette.inkFaint],

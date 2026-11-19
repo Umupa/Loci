@@ -69,6 +69,8 @@ enum ConversationMirror {
       return ("Loci", "_(\(provider.rawValue) would not start)_")
     case .startedOver:
       return ("You", "/new")
+    case .savedItem(let item):
+      return ("Loci", "- saved to the library: library/\(item)")
     case .thinking, .savedToNote, .notice:
       return nil
     }

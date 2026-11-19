@@ -46,6 +46,7 @@ enum Architecture {
       packages: ["Markdown", "Textual", "HighlightSwift", "SwiftMath"]),
     "Loci": Module(
       uses: ["LociModel", "LociUI", "LociHost"], frameworks: ["Foundation", "SwiftUI", "os"], isExecutable: true),
+    "LociTool": Module(uses: ["LociModel", "LociRemote"], frameworks: ["Foundation"], isExecutable: true),
   ]
 
   /// Constructs that only some modules may use, because each one is a way out

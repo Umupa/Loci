@@ -165,6 +165,8 @@ struct ConversationView: View {
       ItemCardRow(indent: scale.indent) {
         ForEach(items, id: \.id) { item in SavedItemCard(item: item) }
       }
+    case .savedItems(let items):
+      SavedItemsCard(items: items).padding(.leading, scale.indent).padding(.vertical, 6)
     }
   }
 
@@ -204,6 +206,7 @@ extension ConversationEntry {
     switch self {
     case .asked(let message, _), .aside(let message), .reply(let message, _, _), .saved(let message, _): message.at
     case .steps(let steps): steps[0].at
+    case .savedItems(let messages): messages[0].at
     case .event(let event): event.at
     }
   }

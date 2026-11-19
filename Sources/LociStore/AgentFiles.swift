@@ -80,6 +80,14 @@ extension Store {
     }
   }
 
+  /// Writes a skill where the agent programs that read skills find it: `.claude/skills/` for Claude Code
+  /// and `.agents/skills/` for Codex.
+  public func writeSkill(named name: String, _ text: String) throws {
+    for folder in [".claude/skills", ".agents/skills"] {
+      try write(Data(text.utf8), to: agentFolder.appending(path: "\(folder)/\(name)/SKILL.md"))
+    }
+  }
+
   /// The picture the person chose; `nil` when they chose none.
   public func avatar() throws -> Avatar? {
     guard let url = avatarFiles().first else { return nil }

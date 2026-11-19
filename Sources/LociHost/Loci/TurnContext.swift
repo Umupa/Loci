@@ -28,7 +28,7 @@ struct TurnContext: Sendable {
   /// its fingerprint already.
   func prefix(shown: [String: String]) -> (text: String, shown: [String: String]) {
     var lines = ["<loci-context>", "Now: \(Self.moment(now, in: timeZone))"]
-    lines.append("Conversation: \(Self.name(of: conversation)). Tag your notes [\(Self.tag(of: conversation))].")
+    lines.append("Conversation: \(Self.name(of: conversation)). Tag your notes [\(conversation.tag)].")
     if !happenings.isEmpty {
       lines.append("Since we last talked here:")
       lines += happenings.suffix(Self.happeningLimit)
@@ -81,13 +81,6 @@ struct TurnContext: Sendable {
     switch conversation {
     case .main: "main"
     case .item(let item): "on the item library/\(item)"
-    }
-  }
-
-  static func tag(of conversation: ConversationRef) -> String {
-    switch conversation {
-    case .main: NoteSource.main.tag
-    case .item(let item): NoteSource.item(item, title: nil).tag
     }
   }
 }

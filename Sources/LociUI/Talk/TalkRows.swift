@@ -20,6 +20,8 @@ struct TalkRow: Identifiable {
     case task(Item, Job)
     /// Items that went into the library one after another, ready to open.
     case cards([Item])
+    /// Items Loci put into the library one after another, by id: they may still be on their way, or gone.
+    case savedItems([EntityID])
   }
 
   /// Which message a row comes from, and which part of it.
@@ -41,7 +43,7 @@ struct TalkRow: Identifiable {
     switch kind {
     case .asked: .person
     case .said, .typing: .loci
-    case .day, .steps, .aside, .saved, .finished, .task, .cards: nil
+    case .day, .steps, .aside, .saved, .finished, .task, .cards, .savedItems: nil
     }
   }
 
@@ -73,6 +75,9 @@ struct TalkRow: Identifiable {
         rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .aside(message)))
       case .saved(let message, _):
         rows.append(TalkRow(id: ID(message: message.id, part: 0), kind: .saved))
+      case .savedItems(let messages):
+        let items = messages.compactMap { if case .savedItem(let item) = $0.body { item } else { nil } }
+        rows.append(TalkRow(id: ID(message: messages[0].id, part: 0), kind: .savedItems(items)))
       case .event(let event):
         rows.append(contentsOf: Self.rows(of: event))
       }

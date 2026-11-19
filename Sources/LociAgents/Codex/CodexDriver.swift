@@ -23,7 +23,7 @@ public struct CodexDriver: AgentDriver {
     let program = try launcher.launch(
       .init(
         executable: executable, arguments: ["app-server"] + arguments,
-        workingDirectory: configuration.workingDirectory, environment: environment))
+        workingDirectory: configuration.workingDirectory, environment: configuration.environment(over: environment)))
     let channel = CodexChannel(program: program, clock: clock)
     do throws(AgentError) {
       _ = try await channel.request(

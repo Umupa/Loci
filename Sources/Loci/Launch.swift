@@ -54,6 +54,14 @@ final class Launch {
       support: URL.applicationSupportDirectory.appending(path: DataFolder.developmentName))
   }
 
+  /// The `loci` command in the app's bundle, which `script/bundle` puts in `Contents/Helpers`; `nil` when
+  /// the app runs outside its bundle.
+  private static func tool(root: URL) -> AgentTool? {
+    let bundle = Bundle.main.bundleURL
+    guard bundle.pathExtension == "app" else { return nil }
+    return AgentTool(folder: bundle.appending(path: "Contents/Helpers"), socket: DataFolder.socket(in: root))
+  }
+
   func rebuild() {
     state = .running
     start(replacingDatabase: true)
@@ -69,7 +77,7 @@ final class Launch {
   private func start(replacingDatabase: Bool) {
     let root = folder
     let database = DataFolder.database(in: root)
-    let environment = HostEnvironment.system(defaultRuntime: Runtime(provider: .pi))
+    let environment = HostEnvironment.system(defaultRuntime: Runtime(provider: .pi), tool: Self.tool(root: root))
     Task {
       do throws(HostStartError) {
         let local =

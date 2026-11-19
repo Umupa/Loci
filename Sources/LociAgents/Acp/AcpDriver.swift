@@ -85,7 +85,8 @@ public struct AcpDriver: AgentDriver {
     let program = try launcher.launch(
       Invocation(
         executable: executable, arguments: arguments(configuration),
-        workingDirectory: processDirectory ?? configuration.workingDirectory, environment: environment(configuration)))
+        workingDirectory: processDirectory ?? configuration.workingDirectory,
+        environment: configuration.environment(over: environment(configuration))))
     let channel = AcpChannel(program: program, clock: clock)
     do throws(AgentError) {
       let initialized = try await channel.request("initialize", initialize, within: .seconds(30))
