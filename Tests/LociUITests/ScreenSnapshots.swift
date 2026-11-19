@@ -145,7 +145,7 @@ struct ScreenSnapshots {
   /// UI-S10.
   @Test(arguments: Snapshot.Appearance.allCases)
   func generalSettings(appearance: Snapshot.Appearance) async throws {
-    let view = GeneralSettingsPage().lociHost(FakeHost(try Sample()))
+    let view = GeneralSettingsPage(version: AppVersion(number: "1.1.0", build: "412")).lociHost(FakeHost(try Sample()))
     try await Self.shoot("settings-general", view, appearance: appearance, size: CGSize(width: 800, height: 600))
   }
 

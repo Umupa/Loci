@@ -16,7 +16,7 @@ final class ReaderTextView: NSTextView {
   var dragEnded: () -> Void = {}
   /// Whether the mouse is down in the text, dragging out a selection.
   private(set) var selecting = false
-  /// Runs when a highlight, or the dot after it, is clicked.
+  /// Runs when a highlight or its note dot is clicked.
   var markClicked: (EntityID) -> Void = { _ in }
   /// How wide the column is; changing it keeps the paragraph at the top where it was.
   var readingWidth = ReadingWidth.comfortable {
@@ -33,8 +33,8 @@ final class ReaderTextView: NSTextView {
     if window != nil { joinedWindow() }
   }
   private var noteDots: [EntityID: NoteDot] = [:]
-  private var highlights: [(note: EntityID, range: NSRange, rects: [CGRect], bands: [CGRect])] = []
-  private static let noteDotSize: CGFloat = 5
+  private var highlights: [(note: EntityID, rects: [CGRect], bands: [CGRect])] = []
+  private static let noteDotSize: CGFloat = 4
 
   convenience init() {
     let layoutManager = NSTextLayoutManager()
@@ -79,22 +79,20 @@ final class ReaderTextView: NSTextView {
     selectionEnded()
   }
 
-  /// Highlights are a band of amber under the lower part of the words, drawn behind the text.
+  /// Draws the saved highlights behind the text.
   override func drawBackground(in rect: NSRect) {
     super.drawBackground(in: rect)
-    Tones.mark.setFill()
+    Tones.readerMark.setFill()
     for band in highlights.flatMap(\.bands) where band.intersects(rect) {
-      NSBezierPath(roundedRect: band, xRadius: 2, yRadius: 2).fill()
+      NSBezierPath(roundedRect: band, xRadius: 3, yRadius: 3).fill()
     }
   }
 
-  /// The lower part of a line's letters, as a marker pen leaves it: from a little above the middle of the
-  /// lowercase letters to just under the baseline. Measured from where TextKit puts the baseline, because a
-  /// line's frame also holds the spacing around it.
-  static func band(under line: CGRect, baseline: CGFloat, font: NSFont) -> CGRect {
-    let top = baseline - font.xHeight * 0.6
-    let bottom = baseline - font.descender * 0.3
-    return CGRect(x: line.minX, y: top, width: line.width, height: bottom - top)
+  /// The line's ink area with a little padding, leaving the spacing between lines clear.
+  static func band(behind line: CGRect, baseline: CGFloat, font: NSFont) -> CGRect {
+    let top = max(line.minY, baseline - font.ascender)
+    let bottom = min(line.maxY, baseline - font.descender + 1)
+    return CGRect(x: line.minX - 2, y: top, width: line.width + 4, height: bottom - top)
   }
 
   private func font(at location: Int) -> NSFont {
@@ -105,24 +103,21 @@ final class ReaderTextView: NSTextView {
   /// Lays the highlights and note dots over the text where it is now. Called again whenever the text may
   /// have moved.
   func placeMarginMarks(_ marks: [ReaderMark]) {
-    let bands = marks.map { mark -> (note: EntityID, range: NSRange, rects: [CGRect], bands: [CGRect]) in
-      let note = mark.note
-      let lines = segments(of: mark.range)
-      let font = font(at: mark.range.location)
-      return (
-        note, mark.range, lines.map(\.rect), lines.map { Self.band(under: $0.rect, baseline: $0.baseline, font: font) }
-      )
+    let laidOut = marks.map { mark -> (note: EntityID, rects: [CGRect], bands: [CGRect]) in
+      let lines = segments(of: mark.range).filter { $0.rect.width > 0 }
+      let bands = lines.map { Self.band(behind: $0.rect, baseline: $0.baseline, font: font(at: $0.location)) }
+      return (mark.note, zip(lines, bands).map { $0.rect.union($1) }, bands)
     }
-    if bands.map(\.bands) != highlights.map(\.bands) {
-      for band in (bands + highlights).flatMap(\.bands) { setNeedsDisplay(band.insetBy(dx: -1, dy: -1)) }
+    if laidOut.map(\.bands) != highlights.map(\.bands) {
+      for band in (laidOut + highlights).flatMap(\.bands) { setNeedsDisplay(band.insetBy(dx: -1, dy: -1)) }
     }
-    highlights = bands
+    highlights = laidOut
     var placed: [EntityID: NoteDot] = [:]
-    for mark in marks {
+    for (mark, layout) in zip(marks, laidOut) {
       let note = mark.note
-      guard mark.marginMark, let line = rects(of: mark.range).last else { continue }
+      guard mark.marginMark, let band = layout.bands.last else { continue }
       let size = Self.noteDotSize
-      let frame = CGRect(x: line.maxX + 3, y: line.minY + line.height * 0.25 - size / 2, width: size, height: size)
+      let frame = CGRect(x: band.maxX - size, y: band.maxY + 2, width: size, height: size)
       let view = noteDots[note] ?? NoteDot(frame: frame)
       if view.superview == nil {
         view.clicked = { [weak self] in self?.markClicked(note) }
@@ -189,13 +184,16 @@ final class ReaderTextView: NSTextView {
     segments(of: range).map(\.rect)
   }
 
-  /// Each line's part of `range` and where its baseline is, in this view's coordinates.
-  func segments(of range: NSRange) -> [(rect: CGRect, baseline: CGFloat)] {
-    guard let layoutManager = textLayoutManager, let textRange = textRange(range) else { return [] }
-    var segments: [(rect: CGRect, baseline: CGFloat)] = []
-    layoutManager.enumerateTextSegments(in: textRange, type: .standard, options: []) { _, frame, baseline, _ in
+  /// Each line's part of `range`, with its baseline and starting text offset.
+  func segments(of range: NSRange) -> [(rect: CGRect, baseline: CGFloat, location: Int)] {
+    guard let layoutManager = textLayoutManager, let storage = contentStorage, let textRange = textRange(range) else {
+      return []
+    }
+    var segments: [(rect: CGRect, baseline: CGFloat, location: Int)] = []
+    layoutManager.enumerateTextSegments(in: textRange, type: .standard, options: []) { segment, frame, baseline, _ in
       let rect = frame.offsetBy(dx: textContainerOrigin.x, dy: textContainerOrigin.y)
-      segments.append((rect, rect.minY + baseline))
+      let location = segment.map { storage.offset(from: storage.documentRange.location, to: $0.location) }
+      segments.append((rect, rect.minY + baseline, location ?? range.location))
       return true
     }
     return segments
@@ -210,7 +208,7 @@ final class ReaderTextView: NSTextView {
   }
 }
 
-/// The amber dot after a highlight that has a thought or questions.
+/// The amber dot at the end of a highlight that has a thought or questions.
 final class NoteDot: NSView {
   var clicked: () -> Void = {}
 

@@ -97,6 +97,7 @@ enum Palette {
     (sidebarSectionInk, Color(nsColor: Tones.sidebarTop), "section on the sidebar's top"),
     (sidebarSectionInk, Color(nsColor: Tones.sidebarBottom), "section on the sidebar's bottom"),
     (ink, tint, "selected text"), (ink, selection, "text selected in the reader"), (ink, mark, "highlighted text"),
+    (ink, Color(nsColor: Tones.readerMark), "highlighted text in the reader"),
     (inkMuted, canvas, "muted on canvas"), (inkMuted, surface, "muted on surface"),
     (accentInk, canvas, "amber text on canvas"), (accentInk, surface, "amber text on surface"),
     (onAccent, accent, "text on amber"),
@@ -127,6 +128,7 @@ enum Tones {
   static let tint = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.17, light: 0.15))
   static let selection = NSColor(dark: 0xFFF5E6, light: 0x1D1B18, alpha: (dark: 0.16, light: 0.11))
   static let mark = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.30, light: 0.26))
+  static let readerMark = NSColor(dark: 0xF3BA65, light: 0xD98E1F, alpha: (dark: 0.30, light: 0.20))
   static let flash = NSColor(dark: 0xEBA53A, light: 0xD98E1F, alpha: (dark: 0.6, light: 0.6))
   static let ready = NSColor(dark: 0x6CC783, light: 0x34A853)
   static let thumb = NSColor(dark: 0x5A544D, light: 0xFFFFFF)

@@ -4,6 +4,7 @@ import SwiftUI
 
 /// How the app looks, which language it speaks, and where its data is.
 struct GeneralSettingsPage: View {
+  var version = AppVersion(of: .main)
   @Environment(\.host) private var host
   @AppStorage(AppearanceChoice.key) private var appearance = AppearanceChoice.auto
   @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
@@ -54,6 +55,13 @@ struct GeneralSettingsPage: View {
           }
           .buttonStyle(PushStyle())
           .disabled(revealable == nil)
+        }
+      }
+      SettingsGroup(title: nil) {
+        SettingsRow {
+          Text(.loci("settings.version"))
+        } trailing: {
+          Text(verbatim: version.text).foregroundStyle(Palette.inkMuted).textSelection(.enabled)
         }
       }
     }
@@ -132,6 +140,25 @@ private struct AppearanceThumbnail: View {
 
     private func tone(_ rgb: UInt32) -> Color { Color(nsColor: NSColor(rgb: rgb)) }
   }
+}
+
+/// Which release this copy of Loci is: the version people talk about, and the build, which only goes up.
+struct AppVersion: Equatable {
+  let number: String
+  let build: String
+
+  init(number: String, build: String) {
+    self.number = number
+    self.build = build
+  }
+
+  init(of bundle: Bundle) {
+    number = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+  }
+
+  /// `1.1.0 (412)`.
+  var text: String { "\(number) (\(build))" }
 }
 
 /// The language the interface is shown in: the system's, or one Loci is translated into. Takes effect the

@@ -12,11 +12,17 @@ struct SelectionTests {
   @Test(arguments: [NSAppearance.Name.aqua, .darkAqua])
   func aSelectionDoesNotLookLikeAHighlight(appearance: NSAppearance.Name) {
     let selection = PaletteTests.components(of: Palette.selection, in: appearance)
-    let mark = PaletteTests.components(of: Palette.mark, in: appearance)
-    let distance = zip(selection, mark).map { abs($0 - $1) }.max() ?? 0
+    let mark = PaletteTests.components(of: Color(nsColor: Tones.readerMark), in: appearance)
 
-    #expect(distance > 0.1)
     #expect((selection.max() ?? 0) - (selection.min() ?? 0) < 0.06)
+    #expect((mark.max() ?? 0) - (mark.min() ?? 0) > 0.1)
+  }
+
+  @Test func savedHighlightsStandOutOnDarkPaper() {
+    let mark = PaletteTests.components(of: Color(nsColor: Tones.readerMark), in: .darkAqua)
+    let paper = PaletteTests.components(of: Palette.canvas, in: .darkAqua)
+
+    #expect(PaletteTests.contrast(mark, paper) >= 1.8)
   }
 
   static let bar = CGSize(width: 180, height: 36)
@@ -64,22 +70,43 @@ struct SelectionTests {
     #expect(!textView.needsDisplay)
   }
 
-  @Test func aHighlightCoversTheLowerPartOfTheLettersOnEveryLine() throws {
+  @Test func aHighlightCoversTheFullHeightOfTheLettersOnEveryLine() throws {
     let textView = ReaderTextView()
     textView.frame = CGRect(x: 0, y: 0, width: 400, height: 2_000)
-    let text = ReadingText(markdown: String(repeating: "Bytes wait in a queue the terminal driver owns. ", count: 12))
+    let body = String(repeating: "Bytes wait in a queue the terminal driver owns. ", count: 12)
+    let text = ReadingText(markdown: "# Heading\n\n" + body, serif: true)
     textView.textStorage?.setAttributedString(text.string)
     textView.layOutViewport()
-    let font = ReadingStyle.body
     let lines = textView.segments(of: NSRange(location: 0, length: (text.plain as NSString).length))
     try #require(lines.count > 2)
+    let last = try #require(lines.last)
+    #expect(last.location > "Heading".utf16.count)
 
-    for line in lines {
-      let band = ReaderTextView.band(under: line.rect, baseline: line.baseline, font: font)
-      #expect(band.minY > line.baseline - font.xHeight)
-      #expect(band.maxY > line.baseline)
-      #expect(band.maxY < line.baseline - font.descender)
-      #expect(line.rect.contains(CGPoint(x: line.rect.midX, y: band.midY)))
+    for line in lines where line.rect.width > 0 {
+      let font = try #require(text.string.attribute(.font, at: line.location, effectiveRange: nil) as? NSFont)
+      let band = ReaderTextView.band(behind: line.rect, baseline: line.baseline, font: font)
+      #expect(band.minY <= line.baseline - font.capHeight + 0.5)
+      #expect(band.maxY >= line.baseline - font.descender - 0.5)
+      #expect(band.minY >= line.rect.minY)
+      #expect(band.maxY <= line.rect.maxY)
     }
+  }
+
+  @Test func aNoteDotSitsBelowItsHighlightWhenMoreWordsFollowOnTheSameLine() throws {
+    let textView = ReaderTextView()
+    textView.frame = CGRect(x: 0, y: 0, width: 600, height: 200)
+    let text = ReadingText(markdown: "The end of the excerpt. More words on the same line.", serif: true)
+    textView.textStorage?.setAttributedString(text.string)
+    textView.layOutViewport()
+    let range = (text.plain as NSString).range(of: "The end of the excerpt.")
+    let line = try #require(textView.segments(of: range).last)
+    let font = try #require(text.string.attribute(.font, at: range.location, effectiveRange: nil) as? NSFont)
+
+    textView.placeMarginMarks([ReaderMark(note: EntityID(), marginMark: true, range: range)])
+
+    let dot = try #require(textView.subviews.compactMap { $0 as? NoteDot }.first)
+    let band = ReaderTextView.band(behind: line.rect, baseline: line.baseline, font: font)
+    #expect(dot.frame.minY > band.maxY)
+    #expect(abs(dot.frame.midX - band.maxX) <= dot.frame.width)
   }
 }
