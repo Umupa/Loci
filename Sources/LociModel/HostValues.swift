@@ -3,10 +3,35 @@ public struct ItemPage: Hashable, Codable, Sendable {
   public let item: Item
   /// The text of an article or paper; `nil` for kinds read some other way.
   public let text: String?
+  /// Whether the article is in a language other than the reader's, so it can be translated.
+  public let translatable: Bool
+  /// The article in the reader's language, as far as it has been translated.
+  public let translation: ArticleTranslation?
+  public let translating: TranslationProgress?
 
-  public init(item: Item, text: String?) {
+  public init(
+    item: Item, text: String?, translatable: Bool = false, translation: ArticleTranslation? = nil,
+    translating: TranslationProgress? = nil
+  ) {
     self.item = item
     self.text = text
+    self.translatable = translatable
+    self.translation = translation
+    self.translating = translating
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case item, text, translatable, translation, translating
+  }
+
+  /// A Mac on an older version sends no translation fields; its articles read as not translatable.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    item = try container.decode(Item.self, forKey: .item)
+    text = try container.decodeIfPresent(String.self, forKey: .text)
+    translatable = try container.decodeIfPresent(Bool.self, forKey: .translatable) ?? false
+    translation = try container.decodeIfPresent(ArticleTranslation.self, forKey: .translation)
+    translating = try container.decodeIfPresent(TranslationProgress.self, forKey: .translating)
   }
 }
 

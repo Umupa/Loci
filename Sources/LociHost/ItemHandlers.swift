@@ -46,15 +46,29 @@ extension LocalHost {
   }
 
   public func itemPage(_ id: EntityID) async throws(HostError) -> ItemPage {
-    try attempt {
+    let language = library.context.targetLanguage
+    let page = try attempt {
       let item = try store.item(id)
-      let text: String? =
-        switch item.kind {
-        case .article: try store.fetchedContent(of: id)
-        case .paper, .video, .audio, .repository: nil
-        }
-      return ItemPage(item: item, text: text)
+      guard item.kind == .article, let text = try store.fetchedContent(of: id) else {
+        return ItemPage(item: item, text: nil)
+      }
+      let foreign = item.language.map { JobRun.primary($0) != JobRun.primary(language) } ?? true
+      return ItemPage(
+        item: item, text: text, translatable: foreign,
+        translation: foreign ? try store.articleTranslation(of: id, into: language) : nil)
     }
+    guard page.translatable else { return page }
+    return ItemPage(
+      item: page.item, text: page.text, translatable: true, translation: page.translation,
+      translating: await library.translator.progress(of: id))
+  }
+
+  public func translateArticle(_ id: EntityID) async throws(HostError) -> Done {
+    let page = try await itemPage(id)
+    guard page.translatable else { throw .invalidRequest("\(page.item.title) is not an article in another language") }
+    await library.translator.start(id)
+    await follow([.item(id)])
+    return Done()
   }
 }
 

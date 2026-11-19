@@ -9,6 +9,8 @@ import Markdown
 struct ReadingText {
   let string: NSAttributedString
   let headings: [Heading]
+  /// Where the shown text differs from the original: translations beside or in place of passages.
+  let map: TranslationMap
 
   /// A heading, with where it starts in `string` in UTF-16 units.
   struct Heading: Hashable {
@@ -18,32 +20,36 @@ struct ReadingText {
   }
 
   /// `byline` goes under the title. Pictures named in `images` by their address in the Markdown stand on lines of
-  /// their own; the rest show their description. An article reads in the serif.
+  /// their own; the rest show their description. An article reads in the serif. `translation` shows each
+  /// translated passage beside its original or in its place.
   init(
-    markdown: String, byline: NSAttributedString? = nil, images: [String: NSImage] = [:], serif: Bool = false
+    markdown: String, byline: NSAttributedString? = nil, images: [String: NSImage] = [:], serif: Bool = false,
+    translation: ShownTranslation? = nil
   ) {
-    var renderer = MarkdownRenderer(
-      byline: byline, images: images, serif: serif)
+    var renderer = MarkdownRenderer(byline: byline, images: images, serif: serif, translation: translation)
     renderer.render(Document(parsing: markdown))
     string = renderer.finished()
     headings = renderer.headings
+    map = renderer.map
   }
 
   var plain: String { string.string }
 }
 
 /// Walks a Markdown document and appends each block as one or more paragraphs.
-private struct MarkdownRenderer {
+struct MarkdownRenderer {
   let byline: NSAttributedString?
   let images: [String: NSImage]
   let serif: Bool
-  private var body: NSFont { serif ? NSFont.serif(ofSize: ReadingStyle.bodySize) : ReadingStyle.body }
-  private let output = NSMutableAttributedString()
+  let translation: ShownTranslation?
+  var body: NSFont { serif ? NSFont.serif(ofSize: ReadingStyle.bodySize) : ReadingStyle.body }
+  let output = NSMutableAttributedString()
+  let tracker = TranslationMap.Builder()
   private(set) var headings: [ReadingText.Heading] = []
 
   /// Where a block sits: how far it is indented, whether it is inside a quote, and the list marker its
   /// first paragraph starts with.
-  private struct Setting {
+  struct Setting {
     var indent: CGFloat = 0
     var quoted = false
     var marker: String?
@@ -60,6 +66,14 @@ private struct MarkdownRenderer {
     return output
   }
 
+  var map: TranslationMap { tracker.finished(shownLength: output.length) }
+
+  /// Appends text that is part of the original.
+  func put(_ text: NSAttributedString) {
+    output.append(text)
+    tracker.original.append(text.string)
+  }
+
   private mutating func block(_ markup: any Markup, in setting: Setting) {
     switch markup {
     case let heading as Heading:
@@ -72,8 +86,9 @@ private struct MarkdownRenderer {
       let spacing = ReadingStyle.headingSpacing(heading.level)
       let first = output.length == 0
       let underTitle = first && heading.level == 1 ? byline : nil
-      paragraph(
-        title, in: setting, before: first ? 0 : spacing.before, after: underTitle == nil ? spacing.after : 12)
+      passage(
+        title, of: heading, in: setting, before: first ? 0 : spacing.before,
+        after: underTitle == nil ? spacing.after : 12)
       if let underTitle { self.paragraph(underTitle, in: setting, after: 30) }
     case let paragraph as Paragraph:
       if paragraph.childCount == 1, let picture = paragraph.child(at: 0) as? Markdown.Image,
@@ -83,7 +98,7 @@ private struct MarkdownRenderer {
         return
       }
       if let latex = Formula.display(in: paragraph.plainText), formulaBlock(latex, in: setting) { return }
-      self.paragraph(inline(paragraph.children, font: body), in: setting)
+      passage(inline(paragraph.children, font: body), of: paragraph, in: setting)
     case let code as CodeBlock:
       if let language = code.language?.lowercased(), Formula.blockLanguages.contains(language),
         formulaBlock(code.code, in: setting)
@@ -107,7 +122,7 @@ private struct MarkdownRenderer {
       inside.quoted = true
       for child in quote.children { block(child, in: inside) }
     case is ThematicBreak:
-      output.append(
+      put(
         NSAttributedString(
           string: "\n",
           attributes: attributes(font: ReadingStyle.body, style: style(in: setting), decoration: .rule)))
@@ -133,9 +148,10 @@ private struct MarkdownRenderer {
     }
   }
 
-  private func paragraph(
-    _ text: NSAttributedString, in setting: Setting, before: CGFloat = 0, after: CGFloat? = nil
-  ) {
+  @discardableResult func paragraph(
+    _ text: NSAttributedString, in setting: Setting, before: CGFloat = 0, after: CGFloat? = nil,
+    as part: TranslationMap.Part = .original
+  ) -> NSRange {
     let line = NSMutableAttributedString()
     let paragraphStyle = style(
       in: setting, spacing: after ?? (setting.listed ? ReadingStyle.itemSpacing : ReadingStyle.paragraphSpacing))
@@ -152,7 +168,7 @@ private struct MarkdownRenderer {
       line.addAttribute(BlockDecoration.key, value: BlockDecoration.quote.rawValue, range: line.fullRange)
       line.addAttribute(.foregroundColor, value: Tones.inkMuted, range: line.fullRange)
     }
-    output.append(line)
+    return tracker.add(line, as: part, to: output)
   }
 
   /// Items sit close together; the list as a whole is spaced like a paragraph.
@@ -184,7 +200,7 @@ private struct MarkdownRenderer {
     paragraphStyle.paragraphSpacingBefore = 4
     paragraphStyle.paragraphSpacing = 24
     line.addAttribute(.paragraphStyle, value: paragraphStyle, range: line.fullRange)
-    output.append(line)
+    put(line)
   }
 
   /// A formula on a line of its own, centered. Returns `false` when it cannot be set, so it shows as code.
@@ -196,7 +212,7 @@ private struct MarkdownRenderer {
     paragraphStyle.alignment = .center
     paragraphStyle.paragraphSpacingBefore = ReadingStyle.paragraphSpacing / 2
     line.addAttribute(.paragraphStyle, value: paragraphStyle, range: line.fullRange)
-    output.append(line)
+    put(line)
     return true
   }
 
@@ -217,7 +233,7 @@ private struct MarkdownRenderer {
       if decoration == .codeLast || decoration == .codeOnly {
         paragraphStyle.paragraphSpacing = ReadingStyle.paragraphSpacing + ReadingStyle.codePadding
       }
-      output.append(
+      put(
         NSAttributedString(
           string: line + "\n",
           attributes: attributes(font: ReadingStyle.code, style: paragraphStyle, decoration: decoration)))
@@ -255,11 +271,11 @@ private struct MarkdownRenderer {
       if index == 0 {
         row.addAttribute(BlockDecoration.key, value: BlockDecoration.tableHeader.rawValue, range: row.fullRange)
       }
-      output.append(row)
+      put(row)
     }
   }
 
-  private func inline(_ children: MarkupChildren, font: NSFont) -> NSAttributedString {
+  func inline(_ children: MarkupChildren, font: NSFont) -> NSAttributedString {
     let text = NSMutableAttributedString()
     for child in children { text.append(inline(child, font: font)) }
     return text
@@ -325,7 +341,7 @@ private struct MarkdownRenderer {
     return style
   }
 
-  private func attributes(
+  func attributes(
     font: NSFont, style: NSParagraphStyle? = nil, decoration: BlockDecoration? = nil
   ) -> [NSAttributedString.Key: Any] {
     var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: Tones.ink]

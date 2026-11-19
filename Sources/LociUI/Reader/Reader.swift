@@ -60,7 +60,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   var locale = Locale.current
   private weak var textView: ReaderTextView?
   private weak var scrollView: NSScrollView?
-  private var shown: String?
+  private var current: ReadingText?
   private var pendingStart: TextQuote?
   private var reporting: Task<Void, Never>?
   private var endReported = false
@@ -107,9 +107,9 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   }
 
   func show(_ text: ReadingText, from start: TextQuote?) {
-    guard let textView, shown != text.plain else { return }
-    let keep = shown == nil ? start : topQuote()
-    shown = text.plain
+    guard let textView, current?.plain != text.plain else { return }
+    let keep = current == nil ? start : topQuote()
+    current = text
     textView.textStorage?.setAttributedString(text.string)
     textView.placeMarginMarks(marks)
     textView.layOutViewport()
@@ -129,7 +129,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
 
   /// Scrolls the passage a third of the way down the window and flashes it.
   func reveal(_ request: Reveal) {
-    guard request.serial != revealed, let textView, let scrollView, shown != nil, textView.frame.width > 0,
+    guard request.serial != revealed, let textView, let scrollView, current != nil, textView.frame.width > 0,
       let top = textView.top(of: request.range.location)
     else { return }
     revealed = request.serial
@@ -205,7 +205,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
   /// A new width lays the text out again from estimates, which would leave the reader somewhere else; the
   /// paragraph at the top is kept there instead.
   private func holdPlace() {
-    guard shown != nil, pendingStart == nil else { return }
+    guard current != nil, pendingStart == nil else { return }
     pendingStart = topQuote()
   }
 
@@ -219,10 +219,7 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     }
     guard let start = pendingStart else { return }
     pendingStart = nil
-    let plain = textView.string
-    guard let range = start.range(in: plain), let top = textView.top(of: NSRange(range, in: plain).location) else {
-      return
-    }
+    guard let range = current?.range(of: start), let top = textView.top(of: range.location) else { return }
     textView.layOutViewport()
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: max(0, top - ReadingStyle.inset.height)))
     scrollView.reflectScrolledClipView(scrollView.contentView)
@@ -267,11 +264,13 @@ final class ReaderCoordinator: NSObject, NSTextViewDelegate {
     guard let offset = textView.offset(at: CGPoint(x: 0, y: visible.minY + ReadingStyle.inset.height + 1)) else {
       return nil
     }
-    let plain = textView.string
+    guard let current else { return nil }
+    let plain = current.original
     let utf16 = plain as NSString
-    let paragraph = utf16.paragraphRange(for: NSRange(location: offset, length: 0))
+    let location = min(current.map.original(NSRange(location: offset, length: 0)).location, utf16.length)
+    let paragraph = utf16.paragraphRange(for: NSRange(location: location, length: 0))
     let words = utf16.substring(with: paragraph).trimmingCharacters(in: .newlines).prefix(Self.quoteLength)
-    guard let start = Range(NSRange(location: offset, length: 0), in: plain)?.lowerBound,
+    guard let start = Range(NSRange(location: location, length: 0), in: plain)?.lowerBound,
       let end = plain.index(start, offsetBy: words.count, limitedBy: plain.endIndex)
     else { return nil }
     return try? TextQuote(quoting: start..<end, in: plain)

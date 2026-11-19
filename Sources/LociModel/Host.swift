@@ -102,6 +102,7 @@ public protocol CommandHandler: Sendable {
   func importMediaFile(_ command: ImportMediaFile) async throws(HostError) -> Item
   func retryJob(_ item: EntityID) async throws(HostError) -> Job
   func cancelJob(_ item: EntityID) async throws(HostError) -> Done
+  func translateArticle(_ item: EntityID) async throws(HostError) -> Done
   func jobs() async throws(HostError) -> [Job]
   func job(of item: EntityID) async throws(HostError) -> Job?
   func mediaPage(_ item: EntityID) async throws(HostError) -> MediaPage

@@ -9,6 +9,8 @@ struct Sample: Sendable {
   let items: [Item]
   let notes: [Note]
   var health: Health
+  /// Borg in Chinese, when the reader should see it translated.
+  var translation: ArticleTranslation?
   let runtime = Runtime(provider: .codex, model: "gpt-6.1-sol", effort: .high)
   let text = """
     Large-scale cluster management at Google with Borg

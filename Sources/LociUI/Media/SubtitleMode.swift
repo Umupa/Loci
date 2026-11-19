@@ -3,6 +3,9 @@ import LociModel
 
 /// Which words of each sentence show, in the transcript and over the picture.
 enum SubtitleMode: String, CaseIterable, Codable {
+  /// Where the mode is remembered; videos, podcasts and articles share it.
+  static let key = "subtitleMode"
+
   case original
   /// The original with the translation under it.
   case both

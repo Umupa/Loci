@@ -57,6 +57,13 @@ public struct AgentTranscriptAgent: TranscriptAgent {
     return try attempt { try Outline(chapters: chapters, highlights: highlights) }
   }
 
+  public func translate(passages: [String], into language: String) async throws(HostError) -> [String] {
+    try await answer(TranscriptPrompts.translation(ofPassages: passages, into: language), piece: 1, of: 1) {
+      reply throws(TranscriptAnswerError) in
+      try TranscriptAnswers.lines(in: reply, count: passages.count)
+    }
+  }
+
   static func pieces(of segments: [Transcript.Segment], size: Int) -> [[Transcript.Segment]] {
     stride(from: 0, to: segments.count, by: size).map { Array(segments[$0..<min($0 + size, segments.count)]) }
   }

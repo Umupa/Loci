@@ -36,12 +36,6 @@
 
 ## 接下来
 
-### Loci 往资料库里放东西
-
-Loci 在对话里能查资料库、存链接、导入自己写的文章或下好的音视频、等任务跑完。场景见 [features.md](features.md) 的 L-S11 到 L-S18。
-
-- 随应用打包一个薄的 `loci` 命令，经本机 socket 调用已有的 Host 命令；只开放 search、show、save、import、wait、help。
-- Loci 存进的资料在那一轮回复里显示成预览卡片，不再另出一条事件。
-- skill：`rules.md` 里说清楚读用文件、查和写用 `loci`；给 Claude Code 和 Codex 写同一份 `SKILL.md`。
-
-不做：给人用的命令行、删改资料、写划线。
+| 版本 | 主题 | 内容 |
+|---|---|---|
+| 1.2.0 | 更新与双语 | 侧边栏更新按钮、数据文件夹改为 `~/Loci-Beta`、资料右栏顶栏居中；对话里显示 Loci 在做什么；Loci 用 `loci` 命令查资料库、往资料库里放东西（L-S11–L-S18）；文章双语（T-S1–T-S5） |

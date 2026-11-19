@@ -11,6 +11,7 @@ extension FakeHost {
   }
 
   func cancelJob(_ item: EntityID) async throws(HostError) -> Done { Done() }
+  func translateArticle(_ item: EntityID) async throws(HostError) -> Done { Done() }
   func jobs() async throws(HostError) -> [Job] { (library?.jobs ?? []) + (recognizing ? [recognition] : []) }
 
   func job(of item: EntityID) async throws(HostError) -> Job? {

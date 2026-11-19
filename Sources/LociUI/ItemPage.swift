@@ -36,7 +36,9 @@ struct ItemView: View {
       if let text = page.text {
         ContentReader(
           item: page.item.id, title: page.item.title, markdown: text, byline: Byline.of(page.item), images: images,
-          serif: true, pane: .itemPanel)
+          serif: true, pane: .itemPanel,
+          language: page.translatable ? ArticleLanguage(translation: page.translation, progress: page.translating) : nil
+        )
       } else {
         FetchingItem(item: page.item, job: job?.value ?? nil)
       }

@@ -38,6 +38,7 @@ extension LibraryContext {
 struct LibraryRuntime: Sendable {
   let context: LibraryContext
   let queue: JobQueue
+  let translator: ArticleTranslator
 
   init(store: Store, database: StoreDatabase, environment: HostEnvironment, follower: Follower) {
     let equipment = Equipment(environment: environment.media) { await follower.follow($0) }
@@ -45,5 +46,6 @@ struct LibraryRuntime: Sendable {
       store: store, database: database, environment: environment, equipment: equipment, streams: StreamCache(),
       notify: { await follower.follow($0) })
     queue = JobQueue(context: context)
+    translator = ArticleTranslator(context: context, gate: queue.gates.agents)
   }
 }
