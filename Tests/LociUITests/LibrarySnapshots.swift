@@ -17,7 +17,8 @@ struct LibrarySnapshots {
   static func shoot(
     _ name: String, _ library: SampleLibrary, at place: WindowState, appearance: Snapshot.Appearance,
     recognizing: Bool = false, working: Bool = false, avatar: Avatar? = nil, standIns: StandIns? = nil,
-    browser: BrowserSession = BrowserSession(), english: Bool = false, size: CGSize = window
+    browser: BrowserSession = BrowserSession(), english: Bool = false, size: CGSize = window,
+    until ready: (@MainActor (NSWindow) -> Bool)? = nil
   ) async throws {
     let view = MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in }), browser: browser)
       .lociHost(
@@ -27,7 +28,7 @@ struct LibrarySnapshots {
       .environment(\.standIns, standIns)
     let file = try await Snapshot.render(
       view, named: name, size: size, appearance: appearance, locale: Locale(identifier: english ? "en" : "zh-Hans"),
-      settle: .milliseconds(1500))
+      settle: .milliseconds(1500), until: ready, steady: ready != nil)
     #expect(try Data(contentsOf: file).count > 10_000)
   }
 
@@ -148,7 +149,10 @@ struct LibrarySnapshots {
   @Test(arguments: Snapshot.Appearance.allCases)
   func article(appearance: Snapshot.Appearance) async throws {
     let library = try SampleLibrary()
-    try await Self.shoot("article", library, at: Self.reading(library.article.id), appearance: appearance)
+    try await Self.shoot("article", library, at: Self.reading(library.article.id), appearance: appearance) { window in
+      guard let reader = Self.reader(in: window) else { return false }
+      return !reader.string.isEmpty
+    }
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
@@ -156,7 +160,19 @@ struct LibrarySnapshots {
     let library = try SampleLibrary()
     try await Self.shoot(
       "article-hl", library, at: Self.reading(library.article.id), appearance: appearance,
-      standIns: StandIns(moment: MediaMoment(panel: .highlights)))
+      standIns: StandIns(moment: MediaMoment(panel: .highlights))
+    ) { window in
+      guard let reader = Self.reader(in: window) else { return false }
+      return reader.subviews.contains { $0 is NoteDot && reader.visibleRect.intersects($0.frame) }
+    }
+  }
+
+  private static func reader(in window: NSWindow) -> ReaderTextView? {
+    func find(in view: NSView) -> ReaderTextView? {
+      if let reader = view as? ReaderTextView { return reader }
+      return view.subviews.lazy.compactMap { find(in: $0) }.first
+    }
+    return window.contentView.flatMap { find(in: $0) }
   }
 
   @Test(arguments: Snapshot.Appearance.allCases)
