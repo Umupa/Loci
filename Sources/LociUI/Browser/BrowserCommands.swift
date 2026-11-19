@@ -1,3 +1,4 @@
+import LociModel
 import SwiftUI
 
 /// What the menu bar can do to the browser in front: a `nil` action is not available now.
@@ -11,4 +12,9 @@ struct BrowserCommands {
 
 extension FocusedValues {
   @Entry var browserCommands: BrowserCommands?
+}
+
+extension EnvironmentValues {
+  /// This Mac's other browsers, whichever Mac the window shows.
+  @Entry var signIns: (any BrowserSignIns)?
 }

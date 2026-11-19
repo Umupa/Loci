@@ -217,6 +217,16 @@ struct LibrarySnapshots {
       standIns: StandIns(webPage: Self.webPage("article", appearance)), browser: browser)
   }
 
+  /// B-S5: the start page offers the sign-ins of the browser used most lately.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func browserSignInOffer(appearance: Snapshot.Appearance) async throws {
+    let browser = BrowserSession(signIns: FakeSignIns(answer: .offer(.chrome)))
+    await browser.checkSignIns()
+    try await Self.shoot(
+      "browser-sign-ins", try SampleLibrary(), at: WindowState(place: .browser), appearance: appearance,
+      browser: browser)
+  }
+
   /// B-S2: several tabs show above the address, the one in front raised.
   @Test(arguments: Snapshot.Appearance.allCases)
   func browserTabs(appearance: Snapshot.Appearance) async throws {

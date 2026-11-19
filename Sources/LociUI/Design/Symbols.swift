@@ -33,6 +33,7 @@ enum Symbols {
   static let lock = "lock"
   static let reload = "arrow.clockwise"
   static let home = "house"
+  static let signIn = "person.crop.circle.badge.checkmark"
   static let back = "chevron.left"
   static let forward = "chevron.right"
   static let search = "magnifyingglass"

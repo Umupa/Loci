@@ -16,16 +16,20 @@ public struct RootView: View {
   @State private var sheet: RemoteSheetState?
   @State private var requests: [PairingRequest] = []
   @State private var browser: BrowserSession
+  private let signIns: (any BrowserSignIns)?
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
 
   /// `folder` is the data folder this Mac serves, so each folder reopens where it was left. `talkShown` runs
-  /// when the main conversation first appears, which is when Loci can be typed into.
-  public init(folder: URL, machines: any Machines, talkShown: @escaping () -> Void = {}) {
+  /// when the main conversation first appears, which is when Loci can be typed into. `signIns` are this Mac's
+  /// other browsers, which the built-in browser can start signed in to, whichever Mac the window shows.
+  public init(
+    folder: URL, machines: any Machines, signIns: (any BrowserSignIns)? = nil, talkShown: @escaping () -> Void = {}
+  ) {
     self.init(
       machines: machines,
       memory: { machine in
         machine.map { .preferences(.standard, remote: $0) } ?? .preferences(.standard, folder: folder)
-      }, talkShown: talkShown)
+      }, talkShown: talkShown, browser: BrowserSession(signIns: signIns), signIns: signIns)
   }
 
   /// Opens each Mac where `memory` says it was last. `current`, `menuOpen` and `sheet` start the window
@@ -33,7 +37,7 @@ public struct RootView: View {
   init(
     machines: any Machines, memory: @escaping @MainActor (MachineID?) -> WindowMemory,
     talkShown: @escaping () -> Void = {}, current: MachineID? = nil, menuOpen: Bool = false,
-    sheet: RemoteSheetState? = nil, browser: BrowserSession = BrowserSession()
+    sheet: RemoteSheetState? = nil, browser: BrowserSession = BrowserSession(), signIns: (any BrowserSignIns)? = nil
   ) {
     self.machines = machines
     self.memory = memory
@@ -42,6 +46,7 @@ public struct RootView: View {
     _menuOpen = State(initialValue: menuOpen)
     _sheet = State(initialValue: sheet)
     _browser = State(initialValue: browser)
+    self.signIns = signIns
   }
 
   public var body: some View {
@@ -54,6 +59,7 @@ public struct RootView: View {
         .id(shown.id)
         .lociHost(machines.open(shown.id))
         .environment(\.machineChoice, choice(roster, shown: shown))
+        .environment(\.signIns, signIns)
       } else {
         Palette.canvas
       }

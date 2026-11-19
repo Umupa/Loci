@@ -130,14 +130,38 @@ public struct BrowserCookie: Hashable, Codable, Sendable {
   public let secure: Bool
   /// `nil` for a cookie that lasts until the browser closes.
   public let expires: Timestamp?
+  /// Pages' scripts cannot read it.
+  public let httpOnly: Bool
 
-  public init(domain: String, path: String, name: String, value: String, secure: Bool, expires: Timestamp?) {
+  public init(
+    domain: String, path: String, name: String, value: String, secure: Bool, expires: Timestamp?,
+    httpOnly: Bool = false
+  ) {
     self.domain = domain
     self.path = path
     self.name = name
     self.value = value
     self.secure = secure
     self.expires = expires
+    self.httpOnly = httpOnly
+  }
+}
+
+extension BrowserCookie {
+  private enum CodingKeys: String, CodingKey {
+    case domain, path, name, value, secure, expires, httpOnly
+  }
+
+  /// A cookie from a Mac that did not send `httpOnly` is readable by scripts, as it was there.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.init(
+      domain: try container.decode(String.self, forKey: .domain),
+      path: try container.decode(String.self, forKey: .path),
+      name: try container.decode(String.self, forKey: .name), value: try container.decode(String.self, forKey: .value),
+      secure: try container.decode(Bool.self, forKey: .secure),
+      expires: try container.decodeIfPresent(Timestamp.self, forKey: .expires),
+      httpOnly: try container.decodeIfPresent(Bool.self, forKey: .httpOnly) ?? false)
   }
 }
 

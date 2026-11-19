@@ -1,7 +1,35 @@
 import Foundation
+import LociModel
 import Testing
 
 @testable import LociUI
+
+/// Sign-ins that answer as told and remember what the browser asked of them.
+actor FakeSignIns: BrowserSignIns {
+  private(set) var answer: SignInChoice
+  private(set) var cookiesTaken = 0
+
+  init(answer: SignInChoice) {
+    self.answer = answer
+  }
+
+  func choice() -> SignInChoice { answer }
+
+  func use(_ browser: SignInBrowser) throws(SignInFailure) -> [BrowserCookie] {
+    answer = .using(browser)
+    cookiesTaken += 1
+    return []
+  }
+
+  func decline() {
+    if case .offer(let browser) = answer { answer = .declined(browser) }
+  }
+
+  func currentCookies() -> [BrowserCookie] {
+    cookiesTaken += 1
+    return []
+  }
+}
 
 @MainActor
 struct BrowserSessionTests {
@@ -68,5 +96,42 @@ struct BrowserSessionTests {
 
   @Test func aFreshStartPageCannotGoBack() {
     #expect(!BrowserSession().current.canGoBack)
+  }
+
+  @Test func theStartPageOffersSignInsUntilTheReaderSaysNo() async {
+    let signIns = FakeSignIns(answer: .offer(.chrome))
+    let session = BrowserSession(signIns: signIns)
+
+    await session.checkSignIns()
+    #expect(session.signInOffer == .chrome)
+
+    await session.declineSignIns()
+    #expect(session.signInOffer == nil)
+    await session.checkSignIns()
+    #expect(session.signInOffer == nil)
+    #expect(await signIns.cookiesTaken == 0)
+  }
+
+  @Test func acceptingTakesTheSignInsAndStopsOffering() async {
+    let signIns = FakeSignIns(answer: .offer(.edge))
+    let session = BrowserSession(signIns: signIns)
+    await session.checkSignIns()
+
+    await session.acceptSignIns(from: .edge)
+
+    #expect(session.signInOffer == nil)
+    #expect(await signIns.answer == .using(.edge))
+    #expect(await signIns.cookiesTaken == 1)
+  }
+
+  @Test func signInsInUseAreTakenOnceALaunchWithoutAsking() async {
+    let signIns = FakeSignIns(answer: .using(.chrome))
+    let session = BrowserSession(signIns: signIns)
+
+    await session.checkSignIns()
+    await session.checkSignIns()
+
+    #expect(session.signInOffer == nil)
+    #expect(await signIns.cookiesTaken == 1)
   }
 }

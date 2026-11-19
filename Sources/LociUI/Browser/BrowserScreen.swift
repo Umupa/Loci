@@ -53,6 +53,7 @@ struct BrowserScreen: View {
     .onChange(of: tab.address) { picking = false }
     .onChange(of: ObjectIdentifier(tab)) { picking = false }
     .onAppear { if standIns?.videoPickerOpen == true { picking = true } }
+    .task { await session.checkSignIns() }
     .focusedSceneValue(\.browserCommands, commands)
   }
 

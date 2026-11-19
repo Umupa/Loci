@@ -1,6 +1,8 @@
+import LociModel
 import SwiftUI
 
-/// A tab before any page: one field that takes an address or a search, and sites to start from.
+/// A tab before any page: one field that takes an address or a search, sites to start from, and, until the
+/// reader answers, the sign-ins of the browser they use.
 struct BrowserStart: View {
   let session: BrowserSession
   @State private var text = ""
@@ -51,10 +53,50 @@ struct BrowserStart: View {
           .buttonStyle(PressStyle())
         }
       }
+      if let browser = session.signInOffer {
+        SignInOffer(browser: browser) {
+          Task { await session.acceptSignIns(from: browser) }
+        } decline: {
+          Task { await session.declineSignIns() }
+        }
+        .transition(.opacity)
+      }
     }
     .padding(.bottom, 80)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .animation(Motion.quick, value: session.signInOffer)
     .onChange(of: session.addressFocus, initial: true) { focused = true }
+  }
+}
+
+/// One line offering the sign-ins of the browser the reader uses, with a way to say no.
+private struct SignInOffer: View {
+  let browser: SignInBrowser
+  let accept: () -> Void
+  let decline: () -> Void
+
+  var body: some View {
+    HStack(spacing: Spacing.xxs) {
+      Button(action: accept) {
+        HStack(spacing: 6) {
+          Image(systemName: Symbols.signIn).font(.system(size: 12, weight: .medium))
+          Text(.loci("browser.useSignIns \(browser.name)"))
+        }
+        .font(Typography.button)
+        .foregroundStyle(Palette.accentInk)
+        .padding(.leading, 14)
+        .padding(.trailing, Spacing.xxs)
+        .frame(height: Size.primaryHeight)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(PressStyle())
+      IconButton(symbol: Symbols.cancel, title: .loci("browser.declineSignIns"), size: 24, symbolSize: 10) {
+        decline()
+      }
+      .padding(.trailing, 4)
+    }
+    .background(Capsule().fill(Palette.surface))
+    .overlay(Capsule().strokeBorder(Palette.lineStrong, lineWidth: Size.hairline))
   }
 }
 

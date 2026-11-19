@@ -5,22 +5,27 @@ import WebKit
 /// The built-in browser: the tabs of one window, kept while the reader goes elsewhere and comes back.
 ///
 /// Every tab shares the system's website data with the hidden pages that fetch articles, so a site signed in
-/// to here is signed in to there. After each load a script reports what the page holds, which decides the
-/// button beside the address.
+/// to here is signed in to there. When the reader agreed, each launch starts with the sign-ins of the browser
+/// they use. After each load a script reports what the page holds, which decides the button beside the address.
 @MainActor
 @Observable
 final class BrowserSession {
   private(set) var tabs: [BrowserTab]
   private(set) var current: BrowserTab
+  /// A browser whose sign-ins the start page offers, until the reader answers.
+  private(set) var signInOffer: SignInBrowser?
   /// Goes up each time the address field should take the cursor.
   private(set) var addressFocus = 0
+  @ObservationIgnored private let signIns: (any BrowserSignIns)?
+  @ObservationIgnored private var signedIn = false
   @ObservationIgnored private var watcher: PageWatcher?
   @ObservationIgnored private var configuration: WKWebViewConfiguration?
 
-  init() {
+  init(signIns: (any BrowserSignIns)? = nil) {
     let first = BrowserTab()
     tabs = [first]
     current = first
+    self.signIns = signIns
   }
 
   /// The tab's web view, made the first time it is shown.
@@ -80,8 +85,46 @@ final class BrowserSession {
     .map { cookie in
       BrowserCookie(
         domain: cookie.domain, path: cookie.path, name: cookie.name, value: cookie.value, secure: cookie.isSecure,
-        expires: cookie.expiresDate.map(Timestamp.init))
+        expires: cookie.expiresDate.map(Timestamp.init), httpOnly: cookie.isHTTPOnly)
     }
+  }
+
+  /// Brings in the sign-ins of the browser in use, once a launch, or finds which one to offer.
+  func checkSignIns() async {
+    guard let signIns, !signedIn else { return }
+    switch await signIns.choice() {
+    case .offer(let browser):
+      signInOffer = browser
+    case .using:
+      signInOffer = nil
+      signedIn = true
+      if let cookies = try? await signIns.currentCookies() { await take(cookies) }
+    case .declined, .unavailable:
+      signInOffer = nil
+    }
+  }
+
+  func acceptSignIns(from browser: SignInBrowser) async {
+    guard let signIns else { return }
+    signInOffer = nil
+    if let cookies = try? await signIns.use(browser) {
+      signedIn = true
+      await take(cookies)
+    }
+  }
+
+  func declineSignIns() async {
+    signInOffer = nil
+    await signIns?.decline()
+  }
+
+  /// Puts the cookies into the browser's store and reloads the pages open, so they show signed in.
+  private func take(_ cookies: [BrowserCookie]) async {
+    let store = WKWebsiteDataStore.default().httpCookieStore
+    for cookie in cookies {
+      if let made = HTTPCookie(cookie) { await store.setCookie(made) }
+    }
+    for tab in tabs where tab.view?.url != nil { tab.reload() }
   }
 
   /// A tab for a window a page opened, beside the page, with the configuration WebKit gives.
@@ -132,6 +175,18 @@ final class BrowserSession {
   /// The last two labels of a host name, such as `youtube.com`.
   private static func site(of host: String) -> String {
     host.split(separator: ".").suffix(2).joined(separator: ".")
+  }
+}
+
+extension HTTPCookie {
+  fileprivate convenience init?(_ cookie: BrowserCookie) {
+    var properties: [HTTPCookiePropertyKey: Any] = [
+      .domain: cookie.domain, .path: cookie.path, .name: cookie.name, .value: cookie.value,
+    ]
+    if cookie.secure { properties[.secure] = "TRUE" }
+    if let expires = cookie.expires { properties[.expires] = expires.date }
+    if cookie.httpOnly { properties[HTTPCookiePropertyKey("HttpOnly")] = "TRUE" }
+    self.init(properties: properties)
   }
 }
 

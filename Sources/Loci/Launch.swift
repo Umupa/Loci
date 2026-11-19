@@ -21,6 +21,8 @@ final class Launch {
   /// without a relay or when the device key cannot be kept.
   let machines: any Machines
   let folder: URL
+  /// This Mac's other browsers, for the built-in browser to start signed in.
+  let signIns = LocalSignIns.onThisMac()
   private var reportedStart = false
 
   private static let log = Logger(subsystem: "com.loci.native.dev", category: "launch")

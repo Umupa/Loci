@@ -23,7 +23,7 @@ enum Architecture {
     "LociModel": Module(uses: [], frameworks: ["Foundation", "CryptoKit"]),
     "LociStore": Module(
       uses: ["LociModel"],
-      frameworks: ["Foundation", "CoreServices", "CryptoKit", "Security", "Synchronization", "os"],
+      frameworks: ["Foundation", "CommonCrypto", "CoreServices", "CryptoKit", "Security", "Synchronization", "os"],
       packages: ["GRDB"]),
     "LociAgents": Module(uses: ["LociModel"], frameworks: ["Foundation", "os"]),
     "LociMedia": Module(

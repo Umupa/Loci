@@ -17,7 +17,7 @@
 | 模块 | 职责 | 可以引用 |
 |---|---|---|
 | `LociModel` | 值类型、定位符、Host 协议与命令的请求和响应、线路注册表；系统框架可用 CryptoKit（`MachineID` 是公钥的指纹，邀请链接带校验和） | 无 |
-| `LociStore` | 文件读写与监听、SQLite、全文索引、Loci 的 `agent/` 文件夹；配对名单与别的 Mac 的缓存；系统框架可用 Security（设备私钥放钥匙串）、CryptoKit（缓存文件名） | `LociModel`；第三方：GRDB |
+| `LociStore` | 文件读写与监听、SQLite、全文索引、Loci 的 `agent/` 文件夹；配对名单与别的 Mac 的缓存；系统框架可用 Security（设备私钥、读其他浏览器 cookie 的密钥）、CryptoKit（缓存文件名）、CommonCrypto（解密 Chromium 浏览器的 cookie：AES-CBC 与 PBKDF2，CryptoKit 没有） | `LociModel`；第三方：GRDB |
 | `LociAgents` | 各家 agent CLI 的协议驱动、会话、权限 | `LociModel` |
 | `LociMedia` | 取回链接（yt-dlp、网页正文、PDF）、组件、转录、断句；系统框架可用 AVFoundation、CoreMedia、CoreGraphics（PDF 元数据）、NaturalLanguage、WebKit（在不显示的网页里取正文）、Synchronization | `LociModel` |
 | `LociCode` | 符号大纲、跳转定义、查找引用 | `LociModel` |

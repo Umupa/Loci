@@ -4249,6 +4249,40 @@
           }
         }
       }
+    },
+    "browser.useSignIns %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use %@ Sign-ins"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 %@ 的登录"
+          }
+        }
+      }
+    },
+    "browser.declineSignIns": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not Now"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不用"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

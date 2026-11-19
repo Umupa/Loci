@@ -6,11 +6,14 @@ import SwiftUI
 struct GeneralSettingsPage: View {
   var version = AppVersion(of: .main)
   @Environment(\.host) private var host
+  @Environment(\.signIns) private var signIns
+  @Environment(\.browser) private var browserSession
   @AppStorage(AppearanceChoice.key) private var appearance = AppearanceChoice.auto
   @AppStorage(ReadingWidth.key) private var readingWidth = ReadingWidth.comfortable
   @State private var interface = InterfaceLanguage.current
   @State private var folder: HostPath?
   @State private var revealable: LocalFile?
+  @State private var signInChoice: SignInChoice?
 
   var body: some View {
     SettingsPage(symbol: Symbols.settings, title: .loci("settings.general")) {
@@ -37,6 +40,20 @@ struct GeneralSettingsPage: View {
           Text(.loci("settings.interface"))
         } trailing: {
           PopupPicker(selection: $interface, options: InterfaceLanguage.allCases.map { ($0, Text($0.name)) })
+        }
+      }
+      if let browser = signInBrowser {
+        SettingsGroup(title: .loci("sidebar.browser")) {
+          SettingsRow {
+            Text(.loci("browser.useSignIns \(browser.name)"))
+          } trailing: {
+            Toggle(isOn: Binding(get: { signInChoice == .using(browser) }, set: { use(browser, $0) })) {
+              Text(.loci("browser.useSignIns \(browser.name)"))
+            }
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+          }
         }
       }
       SettingsGroup(title: .loci("settings.data")) {
@@ -67,8 +84,32 @@ struct GeneralSettingsPage: View {
     }
     .onChange(of: interface) { interface.apply() }
     .task {
+      signInChoice = await signIns?.choice()
       folder = try? await host.run(DataLocation())
       revealable = await host.localFile(.dataFolder)
+    }
+  }
+}
+
+extension GeneralSettingsPage {
+  /// The browser whose sign-ins the built-in browser could start with, if there is one.
+  private var signInBrowser: SignInBrowser? {
+    switch signInChoice {
+    case .offer(let browser), .using(let browser), .declined(let browser): browser
+    case .unavailable, nil: nil
+    }
+  }
+
+  private func use(_ browser: SignInBrowser, _ on: Bool) {
+    guard let signIns, let browserSession else { return }
+    signInChoice = on ? .using(browser) : .declined(browser)
+    Task {
+      if on {
+        await browserSession.acceptSignIns(from: browser)
+      } else {
+        await browserSession.declineSignIns()
+      }
+      signInChoice = await signIns.choice()
     }
   }
 }
