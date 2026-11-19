@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 1.0.0-alpha.1 — 2026-11-19
+
 原生 Swift 版，只支持 macOS 26 及以上。不读 Tauri 版的数据。
 
 ### Loci
