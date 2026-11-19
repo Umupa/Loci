@@ -248,7 +248,14 @@ struct MachineWindow: View {
   /// Adds the link on the pasteboard and opens it. Whether there was one.
   private func pasteLink() -> Bool {
     guard let url = PastedLink.on(.general) else { return false }
-    Task { _ = await host.addLink(url, opened: { window = $0 }, failed: { dialogs.failure = $0 }) }
+    Task {
+      do throws(HostError) {
+        let item = try await host.run(AddLink(url: url))
+        window = WindowState(place: .library(nil), pages: [.item(item.id)])
+      } catch {
+        dialogs.failure = error
+      }
+    }
     return true
   }
 

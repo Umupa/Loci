@@ -25,23 +25,11 @@ struct TextFile: Transferable, Equatable, Sendable {
   struct NotText: Error {}
 }
 
-/// What the start page's field holds, which decides what pressing return does.
-enum PromptInput: Equatable {
-  case empty
-  case sentence(String)
-  /// Goes into the library and opens.
-  case link(URL)
-
-  init(_ text: String) {
+extension URL {
+  /// Parses text containing only an HTTP or HTTPS link, apart from surrounding whitespace.
+  init?(webLinkText text: String) {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    if trimmed.isEmpty {
-      self = .empty
-    } else if !trimmed.contains(where: \.isWhitespace), let url = URL(string: trimmed),
-      ["http", "https"].contains(url.scheme?.lowercased()), url.host?.isEmpty == false
-    {
-      self = .link(url)
-    } else {
-      self = .sentence(trimmed)
-    }
+    guard !trimmed.contains(where: \.isWhitespace), let url = URL(string: trimmed), url.isWebLink else { return nil }
+    self = url
   }
 }

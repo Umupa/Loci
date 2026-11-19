@@ -98,7 +98,7 @@ final class BrowserSession {
   static func destination(of typed: String) -> URL? {
     let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return nil }
-    if case .link(let url) = PromptInput(text) { return url }
+    if let url = URL(webLinkText: text) { return url }
     if !text.contains(" "), text.contains("."), let url = URL(string: "https://" + text), url.host() != nil {
       return url
     }

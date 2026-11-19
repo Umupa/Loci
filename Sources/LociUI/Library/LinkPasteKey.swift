@@ -54,7 +54,6 @@ final class LinkPasteMonitor: NSView {
 enum PastedLink {
   static func on(_ pasteboard: NSPasteboard) -> URL? {
     if let url = pasteboard.readObjects(forClasses: [NSURL.self])?.first as? URL, url.isWebLink { return url }
-    guard let text = pasteboard.string(forType: .string), case .link(let url) = PromptInput(text) else { return nil }
-    return url
+    return pasteboard.string(forType: .string).flatMap(URL.init(webLinkText:))
   }
 }

@@ -83,8 +83,6 @@ enum Size {
   static let meter: CGFloat = 96
   static let meterHeight: CGFloat = 4
   static let pushHeight: CGFloat = 22
-  /// The empty library's field.
-  static let startFieldWidth: CGFloat = 600
 
   /// The panel beside a video, a podcast or an article.
   static let mediaPanel: CGFloat = 372

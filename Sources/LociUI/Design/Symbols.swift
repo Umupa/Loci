@@ -37,7 +37,6 @@ enum Symbols {
   static let search = "magnifyingglass"
   static let more = "ellipsis"
   static let cancel = "xmark"
-  static let attach = "paperclip"
   static let recognizing = "waveform"
   static let thoughtSmall = "text.bubble"
   static let copy = "doc.on.doc"

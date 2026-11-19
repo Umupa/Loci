@@ -3,7 +3,7 @@ import LociModel
 import SwiftUI
 
 /// The library: what is being watched on a shelf of large covers, and every item in a list below with the work
-/// on it. An empty library is the start page's field. Pasting or dropping a link adds it.
+/// on it. Pasting or dropping a link adds it.
 struct LibraryScreen: View {
   @Environment(\.host) private var host
   @Environment(\.changesAllowed) private var changesAllowed
@@ -19,17 +19,17 @@ struct LibraryScreen: View {
   @State private var progress: Progress?
 
   var body: some View {
+    let items = shown
     Group {
-      if let all = feed?.value, all.isEmpty {
-        LibraryStart(opened: opened, failed: failed)
-      } else if let progress {
+      if !items.isEmpty, let progress {
         LibraryList(
-          items: shown, jobs: jobsByItem, progress: progress, act: act, delete: delete,
+          items: items, jobs: jobsByItem, progress: progress, act: act, delete: delete,
           stop: { item in Task { _ = try? await host.run(CancelJob(item: item.id)) } })
       } else {
         Color.clear
       }
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Palette.canvas)
     .navigationTitle(kind.map { Text(Messages.name(of: $0)) } ?? Text(.loci("sidebar.library")))
     .acceptingDrops(opened: opened, failed: failed)

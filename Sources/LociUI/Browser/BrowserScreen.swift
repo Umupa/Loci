@@ -114,13 +114,12 @@ struct AddressBar<Trailing: View>: View {
   var body: some View {
     HStack(spacing: Spacing.xxs) {
       IconButton(
-        symbol: Symbols.back, title: .loci("browser.back"), symbolSize: 14, tint: Palette.ink, shape: AnyShape(Circle())
+        symbol: Symbols.back, title: .loci("browser.back"), tint: Palette.ink
       ) { session.back() }
       .disabled(!session.canGoBack)
       .opacity(session.canGoBack ? 1 : 0.35)
       IconButton(
-        symbol: Symbols.forward, title: .loci("browser.forward"), symbolSize: 14, tint: Palette.ink,
-        shape: AnyShape(Circle())
+        symbol: Symbols.forward, title: .loci("browser.forward"), tint: Palette.ink
       ) { session.forward() }
       .disabled(!session.canGoForward)
       .opacity(session.canGoForward ? 1 : 0.35)
@@ -155,7 +154,7 @@ struct AddressBar<Trailing: View>: View {
         focused = true
       }
       IconButton(
-        symbol: Symbols.reload, title: .loci("browser.reload"), size: 24, symbolSize: 12, shape: AnyShape(Circle())
+        symbol: Symbols.reload, title: .loci("browser.reload"), size: 24, symbolSize: 12
       ) { session.reload() }
     }
     .padding(.leading, 14)
@@ -176,6 +175,31 @@ struct AddressBar<Trailing: View>: View {
     return Text(
       joining: Text(verbatim: host).foregroundStyle(Palette.ink), Text(verbatim: rest).foregroundStyle(Palette.inkFaint)
     )
+  }
+}
+
+private struct IconButton: View {
+  let symbol: String
+  let title: LocalizedStringResource
+  var size: CGFloat = Size.iconButton
+  var symbolSize: CGFloat = 14
+  var tint: Color = Palette.inkMuted
+  let action: () -> Void
+  @State private var hovering = false
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: symbol)
+        .font(.system(size: symbolSize))
+        .foregroundStyle(hovering ? Palette.ink : tint)
+        .frame(width: size, height: size)
+        .background(Circle().fill(hovering ? Palette.fillStrong : .clear))
+        .contentShape(Circle())
+    }
+    .buttonStyle(PressStyle())
+    .onHover { hovering = $0 }
+    .help(Text(title))
+    .accessibilityLabel(Text(title))
   }
 }
 

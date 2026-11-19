@@ -1922,40 +1922,6 @@
         }
       }
     },
-    "library.attach": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add a File"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加文件"
-          }
-        }
-      }
-    },
-    "library.prompt": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "What do you want to learn? Or paste a link"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "想学什么，或粘贴一个链接"
-          }
-        }
-      }
-    },
     "media.accuracy": {
       "extractionState": "manual",
       "localizations": {
@@ -3736,23 +3702,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "要记住的"
-          }
-        }
-      }
-    },
-    "library.send": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Send"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "发送"
           }
         }
       }

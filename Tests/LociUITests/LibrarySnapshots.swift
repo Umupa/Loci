@@ -47,10 +47,33 @@ struct LibrarySnapshots {
       "library-b-en", try SampleLibrary(), at: WindowState(place: .library(nil)), appearance: appearance, english: true)
   }
 
-  @Test(arguments: Snapshot.Appearance.allCases)
-  func emptyLibrary(appearance: Snapshot.Appearance) async throws {
-    try await Self.shoot(
-      "library-empty", try SampleLibrary(empty: true), at: WindowState(place: .library(nil)), appearance: appearance)
+  @Test(arguments: [nil, ItemKind.paper], Snapshot.Appearance.allCases)
+  func anEmptyLibraryViewKeepsTheSidebarOnTheLeft(kind: ItemKind?, appearance: Snapshot.Appearance) async throws {
+    let host = FakeHost(try Sample(problems: false), library: try SampleLibrary(empty: kind == nil))
+    let place = WindowState(place: .library(kind))
+    let view = MachineWindow(memory: WindowMemory(recall: { place }, remember: { _ in })).lociHost(host)
+    let quiet = Quiet(host.activity)
+    let name = kind == nil ? "library-empty" : "library-papers-empty"
+    let size = CGSize(width: Size.windowMinimum.width, height: Snapshot.windowSize.height)
+
+    let file = try await Snapshot.render(view, named: name, size: size, appearance: appearance) { window in
+      guard quiet.settled(), let content = window.contentView else { return false }
+      content.layoutSubtreeIfNeeded()
+      #expect(Self.editableField(in: content) == nil)
+      return true
+    }
+
+    let bitmap = try #require(NSBitmapImageRep(data: Data(contentsOf: file)))
+    let inset = Int(Spacing.l * CGFloat(bitmap.pixelsWide) / size.width)
+    let middle = bitmap.pixelsHigh / 2
+    let sidebar = try #require(bitmap.colorAt(x: inset, y: middle))
+    let canvas = try #require(bitmap.colorAt(x: bitmap.pixelsWide - inset, y: middle))
+    #expect(sidebar != canvas)
+  }
+
+  private static func editableField(in view: NSView) -> NSTextField? {
+    if let field = view as? NSTextField, field.isEditable { return field }
+    return view.subviews.lazy.compactMap { editableField(in: $0) }.first
   }
 
   /// L-S6, L-S7, L-S12: the sentence playing, highlights in the transcript and on the bar, two sentences chosen,

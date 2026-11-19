@@ -6,19 +6,13 @@ import Testing
 
 struct NavigationTests {
   @Test(arguments: [
-    ("", PromptInput.empty), ("   \n", .empty),
-    ("我想搞懂调度器", .sentence("我想搞懂调度器")), ("  learn Rust ", .sentence("learn Rust")),
-    ("https://research.google/pubs/borg/", .link(URL(filePath: "/"))),
-    ("http://example.com", .link(URL(filePath: "/"))),
-    ("see https://example.com", .sentence("see https://example.com")), ("example.com", .sentence("example.com")),
-    ("ftp://example.com/file", .sentence("ftp://example.com/file")),
+    ("", nil), ("   \n", nil), ("我想搞懂调度器", nil), ("  learn Rust ", nil),
+    (" https://research.google/pubs/borg/ \n", "https://research.google/pubs/borg/"),
+    ("http://example.com", "http://example.com"),
+    ("see https://example.com", nil), ("example.com", nil), ("ftp://example.com/file", nil),
   ])
-  func theFieldTellsASentenceFromALink(text: String, input: PromptInput) {
-    #expect(PromptInput(text).withoutAddress == input.withoutAddress)
-  }
-
-  @Test func aLinkKeepsItsAddress() {
-    #expect(PromptInput(" https://example.com/post ") == .link(URL(string: "https://example.com/post")!))
+  func textHasAnAddressOnlyWhenItIsAnEntireWebLink(text: String, address: String?) {
+    #expect(URL(webLinkText: text)?.absoluteString == address)
   }
 
   @Test func aWindowComesBackWhereItWas() throws {
@@ -66,16 +60,5 @@ struct NavigationTests {
     await deferred.resolve(FakeHost(sample))
 
     #expect(try await runtime == sample.runtime)
-  }
-}
-
-extension PromptInput {
-  /// The case alone, so cases can be compared without spelling out addresses.
-  fileprivate var withoutAddress: String {
-    switch self {
-    case .empty: "empty"
-    case .sentence(let text): "sentence " + text
-    case .link: "link"
-    }
   }
 }

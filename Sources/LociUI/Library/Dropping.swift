@@ -48,7 +48,7 @@ enum Dropped: Equatable, Sendable {
 
   /// Text that is a link, or holds exactly one among other words.
   static func link(in text: String) -> URL? {
-    if case .link(let url) = PromptInput(text) { return url }
+    if let url = URL(webLinkText: text) { return url }
     guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
     let links = detector.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap(\.url)
       .filter(\.isWebLink)
