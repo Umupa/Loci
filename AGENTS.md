@@ -23,7 +23,7 @@ script/check
 |---|---|
 | `script/check` | 唯一的闸门 |
 | `script/format` | 按项目风格重排代码 |
-| `script/run` | 构建并打开 `output/Loci Dev.app`；`--no-open` 只构建 |
+| `script/run` | 构建并打开 `output/Loci (Beta).app`；`--no-open` 只构建 |
 | `script/cut-release <版本>` | 定一个版本：改 CHANGELOG、跑闸门、提交、打 tag |
 
 ## 这个仓库是你的教材

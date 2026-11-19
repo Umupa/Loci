@@ -1,6 +1,6 @@
 import Foundation
 
-/// Where a Loci Dev build keeps its data, and the one place it must never use.
+/// Where Loci keeps its data, and the one place it must never use.
 public enum DataFolder: Equatable, Sendable {
   case use(root: URL)
   /// The folder belongs to the older Loci and its format is incompatible.

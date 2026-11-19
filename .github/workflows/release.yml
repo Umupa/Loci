@@ -1,6 +1,6 @@
 name: Release
 
-# A tag v<x.y.z> made by script/cut-release runs the gate, builds Loci Dev.app
+# A tag v<x.y.z> made by script/cut-release runs the gate, builds Loci (Beta).app
 # for Apple silicon and Intel, signs it with the identity in the
 # MACOS_SIGNING_IDENTITY secret (notarized when that is a Developer ID), and
 # attaches the dmg to that tag's release, with the version's CHANGELOG.md
@@ -129,7 +129,7 @@ jobs:
       # never stops a release: a runner without a window session reports nothing.
       - name: Measure the cold start of the release build
         run: |
-          script/measure-launch --runs 5 --app "output/Loci Dev.app" > output/launch.txt 2>&1 ||
+          script/measure-launch --runs 5 --app "output/Loci (Beta).app" > output/launch.txt 2>&1 ||
             echo "the measurement failed; see above" >> output/launch.txt
           cat output/launch.txt
           {
@@ -164,10 +164,10 @@ jobs:
             echo
             echo "---"
             echo
-            echo "Loci Dev needs macOS 26 or later. Download the dmg, open it, and drag **Loci Dev** into Applications."
+            echo "Loci needs macOS 26 or later. Download the dmg, open it, and drag **Loci (Beta)** into Applications."
             if [[ -z "${NOTARIZED:-}" ]]; then
               echo
-              echo "Loci Dev is not notarized by Apple. The first time you open it, macOS says it cannot check it for malicious software: open **System Settings → Privacy & Security** and choose **Open Anyway**, or run \`xattr -dr com.apple.quarantine \"/Applications/Loci Dev.app\"\`."
+              echo "Loci is not notarized by Apple. The first time you open it, macOS says it cannot check it for malicious software: open **System Settings → Privacy & Security** and choose **Open Anyway**, or run \`xattr -dr com.apple.quarantine \"/Applications/Loci (Beta).app\"\`."
             fi
           } >> "$notes"
           # A rerun replaces the dmg it uploaded before.
@@ -175,7 +175,7 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" "$DMG" "$DMG_SHA256" --clobber
           else
             gh release create "$GITHUB_REF_NAME" "$DMG" "$DMG_SHA256" \
-              --title "Loci Dev $GITHUB_REF_NAME" --notes-file "$notes"
+              --title "Loci (Beta) $GITHUB_REF_NAME" --notes-file "$notes"
           fi
           gh release view "$GITHUB_REF_NAME" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Launches Loci Dev several times against a temporary folder and reports, for each launch, how long the
+# Launches Loci several times against a temporary folder and reports, for each launch, how long the
 # process took to show a start page that can be typed into (α1-S10's budget is 500 ms) and the worst of them.
 #   --runs <n>     how many launches to measure (default 5)
 #   --app <path>   the app to measure (default: build the dev app with script/run --no-open)

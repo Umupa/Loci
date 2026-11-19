@@ -1,6 +1,6 @@
 #!/bin/sh
-# Builds a release Loci Dev.app, signs it, notarizes it when the identity is a
-# Developer ID, and writes output/Loci-Dev-<version>.dmg and its checksum.
+# Builds a release Loci (Beta).app, signs it, notarizes it when the identity is a
+# Developer ID, and writes output/Loci-Beta-<version>.dmg and its checksum.
 # Prints the dmg's path; everything else goes to stderr, so
 # `dmg="$(script/release)"` picks it up.
 #
@@ -79,11 +79,11 @@ fi
 
 stage="$work/dmg"
 mkdir "$stage"
-cp -R "$app" "$stage/Loci Dev.app"
+cp -R "$app" "$stage/Loci (Beta).app"
 ln -s /Applications "$stage/Applications"
-dmg="output/Loci-Dev-$version.dmg"
+dmg="output/Loci-Beta-$version.dmg"
 rm -f "$dmg"
-hdiutil create -quiet -volname "Loci Dev $version" -srcfolder "$stage" -ov -format UDZO "$dmg"
+hdiutil create -quiet -volname "Loci (Beta) $version" -srcfolder "$stage" -ov -format UDZO "$dmg"
 
 if [ -n "$notarizable" ]; then
   codesign --force --timestamp --sign "$identity" "$dmg"

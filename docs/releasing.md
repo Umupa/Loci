@@ -1,14 +1,14 @@
 # 版本与发布
 
-从一次提交到一个发布出去的 Loci Dev：版本号、提交规则、CI、定版本、签名和发布流水线。这一版只发 **Loci Dev** 渠道（`com.loci.native.dev`）；正式版 Loci 与自动更新在 β2（见 [roadmap.md](roadmap.md)）。
+从一次提交到一个发布出去的 Loci (Beta)：版本号、提交规则、CI、定版本、签名和发布流水线。应用叫 **Loci (Beta)**，bundle id 是 `com.loci.native.dev`，数据在 `~/Loci Dev`；这两个不随名字改，改了 macOS 会当成另一个应用，已给的权限和数据都接不上。
 
 ## 产物
 
 | 文件 | 是什么 |
 |---|---|
-| `output/Loci Dev.app` | `script/bundle` 组装的应用包，包含 `script/resources/Loci.icns`；`script/run` 和 `script/release` 共用 |
-| `output/Loci-Dev-<version>.dmg` | 发布产物：应用加一个 `/Applications` 链接，Apple silicon 与 Intel 通用 |
-| `output/Loci-Dev-<version>.dmg.sha256` | 上面那个文件的校验和 |
+| `output/Loci (Beta).app` | `script/bundle` 组装的应用包，包含 `script/resources/Loci.icns`；`script/run` 和 `script/release` 共用 |
+| `output/Loci-Beta-<version>.dmg` | 发布产物：应用加一个 `/Applications` 链接，Apple silicon 与 Intel 通用 |
+| `output/Loci-Beta-<version>.dmg.sha256` | 上面那个文件的校验和 |
 
 ## 签名
 
@@ -111,7 +111,7 @@ LOCI_NOTARY_PROFILE=loci-notary script/release
 
 ```sh
 script/measure-launch                            # 量 debug 构建
-script/measure-launch --app "output/Loci Dev.app"  # 量已经打好的包
+script/measure-launch --app "output/Loci (Beta).app"  # 量已经打好的包
 ```
 
 每次启动都从主对话起，量的是同一件事；脚本会暂时清掉应用记住的窗口位置，结束时放回去。release 构建的数字在 tag 构建的 run summary 和 `release` artifact 里。

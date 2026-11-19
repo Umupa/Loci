@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds Loci Dev.app into output/ and opens it.
+# Builds Loci (Beta).app into output/ and opens it.
 #   --no-open        only build
 #   --root <folder>  run with LOCI_ROOT=<folder> instead of ~/Loci Dev
 set -eu
@@ -21,7 +21,7 @@ app="$(script/bundle)"
 codesign --force --deep --sign - "$app" 2>/dev/null
 echo "$app"
 [ "$open_app" = yes ] || exit 0
-# A Loci Dev left running from an earlier build would only be brought to the front.
+# A Loci left running from an earlier build would only be brought to the front.
 binary="$app/Contents/MacOS/Loci"
 if pgrep -f "$binary" >/dev/null; then
   osascript -e "tell application \"$app\" to quit" >/dev/null 2>&1 || true

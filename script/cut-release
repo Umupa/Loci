@@ -45,6 +45,6 @@ if ! script/check; then
 fi
 
 git commit --quiet -m "chore: release $version" CHANGELOG.md
-git tag -a "$tag" -m "Loci Dev $version"
+git tag -a "$tag" -m "Loci $version"
 echo "cut-release: committed and tagged $tag. Publish it with:" >&2
 echo "  git push origin main $tag" >&2
