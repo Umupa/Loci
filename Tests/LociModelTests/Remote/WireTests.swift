@@ -18,6 +18,6 @@ struct WireTests {
   @Test func onlyReadsCanBeAnsweredFromWhatWasSeenBefore() {
     #expect(Wire.route(of: ListItems.self)?.effect == .reads)
     #expect(Wire.route(of: SendMessage.self)?.effect == .writes)
-    #expect(Wire.route(of: DeleteItem.self)?.effect == .writes)
+    #expect(Wire.route(of: DeleteItems.self)?.effect == .writes)
   }
 }

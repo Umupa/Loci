@@ -11,6 +11,8 @@ import os
 actor JobQueue {
   private let context: LibraryContext
   private var jobs: [EntityID: Job] = [:]
+  /// The jobs of items deleted a moment ago, as they stood.
+  private var setAside: [EntityID: Job] = [:]
   private var work: [EntityID: (task: Task<Void, Never>, generation: Int)] = [:]
   private var started = 0
   private var closing = false
@@ -102,7 +104,25 @@ actor JobQueue {
   }
 
   /// Forgets the job of an item that is gone.
+  /// Stops the job of an item being deleted, keeping where it was so `putBack` can carry on from there.
+  func setAside(_ item: EntityID) {
+    work[item]?.task.cancel()
+    work[item] = nil
+    if let job = jobs.removeValue(forKey: item) { setAside[item] = job }
+  }
+
+  /// Carries on with the job of an item brought back, as it stood when it was set aside.
+  func putBack(_ item: EntityID) async {
+    guard let job = setAside.removeValue(forKey: item) else { return }
+    await set(job)
+    switch job.state {
+    case .queued, .running, .waiting: start(item, at: job.stage)
+    case .failed, .stopped, .done: break
+    }
+  }
+
   func forget(_ item: EntityID) async {
+    setAside[item] = nil
     work[item]?.task.cancel()
     work[item] = nil
     jobs[item] = nil

@@ -95,6 +95,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
     }
     await host.hub.hold(work)
     await host.hub.hold(reviews)
+    await host.discardSetAside()
     await host.library.queue.resume()
     return host
   }
@@ -102,6 +103,7 @@ public final class LocalHost: LociModel.Host, CommandHandler {
   /// Stops watching the folder and stops Loci. Subscriptions stay open but receive nothing more.
   public func close() async {
     await library.queue.close()
+    await discardSetAside()
     await loci.close()
     await hub.stop()
   }

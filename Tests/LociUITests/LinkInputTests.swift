@@ -18,20 +18,20 @@ struct LinkInputTests {
 
   @Test func commandVIsTakenWhenTheSidebarOrNothingHasTheKeyboard() throws {
     let paste = try #require(Self.key("v", .command))
-    #expect(LinkPasteMonitor.takes(paste, typingInto: NSTableView()))
-    #expect(LinkPasteMonitor.takes(paste, typingInto: nil))
-    #expect(LinkPasteMonitor.takes(paste, typingInto: NSWindow()))
+    #expect(LinkPasteKey.isPaste(paste))
+    #expect(!KeyMonitor.isTyping(into: NSTableView()))
+    #expect(!KeyMonitor.isTyping(into: nil))
+    #expect(!KeyMonitor.isTyping(into: NSWindow()))
   }
 
-  @Test func aFieldBeingTypedIntoKeepsCommandV() throws {
-    let paste = try #require(Self.key("v", .command))
-    #expect(!LinkPasteMonitor.takes(paste, typingInto: NSTextView()))
+  @Test func aFieldBeingTypedIntoKeepsItsKeys() {
+    #expect(KeyMonitor.isTyping(into: NSTextView()))
   }
 
   @Test func onlyCommandVIsTaken() throws {
-    #expect(!LinkPasteMonitor.takes(try #require(Self.key("v", [])), typingInto: nil))
-    #expect(!LinkPasteMonitor.takes(try #require(Self.key("v", [.command, .shift])), typingInto: nil))
-    #expect(!LinkPasteMonitor.takes(try #require(Self.key("c", .command)), typingInto: nil))
+    #expect(!LinkPasteKey.isPaste(try #require(Self.key("v", []))))
+    #expect(!LinkPasteKey.isPaste(try #require(Self.key("v", [.command, .shift]))))
+    #expect(!LinkPasteKey.isPaste(try #require(Self.key("c", .command))))
   }
 
   @Test func aLinkIsReadFromThePasteboardAsALinkOrAsText() {

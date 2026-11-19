@@ -41,7 +41,7 @@ extension LocalHost {
     do {
       try store.importMedia(file, as: command.mode, of: item.id)
     } catch {
-      try? store.deleteItem(item.id, notes: .delete)
+      try? store.deleteItem(item.id)
       throw HostError(error)
     }
     await follow([.item(item.id)])

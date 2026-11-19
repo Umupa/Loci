@@ -109,6 +109,11 @@ extension Store {
     try write(data, to: folder.appending(path: "\(Self.coverName).\(pathExtension.lowercased())"))
   }
 
+  /// Copies a picture in as the cover, replacing any earlier one.
+  public func saveCover(copying picture: URL, of item: EntityID) throws {
+    try saveCover(try read(picture), extension: picture.pathExtension, of: item)
+  }
+
   private func named(_ stem: String, in folder: URL) -> URL? {
     let entries = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
     return entries.filter { $0.deletingPathExtension().lastPathComponent == stem && !$0.pathExtension.isEmpty }

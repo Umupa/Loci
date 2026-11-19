@@ -14,20 +14,77 @@ extension LocalHost {
     return item
   }
 
-  public func deleteItem(_ command: DeleteItem) async throws(HostError) -> Done {
-    await loci.forget(item: command.item)
-    do throws(HostError) {
-      try attempt { try store.deleteItem(command.item, notes: command.notes) }
-      await loci.forgotten(item: command.item)
-    } catch {
-      await loci.forgotten(item: command.item)
-      throw error
+  /// Sets the items aside, so they leave the library at once and can still come back. What was set aside
+  /// by the deletion before goes for good first: only the latest deletion can be undone.
+  public func deleteItems(_ command: DeleteItems) async throws(HostError) -> Done {
+    await discardSetAside()
+    var changes: Set<ContentChange> = [.events]
+    for item in command.items {
+      await loci.forget(item: item)
+      await library.queue.setAside(item)
+      do throws(HostError) {
+        try attempt { try store.setAside(item) }
+        await loci.forgotten(item: item)
+      } catch {
+        await loci.forgotten(item: item)
+        await library.queue.putBack(item)
+        await follow(changes)
+        throw error
+      }
+      changes.formUnion([.item(item), .notes(.item(item)), .conversation(.item(item))])
     }
-    await library.queue.forget(command.item)
-    try? database.deleteEvents(about: command.item)
-    var changes: Set<ContentChange> = [.item(command.item), .conversation(.item(command.item)), .events]
-    if command.notes == .delete { changes.insert(.notes(.item(command.item))) }
     await follow(changes)
+    return Done()
+  }
+
+  public func restoreDeleted() async throws(HostError) -> [Item] {
+    var restored: [Item] = []
+    var changes: Set<ContentChange> = [.events]
+    for id in store.setAsideItems() {
+      try attempt { try store.restore(id) }
+      changes.formUnion([.item(id), .notes(.item(id)), .conversation(.item(id))])
+      await library.queue.putBack(id)
+      if let item = try? store.item(id) { restored.append(item) }
+    }
+    await follow(changes)
+    return restored
+  }
+
+  /// Gets rid of what was set aside, with what the database still keeps of it: its conversation, its
+  /// events and its job.
+  func discardSetAside() async {
+    for item in store.setAsideItems() {
+      do {
+        try store.discardSetAside(item)
+      } catch {
+        await hub.failed("could not discard a deleted item: \(error)")
+        continue
+      }
+      try? database.deleteConversation(on: item)
+      try? database.deleteEvents(about: item)
+      await library.queue.forget(item)
+    }
+  }
+
+  public func renameItem(_ command: RenameItem) async throws(HostError) -> Item {
+    let title = command.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    let item = try attempt { try store.item(command.item) }
+    let renamed = try attempt {
+      try Item(
+        id: item.id, kind: item.kind, title: title, authors: item.authors, source: item.source,
+        language: item.language, contentHash: item.contentHash, site: item.site, published: item.published)
+    }
+    try attempt { try store.retitle(renamed, from: item.title) }
+    await follow([.item(item.id)])
+    return renamed
+  }
+
+  public func setCover(_ command: SetCover) async throws(HostError) -> Done {
+    guard let file = await hub.takeUpload(command.upload.id) else { throw .notFound("upload \(command.upload.id)") }
+    let format = file.pathExtension.lowercased()
+    guard SetCover.formats.contains(format) else { throw .invalidRequest("\(file.lastPathComponent) is not a picture") }
+    try attempt { try store.saveCover(copying: file, of: command.item) }
+    await follow([.item(command.item)])
     return Done()
   }
 

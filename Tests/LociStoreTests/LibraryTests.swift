@@ -40,18 +40,40 @@ struct LibraryTests {
     }
   }
 
-  @Test func deletingAnItemCanKeepOrDeleteItsNotes() throws {
+  @Test func anItemSetAsideLeavesTheLibraryWithItsNotesAndComesBackAsItWas() throws {
     try withStore { store in
-      for (seed, choice) in [(2, NotesOnDelete.keep), (3, NotesOnDelete.delete)] as [(UInt64, NotesOnDelete)] {
-        let item = try Fixture.item(seed)
-        try store.add(item, content: "text")
-        try store.append(.deleted(Fixture.id(9), at: Fixture.instant), on: .item(item.id))
-        try store.deleteItem(item.id, notes: choice)
+      let item = try Fixture.item()
+      try store.add(item, content: "text")
+      try store.append(.deleted(Fixture.id(9), at: Fixture.instant), on: .item(item.id))
+      let folder = try store.itemFolder(item.id).lastPathComponent
+      let notesFile = store.root.appending(path: "notes/library/\(item.id).jsonl")
 
-        #expect(throws: StoreError.notFound(item.id.description)) { try store.item(item.id) }
-        let notesFile = store.root.appending(path: "notes/library/\(item.id).jsonl")
-        #expect(FileManager.default.fileExists(atPath: notesFile.path(percentEncoded: false)) == (choice == .keep))
-      }
+      try store.setAside(item.id)
+
+      #expect(throws: StoreError.notFound(item.id.description)) { try store.item(item.id) }
+      #expect(!FileManager.default.fileExists(atPath: notesFile.path(percentEncoded: false)))
+      #expect(store.setAsideItems() == [item.id])
+
+      try store.restore(item.id)
+
+      #expect(try store.item(item.id) == item)
+      #expect(try store.itemFolder(item.id).lastPathComponent == folder)
+      #expect(try store.content(of: item.id) == "text")
+      #expect(FileManager.default.fileExists(atPath: notesFile.path(percentEncoded: false)))
+      #expect(store.setAsideItems().isEmpty)
+    }
+  }
+
+  @Test func anItemSetAsideCanBeDiscardedForGood() throws {
+    try withStore { store in
+      let item = try Fixture.item()
+      try store.add(item, content: "text")
+      try store.setAside(item.id)
+
+      try store.discardSetAside(item.id)
+
+      #expect(store.setAsideItems().isEmpty)
+      #expect(throws: StoreError.notFound(item.id.description)) { try store.item(item.id) }
     }
   }
 

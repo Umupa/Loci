@@ -53,7 +53,10 @@ final class FakeHost: LociModel.Host, CommandHandler {
   func localFile(_ place: LocalPlace) async -> LocalFile? { nil }
 
   func addTextItem(_ command: AddTextItem) async throws(HostError) -> Item { sample.items[0] }
-  func deleteItem(_ command: DeleteItem) async throws(HostError) -> Done { Done() }
+  func deleteItems(_ command: DeleteItems) async throws(HostError) -> Done { Done() }
+  func restoreDeleted() async throws(HostError) -> [Item] { [] }
+  func renameItem(_ command: RenameItem) async throws(HostError) -> Item { throw .notFound(command.item.description) }
+  func setCover(_ command: SetCover) async throws(HostError) -> Done { Done() }
   func listItems() async throws(HostError) -> [Item] { library?.items ?? sample.items }
   func itemText(_ item: EntityID) async throws(HostError) -> String { sample.text }
 

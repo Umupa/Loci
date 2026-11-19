@@ -48,6 +48,31 @@ struct LibrarySnapshots {
       "library-b-en", try SampleLibrary(), at: WindowState(place: .library(nil)), appearance: appearance, english: true)
   }
 
+  /// A-S7, A-S9, A-S10: two rows chosen, one title being renamed, and the notice after a deletion.
+  @Test(arguments: Snapshot.Appearance.allCases)
+  func choosingRenamingAndUndoing(appearance: Snapshot.Appearance) async throws {
+    let library = try SampleLibrary()
+    let rows = library.items.filter { $0.id != library.video.id }
+    let actions = ItemActions(rename: { _ in }, changeCover: { _ in }, delete: { _ in })
+    let view = ZStack(alignment: .bottom) {
+      ScrollView {
+        LibraryList(
+          items: rows, jobs: [:], progress: Progress(), chosen: [rows[1].id, rows[2].id], renaming: rows[4].id,
+          click: { _ in }, act: { _, _ in }, actions: actions, acted: { [$0] }, renamed: { _, _ in }
+        )
+        .padding(28)
+      }
+      DeletedNotice(count: 2, undo: {}).padding(.bottom, 24)
+    }
+    .background(Palette.canvas)
+    .environment(\.covers, Covers())
+    .lociHost(FakeHost(try Sample(problems: false), library: library))
+    let file = try await Snapshot.render(
+      view, named: "library-editing", size: CGSize(width: 900, height: 640), appearance: appearance,
+      settle: .milliseconds(1000))
+    #expect(try Data(contentsOf: file).count > 10_000)
+  }
+
   @Test(arguments: [nil, ItemKind.paper], Snapshot.Appearance.allCases)
   func anEmptyLibraryViewKeepsTheSidebarOnTheLeft(kind: ItemKind?, appearance: Snapshot.Appearance) async throws {
     let host = FakeHost(try Sample(problems: false), library: try SampleLibrary(empty: kind == nil))
