@@ -34,7 +34,7 @@ Every night after 23:00, once you have gone quiet, Loci looks back on the day: i
 
 ## Build
 
-Requires Xcode 26 or later.
+Requires Xcode 27 or later.
 
 ```sh
 script/check   # format, build, tests and architecture rules: the one gate

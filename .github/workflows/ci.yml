@@ -38,15 +38,17 @@ jobs:
           fi
           script/check-commits "$BASE..$HEAD"
 
+  # The code is built with Xcode 27. The compiler in the macos-26 image's Xcode 26 never finishes some of the
+  # tests, so every macOS job runs on the xcode-27 image, which GitHub still calls a preview.
   check:
     name: Check
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
       - name: Use the newest Xcode
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
 
       - name: Show the toolchain
         run: |
@@ -68,13 +70,13 @@ jobs:
 
   package:
     name: Dmg
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
       - name: Use the newest Xcode
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
 
       # No secrets on a pull request: this runs the ad-hoc branch of script/release, which has to keep
       # producing a dmg. The signed and notarized one is built by the release workflow from a tag.
