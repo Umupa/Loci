@@ -3,6 +3,7 @@ import SwiftUI
 /// The menu bar items Loci adds to the system's.
 public struct LociCommands: Commands {
   @FocusedValue(\.navigator) private var navigator
+  @FocusedValue(\.browserCommands) private var browser
 
   public init() {}
 
@@ -24,6 +25,16 @@ public struct LociCommands: Commands {
       }
       .keyboardShortcut("o")
       .disabled(navigator?.addFile == nil)
+      if let browser {
+        Button(action: browser.newTab) { Text(.loci("browser.newTab")) }
+          .keyboardShortcut("t")
+        Button(action: browser.openLocation) { Text(.loci("menu.openLocation")) }
+          .keyboardShortcut("l")
+        if let closeTab = browser.closeTab {
+          Button(action: closeTab) { Text(.loci("browser.closeTab")) }
+            .keyboardShortcut("w")
+        }
+      }
     }
     CommandGroup(after: .pasteboard) {
       Button {
@@ -32,6 +43,12 @@ public struct LociCommands: Commands {
         Text(.loci("menu.pasteLink"))
       }
       .disabled(navigator?.pasteLink == nil)
+    }
+    CommandGroup(before: .sidebar) {
+      if let reload = browser?.reload {
+        Button(action: reload) { Text(.loci("browser.reload")) }
+          .keyboardShortcut("r")
+      }
     }
     CommandGroup(replacing: .sidebar) {
       Button {

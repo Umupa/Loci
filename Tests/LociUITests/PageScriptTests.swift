@@ -9,14 +9,15 @@ import Testing
 struct PageScriptTests {
   static func facts(of html: String, at address: String) async throws -> PageFacts {
     let session = BrowserSession()
+    let tab = session.current
     let url = try #require(URL(string: address))
-    session.webView.loadHTMLString(html, baseURL: url)
+    session.webView(for: tab).loadHTMLString(html, baseURL: url)
     let deadline = ContinuousClock.now + .seconds(10)
     while ContinuousClock.now < deadline {
-      if session.facts != PageFacts() { return session.facts }
+      if tab.facts != PageFacts() { return tab.facts }
       try await Task.sleep(for: .milliseconds(100))
     }
-    return session.facts
+    return tab.facts
   }
 
   @Test func aChannelPageReportsEachVideoOnceWithItsTitleAndLength() async throws {

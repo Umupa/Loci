@@ -260,7 +260,7 @@ loci://library/<id>#path=src/vm.rs&L=12-40&rev=<sha>       代码
 | 断句 | Whisper 的逐词时间加 NaturalLanguage 的句子结构 |
 | 组件 | yt-dlp（系统里已有就用，标来源如 Homebrew，否则由 Loci 管理并可更新）、FFmpeg、QuickJS，都由 Loci 管理，装在 `~/Library/Application Support/Loci/`；设置里可重新检测 |
 | 网络 | 「使用浏览器登录信息」默认不使用；代理跟随系统；读取登录信息失败时改为不登录下载 |
-| 内置浏览器 | WKWebView：地址栏输入网址或搜索，页面上有视频时「下载视频 · n」，有正文时「加入资料库」；在里面登录过的网站，取回时带上登录状态 |
+| 内置浏览器 | WKWebView，多标签页共用一份配置和系统的网站数据：地址栏输入网址或搜索，页面上有视频时「下载视频 · n」，有正文时「加入资料库」；在里面登录过的网站，取回时带上登录状态 |
 | 正文提取 | 在 WKWebView 里加载页面后注入 defuddle 取正文，JavaScript 渲染的页面也能取；图片下载到资料文件夹 |
 
 - whisper 的 C 接口只在 `LociMedia` 里用；依赖的版本见 [architecture.md](architecture.md)。
