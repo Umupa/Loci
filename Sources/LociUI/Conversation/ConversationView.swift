@@ -22,6 +22,7 @@ struct ConversationScreen: View {
       startOver: { () async throws(HostError) -> Done in try await host.run(StartOver(in: ref)) },
       scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest
     )
+    .id(ref)
     .subscribing(OneConversation(ref), into: $conversation)
   }
 }
@@ -122,11 +123,11 @@ struct ConversationView: View {
     .background(Palette.canvas)
   }
 
-  /// Questions the person has asked; one more means the conversation goes to its end to show the answer.
   private var said: [TalkRow] {
     settled(SaidSoFar(conversation?.entries ?? [], turn: conversation?.turn))
   }
 
+  /// Questions the person has asked; one more means the conversation goes to its end to show the answer.
   private var questions: Int {
     let said = (conversation?.entries ?? []).count {
       if case .message(let message) = $0, case .prompt = message.body { true } else { false }
