@@ -40,12 +40,12 @@ extension JobRun {
     let folder = try stored { try context.store.workFolder(of: item.id) }
     let audio: Bool = if case .audio = item.kind { true } else { false }
     let report = progress(.download)
-    let context = context
+    let fetch = context
     let file = try await inTurn(queue.gates.downloads, at: .download) { () async throws(StageStop) -> URL in
       do throws(MediaError) {
         return try await tool.download(source, audio: audio, into: folder, progress: report)
       } catch {
-        throw await context.stop(error, at: source)
+        throw await fetch.stop(error, at: source)
       }
     }
     let media = try stored { try context.store.adoptMedia(file, of: item.id) }

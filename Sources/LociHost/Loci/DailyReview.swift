@@ -14,7 +14,7 @@ enum DailyReview {
     /// Whether any conversation has a turn running, or a review is under way.
     let working: Bool
     /// When anything was last said in a conversation.
-    let lastSaid: Timestamp?
+    let lastSaid: () -> Timestamp?
     let reviewed: (Day) -> Bool
     /// Whether anything was said or noted on the day.
     let active: (Day) -> Bool
@@ -26,11 +26,13 @@ enum DailyReview {
     let today = Day(containing: situation.now, in: situation.timeZone)
     let yesterday = today.adding(days: -1)
     if !situation.reviewed(yesterday), situation.active(yesterday) { return yesterday }
-    let late = TimeOfDay(of: situation.now, in: situation.timeZone).hour >= hour
-    let quiet = situation.lastSaid.map {
+    guard TimeOfDay(of: situation.now, in: situation.timeZone).hour >= hour, !situation.reviewed(today) else {
+      return nil
+    }
+    let quiet = situation.lastSaid().map {
       situation.now.millisecondsSince1970 - $0.millisecondsSince1970 >= quietMilliseconds
     }
-    if late, quiet ?? true, !situation.reviewed(today), situation.active(today) { return today }
+    if quiet ?? true, situation.active(today) { return today }
     return nil
   }
 }

@@ -40,6 +40,31 @@ struct LibraryTests {
     }
   }
 
+  @Test func aBatchOfItemsReadsCurrentFilesByIDAndSkipsMissingOrBrokenItems() throws {
+    try withStore { store in
+      let renamed = try Fixture.item(2)
+      let named = try Fixture.item(3)
+      let broken = try Fixture.item(4)
+      let duplicate = try Fixture.item(3, title: "Duplicate")
+      try store.add(renamed, content: "first")
+      try store.add(named, content: "second")
+      try store.add(broken, content: "third")
+      let original = try store.itemFolder(renamed.id)
+      let renamedFolder = original.deletingLastPathComponent().appending(path: "renamed")
+      try FileManager.default.moveItem(at: original, to: renamedFolder)
+      try store.write(Formats.document(duplicate), to: store.libraryFolder.appending(path: "ahead/item.json"))
+      try store.writeFile("library/a-\(broken.id)/item.json", "{\"id\":\"\(broken.id)\"}")
+
+      let ids: Set<EntityID> = [renamed.id, named.id, broken.id, Fixture.id(5)]
+      #expect(store.items(withIDs: ids) == [renamed.id: renamed, named.id: named])
+
+      let updated = try Fixture.item(2, title: "Updated")
+      try store.save(updated)
+      try store.deleteItem(named.id, notes: .keep)
+      #expect(store.items(withIDs: ids) == [updated.id: updated, duplicate.id: duplicate])
+    }
+  }
+
   @Test func deletingAnItemCanKeepOrDeleteItsNotes() throws {
     try withStore { store in
       for (seed, choice) in [(2, NotesOnDelete.keep), (3, NotesOnDelete.delete)] as [(UInt64, NotesOnDelete)] {

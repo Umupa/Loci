@@ -22,6 +22,7 @@ struct ConversationScreen: View {
       startOver: { () async throws(HostError) -> Done in try await host.run(StartOver(in: ref)) },
       scale: ref == .main ? .main : .companion, attach: attach, focusRequest: focusRequest
     )
+    .id(ref)
     .subscribing(OneConversation(ref), into: $conversation)
   }
 }
@@ -29,7 +30,8 @@ struct ConversationScreen: View {
 /// Everything said with Loci as a chat, newest at the bottom, with the input field floating over its foot.
 ///
 /// Each row is its own view keyed by its message and part, so a reply that grows while it streams redraws
-/// only its last bubble.
+/// only its last bubble. What was said before the running turn is laid out once, not again as the reply
+/// grows.
 struct ConversationView: View {
   let conversation: Conversation?
   @Binding var draft: PassageDraft?
@@ -48,15 +50,21 @@ struct ConversationView: View {
   @State private var position = ScrollPosition(edge: .bottom)
   @State private var scrolling = false
   @State private var pointedAnswer: EntityID?
+  @State private var settled = Remembered(TalkRow.settled)
+  /// How many of the earliest rows are not drawn; `nil` until the conversation arrives.
+  @State private var hidden: Int?
 
   var body: some View {
-    ScrollView {
+    let said = said
+    let live = TalkRow.live(conversation?.turn)
+    let start = min(hidden ?? RowWindow.latest(in: said), said.count)
+    return ScrollView {
       LazyVStack(alignment: .leading, spacing: 0) {
-        ForEach(rows) { row in
+        ForEach(said[start...] + live) { row in
           view(of: row).arriving()
         }
       }
-      .animatingArrivals(rows.count)
+      .animatingArrivals(said.count(where: \.arrives) + live.count(where: \.arrives))
       .padding(.horizontal, scale == .main ? 28 : Spacing.m)
       .frame(maxWidth: scale == .main ? 640 : .infinity)
       .padding(.top, scale == .main ? Spacing.l : 0)
@@ -73,6 +81,15 @@ struct ConversationView: View {
     }
     .onScrollGeometryChange(for: CGFloat.self, of: \.contentSize.height) { _, _ in
       if follow.isOn && !scrolling { position.scrollTo(edge: .bottom) }
+    }
+    .onScrollGeometryChange(for: Bool.self, of: { $0.contentOffset.y + $0.contentInsets.top < 1 }) { _, atTop in
+      let said = said
+      guard atTop, let hidden, hidden > 0, hidden < said.count else { return }
+      self.hidden = RowWindow.earlier(than: hidden, in: said)
+      position.scrollTo(id: said[hidden].id, anchor: .top)
+    }
+    .onChange(of: said.isEmpty, initial: true) {
+      if hidden == nil, !said.isEmpty { hidden = RowWindow.latest(in: said) }
     }
     .onChange(of: questions) {
       follow.asked()
@@ -105,26 +122,16 @@ struct ConversationView: View {
     .background(Palette.canvas)
   }
 
+  private var said: [TalkRow] {
+    settled(SaidSoFar(conversation?.entries ?? [], turn: conversation?.turn))
+  }
+
   /// Questions the person has asked; one more means the conversation goes to its end to show the answer.
   private var questions: Int {
-    entries.count { if case .asked = $0 { true } else { false } }
-  }
-
-  private var entries: [ConversationEntry] {
-    ConversationEntry.layout(
-      (conversation?.entries ?? []) + (conversation?.turn?.messages ?? []).map { .message($0) },
-      live: conversation?.turn != nil)
-  }
-
-  private var rows: [TalkRow] {
-    TalkRow.rows(entries, waiting: waiting)
-  }
-
-  /// Loci is at work but has shown nothing of it yet.
-  private var waiting: Bool {
-    guard let turn = conversation?.turn else { return false }
-    if case .prompt = turn.messages.last?.body { return true }
-    return false
+    let said = (conversation?.entries ?? []).count {
+      if case .message(let message) = $0, case .prompt = message.body { true } else { false }
+    }
+    return said + (conversation?.turn == nil ? 0 : 1)
   }
 
   @ViewBuilder private func view(of row: TalkRow) -> some View {

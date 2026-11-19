@@ -31,8 +31,8 @@ struct Following: Equatable {
   }
 }
 
-/// The round button over the composer that goes back to the newest message: an arrow, or while Loci
-/// is still answering, dots that pulse.
+/// The round button over the composer that goes back to the newest message: an arrow, or while Loci is
+/// still answering, dots that pulse.
 struct LatestButton: View {
   let busy: Bool
   let action: () -> Void
@@ -43,7 +43,7 @@ struct LatestButton: View {
     Button(action: action) {
       Group {
         if busy {
-          Image(systemName: Symbols.more).symbolEffect(.variableColor.iterative, options: .repeating)
+          DotRow(size: 3, gap: 2.5, rise: 0, color: Tones.accentInk)
         } else {
           Image(systemName: Symbols.latest)
         }

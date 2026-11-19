@@ -35,7 +35,7 @@ struct HostCodingTests {
     #expect(try Self.roundTrips(SendMessage(to: .main, text: "在吗")))
     #expect(try Self.roundTrips(StopTurn(in: .main)))
     #expect(try Self.roundTrips(StartOver(in: .item(Fixture.item))))
-    #expect(try Self.roundTrips(SetRuntime(Runtime(provider: .claudeCode, model: "opus", effort: .high))))
+    #expect(try Self.roundTrips(SetRuntime(Runtime(provider: .codex, model: "gpt-6.1-sol", effort: .high))))
     #expect(try Self.roundTrips(ReadRuntime()))
     #expect(try Self.roundTrips(SaveSoul(core: "# Soul\n\nYou are Loci.")))
     #expect(try Self.roundTrips(Forget("- 2026-11-02 先给结论", in: .memory)))

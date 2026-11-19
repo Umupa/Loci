@@ -97,7 +97,9 @@ struct DailyReviewTests {
     return DailyReview.due(
       .init(
         now: now, timeZone: TestWorld.timeZone, working: working,
-        lastSaid: lastSaid.map { Timestamp(millisecondsSince1970: now.millisecondsSince1970 - $0 * 60_000) },
+        lastSaid: {
+          lastSaid.map { Timestamp(millisecondsSince1970: now.millisecondsSince1970 - $0 * 60_000) }
+        },
         reviewed: { reviewed.contains($0.description) }, active: { active.contains($0.description) }))
   }
 

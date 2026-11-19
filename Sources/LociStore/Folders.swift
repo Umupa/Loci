@@ -41,6 +41,35 @@ extension Store {
     try folder(holding: id, in: libraryFolder, file: Self.itemFile)
   }
 
+  /// Reads the current items by id, skipping any that are missing or unreadable.
+  public func items(withIDs ids: Set<EntityID>) -> [EntityID: Item] {
+    guard !ids.isEmpty else { return [:] }
+    let folders = subfolders(of: libraryFolder)
+    var pending = ids
+    var items: [EntityID: Item] = [:]
+    for folder in folders {
+      guard let id = FolderName.id(in: folder.lastPathComponent), pending.contains(id),
+        let found = identifiedItem(in: folder), found.id == id
+      else { continue }
+      pending.remove(id)
+      items[id] = found.item
+    }
+    for folder in folders {
+      if pending.isEmpty { break }
+      guard let found = identifiedItem(in: folder), pending.remove(found.id) != nil else { continue }
+      items[found.id] = found.item
+    }
+    return items
+  }
+
+  private func identifiedItem(in folder: URL) -> (id: EntityID, item: Item?)? {
+    guard let data = try? read(folder.appending(path: Self.itemFile)) else { return nil }
+    let decoder = JSONDecoder()
+    if let item = try? decoder.decode(Item.self, from: data) { return (item.id, item) }
+    guard let identified = try? decoder.decode(IdentifiedFile.self, from: data) else { return nil }
+    return (identified.id, nil)
+  }
+
   /// The id written in an item's folder, even when the rest of the file is invalid.
   func id(ofFolder folder: URL) -> EntityID? {
     guard let data = try? read(folder.appending(path: Self.itemFile)) else { return nil }

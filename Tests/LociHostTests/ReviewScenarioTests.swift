@@ -65,6 +65,23 @@ struct ReviewScenarioTests {
     }
   }
 
+  @Test(arguments: [false, true])
+  func aCheckThatCannotStartTodaysReviewSkipsTheLastMessageLookup(alreadyReviewed: Bool) throws {
+    let time = alreadyReviewed ? "23:30" : "22:59"
+    let now = try #require(Timestamp("2025-11-17T\(time):00.000Z"))
+    let today = Day(containing: now, in: .gmt)
+    let situation = DailyReview.Situation(
+      now: now, timeZone: .gmt, working: false,
+      lastSaid: {
+        Issue.record("The check read the last message time even though today's review could not start")
+        return nil
+      },
+      reviewed: { alreadyReviewed && $0 == today },
+      active: { $0 == today })
+
+    #expect(DailyReview.due(situation) == nil)
+  }
+
   @Test func soSoonAfterTalkingItWaits() async throws {
     try await withHost(agent: Self.reviewer) { host, _, world in
       world.set(to: "23:15")

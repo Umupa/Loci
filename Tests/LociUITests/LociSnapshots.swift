@@ -90,6 +90,11 @@ struct LociSnapshots {
         ReplyText(text: "图画好了，挂在 Pingora 第二条划线旁边", streaming: false)
       }
       BubbleRow(speaker: .loci, position: .last, turn: false, scale: .main) { TypingDots() }
+      HStack(spacing: Spacing.m) {
+        LatestButton(busy: true) {}
+        LatestButton(busy: false) {}
+      }
+      .padding(.leading, 40)
       SavingCard(
         item: video, job: LociModel.Job(item: video.id, stage: .translate, state: .running(progress: nil)), indent: 40)
       SavingCard(

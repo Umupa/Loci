@@ -63,7 +63,7 @@ actor LociAgent {
     let timeZone = context.environment.timeZone
     let situation = DailyReview.Situation(
       now: context.environment.now(), timeZone: timeZone, working: await isWorking,
-      lastSaid: (try? database.talk())?.latest,
+      lastSaid: { (try? database.talk())?.latest },
       reviewed: { (try? database.review(of: $0)) != nil },
       active: { day in
         let start = day.start(in: timeZone)
