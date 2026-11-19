@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 1.1.0 — 2026-11-19
+
 ### 安装
 
 - 应用改名为 Loci (Beta)，dmg 是 `Loci-Beta-<版本>.dmg`。数据文件夹仍是 `~/Loci Dev`，已给的权限保留。
