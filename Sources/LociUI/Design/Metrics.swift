@@ -50,6 +50,7 @@ enum Size {
   static let cardMinimumWidth: CGFloat = 200
   static let cardThumbnailRatio: CGFloat = 16 / 9
   static let panelWidth: CGFloat = 384
+  static let updateButton: CGFloat = 28
   /// The strip along a pane's edge that drags it wider.
   static let resizer: CGFloat = 8
   /// Where the button that brings the sidebar back sits, clear of the window's buttons.

@@ -9,6 +9,7 @@ public struct RootView: View {
   private let machines: any Machines
   private let memory: @MainActor (MachineID?) -> WindowMemory
   private let talkShown: () -> Void
+  private let updates: any Updates
   @State private var roster: Roster?
   /// `nil` is this Mac.
   @State private var current: MachineID?
@@ -19,25 +20,30 @@ public struct RootView: View {
   @AppStorage(PaneWidth.sidebar.key) private var sidebarWidth = Double(PaneWidth.sidebar.ideal)
 
   /// `folder` is the data folder this Mac serves, so each folder reopens where it was left. `talkShown` runs
-  /// when the main conversation first appears, which is when Loci can be typed into.
-  public init(folder: URL, machines: any Machines, talkShown: @escaping () -> Void = {}) {
+  /// when the main conversation first appears, which is when Loci can be typed into. `updates` keeps this copy of
+  /// Loci up to date, whichever Mac the window shows.
+  public init(
+    folder: URL, machines: any Machines, updates: any Updates = NoUpdates(), talkShown: @escaping () -> Void = {}
+  ) {
     self.init(
       machines: machines,
       memory: { machine in
         machine.map { .preferences(.standard, remote: $0) } ?? .preferences(.standard, folder: folder)
-      }, talkShown: talkShown)
+      }, updates: updates, talkShown: talkShown)
   }
 
   /// Opens each Mac where `memory` says it was last. `current`, `menuOpen` and `sheet` start the window
   /// part way through, for a snapshot.
   init(
     machines: any Machines, memory: @escaping @MainActor (MachineID?) -> WindowMemory,
-    talkShown: @escaping () -> Void = {}, current: MachineID? = nil, menuOpen: Bool = false,
+    updates: any Updates = NoUpdates(), talkShown: @escaping () -> Void = {}, current: MachineID? = nil,
+    menuOpen: Bool = false,
     sheet: RemoteSheetState? = nil, browser: BrowserSession = BrowserSession()
   ) {
     self.machines = machines
     self.memory = memory
     self.talkShown = talkShown
+    self.updates = updates
     _current = State(initialValue: current)
     _menuOpen = State(initialValue: menuOpen)
     _sheet = State(initialValue: sheet)
@@ -54,6 +60,7 @@ public struct RootView: View {
         .id(shown.id)
         .lociHost(machines.open(shown.id))
         .environment(\.machineChoice, choice(roster, shown: shown))
+        .environment(\.updates, updates)
       } else {
         Palette.canvas
       }

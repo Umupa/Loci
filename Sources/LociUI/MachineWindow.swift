@@ -117,7 +117,13 @@ struct MachineWindow: View {
         .padding(.trailing, Spacing.xs)
     }
     .safeAreaInset(edge: .bottom, alignment: .leading) {
-      HealthIndicator(health: health?.value).padding(.horizontal, Spacing.s).padding(.bottom, Spacing.xs)
+      HStack {
+        HealthIndicator(health: health?.value)
+        Spacer(minLength: 0)
+        UpdateButton()
+      }
+      .padding(.horizontal, Spacing.s)
+      .padding(.bottom, Spacing.xs)
     }
   }
 
