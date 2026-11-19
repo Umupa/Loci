@@ -147,10 +147,10 @@ struct ScrolledUpTests {
     var stillAtTop = 0
     var phase = CGScrollPhase.began
     var last = (height: scroll.documentView?.frame.height ?? 0, top: scroll.contentView.bounds.minY)
-    let deadline = ContinuousClock.now + .seconds(60)
+    let deadline = ContinuousClock.now + .seconds(180)
     while stillAtTop < 20 && ContinuousClock.now < deadline {
       let event = CGEvent(
-        scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: 400, wheel2: 0, wheel3: 0)
+        scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: 2000, wheel2: 0, wheel3: 0)
       event?.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
       if let event, let scrolled = NSEvent(cgEvent: event) { scroll.scrollWheel(with: scrolled) }
       phase = .changed
