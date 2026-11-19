@@ -9,7 +9,7 @@ struct Sample: Sendable {
   let items: [Item]
   let notes: [Note]
   var health: Health
-  let runtime = Runtime(provider: .claudeCode, model: "opus", effort: .high)
+  let runtime = Runtime(provider: .codex, model: "gpt-6.1-sol", effort: .high)
   let text = """
     Large-scale cluster management at Google with Borg
 
